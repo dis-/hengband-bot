@@ -61,6 +61,19 @@ def compile_magic_eater(key, owner):
     return None
 
 
+def kind_menu_wait(reading, row0, prompts):
+    """Whether the game waits in the use_menu kind menu titled by ``prompts``.
+
+    select_magic_eater's cursor loop read raw inkey() and published null
+    until game 8efed08ef7, which publishes it as command_char with the menu
+    line as the prompt.  Either way the complete source-derived menu is
+    still required (``_wand_menu_answer``).
+    """
+    if reading.source == "null":
+        return row0 in prompts
+    return reading.kind == "command_char" and reading.prompt.strip() in prompts
+
+
 def _wand_menu_answer(lines, wanted=1):
     choices = [line.strip() for line in lines[2:5]]
     if len(choices) != 3 or not all(
@@ -165,9 +178,7 @@ def _answer(step, screen, operation):
     if step.stage == "kind":
         if reading.kind == "command_char" and prompt in TYPE_PROMPTS:
             return ("A" if step.kind == "staff" else "B"), "power"
-        # This loop uses raw inkey(), so the server explicitly reports null.
-        # Require its complete source-derived menu as well as the null context.
-        if reading.source == "null" and row0 in MENU_PROMPTS:
+        if kind_menu_wait(reading, row0, MENU_PROMPTS):
             answer = _wand_menu_answer(lines, 0 if step.kind == "staff" else 1)
             return answer, "power" if answer == "\r" else "kind"
         raise ValueError("unowned Magic-Eater type prompt")

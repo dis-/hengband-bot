@@ -101,7 +101,9 @@ def _named_definition(item, definitions):
         kind = entry.get("base_item")
         if kind and (kind["type_value"], kind["subtype_value"]) != (item.tval, item.sval):
             continue
-        score = max((len(label) for label in entry["name"].values()
+        # Game 664240d477 dropped trailing spaces from a few lib/edit names
+        # (「『死神ももえ』 」, "The Orb of Fate "); compare names stripped.
+        score = max((len(label) for label in map(str.strip, entry["name"].values())
                      if label and label in name), default=0)
         if score:
             matches.append((score, entry))

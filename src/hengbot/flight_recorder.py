@@ -206,6 +206,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_q2_tower_recharge",
         # The Q34 -> kit -> Q1 route's named stop detail (#47 n1-c 10-31).
         "_opening_q1_failure",
+        # The Q1 carries lowered to what the gold buys (owner 2026-10-31).
+        "_quest_carry_lowered",
     )
     # Include every simple mode/latch/counter as cheap insurance against a field
     # omitted from a hand-maintained diagnostic list.

@@ -116,6 +116,14 @@ _COMPATIBLE_KINDS: dict[str, frozenset[ScreenKind]] = {
     "any_key": frozenset({ScreenKind.IDENTIFY_VIEWER_PAGE,
                           ScreenKind.IDENTIFY_VIEWER_FINAL, ScreenKind.UNKNOWN}),
     "point": frozenset({ScreenKind.UNKNOWN}),
+    # Game develop 92e9029a (tools/bot/README.md "input_context"): the spell
+    # list and the birth choices have no screen kind of their own; the file
+    # viewer also pages the message log (^P), which the classifier leaves
+    # unknown; ``building`` is the building's service menu.
+    "spell": frozenset({ScreenKind.UNKNOWN}),
+    "building": frozenset({ScreenKind.BUILDING}),
+    "file": frozenset({ScreenKind.FILE_VIEWER, ScreenKind.UNKNOWN}),
+    "birth": frozenset({ScreenKind.UNKNOWN}),
 }
 
 

@@ -35,6 +35,31 @@ def class_throwing_items(force: dict[str, Any], class_id: int) -> dict[str, Any]
     return dict(overrides) if overrides is not None else dict(force.get("throwing_items", {}))
 
 
+# The carries a strategy may lower when the full kit cannot be afforded:
+# required_force name -> where the force keeps its required count.
+LOWERABLE_CARRIES = ("lit_torch", "heal_potions", "speed_potions")
+
+
+def carry_floor(force: dict[str, Any], class_id: int) -> dict[str, int]:
+    """The reviewed lower carry counts (QUEST_1 ``carry_floor``), class rows first."""
+    floor = dict(force.get("carry_floor", {}))
+    floor.update(force.get("carry_floor_by_class", {}).get(str(class_id), {}))
+    return {name: int(value) for name, value in floor.items() if name in LOWERABLE_CARRIES}
+
+
+def lower_carries(force: dict[str, Any], lowered: dict[str, int]) -> dict[str, Any]:
+    """``force`` with each lowerable carry at most its ``lowered`` count."""
+    force = dict(force)
+    if "lit_torch" in lowered:
+        throwing = dict(force.get("throwing_items", {}))
+        throwing["lit_torch"] = min(int(throwing.get("lit_torch", 0)), lowered["lit_torch"])
+        force["throwing_items"] = throwing
+    for name in ("heal_potions", "speed_potions"):
+        if name in lowered:
+            force[name] = min(int(force.get(name, 0)), lowered[name])
+    return force
+
+
 @dataclass(frozen=True)
 class StrategyProfile:
     quest_id: int
@@ -96,6 +121,11 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
         "required_scrolls": {"light", "teleport"},
         "utility_tools": {"wall_breach"},
     }
+    floors = [force.get("carry_floor", {}), *force.get("carry_floor_by_class", {}).values()]
+    if not all(isinstance(floor, dict) and set(floor) <= set(LOWERABLE_CARRIES)
+               and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0
+                       for v in floor.values()) for floor in floors):
+        raise ValueError("carry_floor must map lowerable carries to non-negative integers")
     by_class = force.get("throwing_items_by_class", {})
     if not isinstance(by_class, dict) or not all(isinstance(v, dict) for v in by_class.values()):
         raise ValueError("throwing_items_by_class must map class ids to objects")

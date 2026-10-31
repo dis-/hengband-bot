@@ -17,9 +17,76 @@ from hengbot.policy_constants import (
 )
 from hengbot.item_reservation import decision_memo
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.quest_strategies import acceptance_dps_floor, acceptance_hp_floor
+from hengbot.quest_strategies import acceptance_dps_floor, acceptance_hp_floor, carry_floor
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
+
+
+# Requirement category -> the required_force carry it counts (carry_floor).
+Q1_CARRIES = {"quest-throwing-items": "lit_torch", "quest-healing": "heal_potions",
+              "quest-speed": "speed_potions"}
+
+
+def _q1_offer(matches, item):
+    """A shelf row that serves a requirement (a torch only with fuel)."""
+    return item.count > 0 and matches(item) and not (item.is_torch and item.fuel <= 0)
+
+
+def _q1_reserve(requirements, offers):
+    """(gold to buy every missing unit, first purchase, unstocked category)."""
+    reserve, first = 0, None
+    for category, target, current, matches in requirements:
+        missing = max(0, target - current)
+        for store, item in sorted(offers, key=lambda row: row[1].price):
+            if not missing or not _q1_offer(matches, item):
+                continue
+            quantity = min(missing, item.count)
+            reserve += quantity * item.price
+            missing -= quantity
+            if first is None:
+                first = (category, store, item, quantity)
+        if missing:
+            return reserve, first, category
+    return reserve, first, None
+
+
+def _q1_affordable_targets(requirements, offers, gold, floor):
+    """carry name -> lowered target: the floor, then what the rest of ``gold`` buys.
+
+    Owner 2026-10-31 「Q1の要求値を下げ、受注可能にする」: each category is
+    first bought up to its floor (``carry_floor``, never above its full
+    target); the gold left then buys further units toward the full targets in
+    requirement order, cheapest first.  None when the floors cost more than
+    ``gold``.
+    """
+    left = {id(item): item.count for _, item in offers}
+    rows = sorted(offers, key=lambda row: row[1].price)
+
+    def buy(matches, units, budget):
+        bought = spent = 0
+        for _, item in rows:
+            while (bought < units and left[id(item)] > 0 and _q1_offer(matches, item)
+                   and (budget is None or spent + item.price <= budget)):
+                left[id(item)] -= 1
+                bought, spent = bought + 1, spent + item.price
+        return bought, spent
+
+    targets, budget = {}, gold
+    for category, target, current, matches in requirements:
+        name = Q1_CARRIES[category]
+        lowest = min(target, floor.get(name, target))
+        bought, spent = buy(matches, max(0, lowest - current), None)
+        targets[name], budget = current + bought, budget - spent
+        if targets[name] < lowest:
+            return None
+    if budget < 0:
+        return None
+    for category, target, current, matches in requirements:
+        name = Q1_CARRIES[category]
+        bought, spent = buy(matches, max(0, target - targets[name]), budget)
+        targets[name] += bought
+        budget -= spent
+    return targets
 
 
 class OpeningRouteMixin:
@@ -44,6 +111,16 @@ class OpeningRouteMixin:
         return snapshot.in_town and self._opening_q1_active(snapshot)
 
     def _opening_q1_requirements(self, snapshot):
+        """The Q1 carries, at the counts the route lowered them to (if it did)."""
+        full = self._opening_q1_full_requirements(snapshot)
+        carry = getattr(self, "_quest_carry_lowered", None)
+        if carry is None or carry[0] != 1:
+            return full
+        return tuple((category, min(target, carry[1].get(Q1_CARRIES[category], target)),
+                      current, matches)
+                     for category, target, current, matches in full)
+
+    def _opening_q1_full_requirements(self, snapshot):
         return decision_memo(
             self, "opening-q1-requirements", snapshot, (),
             lambda: self._opening_q1_requirements_uncached(snapshot),
@@ -51,7 +128,7 @@ class OpeningRouteMixin:
 
     def _opening_q1_requirements_uncached(self, snapshot):
         profile = self.approved_quest_strategy(1)
-        force = self._strategy_force_for_snapshot(snapshot, profile)
+        force = self._strategy_force_for_snapshot(snapshot, profile, lowered=False)
         # Ask the same DPS/HP calculation as readiness. Carries may still fail;
         # its measurements are nevertheless populated before that rejection.
         previous = self._fixed_quest_readiness
@@ -142,7 +219,7 @@ class OpeningRouteMixin:
         # reserves still get replenished if they become short before entry.
         quest = self._known_fixed_quests(snapshot).get(1)
         accepted = quest is not None and quest.status == QUEST_STATUS_TAKEN
-        requirements = self._opening_q1_requirements(snapshot)
+        requirements = self._opening_q1_full_requirements(snapshot)
         pages = self._opening_q1_pages(snapshot)
         suppliers = []
         if requirements[0][1] > requirements[0][2]:
@@ -175,22 +252,23 @@ class OpeningRouteMixin:
                    if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
         owned = [item for item in (*snapshot.inventory, *snapshot.equipment)
                  if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
-        reserve = 0
-        first = None
-        for category, target, current, matches in requirements:
-            missing = max(0, target - current)
-            for store, item in sorted(offers, key=lambda row: row[1].price):
-                if not missing or not matches(item) or (item.is_torch and item.fuel <= 0):
-                    continue
-                quantity = min(missing, item.count)
-                reserve += quantity * item.price
-                missing -= quantity
-                if first is None:
-                    first = (category, store, item, quantity)
-            if missing:
-                return "stop:stock:" + category, None, None, 0, 0
+        reserve, first, unstocked = _q1_reserve(requirements, offers)
+        if unstocked is not None:
+            return "stop:stock:" + unstocked, None, None, 0, 0
+        self._quest_carry_lowered = None
         if reserve > snapshot.player.gold:
-            return "stop:unaffordable-quest-reserve", None, None, 0, reserve - snapshot.player.gold
+            # 「Q1の要求値を下げ、受注可能にする」 (owner 2026-10-31): buy what the
+            # gold allows down to the strategy's carry floor; readiness and
+            # entry read the same lowered counts (_strategy_force_for_snapshot).
+            lowered = _q1_affordable_targets(
+                requirements, offers, snapshot.player.gold,
+                carry_floor(self.approved_quest_strategy(1).required_force,
+                            snapshot.player.class_id))
+            if lowered is None:
+                return ("stop:unaffordable-quest-reserve", None, None, 0,
+                        reserve - snapshot.player.gold)
+            self._quest_carry_lowered = (1, lowered)
+            reserve, first, _ = _q1_reserve(self._opening_q1_requirements(snapshot), offers)
         if first is not None:
             category, store, item, quantity = first
             return category, store, item, quantity, 0

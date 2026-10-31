@@ -32,13 +32,15 @@ row; adding a condition is one predicate and its name in a row.
 Common rules (approved): never while a hostile is visible or the character
 was just hit, never with 0 charges (the last list the game displayed, else
 the absorption record), never in town or the wilderness, and a failed use is
-not retried for the same trigger at the same place on the same floor.
+retried for the same trigger at the same place on the same floor until
+``FAILURES_PER_PLACE`` failures (owner 2026-10-31 「最大5回まで同じ場所で試す」).
 Stage 1 (Identify, Treasure Location) keeps its owners in me_staff_sequence
 and policy_fundraising.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -66,6 +68,9 @@ F_LIT_STANDARD = 0       # terrain-definition.h: a glowing grid in view
 # A room's edge cell has five floor neighbours; a dungeon tunnel is one cell
 # wide (an open space, not a corridor, is what lite_room can light).
 OPEN_SPACE_NEIGHBOURS = 5
+# Failed casts of one power for one trigger at one place before it is given
+# up there (owner 2026-10-31 「最大5回まで同じ場所で試す」).
+FAILURES_PER_PLACE = 5
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
 
 # cmd-magiceat.cpp: the kind question ([A] staff, [B] wand, [C] rod) and the
@@ -147,7 +152,7 @@ class FloorMemory:
     floor: tuple
     turn: int
     uses: list = field(default_factory=list)
-    failed: set = field(default_factory=set)   # (used ident, trigger, position)
+    failed: Counter = field(default_factory=Counter)  # (used ident, trigger, position) -> failures
     pending: Use | None = None
 
 
@@ -361,7 +366,7 @@ def observe(policy, snapshot) -> None:
         if snapshot.completed_operation_owner == pending.reason:
             refusal = (snapshot.completed_operation_receipt or {}).get("refusal")
             if isinstance(refusal, str) and refusal.startswith("failed"):
-                memory.failed.add((pending.used, pending.trigger, pending.position))
+                memory.failed[(pending.used, pending.trigger, pending.position)] += 1
             elif snapshot.turn > pending.turn:
                 memory.uses.append(pending)
             # Same turn, no refusal: the list closed the prompt (no charge).
@@ -373,7 +378,7 @@ def observe(policy, snapshot) -> None:
 
 def _usable(ctx, power, trigger) -> bool:
     return (all(REQUIREMENTS[name](ctx) for name in power.requires)
-            and (power.ident, trigger, ctx.position) not in ctx.memory.failed
+            and ctx.memory.failed[(power.ident, trigger, ctx.position)] < FAILURES_PER_PLACE
             and charges(ctx.policy, ctx.snapshot, power) > 0)
 
 

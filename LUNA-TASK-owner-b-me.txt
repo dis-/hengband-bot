@@ -1,0 +1,37 @@
+ISSUE: #47
+Owner answers of 2026-10-31 15h (memory owner-answers-14-decisions-20261031.md), Magic-Eater / opening family, plus three small
+compatibility patches for game develop 92e9029a. Branch owner-b-me-1031 at main 0f2266ae6, worktree
+C:\hengband\bot-client\.worktrees\owner-b-me-1031.
+
+1. Stage staff out of stock. Owner: 「資金に余力が出来たら他の街も見て回ることで時短を図る」. Today the carried staffs are
+   absorbed first and the missing one is waited for at Morivant (me_staff_sequence.py, _stocked_out, fd4df391a). Add: when the
+   gold after the sequence's reserve (kit, travel fares both ways, recharge) covers a trip, visit the Magic shops of the other
+   towns (reuse the existing inter-town travel/fare code and the remembered shelves) to find the missing staff, and buy it
+   there; otherwise keep mining and waiting. Define "余力" from existing reserve helpers, not a new magic number (say which).
+2. Q1 requirement. Owner: 「Q1の要求値を下げ、受注可能にする」 (same direction as memory q1-acceptance-relax-allowed-decision-
+   20261026). When the Q1 kit cannot be fully afforded the bot now stops by name (fix-me-nokey-1031, 9d63514f0 and the
+   'stop:unaffordable-quest-reserve' path). Lower the Q1 acceptance/kit requirement so that the character can take Q1 with
+   what it can afford - derive the lower floor from the quest strategy data (lib quest strategy QUEST_1.jsonc and
+   quest_strategies.py), not by a class branch; evidence: n1-c life-058 boards in C:\hengband-backups\pdca\captures\
+   latest-12h-1031\ (084721, 084733, 084745) and tests/test_me_nokey_1031_recorded.py Q1TorchForceTest.
+3. Absorbed power retry. Owner: 「最大5回まで同じ場所で試す」. me_powers.py: after a failed cast, retry the same power at the same
+   place up to 5 failures in total (then not again at that place for that trigger); keep it a table/rule value in me_powers,
+   update tests/test_me_stage2_powers.py.
+4. Compatibility patches (from the develop 92e9029a check):
+   a. magic_eater_input.py:170, me_device_attacks_input.py:93, me_powers_refresh_input.py:46: also accept
+      reading.kind == "command_char" with the prompt in MENU_PROMPTS / BROWSE_MENU_PROMPTS (game commit 8efed08ef7 publishes
+      command_char for the use_menu Magic-Eater kind menu).
+   b. input_context.py _COMPATIBLE_KINDS (106-119): add the new kinds spell, building, file, birth.
+   c. store_sale_knowledge.json / store_sale.py:93-107: names lost trailing spaces upstream (664240d477:
+      「チーターマン『アリエス』 」, 「『死神ももえ』 」, "The Orb of Fate "); strip the names (or regenerate) so the match works.
+   Small tests for each.
+
+Do: LUNA-DIAG-owner-b-me.txt first (where each item lives, file:line), one commit per item, defect checks through the public
+choose_key and the production executor where keys are posted, failing on the unfixed code (revert, run, restore; record).
+Report LUNA-REPORT-owner-b-me.txt (Japanese) with 「保守性」, proposed checks.json entries (do NOT edit checks.json), open
+questions; commit.
+
+Rules: C:\hengband-backups\pdca\TASK-COMMON-1031.txt applies except base commit and family list (MAINTAINABILITY rule).
+Parallel: owner-a-survival-1031 (combat/return/light), owner-c-equip-1031 (mining strip, town re-arm, full-pack stop). NEVER
+git stash. Python UTF-8 for text files. Checks: import check, checks.json tests, your tests. No full suite, preflight,
+mutation_check, fast_tier. No background processes left; do not wait on background work.

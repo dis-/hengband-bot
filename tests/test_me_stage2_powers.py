@@ -145,15 +145,20 @@ class MagicEaterStage2PowersTest(mining.harness.ProductionHarness):
                                  me_powers.SECRET_SEARCH):
                     self.assertIsNone(me_powers.power_key(policy, board, occasion))
 
-    def test_failed_cast_is_not_retried_at_the_same_place(self):
+    def test_failed_cast_is_retried_at_the_same_place_up_to_five_failures(self):
+        # Owner 2026-10-31 「最大5回まで同じ場所で試す」.
         raw = self.board()
         policy = self.policy(raw)
-        key = self.choose(policy, raw)
-        self.assertPower(policy, key, "p", "me-power:new-floor:detect-evil")
-        failure = command_screen(raw["turn"] + 10)
-        failure["lines"][0] = FAILED
-        board = self.cast(policy, raw, key, staff_rows(), after=[failure])
-        self.assertEqual(board["_completed_operation_receipt"]["refusal"], "failed:magic-eater")
+        board = raw
+        for failure_number in range(1, 5 + 1):
+            key = self.choose(policy, board)
+            self.assertPower(policy, key, "p", "me-power:new-floor:detect-evil")
+            failure = command_screen(board["turn"] + 10)
+            failure["lines"][0] = FAILED
+            board = self.cast(policy, board, key, staff_rows(), after=[failure])
+            self.assertEqual(board["_completed_operation_receipt"]["refusal"], "failed:magic-eater",
+                             failure_number)
+        # Five failures here: the next due power, not a sixth cast.
         key = self.choose(policy, board)
         self.assertPower(policy, key, "m", "me-power:new-floor:detect-traps")
         # One step away the failed trigger is due again.
@@ -161,6 +166,7 @@ class MagicEaterStage2PowersTest(mining.harness.ProductionHarness):
         moved["turn"] += 10
         moved["player"]["x"] -= 1
         self.assertEqual(self.choose(policy, moved), "mAp")
+        self.assertEqual(me_powers.FAILURES_PER_PLACE, 5)
 
     def test_mapping_without_charge_serves_door_detection(self):
         current = staff_rows(mapping=0)
