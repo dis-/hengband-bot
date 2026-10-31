@@ -25,6 +25,11 @@ Cases:
   stop): Home, the Magic shop page with the affordable Identify staves the pack
   budget refused at 19/23, the Alchemist, the General store and Home again;
   56 and 58 are the ``~f`` skill list and the Home list.
+- ``town3swap``: n1-b life-276 ``20261031-090007-town-blocked-departure-
+  unsatisfiable``.  Lines 0-30 (turns 1161251-1161931, recorded decisions
+  4934-4952): the visit whose Magic shop entry sold one of two stacked 2-charge
+  Identify staves (decision 4952 on line 30); 1 and 12 are the ``~f`` skill
+  list and the Home list.
 - ``loop2``: n1-b life-276 ``20261031-064612-loop-detected``.  Lines 85-96
   (turns 540136-540240) beside Home, pack 19/23, a lantern worn and two torch
   stacks of one move identity carried.
@@ -80,6 +85,10 @@ CASES = {
     "town3": (
         "n1-b/life-276/captures/20261031-090037-town-blocked-departure-unsatisfiable",
         tuple(range(51, 81)),
+    ),
+    "town3swap": (
+        "n1-b/life-276/captures/20261031-090007-town-blocked-departure-unsatisfiable",
+        tuple(range(0, 31)),
     ),
     "loop2": (
         "n1-b/life-276/captures/20261031-064612-loop-detected",

@@ -277,6 +277,19 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         self.assertEqual(reason, "home:atomic-deposit")
         self.assertTrue(key.startswith("d"), key)
 
+    def test_town3_staff_swap_sells_only_when_the_rebuy_fits(self):
+        # 090007, decision 4952: at the four-staff cap the swap sold one of two
+        # stacked 2-charge staves (no slot freed); the fuller shelf staff could
+        # not be bought, so the charges only fell from 11 to 9.
+        policy, raw, decisions = self.replay("town3swap", 30, in_store=True)
+        self.assertEqual(decisions[28], ("d0y", "shop:in-store-sell"))
+        for index in (29, 30):
+            with self.subTest(row=index):
+                self.assertNotEqual(decisions[index][1], "shop:in-store-inscribe")
+                self.assertFalse(decisions[index][0].startswith("d0"), decisions[index])
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertEqual(policy._identify_staff_release_plan(board), {})
+
     def test_loop2_failed_torch_restore_is_not_rebuilt_from_another_stack(self):
         # n1-b life-276 06:42-06:46: the restore of the torch taken off the
         # light slot needed a free slot the town pack budget refused at 19/23;

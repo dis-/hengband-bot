@@ -7791,7 +7791,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "89fd380c3a892b130649c852d53585d97828fd8d6ce57e638d3d11ef0ae5ff36"
+    "ast_sha256": "9625681af4f39acc6b6594e8d0660d6f1b041591c4ebebe048412e6e96232566"
   },
   "policy_supply.py:SupplyMixin._intended_dive_depth": {
     "classification": "data",
