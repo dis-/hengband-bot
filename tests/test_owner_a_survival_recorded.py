@@ -180,3 +180,29 @@ class DarkWildernessExitFloorTest(SurvivalHarness):
         self.assertEqual((policy.last_reason, key), ("wield-light", "w" + lantern.slot))
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(WIELD_PROMPT)],
                                    self.later(raw)), ["w", lantern.slot])
+
+    def test_dark_floor_without_light_walks_to_a_lit_floor_and_reads_recall(self):
+        lit, dark = (self.without_light(raw) for raw in self.boards("dark-room"))
+        policy = self.policy(dark)
+        board = parse_snapshot(dark, policy._monrace_knowledge)
+        self.assertFalse(policy._can_read_scrolls(board))
+        self.assertEqual(board.player.position.distance_to(LIT_ROOM_CELL), 1)
+        key = decide(policy, dark)
+        # Unfixed: ("dark:backtrack", "7"), deeper into the dark.
+        self.assertEqual((policy.last_reason, key), ("return:seek-lit-grid", "9"))
+        arrived = dict(copy.deepcopy(lit), turn=dark["turn"] + 10, messages=[])
+        self.assertEqual(self.post(policy, dark, key, [], arrived), ["9"])
+        board = parse_snapshot(arrived, policy._monrace_knowledge)
+        self.assertEqual(board.player.position, LIT_ROOM_CELL)
+        key = decide(policy, arrived)
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertEqual((policy.last_reason, key), ("return:recall", "r" + recall.slot))
+
+    def test_control_lit_cells_are_not_remembered_while_blind(self):
+        from hengbot import dark_recall
+        raw = copy.deepcopy(self.boards("dark-room")[0])
+        raw["player"]["status"]["blind"] = True
+        policy = self.policy(raw)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        dark_recall.observe(policy, board)
+        self.assertEqual(dark_recall.remembered_lit_floors(policy, board), set())

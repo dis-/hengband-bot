@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
+from hengbot import dark_recall
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -339,6 +340,9 @@ class NavigationMixin:
             )
         ):
             return None
+        lit_grid_step = dark_recall.lit_grid_step_key(self, snapshot)
+        if lit_grid_step is not None:
+            return lit_grid_step  # Recall is read there (#47, owner 10-31)
     
         position = snapshot.player.position
         if (
