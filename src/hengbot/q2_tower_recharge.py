@@ -96,7 +96,7 @@ def recharge_meets_breach(policy, snapshot) -> bool:
     counted = sum(item.charges for item in _stone_to_mud(snapshot) if item.charges > 0)
     diggers = have - counted // Q2_BREACH_WALL_COUNT
     seen = sum(item.charges for item in wands if item.charges > 0)
-    filled = sum(morivant_tower.wand_charges_after_recharge(item) for item in wands)
+    filled = sum(morivant_tower.charges_after_recharge(item) for item in wands)
     return diggers + (counted - seen + filled) // Q2_BREACH_WALL_COUNT >= required
 
 
