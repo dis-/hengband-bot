@@ -1674,7 +1674,7 @@
       "bookkeeping"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Executor-owned answers of Powerful Activation (racial letter or menu cursor from the observed racial list, kind letter or menu, power letter from the observed staff list, *Identify* item area and label, screen_object pages; ESC when the observed row is empty or charging); no independent policy decision.",
+    "evidence": "Executor-owned answers of Powerful Activation (racial letter or menu cursor from the observed racial list, owned as the game publishes it: input_spell_choice kind spell, #47 D53 n1-c lives 072-076; kind letter or menu, power letter from the observed staff list, *Identify* item area and label, screen_object pages; ESC when the observed row is empty or charging); no independent policy decision.",
     "delegation": "selected child; no independent success",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)"

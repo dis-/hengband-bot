@@ -2,7 +2,8 @@
 
 ``U`` opens the racial power prompt (cmd-action/cmd-racial.cpp
 ``racial_power_make_prompt``: 「(特殊能力 a-c, '*'で一覧, '/'で閲覧, ESCで中断)
-どの能力を使いますか？」, its list rows "x) name  Lv MP 失率"), then
+どの能力を使いますか？」, its list rows "x) name  Lv MP 失率", asked with
+input_spell_choice, input_context kind spell), then
 ``do_cmd_magic_eater(player, false, true)`` asks the same kind question and
 power list as an ordinary absorbed use (cmd-item/cmd-magiceat.cpp), and the
 Perception power's identify_fully asks 「どのアイテムを*鑑定*しますか? 」 and
@@ -18,8 +19,8 @@ import re
 from hengbot.input_context import read_input_view
 from hengbot.input_executor import Continuation, ScreenKind
 from hengbot.magic_eater_input import (
-    EMPTY, FAILURES, MENU_PROMPTS, TYPE_PROMPTS, _owns_power_prompt, _wand_menu_answer,
-    kind_menu_wait, observed_power_list,
+    EMPTY, FAILURES, LIST_CHOICE_KINDS, MENU_PROMPTS, TYPE_PROMPTS, _owns_power_prompt,
+    _wand_menu_answer, kind_menu_wait, observed_power_list,
 )
 from hengbot.me_device_attacks_input import CHARGING, _row
 from hengbot import me_powerful_activation as powerful
@@ -56,8 +57,18 @@ def compile_powerful(key, owner):
                                               target=match["target"])]
 
 
+def _owns_racial_prompt(reading):
+    """racial_power_process_input asks with input_spell_choice (kind spell).
+
+    #47 n1-c lives 072-076: the gate accepted only command_char, so the
+    published spell wait was refused and left open (stuck-prompt).
+    """
+    return (reading.kind in LIST_CHOICE_KINDS
+            and RACIAL_PROMPT.fullmatch(reading.prompt.strip()) is not None)
+
+
 def _racial_answer(reading, lines):
-    if reading.kind != "command_char" or RACIAL_PROMPT.fullmatch(reading.prompt.strip()) is None:
+    if not _owns_racial_prompt(reading):
         raise ValueError("unowned racial power prompt")
     for line in lines[1:20]:
         row = _RACIAL_ROW.search(line)
@@ -158,9 +169,7 @@ def advance_powerful(executor, screen, match, deadline, outcome):
         viewer = _viewer_answer(match) if step.stage == "viewer" else None
         answer, stage = viewer or _answer(step, reading, lines, operation)
     except ValueError as error:
-        if _owns_power_prompt(reading) or (
-                reading.kind == "command_char"
-                and RACIAL_PROMPT.fullmatch(reading.prompt.strip()) is not None):
+        if _owns_power_prompt(reading) or _owns_racial_prompt(reading):
             # A missing or empty power returns to command input before the
             # next decision; the list is kept on the board.
             listed = observed_power_list(lines, "staff")
