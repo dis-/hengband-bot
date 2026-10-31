@@ -31,6 +31,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "c73416fc7ad72cd02f36413bd0f623e2ade85b8244f1a57092dd457c0d12aa65"
   },
+  "approach_walk.py:walk_key": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "4c8c94b6d4d0468b50c96c422a22f45d8408b7d35ae8450044cc9e1ab1becc09"
+  },
   "baseitem_knowledge.py:find_baseitem_definitions": {
     "classification": "data",
     "rows": [
@@ -7554,7 +7562,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d86daf730b4a4f1208e378c97e992a5d077b2cd38b561067f4d99a042438749c"
+    "ast_sha256": "61fd62f815a81285868f5084faab36cf84fb8ebe916fd14790588b1e0714ac5f"
   },
   "policy_shop.py:ShopMixin._shopping_approach_step": {
     "classification": "data",
@@ -7570,7 +7578,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "af5954bc43ab8af7816ed5efded72aa43d6234760115f84bd4474a9af684c719"
+    "ast_sha256": "ea3a32e6191c22163c5452eaac8ee466cd8883cb123e032d0c5bb24b76455fce"
   },
   "policy_shop.py:ShopMixin._stat_restore_quaff_key": {
     "classification": "producer",

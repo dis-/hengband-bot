@@ -12688,5 +12688,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "approach_walk.py:walk_key": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach"
+    ],
+    "context": "Walking fallback of the store approach (#47 2026-10-31, 鍵3).",
+    "evidence": "Returns _step_toward toward an adjacent approach step only; a distant synthetic landmark yields None (no raw direction into terrain). No independent completion credit; the staged approach keeps its existing claim and offers.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

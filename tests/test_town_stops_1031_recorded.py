@@ -20,6 +20,7 @@ from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_opening_route_r2_recorded as round2
+from tests import test_unid_deposit_recorded as unid
 import tests.test_input_executor as executor_harness
 
 
@@ -29,6 +30,7 @@ FIXTURE = Path(__file__).with_name("fixtures") / "town-stops-1031.json.gz"
 class TownStops1031RecordedTest(executor_harness.ProductionHarness):
     shelf_screen = staticmethod(lv7.Lv7TownStopRecordedTest.shelf_screen)
     post = lv7.Lv7TownStopRecordedTest.post
+    execute = unid.UnidentifiedDepositRecordedTest.execute
 
     @classmethod
     def setUpClass(cls):
@@ -59,6 +61,8 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
                     policy.consume_skill_knowledge(row)
                 elif knowledge["category"] == "home":
                     policy.consume_home_knowledge(_parse_items(knowledge["items"], protocol=3))
+                continue
+            if row.get("type") not in ("player_turn", "store"):
                 continue
             board = parse_snapshot(row, policy._monrace_knowledge)
             if not primed:
@@ -225,3 +229,28 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         for index in (107, 108, 109, 110):
             with self.subTest(row=index):
                 self.assertEqual(decisions[index][1], "emergency:cornered-attack")
+
+    def test_key3_distant_store_landmark_is_never_walked_as_a_direction(self):
+        # n1-a life-447 08:42: travel to Home was refused by the town pack
+        # budget (loot on the town floor, pack 19/23) and no first step was
+        # known, so the Home landmark itself was walked as one direction key:
+        # '3' from the Alchemist's entrance into its permanent wall at (38,92).
+        # The bump cost no game time and the arrival wait stopped the bot.
+        policy, raw, decisions = self.replay("key3", 90)
+        here = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertEqual((here.player.position.y, here.player.position.x), (37, 91))
+        wall = here.grid_at(type(here.player.position)(38, 92))
+        self.assertFalse(wall.passable)  # observed: the shop's permanent wall
+        for index, (key, reason) in decisions.items():
+            with self.subTest(row=index):
+                self.assertFalse(key == "3" and reason == "shop:approach", reason)
+                self.assertNotEqual(key, "None")
+        key, reason = decisions[90]
+        self.assertEqual((key, reason), ("qc", "restore:quaff-str"))
+        # DECLARED CONSTRUCTED: the quaff prompt and the engine's reply.
+        following = copy.deepcopy(raw)
+        following["turn"] += 10
+        following["messages"] = []
+        self.execute(policy, raw, key, following,
+                     [executor_harness.prompt_screen(
+                         "(持ち物:a-z, ESCで中断) どの薬を飲みますか?")], [raw], ["q", "c"])

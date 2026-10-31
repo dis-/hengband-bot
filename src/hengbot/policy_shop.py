@@ -32,7 +32,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
-from hengbot import me_staff_sequence
+from hengbot import approach_walk, me_staff_sequence
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.purchase_rungs import (
     PurchaseContext,
@@ -5848,7 +5848,8 @@ class ShopMixin(InStoreMixin):
             key,
             self.last_reason,
         )
-        return _ShoppingApproachEmission(key, provenance)
+        # No step is no emission: str(None) would post the text "None".
+        return None if key is None else _ShoppingApproachEmission(key, provenance)
 
     def _confirm_staged_shopping_approach(self, key: str) -> None:
         staged = getattr(self, "_staged_shop_approach", None)
@@ -6069,7 +6070,7 @@ class ShopMixin(InStoreMixin):
                     and not self._home_knowledge_scan_requested):
                 self.last_reason = "shop:approach"
             return self._stage_shopping_approach_key(
-                snapshot, self._step_toward(snapshot, step),
+                snapshot, approach_walk.walk_key(self, snapshot, step),
                 claim_family=writer_family,
             )
         goal = self._shopping_approach_goal
@@ -6083,7 +6084,7 @@ class ShopMixin(InStoreMixin):
                     and not self._home_knowledge_scan_requested):
                 self.last_reason = "shop:approach"
             return self._stage_shopping_approach_key(
-                snapshot, self._step_toward(snapshot, step),
+                snapshot, approach_walk.walk_key(self, snapshot, step),
                 claim_family=writer_family,
             )
         # A leading Escape dismisses a lingering -more- or prompt before the
@@ -6103,7 +6104,7 @@ class ShopMixin(InStoreMixin):
                 self._town_travel_state = None
                 self.last_reason = "shop:approach"
                 return self._stage_shopping_approach_key(
-                    snapshot, self._step_toward(snapshot, step)
+                    snapshot, approach_walk.walk_key(self, snapshot, step)
                 )
             self._post_owner_expectation(
                 snapshot, travel_reason, "position", "store_type"
@@ -6128,7 +6129,7 @@ class ShopMixin(InStoreMixin):
                 and not self._home_knowledge_scan_requested):
             self.last_reason = "shop:approach"
         return self._stage_shopping_approach_key(
-            snapshot, self._step_toward(snapshot, step),
+            snapshot, approach_walk.walk_key(self, snapshot, step),
             claim_family=writer_family,
         )
 

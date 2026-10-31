@@ -24,6 +24,11 @@ Cases:
   of 08:24).  Lines 59-66 (turns 222253-222326: a Scruffy-looking horse three
   cells away, then adjacent, then three cells away again) and 104-118 (turns
   223052-223304: the horse adjacent, then out of sight at HP 5).
+- ``key3``: n1-a life-447 ``20261031-084215-no-key-exhausted``.  Lines 80-90:
+  the Alchemist entrance (37,91) after its purchases, pack 19/23, the Home
+  entrance ringed by the chest contents dropped there; 82 and 89 are ``~f``
+  skill lists, 90 the board of the stopping decision (the bump into the
+  shop's permanent wall at (38,92)).
 - ``monraces``: the lore of the races on those boards, read from
   ``lib/edit/MonraceDefinitions.jsonc`` by the production loader.
 - ``fuse``: the decision rows (``bot-decisions.jsonl.gz``) of n1-c life-057
@@ -59,6 +64,10 @@ CASES = {
         "n1-b/life-276/captures/"
         "20261031-084905-town-blocked-shop-required-operation-uncomposable",
         (121, 123, 124, 126, 128, 129, 130, 131),
+    ),
+    "key3": (
+        "n1-a/life-447/captures/20261031-084215-no-key-exhausted",
+        tuple(range(80, 91)),
     ),
     "death2": (
         "n1-c/life-056/captures/20261031-082432-exit-no-marker",
