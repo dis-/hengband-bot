@@ -17661,6 +17661,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 weapon,
                 reference_ac,
                 self._validated_character_calibration(snapshot),
+                current_proficiency=True,  # readiness: the worn weapon now (D50)
             )
             if weapon is not None else 0.0
         )
