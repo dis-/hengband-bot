@@ -1777,12 +1777,12 @@
     "ast_sha256": "d12bb08cd566e56cc81ce45dd62a57d526df6e94fcf831b46bc1c611f384dfa6"
   },
   "me_device_attacks.py:attack_key": {
-    "classification": "dungeon-only",
+    "classification": "producer",
     "rows": [
-      "quest-service"
+      "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5b6bd1cfa66e0832c07edce923307b475799db7fb49624cf5b17ba0c5f0febf4"
+    "ast_sha256": "4fc377cbc3136da511c755a1252d4b8d0d1514f5079a911579363a53142a7a27"
   },
   "me_device_attacks_input.py:advance_device": {
     "classification": "driver",
@@ -1928,12 +1928,12 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6a58242a51eb90052af33acfae54352ce8dcb027be557bfacec0eddeca5df228"
+    "ast_sha256": "2166ca88f7b78f5b98d2af5bfb235bff44dc86925e5dc5fef75261db1ae2039a"
   },
   "me_ranged_first.py:attack_key": {
-    "classification": "dungeon-only",
+    "classification": "producer",
     "rows": [
-      "quest-service"
+      "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "902b8beb6c51064983660bfb643216ad5c37a22a1d1e667e02a1ae32db8b302b"
@@ -2091,7 +2091,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b82dd7e56e9ff19e8f900abb41dbee30db3f0b780aa5f688c17daa9c886c77fe"
+    "ast_sha256": "a630e013014c37f1a82bf8219984caa6f9ea1733d960e6be5c0b5be7de167a40"
   },
   "me_staff_sequence.py:absorbed_charges": {
     "classification": "data",
@@ -4986,6 +4986,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "ca9365b3cfd3af2d38abd745060527ecc30aa199fede2dc7d789d3ee29fae421"
   },
+  "policy_combat.py:CombatMixin._opening_q1_torches_reserved": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "f4c861a1855bd3238b2cafd88b85b649c183601ffde738821d8108495115546b"
+  },
   "policy_combat.py:CombatMixin._paralyzer_prevention_key": {
     "classification": "producer",
     "rows": [
@@ -5024,7 +5032,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "752b96b626c3e1c1b6ba7bf7f736b4df29e27125154b10ff2f3be5e2fc1fb3ec"
+    "ast_sha256": "5019d5f23f9e9e829e901bcd94fea53ba461dd7dacc42dbbdf3d95d600a729b4"
   },
   "policy_combat.py:CombatMixin._ranged_target": {
     "classification": "data",
@@ -6710,6 +6718,14 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "9e2d47a0ebdc27d2b2bb5a629614aeeb312749db2778f7954ed2f8677498cc8a"
   },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_strike": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "a2c1c9a7af3602610470782b0d3435873f434b4cf6432a95fd3c40500f70a352"
+  },
   "policy_opening.py:OpeningRouteMixin._opening_q1_town_key": {
     "classification": "producer",
     "rows": [
@@ -6719,7 +6735,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "e50ab1537e9e9a8da8de826e354837e8e3db377fcceabc5abf5b83cdd61c27b6"
+    "ast_sha256": "4ea7a914f3ca863e574778211271b233e7904d789156eb1fd073548a8c55fe7e"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
@@ -9445,7 +9461,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "8e00417e4fc9bf12a630b466eba38f4431c787759b43bc5ea94ec76f773190a5"
+    "ast_sha256": "f1a8c5dfe40254e8f33b864c7a4cd73c3a139b40bb7e9b013799d602fadbd417"
   },
   "town_arbiter.py:TownTurnArbiter.ownership_family": {
     "classification": "data",
