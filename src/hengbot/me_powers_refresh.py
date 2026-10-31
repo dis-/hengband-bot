@@ -24,6 +24,9 @@ from hengbot.policy_constants import (
 
 
 REFRESH_REASON = "periodic:magic-eater-powers"
+# The staff sequence's own read of the staff list (me_staff_sequence.read_powers).
+SEQUENCE_READ_REASON = "me-staff:read-powers"
+BROWSE_REASONS = (REFRESH_REASON, SEQUENCE_READ_REASON)
 # Bookkeeping keys that already took the board (Ctrl-S save, dumps, ~f).
 _BOOKKEEPING_KEYS = ("\x13", CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO,
                      SKILL_KNOWLEDGE_MACRO)

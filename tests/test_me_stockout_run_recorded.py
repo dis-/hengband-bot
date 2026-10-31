@@ -72,6 +72,9 @@ class MeStockoutRunRecordedTest(harness.ProductionHarness):
         skill, home = self.case[knowledge]
         policy.consume_skill_knowledge(skill)
         policy.consume_home_knowledge(_parse_items(home["knowledge"]["items"], protocol=3))
+        # DECLARED CONSTRUCTED: this process already read the game's staff
+        # power list (me_staff_sequence.read_powers, #47).
+        sequence.state(policy).powers_read = True
         return policy
 
     @staticmethod

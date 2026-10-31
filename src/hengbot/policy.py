@@ -510,7 +510,9 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
-from hengbot.quest_strategies import StrategyProfile, acceptance_dps_floor, acceptance_hp_floor
+from hengbot.quest_strategies import (
+    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, torch_throw_output,
+)
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -17625,6 +17627,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                       if snapshot.player.main_hand_to_d is not None else 0.0)
             dps = blows * chance * damage
         dps = float(dps or 0.0)
+        # A class that fights this quest with thrown lit torches (QUEST_1
+        # class 16) is measured by that output; melee is its fallback once
+        # the carried torches are gone, never the gate (#47 n1-c life-058).
+        melee_dps = dps
+        dps = max(dps, torch_throw_output(force, snapshot.player.class_id))
         carry_status = self._quest_carry_status(snapshot, force)
         carries_ready = all(bool(item["ready"]) for item in carry_status.values())
         resists_ready = all(
@@ -17642,6 +17649,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
             "resists": {"ready": resists_ready, "required": list(force.get("resists", ()))},
         }
+        if dps != melee_dps:
+            details["melee_dps"] = melee_dps
         lit_torch = carry_status.get("throwing_items.lit_torch")
         if lit_torch is not None:
             details["lit_torch"] = {

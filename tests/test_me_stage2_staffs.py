@@ -28,7 +28,7 @@ import copy
 from hengbot import me_staff_sequence as sequence
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.model import parse_snapshot
-from hengbot.policy_constants import TOWN_TELEPORT_COST, WAIT_KEY
+from hengbot.policy_constants import WAIT_KEY
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_me_tower_recharge_recorded as d24
 from tests import test_n1c_town_stops2_recorded as d25
@@ -118,7 +118,8 @@ class Stage2ShopTest(executor_harness.ProductionHarness):
             staff = {k: v for k, v in copy.deepcopy(evil).items() if k not in ("letter", "price")}
             raw["inventory"].append(dict(staff, slot=chr(ord("a") + len(raw["inventory"]))))
         self.setup = setup
-        policy, raw, reasons = self.drive("life-036", limit=60, done=self.owned)
+        policy, raw, reasons = self.drive("life-036", limit=60, done=lambda policy, raw, key: (
+            self.owned(policy, raw, key) or policy.last_reason == "me-staff:travel-morivant"))
         # One of each in the stage's order; the second Enlightenment row (i)
         # stays on the shelf.
         self.assertEqual(staffs_bought(self.bought),
@@ -126,13 +127,11 @@ class Stage2ShopTest(executor_harness.ProductionHarness):
         self.assertEqual([quantity for name, quantity in self.bought if "杖" in name], [1, 1])
         board = parse_snapshot(raw, policy._monrace_knowledge)
         self.assertEqual(sorted(sequence.carried_staffs(policy, board)), [MAPPING, TRAP, EVIL])
-        # Door/Stair and Light are still missing and off the shelf: one
-        # stockout run whose target is their estimate plus the (unlocked)
-        # expedition.
-        supplies = sequence.supply_cost(policy, board)
-        target = (350 + 250) * 2 + 2 * TOWN_TELEPORT_COST + sequence.recharge_cost(board) + supplies
-        self.assertTrue(policy.last_reason.endswith(
-            f"me-staff:fundraise:staff-stockout:{target}"), reasons[-6:])
+        # Door/Stair and Light are still missing and off the shelf: the
+        # carried three go to the Tower first (owner 2026-10-31 「持っている分を
+        # 先に取り込む」); the missing two are bought when they are stocked.
+        self.assertEqual(policy.last_reason, "me-staff:travel-morivant", reasons[-6:])
+        self.assertEqual(sequence._phase(policy, board), "travel")
 
 
 class Stage2TowerTest(executor_harness.ProductionHarness):
