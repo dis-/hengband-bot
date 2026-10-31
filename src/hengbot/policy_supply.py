@@ -890,6 +890,13 @@ class SupplyMixin:
         )
         if self._identify_staff_store_offer_charges(snapshot) <= emptiest.charges:
             return {}
+        # The swap's buy is a staff of other charges: one more slot, less the
+        # one this sale frees only when it empties the stack.  Selling one of
+        # two stacked staves before a buy the pack budget refuses only lost
+        # charges (n1-b life-276 2026-10-31, 11 -> 9 before the stop).
+        from hengbot.town_pack_budget import permits
+        if not permits(snapshot, 1 - (emptiest.count == 1)):
+            return {}
         return {emptiest.slot: 1}
 
     def _home_full_relief_take_blocks_identify(

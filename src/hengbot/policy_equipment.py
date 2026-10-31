@@ -1887,10 +1887,16 @@ class EquipmentMixin:
                 equipment_move_identity(owned.item): owned
                 for owned in self._equipment_catalog.items
             }
+            # A restore that already failed this visit is remembered under its
+            # own action id; another stack of the same move identity (a second
+            # torch stack, a Home torch) is the same refused restore, not a new
+            # one (n1-b life-276 2026-10-31: re-equipping the torch needs a free
+            # slot the pack budget refuses, rebuilt every other decision).
             self._equipment_transaction_owned_items = [
                 (identity, slot)
                 for identity, slot in self._equipment_transaction_owned_items
-                if (
+                if f"restore:{identity}" not in self._equipment_transaction_failed_items
+                and (
                     identity not in owned_by_identity
                     or not self._equipment_memory_contains(
                         self._equipment_transaction_failed_items,

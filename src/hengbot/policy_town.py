@@ -1343,8 +1343,13 @@ class TownMixin:
             # Their command shape alone is not evidence of progress: a
             # completed takeoff/restore cycle returns to the same measured
             # state even though every individual macro looked mutating.
+            # The cycle is this same command from this same state.  The
+            # fingerprint holds no position, so a command never tried from
+            # it (the hungry zombie's first absorb after leaving Home, n1-b
+            # life-276 2026-10-31) is not a revisit merely because walking
+            # or a Home page produced the same state earlier.
             fingerprint = self._town_progress_fingerprint(snapshot)
-            if fingerprint in self._town_progress_history():
+            if (fingerprint, key) in self._town_progress_command_history():
                 self._town_progress_invariant_defect = {
                     "marker": "TOWN_OSCILLATION_DEFECT",
                     "winning_rung": self.last_reason or "",
@@ -1393,17 +1398,39 @@ class TownMixin:
             self._town_progress_fingerprint_history = history
         return history
 
+    def _town_progress_command_history(self) -> deque[tuple[object, ...]]:
+        """(fingerprint, emitted key) pairs of the same window as the history."""
+        history = getattr(self, "_town_progress_command_window", None)
+        if history is None:
+            history = deque(maxlen=TOWN_CYCLE_WINDOW)
+            self._town_progress_command_window = history
+        return history
+
+    def _town_progress_note_command(self, key: str | None) -> None:
+        """Pair the final emitted key with the state its decision began in."""
+        if getattr(self, "_town_progress_command_pending", False):
+            self._town_progress_command_pending = False
+            self._town_progress_last_command = key
+
     def _town_begin_progress_decision(self, snapshot: Snapshot) -> None:
         """Move the prior decision into the window, leaving current state fresh."""
         history = self._town_progress_history()
+        commands = self._town_progress_command_history()
         if not snapshot.in_town:
             history.clear()
+            commands.clear()
             self._town_progress_last_fingerprint = None
+            self._town_progress_command_pending = False
             return
         previous = getattr(self, "_town_progress_last_fingerprint", None)
         if previous is not None:
             history.append(previous)
+            commands.append(
+                (previous, getattr(self, "_town_progress_last_command", None))
+            )
         self._town_progress_last_fingerprint = self._town_progress_fingerprint(snapshot)
+        self._town_progress_last_command = None
+        self._town_progress_command_pending = True
 
     def _town_progress_allow_members(self, snapshot: Snapshot) -> frozenset[str]:
         """Return only members of the reviewed procurement preemptor set."""
@@ -5216,6 +5243,19 @@ class TownMixin:
             monster.friendly or (knowledge is not None and knowledge.friendly)
         ):
             return False
+        return self._town_monster_unbeatable(snapshot, monster)
+
+    def _town_monster_unbeatable(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Whether this character cannot defeat ``monster`` in a duel now.
+
+        The same race-lore duel projection as ``_town_friendly_unbeatable``,
+        for any town monster that is not a pet.
+        """
+        if monster.pet:
+            return False
+        knowledge = self._monrace_knowledge.get(monster.race_id)
         opponent = monster
         if knowledge is not None:
             hp = knowledge.average_hp or knowledge.max_hp
@@ -5267,6 +5307,15 @@ class TownMixin:
         # town after this hunt angered him and then re-approached him between
         # flee steps).  An angered one is still answered by the survival
         # rungs when it attacks; this hunt only stops chasing it.
+        # USER DECISION 2026-10-31 (死2): 「本当に物資がなく、街の敵にも勝てない
+        # くらい弱いなら…諦めて戦闘を試みる」 -- the same holds for a hostile
+        # town monster: the hunt never walks toward one this character cannot
+        # defeat (n1-c lives 050, 053, 056 approached a Scruffy-looking horse
+        # or a Battle-scarred veteran between flee steps until they died).
+        unbeatable = {
+            monster.index for monster in snapshot.visible_monsters
+            if self._town_monster_unbeatable(snapshot, monster)
+        }
         targets = sorted(
             (
                 monster for monster in snapshot.visible_monsters
@@ -5277,14 +5326,14 @@ class TownMixin:
                         self._monrace_knowledge.get(monster.race_id), "flags", ()
                     )
                 )
-                and not self._town_friendly_unbeatable(snapshot, monster)
+                and monster.index not in unbeatable
             ),
             key=lambda monster: monster.distance,
         )
         if any(
             monster.hostile
             and player.position.distance_to(monster.position) <= 1
-            and self._town_friendly_unbeatable(snapshot, monster)
+            and monster.index in unbeatable
             for monster in snapshot.visible_monsters
         ):
             # An angered one beside the player is attacking: the survival

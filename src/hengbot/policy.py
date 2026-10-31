@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import me_powers, me_ranged_first, survival_preemption, wilderness_exit
+from hengbot import me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -3330,6 +3330,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._release_observed_store_exit(snapshot)
         key = self._enforce_town_claim_result(snapshot, key)
         self._record_decision_claim(snapshot, key)
+        self._town_progress_note_command(key)
         return key
 
     # -- S1 attribution (SOL-DESIGN-ownership-contract.md 3.1, 4, 6/S1) ----
@@ -11387,6 +11388,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 # generic flee rung retreating back into the floor.
                 self.last_reason = "combat:disengage-clear-path"
                 return blocker
+            if (stand := town_last_stand.key(self, snapshot, strategic_hostiles, "flee:cornered-attack")) is not None:
+                return stand
             step = self._town_producer_entry("_flee_step#2", lambda: self._flee_step(snapshot, strategic_hostiles))
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below

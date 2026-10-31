@@ -31,6 +31,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "c73416fc7ad72cd02f36413bd0f623e2ade85b8244f1a57092dd457c0d12aa65"
   },
+  "approach_walk.py:walk_key": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "4c8c94b6d4d0468b50c96c422a22f45d8408b7d35ae8450044cc9e1ab1becc09"
+  },
   "baseitem_knowledge.py:find_baseitem_definitions": {
     "classification": "data",
     "rows": [
@@ -2692,7 +2700,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0f7299f65a29026ba5c86b97c4a88acb97cf63388f5eb4f914b53c227fc994fd"
+    "ast_sha256": "97253173040fa1f3e04fc2a999e22653223dce40f6d442e904aa84704ae513ad"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4507,7 +4515,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "52cc16dfd07fe52cfe68a60b23886b31fcee004bc07d0db6b8a73b2ea6528d62"
+    "ast_sha256": "d1da65ed249c68652605880e1a17015040540586567a639479988a9bb0ef955e"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4716,7 +4724,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "916c2316c92fa0a7921975497d2a3b1794f09e9ad7a31905c3a301b9c2f3a512"
+    "ast_sha256": "b45b92a17a96cfb1c1c0a17e3dba917668c659fa8150ec7b2f81c2c471426efa"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -6333,7 +6341,7 @@
       "store-exit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "6facee2992108ea2fefe17c091295170b8f40f64a201f8d41215c007632a8c33"
+    "ast_sha256": "1633e7bbe8719db2072eb5bfe032bf3064d8f40e1a8334c11180d65a6d75fa46"
   },
   "policy_instore.py:InStoreMixin._in_store_entry_key": {
     "classification": "adapter",
@@ -7635,7 +7643,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d86daf730b4a4f1208e378c97e992a5d077b2cd38b561067f4d99a042438749c"
+    "ast_sha256": "61fd62f815a81285868f5084faab36cf84fb8ebe916fd14790588b1e0714ac5f"
   },
   "policy_shop.py:ShopMixin._shopping_approach_step": {
     "classification": "data",
@@ -7651,7 +7659,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "af5954bc43ab8af7816ed5efded72aa43d6234760115f84bd4474a9af684c719"
+    "ast_sha256": "ea3a32e6191c22163c5452eaac8ee466cd8883cb123e032d0c5bb24b76455fce"
   },
   "policy_shop.py:ShopMixin._stat_restore_quaff_key": {
     "classification": "producer",
@@ -7864,7 +7872,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "89fd380c3a892b130649c852d53585d97828fd8d6ce57e638d3d11ef0ae5ff36"
+    "ast_sha256": "9625681af4f39acc6b6594e8d0660d6f1b041591c4ebebe048412e6e96232566"
   },
   "policy_supply.py:SupplyMixin._intended_dive_depth": {
     "classification": "data",
@@ -8392,7 +8400,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a2949dcc82e5e74108448d749365a1c9b40334452435ebf79b8ff68241c71415"
+    "ast_sha256": "c9782e2826731d37122252d70643659042cb37e0b06b3303ea66208999e23a18"
   },
   "policy_town.py:TownMixin._town_map_active": {
     "classification": "data",
@@ -9309,6 +9317,22 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "a266312e8ce493463739d5bd8a49717199fa924b28861fa36b3ddad3cce44599"
   },
+  "town_last_stand.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "aabbddd4128d6c1d3b2bd45a5020cddf963dc14535088c6e601fe4cfd09eaf92"
+  },
+  "town_last_stand.py:target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "1753208d4e97e348a381719a60a4ef53e86c37b595bad603aa90e61b49e9d3d6"
+  },
   "town_maps.py:TownMap.building_position": {
     "classification": "data",
     "rows": [
@@ -9391,7 +9415,7 @@
       "store-approach"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
-    "ast_sha256": "fc2f649f277975b5e426bf33f4f9d20fbeea5170fe1f0c20785c89ac560eb530"
+    "ast_sha256": "f8cea9dc66ec61f2ebfcff4d19d454929e1ae1b38b0ba1cbb22d074ba54c893b"
   },
   "town_pack_headroom.py:find_deposit": {
     "classification": "data",
@@ -9419,6 +9443,17 @@
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success.",
     "ast_sha256": "dd364c0e798ed17db457ce5d5453cb8efc49e8404fad418545fbd2a7ac42fc07"
+  },
+  "town_pack_headroom.py:make_room_for_purchase": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "stat-recovery",
+      "store-approach"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "ast_sha256": "ac8136b770f6a8cf6643b78e85fbe27a3c2cfbd300bc6989655b4cc5df5a9320"
   },
   "town_pack_headroom.py:preservable": {
     "classification": "data",

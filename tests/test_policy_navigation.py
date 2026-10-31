@@ -2792,19 +2792,25 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
                 monster_pos.y, monster_pos.x, monster=include_monster
             )
         monsters = (
-            [hostile(1, monster_pos.y, monster_pos.x, distance=3)]
+            [hostile(1, monster_pos.y, monster_pos.x, hp=1, max_hp=1, distance=3)]
             if include_monster
             else []
         )
+        # The hunt walks only toward a monster this fighter can defeat
+        # (USER DECISION 2026-10-31): an armed fighter and 1-HP town monsters.
         return Snapshot(
-            player(10, 10),
+            player(10, 10, main_hand_blows=1),
             grids,
             monsters,
             floor_key=(0, 0, 0),
             width=width,
             height=height,
             town_flag=True,
-            equipment=[item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000)],
+            equipment=[
+                item("light", TVAL_LITE, SV_LITE_TORCH, fuel=5000),
+                item("main_hand", TVAL_SWORD, 1, damage_dice_num=2,
+                     damage_dice_sides=5, is_equipment=True),
+            ],
         )
 
     def _approach(self, policy, snapshot):
@@ -2848,8 +2854,8 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         snapshot = replace(
             snapshot,
             visible_monsters=[
-                hostile(1, 10, 13, distance=3),
-                hostile(2, 10, 14, distance=4),
+                hostile(1, 10, 13, hp=1, max_hp=1, distance=3),
+                hostile(2, 10, 14, hp=1, max_hp=1, distance=4),
                 MonsterState(
                     3, Position(11, 13), hp=10, max_hp=10, distance=3,
                     friendly=True, pet=False,
@@ -2925,7 +2931,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         policy = HengbotPolicy()
         snapshot = replace(
             self._snapshot(monster_pos=Position(10, 11)),
-            visible_monsters=[hostile(1, 10, 11, distance=1)],
+            visible_monsters=[hostile(1, 10, 11, hp=1, max_hp=1, distance=1)],
         )
 
         self.assertEqual(policy.choose_key(snapshot), "6")
@@ -2939,13 +2945,15 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
             for y in range(5)
         }
         snapshot = Snapshot(
-            player(2, 3),
+            player(2, 3, main_hand_blows=1),
             grids,
-            [hostile(1, 0, 3, distance=2)],
+            [hostile(1, 0, 3, hp=1, max_hp=1, distance=2)],
             floor_key=(0, 0, 0),
             width=7,
             height=5,
             town_flag=True,
+            equipment=[item("main_hand", TVAL_SWORD, 1, damage_dice_num=2,
+                            damage_dice_sides=5, is_equipment=True)],
         )
         policy._build_grid_index(snapshot)
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import me_ranged_first, return_yield, status_cure
+from hengbot import me_ranged_first, return_yield, status_cure, town_last_stand
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -2395,6 +2395,8 @@ class CombatMixin:
                     self.last_reason = "emergency:seek-upstairs"
                     self._declare_reach(route_step_target)
                     return self._step_toward(snapshot, route_step)
+                if (stand := town_last_stand.key(self, snapshot, hostiles, "emergency:cornered-attack")) is not None:
+                    return stand
                 flee_step = self._flee_step(snapshot, hostiles)
                 if flee_step is not None and not (
                     self._is_oscillating() and flee_step in set(self._recent)

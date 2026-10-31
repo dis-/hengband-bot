@@ -12843,5 +12843,52 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "town_last_stand.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Town only: requires the emitter's town flag and dungeon level 0.",
+    "evidence": "USER DECISION 2026-10-31 (死2): melee the weakest adjacent attacker instead of a flee step when no healing potion and no escape scroll is carried; returns a direction key from _direction_key or None; called only by the flee rung (flee:cornered-attack) and the emergency ladder (emergency:cornered-attack) before their flee step.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_last_stand.py:target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure selector of the adjacent attacker for town_last_stand.key; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "approach_walk.py:walk_key": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach"
+    ],
+    "context": "Walking fallback of the store approach (#47 2026-10-31, 鍵3).",
+    "evidence": "Returns _step_toward toward an adjacent approach step only; a distant synthetic landmark yields None (no raw direction into terrain). No independent completion credit; the staged approach keeps its existing claim and offers.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_pack_headroom.py:make_room_for_purchase": {
+    "classification": "adapter",
+    "rows": [
+      "home-deposit",
+      "sale",
+      "stat-recovery",
+      "store-approach"
+    ],
+    "context": "Proactive town pack headroom and shared terminal relief (#47 / #119).",
+    "evidence": "Begin the admitted inventory pass when a remembered supplier's departure-blocking purchase is refused only by the town pack budget at the reserve floor (probe: the same page without the preservable stacks), re-arm that supplier, then continue through key's existing child terminal entries; no independent completion credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing Home inventory, sale, consumption and route effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
   }
 }
