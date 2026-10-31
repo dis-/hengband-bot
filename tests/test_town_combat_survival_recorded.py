@@ -39,6 +39,7 @@ from hengbot.control_client import ControlClient
 from hengbot.input_executor import OperationExecutor
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.me_ranged_first import TORCH_REASON
+from tests import test_me_nokey_1031_recorded as nokey
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests.test_magic_eater_ranged_fire_recorded import PowerGame
 
@@ -62,7 +63,9 @@ def fight_boards(*, missile=True, torches=True):
     return boards
 
 
-class TownCombatSurvivalTest(loops.MeStaffLoopsRecordedTest):
+class MissilePostedKey(nokey.PostedKey):
+    """Shared by the recorded Magic-Eater town fights (also D55); no tests."""
+
     def post(self, policy, raw, key):
         """The absorbed Magic Missile goes through the executor's power prompts
         (cmd-magiceat.cpp, test_magic_eater_ranged_fire_recorded.PowerGame,
@@ -81,6 +84,8 @@ class TownCombatSurvivalTest(loops.MeStaffLoopsRecordedTest):
                          SendResult.SENT, port.last_result.reason)
         self.assertEqual((game.fired, game.wait), (1, "command"))
 
+
+class TownCombatSurvivalTest(MissilePostedKey, loops.MeStaffLoopsRecordedTest):
     def fight(self, **boards):
         policy = loops.new_policy({**CASE, "boards": CASE["boards"]}, CASE["skill"],
                                   record=CASE["sequence"], monraces=CASE["monraces"])
