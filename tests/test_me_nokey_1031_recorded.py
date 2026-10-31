@@ -57,6 +57,7 @@ def staff_policy(raw, *, record=True, **changes):
         state.shelf_after_turn = recorded["shelf_after_turn"]
         state.stage = recorded["stage"]
         state.failure = recorded["failure"]
+        state.powers_read = True  # the recorded process had read its absorptions
     return policy
 
 
@@ -223,6 +224,86 @@ class StaffStockoutTest(PostedKey):
         self.assertIsNone(record.fundraise_target)  # the returned run was settled
         self.assertEqual((record.fundraise_runs, record.reached_runs), (6, 6))
         self.assertIsNone(record.failure)
+
+
+class RestartForgetsAbsorptionsTest(PostedKey):
+    """鍵1b: a restarted process read no absorption (life-054 06:14 / 07:18 / 07:21).
+
+    The new process sold the carried stage-2 staffs and bought the absorbed
+    Identify and Treasure staffs again (bot-economy.jsonl), against 「2本目は
+    買わない」.  The board here is the recorded visit to the same Magic shop
+    with the same pack just before the 06:14 stop (the restart board itself
+    is not in the copied captures); the policy is new, without a sequence
+    record, as after a restart.
+    """
+
+    # DECLARED CONSTRUCTED: the game's staff list as cmd-magiceat.cpp prints
+    # the two recorded absorptions (RECORDED_SEQUENCE absorbed 5: 21, 10: 19).
+    ABSORBED = {"staff": {sequence.SV_STAFF_IDENTIFY: ("鑑定", 21, 21, 5),
+                          sequence.SV_STAFF_DETECT_GOLD: ("財宝感知", 19, 19, 5)},
+                "wand": {}, "rod": {}}
+
+    def read_list(self, policy, key):
+        """Post the browse through the production executor; return its list."""
+        from tests.test_me_powers_refresh import BrowseGame
+        game = BrowseGame(self.ABSORBED)
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        self.assertEqual(port(key, decision={"reason": policy.last_reason,
+                                            "sequence": policy._decision_sequence}),
+                         SendResult.SENT, port.last_result.reason)
+        self.assertEqual(game.commands, ["b"])
+        listed = executor.ready_board["_magic_eater_power_list"]
+        self.assertEqual([row["name"] for row in listed["rows"]], ["鑑定", "財宝感知"])
+        return listed
+
+    def test_new_process_reads_the_power_list_before_any_staff_trade(self):
+        policy = staff_policy(staff_board(0), record=False)
+        key = decide(policy, staff_board(0), CASE["staff"]["skill"])
+        self.assertEqual((key, policy.last_reason), ("bA", "me-staff:read-powers"))
+        listed = self.read_list(policy, key)
+        policy.confirm_key_posted(key)
+        sold, bought = [], []
+        for index, raw in enumerate(CASE["staff"]["boards"]):
+            raw = copy.deepcopy(raw)
+            if raw["type"] == "knowledge":
+                policy.consume_home_knowledge(
+                    tuple(_parse_items(raw["knowledge"]["items"], protocol=3)))
+                continue
+            if index == 0:
+                raw["_magic_eater_power_list"] = listed  # the browse's reply board
+            key = decide(policy, raw, CASE["staff"]["skill"])
+            board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+            staffs = {item.slot: item.sval for item in board.inventory if item.tval == 55}
+            # Unfixed: '{j@0' inscribed the Light staff for sale, the Home
+            # deposit 'dmdldk' shelved three more, and stage 1 started over.
+            if key[:1] in "{d" and len(key) > 1 and key[1] in staffs:
+                sold.append((key, staffs[key[1]]))
+            if key[:1] == "p":
+                bought.append(key)
+            if key:
+                policy.confirm_key_posted(key)
+        record = sequence.state(policy)
+        self.assertEqual(record.absorbed, {sequence.SV_STAFF_IDENTIFY: 21,
+                                           sequence.SV_STAFF_DETECT_GOLD: 19})
+        self.assertEqual(record.stage, 2)
+        self.assertEqual((sold, bought), ([], []))
+        self.assertEqual(policy.last_reason, "me-staff:travel-morivant", key)
+        self.post(policy, staff_board(10), key)
+
+    def test_unread_list_keeps_every_sequence_staff(self):
+        # In the shop before any read: no sequence staff is a sale or a buy.
+        policy = staff_policy(staff_board(1), record=False)
+        board = parse_snapshot(staff_board(1), policy._monrace_knowledge)
+        carried = [item for item in board.inventory if item.tval == 55]
+        self.assertEqual(len(carried), 4)
+        self.assertTrue(all(sequence.retains(policy, board, item) for item in carried))
+        shelf = [item for item in board.store.items if item.tval == 55
+                 and item.sval == sequence.SV_STAFF_IDENTIFY]
+        self.assertTrue(shelf and all(sequence.purchase_excluded(policy, board, item)
+                                      for item in shelf))
+        self.assertIsNone(sequence.purchase(policy, board))
 
 
 if __name__ == "__main__":

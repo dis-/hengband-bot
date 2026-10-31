@@ -11,7 +11,7 @@ import re
 from hengbot.input_executor import Continuation, ScreenKind
 from hengbot.input_context import read_input_view
 from hengbot.magic_eater_input import TYPE_PROMPTS, _wand_menu_answer, observed_power_list
-from hengbot.me_powers_refresh import KIND_LETTER, KINDS, REFRESH_REASON
+from hengbot.me_powers_refresh import BROWSE_REASONS, KIND_LETTER, KINDS
 
 
 BROWSE_PROMPTS = ("('*'で一覧, ESCで中断) どの魔力を見ますか？",
@@ -28,7 +28,7 @@ class BrowseStep(Continuation):
 
 
 def compile_refresh(key, owner):
-    if owner != REFRESH_REASON:
+    if owner not in BROWSE_REASONS:
         return None
     match = re.fullmatch(r"b([ABC])", key)
     if match is None:

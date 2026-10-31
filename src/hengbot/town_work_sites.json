@@ -1906,7 +1906,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "92bc77bf4e306ab04b0ce88988516e9fde88b0e231eddb1015f7de87ebeb2e16"
+    "ast_sha256": "f4d50a0c76b14c242416cdf1bf73dff0dd7d685fc17c633e4bd0c0118d70126d"
   },
   "me_staff_sequence.py:_phase": {
     "classification": "data",
@@ -2051,10 +2051,11 @@
       "rumor",
       "cross-town",
       "fundraising",
-      "store-approach"
+      "store-approach",
+      "browse"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d568b816255613ef622b13fae6703c8ae8dbf8cfc71b6d3c7dba9d966535b04d"
+    "ast_sha256": "1ed13b0d5f95dba60389ff0b3db66744b8bf1811cd9828d6bf1ebf4a8b6cc0fc"
   },
   "model.py:Position.distance_to": {
     "classification": "data",

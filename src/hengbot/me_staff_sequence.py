@@ -56,6 +56,7 @@ from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, staple_food, staple_needs_recharge,
 )
+from hengbot.me_powers_refresh import KIND_LETTER, SEQUENCE_READ_REASON
 from hengbot.model import STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
@@ -147,6 +148,8 @@ class MeStaffSequence:
     stage: int = 1
     remaining: tuple = ()
     completed_stages: dict = field(default_factory=dict)
+    # The game's staff power list was read in this process (``read_powers``).
+    powers_read: bool = False
 
 
 _device_definitions = morivant_tower.device_definitions
@@ -196,6 +199,29 @@ def applies(policy, snapshot) -> bool:
         return False
     q1 = policy._known_fixed_quests(snapshot).get(1)
     return q1 is not None and q1.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
+
+
+def read_powers(policy, snapshot) -> bool:
+    """Whether the game's staff power list was read in this process.
+
+    The record lives in the policy's memory only, so a restart forgot every
+    absorption: the new process sold the carried stage-2 staffs and bought
+    the absorbed Identify and Treasure staffs again (#47 n1-c life-054,
+    owner 「2本目は買わない」).  The power list (cmd-magiceat.cpp, read by
+    the turn-free browse ``b A``) is the game's own record: every sequence
+    power it lists is absorbed.
+    """
+    record = state(policy)
+    listed = getattr(snapshot, "magic_eater_power_list", None)
+    if isinstance(listed, dict) and listed.get("kind") == "staff":
+        names = {name: sval for sval, pair in POWER_NAMES.items() for name in pair}
+        for row in listed.get("rows", ()):
+            sval = names.get(row.get("name"))
+            if sval is not None and sval not in record.absorbed:
+                record.absorbed = {**record.absorbed,
+                                   sval: max(1, int(row.get("max") or row.get("current") or 0))}
+        record.powers_read = True
+    return record.powers_read
 
 
 def absorbed(policy, sval: int) -> bool:
@@ -291,15 +317,23 @@ def identify_power_command(policy, snapshot, target, *, full: bool) -> str | Non
     return key + target.slot if key is not None else None
 
 
+def _unread_sequence_staff(policy, snapshot, item) -> bool:
+    """Any sequence staff while the power list is unread (``read_powers``)."""
+    return (item.tval == TVAL_STAFF and item.sval in SEQUENCE_SVALS and item.aware
+            and not read_powers(policy, snapshot))
+
+
 def purchase_excluded(policy, snapshot, item) -> bool:
     """「2本目は買わない」: class 16 never buys these staffs after Q1 itself."""
-    return is_sequence_staff(item, policy) and applies(policy, snapshot)
+    return applies(policy, snapshot) and (
+        is_sequence_staff(item, policy) or _unread_sequence_staff(policy, snapshot, item))
 
 
 def retains(policy, snapshot, item) -> bool:
     """A bought staff stays carried until it is recharged and absorbed."""
-    return (is_sequence_staff(item, policy) and applies(policy, snapshot)
-            and not absorbed(policy, item.sval))
+    return applies(policy, snapshot) and (
+        _unread_sequence_staff(policy, snapshot, item)
+        or (is_sequence_staff(item, policy) and not absorbed(policy, item.sval)))
 
 
 # -- the shop: same hook points as the opening route's purchase ------------
@@ -366,7 +400,7 @@ def purchase(policy, snapshot):
 
 def _page_purchase(policy, snapshot):
     if (snapshot.store is None or not applies(policy, snapshot)
-            or _phase(policy, snapshot) != "buy"):
+            or not read_powers(policy, snapshot) or _phase(policy, snapshot) != "buy"):
         return None
     target = buy_target(policy, snapshot)
     if target is None or snapshot.player.gold < target:
@@ -598,6 +632,16 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if not snapshot.in_town or snapshot.store is not None or not applies(policy, snapshot):
         return None
     record = state(policy)
+    if not read_powers(policy, snapshot):
+        # Read what the game has absorbed before buying, selling or
+        # absorbing anything (``read_powers``); browsing takes no game time.
+        # A hostile in view keeps the board for fight/flee (survival first).
+        if policy._physical_hostiles(snapshot):
+            return None
+        if not _attempt(policy, "read-powers", 0):
+            return _stop(policy, "power-list-unavailable")
+        policy.last_reason = SEQUENCE_READ_REASON
+        return "b" + KIND_LETTER["staff"]
     announced = set(record.completed_stages)
     _settle_pending(policy, snapshot)
     stage = current_stage(policy)
