@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import me_ranged_first
+from hengbot import me_ranged_first, return_yield
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -394,6 +394,8 @@ class CombatMixin:
                 return ranged
             self.last_reason = "melee"
             return self._step_toward(snapshot, self._weakest(adjacent).position)
+        if return_yield.latched_return_owns(self, snapshot):
+            return None  # the return owner reads Recall or walks out (death 1, #47)
         if snapshot.player.position not in cells:
             loot = self._town_producer_entry(
                 "_normal_loot_key",
