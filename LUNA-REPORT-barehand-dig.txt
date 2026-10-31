@@ -1,0 +1,103 @@
+#47 D45 報告: 採掘の持ち替えの途中で素手のまま戦い続ける（n1-c life-065）
+
+ブランチ fix-barehand-dig-1031（基準 main aa56fccb0）。診断は LUNA-DIAG-barehand-dig.txt。
+
+結論
+- 退行ではなく、07-25・08-15 からある「外す→持つ」の2手の持ち替えの穴。2手の間（主手が空）に敵が見えると、
+  (1) 2手目は「敵が見えない決定が8回続く」まで出ない、(2) 戻しは手に掘る道具がある時しか働かない、
+  (3) 仮に戻そうとしても実行器が「持ち替えの直後で何も変わっていない盤面の反対の入れ替え」として断る、の3つが重なり、
+  増える敵（白イモムシの大群）が見え続けたので 12,967 ゲームターン以上素手だった。
+- 以前のキャラ（同じ life-065 の前の5回も）は、2手の間に敵が見えず 10〜12 ゲームターンで閉じていた。
+
+直したこと（コミット 7d35ba4f8）
+- 新しいモジュール src/hengbot/mining_loadout.py が、持ち替えの「外す」と「巻き戻す」の両端を持つ。
+  両方とも同じ述語（敵が見えるか）で決めるので、行き来しない。
+  - strip_allowed / deferred_strip: 敵が見えている間は戦闘の手を外さない。_wield_digging_tool_key（採掘と掘り抜けの
+    共通の入口）は外さずに mining-loadout:strip-deferred-hostile-in-view を返す。採掘は元々8回の静かな決定を待つので
+    変わらず、掘り抜け（P2）だけが「敵が見えている間は武器のまま掘る」になる。
+  - rollback_key: ダンジョンで、敵が見えていて、掘る道具を持ち物に持ち、戦闘の手が空の時、外した武器を持ち直す
+    （理由 melee:rearm-empty-hand）。主手が先、副手は持ち替えで外した品がある時だけで、掘る道具の隣には付けない。
+    持ち直す品の順: 覚えている品（同一性、名前）→（再起動で覚えが無い時）町で計算した最適化の勝者
+    → 持ち物の最初の使える近接武器（今までの戻しと同じ決まり）。掘る道具は選ばない。
+    実行器の目的は mining-loadout-rollback（反対の入れ替えではないので goal-already-superseded に断られない）。
+    逃げるべき時（_should_flee）は譲る。
+- policy.py:11101 に1か所だけ呼び出しを足した（_mining_loadout_rollback_key）。緊急の消費品の段より下、
+  承認されたクエストの階のナビゲータより下（その階の戦いはナビゲータが持つ）、群れ・隘路・逃げ・近接・資金稼ぎの
+  どの段より上。生存の割り込み（survival_preemption）の対象には入れていない。
+- 手に掘る道具がある時の順序（遠隔を先、接触2回で戻す）は承認された仕様なので変えていない。
+- 町の段の宣言: town_terminal.py の NO_REFUSAL_REASONS に dungeon-only として追加、scripts/town_work_review.json に
+  5項目（producer 2つは dungeon-only、選ぶ関数3つは data）、town_work_manifest.py --write は zero unmapped、
+  確認は 0 violation(s)。
+
+検査
+- 新しい検査 tests/test_barehand_mining_recorded.py（8件）。抜き出し tests/extract_barehand_mining_fixture.py
+  → tests/fixtures/me-barehand-mining-20261031.json.gz（記録の盤面 778659・778665・778697・791632、技能の行、決定の行、
+  race 31）。決定は公開の choose_key、出したキーは本物の実行器（_ExecutorInputPort と FaithfulHookGame、装備の問いの画面つき）。
+  - test_strip_interrupted_by_the_breeder_rearms_before_fighting（欠陥の検査、記録の連鎖）: 778659 で 'ta'、
+    778665 で 'wm'（melee:rearm-empty-hand）、持ち直した盤面の次の決定は戦い。
+  - test_empty_hand_with_the_breeder_adjacent_rearms_first（欠陥の検査、再起動）: 隣に増える敵がいる空の手の盤面
+    （778697、791632）で、採掘中でもそうでなくても最初のキーが剣を持つ。
+  - test_two_hand_strip_interrupted_rearms_both_hands_then_fights（作った盤面）: 剣と盾で 'ta' の後・'tb' の後に
+    敵が見えると、剣→盾の順に持ち直してから戦う。
+  - test_restart_rearm_takes_the_remembered_then_the_optimizer_weapon（作った盤面）: ダガーを剣より前に持つ時、
+    覚えが無ければ最初の武器、最適化の勝者があれば剣、覚えた品が無ければ最初の武器、覚えた品があれば剣。
+  - test_strip_waits_while_a_hostile_is_in_view: 敵が見えていると掘り抜けでも外さない、見えなければ 'ta'。
+  - 対照: test_capture_pins_the_recorded_scene、test_control_digger_in_hand_keeps_the_approved_mining_combat_order
+    （手に掘る道具がある時は巻き戻さない）、test_control_quiet_empty_hand_continues_the_swap（敵がいなければ持ち替えの
+    2手目 'wn' が出る）。
+- 直す前に戻して流した結果（git diff -- src を保存、git checkout -- src と mining_loadout.py を外す、流す、git apply で戻す）:
+  aa56fccb0 の src で 8件中 5件が失敗（小検査で 12 件）:
+  test_strip_interrupted_by_the_breeder_rearms_before_fighting（('2', 'fundraise:eliminate-multiplier') != ('wm', 'melee:rearm-empty-hand')）、
+  test_empty_hand_with_the_breeder_adjacent_rearms_first（4件とも ('mBp1'/'mBp3', 'quest-strategy:ranged-fire:magic-eater')）、
+  test_two_hand_strip_interrupted_rearms_both_hands_then_fights（2件とも ('2', 'fundraise:eliminate-multiplier')）、
+  test_restart_rearm_takes_the_remembered_then_the_optimizer_weapon（4件とも）、
+  test_strip_waits_while_a_hostile_is_in_view（'ta' is not None）。
+  対照3件は直す前も後も通る。直した後は 8件とも通る。
+- 流したもの:
+  - import の確認: 通過。
+  - checks.json の検査: 台帳の 44 件のうちこのブランチにある 39 件（235 テスト）。直した後 235 件すべて通過。
+    直す前（aa56fccb0 の src と scripts）の同じ 235 件も全部通過。
+    無いもの（別の発注先のブランチ）: tests.test_dungeon_1031_recorded の4クラス、tests.test_me_nokey_1031_recorded、
+    tests.test_me_stage2_powers。
+  - 採掘の持ち替え・戻しの既存の検査: tests.test_policy_fundraising、tests.test_equipment_mutation、tests.test_live10、
+    tests.test_town_terminal_dungeon_round12、tests.test_town_terminal_no_refusal_round11、tests.test_town_terminal_declarations
+    と新しい検査で 90 件通過。test_policy_equipment・test_policy・test_policy_shop・test_policy_home・test_policy_town・
+    test_cli・test_home_light_alternation の restore/digger/digging/mining/breakout/rearm/weapon を含む 203 件通過（1件 skip は元から）。
+    tests.test_test_fakery_lint も通過（最適化の結果は本物のデータクラスで作り、例外の注記を足していない）。
+  - town_work_manifest.py: 0 violation(s)。
+- 期待値を変えた既存の検査: tests/test_town_terminal_no_refusal_round11.py の固定の一覧に、
+  _mining_unbeatable_unique_abort_key（10-31 の Greater Hell-Beast の直し、078eb2d8b で足され、この検査は main で既に失敗していた）と
+  今回の _mining_loadout_rollback_key を足した。これで main の失敗も直る。壁（テストの迂回）は無い。
+- 元から失敗している検査（触っていない）: tests.test_ownership_s2b1_ladder.LadderOrderTest.test_the_decide_rungs_are_the_marked_calls_in_order
+  は aa56fccb0 でも同じく失敗する（55 要素の差、scripts を PYTHONPATH に入れないと import もできない）。今回の呼び出しは
+  @claims を付けていないので、この並びの対象ではない。
+
+保守性
+- 新しい決まりは src/hengbot/mining_loadout.py に集めた（外してよいか・巻き戻すか・何を持ち直すか）。決定の共通の流れに
+  足したのは policy.py の1か所の呼び出しと、policy_equipment.py の薄い入口（_mining_loadout_rollback_key）と外す前の門だけ。
+- 重複を減らした: 今までの戻し（_restore_mining_combat_hand_key）にあった「持ち直す品の述語」と「両手の覚えの表」、
+  _wield_digging_tool_key にあった「最適化の結果の読み出し」と手の取り出しを、モジュールの restorable_item・remembered_hands・
+  cached_optimal_loadout・worn_in_slot にまとめ、両方から使う（同じ述語を2か所に書かない）。盾の tval の 34 は TVAL_SHIELD にした。
+- 職業・クエスト番号・品の番号の特例は足していない。行き来を防ぐ条件は「外す」と「巻き戻す」で同じ述語を1つだけ使う。
+- 関係のない整理はしていない。
+
+残っていること・所有者への問い
+1. 手に掘る道具がある時に敵が来た場合: 承認された仕様（遠隔を先、接触2回で戻す）のままにした。発注文の
+   「掘る道具の時も先に戻す」とは読み方が違うので、変えるなら決めてほしい。なお同じ根（2-e）で、掘る道具を持った直後に
+   金・経験値・持ち物が変わらないうちは接触2回の戻しも実行器に断られうる（経験値が変わるまで掘る道具で戦う）。
+   今回の巻き戻しの目的（mining-loadout-rollback）を接触2回の戻しにも使えば断られなくなるが、仕様の変更に当たるので入れていない。
+2. 再起動で覚えが無い時の武器の選び方は「町で計算した最適化の勝者 → 持ち物の最初の使える近接武器」。ダンジョンの中で
+   最適化を回すのは重いので回していない。複数の武器を持っている時に最初の武器が最良とは限らない。良ければこのまま。
+3. 町（町の家族、直していない）: _town_restore_weapon_key は掘る道具を持っていない空の主手を戻さない
+   （policy_equipment.py:3828 no-restoration-required）。町では装備の最適化が持ち直すはずだが、確かめていない。
+4. 掘り抜け（P2）は敵が見えている間は外さず、武器のまま掘る（掘る速さは落ちる）。新しい振る舞いではなく、外す門を
+   巻き戻しの門と揃えた結果。眠った敵が見え続ける階では掘り抜けが遅くなりうる。
+5. 素手で戦う職業（修行僧など）は bot が扱っていないので考えていない。巻き戻しは「掘る道具を持ち、近接武器を持ち物に
+   持っている」時だけ働く。
+
+コミット
+- 7d35ba4f8 Re-arm a combat hand the digger swap left empty before fighting（直し、検査、抜き出し、宣言と目録）
+- この報告と診断のコミット
+
+checks.json に足す項（自分では足していない）
+{"id": "D45", "owner": "2026-10-31 「n1-cが素手で戦闘している。どういう退行？」 (n1-c life-065, branch fix-barehand-dig-1031)", "tests": ["tests.test_barehand_mining_recorded"]}

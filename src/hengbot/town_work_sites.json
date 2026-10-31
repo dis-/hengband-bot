@@ -2105,6 +2105,38 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "f01f42a8fe7c816b28406a11086c8bd529224f3f115c143cf48cd0e6da3db6c6"
   },
+  "mining_loadout.py:restorable_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e4dbe022642ac462255a865fac47a327e9c18ec943006f76be188f7390d9120d"
+  },
+  "mining_loadout.py:restorable_item.matches": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "d94c0c6a2bf87012714f8c7ea43d38ad2f7815ce0c3db919a4742b07a006a46f"
+  },
+  "mining_loadout.py:rollback_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "delegation": "_equipment_wield; no independent progress",
+    "ast_sha256": "54ef09805a5e4994099a6819767df1becb5d3c440164ffba086765187cd6a9e3"
+  },
+  "mining_loadout.py:worn_in_slot": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "db5b283f320d2d25b12e90af3aa89a62eec3d2c19c3050ba276123301a8f482a"
+  },
   "model.py:Position.distance_to": {
     "classification": "data",
     "rows": [
@@ -2668,7 +2700,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ee308c0f29ef797b9d4b18370005ea425bce70cf5a9d0250e6516ca7d3753c2e"
+    "ast_sha256": "95b405dc9c6bc11690e02cce6095286fc58d39bae73a258e261d4cad2bfa5df6"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -5184,6 +5216,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "22980794eb165123eea0fb97422286530ef543185d9ca69b63ee43853c035410"
   },
+  "policy_equipment.py:EquipmentMixin._mining_loadout_rollback_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "delegation": "mining_loadout.rollback_key -> _equipment_wield; no independent progress",
+    "ast_sha256": "4f6ea95c812b8684e5b3ffdcb7e16c239d388d8bf7dddd92f8f2507bab88e586"
+  },
   "policy_equipment.py:EquipmentMixin._obtainable_launcher_ammunition": {
     "classification": "data",
     "rows": [
@@ -5287,7 +5327,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a08ef15baa57bd59b6413a7152c4e56b3e758693820b80176bb0aaac6fe04911"
+    "ast_sha256": "5b25ffcdd8bef787a8102ad04f2a2b1617cf8338c4a1496af74f4b989cd3d436"
   },
   "policy_equipment.py:EquipmentMixin._wield_weapon_key": {
     "classification": "producer",
@@ -7501,7 +7541,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "546b2c121d66eb6dd325d50451efa60115696070b3b9d2c0b84553a5b0807219"
+    "ast_sha256": "7681654d3e86bd033a9de4a4065d2b05c73c3e5e5098d49938cf48dfcea6fd23"
   },
   "policy_shop.py:ShopMixin._restore_potion_purchase": {
     "classification": "data",
