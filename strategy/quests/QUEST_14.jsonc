@@ -16,6 +16,9 @@
     "min_hp": 120, "min_expected_dps": 13, "level_guideline": 8,
     "reference_ac": 20,
     "resists": [], "speed_potions": 1, "heal_potions": 2, "throwing_items": {},
+    // 2026-10-31 owner: 「致命傷の治癒でよい」 -- the two heal potions are
+    // Potions of Cure Critical Wounds (the Temple's stock), not Healing.
+    "heal_potion_kind": "cure_critical",
     "no_healing_tier": {
       "min_hp": 150, "min_expected_dps": 36,
       "heal_potions": 0, "speed_potions": 0,
