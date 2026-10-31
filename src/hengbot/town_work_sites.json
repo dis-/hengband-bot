@@ -1556,6 +1556,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "d4908081f204a3b4de0914aab32d924e23a14c5313855b3fdcf2fc20ca5c85fc"
   },
+  "lamp_fuel.py:_lantern_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "3dd260485bedb7b882126897d1cb0b13ccabf0d77359f34afc8b5cce549d916a"
+  },
   "latch_onset_capture.py:_recall_candidates": {
     "classification": "data",
     "rows": [
@@ -4631,7 +4639,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "bc3aefefc21184e04afc632146f4e688058b1b36345f51e675d78914a2c536ab"
+    "ast_sha256": "758ce25c64ea5e8550d461b1e974b061a6edb61ca17a3cd9b00fe4cb5bde1548"
   },
   "policy.py:HengbotPolicy._unprofitable_unique_disengage_key": {
     "classification": "producer",
@@ -8213,7 +8221,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "92943134f6f06b295d0e62efd84b3b70e94e2f40c26e931592ce6e0f5a72c2da"
+    "ast_sha256": "9cb7e99934d8e35600b0a8d97f4f62e7ee65228c7ee8a5c23b9d0bdddb8096ee"
   },
   "policy_supply.py:SupplyMixin._mana_food_device_target": {
     "classification": "data",
