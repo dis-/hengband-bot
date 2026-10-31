@@ -32,6 +32,7 @@ replies are the next recorded board, or the same board one turn later.
 import tests  # noqa: F401 -- isolate live runtime files
 
 import copy
+from dataclasses import replace
 import gzip
 import json
 from pathlib import Path
@@ -42,6 +43,9 @@ from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import UP_STAIRS_KEY, WAIT_KEY
+from hengbot.terrain_knowledge import _strip_jsonc
+from hengbot.wilderness_exit import SHAFT_TERRAIN_IDS
 from tests import test_input_executor as executor_pins
 from tests.test_town_decision_speed_caches import EDIT, build_policy
 
@@ -49,6 +53,7 @@ FIXTURE = Path(__file__).with_name("fixtures") / "dungeon-1031.json.gz"
 READ_PROMPT = "どの巻物を読みますか? "
 QUAFF_PROMPT = "どの薬を飲みますか? "
 CHOOSER = "どのダンジョンに帰還しますか:"
+SHAFT = Position(5, 62)
 
 
 def skill(policy, raw):
@@ -207,6 +212,46 @@ class Q22SweepRecordedTest(RecordedHarness):
             policy, board, policy._quest_strategies[22],
             [monster for monster in board.visible_monsters if monster.race_id != race_id]))
         self.assertIsNone(policy._quest_sweep_engage_commit)
+
+
+class WildernessRecordedTest(RecordedHarness):
+    def policy(self, raw):
+        policy = build_policy()
+        policy.prime(parse_snapshot(raw, policy._monrace_knowledge))
+        policy._returning_to_town = True  # DECLARED RECONSTRUCTED
+        return policy
+
+    def test_shaft_terrain_ids_match_the_game_data(self):
+        data = json.loads(_strip_jsonc(
+            (EDIT / "TerrainDefinitions.jsonc").read_text(encoding="utf-8")))
+        shafts = {int(row["id"]) for row in data["terrains"]
+                  if {"STAIRS", "SHAFT"} <= set(row.get("flags", []))}
+        self.assertEqual(shafts, SHAFT_TERRAIN_IDS)
+
+    def test_recorded_rows(self):
+        case = self.cases["wilderness-shaft"]
+        self.assertEqual([(row["reason"], row["key"]) for row in case["decisions"]][-2:],
+                         [("return:ascend", "<"), ("wilderness:enter-global", "<")])
+        on_shaft, arrival = case["boards"][-2], case["boards"][-1]
+        self.assertEqual((on_shaft["floor"]["dungeon_id"], on_shaft["floor"]["level"]), (1, 2))
+        self.assertEqual((arrival["floor"]["dungeon_id"], arrival["floor"]["level"]), (0, 0))
+
+    def test_the_up_shaft_on_the_second_floor_is_not_taken(self):
+        boards = self.boards("wilderness-shaft")[:-1]
+        policy = self.policy(boards[0])
+        for raw in boards:
+            key = decide(policy, raw)
+            self.assertNotIn(policy.last_reason, ("return:ascend", "return:seek-upstairs"))
+        raw = boards[-1]
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertEqual(board.player.position, SHAFT)
+        self.assertIn(board.grid_at(SHAFT).terrain_id, SHAFT_TERRAIN_IDS)
+        self.assertNotEqual(key, UP_STAIRS_KEY)
+        self.assertFalse(policy._is_upstairs_target(board.grid_at(SHAFT)))
+        # DECLARED CONSTRUCTED: the same cell as an ordinary staircase leads to
+        # the first floor and stays a target.
+        stair = replace(board.grid_at(SHAFT), terrain_id=6)
+        self.assertTrue(policy._is_upstairs_target(stair))
 
 
 if __name__ == "__main__":
