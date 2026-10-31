@@ -14,6 +14,10 @@ Cases:
   (Home entrance, hungry, 1092876: recorded decision 12349, whose absorb was
   rewritten).  The duplicate frames 106, 107, 110, 111 carry no decision of
   their own (the decision rows of turns 1092301-1092865 are 12344-12348).
+- ``fuse``: the decision rows (``bot-decisions.jsonl.gz``) of n1-c life-057
+  ``20261031-083408-loop-detected`` 3866-3895 and ``20261031-084544-loop-
+  detected`` 704-733, both stopped by the runner's town-block fuse, trimmed to
+  the reason, the key and the claim's id, goal kind and goal distance.
 
 Only this tool reads the captures; the committed test reads the frozen file.
 Usage: python tests/extract_town_stops_1031_fixture.py [captures directory]
@@ -37,6 +41,32 @@ CASES = {
     ),
 }
 
+FUSE = {
+    "walk": ("n1-c/life-057/captures/20261031-083408-loop-detected", 3866, 3895),
+    "fight": ("n1-c/life-057/captures/20261031-084544-loop-detected", 704, 733),
+}
+
+
+def _fuse_rows(source: Path, relative: str, first: int, last: int) -> list[dict]:
+    rows = {}
+    path = source / relative / "bot-decisions.jsonl.gz"
+    with gzip.open(path, "rt", encoding="utf-8") as stream:
+        for line in stream:
+            row = json.loads(line)
+            sequence = row.get("decision_sequence")
+            if first <= (sequence or 0) <= last and sequence not in rows:
+                claim = row.get("claim") or {}
+                rows[sequence] = {
+                    "decision_sequence": sequence,
+                    "reason": row["reason"],
+                    "key": row["key"],
+                    "claim_id": claim.get("claim_id"),
+                    "goal_kind": (claim.get("goal") or {}).get("kind"),
+                    "distance": claim.get("distance"),
+                }
+    assert sorted(rows) == list(range(first, last + 1)), sorted(rows)
+    return [rows[sequence] for sequence in range(first, last + 1)]
+
 
 def _case(source: Path, relative: str, indices: tuple[int, ...]) -> dict:
     wanted = set(indices)
@@ -51,6 +81,9 @@ def _case(source: Path, relative: str, indices: tuple[int, ...]) -> dict:
 
 def main(source: Path) -> None:
     document = {name: _case(source, *spec) for name, spec in CASES.items()}
+    document["fuse"] = {name: _fuse_rows(source, *spec) for name, spec in FUSE.items()}
+    assert document["fuse"]["walk"][0]["reason"].startswith("town:blocked:")
+    assert document["fuse"]["fight"][0]["reason"].startswith("town:blocked:")
     town1 = dict(document["town1"]["rows"])
     assert town1[115]["turn"] == 1092876 and not town1[115].get("store")
     assert (town1[115]["player"]["y"], town1[115]["player"]["x"]) == (45, 123)

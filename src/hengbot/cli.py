@@ -57,8 +57,10 @@ from hengbot.policy import (
     required_depth_gates,
     staged_prompt_chain_matches,
 )
+from hengbot.claim_goal_typing import SURVIVAL_REASON_PREFIXES
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
+    COMBAT_REASON_PREFIXES,
     ENTER_DUNGEON_MACRO,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
@@ -448,6 +450,12 @@ QUEST_COMBAT_REASON_PREFIXES = (
 # store-door snapshots reset the cell-based loop guard and could otherwise hide
 # the latched state forever.
 TOWN_BLOCKED_STOP_LIMIT = 30
+# Fighting, fleeing and the survival ladder in town answer a monster, not the
+# blocked visit; a town:blocked:* line followed by a fight with a fleeing town
+# monster is not thirty idle decisions (n1-c life-057 2026-10-31 08:45).
+TOWN_FUSE_COMBAT_REASON_PREFIXES = (
+    COMBAT_REASON_PREFIXES + SURVIVAL_REASON_PREFIXES + ("town:kill-mob",)
+)
 # Outermost town safety net. Policy-level repetition checks deliberately reset
 # when gold, pack, or equipment changes, so transaction ping-pong can evade
 # them forever. A continuous town residence this long is faulty regardless of
@@ -820,8 +828,15 @@ def _advance_town_blocked_streak(
     floor_changed: bool = False,
     durable_progress: bool = False,
     consecutive: bool = False,
+    advancing: bool = False,
 ) -> int:
-    """Count unproductive decisions during one uninterrupted town visit."""
+    """Count unproductive decisions during one uninterrupted town visit.
+
+    ``advancing`` is a step of the same claim that closed the distance to its
+    declared Reach goal: the walk the block handed over to, not another
+    unproductive decision (n1-c life-057 2026-10-31 08:34, a 44-step walk to
+    the town's down staircase after one town:blocked line).
+    """
     if floor_changed or not in_town:
         return 0
     if durable_progress:
@@ -847,6 +862,8 @@ def _advance_town_blocked_streak(
         return streak
     if reason.startswith("town:blocked:"):
         return streak + 1
+    if advancing or reason.startswith(TOWN_FUSE_COMBAT_REASON_PREFIXES):
+        return streak
     if streak and reason != "shop:leave":
         return streak + 1
     return streak
@@ -869,6 +886,16 @@ def _advance_town_blocked_iteration(
     )
     previous_reason = getattr(policy, "_town_fuse_previous_reason", None)
     policy._town_fuse_previous_reason = policy.last_reason
+    claim = getattr(policy, "decision_claim", None) or {}
+    goal = claim.get("goal") or {}
+    reach = (
+        (claim.get("claim_id"), claim["distance"])
+        if goal.get("kind") == "Reach"
+        and isinstance(claim.get("distance"), int)
+        else None
+    )
+    previous_reach = getattr(policy, "_town_fuse_previous_reach", None)
+    policy._town_fuse_previous_reach = reach
     streak = _advance_town_blocked_streak(
         streak,
         policy.last_reason,
@@ -877,6 +904,12 @@ def _advance_town_blocked_iteration(
         floor_changed=floor_changed,
         durable_progress=durable_progress,
         consecutive=previous_reason == policy.last_reason,
+        advancing=(
+            reach is not None
+            and previous_reach is not None
+            and reach[0] == previous_reach[0]
+            and reach[1] < previous_reach[1]
+        ),
     )
     return streak, current_durable_state
 

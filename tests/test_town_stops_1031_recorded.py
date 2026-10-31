@@ -13,7 +13,9 @@ import copy
 import gzip
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
+from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _advance_town_blocked_iteration
 from hengbot.model import _parse_items, parse_snapshot
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_opening_route_r2_recorded as round2
@@ -69,3 +71,47 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         following["turn"] += 10
         following["messages"] = []
         self.post(policy, raw, "Ef", following)
+
+    def fuse(self, rows):
+        """Drive the production town-block fuse over recorded decision rows."""
+
+        class Recorded:
+            # The recorded run stopped with no durable town change, so every
+            # row carries the same progress state (DECLARED CONSTRUCTED).
+            def _town_progress_fingerprint(self, _snapshot):
+                return ("recorded-town-state",)
+
+        policy, snapshot = Recorded(), SimpleNamespace(in_town=True)
+        streak, durable, peak = 0, None, 0
+        for row in rows:
+            policy.last_reason = row["reason"]
+            policy.decision_claim = {
+                "claim_id": row["claim_id"], "distance": row["distance"],
+                "goal": {"kind": row["goal_kind"]},
+            }
+            streak, durable = _advance_town_blocked_iteration(
+                policy, snapshot, streak, durable, key=row["key"])
+            peak = max(peak, streak)
+        return streak, peak
+
+    def test_loops4_5_walk_and_fight_after_one_block_do_not_trip_the_fuse(self):
+        # n1-c life-057 08:34 / 08:45: one town:blocked line, then a walk to the
+        # down staircase (08:34) or a fight with a fleeing town monster (08:45)
+        # reached TOWN_BLOCKED_STOP_LIMIT and stopped the bot as loop-detected.
+        for name in ("walk", "fight"):
+            with self.subTest(name):
+                rows = self.cases["fuse"][name]
+                self.assertTrue(rows[0]["reason"].startswith("town:blocked:"))
+                self.assertEqual(len(rows), TOWN_BLOCKED_STOP_LIMIT)
+                _, peak = self.fuse(rows)
+                self.assertLess(peak, TOWN_BLOCKED_STOP_LIMIT // 2)
+
+    def test_repeated_blocks_between_the_recorded_walk_steps_still_trip_the_fuse(self):
+        rows = self.cases["fuse"]["walk"]
+        repeated = [rows[0]] * TOWN_BLOCKED_STOP_LIMIT
+        self.assertEqual(self.fuse(repeated)[0], TOWN_BLOCKED_STOP_LIMIT)
+        # A walk that never closes on its goal still counts every step.
+        stalled = [rows[0]] + [dict(row, distance=rows[1]["distance"])
+                               for row in rows[1:] if row["goal_kind"] == "Reach"]
+        stalled += [stalled[-1]] * (TOWN_BLOCKED_STOP_LIMIT - len(stalled))
+        self.assertEqual(self.fuse(stalled)[0], TOWN_BLOCKED_STOP_LIMIT)
