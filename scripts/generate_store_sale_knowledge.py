@@ -11,6 +11,11 @@ import sys
 from hengbot.monrace_knowledge import _strip_jsonc
 
 
+def _stripped(name):
+    """Names as the current game prints them (664240d477 removed stray spaces)."""
+    return {language: label.strip() for language, label in name.items()}
+
+
 def generate(root):
     sources = {}
 
@@ -38,7 +43,7 @@ def generate(root):
             }
         else:
             result[key] = [{
-                'name': e['name'], 'cost': e['cost'],
+                'name': _stripped(e['name']), 'cost': e['cost'],
                 'flags': [numbers[f] for f in e.get('flags', []) if f in numbers],
                 **({'base_item': e['base_item']} if key == 'artifacts' else {'slot': e['slot']}),
             } for e in rows]
@@ -74,7 +79,7 @@ def generate(root):
     result['uncursed_teleport'] = numbers['TELEPORT']
     monraces = json.loads(_strip_jsonc(read('lib/edit/MonraceDefinitions.jsonc')))['monsters']
     result['monraces'] = [{
-        'name': e['name'], 'level': e.get('level', 0),
+        'name': _stripped(e['name']), 'level': e.get('level', 0),
         'symbol': e.get('symbol', {}).get('character', ''),
         'kind': [f for f in e.get('flags', []) if f in {'GOOD', 'EVIL', 'ANIMAL'}],
     } for e in monraces]
