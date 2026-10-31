@@ -48,22 +48,23 @@ class StaffSearchTownsTest(nokey.PostedKey):
         destination = travel.call_args.args[1] if travel.called else None
         return key, destination
 
-    def test_spare_gold_searches_morivant_first(self):
+    def test_spare_gold_searches_the_other_towns_before_morivant(self):
+        # #47 D52: Morivant last, where the round ends at the Tower.
         policy = self.policy()
         raw = self.last_board()
-        key, destination = self.decide_last(policy, raw)
-        self.assertTrue(policy.last_reason.startswith(SEARCH), (key, policy.last_reason))
-        self.assertEqual(destination, 2)
-        self.assertEqual(sequence.state(policy).searched_towns, {0: raw["turn"]})
-        self.post(policy, raw, key)
-
-    def test_next_town_after_a_searched_morivant(self):
-        policy = self.policy()
-        raw = self.last_board()
-        sequence.state(policy).searched_towns[2] = raw["turn"] - 10  # seen this wait
         key, destination = self.decide_last(policy, raw)
         self.assertTrue(policy.last_reason.startswith(SEARCH), (key, policy.last_reason))
         self.assertEqual(destination, 1)
+        self.assertEqual(sequence.state(policy).searched_towns, {0: raw["turn"]})
+        self.post(policy, raw, key)
+
+    def test_morivant_after_the_other_towns(self):
+        policy = self.policy()
+        raw = self.last_board()
+        sequence.state(policy).searched_towns.update({1: raw["turn"] - 10, 3: raw["turn"] - 10})
+        key, destination = self.decide_last(policy, raw)
+        self.assertTrue(policy.last_reason.startswith(SEARCH), (key, policy.last_reason))
+        self.assertEqual(destination, 2)
 
     def test_every_town_searched_mines_for_the_restock(self):
         policy = self.policy()
@@ -78,6 +79,7 @@ class StaffSearchTownsTest(nokey.PostedKey):
         policy = self.policy()
         raw = self.last_board()
         record = sequence.state(policy)
+        record.searched_towns.update({1: raw["turn"] - 10, 3: raw["turn"] - 10})
         record.searched_towns[2] = record.shelf_after_turn - 1  # before this wait
         key, destination = self.decide_last(policy, raw)
         self.assertEqual(destination, 2, policy.last_reason)

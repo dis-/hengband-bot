@@ -202,8 +202,9 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
         following = self.move_reply(raw, key)
         self.post(policy, raw, key, following)
         raw = following
-        # Stage 2: the carried (recorded) Detect Evil staff is absorbed on
-        # this Tower visit; the other three are bought at the Outpost next.
+        # Stage 2: the carried (recorded) Detect Evil staff, already full, is
+        # absorbed on this Tower visit; the buy round for the others looks at
+        # Morivant's own Magic shelf first (#47 D52), by the travel command.
         slot = self.staff(raw, EVIL)["slot"]
         key = self.decide(policy, raw)
         self.assertEqual((key, policy.last_reason), ("G" + slot, ABSORB_REASON))
@@ -211,7 +212,8 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
         raw = self.absorb_reply(raw, slot)
         self.decide(policy, raw)
         self.assertEqual(sequence.state(policy).absorbed[EVIL], 14)
-        self.assertEqual(policy.last_reason, "me-staff:return-to-shop")
+        self.assertEqual((policy.last_reason, policy._shopping_approach_store_type),
+                         ("shop:travel", sequence.STORE_MAGIC))
 
     def test_capture_pins_the_recorded_boards(self):
         approach, recharged = self.case["approach"], self.case["recharged"]

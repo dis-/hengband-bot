@@ -24,6 +24,7 @@ DECLARED CONSTRUCTED: the command loop's reply to the posted key.
 """
 
 import tests  # noqa: F401 -- live runtime-file isolation
+from hengbot.town_travel import is_travel_macro
 import gzip
 import hashlib
 import json
@@ -96,9 +97,13 @@ class StoreExitObservedRecordedTest(executor_harness.ProductionHarness):
         # The recorded owner was town:cross-town-shopping:travel-2.  Since the
         # n1-b life-282 fix the carried ego flail waiting for *Identify* is a
         # Home deposit candidate (the shelf scroll needs a fifth slot the pack
-        # budget refuses at 4 free), and the same first step to the inn ('9')
-        # is now the Q2 return teleport's walk (fixedquest:q2-teleport).
-        self.assertEqual((key, policy.last_reason), ("9", "fixedquest:q2-teleport"))
+        # budget refuses at 4 free), and the leg to the inn is now the Q2
+        # return teleport's (fixedquest:q2-teleport).  Its recorded walk step
+        # '9' toward the inn is now the game's travel command to the inn's
+        # side (owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」,
+        # town_travel).
+        self.assertEqual(policy.last_reason, "fixedquest:q2-teleport")
+        self.assertTrue(is_travel_macro(key), key)
         # Before the fix the leave stays in flight across the decision and
         # the driver suppresses the key (nothing posted, run stops).
         self.assertIsNone(policy._store_leave_inflight)
