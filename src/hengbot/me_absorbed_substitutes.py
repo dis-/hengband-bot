@@ -7,6 +7,12 @@ Owner, for class 16 (魔道具術師):
  2. 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない。持ち物の要求からも外す。」
  4. 「岩石溶解を取り込んでいるとき、クエストの魔法棒要求の代替にできる。」
 (3, absorbing a carried Stone to Mud wand, is a me_staff_sequence extra.)
+ 5. 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える。帰還
+    テレポート回復は信頼度が違うので薬巻物も要求する。」 (2026-10-31 21:30):
+    ``destruction_uses`` adds the absorbed *Destruction* staff's charges to
+    the 50F+ gate only while its displayed success rate is at least
+    ``DESTRUCTION_MIN_SUCCESS``; Recall, Teleport, healing and curing keep
+    counting only scrolls and potions (nothing here substitutes for them).
 
 Every fact is one the player saw: the power's row in the last list the game
 displayed for its kind (``me_powers.observed_row``, cmd-magiceat.cpp), or,
@@ -46,7 +52,9 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_staff_sequence import POWER_NAMES, SV_STAFF_LITE, absorbed_count as recorded_count
 from hengbot.me_staff_sequence import cast_blocked, max_charges
 from hengbot.me_device_policy import devices
-from hengbot.model import SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_STAFF, TVAL_WAND
+from hengbot.model import (
+    SV_STAFF_DESTRUCTION, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_STAFF, TVAL_WAND,
+)
 
 
 # The reason suffix of a quest's absorbed-power cast (me_device_attacks_input).
@@ -55,6 +63,9 @@ WAIVE = "waive"
 CHARGES = "charges"
 
 LIGHT = me_powers.BY_KEY[("staff", SV_STAFF_LITE)]
+# BaseitemDefinitions *破壊*の杖 (staff sval 29), the 50F+ gate's carrier.
+DESTRUCTION = devices()[(TVAL_STAFF, SV_STAFF_DESTRUCTION)].power
+DESTRUCTION_MIN_SUCCESS = 80  # owner 2026-10-31 「成功率が80%以上なら」
 IDENTIFY = me_powers.Power("staff", SV_STAFF_IDENTIFY, POWER_NAMES[SV_STAFF_IDENTIFY],
                            "identify", 0, 0, ())
 # The device policy table's row (BaseitemDefinitions id 273); wand_effect's
@@ -111,6 +122,19 @@ def purchase_excluded(policy, snapshot, item) -> bool:
     """「鑑定の杖を購入しない」 once the absorbed Identify replaced the staff."""
     return (item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
             and identify_staff_replaced(policy, snapshot))
+
+
+def destruction_uses(policy, snapshot) -> int:
+    """Uses the absorbed *Destruction* staff adds to the 50F+ gate.
+
+    The success rate is only on the list the game displayed (cmd-magiceat.cpp
+    prints the failure percent), so without a displayed row it adds none.
+    """
+    row = me_powers.observed_row(policy, DESTRUCTION)
+    if (not _magic_eater(snapshot) or row is None
+            or int(row.get("success") or 0) < DESTRUCTION_MIN_SUCCESS):
+        return 0
+    return max(0, me_powers.charges(policy, snapshot, DESTRUCTION))
 
 
 def _substitute(category: str, name: str, mode: str) -> Substitute | None:
