@@ -2864,6 +2864,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 chosen = (home_capture.choose_key(self, snapshot)
                           if home_capture is not None
                           else self._choose_key_with_latch_capture(snapshot))
+                # A power aimed from inside a walk keeps its own reason (me_powers).
+                self.last_reason = me_powers.decision_reason(self, chosen) or self.last_reason
                 return self._enforce_town_claim_result(snapshot, chosen)
 
             key = choose_ladder()

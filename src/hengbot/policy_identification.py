@@ -13,6 +13,7 @@ from hengbot.claim_goal_typing import (
     GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
 )
 from hengbot.claim_register import ClaimOwner, claims
+from hengbot import me_powers
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -315,6 +316,10 @@ class IdentificationMixin:
                 return CHEST_SEARCH_KEY
             direction = self._direction_key(player.position, chest_pos)
             if counts.get("disarm", 0) < CHEST_DISARM_BUDGET:
+                # Class 16 aims an absorbed disarming power at the chest (me_powers).
+                power = me_powers.power_key(self, snapshot, me_powers.TRAP, chest_pos)
+                if power is not None:
+                    return power
                 counts["disarm"] = counts.get("disarm", 0) + 1
                 self.last_reason = "chest:disarm"
                 return CHEST_DISARM_KEY + direction
