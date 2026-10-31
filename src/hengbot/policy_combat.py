@@ -2728,6 +2728,15 @@ class CombatMixin:
         prediction = self.threat_prediction(snapshot, hostiles, turns)
         return prediction["expected_total" if expected else "operational_total"]
 
+    def _is_material_threat(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """Hostiles worth half the current HP over three turns: the ladder's
+        material-threat gate (threat:reposition) and the flee rung's avoided cell."""
+        return self._predicted_damage(
+            snapshot, hostiles, turns=3
+        ) >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
+
     @staticmethod
     def _player_hasted(snapshot: Snapshot) -> bool:
         """The speed field shows haste: yellow while is_fast() and not slowed
