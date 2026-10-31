@@ -3652,8 +3652,8 @@
     "rows": [
       "cross-town"
     ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "context": "Town only: returns None off a town board (the inn exists only in a town; the exported town_id on a dungeon floor is the last town, #47 n1-c life-065 D47).",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress. Off a town board it returns None so the floor's mining/return owners act (no standing fixedquest:q2-travel-needs-funds wait).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

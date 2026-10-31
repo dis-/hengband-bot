@@ -3961,7 +3961,7 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "741b43d9ab8fa96c0bf11770a5c7d3f85563e2f551e64dfd214364af61a26cfa"
+    "ast_sha256": "e2492207ac9f27f29b2d02833e106143e8955ba4b0eb84a62b10e8de60015cba"
   },
   "policy.py:HengbotPolicy._temporary_status_clear": {
     "classification": "data",
