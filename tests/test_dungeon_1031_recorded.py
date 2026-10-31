@@ -214,6 +214,39 @@ class Q22SweepRecordedTest(RecordedHarness):
         self.assertIsNone(policy._quest_sweep_engage_commit)
 
 
+class AngbandTopFloorReturnRecordedTest(RecordedHarness):
+    def policy(self, raw):
+        policy = build_policy()
+        policy.prime(parse_snapshot(raw, policy._monrace_knowledge))
+        policy._returning_to_town = True  # DECLARED RECONSTRUCTED
+        # DECLARED RECONSTRUCTED: the live floor memory had no frontier left
+        # (return:search-upstairs is reached only without an explore step); a
+        # fresh policy remembers less of the floor and would still explore.
+        policy._explore_step = lambda snapshot: None
+        return policy
+
+    def test_recorded_rows(self):
+        rows = self.cases["angband-1f-lit"]["decisions"]
+        self.assertEqual([row["reason"] for row in rows],
+                         ["return:search-upstairs", "return:search-upstairs",
+                          "return:seek-secret-wall"])
+
+    def test_return_reads_recall_where_the_stairs_leave_for_the_wilderness(self):
+        raw = self.boards("angband-1f-lit")[0]
+        policy = self.policy(raw)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertEqual(board.floor_key, (1, 1, 0))
+        policy._floor_key = board.floor_key
+        self.assertTrue(policy._up_stairs_exit_to_wilderness())
+        self.assertTrue(policy._can_read_scrolls(board))
+        key = decide(policy, raw)
+        self.assertEqual(policy.last_reason, "return:recall")
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertEqual(key, "r" + recall.slot)
+        self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(READ_PROMPT)],
+                                   self.later(raw)), ["r", recall.slot])
+
+
 class WildernessRecordedTest(RecordedHarness):
     def policy(self, raw):
         policy = build_policy()
