@@ -20,10 +20,14 @@ import unittest
 from unittest.mock import Mock, patch
 
 from hengbot import me_staff_sequence as sequence
-from hengbot.cli import _build_argument_parser, _run_follow
+from hengbot.cli import (
+    SendResult, _ExecutorInputPort, _build_argument_parser, _run_follow, _transport_key,
+)
 from hengbot.flight_recorder import policy_state
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
+from tests import test_input_executor as harness
+from tests.test_input_executor import FaithfulHookGame, command_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-nokey-20261031.json.gz"
@@ -56,8 +60,61 @@ def staff_policy(raw, *, record=True, **changes):
     return policy
 
 
-def decide(policy, raw):
-    return str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+def decide(policy, raw, skill=None):
+    board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+    key = str(policy.choose_key(board))
+    if key.startswith("~f") and skill is not None:
+        # DECLARED CONSTRUCTED: the recorded ~f reply answers the re-request.
+        policy.consume_skill_knowledge(dict(copy.deepcopy(skill), turn=raw["turn"]))
+        key = str(policy.choose_key(board))
+    return key
+
+
+def without_staffs(raw, svals):
+    raw = copy.deepcopy(raw)
+    if "inventory" in raw:
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if not (item["tval"] == 55 and item["sval"] in svals)]
+    return raw
+
+
+def drive_staff_boards(policy, last, absorbed=()):
+    """Ring rows 104..104+last through choose_key, as the recorded run saw them.
+
+    DECLARED CONSTRUCTED (``absorbed``): those staffs are taken out of the
+    pack, as 'G' consumes the absorbed device (mind-magic-eater.cpp).
+    """
+    key = None
+    for raw in CASE["staff"]["boards"][:last + 1]:
+        raw = without_staffs(raw, absorbed)
+        if raw["type"] == "knowledge":
+            policy.consume_home_knowledge(
+                tuple(_parse_items(raw["knowledge"]["items"], protocol=3)))
+            continue
+        key = decide(policy, raw, CASE["staff"]["skill"])
+        policy.confirm_key_posted(key) if key else None
+    return key
+
+
+class PostedKey(harness.ProductionHarness):
+    def post(self, policy, raw, key):
+        """Send ``key`` through the production executor on ``raw``."""
+        following = copy.deepcopy(raw)
+        following["turn"] += 10
+        following["messages"] = []
+        game = FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = command_screen(raw["turn"])
+        game.screens = [command_screen(following["turn"])]
+        game.states = [following]
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        self.assertEqual(port(key, decision={"reason": policy.last_reason,
+                                            "sequence": policy._decision_sequence}),
+                         SendResult.SENT, port.last_result.reason)
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertEqual("".join(game.accepted), _transport_key(key, True))
 
 
 class NamedFinalStopTest(unittest.TestCase):
@@ -122,6 +179,50 @@ class NamedFinalStopTest(unittest.TestCase):
         policy._opening_q1_failure = "stop:unaffordable-quest-reserve"
         self.assertEqual(policy_state(policy)["state"]["_opening_q1_failure"],
                          "stop:unaffordable-quest-reserve")
+
+
+class StaffStockoutTest(PostedKey):
+    """鍵1a: stage 2's fifth staff out of stock with four carried (life-054 061452).
+
+    Owner 2026-10-31 「持っている分を先に取り込む」: the carried staffs go to the
+    Tower now; the stock-out waits do not count toward the run limit.
+    """
+
+    def test_capture_pins_four_carried_staffs_and_no_detect_evil(self):
+        shelf = {(item["tval"], item["sval"]) for item in staff_board(1)["store"]["items"]}
+        self.assertNotIn((55, sequence.SV_STAFF_DETECT_EVIL), shelf)
+        carried = sorted(item["sval"] for item in staff_board(4)["inventory"] if item["tval"] == 55)
+        self.assertEqual(carried, [sequence.SV_STAFF_LITE, sequence.SV_STAFF_MAPPING,
+                                   sequence.SV_STAFF_DETECT_TRAP, sequence.SV_STAFF_DETECT_DOOR])
+        self.assertEqual(staff_board(4)["player"]["gold"], 60981)
+
+    def test_carried_staffs_go_to_the_tower_while_the_fifth_is_out_of_stock(self):
+        # The recorded record (six reached stock-out runs); unfixed, the board
+        # after the Magic shop stopped with fundraise-target-drift.
+        policy = staff_policy(staff_board(0))
+        key = drive_staff_boards(policy, 4)
+        self.assertIsNone(sequence.state(policy).failure)
+        self.assertEqual(policy.last_reason, "me-staff:travel-morivant", key)
+        self.assertNotEqual(key, "")
+        self.post(policy, staff_board(4), key)
+
+    def test_stockout_wait_is_not_counted_toward_the_run_limit(self):
+        # DECLARED CONSTRUCTED: the four carried staffs already absorbed, so
+        # only Detect Evil remains and nothing is carried for the Tower.
+        absorbed = {**CASE["recorded_sequence"]["absorbed"],
+                    **{str(sval): 9 for sval in (8, 9, 12, 13)}}
+        policy = staff_policy(staff_board(0), absorbed=absorbed)
+        key = drive_staff_boards(policy, 4, absorbed=(8, 9, 12, 13))
+        record = sequence.state(policy)
+        self.assertIsNone(record.failure)
+        self.assertIn("me-staff:fundraise:staff-stockout:", policy.last_reason, key)
+        self.assertEqual((record.fundraise_runs, record.reached_runs), (6, 6))
+        # The run comes back with its gold target met: still not counted.
+        policy._fundraising_mode = None
+        decide(policy, without_staffs(staff_board(4), (8, 9, 12, 13)), CASE["staff"]["skill"])
+        self.assertIsNone(record.fundraise_target)  # the returned run was settled
+        self.assertEqual((record.fundraise_runs, record.reached_runs), (6, 6))
+        self.assertIsNone(record.failure)
 
 
 if __name__ == "__main__":

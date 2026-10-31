@@ -38,7 +38,11 @@ unlocked).  Stage 2's five staffs
 (all Magic-shop stock, store/articles-on-sale.cpp) are bought as the shelf
 offers them, one each, and every carried staff of the stage is recharged
 and absorbed on whichever Tower visit comes first: a trip's fares are paid
-per visit and the Tower's 'a' recharges the whole pack at once.  Completing
+per visit and the Tower's 'a' recharges the whole pack at once.  A staff the
+observed Magic shelf does not sell (owner 2026-10-31 「持っている分を先に取り
+込む」) does not hold the carried ones back: they go to the Tower now, and the
+missing one is bought when it is stocked; the mining runs that wait for its
+restock are not counted against the run limit.  Completing
 a stage is decided once as ``me-staff:stage<N>-complete`` (WAIT; owner
 2026-10-31 「次の目標は3キャラ連続で第二段階のクリアとする」).
 """
@@ -376,6 +380,14 @@ def _page_purchase(policy, snapshot):
 
 # -- the town owner --------------------------------------------------------
 
+def _stocked_out(policy, snapshot) -> bool:
+    """A partial-buy stage whose observed shelves sell none of its missing staffs."""
+    stage = current_stage(policy)
+    return (stage is not None and stage.partial_buy and bool(_needed(policy, snapshot))
+            and STORE_MAGIC in _fresh_pages(policy, snapshot)
+            and buy_target(policy, snapshot) is None)
+
+
 def _phase(policy, snapshot) -> str:
     town = policy._effective_town_id(snapshot)
     visited = snapshot.visited_town_ids
@@ -383,9 +395,10 @@ def _phase(policy, snapshot) -> str:
     stage = current_stage(policy)
     carried = carried_staffs(policy, snapshot)
     missing = _needed(policy, snapshot)
-    if (stage is not None and not missing) or (
+    if (stage is not None and (not missing or (carried and _stocked_out(policy, snapshot)))) or (
             unlocked and town == MORIVANT_TOWN_ID and carried):
-        # Every staff of the stage in hand, or some already at Morivant.
+        # Every staff of the stage in hand (or every one the shelf sells:
+        # 「持っている分を先に取り込む」), or some already at Morivant.
         if not unlocked:
             return "rumor"
         if town != MORIVANT_TOWN_ID:
@@ -432,14 +445,18 @@ def _fundraise(policy, snapshot, target: int, why: str) -> str:
     The limit counts runs that came back short of their target; a run that
     met it and whose gold then went to survival supplies is no failure
     (D25 life-036).  Met runs keep their own limit, so a target that keeps
-    drifting still ends in a named stop.
+    drifting still ends in a named stop.  A staff-stockout run waits for the
+    shelf's restock (``mines_floor_out``), not for gold: it is in neither
+    count (owner 2026-10-31, #47 n1-c life-054/057: six restocks without
+    Detect Evil ended the sequence).
     """
     record = state(policy)
-    if record.fundraise_runs - record.reached_runs >= FUNDRAISE_RUN_LIMIT:
+    stockout = why == STOCKOUT_WHY
+    if not stockout and record.fundraise_runs - record.reached_runs >= FUNDRAISE_RUN_LIMIT:
         return _stop(policy, f"fundraise-limit:{why}:{target}")
-    if record.reached_runs >= FUNDRAISE_RUN_LIMIT:
+    if not stockout and record.reached_runs >= FUNDRAISE_RUN_LIMIT:
         return _stop(policy, f"fundraise-target-drift:{why}:{target}")
-    record.fundraise_runs += 1
+    record.fundraise_runs += 0 if stockout else 1
     record.fundraise_target = target
     record.fundraise_why = why
     record.shelf_after_turn = snapshot.turn
@@ -602,7 +619,8 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         record.target_reached = record.target_reached or gold >= record.fundraise_target
         return None
     if record.fundraise_target is not None:
-        if record.target_reached or gold >= record.fundraise_target:
+        if (record.fundraise_why != STOCKOUT_WHY
+                and (record.target_reached or gold >= record.fundraise_target)):
             record.reached_runs += 1
         record.fundraise_target = None
         record.target_reached = False
