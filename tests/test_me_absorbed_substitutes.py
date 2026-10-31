@@ -11,7 +11,7 @@ and DECLARED CONSTRUCTED where each class says so:
 * Town (rules 1, 4): the n1-a life-422 Q2 boards (tests/fixtures/
   quest-stops-20261030.json.gz, see test_q2_tower_recharge_recorded) with
   class 16, the staff sequence's record (powers read, every stage absorbed;
-  ``stone-to-mud`` where named) and, for rule 1, the six Scrolls of Light
+  ``wand:6`` (Stone to Mud) where named) and, for rule 1, the six Scrolls of Light
   taken out of the pack.
 * Q2 floor (rules 1, 4): the recorded 2026-09-11 Q2 run (tests/fixtures/
   q2-blue-recovery-20260911.jsonl.gz) replayed through ``choose_key`` from
@@ -163,7 +163,7 @@ class LightScrollWaiverTest(TownBoards):
     def test_absorbed_light_meets_the_q2_light_scrolls_without_buying(self):
         raw = without(self.me_board("outpost_board"), LIGHT_SCROLL)
         policy = self.policy(raw)
-        all_stages_absorbed(policy, **{"stone-to-mud": 12})
+        all_stages_absorbed(policy, **{"wand:6": 12})
         board, force, status = self.carry(policy, raw)
         # (a) Acceptance and entry: the six scrolls are waived.
         self.assertEqual(status["required_scrolls.light"],
@@ -353,7 +353,7 @@ class StoneToMudTowerTest(harness.ProductionHarness):
         self.assertEqual(steps[0], "me-staff:recharge-all")
         # 「MAXまでチャージして取り込む」: 12 charges (base pval), after the stage.
         self.assertEqual(steps[-2:], ["me-staff:stage2-complete", ("absorb", 65, 6, 12)])
-        self.assertEqual(sequence.state(policy).absorbed["stone-to-mud"], 12)
+        self.assertEqual(sequence.state(policy).absorbed["wand:6"], 12)
 
 
 class StoneToMudSpareGoldTest(unittest.TestCase):
@@ -367,7 +367,7 @@ class StoneToMudSpareGoldTest(unittest.TestCase):
         policy = self._search.policy(self)
         # The recorded process had not absorbed the wand (test_me_nokey_1031
         # pins it as absorbed for its staff cases).
-        del sequence.state(policy).absorbed["stone-to-mud"]
+        del sequence.state(policy).absorbed["wand:6"]
         return policy
 
     def last_board(self, gold=None):
@@ -402,7 +402,7 @@ class StoneToMudBreachTownTest(TownBoards):
     def test_absorbed_charges_meet_the_q2_wall_breach(self):
         raw = self.me_board("outpost_board")
         policy = self.policy(raw)
-        all_stages_absorbed(policy, **{"stone-to-mud": 12})
+        all_stages_absorbed(policy, **{"wand:6": 12})
         _, _, status = self.carry(policy, raw)
         # The recorded wand's one charge and the absorbed 12: 13 // 5 walls.
         self.assertEqual(status["utility_tools.wall_breach"],

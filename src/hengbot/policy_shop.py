@@ -32,7 +32,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
-from hengbot import approach_walk, me_absorbed_substitutes, me_staff_sequence
+from hengbot import approach_walk, me_absorbed_substitutes, me_device_policy, me_powerful_activation, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.purchase_rungs import (
@@ -2768,6 +2768,7 @@ class ShopMixin(InStoreMixin):
             return None
         return next((item for item in store.items
                      if self._store_item_is_supply(item, kind)
+                     and not me_powerful_activation.replaces_scroll(self, snapshot, item)
                      and item.price <= snapshot.player.gold), None)
 
     def _live_purchase_need(
@@ -2921,12 +2922,17 @@ class ShopMixin(InStoreMixin):
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
         add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
         add(rung("black-market:stone-to-mud", "device", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_WAND, lambda i: i.tval == TVAL_WAND and i.sval == SV_WAND_STONE_TO_MUD and i.charges > 0))
+        # Class 16's device policy table: 「1本目を見たら買う」/「2本目以降も買う」
+        # from the gold the staff sequence can spare (me_device_policy).
+        add(rung("me-device:policy", "device", lambda: True, lambda i: me_device_policy.purchase_wanted(self, snapshot, i)))
         add(rung("curse:normal", "remove-curse", lambda: self._has_normal_remove_curse_target(snapshot) and self._find_remove_curse_scroll(snapshot) is None, lambda i: i.tval == TVAL_SCROLL and i.sval in {SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE}))
         add(rung("curse:star-reserve", "star-remove-curse", lambda: self._has_unremovable_curse_target(snapshot) or self._star_remove_curse_reserve_purchase_needed(snapshot), lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_STAR_REMOVE_CURSE))
         add(rung("tail:launcher-enchant", "launcher-enchant", lambda: self._launcher_enchant_purchase(snapshot) is not None, lambda i: i.tval == TVAL_SCROLL and i.sval in {SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM}))
         return tuple(rungs)
 
     def _matching_live_purchase_rungs(self, snapshot: Snapshot, item) -> tuple[PurchaseMatch, ...]:
+        if me_powerful_activation.replaces_scroll(self, snapshot, item):
+            return ()
         context = PurchaseContext(snapshot)
         return tuple(match for rung in self._purchase_rungs(context) if (match := rung.match(context, item)) is not None)
 
@@ -3334,6 +3340,8 @@ class ShopMixin(InStoreMixin):
             and not me_staff_sequence.purchase_excluded(self, snapshot, item)
             # 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない」.
             and not me_absorbed_substitutes.purchase_excluded(self, snapshot, item)
+            # Class 16 serves *Identify* / *Remove Curse* with Powerful Activation.
+            and not me_powerful_activation.replaces_scroll(self, snapshot, item)
         )
         if (getattr(self, "_crossarea_fundraising_enforced", False)
                 and self._fundraising_mode in {"mine", "scavenge"}
@@ -3766,6 +3774,11 @@ class ShopMixin(InStoreMixin):
                      not in excluded_classes
                      or self._identify_staff_swap_purchase(black_market_optional))):
             return black_market_optional
+        # Class 16's device policy table (rung me-device:policy).
+        table_device = next((it for it in items if (it.tval, it.sval) not in excluded_classes
+                             and me_device_policy.purchase_wanted(self, snapshot, it)), None)
+        if table_device is not None:
+            return table_device
         if (
             self._required_remove_curse_kind(snapshot) == "remove-curse"
             and self._usable_remove_curse_scroll(snapshot) is None
@@ -6468,7 +6481,8 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot
     ) -> bool:
         return (
-            snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
+            not me_powerful_activation.serves(self, snapshot, me_powerful_activation.UNCURSE)
+            and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
             and not self._recall_departure_shortage(snapshot)
             and self._home_star_remove_curse_count == 0
             and self._carried_star_remove_curse_count(snapshot) == 0

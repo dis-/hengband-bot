@@ -86,7 +86,7 @@ def staff_policy(raw, *, record=True, **changes):
         # DECLARED CONSTRUCTED: the carried Stone to Mud wand (12 charges) as
         # already absorbed, so these staff cases are not taken over by its
         # own Tower trip (owner 2026-10-31 18h, test_me_absorbed_substitutes).
-        state.absorbed["stone-to-mud"] = 12
+        state.absorbed["wand:6"] = 12
     return policy
 
 
@@ -323,7 +323,11 @@ class RestartForgetsAbsorptionsTest(PostedKey):
                                            sequence.SV_STAFF_DETECT_GOLD: 19})
         self.assertEqual(record.stage, 2)
         self.assertEqual((sold, bought), ([], []))
-        self.assertEqual(policy.last_reason, "me-staff:travel-morivant", key)
+        # The observed Magic shelf sells a Staff of Remove Curse (1192 gold),
+        # a buy_first row of the device policy table (owner 2026-10-31): the
+        # spare 60,981 gold buys it before the Tower trip.
+        self.assertTrue(policy.last_reason.endswith("shop:approach"), (key, policy.last_reason))
+        self.assertEqual(policy._shopping_approach_store_type, 5)
         self.post(policy, staff_board(10), key)
 
     def test_unread_list_keeps_every_sequence_staff(self):

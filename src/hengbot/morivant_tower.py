@@ -90,12 +90,13 @@ def recharge_cost(snapshot, fallback: dict | None = None) -> int:
                if item.tval in RECHARGEABLE_TVALS and not item.is_equipment)
 
 
-def wand_charges_after_recharge(item) -> int:
-    """building-recharger.cpp: a wand stack is filled to number * base pval."""
+def charges_after_recharge(item) -> int:
+    """building-recharger.cpp: a staff is filled to its base pval, a wand
+    stack to number * base pval (a rod has no charges to fill)."""
     kind = device_definitions().get((item.tval, item.sval))
-    if kind is None:
+    if kind is None or item.tval == TVAL_ROD:
         return item.charges
-    return max(item.charges, max(1, item.count) * kind[0])
+    return max(item.charges, kind[0] * (max(1, item.count) if item.tval == TVAL_WAND else 1))
 
 
 def morivant_unlocked(snapshot) -> bool:
