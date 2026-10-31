@@ -51,9 +51,9 @@ RECORDED_TOWER_FUSE = 16
 UNPOSTED = {"home:request-knowledge-scan"}
 
 
-def new_policy(case, skill, *, record=None):
+def new_policy(case, skill, *, record=None, monraces=None):
     policy = ConservativePolicy(quest_strategies=load_quest_strategies(STRATEGIES))
-    for race, facts in CASE["monraces"].items():
+    for race, facts in (CASE["monraces"] if monraces is None else monraces).items():
         facts = copy.deepcopy(facts)
         for name in ("flags", "abilities"):
             facts[name] = frozenset(facts[name])
