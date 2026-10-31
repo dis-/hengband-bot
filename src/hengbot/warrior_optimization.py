@@ -575,6 +575,8 @@ def weapon_expected_dps(
     weapon,
     reference_ac: int,
     calibration: CharacterCalibration | None,
+    *,
+    current_proficiency: bool = False,
 ) -> float | None:
     """Score both wielded hands against a visible, non-immune neutral target.
 
@@ -620,6 +622,7 @@ def weapon_expected_dps(
         inputs,
         target_ac=reference_ac,
         neutral_target_brands=True,
+        current_proficiency=current_proficiency,
     )
     return sum(hand.expected_damage_per_round for hand in melee.hands)
 

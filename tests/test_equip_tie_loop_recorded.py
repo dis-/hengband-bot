@@ -42,6 +42,11 @@ FIXTURE = Path(__file__).with_name("fixtures") / "equip-tie-loop-20261031.json.g
 SHA256 = "354c86a4fb1b76267c168775de2038fc7fdf3a32a88a6a83ffc97b06f45fcf96"
 SHORT_SWORD = "50ce9bf46f5cc7d9"
 CUTLASS = "585fcf732179423a"
+# Home Long Sword (2d5) (+4,+4) at proficiency 752 (Unskilled).  Since D50
+# (owner 2026-10-31 「不慣れな武器を見込みで評価」) it is rated at Beginner
+# proficiency and beats both swords, so BOTH boards now choose it: the choice
+# no longer depends on which sword is worn, and the D40 alternation cannot recur.
+LONG_SWORD = "35b3df1ce5649a5d"
 
 
 class EquipTieLoopRecordedTest(executor_harness.ProductionHarness):
@@ -148,16 +153,19 @@ class EquipTieLoopRecordedTest(executor_harness.ProductionHarness):
             policy, "cutlass-worn-in-home", "cutlass-worn-outside")
         # b6d47db93: [('withdraw', SHORT_SWORD, None), ('takeoff', CUTLASS, 'main_hand'),
         # ('equip', SHORT_SWORD, 'main_hand'), ('deposit', CUTLASS, None)], kept after leaving.
-        self.assertIsNone(actions)
-        self.assertIsNone(after)
-        self.assertFalse(reason.startswith("equipment-transaction"), (key, reason))
+        # Since D50 the Home Long Sword is the one choice (see LONG_SWORD).
+        swap = [("withdraw", LONG_SWORD, None), ("takeoff", CUTLASS, "main_hand"),
+                ("equip", LONG_SWORD, "main_hand"), ("deposit", CUTLASS, None)]
+        self.assertEqual(actions, swap)
+        self.assertEqual(after, swap)
 
     def test_control_strictly_better_cutlass_is_still_equipped(self):
         policy = self.policy_with_live_cache(self.data["boards"]["short-sword-worn-in-home"])
         actions, _decision, after = self.leave_home(
             policy, "short-sword-worn-in-home", "short-sword-worn-outside")
-        swap = [("withdraw", CUTLASS, None), ("takeoff", SHORT_SWORD, "main_hand"),
-                ("equip", CUTLASS, "main_hand"), ("deposit", SHORT_SWORD, None)]
+        # Before D50 the Cutlass; now the same Long Sword as from the Cutlass board.
+        swap = [("withdraw", LONG_SWORD, None), ("takeoff", SHORT_SWORD, "main_hand"),
+                ("equip", LONG_SWORD, "main_hand"), ("deposit", SHORT_SWORD, None)]
         self.assertEqual(actions, swap)
         # The swap stays owned after the posted leave key.  This fresh policy
         # first steps off the entrance for a shop approach, where the live

@@ -133,6 +133,18 @@ def trunc_div(value: int, divisor: int) -> int:
     return abs(value) // abs(divisor) * (-1 if (value < 0) != (divisor < 0) else 1)
 
 
+def prospective_weapon_proficiency(weapon_exp: int) -> int:
+    """The proficiency a melee weapon is rated at (owner decision 2026-10-31, D50).
+
+    Owner 「不慣れな武器を見込みで評価」: an Unskilled weapon kind (below
+    Beginner, player-skill.cpp WEAPON_EXP_BEGINNER) gains 80 exp per qualifying
+    hit while wielded (gain_melee_weapon_exp), so it is rated as if it already
+    had Beginner proficiency.  Otherwise the worn kind's growing proficiency
+    (calc_to_hit: (exp - 4000) / 200) locks every unused kind out at AC 100.
+    """
+    return max(weapon_exp, BEGINNER_WEAPON_EXP)
+
+
 def modify_stat_value(value: int, amount: int) -> int:
     """Port of player-status.cpp modify_stat_value()."""
     for _ in range(abs(amount)):
@@ -369,8 +381,8 @@ def warrior_melee_signature(loadout: Loadout) -> tuple[object, ...]:
         _distributed_bonus(loadout, SLOT_SUB_HAND, "to_d"),
         _extra_blows(loadout, SLOT_MAIN_HAND),
         _extra_blows(loadout, SLOT_SUB_HAND),
-        main.item.weapon_proficiency if main is not None else None,
-        sub.item.weapon_proficiency if sub is not None else None,
+        prospective_weapon_proficiency(main.item.weapon_proficiency) if main is not None else None,
+        prospective_weapon_proficiency(sub.item.weapon_proficiency) if sub is not None else None,
     )
 
 
@@ -385,8 +397,13 @@ def evaluate_warrior_melee(
     average_target_hp: float | None = None,
     target_ac: int = AC_REFERENCE,
     neutral_target_brands: bool = False,
+    current_proficiency: bool = False,
 ) -> WarriorMeleeResult:
-    """Evaluate source-compatible melee damage against the requested AC."""
+    """Evaluate source-compatible melee damage against the requested AC.
+
+    Weapons are rated at ``prospective_weapon_proficiency`` (D50); pass
+    ``current_proficiency`` to score what the worn weapon does right now.
+    """
     strength = modify_stat_value(inputs.natural_str, inputs.intrinsic_str + _pval_total(loadout, TR_STR))
     dexterity = modify_stat_value(inputs.natural_dex, inputs.intrinsic_dex + _pval_total(loadout, TR_DEX))
     str_idx = stat_index(strength)
@@ -413,7 +430,10 @@ def evaluate_warrior_melee(
             two_hand_bonus = ADJ_STR_TO_H[str_idx] + ADJ_DEX_TO_H[dex_idx]
             to_hit += max(two_hand_bonus, 1)
             to_damage += max(trunc_div(ADJ_STR_TO_D[str_idx], 2), 1)
-        to_hit += trunc_div(weapon.item.weapon_proficiency - BEGINNER_WEAPON_EXP, 200)
+        proficiency = weapon.item.weapon_proficiency
+        if not current_proficiency:
+            proficiency = prospective_weapon_proficiency(proficiency)
+        to_hit += trunc_div(proficiency - BEGINNER_WEAPON_EXP, 200)
         if ADJ_STR_HOLD[str_idx] < weapon.item.weight // 10:
             to_hit += 2 * (ADJ_STR_HOLD[str_idx] - weapon.item.weight // 10)
         to_hit += _distributed_bonus(loadout, hand_slot, "to_h")

@@ -46,6 +46,28 @@ GLOVES_SLOT = "g"
 BAD_LUCK = 92
 
 
+def after_long_sword_swap(boards):
+    """The recorded boards with the Home Long Sword (2d5) (+4,+4) already wielded.
+
+    DECLARED CONSTRUCTED.  Since D50 (owner 2026-10-31 「不慣れな武器を見込みで
+    評価」) the optimizer rates that Unskilled (752) sword at Beginner and
+    swaps it for the worn Cutlass first (test_me_weapon_proficiency_recorded
+    drives such a swap); these light cases start after it, so the Cutlass is in
+    Home and the plan is about the light alone.
+    """
+    boards = copy.deepcopy(boards)
+    page = boards["in-home"]["store"]["items"]
+    sword = next(item for item in page if (item["tval"], item.get("sval"), item.get("to_h")) == (23, 17, 4))
+    worn = next(item for item in boards["in-home"]["equipment"] if item["slot"] == "main_hand")
+    page[page.index(sword)] = dict({key: value for key, value in worn.items() if key != "slot"},
+                                   letter=sword["letter"])
+    wielded = dict({key: value for key, value in sword.items() if key != "letter"}, slot="main_hand")
+    for board in boards.values():
+        board["equipment"] = [wielded if item["slot"] == "main_hand" else item
+                              for item in board["equipment"]]
+    return boards
+
+
 class UnidentifiedLightRecordedTest(executor_harness.ProductionHarness):
     shelf_screen = staticmethod(lv7.Lv7TownStopRecordedTest.shelf_screen)
     post = lv7.Lv7TownStopRecordedTest.post
@@ -57,6 +79,7 @@ class UnidentifiedLightRecordedTest(executor_harness.ProductionHarness):
         assert hashlib.sha256(payload).hexdigest() == SHA256
         cls.data = json.loads(gzip.decompress(payload))
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        cls.boards = after_long_sword_swap(cls.data["boards"])
 
     def policy(self, raw, *, mutations=()):
         directory = Path(self.enterContext(TemporaryDirectory()))
@@ -90,7 +113,7 @@ class UnidentifiedLightRecordedTest(executor_harness.ProductionHarness):
         return policy.choose_key(snapshots[-1]), policy.last_reason
 
     def board(self, name, **changes):
-        raw = copy.deepcopy(self.data["boards"][name])
+        raw = copy.deepcopy(self.boards[name])
         for slot, fields in changes.items():
             item = next(it for it in raw["inventory"] if it["slot"] == slot)
             for key, value in fields.items():
@@ -139,7 +162,7 @@ class UnidentifiedLightRecordedTest(executor_harness.ProductionHarness):
         # 1acb3b27c: no light candidate, no transaction (None).
         self.assertEqual(self.actions(policy), [("equip", "light")])
         self.assertEqual(self.selected(policy)["light"], "真鍮のランタン {並}")
-        outside = self.data["boards"]["outside"]
+        outside = self.boards["outside"]
         self.post(policy, inside, key, outside)
         key, reason = self.decide(policy, outside)
         self.assertEqual((key, reason), ("w" + LANTERN_SLOT, "equipment-transaction:equip"))
