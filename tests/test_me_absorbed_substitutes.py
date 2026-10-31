@@ -283,5 +283,117 @@ class IdentifyStaffReplacedTest(unittest.TestCase):
                     self.assertTrue(policy._identify_staff_ready(board))
 
 
+# --- rule 3 ---
+def add_stone_to_mud(raw, charges=3):
+    """DECLARED CONSTRUCTED: a Stone to Mud wand (the D24 pack's wand row c
+    with sval 6) in the pack, which the game keeps sorted."""
+    wand = copy.deepcopy(next(it for it in _q2().me["approach"]["inventory"] if it["tval"] == 65))
+    wand.update(sval=6, name=f"岩石溶解の魔法棒 ({charges}回分)", charges=charges, pval=charges,
+                count=1)
+    raw["inventory"].append(wand)
+    raw["inventory"].sort(key=lambda it: (-it["tval"], it["sval"]))
+    for index, item in enumerate(raw["inventory"]):
+        item["slot"] = chr(ord("a") + index)
+    return raw
+
+
+class StoneToMudTowerTest(harness.ProductionHarness):
+    """The Tower recharges the carried wand to its maximum and absorbs it."""
+    from tests.test_me_stage2_staffs import Stage2TowerTest as _tower
+
+    setUpClass = classmethod(_tower.setUpClass.__func__)
+    board = _tower.board
+    absorb_screen = _tower.absorb_screen
+    policy = _tower.policy
+    decide = _tower.decide
+    post = _tower.post
+    recharge_reply = _tower.recharge_reply
+    absorb_reply = staticmethod(_tower.absorb_reply)
+    move_reply = staticmethod(_tower.move_reply)
+
+    def test_one_visit_recharges_and_absorbs_the_wand_after_the_stage(self):
+        from tests.test_me_tower_recharge_recorded import (
+            APPROACH_TOTAL, DIRECTIONS, recharge_all_screens,
+        )
+        from hengbot.magic_eater import ABSORB_REASON
+        from hengbot.policy_constants import WAIT_KEY
+
+        _q2().setUpClass()
+        raw = add_stone_to_mud(self.board())
+        policy = self.policy(raw)
+        total = sequence.recharge_cost(parse_snapshot(copy.deepcopy(raw), self.knowledge))
+        # Stage 2's staffs as test_me_stage2_staffs, plus the wand (12-3)*30.
+        self.assertEqual(total, APPROACH_TOTAL + 175 + 210 + 225 + 25 + 270)
+        steps = []
+        for _ in range(20):
+            key = self.decide(policy, raw)
+            reason = policy.last_reason
+            if reason == "me-staff:return-outpost":
+                break
+            if reason == "me-staff:recharge-all":
+                following = self.recharge_reply(raw)
+                self.post(policy, raw, key, following, recharge_all_screens(total))
+                steps.append(reason)
+            elif reason == ABSORB_REASON:
+                item = next(it for it in raw["inventory"] if it["slot"] == key[1])
+                following = self.absorb_reply(raw, key[1])
+                game = self.post(policy, raw, key, following, [self.absorb_screen(raw)])
+                self.assertEqual(game.accepted, ["G", key[1]])
+                steps.append(("absorb", item["tval"], item["sval"], item["charges"]))
+            elif key in DIRECTIONS or key == WAIT_KEY:
+                following = (self.move_reply(raw, key) if key in DIRECTIONS
+                             else dict(copy.deepcopy(raw), turn=raw["turn"] + 10))
+                self.post(policy, raw, key, following)
+                steps.append(reason)
+            else:
+                self.fail((key, reason, steps))
+            raw = following
+        else:
+            self.fail(("no return", steps))
+        self.assertEqual(steps[0], "me-staff:recharge-all")
+        # 「MAXまでチャージして取り込む」: 12 charges (base pval), after the stage.
+        self.assertEqual(steps[-2:], ["me-staff:stage2-complete", ("absorb", 65, 6, 12)])
+        self.assertEqual(sequence.state(policy).absorbed["stone-to-mud"], 12)
+
+
+class StoneToMudSpareGoldTest(unittest.TestCase):
+    """The recorded life-054 pack carries a full Stone to Mud wand (slot h,
+    12 charges, 60,981 gold): it starts a Tower trip only from spare gold."""
+    from tests.test_me_staff_search_towns_recorded import StaffSearchTownsTest as _search
+
+    decide_last = _search.decide_last
+
+    def policy(self):
+        policy = self._search.policy(self)
+        # The recorded process had not absorbed the wand (test_me_nokey_1031
+        # pins it as absorbed for its staff cases).
+        del sequence.state(policy).absorbed["stone-to-mud"]
+        return policy
+
+    def last_board(self, gold=None):
+        raw = self._search.last_board(self, gold)
+        wand = next(it for it in raw["inventory"] if (it["tval"], it["sval"]) == STONE_TO_MUD)
+        self.assertEqual((wand["slot"], wand["charges"]), ("h", 12))
+        return raw
+
+    def test_spare_gold_takes_the_wand_to_the_tower(self):
+        policy = self.policy()
+        raw = self.last_board()
+        key, destination = self.decide_last(policy, raw)
+        # Unfixed: me-staff:search-staff (the stocked-out Detect Evil) only.
+        self.assertEqual((policy.last_reason, destination), ("me-staff:travel-morivant", 2), key)
+
+    def test_without_spare_gold_the_stage_keeps_its_search(self):
+        policy = self.policy()
+        raw = self.last_board()
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        supplies = sequence.supply_cost(policy, board)
+        needs = sequence._stockout_target(policy, board, supplies, True)
+        raw = self.last_board(needs + sequence._expedition_cost(board, 0) - 1)
+        key, destination = self.decide_last(policy, raw)
+        self.assertTrue(policy.last_reason.startswith("me-staff:search-staff"),
+                        (key, policy.last_reason))
+
+
 if __name__ == "__main__":
     unittest.main()

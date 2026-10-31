@@ -48,7 +48,7 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_device_attacks import observe_lists
 from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
-    SV_STAFF_LITE, SV_STAFF_MAPPING, absorbed_charges,
+    SV_STAFF_LITE, SV_STAFF_MAPPING, absorbed_charges, extra_charges,
 )
 from hengbot.model import Position
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
@@ -328,8 +328,11 @@ def observed_row(policy, power: Power) -> dict | None:
 
 
 def recorded_charges(policy, snapshot, power: Power) -> int:
-    """Charges of an absorption the bot observed itself (me_staff_sequence)."""
-    return absorbed_charges(policy, snapshot, power.sval) if power.kind == "staff" else 0
+    """Charges of an absorption the bot observed itself (me_staff_sequence:
+    the sequence's staffs and its extras)."""
+    if power.kind == "staff":
+        return absorbed_charges(policy, snapshot, power.sval)
+    return extra_charges(policy, power.kind, power.sval)
 
 
 def charges(policy, snapshot, power: Power) -> int:

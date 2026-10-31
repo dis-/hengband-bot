@@ -49,13 +49,13 @@ def _table(owner):
     if isinstance(owner, str) and owner.startswith(me_powers.REASON + ":"):
         return me_powers.BY_KEY
     if me_absorbed_substitutes.owns(owner):
-        return me_absorbed_substitutes.CASTABLE
+        return me_absorbed_substitutes.POWERS
     return None
 
 
 def _power(kind, sval):
     return (POWERS.get((kind, sval)) or me_powers.BY_KEY.get((kind, sval))
-            or me_absorbed_substitutes.CASTABLE[(kind, sval)])
+            or me_absorbed_substitutes.POWERS[(kind, sval)])
 
 
 def compile_device(key, owner):

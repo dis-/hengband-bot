@@ -1949,7 +1949,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "b023a754a6a8c83e297467eb35a0adc4d5fefd7e04f163f0732c3119f6c04060"
+    "ast_sha256": "bb22b9033686f28f4a77a5d75f8162830b7fd9ea89572d10be21095a1fe02fd8"
   },
   "me_staff_sequence.py:_base_definitions": {
     "classification": "data",
@@ -2028,7 +2028,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0f8bd1ab5731e5c22a5fc4bca6c717bb9d9376c05f43433e86c064f60a0d338c"
+    "ast_sha256": "f96da71b6cc57e9ab6801507e95a6b19af6b80f9c3d80d796fe2eb84e689ca8f"
   },
   "me_staff_sequence.py:_recharge_key": {
     "classification": "producer",
@@ -2041,7 +2041,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "380d346bd4fce87488cde605d975159082fb0633f4fb81bd85c8518190938157"
+    "ast_sha256": "876b93fae783f874304e70b8881988019556a658cf4f86f2ca893ced350d12a6"
   },
   "me_staff_sequence.py:_rumor_expedition_cost": {
     "classification": "data",

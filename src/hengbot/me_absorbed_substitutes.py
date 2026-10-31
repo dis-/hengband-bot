@@ -30,7 +30,7 @@ power (``me_staff_sequence.identify_power_command``).
 Casting: where a quest would read or aim the carried item, ``cast_key``
 composes ``m`` + kind + the power's letter (+ direction) and the caller adds
 ``CAST_SUFFIX`` to its own reason; me_device_attacks_input answers that
-owner's prompts from ``CASTABLE`` exactly like a me_powers use.
+owner's prompts from ``POWERS`` exactly like a me_powers use.
 """
 
 from __future__ import annotations
@@ -39,18 +39,21 @@ from dataclasses import dataclass
 
 from hengbot import me_powers
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.me_staff_sequence import POWER_NAMES, absorbed_count as recorded_count
+from hengbot.me_staff_sequence import POWER_NAMES, SV_STAFF_LITE, absorbed_count as recorded_count
 from hengbot.me_staff_sequence import cast_blocked, max_charges
-from hengbot.model import SV_STAFF_IDENTIFY, TVAL_STAFF
+from hengbot.model import SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_STAFF
 
 
 # The reason suffix of a quest's absorbed-power cast (me_device_attacks_input).
 CAST_SUFFIX = ":absorbed-power"
 WAIVE = "waive"
 
-LIGHT = me_powers.BY_KEY[("staff", me_powers.SV_STAFF_LITE)]
+LIGHT = me_powers.BY_KEY[("staff", SV_STAFF_LITE)]
 IDENTIFY = me_powers.Power("staff", SV_STAFF_IDENTIFY, POWER_NAMES[SV_STAFF_IDENTIFY],
                            "identify", 0, 0, ())
+# BaseitemDefinitions id 273 (岩石溶解の魔法棒); wand_effect's stone_to_mud is aimed.
+STONE_TO_MUD = me_powers.Power("wand", SV_WAND_STONE_TO_MUD, ("岩石溶解", "Stone to Mud"),
+                               "stone-to-mud", 0, 0, (), aimed=True)
 
 
 @dataclass(frozen=True)
@@ -64,8 +67,8 @@ class Substitute:
 SUBSTITUTES = (
     Substitute("required_scrolls", "light", LIGHT, WAIVE),
 )
-# The powers a quest casts in place of an item (me_device_attacks_input).
-CASTABLE = {power.ident: power for power in (LIGHT,)}
+# The powers read here, and cast in place of an item (me_device_attacks_input).
+POWERS = {power.ident: power for power in (LIGHT, STONE_TO_MUD)}
 
 
 def _magic_eater(snapshot) -> bool:

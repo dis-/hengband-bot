@@ -83,6 +83,10 @@ def staff_policy(raw, *, record=True, **changes):
         state.stage = recorded["stage"]
         state.failure = recorded["failure"]
         state.powers_read = True  # the recorded process had read its absorptions
+        # DECLARED CONSTRUCTED: the carried Stone to Mud wand (12 charges) as
+        # already absorbed, so these staff cases are not taken over by its
+        # own Tower trip (owner 2026-10-31 18h, test_me_absorbed_substitutes).
+        state.absorbed["stone-to-mud"] = 12
     return policy
 
 
