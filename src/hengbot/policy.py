@@ -10911,12 +10911,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Emergency material-threat spending deliberately stays strategic. A
         # suppressed weak breeder must not re-arm emergency return after a
         # teleport; disabling blows are covered by the physical status rung.
+        # D46: suppressed attackers count once they endanger the player.
+        weighed_hostiles = survival_preemption.emergency_hostiles(
+            self, snapshot, strategic_hostiles, physical_hostiles
+        )
         emergency_hostiles = (
             self._quest_strategy_emergency_hostiles(
-                snapshot, profile, strategic_hostiles
+                snapshot, profile, weighed_hostiles
             )
             if profile is not None
-            else strategic_hostiles
+            else weighed_hostiles
         )
         # A committed STRONG-tier hunt (esp-threat-rest) owns its fight,
         # including Healing drinks, ahead of the emergency/flee ladder.

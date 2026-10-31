@@ -19,6 +19,19 @@ weak breeders (``_strategic_subset``) are not attackers here, so the approved
 breeder walk-out keeps moving through them.  Approved quest floors keep their
 navigator (it owns the floor's combat).  The rungs are named, and each call
 site falls through on None.
+
+D46 (n1-b life-279, Castle 22F, 2026-10-31 12:45): that suppression must not
+blind the emergency ladder.  On a breakthrough-latched floor every 巨大ゴキブリ
+(max blow 2 < 5% of 555 HP) was dropped from the strategic list, so
+``_emergency_item`` weighed no hostile: no heal, teleport or recall fired
+while the swarm took HP 333 -> 4 (it was meleed by the immobile-summoner rung
+below).  ``emergency_hostiles`` hands the emergency ladder the suppressed
+attackers too whenever they endanger the player, by the ladder's own
+thresholds: the three-turn projection of every physical hostile reaches the
+current HP (the lethal test), or HP is under the low-HP threshold while a
+suppressed hostile strikes from an adjacent cell.  Otherwise the strategic
+list is kept, so a harmless suppressed breeder still does not re-arm the
+emergency return after a teleport.
 """
 
 PREEMPTED_RUNGS = frozenset({
@@ -66,3 +79,26 @@ def preempts(policy, rung_name: str, board) -> bool:
         record = policy._decision_survival_preempted = (board.turn, [])
     record[1].append(rung_name)
     return True
+
+
+def endangering(policy, board, strategic: list, physical: list) -> bool:
+    """Suppressed hostiles that take part in a lethal or low-HP fight."""
+    strategic_ids = {id(monster) for monster in strategic}
+    suppressed = [monster for monster in physical if id(monster) not in strategic_ids]
+    if not suppressed:
+        return False
+    player = board.player
+    if policy._predicted_damage(board, physical, turns=3) >= player.hp:
+        return True
+    return player.hp < policy._low_hp_walk_threshold(player.max_hp) and any(
+        monster.distance <= 1 and not monster.asleep and not monster.fearful
+        and monster.max_melee_damage > 0
+        for monster in suppressed
+    )
+
+
+def emergency_hostiles(policy, board, strategic: list, physical: list) -> list:
+    """The hostiles the emergency ladder weighs on this board (D46)."""
+    if endangering(policy, board, strategic, physical):
+        return list(physical)
+    return strategic

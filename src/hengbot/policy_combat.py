@@ -378,6 +378,8 @@ class CombatMixin:
                     return self._step_toward(snapshot, step)
             return None
 
+        if return_yield.breeder_walkout_owns(self, snapshot):
+            return None  # the breakthrough owner leaves the floor (D46)
         # This owner must never wait for an immobile trigger to walk to a choke.
         self._detected_threat_hold = None
         self._detected_threat_hold_position = None

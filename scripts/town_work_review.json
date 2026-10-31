@@ -11654,6 +11654,17 @@
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait or avoidance owner."
   },
+  "survival_preemption.py:emergency_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon emergency ladder input; in town no attacker is suppressed, so the strategic list is returned unchanged.",
+    "evidence": "pure helper (D46): the hostile list _emergency_item weighs -- the physical hostiles when suppressed weak breeders endanger the player (three-turn projection reaches HP, or low HP with one adjacent and striking), else the strategic list; no command or independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing emergency ladder observations.",
+    "delegation": "No independent success; the emergency ladder selects the command."
+  },
   "policy_combat.py:CombatMixin._perceived_hostiles": {
     "classification": "data",
     "rows": [
