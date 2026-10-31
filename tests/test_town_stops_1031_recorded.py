@@ -282,7 +282,11 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         # stacked 2-charge staves (no slot freed); the fuller shelf staff could
         # not be bought, so the charges only fell from 11 to 9.
         policy, raw, decisions = self.replay("town3swap", 30, in_store=True)
-        self.assertEqual(decisions[28], ("d0y", "shop:in-store-sell"))
+        # The recorded row 28 sold the staff (d0y).  Since the n1-b life-282
+        # fix the carried 凍結のギザルム waiting for *Identify* is shelved
+        # first (21 items: the pack budget refuses the shelf scroll), so the
+        # bot leaves the Magic shop for Home instead of selling.
+        self.assertEqual(decisions[28], ("\x1b", "shop:observe-and-leave"))
         for index in (29, 30):
             with self.subTest(row=index):
                 self.assertNotEqual(decisions[index][1], "shop:in-store-inscribe")

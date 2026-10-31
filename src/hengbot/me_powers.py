@@ -17,6 +17,18 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    remembered here from the use points (trap-detect-rod-only, 2026-10-23).
  - 光 (8): lite_area(2d8, radius 2) and lite_room; nothing in a DARKNESS
    dungeon (spell-kind/spells-lite.cpp:331-348).
+ - トラップ解除 (rod 14, wand 4): disarm_trap(dir) (cmd-zaprod.cpp:168,
+   cmd-zapwand.cpp:118; spell-kind/spells-beam.cpp:50), a PROJECT_THRU beam
+   of KILL_TRAP (effect/effect-feature.cpp:156): removes the traps on its
+   line, discloses secret doors and unlocks doors; on a chest it removes the
+   trap and the lock (effect/effect-item.cpp:201).
+ - トラップ/ドア破壊 (wand 5): destroy_door(dir) (spells-beam.cpp:38), KILL_DOOR
+   (effect-feature.cpp:191): destroys the traps and the doors on its line.
+   Both are aimed (get_aim_dir, cmd-magiceat.cpp:543,563).  Owner 2026-11-01
+   「魔道具術師が罠を解除するとき、トラップ解除やトラップ/ドア破壊を取り込み済なら
+   使用する」: they are asked with the trap the bot would disarm (the walk's
+   trap step, policy_navigation._step_toward, or the chest pipeline's disarm
+   phase) and the disarm command stays the fallback.
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -26,11 +38,14 @@ I2A(sval)), the effect, the named triggers, a priority, an optional fallback
 trigger is a small named predicate in ``TRIGGERS`` with the decision
 occasions that ask it (``power_key`` is called from the dungeon ladder with
 one occasion: the floor rung after the survival rungs, the dark-locomotion
-rung, the rest rung and the secret-wall search rung).  Adding a power is one
+rung, the rest rung and the secret-wall search rung; the trap occasion
+comes with the trap to aim at).  Adding a power is one
 row; adding a condition is one predicate and its name in a row.
 
 Common rules (approved): never while a hostile is visible or the character
-was just hit, never with 0 charges (the last list the game displayed, else
+was just hit (a row marked ``beside_harmless`` is also cast while every
+visible hostile is harmless by the combat ladder's danger judgement, owner
+2026-11-01 「脅威でなければ感知する」), never with 0 charges (the last list the game displayed, else
 the absorption record), never in town or the wilderness, and a failed use is
 retried for the same trigger at the same place on the same floor until
 ``FAILURES_PER_PLACE`` failures (owner 2026-10-31 「最大5回まで同じ場所で試す」).
@@ -42,6 +57,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Callable
 
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -50,7 +66,13 @@ from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
     SV_STAFF_LITE, SV_STAFF_MAPPING, absorbed_charges, extra_charges,
 )
-from hengbot.model import Position
+from hengbot.me_device_policy import devices
+from hengbot.model import (
+    SV_ROD_DISARMING, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_WAND, Position,
+    game_distance,
+)
+from hengbot.policy_constants import DIRECTION_KEYS, MONSTER_SPELL_MAX_RANGE
+from hengbot.projection_path import projection_path
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
 
@@ -61,6 +83,7 @@ FLOOR = "floor"
 DARK = "dark"
 REST = "rest"
 SECRET_SEARCH = "secret-search"
+TRAP = "trap"            # asked with the trap the bot would disarm
 
 DETECT_RAD = 30          # spell/spells-util.h DETECT_RAD_DEFAULT / DETECT_RAD_MAP
 LITE_RADIUS = 2          # cmd-usestaff.cpp lite_area(..., 2)
@@ -103,6 +126,7 @@ class Power:
     requires: tuple[str, ...] = ()
     darkness_scaled: bool = True  # radius / 3 in a DARKNESS dungeon
     aimed: bool = False           # me_device_attacks_input asks no direction
+    beside_harmless: bool = False  # also while the visible hostiles are not a threat
 
     @property
     def ident(self) -> tuple:
@@ -125,13 +149,21 @@ POWERS = (
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
           "map-area", DETECT_RAD, 30, ("new-floor", "stairs-needed-and-unknown"),
-          fallback=("staff", SV_STAFF_DETECT_DOOR)),
+          fallback=("staff", SV_STAFF_DETECT_DOOR), beside_harmless=True),
     Power("staff", SV_STAFF_DETECT_DOOR, POWER_NAMES[SV_STAFF_DETECT_DOOR],
           "detect-doors-stairs", DETECT_RAD, 40, ("before-secret-search",)),
     Power("staff", SV_STAFF_LITE, POWER_NAMES[SV_STAFF_LITE],
           "lite-area", LITE_RADIUS, 50,
           ("light-radius-zero", "dark-room", "light-sensitive-adjacent"),
           requires=("not-darkness-dungeon",), darkness_scaled=False),
+    # The Disarming powers keep the doors, so they come first; the rod
+    # recharges, so it comes before the wand.
+    Power("rod", SV_ROD_DISARMING, devices()[(TVAL_ROD, SV_ROD_DISARMING)].names,
+          "disarm-trap", 0, 60, ("trap-to-disarm",), darkness_scaled=False, aimed=True),
+    Power("wand", SV_WAND_DISARMING, devices()[(TVAL_WAND, SV_WAND_DISARMING)].names,
+          "disarm-trap", 0, 61, ("trap-to-disarm",), darkness_scaled=False, aimed=True),
+    Power("wand", SV_WAND_TRAP_DOOR_DEST, devices()[(TVAL_WAND, SV_WAND_TRAP_DOOR_DEST)].names,
+          "destroy-trap-door", 0, 62, ("trap-to-disarm",), darkness_scaled=False, aimed=True),
 )
 BY_KEY = {power.ident: power for power in POWERS}
 
@@ -144,6 +176,8 @@ class Use:
     position: Position
     turn: int
     reason: str = ""
+    key: str = ""                   # the posted key (an aimed power's ends in its direction)
+    target: Position | None = None  # what an aimed power was aimed at
 
 
 @dataclass
@@ -162,6 +196,7 @@ class Context:
     snapshot: object
     occasion: str
     memory: FloorMemory
+    target: Position | None = None  # the trap of the TRAP occasion
 
     @property
     def position(self) -> Position:
@@ -183,21 +218,37 @@ class Context:
             return power.radius // 3
         return power.radius
 
+    @property
+    def aim(self) -> str | None:
+        """The direction key of a beam that reaches ``target``, else None."""
+        return None if self.target is None else beam_direction(
+            self.policy, self.snapshot, self.position, self.target)
 
-def game_distance(a: Position, b: Position) -> int:
-    """Grid::calc_distance (system/grid-type-definition.cpp:19-38)."""
-    dy, dx = abs(a.y - b.y), abs(a.x - b.x)
-    distance = max(dy, dx) + min(dy, dx) // 2
-    if dy == 0 or dx == 0:
-        return distance
-    squared = dy * dy + dx * dx
-    while True:
-        # C++ integer division truncates toward zero (Python's // floors).
-        numerator = squared - distance * distance
-        error = abs(numerator) // (2 * distance) * (1 if numerator >= 0 else -1)
-        if error == 0:
-            return distance
-        distance += error
+    @cached_property
+    def hostile_visible(self) -> bool:
+        return bool(self.policy._physical_hostiles(self.snapshot))
+
+    @cached_property
+    def threat_visible(self) -> bool:
+        return visible_threat(self.policy, self.snapshot)
+
+
+def beam_direction(policy, snapshot, origin: Position, target: Position) -> str | None:
+    """The direction key whose beam reaches ``target``, else None.
+
+    project_hook aims one grid away in the direction with PROJECT_THRU
+    (spell-kind/spells-launcher.cpp:262-267, floor/geometry.h:203-210), so the
+    beam runs the straight line up to get_max_range(); a known grid that stops
+    a projection ends it (policy._may_block_projection).
+    """
+    dy, dx = target.y - origin.y, target.x - origin.x
+    if (dy, dx) == (0, 0) or not (dy == 0 or dx == 0 or abs(dy) == abs(dx)):
+        return None
+    step = ((dy > 0) - (dy < 0), (dx > 0) - (dx < 0))
+    path = projection_path(
+        origin, Position(origin.y + step[0], origin.x + step[1]), MONSTER_SPELL_MAX_RANGE,
+        lambda position: policy._may_block_projection(snapshot, position), through=True)
+    return DIRECTION_KEYS[step] if target in path else None
 
 
 # -- triggers: one named predicate each ---------------------------------------
@@ -217,10 +268,11 @@ def _needed_stairs(ctx):
 
 
 def _stairs_known(ctx, needed):
-    policy, grids = ctx.policy, ctx.snapshot.grids.values()
+    """A stair the navigation owner would still walk to (its own predicate)."""
+    policy, snapshot = ctx.policy, ctx.snapshot
     if needed == "down":
-        return bool(policy._remembered_downstairs) or any(g.has_down_stairs for g in grids)
-    return any(policy._is_upstairs_target(g) for g in grids)
+        return bool(policy._usable_downstairs(snapshot))
+    return any(policy._is_upstairs_target(g) for g in snapshot.grids.values())
 
 
 def _stairs_needed_and_unknown(ctx, power):
@@ -284,6 +336,14 @@ def _dark_room(ctx, power):
     return any(grid is None or not grid.known for grid in grids)
 
 
+def _trap_to_disarm(ctx, power):
+    """The trap is on a beam's line and no power was aimed at it on this
+    floor (a use that took its turn and left the trap leaves it to the
+    disarm command)."""
+    return ctx.aim is not None and not any(
+        use.trigger == "trap-to-disarm" and use.target == ctx.target for use in ctx.memory.uses)
+
+
 def _light_sensitive_adjacent(ctx, power):
     """A detected (not visible) hostile beside the player that light hurts."""
     races = ctx.policy._monrace_knowledge
@@ -309,6 +369,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("light-radius-zero", frozenset({DARK}), _light_radius_zero),
     Trigger("dark-room", frozenset({FLOOR}), _dark_room),
     Trigger("light-sensitive-adjacent", frozenset({FLOOR, DARK}), _light_sensitive_adjacent),
+    Trigger("trap-to-disarm", frozenset({TRAP}), _trap_to_disarm),
 )}
 
 REQUIREMENTS = {
@@ -361,9 +422,23 @@ def _gate(policy, snapshot) -> bool:
         and not snapshot.in_town and not snapshot.on_open_wilderness
         and snapshot.dungeon_level > 0 and snapshot.store is None
         and not (player.blind or player.confused or player.hallucinated or player.paralyzed)
-        and not policy._physical_hostiles(snapshot)
         and not getattr(policy, "_took_damage", False)
     )
+
+
+def visible_threat(policy, snapshot) -> bool:
+    """A visible hostile the combat ladder judges dangerous: an unresisted
+    confusion/paralysis attacker (status-threat rung), a reason to flee
+    (flee rung) or a material threat (threat:reposition rung)."""
+    hostiles = policy._physical_hostiles(snapshot)
+    return bool(hostiles) and bool(
+        policy._unresisted_melee_status_threats(snapshot, hostiles)
+        or policy._should_flee(snapshot, hostiles, policy._physical_adjacent_hostiles(snapshot))
+        or policy._is_material_threat(snapshot, hostiles))
+
+
+def _hostiles_allow(ctx, power) -> bool:
+    return not ctx.hostile_visible or (power.beside_harmless and not ctx.threat_visible)
 
 
 def observe(policy, snapshot) -> None:
@@ -405,15 +480,18 @@ def _serving(ctx, power, trigger):
     return fallback if fallback is not None and _usable(ctx, fallback, trigger) else None
 
 
-def power_key(policy, snapshot, occasion: str) -> str | None:
-    """``m`` + kind + power of the first due power for ``occasion``, else None."""
+def power_key(policy, snapshot, occasion: str, target: Position | None = None) -> str | None:
+    """``m`` + kind + power (+ direction) of the first due power for
+    ``occasion``, else None; ``target`` is what an aimed power is aimed at."""
     if not _gate(policy, snapshot):
         return None
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.floor != snapshot.floor_key:
         return None
-    ctx = Context(policy, snapshot, occasion, memory)
+    ctx = Context(policy, snapshot, occasion, memory, target)
     for power in sorted(POWERS, key=lambda each: each.priority):
+        if not _hostiles_allow(ctx, power):
+            continue
         for name in power.triggers:
             trigger = TRIGGERS[name]
             if occasion not in trigger.occasions or not trigger.due(ctx, power):
@@ -422,12 +500,27 @@ def power_key(policy, snapshot, occasion: str) -> str | None:
             if used is None:
                 continue
             reason = f"{REASON}:{name}:{used.effect}"
+            key = used.key + (ctx.aim if used.aimed else "")
             policy.last_reason = reason
             policy._offer_execution(
-                used.key, producer="detectors", work_id=f"{REASON}:{used.effect}",
+                key, producer="detectors", work_id=f"{REASON}:{used.effect}",
                 next_step="magic-eater.power.send", arguments=(used.kind, used.sval, name),
                 expected_effect=used.effect,
             )
-            memory.pending = Use(power.ident, used.ident, name, ctx.position, snapshot.turn, reason)
-            return used.key
+            memory.pending = Use(power.ident, used.ident, name, ctx.position, snapshot.turn,
+                                 reason, key, target)
+            return key
     return None
+
+
+def decision_reason(policy, key) -> str | None:
+    """The power's reason when ``key`` is the pending power key, else None.
+
+    The trap occasion is asked inside the walk (policy_navigation._step_toward)
+    and a caller may name its decision after the walk returned; the executor
+    answers the power's prompts only under the power's own reason
+    (me_device_attacks_input.compile_device).
+    """
+    memory = getattr(policy, MEMORY, None)
+    pending = None if memory is None else memory.pending
+    return pending.reason if pending is not None and key and key == pending.key else None

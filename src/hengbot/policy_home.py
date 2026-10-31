@@ -2951,9 +2951,11 @@ class HomeMixin:
         identification-flow candidate whose source (Identify for an unknown
         item, *Identify* for a full-identification one, as the town item
         processor chooses) is neither carried nor on this visit's observed
-        Alchemist shelf within gold is shelved at Home; the Home candidate
-        scan withdraws it once a source can identify it.  Work that already
-        owns the item (a Home errand, an equipment transaction) keeps it.
+        Alchemist shelf within gold and the pack budget is shelved at Home;
+        the Home candidate scan withdraws it once a source can identify it.
+        Work that already owns the item (a Home errand, an equipment
+        transaction) keeps it.  A scroll the pack budget refuses is no source:
+        shelving is what makes its room (n1-b life-282, 2026-10-31 23:23).
         """
         if not (snapshot.in_town and item.is_equipment
                 and self._identification_flow_candidate(item)):
@@ -2966,7 +2968,7 @@ class HomeMixin:
                     and signature == self._home_atomic_withdraw_pending[0])):
             return False
         return self._identification_source_obtainability(
-            snapshot, full=item.known) == "unavailable"
+            snapshot, full=item.known, within_pack_budget=True) == "unavailable"
 
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None

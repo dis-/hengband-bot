@@ -1,0 +1,84 @@
+LUNA-REPORT town-ball-friendly-1031（2026-11-01）
+
+■ 目的（オーナー決定 2026-10-31）
+問い「町で戦う時、範囲攻撃（ボール系）の魔力は、効果の範囲に友好的な敵がいる時は使わないことにしますか？」
+答え「敵対させたあと勝てるかで判断。勝てるなら巻き込んで良い。」
+
+■ 変えたこと
+- src/hengbot/me_device_attacks.py
+  - AREA_RADIUS = {"ball": 2, "breath": 3}（攻撃の表を持つこのモジュールに置いた）。
+  - _blast_centres: 方向キーで撃つ時の射線をたどり、最初のモンスターのマス（PROJECT_STOP）を爆心にする。
+    ブレスは射線上の各マスを中心とする円錐として近似する。
+  - catches_unbeatable_friendly: 町で、爆心から半径以内（Grid::calc_distance）に友好的なモンスター
+    （狙う敵以外）がいて、そのモンスターに policy._town_friendly_unbeatable（町の狩りが「倒しきれない
+    友好的な敵には攻撃しない」(10-31) に使う既存の一騎打ちの見積もり）が真を返すなら真。
+  - _candidates: 上が真のボール・ブレスは候補から外す。外れたら既存の選び方のまま次の段
+    （マジック・ミサイル、手持ちの魔法棒、火の付いた松明、近接）に進む。新しい閾値は作っていない。
+- src/hengbot/me_ranged_first.py: 手持ちの攻撃の魔法棒の段も同じ判定を使う（同じ wand_effect）。
+- src/hengbot/model.py: game_distance（Grid::calc_distance の移植）を me_powers.py から移し、
+  me_powers と me_device_attacks の両方が使う（重複させないため）。
+- scripts/town_work_review.json / town_work_sites.json / town_work_manifest.json.gz:
+  2つの producer の evidence を更新、manifest を --write で作り直し（zero unmapped、0 violation）。
+
+■ C++ の根拠（C:\hengband\src）
+- 当たった友好的なモンスターは怒る: effect/effect-monster.cpp:310-311（dam>0 で anger_monster）、
+  monster/monster-status-setter.cpp:48-56（is_friendly なら set_hostile）。
+- ボールは方向撃ちでは最初のモンスターで止まる: spell-kind/spells-launcher.cpp:26-39
+  （PROJECT_STOP、ターゲット指定の時だけ外す）。
+- 半径: cmd-item/cmd-zapwand.cpp:57、cmd-item/cmd-zaprod.cpp:51（rad = powerful ? 3 : 2）、
+  魔道具術師も同じ wand_effect/rod_effect（cmd-item/cmd-magiceat.cpp:550,568）。
+  ブレスは fire_breath(..., 3)（cmd-item/cmd-zapwand.cpp:263-289）。
+- 爆風の形: spell/range-calc.cpp:267-290 ball_shape（calc_distance <= rad）、:215 breath_shape。
+  壁による遮り（is_prevent_blast）は無視して広めに見積もる（安全側）。
+- 手持ちの魔法棒も同じ効果: object-use/zapwand-execution.cpp:102。
+
+■ コミット
+- b4a93949a Spare unbeatable friendlies from town ball attacks
+- 8a3df205a / 52dd9ac96 / aa6a918bf main の取り込み（最後は main 5f0c030e4）（manifest の衝突は main 側を取って --write で作り直し）
+- このレポートのコミット
+
+■ テスト（tests/test_town_ball_friendly_recorded.py、公開の choose_key と本番の executor）
+盤面: n1-c life-067 2026-10-31 19:26（D49）の町の戦い、turn 157197、Outpost。Lv8 魔道具術師 (35,108)
+の隣に わめくキチガイ (36,107)。tests/fixtures/town-ball-friendly-20261031.json.gz
+（tests/extract_town_ball_friendly_1031.py、town-combat-survival の固定盤面から抜き出し、すずめ と
+農夫『マゴット』の種族情報を足した）。captures の n1-c の記録には、隣の敵から2マス以内に友好的な
+モンスターがいる町の盤面が無かったので、友好的なモンスターは記録の地図の床 (37,107) に置いた（宣言済みの構成）。
+- test_recorded_board_places_the_friendly_in_the_ball: 盤面の確認
+- test_beatable_friendly_in_the_blast_still_gets_the_ball: 勝てる（すずめ）→ ボールを撃つ（mBw1 を executor が送る）
+- test_unbeatable_friendly_in_the_blast_keeps_the_single_target_answer: 勝てない（マゴット 350hp）→ ボールを使わず松明
+- test_unbeatable_friendly_outside_the_blast_does_not_hold_the_ball: 範囲外 (33,106) なら撃つ
+- test_carried_ball_wand_follows_the_same_rule: 手持ちのファイア・ボールの魔法棒も同じ
+
+■ 戻して確かめた結果（src のコピーで戻し、作業ツリーは触らずに実行）
+- me_device_attacks._candidates の除外を消す → test_unbeatable_friendly_in_the_blast_keeps_the_single_target_answer が FAIL
+- me_ranged_first の魔法棒の除外を消す → test_carried_ball_wand_follows_the_same_rule が FAIL
+- 判定を「友好的なモンスターが見えたら常に禁止」に変える → beatable / outside / carried の3件が FAIL
+  （勝てるなら巻き込んでよい、範囲外は関係ない、を守っていることの確認）
+
+■ 検査
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" OK
+- checks.json の全テスト＋新テスト: 52dd9ac96（main f9c921d32 を取り込んだ木）で checks.json の 73 モジュール＋新テスト、450 件を実行:
+  449 件 OK、1 件 ERROR（tests.test_me_weapon_proficiency_recorded がまだ main に無かった）。
+  その後 main 5f0c030e4（武器の熟練度）を取り込み（aa6a918bf）、その差分のテスト
+  tests.test_me_weapon_proficiency_recorded / test_equip_tie_loop_recorded / test_unid_light_recorded と
+  新テスト・関連テスト 計 48 件を実行: すべて OK
+- 関連: tests.test_me_device_attacks, tests.test_me_stage2_powers（game_distance）, tests.test_friendly_unbeatable_recorded: OK
+- scripts/town_work_manifest.py: zero unmapped、0 violation
+
+■ checks.json の案（編集はしていない）
+{"id": "TOWN-BALL-FRIENDLY", "tests": ["tests.test_town_ball_friendly_recorded"]}
+
+■ 保守性
+- 新しい判定は攻撃の表を持つ me_device_attacks.py に名前付きの関数（_blast_centres、
+  catches_unbeatable_friendly）として置き、半径も同じモジュールの表 AREA_RADIUS に置いた。
+  共有の判断コードに特例は書いていない。
+- 勝てるかの判定は新しく作らず、町の狩りと同じ policy._town_friendly_unbeatable を再利用した。
+- 手持ちの魔法棒の段（me_ranged_first）は同じ関数を呼ぶだけで、判定を重複させていない。
+- game_distance を model.py に移し、me_powers と me_device_attacks の重複を防いだ（me_powers からの
+  import は残るので既存の呼び出しはそのまま）。
+- テストの壁は無い。
+
+■ オーナーへの問い
+1. 爆風の範囲は壁の遮りを無視して広めに見積もっている（安全側）。壁の向こうの友好的なモンスターでも、
+   勝てない相手ならボールを控える。これでよいか。
+2. 「強力発動」（powerful、半径3）は今のボットは使わないので半径2で見ている。使うようになったら表を変える。

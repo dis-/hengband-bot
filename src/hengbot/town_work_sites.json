@@ -1790,7 +1790,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "4fc377cbc3136da511c755a1252d4b8d0d1514f5079a911579363a53142a7a27"
+    "ast_sha256": "9f1b8b0c3f9e4aa80657f3b6f313a8264e063230f075d0f6205087c0f8782015"
   },
   "me_device_attacks_input.py:advance_device": {
     "classification": "driver",
@@ -1964,6 +1964,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "57ec07b4b75d0329ff4037b28d3c2f9ffcc9e9f026c833c774a3173ade77206f"
   },
+  "me_powers.py:Context.aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "bb93067cc6b47aecd6df5f0992f7f96c3c17affe50a78b5d566b3b8757f7d148"
+  },
   "me_powers.py:Power.key": {
     "classification": "data",
     "rows": [
@@ -1988,6 +1996,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "204596a035aefb16596fff1889ede9ca8e4ab912a6433237ba581e69e69c87c6"
   },
+  "me_powers.py:beam_direction": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "19c34ebd70783dcc8a1d0f6e459ff1e1c16b611a0d53146723810fe8a57a2f18"
+  },
   "me_powers.py:charges": {
     "classification": "data",
     "rows": [
@@ -1995,6 +2011,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "e4d840dd3afcd4b0f5f1772370590ea486a24051570461f6847f4bff105e8fca"
+  },
+  "me_powers.py:decision_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "141ec3ceba0167bbb8a58a9316bcded7d856d25912050cb3abcb39b7b3c6bb17"
   },
   "me_powers.py:encode_letter": {
     "classification": "data",
@@ -2018,7 +2042,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "bfdfa3dd714c8d918751ebe3d03bf1e90fb20505a758de65e652ab9f7f8707dc"
+    "ast_sha256": "c52a4536c7f201b69ab8f2a9cc1a669419344d382684eb8189d94c00cff6bd55"
   },
   "me_powers.py:recorded_charges": {
     "classification": "data",
@@ -2099,7 +2123,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "902b8beb6c51064983660bfb643216ad5c37a22a1d1e667e02a1ae32db8b302b"
+    "ast_sha256": "83d43565620a5c4c1d3123c8065a7db6427ffedbaaca49b3a71c8ad5440344e9"
   },
   "me_staff_sequence.py:_absorb_key": {
     "classification": "producer",
@@ -3002,7 +3026,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "97bddad5a412f0ec53c7cdda83810b86eb6b25b08629d709241f8f8b35488442"
+    "ast_sha256": "d0dd9ca6d9815b156b228bdee4b5ae4735099b6b1e3a8cc8878436ee1611c75d"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -4841,7 +4865,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "7cd82a5f1ffd90c0fef31e367eef33e306f726be00ec1f25294ff83fd6d5f1b6"
+    "ast_sha256": "33f2839004e72a152e7c449ea4183e8723dc305c82c078f3c740fad5d5309e97"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4882,7 +4906,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "474750f7e2719bab20068a41b85221c63f5feab3b0c6c62b6867186b7c4088d3"
+    "ast_sha256": "8ee57b7585b12c6d2e89b98d5cfe8b24904da59579007e092c94ec5d1611ef9d"
   },
   "policy.py:HengbotPolicy.validate_read_key": {
     "classification": "adapter",
@@ -6279,7 +6303,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "72cf445f56ad6a17e28a5170db515e5356b8fc7b2e0dbe6290643af50e07c683"
+    "ast_sha256": "d6d7f1e64c13f9d5a558dde89dd318173cd823ce265fcd2095869de5aaa67877"
   },
   "policy_home.py:HomeMixin._inventory_weight_limit": {
     "classification": "data",
@@ -6477,7 +6501,7 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3150986f330fd8314d50f29a5f3d50bb7494c1d7a149c01f5c580617766ef77c"
+    "ast_sha256": "3b2e925d9a5dadb90d776b1a5816cec6474c2916b448dcaa142f4475caf61091"
   },
   "policy_identification.py:IdentificationMixin._dungeon_equipment_identify_key": {
     "classification": "dungeon-only",
@@ -6542,7 +6566,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2de8c328ffd48aeddbd54b02ef0af84fade8acbcf04b6bd4385127484f9e90c4"
+    "ast_sha256": "42cf32c28326d76427f08c44d6511bb67478020456bdc7fd934042591faffc46"
   },
   "policy_identification.py:IdentificationMixin._identify_carried_item_key": {
     "classification": "producer",
@@ -6786,7 +6810,7 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "146697bfcba6a12a8a91ed91fa0f0af496799a5845cde7457c5dd3e199e6b55f"
+    "ast_sha256": "edcb63370a533a8471073cbd07075a44758964115893c8396f3017d393e25732"
   },
   "policy_navigation.py:NavigationMixin._disengage_move_or_escalate": {
     "classification": "producer",
@@ -6858,7 +6882,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "befc982415c096ee907e34aafb2f38b4413937e7c4601e74f2ed6c1c874af133"
+    "ast_sha256": "c08f1f516b31dd787ee54f4b7bfe90b04cea72a1295c9ffcb965c0be3b7edb57"
   },
   "policy_navigation.py:NavigationMixin._suppress_pending_stair_command": {
     "classification": "adapter",
@@ -6971,7 +6995,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "abf7dedc80eed38390cc44fb4ca729abb701e35bd5e161c3f2ba590ba9ce11e4"
+    "ast_sha256": "e40a33e1aac5f08b6c79982fdd3ade31cfdbb63d034008a4c9678df27fe0e3f2"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head.supported": {
     "classification": "data",
@@ -7133,6 +7157,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "986fdcfb185acfa3594fa8f9ef4622c3f54ba68b5dfd77f458cffe4fb12fee39"
+  },
+  "policy_quest.py:QuestMixin._in_flight_fixed_quests": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "4c690d3bd47200777d8b8070bae21f220183fd3a0f31ffef0f989ba2850e23e7"
   },
   "policy_quest.py:QuestMixin._kill_quest_descent_allowed": {
     "classification": "data",
@@ -7410,7 +7442,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "08c52e78096429bd1aebbfc860ba5a92f46b640adf0dc586522dc69476f97819"
+    "ast_sha256": "674f5f4b88a948a679155b0a404f965bcb46595ed410352ec58c559ec631da3e"
   },
   "policy_quest.py:QuestMixin._quest_strategy_route_step": {
     "classification": "data",

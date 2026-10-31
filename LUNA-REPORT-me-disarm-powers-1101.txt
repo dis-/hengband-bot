@@ -1,0 +1,102 @@
+LUNA-REPORT me-disarm-powers-1101 (#47, 2026-11-01)
+所有者の指示: 「魔道具術師が罠を解除するとき、トラップ解除やトラップ/ドア破壊を取り込み済なら使用する」
+枝: me-disarm-powers-1101（main 4cd4e9e6d から）。コミット 9cb89563a（実装と検査）、この報告のコミット。
+調べた内容: LUNA-DIAG-me-disarm-powers.txt。
+
+1. ボットが罠を解除する場所（変更前）
+ - 歩きの一歩: src/hengbot/policy_navigation.py:1909-1919（_step_toward の罠の分岐）。次の一歩が既知の罠なら
+   'D'+方向 を同じマスで2回まで、その後は歩いて入る。
+ - 宝箱: src/hengbot/policy_identification.py:317-325（_chest_processing_key の D の段）。罠があるかを見ずに
+   'D'+方向 を2回。
+ - 罠を避ける経路（policy.py:20373 _is_avoidable_hazard_grid ほか）は解除ではないので変えていない。
+ 罠の位置は盤面の GridState.trap（model.py:1182、見えている・覚えている罠だけ）。どちらも隣のマスなので
+ 方向は8方向の1つ。宝箱にも効くこと（effect-item.cpp:201-218、罠と鍵が無くなる）を確かめて宝箱も対象にした。
+
+2. 足したもの
+ - me_powers の表に3行（src/hengbot/me_powers.py:154-161）。きっかけは1つ "trap-to-disarm"（_trap_to_disarm、
+   me_powers.py:341、場面 TRAP）。順番は トラップ解除のロッド（60）→ トラップ解除の魔法棒（61）→
+   トラップ/ドア破壊の魔法棒（62）。解除はドアを残すので先、ロッドは充填されるので魔法棒より先。
+ - 狙い: beam_direction（me_powers.py:223）。ゲームの project_hook は方向の1マス先を PROJECT_THRU で狙うので、
+   直線（縦・横・斜め）の上で、射線を止める既知のマスより手前にある罠だけに撃つ。鍵は m + 種類 + 文字 + 方向。
+ - 呼ぶ所は2か所、'D' の直前に1行ずつ（policy_navigation.py:1911、policy_identification.py:320）。
+   使えなければ今までどおり 'D'。
+ - 共通の決まりは me_powers のまま: 見える敵がいる・殴られた直後・町や荒野では使わない、回数0は使わない
+   （ロッドは充填中なら使わない）、失敗したら同じ場所で5回まで（「最大5回まで同じ場所で試す」）。
+   加えて、1つの罠には1回だけ撃つ（ターンが過ぎても罠が残っていれば 'D' に任せる）。
+ - 理由の付け直し: _step_toward の呼び手の多くは歩きの後で理由を書き換える（例 dark:backtrack、40か所以上）。
+   実行器は "me-power:" の理由のときだけ m の問いに答えるので、書き換えられると鍵が素のまま送られてしまう。
+   決定の出口で、鍵が保留中の魔法の鍵なら理由を戻す（policy.py:2868、me_powers.decision_reason）。
+ - 名前は所有者の魔法道具の表（me_device_policy.json）から取る（me_absorbed_substitutes と同じ）。
+   sval の定数は model.py に3つ。
+ - 実行器（me_device_attacks_input）は変えていない。種類・一覧・方向の問いは今の手順で答える。
+
+3. 検査（tests/test_me_disarm_powers.py、8件。記録済みの n1-c 魔道具術師の盤面（life 16, Yeek cave 1F）を
+   公開の choose_key と本番の実行器に通す。罠・一覧・宝箱は作った物と冒頭に明記）
+ - test_absorbed_disarming_wand_is_aimed_at_the_trap_step: 罠の一歩で mBe4、実行器が m/B/e/4 と答える。
+ - test_order_rod_then_disarming_wand_then_trap_door_wand: ロッド→解除の魔法棒→破壊の魔法棒の順（4例）。
+ - test_without_an_absorbed_charged_power_the_disarm_command_stays: 未取り込み・回数0・ロッド充填中は D4。
+ - test_failed_zap_is_retried_at_the_same_place_up_to_five_failures: 失敗5回まで同じ魔法、次の行、最後は D4。
+ - test_one_aim_per_trap_then_the_walk: 1回撃って罠が残れば D4、罠が消えれば歩く。
+ - test_a_walk_renamed_after_the_step_keeps_the_power_reason: 歩きの後で理由を書き換える呼び手でも魔法の理由。
+ - test_chest_disarm_phase_aims_the_power_at_the_chest: 宝箱の D の段で mBe6、無ければ D6。
+ - test_the_beam_reaches_only_a_trap_on_an_open_straight_line: 隣・直線の先は撃つ、直線でない・壁の向こうは撃たない、
+   見える敵がいれば使わない。
+ 変えた期待値: tests/test_me_stage2_powers.py の「すべての行がそろって実行できる」検査で、狙う行は鍵に方向を
+ 付けて compile_device に通す（狙う行が初めて入ったため。壁ではない）。壁は無い。
+
+ 外して確かめた結果（src を戻して流し、元に戻した）
+ - src の変更を全部戻す: 8件中7件が落ちる（D4 のままの件は元の動きの確認なので通る）。
+ - policy.py の理由の付け直しだけ戻す: test_a_walk_renamed_after_the_step_keeps_the_power_reason が落ちる。
+ - policy_identification.py だけ戻す: test_chest_disarm_phase_aims_the_power_at_the_chest が落ちる。
+ - policy_navigation.py だけ戻す: 歩きの7件が落ちる。
+ - ロッドの優先度を 63 にする: 順番の件と失敗の件が落ちる。
+ - 1つの罠に1回の条件を外す: test_one_aim_per_trap_then_the_walk が落ちる。
+
+ 流した検査
+ - import の検査: 通過。
+ - checks.json の検査: 73件中、この枝に無い2件（tests.test_q14_heal_ccw_recorded、
+   tests.test_me_weapon_proficiency_recorded。まだ取り込まれていない枝の物）を除く71モジュール 440件、全部通過
+   （tests.test_me_stage2_powers 13件を含む）。
+ - tests.test_me_disarm_powers 8件: 通過。
+ - scripts/town_work_manifest.py --write: zero unmapped（新しい3つの関数の確認の記録と power_key の説明を
+   scripts/town_work_review.json に足した）。
+
+4. checks.json に足す案（このファイルは変えていない）
+ {"id": "D51", "defect": "#47 me-disarm-powers",
+  "owner": "2026-11-01 「魔道具術師が罠を解除するとき、トラップ解除やトラップ/ドア破壊を取り込み済なら使用する」",
+  "tests": ["tests.test_me_disarm_powers"]}
+ （番号は空いている次の番号に読み替える）
+
+5. 保守性
+ - 新しい動きは me_powers の表の3行と、名前の付いたきっかけ1つ（_trap_to_disarm）と、直線の判定1つ
+   （beam_direction）に置いた。方針のコードに分岐を足していない。呼ぶ所は2か所とも1行の問い合わせで、
+   種類・sval・職業の判定は呼ぶ所に書いていない（職業などの判定は me_powers の共通の門のまま）。
+ - 使い回した物: 魔法道具の表の名前（me_device_policy.devices）、ゲームの射線の写し（projection_path、
+   policy._may_block_projection）、方向の表（DIRECTION_KEYS）、射程（MONSTER_SPELL_MAX_RANGE）、
+   回数・失敗・5回の決まり（me_powers の既存の仕組み）、実行器の問いの答え方（me_device_attacks_input）。
+   問いの答え方・鍵の並び・定数の重複は作っていない。
+ - よくなった点: Power.aimed の行が me_powers で初めて使われ、鍵に方向を付ける所を1か所（power_key）に
+   まとめた。表の検査は狙う行も実行器に通るかを確かめるようになった。理由の付け直し（decision_reason）は
+   罠に限らず「歩きの中から出した狙う魔法」なら同じに効く。
+ - 行数: policy.py に2行、policy_navigation.py に4行、policy_identification.py に5行を足した
+   （上限を超えているファイルなら、その分増えている）。
+
+6. me-mapping-stairs-1101（同じ me_powers.py を直している枝）と重なる所
+ - Power の欄: あちらは aimed の後に beside_harmless を足す。こちらは欄を足していない（行で aimed=True を使う）。
+ - Context: あちらは radius() の後に cached_property を2つ、こちらは target の欄と aim の property を足す。
+   同じ場所に足すので取り込み時に手で両方残す。
+ - power_key: あちらはループの先頭に _hostiles_allow を足し、_gate から見える敵の条件を外す。こちらは
+   引数 target・Context の作り方・鍵の組み立て・Use の記録を変えた。近い行なので手で合わせる。
+   こちらの3行は beside_harmless を付けないので、あちらの取り込み後も「見える敵がいれば使わない」のまま。
+ - Use にこちらは key と target の欄を足した（既定値付き、古い保存でも読める）。
+
+7. 所有者への問い
+ - 問い1（宝箱）: 宝箱の D の段は罠があるかを見ずに押している（罠の発見の伝言が盤面に無い）。魔法を使うと、
+   罠も鍵も無い宝箱でも1回分を使う（時間は D も1ターン使う: action/open-close-execution.cpp:214）。
+   代わりに、D は罠を見つけていない宝箱では何もしない（同 231-232「トラップが見あたらない」）が、
+   魔法は見つけていなくても罠と鍵を外す（effect-item.cpp:201-218）。宝箱でも使うのでよいか。
+   だめなら policy_identification.py:320 からの4行を外すだけで戻せる。
+ - 問い2（脅威でない敵のそば）: 「脅威でなければ感知する」は周辺感知だけに付く（あちらの枝）。罠の解除の
+   魔法も、脅威でない敵が見えている時に使うか。今は使わず D のまま。
+ - 問い3（破壊の魔法棒）: トラップ/ドア破壊は直線の先のドアも壊す。解除の魔法が無い時に使うのでよいか
+   （今は解除が無ければ使う）。

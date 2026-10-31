@@ -134,6 +134,22 @@ class Position:
         return max(abs(self.y - other.y), abs(self.x - other.x))
 
 
+def game_distance(a: Position, b: Position) -> int:
+    """Grid::calc_distance (system/grid-type-definition.cpp:19-38)."""
+    dy, dx = abs(a.y - b.y), abs(a.x - b.x)
+    distance = max(dy, dx) + min(dy, dx) // 2
+    if dy == 0 or dx == 0:
+        return distance
+    squared = dy * dy + dx * dx
+    while True:
+        # C++ integer division truncates toward zero (Python's // floors).
+        numerator = squared - distance * distance
+        error = abs(numerator) // (2 * distance) * (1 if numerator >= 0 else -1)
+        if error == 0:
+            return distance
+        distance += error
+
+
 @dataclass(frozen=True)
 class AbilitySources(Mapping[str, frozenset[str]]):
     """Canonical immutable mapping of ability names to their active sources."""
@@ -324,8 +340,11 @@ STAT_GAIN_POTION_SVALS = frozenset(
 SV_STAFF_IDENTIFY = 5
 SV_STAFF_DESTRUCTION = 29
 SV_WAND_TELEPORT_AWAY = 3
+SV_WAND_DISARMING = 4       # sv-definition/sv-wand-types.h
+SV_WAND_TRAP_DOOR_DEST = 5
 SV_WAND_STONE_TO_MUD = 6
 SV_ROD_IDENTIFY = 2
+SV_ROD_DISARMING = 14       # sv-definition/sv-rod-types.h
 SV_ROD_LITE = 15
 SV_DIGGING_SHOVEL = 1
 SV_DIGGING_PICK = 4
