@@ -1,0 +1,49 @@
+ISSUE: #47
+Owner (2026-10-31): 「魔道具術師の二段階目で取り込んだ魔法道具の使用ロジックを作る。それぞれ効果を確認して使用ルールを提案。」 ->
+on the supervisor's proposal: 「案はこれで良い。今後条件を追加する可能性があること、取り込み魔法道具は今後も増えることに留意して
+保守性を維持するように作って。」
+Branch me-stage2-powers-1031 at main aa56fccb0, worktree C:\hengband\bot-client\.worktrees\me-stage2-powers-1031.
+Memory with the approved rules: C:\Users\user\.claude\projects\C--hengband\memory\me-stage2-power-usage-decision-20261031.md
+
+The five stage-2 powers (src/hengbot/me_staff_sequence.py STAGES stage 2; the bot uses an absorbed staff power with
+"mA" + I2A(sval), see IDENTIFY_POWER_KEY / DETECT_POWER_KEY and their call sites) and the APPROVED usage (verify each effect
+again in C:\hengband\src: cmd-item/cmd-usestaff.cpp 133-192, spell-kind/spells-detection.cpp, spell-kind/spells-floor.cpp
+map_area, spell-kind/spells-lite.cpp lite_area; DETECT_RAD 30 in spell/spells-util.h):
+- 周辺感知 (SV_STAFF_MAPPING 9): on arriving on a new floor, once. When stairs are needed (descending / returning) and none of the
+  needed kind is remembered, again once the character is 30+ cells from the last use point.
+- ドア/階段感知 (SV_STAFF_DETECT_DOOR 13): instead of 周辺感知 when that has no charge; also before searching for secret walls.
+- 邪悪存在感知 (SV_STAFF_DETECT_EVIL 15): on arriving on a new floor and before resting (R). Detected monsters go to the existing
+  detected-threat handling (no new retreat rule).
+- トラップ感知 (SV_STAFF_DETECT_TRAP 12): on arriving on a new floor and when leaving the detected-trap area.
+- 光 (SV_STAFF_LITE 8): entering a dark room; light radius 0; a light-sensitive monster adjacent. Never in DARKNESS dungeons.
+- Common: never while a hostile is visible or the character was just hit (survival first); never with 0 charges; after a
+  failed use, not again on the same board; never in town or the wilderness.
+
+Maintainability (the owner's explicit requirement): build ONE data-driven table of Magic-Eater powers - for each power its
+key/letter, effect kind, the triggers (named, reusable predicates such as "new-floor", "stairs-needed-and-unknown",
+"before-rest", "left-detected-trap-area", "dark-room", "light-radius-zero", "light-sensitive-adjacent"), priority and
+fallbacks (e.g. door/stair detection as the fallback of mapping). Adding a power or a condition must be one table row or one
+small predicate, not a new branch in policy code. Stage-1 powers (identify, treasure detection) keep their current owners;
+do not move them unless it is trivial and behaviour-neutral (say which).
+
+Do:
+1. LUNA-DIAG-me-stage2-powers.txt first: where the bot can learn the remaining charges of each absorbed power fairly (the
+   browse list read by me_powers_refresh is today viewer-only - see whether the policy can read the same observation, or the
+   game state exports it), where "new floor", "dark room", "detected-trap area", "light-sensitive monster", "before rest"
+   can be read from the board, and where in the decision ladder the power use must sit (after survival, before exploration).
+2. Implement the table, the predicates and one producer that picks the first due power; register it in the town-work
+   manifest/review only if required (it acts in the dungeon). The key is posted through the production executor and its
+   prompts (kind question, power list).
+3. Tests from recorded / constructed Magic-Eater boards through the public choose_key and the production executor: each power
+   fires on its trigger and not otherwise (visible hostile, 0 charges, town, wilderness, after a failure), the fallback, and
+   a test that adding a power = adding a row (e.g. a table-driven parametrised test). Revert-proof the producer.
+4. Report LUNA-REPORT-me-stage2-powers.txt (Japanese) with the proposed checks.json entry at the end (do NOT edit
+   C:\hengband-backups\pdca\checks.json) and open questions; commit.
+
+Rules: C:\hengband-backups\pdca\TASK-COMMON-1031.txt applies except its base commit and family list. Other implementers
+work in parallel: fix-me-nokey-1031 changes me_staff_sequence.py (restart rebuild of the absorbed set from the power list,
+stock-out absorb-first) - do not edit me_staff_sequence.py; read its constants only, and if you need a shared accessor for
+the observed power list, put it in a new module and say so in the report (the supervisor will reconcile at merge).
+fix-town-1031 and fix-dungeon-1031 change town code and dungeon loops/deaths (policy_combat.py, D36 stairs in policy.py) -
+keep edits there minimal. NEVER git stash. Write text files with Python, encoding='utf-8', newline='\n'. Checks: import check,
+checks.json tests, your tests. No full suite, preflight, mutation_check, fast_tier. No background processes left.

@@ -1,0 +1,113 @@
+#47 報告: 魔道具術師の第2段で取り込んだ5つの魔力の使い方（表で持つ）
+
+基準: main aa56fccb0（ブランチ me-stage2-powers-1031）。診断は LUNA-DIAG-me-stage2-powers.txt。
+
+1. 結論
+- 承認された使い方を src/hengbot/me_powers.py の1つの表にした。魔力1つが表の1行、使う条件1つが名前付きの小さな判定1つ。
+  方策（policy.py）には呼び出しを1行ずつ置いただけで、魔力ごとの分岐は無い。
+- 鍵は「m」＋種類（A）＋I2A(sval)。本番の執行役（me_device_attacks_input の DeviceStep）が種類の問い・一覧・選択を、
+  それぞれの画面を見てから答える。一覧で回数 0 なら ESC で閉じる（時間を使わない）。
+- 第2段に入ったキャラの記録はまだ無いので、検査は記録された魔道具術師の盤面（Yeek cave 1F、life 16）に一覧などを
+  作って足した盤面で行った（作ったものは検査の冒頭に明記）。
+
+2. 回数と条件を読む場所（ファイル:行）
+- 回数: me_powers.py:317 charges。その種類で最後に表示された一覧（policy._me_device_lists。
+  me_device_attacks.py:172 observe_lists が毎回の choose_key で覚える。今は me_powers.py:349 observe から呼ぶ）の行の
+  current（ロッドは max - charging）。一覧を一度も見ていない命は me_staff_sequence.py:249 absorbed_charges（取り込みの記録）。
+  「viewer-only」という古い注（me_powers_refresh.py:15-16、magic_eater_input.py:107）とは違い、方策はもうこれを読んでいる。
+  共有の読み口の新しいモジュールは作っていない（_me_device_lists をそのまま使う）。
+- 使ったかどうか: me_powers.py:349 observe。次の盤面の _completed_operation_owner が自分の reason で、
+  _completed_operation_receipt.refusal が failed:magic-eater なら失敗、ターンが進んでいれば成功、ターンが同じなら
+  一覧で閉じた（回数が無い）。
+- 条件の判定（me_powers.py の TRIGGERS）:
+  new-floor（その階でまだ使っていない。階は floor_key、替わったら覚えたことを捨てる）、
+  stairs-needed-and-unknown（必要な階段＝徒歩で帰る時は上り・降りてよい時は下り、を覚えていない。前に使った点から30以上）、
+  before-rest（休む段から聞く。同じ場所で使っていない）、
+  before-secret-search（隠し壁を探す段から聞く。前のドア/階段感知から30以上）、
+  left-detected-trap-area（トラップ感知の各使用点から距離29以上＝範囲の端。CAVE_IN_DETECT は range-1）、
+  light-radius-zero（policy._is_dark）、
+  dark-room（明かりの半径1以上・周り8マスのうち5マス以上が床・半径+1の輪に光って見えている床が無く分からないマスがある・
+  前の光の使用点から2より外）、
+  light-sensitive-adjacent（感知した＝見えていない敵が隣で、種族に HURT_LITE）。
+  距離はゲームの Grid::calc_distance を写した（me_powers.py:182）。DARKNESS のダンジョンは感知・地図の半径が 1/3。
+- 共通の門（me_powers.py:336 _gate）: 魔道具術師・プロトコル3以上・ダンジョンの中（町・荒野・店でない）・盲目/混乱/幻覚/麻痺でない・
+  敵が見えていない（policy._physical_hostiles）・殴られていない（policy._took_damage）。光は DARKNESS でないと分かる時だけ。
+- 失敗: 同じ階・同じ場所・同じ条件では、失敗した魔力をもう使わない（動けばまた使える）。
+
+3. 表の作り（me_powers.py:116 POWERS）
+- 行の項目: 種類、sval、一覧の名前（日英）、効果、半径、優先、使う条件の名前、代わり（(種類, sval)）、必要な条件の名前、
+  DARKNESS で半径が 1/3 になるか。表は (種類, sval) で引く（杖15の邪悪存在感知と魔法棒15のマジック・ミサイルを分ける）。
+- 今の5行と優先: 邪悪存在感知 10（new-floor・before-rest）、トラップ感知 20（new-floor・left-detected-trap-area）、
+  周辺感知 30（new-floor・stairs-needed-and-unknown、代わり＝ドア/階段感知）、ドア/階段感知 40（before-secret-search）、
+  光 50（light-radius-zero・dark-room・light-sensitive-adjacent、必要な条件 not-darkness-dungeon）。
+- 代わり: 周辺感知の回数が無い時だけ、同じ条件でドア/階段感知を使う（失敗の時は代わりを使わない）。
+- 魔力を足す＝POWERS に1行。条件を足す＝TRIGGERS（または REQUIREMENTS）に1つ足して行に名前を書く。
+  執行役の門（me_device_attacks_input.py:42-62）も表から引くので、行を足せば執行役も答える
+  （検査 test_adding_a_power_is_one_row が透明物体感知の杖の行を足すだけで鍵と執行を確かめる）。
+- 種類の字（A/B/C）と I2A の符号化・復号は me_powers.py:72-86 に置き、新しい担当と執行役の門はそこを読む。
+
+4. 決定の段（はしご）の中の位置（policy.py）
+- 2687: 毎回の choose_key で me_powers.observe（今までの observe_lists の呼び出しを置き換え。中で同じものを呼ぶ）。
+- 11015: 暗闇の段。明かりの直し（燃料・松明、11012）の後、暗闇の歩きの前に「暗闇」の場面で聞く（光だけ）。
+- 11595: 階の段。2s 生存の門（飢え）と魔力の食べ物の後、クエストの立て直し・資金稼ぎ・帰還・降りる・探索の前。
+  その上の非常時・逃げる・戦う・感知した群れの判断・固定クエストの戦略が先に鍵を出す。
+- 12227: 休む段の中（休むと決まった時だけ）。12600: 下り階段を知らない時の隠し壁を探す段の始め。
+- 段1（鑑定・財宝感知）の担当は動かしていない（me_staff_sequence.identify_power_command と policy_fundraising の財宝感知）。
+
+5. 検査（tests/test_me_stage2_powers.py、13件、すべて公開の choose_key と本番の執行役を通る。4件は担当の関数を直接）
+- 新しい階で邪悪存在感知→トラップ感知→周辺感知の順に1回ずつ、その後は普段の担当に戻る（執行役で m・A・字）。
+- 敵が見えている・回数0・殴られた時は使わない。町・荒野ではどの場面でも使わない（担当の関数を直接）。
+- 失敗した盤面: 失敗の後は同じ場所で同じ魔力を使わず次の魔力へ、1歩動けばまた使う。
+- 周辺感知の回数0でドア/階段感知が代わりに出る。トラップ感知の範囲の端（29）でもう一度、28 では出ない。
+- 明かりの半径0で光（暗闇の歩きの前）。DARKNESS・ダンジョンを知らない時は光を使わない。
+- 暗い部屋で光を1回、明るい部屋では使わない。感知した光に弱い敵が隣で光。休む前に邪悪存在感知（同じ場所で使った後は休む）。
+- 隠し壁を探す前のドア/階段感知（担当の関数を直接。前の使用点から29なら出ず30なら出る）。
+- 表の全行の完全さ（条件・必要な条件・代わりが登録済み、字の符号化と復号、執行役の門が行の鍵を受ける・他の持ち主では受けない）と
+  距離の関数、行を1つ足すだけで鍵と執行が通ること。
+- 直したところを戻した確認（git diff を保存→checkout→流す→git apply）:
+  policy.py の呼び出しを戻すと 13 件中 9 件が落ちる（通るのは否定の検査2件と担当の関数を直接呼ぶ2件）。
+  me_device_attacks_input.py の門を戻すと 11 件が落ちる（5件 ERROR・6件 FAIL）。
+- 見つけた不具合: ゲームの距離を写した時、Python の // が負の数で切り捨ての向きが違い (2,2) などで無限ループした。
+  C++ と同じ 0 への切り捨てに直し、検査に値を固定した。
+- 流したもの: import の確認（通過）、checks.json の全モジュール（直す前 199 件通過）、直した後は checks.json に
+  新しい検査 13 件と関係の検査（me_device_attacks・me_powers_refresh・me_staff_sequence・magic_eater_o3）を足して流し、
+  257 件すべて通過（712 秒）。
+  town_work_manifest.py: me_powers.py の5か所の審査を scripts/town_work_review.json に足し、--write で zero unmapped、確認で 0 violation。
+- 期待値を変えた既存の検査は無い。壁（テストの迂回）も無い。
+
+6. 保守性
+- 上限のあるファイルの行数（基準→今）: policy.py 20602→20614（呼び出し5か所と import の1語。前の observe_lists の2行は1行に）、
+  policy_town.py 8466→8466、policy_shop.py 6580→6580、policy_quest.py 6184→6184、cli.py 5993→5993、
+  policy_home.py 5672→5672、policy_combat.py 4505→4505。
+- 新しい決まりはすべて src/hengbot/me_powers.py（表・条件の判定・回数・門・使ったかの記録）。policy.py には分岐を足さず、
+  場面の名前を渡す呼び出しだけ。執行役は既存の DeviceStep を使い、門が表を引くだけにした（同じ問いに答えるコードを増やしていない）。
+- 再利用: 一覧の記憶（observe_lists）、取り込みの記録（absorbed_charges）、名前（me_staff_sequence.POWER_NAMES）、
+  暗闇の判定（_is_dark）、見えている敵（_physical_hostiles）、帰還・降りる判定（_returning_to_town・_count_recall_scrolls・
+  _descent_is_blocked）、階段の判定（_is_upstairs_target）。
+- 新しい方策の属性は _me_power_floor の1つだけで、読む所はすべて getattr の既定値（復元したチェックポイントでも例外にならない）。
+  観戦の記録（flight_recorder.py）にも載せた。
+- 後で表を読むようにしたい写し（今は他の枝が開いているので変えていない）:
+  種類の字 A/B/C（me_device_attacks.py:43 KIND_LETTER、me_powers_refresh.py:31 KIND_LETTER、spectator.py:189、
+  me_device_attacks_input.py の答え以外の所）、I2A の符号化（me_device_attacks.Power.letter、
+  me_staff_sequence.POWER_LETTER（26 以上を扱わない）・IDENTIFY_POWER_KEY・DETECT_POWER_KEY、magic_eater_input.py:37 の
+  mA[fk] と :79 の _POWER_NAMES）。段1の2つも表の行にして、magic_eater_input の staff の門を表から作るのが次の一歩。
+  me_staff_sequence の記録（absorbed）は杖の sval だけで引くので、他の種類を取り込む時は (種類, sval) にする必要がある。
+
+7. コミット
+- 4c7d0752b Use the Magic-Eater's stage-2 powers from one data-driven table（表・判定・執行役の門・はしごの呼び出し・検査・審査）
+- この報告と診断のコミット
+
+8. 所有者への問い
+- Q1 光に弱い敵が隣の時: 共通の決まり「敵が見えている時は使わない」と両立させるため、「感知した（見えていない）敵が隣」の時だけに
+  した。見えている光に弱い敵が隣の時も光を使うなら、戦いの担当（me_device_attacks の攻撃の表）に杖の光の行を足すのが筋だが、
+  2d8 を半径2で隣は約半分なので、マジック・ミサイルより弱く選ばれないことが多い。どうするか。
+- Q2 「失敗したら同じ盤面で再試行しない」: 同じ階・同じ場所・同じ条件では再試行しない（動けばまた使う）と読んだ。
+  失敗率が高いと場所を変えるたびに1ターンずつ使う。その階では二度と使わない、の方がよいか。
+- Q3 新しい階での順: 邪悪存在感知→トラップ感知→周辺感知（危険を先に）にした。順を変えたい場合は表の優先の数だけ。
+- Q4 暗い部屋の見分け: 盤面に部屋の印（CAVE_ROOM）が無いので「周り8マスのうち5マス以上が床」を部屋の目安にした（通路は幅1）。
+  洞窟の階では開けた所でも数歩ごとに光を使いうる。
+- Q5 帰還中でも帰還の巻物があれば階段は「必要」としない。帰還の発動中に新しい階に着いた場合（ほぼ無い）も感知は使う。
+- Q6 休む前の邪悪存在感知は「同じ場所で使っていなければ」使う（休みが続く時に毎回使わないため）。
+
+checks.json に足す項（自分では足していない）
+{"id": "ME-STAGE2-POWERS", "owner": "2026-10-31 「魔道具術師の二段階目で取り込んだ魔法道具の使用ロジックを作る。それぞれ効果を確認して使用ルールを提案。」→「案はこれで良い。今後条件を追加する可能性があること、取り込み魔法道具は今後も増えることに留意して保守性を維持するように作って。」 (#47, branch me-stage2-powers-1031)", "tests": ["tests.test_me_stage2_powers"]}

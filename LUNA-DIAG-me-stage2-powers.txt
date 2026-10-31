@@ -1,0 +1,95 @@
+#47 診断: 魔道具術師の第2段で取り込んだ5つの魔力の使い方（周辺感知・ドア/階段感知・邪悪存在感知・トラップ感知・光）
+
+基準: main aa56fccb0（ブランチ me-stage2-powers-1031）。行番号は 1 始まり。ゲームのソースは C:\hengband\src。
+
+0. 効果の確かめ（ゲームのソース）
+- 魔道具術師の杖の魔力は cmd-item/cmd-magiceat.cpp:577 staff_effect(player, sval, &use_charge, powerful, magic=true, known=true)。
+  失敗は 521-531（「呪文をうまく唱えられなかった！」・1ターン使う・回数は減らない）。成功で 603 回数が1減る。
+- 周辺感知 SV_STAFF_MAPPING 9: cmd-usestaff.cpp:139-143 map_area(DETECT_RAD_MAP=30)。spells-floor.cpp:153-199
+  地形を覚えるだけ（隠し扉は暴かない）。DARKNESS のダンジョンは半径 1/3（156-158）。
+- ドア/階段感知 SV_STAFF_DETECT_DOOR 13: cmd-usestaff.cpp:169-177 detect_doors + detect_stairs（半径30）。
+  spells-detection.cpp detect_feat_flag は隠れた扉を暴く（disclose_grid）。DARKNESS で 1/3（59-61）。
+- 邪悪存在感知 SV_STAFF_DETECT_EVIL 15: cmd-usestaff.cpp:185-190、spells-detection.cpp:443-483（半径30、DARKNESS で 1/3、
+  見つけた敵に MARK）。
+- トラップ感知 SV_STAFF_DETECT_TRAP 12: cmd-usestaff.cpp:163-167 detect_traps(known=true)。spells-detection.cpp:73-77
+  距離 range-1（29）以内に CAVE_IN_DETECT、117 で dtrap。範囲を出ると player-move.cpp:283-292 が dtrap を消す
+  （alert_trap_detect の時だけ「* 注意:この先はトラップの感知範囲外です！ *」）。
+- 光 SV_STAFF_LITE 8: cmd-usestaff.cpp:132-137 lite_area(2d8, 半径2)。spells-lite.cpp:331-348 DARKNESS のダンジョンでは
+  「ダンジョンが光を吸収した。」で何もしない。半径2の LITE_WEAK（光に弱い敵だけ傷つく、effect-monster-lite-dark.cpp:8-31）と
+  lite_room（部屋全体を明るくする）。
+- 距離は Grid::calc_distance（system/grid-type-definition.cpp:19-38、Chebyshev ではない）。
+
+1. 残りの回数を公平に知る場所
+- ゲームの一覧（cmd-magiceat.cpp の「使用回数」の欄）は、魔力を使う時と閲覧（b）の時にだけ画面に出る。
+  執行役がそれを読む: magic_eater_input.py の _answer（power の段）と me_device_attacks_input.py:86-88・
+  me_powers_refresh_input.py:49-53 が operation.magic_eater_power_list に入れ、input_executor.py:1738-1739 が
+  盤面の "_magic_eater_power_list" に載せ、model.py:908・1467 が Snapshot.magic_eater_power_list にする。
+- 方策の側はすでに読んでいる: policy.py:2687-2688 が毎回の choose_key で me_device_attacks.py:172-184 observe_lists を呼び、
+  種類ごとに最後に表示された一覧（ターン付き）を policy._me_device_lists に覚える（ターンが戻ったら新しい命として捨てる）。
+  「viewer-only」と書いてある me_powers_refresh.py:15-16・magic_eater_input.py:107 の注は古く、me_device_attacks.py:187-217 が
+  攻撃の判断にもう使っている。共有の読み口を新しく作る必要は無く、新しいモジュールもこの _me_device_lists を読む。
+- 一覧をまだ一度も見ていない命: me_staff_sequence.py:249-266 absorbed_charges（取り込みで覚えた回数。同じ盤面で 0 と
+  表示されたら 0）を代わりに使う（読むだけで、このファイルは変えない）。
+- 一覧は使うたびに古くなる（使う前の一覧が残る）。執行役が使う時の画面で一覧を読み直し、0 なら ESC で閉じる
+  （me_device_attacks_input.py:95-96、時間を使わない）。その盤面の一覧で回数 0 になり、次からは選ばれない。
+- 定期の閲覧（cli.py:152-169、policy.py:9655-9656）は観戦がある時だけ。ゲームの state は魔道具術師の一覧を出さない
+  （bot-json-output.cpp:2767-2790 の power_list は種族・超能力の一覧）。
+
+2. 盤面から読めるもの
+- 新しい階: Snapshot.floor_key（model.py:1344-1348）。続けて同じ floor_key の盤面は同じ階の滞在。
+  階が替わる・ターンが戻る（新しい命）で覚えたことを捨てる。
+- 町・荒野: Snapshot.in_town（model.py:927-935）、on_open_wilderness（937-941）、dungeon_level（923-924）。
+- 敵が見えている: policy._physical_hostiles（policy.py:12774-12778、visible_monsters の敵）。殴られた: policy._took_damage
+  （policy_observation.py:1043）。
+- 感知した敵（見えていない）: Snapshot.detected_monsters（model.py:1284-1342、perception="detected"）。
+  光に弱い: policy._monrace_knowledge[race_id].flags の HURT_LITE（me_device_attacks.py の _element_multiplier と同じ読み方）。
+- 明かりの半径0: policy._is_dark（policy.py:13577-13593、プロトコル3の can_see_own_grid）。Snapshot.light_radius（model.py:882）。
+- 暗い部屋: 盤面に CAVE_ROOM は無い（プロトコル3は表示の記号の番号だけ、model.py:73-85・bot-json-output.cpp:565-573）。
+  記号の番号は view/display-map.cpp:159-184: 床は自分の明かりの中が 1（F_LIT_LITE）、光っていて見えている所が 0
+  （F_LIT_STANDARD）、それ以外が 2（F_LIT_DARK）。明るい部屋に入ると明かりの半径の外の床も 0 で見え、暗い部屋では
+  半径の外がまだ分からない。これで判定する（6 の (d)）。
+- トラップ感知の範囲: CAVE_IN_DETECT は盤面に無い（範囲外に出た時の通知も alert_trap_detect 次第）。決定 trap-detect-rod-only
+  （10-23）のとおりボットが自分で覚える: 使った点から距離 29（DARKNESS は 30/3-1）以内が範囲。
+- 休む前: 休む段 policy.py:12191-12229（REST_MACRO）。隠し壁を探す前: 下り階段を知らない時の探索の段 policy.py:12582-12602
+  （search / seek-secret-wall）。
+- 必要な階段: 帰還中で帰還の巻物が無く帰還も発動していない時は上り、それ以外で降りてよい時（_descent_is_blocked、
+  policy_navigation.py:965）は下り。覚えている階段は policy._remembered_upstairs / _remembered_downstairs と盤面の階段。
+- DARKNESS のダンジョン: policy._dungeon_knowledge[dungeon_id].flags（dungeon_knowledge.py:33-63、DungeonDefinitions.jsonc で
+  id 20 だけ）。知らない時は光を使わない。
+- 失敗: 執行役が「呪文をうまく唱えられなかった！」を見ると business_outcome = "failed:magic-eater"
+  （me_device_attacks_input.py:116-122）。次の盤面の _completed_operation_receipt.refusal と _completed_operation_owner
+  （input_executor.py:1742-1751・503-526、Snapshot.completed_operation_receipt / completed_operation_owner）で読める。
+
+3. 決定の段（はしご）の中の位置
+- 生存の段の後・探索の前: _decide の 2s 生存の門（policy.py:11581-11583、飢え）と魔力の食べ物（11585-11589）の後、
+  クエストの立て直し・資金稼ぎ（11731）・帰還（11844）・降りる（12235-）・探索（12546）の前に「階の段」を置く。
+  その上には非常時・逃げる・戦う・感知した群れの判断（10976-10994）・固定クエストの戦略（11034-11097）があり、
+  そちらが先に鍵を出す。
+- 明かりの半径0の時は policy.py:11015 の暗闇の歩き（_dark_locomotion_key）が先に鍵を出すので、その直前で光だけを聞く
+  （暗闇の段）。その上は非常時の道具・明かりの直し（11012、燃料・松明）まで。敵が見えている・殴られた時は使わない門で
+  生存を優先する。
+- 休む前は休む段の中、隠し壁を探す前はその段の中で聞く。どれも同じ1つの関数（場面の名前を渡す）。
+- 段1の魔力（鑑定・財宝感知）は今の担当のまま（me_staff_sequence の identify_power_command、policy_fundraising.py:1756-1792）。
+
+4. 執行役
+- magic_eater_input.py:37 の mA[fk] は鑑定と財宝感知だけ。me_device_attacks_input.py の DeviceStep は杖・魔法棒・ロッドの
+  種類の問い（メニューも）・一覧・方向を、それぞれの画面を見てから答え、空なら ESC で閉じる。新しい魔力はこれを使い、
+  持ち主（reason）と表の行を足すだけにする（compile_device が攻撃の表と新しい表の両方を引く）。
+
+5. 記録
+- 第2段に入ったキャラの記録は無い（captures に _me_staff_sequence が段2のものは無い）。検査は記録された魔道具術師の盤面
+  （tests/fixtures/me-mining-death-20261030.json.gz）を元に、一覧・地形・階を作った盤面で行う（作ったことを明記する）。
+
+6. 作り（承認された使い方を表にする）
+- 新しいモジュール src/hengbot/me_powers.py（方策の側）: 魔力1つが表の1行（種類・sval・効果・使う条件の名前・優先・代わり・
+  必要な条件・半径）。使う条件は名前付きの小さな判定（new-floor、stairs-needed-and-unknown、before-rest、
+  before-secret-search、left-detected-trap-area、dark-room、light-radius-zero、light-sensitive-adjacent）で、それぞれ聞かれる場面
+  （階・暗闇・休む前・隠し壁を探す前）を持つ。
+  (a) 共通の門: 魔道具術師・プロトコル3・ダンジョンの中（町・荒野・店でない）・盲目/混乱/幻覚/麻痺でない・敵が見えていない・
+      殴られていない。
+  (b) 回数: その種類の最後に表示された一覧の行（0 か行が無ければ使わない）、一覧を見ていなければ取り込みの記録。
+  (c) 失敗: 同じ階・同じ場所・同じ条件では、失敗した魔力をもう使わない（動けばまた使える）。
+  (d) 暗い部屋: 明かりの半径が1以上・自分の周り8マスのうち5マス以上が床（通路は幅1）・半径+1の輪に光って見えている床が
+      無く、まだ分からないマスがある・前に光を使った点から半径2の外。
+  (e) 代わり: 周辺感知の行に代わり＝ドア/階段感知。周辺感知の回数が無い時だけ、同じ条件でドア/階段感知を使う。
+- 表に1行足せば魔力が増え、判定を1つ足せば条件が増える（方策のコードに分岐を足さない）。
