@@ -1,0 +1,88 @@
+LUNA-REPORT-fix-me-powerful-stuck-1101（#47, D53）
+
+結論
+- 直近24時間の stuck-prompt:me-powerful:* は4キャラ（n1-c life-072 解呪、074・075・076 鑑定）とも原因は1つ。
+  強力発動の最初の問い（特殊能力の一覧「どの能力を使いますか？」）を、ゲームは input_spell_choice で
+  聞き、入力の文脈の種類は spell で公開する。ボットはこの問いを command_char の時しか自分の問いと
+  認めず、「unowned racial power prompt」で止まり、問いを開いたまま終わっていた（ESC も送らない）。
+- 直した。spell でも自分の問いと認め、答える処理と ESC で抜ける処理の両方を1つの判定にまとめた。
+  コミット c5cccc30f。
+
+停止の内訳（events.jsonl）
+- life-072 23:56 build bot-13e2f14d0 me-powerful:uncurse（キー UAg）3回→引退
+- life-074 01:45 build bot-577cd246b me-powerful:identify（UAfm）3回→引退
+- life-075 02:09 build bot-577cd246b me-powerful:identify（UAf/a）3回→引退
+- life-076 03:03 build bot-577cd246b me-powerful:identify（UAfq）3回→引退
+- 4件とも停止の行は同じ: ctx=spell ctx_prompt=「(特殊能力 a-c, ...) どの能力を使いますか？」
+  reason=unowned racial power prompt。最後に送った文字は U だけ（bot-posted-characters）。
+- 再起動のたびに同じ仕事を5秒後に選び直すため（試した回数の記録はプロセスの中だけ）、
+  1つの盤面で3回の再起動を使い切っていた。
+- 経路の詳細（ファイルと行、判断の行）は LUNA-DIAG-fix-me-powerful-stuck-1101.txt。
+
+ゲームの仕組み（upstream develop ff6b1932、protocol 4）
+- cmd-action/cmd-racial.cpp:336 racial_power_process_input → core/asking-player.cpp:396
+  input_spell_choice = InputKind::SPELL（first_label a、last_label c、list）。
+- その後の問いはもともと正しく扱えていた: 種類の問い「[A] 杖, [B] 魔法棒, [C] ロッド:」は
+  input_command（command_char、cmd-magiceat.cpp:161）、魔力の問いは input_spell_choice（spell、
+  cmd-magiceat.cpp:304）。
+- 既存のテストは特殊能力の問いを command_char で作っていた（ゲームの種類と違う作りもの）ため、
+  見逃していた。
+
+直し方
+- me_powerful_activation_input.py に _owns_racial_prompt を足し、答える処理と、答えられない時に
+  ESC で抜ける処理の両方で使う（前は同じ条件を2か所に書いていて、どちらも command_char だけ）。
+- 一覧から選ぶ問いの種類（spell と、文脈が無かった頃の command_char）を
+  magic_eater_input.LIST_CHOICE_KINDS の1か所にし、魔力の問い・強力発動・魔力の一覧の読み直し
+  （me_powers_refresh_input.py）の3か所で使う。
+- 直した後の流れ: 鑑定は U, b, A, f, 対象, 結果の画面のページ送り、解呪は U, b, A, g。
+
+テスト
+- 新規 tests.test_me_powerful_stuck_recorded（3件、うち2件は life-076 と life-075 の subTest）
+  - 記録した盤面（停止の直前の盤面、最後の熟練度と自宅の知識、強力発動の記録）から公開の
+    choose_key が記録と同じキー（UAfq、UAf/a）と理由 me-powerful:identify を選ぶこと。
+  - そのキーを本番の実行器に送り、最初の返事に記録した特殊能力の問いの画面（control-at-stop.json）
+    を使って、最後まで答えること（U, b, A, f, q / U, b, A, f, /, a, ページ送り, ESC）。
+  - 抽出: tests/extract_me_powerful_stuck_fixture.py → tests/fixtures/me-powerful-stuck-20261101.json.gz
+- 変更 tests.test_me_powerful_activation: 特殊能力の問いをゲームと同じ spell（ラベル a-c、list）で作る
+  （期待値の壁ではなく、作りものをゲームの振る舞いに合わせた）。
+- 直しを戻した時の確認（src の差分を戻して実行し、元に戻した）: 14件中6件が失敗
+  （記録の2件と作りものの4件）、どれも「reason=unowned racial power prompt」。直した後は14件とも通る。
+  記録: C:\hengband-backups\pdca\captures\fix-me-powerful-stuck-1101\revert-proof.txt
+- life-074・072 は今の main では記録と同じ判断にならない（074 は杖の順序の岩石溶解の充填の旅、
+  072 は町の進み具合の検査からクエストの停止へ）。プロセスの記憶が記録に無いため。実行器が
+  止まった問いは同じなので、解呪の流れは作りもののテスト（spell）で確かめている。
+
+検査
+- import の確認: 通る。
+- checks.json のテスト: 80件の識別子（481テスト）を4回に分けて流し、すべて通る。
+  tests.test_me_disarm_powers は main に無いので流していない。
+- 関係するテスト（test_magic_eater_calibration、test_me_kind_menu_context、test_spectator_me_powers、
+  test_town_work_contract、test_magic_eater_o3、test_me_device_attacks、test_me_powers_refresh、
+  test_me_nokey_1031_recorded、test_test_fakery_lint、test_step_gate_lint）: 通る。
+- test_input_context_structure の test_prompt_text_is_referenced_only_where_it_is_today は
+  main のままでも失敗する（me_powers_refresh.py の periodic_magic_eater_powers_key）。この直しとは無関係。
+- 町の仕事の一覧: advance_powerful の中身が変わったので scripts/town_work_review.json の説明を足し、
+  town_work_manifest.py --write を実行した（unmapped は0、違反は0）。
+
+checks.json に足す案（checks.json は編集していない）
+  {"id": "D53", "tests": ["tests.test_me_powerful_stuck_recorded"]}
+  （tests.test_me_powerful_activation はすでに入っている）
+
+保守性
+- 新しい判定は強力発動の実行器の持ち主のモジュール（me_powerful_activation_input.py）の
+  _owns_racial_prompt 1つだけ。同じ条件を2か所に書いていた重複をなくした。
+- 一覧から選ぶ問いの種類の集合を magic_eater_input.LIST_CHOICE_KINDS にまとめ、3つの実行器
+  （魔力の問い、強力発動、一覧の読み直し）で同じものを使う。種類の決まりが変わっても1か所で済む。
+- 共有の判断のコードには手を入れていない（職業や品の特別扱いは足していない）。
+
+ほかの系統のこと（直していない）
+- life-074 の盤面では、今の main だと先に杖の順序が岩石溶解の魔法棒の充填のためモリバントへ旅立つ。
+  記録ではそうならなかった（その時のプロセスの記憶が記録に無く、理由は確かめられない）。
+  杖の順序の旅は me-tower-trips-1101 の範囲。
+
+持ち主への問い（任意。直しには不要）
+- 実行器が同じ問いで止まると、再起動のたびに同じ仕事を選び直して3回の再起動を使い切る
+  （試した回数の記録がプロセスの中だけのため）。今回は問いの扱いを直したので起きないが、
+  同じ形の止まりを減らす決まりを足すか。
+  案A: 今のまま（止まった原因の問いを直す）。
+  案B: 同じ持ち主・同じ盤面で止まった仕事は、再起動の後の最初の1回は選ばない（新しい振る舞い）。
