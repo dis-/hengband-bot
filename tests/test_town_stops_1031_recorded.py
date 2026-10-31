@@ -254,3 +254,47 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         self.execute(policy, raw, key, following,
                      [executor_harness.prompt_screen(
                          "(持ち物:a-z, ESCで中断) どの薬を飲みますか?")], [raw], ["q", "c"])
+
+    def test_loop2_failed_torch_restore_is_not_rebuilt_from_another_stack(self):
+        # n1-b life-276 06:42-06:46: the restore of the torch taken off the
+        # light slot needed a free slot the town pack budget refused at 19/23;
+        # each abandon rebuilt the same restore from the other torch stack of
+        # the same move identity, and abandon-blocked / town-pack-budget '5'
+        # alternated until loop-detected.
+        def prepare(policy):
+            self.armed_warrior(policy)
+            # DECLARED RECONSTRUCTED from the watcher's policy-state.json of
+            # 20261031-064611-loop-detected (quoted in LUNA-DIAG-loops.txt):
+            # the owned light and the two failure memories, and the blocked
+            # restore session being abandoned on this board.
+            policy._equipment_transaction_owned_items = [("e1ce6e40a6e45d81", "light")]
+            policy._equipment_transaction_failed_items.update(
+                {"restore:e1ce6e40a6e45d81", "identity:441248f0e6daf1d7"})
+            board = parse_snapshot(self.row("loop2", 85), policy._monrace_knowledge)
+            policy._abandon_blocked_equipment_transaction(board)
+
+        policy, raw, decisions = self.replay("loop2", 96, prepare=prepare)
+        self.assertIsNone(policy._equipment_transaction_session)
+        for index, (key, reason) in decisions.items():
+            with self.subTest(row=index):
+                self.assertNotIn(reason, {"town-pack-budget",
+                                          "equipment-transaction:abandon-blocked"})
+        light = next(item for item in parse_snapshot(raw, None).equipment
+                     if item.slot == "light")
+        self.assertEqual(light.sval, 1)  # the lantern stays worn
+
+    @staticmethod
+    def armed_warrior(policy):
+        """DECLARED CONSTRUCTED: the capture holds no ~f list and no Home list.
+
+        The Warrior's starting TWO_WEAPON/SHIELD experience (4000, 4000:
+        lib/edit/ClassSkillDefinitions.jsonc class 0) at the board's level,
+        and an empty Home.
+        """
+        skill = copy.deepcopy(round2.OpeningRouteR2RecordedTest.stops["1"]["skill"])
+        for row in skill["knowledge"]["skills"]:
+            if row["id"] in (1, 3):
+                row["exp"] = 4000
+        skill["player"]["level"] = 18
+        policy.consume_skill_knowledge(skill)
+        policy.consume_home_knowledge(())
