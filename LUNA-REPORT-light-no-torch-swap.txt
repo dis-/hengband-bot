@@ -1,0 +1,45 @@
+#47 報告: 資金稼ぎの階で燃えているランタンを松明に替えない（light-no-torch-swap-1031）
+
+所有者: 「そもそもなぜ松明を装備する？直したはずだが」。決定（10-31）「未鑑定でも {並} の光源は付けてよい」。
+
+main で直っていたか
+- 直っていなかった。f2df445ed（{並} の光源を付ける）は装備の最適化の中の直しで、資金稼ぎの階の
+  fundraise:wield-light は通らない。main 1553399fb で記録の盤面を再生すると、今も 'we'（松明）を返した。
+
+なぜ松明を付けたか（記録）
+- n1-c life-053 03:57:41（鉄獄1階の資金稼ぎ、ターン 85529）: 付けているのは 真鍮のランタン {並}（未鑑定、
+  光の半径 2）。持ち物に 油つぼ 1 と既知の松明 4 束。決定 847 fundraise:wield-light 'we'、次の盤面で松明（半径 1）。
+- n1-c life-055 の決定 939・2605 も同じ（油を注いだ直後に 'wf'）。この記録には盤面が無いので、決定の行だけ固定した。
+- 鎖: policy_fundraising.py の資金稼ぎの階の段 -> _expedition_light_ready（未鑑定のランタンは油が出発の目標以上の
+  時だけ真。policy_supply.py:520-524）が偽 -> _fundraising_wieldable_light が既知の使える光源の一番よいもの
+  （松明）を返す -> そのまま装備。光の質（ランタン > 松明）を比べる共通の決まり _light_to_wield を通っていなかった。
+
+直し（policy_fundraising.py）
+- 予備の光源（_fundraising_wieldable_light）は「資金稼ぎを続けてよいか」だけを決める。
+- 付け替える光源は共通の決まり _light_to_wield が選ぶ。燃えている光源をそれより質の低い光源に替えない
+  （同じ質なら燃料が尽きかけで補給が無い時だけ替える）。付け替えが無ければ資金稼ぎを続ける。
+- 装備の部分は _fundraising_wield_light_key に分けた（中身は前と同じ）。
+- 町の仕事の目録: 新しい関数の点検の項を足し、使われ方の変わった古い項を入れ替え、--write は zero unmapped。
+
+検査（tests.test_light_no_torch_swap_recorded、4件）
+- 抜き出し: tests/extract_light_no_torch_swap_fixture.py -> tests/fixtures/light-no-torch-swap-1031.json.gz
+- 公開の choose_key を通し、動きのキーは本番の実行器の口で送る。資金稼ぎの目的の記録は記録のプロセスの中に
+  しか無いので、mode 'mine'・地域をまたぐ契約を切って再生した（DECLARED RECONSTRUCTED）。
+- test_burning_average_lantern_is_not_swapped_for_a_torch: 記録の盤面で松明に替えない。
+  直す前に戻すと失敗（fundraise:wield-light 'we'）。
+- test_without_oil_the_run_goes_on_with_the_lantern_worn: 油を外した盤面（DECLARED CONSTRUCTED）で資金稼ぎを続け、
+  キーを本番の実行器で送る。直す前に戻すと失敗（fundraise:wield-light）。
+- 流したもの（main ebd9051d2 を取り込んだ後）: import の確認（通過）、checks.json の 48 項 58 モジュールと新しい検査 4 件、合わせて 373 件すべて通過。
+- 記録の固定 test_recorded_rows と、対照 test_control_spent_lantern_without_refill_takes_the_torch
+  （燃料の尽きた既知のランタンで油が無ければ松明に替える）は直す前も後も通る。
+
+checks.json に足す項（自分では足していない）
+{"id": "LIGHT-NO-TORCH-SWAP", "owner": "2026-10-31 「そもそもなぜ松明を装備する？直したはずだが」「未鑑定でも {並} の光源は付けてよい」 (n1-c life-053/055, branch light-no-torch-swap-1031)", "tests": ["tests.test_light_no_torch_swap_recorded"]}
+
+残り・問い
+1. 付け替えを止めた後、この盤面では次に fundraise:refill-light '\Fa'（最後の油をランタンに注ぐ）が答える。
+   未鑑定のランタンの「暗いか」は足元の lite の印で見るが、この記録では lite の印がどのマスにも無い
+   （プロトコル3の can_see_own_grid は真）。そのため燃えているランタンにも油を注ぐことがある。油を無駄に
+   使うだけで光は切れないので今回は変えていない。直すなら can_see_own_grid で見る別の直し。
+2. 光源を選ぶ他の場所（暗がりの回復の松明・空のランタン、最適化）は、それぞれ尽きた時だけ／最適化の比較で選ぶので
+   今回の下げる付け替えは起きない。共通の決まりへまとめるのは別の保守の回にしたい。
