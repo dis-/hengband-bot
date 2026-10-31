@@ -1,0 +1,40 @@
+ISSUE: #47
+Owner decision (2026-10-31, AskUserQuestion, verbatim): 「並なら付けて良い。加えてQ34習得品も付けて良い。」
+Branch unid-light-1031 at main 1acb3b27c, worktree C:\hengband\bot-client\.worktrees\unid-light-1031.
+
+Background (D40 report, merged as 1acb3b27c): on n1-c (Magic-Eater, life-055) the Wooden Torch burned out (light radius 0)
+while a Brass Lantern {average} (not identified, known=false) was carried and never worn: src/hengbot/equipment_optimizer.py
+`evaluable` (~226-230) rejects every unknown item, so an unidentified light is never a candidate; the {average}
+pseudo-feeling only exempts it from identification (`identification_incomplete`, ~233-243) and sends it to sale/destruction.
+Recorded evidence (read only): C:\hengband-backups\pdca\captures\n1c-equip-loop-1031 (state-tail.jsonl, bot-decisions.jsonl)
+and C:\hengband-backups\pdca\captures\n1c-equip-loop-1031-server.
+
+What the owner decided:
+1. An unidentified LIGHT SOURCE with the {average} (並) pseudo-feeling may be worn without identification. Trust the
+   {average} feeling under the same conditions as the earlier owner decision Q-B (2026-10-22): "the warrior's heavy
+   pseudo-ID {average} may stand in for the identification done before destroying, only when the screen confirms there is
+   no bad-luck mutation" (memory junk-scope-widen-design-first; find the code that implements Q-B and reuse its
+   predicate - do not write a second one). Check in the game source (C:\hengband\src, the pseudo-ID / sense code) how the
+   Magic-Eater's pseudo-ID reports {average}, and say in the report whether the same predicate is valid for class 16.
+2. Items obtained in Q34 (fixed quest 34) may be worn without identification. Find how the bot can know an item came from
+   Q34 (fair play: only what the player can see/remember - e.g. the bot's own record of what it picked up inside the Q34
+   floor), and use the existing record if there is one. The owner's words do not limit 2 to lights; if the scope is
+   unclear in the code (e.g. Q34 drops that are cursed), STOP for that part and ask in the report.
+3. Nothing else changes: other unidentified equipment keeps the current rule.
+
+Do:
+1. LUNA-DIAG-unid-light.txt first: the exact rules today (file:line), the Q-B predicate, how Q34 pickups can be recognised,
+   and the Magic-Eater pseudo-ID facts from the game source.
+2. Implement 1 and 2 with the smallest change in the evaluation/legality of candidates (keep sale/destruction consistent:
+   a light that is now wearable must not be destroyed as junk while it is the best light).
+3. Defect checks from the recorded n1-c boards through the public choose_key: the {average} lantern is worn when the torch
+   is out (fails on 1acb3b27c - revert, run, restore); controls: an unidentified light WITHOUT the {average} feeling is
+   still not worn; another unidentified {average} non-light item is still not worn (unless it is a Q34 item).
+4. Report LUNA-REPORT-unid-light.txt (Japanese) and commit. At the END of the report write the checks.json entry you would
+   add ({"id": "UNID-LIGHT", "owner": ..., "tests": [...]}); do NOT edit C:\hengband-backups\pdca\checks.json yourself (an
+   entry for an unmerged test module breaks every other merge). Run your own tests explicitly.
+
+Rules: C:\hengband-backups\pdca\TASK-COMMON-1031.txt applies except its base commit and family list. Another implementer
+works on town-work-perf-1031 (town_work.py and its hook in policy.py): stay out of those. NEVER git stash. Write text
+files with Python, encoding='utf-8', newline='\n'. Checks: import check, the checks.json tests, your tests. No full suite,
+preflight, mutation_check, fast_tier. No background processes left.
