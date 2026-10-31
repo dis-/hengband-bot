@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
+from hengbot import summoner_wait
 import json
 
 from hengbot.claim_goal_typing import (
@@ -995,6 +996,7 @@ class ObservationMixin:
             self._teleport_read_watch = None
             self._recent_since_teleport = None
             self._breeder_breakthrough_floor = None
+            summoner_wait.forget_floor_visit(self)
             self._breeder_engagement_start_count = None
             self._breeder_engagement_start_turn = None
             self._breeder_kills = 0

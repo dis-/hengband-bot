@@ -40,6 +40,21 @@ class SummonerWait:
                     del remembered[position]
 
 
+def forget_floor_visit(policy):
+    """End this floor visit's summoner evidence (D46).
+
+    The memory, its avoid cells and the wait clocks were keyed by the floor
+    key alone, and leaving a level does not run the immobile-summoner rung's
+    own reset (it returns early when nothing is remembered there), so a
+    summoner remembered on an earlier Castle 22F survived into a new level
+    with the same (dungeon, level, quest) key.  Called on every floor
+    transition beside the other per-visit latches.
+    """
+    policy._immobile_summoner_memory = (None, {})
+    policy._immobile_summoner_avoid_cells = set()
+    policy._summoner_wait = None
+
+
 def wait_state(policy, snapshot):
     state = getattr(policy, "_summoner_wait", None)
     if state is None or state.floor != snapshot.floor_key:
