@@ -11929,7 +11929,7 @@
       "survival"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Class-16 absorbed attack power (m + A/B/C + I2A(sval) + direction) scored by success x min(source damage after the race's known resistance, target hp); returns None when blind/confused/hallucinating or when Magic Missile is at least as good; called only from me_ranged_first.attack_key, in the dungeon and in town (owner 2026-10-31).",
+    "evidence": "Class-16 absorbed attack power (m + A/B/C + I2A(sval) + direction) scored by success x min(source damage after the race's known resistance, target hp); returns None when blind/confused/hallucinating or when Magic Missile is at least as good; called only from me_ranged_first.attack_key, in the dungeon and in town (owner 2026-10-31). In town a ball or breath whose blast would catch a friendly the character could not defeat once angered (_town_friendly_unbeatable) is not a candidate (catches_unbeatable_friendly, owner 2026-10-31 「敵対させたあと勝てるかで判断」).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12496,7 +12496,7 @@
       "survival"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "D21 class-16 ranged answer to an adjacent attacker, called from the dungeon and town combat rungs and the opening route's _opening_q1_strike before their melee key (owner 2026-10-31 「近接以外の攻撃手段も街で使う」): first the stronger absorbed attack power (me_device_attacks, also on quest floors except quest 1), then the absorbed Magic Missile, a known attack wand and a spare lit torch (non-quest floors only; the opening route's Q1 torch reserve is kept); None for other classes. Town combat arbitrates as survival (town_arbiter TOWN_COMBAT_REASON_PREFIXES).",
+    "evidence": "D21 class-16 ranged answer to an adjacent attacker, called from the dungeon and town combat rungs and the opening route's _opening_q1_strike before their melee key (owner 2026-10-31 「近接以外の攻撃手段も街で使う」): first the stronger absorbed attack power (me_device_attacks, also on quest floors except quest 1), then the absorbed Magic Missile, a known attack wand (in town not a ball or breath that would catch an unbeatable friendly: me_device_attacks.catches_unbeatable_friendly) and a spare lit torch (non-quest floors only; the opening route's Q1 torch reserve is kept); None for other classes. Town combat arbitrates as survival (town_arbiter TOWN_COMBAT_REASON_PREFIXES).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
