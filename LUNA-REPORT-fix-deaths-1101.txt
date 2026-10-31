@@ -1,0 +1,102 @@
+LUNA-REPORT-fix-deaths-1101.txt  (D55 / #47、ブランチ fix-deaths-1101、main 31306b6a8 から)
+
+詳しい経緯（判断の行・file:line）は LUNA-DIAG-fix-deaths-1101.txt。
+証拠の写し: C:\hengband-backups\pdca\captures\fix-deaths-1101\（観戦サーバーは読むだけ）。
+
+■ 4体の死の答え
+1. n1-a life-450（Lv24 戦士、迷宮16階）: 麻痺状態でランゴスタに殺された。
+   テレポート12・致命傷の治癒10・帰還（発動待ち）を持っていた。麻痺知らずは無い。
+   速さ+10 のランゴスタ（麻痺の攻撃）が2マス先にいる時、隣のアイス・コボルドを殴った。
+   麻痺の敵を避ける処理が「隣にいる」敵しか見ていなかったため（policy_combat.py:2606-2610）。
+   ランゴスタはこちらの1回の行動の間に2回動けるので、近づいて刺し、麻痺が続いて死んだ。
+   → main では直っていない（記録の22盤面を main で再生し、22判断すべて同じ）。直した（コミット2）。
+2. n1-c life-077（Lv8 魔道具術師、町）: 見習戦士に殺された。
+   テレポートは使い切り、回復薬は無し。取り込んだマジック・ミサイルと予備の松明16本を持っていた。
+   町の最後の抵抗（town_last_stand、10-31 の決定「諦めて戦闘を試みる」）が、近接だけで戦った
+   （town_last_stand.py:44）。命中 -63 で6回ほぼ全部外れ、HP 56→0。
+   10-31 の決定「近接以外の攻撃手段も街で使う」の順（me_ranged_first）を通っていなかった。
+   → main では直っていない（6盤面すべて近接）。直した（コミット1）。
+   b51875db0（10-31、町の最後の抵抗）による一部の退行: それより前は、同じ盤面で一歩離れるか、
+   ダンジョンと同じ遠隔の順（me_ranged_first）で戦った。最後の抵抗がその前に入り、近接だけになった。
+3. n1-a life-451（Lv32 戦士、鉄獄38階）: リザードキングに殺された。
+   この階はランダムクエスト45（『カルバノグの殺人兎』、lv40・速さ+25）の階で、クエストの敵は一度も
+   見ていない。テレポートを14回使っても帰らなかった。「2回目の緊急脱出で帰る」決まり
+   （EMERGENCY_RETURN_COUNT=2）で帰りが立っても、クエストの出口の鍵（policy_quest.py:4742-4778）が
+   帰りを取り消す（policy_town.py:7970-7976）。鍵が外れるのはテレポートが0になってから。
+   その後、脱出手段0で帰還の発動を待つ間に群れに囲まれた。致命傷の治癒（6d8）では足りない。
+   → main では直っていない。2つのユーザーの決まりのどちらを優先するかの話なので、実装せず問い1にした。
+4. n1-b life-285（Lv8 ゾンビの戦士、イークの洞窟1階）: 巨大ハツカネズミ（増える敵）に殺された。
+   テレポート・回復薬・帰還を1つも持たない最初の採掘（出発時の所持金12）。
+   10-30 の決定「初回採掘の物資不足による死は受け入れる」に当たる。
+   ただし途中で、上り階段への道の最初の一歩がネズミが動くたびに入れ替わり、2マスの間を13回往復した
+   （HP 約20を失う）。これだけでは死は避けられなかったので、このブランチでは直さない（問い2）。
+
+■ 直し（1つの根に1コミット）
+コミット1 c17ca706d「Answer the town last stand with the Magic-Eater ranged order」
+  - town_last_stand.key は、近接の前に me_ranged_first.attack_key（取り込んだ攻撃・マジック・ミサイル・
+    攻撃の魔法棒・予備の松明）を試す。何も無い時だけ近接。
+  - 町の仕事の一覧（scripts/town_work_review.json の town_last_stand.py:key の説明）を直し、
+    town_work_manifest.py --write（zero unmapped、0 violation）。
+  - test_town_stops_1031_recorded の n1-c life-056 の2つの確認（death2）は、近接ではなく
+    マジック・ミサイルを期待するように直した（オーナーの決まりどおりの動き。壁ではない）。
+コミット2 4e99f367c「Treat a paralyzer whose blow lands before our next action as in contact」
+  - 新しいモジュール paralyzer_contact.py（in_contact）。麻痺の敵が「こちらの次の行動の前に殴れるか」を
+    ゲームのエネルギーの計算で決める。距離1なら接触。眠っている・動かない敵は距離2以上なら接触しない。
+    それ以外は 敵の速さのエネルギー // こちらのエネルギー（1回の行動の間の平均の行動回数）が
+    道の長さ以上なら接触（道の長さ−1歩の移動と1回の攻撃）。新しい閾値は無い。
+  - _paralyzer_prevention_key だけがこれを使う。脱出の巻物を読む（無ければ離れる）。
+  - 状態異常の段の「隣で戦っている敵を先に倒す」は変えない。巻物も逃げ道も無い時は、待つより
+    隣の敵を殴る方がよいため。同じ速さの麻痺の敵が2マス先にいる時は、今まで通り隣の敵と戦う。
+
+■ テストと revert-proof（src の直しを戻して流し、戻した）
+tests.test_town_last_stand_ranged_recorded（4件、記録の盤面→choose_key→本番の実行器）
+  直しを戻すと 2件 FAIL: test_stand_fires_the_absorbed_magic_missile、
+  test_without_the_missile_the_stand_throws_a_spare_torch。残り2件（記録の行の確認、
+  何も無い時は近接のまま）は戻しても通る（守りの確認）。
+tests.test_paralyzer_contact_recorded（4件）
+  直しを戻すと 2件 FAIL: test_fast_paralyzer_two_cells_away_reads_teleport_through_the_executor、
+  test_without_an_escape_scroll_the_fast_paralyzer_is_not_ignored。残り2件（記録の行、
+  同じ速さなら隣の戦いを続ける）は戻しても通る。
+作り物の部分（DECLARED CONSTRUCTED）は各テストの説明に書いた（実行器の返事は10ターン後の同じ盤面、
+魔道具術師の杖の一覧は読み済み、ミサイル・松明を除く場合など）。
+フィクスチャ: tests/extract_deaths_1101_fixtures.py → tests/fixtures/death-n1c-077-1101.json.gz、
+death-n1a-450-1101.json.gz。
+
+■ 検査
+- import の確認（hengbot.cli, hengbot.policy）: OK
+- checks.json の全テスト＋新しい2つ: 468件を実行し、467件 OK・1件 import の失敗（tests.test_me_disarm_powers は
+  土台の main 31306b6a8 にまだ無い。main 04ad2c6d2 で入った別ブランチのテスト）。失敗は 0。
+- 関係するテスト（麻痺・町の最後の抵抗を参照するもの 15モジュール、421件）: 直しに関係する失敗は
+  test_town_stops_1031 の death2 の2つ（上の期待値の直しで通る）。ほかの失敗4件と import の失敗1件は
+  main 31306b6a8 でも同じ（test_policy_combat の test_attacks_friendly_in_town、
+  test_quest_door_confirm_recorded の構造の確認、test_unaffordable_claim_tour_recorded の3件、
+  test_ownership_s2a1_closure の ownership_claim_lint の import）。直しの前から赤い。
+
+■ checks.json に足す案（このブランチでは checks.json は編集しない）
+  {"id": "D55", "tests": ["tests.test_town_last_stand_ranged_recorded", "tests.test_paralyzer_contact_recorded"]}
+
+■ オーナーへの問い
+問い1（n1-a life-451）: ランダムクエストの階で、クエストの敵と関係のない緊急脱出が重なった時、
+  帰るか。
+  A（推奨）: その階でクエストの敵をまだ一度も見ていない時は、2回目の緊急脱出（既存の決まり
+     EMERGENCY_RETURN_COUNT）でクエストの出口の鍵を外して帰る。クエストの敵を見た・傷つけた後は
+     07-26 の決まり（30回以上のテレポートも普通）のまま。
+  B: クエストの敵を見たかに関係なく、テレポートの巻物が帰還の発動待ちの分（数は決めてもらう）を
+     下回ったら鍵を外して帰る。
+  C: 今のまま（巻物が0になるまで鍵を外さない）。
+  （参考）クエストの敵の強さで「勝てない」と分かるのは、今は見えた時だけ（_latch_unviable_quest_return）。
+  見ていない敵の強さで先に判断するのは新しい決まりになる。
+問い2（n1-b life-285）: 初回採掘の死として受け入れてよいか。
+  上り階段への道の最初の一歩が、増える敵が動くたびに入れ替わる往復（13回）は直すか。
+  直すなら D31（階の往復）の系統として別のブランチにする（道の計算 _nearest_goal_route が
+  敵のいるマスを通れない所として扱うため）。
+
+■ 保守性
+- 新しい判断は名前付きのモジュールに置いた: paralyzer_contact.py（麻痺の敵の接触、ゲームの式と出典を
+  説明に書いた）。town_last_stand.py は既存の me_ranged_first.attack_key をそのまま使い、町と
+  ダンジョンで同じ遠隔の順を共有する（重複なし）。共有の判断の段（policy.py）には特別扱いを足していない。
+- テストの重複を減らした: マジック・ミサイルを本番の実行器に通す処理を
+  test_town_combat_survival_recorded.MissilePostedKey（テストを持たない部品）に切り出し、
+  新しいテストと既存のテストで共有した。フィクスチャの抜き出しは1つの道具（CASES の表）にまとめた。
+- 付記: n1-c の二刀流（命中 -63）は、装備の最適化が較正なしで止まっているため
+  （calibration-required、n1-c の --dump-name を外した運転）。運転の設定の話なので直していない。
