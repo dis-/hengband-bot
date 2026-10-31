@@ -1760,6 +1760,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "c723ebc3c4bb41e44b07065db0bc58edafa3382cea37b71dbb716302fe3d154e"
   },
+  "me_absorbed_substitutes.py:destruction_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "371a8772ee6ff7f1a519cf94ea61cfa249ef3db7eeec2ed3a65d854a6b8cfe1c"
+  },
   "me_device_attacks.py:Power.letter": {
     "classification": "data",
     "rows": [
@@ -1889,6 +1897,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "204596a035aefb16596fff1889ede9ca8e4ab912a6433237ba581e69e69c87c6"
   },
+  "me_powers.py:charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "e4d840dd3afcd4b0f5f1772370590ea486a24051570461f6847f4bff105e8fca"
+  },
   "me_powers.py:encode_letter": {
     "classification": "data",
     "rows": [
@@ -1897,6 +1913,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "70efa4361e1fe7d805e290cbea3110b46953e775f241d66dfb5392b18d67e7d2"
   },
+  "me_powers.py:observed_row": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "f5e10eac20a6bc3c89eb42a1f625ee08569d5a24b82704d49f6fd7c3a4141282"
+  },
   "me_powers.py:power_key": {
     "classification": "dungeon-only",
     "rows": [
@@ -1904,6 +1928,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "bfdfa3dd714c8d918751ebe3d03bf1e90fb20505a758de65e652ab9f7f8707dc"
+  },
+  "me_powers.py:recorded_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "3f4dee32510dec44c09fe2f01a52b3e4b107e39691be4b528143e8f6059fa26f"
   },
   "me_powers_refresh.py:periodic_magic_eater_powers_key": {
     "classification": "producer",
@@ -2141,6 +2173,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "bc9757b0d5a19478f0a8afa22c9e93f544a072d408edada0f7c0d329869fb9a9"
   },
+  "me_staff_sequence.py:absorbed_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "55fe20358d2b1ca25f1dd8c2a7dd4972ff39bffbefc038c976e9b87a8439798c"
+  },
   "me_staff_sequence.py:buy_target": {
     "classification": "data",
     "rows": [
@@ -2156,6 +2196,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "e7f8e78e0a4973afe62d7a2e8341f8c15eb5cb46aec94cc9c39d0eec378e01c5"
+  },
+  "me_staff_sequence.py:extra_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "18f4aec1171850ba36424633c7e3e5e28a718ca8a450f332c7dff9a6b1c89317"
   },
   "me_staff_sequence.py:identify_power_command": {
     "classification": "data",
@@ -5733,7 +5781,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "3648d5736dbba71a18951945360e0d975a3bd63da33989d5c2f969eb1522ed58"
+    "ast_sha256": "abbc97d19be6fab9c764e6a2d67e7b19cd0685734045c3bd8fe6b16bf0f5670d"
   },
   "policy_helpers.py:PolicyHelpersMixin._transaction_retain_identities": {
     "classification": "data",
