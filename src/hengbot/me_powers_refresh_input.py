@@ -10,7 +10,9 @@ import re
 
 from hengbot.input_executor import Continuation, ScreenKind
 from hengbot.input_context import read_input_view
-from hengbot.magic_eater_input import TYPE_PROMPTS, _wand_menu_answer, observed_power_list
+from hengbot.magic_eater_input import (
+    TYPE_PROMPTS, _wand_menu_answer, kind_menu_wait, observed_power_list,
+)
 from hengbot.me_powers_refresh import BROWSE_REASONS, KIND_LETTER, KINDS
 
 
@@ -43,7 +45,7 @@ def _browse_answer(step, reading, lines, operation):
     if step.stage == "kind":
         if reading.kind == "command_char" and prompt in TYPE_PROMPTS:
             return KIND_LETTER[step.kind], "list"
-        if reading.source == "null" and row0 in BROWSE_MENU_PROMPTS:
+        if kind_menu_wait(reading, row0, BROWSE_MENU_PROMPTS):
             answer = _wand_menu_answer(lines, KINDS.index(step.kind))
             return answer, "list" if answer == "\r" else "kind"
     elif reading.kind in {"spell", "command_char"} and prompt in BROWSE_PROMPTS:
