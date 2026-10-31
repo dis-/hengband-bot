@@ -66,7 +66,7 @@ from hengbot.me_powers_refresh import KIND_LETTER, SEQUENCE_READ_REASON
 from hengbot.model import STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
-    MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
+    FIXED_QUEST_TOWNS, MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED, REST_MACRO, STORE_STUCK_LIMIT, TOWN_TELEPORT_COST,
     WAIT_KEY,
 )
@@ -632,7 +632,25 @@ def _settle_pending(policy, snapshot) -> None:
                 record.fundraise_runs = record.reached_runs = 0
 
 
-def _travel(policy, snapshot, destination: int, step: str) -> str:
+def _quest_holds_town(policy, snapshot) -> bool:
+    """The fixed-quest head is an approved quest of this town, not yet done.
+
+    Its own errand travels here and back (FIXED_QUEST_TOWNS, _fixed_quest_key
+    / _telmora_q2_travel_key): the sequence's leg out of the town would undo
+    its trip (D47 n1-c life-065: Q2 TAKEN, five Outpost <-> Telmora fares
+    under fixedquest:q2-travel and me-staff:return-outpost, 5772 -> 272 gold).
+    """
+    head = policy._fixed_quest_head(snapshot)
+    return (head is not None
+            and head.status not in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
+            and FIXED_QUEST_TOWNS.get(head.id) == policy._effective_town_id(snapshot)
+            and policy.approved_quest_strategy(head.id) is not None)
+
+
+def _travel(policy, snapshot, destination: int, step: str) -> str | None:
+    """The inn teleport leg, or None while a quest errand holds this town."""
+    if destination != policy._effective_town_id(snapshot) and _quest_holds_town(policy, snapshot):
+        return None
     key = policy._town_teleport_key(
         snapshot, destination, producer=PRODUCER, reason=f"{REASON}{step}")
     if key is None:
