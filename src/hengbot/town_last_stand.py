@@ -10,9 +10,18 @@ fled a step from a Scruffy-looking horse, walked back, and fled again until it
 died.  The flee rungs ask this module first and attack instead.  The hunt
 itself never walks toward a monster it cannot beat
 (``TownMixin._town_monster_unbeatable``).
+
+D55 (n1-c life-077, 2026-11-01 03:25): the stand is the town fight of the
+owner rule 2026-10-31 「近接以外の攻撃手段も街で使う」, so it answers with the
+Magic-Eater's ranged order first (``me_ranged_first``) and melees only when
+that order has nothing.  The Lv8 Magic-Eater, cornered by 見習戦士 with its
+teleport scrolls spent, meleed at to-hit -63 and missed every blow until it
+died, carrying the absorbed Magic Missile and sixteen spare lit torches.
 """
 
 from __future__ import annotations
+
+from hengbot import me_ranged_first
 
 
 def target(policy, snapshot, hostiles):
@@ -37,9 +46,12 @@ def target(policy, snapshot, hostiles):
 
 
 def key(policy, snapshot, hostiles, reason: str) -> str | None:
-    """Melee that attacker (D21's ranged-first answer is dungeon-only)."""
+    """Fight that attacker: the ranged order first, else melee."""
     monster = target(policy, snapshot, hostiles)
     if monster is None:
         return None
+    ranged = me_ranged_first.attack_key(policy, snapshot, monster)
+    if ranged is not None:
+        return ranged
     policy.last_reason = reason
     return policy._direction_key(snapshot.player.position, monster.position)
