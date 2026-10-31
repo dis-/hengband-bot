@@ -12723,6 +12723,61 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "me_powers.py:Power.key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Utility power key m + A/B/C + I2A(sval) built from the me_powers table row; no command by itself.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:Power.letter": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Absorbed power list letter (cmd-magiceat.cpp I2A(sval), then '0'+sval-26) of a me_powers table row; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:encode_letter": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "cmd-magiceat.cpp I2A(sval) letter encoding shared by the me_powers table and the device executor gate; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:_serving": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Selects the row's own power or its fallback row (charges, failure latch, requirements); returns a table row, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:power_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
+    "evidence": "Class-16 absorbed utility power (m + A/B/C + I2A(sval)) chosen from the me_powers table by named triggers (new-floor, stairs-needed-and-unknown, before-rest, before-secret-search, left-detected-trap-area, dark-room, light-radius-zero, light-sensitive-adjacent); returns None in town, on the open wilderness, in a store, below dungeon level 1, while a hostile is visible, after damage or when blind/confused/hallucinating/paralyzed; called only from the dungeon floor, dark-locomotion, rest and secret-wall-search rungs of _decide.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "town_last_stand.py:key": {
     "classification": "producer",
     "rows": [

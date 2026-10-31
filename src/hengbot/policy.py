@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
+from hengbot import me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -2685,9 +2685,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if active_arbiter is not None:
             active_arbiter._retirement_diagnostic = None
         self._observe_cross_town_shopping_arrival(snapshot)
-        # Class 16: remember each absorbed-device list the game displayed.
-        from hengbot.me_device_attacks import observe_lists
-        observe_lists(self, snapshot)
+        # Class 16: the displayed absorbed-device lists and the last power use.
+        me_powers.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._complete_character_dump(snapshot)
@@ -11015,6 +11014,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         darkness_recovery = self._town_producer_entry("_darkness_recovery_key", lambda: self._darkness_recovery_key(snapshot), family="survival")
         if darkness_recovery is not None:
             return darkness_recovery
+        # Class 16 lights the dark with an absorbed power before walking it (me_powers).
+        dark_power = me_powers.power_key(self, snapshot, me_powers.DARK)
+        if dark_power is not None:
+            return dark_power
         dark_locomotion = self._town_producer_entry("_dark_locomotion_key", lambda: self._dark_locomotion_key(snapshot))
         if dark_locomotion is not None:
             return dark_locomotion
@@ -11592,6 +11595,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ))
         if mana_food_loot is not None:
             return mana_food_loot
+
+        # Class 16's absorbed detection/light powers, after the survival rungs (me_powers).
+        floor_power = me_powers.power_key(self, snapshot, me_powers.FLOOR)
+        if floor_power is not None:
+            return floor_power
 
         quest_floor_recovery = self._town_producer_entry("_kill_quest_floor_recovery_key", lambda: self._kill_quest_floor_recovery_key(snapshot))
         if quest_floor_recovery is not None:
@@ -12221,6 +12229,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     else "no-assessment"
                 )
             )
+            if not suppress_rest and (power := me_powers.power_key(self, snapshot, me_powers.REST)):
+                return power
             if not suppress_rest:
                 # Note: resting burns many turns (= food). Skip it when hungry
                 # so we don't starve — bot-test died of starvation partly from
@@ -12592,6 +12602,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not forgetting_maze
             and not has_downstairs
         ):
+            if (power := me_powers.power_key(self, snapshot, me_powers.SECRET_SEARCH)):
+                return power
             if self._undersearched_walls(player.position):
                 self._record_wall_search(player.position)
                 self.last_reason = "search"

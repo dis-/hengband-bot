@@ -7,7 +7,8 @@ the power prompt and its list, then get_aim_dir for a wand or an aimed rod
 prompt.  The list under the power prompt is recorded on the board
 (``magic_eater_power_list``); an empty or still-charging power closes the
 prompt with ESC (``select_magic_eater`` returns nullopt and the energy is
-reset), so a stale remembered row costs no game time.
+reset), so a stale remembered row costs no game time.  The utility powers
+(me_powers, reasons ``me-power:...``) are answered the same way.
 """
 
 from dataclasses import dataclass, replace
@@ -19,7 +20,8 @@ from hengbot.magic_eater_input import (
     EMPTY, FAILURES, MENU_PROMPTS, TYPE_PROMPTS, _owns_power_prompt, _wand_menu_answer,
     observed_power_list,
 )
-from hengbot.me_device_attacks import DEVICE_REASON, KIND_LETTER, POWERS
+from hengbot.me_device_attacks import DEVICE_REASON, POWERS
+from hengbot import me_powers
 
 
 CHARGING = ("その魔法はまだ充填している最中だ。", "The magic is still charging.")
@@ -37,16 +39,28 @@ class DeviceStep(Continuation):
 _KEY = re.compile(r"m(?P<kind>[ABC])(?P<letter>[a-z0-9])(?P<direction>[1-9]?)")
 
 
+def _table(owner):
+    """The attack table, or the utility table (me_powers) for its reasons."""
+    if owner == DEVICE_REASON:
+        return POWERS
+    if isinstance(owner, str) and owner.startswith(me_powers.REASON + ":"):
+        return me_powers.BY_KEY
+    return None
+
+
+def _power(kind, sval):
+    return POWERS.get((kind, sval)) or me_powers.BY_KEY[(kind, sval)]
+
+
 def compile_device(key, owner):
-    if owner != DEVICE_REASON:
+    table = _table(owner)
+    if table is None:
         return None
     match = _KEY.fullmatch(key)
     if match is None:
         raise ValueError("invalid Magic-Eater device attack")
-    kind = next(kind for kind, letter in KIND_LETTER.items() if letter == match["kind"])
-    letter = match["letter"]
-    sval = ord(letter) - ord("a") if letter.isalpha() else int(letter) + 26
-    power = POWERS.get((kind, sval))
+    kind, sval = me_powers.kind_of(match["kind"]), me_powers.decode_letter(match["letter"])
+    power = table.get((kind, sval))
     if power is None or power.aimed != bool(match["direction"]):
         raise ValueError("invalid Magic-Eater device attack")
     return "m", [DeviceStep(frozenset(), match["direction"], kind=kind, sval=sval)]
@@ -72,10 +86,10 @@ def _row(lines, power):
 def _answer(step, reading, lines, operation):
     prompt = reading.prompt.rstrip()
     row0 = lines[0].strip() if lines else ""
-    power = POWERS[(step.kind, step.sval)]
+    power = _power(step.kind, step.sval)
     if step.stage == "kind":
         if reading.kind == "command_char" and prompt in TYPE_PROMPTS:
-            return KIND_LETTER[step.kind], "power"
+            return me_powers.KIND_LETTER[step.kind], "power"
         if reading.source == "null" and row0 in MENU_PROMPTS:
             answer = _wand_menu_answer(lines, _KINDS.index(step.kind))
             return answer, "power" if answer == "\r" else "kind"
