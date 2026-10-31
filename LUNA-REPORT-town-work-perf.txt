@@ -1,0 +1,77 @@
+D39 街の判断が遅い（town_work の profile フック）の報告  2026-10-31  ブランチ town-work-perf-1031
+
+結論
+- 街の判断ごとに入っていた sys.setprofile のフックをやめ、sys.monitoring で「戻り」だけを見る観測に替えた。
+- 記録した街の盤面で、キー・理由・受領証（chain を含む作業の記録）・current_record は元のコードと全部同じ。
+- 同じ盤面の choose_key は 2.2〜3.1 倍速くなった。観測の呼び戻しの数は 1/28〜1/2400。
+- フックを外しても街の判断は 75〜650 ms かかる。残りは経路探索の述語などで、D39 の範囲の外（下の「残り」）。
+
+1. フックの記録の使い道（詳しくは LUNA-DIAG-town-work-perf.txt）
+- 記録は「どのレビュー済みの関数が、送るキーを返したか」。work_record（producer、caller、line、chain、
+  policy_reason、offered_work_id など）と、mode が shadow の受領証になる。
+- 読み手は cli.py（Operation.work_record、判断ログの town_work と town_idle_d0、owner-retired のログ、
+  bind_driver_override）と input_executor.py（段ごとの受領証）。どれもログと受領証だけで、キーや理由は変えない。
+
+2. 測った費用（同じ盤面、新しい policy を毎回作り choose_key だけを測る。3回の最小値、単位 ms）
+  盤面                                         元のコード  新しいコード  倍率
+  corpus checkpoint device-purchase:253             678       294       2.3
+  corpus checkpoint food-store-unreachable:220      573       245       2.3
+  corpus checkpoint town-restock-stall:2331         738       320       2.3
+  lv7/0 fixedquest:request:approach                 337       150       2.2
+  lv7/4 shop:travel                                 390       144       2.7
+  魔道具術師 life-021 continue-observed-shop       226        89       2.5
+  魔道具術師 life-023 shop:travel                  351       129       2.7
+  n1-c life-035 fixedquest:claim:approach          2484       810       3.1
+  n1-c life-035 quest:enter:approach               1740       604       2.9
+  n1-c life-042 fixedquest:claim:approach           478       191       2.5
+  n1-c life-042 town:kill-mob-approach              310       120       2.6
+  合計                                             8305      3096       2.7
+- ownership の replay corpus 62 窓（247判断、うち街 148）を順に流した場合: 街の choose_key の合計 51.3 s → 22.3 s、
+  中央値 223 → 99 ms、上位10% 746 → 367 ms、最大 3199 → 1130 ms。ダンジョンの判断は 431 → 428 ms（変わらない）。
+- 速さの標本で profile が 56.7 % に見えたのは、標本を取るスレッドが関数の入口で GIL を受け取るため、全部の呼び出しで
+  動くフックに標本が偏ったせい。実際の費用は判断の時間の 55〜75 %。
+
+3. 直し方（コミット ed84cc7dd）
+- sys.monitoring の道具番号（3 か 4）を取り、PY_RETURN と PY_YIELD だけを見る（profile の 'return' と同じ事象）。
+  call・c_call・c_return は見ない。
+- 記録できない場所は最初の1回で DISABLE: hengbot の外、town_work.py、manifest の data、self の無い関数、
+  policy がインスタンスでないクラスのメソッド、非文字列の定数を返す場所。
+- 値が文字列か、hengbot のモジュールか、self が policy か、判断中のスレッドか、は従来どおり事象ごとに確かめる。
+  記録の選び方は変えていない。
+- 道具番号が両方とも使用中なら元のフック（_profile_returns）で記録する。これを同値の検査の基準にも使う。
+- 従来と違い得るのは「policy がインスタンスでないクラスのメソッドを Class.method(policy) と明示して呼び、それが
+  キーと同じ文字列を返す」場合だけ。hengbot にその書き方は無い。
+- manifest（scripts/town_work_manifest.json.gz）は town_work.py の呼び出し箇所の行が動いただけで、
+  town_work.py --write で作り直した（981 件、未対応 0）。town_work_sites.json は変わらない。
+
+4. 検査（コミット e7060e237）
+- tests/test_town_work_observer_recorded.py（新規）
+  - test_recorded_town_boards_keep_records_with_a_fraction_of_the_callbacks: 上の11盤面を、元のフックと新しい観測で
+    公開の choose_key に通し、キー・理由・受領証全部・current_record が一致すること、policy-final が unmapped で
+    ないこと、観測の呼び戻しがフックの事象の 1/10 以下であることを確かめる（壁時計は使わない）。
+    実測の呼び戻し/フックの事象: 711/1,709,283 〜 371,561/10,399,139（最小でも 28 倍の差）。
+  - test_other_threads_and_unreviewed_children_match_the_hook: 未レビューの子がキーを返す場合と、別スレッドが同じ
+    キーを返す場合（構成した盤面）で、両方の観測の結果が同じで、unmapped の producer が判断スレッドの子であること。
+  - test_observer_is_off_after_a_failed_decision: 判断が例外で終わっても観測が止まっていること。
+- 盤面: corpus の checkpoint 3件、lv7 と魔道具術師の盤面 4件、n1-c の approach の盤面 4件（新しい fixture
+  tests/fixtures/town-work-observer-20261031.json.gz、抽出は tests/extract_town_work_observer.py）。
+- 元のコード（b6d47db93 の town_work.py）と新しいコードで同じ11盤面を流した結果も一致した（手元の確認）。
+  corpus 62 窓の247判断も差は 0 件。
+- 差し戻しの確認: src の変更を戻すと、新しい検査は setUpClass で失敗する（_monitoring_tool が無い）。
+  記録の一致は元のコードとの手元の比較で確かめた。
+- 流した検査: import の確認、checks.json の検査（他のブランチにしか無い 2 件 test_q2_tower_recharge_recorded、
+  test_equip_tie_loop_recorded を除く）、tests/test_town_work_contract.py、tests/test_top_stops_town_work.py、
+  新しい検査。main（b6d47db93）の上で 187 件、main ba0d425a9 を取り込んだ後（409c1b9f9、D38 の
+  test_calib_recall_recorded を含む）で 189 件が通った。
+- checks.json には書いていない（監督の指示）。取り込むときに足す項目:
+  {"id": "D39", "tests": ["tests.test_town_work_observer_recorded"]}
+  持ち主の言葉: 「街で処理が遅い場面が散見される。調査して。」→「ボットの計測用の処理を軽くする」
+
+5. 残り（直していない、持ち主に聞くこと）
+- 新しい観測でも、最も重い盤面（fixedquest:claim:approach）では約 0.16 s（810 ms のうち）が観測の費用。経路探索の中で
+  何十万回も呼ばれる policy の述語（_on_town_border、_is_avoidable_hazard_grid、_is_damaging_grid。bool を返す）が
+  「self が policy の場所」に当たるため。戻り値が文字列になり得るかは実行前に決められないので、記録を同じに保つ
+  限りここは削れない。manifest にない policy のメソッドの検出（unmapped）を、型注釈が bool の関数では省いてよいかは
+  持ち主の判断が要る。
+- フックを外した後の街の判断（75〜650 ms）の大部分は経路探索（_walkable_neighbors、_nearest_goal_route）と、
+  その中の述語の呼び出し。速さが足りなければ別の課題として扱う。

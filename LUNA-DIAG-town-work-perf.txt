@@ -1,0 +1,75 @@
+D39 街の判断が遅い（town_work の profile フック）の調査  2026-10-31
+
+1. フックが記録しているものと、その読み手
+
+town_work_decision（town_work.py）は HengbotPolicy.choose_key を包み、街の盤面（town_context）の判断の間だけ
+sys.setprofile のフックを入れていた。フックは 'return' の事象のうち、値が空でない文字列で、hengbot のモジュールの
+関数（town_work.py 自身を除く）が返したものを state['returns'] に積む。積む条件は「その場所（ファイル:関数名）が
+town_work_sites.json に載っていて分類が data 以外」または「その関数の self が判断中の policy」。data の場所は積まない。
+判断が終わると、決まったキーと同じ文字列を返した返り値の列（chain）から、manifest の producer を後ろから選び、
+work_record（producer, caller, line, sequence, key, work_id, rows, delegation, chain, policy_reason, offered_work_id）を作る。
+manifest に無い場所か dungeon-only の場所がキーを返していれば記録は作らず、policy-final の受領証に
+town:blocked:work-contract:unmapped-producer を書く。
+
+読み手（全部 grep で確かめた）:
+- cli.py の _ExecutorInputPort.submit_operation: current_record(policy, key) を Operation.work_record に渡す。
+  受領証（driver-submit）を作る。キーは変えない。
+- input_executor.py の _post_and_barrier: Operation.work_record から段ごとの受領証（executor-post）を作る。キーは変えない。
+- cli.py の判断ログ: record['town_work'] = receipts(policy)（chain を含む policy-final の受領証）、town_idle_d0 の
+  operation_identity / operation_producer（current_record の work_id と producer）。ログだけ。
+- cli.py の _record_owner_retired_log_only、_observe_owner_retired_progress: current_record を読みログに書く。
+- bind_driver_override / driver_record: 親の記録を parent に入れる。
+- 試験: tests/test_town_work_contract.py（未レビューの子が UNMAPPED になること、例外時に profile が戻ること、
+  受領証の検証、manifest の検査、記録した盤面で unmapped が 0 件であること）ほか。
+振る舞い（キー・理由）を変える読み手は無い。モジュールの説明どおり「判定は shadow で、キーの選択には使わない」。
+ただし記録はログと受領証に残るので、同じ盤面で同じ記録を出し続ける必要がある。
+
+2. 測った費用
+
+(a) 速さの標本（--slow-decision-sample）の 56.7 % は実際より大きく出ている。標本を取る別スレッドは、主スレッドが
+GIL を手放したときの一番上のフレームを見る。GIL の受け渡しは関数の入口（RESUME）などで起きるが、フックは全部の
+呼び出しと戻りで Python の関数として呼ばれるので、入口の大半がフックの中になり、標本がフックに偏る。
+<string> の __hash__ / __eq__ / __init__ は dataclass が生成した Position などのメソッドで、小さい関数が多いため同じく
+多めに出る。
+
+(b) 実測（同じ盤面で、新しい policy を毎回作り、choose_key だけを perf_counter で測る。3回の最小値）:
+- フックの事象の数: 1判断で 78万〜1040万件（call / return / c_call / c_return）。return だけで 35万〜42万件
+  （corpus の checkpoint の盤面）。
+- 盤面ごとの時間（元のコード → フックを外したとき）:
+  corpus checkpoint 3件  678 / 573 / 738 ms → 約 300 / 250 / 320 ms
+  n1-c fixedquest:claim:approach（life-035）  2484 ms → 約 650 ms
+  n1-c quest:enter:approach（life-035）  1740 ms → 約 460 ms
+  lv7 と魔道具術師の盤面  226〜405 ms → 75〜145 ms
+  フックだけで判断の時間が 2.2〜3.8 倍になっていた。フックを外しても街の判断は 75〜650 ms かかる
+  （経路探索の述語 _on_town_border、_is_avoidable_hazard_grid などが多い）。これは D39 の範囲の外。
+- cProfile は sys.monitoring を使い、フックと重ねると両方がゆがむので、上の数字はフックの有無の差で測った。
+
+3. 設計
+
+案A「_town_producer_entry やレビュー済みの戻り場所で明示的に記録する」は採らない。chain には途中の全部の戻り
+（_direction_key、_step_toward、DecisionCandidate.__new__ など。各行の line と caller と、その時点の last_reason）が入り、
+manifest に無い policy のメソッドがキーを返したことの検出（unmapped）もフックが頼りなので、明示の記録では同じ記録に
+ならない。
+
+採った案: sys.monitoring（Python 3.12 以降、ここは 3.13）の道具番号を1つ取り、PY_RETURN と PY_YIELD だけを見る。
+3.12 以降の sys.setprofile 自体が sys.monitoring の上に作られていて、profile の 'return' は PY_RETURN と PY_YIELD
+（と値が None の PY_UNWIND）なので、見える事象は同じ。違いは:
+- call、c_call、c_return を見ない。
+- 記録できない場所は最初の1回で DISABLE を返して、以後その場所では呼ばれない。記録できない場所 =
+  hengbot の外のコード、town_work.py、manifest の data、self を持たない関数、policy がそのインスタンスでない
+  クラスのメソッド（とその中の閉包）、非文字列の定数を返す RETURN_CONST。
+- 文字列の値、hengbot のモジュール、self が policy であること、判断中のスレッドであることは、従来どおり事象ごとに
+  確かめる（sys.setprofile はスレッドごとだったので、別スレッドの戻りは記録しない）。
+- 記録を選ぶ処理（matching / unknown / selected / offer）は変えない。
+- 判断の入れ子は、観測中の state の一覧で扱う（従来は前のフックを呼び継いでいた）。
+- 道具番号 3・4 がどちらも使われていれば、元のフックで記録する（_profile_returns）。これは同値の検査の基準にも使う。
+唯一の仮定: 「policy がインスタンスでないクラスのメソッドを Class.method(policy) と明示して呼び、そのメソッドが
+キーと同じ文字列を返す」場合だけは従来と違う。hengbot にその書き方は無い（クラス本体で他のクラスの関数を代入
+している箇所も無い）。
+
+4. 試作の結果（D39 の検査の盤面11件、元のコードと新しいコードで同じ盤面を流した）
+- キー・理由・受領証（chain を含む）・current_record は11件とも同じ。corpus の 62 窓・247判断（街 148）を順に
+  流しても、差は 0 件。
+- 時間は 2.2〜3.1 倍速くなった（下の REPORT に表）。観測の残りの費用は、経路探索中に何十万回も呼ばれる policy の
+  述語（self が policy で bool を返す）への呼び戻しで、最も重い盤面で約 0.16 s（810 ms のうち）。値が文字列になり
+  得るかは実行前に決められないので、ここは残した。
