@@ -498,6 +498,13 @@ class TownProgressInvariantTest(unittest.TestCase):
         fingerprint = policy._town_progress_fingerprint(snapshot)
         policy._town_progress_history().append(fingerprint)
         policy.last_reason = "equipment-transaction:takeoff"
+        # The same state alone is no revisit: this command was never posted
+        # from it (n1-b life-276 2026-10-31, the first absorb after Home).
+        policy._town_progress_invariant_defect = {}
+        self.assertTrue(policy._town_result_makes_progress(snapshot, "tA"))
+        self.assertEqual(policy._town_progress_invariant_defect, {})
+        # The cycle is the same command posted again from the same state.
+        policy._town_progress_command_history().append((fingerprint, "tA"))
 
         self.assertFalse(policy._town_result_makes_progress(snapshot, "tA"))
         self.assertEqual(

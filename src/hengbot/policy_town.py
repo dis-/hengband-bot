@@ -1343,8 +1343,13 @@ class TownMixin:
             # Their command shape alone is not evidence of progress: a
             # completed takeoff/restore cycle returns to the same measured
             # state even though every individual macro looked mutating.
+            # The cycle is this same command from this same state.  The
+            # fingerprint holds no position, so a command never tried from
+            # it (the hungry zombie's first absorb after leaving Home, n1-b
+            # life-276 2026-10-31) is not a revisit merely because walking
+            # or a Home page produced the same state earlier.
             fingerprint = self._town_progress_fingerprint(snapshot)
-            if fingerprint in self._town_progress_history():
+            if (fingerprint, key) in self._town_progress_command_history():
                 self._town_progress_invariant_defect = {
                     "marker": "TOWN_OSCILLATION_DEFECT",
                     "winning_rung": self.last_reason or "",
@@ -1393,17 +1398,39 @@ class TownMixin:
             self._town_progress_fingerprint_history = history
         return history
 
+    def _town_progress_command_history(self) -> deque[tuple[object, ...]]:
+        """(fingerprint, emitted key) pairs of the same window as the history."""
+        history = getattr(self, "_town_progress_command_window", None)
+        if history is None:
+            history = deque(maxlen=TOWN_CYCLE_WINDOW)
+            self._town_progress_command_window = history
+        return history
+
+    def _town_progress_note_command(self, key: str | None) -> None:
+        """Pair the final emitted key with the state its decision began in."""
+        if getattr(self, "_town_progress_command_pending", False):
+            self._town_progress_command_pending = False
+            self._town_progress_last_command = key
+
     def _town_begin_progress_decision(self, snapshot: Snapshot) -> None:
         """Move the prior decision into the window, leaving current state fresh."""
         history = self._town_progress_history()
+        commands = self._town_progress_command_history()
         if not snapshot.in_town:
             history.clear()
+            commands.clear()
             self._town_progress_last_fingerprint = None
+            self._town_progress_command_pending = False
             return
         previous = getattr(self, "_town_progress_last_fingerprint", None)
         if previous is not None:
             history.append(previous)
+            commands.append(
+                (previous, getattr(self, "_town_progress_last_command", None))
+            )
         self._town_progress_last_fingerprint = self._town_progress_fingerprint(snapshot)
+        self._town_progress_last_command = None
+        self._town_progress_command_pending = True
 
     def _town_progress_allow_members(self, snapshot: Snapshot) -> frozenset[str]:
         """Return only members of the reviewed procurement preemptor set."""

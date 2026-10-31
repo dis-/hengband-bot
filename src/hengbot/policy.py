@@ -3328,6 +3328,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._release_observed_store_exit(snapshot)
         key = self._enforce_town_claim_result(snapshot, key)
         self._record_decision_claim(snapshot, key)
+        self._town_progress_note_command(key)
         return key
 
     # -- S1 attribution (SOL-DESIGN-ownership-contract.md 3.1, 4, 6/S1) ----
