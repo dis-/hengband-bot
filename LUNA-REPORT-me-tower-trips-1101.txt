@@ -1,0 +1,125 @@
+LUNA-REPORT D52 (#47) n1-c の街での動きが遅い（me-tower-trips-1101）
+
+結論: 判断は速く、遅さは行動。根は 2 つで、どちらも直した。
+ 1. 第 2 段の杖を、他の町の棚で買えるのに買う前に塔へ行っていた（塔 4 回・運賃 8 回で 16886 → 4683）。
+ 2. 塔・宿・噂の宿へ 1 マス 1 判断で歩いていた（店へはトラベル 1 判断なのに）。
+詳しい原因と記録の行は LUNA-DIAG-me-tower-trips.txt。
+
+------------------------------------------------------------------
+根 1 の原因と直し（コミット 063a8b3bc）
+------------------------------------------------------------------
+原因（base 5f0c030e4）:
+ - me_staff_sequence.py:502 `carried and _stocked_out`: 今の町の棚に無いだけで、持っている杖を持って
+   塔へ（記録 5024: 前哨で光・周辺感知を買ってすぐ travel-morivant。モリバントにトラップ感知、
+   アングウィルにドア/階段感知があった: 5107, 5227）。
+ - :503 モリバントに着けば棚より先に塔（5079 塔 → 5103 店 → 5149 また塔）。
+ - :877-880 第 1 段の後、モリバントの棚を見ずに前哨へ（5005）。
+ - :666 探す順がモリバント先。
+ 承認済みの「持っている分を先に取り込む」は「どの棚にも無い 1 本」の規則なのに、「今の町の棚に無い」
+ で発火していた。荷物の空き・金の取り置きは関係ない（所持金 11391、余力あり）。
+直し: 部分買いの段（第 2 段）に「買い回り」を作った（_round_open / _next_shelf / _shelf_done）。
+ この町の魔法店 → 前哨の魔法店 → 余力で行ける他の町（モリバントは最後。塔で締める）の順に見て、
+ 棚にある段の杖を全部買ってから、持っている杖を 1 回の塔で充填・取り込む。どの棚にも無い杖が
+ 残る時だけ「持っている分を先に」（承認どおり）。満タンの杖はモリバントでそのまま取り込む。
+ 記録の流れに当てはめると、第 2 段の運賃は 7 回 → 5 回、塔の充填は 3 回 → 1 回。
+
+------------------------------------------------------------------
+根 2 の原因と直し（コミット 1934957e3）
+------------------------------------------------------------------
+原因: 店のトラベルは地点選択の店の目印（grid-selector.cpp の '!'..'('）を使う。建物には '+' しか無く、
+ 全建物の選択肢が出るので決まったキーで選べない。そのため塔（morivant_tower.building_step の 1 歩を
+ me_staff_sequence.py:767・q2_tower_recharge.py:202 が送る）、宿（policy_town.py:7658）、
+ 噂（policy_town.py:6794）が 1 歩ずつだった。
+直し: town_travel.py（新）。地点選択のカーソルを方向キーで建物の隣のマスへ動かし '.' で選ぶ
+ （point_target。ゲームの決まりどおり、見えている壁・扉でなければ選べる）。
+ 「この移動にトラベルを使ってよいか」の規則は town_travel.travel_key の 1 か所だけ:
+ 光源あり・一番小さい端末のキー列に収まる（main-gcu 256）・既存の _town_travel_key の盤面の条件
+ （拾い物の荷物予算、目的地が見えている、自分のマスが見える、3 マス未満は歩く、止まったら出し直し、
+ 進まなければ歩きに戻る）。
+ 使う所: 塔（me-staff と Q2 の共通、morivant_tower.approach_key）、宿への全ての町間移動
+ （_town_teleport_dispatch_key）、噂の宿へ。建物に入る最後の 1 歩と後ろのキーは今のまま。
+ ドライバ（cli.py）は全てのトラベルのキー列に、トラベルの入力待ちと応答の猶予を付ける。
+
+------------------------------------------------------------------
+トラベルの棚卸し
+------------------------------------------------------------------
+トラベルにした: me-staff:approach-tower、fixedquest:q2-recharge:approach-tower、宿への全ての町間移動
+ （me-staff:travel-morivant / return-to-shop / search-staff / return-outpost / return-for-funds、
+ Q2 の塔の行き来、fixedquest:q<id>-travel・q2-teleport、決定の文脈が無い時の prepare-return、
+ town:cross-town-shopping:travel-*、town:cross-town-walk-in-return、town:morivant-full-identify:return、
+ town:teleport）、town:rumor。
+残した: 戦闘・生存の移動（town:kill-mob-approach、逃げる、隅で戦う、避難）、入口から降りる 1 歩、
+ 店・建物へ入る最後の 1 歩、近い目的地・光源なし・見えない目的地など _town_travel_key が断る盤面。
+ 見えている敵: ゲームのトラベルは隣に見える敵がいると止まる。店のトラベルと同じく、町の敵は
+ ラダー先頭の _town_kill_mob_key が先に扱い、止まった分は出し直し、進まなければ歩きに戻る。
+後回し（問い 3）: fixedquest:q22-travel と「決定の文脈あり」の prepare-return（経路の宣言が 1 歩を
+ 検査の根拠にする。life-074 5197-5210 の 14 歩）、bounty:approach（試したが test_live22_bounty の
+ 継続の検査が 1 歩の offer を前提）、town:morivant-full-identify:library（記録の接近盤面が無い）。
+
+------------------------------------------------------------------
+検査
+------------------------------------------------------------------
+新しいテスト tests/test_me_tower_trips_recorded.py（7 件、記録盤面を public choose_key と本番の
+executor で）。life-074 の盤面はサーバに残っていない（01:41 の再起動で state.jsonl が後の分だけ）
+ので、同じ判断をした以前の命の記録盤面を使う。
+ BuyRoundTest（根 1）:
+  - life-054 前哨（me-nokey 行 108）: テルモラの棚へ。直す前: me-staff:travel-morivant → FAIL を確認
+  - life-067 第 1 段の塔の後: モリバントの魔法店へ。直す前: me-staff:return-to-shop '3' → FAIL
+  - life-068 モリバント到着: 塔より先に魔法店へ。直す前: me-staff:approach-tower '9' → FAIL
+ TownTravelTest（根 2）:
+  - 塔の隣へトラベル。直す前: '9' → FAIL
+  - 止まったトラベルの出し直し。直す前: '9' → FAIL
+  - 宿の隣へトラベル（return-to-shop）。直す前: '3' → FAIL
+  - 噂の宿の隣へトラベル。直す前: '9' → FAIL
+ （戻し方: 該当の src の差分を外して実行し、戻した。git stash は使っていない）
+取り込みの検査:
+ - import の確認: OK
+ - checks.json のテスト: 79 件中この枝に有る 76 モジュール、449 テスト OK
+   （無い 3 件 test_unid_scroll_room_recorded、test_q34_taken_torches_recorded、
+   test_me_mapping_1101_recorded は base 5f0c030e4 にまだ無い）
+ - 変えたテスト・関係するテスト: 上の 7 件と、test_me_staff_sequence、test_zombie_me_food、
+   test_crosstown_alt_recorded、test_town_plan_exhausted_wander、test_morivant_return_walks_away_recorded、
+   test_surface_map_walks、test_quest_prepare_return_stage2、test_quest_travel_progress、
+   test_town_terminal_rung_applicability ほか（82 件 OK）。
+ - 関係しそうなテストを広く流した中の失敗（test_policy_home、test_policy_equipment、
+   test_q2travel_progress_recorded、test_unaffordable_claim_tour_recorded、test_bounty_cashout_recorded_1025
+   など 25 件）は、base の src でも同じく失敗する（既存）。
+ - scripts/town_work_manifest.py: zero unmapped（新しい関数の見直し記録を town_work_review.json に追加）。
+   town_structure_lint は 128 件で base と同じ（新しい関数は town_producer_baseline.json に登録）。
+期待値を直したテスト（承認された振る舞いへ）: 第 2 段の買い回り（モリバント最後・モリバントの棚を先に）、
+ 宿・塔へのトラベル。壁は 1 か所: test_morivant_return_walks_away_recorded は歩きの経路（BFS）の
+ 調査の検査なので、travel_key を None にして歩きの経路を検査している（理由をテストに記載）。
+ 検査の道具のキュー長 32 を、実際の一番小さいキュー 256 に上げた（Q2 の塔、me-nokey の PostedKey）。
+
+------------------------------------------------------------------
+checks.json の案（編集はしていない）
+------------------------------------------------------------------
+{"id": "D52", "owner": "2026-11-01 「n1-cの街での動きが遅いように見えた。要検査」「街での移動は可能な限りトラベルコマンドを活用して」 (n1-c life-074, branch me-tower-trips-1101)", "tests": ["tests.test_me_tower_trips_recorded"]}
+
+------------------------------------------------------------------
+保守性
+------------------------------------------------------------------
+ - 「トラベルを使ってよいか」は town_travel.travel_key の 1 か所。キー列の組み立て（point_macro）・
+   建物の隣のマス（approach_cell）・「何も開かないマス」（plain_cell）も同じモジュール。担当ごとの
+   例外は書いていない（建物は呼ぶ側が渡す）。
+ - 塔の手順は morivant_tower.approach_key に置き、me-staff と Q2 の両方がそれを使う（前は両方が同じ
+   2 行を持っていた）。building_step の「降りるマス」の条件は plain_cell に一本化した（重複を削った）。
+ - 宿の町間移動は _town_teleport_travel_key の 1 か所で、全ての町間移動の担当に効く。
+ - 買い回りは小さな関数 3 つ（_shelf_done・_next_shelf・_round_open）にし、前の _searching を置き換えた。
+   _phase の条件で _round_open を 1 回だけ計算する。
+ - ドライバのトラベル判定は is_travel_macro の 1 つ（前は固定の 9 個の表だけ）。
+
+------------------------------------------------------------------
+持ち主への問い
+------------------------------------------------------------------
+ 1. 他の町を探す順を「モリバント最後」に変えた（前はモリバント最初）。塔で買い回りを締めるので
+    運賃が 1 回少なくなる。これでよいか。
+ 2. life-054 の前哨の魔法店に解呪の杖（魔道具の表で「1本目を見たら買う」）があったが、店の中でも
+    外の組み立てでも買わなかった（前のテストは、歩きの 1 歩を町の進捗の検査が店へ書き換えたこと
+    を固定していた）。今回はトラベルになって書き換えが起きず、買い回りが先に出る。店の組み立ての
+    家族の問題として別に調べるか。
+ 3. 後回しにした歩き（q22-travel と決定の文脈ありの prepare-return、bounty:approach、
+    モリバントの図書館）をトラベルにする直しを別に出してよいか。経路の宣言・継続の検査の作り直しが要る。
+
+その他（別の家族）: life-074 5210 で Q2 の町の保持により fixedquest:prepare-return がテルモラから
+前哨へ戻し、探す順（アングウィル）が後になった（D47 の _quest_holds_town の動き）。

@@ -1,0 +1,108 @@
+LUNA-DIAG D52 (#47) n1-c の街での動きが遅い（me-tower-trips-1101）
+
+証拠: C:\hengband-backups\pdca\captures\n1c-tower-trips-1101\life-074-decisions-tail.jsonl.gz
+（life-074 の最後の 3000 判断、build bot-f9c921d32）。判断の速さは問題なし（監督の計測どおり）。
+遅いのは「行動」で、根は 2 つ。
+life-074 の盤面そのものはサーバに残っていない（01:41 の再起動で state.jsonl が turn 895023 以降だけに
+なった。captures / incident-captures も 01:44 以降）。検査は同じ判断をした以前の命の記録盤面で行う
+（下の「検査」）。
+
+------------------------------------------------------------------
+根 1: 段の杖を全部買う前に塔へ行く（買い回りの順序）
+------------------------------------------------------------------
+記録（life-074、金 16886 -> 4683、運賃 8 回 = 4000、第 2 段で塔の充填 3 回）:
+ 4916-4961 第 1 段（鑑定・財宝感知）をモリバントの塔で取り込み（stage1-complete）。
+ 5005      me-staff:return-to-shop '1ma'（モリバント -> 前哨）。モリバントの魔法店は見ていない。
+           （後の 5107 でモリバントの棚にトラップ感知の杖があったと分かる）
+ 5016-5023 前哨の魔法店: 周辺感知・光を買う（ほかに解呪の杖）。トラップ・ドア・邪悪は棚にない。
+ 5024-5036 me-staff:travel-morivant '3mc'（すぐ塔へ。テルモラ・アングウィルの棚は見ていない）
+ 5079-5082 塔で充填、光・周辺感知を取り込む（2 回目の塔）
+ 5103-5108 そこで初めてモリバントの魔法店へ: トラップ感知の杖を買う
+ 5109-5150 また塔へ歩いて充填・取り込み（3 回目の塔。同じ町で 2 回）
+ 5194      me-staff:search-staff '1mb'（テルモラ。棚に無し）
+ 5210      fixedquest:prepare-return '3ma'（Q2 の町の保持で前哨へ。別の担当）
+ 5225      me-staff:search-staff '3md'（アングウィル）5227 ドア/階段感知の杖を買う
+ 5246      me-staff:travel-morivant '7mc' 5287-5288 充填・取り込み（4 回目の塔）
+ 5329      me-staff:return-to-shop '1ma'、5335 邪悪感知の入荷待ちの採掘へ
+
+原因（base 5f0c030e4）:
+ a) src/hengbot/me_staff_sequence.py:502 `carried and _stocked_out(...)`: 今いる町の棚に足りない杖が
+    無ければ、持っている杖があるだけで塔へ（phase travel）。他の町を見る _next_search_leg（:896）は
+    「何も持っていない」時の buy の枝でしか呼ばれない。所持金の余裕・荷物の空き・在庫切れの規則
+    （それぞれ別の理由）ではなく、この順序が原因。所持金は 11391 で余力は十分あった。
+ b) :503 `unlocked and town == MORIVANT and (carried or extras)`: モリバントに着けば棚を見る前に塔。
+    塔の後で棚を見て（:877-886 の _searching）買い、もう一度塔（同じ町で 2 回の充填）。
+ c) :877-880: 前哨以外の町で前哨の棚が未確認なら、その町の棚を見ずに前哨へ戻る
+    （第 1 段の後のモリバント、5005）。
+ d) :666 Morivant first: 探す順がモリバントから。塔のある町が最初なので、取り込みが先に走ると
+    後で見つけた杖のためにまた戻ることになる。
+ 承認済みの「持っている分を先に取り込む」（10-31）は「どの棚にも無い 1 本が品切れの時」の規則だが、
+ 実装は「今いる町の棚に無い時」に発火していた（早すぎる発火）。
+
+------------------------------------------------------------------
+根 2: 塔・宿への移動が 1 歩ずつ（トラベルを使っていない）
+------------------------------------------------------------------
+記録: me-staff:approach-tower 4918-4957（約 40 判断、(43,92) -> (20,57)、約 2 判断/秒）、
+ return-to-shop 4962-5005（43）、search-staff 5151-5194・5213-5225、travel-morivant 5024-5036・
+ 5229-5246（12-18、宿まで）、town:rumor 4888-4914（27、宿まで）、fixedquest:prepare-return 5197-5210（14）。
+ 店へは shop:travel '\x1b`n&.' の 1 判断（5006, 5015, 5103, 5195）。
+
+原因:
+ - 店のトラベル（policy_shop.py:6115-6121 → policy_town.py _town_travel_key）は、トラベルの地点選択の
+   店の目印（target/grid-selector.cpp:101-115 tgt_pt_symbol_call_back の '!'..'(' = 店番号）を使う。
+   建物（塔 = 建物 8、宿 = 建物 4/0）は '+' しかなく、これは床の全建物を順に並べた選択肢を出す
+   （grid-selector.cpp select_building_pos / CandidateSelector）ので、決まったキーで選べない。
+ - そのため塔は morivant_tower.py:125 building_step の最初の 1 歩を me_staff_sequence.py:765-767 と
+   q2_tower_recharge.py:200-202 が _step_toward で送り、宿は policy_town.py:7658
+   （_town_teleport_route の first_step）、噂は policy_town.py:6794 が 1 歩ずつ送っていた。
+
+------------------------------------------------------------------
+直し
+------------------------------------------------------------------
+ a) 買い回り（me_staff_sequence.py、_round_open / _next_shelf / _shelf_done）: 部分買いの段は
+    「この町の棚 → 前哨の棚 → 余力で行ける他の町（モリバントは最後、塔で締める）」を見てから、
+    持っている杖を 1 回の塔で充填・取り込む。どの棚にも無い杖の時だけ「持っている分を先に」。
+    満タンの杖はモリバントでそのまま取り込む（充填も運賃も要らない）。
+ b) トラベル（新モジュール town_travel.py）: 地点選択のカーソルを方向キーで建物の隣のマスへ動かして
+    '.' で選ぶ（point_target）。「この移動にトラベルを使ってよいか」は town_travel.travel_key の 1 か所
+    （光源・キュー長・_town_travel_key の盤面の条件と進み具合の上限）。塔（me-staff・Q2 共通、
+    morivant_tower.approach_key）、宿への全ての町間移動（_town_teleport_dispatch_key）、噂の宿へ。
+    建物に入る最後の 1 歩とその後ろのキー（'ay\x1b'、'm'+行き先、噂の 'u\r'…）は今のまま。
+
+------------------------------------------------------------------
+トラベルの棚卸し（移動を 1 歩ずつ送る町の担当）
+------------------------------------------------------------------
+トラベルにした:
+ - me-staff:approach-tower、fixedquest:q2-recharge:approach-tower（morivant_tower.approach_key）
+ - 宿への全ての町間移動（_town_teleport_dispatch_key → _town_teleport_travel_key）:
+   me-staff:travel-morivant / return-to-shop / search-staff / return-outpost / return-for-funds、
+   fixedquest:q2-recharge:travel-*、fixedquest:q<id>-travel・q2-teleport、
+   fixedquest:prepare-return（決定の文脈が無い経路）、town:cross-town-shopping:travel-*、
+   town:cross-town-walk-in-return、town:morivant-full-identify:return、town:teleport
+ - town:rumor（噂の宿へ）
+残した（理由）:
+ - 戦闘・生存の移動（town:kill-mob-approach、逃げる、隅で戦う、town:seek-shelter）: 敵に対する 1 歩。
+ - 入口から降りる 1 歩（*-step-off、store:entry-failed-step-off）、店・建物へ入る最後の 1 歩。
+ - 近い目的地（TOWN_TRAVEL_MIN_DISTANCE=3 未満）、光源なし・自分のマスが見えない、床の拾い物で
+   荷物の予算が足りない、目的地のマスが未公開、進まないトラベルの後（_town_travel_key の規則）。
+ - 見えている敵: ゲームのトラベルは隣に見える敵がいると止まる（travel-execution.cpp
+   decide_travel_step_dir）。店のトラベルと同じく、町の敵はラダー先頭の _town_kill_mob_key が先に
+   扱い、止まったトラベルは _town_travel_key の進み具合で出し直し、進まなければ歩きに戻る。
+ - 後回し（今回は変えない。記録の盤面と検査の作り直しが要る）:
+   fixedquest:q22-travel と fixedquest:prepare-return の「決定の文脈あり」の経路
+   （policy_quest.py _prepare_return_candidate ほか。経路の宣言 QuestTravelDeclaration が
+   first_step・composed_key の 1 歩を検査の根拠にしている。life-074 5197-5210 の 14 歩はこれ）、
+   bounty:approach（試したが tests.test_live22_bounty の継続の検査が 1 歩の producer の offer を前提）、
+   town:morivant-full-identify:library（記録の接近盤面が無い）。どれも town_travel.building_key の
+   1 呼び出しで変えられる。
+
+------------------------------------------------------------------
+検査（記録盤面、public choose_key と本番の executor）
+------------------------------------------------------------------
+ tests/test_me_tower_trips_recorded.py
+  BuyRoundTest（根 1）: life-054 の前哨の盤面（tests/fixtures/me-nokey-20261031.json.gz 行 108）で
+   塔ではなくテルモラへ（直す前: me-staff:travel-morivant）/ life-067 の第 1 段の塔の後でモリバントの
+   魔法店へ（直す前: return-to-shop）/ life-068 のモリバント到着で塔より先に魔法店へ（直す前:
+   approach-tower）。
+  TownTravelTest（根 2）: 塔・宿・噂の宿へのトラベル（直す前: '9'・'3'・'9' の 1 歩）、止まった
+   トラベルの出し直し。
