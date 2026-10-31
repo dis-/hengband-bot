@@ -35,21 +35,27 @@ Stages (owner 2026-10-31: 「財宝感知と鑑定の取り込みは1本でい�
 lists each stage's staffs; one absorption of each completes a stage whatever
 its charges, and the next stage runs the same steps (Morivant stays
 unlocked).  Stage 2's five staffs
-(all Magic-shop stock, store/articles-on-sale.cpp) are bought as the shelf
-offers them, one each, and every carried staff of the stage is recharged
-and absorbed on whichever Tower visit comes first: a trip's fares are paid
-per visit and the Tower's 'a' recharges the whole pack at once.  A staff the
-observed Magic shelf does not sell (owner 2026-10-31 「持っている分を先に取り
-込む」) does not hold the carried ones back: they go to the Tower now, and the
-missing one is bought when it is stocked; the mining runs that wait for its
-restock are not counted against the run limit.  Completing
+(all Magic-shop stock, store/articles-on-sale.cpp) are bought as the shelves
+offer them, one each, in one buy round (``_round_open``, #47 D52): this
+town's Magic shelf, then the Outpost's, then the other visited towns' that
+the spare gold pays (Morivant last, where the round ends at the Tower).  The
+Tower's 'a' recharges the whole pack at once and a trip's fares are paid
+per visit, so the carried staffs go to the Tower once the round has no
+shelf left (n1-c life-074 01:29-01:32: three Tower trips and eight fares for
+one stage while Morivant and Angwil sold two of the missing staffs).  A
+staff no shelf of the round sells (owner 2026-10-31 「持っている分を先に取り
+込む」) does not hold the carried ones back: they go to the Tower then, and
+the missing one is bought when it is stocked; the mining runs that wait for
+its restock are not counted against the run limit.  A carried staff already
+at its maximum is absorbed at Morivant at once (no recharge, no fare).
+Completing
 a stage is decided once as ``me-staff:stage<N>-complete`` (WAIT; owner
 2026-10-31 「次の目標は3キャラ連続で第二段階のクリアとする」).
 
 Other towns (owner 2026-10-31 「資金に余力が出来たら他の街も見て回ることで時短を
 図る」): while a stage's staff is out of stock at the Outpost, the gold above
 the stock-out run's own target (``_stockout_target``) that pays a trip sends
-the sequence to the other visited towns' Magic shops (Morivant first), one
+the sequence to the other visited towns' Magic shops (Morivant last), one
 after another, before it mines for the restock (``_next_search_leg``).
 
 Extras (owner 2026-10-31 18h 「岩石溶解の魔法棒を入手したあと、資金に余裕がある
@@ -499,20 +505,21 @@ def _phase(policy, snapshot) -> str:
     carried = carried_staffs(policy, snapshot)
     extras = carried_extras(policy, snapshot)
     missing = _needed(policy, snapshot)
-    if (stage is not None and (not missing or (carried and _stocked_out(policy, snapshot)))) or (
-            unlocked and town == MORIVANT_TOWN_ID and (carried or extras)) or (
-            extras and _extras_spare(policy, snapshot, unlocked)):
-        # Every staff of the stage in hand (or every one the shelf sells:
-        # 「持っている分を先に取り込む」), some already at Morivant, or an
-        # extra the spare gold takes there.
+    devices = (*carried.values(), *extras.values())
+    short = any(_short_of_max(item) for item in devices) or staple_needs_recharge(snapshot)
+    round_open = _round_open(policy, snapshot)
+    if (stage is not None and (not missing or (carried and stage.partial_buy and not round_open))) or (
+            unlocked and town == MORIVANT_TOWN_ID and devices and not (short and round_open)) or (
+            extras and not round_open and _extras_spare(policy, snapshot, unlocked)):
+        # Every staff of the stage in hand (or every one the buy round's
+        # shelves sell: 「持っている分を先に取り込む」), some at Morivant
+        # with nothing left to buy first (or already full), or an extra the
+        # spare gold takes there.
         if not unlocked:
             return "rumor"
         if town != MORIVANT_TOWN_ID:
             return "travel"
-        if (any(_short_of_max(item) for item in (*carried.values(), *extras.values()))
-                or staple_needs_recharge(snapshot)):
-            return "recharge"
-        return "absorb"
+        return "recharge" if short else "absorb"
     # 「減ったら塔でチャージする」 (from stage 1's completion on): the staple
     # Wand of Wonder goes back to the Tower through the same steps.
     if stage_complete(policy, STAGES[0]) and staple_needs_recharge(snapshot) and unlocked:
@@ -643,11 +650,33 @@ def _searched(policy, town: int) -> bool:
     return town in record.searched_towns and record.searched_towns[town] >= record.shelf_after_turn
 
 
-def _searching(policy, snapshot) -> bool:
-    """In another town during an Outpost stock-out, its shelf not yet seen."""
+def _shelf_done(policy, snapshot) -> bool:
+    """This town's Magic shelf has nothing more for the round: observed
+    without a missing staff, or (outside the Outpost, whose shelf is always
+    looked at again) given up since the restock wait began."""
     town = policy._effective_town_id(snapshot)
-    return (town != OUTPOST_TOWN_ID and _searched(policy, OUTPOST_TOWN_ID)
-            and not _searched(policy, town))
+    return _stocked_out(policy, snapshot) or (town != OUTPOST_TOWN_ID and _searched(policy, town))
+
+
+def _next_shelf(policy, snapshot, supplies: int, unlocked: bool) -> int | None:
+    """The round's next town: the Outpost first, then ``_search_town``."""
+    if (policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID
+            and not _searched(policy, OUTPOST_TOWN_ID)):
+        return OUTPOST_TOWN_ID
+    return _search_town(policy, snapshot, supplies, unlocked)
+
+
+def _round_open(policy, snapshot) -> bool:
+    """A partial-buy stage's buy round still has a shelf to look at or buy
+    from: this town's, or a next town (``_next_shelf``).  The carried staffs
+    wait for its end, so one Tower trip serves the stage (#47 D52)."""
+    stage = current_stage(policy)
+    if stage is None or not stage.partial_buy or not _needed(policy, snapshot):
+        return False
+    if not _shelf_done(policy, snapshot):
+        return True
+    return _next_shelf(policy, snapshot, supply_cost(policy, snapshot),
+                       morivant_tower.morivant_unlocked(snapshot)) is not None
 
 
 def _search_town(policy, snapshot, supplies: int, unlocked: bool) -> int | None:
@@ -663,15 +692,16 @@ def _search_town(policy, snapshot, supplies: int, unlocked: bool) -> int | None:
         return None
     towns = [town for town in policy._cross_town_candidate_order(snapshot)
              if town != OUTPOST_TOWN_ID and not _searched(policy, town)]
-    # Morivant first: its Tower recharges and absorbs what is bought there.
-    return min(towns, key=lambda town: (town != MORIVANT_TOWN_ID, town), default=None)
+    # Morivant last: the round ends at its Tower, whose visit looks at its shelf.
+    return min(towns, key=lambda town: (town == MORIVANT_TOWN_ID, town), default=None)
 
 
 def _next_search_leg(policy, snapshot, supplies: int, unlocked: bool) -> str:
-    """The next town to search, else home to the Outpost, else the restock run."""
-    town = _search_town(policy, snapshot, supplies, unlocked)
+    """The round's next town, else home to the Outpost, else the restock run."""
+    town = _next_shelf(policy, snapshot, supplies, unlocked)
     if town is not None:
-        return _travel(policy, snapshot, town, "search-staff")
+        return _travel(policy, snapshot, town,
+                       "return-to-shop" if town == OUTPOST_TOWN_ID else "search-staff")
     if policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID:
         return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-to-shop")
     return _fundraise(policy, snapshot, _stockout_target(policy, snapshot, supplies, unlocked),
@@ -873,17 +903,16 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     visited = snapshot.visited_town_ids
     unlocked = visited is not None and MORIVANT_TOWN_ID in visited
     if phase == "buy":
-        searching = _searching(policy, snapshot)
-        if policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID and not searching:
-            if _searched(policy, OUTPOST_TOWN_ID):
-                return _next_search_leg(policy, snapshot, supplies, unlocked)
+        away = policy._effective_town_id(snapshot) != OUTPOST_TOWN_ID
+        if away and not stage.partial_buy:
             return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-to-shop")
         target = buy_target(policy, snapshot)
         if target is None:
-            if STORE_MAGIC not in _fresh_pages(policy, snapshot):
+            if not _shelf_done(policy, snapshot) and STORE_MAGIC not in _fresh_pages(policy, snapshot):
+                # The round looks at this town's shelf first (#47 D52).
                 step = policy._shopping_approach_step(
                     snapshot, store_type=STORE_MAGIC, requester="quest-request")
-                if step is None and searching:
+                if step is None and away:
                     return _give_up_town(policy, snapshot, supplies, unlocked)
                 if step is None:
                     return _stop(policy, "magic-shop-route-unavailable")
@@ -895,7 +924,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
             # mining run passes the restock time (mines_floor_out).
             return _next_search_leg(policy, snapshot, supplies, unlocked)
         if gold < target + supplies:
-            if searching:
+            if away:
                 return _give_up_town(policy, snapshot, supplies, unlocked)
             return _fundraise(policy, snapshot, target + supplies, "staffs")
         offer = next(offer for sval, offer in sorted(offers(policy, snapshot).items()))

@@ -22,7 +22,11 @@ DECLARED CONSTRUCTED: each new process has read the staff power list
 sequence finished as recorded: its phase was ``return``); the q2 case borrows
 the inn capture's ~f skill reply with the board's level (its capture keeps
 player boards only); the tower fuse starts at the recorded 16 counted
-decisions (one town:blocked line, 14 inn-walk steps, the teleport).
+decisions (one town:blocked line, 14 inn-walk steps, the teleport).  #47 D52
+(the stage's buy round looks at each visited town's Magic shelf before the
+Tower): the inn and tower cases declare the shelves the recorded run had
+already seen in this restock wait (``searched_towns``), so their legs are
+the recorded ones (test_me_tower_trips_recorded).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -108,6 +112,8 @@ class MeStaffLoopsRecordedTest(nokey.PostedKey):
     def test_walk_to_the_inn_after_stage1_is_arbiter_progress(self):
         case = CASE["inn"]
         policy = new_policy(case, case["skill"], record=case["sequence"])
+        # DECLARED CONSTRUCTED: Morivant's Magic shelf seen in this wait.
+        sequence.state(policy).searched_towns[2] = case["boards"][0]["turn"]
         reasons = []
 
         def each(raw, key):
@@ -126,6 +132,10 @@ class MeStaffLoopsRecordedTest(nokey.PostedKey):
     def test_tower_approach_closes_its_reach_goal_under_the_town_fuse(self):
         case = CASE["tower"]
         policy = new_policy(case, CASE["inn"]["skill"], record=case["sequence"])
+        # DECLARED CONSTRUCTED: the Outpost's and Morivant's shelves seen in
+        # this wait without Trap Location: the round is over, the Tower next.
+        turn = case["boards"][0]["turn"]
+        sequence.state(policy).searched_towns.update({0: turn, 2: turn})
         streak, durable = RECORDED_TOWER_FUSE, None
         reasons = []
 

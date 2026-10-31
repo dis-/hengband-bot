@@ -229,7 +229,13 @@ class StaffStockoutTest(PostedKey):
     def test_carried_staffs_go_to_the_tower_while_the_fifth_is_out_of_stock(self):
         # The recorded record (six reached stock-out runs); unfixed, the board
         # after the Magic shop stopped with fundraise-target-drift.
+        # DECLARED CONSTRUCTED: the other towns' shelves were seen without
+        # Detect Evil in this restock wait, so no shelf of the buy round sells
+        # it (#47 D52, test_me_tower_trips_recorded): the carried four go to
+        # the Tower first.
         policy = staff_policy(staff_board(0))
+        sequence.state(policy).searched_towns.update(
+            {town: staff_board(0)["turn"] for town in (1, 2, 3)})
         key = drive_staff_boards(policy, 4)
         self.assertIsNone(sequence.state(policy).failure)
         self.assertEqual(policy.last_reason, "me-staff:travel-morivant", key)
@@ -325,7 +331,8 @@ class RestartForgetsAbsorptionsTest(PostedKey):
         self.assertEqual((sold, bought), ([], []))
         # The observed Magic shelf sells a Staff of Remove Curse (1192 gold),
         # a buy_first row of the device policy table (owner 2026-10-31): the
-        # spare 60,981 gold buys it before the Tower trip.
+        # town progress invariant relabels the buy round's walk to Telmora
+        # (#47 D52; it was the walk to the Tower) as the shop approach.
         self.assertTrue(policy.last_reason.endswith("shop:approach"), (key, policy.last_reason))
         self.assertEqual(policy._shopping_approach_store_type, 5)
         self.post(policy, staff_board(10), key)
