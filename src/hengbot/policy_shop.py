@@ -32,7 +32,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
-from hengbot import approach_walk, me_staff_sequence
+from hengbot import approach_walk, me_powerful_activation, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.purchase_rungs import (
@@ -2768,6 +2768,7 @@ class ShopMixin(InStoreMixin):
             return None
         return next((item for item in store.items
                      if self._store_item_is_supply(item, kind)
+                     and not me_powerful_activation.replaces_scroll(self, snapshot, item)
                      and item.price <= snapshot.player.gold), None)
 
     def _live_purchase_need(
@@ -2927,6 +2928,8 @@ class ShopMixin(InStoreMixin):
         return tuple(rungs)
 
     def _matching_live_purchase_rungs(self, snapshot: Snapshot, item) -> tuple[PurchaseMatch, ...]:
+        if me_powerful_activation.replaces_scroll(self, snapshot, item):
+            return ()
         context = PurchaseContext(snapshot)
         return tuple(match for rung in self._purchase_rungs(context) if (match := rung.match(context, item)) is not None)
 
@@ -3332,6 +3335,8 @@ class ShopMixin(InStoreMixin):
             # 「2本目は買わない」: after Q1 class 16 buys these two staffs
             # only through me_staff_sequence.purchase (_next_purchase).
             and not me_staff_sequence.purchase_excluded(self, snapshot, item)
+            # Class 16 serves *Identify* / *Remove Curse* with Powerful Activation.
+            and not me_powerful_activation.replaces_scroll(self, snapshot, item)
         )
         if (getattr(self, "_crossarea_fundraising_enforced", False)
                 and self._fundraising_mode in {"mine", "scavenge"}
@@ -6466,7 +6471,8 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot
     ) -> bool:
         return (
-            snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
+            not me_powerful_activation.serves(self, snapshot, me_powerful_activation.UNCURSE)
+            and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
             and not self._recall_departure_shortage(snapshot)
             and self._home_star_remove_curse_count == 0
             and self._carried_star_remove_curse_count(snapshot) == 0

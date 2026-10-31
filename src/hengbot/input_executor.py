@@ -1416,6 +1416,10 @@ class OperationExecutor:
         device_result = advance_device(self, screen_value, match, deadline, outcome)
         if device_result is not None:
             return device_result
+        from hengbot.me_powerful_activation_input import advance_powerful
+        powerful_result = advance_powerful(self, screen_value, match, deadline, outcome)
+        if powerful_result is not None:
+            return powerful_result
         from hengbot.me_powers_refresh_input import advance_refresh
         refresh_result = advance_refresh(self, screen_value, match, deadline, outcome)
         if refresh_result is not None:

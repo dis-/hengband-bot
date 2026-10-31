@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import wilderness_exit
+from hengbot import me_powerful_activation, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -123,7 +123,13 @@ def supply_ledger_observer_memo():
 class SupplyMixin:
 
     def _required_remove_curse_kind(self, snapshot: Snapshot) -> str | None:
-        """Choose a cure for worn gear; failed strong removal proves permanence."""
+        """Choose a cure for worn gear; failed strong removal proves permanence.
+
+        Class 16 with the absorbed Remove Curse power needs no scroll: its
+        Powerful Activation (me_powerful_activation) serves every curse.
+        """
+        if me_powerful_activation.serves(self, snapshot, me_powerful_activation.UNCURSE):
+            return None
         targets = [item for item in snapshot.equipment if item.is_cursed
                    and self._item_signature(item) not in
                    getattr(self, "_permanent_cursed_items", set())]
