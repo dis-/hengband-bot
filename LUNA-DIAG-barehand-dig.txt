@@ -1,0 +1,73 @@
+#47 D45 診断: 採掘の持ち替えの途中で素手のまま戦い続ける（n1-c life-065）
+
+基準: main aa56fccb0（ブランチ fix-barehand-dig-1031）。行番号は 1 始まり。
+記録: C:\hengband-backups\pdca\captures\n1c-barehand-1031\cap-n1c-barehand-1031\
+
+1. 記録で確かめたこと
+- decisions-window の決定 8855（ターン 778659）: fundraise:wield-digging-tool 'ta'（ショート・ソードを外す）。
+  この盤面（state-window）に敵は見えていない。
+- ターン 778665: 白イモムシの大群（race 31、MULTIPLY）が2マス先に見える。主手は空、剣（m）とシャベル（n）は持ち物。
+  決定 8856 fundraise:eliminate-multiplier '2'。
+- 778676 から quest-strategy:ranged-fire:magic-eater 'mBpN' と melee が続く（同じターンに2つの決定のことが多い）。
+  2手目の「掘る道具を持つ 'wn'」は一度も出ない。
+- state-latest の最後（ターン 791632、12:41）も主手は空。剣（l）とシャベル（m）は持ち物、白イモムシの大群が隣。
+  decisions-latest の300件は ranged-fire 145・melee 142・return:* 13。素手は 778665 から 12,967 ゲームターン以上。
+- 同じ life-065 の窓の中の前の5回（776378、776945、777253、777910、778265 から）は、空の手が 10〜12 ゲームターンで
+  閉じた（敵が見えず、次の手で 'wn' が出た）。その間の戻しは melee:restore-weapon 'wma'→'tb'（777962、778339。
+  手に掘る道具がある時の戻し）。life-057/061/064 の記録は手元に無く、監督の観察（200ターン以内に閉じた）は確かめていない。
+- 再現: 記録の盤面を公開 choose_key に順に通すと（採掘の状態＝mode mine、計画1回、感知済み、静かな回数 8 を足す）、
+  778659 'ta'、778665 '2' eliminate-multiplier、778676 'mBp2'、778688 '2'、778697 'mBp1' … と記録どおりになる。
+  ranged-fire はすべて policy.py:11498（下の d）から出ている（スタックで確かめた）。
+
+2. 連鎖（aa56fccb0）
+a. policy_fundraising.py:1680 静かな決定（敵が見えない）が MINING_THREAT_FREE_LIMIT（8）回続いた時だけ持ち替えに入り、
+   1715 で _wield_digging_tool_key を呼ぶ。
+b. policy_equipment.py:4186-4210 _wield_digging_tool_key は戦闘の手を先に外す（4202 _equipment_takeoff、'ta'/'tb'）。
+   do_cmd_wield の問いは埋まっている手で変わる（C:\hengband\src\cmd-item\cmd-equipment.cpp:170-196）ので、
+   掘る道具は空の手の盤面で次の手に持つ。この2手の間、戦闘の手は空。
+c. 次の盤面で敵が見えると、_update_mining_combat_streaks（policy_fundraising.py:573-596）が静かな回数を 0 に戻す。
+   1680 の門で2手目は出ない。増える敵が見え続ける限り、ずっと出ない。
+d. 戦いの担当はどれも空の手を戻さない。
+   - policy.py:11465 と policy_fundraising.py:1431 の _fundraising_combat_equipment_key: 519 は掘る道具を持っている時だけ
+     遠隔、525 は接触2回以上の時だけ 528 _restore_mining_combat_hand_key。
+   - policy_shop.py:6498 _restore_mining_combat_hand_key は「手が空、または掘る道具でない」なら continue
+     （掘る道具の手しか戻さない）。何も戻さないと 6579 で覚え（_mining_combat_loadout_remembered）を消す。
+   - policy_combat.py:3511/3533（群れ）と 3836（隘路）の戻しも、掘る道具を持っている時だけ。
+   - その後に policy.py:11498 me_ranged_first（mBp）、11501 melee（素手）、policy_fundraising.py:1558 eliminate-multiplier。
+e. 仮に空の手を戻そうとしても、equipment_mutation.py:354-361 が断る。「mining-loadout を出した後、金・経験値・
+   持ち物の合計が変わらない盤面での combat-loadout」は goal-already-superseded（_OPPOSING は 274）。
+   'ta' は持ち物の合計を変えないので、敵を倒して経験値が変わるまで断られる。
+→ 増える敵が見え続けるので、素手が 11,900 ゲームターン以上続いた。
+
+3. 戦闘の手が空のまま残りうる経路（_equipment_takeoff の呼び出しは全部で6か所）
+P1 採掘の持ち替え（fundraise:wield-digging-tool、policy_fundraising.py:1715 → policy_equipment.py:4202）の途中で
+   敵が見える。D45 の記録そのもの。
+P2 階段への掘り抜け（breakout:wield-digging-tool、policy.py:12449-12454 → 同じ 4202）の途中。この経路は静かな回数を
+   待たないので、眠っている敵などが見えていても外す。policy.py:17273-17279 _breakout_restore_weapon_key は手に
+   掘る道具がある時だけで、手が空なら掘り抜けの覚え（_breakout_dig_floor）を消して何もしない。
+P3 再起動: 外した武器の覚え（_normal_weapon_*、_normal_sub_hand_*、_mining_combat_loadout_remembered）は
+   プロセスの中だけ（チェックポイントに無い）。空の手の盤面で再起動すると、何を戻すかの覚えが無い。
+P4 戻しの途中（確かめただけ）: _restore_mining_combat_hand_key は主手を掘る道具の上から持ち替える（1手、空にならない）。
+   副手は掘る道具を外すか上から持つ（外すのは主手が戦闘の武器の時だけ）。戻しの途中で戦闘の手が空になることは無い。
+P5 町（町の家族、直していない）: 装備の取引の外す（policy_equipment.py:2290、2820 transaction-apply）と、テレポートを
+   妨げる武器の外し（3794）。町の担当の中で閉じる。なお町の _town_restore_weapon_key は、掘る道具を持っていない
+   空の主手を no-restoration-required（3828）で戻さない。
+P6 ほかに外す経路は無い。Q2 の掘り抜け（policy_quest.py:1973-1993）は掘る道具を主手の上から持つので空にならない。
+
+4. ゲームの仕組み（C:\hengband\src）
+- cmd-item/cmd-equipment.cpp:170-196（DIGGING/HAFTED/POLEARM/SWORD）: 主手に武器があり副手が空だと wield_slot が副手を
+  選び「二刀流で戦いますか？」に n で主手を置き換える（1手で入れ替わる）。両手が埋まっていると「どちらの手に装備しますか?」。
+  主手が空で副手に近接武器があると「二刀流で戦いますか？」。
+- 07-25・08-15（736e5fd34、2bfca69ca）からの設計は、問いの漏れ（盲目の n）を避けるため外してから持つ。
+  1手で入れ替える組み立てに変えても、盾がある時の副手、掘り抜けの途中（P2）、再起動（P3）の空の手は残るので、
+  巻き戻しの持ち主はどのみち要る。今回は組み立ては変えない。
+
+5. 直し方の判断
+- 手に掘る道具がある時の順序（遠隔を先、接触2回で戻す）は 07-29 の承認された仕様（d60106d40「The ORIGINAL
+  approved mining-combat spec is authoritative」）なので変えない。
+- 空の手は仕様に無い状態（取引の途中）。持ち替えに入ってよい条件（敵が見えない）が崩れたら、取引を巻き戻す
+  （外した武器を持ち直す）。外してよい条件と巻き戻す条件を同じ述語（敵が見えるか）にして、行き来しないようにする。
+- 巻き戻しは取引自身の手を戻すだけなので、反対の目的の入れ替え（mining⇔combat）とは別の目的にして、
+  goal-already-superseded に断られないようにする。
+- 生存を先に: 緊急の消費品の段（_emergency_item など）より下、群れ・隘路・逃げ・近接の段より上に置き、
+  逃げるべき時（_should_flee）は巻き戻さずに逃げの段へ譲る。承認されたクエストの階はナビゲータが戦いを持つので触らない。
