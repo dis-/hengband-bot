@@ -286,6 +286,33 @@ class WildernessRecordedTest(RecordedHarness):
         stair = replace(board.grid_at(SHAFT), terrain_id=6)
         self.assertTrue(policy._is_upstairs_target(stair))
 
+    def test_refused_global_map_reads_recall_then_waits(self):
+        boards = self.boards("wilderness-refused")
+        policy = self.policy(boards[0])
+        self.assertEqual(decide(policy, boards[0]), UP_STAIRS_KEY)
+        self.assertEqual(policy.last_reason, "wilderness:enter-global")
+        refused = boards[1]
+        self.assertTrue(refused["messages"][0].startswith("敵がすぐ近くにいるときは広域マップに入れない"))
+        key = decide(policy, refused)
+        self.assertEqual(policy.last_reason, "wilderness:recall")
+        board = parse_snapshot(refused, policy._monrace_knowledge)
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertTrue(key.startswith("r" + recall.slot))
+        letter = key[2:]
+        self.assertEqual(len(letter), 1)
+        rows = [f"{chr(ord('a') + index)}) dungeon {dungeon_id}"
+                for index, dungeon_id in enumerate(board.entered_dungeon_ids or (1,))]
+        accepted = self.post(policy, refused, key, [executor_pins.prompt_screen(READ_PROMPT),
+                                                    chooser_screen(rows)],
+                             self.later(refused, 1))
+        self.assertEqual(accepted, ["r", recall.slot, letter])
+        # DECLARED CONSTRUCTED: the next board with the recall active.
+        recalling = copy.deepcopy(boards[2])
+        recalling["turn"] += 1
+        recalling["player"]["recalling"] = True
+        self.assertEqual(decide(policy, recalling), WAIT_KEY)
+        self.assertEqual(policy.last_reason, "wilderness:wait-recall")
+
 
 if __name__ == "__main__":
     unittest.main()

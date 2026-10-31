@@ -16,6 +16,19 @@ An up shaft climbs two floors (STAIRS + SHAFT terrain, FloorChangeMode::SHAFT,
 # lib/edit/TerrainDefinitions.jsonc: SHAFT_UP (13) and SHAFT_DOWN (14).
 SHAFT_TERRAIN_IDS = frozenset({13, 14})
 
+# src/floor/wild.cpp change_wild_mode: an awake hostile monster within
+# MAX_PLAYER_SIGHT (seen or not) refuses the global map without a turn.
+GLOBAL_MAP_REFUSED_MESSAGES = (
+    "敵がすぐ近くにいるときは広域マップに入れない！",
+    "You cannot enter global map, since there are some monsters nearby!",
+)
+
+
+def global_map_refused(snapshot) -> bool:
+    """Whether this board reports the refused '<' to the global map."""
+    return any(message.startswith(GLOBAL_MAP_REFUSED_MESSAGES)
+               for message in snapshot.messages)
+
 
 def up_stairs_exit_to_wilderness(floor_key, dungeon_knowledge, wilderness_map, grid=None) -> bool:
     """Whether '<' on ``grid`` (an ordinary staircase when None) reaches the wilderness.

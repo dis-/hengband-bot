@@ -8009,7 +8009,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "1db8f97076feb50bf855dd5978fd56c14a5eb7cfee9f9cdeb44040d3e139eda7"
+    "ast_sha256": "28b3167d589bc27cd2fef5bdbd95d28bc4b529c2fe88ee3a72fa1400ce2fe924"
   },
   "policy_supply.py:SupplyMixin.procurement_requirements": {
     "classification": "data",
