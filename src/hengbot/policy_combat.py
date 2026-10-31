@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import blind_strike, me_ranged_first, return_yield, status_cure, town_last_stand
+from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, town_last_stand
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -2603,11 +2603,11 @@ class CombatMixin:
         threats: list[MonsterState],
         physical_adjacent: list[MonsterState],
     ) -> str | None:
-        """Refuse melee and walk away whenever a paralyzer is adjacent."""
+        """Refuse melee and walk away whenever a paralyzer is in contact (D55)."""
         adjacent = [
             monster
             for monster in threats
-            if monster.distance <= 1
+            if paralyzer_contact.in_contact(self, snapshot, monster)
             and (
                 monster.asleep
                 or "NEVER_MOVE"

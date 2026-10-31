@@ -5195,7 +5195,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "255fb78b007769dae651d54d0adf3cbf630cbba05f7347b1db766eae26498cf4"
+    "ast_sha256": "278b2e5c6c5f6ee130a0956448c6071d71ff31452f6b23ef6a449aa1195a00cd"
   },
   "policy_combat.py:CombatMixin._paralyzing_monsters": {
     "classification": "data",

@@ -6,8 +6,13 @@ read-only to C:/hengband-backups/pdca/captures/fix-deaths-1101/ (one row of
 
   n1c-077  n1-c life-077 (Lv8 zombie Magic-Eater, Outpost, build 577cd246b,
            2026-11-01 03:25): cornered by 見習戦士 after its last teleport
-           scroll, emergency:cornered-attack meleed six times at to-hit -59
+           scroll, emergency:cornered-attack meleed six times at to-hit -63
            and died; ring boards of turns 442464-442533.
+  n1a-450  n1-a life-450 (Lv24 warrior without Free Action, Labyrinth 16F,
+           build 2f1c0a886, 2026-10-31 14:47): waiting on Word of Recall
+           with 12 Teleportation scrolls it meleed an adjacent アイス・コボルド
+           while a ランゴスタ (speed +10, PARALYZE blows) stood two cells away,
+           and died paralyzed; ring boards of turns 1268495-1268509.
 
 Each case keeps its player boards (one per turn), the last skill-proficiency
 and Home knowledge rows before them, the policy-state ``_me_staff_sequence``
@@ -37,6 +42,9 @@ CASES = {
     "n1c-077": (
         "n1-c/life-077/incident-captures/20261101-032514-player-death",
         442464, 442533),
+    "n1a-450": (
+        "n1-a/life-450/incident-captures/20261031-144723-player-death",
+        1268495, 1268509),
 }
 
 
