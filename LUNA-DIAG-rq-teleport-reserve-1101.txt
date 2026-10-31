@@ -1,0 +1,69 @@
+LUNA-DIAG-rq-teleport-reserve-1101.txt  (#47、ブランチ rq-teleport-reserve-1101、main f36fe01a9 から)
+
+証拠: C:\hengband-backups\pdca\captures\fix-deaths-1101\n1-a\life-451\incident-captures\20261031-182443-player-death
+  （D55 の診断が観戦サーバーから写したもの。LUNA-DIAG-fix-deaths-1101.txt の 3 番）
+  版 ebd9051d2、Lv32 戦士、鉄獄38階、ランダムクエスト 45（『カルバノグの殺人兎』 race 1347）。
+  クエストの敵は記録の盤面のどれにも見えていない（visible_monsters・detected_monsters に race 1347 は無い）。
+オーナー決定 2026-11-01（メモリ random-quest-teleport-reserve-decision-20261101.md）:
+  「テレポートが残り少なくなったら帰る」・「5本」。目標を見たかに関係なく、5本を下回ったら固定を外して帰還を読む。
+  帰還の詔は読んでから 15〜35 ターンで発動（object-use/read/scroll-read-executor.cpp:154
+  recall_player(player_ptr, randint0(21) + 15)）。その間は残りのテレポートで逃げる。
+
+======================================================================
+1. 記録（スナップショットのリングと判断の記録）
+
+  38階のテレポートの巻物の数の推移（リングの盤面）:
+    1656868 14 → 1657807 13 → 1659791 12 → 1660690 11 → 1660766 10 → 1661839 9 → 1661973 8
+    → 1661987 7 → 1662215 6 → 1662227 5 → 1663533 4 → 1663615 3 → 1665495 2 → 1666347 1 → 1671484 0
+  判断の記録（decision-tail.jsonl）:
+    594 1663519 'rc' emergency:teleport   (5 本 → 4 本)
+    595 1663533 '7'  seek-loot            ← 4 本。決定どおりならここで帰還を読む
+    596-602 seek-loot / melee / ranged:fire
+    603 1663607 'rc' emergency:teleport   (4 → 3)
+    604 1663615 'R&' rest
+    …（この後さらに 3 回テレポート）
+    1027 1671475 'rc' emergency:teleport  最後の1巻
+    1028 1671484 'rc' return:recall（last_return_trigger escape-kit-empty）
+    1034-1039 帰還の発動待ちの間に群れに囲まれ死亡。
+  595 の procurement_requirements: Teleport scrolls current 4 target 15。
+
+2. 鎖（main f36fe01a9）
+
+  a. 緊急脱出のたびに帰還が立つ: policy_combat.py の emergency の段（_returning_to_town = True、
+     EMERGENCY_RETURN_COUNT = 2、policy_constants.py:517）。
+  b. 帰還の処理 _return_to_town_key（policy_town.py:8002）は _return_exit_locked
+     （policy_town.py:7932 → _one_shot_quest_exit_lock_held → _quest_floor_exit_locked）が真なら
+     帰還を取り消す（_returning_to_town = False、cause quest-exit-locked）。
+  c. _quest_floor_exit_locked（policy_quest.py:4742-4778）がランダムクエストの階で外れるのは
+     (1) 最深階で脱出の巻物（テレポート・フェイズ）が 0、(2) HP が PANIC 以下で脱出の巻物なし、
+     (3) 飢えて食べ物なし、(4) STUCK_ESCAPE_LIMIT 回続けて進まない、の時だけ。テレポートの残りは見ない。
+  d. 通常の帰還の閾値（SUPPLY_THRESHOLDS teleport return、10階以上は TELEPORT_RETURN_THRESHOLD+1 = 4、
+     policy.py:1185）は 4 本未満で teleport-low を出すが、b で同じく取り消される。
+  再現（main、公開の choose_key、新しい policy、リングの 38階の盤面 1663405-1663615）:
+    1663519 'rc' emergency:teleport（5 本）
+    1663533 テレポート 4 本、_quest_floor_exit_locked = True、帰還なし（unseen:reverse-choke。記録の
+            seek-loot とは policy の記憶の差で違うが、どちらも帰らない）
+    1663607 'rc' emergency:teleport → _returning_to_town True（emergency-lethal-swarm）
+    1663615 _returning_to_town False（b で取り消し）、テレポート 3 本でも locked。
+  → main は直っていない。
+
+3. 根と直し方
+
+  根: ランダムクエストの階の出口の鍵に、テレポートの残りによる解除が無い。鍵が外れるのは巻物が 0 に
+  なってからで、帰還の発動待ち（15〜35 ターン）を逃げ手段なしで過ごすことになる。
+  直し（オーナー決定どおり）:
+  - 新しいモジュール random_quest_reserve.py に定数 RANDOM_QUEST_TELEPORT_RESERVE = 5 と判定
+    teleport_reserve_spent（この階の実行時のクエストが RANDOM で、テレポートの巻物が 5 本未満）を置く。
+  - _quest_floor_exit_locked はこの判定で鍵を外す。
+  - _should_start_town_return はこの判定で帰還を始める（trigger random-quest-teleport-reserve）。
+    4 本は通常の閾値（4 本未満）に届かないので、鍵を外すだけでは帰還が始まらない（緊急脱出 2 回の
+    帰還が立っていない時）。これが無いと決定の「帰還を読む」にならない。
+  - 5 本ちょうどまでは今のまま鍵がかかる（07-26 の「30 回以上のテレポートは普通」を保つ）。
+
+4. 固定クエスト
+
+  同じ鍵（_quest_floor_exit_locked、_active_kill_quest_id）は、ダンジョンの階にある固定の
+  KILL_LEVEL / KILL_NUMBER クエストにもかかる: lib/edit/quests の 014 ワーグ問題（dungeon 2、5階）、
+  008 オベロン（鉄獄99階）、009 混沌のサーペント（鉄獄100階）。決定は「ランダムクエストの階」なので、
+  これらには広げない（判定は RANDOM だけ）。広げるかはオーナーの問い。
+  PRESET の固定クエスト（_active_fixed_quest_id）は別の鍵で、変えない。
