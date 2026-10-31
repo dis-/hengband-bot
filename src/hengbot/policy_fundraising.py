@@ -425,6 +425,23 @@ class FundraisingMixin:
             return candidate
         return None
 
+    def _fundraising_wield_light_key(self, snapshot: Snapshot, light) -> str | None:
+        self.last_reason = "fundraise:wield-light"
+        key = self._equipment_wield(snapshot, "light-loadout", light, "light")
+        if key is not None:
+            self._offer_execution(
+                key, producer="fundraising",
+                work_id="fundraise:wield-light",
+                next_step="fundraising.wield-light",
+                expected_effect="light-equipped",
+            )
+        else:
+            self._offer_execution_no_step(
+                producer="fundraising", work_id="fundraise:wield-light",
+                cause="light-wield-unavailable",
+            )
+        return key
+
     def _fundraising_mining_requirements(
         self, snapshot: Snapshot
     ) -> tuple[int, int] | None:
@@ -1483,26 +1500,16 @@ class FundraisingMixin:
         if no_food_left:
             return self._leave_fundraising_floor(snapshot)
         if not self._expedition_light_ready(snapshot):
-            light = self._fundraising_wieldable_light(snapshot)
-            if light is None:
+            if self._fundraising_wieldable_light(snapshot) is None:
                 return self._leave_fundraising_floor(snapshot)
-            self.last_reason = "fundraise:wield-light"
-            key = self._equipment_wield(
-                snapshot, "light-loadout", light, "light"
-            )
-            if key is not None:
-                self._offer_execution(
-                    key, producer="fundraising",
-                    work_id="fundraise:wield-light",
-                    next_step="fundraising.wield-light",
-                    expected_effect="light-equipped",
-                )
-            else:
-                self._offer_execution_no_step(
-                    producer="fundraising", work_id="fundraise:wield-light",
-                    cause="light-wield-unavailable",
-                )
-            return key
+            # A carried spare keeps the run going; which light to wear is the
+            # one light-quality rule's (_light_to_wield).  A burning lantern
+            # {average} is never swapped for a torch (owner 2026-10-31, #47
+            # n1-c life-053/055 「そもそもなぜ松明を装備する？」).
+            light = self._light_to_wield(snapshot)
+            if light is not None:
+                return self._fundraising_wield_light_key(snapshot, light)
+            # The worn light is not worse than any spare: the run goes on.
 
         if snapshot.player.hungry:
             food = self._find_edible(snapshot)

@@ -5516,17 +5516,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "policy_fundraising.py:FundraisingMixin._fundraising_wieldable_light": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: Return a carried light that can satisfy expedition readiness.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "policy_fundraising.py:FundraisingMixin._leave_fundraising_floor": {
     "classification": "producer",
     "rows": [
@@ -12956,5 +12945,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Hands a latched return the immobile-summoner board beside an adjacent hostile (owner 2026-10-31 「隣に敵がいても譲る」, #47 death 1): delegates to _return_to_town_key under the ladder's escape-state guard; no own command.",
     "delegation": "selected child; no independent success"
+  },
+  "policy_fundraising.py:FundraisingMixin._fundraising_wield_light_key": {
+    "classification": "producer",
+    "rows": [
+      "equipment-txn"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Fundraising floor light wield: _equipment_wield of the light the one light-quality rule (_light_to_wield) chose; never a torch over a burning lantern (owner 2026-10-31, #47). Offers fundraise:wield-light; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

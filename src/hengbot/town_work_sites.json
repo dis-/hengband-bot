@@ -5416,7 +5416,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "07e19cb33aecec784a67b3d6efb0c6f0ae5d37aaa1fbec3a8cbac5d6c18f6865"
+    "ast_sha256": "45013afdb2688015adf94b5bee4252f48e2b6c08de914cf1584cd3bfeb331100"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_return_route_key": {
     "classification": "producer",
@@ -5427,13 +5427,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "2fc4defdb6f1ce95a552d55795584e118c384b01db6e71dac816b0c7a10ad00b"
   },
-  "policy_fundraising.py:FundraisingMixin._fundraising_wieldable_light": {
-    "classification": "data",
+  "policy_fundraising.py:FundraisingMixin._fundraising_wield_light_key": {
+    "classification": "producer",
     "rows": [
-      "data/no-independent-credit"
+      "equipment-txn"
     ],
-    "delegation": "selected child; no independent success",
-    "ast_sha256": "d7a2e8a703d6684971877ada3f813783bc47dde72b3629fc9e1595c556ee3fc0"
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "aed56cf32afc4bbb05359e8265f9620ff49213f60568cf0f255b9f5de665ae96"
   },
   "policy_fundraising.py:FundraisingMixin._leave_fundraising_floor": {
     "classification": "producer",
