@@ -45,7 +45,21 @@ class FundraiseUpstairsDoorRecordedTest(harness.ProductionHarness):
             cls.data = json.load(stream)
 
     def case(self, sequence):
-        return copy.deepcopy(self.data["boards"][str(sequence)])
+        """DECLARED CONSTRUCTED: the carried Wand of Stinking Cloud (slot i)
+        emptied, so the device policy table (absorb_now, me_device_policy)
+        has nothing to absorb on these door cases."""
+        case = copy.deepcopy(self.data["boards"][str(sequence)])
+        stack = [case]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                for item in node.get("inventory", ()) if isinstance(node.get("inventory"), list) else ():
+                    if (item.get("tval"), item.get("sval")) == (65, 14):
+                        item["charges"] = item["pval"] = 0
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+        return case
 
     def policy(self, raw):
         policy = HengbotPolicy(monrace_knowledge={})

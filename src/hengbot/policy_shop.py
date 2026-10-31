@@ -32,7 +32,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
-from hengbot import approach_walk, me_absorbed_substitutes, me_staff_sequence
+from hengbot import approach_walk, me_absorbed_substitutes, me_device_policy, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.purchase_rungs import (
@@ -2921,6 +2921,9 @@ class ShopMixin(InStoreMixin):
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
         add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
         add(rung("black-market:stone-to-mud", "device", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_WAND, lambda i: i.tval == TVAL_WAND and i.sval == SV_WAND_STONE_TO_MUD and i.charges > 0))
+        # Class 16's device policy table: 「1本目を見たら買う」/「2本目以降も買う」
+        # from the gold the staff sequence can spare (me_device_policy).
+        add(rung("me-device:policy", "device", lambda: True, lambda i: me_device_policy.purchase_wanted(self, snapshot, i)))
         add(rung("curse:normal", "remove-curse", lambda: self._has_normal_remove_curse_target(snapshot) and self._find_remove_curse_scroll(snapshot) is None, lambda i: i.tval == TVAL_SCROLL and i.sval in {SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE}))
         add(rung("curse:star-reserve", "star-remove-curse", lambda: self._has_unremovable_curse_target(snapshot) or self._star_remove_curse_reserve_purchase_needed(snapshot), lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_STAR_REMOVE_CURSE))
         add(rung("tail:launcher-enchant", "launcher-enchant", lambda: self._launcher_enchant_purchase(snapshot) is not None, lambda i: i.tval == TVAL_SCROLL and i.sval in {SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM}))
@@ -3766,6 +3769,11 @@ class ShopMixin(InStoreMixin):
                      not in excluded_classes
                      or self._identify_staff_swap_purchase(black_market_optional))):
             return black_market_optional
+        # Class 16's device policy table (rung me-device:policy).
+        table_device = next((it for it in items if (it.tval, it.sval) not in excluded_classes
+                             and me_device_policy.purchase_wanted(self, snapshot, it)), None)
+        if table_device is not None:
+            return table_device
         if (
             self._required_remove_curse_kind(snapshot) == "remove-curse"
             and self._usable_remove_curse_scroll(snapshot) is None
