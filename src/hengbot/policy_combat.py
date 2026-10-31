@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import me_ranged_first
+from hengbot import me_ranged_first, return_yield, status_cure
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -394,6 +394,8 @@ class CombatMixin:
                 return ranged
             self.last_reason = "melee"
             return self._step_toward(snapshot, self._weakest(adjacent).position)
+        if return_yield.latched_return_owns(self, snapshot):
+            return None  # the return owner reads Recall or walks out (death 1, #47)
         if snapshot.player.position not in cells:
             loot = self._town_producer_entry(
                 "_normal_loot_key",
@@ -1973,6 +1975,8 @@ class CombatMixin:
             ):
                 self.last_reason = "emergency:stairs"
                 return UP_STAIRS_KEY
+            if (cure := status_cure.status_cure_key(self, snapshot, blind_only=True)) is not None:
+                return cure  # blind is no unseen-attacker evidence (death 1, #47)
             urgent_relocation = (
                 self._unseen_recall_damage_streak >= 2
                 or player.hp_ratio < 0.55
@@ -2427,16 +2431,8 @@ class CombatMixin:
                 self._note_return_end()
                 self._last_return_trigger = None
 
-        # Cure Critical Wounds is status treatment, never an HP-response potion.
-        if player.blind or player.confused or player.cut:
-            potion = self._find_status_cure_potion(snapshot)
-            if potion is not None:
-                self.last_reason = (
-                    "item:cure-critical"
-                    if potion.sval == SV_POTION_CURE_CRITICAL
-                    else "item:cure-status-healing"
-                )
-                return reserved_item_command(self, snapshot, "quaff", potion)
+        if (cure := status_cure.status_cure_key(self, snapshot)) is not None:
+            return cure
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
         if (

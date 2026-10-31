@@ -2321,7 +2321,12 @@ class Q22Q31StrategyExecutionTest(unittest.TestCase):
         policy._approved_quest_strategy_key(
             at(3), [later_wave], []
         )
+        # 輪1 (#47): the sweep keeps the wave it chose and walks to the cell
+        # where it was last seen; standing there confirms it empty, and the
+        # placement sweep resumes.
         self.assertEqual(policy._approved_quest_strategy_key(at(3), [], []), "6")
+        self.assertEqual(policy.last_reason, "quest-strategy:sweep-engage-mobile")
+        self.assertEqual(policy._approved_quest_strategy_key(at(5), [], []), "6")
         self.assertEqual(policy.last_reason, "quest-strategy:placement-sweep")
 
     def _q22_exhausted_sweep_policy(self):

@@ -110,6 +110,10 @@ class MeStaffSequenceTest(unittest.TestCase):
             policy._town_supplier_stock_observations[STORE_MAGIC] = (0, board.turn - 100)
         if absorbed is not None:
             policy._me_staff_sequence = sequence.MeStaffSequence(absorbed=dict(absorbed))
+        if board.player.class_id == 16:
+            # DECLARED CONSTRUCTED: this process already read the game's
+            # staff power list (me_staff_sequence.read_powers, #47).
+            sequence.state(policy).powers_read = True
         return policy
 
     # -- production executor ---------------------------------------------
@@ -286,7 +290,8 @@ class MeStaffSequenceTest(unittest.TestCase):
         staffs = [staff("a", SV_STAFF_IDENTIFY, 8), staff("b", DETECT, 7)]
         board = self.board(gold=3000, inventory=staffs, building=0)
         policy = self.primed(board)
-        policy._me_staff_sequence = sequence.MeStaffSequence(rumor_batches=sequence.RUMOR_BATCH_LIMIT)
+        policy._me_staff_sequence = sequence.MeStaffSequence(
+            rumor_batches=sequence.RUMOR_BATCH_LIMIT, powers_read=True)
         self.assertEqual(str(policy.choose_key(board)), "")
         self.assertEqual(policy.last_reason, "quest:blocked:me-staff")
         self.assertEqual(policy._me_staff_sequence.failure, "morivant-rumor-exhausted")

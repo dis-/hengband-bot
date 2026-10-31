@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -1784,6 +1785,18 @@ class SupplyMixin:
                 if scroll is not None:
                     self.last_reason = "wilderness:escape-scroll"
                     return self._read_key(snapshot, scroll)
+        # Owner 2026-10-31 「帰還を読む」 (loop 6, #47, n1-c life-059): a refused
+        # global map is not retried; Recall is read, then its countdown awaited.
+        if player.recalling:
+            self.last_reason = "wilderness:wait-recall"
+            return WAIT_KEY
+        recall = self._find_recall_scroll(snapshot)
+        if (
+            wilderness_exit.global_map_refused(snapshot) and recall is not None
+            and not player.blind and not player.confused and self._can_read_scrolls(snapshot)
+        ):
+            self.last_reason = "wilderness:recall"
+            return self._read_key(snapshot, recall)
         self.last_reason = "wilderness:enter-global"
         return UP_STAIRS_KEY
 

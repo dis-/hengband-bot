@@ -51,6 +51,9 @@ class MagicEaterTownStops2RecordedTest(executor_harness.ProductionHarness):
         policy, raw = lv7.Lv7TownStopRecordedTest().boundary(dict(
             monraces=case["monraces"], snapshot=case["board"], knowledge=case["knowledge"],
             state={"modes_and_latches": case["state"]}), kit_bought=kit_bought)
+        # DECLARED CONSTRUCTED: this process already read the game's staff
+        # power list (me_staff_sequence.read_powers, #47).
+        me_staff_sequence.state(policy).powers_read = True
         policy._fundraising_mode = case["fundraising_mode"]
         if life == "life-036":
             # DECLARED RECONSTRUCTED: the capture keeps neither the staff

@@ -6,7 +6,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import me_q1_torch
+from hengbot import me_q1_torch, quest_sweep_target
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -3781,23 +3781,12 @@ class QuestMixin(OpeningRouteMixin):
                 monster for monster in combat_hostiles
                 if monster.race_id not in never_move_races
             ]
-            if mobile_targets:
-                target = min(
-                    mobile_targets,
-                    key=lambda monster: (
-                        profile.priority_targets.index(monster.race_id)
-                        if monster.race_id in profile.priority_targets
-                        else len(profile.priority_targets),
-                        snapshot.player.position.distance_to(monster.position),
-                        monster.hp,
-                    ),
-                )
-                step = self._quest_strategy_route_step(
-                    snapshot, profile, target.position
-                )
-                if step is not None:
-                    self.last_reason = "quest-strategy:sweep-engage-mobile"
-                    return self._step_toward(snapshot, step)
+            step = quest_sweep_target.engage_step(
+                self, snapshot, profile, mobile_targets
+            )
+            if step is not None:
+                self.last_reason = "quest-strategy:sweep-engage-mobile"
+                return self._step_toward(snapshot, step)
 
         # A restarted bot has no in-memory record of fixed targets killed
         # earlier in the same quest. Revisit the approved firing points in

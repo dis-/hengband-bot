@@ -345,6 +345,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'quest:blocked:q34-throw-point-unreachable',
         'quest:blocked:q2-breach-tool',
         'quest:blocked:q2-tower-recharge',
+        'quest:blocked:me-staff',
         'town:blocked:departure-unsatisfiable',
         'town:blocked:guardian-bounce-no-alternate',
         'town:blocked:home-known-empty-withdrawal',

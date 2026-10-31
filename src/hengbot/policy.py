@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import me_powers, me_ranged_first, survival_preemption
+from hengbot import me_powers, me_ranged_first, survival_preemption, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -510,7 +510,9 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
-from hengbot.quest_strategies import StrategyProfile, acceptance_dps_floor, acceptance_hp_floor
+from hengbot.quest_strategies import (
+    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, torch_throw_output,
+)
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -12679,39 +12681,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # -------------------------------------------------------------- observers
 
 
-    def _up_stairs_exit_to_wilderness(self) -> bool:
-        """Whether '<' on this floor leaves the dungeon for the open wilderness.
-
-        Going up from a floor whose ``dun_level - 1`` is below the dungeon's
-        ``mindepth`` lands on the surface (src/floor/floor-leaver.cpp:335-338)
-        at the dungeon's entrance tile (``exit_to_wilderness``).  That tile is
-        a town only for a dungeon entered from a town (Yeek cave, Outpost);
-        for every other dungeon the top floor's '<' puts the player in the
-        wilderness, which the bot must never enter -- it returns to town by
-        recall (live 2026-10-02 11:50: Castle 20F, ``status-threat:stairs``).
-        Unknown floor, dungeon or map answers False (the previous behaviour).
-        """
-        floor_key = self._floor_key
-        if floor_key is None:
-            return False
-        dungeon_id, level, _quest = floor_key
-        if dungeon_id <= 0 or level <= 0:
-            return False
-        info = self._dungeon_knowledge.get(dungeon_id)
-        wilderness = self._wilderness_map
-        if info is None or wilderness is None:
-            return False
-        if level - 1 >= info.min_depth:
-            return False
-        y, x = getattr(info, "wild_y", None), getattr(info, "wild_x", None)
-        if y is None or x is None:
-            return False
-        rows = wilderness.rows
-        cell = rows[y][x] if 0 <= y < len(rows) and 0 <= x < len(rows[y]) else ""
-        return not (cell.isdigit() and cell != "0")
+    def _up_stairs_exit_to_wilderness(self, grid: GridState | None = None) -> bool:
+        """Whether '<' here leaves the dungeon for the wilderness (wilderness_exit)."""
+        return wilderness_exit.up_stairs_exit_to_wilderness(
+            self._floor_key, self._dungeon_knowledge, self._wilderness_map, grid
+        )
 
     def _is_upstairs_target(self, grid: GridState) -> bool:
-        return grid.has_up_stairs and not self._up_stairs_exit_to_wilderness() and (
+        return grid.has_up_stairs and not self._up_stairs_exit_to_wilderness(grid) and (
             (
                 grid.in_view
                 and self._stair_rejection_strikes[(UP_STAIRS_KEY, grid.position)] < 2
@@ -17662,6 +17639,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                       if snapshot.player.main_hand_to_d is not None else 0.0)
             dps = blows * chance * damage
         dps = float(dps or 0.0)
+        # A class that fights this quest with thrown lit torches (QUEST_1
+        # class 16) is measured by that output; melee is its fallback once
+        # the carried torches are gone, never the gate (#47 n1-c life-058).
+        melee_dps = dps
+        dps = max(dps, torch_throw_output(force, snapshot.player.class_id))
         carry_status = self._quest_carry_status(snapshot, force)
         carries_ready = all(bool(item["ready"]) for item in carry_status.values())
         resists_ready = all(
@@ -17679,6 +17661,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
             "resists": {"ready": resists_ready, "required": list(force.get("resists", ()))},
         }
+        if dps != melee_dps:
+            details["melee_dps"] = melee_dps
         lit_torch = carry_status.get("throwing_items.lit_torch")
         if lit_torch is not None:
             details["lit_torch"] = {

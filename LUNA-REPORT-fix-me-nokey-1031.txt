@@ -1,0 +1,116 @@
+LUNA-REPORT-fix-me-nokey-1031（#47、n1-c 魔道具術師の no-key-exhausted の直し）2026-10-31
+作業ツリー .worktrees/fix-me-nokey-1031（ブランチ fix-me-nokey-1031、元 main 136eb3297、最後に main aa56fccb0 を取り込み）。
+診断: .worktrees/diag-nokey-1031/LUNA-DIAG-nokey.txt。証拠: C:/hengband-backups/pdca/captures/latest-12h-1031/n1-c/。
+検査の盤面: tests/fixtures/me-nokey-20261031.json.gz（tests/extract_me_nokey_1031.py が記録から抜き出す）。
+検査: tests/test_me_nokey_1031_recorded.py（公開の choose_key、キーは本番の executor、停止は _run_follow）。
+
+== 件ごと ==
+R0 共通（空のキーの名前付き停止が no-key-exhausted になる） commit bac1d9917
+  根: src/hengbot/cli.py の空のキーの分岐（元 4786-4813）が、名前付きの最終停止の判定（元 4918）より先に
+      空の決定として数えていた。quest:blocked:me-staff は POLICY_FINAL_STOP_REASONS（policy_constants.py）にも
+      説明の表（cli.py _policy_final_stop_banner）にも無かった。_opening_q1_failure は incident の
+      policy-state に残らなかった（flight_recorder.py の必須名に無い）。
+  直し: 空のキーの分岐で先に _policy_final_stop_required を見て、名前付きの停止で止める（種類の対応は
+      _policy_final_stop_kind に1か所）。quest:blocked:me-staff を最終停止と説明に足した。
+      _opening_q1_failure を必須名に足した。
+  検査: NamedFinalStopTest（記録の 108 の盤面と記録の failure で _run_follow → 種類 quest:blocked:me-staff、
+      決定は1回、説明の行あり）。直しを戻すと no-key-exhausted になって落ちる（2件 FAIL/ERROR を確認）。
+
+鍵1a（第2段階の5本目が品切れ、採掘6回で fundraise-target-drift） commit fd4df391a
+  件: life-054 061452、life-057 083610・084407（版 b6d47db93 / ba0d425a9）。
+  根: me_staff_sequence.py _phase（元 386-401）は段階の杖が1本でも足りないと4本持っていても buy のまま。
+      _fundraise（元 438-441）と town_key（元 604-606）が品切れ待ちの回を「目標に届いた回」に数えた。
+  直し（持ち主の決定「持っている分を先に取り込む」）: 部分買いの段階で、観測した棚が足りない杖をどれも
+      売っていない時（_stocked_out）は、持っている杖で塔へ（travel → recharge → absorb）。品切れ待ちの回は
+      どちらの上限にも数えない。
+  検査: StaffStockoutTest（記録の 104-108 を記録の record で通す → 108 で me-staff:travel-morivant、executor に
+      送る。作った状態: 4本を取り込み済みにして持ち物から抜いた盤面で、6回の後も staff-stockout の採掘に出て、
+      戻っても数が増えない）。直しを戻すと2件とも fundraise-target-drift で落ちる。
+  既存の検査の更新: tests/test_me_stage2_staffs.py の1件（3本持って残り2本が品切れ → 以前は品切れの採掘、
+      今は持ち主の決定どおり塔へ）。壁ではなく期待値を新しい動きに直した。
+
+鍵1b（再起動で取り込みの記録が消え、第2段階の杖を売り第1段階の杖を買い直す） commit 6cb5bf5a2
+  根: me_staff_sequence.py state()（元 180-184）の記録はプロセスのメモリだけ。新しいプロセスは absorbed が空で
+      第1段階に戻り、取り込み済みの杖を買い、第2段階の杖は守られず売り物になった。
+  直し: ゲームの杖の魔力の一覧（'b' 'A'、ターンを使わない）を正とする。read_powers がこのプロセスで一覧を
+      読んだかを持ち、一覧に出た手順の魔力は取り込み済みにする。読むまでは town_key が 'bA'
+      （me-staff:read-powers、見えている敵がいれば譲る、3回で名前付き停止）を出し、手順の杖は買わず
+      売らず預けない（retains / purchase_excluded / _page_purchase）。executor の一覧の読み取り
+      （me_powers_refresh_input.compile_refresh）は既存のものを、理由を1つ足して使う。
+  検査: RestartForgetsAbsorptionsTest（記録の 104-114 を新しい方策で → 最初に 'bA'、本番 executor で一覧を
+      読み、以後 '{j@0' の売り・'dmdldk' の預け・買い直しが無く、第2段階として塔へ）。直しを戻すと2件とも落ちる。
+      再起動の盤面そのもの（サーバの turn 1621973）は手元の写しに無いので、同じ店・同じ持ち物の直前の訪問を使った（明記）。
+  既存の検査の更新: 状態を作る共通の手助け（test_me_staff_sequence / test_me_stockout_run_recorded /
+      test_me_tower_recharge_recorded / test_me_town_stops_recorded / test_n1c_town_stops2_recorded）に
+      「このプロセスは一覧を読んだ」を DECLARED CONSTRUCTED として足した。
+
+鍵1c（自宅の装備のセッションと杖の手順が互いに待つ） commit 63d48b9db
+  件: life-054 072115（82回の shop:approach '5' → no-progress:buy）。
+  根: policy_quest.py _opening_q34_town_key（589-591）で杖の手順が装備の処理より先に盤面を取り、
+      policy_shop.py の経路の番人（5946-5954）と equipment_route_handoff.py が自宅のセッションの間は
+      他の店への移動を WAIT にする。
+  直し: me_staff_sequence.town_key の頭で、終わっていない自宅の装備のセッションがあれば譲る（None）。
+      共有ファイルは触っていない。
+  検査: HomeEquipmentSessionTest（記録の盤面と、判断の行の transaction_next から作り直したセッション →
+      equipment-transaction:travel-home、executor に送る）。直しを戻すと shop:approach で落ちる。
+
+鍵2（魔道具術師の Q1 の関門が近接 DPS） commit 9d63514f0
+  件: life-058 084721・084733・084745（版 ba0d425a9）。
+  根: policy.py _approved_strategy_force_ready が近接 DPS だけで両ティアと入口の撃破時間を数えた
+      （policy_opening.py 65-77、quest_entry_requirements.py 50-53 も同じ値を読む）。3.08 < 3.6 で治癒2・
+      加速1を要求し、7,450 金が買えずに停止。D17（4.62）・life-023（3.85）に続く3件目。
+  直し（既存の決定 me-q1-torch 10-30・q1-acceptance-relax 10-26/10-28）: QUEST_1.jsonc の required_force に
+      torch_throw_output_by_class {"16": 16.76}（導出済みの r_idx 150 への1投の期待値）を足し、
+      quest_strategies.torch_throw_output で読む。戦力の判定はその値と近接の大きい方（近接は詳細の melee_dps に残す）。
+      判定は1か所なので、受注の両ティアも入口の撃破時間も同じ値になる。この盤面は足りない松明1本（3金）を買いに行く。
+  検査: Q1TorchForceTest（記録の 207-222 を通す → 停止せず、要求は松明 20/19 だけ、計画は雑貨屋の松明、
+      dps 16.76・melee 3.08、executor に送る）。直しを戻すと stop:unaffordable-quest-reserve で落ちる。
+  既存の検査の更新: tests/test_magic_eater_acceptance.py の2件（Q1 の魔道具術師は近接が弱くても通る、
+      測る値は 16.76。Q34 は今のまま）。
+
+追加 commit 856ea4fe8（main の取り込み後の噛み合わせ）
+  main の未鑑定の光源の直し（unid-light）の記録の盤面で、自宅で {並} のランタンを付ける装備のセッション
+  （文脈 pack）の一手より、杖の手順の一覧の読み取り 'bA' が先に盤面を取った（tests.test_unid_light_recorded が
+  落ちた）。一覧の読み取りは、装備のセッションが進行中の間も待つようにした（読むまでは手順の杖の売り買いは
+  しないので安全）。
+
+== 検査の結果 ==
+- 取り込みの検査: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" … OK
+- 最終の木（main aa56fccb0 を取り込んだ後、856ea4fe8）で、checks.json の 37 モジュール＋魔道具術師の検査＋
+  cli・Q1 の検査（合わせて 54 モジュール、836 件）: OK（skipped 1）。未取り込みのブランチにしか無いモジュールは無し。
+- 新しい検査: tests.test_me_nokey_1031_recorded 12件。
+- 直しを戻すと落ちることの確認（各 commit の src を戻して実行し、元に戻した）:
+  R0 2件（no-key-exhausted / KeyError）、鍵1a 2件、鍵1b 2件、鍵1c 1件、鍵2 1件。
+- tests.test_census_owner_declaration は scripts を読み込みの道に入れないと import できない（この変更と無関係）。
+- scripts/town_work_manifest.py --write → zero unmapped（town_key と _fundraise の確認の文を更新）。
+
+== 持ち主への問い（新しい決まりが要るので実装していない） ==
+問1 品切れ待ちの上限: 品切れ待ちの採掘を上限に数えなくなったので、入荷しない杖を無期限に待つ（採掘は
+    続けるので止まらないが段階は進まない）。
+    (A) 今のまま待ち続ける（採掘で金は増える）【推奨】
+    (B) 入荷待ちの回数に上限を置き、超えたら闇市の棚も見に行く（高い）
+    (C) 入荷待ちの上限を超えたらその杖を飛ばして段階を終える
+問2 要る物の合計が所持金を超える時（opening route の stop:unaffordable-quest-reserve）に、買える物だけ
+    先に買うか。今回の盤面は鍵2の直しで要る物が松明1本になり当てはまらない。
+    (A) 今のまま名前付きの停止【推奨】 (B) 買える物を買ってから停止
+
+== 範囲外で見つけたこと ==
+- 鍵2 の盤面で、雑貨屋へ向かうキー '3' の理由が shop:one-shot-page-not-zero になる（policy_shop.py 6213 の
+  一手前の処分の分岐が理由を上書きしたまま、別の一手が返る）。町の店のコードなので触っていない。
+- 鍵3（n1-a life-447 store:entry-await-observation）はこの発注の範囲外。
+
+== 保守性 ==
+上限のあるファイルの行数（main aa56fccb0 → 今）:
+  policy.py 20602 → 20611（+9: 松明の戦力の1行の max と詳細の2行、説明の注記）
+  cli.py 5993 → 6002（+9: 空のキーの分岐での名前付き停止の判定と説明の1行。種類の対応を _policy_final_stop_kind に
+    まとめ、元の分岐の重複した if を消した）
+  policy_town.py / policy_shop.py / policy_quest.py / policy_home.py / policy_combat.py: 変更なし
+新しい処理の置き場所: 杖の手順の判断（品切れ・一覧の読み取り・自宅のセッションへの譲り）はすべて
+  me_staff_sequence.py の中（_stocked_out・read_powers・_unread_sequence_staff・town_key の頭）。松明の戦力の値は
+  作戦の表（QUEST_1.jsonc）に置き、quest_strategies.torch_throw_output で読む（コードに職業の分岐を書かない）。
+  一覧を読むキーは既存の me_powers_refresh の executor をそのまま使い、受け付ける理由を BROWSE_REASONS にまとめた。
+良くした点: 最終停止の種類の決め方が2か所から1か所になった。魔道具術師の Q1 の戦力の判定が1つの値になり、
+  受注の両ティアと入口の検査が同じ値を読む。
+
+== checks.json に足す案 ==
+  {"id": "D42-nokey", "owner": "2026-10-31 「直近12hの死亡停止要因を調べて未解決のものを調査」→「持っている分を先に取り込む」 (n1-c life-054/057/058, branch fix-me-nokey-1031)", "tests": ["tests.test_me_nokey_1031_recorded", "tests.test_me_stage2_staffs"]}
