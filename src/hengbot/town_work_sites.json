@@ -8807,6 +8807,14 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "910d2904136ab454964034b2881cf3f3e325dedc8aaa5bc9ac076baf86deb2ed"
   },
+  "quest_navigator.py:QuestFloorNavigator._q34_inscription_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "1d3c11440c952b7e5415da835e40e408af34dfafcb337346a181497c6c45cca0"
+  },
   "quest_navigator.py:QuestFloorNavigator._static_path": {
     "classification": "data",
     "rows": [
@@ -8846,7 +8854,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d192c679f8f933a4468817dfce75984d911b3bc47d464b0397fd2a6ee47a26a9"
+    "ast_sha256": "ee108a28c13b558ea41c4fabeaab61ad43738f60a5866ad82c36218852674f6b"
   },
   "quest_navigator.py:QuestFloorNavigator.enter_from_town": {
     "classification": "producer",
@@ -8880,6 +8888,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "2bebccbb9df8eeae7630baacf9edfddb8072a63d16433021ce9c77cb80c40d62"
+  },
+  "quest_navigator.py:_unidentified_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "01de6c248da3120a0cb49e5b029c0ca43b35cd7319a9b206ab34ff7a29770ecc"
   },
   "quest_opening_readiness.py:q34_readiness_rejection_key": {
     "classification": "adapter",

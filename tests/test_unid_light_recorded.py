@@ -1,6 +1,7 @@
-"""#47 (2026-10-31): wear an unidentified {average} light.
+"""#47 (2026-10-31): wear an unidentified {average} light and the Q34 items.
 
-Owner 2026-10-31 (AskUserQuestion, verbatim): 「並なら付けて良い。」
+Owner 2026-10-31 (AskUserQuestion, verbatim): 「並なら付けて良い。加えてQ34習得品も
+付けて良い。」 and 「Q34で拾った品を覚える必要があるなら銘を刻むこと」.
 
 Recorded (n1-c life-055, Magic-Eater Lv7): the Wooden Torch is out (light radius
 0, light_turns 0) while the Brass Lantern {average} (known=false) the Q34 opening
@@ -8,8 +9,8 @@ picked up is carried; the optimizer had no light candidate (decision 4993) and
 never wore it.  The C screen of the same character (turn 205220) lists no
 mutation, so the {average} feeling is trusted under owner Q-B (2026-10-22).
 
-Every decision goes through the public choose_key; the leave and equip keys
-are posted through the production executor.  Boards changed by
+Every decision goes through the public choose_key; the leave, equip and
+inscription keys are posted through the production executor.  Boards changed by
 a test are DECLARED CONSTRUCTED where they are changed.
 """
 import tests  # noqa: F401 -- isolate runtime files
@@ -17,21 +18,29 @@ import tests  # noqa: F401 -- isolate runtime files
 import copy
 import gzip
 import hashlib
+import io
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import time
 
-from hengbot.cli import _consume_response_sequence
+from hengbot.cli import (
+    PostingContract, _ExecutorInputPort, _consume_response_sequence,
+    _send_decision_key_with_prompt_chain,
+)
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.warrior_optimization import load_character_calibration
 from tests import test_lv7_town_stop_recorded as lv7
 import tests.test_input_executor as executor_harness
+from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.test_q34_collect_recorded import captured, make_policy
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "unid-light-20261031.json.gz"
 SHA256 = "eaba709d262ff4478db258cb92c96eb63f7e9a521a8fd107e2d1398dc7aee3dc"
+Q34_OPENING = Path(__file__).with_name("fixtures") / "q34-opening-oil-20261016.jsonl.gz"
 LANTERN_SLOT = "f"
 GLOVES_SLOT = "g"
 BAD_LUCK = 92
@@ -183,6 +192,107 @@ class UnidentifiedLightRecordedTest(executor_harness.ProductionHarness):
         self.decide(policy, inside)
         self.assertNotIn("arms", self.selected(policy))
         self.assertEqual(self.selected(policy)["light"], "真鍮のランタン {並}")
+
+    def test_q34_inscribed_items_are_worn_unidentified(self):
+        # DECLARED CONSTRUCTED: the lantern without a feeling and the gloves,
+        # both carrying the bot's in-game Q34 inscription.
+        inside = self.board("in-home", **{
+            LANTERN_SLOT: {"pseudo_feeling": None, "name": "真鍮のランタン {Q34}", "inscription": "Q34"},
+            GLOVES_SLOT: {"name": "革グローブ [1] {Q34}", "inscription": "Q34"},
+        })
+        policy = self.policy(inside, mutations=None)
+        self.decide(policy, inside)
+        selected = self.selected(policy)
+        self.assertEqual((selected["light"], selected["arms"]),
+                         ("真鍮のランタン {Q34}", "革グローブ [1] {Q34}"))
+        self.assertEqual(sorted(self.actions(policy)), [("equip", "arms"), ("equip", "light")])
+
+    def test_control_q34_item_sensed_cursed_is_not_worn(self):
+        # DECLARED CONSTRUCTED: a Q34-inscribed lantern sensed {cursed}.
+        inside = self.board("in-home", **{
+            LANTERN_SLOT: {"pseudo_feeling": "cursed", "name": "真鍮のランタン {呪われている, Q34}",
+                           "inscription": "Q34"},
+        })
+        policy = self.policy(inside)
+        self.decide(policy, inside)
+        self.assertNotIn("light", self.selected(policy))
+
+
+class Q34PickupInscriptionRecordedTest(executor_harness.ProductionHarness):
+    """The recorded Q34 opening boards of 2026-10-16 (oil, lantern, carried lantern)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.rows = {}
+        with gzip.open(Q34_OPENING, "rt", encoding="utf-8") as stream:
+            for line in stream:
+                row = json.loads(line)
+                cls.rows[row["turn"]] = row
+        cls.facts = captured()
+
+    def decide(self, policy, raw):
+        policy.consume_skill_knowledge({
+            "player": {"level": raw["player"]["level"]},
+            "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
+        })
+        return policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)), policy.last_reason
+
+    def post(self, policy, raw, key, screens, following):
+        game = FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.jsonl = [copy.deepcopy(raw)]
+        game.screen = command_screen(raw["turn"])
+        game.screens = [*screens, command_screen(following["turn"])]
+        game.states = [copy.deepcopy(raw) for _ in screens] + [copy.deepcopy(following)]
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=time.monotonic() + 10).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        sent, _, _, _ = _send_decision_key_with_prompt_chain(
+            port, "q34-inscribe", key, None, set(), policy=policy,
+            shadow_client=None, file=io.StringIO(), deadline=time.monotonic() + 10,
+            poll_interval=0, prompt_japanese=False,
+            decision={"sequence": policy._decision_sequence, "reason": policy.last_reason},
+            snapshot=parse_snapshot(raw, policy._monrace_knowledge),
+            posting_contract=PostingContract(), in_store=False)
+        self.assertTrue(sent, getattr(port.last_result, "reason", None))
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertFalse(game.term_fifo)
+        policy.confirm_key_posted(key)
+        return game.accepted
+
+    def test_lantern_picked_up_on_q34_is_inscribed_then_worn(self):
+        policy = make_policy(self.facts)
+        policy.prime(parse_snapshot(self.rows[75392], policy._monrace_knowledge))
+        self.assertEqual(self.decide(policy, self.rows[75392]), ("g", "quest-strategy:pickup-opening-oil"))
+        self.assertEqual(self.decide(policy, self.rows[75402]), ("g", "quest-strategy:pickup-opening-lantern"))
+        carried = self.rows[75413]
+        lantern = next(it for it in carried["inventory"] if it["tval"] == 39 and not it["known"])
+        self.assertEqual((lantern["slot"], lantern["inscription"]), ("d", ""))
+        key, reason = self.decide(policy, carried)
+        # 1acb3b27c: ('wd', 'quest-strategy:equip-opening-lantern').
+        self.assertEqual((key, reason), ("{dQ34\r", "quest-strategy:q34-inscribe-pickup"))
+        # DECLARED CONSTRUCTED: the game's reply to the inscription (the same
+        # board with the inscription on the lantern).
+        tagged = copy.deepcopy(carried)
+        tagged_lantern = next(it for it in tagged["inventory"] if it["slot"] == "d")
+        tagged_lantern["inscription"] = "Q34"
+        tagged_lantern["name"] = "真鍮のランタン {未鑑定, Q34}"
+        accepted = self.post(policy, carried, key, [
+            prompt_screen("どのアイテムに銘を刻みますか? "),
+            prompt_screen("銘: "),
+        ], tagged)
+        self.assertEqual("".join(accepted), key)
+        self.assertEqual(self.decide(policy, tagged), ("wd", "quest-strategy:equip-opening-lantern"))
+
+    def test_control_unidentified_item_carried_into_q34_is_not_inscribed(self):
+        # DECLARED CONSTRUCTED: the lantern is already carried at the first
+        # decision on the floor, so it was not picked up there.
+        policy = make_policy(self.facts)
+        carried = self.rows[75413]
+        policy.prime(parse_snapshot(carried, policy._monrace_knowledge))
+        key, reason = self.decide(policy, carried)
+        self.assertNotEqual(reason, "quest-strategy:q34-inscribe-pickup")
+        self.assertEqual((key, reason), ("wd", "quest-strategy:equip-opening-lantern"))
 
 
 if __name__ == "__main__":

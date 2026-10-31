@@ -160,6 +160,13 @@ _INSCRIPTION_BLOCK = re.compile(r"\{[^{}]*\.[^{}]*\}")
 # pseudo-ID feeling is swapped 1 time in 13 (simple-perception.cpp
 # sense_inventory_aux), so {average} may hide a cursed item.
 MUTATION_BAD_LUCK = 92
+# Feelings that say the item is cursed or broken (pseudo_value_check_heavy and
+# _light in simple-perception.cpp); such an item is never worn unidentified.
+BAD_PSEUDO_FEELINGS = frozenset({"broken", "terrible", "worthless", "cursed"})
+# The bot's own in-game inscription on equipment it picked up on the Q34 floor
+# (owner 2026-10-31: 「Q34で拾った品を覚える必要があるなら銘を刻むこと」).
+Q34_ITEM_TAG = "Q34"
+_Q34_TAG = re.compile(r"(?<![0-9A-Za-z])Q34(?![0-9A-Za-z])")
 
 
 def average_feeling_trusted(mutation_signature: Iterable[int] | None) -> bool:
@@ -173,6 +180,13 @@ def average_feeling_trusted(mutation_signature: Iterable[int] | None) -> bool:
     """
     return (mutation_signature is not None
             and MUTATION_BAD_LUCK not in tuple(mutation_signature))
+
+
+def q34_item_tagged(item: EquipmentItem) -> bool:
+    """Whether the item carries the bot's in-game ``Q34`` inscription."""
+    return bool(_Q34_TAG.search(item.inscription or "")
+                or any(_Q34_TAG.search(block)
+                       for block in re.findall(r"\{[^{}]*\}", item.name)))
 
 
 def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
@@ -248,14 +262,18 @@ class OwnedEquipment:
     def unidentified_wear_allowed(self) -> bool:
         """An unidentified item the owner allows to be worn (2026-10-31).
 
-        「並なら付けて良い。」: a light source sensed {average} while no bad
-        luck is seen (Q-B).  Every other unidentified item keeps the
-        identify-first rule.
+        「並なら付けて良い。加えてQ34習得品も付けて良い。」: a light source
+        sensed {average} while no bad luck is seen (Q-B), or an item inscribed
+        ``Q34`` on the Q34 floor that is not sensed cursed or broken.  Every
+        other unidentified item keeps the identify-first rule.
         """
         item = self.item
-        return (not item.known and item.tval == TVAL_LITE
-                and item.pseudo_feeling == "average"
-                and self.average_feeling_trusted)
+        if item.known or item.pseudo_feeling in BAD_PSEUDO_FEELINGS:
+            return False
+        if (item.tval == TVAL_LITE and item.pseudo_feeling == "average"
+                and self.average_feeling_trusted):
+            return True
+        return q34_item_tagged(item)
 
     @property
     def evaluable(self) -> bool:
