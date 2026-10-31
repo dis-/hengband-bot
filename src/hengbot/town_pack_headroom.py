@@ -243,7 +243,10 @@ def purchase_needing_room(policy, snapshot):
     from hengbot.policy_constants import PACK_CAPACITY, MIN_TERMINAL_FREE_PACK_SLOTS
     if (not snapshot.in_town
             or PACK_CAPACITY - len(snapshot.inventory) != MIN_TERMINAL_FREE_PACK_SLOTS
-            or not eligible(policy, snapshot)):
+            or not eligible(policy, snapshot)
+            # A carried item the identification flow owns finishes first: the
+            # pass's Home deposit would shelve the item just taken out for it.
+            or any(policy._identification_flow_owns(item) for item in snapshot.inventory)):
         return None
     kept = tuple(item for item in snapshot.inventory
                  if not preservable(policy, snapshot, item))
