@@ -793,8 +793,8 @@ def _recharge_key(policy, snapshot) -> str:
     if step is None:
         return _stop(policy, "tower-of-sorcery-route-unavailable")
     if not enters:
-        policy.last_reason = f"{REASON}approach-tower"
-        return policy._step_toward(snapshot, step)
+        return morivant_tower.approach_key(
+            policy, snapshot, TOWER_OF_SORCERY, step, f"{REASON}approach-tower")
     before = [(key, item.charges) for key, item in _absorbable(policy, snapshot)
               if _short_of_max(item)]
     if staple_needs_recharge(snapshot):

@@ -133,6 +133,9 @@ class PostedKey(harness.ProductionHarness):
         following["turn"] += 10
         following["messages"] = []
         game = FaithfulHookGame()
+        # A travel macro names its cell by cursor moves (town_travel): the
+        # game's smallest key queue (main-gcu.cpp, 256), not the harness's 32.
+        game.capacity = 256
         game.state = copy.deepcopy(raw)
         game.screen = command_screen(raw["turn"])
         game.screens = [command_screen(following["turn"])]
@@ -329,12 +332,11 @@ class RestartForgetsAbsorptionsTest(PostedKey):
                                            sequence.SV_STAFF_DETECT_GOLD: 19})
         self.assertEqual(record.stage, 2)
         self.assertEqual((sold, bought), ([], []))
-        # The observed Magic shelf sells a Staff of Remove Curse (1192 gold),
-        # a buy_first row of the device policy table (owner 2026-10-31): the
-        # town progress invariant relabels the buy round's walk to Telmora
-        # (#47 D52; it was the walk to the Tower) as the shop approach.
-        self.assertTrue(policy.last_reason.endswith("shop:approach"), (key, policy.last_reason))
-        self.assertEqual(policy._shopping_approach_store_type, 5)
+        # #47 D52: the buy round goes on to Telmora's shelf by the travel
+        # command (the walk it replaces was relabelled by the town progress
+        # invariant as town-progress-invariant:defect:...=>shop:approach).
+        self.assertEqual(policy.last_reason, "me-staff:search-staff", key)
+        self.assertTrue(key.startswith("\x1b`n"), key)
         self.post(policy, staff_board(10), key)
 
     def test_unread_list_keeps_every_sequence_staff(self):

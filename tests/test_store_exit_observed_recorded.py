@@ -24,6 +24,7 @@ DECLARED CONSTRUCTED: the command loop's reply to the posted key.
 """
 
 import tests  # noqa: F401 -- live runtime-file isolation
+from hengbot.town_travel import is_travel_macro
 import gzip
 import hashlib
 import json
@@ -93,7 +94,11 @@ class StoreExitObservedRecordedTest(executor_harness.ProductionHarness):
         self.assertIsNone(board.store)
         self.assertEqual(inflight[2], STORE_ALCHEMIST)
         self.assertGreater(board.turn, inflight[1])
-        self.assertEqual((key, policy.last_reason), ("9", "town:cross-town-shopping:travel-2"))
+        # The recorded walk step '9' toward the inn is now the game's travel
+        # command to the inn's side (owner 2026-11-01 「街での移動は可能な限り
+        # トラベルコマンドを活用して」, town_travel).
+        self.assertEqual(policy.last_reason, "town:cross-town-shopping:travel-2")
+        self.assertTrue(is_travel_macro(key), key)
         # Before the fix the leave stays in flight across the decision and
         # the driver suppresses the key (nothing posted, run stops).
         self.assertIsNone(policy._store_leave_inflight)

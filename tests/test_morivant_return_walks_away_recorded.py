@@ -76,6 +76,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import Position
@@ -221,7 +222,13 @@ class MorivantReturnWalksAwayRecordedTest(unittest.TestCase):
         """
         if cls.replays:
             return cls.replays[keep_left_terrain]
-        with TemporaryDirectory() as raw_directory:
+        # Wall (walking router, #47 D52): these pins examine the BFS route
+        # the return walk steps along.  Since owner 2026-11-01 「街での移動は
+        # 可能な限りトラベルコマンドを活用して」 the leg rides the game's travel
+        # command (town_travel, pinned in test_me_tower_trips_recorded) and
+        # keeps this route as its fallback and its last step onto the Inn.
+        with patch("hengbot.town_travel.travel_key", return_value=None), \
+                TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
             ledger = directory / "knowledge.jsonl"
             policy = _policy(directory, cls.monrace)

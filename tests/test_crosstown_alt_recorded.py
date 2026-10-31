@@ -26,6 +26,7 @@ from hengbot.model import (
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import CrossTownShoppingExpedition, StoreVisit, TownErrandPlan
 from hengbot.town_maps import find_town_map, parse_town_map
+from hengbot.town_travel import is_travel_macro
 
 FIXTURE = Path(__file__).parent / "fixtures/crosstown-alt-20261006.jsonl.gz"
 METADATA = FIXTURE.with_suffix("").with_suffix(".boundaries.json")
@@ -151,10 +152,14 @@ class CrosstownAltRecordedTest(unittest.TestCase):
         board = self.boards[1499]  # (37,107), where live output returned '1'
         key = policy._town_teleport_dispatch_key(
             board, 2, producer="cross-town", reason=REASON)
-        self.assertEqual(key, "9")
-        self.assertEqual(policy._decision_goal[1].cell, (37, 119))
+        # The recorded '9' toward the Inn is now the game's travel to the
+        # Inn's side (owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを
+        # 活用して」, town_travel); its Reach is that cell beside (37, 119).
+        self.assertTrue(is_travel_macro(key), key)
+        goal = Position(*policy._decision_goal[1].cell)
+        self.assertEqual(goal.distance_to(TARGET), 1)
         self.assertTrue(policy._town_result_makes_progress(board, key))
-        self.assertEqual(policy._town_procurement_decision(board, key), "9")
+        self.assertEqual(policy._town_procurement_decision(board, key), key)
         self.assertEqual(policy.last_reason, REASON)
 
     def test_after_refusal_travel_reaches_recorded_target_without_reentry(self):
@@ -175,13 +180,19 @@ class CrosstownAltRecordedTest(unittest.TestCase):
             key = policy._cross_town_shopping_key(board)
             self.assertIsNotNone(key)
             self.assertEqual(policy._town_procurement_decision(board, key), key)
-            dy, dx = DELTAS[key[0]]
-            position = Position(board.player.position.y + dy, board.player.position.x + dx)
+            if is_travel_macro(key):
+                # The game's travel to the Inn's side (town_travel).
+                position = policy._town_travel_state.goal
+            else:
+                dy, dx = DELTAS[key[0]]
+                position = Position(board.player.position.y + dy, board.player.position.x + dx)
             self.assertNotEqual(position, ENTRANCE)
             self.assertIsNone(policy._store_visit)
             board = replace(board, player=replace(board.player, position=position),
                             turn=board.turn + 1)
-        self.assertEqual(len(visited), 13)
+        # One travel leg to the Inn's side, then the step onto the Inn
+        # (13 recorded walk cells before town_travel).
+        self.assertEqual(len(visited), 2)
 
     def test_terminal_refusal_is_not_reclassified_by_stale_home_knowledge(self):
         policy = self._policy()

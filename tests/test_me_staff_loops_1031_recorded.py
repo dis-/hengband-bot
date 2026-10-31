@@ -26,7 +26,8 @@ decisions (one town:blocked line, 14 inn-walk steps, the teleport).  #47 D52
 (the stage's buy round looks at each visited town's Magic shelf before the
 Tower): the inn and tower cases declare the shelves the recorded run had
 already seen in this restock wait (``searched_towns``), so their legs are
-the recorded ones (test_me_tower_trips_recorded).
+the recorded ones; both now ride the game's travel command
+(test_me_tower_trips_recorded).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -43,6 +44,7 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import ConservativePolicy
 from hengbot.quest_strategies import load_quest_strategies
 from tests import test_me_nokey_1031_recorded as nokey
+from hengbot.town_travel import is_travel_macro
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-staff-loops-20261031.json.gz"
@@ -114,11 +116,12 @@ class MeStaffLoopsRecordedTest(nokey.PostedKey):
         policy = new_policy(case, case["skill"], record=case["sequence"])
         # DECLARED CONSTRUCTED: Morivant's Magic shelf seen in this wait.
         sequence.state(policy).searched_towns[2] = case["boards"][0]["turn"]
-        reasons = []
+        reasons, keys = [], []
 
         def each(raw, key):
             telemetry = policy._town_turn_arbiter.telemetry or {}
             reasons.append(policy.last_reason)
+            keys.append(key)
             if policy.last_reason == "me-staff:return-to-shop":
                 self.assertTrue(telemetry.get("progress"), (raw["turn"], key, telemetry))
                 self.assertFalse(policy._town_turn_arbiter.retirement_pending, raw["turn"])
@@ -128,6 +131,7 @@ class MeStaffLoopsRecordedTest(nokey.PostedKey):
         self.drive(policy, case["boards"], each)
         self.assertEqual(set(reasons), {"me-staff:return-to-shop"})
         self.assertEqual(len(reasons), len(case["boards"]))
+        self.assertTrue(is_travel_macro(keys[0]), keys[0])
 
     def test_tower_approach_closes_its_reach_goal_under_the_town_fuse(self):
         case = CASE["tower"]

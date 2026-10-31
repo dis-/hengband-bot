@@ -13419,5 +13419,112 @@
     "delegation": "selected child; no independent success",
     "context": "Possible town/store context: the buy round's next town (the Outpost, then _search_town).",
     "evidence": "Returns a town id or None only (#47 D52: the stage's buy round looks at every purchasable shelf before the one Tower trip); does not emit commands."
+  },
+  "morivant_tower.py:_building_position": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: a building entrance of the current town.",
+    "evidence": "Returns the nearest emitted grid of the building type, else the town map's position; does not emit commands."
+  },
+  "morivant_tower.py:approach_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "#47 D52 / owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」: delegates the Tower approach to town_travel.building_key (policy._town_travel_key, the store route's travel), else the caller's single _step_toward step; the step into the Tower stays the caller's."
+  },
+  "policy.py:HengbotPolicy._take_claim_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns the captured claim target of the last _nearest_goal_step; does not emit commands."
+  },
+  "policy_town.py:TownMixin._town_teleport_travel_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "#47 D52 / owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」: while the inn route has not reached the inn, delegates to town_travel.building_key (policy._town_travel_key offers the route work); the step onto the inn keeps _town_teleport_route's 'm' + destination tail."
+  },
+  "town_travel.py:approach_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: the plain cell beside a building.",
+    "evidence": "Returns a position or None only; does not emit commands."
+  },
+  "town_travel.py:building_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service",
+      "rumor",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」: delegates to travel_key for the cell beside a building; no independent success."
+  },
+  "town_travel.py:plain_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure grid predicate (no store, building or entrance); does not emit commands."
+  },
+  "town_travel.py:point_macro": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure key composition for point_target's cursor (target/grid-selector.cpp); does not emit commands itself."
+  },
+  "town_travel.py:travel_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service",
+      "rumor",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」: the one 'may this move use travel' rule (light, the smallest key queue), delegating to policy._town_travel_key, which offers route:<kind> work bounded by TownTravelProgress; returns None where the caller walks."
   }
 }

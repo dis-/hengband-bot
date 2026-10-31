@@ -86,6 +86,9 @@ class Q2TowerRechargeRecordedTest(executor_pins.ProductionHarness):
 
     def post(self, policy, raw, key, following, screens=()):
         game = executor_pins.FaithfulHookGame()
+        # A travel macro names its cell by cursor moves (town_travel): the
+        # game's smallest key queue (main-gcu.cpp, 256), not the harness's 32.
+        game.capacity = 256
         game.state = copy.deepcopy(raw)
         game.jsonl = [copy.deepcopy(raw)]
         game.screen = executor_pins.command_screen(raw["turn"])
