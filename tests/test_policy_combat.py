@@ -171,6 +171,7 @@ from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.equipment_mutation import progress_core
+from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
 from hengbot.policy import (
     HengbotPolicy,
     EscapeState,
@@ -1881,8 +1882,13 @@ class CombatTest(unittest.TestCase):
             max_num=1,
         )
         recall = item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)
+        # The escape kit holds the random-quest teleport reserve (owner
+        # 2026-11-01); below it the lock releases (random_quest_reserve).
+        reserve = item(
+            "t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=RANDOM_QUEST_TELEPORT_RESERVE
+        )
         snapshot = self._latched_breeder_stair_snapshot(
-            inventory=[recall], quests={49: quest}
+            inventory=[recall, reserve], quests={49: quest}
         )
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key

@@ -151,6 +151,7 @@ from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.policy_constants import Q2_BLUE_RECOVERY_CELLS, SEARCH_KEY
 from hengbot.equipment_mutation import progress_core
+from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
 from hengbot.policy import (
     HengbotPolicy,
     EscapeState,
@@ -261,6 +262,11 @@ def setUpModule():
 def tearDownModule():
     _knowledge_patch.stop()
     _knowledge_tmp.cleanup()
+
+def teleport_reserve():
+    """The random-quest teleport reserve (owner 2026-11-01): the exit lock holds."""
+    return item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=RANDOM_QUEST_TELEPORT_RESERVE)
+
 
 class FixedQuestTest(unittest.TestCase):
     QUEST_ID = 1
@@ -1528,7 +1534,10 @@ class FixedQuestTest(unittest.TestCase):
             player(10, 10, hp=100, max_hp=100),
             {Position(10, 10): grid(10, 10, upstairs=True)},
             [], floor_key=(1, 6, 49), quests={49: quest},
-            inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+            inventory=[
+                item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+                teleport_reserve(),
+            ],
         )
         policy = HengbotPolicy()
 
@@ -1575,7 +1584,7 @@ class FixedQuestTest(unittest.TestCase):
             quests={49: quest},
             inventory=[
                 item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=7),
-                item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=1),
+                teleport_reserve(),
                 item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL, count=10),
             ],
         )
@@ -1656,7 +1665,7 @@ class FixedQuestTest(unittest.TestCase):
         )
         snap = Snapshot(
             player(10, 10), {}, [], floor_key=(1, 6, 49),
-            quests={49: quest},
+            quests={49: quest}, inventory=[teleport_reserve()],
         )
         policy = HengbotPolicy()
         policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
@@ -1680,6 +1689,7 @@ class FixedQuestTest(unittest.TestCase):
             [bystander, target],
             floor_key=(1, 6, 49),
             quests={49: quest},
+            inventory=[teleport_reserve()],
         )
         policy = HengbotPolicy()
 
@@ -1704,6 +1714,7 @@ class FixedQuestTest(unittest.TestCase):
             [target],
             floor_key=(1, 6, 49),
             quests={49: quest},
+            inventory=[teleport_reserve()],
         )
         policy = HengbotPolicy()
 
