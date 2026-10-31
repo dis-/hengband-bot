@@ -5,6 +5,10 @@ latched the town return (emergency-repeat), but the immobile-summoner
 avoidance runs before the return owner (_return_to_town_key) and kept
 exploring and looting; 14 teleports later the last scroll was gone.  An owner
 that only steers around a threat asks here before taking the decision.
+
+D46 (n1-b life-279, Castle 22F 2026-10-31): on a breakthrough-latched floor
+the same avoidance meleed the adjacent weak breeders (巨大ゴキブリ) from HP 333
+to death; the breakthrough owner below it would have read Recall.
 """
 
 
@@ -20,3 +24,10 @@ def latched_return_owns(policy, snapshot) -> bool:
         and not policy._return_exit_locked(snapshot)
         and (policy._returning_to_town or policy._should_start_town_return(snapshot))
     )
+
+
+def breeder_walkout_owns(policy, snapshot) -> bool:
+    """The floor is latched as a breeder breakthrough (extermination proved
+    impossible): its own exits -- Recall, the up-stairs route, the frontier
+    through the swarm (_breeder_breakthrough_key) -- leave it."""
+    return policy._breeder_breakthrough_floor == snapshot.floor_key

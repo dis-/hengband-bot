@@ -1,0 +1,98 @@
+LUNA-REPORT-n1b-279-death.txt  (D46 / #47、ブランチ fix-n1b-279-death)
+
+■ 答え（オーナーの問い）
+テレポートも帰還も回復薬も持っていたが、それを使うかを決める判断の材料から敵が消えていた。
+この階は「増える敵を倒し切れない階」と判定されていて、弱い増える敵（巨大ゴキブリ）は
+数えない決まりだった。そのため、回復・テレポート・帰還・逃走の判断はどれも「敵はいない」と見た。
+ところが、前に覚えた「動かない召喚の敵」を避ける処理だけは、数えない敵も見て、隣のゴキブリを
+殴り続けた。この処理は帰還を読む処理より上の段にあったので、HP 333 から 4 まで殴り続けて死んだ。
+10-27 に入った変更（080e8a252）による退行である。詳しくは LUNA-DIAG-n1b-279-death.txt。
+
+■ 直し（生存処理を先にする、の決まりどおり）
+1. 緊急処理は、数えない敵でも危険なら数える（survival_preemption.emergency_hostiles / endangering）。
+   危険の判定には既存の閾値だけを使う。3ターンの予測が今の HP 以上（既存の lethal の判定）の時か、
+   HP が低HP閾値（最大HP×50% と 最大HP−300 の大きい方）未満で、数えない敵が隣から殴っている時。
+   その時は、見えている敵すべてを数えて緊急処理（回復→テレポート→帰還）を行う。
+   危険でなければ今のまま（テレポート後に、害のない増える敵を理由に帰還を始め直さない、という
+   元の設計は保つ）。新しい定数はない。
+2. 倒し切れない階（突破の印のある階）では、動かない召喚の敵の処理は判断を取らず、突破の処理に譲る
+   （return_yield.breeder_walkout_owns）。突破の処理は、帰還・上り階段・群れを抜ける道で階を去る。
+3. 動かない召喚の敵の記憶・避けるマス・待ちの時計は、階を移るたびに消す
+   （policy_observation の階ごとの初期化から summoner_wait.forget_floor_visit を呼ぶ）。
+   前は階の鍵（ダンジョン・階・クエスト）だけで照合していたので、新しく作られた同じ階にも残っていた。
+   突破の印は、もともと階の訪問ごとに消えていた（policy_observation.py:850/997）。
+
+記録の盤面で、直した後の判断（突破の印と召喚の敵の記憶を与えた状態）:
+  HP 333（60%）と 276（50%）→ breeder-breakthrough:recall（帰還を読む）
+  HP 219・137・55・21・4 → item:heal（体力回復の薬を飲む）。薬がなくなった後は、
+  既存の順でテレポート・帰還を使う（lethal の時）。
+
+■ コミット
+  dcb8b754a Let survival weigh suppressed breeders and leave latched breeder floors
+  36c25ce15 Forget immobile-summoner evidence on every floor transition
+  d9b17dde9 Pin the n1-b life-279 death boards through choose_key and the executor
+  bc4314ae0 Merge main into fix-n1b-279-death（main c23dab005。町の作業の一覧を作り直し、漏れは 0）
+  （この報告のコミットが続く）
+
+■ 検査
+新しいテスト: tests.test_n1b_279_death_recorded（6件。固定データは tests/fixtures/n1b-279-death-20261031.json.gz、
+抽出ツールは tests/extract_n1b_279_death_fixture.py）
+- test_recorded_rows: 記録の理由・HP・敵の種類・持ち物（回復・テレポート・帰還）を確かめる
+- test_collapse_boards_heal_through_the_executor: HP 219/137/55/21/4 で回復を飲み、本番の executor で
+  「どの薬を飲みますか?」に答える（受け付けたキーは q, c と q, b）
+- test_walkout_boards_read_recall_through_the_executor: HP 333/276 で帰還を読む（r, e）
+- test_unlatched_breeder_fight_at_safe_hp_keeps_melee: 印のない階で HP 60% なら、今までどおり殴る
+- test_harmless_suppressed_breeders_keep_the_strategic_list: 危険でない時は、緊急処理に渡す敵の一覧を変えない
+- test_a_new_level_with_the_same_floor_key_forgets_the_summoner: 22F→21F→新しい22F で記憶が消える
+組み立てた状態（DECLARED CONSTRUCTED）は、突破の印と召喚の敵の記憶 1体の 2つ。この 2つだけで、
+直す前のコードは記録の 703 判断すべてを再現した。
+
+直す前のコードでは失敗することを確かめた（src を戻して実行し、元に戻した）:
+- src をすべて戻す: 失敗 8・エラー 1。回復の 5盤面は記録どおり 9/7/8/9/3 の melee、帰還の 2盤面は
+  8/4 の melee、記憶 {(30,30):263} が残り、emergency_hostiles が存在しない。
+- policy.py の直し 1 だけ戻す: 回復の 5盤面が失敗。
+- policy_combat.py の直し 2 だけ戻す: 帰還の 2盤面が失敗。
+- policy_observation.py の直し 3 だけ戻す: 記憶のテスト 1件が失敗。
+- 「印のない階で安全な HP なら殴る」と「危険でない時は一覧を変えない」のテストは、直す前も後も
+  通る（今の動作を守るためのもの）。
+
+実行した検査:
+- import の検査: OK
+- checks.json の全テスト（main c23dab005 を取り込んだ後）: 260件。失敗は tests.test_me_stage2_powers の
+  読み込みエラー 1件だけ。この ID は checks.json にあるが、テストは取り込み中の me-stage2-powers-1031 にあり、
+  まだ main に入っていない。
+- 関係する既存のテスト（増える敵・動かない召喚の敵・回復とテレポート・低HP・突破など 19 モジュール、137件）: OK
+- scripts/town_work_manifest.py: 漏れ 0（emergency_hostiles の見直し項目を scripts/town_work_review.json に足した）
+- 全体テスト・preflight・mutation_check・fast_tier は流していない（決まりどおり）。
+
+■ 保守性
+- 新しい判断は survival_preemption.py（「生存処理は他の担当より先」という D21 のモジュール）に、
+  短い関数 2つ（endangering、emergency_hostiles）として置いた。閾値には既存の _predicted_damage と
+  _low_hp_walk_threshold を使い、定数は新しく作っていない。policy.py の変更は呼び出しの 1か所だけ。
+- 「誰が判断を持つか」の譲りは、既存の return_yield.py（帰還への譲り、D41）に breeder_walkout_owns として
+  並べた。policy_combat.py の変更は 1行の分岐だけ。
+- 召喚の敵の記憶の寿命は、その証拠を持つ summoner_wait.py に forget_floor_visit としてまとめた
+  （記憶・避けるマス・待ちの時計の 3つを 1か所で消す）。policy_observation.py の変更は呼び出しの 1行だけ。
+- 特定のクエスト・種族・職業の特別扱いは書いていない。テストの壁は作っていない。
+
+■ 他の担当の範囲（直していない）
+- f16a6f784（帰還への譲り）の分岐は、動かない召喚の敵の処理の中で、隣接する敵への melee より
+  後にある。帰還が決まっていても、隣に敵がいれば殴る。今回の直しで、危険なら緊急処理が先に
+  動くので死にはつながらないが、譲る位置をそろえるかは判断が要る（下の問い 2）。
+
+■ オーナーへの問い
+1. 「危険」の閾値: 弱い増える敵を緊急処理で数え始めるのは、3ターンの予測が HP 以上の時か、
+   HP が低HP閾値（50%）未満で隣から殴られている時、とした（どちらも既存の閾値）。今回の盤面では、
+   HP 50% から 40% の間は回復の条件（40%）に届かず、印のある階なら帰還を読む。これでよいか。
+2. 帰還が決まった時（D41 の譲り）も、動かない召喚の敵の処理は隣の敵を殴ってから譲る。
+   帰還を読む前に殴らないよう、譲る位置を前に移すか（別の発注にするか）。
+
+■ checks.json に足す項目の案（この担当では checks.json を変えていない）
+{
+  "id": "D46",
+  "defect": "D46",
+  "owner": "2026-10-31 「n1-b 279を調査。テレポートも帰還も持っているのにどうして死んだ？」",
+  "tests": [
+    "tests.test_n1b_279_death_recorded"
+  ]
+}

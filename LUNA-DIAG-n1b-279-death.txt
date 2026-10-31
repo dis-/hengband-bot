@@ -1,0 +1,74 @@
+LUNA-DIAG-n1b-279-death.txt  (D46 / #47、2026-10-31)
+
+■ 結論（オーナーの問い「テレポートも帰還も持っているのにどうして死んだ？」への答え）
+この階は「増える敵を倒し切れない階」と判定されていた（突破の印）。その印が付くと、
+弱い増える敵（巨大ゴキブリ、1回の攻撃の最大は 2点で、最大HPの 5%未満）は「数えない敵」になる。
+回復・テレポート・帰還を決める緊急処理も、逃走の判定も、この「数えない敵」を見ない。
+そのため HP が 4 になっても「敵はいない」と判断し、何もしなかった。
+一方で、前に覚えた「動かない召喚の敵」の処理（10-27 に追加）は、数えない敵も含めたすべての
+敵を見て、隣にいるゴキブリを殴り続けた。この処理は、突破の印が本来行う帰還より上の段で
+動くため、帰還は一度も読まれなかった。
+これは退行（regression）。080e8a252（10-27 15:54「Avoid immobile summoners and engage when
+retreat is impossible」）で入った。
+
+■ 証拠（再現）
+- 記録の 1500 盤面（state-tail.jsonl）を公開の choose_key に順に渡した。最初の盤面で
+  (a) 突破の印（_breeder_breakthrough_floor = (12,22,0)）と (b) 覚えた動かない召喚の敵 1体
+  （_immobile_summoner_memory）の 2つだけを与えると、記録の 703 判断すべて（キーと理由。
+  速さの薬を飲んだ 3回を含む）が一致した（703/703、aa56fccb0）。
+- 印だけを与え、動かない召喚の敵の段を止めると（080e8a252 より前の形）、703 のうち 691 が
+  breeder-breakthrough:recall（帰還、キー 're'）になった。
+- 印がなければ、HP 40% 未満で item:heal（キー 'qb'）になる。
+- 死の盤面で、召喚の敵の記憶だけを与えて印を与えないと item:heal。印と記憶の両方を与えると、
+  記録どおり '3' melee になる。
+- 状態の末尾 1500 行に見えている敵は race 1007（巨大ゴキブリ）だけ。召喚の敵の記憶は、
+  この末尾より前に作られた。後述の「同じ階の鍵で記憶が残る」問題が最も疑わしいが、
+  取得物からは確定できない。
+
+■ 判断の連鎖（aa56fccb0 の行番号）
+1. 印: policy_combat.py:1720/1728（_update_combat_outcome。膠着が 3000 ターン続くか、
+   5体倒しても数が増えた時）。
+2. 弱い増える敵: policy.py:12764 _is_weak_breeder（2 < 555×0.05 = 27.75）。
+   policy_combat.py:804 _strategic_subset が、印の階でこれを除く → strategic_hostiles = []。
+3. 緊急処理: policy.py:10914 emergency_hostiles = strategic_hostiles（コメント「Emergency
+   material-threat spending deliberately stays strategic」）→ policy.py:10933 _emergency_item(snapshot, [])。
+   policy_combat.py:2224-2245 の lethal は「bool(hostiles) and predicted >= hp」で、hostiles が空なので False。
+   policy_combat.py:2420 の回復（hostiles and hp_ratio < 0.40）も、hostiles が空なので通らない。
+   → 回復・テレポート・帰還のどれも出ない。
+4. 動かない召喚の敵: policy.py:10966 _immobile_summoner_key(snapshot, physical_hostiles)。
+   policy_combat.py:282 の記憶は階の鍵だけで照合する。帰還の巻物を持つので retreat_possible=True
+   となり、policy_combat.py:386-395 の「other_hostiles が隣接 → melee」に進む
+   （physical の敵、つまりゴキブリを殴る）。
+5. 突破の帰還（policy.py:11142 _breeder_breakthrough_key → recall）と逃走
+   （policy.py:11343 _should_flee(strategic=[], []) → False）は、この下にあって届かない。
+6. 速さの薬 3回: policy.py:9649 _strong_fight_speed_filter。strategic は空だが、
+   直近の被害（observed loss）の 3倍が HP の半分以上なので、強い戦闘と判定した。
+   ※ 判断ログの rung "_direction_key#2" は、理由 "melee" から引いた名前
+   （claim_ladder.rung_of）。実際の出どころは 4 の段。
+
+■ HP ごとの判定の値（記録の盤面、印あり）
+  turn     HP   割合  strategic physical 隣接  3ターン予測(strategic) 3ターン予測(physical) 低HP閾値
+  1337860  333  0.60  0  13  3   0   35   277.5
+  1338894  276  0.50  0  12  5   0   45   277.5
+  1339534  219  0.39  0  16  5   0   45   277.5
+  1340288  137  0.25  0  14  5   0   45   277.5
+  1341107   55  0.10  0  12  4   0   44   277.5
+  1342360   21  0.04  0   7  3   0   35   277.5
+  1344207    4  0.01  0   7  4   0   44   277.5
+ どの盤面でも緊急処理に渡る敵は 0体で、予測は 0。HP 4 でも lethal=False で、回復の条件も満たさない。
+
+■ 最近の変更との関係
+- survival_preemption（D21、f7642973a 10-30）: _immobile_summoner_key は PREEMPTED_RUNGS に
+  ないうえ、攻撃者の判定も strategic なので関係しない。
+- me_ranged_first（D21）: 戦士なので None を返す。
+- D41 の帰還への譲り（f16a6f784 10-31 12:12）: aa56fccb0 には含まれない。また、
+  隣接する敵への melee より後にあるので、入っていても止まらない。
+- 原因は 080e8a252（10-27）。突破の印の帰還より上に、physical の敵を殴る段が入った。
+
+■ 記憶が残る件（コーディネーターからの確認依頼）
+- _breeder_breakthrough_floor は階の訪問ごとに消える: policy_observation.py:850 の
+  「snapshot.floor_key != self._floor_key」の区画にある 997 行で None に戻る（どの階を経由しても戻る）。
+- _immobile_summoner_memory・_immobile_summoner_avoid_cells・_summoner_wait は階の鍵だけで照合し、
+  この区画では消されていなかった。しかも、記憶のない階では policy_combat.py:286-292 で早く返り、
+  記憶を書き直さない。そのため、22階で覚えた召喚の敵は、21階や町を経て新しく作られた
+  22階（鍵が同じ）にも残る。→ 直した（summoner_wait.forget_floor_visit）。
