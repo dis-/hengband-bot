@@ -13670,6 +13670,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._equipment_wield(
                 snapshot, "light-loadout", lantern, "light"
             )
+        # The last link of the same chain as _light_judgment's swap: a carried
+        # unidentified light under the last-resort rule (n1-c life-055: the
+        # torch out and the Brass Lantern {average} carried, #47).
+        light = self._light_to_wield(snapshot)
+        if light is not None:
+            self.last_reason = "wield-light"
+            return self._equipment_wield(snapshot, "light-loadout", light, "light")
         return None
 
 

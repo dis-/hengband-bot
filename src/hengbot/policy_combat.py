@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import me_ranged_first, return_yield, status_cure, town_last_stand
+from hengbot import blind_strike, me_ranged_first, return_yield, status_cure, town_last_stand
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -385,6 +385,9 @@ class CombatMixin:
         self._detected_threat_hold_position = None
         if self._choke_plan_active(snapshot):
             self._release_choke_plan("immobile-summoner")
+        if return_yield.latched_return_owns(self, snapshot):
+            # Even beside a hostile (owner 10-31, death 1, #47).
+            return return_yield.latched_return_key(self, snapshot)
         other_hostiles = [m for m in hostiles if not self._summoner_never_approaches(snapshot, m)]
         adjacent = [m for m in other_hostiles if m.distance <= 1]
         if (
@@ -396,8 +399,6 @@ class CombatMixin:
                 return ranged
             self.last_reason = "melee"
             return self._step_toward(snapshot, self._weakest(adjacent).position)
-        if return_yield.latched_return_owns(self, snapshot):
-            return None  # the return owner reads Recall or walks out (death 1, #47)
         if snapshot.player.position not in cells:
             loot = self._town_producer_entry(
                 "_normal_loot_key",
@@ -2011,6 +2012,9 @@ class CombatMixin:
                 if potion is not None:
                     self.last_reason = "unseen-recall:heal"
                     return reserved_item_command(self, snapshot, "quaff", potion)
+            if player.blind:
+                # No cure: strike the unseen attacker instead of walking blind.
+                return blind_strike.key(self, snapshot)
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is not None and (
                 self._is_oscillating() and step in set(self._recent)

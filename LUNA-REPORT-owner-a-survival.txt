@@ -1,0 +1,105 @@
+#47 報告: 所有者の答え 1・3・4（2026-10-31 15時、生存の系統）owner-a-survival-1031
+
+結論
+- 3件とも直した。診断の鎖は LUNA-DIAG-owner-a-survival.txt。
+- 前の実装役の差分（policy_combat.py で譲りを近接の枝の前へ移す）は正しい向きだが足りなかった。
+  譲って None を返すと、梯子の一般の近接の段（帰還の担当より上）が同じ盤面で同じ近接を返す。
+  差分は残し、帰還の担当に盤面を直接渡す形に足した。
+
+1. 帰還が決まった後、隣に敵がいても帰還の担当に譲る（「隣に敵がいても譲る」）
+- 記録: n1-a life-446（鉄獄48階）。1712410 で帰還が決まった後、1712931 などで
+  動かない召喚の敵の避けの担当が隣の敵を殴った（melee '9'。950-970 も同じ）。
+- 直し: return_yield.latched_return_key（新しい関数）。避けの担当は隣の近接の前で譲り、
+  帰還の担当（_return_to_town_key）にその盤面を渡す。梯子の帰還の段と同じ脱出状態の確かめを使う。
+  帰還の担当が何もしない時は今までどおり戦いの段が答える。
+- 直した後: 1712931 は return:recall 'rd'（巻物を読む問いを本番の実行器で通す）。
+
+2. 盲目で治す薬がない時は見えない敵を攻撃する
+- 記録: 同じ死亡。1713388-1713405 でデス・ドレイク [14,81] と戦い、1713414 で盲目になり
+  unseen-recall:move '4'（ドレイクから離れる）。記録の盤面は治す薬を持っていたので、
+  検査では薬を外した盤面にした（DECLARED CONSTRUCTED）。
+- ゲームの事実: 盲目で殴られた時の文は「何か」で方向は出ない。'+'（exe_alter）と方向で、
+  そのマスに怪物がいれば見えなくても攻撃し、いなければその場で1ターン使う。
+- 直し: blind_strike.py（新しい部品）。見えている盤面ごとに隣の敵のマスを覚える（弱い順、近接の段と同じ）。
+  治す薬が無い盲目では歩かず、覚えたマスのうち今も隣のものを '+' で攻撃する。覚えが無ければその場で待つ。
+  回復の薬（見えなくてよい生存の段）は今までどおり先。
+  本番の実行器が '+' の方向の問いに答えられず止まっていた（持ち主なしの direction）ので、
+  observed_input.py に '+' と方向1文字の計画を足した（既存の no-wait:attack も同じ形）。
+- 直した後: 1713414 は unseen-recall:blind-strike '+6'（ドレイクのマス）。
+
+3. 暗くて読めず、全部の '<' が荒野へ出る階
+- 光源が切れた理由（n1-c life-055 の記録から。わかりやすく）:
+  1) Q34 で拾ったランタンを付けていたが、資金稼ぎの階で油を注いだ直後に「油が出発の目標より少ない」ので
+     松明に替えた（fundraise:wield-light、決定 939）。松明は投げて減った。
+  2) 町（自宅）で D40 の付け外しのループの間に時間が進み、装備の松明が燃え尽きた（207690 で光の半径 0）。
+  3) この版 b6d47db93 には {並} の光源を付ける直し（f2df445ed）がまだ無く、最適化も 07:42 から止めていた。
+     町では未鑑定の光源を最後の手段で付ける決まりも効かない。ランタンは持ったまま付かなかった。
+  4) 出発の確かめ（_light_ready）は、未鑑定のランタンと油を持っていれば通す。装備の光が尽きているかは見ない。
+  5) ダンジョンの暗がりの回復（_darkness_recovery_key）は、補給・松明・空のランタンだけを試し、
+     既存の決まり（_unknown_light_last_resort）が許す未鑑定のランタンを付けなかった。
+  つまり予備（ランタンと油）は持っていたが、暗がりの回復の担当がそれを使えなかった。
+- 直し (b): _darkness_recovery_key の最後に _light_to_wield を足した（_light_judgment の付け替えの鎖と同じ順）。
+  未鑑定の光源は最後の手段の決まりが真の時だけ。付けた後は既存の補給（暗ければ油）と帰還の段が続く。
+  直した後: 081315 の行 114（暗い階段の上）は wield-light 'wi'（ランタン）。直す前は 114 盤面ずっと壁探し 's'。
+- 直し (a): dark_recall.py（新しい部品）。見たことのある明るい床（画面の明かりの記号が標準の床）を階ごとに覚える。
+  帰還が決まっていて、全部の '<' が荒野へ出る階で、帰還の巻物があり、暗さだけで読めない時は、
+  暗がりの歩き（_dark_locomotion_key）の先頭でその床へ歩く。着けば足元が見えるので帰還の段が読む。
+  直した後: 081258 の行 21（明るい部屋の一歩外の暗いマス、ランタンと油を外した盤面）は return:seek-lit-grid '9'、
+  次の盤面（明るい部屋）で return:recall。
+  注意: 081315 そのもの（再起動の直後に暗い通路の階段の上）は、通路のマスを覚えていないので明るい床への道が
+  引けない。この盤面は (b) で直る。
+
+保守性
+- 新しい判断は名前の付いた小さな部品に置いた: blind_strike.py（盲目で殴る先の記憶と鍵）、
+  dark_recall.py（明るい床の記憶と歩き）、return_yield.latched_return_key（帰還の担当へ渡す）。
+- policy.py は _darkness_recovery_key に4行、policy_combat.py は2か所（譲りの位置と盲目の枝の3行）、
+  policy_navigation.py は _dark_locomotion_key の先頭の3行、policy_observation.py は記憶の2行だけ。
+- 使い回した物: 既存の _light_to_wield と最後の手段の決まり（新しい光の決まりは作っていない）、
+  '+' の攻撃（no-wait:attack と同じ）、F_LIT_STANDARD の定数（me_powers.py）、_weakest、_nearest_goal_step、
+  梯子の帰還の段と同じ脱出状態の確かめ。
+- 暗がりの回復の鎖が _light_judgment の鎖と食い違っていたのを揃えた（同じ順の3つ目を足した）。
+- 実行器の '+' と方向の計画は、no-wait:attack も持ち主なしで止まりうる穴だった。1か所で直した。
+- 新しい属性（_blind_strike_memory、_lit_floor_memory）は部品の中で getattr の既定値 None で読むので、
+  __init__ を通らない復元済みの方策でも従来どおり動く。
+- 町の仕事の目録: scripts/town_work_review.json に4項を足し、town_work_manifest.py --write は zero unmapped。
+
+検査（tests.test_owner_a_survival_recorded、10件）
+- 抜き出し: tests/extract_owner_a_survival_fixture.py -> tests/fixtures/owner-a-survival-1031.json.gz
+  （extract_dungeon_1031_fixture の ring_case / state_case を使う）。すべて公開の choose_key を通し、
+  送るキーは本番の実行器の口（_ExecutorInputPort）で送る。
+- 欠陥の検査と、直す前に戻して流した結果（src の該当の部分だけを戻して流し、戻した）:
+  - LatchedReturnBesideAHostileTest.test_latched_return_reads_recall_beside_the_adjacent_hostile
+    戻すと失敗: 'melee' != 'return:recall'
+  - BlindWithoutCureTest.test_blind_without_cure_attacks_the_remembered_attacker
+    盲目の枝を戻すと失敗: ('unseen-recall:move', '4') != ('unseen-recall:blind-strike', '+6')
+    実行器の '+' の計画だけ戻すと失敗: stuck-prompt reason=unowned direction
+  - BlindWithoutCureTest.test_control_nothing_remembered_stays
+    戻すと失敗: '4' != '5'（歩いてしまう）
+  - DarkWildernessExitFloorTest.test_dark_stair_wears_the_carried_average_lantern
+    戻すと失敗: ('return:search-upstairs', 's') != ('wield-light', 'wi')
+  - DarkWildernessExitFloorTest.test_dark_floor_without_light_walks_to_a_lit_floor_and_reads_recall
+    戻すと失敗: ('dark:backtrack', '9') != ('return:seek-lit-grid', '9')
+    （注: 新しい方策の再生では暗がりの歩きもたまたま同じ向き '9' を選ぶので、違いは担当の名前。
+    記録の生の判断は '7'（部屋から離れる）だった。）
+- 記録の固定と対照（直す前も後も通る）: test_recorded_row(s) 4件、
+  test_control_cure_carried_is_quaffed_first（薬があれば先に飲む）、
+  test_control_lit_cells_are_not_remembered_while_blind。
+- 流したもの: import の確認（通過）、checks.json の 44 項 50 モジュールと新しい検査 10 件、合わせて 343 件すべて通過（1280 秒）。
+- 期待値を変えた既存の検査は無い。テストの壁も無い。
+
+checks.json に足す項（自分では足していない）
+{"id": "OWNER-A-SURVIVAL", "owner": "2026-10-31 15h 「隣に敵がいても譲る」「盲目で治す薬がないときは…見えない敵を攻撃することを試みる方が生存確率は上がる。」「明るいマスへ歩いて帰還を読むが、そもそも光源を切らさない努力が必要」 (n1-a life-446, n1-c life-055, branch owner-a-survival-1031)", "tests": ["tests.test_owner_a_survival_recorded"]}
+
+所有者への問い・残り
+1. 盲目で、覚えている隣の敵が無い時は「その場で待つ」にした（答えの「何も分からなければ」の読み）。
+   HP が低いと低 HP の歩きの門が同じ待ちを emergency:wait と呼び替える。待つ以外（例: ランダムな向きを '+' で攻撃、
+   既存の no-wait:attack と同じ）がよければ教えてほしい。
+2. 出発の確かめ（_light_ready）は、装備の光が尽きていても未鑑定のランタンと油を持っていれば通す。今回は
+   ダンジョンに着いた最初の暗い盤面でランタンを付けるので死にはつながらないが、町で付けてから出る方が
+   「光源を切らさない努力」に沿う。町で未鑑定の光源を付けるのは Q-B（C 画面に不運が無い）が成り立つ時だけ
+   （f2df445ed）。成り立たない時に町で付けてよいか、出発を止めるかは新しい決まりなので実装していない。
+3. 資金稼ぎの階で、油を注いだ直後の未鑑定のランタンを松明に替える（fundraise:wield-light）。油が出発の目標より
+   少ないことが理由だが、ランタンは燃えている。替えないでよいか（unid-light の報告の残りと同じ問い）。
+4. 明るい床へ歩く (a) は「全部の '<' が荒野へ出る階」だけにした。深い階でも暗くて読めない時に同じことを
+   するかは答えの範囲外なので広げていない。
+5. 盲目の攻撃は帰還中の unseen-recall の枝だけ（答えの場面）。帰還中でない盲目の扱いは変えていない。
