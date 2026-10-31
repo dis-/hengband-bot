@@ -511,7 +511,8 @@ from hengbot.quest_knowledge import (
     QuestInfo,
 )
 from hengbot.quest_strategies import (
-    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, torch_throw_output,
+    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, heal_potion_sval,
+    torch_throw_output,
 )
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
@@ -13072,6 +13073,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if item.is_potion and item.aware and item.sval == sval
         )
 
+    def _strategy_heal_potion_count(self, snapshot: Snapshot, force: dict) -> int:
+        """Carried potions counted as ``force``'s ``heal_potions``."""
+        return self._exact_potion_count(snapshot, heal_potion_sval(force))
+
     def _find_low_value_potion(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(
             snapshot,
@@ -17680,7 +17685,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for name in force.get("resists", ())
         )
         speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)
-        healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
+        healing = self._strategy_heal_potion_count(snapshot, force)
         details = {
             "reference_ac": reference_ac,
             "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id)},

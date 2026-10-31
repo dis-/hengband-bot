@@ -22,6 +22,7 @@ from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, 
 from hengbot.town_arbiter import _new_town_turn_arbiter
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitKind
+from hengbot.quest_strategies import heal_potion_sval, is_heal_potion_for
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from math import ceil
 from hengbot.equipment_optimizer import equipment_identity
@@ -85,13 +86,13 @@ class ShopMixin(InStoreMixin):
 
         reserve = 0
 
-        def add(category: str, missing: int) -> bool:
+        def add(category: str, missing: int, kinds: tuple | None = None) -> bool:
             nonlocal reserve
             if missing <= 0:
                 return True
             known = self._observed_departure_prices.get(category)
             if known is None:
-                base_kinds = {
+                base_kinds = kinds if kinds is not None else {
                     "recall": ((TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),),
                     "teleport": ((TVAL_SCROLL, SV_SCROLL_TELEPORT),),
                     "cure-critical": ((TVAL_POTION, SV_POTION_CURE_CRITICAL),),
@@ -101,8 +102,6 @@ class ShopMixin(InStoreMixin):
                         (TVAL_LITE, SV_LITE_LANTERN),
                     ),
                     "identify-staff": ((TVAL_STAFF, SV_STAFF_IDENTIFY),),
-                    "quest:speed": ((TVAL_POTION, SV_POTION_SPEED),),
-                    "quest:healing": ((TVAL_POTION, SV_POTION_HEALING),),
                 }.get(category, ())
                 base_prices = [
                     self._baseitem_costs[kind]
@@ -153,17 +152,11 @@ class ShopMixin(InStoreMixin):
                 )
                 if missing and not add(f"quest-carry:{name}", missing):
                     return None
-            force = strategy.required_force
-            for category, sval, target_key in (
-                ("quest:speed", SV_POTION_SPEED, "speed_potions"),
-                ("quest:healing", SV_POTION_HEALING, "heal_potions"),
+            for category, kind, carried, required in self._strategy_potion_needs(
+                snapshot, strategy.required_force
             ):
-                missing = max(
-                    0,
-                    int(force.get(target_key, 0))
-                    - self._exact_potion_count(snapshot, sval),
-                )
-                if missing and not add(category, missing):
+                missing = max(0, required - carried)
+                if missing and not add(category, missing, (kind,)):
                     return None
         return reserve
     def _full_departure_resupply_reserve(self, snapshot: Snapshot) -> int | None:
@@ -209,8 +202,6 @@ class ShopMixin(InStoreMixin):
                     (TVAL_LITE, SV_LITE_LANTERN),
                 ),
                 "identify-staff": ((TVAL_STAFF, SV_STAFF_IDENTIFY),),
-                "quest:speed": ((TVAL_POTION, SV_POTION_SPEED),),
-                "quest:healing": ((TVAL_POTION, SV_POTION_HEALING),),
                 "throwing_items.lit_torch": ((TVAL_LITE, SV_LITE_TORCH),),
                 "launcher": (),
                 "launcher.average_damage": (),
@@ -266,13 +257,16 @@ class ShopMixin(InStoreMixin):
                 return base_kinds("utility_tools.wall_breach")
             return None
 
-        def add(category: str, target: int, *, minimum_units: int = 1) -> bool:
+        def add(
+            category: str, target: int, *, minimum_units: int = 1,
+            kinds: tuple | None = None,
+        ) -> bool:
             nonlocal reserve
             if target <= 0:
                 return True
             known = observed_prices.get(category)
             if known is None:
-                kinds = base_kinds(category)
+                kinds = kinds if kinds is not None else base_kinds(category)
                 if kinds is None:
                     return False
                 base_prices = [
@@ -336,15 +330,25 @@ class ShopMixin(InStoreMixin):
                 target = max(0, int(status["required"]))
                 if target and not add(f"quest-carry:{name}", target):
                     return None
-            force = strategy.required_force
-            for category, sval, target_key in (
-                ("quest:speed", SV_POTION_SPEED, "speed_potions"),
-                ("quest:healing", SV_POTION_HEALING, "heal_potions"),
+            for category, kind, _carried, required in self._strategy_potion_needs(
+                snapshot, strategy.required_force
             ):
-                target = max(0, int(force.get(target_key, 0)))
-                if target and not add(category, target):
+                if required > 0 and not add(category, required, kinds=(kind,)):
                     return None
         return reserve
+
+    def _strategy_potion_needs(
+        self, snapshot: Snapshot, force: dict
+    ) -> tuple[tuple[str, tuple[int, int], int, int], ...]:
+        """(price category, potion kind, carried, required) of a strategy's potions."""
+        return (
+            ("quest:speed", (TVAL_POTION, SV_POTION_SPEED),
+             self._exact_potion_count(snapshot, SV_POTION_SPEED),
+             int(force.get("speed_potions", 0))),
+            ("quest:healing", (TVAL_POTION, heal_potion_sval(force)),
+             self._strategy_heal_potion_count(snapshot, force),
+             int(force.get("heal_potions", 0))),
+        )
 
     def _arbiter_close_store_visit(self, owner: str, outcome: str) -> None:
         """Close only a visit resource owned by the yielding token family."""
@@ -2898,7 +2902,7 @@ class ShopMixin(InStoreMixin):
             )
             add(rung("quest:carry", "quest-carry", carry_live, lambda i: self._quest_carry_target_for_item(snapshot, i, force) is not None and (self._quest_carry_target_for_item(snapshot, i, force)[0] != "launcher_ammo" or self._ammo_purchase_preserves_plan(snapshot, i)) and self._quest_carry_target_for_item(snapshot, i, force)[1] < self._quest_carry_target_for_item(snapshot, i, force)[2]))
             add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: int(force.get("speed_potions", 0))))
-            add(rung("quest:healing", "healing", lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING) < int(force.get("heal_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING, current=lambda: self._exact_potion_count(snapshot, SV_POTION_HEALING), target=lambda: int(force.get("heal_potions", 0))))
+            add(rung("quest:healing", "healing", lambda: self._strategy_heal_potion_count(snapshot, force) < int(force.get("heal_potions", 0)), lambda i: is_heal_potion_for(i, force), current=lambda: self._strategy_heal_potion_count(snapshot, force), target=lambda: int(force.get("heal_potions", 0))))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
         add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and (not self._food_ready(snapshot) or (getattr(self, "_crossarea_fundraising_enforced", False) and self._fundraising_mode in {"mine", "scavenge"} and self._find_edible(snapshot) is None)), lambda i: is_mana_food_ware(self, snapshot, i)))
         add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET, lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: TORCH_THROW_TARGET))
@@ -3629,10 +3633,9 @@ class ShopMixin(InStoreMixin):
                               and it.sval == SV_POTION_SPEED and it.price <= gold), None)
                 if speed is not None:
                     return speed
-            healing = self._exact_potion_count(snapshot, SV_POTION_HEALING)
+            healing = self._strategy_heal_potion_count(snapshot, force)
             if healing < int(force.get("heal_potions", 0)):
-                heal = next((it for it in items if it.tval == TVAL_POTION
-                             and it.sval == SV_POTION_HEALING
+                heal = next((it for it in items if is_heal_potion_for(it, force)
                              and it.price <= gold), None)
                 if heal is not None:
                     return heal

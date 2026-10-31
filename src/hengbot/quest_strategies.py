@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, TVAL_POTION
 from hengbot.monrace_knowledge import _strip_jsonc
 
 
@@ -33,6 +34,25 @@ def class_throwing_items(force: dict[str, Any], class_id: int) -> dict[str, Any]
     """Resolve a reviewed class-specific throwing plan (QUEST_1 class 16)."""
     overrides = force.get("throwing_items_by_class", {}).get(str(class_id))
     return dict(overrides) if overrides is not None else dict(force.get("throwing_items", {}))
+
+
+# The potion a strategy's ``heal_potions`` counts: required_force
+# ``heal_potion_kind`` (default Potion of Healing).  QUEST_14 names Cure
+# Critical Wounds (owner 2026-10-31 「致命傷の治癒でよい」).
+HEAL_POTION_KIND_SVALS = {
+    "healing": SV_POTION_HEALING,
+    "cure_critical": SV_POTION_CURE_CRITICAL,
+}
+
+
+def heal_potion_sval(force: dict[str, Any]) -> int:
+    """The potion sval that counts toward ``force``'s ``heal_potions``."""
+    return HEAL_POTION_KIND_SVALS[force.get("heal_potion_kind", "healing")]
+
+
+def is_heal_potion_for(item: Any, force: dict[str, Any]) -> bool:
+    """Whether ``item`` (pack or shelf) is ``force``'s heal_potions kind."""
+    return item.tval == TVAL_POTION and item.sval == heal_potion_sval(force)
 
 
 # The carries a strategy may lower when the full kit cannot be afforded:
@@ -121,6 +141,11 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
         "required_scrolls": {"light", "teleport"},
         "utility_tools": {"wall_breach"},
     }
+    if force.get("heal_potion_kind", "healing") not in HEAL_POTION_KIND_SVALS:
+        raise ValueError(
+            "heal_potion_kind must be one of: "
+            + ", ".join(sorted(HEAL_POTION_KIND_SVALS))
+        )
     floors = [force.get("carry_floor", {}), *force.get("carry_floor_by_class", {}).values()]
     if not all(isinstance(floor, dict) and set(floor) <= set(LOWERABLE_CARRIES)
                and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0

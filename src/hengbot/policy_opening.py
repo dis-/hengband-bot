@@ -6,7 +6,7 @@ The route retains its kit choice across purchases and checkpoints.
 from hengbot.model import (
     STORE_GENERAL, STORE_WEAPON, STORE_BLACK, STORE_ALCHEMIST, STORE_TEMPLE,
     StoreState,
-    SV_POTION_HEALING, SV_POTION_SPEED, TVAL_POTION,
+    SV_POTION_SPEED, TVAL_POTION,
 )
 from hengbot.policy_types import TownNeed
 from hengbot.policy_constants import (
@@ -17,7 +17,9 @@ from hengbot.policy_constants import (
 )
 from hengbot.item_reservation import decision_memo
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.quest_strategies import acceptance_dps_floor, acceptance_hp_floor, carry_floor
+from hengbot.quest_strategies import (
+    acceptance_dps_floor, acceptance_hp_floor, carry_floor, is_heal_potion_for,
+)
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -147,8 +149,8 @@ class OpeningRouteMixin:
             ("quest-throwing-items", int(force.get("throwing_items", {}).get("lit_torch", 0)),
              self._count_throwing_torches(snapshot), lambda item: item.is_torch),
             ("quest-healing", 0 if no_heal else int(force.get("heal_potions", 0)),
-             self._exact_potion_count(snapshot, SV_POTION_HEALING),
-             lambda item: item.tval == TVAL_POTION and item.sval == SV_POTION_HEALING),
+             self._strategy_heal_potion_count(snapshot, force),
+             lambda item: is_heal_potion_for(item, force)),
             ("quest-speed", 0 if no_heal else int(force.get("speed_potions", 0)),
              self._exact_potion_count(snapshot, SV_POTION_SPEED),
              lambda item: item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED),
