@@ -29,8 +29,7 @@ main で直っていたか
   直す前に戻すと失敗（fundraise:wield-light 'we'）。
 - test_without_oil_the_run_goes_on_with_the_lantern_worn: 油を外した盤面（DECLARED CONSTRUCTED）で資金稼ぎを続け、
   キーを本番の実行器で送る。直す前に戻すと失敗（fundraise:wield-light）。
-- 流したもの: import の確認（通過）、checks.json の 47 項 53 モジュールと新しい検査 4 件。352 件中 351 件通過。
-  残る1件は tests.test_spectator_tiles32 の読み込みの失敗（main に無いモジュール。別の枝の項が checks.json に先に入っている）。
+- 流したもの（main ebd9051d2 を取り込んだ後）: import の確認（通過）、checks.json の 48 項 58 モジュールと新しい検査 4 件、合わせて 373 件すべて通過。
 - 記録の固定 test_recorded_rows と、対照 test_control_spent_lantern_without_refill_takes_the_torch
   （燃料の尽きた既知のランタンで油が無ければ松明に替える）は直す前も後も通る。
 
