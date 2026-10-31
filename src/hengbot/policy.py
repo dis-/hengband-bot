@@ -104,6 +104,7 @@ from hengbot.equipment_optimizer import (
     Loadout,
     OwnedEquipment,
     OwnedEquipmentCatalog,
+    average_feeling_trusted,
     current_loadout,
     divable_depth,
     equipment_identity,
@@ -7561,6 +7562,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _refresh_carried_equipment_catalog(self, snapshot: Snapshot) -> None:
         """Refresh carried gear and release Home-only deferrals after withdrawal."""
+        self._equipment_catalog.set_average_feeling_trusted(
+            average_feeling_trusted(self._mutation_signature)
+        )
         self._equipment_catalog.refresh_carried(
             snapshot.inventory, snapshot.equipment
         )

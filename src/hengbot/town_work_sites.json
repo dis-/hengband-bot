@@ -555,7 +555,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "63bf88d817c9757c6544b07261ff9a1d288270ea71a12f04e343d5036c61c99f"
+    "ast_sha256": "162b65bc78ea9aa50077d8cb36b7036b425259d6edb21071cb9407927d29ee4e"
   },
   "equipment_optimizer.py:owned_armor_fill_slots": {
     "classification": "data",
@@ -5086,7 +5086,7 @@
       "equipment-transaction"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "0dfe0ee91316a1e1a886b103a8b18b882946116924905a0c44ff9a0d002a0599"
+    "ast_sha256": "2a584c1919a6da144b7ca20a6257e00e1ea45e76478ed1de89d466d67609cc39"
   },
   "policy_equipment.py:EquipmentMixin._find_weapon_sale": {
     "classification": "data",
@@ -5191,7 +5191,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "fc6bbc489ea098d9ef7f7aea4e3c1642d2895b1e098cc2c2f8c6229b1e65b785"
+    "ast_sha256": "afd9cb23bcaf9f4dbc39e1fdf6315e3d301e5a5d1337d732abfb7ffdf5a93b57"
   },
   "policy_equipment.py:EquipmentMixin._retained_ammo_slots": {
     "classification": "data",
@@ -8903,6 +8903,14 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "910d2904136ab454964034b2881cf3f3e325dedc8aaa5bc9ac076baf86deb2ed"
   },
+  "quest_navigator.py:QuestFloorNavigator._q34_inscription_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "1d3c11440c952b7e5415da835e40e408af34dfafcb337346a181497c6c45cca0"
+  },
   "quest_navigator.py:QuestFloorNavigator._static_path": {
     "classification": "data",
     "rows": [
@@ -8942,7 +8950,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d192c679f8f933a4468817dfce75984d911b3bc47d464b0397fd2a6ee47a26a9"
+    "ast_sha256": "ee108a28c13b558ea41c4fabeaab61ad43738f60a5866ad82c36218852674f6b"
   },
   "quest_navigator.py:QuestFloorNavigator.enter_from_town": {
     "classification": "producer",
@@ -8976,6 +8984,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "2bebccbb9df8eeae7630baacf9edfddb8072a63d16433021ce9c77cb80c40d62"
+  },
+  "quest_navigator.py:_unidentified_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "01de6c248da3120a0cb49e5b029c0ca43b35cd7319a9b206ab34ff7a29770ecc"
   },
   "quest_opening_readiness.py:q34_readiness_rejection_key": {
     "classification": "adapter",
