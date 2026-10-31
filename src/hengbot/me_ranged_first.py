@@ -79,10 +79,15 @@ def attack_key(policy, snapshot, target) -> str | None:
             and getattr(policy, "_me_missile_empty_turn", None) != snapshot.turn):
         policy.last_reason = MISSILE_REASON
         return "mBp" + direction
+    # A carried wand is the same wand_effect (zapwand-execution.cpp:102), so a
+    # town ball keeps the absorbed powers' area rule.
     wand = next((item for item in snapshot.inventory
                  if item.tval == TVAL_WAND and item.known
                  and item.sval in ATTACK_WAND_SVALS and item.charges > 0
-                 and not item.charging), None)
+                 and not item.charging
+                 and not me_device_attacks.catches_unbeatable_friendly(
+                     policy, snapshot, me_device_attacks.POWERS[("wand", item.sval)],
+                     target, direction)), None)
     if wand is not None:
         key = reserved_item_command(policy, snapshot, "wand", wand, suffix=direction)
         if key is not None:

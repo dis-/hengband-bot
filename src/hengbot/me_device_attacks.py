@@ -31,17 +31,37 @@ returns before any damage when the source is the player), so an adjacent
 ball is allowed.  Mana Storm (50 unavoidable self-damage), Starlight
 (random rays), Earthquakes/*Destruction*, Wonder, Havoc and every status or
 helping power are not attacks here.
+
+Town area attacks (owner 2026-10-31 「敵対させたあと勝てるかで判断。勝てるなら
+巻き込んで良い。」): a ball or breath whose blast would catch a friendly town
+monster is used only when the character could still defeat it once angered --
+the same duel judgement that keeps the town hunt off an unbeatable friendly
+(``policy._town_friendly_unbeatable``).  A player's ball damages every monster
+in the blast and any damage angers a friendly (effect-monster.cpp:310-311,
+monster-status-setter.cpp:48-56).  A direction-aimed ball stops at the first
+monster on the ray (spells-launcher.cpp:26-39, PROJECT_STOP) and explodes
+within ``AREA_RADIUS`` game distance of it (range-calc.cpp:267-290 ball_shape);
+a breath is a cone along the ray no wider than its radius (range-calc.cpp:215
+breath_shape).  The blast is over-approximated: walls that block it
+(is_prevent_blast) are ignored.
 """
 
 from dataclasses import dataclass
 from typing import Callable
 
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.model import Position, game_distance
+from hengbot.policy_constants import DIRECTION_KEYS
 
 
 DEVICE_REASON = "ranged:magic-eater-device"
 KIND_LETTER = {"staff": "A", "wand": "B", "rod": "C"}
 MISSILE = ("wand", 15)
+# Blast radius by shape (powerful=false): wand/rod balls ``rad = powerful ? 3
+# : 2`` (cmd-zapwand.cpp:57, cmd-zaprod.cpp:51); breaths fire_breath(..., 3)
+# (cmd-zapwand.cpp:263-289).
+AREA_RADIUS = {"ball": 2, "breath": 3}
+_OFFSET_BY_KEY = {key: offset for offset, key in DIRECTION_KEYS.items()}
 
 
 @dataclass(frozen=True)
@@ -184,6 +204,33 @@ def observe_lists(policy, snapshot) -> None:
     policy._me_device_lists = lists
 
 
+def _blast_centres(snapshot, power, target, direction):
+    """The ray cells a ball (its impact) or a breath (its cone) spreads from."""
+    dy, dx = _OFFSET_BY_KEY[direction]
+    origin = snapshot.player.position
+    occupied = {monster.position for monster in snapshot.visible_monsters}
+    ray = []
+    for step in range(1, max(origin.distance_to(target.position), 1) + 1):
+        ray.append(Position(origin.y + dy * step, origin.x + dx * step))
+        if ray[-1] in occupied:
+            break  # PROJECT_STOP: the first monster on the ray is the impact
+    return ray if power.shape == "breath" else ray[-1:]
+
+
+def catches_unbeatable_friendly(policy, snapshot, power, target, direction) -> bool:
+    """Whether a town ball/breath would anger a friendly this character cannot defeat."""
+    radius = AREA_RADIUS.get(power.shape)
+    if radius is None or not snapshot.in_town:
+        return False
+    centres = _blast_centres(snapshot, power, target, direction)
+    return any(
+        monster.friendly and monster.index != target.index
+        and any(game_distance(centre, monster.position) <= radius for centre in centres)
+        and policy._town_friendly_unbeatable(snapshot, monster)
+        for monster in snapshot.visible_monsters
+    )
+
+
 def _available(power, row):
     if power.kind == "rod":
         return isinstance(row.get("charging"), int) and isinstance(row.get("max"), int) \
@@ -191,7 +238,7 @@ def _available(power, row):
     return isinstance(row.get("current"), int) and row["current"] > 0
 
 
-def _candidates(policy, snapshot, target):
+def _candidates(policy, snapshot, target, direction):
     flags = None
     knowledge = policy._monrace_knowledge.get(target.race_id)
     if knowledge is not None:
@@ -205,6 +252,8 @@ def _candidates(policy, snapshot, target):
                 continue
             if power.shape == "sight" and bystander:
                 continue  # project_all_los would also hit a pet or a peaceful monster
+            if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
+                continue
             success = max(0, min(100, int(row.get("success", 0)))) / 100
             damage = min(expected_damage(power, level, flags), max(target.hp, 0))
             yield success * damage, power
@@ -227,7 +276,7 @@ def attack_key(policy, snapshot, target, direction) -> str | None:
     if (player.class_id != PLAYER_CLASS_MAGIC_EATER
             or player.blind or player.confused or player.hallucinated):
         return None
-    scored = sorted(_candidates(policy, snapshot, target),
+    scored = sorted(_candidates(policy, snapshot, target, direction),
                     key=lambda pair: (-pair[0], pair[1].kind != "rod", pair[1].level))
     if not scored or scored[0][0] <= 0:
         return None

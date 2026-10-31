@@ -69,6 +69,7 @@ from hengbot.me_staff_sequence import (
 from hengbot.me_device_policy import devices
 from hengbot.model import (
     SV_ROD_DISARMING, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_WAND, Position,
+    game_distance,
 )
 from hengbot.policy_constants import DIRECTION_KEYS, MONSTER_SPELL_MAX_RANGE
 from hengbot.projection_path import projection_path
@@ -248,22 +249,6 @@ def beam_direction(policy, snapshot, origin: Position, target: Position) -> str 
         origin, Position(origin.y + step[0], origin.x + step[1]), MONSTER_SPELL_MAX_RANGE,
         lambda position: policy._may_block_projection(snapshot, position), through=True)
     return DIRECTION_KEYS[step] if target in path else None
-
-
-def game_distance(a: Position, b: Position) -> int:
-    """Grid::calc_distance (system/grid-type-definition.cpp:19-38)."""
-    dy, dx = abs(a.y - b.y), abs(a.x - b.x)
-    distance = max(dy, dx) + min(dy, dx) // 2
-    if dy == 0 or dx == 0:
-        return distance
-    squared = dy * dy + dx * dx
-    while True:
-        # C++ integer division truncates toward zero (Python's // floors).
-        numerator = squared - distance * distance
-        error = abs(numerator) // (2 * distance) * (1 if numerator >= 0 else -1)
-        if error == 0:
-            return distance
-        distance += error
 
 
 # -- triggers: one named predicate each ---------------------------------------
