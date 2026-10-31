@@ -278,7 +278,11 @@ class PolicyHelpersMixin:
                     or item.name.startswith(("Broken ", "\u6298\u308c\u305f"))
                 )
             )
-            or item.pseudo_feeling in {"average", "cursed"}
+            or item.pseudo_feeling == "cursed"
+            # An {average} item the selected loadout wears unidentified (owner
+            # 2026-10-31) is not junk while it is selected.
+            or (item.pseudo_feeling == "average"
+                and not self._selected_unidentified_wearable(item))
             # Empty bottles are the worthless junk a quaffed potion leaves behind;
             # no shop buys them, so shed them rather than let them fill the pack.
             or item.is_empty_bottle

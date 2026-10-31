@@ -1,0 +1,79 @@
+#47 診断: 鑑定前の {並} の光源と Q34 で拾った品を付けない（n1-c life-055）
+
+基準: main 1acb3b27c（ブランチ unid-light-1031）。行番号は 1 始まり。
+
+1. 今の決まり（1acb3b27c）
+- src/hengbot/equipment_optimizer.py:227-230 OwnedEquipment.evaluable
+  鑑定前（known=false）の品は必ず False。光源でも感じ（擬似鑑定）でも例外が無い。
+- 同 233-243 identification_incomplete
+  鑑定前で {並} の品は False（鑑定の回数を使わない）、それ以外の鑑定前の品は True。
+  コメント 234-236 のとおり、{並} は「探索には使わず、売るか壊す」扱い。
+- 同 248-257 exploration_legal は evaluable が False なら False。
+  これで最適化の候補から外れる（search_slot_candidate_counts の light が 0。記録の決定 4993）。
+- src/hengbot/policy_equipment.py:802 _ready_equipment_transaction_target
+  選ばれた品でも _equip_blocked_by_identification（policy_identification.py:815-819、
+  鑑定前か呪いなら True）なら、その欄は今の装備のまま待たせる。
+- 同 4031 _equipment_wield の identify-first の門。鑑定前の品の装備は
+  「equipment-mutation:identify-first」で断る（例外はクエストの約束と、ダンジョンで光源が尽きた時の最後の手段だけ）。
+- src/hengbot/policy_helpers.py:281 _is_disposable_item
+  感じが average か cursed の品は不要品（持ち物が満杯の時の処分・売却の順の候補）。
+- 光源の古い担当（変えていない）: policy.py _find_light / _is_usable_light は燃料で使えるかを決める。
+  鑑定前の光源は燃料が見えない（bot-json-output.cpp:1062-1085 は known の時だけ light_turns を出す、
+  protocol.py:146 は 0 と読む）。policy_supply.py:221 _unknown_light_last_resort はダンジョンだけ。
+
+2. Q-B の判定
+- 所有者 Q-B（2026-10-22）: 「戦士の重い擬似鑑定の {並} を、壊すための鑑定の代わりにしてよい
+  （不運の突然変異が無いと画面で確かめられる時だけ）」。
+- 設計 plans/DESIGN-junk-1b-1022.md 2.2: 「感じだけで不要にするのは `_mutation_signature` が None でなく
+  92 を含まない時だけ。None（まだ見ていない）は残す」。
+- コードには実装が無かった（1b-3 は未着手。policy.py:15629 のコメント「feeling-only items (Q-B) are a later slice」）。
+  git log の全ブランチにも BAD_LUCK・92 の判定は無い。再利用できる判定が無いので、設計の判定を
+  equipment_optimizer.average_feeling_trusted() として1か所に作った（後の 1b-3 もこれを使える）。
+- 突然変異の一覧: C 画面の応答の mutations（bot-json-output.cpp:1910-1914）を
+  policy_observation.py:72-79 が self._mutation_signature に入れる。
+
+3. 魔道具術師（職業 16）の擬似鑑定（ゲームの source、src/perception/simple-perception.cpp）
+- 光源（LITE）は sense_inventory2（337-443）が扱う。魔道具術師は 388-399 の組で、確率は
+  9000/(plev*plev+40) 回に 1 回（速い）。品ごとに持ち物は 1/5（437-439）。
+- sense_inventory2 は職業に関係なく重い判定で感じを付ける（441 行 sense_inventory_aux(..., true)）。
+  戦士・弓兵・侍・騎兵・狂戦士・スナイパーは光源を感知しない（347-354）。
+- 重い判定 pseudo_value_check_heavy（450-490）で {並} は「アーティファクトでもエゴでもなく、呪いでも壊れでもなく、
+  to_a <= 0 かつ to_h+to_d <= 0」。戦士の武器・防具の {並} と同じ判定。
+- 不運（BAD_LUCK=92、mutation-flag-types.h:98）: 13 回に 1 回、感じが入れ替わる（66-108）。
+  重い判定では {呪い} が 1/3 で {並} になる（78 行）。よって {並} を信じてよいのは不運が無い時だけ。
+- 結論: Q-B の判定（C 画面に不運が無い）は職業 16 の光源にもそのまま使える。
+- 参考: 魔道具術師の武器・防具は sense_inventory1 で軽い判定（178-187、heavy=false）。軽い判定
+  pseudo_value_check_light（497-524）は {並} を返さない。武器・防具の {並} は知識の徳か幸運の時の重い判定だけ。
+- 記録の C 画面（state-head.jsonl 21 行目、turn 205220、同じキャラ）の mutations は []。
+
+4. 記録で何が起きたか（n1-c life-055）
+- 真鍮のランタンは Q34 の開始の品（決定 58 quest-strategy:pickup-opening-lantern 'g'、
+  59 equip-opening-lantern 'we'、60 refill-light。光の半径 2）。
+- 決定 938-939: 資金稼ぎの階で油を足した後 fundraise:wield-light 'wf' で松明に替えた
+  （鑑定前のランタンは燃料が 0 と読まれ、油が出発の目標を下回ったため。policy_fundraising.py:1481-1486、
+  policy_supply.py:515-523。光源の古い担当の動き）。
+- 町では最適化がランタンを候補にしない（1 の決まり）。決定 4741（turn 207690）で松明が尽きて半径 0。
+  以後 light の候補は 0（決定 4745 以降）で、ランタン {並} を持ったまま付けなかった。
+
+5. Q34 で拾った品を見分ける方法
+- 今のボットに「Q34 の階で拾った品」の記録は無い（_known_loot・found_items は床の記憶で、拾った品の記録ではない）。
+- 所有者 2026-10-31: 「Q34で拾った品を覚える必要があるなら銘を刻むこと」。ボットの中の記録ではなく、
+  拾った時にゲームの中で銘を刻み、後で銘で見分ける。
+- ゲームの銘の命令（src/cmd-item/cmd-item.cpp:198-225 do_cmd_inscribe）: 「どのアイテムに銘を刻みますか? 」で品を選び、
+  「銘: 」で今の銘を初期値に入力する。行動力（ゲームの時間）を使わない。
+- ボットの既存の銘の道: item_reservation.py:452 の接頭辞 '{'（持ち物）と '{/'（装備）。使っている所は
+  店の売却の札 "@<数字>"（policy_instore.py:277-280）、HEAVY_CURSE（policy.py:16958-17050、既存の銘の末尾に
+  "\x05 " で足す）、"." のテレポート抑止（policy.py:17133-17170）。松明の "@v0=g" はプレイヤー側の銘。
+- 選んだ銘: "Q34"。変愚蛮怒の銘で意味のある記号（@ ! = . % など）を含まず、既存の札（@数字、HEAVY_CURSE、.）と重ならない。
+- Q34 の階: snapshot.floor_key[2] == 34。階の上の担当は QuestFloorNavigator.decide（quest_navigator.py）だけ。
+
+6. Q34 で手に入る装備（呪いがあるか、lib/edit/quests/034_DumpWitness.jsonc とゲームの source）
+- 固定の品: 247 酔っ払いの薬、348 油つぼ、347 真鍮のランタン、488 金塊、338 小さな木の箱、344 あばかれた箱、
+  395 人間の骨、241 致命傷の治癒、186 テレポート。装備は真鍮のランタンだけ。
+  固定の品は ItemMagicApplier(..., AM_NO_FIXED_ART | AM_GOOD)（floor/fixed-map-generator.cpp:173）で作る。
+  AM_GOOD なので呪いにならない。
+- 敵: 243 クローカー、107 デスソード、174 殺人蜂。DROP の旗は無い。デスソードは倒すと魔法を掛けない
+  素の剣（sval 1-2）を落とす（monster-floor/special-death-switcher.cpp:176-184）。呪いは無い。
+- 小さな木の箱の中身: AM_GOOD | AM_FORBID_CHEST（specific-object/chest.cpp:46）。呪いの品にはならない。
+  AM_NO_FIXED_ART が無いので固定アーティファクトは理屈の上で出うる（浅い階でまず出ない）。
+- よって Q34 の品の範囲で呪いが問題になる場面は見当たらない。念のため、呪い・壊れの感じが付いた品は付けない。
