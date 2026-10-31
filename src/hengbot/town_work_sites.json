@@ -1964,6 +1964,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "57ec07b4b75d0329ff4037b28d3c2f9ffcc9e9f026c833c774a3173ade77206f"
   },
+  "me_powers.py:Context.aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "bb93067cc6b47aecd6df5f0992f7f96c3c17affe50a78b5d566b3b8757f7d148"
+  },
   "me_powers.py:Power.key": {
     "classification": "data",
     "rows": [
@@ -1988,6 +1996,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "204596a035aefb16596fff1889ede9ca8e4ab912a6433237ba581e69e69c87c6"
   },
+  "me_powers.py:beam_direction": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "19c34ebd70783dcc8a1d0f6e459ff1e1c16b611a0d53146723810fe8a57a2f18"
+  },
   "me_powers.py:charges": {
     "classification": "data",
     "rows": [
@@ -1995,6 +2011,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "e4d840dd3afcd4b0f5f1772370590ea486a24051570461f6847f4bff105e8fca"
+  },
+  "me_powers.py:decision_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "141ec3ceba0167bbb8a58a9316bcded7d856d25912050cb3abcb39b7b3c6bb17"
   },
   "me_powers.py:encode_letter": {
     "classification": "data",
@@ -2018,7 +2042,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0457386e2c5775ce54c5a22a011defdbb9a55de70f57144b57f084182a6a02fe"
+    "ast_sha256": "c52a4536c7f201b69ab8f2a9cc1a669419344d382684eb8189d94c00cff6bd55"
   },
   "me_powers.py:recorded_charges": {
     "classification": "data",
@@ -4808,7 +4832,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "7cd82a5f1ffd90c0fef31e367eef33e306f726be00ec1f25294ff83fd6d5f1b6"
+    "ast_sha256": "33f2839004e72a152e7c449ea4183e8723dc305c82c078f3c740fad5d5309e97"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4849,7 +4873,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "474750f7e2719bab20068a41b85221c63f5feab3b0c6c62b6867186b7c4088d3"
+    "ast_sha256": "8ee57b7585b12c6d2e89b98d5cfe8b24904da59579007e092c94ec5d1611ef9d"
   },
   "policy.py:HengbotPolicy.validate_read_key": {
     "classification": "adapter",
@@ -6444,7 +6468,7 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3150986f330fd8314d50f29a5f3d50bb7494c1d7a149c01f5c580617766ef77c"
+    "ast_sha256": "3b2e925d9a5dadb90d776b1a5816cec6474c2916b448dcaa142f4475caf61091"
   },
   "policy_identification.py:IdentificationMixin._dungeon_equipment_identify_key": {
     "classification": "dungeon-only",
@@ -6825,7 +6849,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "befc982415c096ee907e34aafb2f38b4413937e7c4601e74f2ed6c1c874af133"
+    "ast_sha256": "c08f1f516b31dd787ee54f4b7bfe90b04cea72a1295c9ffcb965c0be3b7edb57"
   },
   "policy_navigation.py:NavigationMixin._suppress_pending_stair_command": {
     "classification": "adapter",

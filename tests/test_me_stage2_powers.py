@@ -293,11 +293,14 @@ class MagicEaterStage2PowersTest(mining.harness.ProductionHarness):
                 self.assertEqual(me_powers.decode_letter(power.letter), power.sval)
                 if power.fallback is not None:
                     self.assertIn(power.fallback, me_powers.BY_KEY)
-                prefix, steps = compile_device(power.key, "me-power:new-floor:" + power.effect)
+                # An aimed power's key ends in its direction (get_aim_dir).
+                direction = "6" if power.aimed else ""
+                key = power.key + direction
+                prefix, steps = compile_device(key, "me-power:new-floor:" + power.effect)
                 self.assertEqual(prefix, "m")
-                self.assertEqual((type(steps[0]), steps[0].kind, steps[0].sval),
-                                 (DeviceStep, power.kind, power.sval))
-                self.assertIsNone(compile_device(power.key, "explore"))
+                self.assertEqual((type(steps[0]), steps[0].kind, steps[0].sval, steps[0].keys),
+                                 (DeviceStep, power.kind, power.sval, direction))
+                self.assertIsNone(compile_device(key, "explore"))
         # Grid::calc_distance truncates toward zero (2,2 looped with floor division);
         # its Newton step stops at 30 for (20, 21) although the root is 29.
         for (dy, dx), distance in (((2, 2), 3), ((3, 4), 5), ((29, 0), 29), ((20, 21), 30)):
