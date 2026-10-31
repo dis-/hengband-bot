@@ -11542,7 +11542,7 @@
       "store-approach"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Exclusive Q34 reward -> affordable optional kit -> Q1 owner; delegates existing shopping, light equipment, town recovery/combat and quest entry. No pre-Q1 fundraising. Failure persists a named detail and returns an empty envelope for the CLI final stop.",
+    "evidence": "Exclusive Q34 reward -> affordable optional kit -> Q1 owner; delegates existing shopping, light equipment, town recovery/combat and quest entry. No pre-Q1 fundraising. Failure persists a named detail and returns an empty envelope for the CLI final stop. D49 (2026-10-31 n1-c life-066): an afraid board with an adjacent hostile returns None before the no-progress count, so the ordinary survival ladder answers it (fear forbids melee).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12363,7 +12363,7 @@
       "store-approach"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), delegated by the existing _opening_q34_town_key owner. Delegates _town_teleport_key (quest-request) to Morivant or the Outpost.",
+    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), delegated by the existing _opening_q34_town_key owner. Delegates _town_teleport_key (quest-request) to Morivant or the Outpost. D49: the inn walk is a Reach ENTRANCE row measured by its declared route. D47 (2026-10-31 n1-c life-065): no leg leaves a town whose approved unfinished fixed quest is the head (FIXED_QUEST_TOWNS); it returns None and that quest's own errand keeps the board.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12379,7 +12379,7 @@
       "store-approach"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), delegated by the existing _opening_q34_town_key owner. Walks to Morivant's Tower of Sorcery (building 8) and posts 'r'+slot+charges with the walk tail; bounded attempts per staff.",
+    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), delegated by the existing _opening_q34_town_key owner. Walks to Morivant's Tower of Sorcery (building 8) and posts 'r'+slot+charges with the walk tail; bounded attempts per staff. D49 (2026-10-31): the Tower approach's Reach slot is declared for the sequence's own claim family (building_step family=PRODUCER), so the walk is Reach progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12649,7 +12649,7 @@
       "fundraising"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport from Morivant straight to Telmora (owner 「モリバントからテルモラへ直行」), delegated by the existing _opening_q34_town_key owner. Delegates _town_teleport_key (quest-request) to Morivant or the Outpost; no route ends in the named stop.",
+    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport from Morivant straight to Telmora (owner 「モリバントからテルモラへ直行」), delegated by the existing _opening_q34_town_key owner. Delegates _town_teleport_key (quest-request) to Morivant or the Outpost; no route ends in the named stop. D49: the inn walk is a Reach ENTRANCE row measured by its declared route.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12663,7 +12663,7 @@
       "fundraising"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport from Morivant straight to Telmora (owner 「モリバントからテルモラへ直行」), delegated by the existing _opening_q34_town_key owner. Walks to Morivant's Tower of Sorcery (building 8) and posts 'a' + 'y' + ESC (observed_input answers 'y' only at the observed question); short gold returns to the Outpost with the reserved fare.",
+    "evidence": "Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」「モリバントの塔で充填」: a non-Magic-Eater whose next fixed quest is an untaken Q2 and whose wall_breach carry is short only by Stone to Mud charges goes rumors (if Morivant is locked) -> inn teleport to Morivant -> Tower 'a' recharge-all -> inn teleport from Morivant straight to Telmora (owner 「モリバントからテルモラへ直行」), delegated by the existing _opening_q34_town_key owner. Walks to Morivant's Tower of Sorcery (building 8) and posts 'a' + 'y' + ESC (observed_input answers 'y' only at the observed question); short gold returns to the Outpost with the reserved fare. D49: the Tower approach's Reach slot is declared for this trip's claim family (building_step family=PRODUCER).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

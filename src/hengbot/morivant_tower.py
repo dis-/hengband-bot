@@ -121,8 +121,12 @@ def rumor_key(policy, snapshot):
     return key, policy.last_reason == "town:rumor-batch"
 
 
-def building_step(policy, snapshot, building: int):
-    """(first step, whether that step enters the building)."""
+def building_step(policy, snapshot, building: int, *, family: str):
+    """(first step, whether that step enters the building).
+
+    ``family`` is the caller's claim family: the walk's Reach slot is its own,
+    not the family of whatever reason an earlier producer left (D49).
+    """
     here = snapshot.grid_at(snapshot.player.position)
     if here is not None and here.building_type == building:
         # player-move.cpp enters a building only by moving onto it: step off
@@ -144,7 +148,7 @@ def building_step(policy, snapshot, building: int):
         step = policy._town_map_goal_step(snapshot, position)
     if step is None:
         return None, False
-    policy._declare_reach(position if position is not None else target)
+    policy._declare_reach(position if position is not None else target, family=family)
     enters = step == position or (
         snapshot.grid_at(step) is not None
         and snapshot.grid_at(step).building_type == building)

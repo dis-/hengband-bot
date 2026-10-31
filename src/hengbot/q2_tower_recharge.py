@@ -38,6 +38,7 @@ from hengbot.policy_constants import (
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
 REASON = "fixedquest:q2-recharge:"
+PRODUCER = "quest-request"  # the claim family of every trip key
 RECHARGE_ALL_REASON = REASON + "recharge-all"
 STOP_REASON = "quest:blocked:q2-tower-recharge"
 Q2_QUEST_ID = 2
@@ -161,7 +162,7 @@ def _fundraise(policy, snapshot, target: int, why: str) -> str:
 
 def _travel(policy, snapshot, destination: int, step: str) -> str:
     key = policy._town_teleport_key(
-        snapshot, destination, producer="quest-request", reason=f"{REASON}{step}")
+        snapshot, destination, producer=PRODUCER, reason=f"{REASON}{step}")
     if key is None:
         return _stop(policy, f"{step}-unavailable:{policy.last_reason}")
     return key
@@ -193,7 +194,7 @@ def _recharge_key(policy, snapshot) -> str:
         # Return with the reserved fare; the Outpost leg funds the recharge.
         return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
     step, enters = morivant_tower.building_step(
-        policy, snapshot, morivant_tower.TOWER_OF_SORCERY)
+        policy, snapshot, morivant_tower.TOWER_OF_SORCERY, family=PRODUCER)
     if step is None:
         return _stop(policy, "tower-of-sorcery-route-unavailable")
     if not enters:

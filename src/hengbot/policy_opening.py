@@ -400,6 +400,12 @@ class OpeningRouteMixin:
             return self._opening_q1_stop(stage)
         if ware is not None and not self._store_purchase_fits_pack(snapshot, ware):
             return self._opening_q1_stop("purchase-pack-full:" + stage)
+        if snapshot.player.afraid and self._physical_adjacent_hostiles(snapshot):
+            # Fear forbids melee (「恐くて…を攻撃できない！」, cmd-attack.cpp):
+            # the ordinary survival ladder answers this board (flee, ranged),
+            # and it is not a no-progress visit of the route (D49 n1-c
+            # life-066: seven futile melee keys, then no-progress:quest).
+            return None
         # Count repeated visits to the same state within one economic stage.
         # No-progress purchases and multi-cell town oscillation share the
         # existing store retry bound; real inventory/gold progress resets it.

@@ -2041,7 +2041,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "876b93fae783f874304e70b8881988019556a658cf4f86f2ca893ced350d12a6"
+    "ast_sha256": "f434835122712f7b7b25d245ca488ed4d0837e0c6f535629c53d04e82a2c7714"
   },
   "me_staff_sequence.py:_rumor_expedition_cost": {
     "classification": "data",
@@ -2091,7 +2091,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "9229a984541730a2505808f3fa1f46538860ac73c0c55312558a35f78c1a4299"
+    "ast_sha256": "b82dd7e56e9ff19e8f900abb41dbee30db3f0b780aa5f688c17daa9c886c77fe"
   },
   "me_staff_sequence.py:absorbed_charges": {
     "classification": "data",
@@ -6719,7 +6719,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "be9a2483d1c8dfca11b6988a54282c35424a7de173c2065e3f9615011e4d59bf"
+    "ast_sha256": "e50ab1537e9e9a8da8de826e354837e8e3db377fcceabc5abf5b83cdd61c27b6"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
@@ -9022,7 +9022,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0e97589a6cc28ed6d7b713f11d558c5648b62fe563d4e84f900a31239b4fcc6b"
+    "ast_sha256": "7f9761d570ca3534138d8bdf1c36f43a55d92cfbd55209ea344f09d7765435d0"
   },
   "q2_tower_recharge.py:_stop": {
     "classification": "producer",
@@ -9052,7 +9052,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "9229a984541730a2505808f3fa1f46538860ac73c0c55312558a35f78c1a4299"
+    "ast_sha256": "66d48857efd47b547f91e3fb5c69b15023259d138384d1cccd6bcd7c77575c95"
   },
   "q2_tower_recharge.py:state": {
     "classification": "data",

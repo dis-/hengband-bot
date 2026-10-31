@@ -77,7 +77,7 @@ from hengbot.model import (
 )
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
-    MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
+    FIXED_QUEST_TOWNS, MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED, REST_MACRO, STORE_STUCK_LIMIT, TOWN_TELEPORT_COST,
     WAIT_KEY,
 )
@@ -143,6 +143,7 @@ FUNDRAISE_RUN_LIMIT = 6
 ATTEMPT_LIMIT = 3
 
 REASON = "me-staff:"
+PRODUCER = "quest-request"  # the claim family of every sequence key
 STOP_REASON = "quest:blocked:me-staff"
 IDENTIFY_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_IDENTIFY]
 DETECT_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_DETECT_GOLD]
@@ -713,9 +714,27 @@ def _settle_pending(policy, snapshot) -> None:
                 record.fundraise_runs = record.reached_runs = 0
 
 
-def _travel(policy, snapshot, destination: int, step: str) -> str:
+def _quest_holds_town(policy, snapshot) -> bool:
+    """The fixed-quest head is an approved quest of this town, not yet done.
+
+    Its own errand travels here and back (FIXED_QUEST_TOWNS, _fixed_quest_key
+    / _telmora_q2_travel_key): the sequence's leg out of the town would undo
+    its trip (D47 n1-c life-065: Q2 TAKEN, five Outpost <-> Telmora fares
+    under fixedquest:q2-travel and me-staff:return-outpost, 5772 -> 272 gold).
+    """
+    head = policy._fixed_quest_head(snapshot)
+    return (head is not None
+            and head.status not in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
+            and FIXED_QUEST_TOWNS.get(head.id) == policy._effective_town_id(snapshot)
+            and policy.approved_quest_strategy(head.id) is not None)
+
+
+def _travel(policy, snapshot, destination: int, step: str) -> str | None:
+    """The inn teleport leg, or None while a quest errand holds this town."""
+    if destination != policy._effective_town_id(snapshot) and _quest_holds_town(policy, snapshot):
+        return None
     key = policy._town_teleport_key(
-        snapshot, destination, producer="quest-request", reason=f"{REASON}{step}")
+        snapshot, destination, producer=PRODUCER, reason=f"{REASON}{step}")
     if key is None:
         return _stop(policy, f"{step}-unavailable:{policy.last_reason}")
     return key
@@ -737,7 +756,7 @@ def _recharge_key(policy, snapshot) -> str:
         # Return with the reserved fare; the Outpost travel gate funds
         # the recharge with one explicit-target run.
         return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-for-funds")
-    step, enters = _building_step(policy, snapshot, TOWER_OF_SORCERY)
+    step, enters = _building_step(policy, snapshot, TOWER_OF_SORCERY, family=PRODUCER)
     if step is None:
         return _stop(policy, "tower-of-sorcery-route-unavailable")
     if not enters:
