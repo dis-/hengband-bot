@@ -16,6 +16,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_FINISHED,
 )
 from hengbot.item_reservation import decision_memo
+from hengbot import me_ranged_first
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import acceptance_dps_floor, acceptance_hp_floor, carry_floor
 from hengbot.claim_register import ClaimOwner, claims
@@ -333,6 +334,17 @@ class OpeningRouteMixin:
         # A cached letter is never an address on a different observed page.
         return next((item for item in snapshot.store.items if item == ware), None)
 
+    def _opening_q1_strike(self, snapshot, adjacent):
+        """The weakest adjacent hostile, in the dungeon's order: the Magic-Eater's
+        ranged answer first (me_ranged_first; owner 2026-10-31 「近接以外の攻撃
+        手段も街で使う」), else melee."""
+        target = self._weakest(adjacent)
+        ranged = me_ranged_first.attack_key(self, snapshot, target)
+        if ranged is not None:
+            return ranged
+        self.last_reason = "melee"
+        return self._direction_key(snapshot.player.position, target.position)
+
     @claims(ClaimOwner.QUEST_REQUEST, census_only=True)
     def _opening_q1_stop(self, detail):
         self._opening_q1_failure = detail
@@ -429,8 +441,7 @@ class OpeningRouteMixin:
                         if snapshot.player.position.distance_to(monster.position) <= 1
                         and not self._step_raises_unintended_confirm(snapshot, monster.position)]
             if adjacent and self._can_fight_in_dungeon(0):
-                self.last_reason = "melee"
-                return self._direction_key(snapshot.player.position, self._weakest(adjacent).position)
+                return self._opening_q1_strike(snapshot, adjacent)
         if store is not None:
             step = self._shopping_approach_step(snapshot, store_type=store,
                                                 requester="quest-request")
@@ -456,8 +467,7 @@ class OpeningRouteMixin:
                 if adjacent:
                     if not self._can_fight_in_dungeon(0):
                         return self._opening_q1_stop("recovery-hostile-unreachable")
-                    self.last_reason = "melee"
-                    return self._direction_key(snapshot.player.position, self._weakest(adjacent).position)
+                    return self._opening_q1_strike(snapshot, adjacent)
                 return self._opening_q1_stop("recovery-hostile-unreachable")
             self.last_reason = "town:recover"
             return REST_MACRO

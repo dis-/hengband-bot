@@ -10,7 +10,8 @@ Order: the strongest other absorbed attack power when it beats Magic Missile
 (me_device_attacks, 2026-10-31; also on quest floors except quest 1), the
 absorbed Magic Missile (``mBp``; the power list reports an empty or unlearned
 power and the next decision falls through), a known attack wand from the
-pack, a spare lit torch, then the caller's melee.  Only the generic dungeon
+pack, a spare lit torch, then the caller's melee.  Town fights use the same
+order (owner 2026-10-31 「近接以外の攻撃手段も街で使う」).  Only the generic
 combat rungs call this; apart from the absorbed attack powers, quest floors
 keep their reviewed strategies (me_q1_torch, q34 missiles) and every other
 class keeps melee.
@@ -37,7 +38,6 @@ def applies(snapshot) -> bool:
     player = snapshot.player
     return (
         player.class_id == PLAYER_CLASS_MAGIC_EATER
-        and not snapshot.in_town
         and snapshot.floor_key[2] == 0
         and not player.blind
         and not player.confused
@@ -46,7 +46,7 @@ def applies(snapshot) -> bool:
 
 def _throwable_torch(policy, snapshot):
     torches = [item for item in snapshot.inventory if item.is_torch and item.fuel > 0]
-    if not torches:
+    if not torches or policy._opening_q1_torches_reserved(snapshot):
         return None
     light = next((item for item in snapshot.equipment if item.slot == "light"), None)
     burning_torch = light is not None and (light.tval, light.sval) == (TVAL_LIGHT, SV_LIGHT_TORCH)

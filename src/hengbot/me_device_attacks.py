@@ -224,7 +224,7 @@ def attack_key(policy, snapshot, target, direction) -> str | None:
     torch, melee).  ``direction`` is the caller's aim at ``target``.
     """
     player = snapshot.player
-    if (player.class_id != PLAYER_CLASS_MAGIC_EATER or snapshot.in_town
+    if (player.class_id != PLAYER_CLASS_MAGIC_EATER
             or player.blind or player.confused or player.hallucinated):
         return None
     scored = sorted(_candidates(policy, snapshot, target),
