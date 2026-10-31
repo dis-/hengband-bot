@@ -69,7 +69,7 @@ from dataclasses import dataclass, field, replace
 from hengbot import morivant_tower
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import (
-    PLAYER_CLASS_MAGIC_EATER, staple_food, staple_needs_recharge,
+    PLAYER_CLASS_MAGIC_EATER, staple_food, staple_food_critical, staple_needs_recharge,
 )
 from hengbot.me_powers_refresh import KIND_LETTER, SEQUENCE_READ_REASON
 from hengbot.model import (
@@ -731,7 +731,10 @@ def _quest_holds_town(policy, snapshot) -> bool:
 
 def _travel(policy, snapshot, destination: int, step: str) -> str | None:
     """The inn teleport leg, or None while a quest errand holds this town."""
-    if destination != policy._effective_town_id(snapshot) and _quest_holds_town(policy, snapshot):
+    if (destination != policy._effective_town_id(snapshot) and _quest_holds_town(policy, snapshot)
+            # Supervisor 2026-10-31 (survival first): a food-critical staple
+            # still goes to the Tower; every other leg keeps the hold.
+            and not (destination == MORIVANT_TOWN_ID and staple_food_critical(snapshot))):
         return None
     key = policy._town_teleport_key(
         snapshot, destination, producer=PRODUCER, reason=f"{REASON}{step}")

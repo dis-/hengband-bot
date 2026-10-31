@@ -83,6 +83,18 @@ def staple_needs_recharge(snapshot: Snapshot) -> bool:
             and staple_charges(snapshot) < MANA_FOOD_CHARGE_TARGET)
 
 
+def staple_food_critical(snapshot: Snapshot) -> bool:
+    """The staple cannot serve the next meal and no other device can.
+
+    One charge is one meal (cmd-eat.cpp exe_eat_charge_of_magic_device); the
+    other charged known wands and staffs are the pack's only other food for
+    a MANA eater (policy_supply._find_edible).
+    """
+    return (staple_food(snapshot) is not None and staple_charges(snapshot) <= 0
+            and not any(item.known and item.is_wand_staff and item.charges > 0
+                        and not is_staple_food(item) for item in snapshot.inventory))
+
+
 def _awaiting_absorption(policy, item: InventoryItem | StoreItem) -> bool:
     from hengbot import me_staff_sequence
 
