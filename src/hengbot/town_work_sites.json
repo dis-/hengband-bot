@@ -9720,7 +9720,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "aabbddd4128d6c1d3b2bd45a5020cddf963dc14535088c6e601fe4cfd09eaf92"
+    "ast_sha256": "90908425a4aecaf3e331e542fba9e009ac4eb4e58c9663cfa8b86305ce526267"
   },
   "town_last_stand.py:target": {
     "classification": "data",
