@@ -6672,6 +6672,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "2acc246ebbcf09906250e7005a056bc6f72a7098b2351a17494cf8dedf06b0e7"
   },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_light_to_wield": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "b007b08bf43c51c10775660bed6b524a1a72c1ff6195a054fd112d3cd2992c01"
+  },
   "policy_opening.py:OpeningRouteMixin._opening_q1_purchase": {
     "classification": "data",
     "rows": [
@@ -6711,7 +6719,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "d3c75978bb757fd41e7fe5bc8c4443226a583b113e291dafde9589c60093edd4"
+    "ast_sha256": "be9a2483d1c8dfca11b6988a54282c35424a7de173c2065e3f9615011e4d59bf"
   },
   "policy_quest.py:QuestMixin._build_fixed_quest_head": {
     "classification": "data",
