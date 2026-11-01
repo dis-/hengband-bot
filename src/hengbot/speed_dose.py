@@ -16,6 +16,10 @@ half, for every scene that drank a Potion of Speed:
    「呪文をうまく唱えられなかった！」, spends the turn and keeps the charge) re-arms
    the scene once (``rearm``: its one-shot mark, a JSON-safe path), and on that
    floor its next ask drinks a carried potion instead of casting again.
+ * A scene whose trigger holds again once the dose has run out (a reviewed
+   quest plan's ``speed_potion_use_when``) passes ``renew``: when the speed
+   field has shown the haste and shows it no longer on the same floor, its
+   one-shot mark is re-armed (``rearm``), so the trigger asks for the next dose.
  * ``available`` / ``spare``: the dose a scene's fight model may credit.
 
 Game (C:/hengband/src): the staff cast is ``staff_effect`` (cmd-magiceat.cpp:577)
@@ -44,6 +48,7 @@ MEMORY = "_speed_dose_memory"
 class DoseMemory:
     pending: tuple | None = None       # (turn, owner reason, rearm) of the last cast
     failed_floor: tuple | None = None  # a cast failed here: the next ask drinks a potion
+    renewal: tuple | None = None       # (floor, rearm, haste seen) of a ``renew`` dose
 
 
 def _memory(policy) -> DoseMemory:
@@ -66,11 +71,27 @@ def _rearm(policy, rearm) -> None:
         container[rearm[1]] = rearm[2]
 
 
+def _observe_renewal(policy, snapshot, memory) -> None:
+    """Re-arm a ``renew`` scene once the haste its dose gave has run out."""
+    floor, rearm, seen = memory.renewal
+    hasted = policy._player_hasted(snapshot)
+    if floor != snapshot.floor_key:
+        memory.renewal = None
+    elif hasted:
+        memory.renewal = (floor, rearm, True)
+    elif seen:
+        memory.renewal = None
+        _rearm(policy, rearm)
+
+
 def observe(policy, snapshot) -> None:
-    """Every decision: settle the last cast (a failure re-arms its scene)."""
+    """Every decision: settle the last cast (a failure re-arms its scene) and
+    re-arm a ``renew`` scene whose haste has ended."""
     memory = getattr(policy, MEMORY, None)
     if memory is None:
         return
+    if memory.renewal is not None:
+        _observe_renewal(policy, snapshot, memory)
     if memory.failed_floor is not None and (
             memory.failed_floor != snapshot.floor_key or policy._player_hasted(snapshot)):
         memory.failed_floor = None
@@ -94,19 +115,28 @@ def _cast_key(policy, snapshot) -> str | None:
     return substitutes.item_cast_key(policy, snapshot, POTION)
 
 
-def key(policy, snapshot, reason: str, *, rearm=None, potion_reserve: int = 0) -> str | None:
+def key(policy, snapshot, reason: str, *, rearm=None, potion_reserve: int = 0,
+        renew: bool = False) -> str | None:
     """The scene's Speed dose, setting ``last_reason`` (the cast's ends in
     ``CAST_SUFFIX``); None when it has none."""
     cast = _cast_key(policy, snapshot)
     if cast is not None:
         policy.last_reason = reason + substitutes.CAST_SUFFIX
         _memory(policy).pending = (snapshot.turn, policy.last_reason, rearm)
-        return cast
+        return _renewing(policy, snapshot, cast, rearm, renew)
     potion = policy._find_exact_potion(snapshot, SV_POTION_SPEED)
     if potion is None or policy._exact_potion_count(snapshot, SV_POTION_SPEED) <= potion_reserve:
         return None
     policy.last_reason = reason
-    return reserved_item_command(policy, snapshot, "quaff", potion)
+    return _renewing(policy, snapshot, reserved_item_command(policy, snapshot, "quaff", potion),
+                     rearm, renew)
+
+
+def _renewing(policy, snapshot, command, rearm, renew):
+    """Remember a ``renew`` dose so its scene re-arms when the haste ends."""
+    if renew and rearm is not None:
+        _memory(policy).renewal = (snapshot.floor_key, rearm, False)
+    return command
 
 
 def spare(policy, snapshot, potion_reserve: int = 0) -> int:

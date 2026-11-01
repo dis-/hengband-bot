@@ -47,8 +47,8 @@ CASES = {
 }
 
 
-def freeze(name: str, capture: str, spans, races) -> Path:
-    incident = ROOT / capture
+def freeze(name: str, capture: str, spans, races, root: Path = ROOT) -> Path:
+    incident = root / capture
     rows = ring_rows(incident / "snapshots" / "snapshots-current.jsonl.gz")
     boards, turns, start = [], set(), None
     for index, row in enumerate(rows):
