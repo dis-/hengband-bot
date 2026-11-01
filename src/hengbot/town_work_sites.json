@@ -8887,6 +8887,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "speed_dose.py:_renewing": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "speed_dose.py:key": {
     "classification": "data",
     "rows": [
