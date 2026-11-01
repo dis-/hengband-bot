@@ -12,6 +12,12 @@ Source: tests/fixtures/death-n1c-099-1102.json.gz
   before the emergency ladder, which never asked.  On the boards of turns
   691626 (HP 129, sequence 1416) and 691696 (HP 77, 1425) the ladder reads
   its Teleport scroll.
+- The quest plan's Speed trigger (consumable_plan.speed_potion_use_when,
+  the 3-turn projection at least half the HP) drank the first potion on
+  691305; its haste ran out on 691537 (「動きの素早さがなくなったようだ。」)
+  beside a vorpal bunny, a sasquatch and a sabre-tooth tiger (projection
+  553 against HP 310), and the one-shot mark kept the second potion in the
+  pack to the death.  That board drinks it.
 
 DECLARED RECONSTRUCTED: the displayed wand and rod lists carry the death
 dump's absorbed テレポート・アウェイ (wand 12, rod 1) and its other wands
@@ -42,6 +48,8 @@ with gzip.open(FIXTURE, "rt", encoding="utf-8") as _stream:
 
 LOW_HP_TURNS = (691626, 691696)  # sequences 1416 (HP 129) and 1425 (HP 77)
 EMERGENCY_TELEPORT = ("re", "emergency:teleport")
+SPEED_DOSE_TURN, HASTE_ENDED_TURN = 691305, 691537  # sequences 1366, 1408
+QUAFF_SPEED = ("qb", "quest-strategy:quaff-speed")
 # DECLARED RECONSTRUCTED (module docstring).
 LISTS = (
     {"kind": "wand", "rows": [
@@ -92,6 +100,12 @@ class Q31DeathRecordedTest(d57.PostedDeathKey):
             player = boards[turn]["player"]
             self.assertLess(player["hp"], player["max_hp"] // 2)
         self.drive(dict.fromkeys(LOW_HP_TURNS, EMERGENCY_TELEPORT))
+
+    def test_the_second_speed_potion_follows_the_ended_haste_through_the_executor(self):
+        recorded = d57.recorded(CASE)
+        self.assertEqual(recorded[SPEED_DOSE_TURN], ("quest-strategy:quaff-speed", "qb"))
+        self.assertEqual(recorded[HASTE_ENDED_TURN], ("quest-strategy:melee", "7"))
+        self.drive({SPEED_DOSE_TURN: QUAFF_SPEED, HASTE_ENDED_TURN: QUAFF_SPEED})
 
 if __name__ == "__main__":
     unittest.main()

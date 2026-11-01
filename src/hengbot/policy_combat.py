@@ -2225,7 +2225,8 @@ class CombatMixin:
             ]
             if projected >= threshold * snapshot.player.hp:
                 speed = speed_dose.key(self, snapshot, "quest-strategy:quaff-speed",
-                                       rearm=("_fixed_quest_speed_attempted", False))
+                                       rearm=("_fixed_quest_speed_attempted", False),
+                                       renew=True)
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
                     return speed
