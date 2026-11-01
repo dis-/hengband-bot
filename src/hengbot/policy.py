@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import magic_eater, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, unseen_strike, wilderness_exit
+from hengbot import magic_eater, mapped_area, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -20428,11 +20428,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # A closed door hides new ground behind it — unless we've given up trying
         # to open it, in which case it is effectively a wall.
         if grid.is_closed_door:
-            return (grid.position.y, grid.position.x) not in self._blocked_doors
+            return (
+                (grid.position.y, grid.position.x) not in self._blocked_doors
+                and self._passage_hides_ground(snapshot, grid.position)
+            )
         # Rubble caps a passage (often a dead-end); tunnelling it opens the way, so
         # treat it as a frontier worth reaching until we give up digging it.
         if grid.is_rubble:
-            return (grid.position.y, grid.position.x) not in self._blocked_rubble
+            return (
+                (grid.position.y, grid.position.x) not in self._blocked_rubble
+                and self._passage_hides_ground(snapshot, grid.position)
+            )
         if not grid.passable:
             return False
         # A floor tile we keep standing on that never stops being a frontier has an
@@ -20443,28 +20449,41 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         if grid.position in self._probed_frontiers:
             return False
-        # A floor tile borders unexplored ground if a neighbour is not a known
-        # tile. Crucially, a tile beyond the *map edge* (out of bounds) is void,
-        # not frontier — otherwise the bot circles an open town/wilderness
-        # perimeter forever.
+        return self._borders_unexplored(snapshot, grid.position)
+
+    def _borders_unexplored(self, snapshot: Snapshot, position: Position) -> bool:
+        """A neighbour is unexplored ground: not a known tile (``_marked_t``:
+        seen, game-marked, or explored by a magic mapping) and not an unknown
+        tile already probed to the limit and found a wall (blocked).
+
+        Crucially, a tile beyond the *map edge* (out of bounds) is void, not
+        frontier — otherwise the bot circles an open town/wilderness
+        perimeter forever.
+        """
         marked = self._marked_t
         blocked = self._blocked_unknown
         height = snapshot.height
         width = snapshot.width
         bounded = width > 0 and height > 0
-        y = grid.position.y
-        x = grid.position.x
+        y = position.y
+        x = position.x
         for dy, dx in NEIGHBOR_OFFSETS:
             ny = y + dy
             nx = x + dx
             key = (ny, nx)
-            # An unknown neighbour marks unexplored ground — unless we have already
-            # probed it to the limit and found a wall (blocked), in which case it
-            # is not really a frontier.
             if key not in marked and key not in blocked:
                 if not bounded or (0 <= ny < height and 0 <= nx < width):
                     return True
         return False
+
+    def _passage_hides_ground(self, snapshot: Snapshot, position: Position) -> bool:
+        """A closed door or rubble may hide new ground, unless a magic mapping
+        covered it and showed both sides (owner 2026-11-01 「部屋だけ見て回る」:
+        a door between mapped corridors is not walked to; one beside an
+        unseen room or the unmapped area still is)."""
+        return not mapped_area.covers(
+            self, (position.y, position.x)
+        ) or self._borders_unexplored(snapshot, position)
 
     def _is_remembered_frontier(self, snapshot: Snapshot, position: Position) -> bool:
         """Frontier test that also works after a reachable tile leaves view."""
@@ -20476,7 +20495,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
         key = (position.y, position.x)
         if key in self._door_t or key in self._rubble_t:
-            return True
+            return self._passage_hides_ground(snapshot, position)
         if key not in self._floor_t:
             return False
         if self._visit_counts[position] >= FRONTIER_EXHAUST_VISITS:
@@ -20484,17 +20503,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return False
         if position in self._probed_frontiers:
             return False
-
-        bounded = snapshot.width > 0 and snapshot.height > 0
-        for dy, dx in NEIGHBOR_OFFSETS:
-            ny = position.y + dy
-            nx = position.x + dx
-            neighbor = (ny, nx)
-            if neighbor in self._marked_t or neighbor in self._blocked_unknown:
-                continue
-            if not bounded or (0 <= ny < snapshot.height and 0 <= nx < snapshot.width):
-                return True
-        return False
+        return self._borders_unexplored(snapshot, position)
 
 
     def _least_visited_neighbor(self, snapshot: Snapshot) -> Position | None:
