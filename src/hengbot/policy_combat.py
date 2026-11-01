@@ -361,8 +361,8 @@ class CombatMixin:
             )
             if ranged is not None:
                 return ranged
-            if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
-                return ranged  # fear refuses melee only
+            if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
+                return ranged  # fear and NO_MELEE refuse melee only
             if not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
                 if adjacent:
                     ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
@@ -401,8 +401,8 @@ class CombatMixin:
                 return ranged
             self.last_reason = "melee"
             return self._step_toward(snapshot, self._weakest(adjacent).position)
-        if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
-            return ranged  # fear refuses melee only
+        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
+            return ranged  # fear and NO_MELEE refuse melee only
         if snapshot.player.position not in cells:
             loot = self._town_producer_entry(
                 "_normal_loot_key",
@@ -2034,6 +2034,9 @@ class CombatMixin:
             if player.blind:
                 # No cure: strike the unseen attacker instead of walking blind.
                 return blind_strike.key(self, snapshot)
+            if (strike := unseen_strike.key(
+                    self, snapshot, hostiles, unseen_strike.RECALL_REASON)) is not None:
+                return strike  # a melee blow (owner 2026-11-01, unseen_strike)
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is not None and (
                 self._is_oscillating() and step in set(self._recent)
@@ -2442,8 +2445,8 @@ class CombatMixin:
                     return self._direction_key(
                         player.position, self._weakest(adjacent).position
                     )
-                if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
-                    return ranged  # fear refuses melee only
+                if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
+                    return ranged  # fear and NO_MELEE refuse melee only
                 if (strike := blind_strike.emergency_key(self, snapshot)) is not None:
                     return strike  # blind: the attacker last seen beside us
                 if (strike := unseen_strike.key(self, snapshot, hostiles,
@@ -3691,8 +3694,8 @@ class CombatMixin:
                 return self._direction_key(
                     snapshot.player.position, self._weakest(adjacent).position
                 )
-            if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
-                return ranged  # fear refuses melee only
+            if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
+                return ranged  # fear and NO_MELEE refuse melee only
             self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
@@ -3892,8 +3895,8 @@ class CombatMixin:
             return self._direction_key(
                 snapshot.player.position, self._weakest(adjacent).position
             )
-        if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
-            return ranged  # fear refuses melee only
+        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
+            return ranged  # fear and NO_MELEE refuse melee only
         self.last_reason = "melee:choke-hold"
         return WAIT_KEY
     @claims(ClaimOwner.ESCAPE)
