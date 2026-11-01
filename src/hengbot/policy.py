@@ -208,7 +208,6 @@ from hengbot.claim_ladder import (
     resumable_index as claim_resumable_index,
     rung_of as claim_rung_of,
     rung_of_claim as claim_rung_of_claim,
-    rung_named as claim_rung_named,
     S3_FAMILIES as CLAIM_S3_FAMILIES,
     TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES,
 )
@@ -488,6 +487,13 @@ from hengbot.town_terminal import (
     terminal_admission,
     town_end_key,
     verdict_quest_work,
+    claim_family_of as town_claim_family_of,
+    errand_hold as town_errand_hold,
+    home_catalogue_sequence_enforced as town_home_catalogue_sequence_enforced,
+    home_catalogue_work_holder as town_home_catalogue_work_holder,
+    home_hold_board as town_home_hold_board,
+    home_sequence_has_holder as town_home_sequence_has_holder,
+    rung_family as town_rung_family,
 )
 from hengbot.town_arbiter import (
     UNREGISTERED_FAMILY,
@@ -3395,67 +3401,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return "barrier-provenance-missing"
 
     def _claim_family_of(self, reason: str | None) -> str:
-        """The census family of a reason, answered by the live arbiter."""
-        if reason == "shop:in-store-done":
-            # A sale's no-effect exit is still that seller's operation. The
-            # acting owner declares it; the generic reason cannot turn it into
-            # a competing buyer while the sale observation is outstanding.
-            for offer in reversed(self._execution_offers_for()):
-                if offer[0] == LEAVE_STORE_KEY and offer[2] == "shop:in-store-leave":
-                    return offer[1]
-        if reason == "home:request-knowledge-scan":
-            # The scan can be a step of registered equipment catalogue work,
-            # rather than a new errand. Require the producer's explicit offer.
-            for offer in reversed(self._execution_offers_for()):
-                if (offer[2] == "equipment:acquire-home-catalog"
-                        and offer[5] == "home-catalog-available"
-                        and offer[0] == HOME_KNOWLEDGE_MACRO):
-                    return offer[1]
-        if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
-            return self._visit_exit_family()
-        if reason and reason.startswith("town:entrance-step-off:"):
-            return self._claim_family_of(reason.split(":", 2)[2])
-        if reason and reason.startswith((
-            "home:atomic-withdraw-target-unobserved",
-            "home:atomic-withdraw-slot-unobserved",
-            "home:atomic-withdraw-address-invalid",
-        )):
-            previous = getattr(getattr(self, "_claim_register", None), "current", None)
-            if (previous is not None and previous.owner.value in {'equipment-txn'}):
-                return previous.owner.value
-        visit = getattr(self, "_store_visit", None)
-        if reason in {"shop:one-shot-in-flight", "store:entry-await-observation"}:
-            family = (
-                getattr(visit, "operation_producer_family", None)
-                or getattr(visit, "claim_owner", None)
-                or getattr(visit, "opened_producer_family", None)
-            )
-            if family in CLAIM_S3_FAMILIES:
-                return family
-        if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (visit is not None) and (getattr(visit, 'operation_producer_family', None) in {'equipment-txn'})):
-            return visit.operation_producer_family
-        if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
-                and visit is not None
-                and visit.owner == "equipment-transaction"):
-            return (
-                'equipment-txn'
-            )
-        if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (visit is not None) and (getattr(visit, 'claim_operation_identity', None) is not None) and (visit.claim_owner in {'home-visit', 'equipment-txn'})):
-            return visit.claim_owner
-        current = getattr(getattr(self, "_claim_register", None), "current", None)
-        if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (current is not None) and current.is_open and (current.owner.value in {'equipment-txn'}) and (current.goal.source in {'transaction'})):
-            return current.owner.value
-        composing_family = getattr(visit, "operation_producer_family", None)
-        if composing_family is None:
-            composing_family = getattr(visit, "opened_producer_family", None)
-        if (reason and reason.startswith('home:atomic-') and (composing_family in {'equipment-txn'})):
-            return composing_family
-        if reason and reason.startswith(('home:atomic-', 'home:deposit', 'home:withdraw-', 'home:weight-overload-deposit', 'home:morivant-temporary-deposit', 'home:morivant-retry-temporary-deposit', 'home:leave-', 'home:store-context-exit')) and (composing_family in {'equipment-txn'}) and (getattr(self, '_home_atomic_deposit_pending', None) is not None or getattr(self, '_home_atomic_withdraw_pending', None) is not None):
-            return composing_family
-        arbiter = getattr(self, "_town_turn_arbiter", None)
-        if arbiter is not None:
-            return arbiter.ownership_family(reason or "")
-        return reason_owner_family(reason or "")
+        return town_claim_family_of(self, reason)
 
     def _declare_goal(
         self, goal: Goal, family: str | None = None, note: str | None = None
@@ -5664,48 +5610,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _claim_errand_hold(self, family: str, *, enforced: bool | None = None,
                            arrival_board: Snapshot | None = None):
-        """Return the open town errand that owns a different producer's turn.
-
-        Callers ask before changing their own session, plan, or selection
-        state. ON also restores a town errand suspended by a higher owner
-        before a different errand can displace it.
-
-        ``arrival_board``: a standing cell Reach whose arrival that board
-        shows is finished work, not a holder.  S3.3 ON closes it on the same
-        evidence before any town producer asks (``choose_key``); the
-        cross-area Home hold reads that evidence without closing the claim.
-        """
-        def town_errand(claim):
-            return claim.owner.value in CLAIM_S3_FAMILIES | {"quest-request"}
-
-        register = getattr(self, "_claim_register", None)
-        standing = getattr(register, "current", None)
-        if (
-            standing is not None
-            and standing.is_open
-            and town_errand(standing)
-            and standing.owner.value != family
-            and standing.goal.kind in {CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE}
-            and not (arrival_board is not None
-                     and self._claim_reach_arrival(arrival_board, standing)
-                     is not None)
-        ):
-            return standing
-        if enforced is None:
-            enforced = getattr(self, "_town_claim_bar_enforced", False)
-        if enforced and register is not None:
-            for claim in reversed(register.suspended):
-                if (claim.closed is None
-                        and claim.state.value == "suspended"
-                        and town_errand(claim)
-                        and claim.owner.value != family
-                        and claim.goal.kind in {
-                            CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE
-                        }
-                        and not (claim.goal.source == CLAIM_OBSERVE_KNOWLEDGE
-                                 and self._home_knowledge_current)):
-                    return claim
-        return None
+        return town_errand_hold(self, family, enforced=enforced,
+                                arrival_board=arrival_board)
 
     def _delegation_records(self) -> list[ExecutionDelegation]:
         records = getattr(self, "_execution_delegations", None)
@@ -5978,7 +5884,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                              *, family: str | None = None, board: Snapshot | None = None):
         """Ask the town holder before running a ladder producer.
 
-        The rung table supplies the producer's family.  In particular, this
+        The rung's declaration (``town_terminal.rung_family``) supplies the
+        producer's family unless the call site names one.  In particular, this
         test precedes any reservation, visit mutation, or execution offer in
         the producer.  Survival and detectors remain outside the errand hold.
         """
@@ -5995,13 +5902,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if survival_preemption.preempts(self, rung_name, board):
                 return None
             return call()
-        rung = (claim_rung_named(rung_name) if family is None
-                else claim_rung_of(family, None))
-        if rung is None:
-            raise ValueError(f"unknown town producer rung: {rung_name}")
+        family = town_rung_family(rung_name, family)
         # The rung's terminal admission precedes every hold, on or off the
         # --enforce-town-claims switch (town_terminal, design 3.6).
-        admitted = may_take_board(self, rung_name, rung.family, board, terminal)
+        admitted = may_take_board(self, rung_name, family, board, terminal)
         if (terminal is not None and terminal.terminal_id == "no-refusal"
                 and terminal.args == ("town-special-dispatch",)):
             # This dispatcher also selects remedies and named closes. Its
@@ -6013,7 +5917,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         before = len(getattr(self, "_decision_errand_deferred", ()) or ())
         if (session is not None and not session.complete
                 and holder is not None and holder.owner.value == "equipment-txn"
-                and rung.family == "equipment-txn"
+                and family == "equipment-txn"
                 and rung_name not in {
                     "_equipment_transaction_town_key#1", "_equipment_transaction_town_key#2",
                     "_equipment_transaction_town_owner_key", "_equipment_transaction_home_key",
@@ -6026,14 +5930,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._decision_errand_deferred = []
             self._decision_errand_deferred.append({
                 "holder_family": "equipment-txn", "holder_claim_id": holder.claim_id,
-                "deferred_family": rung.family, "deferred_reason": f"entry:{rung_name}",
+                "deferred_family": family, "deferred_reason": f"entry:{rung_name}",
                 "token_would_admit": False, "token_work_identity": None,
             })
             if getattr(self, "_town_claim_bar_enforced", False):
                 return None
-        if (not self._town_gate_exempt(rung.family)
+        if (not self._town_gate_exempt(family)
                 and self._defer_town_errand(
-                    rung.family, f"entry:{rung_name}",
+                    family, f"entry:{rung_name}",
                     # These entries were added by S3.3. OFF must only observe
                     # them; historical rungs retain their cross-area Home hold.
                     preserve_home_hold=rung_name not in {
@@ -6042,7 +5946,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     })):
             return None
         if (getattr(self, "_town_claim_bar_enforced", False)
-                and self._town_plan_defers(rung.family)
+                and self._town_plan_defers(family)
                 and not (rung_name == "_atomic_shop_transaction_key"
                          and board is not None
                          and self._can_resume_magic_shelf(board))):
@@ -6051,7 +5955,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._decision_errand_deferred = []
             self._decision_errand_deferred.append({
                 "holder_family": "town-plan", "holder_claim_id": None,
-                "deferred_family": rung.family,
+                "deferred_family": family,
                 "deferred_reason": f"plan-next:{plan.stops[plan.index]}:{rung_name}",
                 "token_would_admit": False, "token_work_identity": None,
             })
@@ -6075,9 +5979,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # of the same family cannot borrow this evidence.
         for row in (getattr(self, "_decision_errand_deferred", ()) or ())[before:]:
             if (row["deferred_reason"] == f"entry:{rung_name}"
-                    and row["deferred_family"] == rung.family
+                    and row["deferred_family"] == family
                     and isinstance(key, str)
-                    and self._claim_family_of(self.last_reason) == rung.family):
+                    and self._claim_family_of(self.last_reason) == family):
                 row["producer_key"] = key
         return key
 
@@ -6952,43 +6856,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _home_catalogue_sequence_enforced(self) -> bool:
-        """Protect physical Home work under cross-area or S3.3 enforcement."""
-        return bool(getattr(self, "_crossarea_fundraising_enforced", False)
-                    or getattr(self, "_town_claim_bar_enforced", False))
+        return town_home_catalogue_sequence_enforced(self)
 
     def _home_catalogue_work_holder(self):
-        holder = self._claim_errand_hold("__none__", enforced=True)
-        declaration = getattr(holder, "execution", None)
-        if (declaration is not None
-                and declaration.work_id == "equipment:acquire-home-catalog"
-                and declaration.expected_effect == "home-catalog-available"):
-            return holder
-        return None
+        return town_home_catalogue_work_holder(self)
 
     def _home_hold_board(self) -> Snapshot | None:
-        """The board whose observed arrival ends a route for the Home hold.
-
-        S3.3 ON already closed that arrival before the producers ask, so ON
-        passes no board and keeps its own verdicts unchanged.
-        """
-        if getattr(self, "_town_claim_bar_enforced", False):
-            return None
-        return getattr(self, "_map_predicate_snapshot", None)
+        return town_home_hold_board(self)
 
     def _home_sequence_has_holder(self) -> bool:
-        if not self._home_catalogue_sequence_enforced():
-            return False
-        # A route that this board shows arrived (at the Home it reached) is
-        # not a physical Home sequence; holding Home producers for it made
-        # every routed Home pass leave unfulfilled (live 2026-10-02 06:16).
-        holder = self._claim_errand_hold(
-            "__none__", enforced=True, arrival_board=self._home_hold_board())
-        visit = getattr(self, "_store_visit", None)
-        return bool(holder is not None and (
-            self._home_catalogue_work_holder() is not None
-            or (visit is not None and visit.store_type == STORE_HOME)
-            or (holder.goal.source == CLAIM_OBSERVE_STORE_OPERATION
-                and str(STORE_HOME) in holder.goal.expectation)))
+        return town_home_sequence_has_holder(self)
 
     def _equipment_catalogue_only(self, snapshot: Snapshot) -> bool:
         """Whether a new equipment scan may replace the physical Home route."""

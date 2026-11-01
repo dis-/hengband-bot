@@ -1,0 +1,14 @@
+{
+ "tool": "validation/manifest-tax-1101/replay_choose_key.py and compare_replays.py, each tree a full git archive inside the worktree",
+ "test_ids": "replay-test-ids.txt: 284 town-related modules (names with town/home/shop/store/terminal/crossarea/depart/fundrais/errand/s33/ownership/declarations, the 78 modules that switch cross-area fundraising on, and every module naming the moved functions)",
+ "trees": {"main": "ff4196953", "branch": "f2e6933c7"},
+ "tests_run": {"main": 2848, "branch": 2849},
+ "failures": {"main": 122, "branch": 122},
+ "errors": {"main": 28, "branch": 28},
+ "decisions": 13746,
+ "tests_with_decisions": 1033,
+ "receipts": 45336,
+ "differing": 0,
+ "jsonl_sha256_prefix_both": "02a20c36da919c8b",
+ "note": "The branch runs one more test (the new declarations pin, no choose_key decisions). The two decision streams are byte-identical."
+}

@@ -79,6 +79,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from hengbot.claim_goal_typing import FLOOR_CHANGE
+from hengbot.town_terminal import TOWN_OWNER_FAMILIES
 
 
 GOAL_REACH = "Reach"
@@ -106,20 +107,8 @@ TOWN_ERRAND_FAMILIES = frozenset({
 })
 # Rev 10.1 item 8: the families migrated in S3, reported on their own lines
 # and excluded from the S2b.2 gate.  ``departure in town`` is the town
-# departure rung (``is_s3_rung``).
-S3_FAMILIES = frozenset({
-    "store-router",
-    "shop-buy",
-    "shop-sell",
-    "home-visit",
-    "home-errand",
-    "home-scan",
-    "equipment-txn",
-    "identification",
-    "curse-enchant",
-    "cross-town",
-    "rumor",
-})
+# departure rung (``is_s3_rung``).  town_terminal owns the set (stage 2 B).
+S3_FAMILIES = TOWN_OWNER_FAMILIES
 # Rev 10.1 item 9: the families whose Reach/Observe claims record the monsters
 # that triggered them.
 TRIGGER_FAMILIES = frozenset({

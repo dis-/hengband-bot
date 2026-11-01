@@ -23,7 +23,7 @@ import unittest
 from pathlib import Path
 
 from hengbot import town_terminal
-from hengbot.claim_ladder import rung_named
+from hengbot.claim_ladder import ladder_families, rung_named
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.town_arbiter import owner_families
@@ -82,8 +82,7 @@ class TerminalDeclarationTest(unittest.TestCase):
     def test_2_modes(self):
         families = {}
         for name, family in _entry_calls():
-            rung = rung_named(name)
-            families[name] = family or (rung.family if rung is not None else None)
+            families[name] = family or TERMINALS[name].family or None
         self.assertEqual(town_terminal.SHADOW_RUNGS, frozenset())
         for name, decl in TERMINALS.items():
             self.assertIn(decl.mode, {ENFORCE, town_terminal.NO_REFUSAL, EXEMPT_SURVIVAL}, name)
@@ -96,6 +95,20 @@ class TerminalDeclarationTest(unittest.TestCase):
             if decl.mode == ENFORCE:
                 self.assertIsNotNone(decl.intended_terminal, name)
         self.assertEqual(len(town_terminal.SHADOW_RUNGS), S1_SHADOW_CENSUS)
+
+    def test_2b_rung_families_are_the_ladder_families(self):
+        # Structure stage 2 B step 1 moved the claim ladder's rung -> family
+        # table into the declarations; this pins the move until the ladder
+        # is deleted.
+        for name, decl in TERMINALS.items():
+            rung = rung_named(name)
+            self.assertEqual(decl.family, rung.family if rung is not None else "", name)
+        self.assertEqual(set(owner_families()) | {"unregistered"}, ladder_families())
+        self.assertEqual(town_terminal.rung_family("_flee_step#1"), "survival")
+        self.assertEqual(town_terminal.rung_family("_flee_step#1", "home-visit"), "home-visit")
+        self.assertEqual(town_terminal.rung_family("_flee_step#1", "no-such"), "unregistered")
+        with self.assertRaises(ValueError):
+            town_terminal.rung_family("_explore_step")
 
     def test_3_direct_producers_are_listed(self):
         manifest = json.loads((SRC / "town_work_sites.json").read_text(encoding="utf-8"))

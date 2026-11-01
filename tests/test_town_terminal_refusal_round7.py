@@ -24,7 +24,7 @@ class RefusalConfirmationTest(unittest.TestCase):
                 actual = policy_on(snap)
                 decl = tt.TERMINALS["town-teleport"]
                 with patch.dict(tt.TERMINALS, {
-                        "town-teleport": tt.TerminalDecl(decl.intended_terminal, tt.ENFORCE)}), \
+                        "town-teleport": decl._replace(mode=tt.ENFORCE)}), \
                         patch.object(actual, "_town_teleport_dispatch_key",
                                      side_effect=AssertionError("refused body ran")):
                     self.assertIsNone(actual._town_teleport_key(
@@ -40,7 +40,7 @@ class RefusalConfirmationTest(unittest.TestCase):
         policy = policy_on(snap)
         decl = tt.TERMINALS["town-teleport"]
         with patch.dict(tt.TERMINALS, {
-                "town-teleport": tt.TerminalDecl(decl.intended_terminal, tt.ENFORCE)}), \
+                "town-teleport": decl._replace(mode=tt.ENFORCE)}), \
                 patch.object(policy, "_town_teleport_building_positions", return_value=None), \
                 patch.object(policy, "_town_teleport_dispatch_key",
                              side_effect=AssertionError("refused body ran")):
@@ -63,8 +63,7 @@ class RefusalConfirmationTest(unittest.TestCase):
                     raise AssertionError("refused body ran")
                 return policy._atomic_home_deposit_dispatch_key(snap, snap.player.position)
             with patch.dict(tt.TERMINALS, {
-                    "home-atomic-deposit": tt.TerminalDecl(
-                        decl.intended_terminal, tt.ENFORCE if enforce else tt.SHADOW)}), \
+                    "home-atomic-deposit": decl._replace(mode=tt.ENFORCE if enforce else tt.SHADOW)}), \
                     patch.object(policy, "_offer_home_atomic_no_step",
                                  side_effect=lambda *args: no_steps.append(args)):
                 self.assertIsNone(policy._town_producer_entry(
