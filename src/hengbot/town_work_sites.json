@@ -1678,7 +1678,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_absorbed_substitutes.py:item_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_capability.py:_migrated": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:force_count": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1707,6 +1721,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_capability.py:replacing_power": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:waiving_rows": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -8818,6 +8839,20 @@
     "delegation": "selected child; no independent success"
   },
   "sol_events.py:serialize_event": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "speed_dose.py:_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "speed_dose.py:key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

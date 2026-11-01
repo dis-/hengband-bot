@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
-from hengbot import town_pack_headroom
+from hengbot import me_capability, town_pack_headroom
 from hengbot import town_travel
 from hengbot import unseen_strike
 from hengbot import random_quest_reserve
@@ -3664,7 +3664,7 @@ class TownMixin:
                     break
             if (
                 self._exact_potion_count(snapshot, SV_POTION_SPEED)
-                < int(force.get("speed_potions", 0))
+                < me_capability.force_count(self, snapshot, force, "speed_potions")
                 and STORE_BLACK not in self._town_store_attempted
             ):
                 add(STORE_BLACK, "quest-speed")

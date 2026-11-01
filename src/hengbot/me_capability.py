@@ -36,8 +36,9 @@ requirement for it is met) or adds the power's charges to the
 item's count (``replacing_charges``, read as ``AMOUNT`` names), when its
 named condition (``WHEN``) holds.  The purchase, supply, quest-carry and
 identification code ask these two functions; adding a device that replaces
-an item is one row, a new condition one predicate in ``WHEN``.  The quest's
-cast in place of the item is me_absorbed_substitutes (``replacing_power``).
+an item is one row, a new condition one predicate in ``WHEN``.  The cast in
+place of the item (a quest carry, or a ``cast`` row's item) is
+me_absorbed_substitutes (``replacing_power``, ``substitute_powers``).
 """
 
 from __future__ import annotations
@@ -48,8 +49,9 @@ from hengbot import me_device_policy
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
     SV_SCROLL_DETECT_TREASURE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
-    SV_STAFF_DESTRUCTION, SV_STAFF_DETECT_GOLD, SV_STAFF_IDENTIFY, SV_STAFF_LITE,
-    SV_STAFF_REMOVE_CURSE, SV_WAND_STONE_TO_MUD, TVAL_SCROLL, TVAL_STAFF,
+    SV_POTION_SPEED, SV_STAFF_DESTRUCTION, SV_STAFF_DETECT_GOLD, SV_STAFF_IDENTIFY,
+    SV_STAFF_LITE, SV_STAFF_REMOVE_CURSE, SV_STAFF_SPEED, SV_WAND_STONE_TO_MUD,
+    TVAL_POTION, TVAL_SCROLL, TVAL_STAFF,
 )
 
 
@@ -186,8 +188,10 @@ CANDIDATE = "candidate"  # not one of the shop's ordinary purchase candidates
 NEED = "need"            # a requirement for the item (supply, identification, quest) is met
 EVERY_USE = frozenset({PURCHASE, ORDER, CANDIDATE, NEED})
 
-# Owner 2026-10-31 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える」.
-DESTRUCTION_MIN_SUCCESS = 80
+# The ``reliable`` condition's displayed success rate, the owner's one number for
+# both rows that use it: 2026-10-31 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ
+# 魔力を要求に数える」 and 2026-11-01 「スピードの杖の取り込み後、成功率が80%以上なら…」.
+RELIABLE_MIN_SUCCESS = 80
 
 
 @dataclass(frozen=True)
@@ -197,6 +201,7 @@ class Replacement:
     when: str = "held"      # a WHEN predicate
     amount: str | None = None  # an AMOUNT reading: charges count as the item's; None waives it
     uses: frozenset = EVERY_USE  # what a waiving row answers
+    cast: bool = False      # a scene casts the power where it would use the item
 
 
 def _held(policy, snapshot, row, target) -> bool:
@@ -212,11 +217,11 @@ def _full_count(policy, snapshot, row, target) -> bool:
 
 
 def _reliable(policy, snapshot, row, target) -> bool:
-    """The displayed success rate is at least ``DESTRUCTION_MIN_SUCCESS`` (only
+    """The displayed success rate is at least ``RELIABLE_MIN_SUCCESS`` (only
     the displayed list prints the failure percent, cmd-magiceat.cpp)."""
     entry = observed_row(policy, *row.power)
     return (_magic_eater(snapshot) and entry is not None
-            and int(entry.get("success") or 0) >= DESTRUCTION_MIN_SUCCESS)
+            and int(entry.get("success") or 0) >= RELIABLE_MIN_SUCCESS)
 
 
 def _staff_sequence(policy, snapshot, row, target) -> bool:
@@ -265,6 +270,11 @@ REPLACES = (
     # 5 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える」 (the 50F+ gate).
     Replacement(("staff", SV_STAFF_DESTRUCTION), Kind(TVAL_STAFF, SV_STAFF_DESTRUCTION),
                 when="reliable", amount="charges"),
+    # 2026-11-01 「スピードの杖の取り込み後、成功率が80%以上なら以降スピードの薬の購入、
+    # 持ち歩きをやめる。スピードの薬を使用する場面では代わりに取り込んだ杖を試みる。」
+    # (the scenes' dose: speed_dose).
+    Replacement(("staff", SV_STAFF_SPEED), Kind(TVAL_POTION, SV_POTION_SPEED),
+                when="reliable", cast=True),
     # 2026-10-30 「以降、鑑定と財宝感知は取り込みで賄う」.
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_STAFF, SV_STAFF_IDENTIFY),
                 uses=frozenset({NEED})),
@@ -326,6 +336,20 @@ def replacing_power(target) -> tuple | None:
     return next((row.power for row in _rows(target) if row.power is not None), None)
 
 
-def carry_powers() -> tuple:
-    """(kind, sval) of every power a quest carry row names."""
-    return tuple(dict.fromkeys(row.power for row in REPLACES if isinstance(row.replaces, Carry)))
+def substitute_powers() -> tuple:
+    """(kind, sval) of every power cast in place of an item: a quest carry
+    row's, or a ``cast`` row's."""
+    return tuple(dict.fromkeys(row.power for row in REPLACES
+                               if isinstance(row.replaces, Carry) or row.cast))
+
+
+def force_count(policy, snapshot, force: dict, name: str) -> int:
+    """``force``'s required count of a ``FORCE_KINDS`` item, 0 once an absorbed
+    power meets it (acceptance, entry, purchase and the town route read this)."""
+    if replaced_by_absorbed(policy, snapshot, FORCE_KINDS[name]):
+        return 0
+    return int(force.get(name, 0))
+
+
+# required_force names (QUEST_*.jsonc) of an item kind a REPLACES row can meet.
+FORCE_KINDS = {"speed_potions": Kind(TVAL_POTION, SV_POTION_SPEED)}
