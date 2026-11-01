@@ -594,14 +594,17 @@ class QuestMixin(OpeningRouteMixin):
         reward = town_quest_reward.town_key(self, snapshot, hostiles)
         if reward is not None:
             return reward
-        from hengbot import me_staff_sequence
-        staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
-        if staff_sequence is not None:
-            return staff_sequence
-        from hengbot import q2_tower_recharge
-        tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
-        if tower_recharge is not None:
-            return tower_recharge
+        # The class sequences that travel wait while the report or the
+        # pickup holds the town; the room-making owners take the board.
+        if not town_quest_reward.holds_town(self, snapshot):
+            from hengbot import me_staff_sequence
+            staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
+            if staff_sequence is not None:
+                return staff_sequence
+            from hengbot import q2_tower_recharge
+            tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
+            if tower_recharge is not None:
+                return tower_recharge
         from hengbot import me_powerful_activation
         powerful = me_powerful_activation.town_key(self, snapshot, hostiles)
         if powerful is not None:
@@ -5534,6 +5537,17 @@ class QuestMixin(OpeningRouteMixin):
             self._fixed_quest_reward_pending = None
             return None
         positions = self._fixed_quest_reward_positions(snapshot, quest_id)
+        visible_reward = [
+            pos
+            for pos in positions
+            if (grid := snapshot.grid_at(pos)) is not None and grid.object_count > 0
+        ]
+        # Standing on the emptied reward cell completes the pickup, also
+        # when the reward took the last free slot (the pack is full now).
+        if snapshot.player.position in positions and not visible_reward:
+            self._fixed_quest_reward_pending = None
+            self.last_reason = "fixedquest:reward-complete"
+            return None
         if len(snapshot.inventory) >= PACK_CAPACITY:
             destroy = self._full_pack_destroy_key(snapshot)
             if destroy is not None:
@@ -5566,15 +5580,6 @@ class QuestMixin(OpeningRouteMixin):
         )
         if current is not None:
             return current
-        visible_reward = [
-            pos
-            for pos in positions
-            if (grid := snapshot.grid_at(pos)) is not None and grid.object_count > 0
-        ]
-        if snapshot.player.position in positions and not visible_reward:
-            self._fixed_quest_reward_pending = None
-            self.last_reason = "fixedquest:reward-complete"
-            return None
         target_positions = visible_reward or list(positions)
         context = getattr(self, "_decision_context", None)
         if context is None:

@@ -12105,7 +12105,15 @@
     "rows": [
       "quest-service"
     ],
-    "evidence": "#47 D62: castle_quest REWARDED + wilderness_gen (reward object placed, then FINISHED) put the reward on this town level only; delegated by the existing _opening_q34_town_key owner after the Q1 opening and before the class-16 staff sequence, Q2 Tower recharge and Powerful Activation, so no owner leaves the town before the reward is picked up. Outside a store, no adjacent hostile (survival first); the key is reward_key's.",
+    "evidence": "#47 D62: castle_quest REWARDED + wilderness_gen (reward object placed, then FINISHED) put the reward on this town level only; delegated by the existing _opening_q34_town_key owner after the Q1 opening and before the class-16 staff sequence, Q2 Tower recharge and Powerful Activation, so no owner leaves the town before the reward is picked up. Outside a store, no adjacent hostile (survival first); the key is reward_key's, else _no_room_key's named stop. While holds_town the staff sequence and the Q2 Tower recharge are not called and the town-leaving terminals refuse quest-reward-first (owner 2026-11-02).",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_quest_reward.py:_no_room_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "evidence": "Owner 2026-11-02 「空きを作って報告し、報酬を回収するまでを優先したい」: while holds_town (the claim or the pickup of a FIXED_QUEST_REWARD_POSITIONS quest holds this town) the pack has no free slot and town_pack_headroom.room_can_be_made finds no Home deposit, sale, destruction or identification that frees one, the existing named stop town:blocked:pack-full-no-room (_town_blocked_key) instead of a wander. Called by town_key after reward_key.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

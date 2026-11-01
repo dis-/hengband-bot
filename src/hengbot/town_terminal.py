@@ -32,7 +32,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
-from hengbot.town_quest_reward import report_waits_for_room
+from hengbot.town_quest_reward import holds_town, report_waits_for_room
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -771,6 +771,16 @@ _TRANSACTION_SERVERS = (Server("equipment-txn"),)
 
 # Codes the descent verdict can return (verdict_descent).
 DESCENT_CODES = frozenset({"quest-entrance-target"})
+# The terminals that leave the town level: refused while the report or the
+# pickup of a town-map quest reward holds the town (town_quest_reward.holds_town,
+# owner 2026-11-02 「空きを作って報告し、報酬を回収するまでを優先したい」).
+TOWN_LEAVING_TERMINALS = frozenset({
+    "inn-travel", "cross-town", "departure-recall", "descent", "descent-here", "fundraising",
+})
+QUEST_REWARD_FIRST = "quest-reward-first"
+# The room makers, then the report and the pickup themselves.
+_QUEST_REWARD_FIRST_SERVERS = (*_SPACE_SERVERS, Server("quest-request"))
+
 # Who serves each failing leaf of the ordinary departure gate
 # (``_town_departure_conjuncts``; design 3.4 S2 rows ``departure:<leaf>``).
 _DEPARTURE_LEAF_SERVERS: dict[str, tuple[Server, ...]] = {
@@ -844,7 +854,7 @@ TERMINAL_CODES = (QUEST_ENTRY_CODES | STORE_BUY_CODES | HOME_DEPOSIT_CODES
                   | IDENTIFY_CARRIED_CODES
                   | HOME_WITHDRAW_CODES
                   | HOME_ATOMIC_DEPOSIT_CODES | DESCENT_CODES | DEPARTURE_CODES)
-TERMINAL_CODES |= CROSS_TOWN_CODES | FUNDRAISING_CODES
+TERMINAL_CODES |= CROSS_TOWN_CODES | FUNDRAISING_CODES | {QUEST_REWARD_FIRST}
 
 # Who serves each refusal code.  An empty right side is explicit: no town
 # owner can satisfy it, so the terminal closes for the visit.
@@ -879,6 +889,7 @@ REFUSAL_SERVERS: dict[str, tuple[Server, ...]] = {
     "cross-town-shopping-in-progress": (Server("cross-town"),),
     # The town order's reward/bounty work (``_town_order_step4_key``).
     "town-order-step4-pending": (Server("quest-request"),),
+    QUEST_REWARD_FIRST: _QUEST_REWARD_FIRST_SERVERS,
     # A reliable source: bought, withdrawn from Home, or the Morivant trip.
     "no-identification-source": (
         Server("shop-buy", "identification-source"),
@@ -1348,10 +1359,17 @@ def direct_descent_intended_terminal(policy: Any, board: Any) -> TerminalRef | N
 
 
 def cross_town_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """The expedition's inn trip; another producer's inn trip only while the
+    town-map quest reward holds the town (town_quest_reward.holds_town)."""
     if not board.in_town or board.store is not None:
         return None
     destination = expedition_destination(policy, board)
-    return None if destination is None else TerminalRef("cross-town", (destination,))
+    if destination is not None:
+        return TerminalRef("cross-town", (destination,))
+    travel = getattr(policy, "_terminal_town_travel", None)
+    if travel is not None and holds_town(policy, board):
+        return TerminalRef("inn-travel", travel)
+    return None
 
 
 def fundraising_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
@@ -2099,6 +2117,9 @@ def terminal_admission(policy: Any, board: Any, terminal: TerminalRef) -> Admiss
     if (admission.admitted and terminal.terminal_id == "quest-claim"
             and report_waits_for_room(board, terminal.args[0])):
         admission = refused(("free_pack_slots_ready",))
+    if (admission.admitted and terminal.terminal_id in TOWN_LEAVING_TERMINALS
+            and holds_town(policy, board)):
+        admission = refused((QUEST_REWARD_FIRST,))
     if admission.admitted and terminal.terminal_id == "quest-entry":
         quest_id = terminal.args[0]
         info = policy._quest_knowledge.get(quest_id)
