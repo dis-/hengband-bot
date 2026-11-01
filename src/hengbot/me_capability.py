@@ -175,15 +175,16 @@ class Carry:
     name: str
 
 
-PURCHASE = "purchase"    # no purchase path buys the item (not even a purchase rung)
+# No purchase path buys the item: not a purchase rung, the needs stage, the
+# Identify swap, nor (with ORDER and CANDIDATE) the ordinary buy order.
+PURCHASE = "purchase"
 # No pick of the shop's ordinary buy order (its candidates and its direct
 # picks) takes a shelf row of the item's kind: the shop's excluded classes,
 # which every pick lets the Identify swap pass.
 ORDER = "order"
 CANDIDATE = "candidate"  # not one of the shop's ordinary purchase candidates
 NEED = "need"            # a requirement for the item (supply, identification, quest) is met
-EVERY_USE = frozenset({PURCHASE, CANDIDATE, NEED})
-USES = EVERY_USE | {ORDER}
+EVERY_USE = frozenset({PURCHASE, ORDER, CANDIDATE, NEED})
 
 # Owner 2026-10-31 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える」.
 DESTRUCTION_MIN_SUCCESS = 80
@@ -272,8 +273,9 @@ REPLACES = (
     Replacement(("staff", SV_STAFF_DETECT_GOLD), Kind(TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
                 amount="charges"),
     # 2026-10-31 18h 2 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない。持ち物の要求からも外す。」
+    # 2026-11-01 21h 6 「どちらの流れでも買わない」 (every use, like the two scroll rows).
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_STAFF, SV_STAFF_IDENTIFY),
-                when="full-count", uses=frozenset({CANDIDATE, NEED})),
+                when="full-count"),
     # 2026-10-31 night 「該当の杖を取り込んだら上位鑑定と上位解呪の巻物は以降購入せず
     # 強力発動で対応する」 (me_powerful_activation casts them).
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY)),

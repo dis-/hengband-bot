@@ -113,7 +113,7 @@ class ReplacesTableTest(unittest.TestCase):
             with self.subTest(row=row):
                 self.assertIn(row.when, capability.WHEN)
                 self.assertTrue(row.amount is None or row.amount in capability.AMOUNT)
-                self.assertTrue(row.uses <= capability.USES and row.uses)
+                self.assertTrue(row.uses <= capability.EVERY_USE and row.uses)
                 if row.power is None:
                     self.assertIn(row.when, {"staff-sequence", "stage-staff"})
                 else:

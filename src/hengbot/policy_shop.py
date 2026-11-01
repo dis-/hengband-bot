@@ -3295,6 +3295,8 @@ class ShopMixin(InStoreMixin):
                 matches = rung.match(PurchaseContext(snapshot), item)
                 if matches is None or self._purchase_churn_rejected(
                     store.store_type, item
+                ) or me_capability.replaced_by_absorbed(
+                    self, snapshot, item, me_capability.PURCHASE
                 ):
                     continue
                 quantity = self._purchase_quantity(snapshot, item)
@@ -4451,7 +4453,8 @@ class ShopMixin(InStoreMixin):
         店の回数の多い杖に買い替える」.  A shelf Identify staff with more
         per-staff charges than every Identify staff sold this visit is the
         replacement the sale was for, not a sell-then-rebuy of the same item;
-        an equal-or-emptier one still is.
+        an equal-or-emptier one still is.  Never a staff no purchase path
+        buys (me_capability.REPLACES PURCHASE: an absorbed power replaces it).
         """
         sold = self._town_visit_sale_identify_charges
         return (
@@ -4459,6 +4462,7 @@ class ShopMixin(InStoreMixin):
             and item.sval == SV_STAFF_IDENTIFY
             and sold is not None
             and max(item.charges, item.pval) > sold
+            and not me_capability.replaced_by_absorbed(self, None, item, me_capability.PURCHASE)
         )
 
     @staticmethod

@@ -3,6 +3,10 @@
 5 「今残っている回数で数える」: the absorbed Detect Treasure power counts toward
   the detection the departure needs by the displayed current charges (the
   record only when no list was read), like every other power.
+6 「どちらの流れでも買わない」: after 21 absorbed Identify charges no purchase
+  path buys an Identify staff (the ordinary order with its Identify swap, the
+  purchase rungs and the needs stage), like the *Identify* and *Remove Curse*
+  scroll rows.
 7 「表へ移す（入れ替えのための買い直しの例外も表の条件に）」: the staff
   sequence's stage staffs leave every pick of the shop's ordinary buy order
   through the table row ``stage-staff`` (use ORDER), not an inline check in
@@ -110,6 +114,8 @@ class ZombieFoodShelfTest(executor_harness.ProductionHarness):
     shelf) for a zombie Magic-Eater that must buy device food."""
 
     LIFE = "life-033"
+    sold_identify = None
+    identify = (21, 21)  # the displayed Identify power (current, max)
     shelf_screen = staticmethod(lv7.Lv7TownStopRecordedTest.shelf_screen)
     post = lv7.Lv7TownStopRecordedTest.post
     reply = d9.MagicEaterTownStopsRecordedTest.reply
@@ -124,9 +130,13 @@ class ZombieFoodShelfTest(executor_harness.ProductionHarness):
         policy, raw = d25.MagicEaterTownStops2RecordedTest.boundary(self, life, kit_bought=kit_bought)
         # DECLARED CONSTRUCTED: stage 1 absorbed (record and displayed list),
         # and no device food in the pack (its wand and staffs left out).
-        me_staff_sequence.state(policy).absorbed = dict(STAGE1)
-        raw["_magic_eater_power_list"] = staff_list()
+        me_staff_sequence.state(policy).absorbed = {
+            **STAGE1, me_capability.record_key("staff", SV_STAFF_IDENTIFY): self.identify[1]}
+        raw["_magic_eater_power_list"] = staff_list(identify=self.identify)
         raw["inventory"] = [item for item in raw["inventory"] if item.get("tval") not in (55, 65)]
+        # DECLARED CONSTRUCTED where set: an Identify staff of that many
+        # charges was sold earlier in this visit (the swap's record).
+        policy._town_visit_sale_identify_charges = self.sold_identify
         return policy, raw
 
     def first_purchase(self):
@@ -136,10 +146,29 @@ class ZombieFoodShelfTest(executor_harness.ProductionHarness):
     def test_the_ordinary_order_never_feeds_on_an_absorbed_stage_staff(self):
         # The absorbed Identify staff is device food (is_mana_food_ware), and
         # only the table's stage-staff row keeps the food pick off it.
+        # DECLARED CONSTRUCTED: 14 Identify charges, below a full staff's 21
+        # (the full-count row keeps it off the order too).
+        self.identify = (14, 14)
         self.assertEqual(self.first_purchase(), [("スリープ・モンスターの魔法棒 (10回分)", 1)])
         without = tuple(row for row in me_capability.REPLACES if row.when != "stage-staff")
         with mock.patch.object(me_capability, "REPLACES", without):
             self.assertEqual(self.first_purchase(), [("鑑定の杖 (5x 18回分)", 1)])
+
+    def test_no_purchase_path_buys_an_identify_staff_after_21_charges(self):
+        # The swap (an emptier Identify staff sold this visit) lets a fuller
+        # one pass the shop's excluded classes in every pick of the order.
+        self.sold_identify = 5
+        # Unfixed: 'pk1' bought the 18-charge Identify staff as food for 829.
+        self.assertEqual(self.first_purchase(), [("スリープ・モンスターの魔法棒 (10回分)", 1)])
+        policy, raw = self.boundary(self.LIFE)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        observe_lists(policy, board)
+        staffs = [item for item in board.store.items if (item.tval, item.sval) == (55, SV_STAFF_IDENTIFY)]
+        self.assertEqual(len(staffs), 2)
+        for item in staffs:
+            # Unfixed: the zombie's food rung (tail:mana-food) matched them.
+            self.assertEqual(policy._matching_live_purchase_rungs(board, item), (), item.name)
+            self.assertFalse(policy._identify_staff_swap_purchase(item), item.name)
 
 
 if __name__ == "__main__":
