@@ -113,7 +113,12 @@ class AfraidRangedAnswerRecordedTest(d57.PostedDeathKey):
 
     def test_control_unafraid_the_jelly_is_answered_too(self):
         _raw, key, reason = self.drive_afraid(afraid=False)
-        self.assertEqual(key[-1], "8", (key, reason))
+        self.assertNotEqual(key, "5", reason)
+        # An attack toward the jelly (north), or, since the dark walk yields to
+        # an unafraid fight (survival_preemption, life085-passive-1101), the
+        # lethal ladder's Speed potion before it -- as the D57 check accepts.
+        self.assertTrue(key[-1] == "8" or reason.endswith("emergency:quaff-speed"),
+                        (key, reason))
 
 
 if __name__ == "__main__":
