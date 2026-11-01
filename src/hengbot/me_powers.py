@@ -42,12 +42,24 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    beaten, whether or not a scroll could be read.  ``threat_key`` asks the
    THREAT occasion once per visible hostile, nearest first, from the dungeon
    ladder ahead of the emergency consumables.
+ - 全感知 (rod 6): detect_all(detect_rad) (cmd-item/cmd-zaprod.cpp:107,
+   spell-kind/spells-detection.cpp:622): traps, doors, stairs, gold, objects,
+   invisible and normal monsters, a superset of detect_monsters_evil.  Owner
+   2026-11-01 「全感知のロッドの使い方について　邪悪感知を使うタイミングで全感知が
+   使用可能なら代わりに使用する。安全なら強力発動で使う。」: the Detect Evil row
+   names it ``preferred`` (cast in the row's place whenever it is usable), and
+   its row's ``powerful`` "when-safe" casts it through Powerful Activation
+   (me_powerful_activation; rod_effect's powerful radius is DETECT_RAD * 3 / 2,
+   cmd-zaprod.cpp:50, for the same charge, cmd-magiceat.cpp:488).
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
 One row of ``POWERS`` per power: its kind/sval (the key is ``m`` + kind +
-I2A(sval)), the effect, the named triggers, a priority, an optional fallback
-(served when the row's own power has no charge) and named requirements.  A
+I2A(sval)), the effect, the named triggers, a priority, optional preferred
+powers (served in the row's place, at its triggers, whenever usable), an
+optional fallback (served when the row's own power has no charge), named
+requirements and an optional ``POWERFUL`` condition (when it holds the power
+is cast through Powerful Activation, ``U`` + kind + I2A(sval)).  A
 trigger is a small named predicate in ``TRIGGERS`` with the decision
 occasions that ask it (``power_key`` is called from the dungeon ladder with
 one occasion: the floor rung after the survival rungs, the dark-locomotion
@@ -84,7 +96,7 @@ from hengbot.me_staff_sequence import (
 from hengbot import me_capability, me_ranged_first
 from hengbot.me_device_policy import devices
 from hengbot.model import (
-    SV_ROD_DISARMING, SV_ROD_TELEPORT_AWAY, SV_WAND_DISARMING, SV_WAND_TELEPORT_AWAY,
+    SV_ROD_DETECTION, SV_ROD_DISARMING, SV_ROD_TELEPORT_AWAY, SV_WAND_DISARMING, SV_WAND_TELEPORT_AWAY,
     SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_WAND, Position, game_distance,
 )
 from hengbot.policy_constants import DIRECTION_KEYS, MONSTER_SPELL_MAX_RANGE
@@ -141,6 +153,8 @@ class Power:
     priority: int
     triggers: tuple[str, ...]
     fallback: tuple | None = None  # (kind, sval) served when this has no charge
+    preferred: tuple = ()          # (kind, sval) served in this row's place when usable
+    powerful: str | None = None    # a POWERFUL condition: then cast by Powerful Activation
     requires: tuple[str, ...] = ()
     darkness_scaled: bool = True  # radius / 3 in a DARKNESS dungeon
     aimed: bool = False           # me_device_attacks_input asks no direction
@@ -162,8 +176,13 @@ class Power:
 
 
 POWERS = (
+    # Owner 2026-11-01 「邪悪感知を使うタイミングで全感知が使用可能なら代わりに使用する。
+    # 安全なら強力発動で使う。」: the rod has no triggers of its own.
     Power("staff", SV_STAFF_DETECT_EVIL, POWER_NAMES[SV_STAFF_DETECT_EVIL],
-          "detect-evil", DETECT_RAD, 10, ("new-floor", "before-rest")),
+          "detect-evil", DETECT_RAD, 10, ("new-floor", "before-rest"),
+          preferred=(("rod", SV_ROD_DETECTION),)),
+    Power("rod", SV_ROD_DETECTION, devices()[(TVAL_ROD, SV_ROD_DETECTION)].names,
+          "detect-all", DETECT_RAD, 10, (), powerful="when-safe"),
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
@@ -435,6 +454,28 @@ REQUIREMENTS = {
 }
 
 
+def _activation():
+    # me_powerful_activation imports this module (kind letters, retry bound).
+    from hengbot import me_powerful_activation
+
+    return me_powerful_activation
+
+
+def _when_safe(ctx) -> bool:
+    """「安全なら」: no visible hostile, not just hit, and the HP cost leaves the
+    character above the ladder's low-HP rungs (me_powerful_activation.pays_safely)."""
+    return (not ctx.hostile_visible and not getattr(ctx.policy, "_took_damage", False)
+            and _activation().pays_safely(ctx.policy, ctx.snapshot))
+
+
+POWERFUL = {"when-safe": _when_safe}
+POWERFUL_SUFFIX = ":powerful"
+
+
+def _powerful(ctx, power) -> bool:
+    return power.powerful is not None and POWERFUL[power.powerful](ctx)
+
+
 # -- charges, gates and the producer ------------------------------------------
 
 def _charges(ctx, power) -> int:
@@ -503,7 +544,12 @@ def _usable(ctx, power, trigger) -> bool:
 
 
 def _serving(ctx, power, trigger):
-    """The row's own power, or its fallback when the row has no charge."""
+    """A usable preferred power, else the row's own power, or its fallback
+    when the row has no charge."""
+    preferred = next((BY_KEY[ident] for ident in power.preferred
+                      if _usable(ctx, BY_KEY[ident], trigger)), None)
+    if preferred is not None:
+        return preferred
     if _charges(ctx, power) > 0:
         return power if _usable(ctx, power, trigger) else None
     fallback = BY_KEY.get(power.fallback) if power.fallback is not None else None
@@ -530,8 +576,10 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None) -
             used = _serving(ctx, power, name)
             if used is None or not trigger.due(ctx, power):
                 continue
-            reason = f"{REASON}:{name}:{used.effect}"
-            key = used.key + (ctx.aim if used.aimed else "")
+            powerful = _powerful(ctx, used)
+            reason = f"{REASON}:{name}:{used.effect}" + (POWERFUL_SUFFIX if powerful else "")
+            key = ((_activation().racial_key(*used.ident) if powerful else used.key)
+                   + (ctx.aim if used.aimed else ""))
             policy.last_reason = reason
             policy._offer_execution(
                 key, producer="detectors", work_id=f"{REASON}:{used.effect}",

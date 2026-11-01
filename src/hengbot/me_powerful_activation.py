@@ -25,6 +25,13 @@ The game (C++ source):
    PERMA_CURSE, no prompt) (cmd-item/cmd-usestaff.cpp staff_effect,
    spell-kind/spells-perception.cpp, spells-curse-removal.cpp).
 
+Absorbed powers cast in the dungeon (owner 2026-11-01 「安全なら強力発動で使う」,
+the Rod of Detection): a me_powers row with a ``powerful`` condition is cast
+as ``racial_key`` when that condition holds; ``pays_safely`` is the HP rule
+(the worst cost, cost(level), leaves HP above the dungeon ladder's highest
+low-HP threshold) and ``activatable`` names what such a key casts for the
+executor (me_powerful_activation_input).
+
 Rules: once a power is absorbed (``me_capability.has``) its scroll is never
 bought or required (the ``me_capability.REPLACES`` rows of the *Identify* and
 *Remove Curse* scrolls), and the town work it serves is this module's
@@ -66,7 +73,7 @@ class Effect:
 
     @property
     def key(self) -> str:
-        return RACIAL_KEY + me_powers.KIND_LETTER[self.kind] + me_powers.encode_letter(self.sval)
+        return racial_key(self.kind, self.sval)
 
     @property
     def reason(self) -> str:
@@ -77,11 +84,43 @@ IDENTIFY = Effect("identify", SV_STAFF_IDENTIFY, True)
 UNCURSE = Effect("uncurse", SV_STAFF_REMOVE_CURSE, False)
 EFFECTS = (UNCURSE, IDENTIFY)
 BY_SVAL = {effect.sval: effect for effect in EFFECTS}
+BY_KEY = {(effect.kind, effect.sval): effect for effect in EFFECTS}
+
+
+def racial_key(kind: str, sval: int) -> str:
+    """``U``, the kind question's letter and the power's list letter."""
+    return RACIAL_KEY + me_powers.KIND_LETTER[kind] + me_powers.encode_letter(sval)
+
+
+def activatable(kind: str, sval: int) -> Effect | None:
+    """What a Powerful Activation key casts: a town effect, or a me_powers row
+    with a ``powerful`` condition (no aim: the racial stepper asks no direction)."""
+    effect = BY_KEY.get((kind, sval))
+    if effect is not None:
+        return effect
+    power = me_powers.BY_KEY.get((kind, sval))
+    if power is None or power.powerful is None or power.aimed:
+        return None
+    return Effect(power.effect, sval, False, kind)
 
 
 def cost(level: int) -> int:
     """class-racial-switcher.cpp: rpi.cost = 10 + (lvl - 10) / 2."""
     return 10 + (level - 10) // 2
+
+
+def pays_safely(policy, snapshot) -> bool:
+    """Level ``MIN_LEVEL`` and HP after the worst cost above every low-HP rung.
+
+    racial_power_reduce_mana takes cost/2 + 1d(cost/2) <= cost(level)
+    (cmd-action/cmd-racial.cpp:442).  The dungeon ladder's highest low-HP
+    threshold is ``_low_hp_walk_threshold`` (max(50%, max - 300), the low-HP
+    walk gate, survival_preemption and status_cure); strictly above it is
+    also above the emergency return (<= 50%), heal/flee (40%) and panic (20%).
+    """
+    player = snapshot.player
+    return (player.level >= MIN_LEVEL
+            and player.hp - cost(player.level) > policy._low_hp_walk_threshold(player.max_hp))
 
 
 @dataclass
