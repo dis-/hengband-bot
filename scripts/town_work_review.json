@@ -786,6 +786,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "immobile_threat_memory.py:step_out_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon-only: immobile_threat_memory.observe clears the memory in town, so the ring is empty there.",
+    "evidence": "Owner 2026-11-01 21h answer 1 「近づかずに避ける」: standing in the ring of a remembered never-moving monster that drains a stat or is lethal in one turn, steps to the nearest free cell outside it (_nearest_goal_step); None when none is reachable or on a floor whose exit is locked (no ring), leaving today's fight. Runs after _immobile_summoner_key, before the unseen retreat and the combat rungs.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "input_executor.py:OperationExecutor._after_post": {
     "classification": "driver",
     "rows": [

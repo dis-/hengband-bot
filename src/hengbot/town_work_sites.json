@@ -1033,6 +1033,13 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "immobile_threat_memory.py:step_out_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "input_executor.py:OperationExecutor._after_post": {
     "classification": "driver",
     "rows": [
