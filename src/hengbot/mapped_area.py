@@ -26,9 +26,12 @@ blank grid is corridor.  A two-wide passage reads as a room (it is walked as
 before); a closet one grid wide reads as a dead end.
 
 Sources.  ``SOURCES`` lists who knows where a mapping was cast on this floor
-visit; today only the Magic-Eater's absorbed staff does (``me_powers``).  A
-scroll, rod or staff of the same effect is one more source function.  Quest
-floors keep their own exploration (the area is not applied there).
+visit: the Magic-Eater's absorbed staff (``me_powers``) and the floor's
+exploration ledger, which keeps every disc across a bot restart on the same
+floor and forgets them on a new floor (owner 2026-11-01 「階の記録に残す」,
+``refresh`` writes the discs there).  A scroll, rod or staff of the same
+effect is one more source function.  Quest floors keep their own exploration
+(the area is not applied there).
 """
 
 from __future__ import annotations
@@ -41,8 +44,24 @@ from hengbot.policy_constants import NEIGHBOR_OFFSETS
 
 
 ATTR = "_mapped_area"
+
+
+def _ledger(policy, snapshot):
+    """The exploration ledger bound to this floor, else None."""
+    ledger = getattr(policy, "_exploration_ledger", None)
+    return ledger if ledger is not None and ledger.floor_key == snapshot.floor_key else None
+
+
+def recorded_areas(policy, snapshot) -> tuple:
+    """(centre, radius) of the discs the floor's ledger kept (an earlier bot
+    session's mappings on this floor)."""
+    ledger = _ledger(policy, snapshot)
+    return () if ledger is None else tuple(
+        (Position(y, x), radius) for y, x, radius in ledger.mapped_areas)
+
+
 # (centre, radius) of each mapping cast on the current floor visit.
-SOURCES = (me_powers.mapped_areas,)
+SOURCES = (me_powers.mapped_areas, recorded_areas)
 
 Cell = tuple[int, int]
 
@@ -121,6 +140,9 @@ def refresh(policy, snapshot, known: set, seen_floor: set) -> MappedArea | None:
     """
     discs = () if snapshot.floor_key[2] != 0 or snapshot.dungeon_level <= 0 else tuple(
         sorted({disc for source in SOURCES for disc in source(policy, snapshot)}))
+    ledger = _ledger(policy, snapshot)
+    if ledger is not None:
+        ledger.note_mapped_areas((centre.y, centre.x, radius) for centre, radius in discs)
     area = current(policy)
     if not discs:
         area = None

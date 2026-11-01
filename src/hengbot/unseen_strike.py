@@ -17,6 +17,12 @@ Above that threshold the lethal-emergency ladder's last answer was a wait and
 the wait-while-damaged rewrite walked to the least-visited cell beside the
 unseen attacker.  Every survival path now asks this one module.  A blind
 player strikes its remembered attacker first (blind_strike).
+
+#47 (owner 2026-11-01, answer 1 「近接で殴られたら反撃」): the unseen-attacker
+retreat (``unseen:reverse-choke``) and the recall wait's walk
+(``unseen-recall:move``) strike back on melee evidence too; on spell or
+missile evidence (``_is_unseen_spell_message``) they keep walking out of the
+attacker's line.
 """
 
 import random
@@ -27,6 +33,8 @@ from hengbot.policy_constants import ALTER_KEY, DIRECTION_KEYS
 
 REASON = "no-wait:attack"
 EMERGENCY_REASON = "emergency:unseen-strike"
+RETREAT_REASON = "unseen:strike"
+RECALL_REASON = "unseen-recall:strike"
 
 
 def hit_in_melee(policy, snapshot) -> bool:

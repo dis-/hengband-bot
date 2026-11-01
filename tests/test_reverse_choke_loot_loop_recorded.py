@@ -50,12 +50,14 @@ Two branches start from the replayed policy as it stood after the read at
   running teleports again, and the new hit stays pending for the retreat
   instead of being dropped with the one left behind; (b) on the board after
   the quiet recorded landing, the player still on the landing cell -- the
-  retreat arms, and its reverse direction is taken only from movement after
-  the landing (none yet), never the pre-teleport cell (-1, 75).
-- CONSTRUCTED continuations: the retreat (b) arms, with nothing walked
-  since the landing, takes a heading fixed at arming, and ends (retires or
-  finishes its choke wait) within RETREAT_BOUND boards; the same holds for a
-  fresh process bitten before its first step on the floor.  Boards after
+  retreat armed, its reverse direction taken only from movement after the
+  landing (none yet), never the pre-teleport cell (-1, 75).  Since the
+  owner's answer of 2026-11-01 (「近接で殴られたら反撃」, unseen_strike) the
+  bite is struck back there and arms no retreat; the retreat's arming and
+  dead-end retirement stay pinned on the recorded breath below.
+- CONSTRUCTED continuations: after (b) no retreat walks (it once armed
+  with a heading fixed at arming and ended within RETREAT_BOUND boards); the
+  same holds for a fresh process bitten before its first step on the floor.  Boards after
   the posted read that are not its landing -- a refused read then a step, a
   spent read whose teleport was blocked then a step, a refused read then a
   jump not of the player's making -- record no landing.
@@ -81,6 +83,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from hengbot import unseen_strike
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -388,7 +391,7 @@ class ReverseChokeLootLoopRecordedTest(unittest.TestCase):
         self.assertEqual(self.landing_hit_row[1], "emergency:teleport")
         self.assertEqual(policy._unseen_hit_pending_floor, board.floor_key)
 
-    def test_new_unseen_hit_after_landing_arms_from_the_landing(self):
+    def test_new_unseen_bite_after_landing_is_struck_back(self):
         # CONSTRUCTED board (b), see the module docstring.
         self.assertEqual(self.landing_row, ("8", "explore"))
         board = self.new_hit_board
@@ -400,40 +403,34 @@ class ReverseChokeLootLoopRecordedTest(unittest.TestCase):
         self.assertTrue(policy._took_damage)
         self.assertEqual(policy._unseen_attack_evidence, UNSEEN_BITE)
         key, reason = self.new_hit_row
-        self.assertEqual(reason, "unseen:reverse-choke")
-        self.assertEqual(policy._unseen_retreat_floor, board.floor_key)
-        self.assertEqual(policy._escape_state.owner, "unseen")
-        # No movement since the landing: the heading is fixed at arming from
-        # one step out of the landing cell, never the jump's far side
-        # (-1, 75), the 100+ cell walk back to the attack.
-        dy, dx = policy._unseen_retreat_direction
-        self.assertEqual(max(abs(dy), abs(dx)), 1)
+        # Owner 2026-11-01 「近接で殴られたら反撃」: the bite is struck back
+        # (unseen_strike); no retreat arms, so none walks back to the attack.
+        self.assertEqual((key[0], reason), ("+", unseen_strike.RETREAT_REASON))
+        self.assertIsNone(policy._unseen_retreat_floor)
+        self.assertNotEqual(policy._escape_state.owner, "unseen")
         self.assertNotEqual(key, self._live(ARMED)[0])
 
-    def _assert_retreat_ends(self, rows):
+    def _assert_no_retreat_walks(self, rows):
         reasons = [row[0] for row in rows]
-        self.assertTrue(rows, "no board after the arming")
-        # The retreat ran and then ended: retired with its owner released.
+        self.assertTrue(rows, "no board after the bite")
+        # Nothing armed: the first quiet board already has no retreat.
         self.assertIsNone(rows[-1][2], reasons[-5:])
         self.assertLessEqual(len(rows), RETREAT_BOUND)
-        self.assertTrue(all(r.startswith("unseen:") for r in reasons[:-1]),
-                        reasons)
-        self.assertIn("unseen:reverse-choke", reasons)
+        self.assertNotIn("unseen:reverse-choke", reasons)
 
-    def test_post_landing_retreat_ends_within_bound(self):
+    def test_post_landing_bite_walks_no_retreat(self):
         # CONSTRUCTED continuation of (b).
-        self.assertEqual(self.new_hit_row[1], "unseen:reverse-choke")
-        self._assert_retreat_ends(self.walk_rows)
+        self.assertEqual(self.new_hit_row[1], unseen_strike.RETREAT_REASON)
+        self._assert_no_retreat_walks(self.walk_rows)
         self.assertNotEqual(self.walk_policy._escape_state.owner, "unseen")
 
-    def test_first_board_hit_retreat_ends_within_bound(self):
-        # CONSTRUCTED: a hit before the first step on a floor.
+    def test_first_board_bite_walks_no_retreat(self):
+        # CONSTRUCTED: a bite before the first step on a floor.
         self.assertFalse(self.arrival_first_row[1].startswith("unseen:"))
         self.assertEqual(self.arrival_hit_board.player.position, LANDING)
-        self.assertEqual(self.arrival_hit_row[1], "unseen:reverse-choke")
-        dy, dx = self.arrival_direction
-        self.assertEqual(max(abs(dy), abs(dx)), 1)
-        self._assert_retreat_ends(self.arrival_rows)
+        self.assertEqual(self.arrival_hit_row[1], unseen_strike.RETREAT_REASON)
+        self.assertIsNone(self.arrival_direction)
+        self._assert_no_retreat_walks(self.arrival_rows)
 
     def test_read_without_a_landing_is_not_a_landing(self):
         # CONSTRUCTED boards (F2).

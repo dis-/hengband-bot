@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, unseen_strike, wilderness_exit
+from hengbot import magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -10528,8 +10528,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._direction_key(
                 player.position, self._weakest(adjacent).position
             )
-        if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
-            return ranged  # fear refuses melee only
+        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
+            return ranged  # fear and NO_MELEE refuse melee only
         if low:
             answer = (blind_strike.emergency_key(self, snapshot)
                       or self._low_hp_no_kit_hit_key(snapshot, hostiles))
@@ -11387,6 +11387,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return blocker
             if (stand := town_last_stand.key(self, snapshot, strategic_hostiles, "flee:cornered-attack")) is not None:
                 return stand
+            if (ranged := me_ranged_first.outpaced_afraid_key(self, snapshot, strategic_adjacent)) is not None:
+                return ranged  # a faster attacker follows every step away
             step = self._town_producer_entry("_flee_step#2", lambda: self._flee_step(snapshot, strategic_hostiles))
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below
@@ -11414,8 +11416,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._town_producer_entry("_direction_key#1", lambda: self._direction_key(
                     player.position, self._weakest(strategic_adjacent).position
                 ))
-            if (ranged := me_ranged_first.afraid_key(self, snapshot, strategic_adjacent)) is not None:
-                return ranged  # fear refuses melee only
+            if (ranged := me_ranged_first.melee_refused_key(self, snapshot, strategic_adjacent)) is not None:
+                return ranged  # fear and NO_MELEE refuse melee only
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
@@ -11516,6 +11518,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._town_producer_entry("_direction_key#2", lambda: self._direction_key(
                 player.position, self._weakest(combat_adjacent).position
             ))
+        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, combat_adjacent)) is not None:
+            return ranged  # NO_MELEE refuses melee only (fear flees above)
 
         # 2r. Ranged attack: fire matching ammo (or throw a spare oil flask) at a
         # ray-aligned hostile before it closes. Fear blocks melee but NOT firing,
@@ -18110,6 +18114,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 step,
                 tail="c" + ("y" * len(bounties)) + LEAVE_STORE_KEY,
             ))
+        # The game's travel to the office's side (town_travel); the office's
+        # own continuation (bounty.resume) stays the declared work.
+        travel = town_travel.building_key(
+            self, snapshot, office_pos if office_pos is not None else step_target,
+            "bounty:approach")
+        if travel is not None:
+            return offer(travel)
         return offer(self._step_toward(snapshot, step))
 
     def _observe_navigation_commitments(self, snapshot: Snapshot) -> None:

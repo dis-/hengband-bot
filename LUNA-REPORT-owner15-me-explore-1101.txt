@@ -1,0 +1,148 @@
+LUNA-REPORT owner15-me-explore-1101（#47、2026-11-01）
+
+発注: 所有者の 11-01 17 時の答え 8・10（memory owner-answers-15-decisions-20261101.md）と、
+D52（me-tower-trips-1101）の問い 3 で後回しにした町の歩きのトラベル化（所有者 11-01
+「街での移動は可能な限りトラベルコマンドを活用して」）。枝: owner15-me-explore-1101（main ade15c353 から）。
+診断: LUNA-DIAG-owner15-me-explore-1101.txt（件ごとの連鎖・行番号・記録の行）。
+
+------------------------------------------------------------------
+1. 答え 8: 罠の解除の力を、脅威でない敵が見えていても使う（コミット 7be84f8cb）
+------------------------------------------------------------------
+原因: me_powers の表のロッド 14・魔法棒 4・魔法棒 5 の行に beside_harmless が無く、
+ _hostiles_allow（base me_powers.py:445）が見える敵 1 体で断っていた。
+直し: 3 行に beside_harmless=True（src/hengbot/me_powers.py:163-172）。危険な敵（visible_threat）と
+ 殴られた直後（_gate の _took_damage）は今のまま断る。
+検査: tests.test_me_disarm_powers に test_harmless_visible_hostile_keeps_the_power を追加。
+ 記録の life-016 の罠の盤面に、life-065 の記録の寝ている Lv1 の敵（「脅威でなければ感知する」の件）を
+ 置く（作った物と明記）。public choose_key で mBe4、本番の実行器で m/B/e/4。危険な敵（HP 全部の遠隔）
+ では力を使わない、殴られた直後は power_key が None。
+ 直す前: ('D4', 'fundraise:seek-upstairs-door') != ('mBe4', 'me-power:trap-to-disarm:disarm-trap') で FAIL。
+
+------------------------------------------------------------------
+2. 答え 10: 周辺感知の範囲を階の記録に残す（コミット 8b9d11930）
+------------------------------------------------------------------
+原因: 範囲の出どころ（mapped_area.SOURCES）が me_powers のメモリだけ。記録: n1-c life-080 4F、
+ 1 回目のセッションの感知 5 回の後 05:01:40 に再起動、2 回目は感知した行き止まり (3,94)->(1,94) へ入り
+ 捜索 8 回（判断 237-248）、次の感知は turn 563571。
+直し:
+ - exploration_ledger.py: mapped_areas（(y, x, 半径)）を足し、読み込み・保存・新しい階で消す
+   （:57, :75, :123-126, :201）。note_mapped_areas（:159）は新しい円があればすぐ保存
+   （感知は少なく、16 判断ごとの保存の前に再起動しうる）。古い checkpoint は __setstate__（:62）で空。
+ - mapped_area.py: recorded_areas（:55）を SOURCES（:64）に足し、refresh（:145）が円を ledger に書く。
+ - 呼び手・航行のコードは変えていない。
+検査: tests/test_mapped_area_ledger_recorded.py（3 件、記録の盤面 tests/fixtures/mapped-rooms-1101.json.gz）
+ - test_restart_on_the_floor_keeps_the_mapped_area: 1 回目のセッションの 5 回を 549703 の盤面に入れ
+   （作った物と明記）、新しい方策（再起動）で 560863 の盤面: 行き止まりへ入らない、実行器で送れる、
+   ファイルに位置と半径 30。直す前: (2, 94) unexpectedly found in {(2, 94), (1, 94)} で FAIL。
+ - test_a_new_floor_forgets_the_mapped_area: 別の階への再起動・同じセッションで階を出ると範囲なし。
+   直す前: AttributeError / unexpectedly None で FAIL。
+ - test_without_a_ledger_file_the_restart_walks_as_recorded: ファイルが無ければ記録どおり '8'（通る）。
+
+------------------------------------------------------------------
+3. 残りの町の歩きのトラベル化
+------------------------------------------------------------------
+3a. fixedquest:q22-travel と決定の文脈ありの fixedquest:prepare-return（コミット 57979764c、8a8e106ee）
+ 原因: 経路の宣言を自分で作る 2 つの担当（base policy_quest.py:4459、:4674-4691）が
+  _town_teleport_route の 1 歩をそのまま composed_key にしていた（D52 の宿のトラベルを通らない）。
+ 直し: policy_town.py:7675 _town_teleport_route_key（D52 の _town_teleport_travel_key、使えない盤面では
+  今の 1 歩）を作り、2 つの担当が宣言の composed_key にする（policy_quest.py:4464, :4679）。
+  宣言の goal・first_step・bfs_rank は経路のまま。宣言の検査は composed_key の一致と bfs_rank で
+  測るので変えていない。トラベルの進みは D52 の is_travel_macro の行で読まれる。
+ 期待値を直したテスト（壁ではない。正しい振る舞いへ）:
+  - tests.test_quest_travel_progress: pin_p は q22 のキーがトラベルで composed_key と一致し、行き先が
+    宿の隣であることを追加。pin_w は権限の無い候補の進みのベクトルが 9 個（宣言の部分は無く、
+    D49 の宣言した歩きの部分がトラベルの行き先で 1 つ増える）。
+  - tests.test_quest_prepare_return_stage2: test_l の '7','8','9','9','9' をトラベル 5 回へ
+    （bfs_rank が減ることは今のまま）、test_live_shop_observation_... の '7' をトラベルへ。
+  - tests.test_town_terminal_rung_applicability: 同じ町 3 の記録の 5 キーをトラベルへ（8a8e106ee。
+    57979764c 単独ではこの 1 件が落ちる。取り込みは 2 つ一緒に）。
+3b. bounty:approach（コミット 6b6bbe5ab）
+ 原因: base policy.py:18107 が事務所の手前も 1 歩ずつ。D52 が見送った理由は、トラベルの offer
+  （route.resume）だけを宣言にすると、保持者の続き（base policy.py:6663-6680）が quest-request を
+  "fixedquest:request:approach" の名前で 1 歩にすること。
+ 直し: policy.py:18109 事務所の隣へ town_travel.building_key、そのキーを賞金首自身の offer
+  （normal-step4-bounty、bounty.resume）で出す。保持された賞金首は自分の担当に戻る。
+ 期待値を直したテスト: tests.test_live22_bounty の 3 件（'7' -> 事務所の隣へのトラベル、
+  決定の行き先は事務所 (25,71) からトラベルの行き先（隣のマス）へ。D52 の他のトラベルと同じ）。
+3c. town:morivant-full-identify:library（コミット 701fbb000）
+ 原因: base policy_quest.py:1536 の 1 歩。D52 は「接近の盤面が無い」としたが、D34 の記録
+  （n1-a life-433、判断 7678-7691 の 14 歩）に盤面があったので、作った盤面ではなく記録を使った。
+ 直し: policy_quest.py:1538 図書館の隣へ town_travel.building_key、使えなければ今の 1 歩。
+  どちらも今までの library-route の offer。入る 1 歩と鑑定の後ろのキーは今のまま。
+検査（3a-3c）: tests/test_town_travel_errands_recorded.py（4 件、記録の盤面を public choose_key と
+ 本番の実行器（256 キーのキュー）で）
+ - test_q22_travel_rides_the_travel_command_to_the_inn（2856171）: 直す前 '7' で FAIL
+ - test_declared_prepare_return_rides_the_travel_command_to_the_inn（2856703）: 直す前 '7' で FAIL
+ - test_office_walk_rides_the_travel_command（live22 5123、続きが bounty.resume）: 直す前 '7' で FAIL、
+   offer を付けずにトラベルだけ返すと 'route.resume' != 'bounty.resume' で FAIL
+ - test_library_walk_rides_the_travel_command（life-433 7678）: 直す前 '1' で FAIL
+ 担当ごとに戻した確認: policy.py だけ戻す -> 賞金首の 1 件、図書館の行だけ戻す -> 図書館の 1 件、
+ q22・prepare-return の 2 行だけ戻す -> その 2 件が落ちる。src を全部戻すと 4 件と直したピン 7 件が落ちる。
+ （戻し方: 差分を patch に保存して git checkout、実行、git apply。git stash は使っていない）
+
+------------------------------------------------------------------
+4. 流した検査
+------------------------------------------------------------------
+ - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+ - checks.json のテスト: 98 件のうちこの枝に有る 97 モジュール、3 回に分けて 168 + 195 + 199 = 562 件、
+   すべて OK（無い 1 件 tests.test_d57_me_combat_1101_recorded は main ade15c353 にまだ無い）。
+ - 足した・変えたテスト: test_me_disarm_powers（9）、test_mapped_area_ledger_recorded（3）、
+   test_town_travel_errands_recorded（4）、test_live22_bounty（12）、test_quest_travel_progress、
+   test_quest_prepare_return_stage2、test_town_terminal_rung_applicability: すべて OK。
+ - 関係するテスト: test_exploration_persistence、test_runtime_file_isolation、test_bounty_confirm_1026、
+   test_town_arbiter、test_mapped_rooms_1101_recorded、test_me_stage2_powers、test_me_mapping_1101_recorded、
+   test_morivant_library_identify_recorded、test_home_scan_owner_priority、test_surface_map_walks、
+   test_quest_building_approach_progress、test_reward_approach_progress、
+   test_quest_enter_approach_progress: OK。
+ - base でも同じく落ちる既存の失敗（この変更とは無関係）: test_bounty_cashout_recorded_1025 の 6 件、
+   test_s33_phase2_quest.BountyRouteTest の 3 件（どちらも店のトラベル ESC`n&. が先に出る）、
+   test_ownership_s2a_classification（ownership_claim_lint が無く import できない）。
+   test_unaffordable_claim_tour_recorded は時間がかかるので流していない（D52 の報告では既存の失敗）。
+ - scripts/town_work_manifest.py --write: zero unmapped（_town_teleport_route_key の見直しの記録を追加、
+   building_key の行に identification を追加）。
+
+------------------------------------------------------------------
+5. checks.json の案（編集していない。番号は取り込み時に合わせてください）
+------------------------------------------------------------------
+{"id": "D58-owner15-me-explore",
+ "owner": "2026-11-01 答え8「脅威でなければ使う」・答え10「階の記録に残す」・「街での移動は可能な限りトラベルコマンドを活用して」 (branch owner15-me-explore-1101)",
+ "tests": ["tests.test_me_disarm_powers", "tests.test_mapped_area_ledger_recorded",
+           "tests.test_town_travel_errands_recorded", "tests.test_live22_bounty"]}
+
+------------------------------------------------------------------
+保守性
+------------------------------------------------------------------
+ - 答え 8 は表の行の属性だけ（me_powers.POWERS の 3 行）。門・呼び手に分岐を足していない。
+ - 答え 10 の新しいロジックは、範囲の持ち主の mapped_area（出どころ recorded_areas と書き込み 1 行）と、
+   永続の持ち主の exploration_ledger（項目 1 つと note_mapped_areas）の 2 か所だけ。me_powers・航行は
+   変えていない。古い checkpoint の手当ては ledger 自身の __setstate__（方策の属性は足していない）。
+ - トラベルの可否は今までどおり town_travel.travel_key の 1 か所。新しい関数は
+   _town_teleport_route_key（宣言を作る 2 担当の共通の「経路の 1 手」）だけで、q22 と prepare-return が
+   同じ式を 2 回持たないようにした。賞金首・図書館は town_travel.building_key の 1 呼び出し。
+   建物名・クエスト番号の特例は共有コードに書いていない。
+ - 関係のない整理はしていない。
+
+------------------------------------------------------------------
+持ち主への問い
+------------------------------------------------------------------
+ 1. 再起動の後、記録から戻した周辺感知の範囲を、周辺感知の行のきっかけ（new-floor、
+    stairs-needed-and-unknown）の「使った」にも数えるか。今は範囲（探索の効率化）だけを戻し、
+    きっかけは今まで通り me_powers のメモリだけを見る（再起動の直後にもう 1 回感知しうる）。
+    案: (a) 今のまま（範囲だけ戻す） (b) 戻した範囲も使用に数え、同じ場所での再感知をしない（充填の節約）。
+ 2. （別の家族、観察）保持者の続き route.resume は quest-request の家族の歩きを
+    "fixedquest:request:approach" の名前で 1 歩にする（policy.py の _town_holder_declared_key）。
+    D52 の宿へのトラベル（fixedquest:q<id>-travel ほか）と今回の q22・prepare-return も、保持された時は
+    この名前で 1 歩ずつ続く。賞金首は自分の offer で避けた。保持者の続きを担当ごとの続きに分ける直しを
+    別に出してよいか。
+
+------------------------------------------------------------------
+追記: main 64e63b6cf の取り込み（コミット 4c631c003）
+------------------------------------------------------------------
+ - 衝突 3 ファイルは両方の振る舞いを残した: me_powers.py は罠の解除 3 行の beside_harmless と main の
+   テレポート・アウェイの 2 行（against_hostile）・me_capability の説明、policy.py・policy_quest.py は
+   town_travel の import と main の me_capability の import。
+ - scripts/town_work_manifest.py --write: zero unmapped（1090 候補）。town_work_rekey.py は 0 件（動いた関数なし）。
+ - 取り込み後の確認: import OK。checks.json の 102 モジュール全部（601 件）OK。自分のテストと直したピン、
+   関係するテストも OK。
+ - 取り込み後の戻した確認（src を main 64e63b6cf に戻して実行）: 答え 8 の 1 件、答え 10 の 2 件、
+   トラベルの 4 件、live22 の 3 件が落ちる。賞金首の offer を外すと 'route.resume' != 'bounty.resume' で落ちる。
