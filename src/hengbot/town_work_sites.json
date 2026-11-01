@@ -76,6 +76,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "breeder_quest.py:response": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "No independent success; _breeder_breakthrough_key selects the command."
+  },
+  "breeder_quest.py:teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "character_sheet.py:_cells": {
     "classification": "data",
     "rows": [
@@ -4944,6 +4958,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_combat.py:CombatMixin._refresh_paralyzer_avoidance": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._sighted_or_detected_hostiles": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
