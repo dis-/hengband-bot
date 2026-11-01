@@ -1,4 +1,4 @@
-"""Town owner-retired-burst visits of 2026-11-02 (04:47).
+"""Two town owner-retired-burst visits of 2026-11-02 04:35 and 04:47.
 
 Recorded boards (fixtures: tests/extract_home_loops_0446_fixtures.py).  The
 tests attach each board to the established static-game policy helper
@@ -19,6 +19,15 @@ as on the viewing bots) settles each decision.
   Home for the visit.  The no-safe-destination fundraising set then found
   its Treasure Detection on Home's shelf behind that block: the depth gate
   held the visit until the burst (decisions 5, 9-18).
+- n1-a life-464, Outpost 04:35 (Lv38, bot-3aec0670c).  The Home junk sweep
+  (#95 slice 1b-2, one ware per Home entry) took the three empty capture
+  balls and destroyed each outside; every destroy was observed
+  (home-full-destroy-observed).  The burst counter credits only the evidenced
+  completion of an admitted execution, but it admitted the states "ready",
+  "posted" and "awaiting" while ClaimRegister declares a sent command as
+  "acting", and every destroy shared one work id: no destroy was credited
+  and the three Home re-entries' retirements made the burst
+  (decisions 3438-3455).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -26,17 +35,20 @@ import copy
 import gzip
 import json
 from pathlib import Path
+import re
 from types import SimpleNamespace
 
 from hengbot import cli
-from hengbot.model import parse_snapshot
+from hengbot.model import TVAL_CAPTURE, parse_snapshot
 from hengbot.policy_constants import STORE_HOME
 import tests.test_unid_deposit_recorded as recorded
 
 
 FIXTURES = Path(__file__).with_name("fixtures")
 FUNDRAISE_PLAN = FIXTURES / "home-loops-0446-fundraise-plan.json.gz"
+JUNK_SWEEP = FIXTURES / "home-loops-0446-junk-sweep.json.gz"
 BURST = "town:blocked:owner-retired-burst"
+PAGE_ROWS = 52
 
 
 def _load(path):
@@ -149,6 +161,143 @@ class FundraisePlanRecordedTest(BurstVisitRecordedTest):
         withdrawn = [name for kind, name in self.events if kind == "withdraw"]
         self.assertEqual(withdrawn, ["財宝感知の巻物"], self.events)
         self.assertFalse([reason for reason in reasons if "fallback-exhausted" in reason], reasons)
+
+
+class JunkSweepRecordedTest(BurstVisitRecordedTest):
+    """n1-a 04:35: the Home junk sweep's observed destroys are progress."""
+
+    fixture_path = JUNK_SWEEP
+
+    def setUp(self):
+        super().setUp()
+        # DECLARED CONSTRUCTED: the Home shelf is the board's ~9 answer,
+        # served in pages of 52 (this Home's recorded page size).
+        self.shelf = [{k: v for k, v in item.items() if k != "slot"}
+                      for item in self.case["home_answer"]["knowledge"]["items"]]
+        self.pages[STORE_HOME] = self.home_page()
+
+    def post(self, policy, raw, key, following):
+        here = (raw["player"]["y"], raw["player"]["x"])
+        body = key[1:]
+        pages = len(body) - len(body.lstrip(" "))
+        if (policy.last_reason.startswith("home-errand:")
+                or not (key.startswith("5") and raw.get("store") is None
+                        and self.cells.get(here) == STORE_HOME and pages)):
+            # The Home errand posts its entry and tail as one atomic command.
+            return super().post(policy, raw, key, following)
+        # DECLARED CONSTRUCTED: the entry turns N pages (store.cpp ' ') before
+        # its take, then the base entry screens on that page.
+        inside = [dict(copy.deepcopy(raw), store=self.home_page(page))
+                  for page in range(pages + 1)]
+        screens = [self.shelf_screen(state) for state in inside]
+        expected = ["5", *" " * pages]
+        for command, letter, quantity in re.findall(r"([dp])([a-zA-Z])(?:(\d+\r))?", body):
+            screens.append(recorded.executor_harness.prompt_screen(
+                "(アイテム:a-z, ESCで中断) どのアイテムを取りますか? "))
+            expected += [command, letter]
+            if quantity:
+                screens.append(recorded.executor_harness.prompt_screen("いくつですか (1-99): 1"))
+                expected.append(quantity)
+            screens.append(screens[pages])
+        expected.append("\x1b")
+        states = inside + [inside[-1]] * (len(screens) - len(inside))
+        return self.execute(policy, raw, key, following, screens, states, expected)
+
+    def home_page(self, number=0):
+        page = copy.deepcopy(self.case["replies"][0]["store"])
+        items = copy.deepcopy(self.shelf[number * PAGE_ROWS:(number + 1) * PAGE_ROWS])
+        for index, item in enumerate(items):
+            item["letter"] = recorded.LETTERS[index]
+        page.update(page_top=number * PAGE_ROWS, stock_num=len(self.shelf), items=items)
+        return page
+
+    def home_items(self):
+        return copy.deepcopy(self.shelf)
+
+    def home_reply(self, following, page, body):
+        """DECLARED CONSTRUCTED: store.cpp Home deposit (d) and take (p) on
+        page N (N spaces)."""
+        pages = len(body) - len(body.lstrip(" "))
+        for command, letter, quantity in re.findall(r"([dp])([a-zA-Z])(?:(\d+)\r)?", body):
+            if command == "d":
+                item = next(it for it in following["inventory"] if it["slot"] == letter)
+                count = int(quantity or item["count"])
+                moved = dict(item, count=count)
+                moved.pop("slot")
+                item["count"] -= count
+                following["inventory"] = [it for it in following["inventory"] if it["count"]]
+                self.shelf.append(moved)
+                self.events.append(("deposit", moved["name"]))
+            else:
+                ware = self.shelf[pages * PAGE_ROWS + recorded.LETTERS.index(letter)]
+                count = int(quantity or 1)
+                following["inventory"].append(dict(ware, count=count))
+                ware["count"] -= count
+                self.shelf = [item for item in self.shelf if item["count"]]
+                self.events.append(("withdraw", ware["name"]))
+            self.relabel(following["inventory"])
+        self.pages[STORE_HOME] = self.home_page()
+
+    def reply(self, raw, key):
+        destroy = re.fullmatch(r"0(\d+)k([a-z])", key)
+        here = (raw["player"]["y"], raw["player"]["x"])
+        if (key.startswith("5 ") and raw.get("store") is None
+                and self.cells.get(here) == STORE_HOME):
+            # The base reply reads an unpaged entry body only.
+            following = copy.deepcopy(raw)
+            following["turn"] += 10
+            following["messages"] = []
+            self.home_reply(following, None, key[1:])
+            return following
+        if destroy is None:
+            return super().reply(raw, key)
+        # DECLARED CONSTRUCTED: the forced destroy (0<count>k<item>).
+        following = copy.deepcopy(raw)
+        following["turn"] += 10
+        following["messages"] = []
+        target = next(it for it in following["inventory"] if it["slot"] == destroy.group(2))
+        target["count"] -= int(destroy.group(1))
+        following["inventory"] = [it for it in following["inventory"] if it["count"]]
+        self.relabel(following["inventory"])
+        self.events.append(("destroy", target["name"]))
+        return following
+
+    def test_recorded_stop(self):
+        decisions = {row["decision_sequence"]: row for row in self.case["decisions"]}
+        self.assertEqual(decisions[3426]["reason"], "town:recall-stockout-mining")
+        self.assertEqual(decisions[3426]["fundraising"]["planned_runs"], 1)
+        sweep = [decisions[sequence]["reason"] for sequence in (3439, 3440, 3447, 3448, 3452, 3453)]
+        self.assertEqual(sweep, ["home-errand:atomic-withdraw:full-home-discard",
+                                 "home:junk-sweep:unwanted-kind"] * 3)
+        # Each observed destroy closed its claim, yet the arbiter's three
+        # retirements (3442, 3449, 3455) found no credited progress.
+        self.assertEqual({decisions[sequence]["claim"]["closed_claim"]["closed_reason"]
+                          for sequence in (3441, 3449, 3454)}, {"home-full-destroy-observed"})
+        self.assertEqual(decisions[3455]["reason"], BURST)
+        balls = [item for item in self.case["home_answer"]["knowledge"]["items"]
+                 if item["tval"] == TVAL_CAPTURE]
+        self.assertEqual(len(balls), 3)
+
+    def test_each_observed_destroy_is_credited_progress(self):
+        policy, raw = self.boundary()
+        # DECLARED RECONSTRUCTED from decision 3426 (town:recall-stockout-
+        # mining): the visit's one-run mining preparation, as
+        # _start_unobtainable_recall_stockout_mining opened it.
+        policy._fundraising_mode = "prepare"
+        policy._planned_mining_runs = 1
+        policy._mining_runs_completed = 0
+        policy._recall_stockout_mining_plan = True
+        destroyed = lambda: [name for kind, name in self.events if kind == "destroy"]
+        raw, reasons = self.run_visit(
+            policy, raw, limit=60,
+            done=lambda policy, board, key: len(destroyed()) == 3
+            and policy.last_reason == "shop:travel")
+        # One ball per Home entry (#95 slice 1b-2), each destroyed outside;
+        # the visit goes on to its next store instead of the burst.
+        self.assertEqual(destroyed(), ["モンスター・ボール (空)"] * 3, self.events)
+        self.assertEqual(reasons.count("home:junk-sweep:unwanted-kind"), 3, reasons)
+        self.assertNotIn(BURST, reasons)
+        self.assertLess(max(self.unprogressed), cli.OWNER_RETIRED_LOG_ONLY_LIMIT, reasons)
 
 
 if __name__ == "__main__":

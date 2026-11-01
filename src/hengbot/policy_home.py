@@ -370,6 +370,7 @@ class HomeMixin:
         relief.pop("destroy_posted", None)
         relief.pop("destroy_before_count", None)
         relief.pop("destroy_pending_key", None)
+        relief.pop("destroy_work_id", None)
 
     @claims(ClaimOwner.HOME_VISIT)
     def _defer_home_full_deposit(self, snapshot: Snapshot) -> None:
@@ -683,7 +684,7 @@ class HomeMixin:
         relief["withdrawn"] = False
         pack_only = relief.get("pack_only", False)
         for field in ("identifying", "identification_counts", "mode", "destroy_posted", "destroy_pending_key",
-                      "destroy_before_count", "pack_only", "stock_count"):
+                      "destroy_before_count", "destroy_work_id", "pack_only", "stock_count"):
             relief.pop(field, None)
         self._release_claim_goal(
             reason, owners=("identification",), kinds=("Observe",),
@@ -956,8 +957,11 @@ class HomeMixin:
                                         else f"home:junk-sweep:{relief['sweep_class']}"
                                         if relief.get("sweep")
                                         else "home:full-destroy-surplus")
+                    if not posted:
+                        relief["destroy_work_id"] = (
+                            f"home-full-destroy:{sale_identity}:{self._decision_sequence}")
                     self._offer_execution(
-                        key, producer="home-visit", work_id=f"home-full-destroy:{sale_identity}",
+                        key, producer="home-visit", work_id=relief["destroy_work_id"],
                         next_step="home.full-destroy.observe" if posted else "inventory.destroy.send",
                         arguments=(sale_identity, count), expected_effect="surplus-stack-removed",
                         continuation="home.full-destroy.observe",
@@ -1012,7 +1016,7 @@ class HomeMixin:
                     if relief.get("destroy_posted"):
                         self._offer_execution_done(
                             producer="home-visit",
-                            work_id=f"home-full-destroy:{sale_identity}",
+                            work_id=relief["destroy_work_id"],
                             evidence="surplus-stack-removal-observed",
                         )
                 # Stock space is earned by the take, but the next take/deposit
@@ -1025,6 +1029,7 @@ class HomeMixin:
                 relief.pop("destroy_posted", None)
                 relief.pop("destroy_pending_key", None)
                 relief.pop("destroy_before_count", None)
+                relief.pop("destroy_work_id", None)
                 relief.pop("mode", None)
                 self._home_errand.finish()
                 self._invalidate_home_observation()
