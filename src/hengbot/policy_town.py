@@ -5913,7 +5913,7 @@ class TownMixin:
                 and equipment_identity(item) == action.item_identity
                 for item in addressable
             )
-        requested = {*[], *self._home_pending_batch, *((self._home_pending_item,) if self._home_pending_item is not None else ()), *((self._home_errand.request.signature,) if self._home_errand.active and self._home_errand.request is not None else ())}
+        requested = self._bound_home_take_signatures(posted=False)
         return any(self._item_signature(item) in requested for item in addressable)
 
     def _departure_minimum(self, snapshot: Snapshot, depth: int) -> dict:
