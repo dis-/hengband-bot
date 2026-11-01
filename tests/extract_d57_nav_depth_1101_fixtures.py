@@ -1,14 +1,20 @@
 """Freeze the D57 navigation and depth boards of 2026-11-01 (#47, d57-nav-depth-1101).
 
 Sources: the automatic player-death captures of the viewing Magic-Eater n1-c,
-copied read-only to C:/hengband-backups/pdca/captures/fix-n1c-deaths-1101/
-(one row of ``CASES`` per frozen case):
+copied read-only to C:/hengband-backups/pdca/captures/fix-n1c-deaths-1101/,
+and the life-083 decision log copied read-only to
+C:/hengband-backups/pdca/captures/d57-nav-depth-1101/life-083/ (one row of
+``CASES`` per frozen case):
 
   n1c-079  life-079 (Lv12, 鉄獄12階, build 04ad2c6d2, 04:28): an absorbed
            Detect Evil showed a デスソード (race 107, NEVER_MOVE, speed +20)
            at (14,63); the next board no longer listed it, the descent route
            stepped beside it and the character went 151 -> -2 in one step.
            Ring boards of turns 600461-600610 (arrival to the last board).
+  n1c-083  life-083 (Lv14, 迷宮12階, build c326f0fd6, 06:2x): a Labyrinth
+           dive of the over-extension alternate with seven emergency escapes
+           and no pickup, ended by Word of Recall.  Ring boards of turns
+           1186699-1187204 (the first escape to the town arrival).
 
 Each case keeps its player boards (one per turn), the last skill-proficiency
 and Home knowledge rows before them, the policy-state ``_me_staff_sequence``
@@ -40,6 +46,8 @@ DECISION_FIELDS = ("decision_sequence", "turn", "reason", "key", "player",
 CASES = {
     "n1c-079": ("life-079/incident-captures/20261101-042804-player-death", None,
                 (600461, 600610)),
+    "n1c-083": ("life-083/incident-captures/20261101-064758-player-death",
+                LOGS / "life-083" / "bot-decisions.jsonl.gz", (1186699, 1187204)),
 }
 
 

@@ -1,4 +1,4 @@
-"""D57 (#47): an owner answer of 2026-11-01 on the n1-c Magic-Eater deaths.
+"""D57 (#47): two owner answers of 2026-11-01 on the n1-c Magic-Eater deaths.
 
 (a) life-079 (Lv12, 151 max HP, 鉄獄12階, build 04ad2c6d2, 04:28):
 「その階の間覚えて隣を避ける」.  The absorbed Detect Evil showed a デスソード
@@ -7,15 +7,29 @@ turn 600499; from the next board on the game no longer listed it, the descent
 route walked (5,57) -> (12,61) and its '3' at turn 600610 stepped to (13,62)
 beside it: HP 151 -> -2 in one step (「デスソードに斬られた。」).
 
-Fixtures: tests/fixtures/d57-n1c-079-1101.json.gz
+(b) life-083 (Lv14, 171 max HP, 迷宮12階, build c326f0fd6): 「代わりのダンジョン
+も数える」.  A dive of the over-extension alternate (the Labyrinth) with seven
+emergency escapes and no pickup ended by Word of Recall at turn 1187204.
+life-083 had not unlocked Angband's recall, so the Labyrinth was its target
+and the dive advanced the streak (recorded row 5357: 1 -> 2).  Once Angband's
+recall is unlocked (life-084 and life-085 had it, at the same Labyrinth
+depths) the target is Angband and the alternate's dives were judged on the
+guardian bounce alone: the same dive left the streak where it was.
+
+Fixtures: tests/fixtures/d57-n1c-079-1101.json.gz, d57-n1c-083-1101.json.gz
 (tests/extract_d57_nav_depth_1101_fixtures.py).  Every decision is the public
 ``choose_key`` and every posted key goes through the production executor port;
 the executor's board after a posted key (the next recorded board, with the
 completed-operation provenance the executor adds) is the next decision's
 board, as in the live driver.
-DECLARED RECONSTRUCTED: the staff sequence record is the capture's
-``_me_staff_sequence``.
-DECLARED CONSTRUCTED: the control gives the player 400 HP on every board.
+DECLARED RECONSTRUCTED: the over-extension state at the start of the life-083
+drive is the first recorded row's ``over_extension`` (alternate 4, streak 1,
+last over-extended depth 11) with the switch reason ``over_extended_dives``;
+the staff sequence record is the capture's ``_me_staff_sequence``.
+DECLARED CONSTRUCTED: the Angband-unlocked drive sets
+``progress.angband_recall_unlocked`` on the life-083 boards; the control of
+(a) gives the player 400 HP on every board; the third-dive case starts the
+streak at 2.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -48,9 +62,11 @@ def _load(name):
         return json.load(stream)
 
 
-CASE_079 = _load("079")
+CASE_079, CASE_083 = _load("079"), _load("083")
 DEATH_SWORD, SWORD_CELL = 107, Position(14, 63)
 DETECTED_TURN, LAST_TURN = 600499, 600610
+ARRIVAL_TURN = 1187204
+LABYRINTH, ORC_CAVE = 4, 3
 # The game's prompts of the two-key commands these drives post.
 PROMPTS = {**d57.PROMPTS, "r": "どの巻物を読みますか? ",
            "R": "休憩 (0-9999, '*' で HP/MP全快, '&' で必要なだけ): &"}
@@ -171,6 +187,52 @@ class DetectedDeathSwordRecordedTest(RecordedDrive):
         self.assertTrue(immobile_threat_memory.route_cells(policy))
         immobile_threat_memory.forget_floor_visit(policy)
         self.assertEqual(immobile_threat_memory.route_cells(policy), frozenset())
+
+
+class AlternateDiveOverExtensionRecordedTest(RecordedDrive):
+    """life-083: the alternate's emergency-ridden dive advances the streak."""
+
+    def drive(self, *, unlocked, streak=None):
+        boards = copy.deepcopy(CASE_083["boards"])
+        if unlocked:
+            for raw in boards:
+                raw["progress"]["angband_recall_unlocked"] = True
+        policy = new_policy(CASE_083, boards)
+        start = CASE_083["decisions"][0]["over_extension"]
+        policy._alternate_dungeon = start["alternate_dungeon_id"]
+        policy._alternate_dungeon_reason = "over_extended_dives"
+        policy._target_dungeon_id = start["target_dungeon_id"]
+        policy._target_empty_dives = start["over_extended_dive_streak"] if streak is None else streak
+        policy._last_overextended_depth = start["last_overextended_depth"]
+        rows = self.drive_boards(CASE_083, boards, policy)
+        self.assertEqual(rows[-1][0]["turn"], ARRIVAL_TURN)
+        self.assertTrue(rows[-1][0]["floor"]["in_town"])
+        reasons = [reason for _raw, _key, reason in rows]
+        self.assertGreaterEqual(reasons.count("emergency:teleport"), 2, reasons)
+        return policy
+
+    def test_recorded_rows(self):
+        rows = {row["decision_sequence"]: row["over_extension"] for row in CASE_083["decisions"]}
+        self.assertEqual((rows[5297]["alternate_dungeon_id"], rows[5297]["over_extended_dive_streak"]),
+                         (LABYRINTH, 1))
+        self.assertEqual((rows[5356]["dive_emergencies"], rows[5356]["dive_loot"]), (7, 0))
+        arrival = [row for row in CASE_083["decisions"] if row["turn"] == ARRIVAL_TURN]
+        self.assertEqual(arrival[-1]["over_extension"]["over_extended_dive_streak"], 2)
+        self.assertFalse(CASE_083["boards"][0]["progress"]["angband_recall_unlocked"])
+
+    def test_control_recorded_progress_counts_the_dive_as_the_target(self):
+        policy = self.drive(unlocked=False)
+        self.assertEqual(policy._target_empty_dives, 2)
+
+    def test_angband_unlocked_alternate_dive_advances_the_streak(self):
+        policy = self.drive(unlocked=True)
+        self.assertEqual((policy._target_empty_dives, policy._alternate_dungeon), (2, LABYRINTH))
+
+    def test_third_alternate_dive_steps_to_a_shallower_dungeon(self):
+        policy = self.drive(unlocked=True, streak=2)
+        # The Orc cave lands at 11, shallower than the Labyrinth's 12.
+        self.assertEqual((policy._alternate_dungeon, policy._target_empty_dives), (ORC_CAVE, 0))
+        self.assertEqual(policy._last_overextended_depth, 12)
 
 
 if __name__ == "__main__":
