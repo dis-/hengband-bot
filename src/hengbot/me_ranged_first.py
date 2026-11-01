@@ -68,20 +68,33 @@ def _throwable_torch(policy, snapshot):
     return torches[0]
 
 
-def afraid_key(policy, snapshot, adjacent) -> str | None:
-    """Afraid beside ``adjacent``: this ranged order alone, else None.
+def melee_refused_key(policy, snapshot, adjacent) -> str | None:
+    """Beside ``adjacent`` while melee is refused: this ranged order alone, else None.
 
-    Fear refuses melee only (cmd-attack.cpp:228); the absorbed powers check
-    confusion (cmd-magiceat.cpp:492), wands randomize under confusion
-    (zapwand-execution.cpp:69) and throws check neither.  The combat rungs
-    called this order inside their unafraid melee branch, so an afraid
-    Magic-Eater waited beside its attacker (#47 hit-no-action-1101, n1-c
-    life-085's jelly).  The callers' melee keeps its fear check; the
-    adjacent chooser scores melee zero while afraid (attack_expectation)."""
-    if (not adjacent or not snapshot.player.afraid
-            or not policy._can_fight_in_dungeon(snapshot.floor_key[0])):
+    Fear and a NO_MELEE dungeon refuse melee only
+    (attack_expectation.melee_refused).  The combat rungs called this order
+    inside their melee branch, so an afraid Magic-Eater waited beside its
+    attacker (#47 hit-no-action-1101, n1-c life-085's jelly), and in a
+    NO_MELEE dungeon every rung skipped it (owner 2026-11-01 「遠隔と取り込んだ
+    力は使う」).  The callers' melee keeps its own fear and dungeon checks; the
+    adjacent chooser scores melee zero while it is refused (attack_expectation)."""
+    if not adjacent or not attack_expectation.melee_refused(policy, snapshot):
         return None
     return attack_key(policy, snapshot, policy._weakest(adjacent))
+
+
+def outpaced_afraid_key(policy, snapshot, adjacent) -> str | None:
+    """Afraid beside an attacker at least as fast: this ranged order, else None.
+
+    Owner 2026-11-01 「遠隔の手段があれば撃つ」: walking away from it donates a
+    blow every step (n1-c life-085's speed +10 jelly), so the flee rung fires
+    instead of walking; without a ranged answer it flees as before.  The
+    survival ladder above the flee rung answers first."""
+    if not snapshot.player.afraid:
+        return None
+    speed = snapshot.player.speed
+    return melee_refused_key(
+        policy, snapshot, [monster for monster in adjacent if monster.speed >= speed])
 
 
 def _missile_ready(policy, snapshot) -> bool:
