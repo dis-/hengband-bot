@@ -6,7 +6,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import me_q1_torch, quest_sweep_target
+from hengbot import me_q1_torch, quest_sweep_target, random_quest_reserve
 from hengbot.me_absorbed_substitutes import (
     CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key, carry_charges, carry_waived,
 )
@@ -4763,21 +4763,29 @@ class QuestMixin(OpeningRouteMixin):
             and self._find_edible(snapshot) is None
         ):
             return False
+        # Owner 2026-11-01: a runtime RANDOM quest floor is left once the
+        # teleport reserve is drawn down (random_quest_reserve).
+        if random_quest_reserve.teleport_reserve_spent(self, snapshot):
+            return False
         # Depth quests that Hengband does not fail on leave may regenerate a bad
         # floor after the ordinary stuck budget is exhausted. Runtime RANDOM
         # quests deliberately accept the loss at that same genuine-stall
         # boundary, independent of static quest knowledge.
-        quest = snapshot.quests[quest_id]
-        info = self._quest_knowledge.get(quest_id)
-        runtime_random = (
-            info.type if info is not None else quest.type
-        ) == QUEST_TYPE_RANDOM
         if (
-            (runtime_random or not self._kill_quest_exit_would_fail(snapshot))
+            (
+                self._runtime_random_quest(snapshot, quest_id)
+                or not self._kill_quest_exit_would_fail(snapshot)
+            )
             and self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
         ):
             return False
         return True
+
+    def _runtime_random_quest(self, snapshot: Snapshot, quest_id: int) -> bool:
+        """The quest is RANDOM by static knowledge, else by its runtime type."""
+        info = self._quest_knowledge.get(quest_id)
+        quest = snapshot.quests[quest_id]
+        return (info.type if info is not None else quest.type) == QUEST_TYPE_RANDOM
 
     def quest_leave_confirmation_owned(self, snapshot: Snapshot, key) -> bool:
         """Whether a stair key posted now owns 「本当にこの階を去りますか？」.
