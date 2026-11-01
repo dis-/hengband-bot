@@ -1,0 +1,101 @@
+LUNA-REPORT-d57-nav-depth-1101.txt  (D57 / #47、ブランチ d57-nav-depth-1101、main fe2bc54e3 から、最後に main b51bcda79 を取り込み済み)
+
+オーナーの答え（2026-11-01、memory d57-survival-answers-decision-20261101）のうち2つを実装した。
+ (a) 問い3「感知した動かない強敵」→「その階の間覚えて隣を避ける」
+ (b) 問い6「代わりのダンジョンの深さ」→「代わりのダンジョンも数える」
+診断: LUNA-DIAG-d57-nav-depth-1101.txt（各件の鎖・行番号・決定の行）。
+証拠: C:\hengband-backups\pdca\captures\fix-n1c-deaths-1101\life-079・life-083（D57 で写した物）、
+  C:\hengband-backups\pdca\captures\d57-nav-depth-1101\life-08{3,4,5}\bot-decisions.jsonl.gz
+  （今回、観戦サーバーから gzip で写した最後の判断ログ。サーバーの物は読んだだけ）。
+
+■ (a) n1-c life-079: 感知したデスソードの隣へ歩いて1歩で死亡（版 04ad2c6d2）
+ 根: 邪悪存在感知で 600499 の盤面に出たデスソード（race 107、NEVER_MOVE、速さ+20）を、ゲームは次の手番で
+   感知の印を落とす（src/core/player-processor.cpp:363-378）。床の訪問の間覚える記憶は麻痺の敵と動かない召喚の敵
+   だけで、下りの道（policy_navigation.py:1256 _descent_step）は 600610 で (13,62)（隣）へ '3'。
+   隣での1ターンの予測被害は 221（operational_total、最大 304）≧ HP 151。
+ main fe2bc54e3 で: 同じ（記録の盤面を公開の choose_key と本番の実行器で流すと、600610 で '3' approach-descent）。
+ 直し（コミット 522f9b499）:
+  - 新しいモジュール src/hengbot/immobile_threat_memory.py（observe:71、route_cells:97、forget_floor_visit:66）。
+    その盤面で見えている・感知した敵対の NEVER_MOVE の敵を、床の訪問の間マスごとに覚える。マスが空だと
+    見えたら忘れる（_player_can_see_empty_cell、麻痺・召喚の記憶と同じ確かめ方）。覚えた敵ごとに、戦いの段の
+    1ターンの予測（threat_prediction(..., turns=1, contact=True) の operational_total）が今の HP 以上なら、
+    そのマスと隣の8マスを道から外す。
+  - 外し方: 判断ごとの歩ける集合（policy_navigation.py:1206、_build_grid_index）から外す。下り・探索・拾い物・
+    逃げ・追跡の道が全部同じに避ける。決まっている探索・下りの道がそのマスを通るなら捨てる。
+  - 床が変わったら忘れる（policy_observation.py:974）。毎判断の観察は policy_observation.py:1032。
+  - 出口が閉じた床（クエスト）では外さない（_floor_navigation_exit_locked。10-27「クエストなど撤退できない時は
+    危険を取って倒す」と同じ扱いで、今までの動きのまま）。
+ 直した後（記録の盤面）: 600521 から北を回る道（'9'）になり、どの盤面でもデスソードから距離1のマスへ歩かない。
+   600610 は '7'（記録は '3'）。
+
+■ (b) 代わりのダンジョン（迷宮）の潜りを「行き詰まった潜り」に数えない
+ 根: 鉄獄の帰還を解禁すると、潜りの判定の前に目標を鉄獄にする（main の policy_observation.py:433-436）。
+   代わりのダンジョンの潜りは pursued_target の枝（main の 552-566）に入り、守護者のはね返りしか数えない。
+   拾い物4以下・緊急脱出2回以上でも数が増えず、浅い所へ移らない。
+ 各キャラの事実（最後の判断ログの over_extension の列）:
+  - life-083 は鉄獄が未解禁（盤面 progress.angband_recall_unlocked=false）。迷宮が目標そのものなので、
+    緊急脱出の多い潜りは数えられていた（4986 で 0→1、5357 で 1→2。em 7 の潜り）。3回目に届く前に死亡。
+    つまり 083 では穴は効いていない。「浅い所へ移らない」のは3回目の前に死んだため。
+  - life-084・085 は鉄獄を解禁していて穴が実在する。ただし記録の迷宮の潜りは緊急脱出が1回以下で、
+    直しの前後どちらでも数えない。この3人の記録で、穴が結果を変えた潜りは無い。
+ 直し（コミット 5059c5e54）:
+  - 新しいモジュール src/hengbot/over_extension.py（judge_dive:28）。拾い物で0に戻す・緊急脱出で進める・
+    守護者のはね返りで進める・それ以外は据え置き、の判定を1か所にまとめた。
+  - 目標の潜り（policy_observation.py:527）と、代わりのダンジョンの潜り（policy_observation.py:537）が同じ
+    関数を使う。代わりのダンジョンの潜りは緊急脱出も数える。制覇の行き先（conquest）の潜りは今のまま
+    （守護者のはね返りだけ。決まりが無いので問い1）。深さが進まない潜りの数え方は変えていない。
+ 直した後（記録の盤面、鉄獄を解禁した盤面）: 迷宮12階の em の潜りで町に着くと streak 1→2。
+   3回目（streak 2 から）では、着地がより浅いオークの洞窟（11階、迷宮は12階）へ移る。
+
+■ テストと revert-proof（src の直しだけを戻して流し、戻した）
+ tests.test_d57_nav_depth_1101_recorded（8件。記録の盤面→公開の choose_key→本番の実行器。実行器が返した盤面
+ （次の記録の盤面に完了の印が付いた物）を次の判断に渡す。フィクスチャ tests/fixtures/d57-n1c-079-1101.json.gz・
+ d57-n1c-083-1101.json.gz、抜き出しは tests/extract_d57_nav_depth_1101_fixtures.py）
+  DetectedDeathSwordRecordedTest（4件）
+   - (a) の src（歩ける集合から外す・観察・床の忘れ）を戻すと 2件 FAIL:
+     test_descent_route_keeps_off_the_remembered_death_sword（(600610, '3', 'approach-descent') が距離1）
+     test_a_new_floor_visit_forgets_the_sword（覚えたマスが空）
+   - 残り2件（記録の行の事実、HP 400 の対照＝致命でなければ記録どおり '3'）は戻しても通る。
+  AlternateDiveOverExtensionRecordedTest（4件）
+   - (b) の src（policy_observation.py の判定）を戻すと 2件 FAIL:
+     test_angband_unlocked_alternate_dive_advances_the_streak（(1, 4) != (2, 4)）
+     test_third_alternate_dive_steps_to_a_shallower_dungeon（(4, 2) != (3, 0)）
+   - 残り2件（記録の行の事実、記録の未解禁の盤面では前後どちらも 1→2 の対照）は戻しても通る。
+ DECLARED RECONSTRUCTED: 083 の出発の over-extension の状態は最初の記録の行（代わり 4、streak 1、lod 11）、
+   切り替えの理由は over_extended_dives。staff の記録は capture の _me_staff_sequence。
+ DECLARED CONSTRUCTED: 083 の盤面に angband_recall_unlocked を立てた（084・085 と同じ状態）。(a) の対照は HP 400。
+   3回目の場合は streak 2 から始めた。
+
+■ 検査
+ - import の確認（hengbot.cli, hengbot.policy）: OK（main を取り込んだ後）
+ - checks.json の全テスト（76項目・92モジュール）: main 取り込み後に6つに分けて実行、530件すべて OK。
+   （取り込み前は 522件、2件が別ブランチのテスト（test_life085_passive_recorded・test_me_dual_wield_recorded）の
+   import 失敗。取り込み後は main にあり、通った。）
+ - 自分のテスト: 8件 OK（revert-proof は上）。
+ - 町の仕事の目録: scripts/town_work_manifest.py --write、各コミットと取り込みで zero unmapped
+   （新しい生産者は無い。編集した関数の AST の要約が変わっただけで、review の行は足していない）。
+ - 全体テスト・preflight・mutation_check・fast_tier は流していない。
+
+■ checks.json に足す案（このブランチでは checks.json は編集しない）
+  {"id": "D57-NAV-DEPTH", "owner": "2026-11-01 「その階の間覚えて隣を避ける」「代わりのダンジョンも数える」 (n1-c life-079/083, branch d57-nav-depth-1101)", "tests": ["tests.test_d57_nav_depth_1101_recorded"]}
+
+■ オーナーへの問い（新しい決まりが要るので実装していない）
+ 問い1: 鉄獄を解禁した後の「制覇の行き先」（守護者を倒しに行くダンジョン）の潜りも、緊急脱出で数えるか。
+   今は守護者のはね返りだけ数える。鉄獄が未解禁の時は、制覇の行き先も目標なので緊急脱出で数えている。
+   A（推奨）: 数える（未解禁の時と同じ判定）。B: 今のまま。
+ 問い2: 「感知した脅威で帰還を読む」（esp-threat:leave-recall）を緊急脱出に数えるか。
+   今は EMERGENCY_ESCAPE_REASONS（policy_constants.py:855）に入らず数えない（083 の 5447、084 の 11503・13902）。
+   A: 数える（行き詰まりの判定に入る）。B（推奨）: 今のまま（帰還は脱出ではなく引き上げ）。
+
+■ 保守性
+ - 新しい決まりは2つの小さなモジュールに置いた。判断の段（policy.py）には何も足していない。
+   - immobile_threat_memory.py: 動かない致命的な敵の記憶・忘れ方・外すマスを1か所に持つ。種族の番号や
+     ダンジョン・クラスの特別扱いは無い（NEVER_MOVE の旗と戦いの段の予測だけを見る）。既存の部品
+     （_perceived_hostiles、_player_can_see_empty_cell、threat_prediction、_floor_navigation_exit_locked）を使い回した。
+   - 道から外すのは歩ける集合を作る1か所（_build_grid_index）だけ。道ごとに「避けるマス」を足さず、
+     全部の道が同じ集合を見るので、見落としの道が出ない（麻痺の敵の記憶は _engagement_avoid_cells を
+     見る道しか効かず、下りの道は見ていなかった。その違いは今回は変えていない）。
+   - over_extension.py: 2つの枝に重なって書かれていた「拾い物・緊急脱出・はね返り」の判定（約40行）を1つの関数に
+     まとめ、2つの枝は呼ぶだけにした。使わなくなった定数の import を policy_observation.py から外した。
+ - テストは D57 の部品（new_policy・PostedDeathKey・PROMPTS）を使い回し、記録の盤面の運転（RecordedDrive）を
+   1か所にまとめた。テストの壁は無い。既存の検査の期待値は変えていない。

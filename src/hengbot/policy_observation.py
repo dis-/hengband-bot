@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, dark_recall, lamp_fuel, summoner_wait
+from hengbot import blind_strike, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, summoner_wait
 import json
 
 from hengbot.claim_goal_typing import (
@@ -9,7 +9,7 @@ from hengbot.claim_goal_typing import (
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
-from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, STATUS_THREAT_RELOCATION_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
+from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, STATUS_THREAT_RELOCATION_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
@@ -524,48 +524,19 @@ class ObservationMixin:
                     self._no_depth_progress_dives = 0
                 elif can_descend_further:
                     self._no_depth_progress_dives += 1
-                if self._dive_loot > OVEREXTEND_LOOT_MAX:
-                    # A real haul proves the character can handle this depth.
-                    self._target_empty_dives = 0
-                    self._guardian_bounce_dives = 0
-                elif self._dive_emergencies >= OVEREXTEND_EMERGENCY_MIN:
-                    # Unproductive AND forced to bail out repeatedly = over-extended.
-                    self._target_empty_dives += 1
-                elif guardian_bounce:
-                    # A guardian we cannot yet beat recalls us straight back with
-                    # no real dive. Uncounted, it flip-flops town<->guardian
-                    # forever, burning ~2 recall scrolls a round trip until the
-                    # character is stranded at depth with zero escape scrolls
-                    # (live: Labyrinth, recall 9 -> 0). Count it as over-extension
-                    # so the approved empty-dive valve releases the conquest latch
-                    # and switches to a productive dungeon; the latch may
-                    # re-select the guardian later once the kit can beat it.
-                    self._target_empty_dives += 1
-                    self._guardian_bounce_dives = (
-                        getattr(self, "_guardian_bounce_dives", 0) + 1
-                    )
-                # else: unproductive but no real danger (found nothing, or a single
-                # scare) — HOLD the streak. Weak evidence must not ADVANCE the count,
-                # but a lone quiet dive between genuinely bad ones must not RESET it
-                # to zero either, or the switch could never accumulate. Only a
-                # profitable dive clears the suspicion.
+                over_extension.judge_dive(
+                    self, guardian_bounce=guardian_bounce, count_emergencies=True)
             elif self._dive_dungeon == pursued_target and normal_dive:
                 # A dive of an alternate or conquest target while Angband's
                 # recall is unlocked: the judgement above reads the Angband
                 # target this observation already reset, so it never sees
                 # these dives (live 2026-09-25: seven Orc-cave bounces, streak
-                # held at 0).  Only the guardian bounce is counted here, and a
-                # profitable dive clears the bounces the way the loot reset
-                # above does; the depth-progress and emergency judgements keep
-                # judging exactly the dives they judged before.
-                if self._dive_loot > OVEREXTEND_LOOT_MAX:
-                    self._target_empty_dives = 0
-                    self._guardian_bounce_dives = 0
-                elif guardian_bounce:
-                    self._target_empty_dives += 1
-                    self._guardian_bounce_dives = (
-                        getattr(self, "_guardian_bounce_dives", 0) + 1
-                    )
+                # held at 0).  The depth-progress judgement keeps judging
+                # exactly the dives it judged before; the streak counts the
+                # alternate's emergencies too (owner 2026-11-01, D57).
+                over_extension.judge_dive(
+                    self, guardian_bounce=guardian_bounce,
+                    count_emergencies=self._dive_dungeon == self._alternate_dungeon)
             self._dive_dungeon = None
             self._dive_start_recall_depth = None
         conquered_now = set(snapshot.conquered_dungeon_ids)
@@ -1000,6 +971,7 @@ class ObservationMixin:
             self._recent_since_teleport = None
             self._breeder_breakthrough_floor = None
             summoner_wait.forget_floor_visit(self)
+            immobile_threat_memory.forget_floor_visit(self)
             self._breeder_engagement_start_count = None
             self._breeder_engagement_start_turn = None
             self._breeder_kills = 0
@@ -1057,6 +1029,7 @@ class ObservationMixin:
         blind_strike.observe(self, snapshot)
         dark_recall.observe(self, snapshot)
         lamp_fuel.observe(self, snapshot)
+        immobile_threat_memory.observe(self, snapshot)
         self._took_curse_damage = self._took_damage and any(
             " drains HP from you!" in message
             or " drains life from you!" in message
