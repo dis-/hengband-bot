@@ -2,6 +2,7 @@ from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import town_pack_headroom
 from hengbot import town_travel
+from hengbot import random_quest_reserve
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
@@ -7849,6 +7850,9 @@ class TownMixin:
                 )
             ):
                 self._last_return_trigger = "escape-kit-empty"
+                return True
+            if random_quest_reserve.teleport_reserve_spent(self, snapshot):
+                self._last_return_trigger = random_quest_reserve.RETURN_TRIGGER
                 return True
             # A resistance gap at the CURRENT floor -- not the next one, which
             # _is_descent_target already gates before a descent is taken -- means

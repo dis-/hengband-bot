@@ -718,6 +718,38 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "65f910d026db2a950cd58f0c88c831981414cf5fbb1103269492dccbf029968c"
   },
+  "goal_route.py:_commitments": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "3128cfa7754adae664bf2024892b1e466a2b3b3ce9b1993ab3c48e18b3b55e32"
+  },
+  "goal_route.py:follow": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "8dd0dd45aa1f7adce885625bf845f3de5de55d4adb432bea36ac7ca3e1242c89"
+  },
+  "goal_route.py:goal_kind": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "7bf7f0a2da3da2f076cb74b03685fa287301147292b4f5f34eb4a1c62f075609"
+  },
+  "goal_route.py:nearest_goal_path": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "1142a4df1726ca485b51f89b45acb4ed2d1cb594827c51e62251e2f2ef609b7b"
+  },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
     "rows": [
@@ -8384,7 +8416,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "2b30affca40c8f163a6cb66170c0af2562ee58d4538fbeabd99f900a1d1e7c13"
+    "ast_sha256": "2df4a53856f7ef60da30c149c769c46667b5340216fc30feba7709eb5cf153a0"
   },
   "policy_supply.py:SupplyMixin._nearest_goal_step": {
     "classification": "data",
@@ -8764,6 +8796,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "edb32abf99452590945fd2d99a9b3f764d0b0de47483b48d873cc20fa26da09c"
+  },
+  "policy_town.py:TownMixin._town_entrance_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "05732d1fe2e282c9c05c510f10f103c2c62b8e9076c2954b42ac7a4994380f71"
   },
   "policy_town.py:TownMixin._town_entrance_step_off_key": {
     "classification": "producer",

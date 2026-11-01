@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import lamp_fuel, me_powerful_activation, wilderness_exit
+from hengbot import goal_route, lamp_fuel, me_powerful_activation, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -2055,45 +2055,22 @@ class SupplyMixin:
         return route.first_step if route is not None else None
 
     def _nearest_goal_route(self, snapshot: Snapshot, predicate) -> TownMapRoute | None:
-        """Return the nearest emitted goal, first step, and exact BFS rank."""
-        start = snapshot.player.position
+        """Return the goal, first step and remaining edges of the goal walk.
+
+        The nearest goal by BFS, unless the route this goal kind committed to
+        on an earlier board is still valid (``goal_route``)."""
         entrance_cells = self._town_entrance_cells(snapshot)
         entrance_cells.difference_update(
             pos
             for pos, grid in snapshot.grids.items()
             if predicate(grid)
         )
-        entrance_cells.discard(start)
-        for blocked_entrances in (entrance_cells, set()):
-            for allow_damaging in (False, True):
-                seen = {start}
-                queue: deque[tuple[Position, Position | None, int]] = deque(
-                    [(start, None, 0)]
-                )
-                while queue:
-                    pos, first_step, edges = queue.popleft()
-                    grid = snapshot.grids.get(pos)
-                    if pos != start and grid is not None and predicate(grid):
-                        assert first_step is not None
-                        return TownMapRoute(pos, first_step, edges)
-                    for neighbor in self._walkable_neighbors(
-                        snapshot, pos, allow_damaging=allow_damaging, goal=predicate
-                    ):
-                        if (
-                            neighbor in seen
-                            or neighbor in self._engagement_avoid_cells
-                            or neighbor in blocked_entrances
-                        ):
-                            continue
-                        seen.add(neighbor)
-                        queue.append(
-                            (
-                                neighbor,
-                                neighbor if first_step is None else first_step,
-                                edges + 1,
-                            )
-                        )
-        return None
+        entrance_cells.discard(snapshot.player.position)
+        found = goal_route.nearest_goal_path(self, snapshot, predicate, entrance_cells)
+        if found is None:
+            goal_route.forget(self, predicate)
+            return None
+        return goal_route.follow(self, snapshot, predicate, *found, entrance_cells)
 
     def _nearest_goal_and_step(
         self, snapshot: Snapshot, predicate
