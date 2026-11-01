@@ -2945,9 +2945,11 @@ class HomeMixin:
     def _identification_waiting_deposit(
         self, snapshot: Snapshot, item: InventoryItem
     ) -> bool:
-        """Carried equipment whose identification cannot happen this visit.
+        """Carried equipment or device whose identification cannot happen this visit.
 
-        Owner 2026-10-31: 「鑑定待ちの装備は預ける　極力持ち歩かない」.  An
+        Owner 2026-10-31: 「鑑定待ちの装備は預ける　極力持ち歩かない」, and
+        2026-11-01 「魔法道具も自宅に預ける」 for unknown rods, wands and staves
+        (``_identification_waiting_item``; n1-b life-284).  An
         identification-flow candidate whose source (Identify for an unknown
         item, *Identify* for a full-identification one, as the town item
         processor chooses) is neither carried nor on this visit's observed
@@ -2957,9 +2959,11 @@ class HomeMixin:
         transaction) keeps it.  A scroll the pack budget refuses is no source:
         shelving is what makes its room (n1-b life-282, 2026-10-31 23:23).
         """
-        if not (snapshot.in_town and item.is_equipment
-                and self._identification_flow_candidate(item)):
+        if not (snapshot.in_town and self._identification_waiting_item(item)):
             return False
+        from hengbot.me_staff_sequence import identify_power_available
+        if not item.known and identify_power_available(self, snapshot):
+            return False  # Class 16's absorbed Identify is a carried source.
         signature = self._item_signature(item)
         if (signature == self._home_pending_item
                 or signature in self._home_pending_batch
@@ -3886,6 +3890,24 @@ class HomeMixin:
             # The filed take is this visit's Home identification work.
             self._home_candidate_waiting = True
             return
+        # Devices shelved while they waited are not in the equipment catalog
+        # (owner 2026-11-01 「魔法道具も自宅に預ける」: shelve, buy the source,
+        # then withdraw and identify them).
+        for item in self._home_knowledge_items[: self._home_knowledge_valid_before]:
+            signature = self._item_signature(item)
+            if (item.is_equipment or not self._identification_waiting_item(item)
+                    or signature not in observed or signature in self._deferred_home_items
+                    or self._find_identification_source(
+                        snapshot, full=False, reliable_only=True,
+                        reservation_target=signature) is None):
+                continue
+            self._file_home_errand(
+                snapshot,
+                HomeErrandRequest(signature, 1, "home-catalog", "identification-catalog"),
+                knowledge_current=self._home_knowledge_current,
+            )
+            self._home_candidate_waiting = True
+            return
         if deposited_identification:
             return
         if (
@@ -4522,14 +4544,18 @@ class HomeMixin:
         overweight = self._overweight_home_deposit(snapshot)
         if overweight is not None:
             return overweight
-        waiting = self._first_item(
-            snapshot,
-            lambda item: self._identification_waiting_deposit(snapshot, item)
-            and self._item_signature(item) not in self._home_rejected_deposits
-            and self._home_deposit_quantity(snapshot, item) > 0,
-        )
-        if waiting is not None:
-            return waiting
+        # Equipment first (owner 2026-10-31), then devices (2026-11-01): a
+        # device is shelved only when no waiting equipment is left to shelve.
+        for equipment in (True, False):
+            waiting = self._first_item(
+                snapshot,
+                lambda item: item.is_equipment == equipment
+                and self._identification_waiting_deposit(snapshot, item)
+                and self._item_signature(item) not in self._home_rejected_deposits
+                and self._home_deposit_quantity(snapshot, item) > 0,
+            )
+            if waiting is not None:
+                return waiting
         # Inferior weapons may be sold by the sale path, but enhanced weapons stay
         # carried until the complete loadout optimizer has compared them.
         high_grade = self._equipped_weapon_high_grade(snapshot)

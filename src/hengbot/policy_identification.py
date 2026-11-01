@@ -816,6 +816,20 @@ class IdentificationMixin:
             )
         )
 
+    @classmethod
+    def _identification_waiting_item(cls, item: InventoryItem | StoreItem) -> bool:
+        """Carried work that waits for an identification source.
+
+        Equipment of the identification flow, and an unknown rod, wand or
+        staff (the device consumers of plain Identify,
+        ``_normal_identification_flow_candidate``).  Owner 2026-11-01: devices
+        waiting for identification are shelved at Home like equipment
+        (「魔法道具も自宅に預ける」, extending 10-31 「鑑定待ちの装備は自宅に
+        預け極力持ち歩かない」).  A known device (food, absorption) never waits.
+        """
+        return cls._identification_flow_candidate(item) or (
+            not item.is_equipment and cls._normal_identification_flow_candidate(item))
+
     @staticmethod
     def _equip_blocked_by_identification(
         item: InventoryItem | StoreItem,
@@ -1222,6 +1236,12 @@ class IdentificationMixin:
             if owned.item.known and signature in self._processed_home_items:
                 continue
             count += 1
+        if not full:
+            # Devices shelved while they waited (owner 2026-11-01) are not in
+            # the equipment catalog; _find_home_candidate takes them back.
+            count += sum(max(1, item.count) for item in self._home_knowledge_items
+                         if not item.is_equipment and self._identification_waiting_item(item)
+                         and self._item_signature(item) not in self._deferred_home_items)
         return count
 
     def _loot_candidates(

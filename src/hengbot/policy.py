@@ -2296,6 +2296,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._supply_stockout_cycles = 0
         self._supply_stockout_gold_target = None
         self._mining_scroll_used_floor: tuple[int, int, int] | None = None
+        # The scavenge run town chose because no digger can be had (2026-10-23).
+        self._scavenge_without_digger = False
         self._mining_detection_centers: list[Position] = []
         self._sell_scavenged_consumables = False
         self._normal_weapon_name: str | None = None
@@ -10191,7 +10193,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "mine"
                 if main_hand_digger is not None
                 or (treasure_scrolls > 0 and self._has_digging_tool(snapshot))
-                else ("scavenge" if self._detectionless_scavenge_allowed(snapshot)
+                else ("scavenge" if self._scavenge_allowed(snapshot)
                       else "prepare")
             )
             if main_hand_digger is not None:
@@ -13456,11 +13458,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # lantern with a lower-ranked but well-fuelled torch.  If no compatible
         # refill is already carried, temporarily prefer any usable spare light
         # so the shopping route can reach the oil supply.
+        # An unidentified lantern hides its fuel; the player sees it out when
+        # it no longer lights them (lamp_fuel, n1-c life-085: drained by a
+        # light-eating jelly, the carried fueled lantern stayed unworn).
         low_without_refill = (
-            equipped.known
-            and (
-                (equipped.is_lantern and equipped.fuel <= LANTERN_REFILL_FUEL)
-                or (equipped.sval == SV_LITE_TORCH and equipped.fuel <= TORCH_REFILL_FUEL)
+            (
+                equipped.known
+                and (
+                    (equipped.is_lantern and equipped.fuel <= LANTERN_REFILL_FUEL)
+                    or (equipped.sval == SV_LITE_TORCH and equipped.fuel <= TORCH_REFILL_FUEL)
+                )
+                or not equipped.known and equipped.is_lantern
+                and lamp_fuel.unidentified_lantern_out(snapshot) is True
             )
             and self._light_refill_item(snapshot) is None
         )
@@ -16182,12 +16191,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (page := supplier_pages.get(store_type)) is not None
         ):
             return False
-        observed_suppliers = {
-            page.store_type for page in self._identify_staff_offer_pages(snapshot)
-        }
+        # A supplier the need registry skips on its earlier shelf (the restock
+        # window) is tried as well: n1-a life-453 (2026-11-01 00:57) waited
+        # for a Black Market stop no owner would make and stopped.
+        observed_suppliers = set(supplier_pages)
         return all(
-            store_type in self._town_store_attempted
-            or store_type in observed_suppliers
+            store_type in observed_suppliers
+            or self._shelf_stop_tried(snapshot, store_type, "identify-staff")
             for store_type in (STORE_MAGIC, STORE_BLACK)
         )
 

@@ -32,8 +32,11 @@ OUTPUT = Path(__file__).with_name("fixtures") / "unid-deposit-20261030.json.gz"
 ARRIVAL_TURN, STOP_TURN = 404797, 406215
 
 
-def freeze(capture, output, arrival_turn, stop_turn, source):
-    """Freeze one recorded departure-unsatisfiable visit in the shape the test reads."""
+def freeze(capture, output, arrival_turn, stop_turn, source, home_answer=None):
+    """Freeze one recorded departure-unsatisfiable visit in the shape the test reads.
+
+    home_answer: the ~9 Home answer row kept when the visit's ring holds none.
+    """
     ring = capture / "snapshots" / "snapshots-current.jsonl.gz"
     tail = capture / "decision-tail.jsonl"
     rows = ring_rows(ring.read_bytes())
@@ -61,8 +64,8 @@ def freeze(capture, output, arrival_turn, stop_turn, source):
         observations=observations,
         # The last ~9 Home answer before the stop: the shape of the replies
         # the test constructs for later ~9 requests.
-        home_answer=next(row for row in reversed(rows[:stop]) if row["type"] == "knowledge"
-                         and row["knowledge"]["category"] == "home"),
+        home_answer=next((row for row in reversed(rows[:stop]) if row["type"] == "knowledge"
+                          and row["knowledge"]["category"] == "home"), home_answer),
         board=rows[stop],
         store_cells=[[c["y"], c["x"], c["s"]] for c in rows[stop]["grid_map"]["cells"] if "s" in c],
         decision=dict(turn=decision["turn"], key=decision["key"], reason=decision["reason"],

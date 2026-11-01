@@ -156,13 +156,29 @@ class FundraisingMixin:
     def _fundraising_gold_return_applies(self) -> bool:
         """Whether reaching the gold target is a return trigger for this run.
 
-        A no-safe-destination set has no gold objective (2026-10-19), and the
-        staff sequence's stockout run mines its floor out (D35, 2026-10-31).
+        A no-safe-destination set has no gold objective (2026-10-19), and a
+        restock time-pass mines its floor out (``_restock_time_pass_run``).
         """
         if getattr(self, "_no_safe_destination_set", False):
             return False
+        return not self._restock_time_pass_run()
+
+    def _restock_time_pass_run(self) -> bool:
+        """Whether this run exists to pass a shop's restock time, not for gold.
+
+        The Identify-staff and recall stock-out runs ("one Yeek Cave 1F mining
+        run, then retry") and the Magic-Eater staff sequence's stock-out run
+        (D35, me_staff_sequence.mines_floor_out) are ordinary mining runs: a
+        shelf restocks only after 10,000 game turns (store/cmd-store.cpp:94,
+        STORE_TICKS), so a run that returns on the gold target as it lands
+        passes no time.  n1-a life-453 (2026-11-01 00:57, 20,202 gold) took
+        the Identify-staff run's stairs down and straight back up, found Magic
+        still sold out and stopped as town:blocked:departure-unsatisfiable.
+        """
         from hengbot.me_staff_sequence import mines_floor_out
-        return not mines_floor_out(self)
+        return bool(getattr(self, "_identify_staff_mining_plan", False)
+                    or getattr(self, "_recall_stockout_mining_plan", False)
+                    or mines_floor_out(self))
 
     def _post_fundraising_transport(
         self, snapshot: Snapshot, direction: str
@@ -346,14 +362,44 @@ class FundraisingMixin:
             and not self._home_knowledge_invalidated
         )
 
+    def _diggerless_scavenge_allowed(self, snapshot: Snapshot) -> bool:
+        """Scavenge 1F with the carried detection: no digger can be had.
+
+        Owner 2026-10-23 (c4-a life-016): when the recall cannot be bought and
+        mining is impossible, sell the surplus, then use the carried Treasure
+        Detection to walk 1F and come back by the stairs (the 10,000-turn
+        scavenge bound).  n1-a life-454 (2026-11-01, Lv8 after Q1, 189 gold)
+        held eight scrolls, no digger, and the General store sold none it
+        could pay for; fundraising waited in ``prepare`` until the town
+        owners retired.  In town this visit's General page decides; on the
+        floor the run keeps what town decided (``_scavenge_without_digger``).
+        """
+        if self._has_withdrawable_digging_tool(snapshot):
+            return False
+        if not snapshot.in_town:
+            return bool(getattr(self, "_scavenge_without_digger", False))
+        page = self._current_town_supplier_page(snapshot, STORE_GENERAL)
+        return bool(
+            self._count_treasure_detection_scrolls(snapshot) > 0 and page is not None
+            and not any(item.is_digging_tool and item.price <= snapshot.player.gold
+                        for item in page.items))
+
+    def _scavenge_allowed(self, snapshot: Snapshot) -> bool:
+        """The fundraising poverty exceptions that walk 1F instead of mining."""
+        return (self._detectionless_scavenge_allowed(snapshot)
+                or self._diggerless_scavenge_allowed(snapshot))
+
     def _settle_fundraising_detection(self, snapshot: Snapshot) -> int | None:
         """Select the poverty exception or retain the existing kit supplier."""
-        if self._detectionless_scavenge_allowed(snapshot):
+        if self._scavenge_allowed(snapshot):
             if self._fundraising_mode != "scavenge" or snapshot.in_town:
                 self._scavenge_run_start_turn = None
+            if snapshot.in_town:
+                self._scavenge_without_digger = not self._detectionless_scavenge_allowed(snapshot)
             self._fundraising_mode = "scavenge"
             self._scavenge_entry_gold = snapshot.player.gold
             return None
+        self._scavenge_without_digger = False
         self._fundraising_mode = "prepare"
         self._planned_mining_runs = None
         if self._count_treasure_detection_scrolls(snapshot) > 0:
@@ -1356,6 +1402,19 @@ class FundraisingMixin:
         self._mining_stall_turns = MINING_STALL_LIMIT
         return self._finish_mining_floor(snapshot)
 
+    def _detect_treasure_read_key(self, snapshot: Snapshot, scroll) -> str:
+        """Read one carried Treasure Detection scroll on this floor."""
+        self.last_reason = "fundraise:detect-treasure"
+        key = self._read_key(snapshot, scroll)
+        self._offer_execution(
+            key, producer="fundraising",
+            work_id="fundraise:detect-treasure",
+            next_step="fundraising.detect-treasure",
+            arguments=(scroll.slot,),
+            expected_effect="treasure-locations-observed",
+        )
+        return key
+
     @claims(ClaimOwner.FUNDRAISING)
     def _start_fundraising_return(self, snapshot: Snapshot) -> str:
         """Record an ordinary return before leaving the income floor."""
@@ -1381,7 +1440,7 @@ class FundraisingMixin:
         if self._returning_to_town and snapshot.dungeon_level > 0:
             return self._leave_fundraising_floor(snapshot)
         if (self._fundraising_mode == "scavenge"
-                and not self._detectionless_scavenge_allowed(snapshot)):
+                and not self._scavenge_allowed(snapshot)):
             self._settle_fundraising_detection(snapshot)
             if not snapshot.in_town:
                 return self._start_fundraising_return(snapshot)
@@ -1649,6 +1708,7 @@ class FundraisingMixin:
                 not self._has_digging_tool(snapshot)
                 and self._count_treasure_detection_scrolls(snapshot) > 0
                 and bool(self._known_treasure)
+                and not self._diggerless_scavenge_allowed(snapshot)
             ):
                 # This is a recoverable mining run with its tool left in town,
                 # not a loot-only poverty run. Return and let the town plan
@@ -1656,6 +1716,15 @@ class FundraisingMixin:
                 self._note_return_start(None)
                 self._returning_to_town = True
                 return self._leave_fundraising_floor(snapshot)
+            if (self._diggerless_scavenge_allowed(snapshot)
+                    and self._mining_scroll_used_floor != snapshot.floor_key):
+                scroll = self._first_item(
+                    snapshot, lambda it: it.is_treasure_detection_scroll)
+                if scroll is not None:
+                    # The carried detection shows this floor's treasure for the
+                    # loot walk (owner 2026-10-23).
+                    self._mining_scroll_used_floor = snapshot.floor_key
+                    return self._detect_treasure_read_key(snapshot, scroll)
             if self._is_oscillating():
                 # Loot-only exploration can exhaust the useful frontier while
                 # a stale committed path keeps circling a small open pocket.
@@ -1801,16 +1870,7 @@ class FundraisingMixin:
                 if power is not None:
                     self.last_reason = DETECT_REASON
                     return power
-                self.last_reason = "fundraise:detect-treasure"
-                key = self._read_key(snapshot, scroll)
-                self._offer_execution(
-                    key, producer="fundraising",
-                    work_id="fundraise:detect-treasure",
-                    next_step="fundraising.detect-treasure",
-                    arguments=(scroll.slot,),
-                    expected_effect="treasure-locations-observed",
-                )
-                return key
+                return self._detect_treasure_read_key(snapshot, scroll)
 
         # The detection command's snapshot does not contain its effect yet.  Assess
         # exactly once on the following decision, after _observe has incorporated

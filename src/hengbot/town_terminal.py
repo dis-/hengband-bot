@@ -2016,10 +2016,16 @@ def _commit_fundraising_run(policy: Any, board: Any, terminal: TerminalRef,
                             admission: Admission) -> None:
     # These town rungs run the dungeon driver, not the departure dispatcher.
     # Keep its no-step confirmation and detection observation on a refused run.
+    if (policy._fundraising_mode == "prepare"
+            and policy._diggerless_scavenge_allowed(board)):
+        # No digger can be had: scavenge 1F with the carried detection (owner
+        # 2026-10-23; n1-a life-454 waited in prepare for the kit).
+        policy._settle_fundraising_detection(board)
+        return
     if policy._fundraising_mode not in {"mine", "scavenge"}:
         cause = "fundraising-mode-inactive"
     elif (policy._fundraising_mode == "scavenge"
-          and not policy._detectionless_scavenge_allowed(board)):
+          and not policy._scavenge_allowed(board)):
         policy._settle_fundraising_detection(board)
         return
     else:

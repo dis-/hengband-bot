@@ -32,6 +32,13 @@ current HP (the lethal test), or HP is under the low-HP threshold while a
 suppressed hostile strikes from an adjacent cell.  Otherwise the strategic
 list is kept, so a harmless suppressed breeder still does not re-arm the
 emergency return after a teleport.
+
+D57 follow-up (n1-c life-085, Labyrinth 11F, 2026-11-01): with the lantern
+drained dark and no light to restore, the dark walk (``_dark_locomotion_key``,
+consulted above the combat rungs) stepped away from the Super Great Silver
+Jelly beside it twenty times while the jelly (speed +10) followed and touched
+it, HP 215 -> 80.  The walk is a navigation rung like the explore steps and
+is refused the same way while a hostile in view attacks from beside us.
 """
 
 PREEMPTED_RUNGS = frozenset({
@@ -49,6 +56,8 @@ PREEMPTED_RUNGS = frozenset({
     "_opening_q34_town_key",
     # explore.
     "_explore_step#1", "_explore_step#2", "_immobile_breeder_giveup_key",
+    # the dark walk (life-085 below).
+    "_dark_locomotion_key",
 })
 
 

@@ -63,7 +63,7 @@ DARK_TURN, JELLY_WAIT_TURN = 1445339, 1445625
 JELLY, BLOODSHOT_EYE = 1273, 129
 LIGHT_MESSAGES = frozenset({"明かりが暗くなってしまった。", "明かりが消えてしまった！"})
 # The game's prompts of the two-key commands these drives post.
-PROMPTS = {"q": "どの薬を飲みますか? ", "+": "方向 (ESCで中断)?"}
+PROMPTS = {"q": "どの薬を飲みますか? ", "+": "方向 (ESCで中断)?", "w": "どれを装備しますか? "}
 
 
 def new_policy(case):
@@ -172,7 +172,11 @@ class JellyInViewRecordedTest(PostedDeathKey):
         raw, key, reason = rows[-1]
         self.assertEqual(raw["turn"], JELLY_WAIT_TURN)
         self.assertNotEqual(key, "5", reason)
-        self.assertEqual(key[-1], "8", (key, reason))  # the jelly's direction
+        # An attack toward the jelly (north), or, since the dark walk yields to
+        # the fight (test_life085_passive_recorded), the lethal ladder's
+        # Speed potion before it.
+        self.assertTrue(key[-1] == "8" or reason.endswith("emergency:quaff-speed"),
+                        (key, reason))
 
 
 class BlindEmergencyStrikeRecordedTest(PostedDeathKey):

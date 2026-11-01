@@ -182,6 +182,23 @@ def average_feeling_trusted(mutation_signature: Iterable[int] | None) -> bool:
             and MUTATION_BAD_LUCK not in tuple(mutation_signature))
 
 
+def average_light_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
+    """An unidentified light sensed {average} has no stat, AC or hit modifier.
+
+    pseudo_value_check_heavy (perception/simple-perception.cpp) senses
+    {average} only for an item that is no artifact or ego, not cursed or
+    broken, with to_a <= 0 and to_h + to_d <= 0; every light base item that
+    is not INSTA_ART has parameter_value 0 and no stat flag
+    (lib/edit/BaseitemDefinitions.jsonc: torch, brass lantern, Feanorian
+    lamp).  ``trusted`` is average_feeling_trusted() of the same C screen:
+    bad luck can swap a feeling.  Owner 2026-10-31 wears such a light
+    unidentified (「並なら付けて良い」), so the C screen can read its zero
+    modifiers instead of refusing the calibration.
+    """
+    return (trusted and not item.known and item.tval == TVAL_LITE
+            and item.pseudo_feeling == "average")
+
+
 def q34_item_tagged(item: EquipmentItem) -> bool:
     """Whether the item carries the bot's in-game ``Q34`` inscription."""
     return bool(_Q34_TAG.search(item.inscription or "")
@@ -270,8 +287,7 @@ class OwnedEquipment:
         item = self.item
         if item.known or item.pseudo_feeling in BAD_PSEUDO_FEELINGS:
             return False
-        if (item.tval == TVAL_LITE and item.pseudo_feeling == "average"
-                and self.average_feeling_trusted):
+        if average_light_without_modifiers(item, self.average_feeling_trusted):
             return True
         return q34_item_tagged(item)
 

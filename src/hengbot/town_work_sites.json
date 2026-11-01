@@ -2484,7 +2484,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e4dbe022642ac462255a865fac47a327e9c18ec943006f76be188f7390d9120d"
+    "ast_sha256": "aa406b82e1246e40e374166ca24bb5989f0be1d5adb0d3c9108dd487f95f5111"
   },
   "mining_loadout.py:restorable_item.matches": {
     "classification": "data",
@@ -2492,7 +2492,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d94c0c6a2bf87012714f8c7ea43d38ad2f7815ce0c3db919a4742b07a006a46f"
+    "ast_sha256": "eb6c977e006ea02537e08e593503a3a6785114e63332bc60201a9e08dac491ec"
   },
   "mining_loadout.py:rollback_key": {
     "classification": "dungeon-only",
@@ -3598,7 +3598,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "e32a32784ba1a354a5a6d8e474103414f3b55539c780676cb6eab0ced404dd6a"
+    "ast_sha256": "7bbfb3b534457eb66fb6a136e2708cc2609ab77fabc3eedce210267ec45224c4"
   },
   "policy.py:HengbotPolicy._line_of_sight_over_known_grids": {
     "classification": "data",
@@ -5749,7 +5749,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5b25ffcdd8bef787a8102ad04f2a2b1617cf8338c4a1496af74f4b989cd3d436"
+    "ast_sha256": "6845a27de2050ed988efb67533653c6804fbae49b2fb61cef4ee579e093622d8"
   },
   "policy_equipment.py:EquipmentMixin._wield_weapon_key": {
     "classification": "producer",
@@ -5766,6 +5766,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "684e595a145c93cf26bb37830645279fdf15939f8d7d4df6886dac0312edbeb5"
+  },
+  "policy_fundraising.py:FundraisingMixin._detect_treasure_read_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "7db04d78f24cf201b4538047d77305ffdc0597b9b68955a14e51715fafba69af"
   },
   "policy_fundraising.py:FundraisingMixin._dig_to_known_downstairs_key": {
     "classification": "producer",
@@ -5798,7 +5806,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "45013afdb2688015adf94b5bee4252f48e2b6c08de914cf1584cd3bfeb331100"
+    "ast_sha256": "7c18c88078b7d65268af249e1ab57362d12c69785875b0d00212be9dad2c7584"
   },
   "policy_fundraising.py:FundraisingMixin._fundraising_return_route_key": {
     "classification": "producer",
@@ -6153,7 +6161,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "499d36ac38dbb3576627adb44e0ce5f18bde36dae992f263697f61c9f740ca9c"
+    "ast_sha256": "629769a2adb18fb98add9b743d57db2e99cba353d45fd1caadc84ec41925c1ab"
   },
   "policy_home.py:HomeMixin._home_available": {
     "classification": "data",
@@ -6367,7 +6375,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d6d7f1e64c13f9d5a558dde89dd318173cd823ce265fcd2095869de5aaa67877"
+    "ast_sha256": "b44ff98caf5dd99654daf12fd5ec66563bc7db246f65e6f97ac5cf5c00ab737d"
   },
   "policy_home.py:HomeMixin._inventory_weight_limit": {
     "classification": "data",
@@ -6686,7 +6694,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "dbb66e859b93e71ce54587203e39cd1c0552d22c33c368e4f0b0008cca8f1474"
+    "ast_sha256": "b13ff24bb684a75e8b82a80c4b3bcdb0b491511cff35e7b712ea1fa878f14ca7"
   },
   "policy_identification.py:IdentificationMixin._pack_pressure_identify_key": {
     "classification": "producer",
@@ -10020,7 +10028,7 @@
       "fundraising"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "afbc9c0b2188eca3347cf512ab55ae3aa6f245790440d521b6a543cd240b6a95"
+    "ast_sha256": "a1ad51f372ac446fdad4884331388a6908f14b4584d43e6837cf062eece3297b"
   },
   "town_terminal.py:_commit_identify_carried": {
     "classification": "adapter",
