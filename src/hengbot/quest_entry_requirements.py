@@ -39,6 +39,16 @@ def entry_damage_ratio(profile, class_id, default) -> float:
         str(class_id), plan.get("max_damage_ratio", default)))
 
 
+def force_reference_ac(force) -> int:
+    """The armour class every readiness DPS of a reviewed profile is measured at.
+
+    reference_ac is the real AC of the quest's bound target (①案 2026-07-18).
+    A profile without one keeps the generic reference AC.
+    """
+    from hengbot.warrior_equipment_evaluator import AC_REFERENCE
+    return int(force.get("reference_ac", AC_REFERENCE))
+
+
 def entry_melee_check(profile, class_id, telemetry, candidates, controlled):
     """Use the force gate's reference AC for a reviewed mobile-only fight.
 

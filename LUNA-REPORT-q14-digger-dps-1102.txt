@@ -1,0 +1,71 @@
+q14-digger-dps-1102: 「Q14 の撃破時間の関門が武器を AC100 で測っていた」
+
+結論
+- 依頼の見立て（掘る道具を持ったまま測った）は誤りだった。盤面ではウォー・ハンマー (3d3) (+3,+5) を
+  持っていて、シャベルはザックの中だった（掘る道具から武器への持ち替えは決定 3108-3109 で済んでいた）。
+- 本当の原因: toughest-kill-time の関門は武器の出力を一般の AC100（AC_REFERENCE）で測っていた。
+  力の判定（strategy_force）は同じ武器を戦略ファイルの reference_ac 20（ワーグの実際の AC、①案 2026-07-18）で
+  測る。Lv12 の魔道具術師は AC100 では命中の下限 5% しか当たらず、1行動 1.5、加速の2倍で 3.0 になり、
+  ワーグの HP36 を10ターンで倒せないとして断っていた。
+- 直し: 2つの関門が同じ AC を読むようにした。新しい関数 force_reference_ac（quest_entry_requirements.py）が
+  戦略の reference_ac を返し、無ければ AC100 を返す。力の判定と撃破時間の関門の両方がこれを読む。
+  コミット 75972a7fe。
+
+証拠（決定の行）
+- n1-c life-102、2026-11-02 04:22、手元の写し
+  C:\hengband-backups\pdca\captures\q14-lv8-1102\n1-c\life-102\decisions-0421.jsonl
+  - 3102 fundraise:ascend、3108-3109 town:restore-combat-weapon（wja / tb）
+  - 3110-3139 Q14 は three-turn-threat（3139 の購入で回復の予算 451 になる）
+  - 3140-3142・3175-3182 Q14 は toughest-kill-time、main_hand_melee_output 3.0、
+    strategy_force.dps.measured 24.03（reference_ac 20）、toughest_hp 36、hasted true
+  - 3188-3190 fundraise:wield-digging-tool は 3180 の降りた後（判定の後）
+- 盤面の装備: サーバの ~/hengbot-soak/n1-c/life-102/incident-captures/20261102-044105-posting-contract-
+  recall-already-active/snapshots/snapshots-20261102-043631-fec48d.jsonl.gz（04:18:27-04:36:31 の輪）から
+  ターン 1055400-1057400 の行を読み取りだけで抜き出し、手元に
+  C:\hengband-backups\pdca\captures\q14-digger-dps-1102\snap-0422-board.jsonl として置いた。
+  ターン 1056396・1057342・1057356 のどれも main_hand は tval 21 のウォー・ハンマー、シャベル（tval 20）はザック。
+  （q14-lv8-1102 の手元の 041827 の輪は 04:18 で切れていて、04:22 の盤面は入っていなかった。）
+- ワーグ（r_idx 257）の armor_class は 20（lib/edit/MonraceDefinitions.jsonc）。QUEST_14 の reference_ac と同じ。
+
+テスト
+- 新しいテスト tests.test_q14_kill_time_ac_1102_recorded（1件の盤面テスト。基底の PostedKey の分を含め4件が走る）。
+  fixture tests/fixtures/q14-kill-time-ac-1102.json.gz、抽出 tests/extract_q14_kill_time_ac_1102_fixture.py。
+  元はターン 1057356（決定 3141 me-staff:travel-morivant）の町の盤面、技能の行 1055440、自宅の行 1056903、
+  杖の段の記録は 04:27 の診断チェックポイント。
+  - 公開の choose_key で Q14 の判定が reason ready・verdict True、main_hand_melee_output が
+    力の判定の DPS の2倍（加速）、reference_ac 20 になることを確かめ、出たキーを本番の executor に通す。
+- 元に戻す確認（1回）: src の変更を戻すと失敗（3.0 != 46.2）。戻すと通る。
+- 取り込みの確認 PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" は通る。
+- town_work_manifest.py --write は zero unmapped（マニフェストの変更なし）。
+- 期待値を直した既存のテストは無い（AC を指定する戦略の無いテストは AC100 のまま）。
+
+宣言（再構成）
+- 新しいプロセスで盤面を流すので、店の棚の記憶などは記録の行以外は空。杖の段の記録は盤面の後の 04:27 のもの。
+- 直した後もこの盤面のキーは記録と同じ me-staff:travel-morivant（杖の充填が町の手順を先に持つ）。
+  充填の後に Q14 へ向かうところまではこの盤面では確かめていない。判定が通ることまでを確かめた。
+
+振る舞いの変わる範囲（オーナーへの報告）
+- 撃破時間の関門は reference_ac を持つ戦略のすべてで AC100 より低い AC で測るようになる:
+  Q1 24（魔道具術師は前から力の判定の DPS を使うので変わらない）、Q2 40、Q14 20、Q22 60、Q31 50。
+  どれも「拘束目標の実 AC で DPS を測る」という ①案（2026-07-18 承認）の値で、新しい数は足していない。
+  関門はどれも緩む方向。Q34 と戦略の無いクエストは AC100 のまま。
+
+checks.json の追加案
+  {
+   "id": "Q14-KILL-TIME-AC",
+   "owner": "①案 2026-07-18: DPS は拘束目標の実 AC（reference_ac）で測る。撃破時間の関門も同じ AC で測る。",
+   "tests": [
+    "tests.test_q14_kill_time_ac_1102_recorded"
+   ]
+  }
+
+保守性
+- 「準備の DPS をどの AC で測るか」を force_reference_ac の1か所にまとめた。これまで力の判定は
+  policy.py で int(force.get("reference_ac", 100)) と書き、撃破時間の関門は AC_REFERENCE の暗黙の既定値を
+  使っていて、2か所が別々の AC を持っていた。数字の 100 の直書きも AC_REFERENCE に揃えた。
+- クエスト番号やクラスの特別扱いは足していない。テストは q14-lv8-1102 の recorded_policy と
+  test_me_nokey_1031_recorded の PostedKey（256 キーの列）を使い回した。
+
+オーナーへの問い
+1. 上の「振る舞いの変わる範囲」のとおり、Q2・Q22・Q31（と魔道具術師以外の Q1）でも撃破時間の関門が
+   reference_ac で測られて緩む。①案の値どおりなのでこのまま入れたが、Q14 だけに留めるべきか。
