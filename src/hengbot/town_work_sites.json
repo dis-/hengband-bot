@@ -2173,6 +2173,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "2166ca88f7b78f5b98d2af5bfb235bff44dc86925e5dc5fef75261db1ae2039a"
   },
+  "me_ranged_first.py:afraid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "9ca3ebc2adc68c5a16156d36ca6156fe9585e1db932f19e3371bdaa172357f68"
+  },
   "me_ranged_first.py:attack_key": {
     "classification": "producer",
     "rows": [
@@ -3082,7 +3090,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d0dd9ca6d9815b156b228bdee4b5ae4735099b6b1e3a8cc8878436ee1611c75d"
+    "ast_sha256": "5c232101b10824ec0a32f08b40b0551ecb82d589838498f6066e19b1361d6f17"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
@@ -3622,7 +3630,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "50a1cbf94fc7d0579f99aed9aa646ce538821b154f3e8c0f99a06791bb19eb1f"
+    "ast_sha256": "72d51971b87e05c016581ecd22c62a51bb966375d0fbefd45080423f5a0f2d7f"
   },
   "policy.py:HengbotPolicy._low_hp_walk_gate": {
     "classification": "producer",
@@ -3630,7 +3638,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "aa6d7d5df190596a55cbd15c075dd421d6484a3d0ec2c20068701fa648a7f59e"
+    "ast_sha256": "21c902fd7ca5791452ccf91127ae148d886f0f815a34541a65ffae21ab301a26"
   },
   "policy.py:HengbotPolicy._matching_ammo": {
     "classification": "data",
@@ -5106,7 +5114,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "85d15c3c4f1885034f3a46d02ebfda86b8b4a3545e8bf2a2c434920064ad2ee0"
+    "ast_sha256": "9c5f38723f4c2a31c0a4377fffdeee0dd1d1b7ef8fa2cb491eaad922f677519a"
   },
   "policy_combat.py:CombatMixin._choke_predicted_damage": {
     "classification": "data",
@@ -5130,7 +5138,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "451c7b97faff42756a7bb1723dcac45db8a73129148b60ec499ad311a121a21f"
+    "ast_sha256": "a7b207b2e6f499f4a8fbb8ef9b0a5a6e2d6b954d1986886e7785f05caaa32d17"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -5211,7 +5219,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "883566003383a7c37fe2d4d4923c6bec86932ba553483f077dcad884d013e5e5"
+    "ast_sha256": "2dfa356d86bb97a78c7e0062a8f65612432385f81a7717ee7a0fc11b77475ee6"
   },
   "policy_combat.py:CombatMixin._guarded_paralyzers": {
     "classification": "data",
@@ -5236,7 +5244,7 @@
       "loot-exploration"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "69efca30df7585b9ac7ddeea0c4fe7b7833e2418a44b1252da5bf651c13622f1"
+    "ast_sha256": "a141d59854752e92b173633b82da5e231daf007dd00aa4985fd048d4ca04ba63"
   },
   "policy_combat.py:CombatMixin._item_destroying_breeder_leave_key": {
     "classification": "producer",
@@ -5284,7 +5292,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "67605034787761ed65a046789fd764af00c3ebda3298bf301401bdf05d993cac"
+    "ast_sha256": "ba12794f50c5d7fe8bd7b23cc72be6093dd1351a177b63c6f14901b2dc782f47"
   },
   "policy_combat.py:CombatMixin._offset_fire_aim": {
     "classification": "data",
@@ -10309,6 +10317,14 @@
     ],
     "delegation": "none",
     "ast_sha256": "756aa2d393f021de8ce16624d6b4e62b3ca8fa991c0be5ff3616d7a27432d6ec"
+  },
+  "unseen_strike.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "ae2012a46139b227b5c4d58d4e43a99219827ec8c761c8eb592feeb78c80ee5e"
   },
   "warrior_equipment_evaluator.py:displayed_melee_hit_chance": {
     "classification": "data",
