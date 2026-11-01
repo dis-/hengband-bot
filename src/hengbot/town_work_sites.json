@@ -7884,6 +7884,13 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "policy_town.py:TownMixin._offer_town_teleport_leg": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_town.py:TownMixin._outpost_fare_recovery_key": {
     "classification": "producer",
     "rows": [
