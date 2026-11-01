@@ -1,0 +1,104 @@
+LUNA-DIAG owner15-me-explore-1101（#47、2026-11-01）
+
+発注: 所有者の 11-01 17 時の答え（memory owner-answers-15-decisions-20261101.md）の 8 と 10、
+および D52（me-tower-trips-1101）の問い 3 で後回しにした町の歩きのトラベル化
+（所有者 11-01 「街での移動は可能な限りトラベルコマンドを活用して」）。
+枝: owner15-me-explore-1101（main ade15c353 から）。行番号は base（ade15c353）のもの。
+
+==================================================================
+件 1（答え 8）: 罠の解除の力が、無害な敵が見えているだけで使われない
+==================================================================
+所有者の答え 8: 「脅威でなければ使う」（周辺感知と同じ beside_harmless）。
+連鎖（base）:
+ - 歩きの罠の一歩 policy_navigation.py:1938 と宝箱の D の段 policy_identification.py:320 が
+   me_powers.power_key(..., TRAP, 罠) を呼ぶ。
+ - me_powers.py:162-167 の 3 行（ロッド 14・魔法棒 4・魔法棒 5）は beside_harmless を持たない
+   （既定 False）。
+ - me_powers.py:445-446 _hostiles_allow: 敵が見えていれば beside_harmless の行だけ通す。
+   よって見える敵が 1 体でもいれば、脅威でなくても 3 行とも断り、呼び手は 'D'+方向 に戻る。
+記録: 取り込んだキャラクタの記録はまだ無い（D51 の報告どおり、表と一覧は作った物）。同じ門で
+ 周辺感知が止まった記録が n1-c life-065 Yeek cave 1F（判断 6468-6494: 寝ている Lv1 の敵が見えた
+ まま感知せず、tests/fixtures/me-mapping-1101.json.gz）。その敵を罠の盤面（life-016、
+ tests/fixtures/me-mining-death-20261030.json.gz の turn 94171、通路の罠 (14,44)）の西の部屋
+ (13,33) に置くと、直す前は 'D4' fundraise:seek-upstairs-door（力を使わない）。
+直し: 3 行に beside_harmless=True（表の属性だけ。門は変えない）。危険な敵（visible_threat:
+ 状態異常の攻撃・逃げる理由・HP の半分の脅威）と殴られた直後（_gate の _took_damage）は今のまま断る。
+
+==================================================================
+件 2（答え 10）: ボットを再起動すると、その階の周辺感知の範囲を忘れる
+==================================================================
+所有者の答え 10: 「階の記録に残す」（exploration_ledger に位置と半径）。
+連鎖（base）:
+ - mapped_area.py:45 SOURCES = (me_powers.mapped_areas,) だけ。me_powers.py:521 mapped_areas は
+   policy._me_power_floor（FloorMemory、メモリだけ）の使用から作る。
+ - me_powers.py:456 observe: 新しいプロセスでは FloorMemory が空から始まる。
+ - exploration_ledger.py（ファイルに残る階の記録）は訪問数・捜索数などを持つが、感知の範囲は
+   持たない。
+ - よって再起動の後は mapped_area.refresh（base :114）が範囲を作らず、探索は感知の前の規則に戻る。
+記録: n1-c life-080 Angband 4F（tests/fixtures/mapped-rooms-1101.json.gz、
+ C:\hengband-backups\pdca\captures\n1c-mapping-1101\life-080-4f\）。1 回目のセッションの
+ map-area は 5 回（turn 549598 (6,127) 判断 4567、551583 (17,100) 4767、555048 (38,120) 5106、
+ 557700 (9,72) 5364、558083 (5,43) 5400）。05:01:40 に再起動、2 回目のセッションは turn 560863 に
+ 感知した行き止まり (3,94)->(2,94)->(1,94) へ explore で入り、search 8 回と breakout で戻った
+ （2 回目のセッションの判断 237-248）。次の感知は turn 563571（判断 501）。
+直し: exploration_ledger に mapped_areas（(y, x, 半径) の集合）を足す。mapped_area.refresh が
+ 円をそこへ書き（新しい円があればすぐ保存）、ledger を mapped_area の出どころの 1 つにする
+ （recorded_areas）。ledger の bind が同じ階なら読み戻し、新しい階なら消す。古い checkpoint の
+ ledger は空の集合になる（__setstate__）。
+
+==================================================================
+件 3: fixedquest:q22-travel と「決定の文脈あり」の fixedquest:prepare-return が 1 歩ずつ
+==================================================================
+連鎖（base）:
+ - D52 は _town_teleport_dispatch_key（宿への町間移動の共通の入口）にトラベルを入れたが、
+   経路の宣言（QuestTravelDeclaration）を自分で作る 2 つの担当はそこを通らない:
+   policy_quest.py:4459 `key = route_result.key`（q22-travel）、
+   policy_quest.py:4674-4691 `result.key`（_prepare_return_candidate、return-1・return-3）。
+   どちらも _town_teleport_route の 1 歩（first_step）をそのまま宣言の composed_key にして返す。
+ - 宣言の検査（policy_town.py _valid_quest_travel_declaration）が見るのは composed_key と
+   候補のキーの一致・goal・first_step・bfs_rank があることで、キーが 1 歩であることは要らない。
+   進み具合（_town_arbiter_progress_vector の宣言の部分）は bfs_rank（宿までの残りの辺）で測る。
+   トラベルのキーは policy_town.py の is_travel_macro の行（route: の acting の offer）で進みと
+   読まれる。
+記録:
+ - q22: 2026-09-13 の記録（tests/fixtures/quest-request-retired-stage1.jsonl.gz）turn 2856171 から
+   1 判断 1 歩（ランク 10 -> 6、別の町で 42 -> 38）。直す前の最初のキーは '7'。
+ - prepare-return（return-3）: 町 3 の記録（tests/fixtures/quest-prepare-return-town3-walk-stage2
+   .jsonl.gz）turn 2856703 から '7','8','9','9','9'。n1-c life-074 の判断 5197-5210 も同じ担当で
+   14 歩（D52 の診断。盤面はサーバに残っていない）。
+直し: _town_teleport_route_key（policy_town.py、新）= _town_teleport_travel_key（D52 の宿の隣への
+ トラベル）か、それが使えない盤面では今までの 1 歩。2 つの担当はこれを宣言の composed_key にする
+ （goal・first_step・bfs_rank は経路のまま）。
+
+==================================================================
+件 4: bounty:approach（ハンターの事務所へ）が 1 歩ずつ
+==================================================================
+連鎖（base）: policy.py:18107 `return offer(self._step_toward(snapshot, step))`。事務所に入る
+ 最後の 1 歩（'c'+'y'*n+ESC の後ろ）以外も 1 歩ずつ。
+記録: live22（tests/fixtures/live22-bounty、判断 5123 '7' bounty:approach、事務所 (25,71)）。
+注意（直し方の制約）: _town_travel_key の offer は route.resume の続き。保持者の続き
+ （policy.py:6663-6680 の route.resume）は quest-request の家族に "fixedquest:request:approach"
+ と名前を付けて 1 歩を出すので、トラベルの offer だけを宣言にすると、保持された賞金首の続きが
+ 固定クエストの接近として出る（tests.test_live22_bounty の継続の検査が落ちる。D52 が見送った理由）。
+直し: 事務所の隣へ town_travel.building_key でトラベルし、そのキーを賞金首の offer
+ （normal-step4-bounty・bounty.resume）でも出す（同じキーの最後の offer が宣言になる。
+ _record_execution_declaration）。保持者の続きは賞金首の担当（_town_order_step4_key）に戻る。
+
+==================================================================
+件 5: town:morivant-full-identify:library（モリバントの宿から図書館へ）が 1 歩ずつ
+==================================================================
+連鎖（base）: policy_quest.py:1536 `key = self._step_toward(snapshot, step)`（図書館に入る前）。
+記録: D52 は「接近の盤面が無い」としたが、n1-a life-433 の記録（tests/fixtures/
+ morivant-library-identify-20261030.json.gz、D34）のセッションの行に、宿 (26,105) から図書館
+ (41,106) までの判断 7678-7691 の 14 歩（'1','1','2','3','3','2',...）と盤面がある。
+直し: 図書館の隣へ town_travel.building_key でトラベル、使えなければ今の 1 歩。どちらも今までの
+ library-route の offer で出す。図書館に入る 1 歩と鑑定の後ろのキーは今のまま。
+
+==================================================================
+この発注で直さないもの（観察）
+==================================================================
+ - D52 の _town_teleport_dispatch_key のトラベル（fixedquest:q<id>-travel ほか quest-request の
+   宿への移動）も、保持者の続き（route.resume）では "fixedquest:request:approach" の名前で 1 歩を
+   出す（件 4 と同じ仕組み）。今回の q22・prepare-return も同じ。進みは route.resume の目的地で
+   続くが、名前が違う。別の家族（保持者の続きの名前）の問題として報告に書く。
+ - tests.test_bounty_cashout_recorded_1025 の 6 件の失敗は base でも同じ（D52 の報告どおり既存）。
