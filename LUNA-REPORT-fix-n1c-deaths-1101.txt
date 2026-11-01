@@ -1,0 +1,141 @@
+LUNA-REPORT-fix-n1c-deaths-1101.txt  (D57 / #47、ブランチ fix-n1c-deaths-1101、main c326f0fd6 から。最後に main 5fbfb9455 を取り込んだ)
+
+詳しい経緯（判断の行・file:line）は LUNA-DIAG-fix-n1c-deaths-1101.txt。
+証拠の写し: C:\hengband-backups\pdca\captures\fix-n1c-deaths-1101\（観戦サーバーは読むだけ）。
+
+■ 4体の死の答え
+1. life-085（Lv18、迷宮11階）: 『スーパー・グレート・シルバー・ゼリー』（光を食べる、速さ+10）に殺された。
+   持っていた物: テレポート15・帰還9（暗くて読めない）、油5、予備のランタン、致命傷の治癒10、取り込んだ
+   テレポート・アウェイ(12)。
+   - ゼリーがランタンの燃料を食べて真っ暗になった。油を注ぐ判断は「最後に一杯にした時から燃えた分」だけで
+     燃料を数えていて（lamp_fuel.py）、食べられた分を知らず、「まだ約4100ある」と思って注がなかった。
+   - 暗がりでもゼリーはゾンビの赤外線視力で見えていて、ゲームは位置付きで知らせていた。ボットは位置を
+     地図のマスからしか取らず、暗いマスは地図に無いので、ゼリーを盤面から捨てた（model.py）。
+     緊急の段は「隣に見える敵がいない」と判断して11回待ち、HP 71→0。
+   - 致命傷の治癒10本は「HP の回復薬」に数えない決まり（HEAL_POTION_SVALS）なので飲まなかった（問い1）。
+   → main では直っていない（この版で死亡）。2つ直した（コミット2・3）。
+2. life-084（Lv12、迷宮14階）: 充血アイ（動かない、にらんで盲目にする）の隣で、毎ターン盲目→致命傷の治癒→
+   ミサイル→盲目…をくり返し、9本を使い切った。その後、盲目のまま見えないサラマンダーに噛まれ、緊急の段が
+   4回待って死亡（HP 61→0）。テレポート13は盲目で読めない。
+   - 「盲目で治す薬が無い時は見えない敵を攻撃する」（オーナー 10-31）は帰還の発動待ちの時だけ使われ、
+     緊急の段の最後と低HPの歩きの門の最後は待っていた。
+   → main では直っていない（記録の盤面を main で再生して同じ待ちを確認）。直した（コミット1）。
+   - 盲目の治療で致命傷の治癒を使い切ったこと自体は問い2。
+3. life-083（Lv14、迷宮12階）: シャドウ・ハウンドの暗黒のブレスの盲目の治療で致命傷の治癒を使い切り、
+   帰還の発動待ちの間に、ミ=ゴウの幻覚で混乱、召喚の悪魔とビートルに殺された。最後は混乱で巻物も
+   取り込んだ魔力も使えず、薬も無いので、殴るしかなかった（その選択は今の決まりどおり）。
+   → 直すには新しい決まりが要る（問い1・2）。このブランチでは直していない。
+4. life-079（Lv12、鉄獄12階、版 04ad2c6d2）: デスソード（動かない、速さ+20、4回斬る）の隣へ1歩で入り、
+   HP 151→−2。着いた時の邪悪存在感知でデスソードの位置は分かっていたが、次の盤面からは誰も覚えておらず、
+   下り階段への道がその隣を通った。
+   → 新しい決まりが要るので問い3。このブランチでは直していない。
+
+■ 深さ（Lv12-18 の魔道具術師が 11-14階にいるべきか）
+- 083-085 は迷宮（10-18階、狭い迷路に敵80体以上）。鉄獄で行き詰まった時の「代わりの行き先」として選ばれ、
+  着地は10階より浅くできない。083 は迷宮で何度も緊急の帰還（最大7回の緊急脱出）をくり返した。
+- 「行き詰まった潜り」の判定は目標の鉄獄の潜りだけを数え、代わりの迷宮の潜りは数えない
+  （policy_observation.py:552-566）。だから迷宮で何回危なくなっても浅い所へ移らない。
+- 魔道具術師の段階の決まりには深さの決まりが無く、depth_safety（耐性）は通る。
+- 今の決まりでは「決まりどおり」だが、危険が続いても深さが下がらない穴がある（問い4）。
+
+■ 直し（1つの根に1コミット）
+コミット1 81307b12b「Strike the remembered attacker before a survival ladder waits blind」
+  - blind_strike.emergency_key（新しい関数、blind_strike.py）: 盲目で、怖がっておらず、近接ができる時、
+    覚えている隣の敵のマスを '+'（攻撃）で打つ。覚えが無ければ None（今までどおり待つ）。
+  - 緊急の段の最後（policy_combat.py）と低HPの歩きの門の最後（policy.py）の2か所が、待つ前に同じ関数を聞く。
+    帰還の枝の blind_strike.key も同じ strike_key を使う（重複なし）。
+  - 町の仕事の目録: scripts/town_work_review.json に2項を足し、town_work_manifest.py --write は zero unmapped
+    （コミット 6dad75824）。
+コミット2 6cce55f61「Keep a monster in view whose cell the grid map does not export」
+  - model.py _exported_position: 見えている敵のマスが地図に無い時は、ゲームが出した y/x を使う。
+    ゲームの visible_monsters は「見えている（ml）かつ視界のマス」の敵だけで、これは画面に出ている物
+    （公平さの決まりに合う）。
+  - 期待値を直した既存の検査: test_owner_a_survival_recorded の盲目の盤面（n1-a life-446）は、ESP で
+    2マス先のレヴナントが見えていたのに今まで捨てていた。今は盤面に残るので、緊急の段が答える
+    （同じキー '+6' と 'qa'。理由の名前が emergency:blind-strike と emergency:cure-critical に変わる）。
+    正しい動きへ期待値を直した（壁ではない）。
+コミット3 a81b542b3「Lower the lamp memory's fuel floor when a monster eats the light」
+  - lamp_fuel.observe: 「明かりが暗くなってしまった。」1回ごとに最大 500（ゲームの 250+1d250）、
+    「明かりが消えてしまった！」で全部を、覚えている燃料の下限から引く。新しい閾値は無い（ゲームの値）。
+
+（期待値の直し: コミット b07ae5abd）
+
+■ テストと revert-proof（src の直しだけを戻して流し、戻した）
+tests.test_n1c_deaths_1101_recorded（8件、記録の盤面→公開の choose_key→本番の実行器）
+  - コミット1を戻すと 1件 FAIL: BlindEmergencyStrikeRecordedTest.test_blind_emergency_strikes_the_remembered_attacker
+    （('5', 'emergency:wait') != ('+6', 'emergency:blind-strike')、記録どおりの待ち）
+  - コミット2を戻すと 2件 FAIL: JellyInViewRecordedTest.test_the_game_lists_the_jelly_beside_the_player
+    （[] != [(1273, 1)]）、test_dark_emergency_answers_the_adjacent_jelly（'5' emergency:wait、記録どおり）
+  - コミット3を戻すと 1件 FAIL: DrainedLanternRecordedTest.test_drained_lantern_is_refilled_through_the_executor
+    （('7', 'dark:no-recovery:dark:backtrack') != ('\\Fa', 'refill-light')、記録と同じキー）
+  - 残り4件（記録の行の確認2件、光の文を消すと記憶は変わらない対照、何も覚えていない盲目では攻撃のマスを
+    作らない対照）は戻しても通る（守りの確認）。
+  作り物の部分（DECLARED RECONSTRUCTED / CONSTRUCTED）はテストの説明に書いた（杖の記録の形、life-085 の
+  最後の「一杯」の返事のターン 1336706、対照の作り方）。
+  フィクスチャ: tests/extract_n1c_deaths_1101_fixtures.py → tests/fixtures/death-n1c-084-1101.json.gz、
+  death-n1c-085-1101.json.gz。
+
+■ 検査
+- import の確認（hengbot.cli, hengbot.policy）: OK
+- checks.json の全テスト（85項目）＋新しい test_n1c_deaths_1101_recorded を、main 5fbfb9455 を取り込んだ木で
+  4つに分けて実行: 506件。最初の実行で2件 FAIL（どちらもコミット2で盤面に残るようになった敵のため）:
+  * test_dungeon_1031_recorded.DeathReturnRecordedTest.test_blindness_is_cured_before_the_unseen_recall_walk:
+    n1-a の盲目の盤面に ESP で見えるレヴナントが残り、同じ致命傷の治癒が緊急の段から出る
+    （emergency:cure-critical）。期待値を直した。
+  * test_q34_torch_entry_recorded.test_light_rejection_shops_or_stops_after_supplier_routes_are_exhausted:
+    夜の町の盤面で2マス北のやせこけた猫（視界の中、地図に無いマス）が残り、町の狩り（town:kill-mob-approach）
+    が先に答える。この検査は店への道の話なので、猫を外した盤面にした（DECLARED CONSTRUCTED、テストに理由を書いた）。
+  直した後に該当の組（138件）を流し直して全部 OK。残りの3組（139・110・119件）は最初から OK。
+- 自分のテスト: tests.test_n1c_deaths_1101_recorded 8件 OK（revert-proof は上）。
+- 町の仕事の目録: town_work_manifest.py は 0 violation（zero unmapped）。
+- 期待値を直した既存のテスト: test_owner_a_survival_recorded（2か所）、test_dungeon_1031_recorded（1か所）、
+  test_q34_torch_entry_recorded（盤面から猫を外す1か所）。いずれも「今まで捨てていた、画面に出ている敵」が
+  盤面に残ることによる正しい変化。テストの壁は無い。
+
+■ checks.json に足す案（このブランチでは checks.json は編集しない）
+  {"id": "D57", "owner": "2026-11-01 「直近24hの停止原因を集計して修正されていないものに着手」 (n1-c life-084/085, branch fix-n1c-deaths-1101)", "tests": ["tests.test_n1c_deaths_1101_recorded"]}
+
+■ オーナーへの問い（新しい決まりが要るので実装していない）
+問い1（085・083）: 致命傷の治癒を HP の回復にも飲むか。
+  今: 回復の帳簿は致命傷の治癒だけ（10-03 の決定「今のまま」）なのに、HP が低い時に飲む回復薬の集合
+  （HEAL_POTION_SVALS: 重傷の治癒・体力回復・*体力回復*・生命）に致命傷の治癒が入らない（Q14 の階だけ例外）。
+  085 は致命傷の治癒10本を持ったまま HP 71→0。ゲームでは 6d8（平均27）回復する（quaff-effects.cpp:126）。
+  A（推奨）: 致命傷の治癒も HP の回復薬に数える（今の「次のターンの被害以上を回復する一番小さい薬」の決まりで選ぶ）。
+  B: 魔道具術師だけ数える。
+  C: 今のまま。
+問い2（084・083）: 盲目の治療で致命傷の治癒を使い切るのを止めるか。
+  084 は HP 113-147/151 のうちに、隣で毎ターンにらみ直す動かない充血アイの盲目を9回治した。083 も HP 163-171 で
+  9回（シャドウ・ハウンドのブレス）。その後、回復と混乱の治療が無くて死んだ。
+  A（推奨）: 盲目の治療は「隣の敵に殴られている、または HP が低HPの閾値未満」の時だけ。それ以外は盲目のまま
+     覚えている敵を攻撃する（コミット1の emergency_key）か、離れられるなら離れる。
+  B: 致命傷の治癒を N 本（数を決めてもらう）残し、それより少なければ盲目では飲まない。
+  C: 今のまま。
+問い3（079）: 感知した動かない敵を覚えて避けるか。
+  A（推奨）: 感知や視界で見た NEVER_MOVE の敵をその階の間そのマスに覚え（そのマスを見て居なければ忘れる、
+     麻痺の敵の記憶 _remembered_paralyzers と同じ形）、その敵の1ターンの予測被害が今の HP 以上なら、
+     その隣のマスを道から外す。
+  B: 致命的かどうかに関係なく、覚えた動かない敵の隣はすべて道から外す。
+  C: 今のまま。
+問い4（083-085 の深さ）: 代わりの行き先（迷宮）でも「行き詰まった潜り」を数えるか。
+  A（推奨）: 代わりの迷宮の潜りも鉄獄と同じ判定（拾い物4以下で緊急脱出2回以上、が3回続く）で数え、
+     より浅く入れる所へ移す（無ければ今の決まりどおり）。
+  B: 魔道具術師だけ潜る深さの上限を決める（キャラの強さとの関係を決めてもらう）。
+  C: 今のまま。
+問い5（全件）: 取り込んだテレポート・アウェイ（4体とも12回分）を使うか。今は使う決まりが無い。
+  取り込んだ魔力は盲目・暗がりでも使える（混乱だけ不可、cmd-magiceat.cpp:492）。
+  A（推奨）: 巻物が読めない時（盲目・暗い）に、隣の敵の予測被害が致命的なら、その敵へ撃つ。
+  B: 読める時でも、致命的な隣の敵にはテレポートの巻物より先に撃つ。
+  C: 今のまま。
+
+■ 保守性
+- 新しい判断は既存の名前付きの部品に置いた: 盲目の攻撃は blind_strike.py（strike_key を帰還の枝・緊急の段・
+  低HPの歩きの門の3か所で共有。条件は emergency_key の1か所）、燃料の記憶は lamp_fuel.py（ゲームの文の表
+  LIGHT_DIMS_MESSAGES・LIGHT_OUT_MESSAGES と EAT_LITE_MAX_FUEL の出典を説明に書いた）、敵の位置は model.py の
+  _exported_position（ゲームの出力の説明を付けた）。共有の判断の段には特別扱い（職業・敵の種類・ダンジョン名）
+  を足していない。policy_combat.py は2行、policy.py は2行だけ。
+- 緊急の段の cornered-attack の条件と盲目の攻撃の条件を1か所（emergency_key）に寄せ、新しく条件を複製していない。
+- 「x回くり返し」の数え方（<xN>）を lamp_fuel._counted にまとめた（「一杯だ」と光の文で共有）。
+- テスト: 記録の盤面の追い方と、薬・方向の問いへの答え方を PostedDeathKey にまとめ（MissilePostedKey と
+  MeStaffLoopsRecordedTest.drive を使い回す）、フィクスチャの抜き出しは CASES の表1つ（既存の decision_rows・
+  ring_rows・knowledge を使い回す）。
+- テストの壁: 無い。期待値を直したのは test_owner_a_survival_recorded の2つ（上の理由）。
