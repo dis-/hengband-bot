@@ -3802,11 +3802,7 @@ class HomeMixin:
         # Removing index i shifts only later slots. Earlier indices remain
         # addressable; owners at or beyond i require a fresh complete scan.
         self._home_knowledge_valid_before = index
-        owner_signatures = {
-            candidate
-            for candidate in (self._home_pending_item, *[], *self._home_pending_batch, self._home_errand.request.signature if self._home_errand.active and self._home_errand.request is not None else None)
-            if candidate is not None
-        }
+        owner_signatures = self._bound_home_take_signatures(posted=False)
         owner_signatures.discard(signature)
         owner_indices = [
             owner_index
@@ -3999,13 +3995,29 @@ class HomeMixin:
         if self._home_pending_item is None and not self._home_pending_batch:
             self._home_withdrawal_queued = False
             self._home_procurement_batch_active = False
-        remaining = {
-            *((self._home_pending_item,) if self._home_pending_item is not None else ()),
-            *self._home_pending_batch,
-            *((self._home_atomic_withdraw_pending[0],)
-              if self._home_atomic_withdraw_pending is not None else ()),
+        return bool(self._bound_home_take_signatures().intersection(stocked))
+
+    def _bound_home_take_signatures(self, *, posted: bool = True) -> set:
+        """Home takes an owner has bound: the queued item and batch, the
+        filed errand's take and (``posted``) the posted atomic take.
+
+        Every arrival at Home is inside the store (the travel command and a
+        step onto the entrance both enter it); these takes are composed only
+        from the outside entrance (``_atomic_home_withdraw_dispatch_key``), so
+        the open Home page hands each of them off.  D61 (n1-c life-098
+        2026-11-01 21:01): the filed take of a shelved device was missing
+        here, the page closed as home:route-claim-unfulfilled every pass and
+        the visit wandered until the repetition departure.
+        """
+        errand = self._home_errand.request if self._home_errand.active else None
+        return {
+            signature for signature in (
+                self._home_pending_item, *self._home_pending_batch,
+                errand.signature if errand is not None else None,
+                (self._home_atomic_withdraw_pending[0]
+                 if posted and self._home_atomic_withdraw_pending is not None else None),
+            ) if signature is not None
         }
-        return bool(remaining.intersection(stocked))
 
     def _requeue_home_withdrawal(self, signature: tuple[str, int, int]) -> None:
         """A new request queues ``signature`` for withdrawal again.
