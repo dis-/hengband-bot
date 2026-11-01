@@ -102,3 +102,17 @@ tests.test_hit_no_action_1101_recorded（5件）
   1つの関数の docstring にゲームの出典と一緒に書いた。職業・クエスト・品の特別扱いは共有の判断のコードに足していない。
 - 町の仕事の目録の review を2行足した（どちらも survival の子、独立の進み無し）。
 - テストは D57 の部品（PostedDeathKey・boards・lamp_policy・フィクスチャ）を使い回し、新しい抜き出しは作っていない。
+
+■ 追記: main b51bcda79（life085-passive-1101・me-dual-wield-1101 など）の取り込み（01a350b69、2b4010c2b）
+- 取り込みで tests.test_hit_no_action_1101_recorded.AfraidRangedAnswerRecordedTest.test_control_unafraid_the_jelly_is_answered_too
+  が ('qb', 'dark:no-recovery:emergency:quaff-speed') になった。life085-passive の 2ac0826cb で、怖がっていない
+  見える敵が隣から殴る時は暗がりの歩きが戦いに譲り、HP 71/236 の盤面で致命の緊急の段がまずスピードの薬を飲む
+  （速さ+10 のゼリーに対する既存の緊急の段の手、生存優先で正しい）。D57 の検査と同じく「ゼリーの方向への攻撃か、
+  緊急の段のスピードの薬」を受け入れるように対照の期待値を直した（テストの壁ではない）。怖がっている盤面は、
+  survival_preemption が怖がっている時は歩きを断らないので、今も低HPの門が答え 'mBp8'。
+- 取り込み後の revert-proof: コミット2の src を戻すと test_afraid_low_hp_gate_fires_at_the_adjacent_jelly が FAIL
+  （('5', 'emergency:wait')）、コミット1の2か所を外すと test_unseen_attacker_above_the_gate_threshold_is_struck_not_walked_from
+  が FAIL（'2' != '+'）。戻した後は5件 OK。
+- 町の仕事の目録: --write で zero unmapped（0 violation）。import の確認 OK。
+- checks.json の全テスト（重複を除いて 92 項目、76 の検査）＋自分のテスト2つ、3つに分けて実行: 546件すべて OK
+  （前回の import の失敗3件は main に入ったので解消）。
