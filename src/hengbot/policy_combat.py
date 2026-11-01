@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_floor_record, breeder_quest, breeder_stalemate, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_threat_memory, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -253,6 +253,16 @@ from hengbot.policy_constants import (
 
 
 class CombatMixin:
+    def _sleeper_beyond_ranged_reach(self, monster: MonsterState, distance: int) -> bool:
+        """A sleeper too far to shoot: approach it quietly (the hunt path) instead.
+
+        A monster that never moves (NEVER_MOVE) cannot close in when the
+        shot wakes it, so it stays a target up to the ranged range (owner
+        2026-11-01 「遠隔で倒せるなら離れて撃つのは可」; n1-c life-103 kept
+        retreating from a sleeping シルバー・ゼリー seven cells away)."""
+        return (monster.asleep and distance > RANGED_SLEEPER_MAX_DISTANCE
+                and not immobile_threat_memory.never_moves(self, monster))
+
     def _summoner_never_approaches(
         self, snapshot: Snapshot, monster: MonsterState
     ) -> bool:
@@ -1401,7 +1411,7 @@ class CombatMixin:
             distance = max(abs(dy), abs(dx))
             if distance < 2 or distance > RANGED_MAX_DISTANCE:
                 continue
-            if monster.asleep and distance > RANGED_SLEEPER_MAX_DISTANCE:
+            if self._sleeper_beyond_ranged_reach(monster, distance):
                 continue
             step_y = (dy > 0) - (dy < 0)
             step_x = (dx > 0) - (dx < 0)
@@ -1543,11 +1553,8 @@ class CombatMixin:
             monster
             for monster in hostiles
             if 2 <= player.position.distance_to(monster.position) <= RANGED_MAX_DISTANCE
-            and not (
-                monster.asleep
-                and player.position.distance_to(monster.position)
-                > RANGED_SLEEPER_MAX_DISTANCE
-            )
+            and not self._sleeper_beyond_ranged_reach(
+                monster, player.position.distance_to(monster.position))
         ]
         if not eligible or ammo is None:
             return None
@@ -1604,9 +1611,7 @@ class CombatMixin:
                 abs(monster.position.y - player.position.y),
                 abs(monster.position.x - player.position.x),
             )) <= RANGED_MAX_DISTANCE
-            and not (
-                monster.asleep and distance > RANGED_SLEEPER_MAX_DISTANCE
-            )
+            and not self._sleeper_beyond_ranged_reach(monster, distance)
             for monster in hostiles
         )
         if not targetable_hostile:

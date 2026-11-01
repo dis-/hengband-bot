@@ -12881,9 +12881,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not player.blind
             and not player.confused
             and 2 <= distance <= RANGED_MAX_DISTANCE
-            and not (
-                monster.asleep and distance > RANGED_SLEEPER_MAX_DISTANCE
-            )
+            and not self._sleeper_beyond_ranged_reach(monster, distance)
         )
 
     @claims(ClaimOwner.COMBAT)

@@ -68,7 +68,8 @@ class FloorVisit:
     cells: frozenset[Position] = frozenset()
 
 
-def _never_moves(policy, monster: MonsterState) -> bool:
+def never_moves(policy, monster: MonsterState) -> bool:
+    """The race knowledge says the monster never leaves its cell (NEVER_MOVE)."""
     knowledge = policy._monrace_knowledge.get(monster.race_id)
     return knowledge is not None and "NEVER_MOVE" in knowledge.flags
 
@@ -116,7 +117,7 @@ def observe(policy, snapshot) -> None:
         setattr(policy, MEMORY, visit)
     perceived = {monster.position: monster
                  for monster in policy._perceived_hostiles(snapshot)
-                 if _never_moves(policy, monster)}
+                 if never_moves(policy, monster)}
     visit.monsters.update(perceived)
     for position, monster in list(visit.monsters.items()):
         if position not in perceived and policy._player_can_see_empty_cell(
