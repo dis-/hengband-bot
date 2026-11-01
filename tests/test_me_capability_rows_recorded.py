@@ -3,10 +3,17 @@
 5 「今残っている回数で数える」: the absorbed Detect Treasure power counts toward
   the detection the departure needs by the displayed current charges (the
   record only when no list was read), like every other power.
+7 「表へ移す（入れ替えのための買い直しの例外も表の条件に）」: the staff
+  sequence's stage staffs leave every pick of the shop's ordinary buy order
+  through the table row ``stage-staff`` (use ORDER), not an inline check in
+  policy_shop (behaviour-neutral, validation/me-capability2-1101).
 
 Boards: the recorded n1-c life-021 explicit-target fundraising run at the
 Alchemist (D9, tests/fixtures/me-town-stops-20261030.json.gz,
-tests/extract_me_town_stops.py) with its recorded shelves.  Only the replies to
+tests/extract_me_town_stops.py) and the recorded n1-c life-033 zombie
+Magic-Eater's Magic-shop page that sells two Identify staffs (D25,
+tests/fixtures/n1c-town-stops2-20261030.json.gz,
+tests/extract_n1c_town_stops2.py), with their recorded shelves.  Only the replies to
 newly posted keys are constructed (tests/test_me_town_stops_recorded.py);
 every decision goes through the public ``choose_key`` and the production
 executor.  DECLARED CONSTRUCTED where named in each case: the staff
@@ -16,6 +23,7 @@ list (``_magic_eater_power_list`` rows with the BaseitemDefinitions names).
 import tests  # noqa: F401 -- isolate live runtime files
 
 import copy
+from unittest import mock
 
 from hengbot import me_capability, me_staff_sequence
 from hengbot.me_device_attacks import observe_lists
@@ -25,6 +33,7 @@ from hengbot.model import (
 )
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_me_town_stops_recorded as d9
+from tests import test_n1c_town_stops2_recorded as d25
 import tests.test_input_executor as executor_harness
 
 
@@ -94,6 +103,43 @@ class DetectTreasureCountTest(executor_harness.ProductionHarness):
         # Unfixed: the run bought its recall and oil and descended with one
         # charge against the six detections it needs.
         self.assertIn((DETECTION, 5), self.bought, reasons[-6:])
+
+
+class ZombieFoodShelfTest(executor_harness.ProductionHarness):
+    """The recorded life-033 Magic-shop page (two Identify staffs on the
+    shelf) for a zombie Magic-Eater that must buy device food."""
+
+    LIFE = "life-033"
+    shelf_screen = staticmethod(lv7.Lv7TownStopRecordedTest.shelf_screen)
+    post = lv7.Lv7TownStopRecordedTest.post
+    reply = d9.MagicEaterTownStopsRecordedTest.reply
+    drive = d9.MagicEaterTownStopsRecordedTest.drive
+
+    @classmethod
+    def setUpClass(cls):
+        d25.MagicEaterTownStops2RecordedTest.setUpClass()
+        cls.cases = d25.MagicEaterTownStops2RecordedTest.cases
+
+    def boundary(self, life, *, kit_bought=False):
+        policy, raw = d25.MagicEaterTownStops2RecordedTest.boundary(self, life, kit_bought=kit_bought)
+        # DECLARED CONSTRUCTED: stage 1 absorbed (record and displayed list),
+        # and no device food in the pack (its wand and staffs left out).
+        me_staff_sequence.state(policy).absorbed = dict(STAGE1)
+        raw["_magic_eater_power_list"] = staff_list()
+        raw["inventory"] = [item for item in raw["inventory"] if item.get("tval") not in (55, 65)]
+        return policy, raw
+
+    def first_purchase(self):
+        self.drive(self.LIFE, limit=12, done=lambda policy, raw, key: bool(self.bought))
+        return self.bought
+
+    def test_the_ordinary_order_never_feeds_on_an_absorbed_stage_staff(self):
+        # The absorbed Identify staff is device food (is_mana_food_ware), and
+        # only the table's stage-staff row keeps the food pick off it.
+        self.assertEqual(self.first_purchase(), [("スリープ・モンスターの魔法棒 (10回分)", 1)])
+        without = tuple(row for row in me_capability.REPLACES if row.when != "stage-staff")
+        with mock.patch.object(me_capability, "REPLACES", without):
+            self.assertEqual(self.first_purchase(), [("鑑定の杖 (5x 18回分)", 1)])
 
 
 if __name__ == "__main__":

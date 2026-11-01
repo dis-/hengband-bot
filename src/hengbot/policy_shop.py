@@ -3340,14 +3340,14 @@ class ShopMixin(InStoreMixin):
         # Keep the observed Store intact for charge comparisons, Home/pack
         # gates, and shelf evidence.  Only candidate enumeration uses this view.
         excluded_classes = set(excluded_classes)
+        # A sell-then-rebuy, or a kind the ordinary order never picks
+        # (me_capability.REPLACES, use ORDER: the staff sequence's stage staffs).
         excluded_classes.update(
             (item.tval, item.sval)
             for item in store.items
             if self._purchase_churn_rejected(store.store_type, item)
+            or me_capability.replaced_by_absorbed(self, snapshot, item, me_capability.ORDER)
         )
-        if me_staff_sequence.applies(self, snapshot):
-            excluded_classes.update(
-                (TVAL_STAFF, sval) for sval in me_staff_sequence.active_svals(self))
         items = tuple(
             item for item in store.items
             if ((item.tval, item.sval) not in excluded_classes
