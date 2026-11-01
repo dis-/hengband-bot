@@ -30,18 +30,21 @@ import copy
 import dataclasses
 import gzip
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
 from hengbot import unseen_strike
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
+from hengbot.equipment_optimizer import equipment_identity
 from hengbot.magic_eater import MISSILE_REASON
-from hengbot.model import parse_snapshot
+from hengbot.model import STORE_HOME, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE, RETURN_TRIGGER
 from tests import test_d57_nav_depth_1101_recorded as nav
+from tests import test_depart2_1101_recorded as depart2
 from tests import test_input_executor as executor_pins
 from tests.test_dungeon_1031_recorded import READ_PROMPT, RecordedHarness, decide
 from tests import test_hit_no_action_1101_recorded as hit
@@ -288,6 +291,86 @@ class ConquestDiveOverExtensionRecordedTest(nav.RecordedDrive):
         policy = self.drive(conquest=False)
         self.assertEqual((policy._target_empty_dives, policy._alternate_dungeon),
                          (2, nav.LABYRINTH))
+
+
+CONFIRMED_LOADOUT = Path(__file__).with_name("fixtures") / "owner15-confirmed-loadout-1101.json"
+
+
+class ClosedVisitDepartureRecordedTest(depart2.Depart2RecordedBase):
+    """D59 follow-up: the 10-03 rule 「失敗した任意の装備の変更は今の確定した
+    装備で出発」 also covers an equipment transaction the visit closed.
+
+    The 13:54 stop board of n1-c life-092 (decision 3061,
+    town:blocked:departure-unsatisfiable, failed ["equipment_departure_ready"],
+    equipment result_source "town-visit-transaction-closed": the 3044
+    deposit-missing closure).  dc3ff4126 keeps the recorded deposit from
+    closing, so DECLARED RECONSTRUCTED: the closure decision 3044 wrote (its
+    visit, its reason, the trident's identity), the failed item of the
+    capture's policy-state, the visit ledger of decision 3061
+    (departure_block.town_ledger: Home visited three times, two unsatisfied
+    passes), and the process's confirmed loadout and optimizer input key
+    (life-092 jsonlog/confirmed-loadout.json, frozen by
+    tests/extract_owner15_depart_1101_fixture.py; the policy reads it from a
+    temporary directory).
+
+    The check reads the departure gate every departure producer reads
+    (``_town_departure_ready``): on this board the current staff sequence
+    owns ``choose_key`` (me-staff:travel-morivant, the Tower trip that
+    replaced the recorded build's step-off), so the decision does not reach
+    the departure.
+    """
+
+    case_name = "trident"
+
+    def closed_visit(self, *, ledger=True):
+        policy, raw = self.boundary()
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        record = json.loads(CONFIRMED_LOADOUT.read_text(encoding="utf-8"))["record"]
+        (directory / "confirmed-loadout.json").write_text(json.dumps(record), encoding="utf-8")
+        policy._confirmed_loadout_path = directory / "confirmed-loadout.json"
+        policy._equipment_optimizer_input_key = record["optimizer_input_key"]
+        board = policy.with_known_skill_exp(
+            parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        policy.prime(board)
+        plain = next(item for item in self.case["boards"]["plain"]["inventory"]
+                     if item["name"].startswith(depart2.TRIDENT))
+        policy._equipment_transaction_visit_closure = {
+            "epoch": policy._town_visit_epoch, "reason": "deposit-missing",
+            "target_loadout_id": None,
+            "item_identity": equipment_identity(_parse_items([plain], protocol=3)[0]),
+            "turn": self.case["boards"]["home"]["turn"]}
+        policy._equipment_transaction_failed_items = set(
+            self.case["state"]["_equipment_transaction_failed_items"])
+        if ledger:
+            recorded = self.decision(3061)["departure_block"]["town_ledger"]
+            for name in ("store_visits", "unsatisfied_passes"):
+                for store, count in recorded[name].items():
+                    getattr(policy._town_visit_ledger, name)[int(store)] = count
+        return policy, board
+
+    def test_recorded_closure(self):
+        row = self.decision(3061)
+        self.assertEqual((row["reason"], row["departure_block"]["failed"]),
+                         ("town:blocked:departure-unsatisfiable", ["equipment_departure_ready"]))
+        self.assertEqual(row["equipment"]["result_source"], "town-visit-transaction-closed")
+        self.assertEqual(self.decision(3044)["reason"], "equipment-transaction:deposit-missing")
+        self.assertEqual(row["departure_block"]["town_ledger"]["unsatisfied_passes"],
+                         {str(STORE_HOME): 2})
+
+    def test_closed_visit_departs_on_the_current_loadout(self):
+        policy, board = self.closed_visit()
+        codes = []
+        # Unfixed: False, ['preparation-unavailable'] (no preparation).
+        self.assertTrue(policy._equipment_departure_ready(board, commit=False, codes=codes), codes)
+        self.assertTrue(policy._town_departure_ready(board))
+        self.assertEqual(policy.equipment_optimization_state(board)["blockers"],
+                         ["equipment-transaction-failed"])
+
+    def test_control_a_live_home_route_keeps_the_gate(self):
+        # Without the visit's Home passes the work is not proven unexecutable
+        # this visit (_equipment_failure_unexecutable_this_visit).
+        policy, board = self.closed_visit(ledger=False)
+        self.assertFalse(policy._equipment_departure_ready(board, commit=False))
 
 
 if __name__ == "__main__":

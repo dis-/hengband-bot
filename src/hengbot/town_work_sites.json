@@ -4978,6 +4978,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._closed_visit_failure_preparation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._current_town_supplier_page": {
     "classification": "data",
     "rows": [

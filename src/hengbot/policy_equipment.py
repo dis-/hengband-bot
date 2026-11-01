@@ -892,7 +892,7 @@ class EquipmentMixin:
                 producer="equipment-opt", work_id="equipment:visit-closed",
                 cause=str(closure.get("reason", "home-work-unexecutable")),
             )
-            return None
+            return self._closed_visit_failure_preparation()
         # Missing observations skip optimization. The existing periodic dump
         # path refreshes equipped constants without owning movement or gear.
         calibration = self._validated_character_calibration(snapshot)
@@ -2885,6 +2885,25 @@ class EquipmentMixin:
         return self._dungeon_entry_depth(
             snapshot, dungeon_id if destination is not None else self._active_dungeon_target(),
             via_recall=destination is not None)
+
+    def _closed_visit_failure_preparation(self) -> WarriorOptimizationPreparation:
+        """This visit's closed equipment work, as the failed optional change.
+
+        USER DECISION 2026-10-03 「失敗した任意の装備の変更は今の確定した装備で
+        出発」 covers a transaction the visit closed (deposit-missing,
+        retain-reserved): no preparation at all left equipment_departure_ready
+        false for the rest of the visit, so only the forced departure's minimum
+        could leave (#47 D59, n1-c life-092 13:54).  The verdict is the one a
+        refused Home deposit already records (transaction None, blocker
+        ``equipment-transaction-failed``): the ordinary optional-failure
+        departure reads it, and no plan is generated again."""
+        prior = self._equipment_optimization_preparation
+        return WarriorOptimizationPreparation(
+            current_loadout(self._equipment_catalog.items),
+            getattr(prior, "result", None),
+            None,
+            ("equipment-transaction-failed",),
+        )
 
     def _equipment_departure_ready(
         self, snapshot: Snapshot, *, destination_depth: int | None = None,
