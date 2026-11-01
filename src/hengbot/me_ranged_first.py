@@ -15,9 +15,21 @@ order (owner 2026-10-31 「近接以外の攻撃手段も街で使う」).  Only
 combat rungs call this; apart from the absorbed attack powers, quest floors
 keep their reviewed strategies (me_q1_torch, q34 missiles) and every other
 class keeps melee.
+
+Beside the target the same candidates and melee are weighed instead (owner
+2026-11-01, #47 D57: 「見込みの大きい方を使う」): the one with the larger
+expected damage per player action is used, and None leaves the turn to the
+caller's melee.  The scores: an absorbed power's me_device_attacks score
+(displayed success x damage after the known resistance, capped by the
+target's HP; Magic Missile at an optimistic 100% when no row was displayed),
+a carried wand's, a thrown torch's and melee's attack_expectation figure
+(melee scores zero against a touch aura or while afraid).  A tie keeps the
+order above, so melee wins only when it is strictly larger (n1-c life-085:
+the Lv18 Magic-Eater fired 3d6 missiles at an AC 1 jelly its two hands would
+have hit for about four times as much).
 """
 
-from hengbot import me_device_attacks
+from hengbot import attack_expectation, me_device_attacks
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -56,11 +68,45 @@ def _throwable_torch(policy, snapshot):
     return torches[0]
 
 
-def attack_key(policy, snapshot, target) -> str | None:
-    """The ranged answer to ``target`` (adjacent or ray-aligned), else None."""
-    origin, cell = snapshot.player.position, target.position
-    direction = DIRECTION_KEYS[(max(-1, min(1, cell.y - origin.y)),
-                                max(-1, min(1, cell.x - origin.x)))]
+def _missile_ready(policy, snapshot) -> bool:
+    """Whether the absorbed Magic Missile may be fired (notes an empty or
+    unlearned power the game reported)."""
+    observed = snapshot.magic_eater_wand_charges
+    if observed == -1:
+        # The wand type is not learned; absorbing happens only in town.
+        policy._me_missile_unlearned_floor = snapshot.floor_key
+    elif observed == 0:
+        policy._me_missile_empty_turn = snapshot.turn
+    return (getattr(policy, "_me_missile_unlearned_floor", None) != snapshot.floor_key
+            and getattr(policy, "_me_missile_empty_turn", None) != snapshot.turn)
+
+
+def _fire_missile(policy, direction) -> str:
+    policy.last_reason = MISSILE_REASON
+    return "mBp" + direction
+
+
+def _attack_wand(policy, snapshot, target, direction):
+    # A carried wand is the same wand_effect (zapwand-execution.cpp:102), so a
+    # town ball keeps the absorbed powers' area rule.
+    return next((item for item in snapshot.inventory
+                 if item.tval == TVAL_WAND and item.known
+                 and item.sval in ATTACK_WAND_SVALS and item.charges > 0
+                 and not item.charging
+                 and not me_device_attacks.catches_unbeatable_friendly(
+                     policy, snapshot, me_device_attacks.POWERS[("wand", item.sval)],
+                     target, direction)), None)
+
+
+def _use(policy, snapshot, verb, item, direction, reason) -> str | None:
+    key = reserved_item_command(policy, snapshot, verb, item, suffix=direction)
+    if key is not None:
+        policy.last_reason = reason
+    return key
+
+
+def _first_key(policy, snapshot, target, direction) -> str | None:
+    """The fixed order (a target that is not adjacent)."""
     # 2026-10-31: an absorbed attack power stronger than Magic Missile, on
     # quest floors too, except quest 1 where D17 throws torches first.
     if snapshot.floor_key[2] != 1:
@@ -69,34 +115,64 @@ def attack_key(policy, snapshot, target) -> str | None:
             return device
     if not applies(snapshot):
         return None
-    observed = snapshot.magic_eater_wand_charges
-    if observed == -1:
-        # The wand type is not learned; absorbing happens only in town.
-        policy._me_missile_unlearned_floor = snapshot.floor_key
-    elif observed == 0:
-        policy._me_missile_empty_turn = snapshot.turn
-    if (getattr(policy, "_me_missile_unlearned_floor", None) != snapshot.floor_key
-            and getattr(policy, "_me_missile_empty_turn", None) != snapshot.turn):
-        policy.last_reason = MISSILE_REASON
-        return "mBp" + direction
-    # A carried wand is the same wand_effect (zapwand-execution.cpp:102), so a
-    # town ball keeps the absorbed powers' area rule.
-    wand = next((item for item in snapshot.inventory
-                 if item.tval == TVAL_WAND and item.known
-                 and item.sval in ATTACK_WAND_SVALS and item.charges > 0
-                 and not item.charging
-                 and not me_device_attacks.catches_unbeatable_friendly(
-                     policy, snapshot, me_device_attacks.POWERS[("wand", item.sval)],
-                     target, direction)), None)
+    if _missile_ready(policy, snapshot):
+        return _fire_missile(policy, direction)
+    wand = _attack_wand(policy, snapshot, target, direction)
+    if wand is not None and (key := _use(policy, snapshot, "wand", wand, direction, WAND_REASON)):
+        return key
+    torch = _throwable_torch(policy, snapshot)
+    if torch is not None and (key := _use(policy, snapshot, "throw", torch, direction, TORCH_REASON)):
+        return key
+    return None
+
+
+def _adjacent_options(policy, snapshot, target, direction) -> list:
+    """(expected damage per action, key sender) of each ranged answer, in the fixed order."""
+    options = []
+    if snapshot.floor_key[2] != 1:
+        best = me_device_attacks.strongest(policy, snapshot, target, direction)
+        if best is not None:
+            options.append((best[0], lambda: me_device_attacks.device_key(policy, best[1], direction)))
+    if not applies(snapshot):
+        return options
+    if _missile_ready(policy, snapshot):
+        seen = me_device_attacks.seen_missile_score(policy, snapshot, target, direction)
+        options.append((me_device_attacks.missile_score(policy, snapshot, target) if seen is None else seen,
+                        lambda: _fire_missile(policy, direction)))
+    wand = _attack_wand(policy, snapshot, target, direction)
     if wand is not None:
-        key = reserved_item_command(policy, snapshot, "wand", wand, suffix=direction)
-        if key is not None:
-            policy.last_reason = WAND_REASON
-            return key
+        options.append((attack_expectation.carried_wand(policy, snapshot, target, wand),
+                        lambda: _use(policy, snapshot, "wand", wand, direction, WAND_REASON)))
     torch = _throwable_torch(policy, snapshot)
     if torch is not None:
-        key = reserved_item_command(policy, snapshot, "throw", torch, suffix=direction)
-        if key is not None:
-            policy.last_reason = TORCH_REASON
+        options.append((attack_expectation.torch_throw(policy, snapshot, target, torch),
+                        lambda: _use(policy, snapshot, "throw", torch, direction, TORCH_REASON)))
+    return options
+
+
+def _strongest_adjacent_key(policy, snapshot, target, direction) -> str | None:
+    """The answer with the larger expected damage per action; None is melee."""
+    melee = attack_expectation.melee(policy, snapshot, target)
+    # sorted() is stable: a tie keeps the fixed order.
+    for score, send in sorted(_adjacent_options(policy, snapshot, target, direction),
+                              key=lambda option: -option[0]):
+        if score < melee:
+            return None
+        if (key := send()) is not None:
             return key
     return None
+
+
+def _aim(snapshot, target) -> str:
+    origin, cell = snapshot.player.position, target.position
+    return DIRECTION_KEYS[(max(-1, min(1, cell.y - origin.y)),
+                           max(-1, min(1, cell.x - origin.x)))]
+
+
+def attack_key(policy, snapshot, target) -> str | None:
+    """The ranged answer to ``target`` (adjacent or ray-aligned), else None."""
+    origin, cell = snapshot.player.position, target.position
+    direction = _aim(snapshot, target)
+    if origin.distance_to(cell) <= 1:
+        return _strongest_adjacent_key(policy, snapshot, target, direction)
+    return _first_key(policy, snapshot, target, direction)

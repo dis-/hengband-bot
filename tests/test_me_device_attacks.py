@@ -12,6 +12,11 @@ chosen for each case); on life 8 the insect swarm is removed so the small
 kobold (IM_POIS, 14 hp) is the target; on life 11 the cornering mouse is
 replaced by that recorded small kobold race.  Replies to posted keys are
 constructed from the game's prompts (cmd-magiceat.cpp, get_aim_dir).
+Beside the target the chooser weighs every answer by its expected damage per
+action (owner 2026-11-01 「見込みの大きい方を使う」, me_ranged_first), and a
+thrown lit torch (about 12 of the small kobold's 14 hp) out-scores these
+bolts, so the device cases also drop the pack's lit torches (DECLARED
+CONSTRUCTED); test_d57_me_combat_1101_recorded pins the torch.
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -54,6 +59,12 @@ def power_screen(kind, letter_rows):
     return screen
 
 
+def without_torches(raw):
+    raw["inventory"] = [item for item in raw["inventory"]
+                        if (item.get("tval"), item.get("sval")) != (39, 0)]
+    return raw
+
+
 MISSILE_ROW = row("マジック・ミサイル", 5, current=3, count=3)
 EMPTY_MISSILE_ROW = row("マジック・ミサイル", 5, current=0, count=3)
 
@@ -71,11 +82,11 @@ class MagicEaterDeviceAttackTest(mining.harness.ProductionHarness):
     post = _recorded("post")
     adjacent_direction = _recorded("adjacent_direction")
 
-    def kobold_board(self, decided_list):
+    def kobold_board(self, decided_list, *, torches=False):
         raw = self.raw("life-008", 805349)
         raw["visible_monsters"] = [m for m in raw["visible_monsters"] if m["race_id"] == 29]
         raw["_magic_eater_power_list"] = decided_list
-        return raw
+        return raw if torches else without_torches(raw)
 
     def decide(self, life, raw, *earlier_lists):
         policy = self.policy(life, raw)
@@ -108,13 +119,15 @@ class MagicEaterDeviceAttackTest(mining.harness.ProductionHarness):
         direction = self.adjacent_direction(policy, raw, "life-008").pop()
         # Small kobold IM_POIS: Stinking Cloud 14 / 9; Frost Bolt 6d8 capped at 14 hp.
         self.assertEqual((key, policy.last_reason), ("mBt" + direction, DEVICE_REASON))
-        # Without the resistance the cheaper unresisted ball would win.
+        # Without the resistance the cheaper unresisted ball would win: the
+        # carried 悪臭雲の魔法棒 (h), whose use chance (skill_dev 45 - level
+        # 5, zapwand-execution.cpp) is 95% against the absorbed row's 90%.
         policy = self.policy("life-008", raw)
         races = dict(policy._monrace_knowledge)
         races[29] = races[29].__class__(**{**races[29].__dict__,
                                             "flags": races[29].flags - {"IM_POIS"}})
         policy._monrace_knowledge = races
-        self.assertEqual(self.choose(policy, raw), "mBo" + direction)
+        self.assertEqual(self.choose(policy, raw), "ah" + direction)
 
     def test_adjacent_ball_is_allowed_because_it_spares_the_player(self):
         # effect-player.cpp check_continue_player_effect: the player's own
@@ -133,7 +146,7 @@ class MagicEaterDeviceAttackTest(mining.harness.ProductionHarness):
         self.assertEqual(game.accepted, ["m", "B", "v", direction])
 
     def test_emergency_cornered_attack_uses_the_power_staff(self):
-        raw = self.raw("life-011", 187358)
+        raw = without_torches(self.raw("life-011", 187358))
         for monster in raw["visible_monsters"]:
             monster.update(race_id=29, name="スモール・コボルド")
         raw["_magic_eater_power_list"] = power_list("staff", row("力", 20, current=1, count=1))
@@ -152,6 +165,8 @@ class MagicEaterDeviceAttackTest(mining.harness.ProductionHarness):
         self.assertEqual(policy.last_reason, MISSILE_REASON)
         self.assertTrue(key.startswith("mBp"), key)
         # No missile either (observed empty) and no carried wand: a torch.
+        raw = self.kobold_board(power_list("rod", row("ファイア・ボルト", 30, charging=1)),
+                                torches=True)
         raw["_magic_eater_wand_charges"] = 0
         raw["inventory"] = [item for item in raw["inventory"] if item["tval"] != 65]
         policy, key = self.decide("life-008", raw, power_list(

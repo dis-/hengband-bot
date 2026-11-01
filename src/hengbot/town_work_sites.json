@@ -1846,7 +1846,15 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "9f1b8b0c3f9e4aa80657f3b6f313a8264e063230f075d0f6205087c0f8782015"
+    "ast_sha256": "e66e6fb35de437eea75fdcee54b3264ca478bdffca91110478994f974edb1197"
+  },
+  "me_device_attacks.py:device_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "cfdf37b3681cda146120e4783ae3340dc14ee9a88d4179bca808ad0eebd7c457"
   },
   "me_device_attacks_input.py:advance_device": {
     "classification": "driver",
@@ -2165,6 +2173,46 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "ast_sha256": "5144ad471c29317921dacaae3ff224138e2d0ea19cd757376211a61586953ab4"
   },
+  "me_ranged_first.py:_aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "4fe9aff859d06fb2cc686fc03d736e76c7edfe8820ddf47a934818481389bc29"
+  },
+  "me_ranged_first.py:_attack_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "f3bb43c0fb60c282ad716ddf1922a56258866acc3f4216acfd70e8fcecc53f23"
+  },
+  "me_ranged_first.py:_fire_missile": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "225de83dca753f06c8d511194508a05dbe47ee804f5839a853d383ebbfd6d830"
+  },
+  "me_ranged_first.py:_first_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "5aef5858fecca647f07c8b8527c8c59075ee17e179be72ce8a517f7812f090dc"
+  },
+  "me_ranged_first.py:_strongest_adjacent_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "6bdf2dbbd34bd3fc63850f4a4b6523bec4c12e3d6477fc3edfb615926e520924"
+  },
   "me_ranged_first.py:_throwable_torch": {
     "classification": "data",
     "rows": [
@@ -2173,13 +2221,21 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "2166ca88f7b78f5b98d2af5bfb235bff44dc86925e5dc5fef75261db1ae2039a"
   },
+  "me_ranged_first.py:_use": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "095055988f4069a28e0631c81fb98df10e2c331837337d73e4b59f4c14538a5d"
+  },
   "me_ranged_first.py:attack_key": {
     "classification": "producer",
     "rows": [
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "83d43565620a5c4c1d3123c8065a7db6427ffedbaaca49b3a71c8ad5440344e9"
+    "ast_sha256": "9b214b083f08822eb2360e472bf8a2c705ba5fc5f79e0aa1aca7e66251e5e26b"
   },
   "me_staff_sequence.py:_absorb_key": {
     "classification": "producer",
@@ -5628,7 +5684,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "22980794eb165123eea0fb97422286530ef543185d9ca69b63ee43853c035410"
+    "ast_sha256": "cd25c406428be3c28581d571197476aec4a704aef8bbf1e897ead9c56da6a178"
   },
   "policy_equipment.py:EquipmentMixin._mining_loadout_rollback_key": {
     "classification": "dungeon-only",

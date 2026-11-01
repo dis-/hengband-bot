@@ -18,6 +18,10 @@ DECLARED CONSTRUCTED: the new process has read the staff power list
 (test_me_staff_loops_1031_recorded.new_policy); the no-missile case carries
 the executor's ``_magic_eater_wand_charges`` -1 annotation (a wand power
 list without Magic Missile), and the melee case also drops the torches.
+The missile case drops the torches too: beside the 見習戦士 a thrown lit torch
+(about 22 expected) out-scores the 2d6 missile (7), so with both carried the
+stand throws the torch (owner 2026-11-01 「見込みの大きい方を使う」,
+test_d57_me_combat_1101_recorded).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -76,7 +80,7 @@ class TownLastStandRangedRecordedTest(MissilePostedKey):
                              if (item.get("tval"), item.get("sval")) == (39, 0)), 16)
 
     def test_stand_fires_the_absorbed_magic_missile(self):
-        rows = self.stand()
+        rows = self.stand(torches=False)
         self.assertEqual([(key, reason) for _raw, key, reason in rows],
                          [("mBp2", MISSILE_REASON)] * 6)
 

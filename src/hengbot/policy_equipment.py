@@ -323,7 +323,7 @@ from hengbot.warrior_optimization import (
 )
 from hengbot.launcher_damage import launcher_average_damage
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
-from hengbot.warrior_equipment_evaluator import melee_hit_chance
+from hengbot.warrior_equipment_evaluator import AC_REFERENCE, melee_hit_chance
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,
@@ -3398,7 +3398,8 @@ class EquipmentMixin:
         return groups.get(item.tval)
 
     @staticmethod
-    def _main_hand_dps(snapshot: Snapshot, weapon: InventoryItem) -> float:
+    def _main_hand_dps(snapshot: Snapshot, weapon: InventoryItem, *, ac: int = AC_REFERENCE) -> float:
+        """Expected main-hand damage per player action against armour ``ac``."""
         if snapshot.player.melee_displayed_totals:
             from hengbot.warrior_equipment_evaluator import displayed_melee_hit_chance
             player = snapshot.player
@@ -3406,7 +3407,7 @@ class EquipmentMixin:
                 return 0.0
             dice_average = weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
             damage = max(1.0, dice_average + player.main_hand_to_d)
-            hit_rate = displayed_melee_hit_chance(player.melee_skill, player.main_hand_to_h)
+            hit_rate = displayed_melee_hit_chance(player.melee_skill, player.main_hand_to_h, ac)
             return player.main_hand_blows * damage * hit_rate
         dice_average = (
             weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
@@ -3416,11 +3417,13 @@ class EquipmentMixin:
             snapshot.player.melee_skill,
             snapshot.player.main_hand_to_h,
             weapon.to_h,
+            ac,
         )
         return snapshot.player.main_hand_blows * damage * hit_rate
 
     @staticmethod
-    def _sub_hand_dps(snapshot: Snapshot, weapon: InventoryItem) -> float:
+    def _sub_hand_dps(snapshot: Snapshot, weapon: InventoryItem, *, ac: int = AC_REFERENCE) -> float:
+        """Expected sub-hand damage per player action against armour ``ac``."""
         if snapshot.player.melee_displayed_totals:
             from hengbot.warrior_equipment_evaluator import displayed_melee_hit_chance
             player = snapshot.player
@@ -3428,7 +3431,7 @@ class EquipmentMixin:
                 return 0.0
             dice_average = weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
             damage = max(1.0, dice_average + player.sub_hand_to_d)
-            hit_rate = displayed_melee_hit_chance(player.melee_skill, player.sub_hand_to_h)
+            hit_rate = displayed_melee_hit_chance(player.melee_skill, player.sub_hand_to_h, ac)
             return player.sub_hand_blows * damage * hit_rate
         dice_average = (
             weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
@@ -3438,6 +3441,7 @@ class EquipmentMixin:
             snapshot.player.melee_skill,
             snapshot.player.sub_hand_to_h,
             weapon.to_h,
+            ac,
         )
         return snapshot.player.sub_hand_blows * damage * hit_rate
 

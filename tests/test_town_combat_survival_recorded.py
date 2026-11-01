@@ -21,8 +21,10 @@ production executor port (test_me_nokey_1031_recorded.PostedKey).
 DECLARED CONSTRUCTED: the new process has read the staff power list; the
 no-missile cases' boards carry the executor's ``_magic_eater_wand_charges``
 -1 annotation (a wand power list without Magic Missile), so the next answer
-is a spare lit torch, and the melee case also drops the pack's torches; the
-food cases' pack (staple charges, other devices) as each case states, with
+is a spare lit torch, and the melee case also drops the pack's torches (the
+missile case too: beside わめくキチガイ a thrown lit torch out-scores the
+2d6 missile, owner 2026-11-01 「見込みの大きい方を使う」,
+test_d57_me_combat_1101_recorded); the food cases' pack (staple charges, other devices) as each case states, with
 every sequence staff absorbed.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -103,7 +105,7 @@ class TownCombatSurvivalTest(MissilePostedKey, loops.MeStaffLoopsRecordedTest):
         return attacks
 
     def test_recorded_fight_answers_with_the_absorbed_magic_missile(self):
-        attacks = self.fight(missile=True)
+        attacks = self.fight(missile=True, torches=False)
         self.assertGreaterEqual(len(attacks), 11)
         self.assertEqual(set(attacks), {MISSILE_REASON})
 
