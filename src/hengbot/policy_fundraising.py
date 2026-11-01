@@ -528,6 +528,21 @@ class FundraisingMixin:
             return None
         return ware
 
+    def _mining_departure_ready(self, snapshot: Snapshot) -> bool:
+        """Whether a mining trip in town passes its own departure gates.
+
+        The descent gate is the one owner of what a mining departure needs
+        (return ticket, food, light, the mining kit and health); asked here
+        without disturbing the refusal the next descent records.
+        """
+        if not snapshot.in_town or self._fundraising_mode != "mine":
+            return False
+        reason = self._descent_refusal_reason
+        try:
+            return not self._descent_is_blocked(snapshot)
+        finally:
+            self._descent_refusal_reason = reason
+
     def _fundraising_departure_ready(self, snapshot: Snapshot) -> bool:
         if getattr(self, "_crossarea_fundraising_enforced", False):
             record = getattr(self, "_fundraising_purpose_record", None)

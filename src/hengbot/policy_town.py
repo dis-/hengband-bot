@@ -2,6 +2,7 @@ from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import town_pack_headroom
 from hengbot import town_travel
+from hengbot import unseen_strike
 from hengbot import random_quest_reserve
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -8323,6 +8324,11 @@ class TownMixin:
             )
             return key
         if step is not None:
+            # A melee blow of an unseen attacker is struck back before the
+            # walk (owner 2026-11-01 21h, answer 3; unseen_strike).
+            if (strike := unseen_strike.key(
+                    self, snapshot, hostiles, unseen_strike.RETURN_REASON)) is not None:
+                return strike
             if self._is_oscillating():
                 # 通常の探索の抜け出し（breakout:seek-frontier）と同じく、
                 # 経路が見つかったら振動の履歴を捨てる。残すと 8 回の壁の

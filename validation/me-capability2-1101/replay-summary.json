@@ -1,0 +1,19 @@
+{
+ "tool": "validation/manifest-tax-1101/replay_choose_key.py and compare_replays.py, each tree a full git archive inside the worktree",
+ "test_ids": "every checks.json test id (108 modules; 3 not present in these trees: test_owner15_survival_1101_recorded, test_mapped_area_ledger_recorded, test_town_travel_errands_recorded -> loader errors in every tree) + tests.test_me_capability, tests.test_me_capability_rows_recorded.DetectTreasureCountTest, test_n1c_town_stops2_recorded, test_me_powerful_activation, test_me_stage2_staffs, test_me_staff_sequence, test_me_nokey_1031_recorded, test_me_town_stops_recorded, test_me_record_key_recorded, test_me_device_policy, test_zombie_me_food, test_me_absorbed_substitutes",
+ "trees": {
+  "A": "b4091d13a (item 5)",
+  "B": "0e00399af (item 7)",
+  "C": "b61e22d33 (item 6)"
+ },
+ "tests_run": 657,
+ "failures": 0,
+ "errors": 3,
+ "decisions": 3409,
+ "tests_with_decisions": 340,
+ "receipts": 6293,
+ "item7_A_vs_B_differing": 0,
+ "item7_jsonl_sha256_both": "725751678989d7d8a223a03ac14e502366cfd1ccaf27e45c797888d6e0271674",
+ "item6_B_vs_C_differing": 0,
+ "note": "A, B and C outputs are byte-identical (same sha256). Item 6's defect board is only in tests.test_me_capability_rows_recorded.ZombieFoodShelfTest (not replayed: absent from tree A/B)."
+}
