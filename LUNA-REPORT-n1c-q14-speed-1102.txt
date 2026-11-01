@@ -1,0 +1,91 @@
+n1c-q14-speed-1102: 「n1-cがなかなかQ14を受けない理由」
+
+結論
+- Q14 を受けない理由は2段ある。
+  1. スピードの薬が1本要った。スピードの薬はブラックマーケットでしか売られない
+     （C:\hengband\src\store\articles-on-sale.cpp のどの店の品揃えにも無い）。
+     ブラックマーケットの棚は乱数で、置かれるまで待つしかなかった。
+  2. スピードの薬がそろった後も、「3ターンの脅威」(three-turn-threat) の門で断られる。
+     ワーグ4体が3ターン隣接した被害が最大HPの半分を超えると受けない。
+     Lv8〜11 の HP 129〜146 では足りず、HP がおよそ 230〜380 になるまで受けない。
+- 1 はオーナーの決定（「Q14の受注要件からスピードの薬を外す」）どおり直した。
+  2 は新しい決まりが要るので直していない（下の「オーナーへの問い」）。
+
+買う道が無かったのではない（欠陥ではない）
+- 購入の段 quest:speed（src/hengbot/policy_shop.py:2920）、受注の判定
+  （src/hengbot/policy.py:17723-17766）、店の選び方（policy_shop.py:3653）、
+  出発の物資（policy_shop.py:347）は、どれも me_capability.force_count
+  （src/hengbot/me_capability.py:342）で同じ数を読む。食い違いは無い。
+- life-102 04:12:48 の決定 1777（shop:in-store-buy、店 6＝ブラックマーケット 'pi2'）で
+  スピードの薬を2本買い、所持数 0→2 になった。それまでのブラックマーケット訪問
+  （04:02:23 / 04:04:38 の shop:observe-and-leave、04:08:02 は器用さ復活の薬、04:09:53 は
+  テレポート・アウェイの魔法棒）では棚に無かった。
+- 決定の reason は全部 shop:in-store-buy で、段の名前は shop_selector.wanted_purchase の
+  category（"speed"）にだけ出る。「quest:speed の決定が0件」に見えたのはこのため。
+- procurement_requirements（src/hengbot/policy_supply.py:614）は出発の物資（帰還・テレポート・
+  回復薬・光源・鑑定など）の一覧で、クエストの戦略の薬はもともと載せない。スピードの薬が
+  出ないのはこのためで、購入の段には影響しない。
+
+1回ごとの影響（サーバの bot-decisions.jsonl、Q14 の fixedquest_readiness の決定数と時刻）
+- life-096（Lv11, 最大HP146）: 強さの不足 (dps) とスピードの薬で断り続けた（17:08〜17:31）。受けずに終わり。
+- life-097（Lv20）: スピードの薬だけの不足 17:46:48〜17:48:37（約2分、859件）、
+  three-turn-threat 17:48〜18:09（約21分、9,617件）、18:09 に受注可。
+- life-098 / life-101: Q14 の判定の記録なし。
+- life-099（Lv19）: スピードの薬だけ 00:57:10〜00:59:35（約2.5分）、three-turn-threat 約7分、01:02 に受注可。
+- life-100（Lv16）: スピードの薬だけ 01:59:34〜02:09:04（約10分、3,528件）、
+  three-turn-threat 02:06〜02:18（約12分、4,573件）、02:18 に受注可。
+- life-102（Lv8〜11）: スピードの薬だけ 03:59:35〜04:12:48（約13分、4,755件）。
+  その後 three-turn-threat（04:12:48〜、2,217件、worst_adjacent 116 > 146×0.5）で今も受けていない。
+- スピードの薬で遅れたのは1回あたり2〜13分。three-turn-threat の方が長い（7〜21分、life-102 は継続中）。
+
+直したこと（コミット 5cbca1214）
+- strategy/quests/QUEST_14.jsonc の required_force.speed_potions を 1→0。オーナーの言葉を注記した。
+  consumable_plan の条件付きの使用（speed_potion_use_when）はそのままで、持っていれば飲む。
+- コードの変更は無い。受注・入場・購入の段・出発の物資はみな force_count でこの値を読むので、
+  どれも 0 になる。他のクエストは変えていない（Q1=1, Q2=2, Q22=1, Q31=1 のまま、テストで確認）。
+
+テスト
+- tests.test_q14_speed_1102_recorded（3件）。fixture は tests/fixtures/q14-speed-1102.json.gz、
+  抽出は tests/extract_q14_speed_1102_fixture.py。
+  元: life-102 の 04:03 に切り替わったスナップショットの輪のターン 860272 の辺境の地の盤面
+  （決定 5697、strategy-force failed ["speed_potions"] measured 0 required 1、最大HP129、10,749 金）。
+  手元の写し: C:\hengband-backups\pdca\captures\n1c-q14-speed-1102\n1-c\life-102\
+- 公開の choose_key で、Q14 の strategy_force が speed_potions {measured 0, required 0}、
+  failed [] になり、購入の段 quest:speed が生きないことを確かめる。
+  次の門 three-turn-threat（worst_adjacent 188 ≥ 129×0.5）で断るのも記録どおりに確かめ、
+  出たキー（shop:travel）を本番の executor に通す。
+- 依頼の「04:12 の盤面で Q14 を受けに行く」は確かめられない。04:12 の盤面はスナップショットの輪が
+  回って消えていた（state.jsonl も再起動で切り詰め）。また 04:12 はスピードの薬を2本持っていて
+  three-turn-threat で断っているので、今回の直しでは受けに行かない。
+- 元に戻す確認: QUEST_14.jsonc を戻すと 3件中2件が失敗（required 1 != 0）。戻すと全部通る。
+- 取り込みの確認: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" は通る。
+  tests.test_q14_heal_ccw_recorded も通る（期待値の変更なし）。
+
+checks.json の追加案
+  {
+   "id": "Q14-NO-SPEED",
+   "owner": "2026-11-02 Q14の受注要件からスピードの薬を外す",
+   "tests": [
+    "tests.test_q14_speed_1102_recorded"
+   ]
+  }
+
+保守性
+- 数はクエストの戦略ファイル1か所だけで決まり、コードは force_count の1か所で読む。
+  クエスト番号の特別扱いはコードに足していない。
+- テストは test_q14_heal_ccw_recorded の town_maps と ROOT、test_lv7_town_stop_recorded の post を使い回した。
+
+ほかのクエストの同じ隙間
+- Q1（1本）、Q2（2本）、Q22（1本）、Q31（1本）も承認済みでスピードの薬を要る。
+  どれもブラックマーケットの乱数の棚しか仕入れ先が無く、同じ待ちが起こりうる
+  （魔道具術師は me-speed-staff-1101 のスピードの杖で Q2 などの要求が 0 になる場合がある）。
+  共通の判定の欠陥ではないので直していない。
+
+オーナーへの問い
+1. three-turn-threat の門（src/hengbot/policy_quest.py:5162-5184）は、ワーグ4体が3ターン隣接した
+   被害（life-102 で 116〜188）を最大HPの半分と比べる。戦略ファイルの通常の段（通路で平均1.5体、
+   70%の予算、HP120）より厳しく、HP120 を満たしても受けない。Q14 にはこの門の予算を
+   クラスごとに決める engagement_plan.max_damage_ratio_by_class がまだ無い。
+   案: (a) 今のまま（Lv16〜20 まで待つ）。(b) Q14 に max_damage_ratio（やクラスごとの値）を足して緩める。
+   (c) 通路で戦う戦略なので、隣接の数 max_simultaneous_melee を 4 より小さくする。
+2. Q1・Q2・Q22・Q31 のスピードの薬も同じように外すか、ブラックマーケットに無い時の扱いを決めるか。
