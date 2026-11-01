@@ -12194,6 +12194,10 @@
     "classification": "data",
     "evidence": "Data/selector result; no independent command or effect credit. pure selector: me_absorbed_substitutes.item_cast_key unless a cast failed on this floor; read by key and spare."
   },
+  "speed_dose.py:_renewing": {
+    "classification": "data",
+    "evidence": "Pass-through of the command speed_dose.key already composed; records a renew dose (floor, rearm mark) in the module memory so observe re-arms the scene's existing one-shot mark when the haste ends (n1c-death-1102 root B). No independent command or effect credit."
+  },
   "speed_dose.py:key": {
     "classification": "data",
     "rows": [

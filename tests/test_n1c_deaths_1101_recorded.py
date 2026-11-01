@@ -89,11 +89,13 @@ def recorded(case):
 class PostedDeathKey(MissilePostedKey):
     """Drive the recorded boards; a quaff or an alter key answers its prompt."""
 
+    prompts = PROMPTS
+
     def drive(self, policy, rows):
         return loops.MeStaffLoopsRecordedTest.drive(self, policy, rows)
 
     def post(self, policy, raw, key):
-        prompt = PROMPTS.get(key[:1])
+        prompt = self.prompts.get(key[:1])
         if prompt is None or policy.last_reason == MISSILE_REASON:
             return super().post(policy, raw, key)
         following = dict(copy.deepcopy(raw), turn=raw["turn"] + 10, messages=[])
