@@ -12171,5 +12171,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "breeder_quest.py:response": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon breeder breakthrough only (the latched quest floor); None elsewhere, town included.",
+    "evidence": "pure lookup (owner 2026-11-02): the latched floor's TAKEN quest type through RESPONSE_BY_QUEST_TYPE -- abandon for KILL_ALL/TOWER, pursue for KILL_LEVEL/KILL_ANY_LEVEL/RANDOM, else None; no command or independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing breeder breakthrough observations.",
+    "delegation": "No independent success; _breeder_breakthrough_key selects the command."
+  },
+  "breeder_quest.py:teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "On a latched target-quest floor whose exit lock holds, once per 20-action breeder stalemate (owner 2026-11-02 「テレポートで距離を取り、増殖モンスターの近くを避けて続行」): read a Scroll of Teleportation (restarting the engagement window), else None; called by _breeder_breakthrough_key after its recall branch; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

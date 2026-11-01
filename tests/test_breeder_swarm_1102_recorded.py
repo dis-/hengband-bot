@@ -45,10 +45,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
+from tests import test_input_executor as executor_pins
 from tests import test_me_nokey_1031_recorded as nokey
 from tests import test_me_staff_loops_1031_recorded as loops
+from tests.test_dungeon_1031_recorded import READ_PROMPT
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "breeder-swarm-20261102.json.gz"
@@ -77,6 +80,26 @@ def board(policy, raw):
 class PostedSwarmKey(nokey.PostedKey):
     def drive(self, policy, boards):
         return loops.MeStaffLoopsRecordedTest.drive(self, policy, boards)
+
+    def post(self, policy, raw, key):
+        """A read is answered by the scroll chooser (cmd-read.cpp)."""
+        if not key.startswith("r"):
+            return super().post(policy, raw, key)
+        following = dict(copy.deepcopy(raw), turn=raw["turn"] + 10, messages=[])
+        game = executor_pins.FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = executor_pins.command_screen(raw["turn"])
+        game.screens = [executor_pins.prompt_screen(READ_PROMPT),
+                        executor_pins.command_screen(following["turn"])]
+        game.states = [copy.deepcopy(following) for _ in game.screens]
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        self.assertEqual(port(key, decision={"reason": policy.last_reason,
+                                            "sequence": policy._decision_sequence}),
+                         SendResult.SENT, port.last_result.reason)
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertEqual(game.accepted, list(key))
 
 
 class BitingSwarmRecordedTest(PostedSwarmKey):

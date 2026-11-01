@@ -33,6 +33,14 @@ def forget(policy) -> None:
     policy._breeder_engagement_last_turn = None
 
 
+def stalemate_standing(policy) -> bool:
+    """The current window has run 20 actions without a reduction."""
+    return (
+        policy._breeder_engagement_start_count is not None
+        and policy._breeder_engagement_actions >= FLEE_AFTER_PLAYER_ACTIONS
+    )
+
+
 def flee_due(policy, snapshot, breeders: list) -> bool:
     """Count this board's action; True once 20 actions brought no reduction."""
     count = len(breeders)
@@ -51,4 +59,4 @@ def flee_due(policy, snapshot, breeders: list) -> bool:
     elif last_turn is not None and snapshot.turn > last_turn:
         policy._breeder_engagement_actions += 1
     policy._breeder_engagement_last_turn = snapshot.turn
-    return policy._breeder_engagement_actions >= FLEE_AFTER_PLAYER_ACTIONS
+    return stalemate_standing(policy)
