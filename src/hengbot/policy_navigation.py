@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dark_recall, immobile_threat_memory, mapped_area, me_powers
+from hengbot import dark_recall, immobile_threat_memory, mapped_area, me_powers, unseen_strike
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -354,6 +354,11 @@ class NavigationMixin:
         ):
             self._clear_dark_route()
             return None
+        # A melee blow of an unseen attacker is struck back before a dark step
+        # (owner 2026-11-01 21h, answer 3; unseen_strike).
+        if (strike := unseen_strike.key(self, snapshot, self._physical_hostiles(snapshot),
+                                        unseen_strike.DARK_REASON)) is not None:
+            return strike
         self._blocked_unknown.difference_update(
             (visited.y, visited.x)
             for visited, count in self._visit_counts.items()

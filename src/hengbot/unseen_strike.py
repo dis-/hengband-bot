@@ -23,6 +23,11 @@ retreat (``unseen:reverse-choke``) and the recall wait's walk
 (``unseen-recall:move``) strike back on melee evidence too; on spell or
 missile evidence (``_is_unseen_spell_message``) they keep walking out of the
 attacker's line.
+
+#47 (owner 2026-11-01 21h, answer 3 「どちらも先に反撃」): so do the walk home
+without Recall (``return:explore``) and the dark walk's steps
+(``dark:backtrack``, ``dark:probe``), which answered a hidden attacker's melee
+blow with a step away (constructed from n1-c life-085's jelly boards).
 """
 
 import random
@@ -35,6 +40,8 @@ REASON = "no-wait:attack"
 EMERGENCY_REASON = "emergency:unseen-strike"
 RETREAT_REASON = "unseen:strike"
 RECALL_REASON = "unseen-recall:strike"
+RETURN_REASON = "unseen:strike-return"
+DARK_REASON = "unseen:strike-dark"
 
 
 def hit_in_melee(policy, snapshot) -> bool:
