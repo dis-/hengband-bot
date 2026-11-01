@@ -9427,7 +9427,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 key = LEAVE_STORE_KEY
                 self._offer_home_scan_leave()
             elif (
-                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and self._home_knowledge_current and (not self._home_knowledge_invalidated) and (pending_withdrawals := {*((self._home_pending_item,) if self._home_pending_item is not None else ()), *self._home_pending_batch, *((self._home_atomic_withdraw_pending[0],) if self._home_atomic_withdraw_pending is not None else ())}) and self._keep_home_takes_within_pack_budget(snapshot, snapshot.store.items if self._open_home_page_is_complete(snapshot) else (*snapshot.store.items, *self._home_knowledge_items))
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and self._home_knowledge_current and (not self._home_knowledge_invalidated) and self._bound_home_take_signatures() and self._keep_home_takes_within_pack_budget(snapshot, snapshot.store.items if self._open_home_page_is_complete(snapshot) else (*snapshot.store.items, *self._home_knowledge_items))
             ):
                 # Ordinary withdrawals are composed only from the adjacent
                 # outside snapshot.  This hand-off is not a failed stop pass.
