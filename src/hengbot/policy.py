@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import immobile_threat_memory, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -10978,6 +10978,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             if immobile_summoner is not None:
                 return immobile_summoner
+            # Beside an avoided never-moving monster (owner 2026-11-01 21h).
+            step_out = immobile_threat_memory.step_out_key(self, snapshot)
+            if step_out is not None:
+                return step_out
 
         unseen_intercept = self._town_producer_entry("_unseen_retreat_intercept_key", lambda: self._unseen_retreat_intercept_key(
             snapshot, physical_hostiles, physical_adjacent
