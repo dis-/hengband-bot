@@ -10347,6 +10347,17 @@
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait or avoidance owner."
   },
+  "junk_destroy_now.py:destroy_now_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "destruction"
+    ],
+    "context": "Excluded by in_town predicate (returns None in town); see evidence.",
+    "evidence": "Owner 2026-11-02: carried junk destroyed on the first safe dungeon decision; delegates to _worthless_junk_destroy_key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "magic_eater.py:absorb_key": {
     "classification": "producer",
     "rows": [

@@ -1,0 +1,67 @@
+LUNA-REPORT cheap-books-1102（安い魔法書・像・人形・モンスターボールを不要物にする）
+
+■ 持ち主の指示（原文）
+「1冊目、2冊目の安い本で枠を埋めるのをやめたい。拾ったら捨てて。」
+「像、人形、モンスターボールも不要物に追加。」
+
+■ 記録の根拠
+- n1-c life-072（魔道具術師、class 16）:
+  C:\hengband-backups\pdca\captures\fix-me-powerful-stuck-1101\life-072\captures\20261031-235613-stuck-prompt-me-powerful-uncurse\state.jsonl.gz
+  イークの洞窟13階で帰還を読み（決定 turn 1657558 "rj" return:recall）、町に着いた最初の盤面（state 78行目、turn 1657801、店の外）でも
+  持ち物の a ヘックスの魔法書 x2（tval 107 sval 0）、b 武芸の書（106/0）、c 暗黒の魔法書（94/0）を持ったまま
+  me-staff:read-powers に進んでいた（22枠のうち3枠が1冊目の本）。
+- ほかに同じ形: life-075（98/0）、life-076（96/0 と 91/0）、life-085（96/0）、life-092（105/0）、n1c-death-1102-0148（91/0）。
+  いずれも魔道具術師（領域なし）。
+- 魔道具術師の領域: latest-12h-1031\n1-c\life-056 の character 応答（turn 222141）の realms が []。
+
+■ ゲーム側の確認
+- tval: src/object/tval-types.h FIGURINE=8、STATUE=9、CAPTURE=11、魔法書 90〜99・105〜107。
+- 1冊目・2冊目: lib/edit/BaseitemDefinitions.jsonc で各領域の sval 0・1（町で売る本、価格 100/1000、秘術は 100/250）。
+  sval 2・3 は従来どおり持ち帰って売る（変更なし）。tval 9 には写真（sval 50、価格0）も含まれる。
+- 領域→本: src/player/player-realm.cpp の realm_books（RealmType 1〜10→90〜99、16〜18→105〜107）。
+  領域は character 応答の "realms"（bot-json-output.cpp make_character_json、キャラクタ画面に出る情報なので公平）。
+- 壊すコマンド（src/cmd-item/cmd-destroy.cpp do_cmd_destroy）: 品の選択→（価格>0 か confirm_destroy なら）確認→
+  2個以上なら個数。モンスターボール（中身の有無）・人形・像に特別な問いは無い。壊せないのはアーティファクトだけ
+  （hook-expendable.cpp can_player_destroy_object）。既存の "0<個数>k<枠>" の合成がそのまま使える。
+
+■ 変更（commit 7efbc639f）
+- 新しいモジュール src/hengbot/unwanted_kinds.py: 表（UNWANTED_TVALS、CHEAP_BOOK_SVALS、REALM_BOOK_TVALS）と
+  own_book_tvals（character の realms → 本の tval）、is_unwanted_kind（判定1つ）。
+- policy_helpers._junk_class に不要物の種類 "unwanted-kind" を1つ足した（戦士の unusable-book の次）。
+  装備中・クエストの取り置き・調達の保護など既存の後段の門はそのまま効く。
+  これで既存の不要物の経路（帰還開始時の破壊、町での整理・圧迫時の破壊、自宅に預けない、売りに運ばない、
+  自宅満杯時の処分）がそのまま扱う。
+- policy_helpers._floor_pile_is_junk: 床の山の tval が像・人形・ボール（と遺体類）だけなら拾いに行かない。
+  本は床では sval が見えないので拾ってから壊す（指示の「拾ったら捨てて」のとおり）。
+- policy_observation.observe_character_snapshot: realms を _own_book_tvals に覚える（policy.py で初期値 None）。
+  まだ character 応答を見ていない間は本を不要物にしない（自分の領域の本を誤って壊さないため）。
+  起動直後に定期のダンプ要求が出るので、空白は最初の数手だけ。
+
+■ テスト
+- tests/test_unwanted_kinds_recorded.py（3件、公開の choose_key と本番の実行経路）
+  - 記録の盤面＋記録の character 応答（realms []）→ inventory:destroy-worthless-junk、"…ka"（ヘックスの本 x2）。
+  - 宣言した構成: realms にヘックス（18）→ a は残り、b（武芸の書）を壊す "…kb"。
+  - 宣言した構成: character 応答なし＋c をモンスターボール（11/0）に置き換え → 本は残し、"…kc"。
+- 盤面の抽出: tests/extract_cheap_books_1102_fixture.py → tests/fixtures/cheap-books-20261102.jsonl.gz
+- import の確認: OK。town_work_manifest.py --write: zero unmapped（見直しの項目の追加は不要だった）。
+- 変更前に戻す確認（1回）: src の3ファイルを戻すと3件とも失敗（me-staff:read-powers を返す）、戻して3件とも成功。
+
+■ checks.json の項目の案
+{
+  "id": "CHEAP-BOOKS-1102",
+  "owner": "2026-11-02 1冊目・2冊目の本（自分の領域以外）と像・人形・モンスターボールは不要物として壊す",
+  "tests": [
+    "tests.test_unwanted_kinds_recorded"
+  ]
+}
+
+■ 保守性
+- 新しい判定は unwanted_kinds.py の表1つと関数1つにまとめ、_junk_class には1行の分岐だけを足した。
+  職業の場合分けは足していない（領域の確認だけ）。破壊・預けない・売らないは既存の不要物の経路を使い、
+  キー列や問いの答えは新たに書いていない。
+- 戦士・狂戦士の unusable-book は残した（領域を見る前でも効く。領域が分かれば新しい規則と同じ結果）。
+
+■ 未決の問い（持ち主へ）
+1. ダンジョンの中では、拾った本はこれまでの不要物と同じく「帰還を始める時」に壊す（拾った直後ではない）。
+   探索中にもすぐ壊す（安全な時の割り込みを足す）か。新しい振る舞いなので実装していない。
+2. 観戦ページの「ボットの決まりごと」（decisions.json）はこのリポジトリに無いので更新していない。足す必要があれば別途。

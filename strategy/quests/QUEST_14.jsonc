@@ -15,7 +15,11 @@
   "required_force": {
     "min_hp": 120, "min_expected_dps": 13, "level_guideline": 8,
     "reference_ac": 20,
-    "resists": [], "speed_potions": 1, "heal_potions": 2, "throwing_items": {},
+    // 2026-11-02 owner: 「Q14の受注要件からスピードの薬を外す」 -- the Black
+    // market is the only seller and rarely stocks it (n1-c life-102 waited
+    // 13 minutes on it).  A carried potion is still quaffed per
+    // consumable_plan.speed_potion_use_when.
+    "resists": [], "speed_potions": 0, "heal_potions": 2, "throwing_items": {},
     // 2026-10-31 owner: 「致命傷の治癒でよい」 -- the two heal potions are
     // Potions of Cure Critical Wounds (the Temple's stock), not Healing.
     "heal_potion_kind": "cure_critical",

@@ -1,0 +1,79 @@
+LUNA-REPORT junk-destroy-now-1102（拾った不要物を安全な時にすぐ壊す）
+
+■ 持ち主の指示（原文）
+「本を拾ったら安全な時に壊す。後回しにする理由はない。」
+「他のゴミも同様である」（範囲の変更: 本だけでなく不要物のすべて）
+
+■ これまで
+ダンジョンの中では、不要物（_junk_class が分類する物）は「帰還を始める時」
+（_decide の _worthless_junk_destroy_key、return_starting の枝）と町でだけ壊していた。
+拾った直後の盤面では探索（seek-loot）に進み、不要物を持ち歩いていた。
+
+■ 記録の根拠（サーバの記録を読み取りだけで写した）
+- n1-c life-093（魔道具術師、領域なし）~/hengbot-soak/n1-c/life-093/state.jsonl
+  写し: C:\hengband-backups\pdca\captures\junk-destroy-now-1102\n1-c\life-093\
+  - 600行目（turn 1561402、イークの洞窟 13階、見える敵なし、HP 173/248）:
+    武芸の書（tval 106 sval 0、a）を拾った直後。b に 97/0 の本も持ったまま。
+    直す前の bot はこの盤面で seek-loot（探索）を選ぶ（下の「戻す確認」で再現）。
+  - 2408行目（turn 1582337、鉄獄 13階、見える敵なし、HP 267/267）:
+    拾ったばかりの硬革の帽子（l、32/2）が呪われていると分かった直後。
+- サーバの n1-c の直近40キャラで、ダンジョンで本（90〜107、sval 0/1）を拾った場面は
+  life-073/075/082/085/092/093/100 に計21回あった（像 9・人形 8 も含む）。
+  いずれも見える敵は0体（1回だけ1体）。
+
+■ 変更（commit は下記）
+- 新しいモジュール src/hengbot/junk_destroy_now.py
+  - _safe: 町でない・店の中でない・見える敵対モンスターがいない・直前に殴られていない
+    （_took_damage）・盲目/混乱/朦朧/麻痺/幻覚でない・逃走の持ち主がいない
+    （_escape_state.owner が None か "return"）。
+  - destroy_now_key: 安全なら既存の _worthless_junk_destroy_key をそのまま呼ぶ
+    （探し方・保護・キーの合成・理由 inventory:destroy-worthless-junk は既存のもの）。
+- policy._decide: 戦闘・生存・緊急の段（_survival_gate_key#2、魔道具術師の
+  感知と取り込みの段）の後、探索・クエストの床の回復などの前に1段だけ足した。
+- 対象は _junk_class が分類するすべての種類（remains・cursed・harmful-consumable・
+  unusable-book・unwanted-kind・unused-ammo・plain-gear）。本と像・人形・
+  モンスターボールは unwanted_kinds の同じ1つの規則（unwanted-kind）で扱われる。
+  _junk_class の種類はすべて「壊す」種類で、「売る」「預ける」種類は無い
+  （3冊目・4冊目の本は売る物なので _junk_class が None を返し、不要物ではない）。
+  既存の保護（装備中・クエストの取り置き・調達の保護・アーティファクト・賞金首・
+  壊せなかった印・スタック全体が余りであること・エゴは呪い以外残す）はそのまま効く。
+- scripts/town_work_review.json に junk_destroy_now.py:destroy_now_key を
+  dungeon-only として追加し、town_work_manifest.py --write で zero unmapped。
+
+■ テスト tests/test_junk_destroy_now_recorded.py（3件、公開の choose_key）
+- 記録: 本を拾った直後の盤面（＋記録の character 応答 realms []）→
+  inventory:destroy-worthless-junk、キーは「…ka」（武芸の書）。
+- 記録: 呪いの帽子が分かった直後の盤面（character 応答なし＝本は不要物にしない）→
+  _junk_class は "cursed"、inventory:destroy-worthless-junk、「…kl」。
+- 宣言した構成: life-100 の記録の洞窟オーク（race 126）を本の盤面のプレイヤーの
+  3マス西に置く → destroy_now_key は None、choose_key も壊さない。
+- 盤面の抽出: tests/extract_junk_destroy_now_1102_fixture.py →
+  tests/fixtures/junk-destroy-now-20261102.jsonl.gz
+- import の確認: OK。テスト 3件 OK。
+
+■ 戻す確認（1回）
+src/hengbot/policy.py の段を戻すと、記録の2件が失敗（どちらも seek-loot を返す
+＝記録の bot と同じく壊さずに探索へ進む）。対照の1件は成功。戻して3件とも成功。
+
+■ checks.json の項目の案
+{
+  "id": "JUNK-DESTROY-NOW-1102",
+  "owner": "2026-11-02 拾った不要物（本に限らず _junk_class の全種類）はダンジョンで安全な時にすぐ壊す",
+  "tests": [
+    "tests.test_junk_destroy_now_recorded"
+  ]
+}
+
+■ 保守性
+- 「いつ壊してよいか」は junk_destroy_now.py の _safe 1つにまとめた。不要物の判定は
+  _junk_class（unwanted_kinds の表を含む）1か所のまま、壊すキーと確かめ（同じ物を
+  壊せなければ印を付けて飛ばす）は既存の _verified_destroy_key を使う。
+  tval・sval・職業の場合分けは新たに書いていない。_decide には呼び出し1つだけ。
+- 帰還開始時の既存の枝は残した（町に近い条件で、直前に殴られた時などの取りこぼしを拾う）。
+
+■ 未決の問い（持ち主へ）
+1. 町の中でも同じく「すぐ壊す」か。今は町では既存の段（重さ・枠が足りない時、
+   出発の整理）だけで壊す。町では店の訪問や自宅の取引が持ち物を持っているので、
+   今回は広げていない。
+2. 安全の条件に「HP が満タン」は入れていない（壊すのは1行動で、殴られていない・
+   敵が見えないことを条件にした）。休む段より前に壊すことになるが、それでよいか。

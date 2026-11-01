@@ -16,6 +16,7 @@ from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lowe
 from hengbot.policy_types import TownVisitLedger
 from hengbot.warrior_optimization import character_intrinsic_flags
 from hengbot.equipment_optimizer import equipment_identity
+from hengbot.unwanted_kinds import own_book_tvals
 
 class ObservationMixin:
     def observe_town_visit_epoch(self, in_town: bool, turn: int) -> None:
@@ -73,6 +74,9 @@ class ObservationMixin:
         # Viewer-only cache for the Original32 player picture (C screen title).
         if isinstance(character.get("sex"), str):
             self._spectator_sex_title = character["sex"]
+        # The realms decide which cheap books are the character's own.
+        if "realms" in character:
+            self._own_book_tvals = own_book_tvals(character["realms"])
         mutations = character.get("mutations")
         if mutations is not None:
             try:
