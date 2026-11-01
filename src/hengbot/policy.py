@@ -12611,13 +12611,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "search"
                 return SEARCH_KEY
 
-        has_downstairs = any(
-            grid.has_down_stairs for grid in snapshot.grids.values()
-        )
         if (
             snapshot.dungeon_level > 0
             and not forgetting_maze
-            and not has_downstairs
+            and not self._known_downstairs_reachable(snapshot)
         ):
             if (power := me_powers.power_key(self, snapshot, me_powers.SECRET_SEARCH)):
                 return power

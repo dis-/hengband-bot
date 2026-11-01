@@ -1232,6 +1232,23 @@ class NavigationMixin:
         self._rubble_t = rubble
         self._marked_t = marked
 
+    def _known_downstairs_reachable(self, snapshot: Snapshot) -> bool:
+        """A known downstairs is under the player or has a walking route.
+
+        A magic mapping (map_area) shows stairs beyond a secret door, which
+        maps as granite (spells-floor.cpp), so a known downstairs is not
+        proof that the floor has a known way down.  Exploration that ran
+        dry asks this before giving up on secret exits for the stairs.
+        """
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.has_down_stairs:
+            return True
+        if not any(grid.has_down_stairs for grid in snapshot.grids.values()):
+            return False
+        return self._nearest_goal_and_step(
+            snapshot, lambda grid: grid.has_down_stairs
+        ) is not None
+
     def _usable_downstairs(self, snapshot: Snapshot) -> set[Position]:
         """Downstairs the descent owner may still route to on this floor visit.
 
