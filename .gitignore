@@ -17,3 +17,6 @@ home-disposal-decisions.jsonc
 # Disposable source copies used by the offline Home regression revert proof.
 validation/homefull3/source-*/
 validation/suitefix3/source-*/
+
+# The full town work evidence manifest is written only on request (town_work_manifest.py --evidence).
+scripts/town_work_manifest.json.gz

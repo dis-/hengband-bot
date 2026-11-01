@@ -1,0 +1,84 @@
+LUNA-DIAG-manifest-tax (#47, 保守性 第1回「一覧の作り直しの手間から」) 2026-11-01
+基点: main b51bcda79（ブランチ manifest-tax-1101）
+
+1. 何が何を守っているか
+
+(1) scripts/town_work_review.json（手書き、1,077 件）
+  - キーは「ファイル:修飾名」（例 policy_town.py:TownMixin._town_destroy_key）。AST の digest は持たない。
+  - 1 件ごとに classification（producer 228 / adapter 85 / driver 25 / operation 2 / action 1 / data 713 /
+    dungeon-only 23）、rows（どの町の仕事の行か）、delegation、context、evidence、admission、observer。
+  - 決めていること: 実行時の観測（town_work.py）がその関数の戻り値をどう扱うか。
+    producer = その戻り値が決めたキーの仕事の記録になる。adapter/driver = 包む側として記録。
+    data = 戻り値を一切記録しない（観測から外す）。dungeon-only = 町で返したら「不明」扱い（UNMAPPED）。
+  - 検査（town_work_manifest.generate）: 選ばれた関数（下の (3)）のうち review の無いものがあれば
+    「unmapped candidates」、関数が消えた review があれば「stale reviews」で失敗する。
+
+(2) src/hengbot/town_work_sites.json（生成物、実行時に読まれる、10,442 行）
+  - town_work.manifest() が読む。読む欄は「載っているか」「classification」「rows」「delegation」だけ。
+    使う所: work_record / validate_emit（受領の可否）、観測フック _profile_returns と sys.monitoring の
+    _return_target（data は記録しない・監視を切る）、town_work_decision（producer の選択、未登録の子の検出）、
+    input_executor._post_and_barrier（呼び出し元が載っているか）。
+  - 受領（receipt）は判断ログ（cli.py の record['town_work']）に書かれるだけで、キーの選択には使われない
+    （town_work.py の冒頭の説明どおり、grep でも他に読む所は無い）。
+  - 各行の ast_sha256 は実行時にどこからも読まれていない（コメントでは「pins each site」）。
+  - テスト: tests/test_town_terminal_declarations.py（producer の一覧）、tests/test_town_work_contract.py。
+
+(3) scripts/town_work_manifest.json.gz（生成物、コミット済み、1.71 MB）
+  - 選ばれた 1,077 関数の行番号・終了行・ast_sha256・origins・return/predicate の式、
+    29,848 件の call_sites（各呼び出しの行・式・digest）、registry_sites、ladder_sites。
+  - 読むのは check_repository（作り直したものと完全一致か）と、過去の validation/ の一回きりのスクリプトだけ。
+    gzip なので diff で人が読むこともできない。
+
+(4) scripts/town_work_registry_review.json（手書き、113 件）
+  - _town_need_registry の各項目と _purchase_rungs の各段の rows。ID は category/ordering/occurrence で安定。
+    最近 118 件で 1 回しか変わっていない（税の元ではない）。
+
+(5) scripts/town_producer_baseline.json（手書き、777 件）
+  - town_structure_lint の「@claims と梯子に登録されていない、キーを返しうる関数」の理由の一覧。
+  - main で既に 143 件の不一致（新しい関数が載っていない）。PDCA の取り込み（pdca_merge）は
+    test_town_structure_lint を流さないため、10-29 以降は保守されていない。town_work_review.json と同じ
+    関数を、より粗い分類で二重に持っている。
+
+選ばれる関数（generate の selected）:
+  - producer_census: HengbotPolicy.choose_key から届き、str を返しうる（文字列定数・f 文字列・key/command を
+    含む名前・str の注釈）関数と、その戻り値が依存する関数。
+  - 加えて名前・飾りで印の付くもの: 設計表の名前（SOL-DESIGN-town-progress.md）、@claims、登録表、
+    choose_key/_choose_key/_town_producer_entry、送信の継ぎ目（send/post_keys/_post_and_barrier など）を呼ぶもの、
+    claim_ladder の文字列。
+
+消費者:
+  - town_structure_lint.analyze_repository → check_repository
+  - merge_gate.merge_branch（C:\hengband-backups\guard-tools\merge_gate.py:43-44, 130-143）: 取り込みのたびに
+    --write で作り直し、変わっていれば「Regenerate the town work manifest after merging ...」をコミット。
+    gz と sites.json の衝突は ours を取って作り直す。review と baseline の衝突は merge_json_keys.py。
+  - pdca_merge は merge_gate.merge_branch をそのまま使う。preflight.manifest_findings も --write して差分を見る。
+
+2. なぜ作り直しが必要になるか（旧規則）
+
+  (a) sites.json と gz の ast_sha256: 選ばれた 1,077 関数のどれかの本体を 1 文字でも変えると digest が変わる
+      → 振る舞いを変えない整理でも作り直しのコミットが要る（10-28「修正の際にも保守性が向上するように」に逆行）。
+  (b) gz の行番号: 選ばれた関数・呼び出し・return・if の行番号を全部持つので、同じファイルの上の方に 1 行
+      足すだけで gz が変わる。
+  (c) gz の call_sites: 選ばれた関数を呼ぶ全 29,848 か所の式と digest → 呼ぶ側の編集でも変わる。
+  (d) 新しい関数・名前の変更・移動: review に手で 1 件（7 欄、約 10 行）足す。純粋なデータの参照
+      （bool や int を返すだけ）でも同じ。
+  (e) 取り込み: (a)〜(c) は 2 本の枝の変更を合わせた結果でしか決まらないので、取り込みの後に作り直しが要る
+      （844d408d1、cfc32e192、245cea5e3 は gz だけのコミット）。
+
+  digest は review の見直しを強制していなかった: --write は digest を書き直すだけで、review は触らない。
+  つまり digest の「保護」は「誰かが --write を流した」ことしか保証していなかった。
+
+3. 変更の量（main b51bcda79 から数えて最近 118 件の merge 以外のコミット、2026-10-31 12:36〜11-01 12:48）
+
+  ファイル                         触ったコミット
+  town_work_manifest.json.gz        58
+  town_work_sites.json              48
+  town_work_review.json             37
+  town_producer_baseline.json        2
+  town_work_registry_review.json     1
+  どれかを触った                     58（gz は 58 件すべて）
+  gz（と sites.json）だけ             3（取り込み後の作り直し）
+  review の追加・変更だけのコミット    5（「Review ... in the town-work manifest」）
+
+  review の変更 37 件の中身: 新しい data 60 件、producer 15、adapter 4、dungeon-only 3、driver 1、
+  削除 3、分類の変更 2、文言（evidence/context）だけの編集 29。
