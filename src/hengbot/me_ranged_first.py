@@ -68,6 +68,22 @@ def _throwable_torch(policy, snapshot):
     return torches[0]
 
 
+def afraid_key(policy, snapshot, adjacent) -> str | None:
+    """Afraid beside ``adjacent``: this ranged order alone, else None.
+
+    Fear refuses melee only (cmd-attack.cpp:228); the absorbed powers check
+    confusion (cmd-magiceat.cpp:492), wands randomize under confusion
+    (zapwand-execution.cpp:69) and throws check neither.  The combat rungs
+    called this order inside their unafraid melee branch, so an afraid
+    Magic-Eater waited beside its attacker (#47 hit-no-action-1101, n1-c
+    life-085's jelly).  The callers' melee keeps its fear check; the
+    adjacent chooser scores melee zero while afraid (attack_expectation)."""
+    if (not adjacent or not snapshot.player.afraid
+            or not policy._can_fight_in_dungeon(snapshot.floor_key[0])):
+        return None
+    return attack_key(policy, snapshot, policy._weakest(adjacent))
+
+
 def _missile_ready(policy, snapshot) -> bool:
     """Whether the absorbed Magic Missile may be fired (notes an empty or
     unlearned power the game reported)."""

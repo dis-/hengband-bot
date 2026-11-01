@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import magic_eater, mapped_area, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
+from hengbot import magic_eater, mapped_area, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -10341,16 +10341,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Below the threshold with no heal/escape/recall and nothing adjacent,
         after a hit (追加決定2, 10-03 05:1x): 「近接で敵の方向が分からなければ
         ランダムな方向に攻撃。遠距離で射線が切れなければ遮蔽と敵のうち近い方に
-        移動。」  Melee by an unseen attacker: attack a direction with the
-        alter command (do_cmd_alter attacks a monster there, seen or not).
-        Ranged: one step out of the line of fire, not next to a hostile; else
-        toward the nearer of cover and the attacker."""
+        移動。」  Melee by an unseen attacker: the strike of unseen_strike
+        (every survival path's answer).  Ranged: one step out of the line of
+        fire, not next to a hostile; else toward the nearer of cover and the
+        attacker."""
         if (
             not getattr(self, "_took_damage", False)
             or getattr(self, "_took_curse_damage", False)
             or getattr(self, "_took_trap_or_terrain_damage", False)
         ):
             return None
+        if unseen_strike.hit_in_melee(self, snapshot):
+            return unseen_strike.key(self, snapshot, hostiles)
         player = snapshot.player
         here = player.position
         messages = [re.sub(r" <x[1-9]\d*>$", "", m) for m in snapshot.messages]
@@ -10363,28 +10365,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 for m in messages
             )
         ]
-        melee = [m for m in unseen if not self._is_unseen_spell_message(m)]
         ranged = [m for m in unseen if self._is_unseen_spell_message(m)]
-        if melee:
-            cells = sorted(
-                (
-                    Position(here.y + dy, here.x + dx)
-                    for dy, dx in DIRECTION_KEYS
-                ),
-                key=lambda cell: (cell.y, cell.x),
-            )
-            candidates = [
-                cell for cell in cells
-                if (grid := snapshot.grid_at(cell)) is not None
-                and grid.passable
-                and not grid.is_door
-                and not any(m.position == cell for m in hostiles)
-            ]
-            if candidates and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-                cell = random.Random(snapshot.turn).choice(candidates)
-                self.last_reason = "no-wait:attack"
-                return ALTER_KEY + self._direction_key(here, cell)
-            return None
         if not (ranged or named_shooters):
             return None
 
@@ -10546,6 +10527,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._direction_key(
                 player.position, self._weakest(adjacent).position
             )
+        if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
+            return ranged  # fear refuses melee only
         if low:
             answer = (blind_strike.emergency_key(self, snapshot)
                       or self._low_hp_no_kit_hit_key(snapshot, hostiles))
@@ -11430,6 +11413,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._town_producer_entry("_direction_key#1", lambda: self._direction_key(
                     player.position, self._weakest(strategic_adjacent).position
                 ))
+            if (ranged := me_ranged_first.afraid_key(self, snapshot, strategic_adjacent)) is not None:
+                return ranged  # fear refuses melee only
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
