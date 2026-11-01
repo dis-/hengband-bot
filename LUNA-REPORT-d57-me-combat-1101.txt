@@ -118,3 +118,14 @@ tests.test_d57_me_combat_1101_recorded（14件。記録の盤面 → 公開の c
   オーラの除外だけを戻すと 1件 FAIL。
 - 検査: import OK。checks.json の全テスト＋自分のテスト（96項目）を8回に分けて 559件、失敗 0・import の失敗 0
   （tests.test_hit_no_action_1101_recorded も通る）。
+
+■ main ade15c353（fix-depart2-1101・manifest-tax-1101）の取り込み（5e88d8759）
+- scripts/town_work_manifest.json.gz は main で追跡をやめたので、衝突は削除として解いた。
+- 合わせた木で equipment_mutation.py:_requested_effect が未対応の候補になった理由: manifest-tax の
+  データの証明（scripts/town_work_data_proof.py）は「同じ名前の関数の定義が全部証明できること」を求める。
+  この枝の attack_expectation.py に同じ名前の _worn（引数の関数を呼ぶ）があり、_requested_effect が呼ぶ
+  equipment_mutation._worn の証明が外れた。審査の項目を足すのではなく、こちらの補助を _hand_weapon
+  （引数の関数を呼ばず、手の条件を中に書く）に改名して直した。振る舞いは同じ。
+- 目録: --write の後、検査の形で 0 violation・zero unmapped（1090 候補、証明済みのデータ 161）。main との差は
+  この枝の審査の項目9件の追加と3件の evidence の更新だけ。
+- 検査: import OK。checks.json の全テスト＋自分のテスト（98項目）を8回に分けて 575件、失敗 0。
