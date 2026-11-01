@@ -1358,6 +1358,17 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)"
   },
+  "me_powerful_activation.py:racial_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Powerful Activation key U + A/B/C + I2A(sval) (the town EFFECTS rows and me_powers rows with a powerful condition); no command by itself.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "me_powerful_activation.py:Effect.reason": {
     "classification": "data",
     "rows": [
@@ -11345,7 +11356,29 @@
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Selects the row's own power or its fallback row (charges, failure latch, requirements); returns a table row, no command.",
+    "evidence": "Selects a usable preferred row, else the row's own power or its fallback row (charges, failure latch, requirements); returns a table row, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:_usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Requirements, the per-place failure latch and me_capability.charges of one table row; returns a bool, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:_activation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Deferred import of me_powerful_activation (it imports me_powers); returns the module, no command.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
