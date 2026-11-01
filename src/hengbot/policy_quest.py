@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check
+from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
 from hengbot.policy_opening import OpeningRouteMixin
 from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 
@@ -331,7 +331,7 @@ from hengbot.warrior_optimization import (
 )
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, launcher_average_damage
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
-from hengbot.warrior_equipment_evaluator import melee_hit_chance
+from hengbot.warrior_equipment_evaluator import AC_REFERENCE, melee_hit_chance
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,
@@ -5197,11 +5197,21 @@ class QuestMixin(OpeningRouteMixin):
             ),
             None,
         )
+        # The kill-time output is measured at the same armour class as the
+        # force gate's DPS: a reviewed profile's reference_ac (its bound
+        # target's real AC, Q14's Warg 20).  The generic AC 100 made n1-c
+        # life-102's War Hammer read 3.0 against the force gate's 24.0
+        # (2026-11-02 04:22, decisions 3140-3182).
+        target_ac = (
+            force_reference_ac(self._strategy_force_for_snapshot(snapshot, profile))
+            if profile is not None else AC_REFERENCE
+        )
         main_hand_output = (
-            self._main_hand_dps(snapshot, weapon) if weapon is not None else 0.0
+            self._main_hand_dps(snapshot, weapon, ac=target_ac)
+            if weapon is not None else 0.0
         )
         sub_hand_output = (
-            self._sub_hand_dps(snapshot, sub_weapon)
+            self._sub_hand_dps(snapshot, sub_weapon, ac=target_ac)
             if sub_weapon is not None and snapshot.player.sub_hand_blows > 0
             else 0.0
         )

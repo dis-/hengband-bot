@@ -502,6 +502,7 @@ from hengbot.policy_fundraising import (
 )
 from hengbot.policy_supply import SupplyMixin
 from hengbot.policy_helpers import PolicyHelpersMixin
+from hengbot.quest_entry_requirements import force_reference_ac
 from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_SILENT,
@@ -17695,7 +17696,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         weapon = next((it for it in snapshot.equipment if it.slot == "main_hand"), None)
         # New strategy profiles must declare their target scale.  The fallback
         # preserves old third-party profiles without silently changing them.
-        reference_ac = int(force.get("reference_ac", 100))
+        reference_ac = force_reference_ac(force)
         dps = (
             weapon_expected_dps(
                 snapshot,
