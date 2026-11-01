@@ -1348,6 +1348,11 @@ class NavigationMixin:
             self._descent_refusal_reason = "standing-on-target"
             return None
     
+        # The engagement retreat's cells are a navigation veto for the floor
+        # visit (_claim_engagement_avoid_cells), as in every other routing
+        # BFS: a descent route back onto one walks into the engagement the
+        # retreat just left and alternates with it (n1c-5f-loop-1102).
+        vetoed = self._engagement_avoid_cells
         self._nav_ledger.advance_descent_route(origin)
         route = self._nav_ledger.descent_path
         if route:
@@ -1355,6 +1360,7 @@ class NavigationMixin:
             if (
                 origin.distance_to(nxt) == 1
                 and nxt not in avoided_store_cells
+                and nxt not in vetoed
                 and self._is_step_open(snapshot, origin, nxt)
                 and not self._warning_step_refused(snapshot, nxt)
             ):
@@ -1421,7 +1427,11 @@ class NavigationMixin:
                         best_first = first
                         best_frontier = pos
             for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen or neighbor in avoided_store_cells:
+                if (
+                    neighbor in seen
+                    or neighbor in avoided_store_cells
+                    or neighbor in vetoed
+                ):
                     continue
                 if self._warning_step_refused(snapshot, neighbor):
                     # A grid the weapon warning refused is not a route cell.
