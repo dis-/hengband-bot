@@ -30,16 +30,21 @@ import copy
 import gzip
 import json
 from pathlib import Path
+import unittest
 
 from hengbot import me_staff_sequence
+from hengbot.cli import SendResult
 from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_planner import (
     PHASE_EQUIP, PHASE_HOME_PREPARE, EquipmentTransaction, EquipmentTransactionPlan,
 )
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
+from hengbot.magic_eater import MISSILE_REASON
 from hengbot.model import SV_STAFF_IDENTIFY, TVAL_STAFF, StoreItem, StoreState, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.test_esp_threat_rest_recorded import EDIT
+import tests.test_magic_eater_o3 as o3
+import tests.test_me_device_attacks as device
 import tests.test_unid_deposit_recorded as recorded
 
 
@@ -47,6 +52,7 @@ FIXTURE = Path(__file__).with_name("fixtures") / "depart2-1101.json.gz"
 CLOAK = "クローク [1,+0] {Q34}"
 CLOAK_ID = "home:66af66797f74632f:0"
 TRIDENT = "(トランプ)トライデント"
+FAILED_USE = "呪文をうまく唱えられなかった！"
 TRIDENT_ID = "pack:ed9c6339e356ce0d:0"
 
 
@@ -295,6 +301,65 @@ class InscribedDepositRecordedTest(Depart2RecordedBase):
         self.post(policy, raw, key, following)
 
 
+class FailedUseRecallRecordedTest(unittest.TestCase):
+    """The 13:18:56 restart: a failed wand use followed by the recall."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.case = load_cases()["stuck"]
+        o3.MagicEaterO3Test.setUpClass()
+
+    def test_recorded_stuck_prompt(self):
+        case = self.case
+        self.assertIn("owner=quest-strategy:ranged-fire:magic-eater", case["stuck_line"])
+        self.assertIn("ctx=command", case["stuck_line"])
+        self.assertTrue(case["stuck_line"].endswith("reason=unowned Magic-Eater aim prompt"))
+        # cmd-magiceat.cpp: the use failed (no direction asked) and the recall
+        # activated in the same game turn.
+        self.assertEqual((case["dungeon"]["floor"]["level"], case["town"]["floor"]["level"]), (15, 0))
+        self.assertEqual(case["town"]["messages"], [FAILED_USE, "上に引っ張りあげられる感じがする！"])
+        screen = case["stop_screen"]
+        self.assertEqual(screen["input_context"]["kind"], "command")
+        self.assertFalse(any(FAILED_USE in line for line in screen["lines"]))
+
+    def test_town_command_screen_ends_the_failed_use(self):
+        helper = o3.MagicEaterO3Test()
+        self.addCleanup(helper.doCleanups)
+        game, result, status = helper.run_follow("mBp6", MISSILE_REASON, [
+            o3.prompt("[A] staff, [B] wand, [C] rod:"), o3.powers(17),
+            copy.deepcopy(self.case["stop_screen"])])
+        # Recorded: TERMINAL, <stuck-prompt> unowned Magic-Eater aim prompt.
+        self.assertEqual(status, SendResult.SENT, result.reason)
+        self.assertEqual(game.accepted, ["m", "B", "p"])
+        self.assertEqual(result.operation.business_outcome, "failed:magic-eater")
+
+
+class FailedDeviceUseRecallTest(device.mining.harness.ProductionHarness):
+    """The same game answer for an absorbed attack power (me_device_attacks_input).
+
+    DECLARED CONSTRUCTED: test_me_device_attacks' fire-bolt rod board; the
+    screen after the power answer is the recorded 13:18 town screen.
+    """
+
+    setUpClass = classmethod(device.MagicEaterDeviceAttackTest.setUpClass.__func__)
+    raw = device.MagicEaterDeviceAttackTest.raw
+    policy = device.MagicEaterDeviceAttackTest.policy
+    choose = device.MagicEaterDeviceAttackTest.choose
+    post = device.MagicEaterDeviceAttackTest.post
+    kobold_board = device.MagicEaterDeviceAttackTest.kobold_board
+    decide = device.MagicEaterDeviceAttackTest.decide
+
+    def test_town_command_screen_ends_the_failed_rod_use(self):
+        raw = self.kobold_board(device.power_list("rod", device.row("ファイア・ボルト", 30, charging=0)))
+        policy, key = self.decide("life-008", raw, device.power_list("wand", device.MISSILE_ROW))
+        self.assertTrue(key.startswith("mCw"), key)
+        game, port = self.post(policy, raw, key, [
+            o3.prompt("[A] 杖, [B] 魔法棒, [C] ロッド:"),
+            device.power_screen("rod", [("w", "ファイア・ボルト", 0, 1, 30)]),
+            copy.deepcopy(load_cases()["stuck"]["stop_screen"])])
+        self.assertEqual(game.accepted, ["m", "C", "w"])
+        self.assertEqual(port.last_result.operation.business_outcome, "failed:magic-eater")
+
+
 if __name__ == "__main__":
-    import unittest
     unittest.main()
