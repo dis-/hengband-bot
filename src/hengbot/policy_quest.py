@@ -4456,7 +4456,7 @@ class QuestMixin(OpeningRouteMixin):
                         route_declaration=declaration,
                         identity=candidate_identity,
                     )
-                key = route_result.key
+                key = self._town_teleport_route_key(snapshot, route_result, reason)
                 if key is None:
                     return None
                 self.last_reason = reason
@@ -4671,25 +4671,26 @@ class QuestMixin(OpeningRouteMixin):
                 WAIT_KEY, reason=reason, decision_identity=context.identity,
                 route_declaration=declaration, identity=candidate_identity,
             )
-        if result.key is None:
+        key = self._town_teleport_route_key(snapshot, result, reason)
+        if key is None:
             return None
         self.last_reason = reason
         if result.route is None:
-            return result.key
+            return key
         route = result.route
         declaration = QuestTravelDeclaration(
             quest_id=quest.id, quest_status=quest.status,
             stage="prepare-return", source_town_id=self._effective_town_id(snapshot),
             destination_town_id=0, floor=snapshot.floor_key,
             goal=route.target, first_step=route.first_step,
-            bfs_rank=route.remaining_edges, composed_key=result.key,
+            bfs_rank=route.remaining_edges, composed_key=key,
             decision_identity=context.identity,
             candidate_identity=candidate_identity,
             producer_branch=producer_branch,
             qualifying_quest_ids=qualifying_quest_ids,
         )
         return DecisionCandidate(
-            result.key, reason=reason, decision_identity=context.identity,
+            key, reason=reason, decision_identity=context.identity,
             route_declaration=declaration, identity=candidate_identity,
         )
 

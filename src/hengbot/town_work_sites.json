@@ -8267,6 +8267,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_town.py:TownMixin._town_teleport_route_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_town.py:TownMixin._town_teleport_travel_key": {
     "classification": "producer",
     "rows": [

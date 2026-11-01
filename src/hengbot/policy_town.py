@@ -7672,6 +7672,17 @@ class TownMixin:
             key=self._step_toward(snapshot, route.first_step, tail=suffix),
         )
 
+    def _town_teleport_route_key(
+        self, snapshot: Snapshot, result: TownTeleportRoute, reason: str
+    ) -> str | None:
+        """The move along ``result``: the travel to the inn's side, else its step.
+
+        For the producers that declare the route themselves (the fixed
+        quests' q22 travel and prepare-return): the declaration's composed
+        key is this move, its goal and BFS rank stay the route's.
+        """
+        return self._town_teleport_travel_key(snapshot, result, reason) or result.key
+
     def _town_teleport_travel_key(
         self, snapshot: Snapshot, result: TownTeleportRoute, reason: str
     ) -> str | None:
