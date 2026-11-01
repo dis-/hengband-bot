@@ -118,7 +118,11 @@ class Q34TorchEntryRecordedTest(executor_harness.ProductionHarness):
                 board = parse_snapshot(raw, policy._monrace_knowledge)
                 # DECLARED CONSTRUCTED: all torches are below the entry floor;
                 # the same twenty throwing items still meet the force gate.
-                board = replace(board, inventory=[
+                # The やせこけた猫 the game shows two cells north (in view, its
+                # night cell not in the grid map) is left out: the board kept
+                # it since #47 D57 and the town hunt answers it first, while
+                # this case is about the supplier route.
+                board = replace(board, visible_monsters=[], inventory=[
                     replace(it, fuel=99) if it.is_torch else it for it in board.inventory
                 ], equipment=[
                     replace(it, fuel=99) if it.is_torch else it for it in board.equipment

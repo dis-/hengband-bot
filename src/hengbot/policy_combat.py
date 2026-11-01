@@ -2427,6 +2427,8 @@ class CombatMixin:
                     return self._direction_key(
                         player.position, self._weakest(adjacent).position
                     )
+                if (strike := blind_strike.emergency_key(self, snapshot)) is not None:
+                    return strike  # blind: the attacker last seen beside us
                 self.last_reason = "emergency:wait"
                 return WAIT_KEY
 

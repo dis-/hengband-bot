@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import lamp_fuel, mining_loadout, town_pack_headroom
+from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import magic_eater, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, wilderness_exit
 
@@ -10545,7 +10545,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 player.position, self._weakest(adjacent).position
             )
         if low:
-            answer = self._low_hp_no_kit_hit_key(snapshot, hostiles)
+            answer = (blind_strike.emergency_key(self, snapshot)
+                      or self._low_hp_no_kit_hit_key(snapshot, hostiles))
             if answer is not None:
                 return answer
         if (

@@ -11,7 +11,11 @@ public choose_key and every posted key through the production executor port.
 2. 「盲目で治す薬がないときは…見えない敵を攻撃することを試みる方が生存確率は
    上がる。」 (same death): blinded beside the デス・ドレイク it fought at
    [14,81], unseen-recall walked '4' away.  Without a cure it now attacks the
-   remembered cell ('+' alter, '6').
+   remembered cell ('+' alter, '6').  The game also shows the レヴナント
+   (race 555) two cells away while blind (its ESP, in view: the visible list
+   of bot-json-output.cpp with its y/x), and the board keeps it since #47
+   D57, so the lethal-emergency ladder answers (emergency:blind-strike and
+   its own status cure) instead of the unseen-recall branch.
 3. 「明るいマスへ歩いて帰還を読むが、そもそも光源を切らさない努力が必要」
    (n1-c life-055, 鉄獄1階, every '<' to the wilderness): (b) the burnt-out
    torch was worn while the Brass Lantern {average} and oil were carried; the
@@ -49,6 +53,7 @@ FIXTURE = Path(__file__).with_name("fixtures") / "owner-a-survival-1031.json.gz"
 WIELD_PROMPT = "どれを装備しますか? "
 DIRECTION_PROMPT = "方向 (ESCで中断)?"
 DRAKE_CELL = Position(14, 81)
+REVENANT = 555
 LIT_ROOM_CELL = Position(19, 114)
 
 
@@ -115,10 +120,11 @@ class BlindWithoutCureTest(SurvivalHarness):
         raw, board = self.without_cure(policy, raw)
         self.assertTrue(board.player.blind)
         self.assertTrue(board.player.recalling)
-        self.assertEqual(board.visible_monsters, [])
+        self.assertEqual([(m.race_id, m.distance) for m in board.visible_monsters],
+                         [(REVENANT, 2)])  # by its ESP; nothing beside the player
         key = decide(policy, raw)
         # Unfixed: ("unseen-recall:move", "4"), a step away from the drake.
-        self.assertEqual((policy.last_reason, key), ("unseen-recall:blind-strike", "+6"))
+        self.assertEqual((policy.last_reason, key), ("emergency:blind-strike", "+6"))
         self.assertEqual(board.player.position.distance_to(DRAKE_CELL), 1)
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(DIRECTION_PROMPT)],
                                    self.later(raw)), ["+", "6"])
@@ -137,7 +143,7 @@ class BlindWithoutCureTest(SurvivalHarness):
         board = parse_snapshot(raw, policy._monrace_knowledge)
         key = decide(policy, raw)
         cure = policy._find_status_cure_potion(board)
-        self.assertEqual((policy.last_reason, key), ("item:cure-critical", "q" + cure.slot))
+        self.assertEqual((policy.last_reason, key), ("emergency:cure-critical", "q" + cure.slot))
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(QUAFF_PROMPT)],
                                    self.later(raw)), ["q", cure.slot])
 

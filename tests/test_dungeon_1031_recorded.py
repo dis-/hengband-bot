@@ -157,7 +157,9 @@ class DeathReturnRecordedTest(RecordedHarness):
         self.assertTrue(board.player.recalling)
         key = decide(policy, raw)
         cure = policy._find_status_cure_potion(board)
-        self.assertEqual(policy.last_reason, "item:cure-critical")
+        # The レヴナント its ESP shows two cells away stays on the board since
+        # #47 D57, so the lethal-emergency ladder gives the same cure.
+        self.assertEqual(policy.last_reason, "emergency:cure-critical")
         self.assertEqual(key, "q" + cure.slot)
         following = self.later(raw)
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(QUAFF_PROMPT)],
