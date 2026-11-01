@@ -1,0 +1,127 @@
+LUNA-REPORT-owner15-survival-1101.txt  (#47、ブランチ owner15-survival-1101、main ade15c353 から)
+
+持ち主の答え（2026-11-01 17時、owner-answers-15-decisions-20261101）の 1〜5 と、D59 の続き（10-03 の決まりを閉じた
+取引の訪問にも当てる）を直した。診断は LUNA-DIAG-owner15-survival-1101.txt（鎖と行番号、盤面の答え）。
+push・main への取り込みはしていない。stash は使っていない。観戦サーバからは読み取りだけ（ssh で n1-c life-092 の
+Q14 の盤面と判断の行を C:\hengband-backups\pdca\captures\owner15-survival-1101\n1-c\life-092\ に写した）。
+
+== 直し（1つの根に1コミット） ==
+- 172c74cd8 診断（LUNA-DIAG-owner15-survival-1101.txt）。
+1. bb15b9b31「Strike back an unseen melee attacker instead of retreating」（答え1「近接で殴られたら反撃」）
+   見えない敵からの退き（policy_supply.py:1975-1978、_unseen_retreat_key の歩きの前）と帰還待ちの歩き
+   （policy_combat.py:2030-2032、unseen-recall:move の前）が unseen_strike.key を呼ぶ。近接の手がかり
+   （unseen_strike.hit_in_melee: 被害あり・「何かに…」の文で呪文・射撃の文でない）なら打つ（理由
+   unseen:strike / unseen-recall:strike、unseen_strike.py:31-32）。呪文・矢の手がかりは今のまま退く。
+2. a0aa00536「Keep the Magic-Eater ranged order in a NO_MELEE dungeon」（答え3「遠隔と取り込んだ力は使う」）
+   me_ranged_first.afraid_key を melee_refused_key（me_ranged_first.py:70）に改名し、条件を「近接が断られる時」
+   （melee_refused、me_ranged_first.py:59: 恐怖 cmd-attack.cpp:228 または NO_MELEE cmd-attack.cpp:202）にした。
+   7か所の呼び出しは名前だけ変え、戦いの段の近接の後（policy.py:11516）に同じ1行を足した。
+3. 2ee9892fa「Fire at a faster attacker while afraid instead of fleeing on foot」（答え2「遠隔の手段があれば撃つ」）
+   me_ranged_first.outpaced_afraid_key（me_ranged_first.py:83）: 怖がっていて隣に自分以上に速い敵がいる時、
+   その敵へ遠隔の順を撃つ。逃げの段の歩き（_flee_step）の前（policy.py:11385）で呼ぶ。階段・脱出路の敵・町の
+   最後の抵抗が先、緊急の段（生存）はさらに前。遠隔の答えが無い・敵が遅い時は今のまま逃げる。
+4. 8de213955「Extend the five-scroll teleport reserve to quest 014」（答え4「014 だけ広げる」）
+   random_quest_reserve.py:28 RESERVE_FIXED_QUESTS = {14} の表と、teleport_reserve_spent（:31-40）がランダム
+   クエストか表のクエストを数える。008・009 は入れていない。
+5. 6ca252a4e「Count a conquest target's emergency escapes in the dive streak」（答え5「緊急の逃げも数える」）
+   over_extension.judge_dive（over_extension.py:32）は常に緊急の逃げを数える（count_emergencies の引数を消した。
+   policy_observation.py の2か所の呼び出し）。esp-threat:leave-recall は EMERGENCY_ESCAPE_REASONS に無いので
+   数えない（答え6、今のまま）。
+6. 468e73d91「Depart on the current loadout after a closed equipment visit」（D59 の続き、10-03 の決まり）
+   _prepare_equipment_optimization の訪問の閉じ（policy_equipment.py:895）が None ではなく
+   _closed_visit_failure_preparation（policy_equipment.py:2889）を返す: 同じ訪問で Home が使えない時に既にある
+   「取引失敗」の形（transaction None、blocker equipment-transaction-failed）。ふつうの出発条件は既存の
+   任意の失敗の枝（_safe_optional_equipment_failure_departure）で出る。計画は作り直さない。
+
+== テスト（tests.test_owner15_survival_1101_recorded、18件） ==
+盤面は記録から作った（docstring に DECLARED CONSTRUCTED/RECONSTRUCTED を明記）。公開の choose_key に渡し、出たキーは
+本番の実行器に通した（D57 の PostedDeathKey、test_dungeon_1031_recorded の RecordedHarness）。
+- UnseenRetreatStrikeRecordedTest（4件、life-085 1445321・1445328、ゼリーを見えなくし「何か」に）
+- AfraidOutpacedRangedRecordedTest（3件、同じ盤面で怖がっている）
+- NoMeleeRangedOrderRecordedTest（3件、迷宮の定義に NO_MELEE を足す）
+- WargProblemTeleportReserveRecordedTest（3件、life-092 の Q14 の盤面。新しいフィクスチャ
+  tests/fixtures/owner15-q14-1101.json.gz、抽出 tests/extract_owner15_q14_1101_fixture.py）
+- ConquestDiveOverExtensionRecordedTest（2件、life-083 の迷宮の潜りを攻略の目標として）
+- ClosedVisitDepartureRecordedTest（3件、life-092 13:54 の停止盤面と 3044 の閉じ。確定した装備の記録は
+  tests/fixtures/owner15-confirmed-loadout-1101.json、抽出 tests/extract_owner15_depart_1101_fixture.py）
+戻して確かめた（git diff で patch を保存 → git checkout → 実行 → git apply）:
+  1 退きの1か所を戻す: test_unseen_retreat_strikes_the_melee_attacker が FAIL（('7', 'unseen:reverse-choke')）。
+    帰還待ちの1か所を戻す: test_recall_wait_strikes_the_melee_attacker が FAIL（('7', 'unseen-recall:move')）。
+  3 を全部戻す: test_low_hp_gate_fires_at_the_adjacent_jelly が FAIL（('5', 'emergency:wait')）、
+    test_combat_rung_fires_instead_of_hunting が FAIL（('7', 'hunt')）。戦いの段の1行だけ戻すと後者だけ FAIL。
+  2 を戻す: test_afraid_beside_the_faster_jelly_fires が FAIL（逃げの段: 速さの薬 'qb' emergency:quaff-speed、
+    次の盤面 '2' flee）。
+  4 を戻す: test_below_the_reserve_the_return_reads_recall が FAIL（出口の鍵が True のまま '4' explore）。
+  5 を戻す: test_conquest_dive_advances_the_streak が FAIL（1 != 2）。
+  6 を戻す: test_closed_visit_departs_on_the_current_loadout が FAIL（False、['preparation-unavailable']）。
+  対照（矢の手がかりは退く・こちらが速い/遠隔が無い時は逃げる・近接できる時もゼリーに答える・5本ちょうどは
+  鍵のまま・代わりのダンジョンも数える・Home が使える訪問は出発の門のまま）は戻しても通る。戻した後は18件 OK。
+期待値を直した既存のテスト（テストの壁ではない、新しい振る舞いに合わせた）:
+  - tests.test_reverse_choke_loot_loop_recorded: 作った噛みつき（「何かに噛まれた。」）の3件は退きではなく
+    反撃になった（答え1）。test_new_unseen_bite_after_landing_is_struck_back、test_post_landing_bite_walks_no_retreat、
+    test_first_board_bite_walks_no_retreat に改めた。退きの始まりと行き止まりの退役は記録のブレスの盤面で今も固定。
+  - tests.test_me_staff_loops_1031_recorded.test_afraid_opening_route_yields_to_the_survival_ladder: 記録の life-066
+    （怖がって同じ速さの人形『メリー』が隣）は '9' flee からマジック・ミサイル 'mBp7' になった（答え2）。
+    ミサイルの力の問いは町の戦いの実行器（test_town_combat_survival_recorded）で通す。
+  - tests.test_equipment_homefull_step15a の2件: 閉じた訪問の準備が None ではなく「取引失敗」になった（6）。
+    計画を作り直さないこと（transaction None）はそのまま確かめる。
+
+== 検査 ==
+- import（hengbot.cli, hengbot.policy）: OK
+- checks.json の検査（98 の指定のうちこの worktree にある 97、81 項目）: 7 回に分けて 561 件すべて OK
+  （tests.test_d57_me_combat_1101_recorded はまだ main に無い）。
+- 自分のテストと期待値を直したテスト: test_owner15_survival_1101_recorded 18件 OK、test_me_staff_loops_1031_recorded
+  4件 OK、test_equipment_homefull_step15a 20件 OK、test_reverse_choke_loot_loop_recorded 12件のうち
+  test_replay_reproduces_live_into_the_dead_end の1件が FAIL（main ade15c353 でも同じく FAIL、本ブランチと関係ない）。
+- 関係する既存のテスト（追加で流した）: test_unseen_retreat_visible_attacker_recorded、
+  test_status_threat_latch_unseen_hit_constructed、test_unseen_loot_deferral_recorded、test_choke_hold_loop_recorded、
+  test_owner_a_survival_recorded、test_dungeon_1031_recorded、test_hit_no_action_1101_recorded、
+  test_low_hp_no_unchecked_walk、test_anti_melee_dungeon_recorded、test_n1c_deaths_1101_recorded、
+  test_town_combat_survival_recorded、test_me_device_attacks、test_d57_nav_depth_1101_recorded、
+  test_life085_passive_recorded、test_flee_into_rubble_recorded、test_rq_teleport_reserve_recorded、
+  test_immobile_summoner_recorded、test_policy_observation、test_top_stops_guardian、test_no_safe_destination_recorded、
+  test_depart2_1101_recorded、test_equipment_transaction_session、test_unid_deposit_recorded、
+  test_equipment_deposit_owner_recorded、test_town_terminal_departure と、test_policy_quest・test_policy_combat の
+  reserve/q14 の絞り込み: OK。main でも同じく失敗するもの（本ブランチの変更とは関係ない）:
+  test_guardian_recall_pingpong_recorded.test_live_replay_only_changes_the_guardian_safe_fallback、
+  test_policy_equipment の3件（ConfirmedLoadoutPublicPathPinTest 2件・GlobalEquipmentOptimizationOwnershipTest 1件）、
+  test_policy_home の4件、test_melee_site_lint（scripts を PYTHONPATH に入れると main と同じ指摘で FAIL）。
+- 町の仕事の目録: 各コミットで scripts/town_work_manifest.py --write、zero unmapped。review を2つ足し
+  （me_ranged_first.py:outpaced_afraid_key、policy_equipment.py:EquipmentMixin._closed_visit_failure_preparation）、
+  afraid_key の項を melee_refused_key に改名し、unseen_strike.py:key の説明に新しい呼び出し元を足した。
+- 全体テスト・preflight・mutation_check・fast_tier は流していない。裏の処理は残していない。
+
+== checks.json に足す案（このブランチでは編集していない） ==
+  {"id": "OWNER15-SURVIVAL", "defect": "D59",
+   "owner": "2026-11-01 17時 未決の問い15件の答え1〜5（「近接で殴られたら反撃」「遠隔の手段があれば撃つ」「遠隔と取り込んだ力は使う」「014 だけ広げる」「緊急の逃げも数える」）・10-03「失敗した任意の装備の変更は今の確定した装備で出発」(branch owner15-survival-1101)",
+   "tests": ["tests.test_owner15_survival_1101_recorded", "tests.test_me_staff_loops_1031_recorded", "tests.test_equipment_homefull_step15a"]}
+
+== 持ち主への問い（新しい決まりが要るので実装していない） ==
+問い1: 魔道具術師以外の職業が、怖がって（または NO_MELEE の階で）隣に敵がいる時。弓・投げは隣の敵にも使える
+  （cmd-shoot.cpp・throw-execution.cpp に恐怖・NO_MELEE の検査は無い）が、_ranged_attack_key は「隣は近接の仕事」
+  として断る（policy_combat.py:1444）。今回の答え2・3は遠隔の順（me_ranged_first）だけに当てた。
+  A: 近接が断られる時だけ、隣の敵にも矢・投げを使う。 B: 今のまま（逃げの段・待ちが答える）。
+問い2: 見えない敵に近接で殴られている時の、退き以外の歩き。帰還の巻物が無く町への帰り道の探索
+  （return:explore）が出る盤面（作った盤面: life-085 1445321 から帰還の巻物を外す）と、暗がりの歩き
+  （dark:backtrack、明かりの無い 1445625）は、答え1の後も見えない敵から歩く。
+  A: どちらも近接の手がかりなら先に unseen_strike で打つ。 B: 今のまま（答え1は退きの処理だけ）。
+問い3（確かめ方の報告）: 6 の検査は停止盤面の出発の門（_town_departure_ready、どの出発の処理も読む門）を
+  読む。今の main ではこの盤面の choose_key は魔道具術師の杖の順番のモリバントへの移動
+  （me-staff:travel-morivant）が先に答え、記録の出発には来ないため。choose_key まで通す盤面が要るなら、
+  次の観戦の記録から取る。
+
+== 保守性 ==
+- 新しい判断はどれも持ち主のモジュールに置いた: 見えない敵への反撃は unseen_strike（理由の定数を2つ足し、退きと
+  帰還待ちは同じ unseen_strike.key を1行で呼ぶ。判定の文・候補のマス・乱数の重複は無い）。「近接が断られる時の
+  遠隔の順」は me_ranged_first の melee_refused（恐怖と NO_MELEE をゲームの出典つきで1つの述語に）と
+  melee_refused_key、「速い敵から逃げずに撃つ」は同じモジュールの outpaced_afraid_key（速さの比べ方は既存の
+  monster.speed >= player.speed と同じ）。afraid_key を改名して、恐怖だけを見ていた条件の取り違えを1か所で直した
+  （7つの呼び出し元は名前だけ変わり、戦いの段は同じ1行を足しただけ）。
+- 014 の特別扱いは共有の判断のコードに書かず、random_quest_reserve の表（RESERVE_FIXED_QUESTS）の1行にした。
+- over_extension.judge_dive は呼び出し元で分かれていた count_emergencies の引数が要らなくなったので消した
+  （判断の分岐が1つ減った）。
+- 閉じた訪問の「取引失敗」は policy_equipment の _closed_visit_failure_preparation の1か所。既存の「取引失敗」の
+  形と既存の任意の失敗の出発をそのまま使い、新しい出発の枝は足していない。
+- 職業・品・町の名前の特別扱いを共有の判断のコードに足していない。テストは既存の枠（D57 の PostedDeathKey、
+  RecordedHarness、D59 の Depart2RecordedBase、D57 の RecordedDrive）を使い、新しい枠は作っていない。
+  関係のない整理はしていない。テストの壁は無い。
