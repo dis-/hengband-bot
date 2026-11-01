@@ -1,0 +1,92 @@
+n1c-death-1102 報告（n1-c life-099 の死亡、2026-11-02 01:48:21、ビルド dc64cf14a・main も同じコード）
+
+■ 何が起きたか
+魔道具術師 Lv23 がクエスト31『柳じじい』の地上の階で死亡（HP 310 → 18）。
+証拠: C:\hengband-backups\pdca\captures\n1c-death-1102-0148\（last-table.txt、last120.jsonl、
+20261102-014821-player-death の盤面の記録）。
+
+■ 根本原因 A: 敵を飛ばす魔道具が緊急処理より先に動く
+- 場所: src/hengbot/policy.py（直す前の 10937 行付近）。me_powers.threat_key
+  （THREAT の場面、me_powers.py の _unbeatable_in_range）が _emergency_item より前にあった。
+- 証拠: 決定 1414〜1429。HP 199 から 18 までの最後の16手のうち10手で、射程内のサスカッチに
+  テレポート・アウェイ（ロッドは2回失敗）を向け続けた。その間、加速+10 の敵が 2〜15 体見えていた。
+  緊急処理は一度も聞かれなかった。決定 1416（HP 129/310）と 1425（HP 77/310）では、
+  緊急処理に聞けばテレポートの巻物を読む盤面だった（巻物は 10巻・8巻あった）。
+- 決まりとの関係: 「生存処理を優先しなければキャラクタは死亡する。当然の結果。」
+  D57 の許可（「勝てない敵が射程内にいればいつでも使って良い」）は使ってよいという許可で、
+  緊急処理より上に置く決まりではない。
+- 直し（構造の直し）: threat_key を _emergency_item の後ろへ移した。緊急処理が何もしない時だけ
+  敵を飛ばす。新しい閾値は作っていない。緊急処理が動くかどうかは、今の判定
+  （予想被害が HP 以上・低HPの閾値・回復と転移の順）そのまま。
+- D57 の場面への影響: test_d57_me_combat_1101_recorded（14件）はそのまま通る。
+  ブラウン・キラービートルの盤面（HP 118/171）は緊急処理が動かないので、今までどおり敵を飛ばす。
+- コミット: ca7ed4938
+
+■ 根本原因 B: クエストのスピードの薬の印が1回きりで、加速が切れても戻らない
+- 場所: src/hengbot/policy_quest.py 3245〜3262（と同じ条件の policy_combat.py 2217〜2230、
+  Q31 の開始の待ち）。_fixed_quest_speed_attempted は階に入るたびに1回だけで、
+  戻るのは唱えるのに失敗した時だけだった。
+- 証拠: 691305（決定 1366）で1本目を飲んだ。691537（決定 1408）で
+  「動きの素早さがなくなったようだ。」。その時、ヴォーパル・バニー・サスカッチ・サーベル・タイガーが
+  隣にいて、3ターンの予想被害は 553（次の手で 843）。計画（QUEST_31 の consumable_plan、
+  予想被害が HP の50%以上）の条件を大きく超えていたのに、2本目は死ぬまで持ったままだった。
+- 直し: 飲む・唱える道は speed_dose.py だけなので、そこに renew を足した。
+  renew=True で使った時は、能力の欄に加速が出たあと、同じ階で出なくなったら印を戻す（rearm）。
+  計画の条件を使う2か所（policy_quest のクエスト戦略、policy_combat の Q31 開始の待ち）だけが
+  renew=True を渡す。審査していないクエストの「階に入って最初の接触で1回」（policy.py）と
+  Q2 の種族ごとの1回は変えていない。
+- コミット: 94691a936
+
+■ テスト
+- 新しいテスト: tests/test_n1c_death_1102_recorded.py（Q31DeathRecordedTest、2件）
+  - test_low_hp_boards_take_the_emergency_ladder_through_the_executor（根本原因 A）:
+    クエストの階の盤面を入った時から choose_key に通し、691626（1416）と 691696（1425）で
+    ("re", "emergency:teleport") を選び、そのキーを本番の executor で送る。
+  - test_the_second_speed_potion_follows_the_ended_haste_through_the_executor（根本原因 B）:
+    691305 で1本目、691537（1408）で ("qb", "quest-strategy:quaff-speed") を選び、executor で送る。
+- 抽出: tests/extract_n1c_death_1102_fixture.py → tests/fixtures/death-n1c-099-1102.json.gz
+  （64盤面、691290〜691735）。extract_n1c_deaths_1101_fixtures.freeze に root の引数を足して使った。
+- 作り直した前提（テストの説明に DECLARED RECONSTRUCTED と書いた）: 表示された魔法棒・ロッドの一覧は
+  死亡時のダンプの取り込み数から作った。失敗率は作った値。クエストの定義は lib/edit から読む
+  （test_q31_survey_sweep_recorded と同じ）。
+- 確認: import の確認 OK。追加テスト 2件 OK。触った共通のテスト部品の確認として
+  test_n1c_deaths_1101_recorded・test_d57_me_combat_1101_recorded（23件）と
+  test_me_speed_staff_1101_recorded（7件）も OK。
+- 元に戻した確認（1回ずつ）:
+  - A: policy.py の変更を外すと
+    「Tuples differ: ('mCn2', 'me-power:unbeatable-in-range:teleport-away') != ('re', 'emergency:teleport')」
+    で失敗（記録と同じ）、戻すと OK。
+  - B: src の変更を外すと
+    「Tuples differ: ('7', 'quest-strategy:melee') != ('qb', 'quest-strategy:quaff-speed')」
+    で失敗（記録と同じ）、戻すと OK。
+- town_work_manifest.py（書き込みなし）: 0 violation（threat_key の登録の項目は名前で引かれていて、
+  順番を変えても追加は要らない）。
+
+■ checks.json に足す項目の案
+{
+  "id": "N1C-DEATH-1102",
+  "owner": "2026-11-02 n1-c life-099 Q31: 低HPで敵を飛ばす魔道具が緊急処理より先に動いた・クエストの加速が切れても2本目のスピードの薬を飲まなかった",
+  "tests": [
+    "tests.test_n1c_death_1102_recorded"
+  ]
+}
+
+■ 保守性
+- A は並べ替えだけ。新しい判定や閾値は作らず、緊急処理の今の判定をそのまま使う。
+- B は speed_dose.py（スピードを使う唯一の道）の中に、印を戻す仕組みを足した。
+  失敗した時に戻す今の仕組み（_rearm）をそのまま使う。呼ぶ側は renew=True を渡すだけ。
+  クエストの番号や品の種類を、共通の判定に書いていない。
+- テストの共通部品 PostedDeathKey は、答えるプロンプトをクラスの属性 prompts にした
+  （前は名前で固定）。プロンプトに答える処理を写さずに、巻物を読むプロンプトを足せる。
+
+■ ほかの家族のこと
+- なし（町のコードは触っていない）。
+
+■ 持ち主への問い（今回は直していない）
+1. 決定 1420（HP 92/310、サスカッチ 距離3・フオルン 距離7）では、緊急処理が何もしなかった
+   （3ターンの予想被害 85 < HP 92、回復の条件にも当たらない）。そのため直した後も、この盤面では
+   敵を飛ばす（D57 の動き）。HP 30% でも予想被害が HP 未満なら緊急処理は動かない、という今の
+   決まりのままでよいか。
+2. 調査の C・D（予算が尽きた時のクエスト放棄、中止の閾値、Q31 の待つ場所、AC の段階での拒否）は
+   頼まれたとおり手を付けていない。テレポートしてもフオルン・柳じじいに引き戻される場面
+   （決定 1426〜1428「あなたを引き戻した」）もそちらの問いに入る。
