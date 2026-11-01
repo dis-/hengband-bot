@@ -133,6 +133,20 @@ class StuckWanderRecordedTest(executor_pins.ProductionHarness):
         self.assertFalse(policy.last_reason.startswith("breeder-breakthrough:"), key)
         self.assertNotEqual(key[:1], "r")
 
+    def test_without_recall_the_breakthrough_walk_keeps_the_release(self):
+        boards = [without_recall(raw) for raw in CASE["boards"]]
+        policy = recorded_policy(boards, streak=STUCK_ESCAPE_LIMIT - 1)
+        first, arrival = boards
+        key = loops.decide(policy, first)
+        self.assertEqual((policy.last_reason, key), ("breeder-breakthrough:seek-upstairs", "1"))
+        board = self.post(policy, first, key, arrival)
+        self.assertEqual((board["player"]["y"], board["player"]["x"]), (15, 13))
+        # Recorded (unfixed): the step reset the streak, the lock closed and
+        # row 9119 was stuck:wander '4' at this same arrival board.
+        key = loops.decide(policy, board)
+        self.assertIn(policy.last_reason, WALK, key)
+        self.assertGreaterEqual(policy._stuck_escape_streak, STUCK_ESCAPE_LIMIT)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -914,7 +914,16 @@ STUCK_FAMILY_REASONS = frozenset(
 )
 
 STUCK_NEUTRAL_REASONS = frozenset(
-    {"rest", "refill-light", "wield-light", "eat", "item:eat"}
+    {
+        "rest", "refill-light", "wield-light", "eat", "item:eat",
+        # The breeder breakthrough's walk out (to a remembered up-stairs, else
+        # a frontier) is the exit a stalled kill-quest floor's released lock
+        # allows (_quest_floor_exit_locked: streak >= STUCK_ESCAPE_LIMIT).
+        # Resetting the streak on its first step re-locked the floor, so it
+        # moved one step per 61 decisions (#47 D60, n1-c life-098).
+        "breeder-breakthrough:seek-upstairs",
+        "breeder-breakthrough:seek-frontier",
+    }
 )
 
 TOWN_CYCLE_IGNORED_REASONS = frozenset(
