@@ -1,0 +1,123 @@
+LUNA-REPORT-me-dual-wield-1101（#47 魔道具術師の当たらない二刀流、2026-11-01）
+
+枝: me-dual-wield-1101（main 38cc744aa から）。push・取り込みはしていない。
+診断: LUNA-DIAG-me-dual-wield-1101.txt（場面ごとの連鎖・file:line・決定の行）。
+
+======================================================================
+結論
+- 較正が無かった理由: Q34 のランタンを {並} のまま付けている（オーナー 10-31 の許可どおり）。
+  character_sheet.py:331-332 が「付けている未鑑定品が1つでもあれば拒否」
+  （equipment-stat-modifiers-unknown）で、{並} の光源は鑑定されないので、その命の間ずっと較正が
+  作られず、最適化は一度も動かなかった。dump は毎回読めていた（--dump-name の話ではない）。
+  n1-c の life-077・079・083・084・085 で同じ。今の main で動く life-092 も同じ状態。
+- 二刀流になった理由: 掘る道具の付け替えが、左手が空だったことを覚えない（最適化の勝ちが無い時）。
+  戻す時に mining_loadout.restorable_item の代わりの選び方「盾か近接武器」で、鞄の最初の近接武器
+  （折れたダガー、レイピア {Q34}）を左手に入れていた。次の付け替えからはそれを「元の左手」として
+  戻し続ける。魔道具術師の二刀流の技能は 0 で、減りは 85〜88（player-status.cpp:1822）。
+- 較正があれば、今の最適化は二刀流をやめる（life-086 で鑑定済みの光源になった後、469927 に
+  ロング・ソード1本に替えた）。
+
+======================================================================
+直したこと（根ごとに1コミット）
+
+根1  0462a73a3  Read a worn average light's zero modifiers in the calibration (#47)
+  - equipment_optimizer.average_light_without_modifiers(item, trusted): 未鑑定・光源・{並}・不運の
+    突然変異が画面に無い、の時に「修正値 0」と言える条件を1か所に書いた（pseudo_value_check_heavy と
+    BaseitemDefinitions の根拠つき）。
+  - OwnedEquipment.unidentified_wear_allowed（付けてよい条件）と character_sheet の較正の両方がこれを読む。
+    較正は同じ C 画面の突然変異で信じてよいかを決める。ほかの未鑑定品（Q34 の未鑑定の武器など）は
+    今までどおり拒否。
+  - 結果: 記録の dump（life-077 turn 440550）で較正ができ、最適化の勝ちはロング・ソード (2d5)(+5,+1)
+    1本・左手なし。
+
+根2  d553d1347  Restore an off hand the digger swap found empty as empty (#47)
+  - mining_loadout.remember_combat_hands: 付け替えの時に元の手を覚える処理を
+    _wield_digging_tool_key から mining_loadout に移した。最適化の勝ちがあればそれ（空の左手も含む）、
+    無ければ見たとおり。左手が空ならそれを確かなこととして覚え、戻す時は掘る道具を外すだけ。
+    左手に掘る道具がある時（付け替えの途中で再起動）は「分からない」として消す（古い記録を残さない）。
+  - mining_loadout.restorable_item: 覚えていない左手の代わりは盾だけ。2本目の武器は、外した物か
+    最適化が選んだ物の時だけ左手に入る（評価していない2本目は入れない）。
+  - 結果: 記録の盤面（life-086 turn 287413）で 'wnb'（レイピアを左手）が 'tb'（つるはしを外す）になった。
+    再起動した process でも同じ。
+
+======================================================================
+テスト（tests/test_me_dual_wield_recorded.py、材料は tests/extract_me_dual_wield_fixture.py で作った
+tests/fixtures/me-dual-wield-20261101.json.gz と .bot-test2.txt.gz）
+- test_capture_pins_the_recorded_dual_wield: 記録の決定（1316 の dump、1317 の拒否）、両手の武器、
+  {並, Q34} の光源、鞄のロング・ソード、dump の (-63,+3)/(-58,+1) を固定。
+- test_worn_average_light_keeps_the_calibration_and_the_long_sword_wins（根1）: 記録の dump の応答を
+  CLI の応答処理（_consume_response_sequence）と choose_key に通す。較正ができ、最適化の勝ちが
+  ロング・ソード1本・左手なし。
+- test_control_unsensed_worn_light_still_refuses_the_calibration（対照）: 光源の感じを消した盤面
+  （作った）では今までどおり拒否。
+- test_swap_from_an_empty_off_hand_restores_it_empty（根2）: life-086 の記録の盤面で、付け替え
+  'ta'・'wq'・'wqy' と町の '~f'・'woa'・'tb' を choose_key が決め、全部 production の executor
+  （_ExecutorInputPort）で送る。最後は装備の操作をしない。
+- test_swap_from_an_empty_off_hand_does_not_add_a_carried_shield（根2、作った盤面）: 鞄に盾があっても
+  空だった左手には入れない。
+- test_restarted_process_takes_the_digger_off_the_off_hand（根2）: 何も覚えていない process で記録の
+  287413 の盤面 → 'tb'。
+
+直す前で落ちることの確認（src の差分を戻して流し、元に戻した）:
+- 根1 の character_sheet.py を戻す → test_worn_average_light... が FAIL
+  （unexpectedly None : equipment-stat-modifiers-unknown）。ほか2本は ok。
+- 根2 の src（mining_loadout.py・policy_equipment.py）を全部戻す → 根2 の3本が FAIL
+  （('wnb', 'town:restore-combat-weapon') != ('tb', ...)）。根1 の2本と固定は ok。
+- 覚え方（policy_equipment.py）だけ戻す → 盾の変種が FAIL（'wrb'＝盾を左手）。
+- 代わりの選び方（restorable_item）だけ戻す → 再起動の変種が FAIL（'wnb'）。
+
+検査:
+- (1) PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": ok。
+- (2) checks.json の全テスト（90 モジュール、重複を除く）: Ran 510 tests、ERROR 4、FAIL 0。
+  ERROR の4つは tests.test_mapped_rooms_1101_recorded（D56）、tests.test_idstaff_stockout_run_recorded・
+  tests.test_unid_device_deposit_recorded・tests.test_diggerless_scavenge_recorded（D54）で、
+  ModuleNotFoundError（この枝の元の main 38cc744aa にまだ取り込まれていない枝のテスト）。
+  読み込めた 506 本は全部 ok。
+- (3) 自分のテスト tests.test_me_dual_wield_recorded: 6 本 ok。
+- 変えた所に直接関わる既存のモジュールも流した（全体テストではない）: test_barehand_mining_recorded・
+  test_owner_c_equip_recorded・test_live10・test_s33_shadow_recorded・test_policy_fundraising と自分の
+  テストで 78 本 ok。根1 の時に較正・光源のモジュール（test_unid_light_recorded・
+  test_light_radius_rank_recorded・test_character_sheet_calibration・test_magic_eater_calibration・
+  test_calib_recall_recorded・test_calibration_crlf_dump_recorded・test_mutation_calibration・
+  test_mutation_calibration_class_b・test_policy_calibration）78 本 ok。
+- town-work の manifest: 根2 で _wield_digging_tool_key（登録済みの producer）を変えたので、
+  scripts/town_work_review.json の説明に1文足し、scripts/town_work_manifest.py --write
+  →「1075 candidates, 29815 sites, zero unmapped」、検査「0 violation(s)」。
+
+======================================================================
+checks.json への追加の案（checks.json は編集していない）
+  {
+   "id": "ME-DUAL-WIELD",
+   "defect": "#47 me-dual-wield-1101（D 番号は監督が付ける）",
+   "owner": "2026-11-01 「あたりもしない二刀流を使っていることを改善するべき。」・10-31 「並なら付けて良い」",
+   "tests": ["tests.test_me_dual_wield_recorded"]
+  }
+
+======================================================================
+保守性
+- 新しい判断は持ち主の module に置いた: {並} の光源の修正値 0 は equipment_optimizer の
+  average_light_without_modifiers 1か所（付けてよい条件と較正の両方が読む。前は付けてよい条件の中に
+  直書きで、較正は別の条件で拒否していて食い違っていた）。
+- 付け替えで元の手を覚える処理（約35行）を policy_equipment._wield_digging_tool_key から
+  mining_loadout.remember_combat_hands に移した。覚える側（remember_combat_hands）と戻す側
+  （restorable_item・remembered_hands）が同じ module にそろい、「確かな記録」の意味を
+  remembered_hands の説明に書いた。_wield_digging_tool_key は1行の呼び出しになった。
+- 職業・品名・tval の特別扱いは共有の判断に足していない（魔道具術師の分岐はない。光源の tval は
+  equipment_optimizer がもともと持つ TVAL_LITE の判定）。
+- 新しい属性は足していない（復元チェックポイントに影響なし）。_normal_sub_hand_is_optimal は
+  「確かな記録」として使う（最適化の勝ち、または空と見た左手）。名前は変えていない（チェックポイントの
+  互換のため）。名前を「authoritative」に替えるかは、保守の回で決めてほしい。
+- テストの壁は作っていない。既存の期待値は変えていない。
+
+======================================================================
+オーナーへの問い（実装していない）
+- なし（新しい決まりは要らなかった）。
+- 参考: Q34 の未鑑定の武器・防具を付けている時は、今も較正を拒否する（修正値が分からないため。
+  エゴなら能力値の pval があり得る）。この場合も較正が止まるが、今回の命では起きていない。
+  起きたら「付けた Q34 の品を鑑定する」か「較正を止めない別の読み方」かを決めてもらう必要がある。
+
+======================================================================
+ほかの家族・直していないこと
+- life-086 turn 332646 の dump だけ dump-equipment-missing（1回、次の dump で回復、dump は残っておらず
+  原因不明）。
+- D55 の付記「--dump-name なし」は誤り。

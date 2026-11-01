@@ -13477,11 +13477,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # lantern with a lower-ranked but well-fuelled torch.  If no compatible
         # refill is already carried, temporarily prefer any usable spare light
         # so the shopping route can reach the oil supply.
+        # An unidentified lantern hides its fuel; the player sees it out when
+        # it no longer lights them (lamp_fuel, n1-c life-085: drained by a
+        # light-eating jelly, the carried fueled lantern stayed unworn).
         low_without_refill = (
-            equipped.known
-            and (
-                (equipped.is_lantern and equipped.fuel <= LANTERN_REFILL_FUEL)
-                or (equipped.sval == SV_LITE_TORCH and equipped.fuel <= TORCH_REFILL_FUEL)
+            (
+                equipped.known
+                and (
+                    (equipped.is_lantern and equipped.fuel <= LANTERN_REFILL_FUEL)
+                    or (equipped.sval == SV_LITE_TORCH and equipped.fuel <= TORCH_REFILL_FUEL)
+                )
+                or not equipped.known and equipped.is_lantern
+                and lamp_fuel.unidentified_lantern_out(snapshot) is True
             )
             and self._light_refill_item(snapshot) is None
         )

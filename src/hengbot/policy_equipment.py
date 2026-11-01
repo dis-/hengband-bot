@@ -4154,42 +4154,7 @@ class EquipmentMixin:
         main_hand = mining_loadout.worn_in_slot(snapshot, "main_hand")
         sub_hand = mining_loadout.worn_in_slot(snapshot, "sub_hand")
         if not self._mining_combat_loadout_remembered:
-            loadout = mining_loadout.cached_optimal_loadout(self)
-            optimal_main = (
-                loadout.item_at("main_hand") if loadout is not None else None
-            )
-            optimal_sub = (
-                loadout.item_at("sub_hand") if loadout is not None else None
-            )
-            # An optimizer winner makes an empty sub hand authoritative.  An
-            # absent main-hand choice cannot: retain the observed weapon so a
-            # cold/incomplete cache can never make the restore weaponless.
-            if optimal_main is not None:
-                self._normal_weapon_name = optimal_main.item.name
-                self._normal_weapon_identity = equipment_identity(optimal_main.item)
-                self._normal_weapon_is_optimal = True
-            elif (
-                main_hand is not None
-                and not main_hand.is_digging_tool
-            ):
-                self._normal_weapon_name = main_hand.name
-                self._normal_weapon_identity = equipment_identity(main_hand)
-                self._normal_weapon_is_optimal = False
-            if loadout is not None:
-                self._normal_sub_hand_name = (
-                    optimal_sub.item.name if optimal_sub is not None else None
-                )
-                self._normal_sub_hand_identity = (
-                    equipment_identity(optimal_sub.item)
-                    if optimal_sub is not None
-                    else None
-                )
-                self._normal_sub_hand_is_optimal = True
-            elif sub_hand is not None and not sub_hand.is_digging_tool:
-                self._normal_sub_hand_name = sub_hand.name
-                self._normal_sub_hand_identity = equipment_identity(sub_hand)
-                self._normal_sub_hand_is_optimal = False
-            self._mining_combat_loadout_remembered = True
+            mining_loadout.remember_combat_hands(self, main_hand, sub_hand)
         combat_hands = [
             item
             for item in (main_hand, sub_hand)
