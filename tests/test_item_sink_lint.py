@@ -48,6 +48,17 @@ class ItemSinkLintTest(unittest.TestCase):
         self.assertTrue(analyze_source(source + 'OTHER = RUMOR_KEY + "\\r"\n',
                                        'policy_constants.py', names=set()))
 
+    def test_tower_recharge_menu_pin_is_exact(self):
+        # The Tower of Sorcery's 'a' (building_recharge_all) + 'y', moved out of
+        # policy by db16ffae5; an item 'a' (aim a wand) in the module still fails.
+        source = ('RECHARGE_ALL_ACTION_KEY = "a"\n'
+                  'RECHARGE_ALL_TAIL = RECHARGE_ALL_ACTION_KEY + "y" + LEAVE_STORE_KEY\n')
+        self.assertEqual(analyze_source(source, 'morivant_tower.py', names=set()), [])
+        self.assertTrue(analyze_source(source + 'def aim(item):\n return RECHARGE_ALL_ACTION_KEY + item.slot\n',
+                                       'morivant_tower.py', names=set()))
+        self.assertTrue(analyze_source(source + 'AGAIN = RECHARGE_ALL_ACTION_KEY + "y"\n',
+                                       'morivant_tower.py', names=set()))
+
     def test_new_selector_cannot_serialize_reserved_item_without_verdict(self):
         for expression in ('item_command("deposit", reserved)',
                            'item_command("deposit", reserved, None)',

@@ -16,12 +16,17 @@ POLICY_ROOT = ROOT / 'src' / 'hengbot'
 ADAPTER_PATH = Path(__file__).with_name('item_sink_adapters.json')
 # These are building-menu actions, not aim-wand/quaff prefixes. Pin exact
 # expressions so adding an item command at either site still fails closed.
+# Morivant's Library 'a' (*Identify* an item) keeps its pages inside the
+# building with spaces (BUILDING_IDENTIFY_DISMISS_SUFFIX, D34); the Tower of
+# Sorcery 'a' is building_recharge_all and its 'y' the cost confirmation.
 NON_ITEM_COMPOSITIONS = {
     ('policy_quest.py', '_morivant_full_identify_key'):
         ("'a' + (item.slot if item in snapshot.inventory else '/' + EQUIPMENT_SLOT_KEY[item.slot])",
-         "'a' + (item.slot if item in snapshot.inventory else '/' + EQUIPMENT_SLOT_KEY[item.slot]) + FULL_IDENTIFY_DISMISS_SUFFIX"),
+         "'a' + (item.slot if item in snapshot.inventory else '/' + EQUIPMENT_SLOT_KEY[item.slot]) + BUILDING_IDENTIFY_DISMISS_SUFFIX"),
     ('policy_quest.py', '_fixed_quest_building_key'): ("'q' + LEAVE_STORE_KEY",),
     ('policy_constants.py', '<module>'): ("RUMOR_KEY + '\\r'",),
+    ('morivant_tower.py', '<module>'): ("RECHARGE_ALL_ACTION_KEY + 'y'",
+                                       "RECHARGE_ALL_ACTION_KEY + 'y' + LEAVE_STORE_KEY"),
 }
 PREFIXES = {'d', 'p', 'k', 'w', 't', '{', '}', 'r', 'q', 'E', 'u',
             'a', 'z', 'f', 'v', '\\F'}
