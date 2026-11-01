@@ -1,0 +1,89 @@
+LUNA-REPORT-route-moving-blocker-1101.txt  (#47、D55 の続き、ブランチ route-moving-blocker-1101)
+
+結論
+- n1-b life-285（11-01 00:58、イークの洞穴 1階、版 f9c921d32）の上り階段への歩き（fundraise:seek-upstairs）が、
+  判断 1119-1136 で来たマスへ戻る往復を 13 回くり返し、HP を約 20 失った件を直した。
+- 根: 道の計算 _nearest_goal_route（policy_supply.py:2057、main f36fe01a9）が毎回の盤面で一から幅優先で
+  探し直し、生きている敵のマスを歩けないマスにすること。(15,78) からは扉 (17,78) のネズミが見えて北へ回る道
+  （19辺、一歩目 (14,77)）、(14,77) からはネズミが見えず廊下が空いた扱いで、来た (15,78) へ戻る道（11辺）になる。
+  二つの道は同じ長さではなく、「選んだ道を次の盤面で捨てる」ことが根（診断 LUNA-DIAG-route-moving-blocker-1101.txt）。
+- 直し: 新しい部品 src/hengbot/goal_route.py が道の探し方と「選んだ道を有効な間は守る」を持つ。探索の歩き
+  （_explore_step の _explore_path）と同じ考え方で、新しい決まり・定数は無い。
+
+直し方の中身（goal_route.py）
+- nearest_goal_path: 今までと同じ 4 段の幅優先（店の入口を避ける/避けない × 罠・溶岩を避ける/避けない）で、
+  最寄りの行き先までの道全体と段の番号を返す。判断は今までと同じ（下の「確認」）。
+- follow: 前に選んだ道が有効なら、その道を続ける。有効 = 同じ階、プレイヤーが前に選んだ一歩目に立っている
+  （同じ盤面での二度目の問い合わせなら出発点）、行き先が今も条件を満たす、残りの各歩が今も同じ段の探し方で
+  歩ける（敵のマス・避けるマス・店の入口・罠の扱いも同じ）。途中に条件を満たすマスがあればそこで終える。
+  新しい探し方の方が安全な段で道を見つけた時は、新しい方を使う（罠や店の入口を新しく踏むことはない）。
+- 行き先の種類（条件の関数）ごとに一つ覚える。違う行き先を探す呼び出しが間に入っても上書きしない。
+  覚える表はチェックポイントの復元（__init__ を通らない）でも初回に作る（__dict__.setdefault）。
+- policy_supply.py の _nearest_goal_route は入口のマスを集めて goal_route を呼ぶだけになった（-34 行）。
+
+同じ道の計算を使う他の歩き（直しが効くもの）
+- _nearest_goal_route を直接呼ぶ 6 か所、_nearest_goal_step を呼ぶ 43 か所すべて。上り階段への歩き
+  （fundraise / return / emergency / summoner / combat:disengage / livelock / クエストの出口）、町の店・建物・
+  クエストの入口、拾い物、隠れ場所、塔など。同じ記録の return:seek-upstairs（判断 1074、turn 220001、(20,79)）でも
+  同じ戻りが起きていて、直した後は来た道へ戻らない（記録と違うのは下の 6 盤面だけ）。
+- 共有しないもの: _nearest_goal_and_step（policy_supply.py、採掘の掃引の行き先選びと町の別の店選び）は別の
+  幅優先で、採掘の掃引は _mining_sweep_goal で行き先を覚えている。今回は触らない。
+
+記録での確認（未修正と修正後で同じ 462 盤面を新しいプロセスに順に渡した）
+- 道の探し方を書き直しただけ（覚えない版）は、未修正と全 667 判断で同じ（キーと理由が一致）。
+- 修正後に変わった判断は 6 つだけで、どれも「来たマスへ戻る」一歩が「選んだ道の続き」になった:
+  判断 1074（turn 220001）、1119（220457）、1121（220473）、1125（220525）、1131（220587）、1312（222844）。
+- 記録の盤面は記録どおりの位置のままなので、変わった一歩の次の盤面は記録の位置から新しく道を探す（記録と一致）。
+
+テスト（新規）
+- tests/test_route_moving_blocker_recorded.py（記録の盤面、公開の choose_key、本番の executor）
+  - test_recorded_rows: 記録の 4 回の戻り（220457 '3'、220473 '3'、220525 '9'、220587 '9'）、(15,78) から
+    見えるネズミ (17,78)、(14,77) から見える敵なし、最後の melee。
+  - test_upstairs_walk_keeps_its_route_past_moving_mice: 到着から 462 盤面を choose_key に渡し、歩きの 24 盤面の
+    キーを本番の executor に送る。戻りの 4 盤面では、前の盤面で選んだ一歩目に立っていて、来たマスへ戻らない
+    （'9'、'7'、'1'、'1'）。それ以外の 19 行は記録のキーと理由に一致。
+- tests/test_goal_route.py（合成の盤面、7 件）: 敵がどいても回り道を続ける／残りの道に敵が立てば探し直す／
+  罠を踏む道を覚えていても安全な道が見つかれば安全な方／選んだ一歩目以外に立てば探し直す／途中の行き先で
+  終える／違う行き先の問い合わせが間に入っても続ける／復元チェックポイント（表が無い）でも動き、表は pickle できる。
+- 抽出: tests/extract_route_moving_blocker_1101_fixture.py → tests/fixtures/route-moving-blocker-n1b-285-1101.json.gz（150KB）
+
+元に戻した確認（policy_supply.py の差分だけ外して流し、戻した）
+- test_route_moving_blocker_recorded.test_upstairs_walk_keeps_its_route_past_moving_mice: FAIL（220457 で '3'）
+- test_goal_route.test_detour_is_kept_when_the_blocker_steps_away: FAIL（一歩目 (1,1) へ戻る）
+- test_goal_route.test_other_goal_kinds_keep_their_own_commitment: FAIL
+- test_goal_route.test_restored_checkpoint_without_the_table: ERROR（表が無い）
+- 残り 5 件（test_recorded_rows と探し直しの守りの 4 件）は直す前も後も通る（守りのテスト）。
+
+確認（main c326f0fd6 を取り込んだ後の木）
+- import の確認: OK
+- checks.json の 82 個のテスト ID（486 件）: すべて OK
+- 新しいテスト 9 件: OK
+- scripts/town_work_manifest.py: zero unmapped（新しい関数 4 つと _town_entrance_cells に data の見直し項目を足した）
+- 参考（必須ではない）: 道の計算を使うテスト（test_policy_combat / test_policy_quest / test_policy_town ほか 9 モジュール）
+  で落ちる 9 件は、直す前の木でも同じく落ちる（今回の直しと関係ない）。
+
+保守性
+- 新しい仕組みは 1 つの部品 goal_route.py にまとめた（探し方・覚え方・有効の判定）。共有の判断の場所に
+  場面の特例（クエスト番号、階段、店の名前、職業）は足していない。行き先の種類は条件の関数で決まる。
+- 幅優先の「歩ける次のマス」の判定（_admitted_steps）を探し方と有効の判定で共有し、同じ条件を二度書かない。
+- _nearest_goal_route は 34 行減り、入口を集めて部品を呼ぶだけになった。
+- 新しい定数・閾値は無い。段の順（SEARCH_PASSES）は今までの二重ループと同じ順を表にしただけ。
+- 気付いた点（直していない）: _leave_fundraising_floor の往復よけ（policy_fundraising.py:689-703、
+  「道が変わって 2 つの一歩目を行き来する」ための場面の手当て）は、根を直したので道の入れ替わりには要らなく
+  なったと思われる。保守性の回で、観察の後に外すか決めるのがよい。
+
+checks.json の案（編集していない）
+  {"id": "D55-route", "owner": "2026-11-01 n1-b life-285 の上り階段への歩きの往復（#47 D55 の続き、branch route-moving-blocker-1101）", "tests": ["tests.test_route_moving_blocker_recorded", "tests.test_goal_route"]}
+
+コミット
+- bda8aa573 Add the route-moving-blocker-1101 diagnosis
+- e3c1c4233 Keep a goal walk on its route while the route stays valid
+- d5785cb41 Merge branch 'main' into route-moving-blocker-1101（manifest の衝突は --write で作り直した）
+- （この報告のコミット）
+
+オーナーへの問い
+1. 選んだ道は有効な間ずっと守る（探索の歩きと同じ）。回り道を選んだ理由の敵が倒れて、ずっと短い道が開いても、
+   回り道が歩ける限り続ける。短い道が開いたら乗り換える決まりにするか（乗り換えると、見えたり見えなくなったり
+   する敵でまた往復しうる）。今は乗り換えない。
+2. D55 の問い2（初回の採掘で増える群れに囲まれた死は受け入れるか）はそのまま。今回の直しは往復の 13 判断だけで、
+   その後の群れとの戦いは変わらない。
