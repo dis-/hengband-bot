@@ -45,7 +45,8 @@ row; adding a condition is one predicate and its name in a row.
 Common rules (approved): never while a hostile is visible or the character
 was just hit (a row marked ``beside_harmless`` is also cast while every
 visible hostile is harmless by the combat ladder's danger judgement, owner
-2026-11-01 「脅威でなければ感知する」), never with 0 charges (the last list the game displayed, else
+2026-11-01 「脅威でなければ感知する」; the disarming rows likewise, owner
+2026-11-01 「脅威でなければ使う」), never with 0 charges (the last list the game displayed, else
 the absorption record), never in town or the wilderness, and a failed use is
 retried for the same trigger at the same place on the same floor until
 ``FAILURES_PER_PLACE`` failures (owner 2026-10-31 「最大5回まで同じ場所で試す」).
@@ -158,13 +159,17 @@ POWERS = (
           ("light-radius-zero", "dark-room", "light-sensitive-adjacent"),
           requires=("not-darkness-dungeon",), darkness_scaled=False),
     # The Disarming powers keep the doors, so they come first; the rod
-    # recharges, so it comes before the wand.
+    # recharges, so it comes before the wand.  Owner 2026-11-01 「脅威でなければ
+    # 使う」: beside harmless visible hostiles, as the mapping.
     Power("rod", SV_ROD_DISARMING, devices()[(TVAL_ROD, SV_ROD_DISARMING)].names,
-          "disarm-trap", 0, 60, ("trap-to-disarm",), darkness_scaled=False, aimed=True),
+          "disarm-trap", 0, 60, ("trap-to-disarm",), darkness_scaled=False, aimed=True,
+          beside_harmless=True),
     Power("wand", SV_WAND_DISARMING, devices()[(TVAL_WAND, SV_WAND_DISARMING)].names,
-          "disarm-trap", 0, 61, ("trap-to-disarm",), darkness_scaled=False, aimed=True),
+          "disarm-trap", 0, 61, ("trap-to-disarm",), darkness_scaled=False, aimed=True,
+          beside_harmless=True),
     Power("wand", SV_WAND_TRAP_DOOR_DEST, devices()[(TVAL_WAND, SV_WAND_TRAP_DOOR_DEST)].names,
-          "destroy-trap-door", 0, 62, ("trap-to-disarm",), darkness_scaled=False, aimed=True),
+          "destroy-trap-door", 0, 62, ("trap-to-disarm",), darkness_scaled=False, aimed=True,
+          beside_harmless=True),
 )
 BY_KEY = {power.ident: power for power in POWERS}
 
