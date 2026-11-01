@@ -1129,6 +1129,8 @@ class CombatTest(unittest.TestCase):
         # 2026-07-31 22:30 incident state: HP 332/461, eighteen giant white
         # lice visible, two adjacent, and the extermination-impossible latch
         # armed.  The old strategic view was empty and selected REST_MACRO.
+        # breeder-swarm-1102: the two adjacent lice bite (1d1), so they stay
+        # strategic attackers; the distant sixteen are still set aside.
         base = self._weak_breeder_incident_snapshot(blocking=True)
         breeders = [
             replace(monster, race_id=69)
@@ -1149,7 +1151,10 @@ class CombatTest(unittest.TestCase):
 
         self.assertEqual(len(policy._physical_hostiles(snapshot)), 18)
         self.assertEqual(len(policy._physical_adjacent_hostiles(snapshot)), 2)
-        self.assertEqual(policy._strategic_hostiles(snapshot), [])
+        self.assertEqual(
+            policy._strategic_hostiles(snapshot),
+            policy._physical_adjacent_hostiles(snapshot),
+        )
         self.assertNotEqual((key, policy.last_reason), (REST_MACRO, "rest"))
 
     def test_policy_exposes_no_default_hostile_accessor(self):
@@ -1398,7 +1403,9 @@ class CombatTest(unittest.TestCase):
         policy._breeder_breakthrough_floor = snapshot.floor_key
         policy._build_grid_index(snapshot)
 
-        self.assertEqual(policy._strategic_hostiles(snapshot), [])
+        # breeder-swarm-1102: the blocker bites from beside us, so it is a
+        # strategic attacker as well as an escape-route blocker.
+        self.assertEqual(policy._strategic_hostiles(snapshot), [blocker])
         self.assertEqual(
             policy._blocking_escape_melee_key(
                 snapshot,
@@ -3922,9 +3929,15 @@ class CombatTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
+        # breeder-swarm-1102: the mouse bites from beside us, so it is an
+        # attacker and is struck on the way out instead of being treated as
+        # an absent hostile that cancels the declared walk-out.
         self.assertFalse(policy.last_reason.startswith("combat:disengage-"))
         self.assertNotEqual(policy.last_reason, "combat:fruitless")
-        self.assertIsNone(policy._fruitless_disengage_floor)
+        self.assertEqual(
+            (key, policy.last_reason),
+            ("4", "breeder-breakthrough:clear-escape-path"),
+        )
 
     def test_escape_reroutes_around_dangerous_fast_blocker(self):
         blocker = hostile(
@@ -6629,7 +6642,9 @@ class PredictiveEscapeTest(unittest.TestCase):
         policy = HengbotPolicy(monrace_knowledge={6004: knowledge})
         policy._breeder_breakthrough_floor = snapshot.floor_key
 
-        self.assertEqual(policy._strategic_hostiles(snapshot), [])
+        # breeder-swarm-1102: the adjacent paralyzer touches us, so it is a
+        # strategic attacker; the paralysis threat still answers first.
+        self.assertEqual(policy._strategic_hostiles(snapshot), [monster])
         self.assertEqual(policy.choose_key(snapshot), "rt")
         self.assertEqual(policy.last_reason, "status-threat:scroll")
 
