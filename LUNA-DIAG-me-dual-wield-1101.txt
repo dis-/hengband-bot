@@ -1,0 +1,121 @@
+LUNA-DIAG-me-dual-wield-1101（#47 魔道具術師の当たらない二刀流、2026-11-01）
+
+オーナー（11-01）:「回復量が足りていない致命傷の治癒では状況は改善しなかった。判断は変えない。
+あたりもしない二刀流を使っていることを改善するべき。」→ 回復薬の決まりは変えず、二刀流を直す。
+
+材料（読み取りのみで写した）:
+  C:\hengband-backups\pdca\captures\me-dual-wield-1101\n1-c\life-{077,083,084,085,086}\
+  {state,bot-decisions}.jsonl.gz、character-calibration.json.gz、loadout-report.jsonl.gz（観戦サーバの
+  ~/hengbot-soak/n1-c/life-NNN から gzip -c で写した）、eqtrace.txt・wield-trace.txt（写しから作った
+  手と光源の変化の一覧）。life-077 の dump は
+  C:\hengband-backups\pdca\captures\fix-deaths-1101\n1-c\life-077\user\bot_test2.txt（同じ写しを
+  me-dual-wield-1101\n1-c\life-077\bot_test2.txt にも置いた）。
+版: life-077 は bot-577cd246b、life-083〜086 は bot-c326f0fd6（n1-c の events.jsonl）。今の main
+  （38cc744aa）で動く life-092 も 11-01 12:1x の時点で同じ（光源「真鍮のランタン {並, Q34}」未鑑定、
+  calibration の unavailable_reason は equipment-stat-modifiers-unknown、両手にシャベル）。
+
+======================================================================
+ゲームの仕組み（C:\hengband\src、C:\hengband\lib\edit）
+- 二刀流の命中の減り: player/player-status.cpp:1815-1846 calc_double_weapon_penalty。両手に武器が
+  ある時 penalty = (100 - skill_exp[TWO_WEAPON]/160) - (130 - 武器の重さ)/8（1822 行）。
+- 魔道具術師の二刀流の技能: ClassSkillDefinitions.jsonc の id 16（MAGIC_EATER）TWO_WEAPON
+  start_exp 0・max_exp 4000。~f の記録も two_weapon 0（life-077、life-086 とも）。
+  → マン・ゴーシュ（重さ30）で 100 - 0 - 12 = 88、折れたダガー（重さ5）で 85 の減り。
+  life-077 の dump（turn 440550）: 打撃修正(右手) (-63,+3)、(左手) (-58,+1)。
+- 二刀流になる入力: object/object-info.cpp:41-56 wield_slot（右手に武器があり左手が空なら左手）、
+  cmd-item/cmd-equipment.cpp:173-196（「二刀流で戦いますか？」、両手が埋まっていれば「どちらの手に
+  装備しますか?」）。'w<武器>b' は左手を選ぶ。
+- 擬似鑑定 {並}: perception/simple-perception.cpp:450-478 pseudo_value_check_heavy。アーティファクトでも
+  エゴでもなく、呪い・壊れでもなく、to_a <= 0 かつ to_h + to_d <= 0 の時だけ {並}（指輪・首飾りは別）。
+  光源のベースアイテムで INSTA_ART でないもの（松明・真鍮のランタン・フェアノールのランプ）は
+  BaseitemDefinitions.jsonc で parameter_value 0、能力値のフラグなし。→ {並} の光源は能力値・AC・
+  命中の修正が 0。不運の突然変異は感じを入れ替えるので、その時は信じない（既存の
+  equipment_optimizer.average_feeling_trusted、オーナー Q-B 10-22）。
+
+======================================================================
+根1: 未鑑定の {並} の光源を付けていると、較正（calibration）がずっと作られない
+
+連鎖（main 38cc744aa）:
+1. Q34 で拾った真鍮のランタンを未鑑定のまま付ける（オーナー 10-31「並なら付けて良い。加えてQ34習得品も
+   付けて良い。」、equipment_optimizer.py:262 OwnedEquipment.unidentified_wear_allowed）。{並} なので
+   鑑定はしない（policy_identification.py:815 など、{並} は鑑定の対象から外れる）。
+2. 定期の dump（CHARACTER_DUMP_MACRO、CLI が 180 秒ごとに要求、cli.py DUMP_INTERVAL_SECONDS）の
+   C 画面を character_sheet.py derive_equipped_calibration が読む。character_sheet.py:331-332
+   「if any(item.is_equipment and not item.known ...): raise CharacterSheetUnavailable(
+   "equipment-stat-modifiers-unknown")」で、付けている未鑑定品が1つでもあると較正を作らない。
+3. 較正がないと最適化は calibration-required-return を返す（warrior_optimization.py）。装備の取引は
+   起きず、二刀流のまま、ロング・ソードは鞄の中のまま。
+4. ランタンは {並} なので鑑定されず、この状態がその命の終わりまで続く。
+   →「新しい命で最初の dump の前」「dump を読めない」「--dump-name なし」ではない。dump は毎回読めて
+   いて、読んだ後に未鑑定の光源で拒否されている。
+
+決定の記録:
+- life-077 bot-decisions: periodic:character-dump の後の calibration は turn 148017・281230・352640・
+  440550 すべて unavailable_reason equipment-stat-modifiers-unknown（75001 は no-equipped-observation、
+  79961 は level）。decision 1316（turn 440550）'Cf\ry\x1b\x1b' periodic:character-dump、1317-1320 も
+  equipment-stat-modifiers-unknown。
+- 死の記録の決定の末尾（incident decision-tail）の calibration: life-079 は 1276 行中 1271 行、
+  life-083 は 1132 行すべて、life-084 は 1297 行すべて、life-085 は 839 行すべてが
+  equipment-stat-modifiers-unknown。
+- 死んだ時の装備（state の最後の盤面）: 077・079・083・084・085 の光源はどれも
+  「真鍮のランタン {並, Q34}」known false、pseudo_feeling average。
+- 対照（同じ版で光源が鑑定済みになった命）: life-086 はランタンが {高級品}（エゴ）で、鑑定して
+  「長持ちの真鍮のランタン {Q34}」になった（turn 270057）。その後の dump（469570）で較正が作られ、
+  469927 に装備の取引で二刀流（ショート・ソード＋レイピア {Q34}）をやめてロング・ソード (2d5)(+6,+3)
+  1本にした（eqtrace.txt）。以後は掘る道具を外す時も左手を空のまま戻している。
+  → 較正があれば、今の最適化（D50 の Beginner 熟練度の評価・二刀流の減りの計算）は二刀流をやめる。
+- 記録の dump を新しいコードで再生（tests/test_me_dual_wield_recorded.py）: 直す前は
+  equipment-stat-modifiers-unknown、直した後は較正ができ、最適化の勝ちはロング・ソード (2d5)(+5,+1)
+  を右手に1本、左手なし（光源・汚れたボロ服・クローク {Q34} と組み合わせ）。
+
+======================================================================
+根2: 掘る道具の付け替えが「左手は空だった」を覚えず、戻す時に鞄の近接武器を左手に入れる
+
+連鎖（main 38cc744aa）:
+1. 採掘の付け替え（fundraise:wield-digging-tool）は policy_equipment.py:4140 _wield_digging_tool_key。
+   最初の1回だけ 4152-4189 で元の手を覚える。最適化の勝ちが無い時（根1で較正が無い時はいつも）、
+   左手は「掘る道具でない物を持っている時」（4184）しか覚えない。左手が空なら何も書かない
+   （名前 None・identity None・_normal_sub_hand_is_optimal False のまま）。
+2. 掘る道具が2本なので（1e64843c）左手につるはしが入る（'wqy'、「二刀流で戦いますか？」に y）。
+3. 町で戻す: policy_equipment.py:3769 _town_restore_weapon_key → 3786 → policy_shop.py:6495
+   _restore_mining_combat_hand_key。左手は 6507 の「覚えた空の左手」（最適化の勝ちの時だけ）に
+   当たらず、6525 mining_loadout.restorable_item(slot="sub_hand", None, None) に進む。
+   mining_loadout.py:102 の代わりの選び方「item.tval == TVAL_SHIELD or item.is_melee_weapon」で、
+   鞄の最初の近接武器を左手に入れる。ダンジョンの melee:restore-weapon（policy_combat.py:3556・3859、
+   policy_fundraising.py:548）も同じ関数を通る。
+4. 次の付け替えでは、その武器が左手にあるので「元の左手」として覚え、毎回戻す。二刀流が固定される。
+5. 再起動した process（何も覚えていない）も同じ代わりの選び方を通る（同じ根の別の入口）。
+
+決定の記録:
+- life-086（c326f0fd6）: 1633 turn 270754 'ta'（ショート・ソードを外す、左手は空）、1634 'wq'（シャベル）、
+  1635 'wqy'（つるはしを左手）。1850 turn 287399 '~f\x1b'、1851 'woa' town:restore-combat-weapon
+  （ショート・ソードを右手）、1852 turn 287413 'wnb' town:restore-combat-weapon →「つるはし…を装備から
+  はずした。レイピア (1d6) (+0,+0) {Q34}(b)を左手に装備した。」。この間に再起動はない（session-start は
+  09:24:22 と turn 542807・615447 だけ）。以後 2030 'wob'、2278 'wlb'、2672 'wlb'、2718 'wlb' で
+  レイピアを左手に戻し続ける（wield-trace.txt）。
+- life-077（577cd246b、3つ目の process は 03:21:21 開始）: 75 turn 353877 'ta'（マン・ゴーシュを外す、
+  左手は空）→ 76 'wl'・77 'wly'、117 turn 356039 'wka'、118 turn 356045 'wjb' town:restore-combat-weapon
+  →「折れたダガー (1d1) (+3,-2)(b)を左手に装備した。」。以後 346 'wjb'、692 'wjb'、1070 'wkb'、
+  1121 'wkb' で折れたダガーを戻し続け、死ぬまで二刀流（-63/-58）。1つ目の process でも 1119 'wlb'
+  melee:restore-weapon でマン・ゴーシュを左手に入れている（左手が空の付け替えの後）。
+- life-083（ショート・ソード＋レイピア {Q34}）、084（ショート・ソード＋サーベル {Q34}）、085（ダガー {Q34}
+  ＋レイピア）: 残っている決定の記録（回転の後の最後のファイル）の初めから二刀流。付け替えのたびに
+  melee:restore-weapon / town:restore-combat-weapon の 'w?b' で左手の武器を戻している（083 で 12 回、
+  084 で 28 回、085 で 4 回）。二刀流になった最初の場面は回転で消えているが、左手に武器が入る道は
+  根2の代わりの選び方だけ（Q34 の品を拾ってそのまま左手に付ける道はない: life-086 のレイピアは Q34 で
+  拾ってから 287413 の戻しまで鞄の中）。
+- 記録の盤面を新しいコードで再生（同じテスト）: 直す前は 'wnb'（レイピアを左手）、直した後は 'tb'
+  （つるはしを外して左手は空）。再起動した process でも 'wnb' → 'tb'。
+
+======================================================================
+なぜ二刀流になったか（まとめ）
+- 魔道具術師は二刀流の技能 0（減り 85〜88）。最適化はこれを数えて二刀流を選ばない（life-086 で実証）。
+- 二刀流を作ったのは最適化ではなく、根2の戻しの代わりの選び方（鞄の最初の近接武器を左手へ）。
+- それを直す最適化が、根1で一度も動かなかった。
+
+======================================================================
+ほかに見つけたこと（直していない）
+- life-086 turn 332646 の定期 dump だけ unavailable_reason dump-equipment-missing（[キャラクタの装備] の
+  見出しが dump に無い）。次の dump（469570）では作れた。その時の dump は上書きされて残っておらず、
+  原因は確かめられない。1回だけで、180 秒ごとの dump で取り戻している。
+- D55 の付記「n1-c は --dump-name を外した運転」は誤り（監督の確認どおり、dump は毎回読めている）。

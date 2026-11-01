@@ -492,6 +492,7 @@ class NavigationMixin:
             and self._is_dark(snapshot)
             and self._light_refill_item(snapshot) is None
             and self._darkness_torch(snapshot) is None
+            and self._light_to_wield(snapshot) is None
         )
 
     def _dungeon_entry_allowed(

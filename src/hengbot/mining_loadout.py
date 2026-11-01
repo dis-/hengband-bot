@@ -76,8 +76,55 @@ def cached_optimal_loadout(policy):
     return loadout if loadout is not None and hasattr(loadout, "item_at") else None
 
 
+def remember_combat_hands(policy, main_hand, sub_hand) -> None:
+    """Record the combat hands the digger swap displaces, once per swap.
+
+    The cached optimizer winner is authoritative for both hands, its empty
+    off hand included.  An absent main-hand choice is not: the observed
+    weapon is kept so a cold or incomplete cache never makes the restore
+    weaponless.  Without a winner the observed hands are recorded, and an
+    off hand seen empty is authoritative too (#47, n1-c lives 077 and 086:
+    an unrecorded empty off hand was re-armed with any carried melee
+    weapon, a dual wield the Magic-Eater's skill cannot hit with,
+    player-status.cpp calc_double_weapon_penalty).  A digger in the off
+    hand (a restart mid-swap) leaves it unknown.
+    """
+    loadout = cached_optimal_loadout(policy)
+    optimal_main = loadout.item_at("main_hand") if loadout is not None else None
+    if optimal_main is not None:
+        policy._normal_weapon_name = optimal_main.item.name
+        policy._normal_weapon_identity = equipment_identity(optimal_main.item)
+        policy._normal_weapon_is_optimal = True
+    elif main_hand is not None and not main_hand.is_digging_tool:
+        policy._normal_weapon_name = main_hand.name
+        policy._normal_weapon_identity = equipment_identity(main_hand)
+        policy._normal_weapon_is_optimal = False
+    if loadout is not None:
+        sub = loadout.item_at("sub_hand")
+        _remember_sub_hand(policy, sub.item if sub is not None else None, True)
+    elif sub_hand is None:
+        _remember_sub_hand(policy, None, True)
+    elif not sub_hand.is_digging_tool:
+        _remember_sub_hand(policy, sub_hand, False)
+    else:
+        _remember_sub_hand(policy, None, False)
+    policy._mining_combat_loadout_remembered = True
+
+
+def _remember_sub_hand(policy, item, authoritative: bool) -> None:
+    policy._normal_sub_hand_name = item.name if item is not None else None
+    policy._normal_sub_hand_identity = (
+        equipment_identity(item) if item is not None else None)
+    policy._normal_sub_hand_is_optimal = authoritative
+
+
 def remembered_hands(policy) -> tuple:
-    """(slot, name, identity, optimal_known) of each displaced combat hand."""
+    """(slot, name, identity, authoritative) of each displaced combat hand.
+
+    ``authoritative`` (the ``_normal_*_is_optimal`` attributes) marks the
+    optimizer winner, or an off hand remember_combat_hands saw empty: an
+    authoritative empty off hand is restored empty.
+    """
     return (
         ("main_hand", policy._normal_weapon_name,
          policy._normal_weapon_identity, policy._normal_weapon_is_optimal),
@@ -90,7 +137,9 @@ def restorable_item(policy, snapshot, slot: str, name, identity):
     """The carried item that goes back into ``slot`` (never a digger).
 
     The remembered identity, else the remembered name, else any usable melee
-    weapon for the main hand (a shield or melee weapon for the off hand).
+    weapon for the main hand and a shield for the off hand: a second weapon
+    goes on only as the displaced item or the optimizer's choice, never
+    unevaluated (#47: the Magic-Eater's unskilled dual wield missed).
     """
     def matches(item) -> bool:
         if identity is not None:
@@ -99,7 +148,7 @@ def restorable_item(policy, snapshot, slot: str, name, identity):
             return item.name == name
         if slot == "main_hand":
             return item.is_melee_weapon
-        return item.tval == TVAL_SHIELD or item.is_melee_weapon
+        return item.tval == TVAL_SHIELD
 
     return policy._first_item(
         snapshot,
