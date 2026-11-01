@@ -1351,8 +1351,10 @@ class NavigationMixin:
         # The engagement retreat's cells are a navigation veto for the floor
         # visit (_claim_engagement_avoid_cells), as in every other routing
         # BFS: a descent route back onto one walks into the engagement the
-        # retreat just left and alternates with it (n1c-5f-loop-1102).
-        vetoed = self._engagement_avoid_cells
+        # retreat just left and alternates with it (n1c-5f-loop-1102).  The
+        # area the retreat would fire in again is routed around as well
+        # (_engagement_danger_cells, shoot-immobile-sleeper-1102).
+        vetoed = self._engagement_avoid_cells | self._engagement_danger_cells(snapshot)
         self._nav_ledger.advance_descent_route(origin)
         route = self._nav_ledger.descent_path
         if route:
@@ -1491,6 +1493,7 @@ class NavigationMixin:
             self._engagement_avoid_cells
             | self._warning_refused_cells
             | self._unseen_attack_area_cells(snapshot)
+            | self._engagement_danger_cells(snapshot)
         )
         oscillating = self._is_oscillating()
         identity = self._explore_goal_identity

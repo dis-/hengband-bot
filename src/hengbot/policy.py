@@ -12390,6 +12390,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # close into the engagement and alternate with the threat gate.
         if any(
             self._material_melee_engagement(snapshot, monster)
+            and not immobile_threat_memory.ringed(self, monster)
             for monster in strategic_hostiles
         ):
             step = self._town_producer_entry("_flee_step#4", lambda: self._flee_step(snapshot, strategic_hostiles))
@@ -12477,52 +12478,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         forgetting_maze = self._is_forgetting_maze(snapshot)
         completed_forgetting_maze = self._is_completed_forgetting_maze(snapshot)
         if (
-            not snapshot.in_town
-            and (
+            (
                 self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
                 or self._breakout_dig_floor == snapshot.floor_key
             )
-            and (not forgetting_maze or completed_forgetting_maze)
-            # Leaving an active quest floor can permanently fail a random quest.
-            # Keep searching for its target instead of treating the floor as a
-            # disposable bad generation.
-            and snapshot.floor_key[2] == 0
-            and not player.recalling
-            and not player.blind
-            and not player.confused
+            and self._stuck_escape_permitted(
+                snapshot, forgetting_maze, completed_forgetting_maze)
         ):
-            # A known descent can be sealed behind ordinary diggable veins even
-            # after every walkable frontier has been exhausted.  Recompute the
-            # augmented route on every decision: successful tunnelling changes
-            # the map, while the mode-independent navigation ledger eventually
-            # takes over and recalls if repeated digs make no observable progress.
-            if self._has_digging_tool(snapshot) and not self._nav_exhausted:
-                dig = self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure")
-                if dig is not None:
-                    if self._equipped_digging_tool(snapshot) is None:
-                        wield = self._town_producer_entry("_wield_digging_tool_key", lambda: self._wield_digging_tool_key(
-                            snapshot, "breakout:wield-digging-tool"
-                        ), family="equipment-txn")
-                        if wield is not None:
-                            self._breakout_dig_floor = snapshot.floor_key
-                            return wield
-                    self.last_reason = "breakout:dig-to-stairs"
-                    return dig
-                restore = self._town_producer_entry("_breakout_restore_weapon_key#2", lambda: self._breakout_restore_weapon_key(snapshot))
-                if restore is not None:
-                    return restore
-            recall = self._find_recall_scroll(snapshot)
-            if recall is not None and self._can_read_scrolls(snapshot):
-                self._stuck_escape_streak = 0
-                self._note_return_start(None)
-                self._returning_to_town = True
-                self.last_reason = "stuck:recall-escape"
-                return self._town_producer_entry("_read_dungeon_recall_scroll_key", lambda: self._read_dungeon_recall_scroll_key(snapshot, recall), family="departure")
-            teleport = self._find_teleport_scroll(snapshot)
-            if teleport is not None and self._can_read_scrolls(snapshot):
-                self._stuck_escape_streak = 0
-                self.last_reason = "stuck:teleport-escape"
-                return self._read_key(snapshot, teleport)
+            escape = self._stuck_escape_key(snapshot)
+            if escape is not None:
+                return escape
 
         # 8. If we are circling the same few tiles (frontiers whose unknown side
         #    the pathfinder can't reach), break out by stepping directly into an
@@ -12575,6 +12540,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # answered, so the visit takes its declared end (owner 2026-11-02).
             if snapshot.in_town:
                 return town_end_key(self, snapshot)
+            # The engagement retreats' own vetoes (and the areas they guard)
+            # enclose what is left of the floor: leave it now instead of
+            # wandering among them until the loop detector stops the bot
+            # (owner 2026-11-02 「避ける判断になるのであればループではなく迂回する
+            # べき」; n1-c life-103).
+            if self._engagement_owned_avoid_cells and self._stuck_escape_permitted(
+                    snapshot, forgetting_maze, completed_forgetting_maze):
+                escape = self._stuck_escape_key(snapshot)
+                if escape is not None:
+                    return escape
             step = self._least_visited_neighbor(snapshot)
             if step is not None:
                 self.last_reason = "breakout:least-visited"
@@ -12881,9 +12856,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not player.blind
             and not player.confused
             and 2 <= distance <= RANGED_MAX_DISTANCE
-            and not (
-                monster.asleep and distance > RANGED_SLEEPER_MAX_DISTANCE
-            )
+            and not self._sleeper_beyond_ranged_reach(monster, distance)
         )
 
     @claims(ClaimOwner.COMBAT)
@@ -20155,7 +20128,95 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _material_melee_engagement(
         self, snapshot: Snapshot, monster: MonsterState
     ) -> bool:
-        if monster.distance > HUNT_RANGE or monster.max_melee_damage <= 0:
+        if monster.distance > HUNT_RANGE:
+            return False
+        return self._material_melee_damage(snapshot, monster)
+
+    def _stuck_escape_permitted(
+        self, snapshot: Snapshot, forgetting_maze: bool,
+        completed_forgetting_maze: bool,
+    ) -> bool:
+        """The floor may be left by the stuck escape (dig, recall, teleport)."""
+        player = snapshot.player
+        return (
+            not snapshot.in_town
+            and (not forgetting_maze or completed_forgetting_maze)
+            # Leaving an active quest floor can permanently fail a random quest.
+            # Keep searching for its target instead of treating the floor as a
+            # disposable bad generation.
+            and snapshot.floor_key[2] == 0
+            and not player.recalling
+            and not player.blind
+            and not player.confused
+        )
+
+    def _stuck_escape_key(self, snapshot: Snapshot) -> str | None:
+        """Leave a floor whose walkable ways forward are gone, else None."""
+        # A known descent can be sealed behind ordinary diggable veins even
+        # after every walkable frontier has been exhausted.  Recompute the
+        # augmented route on every decision: successful tunnelling changes
+        # the map, while the mode-independent navigation ledger eventually
+        # takes over and recalls if repeated digs make no observable progress.
+        if self._has_digging_tool(snapshot) and not self._nav_exhausted:
+            dig = self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure")
+            if dig is not None:
+                if self._equipped_digging_tool(snapshot) is None:
+                    wield = self._town_producer_entry("_wield_digging_tool_key", lambda: self._wield_digging_tool_key(
+                        snapshot, "breakout:wield-digging-tool"
+                    ), family="equipment-txn")
+                    if wield is not None:
+                        self._breakout_dig_floor = snapshot.floor_key
+                        return wield
+                self.last_reason = "breakout:dig-to-stairs"
+                return dig
+            restore = self._town_producer_entry("_breakout_restore_weapon_key#2", lambda: self._breakout_restore_weapon_key(snapshot))
+            if restore is not None:
+                return restore
+        recall = self._find_recall_scroll(snapshot)
+        if recall is not None and self._can_read_scrolls(snapshot):
+            self._stuck_escape_streak = 0
+            self._note_return_start(None)
+            self._returning_to_town = True
+            self.last_reason = "stuck:recall-escape"
+            return self._town_producer_entry("_read_dungeon_recall_scroll_key", lambda: self._read_dungeon_recall_scroll_key(snapshot, recall), family="departure")
+        teleport = self._find_teleport_scroll(snapshot)
+        if teleport is not None and self._can_read_scrolls(snapshot):
+            self._stuck_escape_streak = 0
+            self.last_reason = "stuck:teleport-escape"
+            return self._read_key(snapshot, teleport)
+        return None
+
+    def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
+        """The cells where the engagement retreat would fire again.
+
+        ``threat:avoid-engagement`` retreats while a perceived monster is a
+        material melee engagement (``_material_melee_engagement``: within
+        HUNT_RANGE).  Once the player stands outside every such area,
+        exploration and descent route around it instead of walking back
+        in and retreating again (n1-c life-103: step back, re-approach,
+        step back, until its own vetoed cells boxed it in).  Empty while
+        the player is inside an area: the retreat owns that board.  A
+        never-moving monster whose ring already leaves the routes is passed
+        around by the ring alone (immobile_threat_memory)."""
+        player = snapshot.player.position
+        cells: set[Position] = set()
+        for monster in self._strategic_hostiles(snapshot):
+            if (immobile_threat_memory.ringed(self, monster)
+                    or not self._material_melee_damage(snapshot, monster)):
+                continue
+            if player.distance_to(monster.position) <= HUNT_RANGE:
+                return frozenset()
+            cells.update(
+                Position(monster.position.y + dy, monster.position.x + dx)
+                for dy in range(-HUNT_RANGE, HUNT_RANGE + 1)
+                for dx in range(-HUNT_RANGE, HUNT_RANGE + 1))
+        return frozenset(cells)
+
+    def _material_melee_damage(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Its melee over the engagement horizon is a material share of HP."""
+        if monster.max_melee_damage <= 0:
             return False
         horizon = 3
         weapon = next(

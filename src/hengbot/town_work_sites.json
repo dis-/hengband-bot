@@ -3056,6 +3056,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._engagement_danger_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._entrance_travel_key": {
     "classification": "producer",
     "rows": [
@@ -3936,6 +3943,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._stuck_escape_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy.py:HengbotPolicy._summoner_ranged_kill_key": {
     "classification": "producer",

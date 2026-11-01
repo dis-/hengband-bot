@@ -3132,6 +3132,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy.py:HengbotPolicy._stuck_escape_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "departure"
+    ],
+    "context": "No town key: its only callers run under _stuck_escape_permitted, which requires not snapshot.in_town.",
+    "evidence": "Extracted from the 7b stuck-escape branch of _choose_key (dig to known stairs, recall escape, teleport escape); both call sites (7b and the engagement-veto confinement before breakout:least-visited) are guarded by _stuck_escape_permitted. Children keep their own _town_producer_entry rows.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy.py:HengbotPolicy._stat_gain_quaff_key": {
     "classification": "producer",
     "rows": [

@@ -1,0 +1,74 @@
+LUNA-REPORT shoot-immobile-sleeper-1102（眠っている動かない敵を撃たず、下がっては近づくのを繰り返して閉じこもった件）
+
+■ 止まり
+- n1-c life-103（魔道具術師 Lv9、HP 131）、鉄獄5階、2026-11-02 05:31:45 の loop-detected（1件）。
+- 記録: C:\hengband-backups\pdca\captures\hourly-0600-1102\n1-c-life-103-20261102-053149-loop-detected\
+  bot-decisions.jsonl.gz の判断 4279〜4362、incident-captures\20261102-053145-loop-detected の snapshots-current.jsonl.gz と policy-state.json。
+- 盤面: 眠っているシルバー・ゼリー（種族73、NEVER_MOVE、触ると光を食べる 1d6 ×2）が、同じ行の東7マス（20,82）にいた。
+  プレイヤーはショート・ボウ (x2) と合う矢94本を持っていたのに一度も撃たず、
+  threat:avoid-engagement（下がる）と explore（探索）を交互に出し（4279〜4305）、search 16回、breakout:least-visited 41回の後、loop-detected で止まった。
+
+■ なぜループになったか（オーナーの問い「なんでループになるのか分からん」への答え）
+1. 撃たなかった理由: RANGED_SLEEPER_MAX_DISTANCE = 4（policy_constants.py、07-16 のコードの決め）で、4マスより遠い眠っている敵は撃つ相手から外れる。
+   「起こさずに静かに近づく（狩りの道）」つもりの決まりだが、その近づく道は下がる判断（avoid-engagement）が禁じていた。
+2. 下がる判断は、ゼリーが8マス（HUNT_RANGE）以内にいる間ずっと出る（_material_melee_engagement: ゼリーの速さ +10 で3ターンの最大打撃 12×6=72 が HP の決まった割合以上）。
+   下がる時に通らないマスにするのは「今立っていた1マス」だけ（_claim_engagement_avoid_cells）。
+3. 探索の行き先（23,77）は、ゼリーの南の通路の口で、ゼリーから5マス。隣ではない。
+   1マスだけ塞いでも別の隣のマスから回って行けるので、探索は1歩で8マス以内に戻り、下がる判断がまた1歩下がる。これを繰り返した。
+4. 下がるたびに立っていたマスが1つずつ増え、最後は7マス（(20,74)(20,75)(20,76)(21,74)(21,76)(22,74)(22,76)）がプレイヤーのまわりを囲み、
+   (21,75)(22,75) の2マスの中に閉じこもった。探す所が無くなり search と breakout:least-visited で同じ所を回り、
+   動けない時の帰還（stuck:recall-escape、60回）より先にループの見張り（57回）が止めた。
+   つまり「避ける」判断が「その場で1歩下がる」だけで、道を選ぶ側はその危ない範囲を知らずにまた入る、という食い違いが原因。
+
+■ ゲーム本体の根拠
+- NEVER_MOVE の敵は動かない: monster-floor/monster-move.cpp:430。眠っていて撃たれて起きても近づいて来ない。
+- シルバー・ゼリーの定義（lib/edit の MonraceDefinitions、フィクスチャの monraces 73）: NEVER_MOVE、打撃は TOUCH:EAT_LITE 1d6 ×2（隣のマスだけに届く）、呪文は DRAIN_MANA だけ（HP は減らない）。
+
+■ 直し（2つのコミット）
+1. 7c44ef005 Shoot sleeping never-moving monsters beyond the quiet-approach range
+   - 眠っている敵を遠いと外す判定を1つの関数 _sleeper_beyond_ranged_reach（policy_combat.py CombatMixin）にまとめ、
+     4か所（_ranged_target、eligible、targetable_hostile、policy.py の _summoner_ranged_attack_available）からそれを呼ぶ。
+   - 動かない敵（immobile_threat_memory.never_moves。今までの _never_moves を公開にしただけで、新しい判定や数は足していない）は、
+     眠っていても今の遠隔の射程（RANGED_MAX_DISTANCE）まで撃つ相手に残す。動く敵は今までどおり4マスより遠ければ外す。
+   - オーナー 11-01「遠隔で倒せるなら離れて撃つのは可」。下がる判断（_material_melee_engagement）は変えていない（11-02「今のまま」）。
+2. e013c255e Detour around engagement areas instead of retreating back and forth（オーナー 11-02「避ける判断になるのであればループではなく迂回するべき」）
+   (1) 動かない敵は隣のマスだけが危ない: 打撃が多すぎる（_material_melee_damage）動かない敵にも、D57 の輪（immobile_threat_memory:
+       敵のマスと隣の8マスを全部の道から外す仕組み）を付ける。輪が付いている敵からは下がらない（immobile_threat_memory.ringed）。
+       _material_melee_engagement は「8マス以内か」と「打撃が多すぎるか（_material_melee_damage に切り出した）」に分けただけで、振る舞いは同じ。
+       召喚する動かない敵は今までどおり動かない召喚の敵の担当（_immobile_summoner_key）。出口の鍵がかかった階（クエスト）では輪を付けないので、今までどおり下がる。
+   (2) 動く敵: 下がる判断がその敵の範囲（8マス以内）の外へ出た後は、探索と階段への道がその範囲を通らない（_engagement_danger_cells。
+       探索の avoided と階段の vetoed に足す。範囲の中にいる間は空で、下がる判断が先に動く）。新しい数は無く、下がる判断と同じ HUNT_RANGE を使う。
+   (3) 探索で行ける所が無くなり、下がった時の通らないマス（_engagement_owned_avoid_cells）がある時は、breakout:least-visited で歩き回らず、
+       動けない時の脱出（掘って階段へ・帰還・テレポート）をすぐに使う。7b の処理を _stuck_escape_key と条件 _stuck_escape_permitted に切り出して2か所で使う。
+   - town_work: _stuck_escape_key のレビュー（dungeon-only, departure）を scripts/town_work_review.json に足し、--write で zero unmapped。town_work_sites.json が書き直された。
+
+■ 検査（記録の盤面 → 公開の choose_key → 本番の executor）
+- import の確認（PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy"）: OK
+- 新しいテスト tests/test_immobile_sleeper_1102_recorded.py（4件、すべて合格）。フィクスチャ tests/fixtures/immobile-sleeper-20261102.json.gz（tests/extract_immobile_sleeper_1102_fixture.py）。
+  - ImmobileSleeperRecordedTest.test_recorded_board_retreated_from_the_sleeping_jelly: 記録の 412539 は threat:avoid-engagement '4'、ゼリーは眠っていて同じ行の7マス先。
+  - ImmobileSleeperRecordedTest.test_sleeping_never_moving_jelly_is_shot_from_seven_cells: 412539 で ranged:fire 'fn6'（矢を東へ）を executor に通す。
+  - ImmobileSleeperDetourTest.test_recorded_old_rows_alternate_retreat_and_explore: 記録の下がる・探索の交互（4279〜4286）。
+  - ImmobileSleeperDetourTest.test_walks_past_the_jelly_by_its_ring: 矢と松明を抜いた盤面で、9歩の間 avoid-engagement を出さず、輪のマスに入らず、
+    同じマスに戻らず、(23,77) の通路の口を通ってゼリーの横を過ぎる。
+  作った部分（テストの説明に DECLARED と書いた）: _fundraising_mode を "mine" にした（判断の記録の fundraising_purpose。これで古いコードは 412539〜412615 の記録をそのまま繰り返す）。
+  階の魔道具の使用記録は policy-state の _me_power_floor のうち盤面より前の分。迂回のテストの次の盤面は、412539 の盤面でプレイヤーだけを1歩動かしたもの（地図は増えない）。
+- 戻して確かめた結果（各1回）:
+  - コミット1の src を戻す: test_sleeping_never_moving_jelly_is_shot_from_seven_cells が ('threat:avoid-engagement', '4') != ('ranged:fire', 'fn6') で落ちる。元に戻して合格。
+  - コミット2の src を戻す: test_walks_past_the_jelly_by_its_ring が最初の盤面 (20,75) で threat:avoid-engagement を出して落ちる。元に戻して4件合格。
+- checks.json、全体テスト、preflight、mutation_check、fast_tier は決まりのとおり流していない。
+- (2) と (3)（動く敵の範囲を通らない・閉じこもったらすぐ出る）は、この盤面ではゼリーに輪が付くので働かず、記録の盤面のテストは無い。
+  既存のテストで avoid-engagement の後の探索・階段・breakout の期待値を持つものが変わる可能性がある（流していない）。
+
+■ checks.json に足す案（checks.json は編集していない）
+{"id": "SHOOT-IMMOBILE-SLEEPER-1102", "owner": "2026-11-01 「遠隔で倒せるなら離れて撃つのは可」、2026-11-02 「避ける判断になるのであればループではなく迂回するべき」", "tests": ["tests.test_immobile_sleeper_1102_recorded"]}
+
+■ 保守性
+- 眠っている敵を遠いと外す判定は4か所に同じ式で書かれていたのを、_sleeper_beyond_ranged_reach の1か所にした。
+- 「動かない敵か」は immobile_threat_memory.never_moves の1つを使う（新しい判定を書いていない）。輪の決まりは immobile_threat_memory._avoided の1か所に足した。
+- 打撃が多すぎるかの計算は _material_melee_damage に切り出し、下がる判断と輪の両方が同じものを使う。
+- 動けない時の脱出は _stuck_escape_key / _stuck_escape_permitted に切り出し、同じ処理を写さずに2か所から使う。
+- 下がる判断の危ない範囲は _engagement_danger_cells の1か所で作り、探索と階段が同じものを使う。
+
+■ オーナーへの問い（直していない）
+- (2) の範囲は「下がる判断が働く8マス以内」をそのまま使った。動く敵が寝ている時もその範囲を通らないので、遠回りや、行ける所が無くなって早めに帰還することが増えるかもしれない。この幅でよいか。
+- 眠っている動く敵への遠隔（4マスの決め）は変えていない。
