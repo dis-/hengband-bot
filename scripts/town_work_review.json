@@ -7537,17 +7537,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "policy_town.py:TownMixin._boxed_town_breakout_key": {
-    "classification": "producer",
-    "rows": [
-      "store-approach"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "policy_town.py:TownMixin._build_town_errand_plan": {
     "classification": "data",
     "rows": [
@@ -7558,17 +7547,6 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
-  },
-  "policy_town.py:TownMixin._commit_boxed_town_breakout_key": {
-    "classification": "producer",
-    "rows": [
-      "store-approach"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_town.py:TownMixin._cross_town_shortages": {
     "classification": "data",
@@ -12064,5 +12042,108 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:town_end_key": {
+    "classification": "producer",
+    "rows": [
+      "departure",
+      "store-exit",
+      "plan-routing",
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "owner decision 2026-11-02 「決まった終わり方だけにする」: the only town fallback when no owner answers; delegates the mining walk-in return, force_visit_departure (depart / drop non-minimum conditions and depart) or the named _town_blocked_key stop (town:blocked:survival:<leaf>).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_town.py:TownMixin._mining_walk_in_return_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "departure"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "USER DECISION 2026-09-24 (採掘の段で入口の無い町→町0へ戻る): moved verbatim from _town_procurement_decision; cross-town return to the Outpost or the named walk-in-entrance-unavailable stop.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_town.py:TownMixin._departure_minimum": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure read of the departure-minimum HARD leaves (values/failed/holds); no key, offer or state write.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._visit_departure_minimum": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure read: the departure minimum at the visit landing (destination, depth); no key, offer or state write.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:gather_recall_departure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure material read: failed recall departure conjunct names; no key, offer or state write.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:gather_town_end": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure material read of the town end verdict (unmet conjuncts and minimum leaves); no key, offer or state write.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:verdict_town_end": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure verdict over TownEndMaterial; returns a TownEnd tuple, never a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._boxed_town_breakout_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_town.py:TownMixin._commit_boxed_town_breakout_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

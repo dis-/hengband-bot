@@ -2223,3 +2223,84 @@ def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
             "closed": closed.get(terminal),
         })
     return decl.mode != ENFORCE
+
+
+# ------------------------------------------------------------------ town end
+# Owner 2026-11-02 「決まった終わり方だけにする」: a town board on which no
+# owner answers ends the visit in one of three declared ways, never by the
+# dungeon wander fallbacks (breakout:least-visited, stuck:wander).
+#   depart          every ordinary departure condition holds;
+#   drop-and-depart the unmet conditions are outside the departure minimum
+#                   (policy._departure_minimum, the survival leaves), so they
+#                   are given up for this visit, by name;
+#   stop            a departure-minimum leaf is unmet: the named stop
+#                   town:blocked:survival:<leaf>.
+TOWN_END_CAUSE = "no-owner-answered"
+TOWN_END_STEP_OFF = "town:end-step-off"
+
+
+@dataclass(frozen=True)
+class TownEndMaterial:
+    """The unmet ordinary departure conditions and departure-minimum leaves."""
+
+    unmet: tuple[str, ...]
+    survival_unmet: tuple[str, ...]
+
+
+class TownEnd(NamedTuple):
+    kind: str
+    conditions: tuple[str, ...]
+
+
+def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:
+    minimum, _destination, _depth = policy._visit_departure_minimum(board)
+    return TownEndMaterial(unmet=gather_recall_departure(policy, board).failed,
+                           survival_unmet=tuple(minimum["failed"]))
+
+
+def verdict_town_end(material: TownEndMaterial) -> TownEnd:
+    """Pure: survival leaves stop, other unmet conditions are dropped."""
+    if material.survival_unmet:
+        return TownEnd("stop", material.survival_unmet)
+    if material.unmet:
+        return TownEnd("drop-and-depart", material.unmet)
+    return TownEnd("depart", ())
+
+
+def town_end_key(policy: Any, board: Any) -> str:
+    """End a town visit that no owner can continue (the only town fallback).
+
+    The store router's composed procurement progress that makes progress
+    (the step the progress seam used to substitute for a wander, judged by
+    the same predicate) and the mining walk-in's own
+    departure (a town without its entrance) still answer first.  Otherwise
+    the departure leaves through the established forced visit departure,
+    which reads the recall or walks in exactly as the departure owner
+    chooses.  A departure the visit already forced once and lost is not
+    forced again: it stops under the existing departure-unsatisfiable.
+    """
+    progress = policy._town_procurement_progress_key(board)
+    if progress is not None and progress[0] and policy._town_result_makes_progress(
+            board, progress[0], reason=progress[1]):
+        key, policy.last_reason = progress
+        return key
+    walk_in = policy._mining_walk_in_return_key(board)
+    if walk_in is not None:
+        return walk_in
+    here = board.grid_at(board.player.position)
+    if board.store is None and here is not None and here.is_store:
+        # A board right after a store page is still on its entrance, where
+        # the town owners do not compose (Home batches, approaches).  The
+        # established safe step off the entrance comes before the end.
+        return policy._town_entrance_step_off_key(board, TOWN_END_STEP_OFF)
+    end = verdict_town_end(gather_town_end(policy, board))
+    if end.kind != "stop" or policy._visit_departure_committed:
+        key = policy.force_visit_departure(
+            board, TOWN_END_CAUSE,
+            dropped=end.conditions if end.kind == "drop-and-depart" else ())
+        if key is not None:
+            return key
+    policy._town_blocked_reason = (
+        f"survival:{end.conditions[0]}" if end.kind == "stop"
+        else "departure-unsatisfiable")
+    return policy._town_blocked_key(board)

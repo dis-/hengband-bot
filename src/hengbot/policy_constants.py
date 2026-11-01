@@ -371,6 +371,14 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
     }
 )
 
+# A town visit that no owner can continue ends at the town end resolver
+# (town_terminal.town_end_key).  An unmet departure-minimum leaf stops it
+# under ``town:blocked:survival:<leaf>``, one reason per leaf.
+TOWN_END_SURVIVAL_STOP_PREFIX = 'town:blocked:survival:'
+
+# Reason families on which the driver stops, beside the exact set above.
+POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX,)
+
 TUNNEL_KEY = "T"
 
 SEARCH_KEY = "s"

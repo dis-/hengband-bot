@@ -71,6 +71,8 @@ from hengbot.policy_constants import (
     IN_STORE_OPERATION_REASONS,
     LEAVE_STORE_KEY,
     POLICY_FINAL_STOP_REASONS,
+    POLICY_FINAL_STOP_PREFIXES,
+    TOWN_END_SURVIVAL_STOP_PREFIX,
     SKILL_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
 )
@@ -598,6 +600,7 @@ def _policy_final_stop_required(policy) -> bool:
                 and sequence is not None
                 and getattr(policy, "_owner_retired_forgiven_sequence", None) == sequence)
     return ((reason in POLICY_FINAL_STOP_REASONS and not forgiven)
+            or reason.startswith(POLICY_FINAL_STOP_PREFIXES)
             or reason.startswith(("ownership:holder-silent:",
                                   "ownership:declaration-",
                                   "ownership:contract-conflict:fundraising:")))
@@ -744,6 +747,9 @@ def _policy_final_stop_banner(reason: str) -> str:
     if reason.startswith("ownership:contract-conflict:fundraising:"):
         return (f"<{reason}> fundraising has no valid purpose continuation; "
                 "stopping the bot for investigation")
+    if reason.startswith(TOWN_END_SURVIVAL_STOP_PREFIX):
+        return (f"<{reason}> no town owner answered and this departure-minimum "
+                "(survival) leaf is unmet; stopping the bot for investigation")
     if reason.startswith("ownership:holder-silent:"):
         return (f"<{reason}> the town claim has no safe continuation; "
                 "stopping the bot for investigation")
