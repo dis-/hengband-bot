@@ -11,6 +11,16 @@ shown instead:
   full."; from then on the lamp burns at most one fuel per TURNS_PER_TICK game
   turns (object/lite-processor.cpp reduce_lite_life), so the fuel left is at
   least FUEL_LAMP minus the elapsed ticks.
+* the game's report that a monster ate the light.  monster-eating.cpp
+  process_eat_lite takes 250 + randint1(250) fuel per EAT_LITE blow and,
+  unless the player is blind, prints 「明かりが暗くなってしまった。」 /
+  "Your light dims."; object/lite-processor.cpp prints 「明かりが消えてしまった！」
+  / "Your light has gone out!" when the fuel runs out.  Each dimming lowers
+  the least fuel left by the most a blow can take, and the light going out
+  leaves none (#47 D57, n1-c life-085: a Super Great Silver Jelly drained the
+  lantern dark; the refill of 108,600 game turns earlier still left a known
+  floor of about 4,100 fuel, so every refill was refused and the dark walk
+  had no recovery).
 * whether the lantern still lights the player.  A lantern without fuel adds
   no light radius (specific-object/torch.cpp update_lite_radius), so the
   exported ``light_radius`` drops to 0 unless another source lights, and the
@@ -29,8 +39,11 @@ from hengbot.policy_constants import LANTERN_FULL_FUEL, LANTERN_REFILL_FUEL
 from hengbot.town_arbiter import HENGBAND_TURNS_PER_TICK
 
 LAMP_FULL_MESSAGES = frozenset({"ランプの油は一杯だ。", "Your lamp is full."})
+LIGHT_DIMS_MESSAGES = frozenset({"明かりが暗くなってしまった。", "Your light dims."})
+LIGHT_OUT_MESSAGES = frozenset({"明かりが消えてしまった！", "Your light has gone out!"})
+EAT_LITE_MAX_FUEL = 500  # monster-eating.cpp process_eat_lite: 250 + randint1(250)
 _MEMORY = "_lamp_full_memory"
-_REPEAT_SUFFIX = re.compile(r" <x[1-9]\d*>$")
+_REPEAT_SUFFIX = re.compile(r" <x([1-9]\d*)>$")
 _INSCRIPTION = re.compile(r"\s*\{[^{}]*\}\s*$")
 
 
@@ -44,8 +57,19 @@ def _lantern_identity(lantern) -> str:
     return _INSCRIPTION.sub("", lantern.name)
 
 
+def _counted(messages, texts) -> int:
+    """How many times the board's messages report one of ``texts``."""
+    count = 0
+    for message in messages:
+        repeat = _REPEAT_SUFFIX.search(message)
+        if _REPEAT_SUFFIX.sub("", message) in texts:
+            count += int(repeat.group(1)) if repeat else 1
+    return count
+
+
 def observe(policy, snapshot) -> None:
-    """Remember the turn of the last 「ランプの油は一杯だ。」 for the worn lantern."""
+    """Remember the turn of the last 「ランプの油は一杯だ。」 for the worn lantern,
+    and the fuel the board's messages say was taken since."""
     lantern = _worn_lantern(snapshot)
     memory = getattr(policy, _MEMORY, None)
     if lantern is None or lantern.known:
@@ -53,11 +77,19 @@ def observe(policy, snapshot) -> None:
             setattr(policy, _MEMORY, None)
         return
     identity = _lantern_identity(lantern)
-    if any(_REPEAT_SUFFIX.sub("", message) in LAMP_FULL_MESSAGES
-           for message in snapshot.messages):
-        setattr(policy, _MEMORY, (identity, snapshot.turn))
+    if _counted(snapshot.messages, LAMP_FULL_MESSAGES):
+        memory = (identity, snapshot.turn, 0)
     elif memory is not None and memory[0] != identity:
-        setattr(policy, _MEMORY, None)
+        memory = None
+    if memory is not None:
+        taken = (LANTERN_FULL_FUEL if _counted(snapshot.messages, LIGHT_OUT_MESSAGES)
+                 else EAT_LITE_MAX_FUEL * _counted(snapshot.messages, LIGHT_DIMS_MESSAGES))
+        memory = (memory[0], memory[1], _taken(memory) + taken)
+    setattr(policy, _MEMORY, memory)
+
+
+def _taken(memory) -> int:
+    return memory[2] if len(memory) > 2 else 0
 
 
 def known_fuel_floor(policy, snapshot) -> int | None:
@@ -67,7 +99,7 @@ def known_fuel_floor(policy, snapshot) -> int | None:
     if lantern is None or lantern.known or memory is None or memory[0] != _lantern_identity(lantern):
         return None
     burnt = max(0, snapshot.turn - memory[1]) // HENGBAND_TURNS_PER_TICK
-    return max(0, LANTERN_FULL_FUEL - burnt)
+    return max(0, LANTERN_FULL_FUEL - burnt - _taken(memory))
 
 
 def refill_known_unneeded(policy, snapshot) -> bool:

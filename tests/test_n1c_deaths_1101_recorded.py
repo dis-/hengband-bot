@@ -122,6 +122,39 @@ def lamp_policy():
     return policy
 
 
+class DrainedLanternRecordedTest(PostedDeathKey):
+    """life-085: the jelly ate the light the lamp memory still counted."""
+
+    def test_recorded_rows(self):
+        rows = recorded(CASE_085)
+        self.assertEqual(rows[DARK_TURN], ("dark:no-recovery:dark:backtrack", "7"))
+        self.assertEqual(rows[JELLY_WAIT_TURN], ("emergency:wait", "5"))
+        dark = next(raw for raw in CASE_085["boards"] if raw["turn"] == DARK_TURN)
+        self.assertEqual(dark["messages"].count("明かりが暗くなってしまった。"), 4)
+        self.assertIn("明かりが消えてしまった！", dark["messages"])
+        board = parse_snapshot(copy.deepcopy(dark), loops.new_policy(
+            CASE_085, CASE_085["skill"], monraces=CASE_085["monraces"])._monrace_knowledge)
+        lantern = next(item for item in board.equipment if item.is_light)
+        self.assertTrue(lantern.is_lantern and not lantern.known)
+        self.assertEqual((board.light_radius, board.can_see_own_grid), (0, False))
+        self.assertEqual(sum(item.count for item in board.inventory if item.is_oil), 5)
+
+    def test_drained_lantern_is_refilled_through_the_executor(self):
+        policy = lamp_policy()
+        rows = self.drive(policy, boards(CASE_085, 1445315, DARK_TURN))
+        raw, key, reason = rows[-1]
+        self.assertEqual(raw["turn"], DARK_TURN)
+        self.assertEqual((key, reason), ("\\Fa", "refill-light"))
+        self.assertEqual(lamp_fuel.known_fuel_floor(
+            policy, parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)), 0)
+
+    def test_control_without_the_light_messages_the_memory_holds(self):
+        # The game said nothing of the light: the burn-only floor still stands.
+        policy = lamp_policy()
+        rows = self.drive(policy, boards(CASE_085, 1445315, DARK_TURN, light_messages=False))
+        self.assertNotEqual(rows[-1][2], "refill-light", rows[-1][1:])
+
+
 class JellyInViewRecordedTest(PostedDeathKey):
     """life-085: the jelly the game shows by infravision is on the board."""
 
