@@ -13080,6 +13080,28 @@
     "evidence": "Blind without a status cure (owner 2026-10-31, #47 death 1): alter ('+' and a direction) toward the remembered adjacent attacker, else WAIT; child of the unseen-recall branch of the survival rung, dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "blind_strike.py:emergency_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Blind, not afraid, melee allowed in the dungeon (#47 D57, n1-c life-084): strike_key with emergency:blind-strike before the lethal-emergency ladder's and the low-HP walk gate's last WAIT; child of those survival rungs, dungeon only; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "blind_strike.py:strike_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The alter ('+' and a direction) toward the remembered adjacent attacker under the caller's reason, else None; shared by blind_strike.key and blind_strike.emergency_key, dungeon only; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "blind_strike.py:remembered_cells": {
     "classification": "data",
     "rows": [

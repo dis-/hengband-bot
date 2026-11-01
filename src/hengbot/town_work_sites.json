@@ -55,13 +55,21 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "6b21e579cbc9033f6536e152333f0b9629645b4816a96b547bae4a0ac725ad26"
   },
+  "blind_strike.py:emergency_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "9815f9063c4c66fba49e24cd60b436180e4905594bbbc9c6daef88d19e957301"
+  },
   "blind_strike.py:key": {
     "classification": "producer",
     "rows": [
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "fb2ec5f461e26c05b16f7ef546ba707a63eff7fada116923a68de00b61e5dfd0"
+    "ast_sha256": "7a7c3cfdf596c3f2776b08a7f752834e55504443a2676771e5c51af4f906d1ef"
   },
   "blind_strike.py:remembered_cells": {
     "classification": "data",
@@ -70,6 +78,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "38753f5f5dbe6cadb05d639561ac0c7d547a565fa4582e466891b5dd59757ef0"
+  },
+  "blind_strike.py:strike_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "7707b75615151d3eb1c6a5e0fc26132d873d02a09ff038f2ffc8b33d828e489e"
   },
   "character_sheet.py:_cells": {
     "classification": "data",
@@ -3606,7 +3622,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "493d1136588f4b58bdccc43f53f66b783b9f0be603a63f9cc767661cb8e9aeda"
+    "ast_sha256": "aa6d7d5df190596a55cbd15c075dd421d6484a3d0ec2c20068701fa648a7f59e"
   },
   "policy.py:HengbotPolicy._matching_ammo": {
     "classification": "data",
@@ -5106,7 +5122,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "8b47a97408963d1af5b92c0b7acc0ff8f00999498b4b50532f979f716afb2f02"
+    "ast_sha256": "451c7b97faff42756a7bb1723dcac45db8a73129148b60ec499ad311a121a21f"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
