@@ -7686,15 +7686,20 @@ class TownMixin:
         )
 
     def _town_teleport_route_key(
-        self, snapshot: Snapshot, result: TownTeleportRoute, reason: str
+        self, snapshot: Snapshot, result: TownTeleportRoute,
+        destination_town_id: int, reason: str,
     ) -> str | None:
         """The move along ``result``: the travel to the inn's side, else its step.
 
         For the producers that declare the route themselves (the fixed
-        quests' q22 travel and prepare-return): the declaration's composed
-        key is this move, its goal and BFS rank stay the route's.
+        quests' q22 travel and prepare-return, both quest-request): the
+        declaration's composed key is this move, its goal and BFS rank stay
+        the route's; a held travel resumes as the inn leg
+        (_town_teleport_travel_key).
         """
-        return self._town_teleport_travel_key(snapshot, result, reason) or result.key
+        return self._town_teleport_travel_key(
+            snapshot, result, destination_town_id, "quest-request", reason,
+        ) or result.key
 
     def _town_teleport_travel_key(
         self, snapshot: Snapshot, result: TownTeleportRoute,
