@@ -56,17 +56,26 @@ def _throwable_torch(policy, snapshot):
     return torches[0]
 
 
-def afraid_key(policy, snapshot, adjacent) -> str | None:
-    """Afraid beside ``adjacent``: this ranged order alone, else None.
+def melee_refused(policy, snapshot) -> bool:
+    """The game refuses this board's melee blow: fear or a NO_MELEE dungeon.
 
-    Fear refuses melee only (cmd-attack.cpp:228); the absorbed powers check
-    confusion (cmd-magiceat.cpp:492), wands randomize under confusion
-    (zapwand-execution.cpp:69) and throws check neither.  The combat rungs
-    called this order inside their unafraid melee branch, so an afraid
-    Magic-Eater waited beside its attacker (#47 hit-no-action-1101, n1-c
-    life-085's jelly).  The callers' melee keeps its fear check."""
-    if (not adjacent or not snapshot.player.afraid
-            or not policy._can_fight_in_dungeon(snapshot.floor_key[0])):
+    Fear refuses melee only (cmd-attack.cpp:228) and so does a NO_MELEE
+    dungeon (cmd-attack.cpp:202 「なぜか攻撃することができない。」); the
+    absorbed powers check confusion (cmd-magiceat.cpp:492), wands randomize
+    under confusion (zapwand-execution.cpp:69) and throws check neither."""
+    return (snapshot.player.afraid
+            or not policy._can_fight_in_dungeon(snapshot.floor_key[0]))
+
+
+def melee_refused_key(policy, snapshot, adjacent) -> str | None:
+    """Beside ``adjacent`` while melee is refused: this ranged order alone, else None.
+
+    The combat rungs called this order inside their melee branch, so an
+    afraid Magic-Eater waited beside its attacker (#47 hit-no-action-1101,
+    n1-c life-085's jelly), and in a NO_MELEE dungeon every rung skipped it
+    (owner 2026-11-01 「遠隔と取り込んだ力は使う」).  The callers' melee keeps
+    its own fear and dungeon checks."""
+    if not adjacent or not melee_refused(policy, snapshot):
         return None
     return attack_key(policy, snapshot, policy._weakest(adjacent))
 

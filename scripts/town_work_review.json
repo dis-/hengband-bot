@@ -11954,7 +11954,7 @@
     "evidence": "Melee hit by an unseen attacker, not afraid, melee allowed in the dungeon (USER DECISION 2026-10-03 追加決定2; #47 hit-no-action-1101): alter ('+' and a random free neighbour seeded by the turn) under the caller's reason, else None; called by the lethal-emergency ladder before its last WAIT (emergency:unseen-strike), the wait-while-damaged rewrite before its least-visited walk and the low-HP walk gate's no-kit answer (no-wait:attack), the unseen-attacker retreat before its reverse-choke walk (unseen:strike) and the recall wait before its unseen-recall walk (unseen-recall:strike; owner 2026-11-01 「近接で殴られたら反撃」, spell or missile evidence keeps walking); dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "me_ranged_first.py:afraid_key": {
+  "me_ranged_first.py:melee_refused_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -11962,7 +11962,7 @@
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "Afraid beside an adjacent hostile with melee allowed in the dungeon (#47 hit-no-action-1101; fear refuses melee only, cmd-attack.cpp:228): attack_key against the weakest adjacent hostile, else None; called after the unafraid melee branch of the lethal-emergency ladder, the low-HP walk gate, the cornered flee, the two choke holds and the two summoner rungs; no independent progress.",
+    "evidence": "Beside an adjacent hostile while the game refuses melee: afraid (#47 hit-no-action-1101; cmd-attack.cpp:228) or in a NO_MELEE dungeon (owner 2026-11-01 「遠隔と取り込んだ力は使う」; cmd-attack.cpp:202): attack_key against the weakest adjacent hostile, else None; called after the melee branch of the lethal-emergency ladder, the low-HP walk gate, the cornered flee, the combat rung, the two choke holds and the two summoner rungs; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

@@ -1989,14 +1989,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_ranged_first.py:afraid_key": {
+  "me_ranged_first.py:attack_key": {
     "classification": "producer",
     "rows": [
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "me_ranged_first.py:attack_key": {
+  "me_ranged_first.py:melee_refused_key": {
     "classification": "producer",
     "rows": [
       "survival"

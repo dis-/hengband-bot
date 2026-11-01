@@ -16,15 +16,23 @@ answers first); the unseen cases take the jelly out of the visible list and
 name it as the game names a hidden actor, 「何か」 (monster-attack-player.cpp:
 298-304, monster-describer.cpp); the arrow control replaces the messages by
 mspell-bolt.cpp:21's 「何かが矢を放った。」; the recall-wait case sets
-``player.recalling``.
+``player.recalling``; the NO_MELEE cases add that flag to the Labyrinth's
+loaded dungeon definition (as test_anti_melee_dungeon_recorded's controls
+change only the flag) and, on the dark boards, take the oil flasks and the
+spare lantern out of the pack (test_hit_no_action_1101_recorded.constructed).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+import dataclasses
 import unittest
 
 from hengbot import unseen_strike
+from hengbot.dungeon_knowledge import load_dungeon_knowledge
+from hengbot.magic_eater import MISSILE_REASON
+from tests import test_hit_no_action_1101_recorded as hit
 from tests import test_n1c_deaths_1101_recorded as d57
+from tests.test_esp_threat_rest_recorded import EDIT
 
 
 JELLY_NAME = "『スーパー・グレート・シルバー・ゼリー』"
@@ -81,6 +89,40 @@ class UnseenRetreatStrikeRecordedTest(d57.PostedDeathKey):
         self.assertEqual({reason for _raw, _key, reason in rows}, {"unseen:reverse-choke"})
         raw, key, reason = self.drive_lit(arrow=True, recalling=True)[0]
         self.assertEqual(reason, "unseen-recall:move")
+
+
+def no_melee_policy():
+    """life-085's policy in a Labyrinth whose definition carries NO_MELEE."""
+    policy = d57.lamp_policy()
+    dungeon = d57.CASE_085["boards"][0]["floor"]["dungeon_id"]
+    info = load_dungeon_knowledge(EDIT / "DungeonDefinitions.jsonc")[dungeon]
+    policy._dungeon_knowledge[dungeon] = dataclasses.replace(
+        info, flags=frozenset(info.flags) | {"NO_MELEE"})
+    assert not policy._can_fight_in_dungeon(dungeon)
+    return policy
+
+
+class NoMeleeRangedOrderRecordedTest(d57.PostedDeathKey):
+    """Answer 3 「遠隔と取り込んだ力は使う」: NO_MELEE refuses melee only."""
+
+    def test_low_hp_gate_fires_at_the_adjacent_jelly(self):
+        rows = [hit.constructed(raw) for raw in
+                d57.boards(d57.CASE_085, hit.STRIKE_FROM, hit.STRIKE_AT)]
+        raw, key, reason = self.drive(no_melee_policy(), rows)[-1]
+        self.assertEqual([(m["race_id"], m["y"], m["x"]) for m in raw["visible_monsters"]],
+                         [(d57.JELLY, 8, 6)])
+        # Unfixed: ('5', 'emergency:wait') beside the jelly.
+        self.assertEqual((key, reason), ("mBp8", MISSILE_REASON))
+
+    def test_combat_rung_fires_instead_of_hunting(self):
+        rows = self.drive(no_melee_policy(), lit_boards())
+        # Unfixed: ('7', 'hunt') on both boards, a walk around the jelly.
+        for raw, key, reason in rows:
+            self.assertEqual((key, reason), ("mBp8", MISSILE_REASON), raw["turn"])
+
+    def test_control_melee_allowed_the_jelly_is_answered_too(self):
+        raw, key, reason = self.drive(d57.lamp_policy(), lit_boards())[-1]
+        self.assertEqual(key[-1], "8", (key, reason))
 
 
 if __name__ == "__main__":
