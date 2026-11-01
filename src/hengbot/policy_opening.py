@@ -16,7 +16,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_FINISHED,
 )
 from hengbot.item_reservation import decision_memo
-from hengbot import me_ranged_first
+from hengbot import me_capability, me_ranged_first
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import (
     acceptance_dps_floor, acceptance_hp_floor, carry_floor, is_heal_potion_for,
@@ -152,7 +152,8 @@ class OpeningRouteMixin:
             ("quest-healing", 0 if no_heal else int(force.get("heal_potions", 0)),
              self._strategy_heal_potion_count(snapshot, force),
              lambda item: is_heal_potion_for(item, force)),
-            ("quest-speed", 0 if no_heal else int(force.get("speed_potions", 0)),
+            ("quest-speed", 0 if no_heal else me_capability.force_count(
+                self, snapshot, force, "speed_potions"),
              self._exact_potion_count(snapshot, SV_POTION_SPEED),
              lambda item: item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED),
         )
