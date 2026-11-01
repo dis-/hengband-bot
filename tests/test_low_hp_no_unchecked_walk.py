@@ -188,7 +188,10 @@ class LowHpNoKitUnseenHitTest(_Boards):
     def test_unseen_melee_attacks_a_direction_instead_of_walking(self):
         board = self._hit_board("何かに噛まれた。")
         key, reason = self._decide(board)
-        self.assertEqual(reason, "no-wait:attack")
+        # The lethal-emergency ladder reaches its last answer here; since
+        # #47 hit-no-action-1101 it strikes (unseen_strike) instead of waiting
+        # for the low-HP walk gate to rewrite the least-visited walk.
+        self.assertEqual(reason, "emergency:unseen-strike")
         self.assertEqual(key[0], "+")  # do_cmd_alter: attacks what is there
         self.assertIn(key[1:], set("12346789"))
 

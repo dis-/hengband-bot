@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, town_last_stand
+from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, town_last_stand, unseen_strike
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -683,6 +683,9 @@ class CombatMixin:
                 # game refuses as a plain step; the router tunnels it.
                 return self._step_toward(snapshot, step)
 
+        # An unseen attacker's blow is answered in place, not by a walk.
+        if (strike := unseen_strike.key(self, snapshot, hostiles)) is not None:
+            return strike
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "no-wait:least-visited"
@@ -2429,6 +2432,9 @@ class CombatMixin:
                     )
                 if (strike := blind_strike.emergency_key(self, snapshot)) is not None:
                     return strike  # blind: the attacker last seen beside us
+                if (strike := unseen_strike.key(self, snapshot, hostiles,
+                                                unseen_strike.EMERGENCY_REASON)) is not None:
+                    return strike  # an unseen attacker hit us in melee
                 self.last_reason = "emergency:wait"
                 return WAIT_KEY
 

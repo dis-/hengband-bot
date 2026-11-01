@@ -3614,7 +3614,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "50a1cbf94fc7d0579f99aed9aa646ce538821b154f3e8c0f99a06791bb19eb1f"
+    "ast_sha256": "72d51971b87e05c016581ecd22c62a51bb966375d0fbefd45080423f5a0f2d7f"
   },
   "policy.py:HengbotPolicy._low_hp_walk_gate": {
     "classification": "producer",
@@ -5122,7 +5122,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "451c7b97faff42756a7bb1723dcac45db8a73129148b60ec499ad311a121a21f"
+    "ast_sha256": "52c80c18f7f5e9ad15c2009bbc44bda3f99e6651a426092d1fc5d54a0769c9f1"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -5203,7 +5203,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "883566003383a7c37fe2d4d4923c6bec86932ba553483f077dcad884d013e5e5"
+    "ast_sha256": "2dfa356d86bb97a78c7e0062a8f65612432385f81a7717ee7a0fc11b77475ee6"
   },
   "policy_combat.py:CombatMixin._guarded_paralyzers": {
     "classification": "data",
@@ -10293,6 +10293,14 @@
     ],
     "delegation": "none",
     "ast_sha256": "756aa2d393f021de8ce16624d6b4e62b3ca8fa991c0be5ff3616d7a27432d6ec"
+  },
+  "unseen_strike.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "ae2012a46139b227b5c4d58d4e43a99219827ec8c761c8eb592feeb78c80ee5e"
   },
   "warrior_equipment_evaluator.py:displayed_melee_hit_chance": {
     "classification": "data",

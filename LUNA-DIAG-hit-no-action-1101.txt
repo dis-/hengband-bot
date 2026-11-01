@@ -1,0 +1,70 @@
+LUNA-DIAG-hit-no-action-1101.txt  (#47 D57 の続き、ブランチ hit-no-action-1101、main 38cc744aa から)
+
+オーナー（2026-11-01、逐語）: 「life85は無抵抗で攻撃を受け続けているのも気になる。他に不具合がないか確認。」
+監査（life085-passive-1101 の報告「残り」(3)(4)）で見つかった、殴られているのに役に立つ答えを出さない2つの道。
+証拠: tests/fixtures/death-n1c-085-1101.json.gz（D57 の抜き出し、n1-c life-085、迷宮11階、Lv18 ゾンビの魔道具術師、
+最大HP 236）。main ではどちらの道にも記録の盤面は来ない（ゼリーは赤外線で見え、怖がってもいない）ので、
+記録の盤面から作った盤面（DECLARED CONSTRUCTED、下に明記）を公開の choose_key に順に渡して確かめた。
+
+ゲームの事実（C:\hengband\src）
+- 怖がっている時に止まるのは近接だけ: cmd-action/cmd-attack.cpp:228（「恐くて{}を攻撃できない！」/
+  「そっちには何か恐いものがいる！」）。取り込んだ魔力は混乱だけを見る（cmd-item/cmd-magiceat.cpp:492
+  cmd_limit_confused）。魔法棒は混乱で向きが乱れるだけ（object-use/zapwand-execution.cpp:69）。投げる
+  （object-use/throw-execution.cpp）には恐怖の検査が無い。player の恐怖を見るのは他に mind-samurai.cpp:379 だけ。
+- 見えない敵の近接の文: monster-attack-player.cpp:298-304（初回「{名前}に{動作}」、2回目以降「{動作}」）、
+  名前は見えない時 monster-describer.cpp の「何か」。よって見えない敵に触られると「何かに触られた。」「触られた。」。
+- 変更（alter, '+'）はそのマスのモンスターを、見えていなくても攻撃する（cmd-action/cmd-others.cpp:74-76、
+  エネルギー 100 を使ってから do_cmd_attack）。
+
+■ 道1: 盲目でなく、見えない敵に隣から殴られている
+作った盤面: life-085 の 1445613・1445625（暗い・ゼリー @(8,6)、プレイヤー @(9,6)）。
+  DECLARED CONSTRUCTED: (a) ゼリーを visible_monsters から外し、文の『スーパー・グレート・シルバー・ゼリー』を
+  「何か」に置き換えた（見えない敵、上のゲームの文の形）。(b) 油つぼと予備のランタンを持ち物から外した
+  （test_life085_passive_recorded と同じ、明かりの回復が先に答えないように）。(c) HP を 225 → 130 にした
+  （1回で最大HPの4割以上の被害、unseen_lethal の条件、低HPの歩きの門の閾値 118 より上）。
+main の答え: 1445613 '8' dark:no-recovery:dark:probe、1445625 '2' no-wait:least-visited（北のゼリーから南へ歩く）。
+鎖（main 38cc744aa）:
+  1. policy_combat.py:2052-2104 unseen_lethal（見えない攻撃の証拠・見える敵なし・1回の被害 95 >= 236*0.4）→ 緊急の段。
+  2. 緊急の段: 回復の薬なし（致命傷の治癒は HP の回復に数えない、policy_constants.py HEAL_POTION_SVALS）、
+     暗くて巻物は読めない（_can_read_scrolls）、上り階段への道なし、逃げる一歩なし。
+  3. policy_combat.py:2416-2428 隣の「見える」敵なし → 2430 blind_strike.emergency_key は盲目でないので None →
+     2432 'emergency:wait' WAIT。
+  4. policy.py:3009 → policy_combat.py:553 _forbid_wait_while_damaged: 被害あり → 653 逃げの巻物は読めない →
+     665 _flee_step（見える敵なし）なし → 686-691 _least_visited_neighbor へ歩く（'no-wait:least-visited'）。
+     隣の敵を殴る 693-701 は「見える」敵だけ。見えない敵への反撃は無い。
+  5. policy.py:3012 _low_hp_walk_gate: HP 130 >= 閾値 118 なので素通し。10-03 の追加決定2の反撃
+     （policy.py:10336-10385 _low_hp_no_kit_hit_key の melee 枝、10548 から）は閾値未満でしか来ない。
+     HP 71（記録の値）では門が歩きを止めてこの反撃に行く（'+2' no-wait:attack）ので、閾値の上だけが穴。
+根: 「見えない敵に隣から殴られた」時の反撃（10-03 追加決定2「近接で敵の方向が分からなければランダムな方向に
+  攻撃」= 歩かずに反撃）が低HPの門の中にしか無い。緊急の段の最後と待ちの書き換えは、その時に待つ／歩く。
+直し: 反撃を1つのモジュール（unseen_strike）に移し、緊急の段の最後（盲目の一撃の次）、待ちの書き換えの
+  least-visited の前、低HPの門（今のまま）の3か所から呼ぶ。新しい判断は無い（同じ文の判定・同じ候補・同じ乱数）。
+
+■ 道2: 怖がっている
+作った盤面: life-085 の 1445613・1445625（記録の HP 80・71、ゼリー @(8,6) が見える、1445613 は南に格闘家イーク）。
+  DECLARED CONSTRUCTED: player.status.afraid を true にした。油つぼと予備のランタンを外した（同上）。
+main の答え: 1445613 'qb' dark:no-recovery:emergency:quaff-speed、1445625 '5' emergency:wait（記録の死の盤面と同じ待ち）。
+鎖:
+  1. 緊急の段 policy_combat.py:2416-2428: `if adjacent and not player.afraid and ...` の中で
+     me_ranged_first.attack_key（マジック・ミサイル 'mBp8'、D21）を試す。怖がっていると遠隔の順ごと飛ばす。
+  2. 2430 盲目でない → 2432 'emergency:wait'。_forbid_wait_while_damaged（policy_combat.py:698, 707）も
+     「怖がっていない」時だけ殴るので WAIT のまま。門は WAIT を歩きと見ないので素通し。
+  低HPの門 policy.py:10535-10545 も同じ形（`adjacent and not player.afraid` の中で遠隔の順）。作った盤面:
+  1445315-1445339（明るい 3 枚と、明かりが消えた 1445339）、怖がっている、油・予備のランタンを外す、
+  1445339 の HP を 110 にし（DECLARED CONSTRUCTED）、1445339 の 体力回復の薬 を外した（記録では 1445613 までに
+  飲んでいる）。main の答え: 1445339 は暗がりの歩きを門が止め、回復なし・巻物は暗くて読めない → 10535 を
+  怖がって飛ばす → 'emergency:wait' WAIT。
+  同じ形（遠隔の順を「怖がっていない」の中に入れている）は他にもある: policy_combat.py:364（召喚の敵に追い詰め
+  られた時）、394（動かない召喚の敵を避ける時）、3664・3863（隘路の待ち）、policy.py:11419（逃げ場が無い時の
+  flee:cornered-attack → 怖がっていると flee:wait）。policy.py:11506（戦いの段の近接）は、怖がって隣に敵が
+  いれば _should_flee（policy.py:13005）が先に逃げの段へ回すので来ない。
+根: 恐怖の条件（ゲームでは近接だけを止める）が遠隔の順まで止めている。
+直し: me_ranged_first に「怖がっている時の隣の敵への答え」（遠隔の順だけ、近接はしない）を1つ置き、上の
+  遠隔の順を持つ戦いの段から呼ぶ。新しい判断は無い（既存の遠隔の順をそのまま使う）。
+
+■ 範囲の外（新しい決まりが要るので直さない。報告の問いにする）
+- 見えない敵への「逃げ」の歩き: unseen:reverse-choke（policy_supply.py:1921 _unseen_retreat_key）と
+  unseen-recall:move（policy_combat.py:2022-2032）は、見えない近接の敵に殴られても隘路・階段へ歩く。
+  作った盤面（上の道1、HP 225 → 150 など）では main は '2' dark:no-recovery:unseen:reverse-choke。
+  これは見えない射手から射線を切るための既存の設計で、10-03 の追加決定2の範囲（閾値未満・手が無い時）の外。
+- _can_fight_in_dungeon（NO_MELEE の迷宮）も遠隔の順を止めている（近接だけの制限なのに）。今回の範囲の外。

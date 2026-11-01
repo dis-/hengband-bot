@@ -13647,5 +13647,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」: the one 'may this move use travel' rule (light, the smallest key queue), delegating to policy._town_travel_key, which offers route:<kind> work bounded by TownTravelProgress; returns None where the caller walks."
+  },
+  "unseen_strike.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Melee hit by an unseen attacker, not afraid, melee allowed in the dungeon (USER DECISION 2026-10-03 追加決定2; #47 hit-no-action-1101): alter ('+' and a random free neighbour seeded by the turn) under the caller's reason, else None; called by the lethal-emergency ladder before its last WAIT (emergency:unseen-strike), the wait-while-damaged rewrite before its least-visited walk and the low-HP walk gate's no-kit answer (no-wait:attack); dungeon only; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
