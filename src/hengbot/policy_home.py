@@ -4544,14 +4544,18 @@ class HomeMixin:
         overweight = self._overweight_home_deposit(snapshot)
         if overweight is not None:
             return overweight
-        waiting = self._first_item(
-            snapshot,
-            lambda item: self._identification_waiting_deposit(snapshot, item)
-            and self._item_signature(item) not in self._home_rejected_deposits
-            and self._home_deposit_quantity(snapshot, item) > 0,
-        )
-        if waiting is not None:
-            return waiting
+        # Equipment first (owner 2026-10-31), then devices (2026-11-01): a
+        # device is shelved only when no waiting equipment is left to shelve.
+        for equipment in (True, False):
+            waiting = self._first_item(
+                snapshot,
+                lambda item: item.is_equipment == equipment
+                and self._identification_waiting_deposit(snapshot, item)
+                and self._item_signature(item) not in self._home_rejected_deposits
+                and self._home_deposit_quantity(snapshot, item) > 0,
+            )
+            if waiting is not None:
+                return waiting
         # Inferior weapons may be sold by the sale path, but enhanced weapons stay
         # carried until the complete loadout optimizer has compared them.
         high_grade = self._equipped_weapon_high_grade(snapshot)
