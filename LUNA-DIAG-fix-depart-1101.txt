@@ -133,3 +133,12 @@ build は decision-tail の session-start argv（bot-f9c921d32）で確かめた
       no-actionable-supplier、空き 11）→ 上の 4 つのどれとも違う形（供給元なし）。
     04:26:06 owner-retired-burst（掘る道具 1/2、鑑定の杖 0/20）→ 違う形。
     どちらも n1-c（魔道具術師、同じ回の別の実装役の系統）なので報告だけ。
+
+====================================================================
+6. 追記（持ち主の答えのあと）
+  Q1「魔法道具も自宅に預ける」→ 407ea7bae。life-284 の記録の順の再生で、16 番目の判断
+    （記録 1138 shop:travel '$' 寺院）が shop:travel '(' 自宅 → home:atomic-deposit（未鑑定の
+    金メッキのロッド）に変わる。上の 2 で「試したこと」に書いた 4983/3553 の変更は入れていない
+    （預けることで巻物と杖の枠ができ、識別の必要が解けるため）。
+  Q2 は 10-23 の決まりどおり（不具合として）→ 4f4a531fb。life-454 の停止盤面から scavenge に
+    決めて town:travel-entrance。戻すと fundraise:fallback-exhausted-plan → stuck:wander（記録と同じ形）。
