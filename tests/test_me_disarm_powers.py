@@ -25,9 +25,14 @@ after the walk returned (the shape of dark:backtrack, policy_navigation.py
 ``key = self._step_toward(...); self.last_reason = ...``).  The stage-2 staff
 powers are seeded as used here.  Replies are the game's prompts
 (cmd-magiceat.cpp: kind, power list, get_aim_dir).
+
+The rows are cast beside harmless visible hostiles (``beside_harmless``,
+owner 2026-11-01 answer 8 「脅威でなければ使う」) and never beside a dangerous
+one or after a hit.
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
+from dataclasses import replace
 import unittest
 from unittest import mock
 
@@ -35,6 +40,7 @@ from hengbot import me_powers
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import CHEST_SEARCH_BUDGET
+from tests import test_me_mapping_1101_recorded as mapping_recorded
 from tests import test_me_stage2_powers as stage2
 from tests.test_input_executor import command_screen
 from tests.test_magic_eater_o3 import prompt
@@ -230,7 +236,8 @@ class MagicEaterDisarmPowersTest(stage2.mining.harness.ProductionHarness):
             with self.subTest(target=target):
                 self.assertEqual(
                     me_powers.power_key(policy, board, me_powers.TRAP, target), expected)
-        # Not without a target, not on another occasion, not beside a hostile.
+        # Not without a target, not on another occasion; beside the recorded
+        # attacker the combat ladder answers it first.
         self.assertIsNone(me_powers.power_key(policy, board, me_powers.TRAP))
         self.assertIsNone(me_powers.power_key(policy, board, me_powers.FLOOR, TRAP_STEP))
         hostile = self.trapped()
@@ -238,6 +245,52 @@ class MagicEaterDisarmPowersTest(stage2.mining.harness.ProductionHarness):
         policy = self.policy(hostile, wand=[wand_row(DISARMING, 3)])
         key = self.choose(policy, hostile)
         self.assertFalse(policy.last_reason.startswith("me-power:"), (key, policy.last_reason))
+
+    def test_harmless_visible_hostile_keeps_the_power(self):
+        # Owner 2026-11-01 (answer 8, 「脅威でなければ使う」, as the mapping's
+        # beside_harmless).  DECLARED CONSTRUCTED: life-065's recorded asleep
+        # level-1 monster (tests/fixtures/me-mapping-1101.json.gz, the
+        # 「脅威でなければ感知する」 case) stands in the room west of the corridor,
+        # off every beam of the player.  Unfixed: 'D4'.
+        mapping = mapping_recorded.MagicEaterMappingRecordedTest
+        mapping.setUpClass()
+        monster = mapping.data["life-065"]["board"]["visible_monsters"][0]
+        race = monster["race_id"]
+        self.addCleanup(setattr, type(self), "races", self.races)
+        type(self).races = {**self.races, race: mapping.races[race]}
+
+        def beside(**changes):
+            raw = self.trapped()
+            raw["visible_monsters"] = [dict(monster, **{"y": 13, "x": 33, **changes})]
+            return raw, self.policy(raw, wand=[wand_row(DISARMING, 3)])
+
+        raw, policy = beside()
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertEqual(len(policy._physical_hostiles(board)), 1)
+        self.assertFalse(me_powers.visible_threat(policy, board))
+        key = self.choose(policy, raw)
+        self.assertAimed(policy, key, "mBe4")
+        self.zap(policy, raw, key)
+
+        with self.subTest("dangerous visible hostile: no power"):
+            # Awake in the recorded attacker's niche beside the player, with a
+            # ranged attack worth the whole HP.
+            type(self).races = {**self.races, race: replace(
+                mapping.races[race], max_ranged_damage=board.player.max_hp)}
+            raw, policy = beside(asleep=False, y=13, x=46)
+            snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+            self.assertTrue(me_powers.visible_threat(policy, snapshot))
+            key = self.choose(policy, raw)
+            self.assertFalse(policy.last_reason.startswith("me-power:"), (key, policy.last_reason))
+            type(self).races = {**self.races, race: mapping.races[race]}
+        with self.subTest("just hit: no power"):
+            raw, policy = beside()
+            snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+            me_powers.observe(policy, snapshot)
+            self.assertEqual(me_powers.power_key(policy, snapshot, me_powers.TRAP, TRAP_STEP),
+                             "mBe4")
+            policy._took_damage = True
+            self.assertIsNone(me_powers.power_key(policy, snapshot, me_powers.TRAP, TRAP_STEP))
 
 
 if __name__ == "__main__":

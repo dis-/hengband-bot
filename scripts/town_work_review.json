@@ -11782,6 +11782,17 @@
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Returns the captured claim target of the last _nearest_goal_step; does not emit commands."
   },
+  "policy_town.py:TownMixin._town_teleport_route_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "#47 owner15 / owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」: the move along a route its caller declares itself (fixedquest:q22-travel, fixedquest:prepare-return); delegates to _town_teleport_travel_key, else returns _town_teleport_route's own step; no independent success."
+  },
   "policy_town.py:TownMixin._town_teleport_travel_key": {
     "classification": "producer",
     "rows": [
@@ -11809,6 +11820,7 @@
     "classification": "producer",
     "rows": [
       "cross-town",
+      "identification",
       "quest-service",
       "rumor",
       "store-approach"

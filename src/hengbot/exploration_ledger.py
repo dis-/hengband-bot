@@ -52,9 +52,17 @@ class ExplorationLedger:
         self.search_counts: Counter[tuple[int, int]] = Counter()
         self.wall_search_counts: Counter[tuple[int, int]] = Counter()
         self.blocked_unknown: set[tuple[int, int]] = set()
+        # (y, x, radius) of each magic mapping of this floor (mapped_area's
+        # discs; owner 2026-11-01 「階の記録に残す」).
+        self.mapped_areas: set[tuple[int, int, int]] = set()
         self.marked_high = 0
         self._dirty_decisions = 0
         self._loaded = False
+
+    def __setstate__(self, state: dict) -> None:
+        # A checkpoint pickled before the mapped areas were kept.
+        state.setdefault("mapped_areas", set())
+        self.__dict__.update(state)
 
     def _clear(self, floor_key: tuple[int, int, int] | None = None) -> None:
         self.floor_key = floor_key
@@ -64,6 +72,7 @@ class ExplorationLedger:
         self.search_counts.clear()
         self.wall_search_counts.clear()
         self.blocked_unknown.clear()
+        self.mapped_areas.clear()
         self.marked_high = 0
         self._dirty_decisions = 0
 
@@ -111,6 +120,10 @@ class ExplorationLedger:
         self.blocked_unknown = {
             (int(y), int(x)) for y, x in data.get("blocked_unknown", ())
         }
+        self.mapped_areas = {
+            (int(y), int(x), int(radius))
+            for y, x, radius in data.get("mapped_areas", ())
+        }
         self.marked_high = int(data.get("marked_high", 0))
         return True
 
@@ -142,6 +155,14 @@ class ExplorationLedger:
         # local launch snapshot could accidentally validate an unrelated floor.
         mismatches = len(sample) - sum(comparable)
         return mismatches / len(sample) <= EXPLORATION_SAMPLE_MISMATCH_TOLERANCE
+
+    def note_mapped_areas(self, areas: Iterable[tuple[int, int, int]]) -> None:
+        """Keep this floor's mapped discs; a new one is written at once (a
+        mapping is rare and a restart may follow it before the cadence)."""
+        added = set(areas) - self.mapped_areas
+        if added:
+            self.mapped_areas |= added
+            self.save(force=True)
 
     def note_decision(self, snapshot: Snapshot) -> None:
         self._dirty_decisions += 1
@@ -177,6 +198,7 @@ class ExplorationLedger:
                 [y, x, value] for (y, x), value in self.wall_search_counts.items()
             ],
             "blocked_unknown": [list(item) for item in self.blocked_unknown],
+            "mapped_areas": [list(item) for item in sorted(self.mapped_areas)],
             "marked_high": self.marked_high,
         }
         try:
