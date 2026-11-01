@@ -6,6 +6,9 @@ breach recharge (``q2_tower_recharge``):
  rumor    -- the inn rumor flow until Morivant (town 2) is listed in the
              exported ``visited_town_ids`` (what the inn teleport lists).
  travel   -- the inn teleport (``_town_teleport_key``).
+ approach -- the game's travel command to the cell beside the Tower
+             (``town_travel``, owner 2026-11-01 「街での移動は可能な限り
+             トラベルコマンドを活用して」); the last step enters it.
  recharge -- lib/edit/towns/03_Morivant.jsonc building 8, action 'a'
              (BACT_RECHARGE_ALL): market/building-recharger.cpp
              building_recharge_all totals the price over the whole pack, asks
@@ -20,6 +23,7 @@ from __future__ import annotations
 from functools import lru_cache
 import json
 
+from hengbot import town_travel
 from hengbot.baseitem_knowledge import find_baseitem_definitions
 from hengbot.model import TVAL_ROD, TVAL_STAFF, TVAL_WAND
 from hengbot.monrace_knowledge import _strip_jsonc
@@ -133,9 +137,7 @@ def building_step(policy, snapshot, building: int, *, family: str):
         # player-move.cpp enters a building only by moving onto it: step off
         # onto a plain grid, and the next board walks back in (D24).
         off = next((cell for cell in policy._walkable_neighbors(snapshot, snapshot.player.position)
-                    if (grid := snapshot.grid_at(cell)) is not None and grid.building_type < 0
-                    and grid.store_number < 0 and grid.building_special < 0
-                    and not grid.has_entrance and not grid.has_quest_enter), None)
+                    if town_travel.plain_cell(snapshot, cell)), None)
         return off, False
     position = (policy._town_map.building_position(building)
                 if policy._town_map_active(snapshot) else None)
@@ -154,6 +156,30 @@ def building_step(policy, snapshot, building: int, *, family: str):
         snapshot.grid_at(step) is not None
         and snapshot.grid_at(step).building_type == building)
     return step, enters
+
+
+def _building_position(policy, snapshot, building: int):
+    """The building's entrance: an emitted grid, else the town map's."""
+    here = snapshot.player.position
+    found = [grid.position for grid in snapshot.grids.values() if grid.building_type == building]
+    if found:
+        return min(found, key=lambda cell: (here.distance_to(cell), cell.y, cell.x))
+    return (policy._town_map.building_position(building)
+            if policy._town_map_active(snapshot) else None)
+
+
+def approach_key(policy, snapshot, building: int, step, reason: str) -> str:
+    """The move toward ``building`` that does not enter it yet.
+
+    The game's travel command to the cell beside it (``town_travel``) where
+    travel serves this board, else the single step of ``building_step``.
+    """
+    key = town_travel.building_key(policy, snapshot, _building_position(policy, snapshot, building),
+                                   reason)
+    if key is not None:
+        return key
+    policy.last_reason = reason
+    return policy._step_toward(snapshot, step)
 
 
 def start_fundraising_run(policy, snapshot, target: int) -> None:

@@ -765,5 +765,15 @@
   "equipment_capacity.py:plan_equipment_transactions": "pure helper: returns EquipmentTransactionPlan data with the shared town reserve; no game command or independent work admission",
   "quest_opening_readiness.py:q34_readiness_rejection_key": "delegated adapter: Q34 readiness fallback extracted from _opening_q34_town_key; the parent retains admission and selected-child ownership.",
   "me_ranged_first.py:attack_key": "dungeon-only: D21 class-16 ranged answer to an adjacent attacker (absorbed missile, attack wand, spare torch) before the dungeon melee rungs' key; no town work.",
-  "me_ranged_first.py:_throwable_torch": "pure helper: pack torch selector keeping one replacement light; no command or independent progress."
+  "me_ranged_first.py:_throwable_torch": "pure helper: pack torch selector keeping one replacement light; no command or independent progress.",
+  "me_staff_sequence.py:_next_shelf": "pure helper: The stage buy round's next town (the Outpost, then _search_town); emits nothing.",
+  "morivant_tower.py:_building_position": "pure helper: A building entrance of the current town (emitted grid, else the town map); emits nothing.",
+  "morivant_tower.py:approach_key": "delegated adapter: The Tower approach; delegates to town_travel.building_key (policy._town_travel_key) else the caller's _step_toward step.",
+  "policy.py:HengbotPolicy._take_claim_target": "pure helper: Returns the captured claim target of the last _nearest_goal_step; emits nothing.",
+  "policy_town.py:TownMixin._town_teleport_travel_key": "delegated adapter: The inn walk's travel leg; delegates to town_travel.building_key (policy._town_travel_key) while the route has not reached the inn.",
+  "town_travel.py:approach_cell": "pure helper: A plain walkable cell beside a building, the same one on every board; emits nothing.",
+  "town_travel.py:building_key": "delegated adapter: Travel to the cell beside a building; delegates to travel_key.",
+  "town_travel.py:plain_cell": "pure helper: Grid predicate (no store, building or entrance); emits nothing.",
+  "town_travel.py:point_macro": "pure helper: Composes point_target's cursor travel macro; emits nothing.",
+  "town_travel.py:travel_key": "delegated adapter: The one 'may this move use travel' rule; delegates to policy._town_travel_key, which offers the bounded route work."
 }

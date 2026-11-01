@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _advance_town_blocked_iteration
 from hengbot import town_pack_headroom
+from hengbot.magic_eater import MISSILE_REASON
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from tests import test_lv7_town_stop_recorded as lv7
@@ -206,9 +207,10 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
                 self.assertNotEqual(decisions[index][1], "town:kill-mob-approach")
         for index in (61, 63, 64, 65):
             # The horse is adjacent and biting: attack it, never a flee step.
+            # D55 (owner 2026-10-31 「近接以外の攻撃手段も街で使う」): the stand
+            # answers with the absorbed Magic Missile before melee.
             with self.subTest(row=index):
-                self.assertIn(decisions[index][1],
-                              {"flee:cornered-attack", "emergency:cornered-attack"})
+                self.assertEqual(decisions[index][1], MISSILE_REASON)
         attack = decisions[65][0]
         bitten = self.row("death2", 65)
         # DECLARED CONSTRUCTED: the engine's reply to the attack.
@@ -229,7 +231,8 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
                 self.assertNotEqual(decisions[index][1], "town:kill-mob-approach")
         for index in (107, 108, 109, 110):
             with self.subTest(row=index):
-                self.assertEqual(decisions[index][1], "emergency:cornered-attack")
+                # D55: the stand's ranged order (the absorbed Magic Missile).
+                self.assertEqual(decisions[index][1], MISSILE_REASON)
 
     def test_key3_distant_store_landmark_is_never_walked_as_a_direction(self):
         # n1-a life-447 08:42: travel to Home was refused by the town pack

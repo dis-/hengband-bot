@@ -379,9 +379,22 @@ class StoneToMudSpareGoldTest(unittest.TestCase):
     def test_spare_gold_takes_the_wand_to_the_tower(self):
         policy = self.policy()
         raw = self.last_board()
+        # DECLARED CONSTRUCTED: every other town's shelf seen in this wait, so
+        # the stage's buy round is over (#47 D52).
+        sequence.state(policy).searched_towns.update({1: raw["turn"], 2: raw["turn"],
+                                                      3: raw["turn"]})
         key, destination = self.decide_last(policy, raw)
-        # Unfixed: me-staff:search-staff (the stocked-out Detect Evil) only.
+        # Unfixed: me-staff:fundraise:staff-stockout (the stocked-out Detect Evil) only.
         self.assertEqual((policy.last_reason, destination), ("me-staff:travel-morivant", 2), key)
+
+    def test_the_wand_rides_the_stage_buy_round(self):
+        # #47 D52: one Tower trip per stage -- while other towns' shelves are
+        # still to be seen, the wand waits for the round, which ends at the
+        # Tower (Morivant last).
+        policy = self.policy()
+        raw = self.last_board()
+        key, destination = self.decide_last(policy, raw)
+        self.assertEqual((policy.last_reason, destination), ("me-staff:search-staff", 1), key)
 
     def test_without_spare_gold_the_stage_keeps_its_search(self):
         policy = self.policy()

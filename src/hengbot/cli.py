@@ -40,6 +40,7 @@ from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_kno
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
+from hengbot.town_travel import is_travel_macro
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
@@ -1029,7 +1030,7 @@ def _delay_spec_after_macro_key(
         return 0.0, None
     if key.startswith("T") and index == 0:
         return input_delays["input_tunnel_prompt_delay"], "input:tunnel-prompt"
-    if key in TRAVEL_MACRO_TRIGGERS and index in {1, 2, 3}:
+    if is_travel_macro(key) and index in {1, 2, 3}:
         return input_delays["input_travel_prompt_delay"], "input:travel-prompt"
     # f/v raise an item-selection prompt before the direction prompt, the same
     # settle shape as store drop/get.
@@ -1092,7 +1093,7 @@ def _intentional_action_wait_category(key: str, reason: str) -> str | None:
 def _command_response_grace(key: str, reason: str) -> float:
     """Extra snapshot silence allowed only for genuinely multi-turn commands."""
     repeat_command = (
-        key in TRAVEL_MACRO_TRIGGERS
+        is_travel_macro(key)
         or key.startswith("T")
         or (key.startswith("R") and len(key) > 1)
         or key.startswith(".")

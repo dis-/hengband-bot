@@ -1,0 +1,47 @@
+LUNA-DIAG me-disarm-powers (#47, 2026-11-01)
+Owner: 「魔道具術師が罠を解除するとき、トラップ解除やトラップ/ドア破壊を取り込み済なら使用する」
+Base: main 4cd4e9e6d (line numbers below are of this branch after the change).
+
+1. 罠の位置と方向の知り方（盤面）
+ - GridState.trap = known and grid_map の terrain bit "trap" (src/hengbot/model.py:1182, 名前の表 model.py:32-50)。
+   見えている・覚えている罠だけ（隠れた罠 INVIS は TRAP フラグを持つが grid_map には出ない）。
+ - 解除する罠は常に隣のマス: 歩きの次の一歩 (_step_toward の step) か、宝箱の隣に立った後の宝箱の位置
+   (_chest_position)。方向は policy._direction_key (policy.py:20634) の 8 方向。
+
+2. ボットが既知の罠を扱う場所
+ a. 歩きの一歩: policy_navigation._step_toward (src/hengbot/policy_navigation.py:1838)
+    罠の分岐 1909-1919: 'D' + 方向 + tail を同じマスで CHEST_DISARM_BUDGET (=2, policy_constants.py:212)
+    回まで (_floor_trap_disarm_attempts)、使い切ったらそのまま歩いて入る。数は階の移動で消える
+    (policy_observation.py:914)。 → ここが「罠を解除するとき」の本体。
+ b. 経路: policy._is_avoidable_hazard_grid (policy.py:20373-20383) は既知の罠を危険マスとし、
+    _walkable_neighbors (policy.py:~20110-20160) は 1 回目の探索で罠を避け、道が無いときだけ罠を通る。
+    _breakout_step も罠でないマスを優先。 → 解除ではない（避ける）。変更しない。
+ c. 退く位置の点数: policy_combat.py:4393 付近、罠のマスを後回し。 → 解除ではない。変更しない。
+ d. 宝箱: policy_identification._chest_processing_key (policy_identification.py:84)
+    落とす→隣へ→s ×CHEST_SEARCH_BUDGET→D ×CHEST_DISARM_BUDGET→o ×CHEST_OPEN_BUDGET。
+    D の段 (317-325) は罠があるかを見ずに予算で押す（罠の発見の伝言は盤面に無い）。
+ e. 罠や地形の被害の記録 (_took_trap_or_terrain_damage, policy_observation.py:1066 ほか) は
+    被害の後の判断で、解除ではない。
+
+3. 魔法道具の効果（ゲームのソース）
+ - トラップ解除の魔法棒 (wand sval 4, BaseitemDefinitions id 286) / ロッド (rod sval 14, id 365):
+   cmd-item/cmd-zapwand.cpp:118-125, cmd-zaprod.cpp:168-175 -> disarm_trap(dir)
+   (spell-kind/spells-beam.cpp:50-54): PROJECT_BEAM|GRID|ITEM の KILL_TRAP。
+   project_hook が PROJECT_THRU を足し、方向の 1 マス先を狙う (spells-launcher.cpp:262-267,
+   floor/geometry.h:203-210) ので、直線上を get_max_range() (18) まで、射線を止めるマスで止まる。
+   effect-feature.cpp:156-189: 隠しドアを見つけ、罠を消し、鍵の掛かったドアを開ける。
+ - トラップ/ドア破壊の魔法棒 (wand sval 5, id 281): destroy_door(dir) (spells-beam.cpp:38-42) KILL_DOOR
+   (effect-feature.cpp:191-207): 直線上の罠とドアを壊す。
+ - 宝箱 (物): effect-item.cpp:201-218 KILL_TRAP/KILL_DOOR は宝箱の pval を負にする（罠と鍵が無くなる）。
+   → 宝箱の罠にも効くので対象に入れた（2.d）。
+ - 狙う: 魔法棒は常に get_aim_dir、ロッドは is_aiming_rod (baseitem-key.cpp:436-460 に SV_ROD_DISARMING)
+   (cmd-magiceat.cpp:543,563)。get_aim_dir の文脈は can_choose_target=true (target-getter.cpp:77)。
+ - 失敗: 「呪文をうまく唱えられなかった！」でターンを使い回数は減らない (cmd-magiceat.cpp:520-530)。
+ - 取り込み: me_device_policy.json の3行とも absorb_now=true（魔法棒2本は buy_first=true）。
+
+4. 直す場所
+ - 2.a と 2.d の 'D' の直前に me_powers.power_key(..., TRAP, 罠の位置) を1行ずつ。
+ - 2.a の呼び手の多くは _step_toward の後で last_reason を書き換える（例 policy_navigation.py:391-393
+   dark:backtrack、計 40 か所以上）。実行器は me-power: の理由でだけ m の問いに答える
+   (me_device_attacks_input.compile_device) ので、決定の出口で保留中の魔法の鍵なら理由を戻す
+   (policy.py:2868, me_powers.decision_reason)。

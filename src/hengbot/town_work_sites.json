@@ -1962,7 +1962,15 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "57ec07b4b75d0329ff4037b28d3c2f9ffcc9e9f026c833c774a3173ade77206f"
+    "ast_sha256": "3560db72d501def7a9eb1c609df7490b85fac4571c5f74ee651adbb3698e794b"
+  },
+  "me_powers.py:Context.aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "bb93067cc6b47aecd6df5f0992f7f96c3c17affe50a78b5d566b3b8757f7d148"
   },
   "me_powers.py:Power.key": {
     "classification": "data",
@@ -1988,6 +1996,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "204596a035aefb16596fff1889ede9ca8e4ab912a6433237ba581e69e69c87c6"
   },
+  "me_powers.py:beam_direction": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "19c34ebd70783dcc8a1d0f6e459ff1e1c16b611a0d53146723810fe8a57a2f18"
+  },
   "me_powers.py:charges": {
     "classification": "data",
     "rows": [
@@ -1995,6 +2011,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "e4d840dd3afcd4b0f5f1772370590ea486a24051570461f6847f4bff105e8fca"
+  },
+  "me_powers.py:decision_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "141ec3ceba0167bbb8a58a9316bcded7d856d25912050cb3abcb39b7b3c6bb17"
   },
   "me_powers.py:encode_letter": {
     "classification": "data",
@@ -2018,7 +2042,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "0457386e2c5775ce54c5a22a011defdbb9a55de70f57144b57f084182a6a02fe"
+    "ast_sha256": "c52a4536c7f201b69ab8f2a9cc1a669419344d382684eb8189d94c00cff6bd55"
   },
   "me_powers.py:recorded_charges": {
     "classification": "data",
@@ -2175,7 +2199,15 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "af766230e2ce612be9b4269d5e3ca000a2b4706cffdaf1a329747eb9f1e8168a"
+    "ast_sha256": "2294d167f69716c086e60642e0686a392878d4d6c8cb49a77ffcb41f53779378"
+  },
+  "me_staff_sequence.py:_next_shelf": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "c6dc5aa03ca2e0f1ac02a3968a65b5adbf9c0bda6cafbf301c1b96b4af35aec9"
   },
   "me_staff_sequence.py:_page_purchase": {
     "classification": "data",
@@ -2191,7 +2223,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "f96da71b6cc57e9ab6801507e95a6b19af6b80f9c3d80d796fe2eb84e689ca8f"
+    "ast_sha256": "07d88b44302b279c9b1625fac8d244fa415dea5528e254dd513ea8c3421aaf24"
   },
   "me_staff_sequence.py:_recharge_key": {
     "classification": "producer",
@@ -2204,7 +2236,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "f434835122712f7b7b25d245ca488ed4d0837e0c6f535629c53d04e82a2c7714"
+    "ast_sha256": "3ef86689b3227f7ddeb3909c7678d1395355c66b7493a04d024f412ac7ae5440"
   },
   "me_staff_sequence.py:_rumor_expedition_cost": {
     "classification": "data",
@@ -2220,7 +2252,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "46a69f7795720a7f4ccc3fed09d83a1fa5a5a2b5f37b05c16cafd83185bff957"
+    "ast_sha256": "b30dae8ebfdc82a32a832d81ef35f84ff2f5b1a2b085e9ee651847dc84641a96"
   },
   "me_staff_sequence.py:_stockout_target": {
     "classification": "data",
@@ -2364,7 +2396,7 @@
       "browse"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "5685ee16fb3af75d08a2c21d5a0587bb94319a59f1b4e07c79f88e09ca50ae46"
+    "ast_sha256": "ad241b878d1c06ef317955bac86bb51c101dd7c13021999a48b44651f93bef13"
   },
   "mining_loadout.py:empty_main_hand_weapon": {
     "classification": "data",
@@ -2525,6 +2557,23 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "d5f7c765844be4214360d6bc6149ca4295becc9c0506bf079c42de47bfb285c9"
+  },
+  "morivant_tower.py:_building_position": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "5ced664df7a8d3996cdf633dd5cb100dd5ad53a237bb2b6c63916491a3caeeb7"
+  },
+  "morivant_tower.py:approach_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "73de2846fae84de5b9229e316a9ce8a51f30eb1829b26eab66551101db012b32"
   },
   "morivant_tower.py:device_definitions": {
     "classification": "data",
@@ -4118,6 +4167,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "2fb3804c6a9861045e6935e36f836993429244be2fb3a0e3bfcbcc7f446ba3ab"
   },
+  "policy.py:HengbotPolicy._take_claim_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "bed0b6121cdbc2f746c9586a4ff7c6b238236dadbc6d058d81fb4e5a3e6f36a3"
+  },
   "policy.py:HengbotPolicy._taken_kill_quest_requires_walk_in": {
     "classification": "data",
     "rows": [
@@ -4808,7 +4865,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "7cd82a5f1ffd90c0fef31e367eef33e306f726be00ec1f25294ff83fd6d5f1b6"
+    "ast_sha256": "33f2839004e72a152e7c449ea4183e8723dc305c82c078f3c740fad5d5309e97"
   },
   "policy.py:HengbotPolicy.choose_key.choose_ladder": {
     "classification": "adapter",
@@ -4849,7 +4906,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "474750f7e2719bab20068a41b85221c63f5feab3b0c6c62b6867186b7c4088d3"
+    "ast_sha256": "8ee57b7585b12c6d2e89b98d5cfe8b24904da59579007e092c94ec5d1611ef9d"
   },
   "policy.py:HengbotPolicy.validate_read_key": {
     "classification": "adapter",
@@ -5195,7 +5252,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "255fb78b007769dae651d54d0adf3cbf630cbba05f7347b1db766eae26498cf4"
+    "ast_sha256": "278b2e5c6c5f6ee130a0956448c6071d71ff31452f6b23ef6a449aa1195a00cd"
   },
   "policy_combat.py:CombatMixin._paralyzing_monsters": {
     "classification": "data",
@@ -6444,7 +6501,7 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "3150986f330fd8314d50f29a5f3d50bb7494c1d7a149c01f5c580617766ef77c"
+    "ast_sha256": "3b2e925d9a5dadb90d776b1a5816cec6474c2916b448dcaa142f4475caf61091"
   },
   "policy_identification.py:IdentificationMixin._dungeon_equipment_identify_key": {
     "classification": "dungeon-only",
@@ -6825,7 +6882,7 @@
       "store-approach"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "befc982415c096ee907e34aafb2f38b4413937e7c4601e74f2ed6c1c874af133"
+    "ast_sha256": "c08f1f516b31dd787ee54f4b7bfe90b04cea72a1295c9ffcb965c0be3b7edb57"
   },
   "policy_navigation.py:NavigationMixin._suppress_pending_stair_command": {
     "classification": "adapter",
@@ -9001,7 +9058,7 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "54ea5d3da68426f38e0f48fb4efa52d4ffffe37e39556c328e3e71cd94cfb6aa"
+    "ast_sha256": "4a18657f22af5655d02a833c054c0df0755fcfab970c2d9e8e5a843b2d04bd30"
   },
   "policy_town.py:TownMixin._town_special_key.read_recall": {
     "classification": "adapter",
@@ -9033,7 +9090,7 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "ad683fcb38d4dd1bc450415e0ea90bdacee7fc33ab5923919d0f9a18c9599fac"
+    "ast_sha256": "fa0901e4ec2f55af25b2f925a0ebac697a6dbe39b68d8fd366c60d89fc7e422d"
   },
   "policy_town.py:TownMixin._town_teleport_key": {
     "classification": "producer",
@@ -9050,6 +9107,15 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "87da33c9b85811c9c5995be5e17c21822ba10a7cdddf02ed1ecfa803903f22ec"
+  },
+  "policy_town.py:TownMixin._town_teleport_travel_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "c2ed767e371d771c41793d1960f73639f187c9452456c0b1059eef29e3d84474"
   },
   "policy_town.py:TownMixin._town_travel_key": {
     "classification": "producer",
@@ -9249,7 +9315,7 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "7f9761d570ca3534138d8bdf1c36f43a55d92cfbd55209ea344f09d7765435d0"
+    "ast_sha256": "cf1edb078b7efa78c408cf94e8509180a1eb98ba05935ed295356ed6ee322177"
   },
   "q2_tower_recharge.py:_stop": {
     "classification": "producer",
@@ -9720,7 +9786,7 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "aabbddd4128d6c1d3b2bd45a5020cddf963dc14535088c6e601fe4cfd09eaf92"
+    "ast_sha256": "90908425a4aecaf3e331e542fba9e009ac4eb4e58c9663cfa8b86305ce526267"
   },
   "town_last_stand.py:target": {
     "classification": "data",
@@ -10107,6 +10173,52 @@
     ],
     "delegation": "no independent success",
     "ast_sha256": "0b7a940b88203ce57d85a8d585cb83c52a071c2aeec8a93f1593725d5a9a0a75"
+  },
+  "town_travel.py:approach_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "b2dfd2480bf33cdd968b4c7a21e4488789cc7c87ce4c3cb6a4d40c2247127082"
+  },
+  "town_travel.py:building_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service",
+      "rumor",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "a8de2a730a8593bc6971c98dae4f79b8f1a14fb605499d899e98f12e2ffa2fcc"
+  },
+  "town_travel.py:plain_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "ad58277f0de565dc0e2f88630c7c5d23033dd07fb768f77ff87fb3dc835ba8f2"
+  },
+  "town_travel.py:point_macro": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "a6c40b7421f871ed294fc30fca6ae37b1fe3261bf3038e38d2f7a42a03110bd7"
+  },
+  "town_travel.py:travel_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service",
+      "rumor",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "fecb43e1024bfbeff3ac183b73fd4450ec195c482bdd0e9f7356c1c12d5d5569"
   },
   "town_work.py:bind_driver_override": {
     "classification": "driver",

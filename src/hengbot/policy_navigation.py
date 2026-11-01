@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dark_recall
+from hengbot import dark_recall, me_powers
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1916,6 +1916,10 @@ class NavigationMixin:
         key = self._direction_key(snapshot.player.position, step)
         grid = snapshot.grids.get(step)
         if grid is not None and grid.trap:
+            # Class 16 aims an absorbed disarming power at the trap (me_powers).
+            power = me_powers.power_key(self, snapshot, me_powers.TRAP, step)
+            if power is not None:
+                return power
             yx = (step.y, step.x)
             if self._floor_trap_disarm_attempts[yx] < CHEST_DISARM_BUDGET:
                 self._floor_trap_disarm_attempts[yx] += 1
