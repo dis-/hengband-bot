@@ -2027,6 +2027,9 @@ class CombatMixin:
             if player.blind:
                 # No cure: strike the unseen attacker instead of walking blind.
                 return blind_strike.key(self, snapshot)
+            if (strike := unseen_strike.key(
+                    self, snapshot, hostiles, unseen_strike.RECALL_REASON)) is not None:
+                return strike  # a melee blow (owner 2026-11-01, unseen_strike)
             step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
             if step is not None and (
                 self._is_oscillating() and step in set(self._recent)
