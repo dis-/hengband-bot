@@ -31,6 +31,7 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_in_store_breaker_path",
     "_unseen_attack_path",
     "_town_visit_purchase_path",
+    "_breeder_floor_record_path",
 )
 
 

@@ -1,0 +1,82 @@
+LUNA-REPORT breeder-swarm-1102（n1-c life-098 鉄獄24階のソフトウェア・バグ）
+
+■ 何が起きたか
+n1-c life-098（魔道具術師 Lv31、最大HP 412）は、鉄獄24階のランダムクエスト41の階にいた（クエストの出口は閉じている）。
+2026-11-02 00:10-00:14 に、ソフトウェア・バグ（種族 246、HP 4、加速+10、噛みつき 1d2、増殖する）が1匹から42匹に増えた。
+バグが隣にいた判断は789回あったが、ほとんどが search / breakout / stuck:wander だった。噛まれた回数は952回で、HP は 412 から 166 まで減った。
+体力回復の薬を5本使い、loop-detected で2回止まり、キャラクタを失った。起動し直した後は、ふつうに殴るだけで37匹を約50秒で倒せた。
+証拠: C:\hengband-backups\pdca\captures\n1c-breeder-supplies-1102\（life-098-dec.jsonl、incident-captures\20261102-001035-loop-detected、20261102-001316-loop-detected）。
+
+■ 根本の原因
+(a) 噛みついてくる増える敵を無視した
+  - policy_combat.py:829-841 _strategic_subset: 「抜け出す」の印（状態2、_breeder_breakthrough_floor）が付いた階では、弱い増える敵を全部、戦う相手の一覧から外していた。
+    弱いかどうかは policy.py:12769-12776 _is_weak_breeder（1匹の最大ダメージが最大HPの5%未満）で決める。隣で噛んでいる敵も外されていた。
+  - policy_combat.py:3991 _breeder_breakthrough_escape_key: クエストの出口が閉じた階では None を返す（出口が無い）。
+  - survival_preemption.py の attacking_adjacent は、外された敵を「攻撃してくる敵」と数えないので、探索などの担当を止めなかった。
+  - 記録の行: ターン 2207345-2207410 は8回続けて search 's'。バグが7〜8匹隣にいて、「ソフトウェア・バグに噛まれた。」が出ている。
+  - オーナーの決まり「生存処理を優先しなければキャラクタは死亡する。当然の結果。」に反する。D46（城22階のゴキブリ）と同じ型。
+(b) 再起動で印が消えた
+  - policy.py:2093 の印はプロセスの中だけにあり、再起動で消えた。policy-state.json は診断用に書くだけで、読み戻されない。
+  - 00:10:35（ターン 2200908）の loop-detected の後、00:10:42 に起動し直したボットは状態1から始めた。22匹の群れに約97本の矢を撃ち（ranged:fire 'fn4'）、00:11:00 にまた印が付いた。
+(c) 追加の決まり（オーナー 2026-11-02「攻撃用の物資は制限しない。ただし、20ターンで数が減らせないなら逃走を選択する。」）
+  - 前の作り（policy_combat.py の _update_combat_outcome）では、印を付ける条件が2つあった。「5匹倒して、最初より数が多い」と「3000ゲームターンのあいだ数が減らない」。
+    24階では最初のバグを見てから8回の行動で印が付いた（ターン 2199675 で見つけ、2199751 で状態2の search）。
+
+■ 直し（根ごとに1コミット）
+(a) 25c3b8a9d Fight weak breeders that bite from beside the player
+    隣から攻撃してくる弱い増える敵（survival_preemption.strikes_from_adjacent。起きていて、怯えておらず、打撃がある敵、またはこの盤面でダメージを受けている）は、戦う相手の一覧に残す。
+    同じ判定を attacking_adjacent でも使う。攻撃してこない弱い増える敵は、状態2では今までどおり外す。
+(b) a91c13071 Carry the breeder breakthrough latch across a bot restart
+    新しいモジュール breeder_floor_record.py。階と印を、判断ログの隣の breeder-floor.json に書く。
+    やり方は、今ある「見えない敵の攻撃」（unseen-attack.json）や「町での買い物」（town-visit-purchases.json）と同じにした。プロセスの最初の盤面で、同じダンジョンの同じ階、同じかそれより後のゲームターンのときだけ戻す。
+    パスは cli で判断ログの隣に置く。runtime_paths の上書きの対象にも足した。復元したチェックポイントのために normalize_policy_state に setdefault を足した。診断用の policy-state にも印を出すようにした。
+(c) 7f714e287 Flee breeders that 20 player actions did not reduce
+    新しいモジュール breeder_stalemate.py（FLEE_AFTER_PLAYER_ACTIONS = 20）。増える敵と戦い始めた後、20回行動しても、見えている数が戦い始めた時の数より減らなければ、その階に印を付ける。
+    印が付くと、抜け出す担当が帰還か上り階段で階を出る。最初の数より少ない盤面が1回あれば、そこから20回を数え直す。
+    前の2つの条件（5匹倒した、3000ゲームターン）とそのための倒した数の記録は消した。状態1で撃つことも、状態2で弱い敵を外すことも変えていない。
+    戦い始めの数・ターン・数えた行動の回数は、(b) と同じ記録で再起動の後も続く。記録は、戦いの結果を決めた後にも書く（その判断の1回の行動を失わないため）。
+    出口が閉じた階では、印が付いても (a) のとおり隣の敵と戦う。
+
+■ 検査（記録の盤面 → 公開の choose_key → 本番の executor）
+テスト: tests/test_breeder_swarm_1102_recorded.py（7件）。元のデータ: tests/fixtures/breeder-swarm-20261102.json.gz。作る道具: tests/extract_breeder_swarm_1102_fixture.py。
+  - (a) test_recorded_rows_searched_beside_the_biting_bugs、test_latched_quest_floor_melees_the_biting_bugs（印の付いたクエストの階で、9枚の盤面がすべて melee）
+  - (b) test_recorded_restart_fired_bolts、test_restart_on_the_latched_floor_stays_in_state_2（止まる前のプロセスが記録を書き、新しいプロセスが印を戻す。撃たない）
+  - (c) test_recorded_rows_latched_after_eight_actions、test_twenty_actions_without_reduction_latch_the_floor（20回目の行動のターン 2199871 で印が付く。それまでは melee / ranged:fire）、
+        test_restart_keeps_the_engagement_window（10回目で再起動しても 2199871 で印が付く）
+直す前に戻して確かめた結果（各1回）:
+  - (a) を戻す: 'explore' != 'melee'（記録と同じく戦わない）
+  - (b) の戻す処理を外す: None != (1, 24, 41)
+  - (c) の src を全部戻す: (1, 24, 41) != None : 2199735（前の5匹の条件で早く印が付く）
+  - どれも元に戻して合格。
+直した既存のテスト（新しい決まりに合わせて期待する値を書き直した。新しい壁は無い）:
+  - tests/test_policy_combat.py: test_breeder_latch_requires_five_kills_and_growth → test_breeder_latch_requires_twenty_actions_without_reduction、
+    test_breeder_stalemate_timeout_ends_mining_through_floor_exit（3000ゲームターン → 20回の行動）
+  - tests/test_policy_town.py: test_five_kill_growth_judgement_ends_mining_through_floor_exit → test_twenty_action_breeder_judgement_ends_mining_through_floor_exit
+復元・作成した部分（テストの説明に DECLARED と書いた）: _fixed_quest_speed_attempted は取り込み時の policy-state のとおり true にした。(a) の盤面は印が付いた状態から始める（印は診断用の policy-state に無かったため、記録の search / breakout の行から復元した）。
+
+■ 確認の結果（main ba70f3898 を取り込んだ後、2ff8688c0）
+- import の確認: OK
+- 自分のテスト7件と書き直した既存のテスト3件: OK
+- checks.json、全体テスト、preflight などは決まりのとおり流していない。town_work の producer は変えていない。
+
+■ checks.json に足す案（checks.json は編集していない）
+{"id": "BREEDER-SWARM-1102", "owner": "2026-11-02 生存優先・「攻撃用の物資は制限しない。ただし、20ターンで数が減らせないなら逃走を選択する。」", "tests": ["tests.test_breeder_swarm_1102_recorded"]}
+
+■ 保守性
+- 新しい処理は2つのモジュールにまとめた。breeder_stalemate.py は20回の決まりを持つ（定数1つ、短い関数2つ）。breeder_floor_record.py は再起動をまたぐ記録を持つ。
+- _update_combat_outcome の約40行（倒した数と2つの条件）は、1回の呼び出しと記録に置き換えた。使わなくなった定数 BREEDER_STALEMATE_TURN_LIMIT と、倒した数の3つの属性は消した。
+- 隣から攻撃してくるかどうかの判定は strikes_from_adjacent の1か所にまとめ、優先して止める処理と戦う相手の一覧で同じものを使う。
+- 共通の判断のコードに、クエストの番号・種族・職業の特別扱いは足していない。関係ない整理はしていない。
+
+■ オーナーへの確認（決まりの読み方）
+1. 「20ターン」は、ボット自身の行動20回と読んだ。数え方は「ゲームターンが進んだ判断の盤面」1枚を1回とする。
+   ゲームは1ティックごとに game_turn を1進め（dungeon-processor.cpp:245）、プレイヤーは速さに応じたエネルギー（speed-table.cpp の speed_to_energy）が貯まると行動する。
+   そのためゲームターンの数で数えると、速さによって行動の回数が変わる。行動の回数で数えれば変わらない。
+2. 「数が減らせない」は、見えている（または感知した）増える敵の数が、戦い始めた時の数より少なくならないこと、と読んだ。一度でも少なくなれば、そこから20回を数え直す（前の3000ターンの条件と同じ数え直し方）。
+   戦い始めの数が1匹の時は、見えている全部を倒さないと「減った」にならない。
+3. 前の「5匹倒して最初より多い」条件は、20回より早く逃げることがあるので消した（逃げるかどうかは20回の決まりだけで決める）。
+
+■ オーナーへの問い（直していない）
+- 出口が閉じたクエストの階で印が付くと、状態2になって、攻撃してこない弱い増える敵は外す（遠くのバグは撃たない）。隣の敵とは戦うが、その間も遠くの群れは増え続ける。
+  クエストの階では、戦い続けて数を減らす（状態1のまま）方がよいか。
+- 出口が開いた階の抜け出す担当は、今までどおり戦う担当より先に動く。隣で噛まれながら階段へ歩く場面は変えていない（逃げると決めた後の動き）。

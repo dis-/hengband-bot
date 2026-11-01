@@ -107,7 +107,6 @@ from hengbot.policy_types import (
     TownErrandPlan,
 )
 from hengbot.policy_constants import (
-    BREEDER_STALEMATE_TURN_LIMIT,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     EMERGENCY_RETURN_COUNT,

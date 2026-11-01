@@ -251,7 +251,6 @@ from hengbot.policy_constants import (
     WEAPON_BLOCK_LIMIT,
     _required_abilities_for_depth,
     required_depth_gates,
-    BREEDER_STALEMATE_TURN_LIMIT,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     EMERGENCY_RETURN_COUNT,
@@ -2058,11 +2057,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._combat_fruitful = True
         self._breeder_engagement_floor: tuple[int, int, int] | None = None
         self._breeder_engagement_score = 0
+        # The breeder engagement window (breeder_stalemate, owner 2026-11-02).
         self._breeder_engagement_start_count: int | None = None
         self._breeder_engagement_start_turn: int | None = None
-        self._breeder_kills = 0
-        self._breeder_previous_exp: int | None = None
-        self._breeder_previous_indices: set[int] = set()
+        self._breeder_engagement_actions = 0
+        self._breeder_engagement_last_turn: int | None = None
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
         # Floor and snapshot turn of the decision that first waited for a
         # detected pack at a reached choke.  Retain an expired episode until an
@@ -2091,6 +2090,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             release_sites=("_release_choke_plan",),
         )
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
+        # The latch's restart record (breeder_floor_record); the CLI points
+        # the path beside the decision log.
+        self._breeder_floor_record_path = None
+        self._breeder_floor_record = None
         self._breeder_breakthrough_frontier_floor: tuple[int, int, int] | None = None
         self._breeder_breakthrough_frontier_goal: Position | None = None
         self._breeder_breakthrough_frontier_origin: Position | None = None
