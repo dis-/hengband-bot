@@ -1,0 +1,186 @@
+LUNA-REPORT hourly-0600-1102（観戦ボットの 05時台の止まり 3件）
+
+ブランチ hourly-0600-1102（main 10ac9173a から）。push していない。
+材料: C:\hengband-backups\pdca\captures\hourly-0600-1102\ の 3 件。サーバの incident-captures
+（policy-state.json・snapshots-current・meta・remembered-map）を読み取りだけで同じ場所の
+<止まり>\incident-captures\ に写した。
+
+======================================================================
+1. n1-c life-102（魔道具術師 Lv14、モリバント、bot-ff4196953）quest:blocked:me-staff ×3 → 引退
+======================================================================
+
+どのクエストか: クエストではない。理由は quest:blocked:me-staff だが、止めたのは魔道具術師の杖の
+段階の担当（me_staff_sequence.town_key）。段階3を終え、塔で全部充填（me-staff:recharge-all）、
+取り込み（magic-eater:absorb 'Gk'）の後、宿の転移でアウトポストへ帰る足（me-staff:return-outpost）
+で止まった。Q2 の決まり・塔の充填の決まりとは関係がない。
+
+証拠:
+- policy-state.json の _me_staff_sequence.failure
+  = "return-outpost-unavailable:me-staff:return-outpost"（2回目以降は再起動後の同じ盤面で
+  ":me-staff:read-powers" / ":magic-eater:absorb"）。
+- 決定 10545（ターン 2457512、(20,55)）: me-staff:return-outpost、トラベル
+  '\x1b`n3333…6666.'（宿の脇 (42,93) へ）。
+- ターン 2457605: みすぼらしい子犬（race 7）が見えてトラベルが (28,63) で止まる。
+  次の決定 10546 で _town_teleport_route が failure="no-legal-path"、
+  me_staff_sequence._travel（me_staff_sequence.py:732-746）が
+  "return-outpost-unavailable" で _stop。
+
+根本の原因:
+- 夜のモリバントは照らされたマスしか出ない。見えないマスは静的な町の地図で埋める
+  （policy_navigation.py:1215-1226 _build_grid_index）。
+- その地図の歩けるマス（town_maps.py parse_town_map）は床の記号（".,<>" と FLOOR の地形）だけで、
+  JSONC の凡例（TownPreferences.jsonc）で '-' = GRASS の草地が入っていなかった。モリバントは
+  ほとんど草地で、歩けるマスは 1534 しかなく、(28,63) は照らされた草地の島になっていた。
+  このファイルの元の注釈は「plain floor, grass and the stairs」を歩けるとしており、
+  JSONC への移行で草地の記号が抜けたもの。
+- ゲーム本体: TerrainDefinitions.jsonc の GRASS・DIRT・FLOOR はどれも MOVE と FLOOR の旗を持つ。
+  TREE は MOVE だけで FLOOR がなく、action/movement-execution.cpp:244 で行動が2倍になる。
+
+直し（コミット b9d11d30e）:
+- town_maps.py に _WALKABLE_TERRAINS = {FLOOR, GRASS, DIRT} を足し、地形がこれなら歩けるとした
+  （town_maps.py:38、:221-223）。木・水・壁などは今までどおり歩けない。
+- 影響: 静的な地図の歩けるマスが Outpost 1863→2495、Telmora 3607→9705、Morivant 1534→10183、
+  Angwil 689→3982、Zul 395→1060 に増える。昼は今までも出ている草地を歩いていたので、
+  夜の道が昼と同じになる。町の地図を使う既存のテストは流していない（規則どおり）。夜の町の
+  道の期待値を持つ記録テストがあれば、次の取り込みで道が変わる可能性がある。
+
+テスト: tests/test_me_staff_grass_route_1102_recorded.py（2件）
+- 盤面: 記録のターン 2457512（宿への足）と 2457605（トラベルが止まった盤面）。
+- 公開の choose_key と本番の executor の口で流す。2457605 で me-staff:return-outpost の
+  トラベル（'\x1b`n…'）が出て、failure が None であること。
+- 宣言した復元: 杖の段階の記録は capture の _me_staff_sequence。05:09:44 の 'mBp3' で
+  ゲームが見せた魔法棒の一覧に岩石溶解（wand:6）がある（持っている岩石溶解を取り込まない）。
+  町の地図はゲームの lib/edit/towns（本番と同じ読み込み）。
+- フィクスチャ tests/fixtures/me-staff-grass-route-1102.json.gz（22KB）、
+  抽出 tests/extract_me_staff_grass_route_1102_fixture.py。
+
+差し戻しの確認（1回）: town_maps.py の変更だけを戻すと
+  test_the_inn_leg_continues_across_the_grass_after_the_travel_stops が失敗
+  （'quest:blocked:me-staff' != 'me-staff:return-outpost'）、もう1件は通る。戻すと 2 件とも通る。
+
+======================================================================
+2. n1-c life-103（Lv9、鉄獄5階、bot-424cb439c）loop-detected 05:31:49
+======================================================================
+
+直していない（オーナーの決定が要る）。
+
+見たこと（bot-decisions.jsonl.gz、policy-state.json）:
+- 鉄獄5階の部屋の出口のそば。東の (20,82) にシルバー・ゼリー（race 73、NEVER_MOVE、
+  寝ている、触って光を食う EAT_LITE ×2、DRAIN_MANA）。
+- ターン 412539〜412806 に explore が東の未踏へ向かうたび、step 6 の材料的な交戦の門
+  （policy.py:12390-12404、_material_melee_engagement policy.py:20155）が
+  threat:avoid-engagement で下がり、そのたびに立っていたマスを
+  _claim_engagement_avoid_cells で避けるマスにした（trigger_monsters [[7,73]]）。
+  7回で (20,74)(20,75)(20,76)(21,74)(21,76)(22,74)(22,76) が避けるマスになり
+  （policy-state.json _engagement_avoid_cells）、(23,*) は壁なので、プレイヤーは
+  (21,75)/(22,75) の2マスに自分の避けるマスで閉じ込められた。避けるマスは階を変えるまで消えない
+  （policy_observation.py:883）。
+- その後 search ×16、続いて振動の分岐（policy.py:12531-12582、#8）の
+  breakout:least-visited（policy.py:12580）が 2マスを往復し、40 決定で CLI の
+  loop-detected（cli.py LOOP_WINDOW=40）。既存の「行き詰まりの階からの帰還」
+  （policy.py:12482、STUCK_ESCAPE_LIMIT=60）は 57 で、あと3回足りなかった
+  （帰還の巻物は9枚あった）。
+- _material_melee_engagement は相手が動かないことを見ていない。HP131 に対し
+  12×7 行動（速さ120、3ターン）で材料的とされ、距離6〜7で下がり続けた。
+
+別の組み合わせか: はい。n1c-5f-loop-1102 は「降りる道が避けるマスを無視した」もの。今回は
+「動かない相手への交戦の門（avoid-engagement）×探索」で避けるマスの輪ができ、自分を閉じ込めた。
+rq-after-q2 の降りる制限は原因ではない（輪の中からはどの階段にも行けない）。
+
+オーナーへの問い（報告の最後にまとめた問い2・問い3）。
+
+======================================================================
+3. n1-a life-464（戦士 Lv38、町、bot-10ac9173a）town:blocked:departure-unsatisfiable 05:49:07
+======================================================================
+
+直していない（記録の盤面で再現できる状態を作れず、テストを書けなかった）。
+
+departure_block.failed（決定 5454、ターン 2870501）:
+  ["identify_staff_ready", "home_candidate_resolved", "identification_need_clear",
+   "departure_identification_need_clear"]
+  （diagnostics: free_pack_slots 4、minimum_free_pack_slots 5）
+
+町の終わりの判定は採掘を1サイクル始めていた:
+- 決定 5453（ターン 2870486）: _town_special_key の出発の判定（policy_town.py:7065 の
+  `if recall_dest is not None and not departure_ok:` の中、:7133）が departure-unsatisfiable
+  → _town_blocked_key → force_visit_departure(cause="departure-unsatisfiable") →
+  verdict "mine" → town_end_mining.start。bot-stderr に
+  "<keep-running> mining_cycle cause=departure-unsatisfiable free=4 method=yeek-income"。
+  理由は town:entrance-step-off:town:end-mining-cycle（自宅の入口から '9'）、
+  fundraising mode=prepare、planned_runs=1。
+- 決定 5454（次の盤面）: 同じ :7133 がまた departure-unsatisfiable を出し、
+  force_visit_departure は cause を記録済みなので None を返し（policy_town.py の
+  `if cause in self._visit_departure_recorded: return None`）、名前の付かない停止になった。
+  town_work の鎖: _town_special_key line 7134 → _town_blocked_key。
+
+なぜ採掘のサイクルが進まなかったか:
+- サイクルの準備（prepare）に要る物は procurement_requirements にある:
+  財宝感知の巻物 0/1、掘る道具 1/2（2本の決まり）。準備の担当（店の用事）が動く前に、
+  同じ盤面で _town_special_key の「潜る出発」の判定（帰還先は鉄獄、departure_ok は偽、
+  町の用事の claim なし）が先に盤面を取り、停止した。
+- このブロックの前にある「準備の用事を使い切った時の後始末」（policy_town.py:6522-6534
+  fundraise:fallback-exhausted-plan）は「帰還先が無い時だけ」で、鉄獄を解禁した
+  キャラには効かない。town_end_mining の設計（採掘の出発は自分の門 _mining_departure_ready を
+  持つ）と食い違う所で、町の終わりの採掘のサイクルの道の不具合と考える。
+
+直し方の案（入れていない）:
+  _town_special_key の :7065 の「潜る出発」のブロックを、town_end_mining.outstanding(self)
+  （町の終わりのサイクルの採掘が開いている間）は飛ばす。その後は準備の担当が財宝感知の巻物と
+  2本目の掘る道具を買い、揃えば mine に上がって歩いて入る。買えなければ町の終わりの判定が
+  mining_set_open で「stop」になり、名前付きの town:blocked:unmet:<名前> /
+  survival:<葉> で止まる（設計どおり）。荷物の空きが 4 で、店の選択に
+  pack_refusal "full-pack-nonstacking" が出ているので、巻物を新しい枠で買えずに名前付きの
+  停止になる可能性もある。
+入れなかった理由: 町の訪問の帳簿（店の訪問・claim の有無・_visit_departure_recorded）を
+  記録から組み立てないと、新しい方策では :7133 に届かず（別の用事が盤面を取る）、
+  差し戻しの確認ができない。D29（departure-unsatisfiable）の担当と重なる可能性もあるので、
+  そちらと合わせて判断してほしい。
+
+======================================================================
+検査
+======================================================================
+- PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+- tests.test_me_staff_grass_route_1102_recorded: Ran 2 tests、OK
+- tests.test_jsonc_data_loaders（町の地図の読み込みを固定している既存のテスト、念のため）: Ran 5、OK
+- checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+- 既存のテストの期待値は変えていない。テストの壁はない。裏の処理は残していない。
+- src に関数を足していない（定数1つと条件1つ）。town-work の生産者は変えていないので
+  manifest は触っていない。
+
+======================================================================
+保守性
+======================================================================
+- 町の地図の「歩ける地形」は town_maps.py の _WALKABLE_TERRAINS の1か所にまとめ、
+  根拠（TerrainDefinitions.jsonc の MOVE・FLOOR、木を外す理由）を注釈に書いた。
+  記号ではなく地形で決めるので、町の凡例の記号が変わっても同じに動く。
+- 町の名前・クエスト番号などの特別扱いは書いていない。
+
+======================================================================
+checks.json の案（編集していない）
+======================================================================
+  {"id": "TOWN-MAP-GRASS-WALKABLE",
+   "defect": "2026-11-02 n1-c life-102 モリバントの夜、宿への道が無く quest:blocked:me-staff（return-outpost-unavailable）で引退",
+   "owner": "静的な町の地図は帰ってきたプレイヤーの知識（cli.py の Outpost の地図の注釈）。草地はゲームで歩ける",
+   "tests": ["tests.test_me_staff_grass_route_1102_recorded"]}
+
+======================================================================
+オーナーへの問い
+======================================================================
+問い1（止まり1の影響）: 夜の町で草地を通る道ができるので、照らされた通りではなく草地を
+  まっすぐ横切るようになる。昼と同じ道なのでこれでよいか。
+
+問い2（止まり2）: 動かない敵（シルバー・ゼリーのように即死でも能力値を下げるのでもないもの）が
+  距離6〜7にいる時、交戦の門が下がり続けて避けるマスの輪を作った。どちらにするか。
+  (a) 動かない敵は隣に行かない限り交戦にならないとして、門を掛けない（隣のマスだけ避けるか、
+      D57 と同じく道から外すかも決めてほしい）。
+  (b) 門は今のまま、避けるマスで自分が閉じ込められたら（輪の中から階段にも未踏にも行けない時）
+      既存の行き詰まりの帰還（stuck:recall-escape）を待たずに使う。
+  (c) 他の扱い。
+
+問い3（止まり2）: 振動の分岐の breakout:least-visited は「秘密の壁の探索を他で使い切った間の
+  つなぎ」だが、行ける所が2マスしかない時も往復を続け、40 決定の loop-detected が
+  60 決定の帰還より先に止める。この順のままでよいか（数値は変えていない）。
+
+問い4（止まり3）: 町の終わりの採掘のサイクルが開いている間、_town_special_key の
+  「潜る出発」の判定（帰還の条件）を飛ばして、採掘の準備と採掘の出発の門に任せてよいか。
+  よければ、記録の盤面の再現（町の帳簿の復元）と合わせて次の発注で入れる。
