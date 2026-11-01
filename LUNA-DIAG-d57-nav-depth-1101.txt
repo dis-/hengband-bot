@@ -1,0 +1,78 @@
+LUNA-DIAG-d57-nav-depth-1101.txt  (D57 / #47、ブランチ d57-nav-depth-1101、main fe2bc54e3 から)
+
+オーナーの答え（2026-11-01、memory d57-survival-answers-decision-20261101）:
+ (a) 問い3「感知した動かない強敵」→「その階の間覚えて隣を避ける」
+ (b) 問い6「代わりのダンジョンの深さ」→「代わりのダンジョンも数える」
+証拠: C:\hengband-backups\pdca\captures\fix-n1c-deaths-1101\life-079・083（D57 で写した incident-captures の
+  リング・decision-tail・policy-state）。life-083・084・085 の最後の bot-decisions.jsonl（全体）は観戦サーバーから
+  gzip で写した: C:\hengband-backups\pdca\captures\d57-nav-depth-1101\life-08{3,4,5}\bot-decisions.jsonl.gz
+  （サーバーの物は読んだだけ）。
+版: life-079 は bot-04ad2c6d2、life-083・084・085 は bot-c326f0fd6。
+再現: 記録の盤面（リング）を main fe2bc54e3 の公開の choose_key に順に渡し、出たキーを本番の実行器に通し、
+  実行器が返した盤面（次の記録の盤面に完了の印を付けたもの）を次の判断に渡した（tests/test_d57_nav_depth_1101_recorded.py
+  の RecordedDrive）。行番号は main fe2bc54e3。
+
+======================================================================
+(a) n1-c life-079（04:28、Lv12、最大HP 151、鉄獄12階）デスソードの隣へ歩いて1歩で死亡
+
+ 判断番号 ゲームターン 位置 HP キー 理由（記録）
+ 1038-1041 600461-600489 (5,57) 151 'mAp' me-power:new-floor:detect-evil（3回「呪文をうまく唱えられなかった！」、4回目で成功）
+ 1042 600499 (5,57) 151 'mAm' me-power:new-floor:detect-traps
+      この盤面の detected_monsters: ゲイザー(16,67)・ブラック・ハーピー(7,81)・デスソード race 107 (14,63)
+      「邪悪なる生物の存在を感じとった！」
+ 1043 600510 (5,57) 'mAj' me-power:new-floor:map-area   ← detected_monsters は空（以後ずっと空）
+ 1044-1051 600521-600610 approach-descent '1','2','3','o3','3','3','3','3'  (5,57)→(12,61)
+ 1051 600610 (12,61) '3' → (13,62)（デスソードの隣）→ 次の盤面で死亡（control-at-stop「デスソードに斬られた。」×多数、151→-2）
+
+ 鎖:
+ 1. ゲームは感知の印を次のプレイヤーの手番で落とす（src/core/player-processor.cpp:363-378 MARK/SHOW）。
+    だから 600510 以降の盤面に デスソードは出ない。NEVER_MOVE の敵はその場から動かない
+    （src/monster-floor/monster-move.cpp:430、lib/edit の race 107: NEVER_MOVE、速さ+20、SLASH 5d5×2・TERRIFY・POISON）。
+ 2. ボットは感知した敵をその盤面でしか見ない（_perceived_hostiles、policy_combat.py:1330）。床の訪問の間覚える記憶は
+    麻痺の打撃の敵（_refresh_paralyzer_avoidance、policy_combat.py:2509-2598）と動かない召喚の敵
+    （_immobile_summoner_key、policy_combat.py:272-）だけで、デスソードはどちらでもない（召喚も麻痺も無い）。
+ 3. 下りの道（_descent_step、policy_navigation.py:1256、BFS は 1394 の _walkable_neighbors）は、その判断の
+    歩ける集合（_build_grid_index、policy_navigation.py:1128）を使う。1199 はその盤面の detected_monsters のマスを
+    外すだけなので、覚えていない デスソードの隣 (13,62) を道に入れた。
+ 4. 1ターンの予測（threat_prediction(..., turns=1, contact=True)、policy_combat.py:3028）: 隣にいれば
+    operational_total 221（最大 304、期待値 181）≧ HP 151。こちらの1回の行動の間に相手は3回動く。
+ main fe2bc54e3 で: 同じ。記録の盤面を流すと 600521-600610 で approach-descent、600610 で '3'（記録と同じ）。
+ 直す根: 感知した動かない敵を床の訪問の間覚え、1ターンの予測被害が今の HP 以上なら、そのマスと隣のマスを
+   歩ける集合から外す（オーナーの答え (a)、麻痺の敵の記憶と同じ作り。床が変わったら忘れる）。
+
+======================================================================
+(b) 代わりのダンジョン（迷宮）の潜りを「行き詰まった潜り」に数えない
+
+ 判定の場所（main fe2bc54e3）:
+ - policy_observation.py:433-436: 鉄獄の帰還が解禁されていると、潜りの判定の前に _target_dungeon_id を鉄獄（1）にする。
+   pursued_target（433）は直前まで追っていた行き先（代わりの迷宮）を持つ。
+ - 509-551: 目標の潜り（_dive_dungeon == _target_dungeon_id）だけ、拾い物4以下で緊急脱出2回以上
+   （OVEREXTEND_EMERGENCY_MIN、531）を数える。
+ - 552-566: 代わり・制覇の行き先の潜り（_dive_dungeon == pursued_target）は守護者のはね返り（564）しか数えない。
+ - 584-623: 町で3回（EMPTY_DIVE_LIMIT）たまると _pick_alternate_dungeon（policy_helpers.py:498）で
+   今の代わり以外の、着地がより浅い入ったことのあるダンジョンへ移す。
+ → 鉄獄の帰還が解禁されたキャラでは、迷宮で何回緊急脱出しても数が増えず、浅い所へ移らない。
+
+ 各キャラ（最後の bot-decisions.jsonl の over_extension の列。streak = over_extended_dive_streak、em = dive_emergencies）:
+ - life-083（鉄獄は未解禁: リングの盤面 progress.angband_recall_unlocked=false）。迷宮は目標そのものなので
+   509 の判定で数えられていた:
+     4732 1172255 town:recover  オークの洞窟の潜り（em 2）で streak 2→0、迷宮（4）へ切り替え（last_overextended_depth 11）
+     4894-4985 迷宮10階 em 3 → 4986 streak 0→1
+     5028-5056 迷宮10階 em 1 → 据え置き
+     5215-5356 迷宮12階 em 7（5297-5322 の emergency:teleport ほか、拾い物0）→ 5357 1187204 streak 1→2
+     5400-5487 迷宮12階 em 0（esp-threat:leave-recall）→ 据え置き
+     5522-5624 迷宮12階 em 3 → 1190838 死亡（streak 2 のまま、3回目に届く前）
+   → 083 では数は動いていた。「浅い所へ移らない」のは3回目の前に死んだため。
+ - life-084（鉄獄は解禁）: 11431 1157111 town:recover で鉄獄6階の潜りの streak 2→0、迷宮（4）へ（lod 12）。
+   その後の迷宮の潜り 11443-11533（em 1）、11554-11629（em 1）、13845-13926（em 1）、13951-死亡。
+   どれも em < 2 なので、直しの前後どちらでも数えない。
+ - life-085（鉄獄は解禁）: 最後のログの迷宮の潜りは 9081-死亡（em 0）だけ。
+ → 552-566 の穴は鉄獄を解禁したキャラ（084・085）で実在する。ただしこの3人の記録では、穴が結果を変えた潜りは無い。
+ 検査: life-083 の em 7 の潜り（リングの 1186699-1187204）を、鉄獄を解禁した盤面（DECLARED CONSTRUCTED、
+   084・085 と同じ状態）で流すと、main では町に着いても streak 1 のまま（記録の解禁前の盤面では 1→2）。
+ 直す根: 552-566 の代わりのダンジョンの潜りにも、目標と同じ緊急脱出の判定を使う（オーナーの答え (b)）。
+   制覇の行き先（conquest）の潜りは今のまま（守護者のはね返りだけ）。オーナーの決まりが無いので問いにする。
+
+ 関連の観察（直していない）: esp-threat:leave-recall（感知した脅威で帰還）は EMERGENCY_ESCAPE_REASONS
+   （policy_constants.py:855）に入らず、緊急脱出に数えない（083 の 5400-5447、084 の 11503・13902）。
+   数えるかは新しい決まりなので問いにする。
