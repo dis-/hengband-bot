@@ -1,0 +1,116 @@
+LUNA-REPORT-rq-teleport-reserve-1101.txt  (#47、ブランチ rq-teleport-reserve-1101)
+
+元: main f36fe01a9。main を2回取り込み済み（43d1638f9 = fix-me-powerful-stuck-1101、
+c326f0fd6 = fix-deaths-1101）。最後の検査は c326f0fd6 を取り込んだ木で行った。
+診断: LUNA-DIAG-rq-teleport-reserve-1101.txt
+
+======================================================================
+1. 件と結論
+
+  n1-a life-451（10-31 18:24、Lv32 戦士、鉄獄38階、版 ebd9051d2、ランダムクエスト 45
+  『カルバノグの殺人兎』 race 1347、一度も見えていない）。死亡 1 件。直した。
+  証拠: C:\hengband-backups\pdca\captures\fix-deaths-1101\n1-a\life-451\incident-captures\20261031-182443-player-death
+    decision-tail 594 1663519 'rc' emergency:teleport（5 → 4 本）
+    decision-tail 595 1663533 '7' seek-loot（4 本。決定どおりならここで帰還を読む）
+    … 1027 で最後の1巻、1028 で初めて return:recall（escape-kit-empty）、発動待ちの間に死亡。
+
+2. 鎖（main の行番号）
+
+  a. 緊急脱出のたびに帰還が立つ（EMERGENCY_RETURN_COUNT = 2、policy_constants.py:517）。
+  b. _return_to_town_key（policy_town.py:8002）は _return_exit_locked（policy_town.py:7936）
+     → _quest_floor_exit_locked（policy_quest.py:4742）が真なら帰還を取り消す。
+  c. ランダムクエストの鍵が外れるのは、最深階で脱出の巻物 0・PANIC で脱出の巻物なし・飢え・
+     STUCK_ESCAPE_LIMIT の時だけ。テレポートの残りは見ていなかった。
+  d. 通常の帰還の閾値（10階以上は 4 本未満で teleport-low）も b で取り消される。
+     しかも 4 本はこの閾値に届かないので、鍵を外すだけでは帰還が始まらない。
+
+3. 直し
+
+  - 新しいモジュール src/hengbot/random_quest_reserve.py
+      RANDOM_QUEST_TELEPORT_RESERVE = 5（名前の付いた1つの定数）
+      RETURN_TRIGGER = "random-quest-teleport-reserve"
+      teleport_reserve_spent(policy, snapshot): 町でなく、この階の実行時のクエストが RANDOM で、
+        テレポートの巻物（_count_teleport_scrolls）が 5 本未満。
+  - policy_quest.py:4768 _quest_floor_exit_locked はこの判定で鍵を外す。
+  - policy_town.py:7854 _should_start_town_return はこの判定で帰還を始める
+    （trigger random-quest-teleport-reserve。escape-kit-empty の直後）。
+  - 5 本ちょうどまでは今のまま鍵がかかる（07-26 の「30 回以上のテレポートは普通」を保つ）。
+  - 固定クエスト: 同じ鍵はダンジョンの階の固定の KILL_LEVEL クエスト（014 ワーグ問題、
+    008 オベロン、009 混沌のサーペント）にもかかるが、決定はランダムクエストの階なので広げていない
+    （判定は RANDOM だけ）。PRESET の固定クエスト（_active_fixed_quest_id）は別の鍵で、変えていない。
+  - 町の作業の目録: scripts/town_work_manifest.py --write（zero unmapped、0 violation、
+    town_work_sites.json は変わらず、review の追加は不要）。
+
+4. コミット
+
+  7026a201c Add the rq-teleport-reserve diagnosis for the life-451 quest death (#47)
+  935265324 Leave a random quest floor once the teleport reserve is drawn down
+  4299e35fb / afff7269d Merge branch 'main'（目録は main の版から作り直した）
+  （この報告のコミットが最後に付く）
+
+5. テスト
+
+  新しい: tests.test_rq_teleport_reserve_recorded（3 件）
+    fixture tests/fixtures/rq-teleport-reserve-1101.json.gz（tests/extract_rq_teleport_reserve_fixture.py、
+    リングの 38階の盤面 1663508-1663533 と 1662207-1662227、記録の判断の行つき）
+    - test_recorded_rows: 記録の 594 'rc' emergency:teleport・595 '7' seek-loot、全盤面でクエスト 45、
+      race 1347 は見えていない。
+    - test_below_the_reserve_the_return_reads_recall: 公開の choose_key で 4 本の盤面が
+      return:recall 'rd'、trigger random-quest-teleport-reserve、本番の executor で ['r', 'd']。
+    - test_at_the_reserve_the_quest_floor_stays_locked: 5 本の盤面では鍵がかかったまま、帰還しない。
+  直さない時に落ちることの確認（src の差分を戻して流し、戻した）。main f36fe01a9 の上と、
+  c326f0fd6 を取り込んだ木の上の両方で同じ結果:
+    - 2つの差分を両方戻す: test_below_the_reserve_the_return_reads_recall FAIL
+      （AssertionError: True is not false、鍵が外れない）
+    - policy_town.py の帰還の引き金だけ戻す: 同じテストが FAIL
+      （None != 'random-quest-teleport-reserve'、鍵は外れるが帰還が始まらない）
+    - 残りの 2 件は直す前でも通る（記録の確認と、5 本では鍵を保つ確認）。
+  期待値を直したテスト（壁ではない。決定の後でも「鍵がかかる」場面を試すため、5 本を持たせた）:
+    tests/test_policy_quest.py の 5 件（test_runtime_random_quest_locks_floor_exit_without_static_knowledge、
+      test_deepest_random_quest_with_teleport_keeps_exit_locked（1 本 → 5 本）、
+      test_random_quest_remains_locked_below_consecutive_stuck_budget、
+      test_locked_random_quest_melees_visible_quest_race_first、test_locked_random_quest_pursues_visible_quest_race）
+    tests/test_policy_combat.py の 1 件（test_active_random_quest_keeps_breeder_stair_exit_and_does_not_recall）
+    tests/test_immobile_summoner_recorded.py の組み立てたクエストの通路（_corridor(quest=True)）。
+      この 4 件が 0 本の盤面で落ちていた。
+  壁は無い。
+
+6. 検査
+
+  (1) PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" … OK
+  (2)+(3) checks.json の 69 項目の 82 テスト id ＋ 新しいテスト ＋ test_immobile_summoner_recorded:
+      c326f0fd6 を取り込んだ木で Ran 523 tests、OK。
+      （その前の 43d1638f9 の木では 515 件が通り、D55 の 2 モジュールがまだ main に無く読み込みで
+      失敗した。取り込み直して全部を流し直した。）
+  ほかに変更に関係するもの: tests.test_policy_quest 全体 334 件 OK（skipped 7）、
+    test_policy_combat / test_policy_town / test_policy_navigation の quest・unique・random の絞り込み OK、
+    test_light_leave_confirm_recorded・test_quest_leave_confirm_recorded・
+    test_loot_suppression_returning_recorded・test_return_wander_recall OK。
+  全体テスト・preflight・mutation_check・fast_tier は流していない。裏の処理は残していない。
+
+7. 保守性
+
+  - 新しい決まり（5 本・判定・帰還の引き金の名前）は random_quest_reserve.py の1か所だけにある。
+    共有の判断のコードには「この判定を聞く」1行ずつだけを足した（鍵と帰還の引き金）。
+    クエストの id・tval/sval・職業の特別扱いは書いていない。
+  - _quest_floor_exit_locked の中に直に書いてあった「RANDOM か」の判定を
+    _runtime_random_quest（policy_quest.py:4784）に切り出し、鍵と新しいモジュールの両方が使う
+    （同じ判定を2回書かない）。
+  - テストは既存の部品を使った: 盤面のリングの読み出し（ring_rows・tail_rows・decisions_by_turn・sha）、
+    RecordedHarness・decide・READ_PROMPT（test_dungeon_1031_recorded）。
+
+8. checks.json の案（編集していない）
+
+  {"id": "RQ-TELEPORT-RESERVE",
+   "defect": "#47 n1-a life-451",
+   "owner": "2026-11-01 「テレポートが残り少なくなったら帰る」「5本」",
+   "tests": ["tests.test_rq_teleport_reserve_recorded"]}
+
+9. オーナーへの問い
+
+  問い1: 同じ鍵がかかる、ダンジョンの階の固定の KILL_LEVEL クエスト（014 ワーグ問題、008 オベロン、
+    009 混沌のサーペント）にも、テレポートの 5 本の決まりを広げるか。今は広げていない
+    （判定は RANDOM だけ）。
+  付記（問いではない）: 数えるのはテレポートの巻物だけ（決定のとおり）。テレポートの杖・ロッドや
+    テレポート・レベルの巻物は数えない。出発の装備は 10 階以上で 15 本なので、5 本未満で
+    ランダムクエストの階に着くことは普通は無い。着いた時は、着いてすぐ帰還を読む。

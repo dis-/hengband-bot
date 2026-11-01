@@ -24,11 +24,12 @@ from pathlib import Path
 from hengbot.cli import (
     PostingContract, STATIONARY_REASONS, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
 )
-from hengbot.model import Position, QuestState, Snapshot, parse_snapshot
+from hengbot.model import SV_SCROLL_TELEPORT, Position, QuestState, Snapshot, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
+from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
 from hengbot.summoner_wait import SUMMONER_WAIT_GAME_TURNS
 from tests import policy_fixtures as fixtures
 from tests import test_input_executor as executor_pins
@@ -164,6 +165,10 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
             detected_monsters=[replace(monster, perception="detected")] if detected else [],
         )
         if quest:
+            # The kit holds the random-quest teleport reserve (owner
+            # 2026-11-01); below it the exit lock releases.
+            board = replace(board, inventory=[*board.inventory, fixtures.item(
+                "u", 70, SV_SCROLL_TELEPORT, count=RANDOM_QUEST_TELEPORT_RESERVE)])
             board = replace(board, quests={41: QuestState(
                 id=41, name="constructed kill quest", status=QUEST_STATUS_TAKEN,
                 type=QUEST_TYPE_RANDOM, cur_num=0, max_num=1, level=23,
