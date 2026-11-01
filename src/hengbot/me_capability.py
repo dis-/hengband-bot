@@ -228,7 +228,6 @@ WHEN = {
 }
 AMOUNT = {
     "charges": lambda policy, snapshot, kind, sval: max(0, charges(policy, snapshot, kind, sval)),
-    "recorded": recorded_charges,
 }
 
 REPLACES = (
@@ -249,8 +248,10 @@ REPLACES = (
     # 2026-10-30 「以降、鑑定と財宝感知は取り込みで賄う」.
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_STAFF, SV_STAFF_IDENTIFY),
                 uses=frozenset({NEED})),
+    # 2026-11-01 21h 5 「今残っている回数で数える」: the displayed current charges
+    # first, like every other power (the record only when no list was read).
     Replacement(("staff", SV_STAFF_DETECT_GOLD), Kind(TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
-                amount="recorded"),
+                amount="charges"),
     # 2026-10-31 18h 2 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない。持ち物の要求からも外す。」
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_STAFF, SV_STAFF_IDENTIFY),
                 when="full-count", uses=frozenset({CANDIDATE, NEED})),
