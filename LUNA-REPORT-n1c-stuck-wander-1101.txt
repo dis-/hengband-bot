@@ -1,0 +1,67 @@
+LUNA-REPORT n1c-stuck-wander-1101（#47 D60）
+
+■ 問い（オーナー 2026-11-01）「n1-cがダンジョン内でstuck:wanderしていた理由」
+
+■ 答え
+n1-c life-098（Lv21 魔道具術師、鉄獄12階、build bot-461b75b92）がいたのは、実行中のランダムクエスト（クエスト43）の階でした。
+その階では、前に増える敵と戦ったため「増殖する敵から抜け出す」担当（breeder breakthrough）の印が付いていました。
+クエストの階では、出口（帰還・階段）は止まり続けた判断が60回続くまで閉じたままです（クエストを失わないため）。
+60回目でようやく開いたとき、町へ帰る担当より上位の「抜け出す」担当が判断を取りました。
+この担当は「クエスト中なら帰還を読まない」作りだったので、上り階段 (4,81) へ1歩だけ歩きました。
+その1歩で止まりの回数が0に戻り、出口がまた閉じました。
+結果は、61回の判断に1歩だけ階段へ進み、残りはその場をうろつく（stuck:wander）、の繰り返しです。最後は livelock-exhausted で止まりました。
+HP は満タン、帰還の巻物9枚とテレポートの巻物6枚を持っていたので、帰還は読めました。階段への道もありました。
+20:02:47 にボットを起動し直すと印が消えました。すると61回目の判断で町へ帰る担当が帰還を読み（return:recall 'ri'、理由は荷物が満杯）、その階を出ました。
+
+■ 経緯（file:line と判断の行。詳しくは LUNA-DIAG-n1c-stuck-wander-1101.txt）
+1. 19:58:44 緊急テレポート（判断 7813）で、階の西の部屋 (16,17) に着いた。探索の行き先は尽きていて（open_frontiers 13）、19:59:03 から search / breakout / stuck:wander が続いた。
+2. クエストの出口の鍵: policy_quest.py:4742 _quest_floor_exit_locked。ランダムクエストでは 4774-4781（_stuck_escape_streak >= 60）で開く。止まりの回数は policy_observation.py:279-284 で数え、止まり以外の判断で0に戻る。
+3. 抜け出す担当は policy.py:11153 にあり、町へ帰る担当（policy.py:11868）より上にある。
+4. 直す前の policy_combat.py:3915-3939: 帰還を読む条件が「クエストが無いこと」だった。そのため鍵が開いても帰還を読まず、_breeder_breakthrough_escape_key（3963）で上り階段へ1歩進んだ（breeder-breakthrough:seek-upstairs）。
+5. この判断の理由は、止まりとして数える表（policy_constants.py:890）にも、回数を保つ表（916）にも無い。そのため回数が0に戻った。
+   記録の行: seek-upstairs は判断 8040, 8101, 8162, ..., 9057, 9118 で、61回おき。9058-9117 の60行はすべて stuck:wander。
+6. 起動し直した後の判断 61（ターン 1189101）が return:recall 'ri' だった。
+
+違ったもの: 行けない場所（道はあった。記録の盤面と記憶していた地図で、記録どおりのキー '1' が再現する）、route-moving-blocker（目標までの道の約束）、mapped_area、immobile_threat_memory、D46 の breeder_walkout_owns（動かない召喚する敵の担当の中だけにあり、今回は関係しない）。
+最近の取り込みのせいではない: 帰還の条件は a14b3013f（10-17）から、回数が0に戻る作りはもっと前からある。
+
+■ 直し（根ごとに1コミット）
+R1 8a8fab334 抜け出す担当の帰還を、町へ帰る担当と同じクエストの出口の鍵（_return_exit_locked）で決める。固定クエストの階では今までどおり読まない。
+   鍵が開いた階では帰還を読む（再起動後のボットと同じ出方）。
+R2 14944bdc0 抜け出す担当が歩く判断（seek-upstairs / seek-frontier）を、止まりの回数を保つ表 STUCK_NEUTRAL_REASONS に足す。
+   帰還を読めない時でも、鍵が開いたまま階段まで歩き続ける。
+新しい決まりは作っていない（鍵が開いたらクエストを諦めて出る、という今の決まりを、抜け出す担当でも守るだけ）。
+
+■ 検査（記録の盤面 → 公開の choose_key → 実際の executor）
+テスト: tests/test_n1c_stuck_wander_1101_recorded.py（4件）。
+  元のデータ: tests/fixtures/n1c-stuck-wander-1101.json.gz。作る道具: tests/extract_n1c_stuck_wander_1101_fixture.py。
+  - test_recorded_rows: 記録の行（60回の stuck:wander、9118 の seek-upstairs '1'、帰還の巻物9枚）
+  - test_released_quest_lock_reads_recall_on_the_latched_floor: ターン 1188007 の盤面で、breeder-breakthrough:recall 'ri' を読みの問いを通して送り、recalling になる
+  - test_control_the_held_lock_keeps_the_quest_floor: 鍵が閉じている間は帰還も印の出口も使わない（直す前も後も同じ）
+  - test_without_recall_the_breakthrough_walk_keeps_the_release: 帰還の巻物を抜いた盤面（作ったもの）。1歩目を executor で送り、着いた記録の盤面 1188021 でも続けて歩き、回数が60以上のまま
+直す前に戻して確かめた結果:
+  - R1 を戻す: test_released_... が失敗（('breeder-breakthrough:seek-upstairs', '1') != ('breeder-breakthrough:recall', 'r')。記録と同じキー）
+  - R2 を戻す: test_without_recall_... が失敗（2歩目が 'seek-loot' になり、歩き続けない。記録の 9119 は stuck:wander で、復元した方針には live の拾う物の記録が無いため理由が違う）
+  - 戻した後に元へ戻し、両方とも合格。
+直した既存のテスト: tests/test_breeder_refill_escape_recorded.py の test_active_quest_floor_keeps_recall_suppressed。
+  前は _active_quest_id を差し替えていた。今は条件が鍵を聞くので、_return_exit_locked=True に差し替えた（期待する値は '9' のまま）。新しく足した壁は無い。
+復元・作成した部分（テストの説明に DECLARED と書いた）: 記憶している地図は取り込み時の policy-state の terrain、印は記録の breeder-breakthrough:* の行から、止まりの回数は記録の60行から復元した。
+
+■ 確認の結果（main 64e63b6cf を取り込んだ後、8d6109be0）
+- import の確認: OK
+- town_work_manifest.py: 0 violation(s)（変えた関数は名前で登録済み。見直しの追加は要らない）
+- checks.json の全テスト＋自分のテスト: OK（checks.json の84項目の102件に自分の2件を足し、608テストが合格）
+- 前からある失敗（直す前の 461b75b92 でも同じで、checks.json には無い）: test_item_destroying_breeder_leave_recorded の2件、test_policy_combat の5件
+
+■ checks.json に足す案（checks.json は編集していない）
+{"id": "D60-N1C-STUCK-WANDER", "owner": "2026-11-01 「n1-cがダンジョン内でstuck:wanderしていた理由」", "tests": ["tests.test_n1c_stuck_wander_1101_recorded", "tests.test_breeder_refill_escape_recorded"]}
+
+■ 保守性
+- 新しい処理は持ち主の中に置いた: 帰還を読むかどうかは抜け出す担当の中（_breeder_breakthrough_key）にある。条件の判定は、町へ帰る担当がすでに使っている _return_exit_locked をそのまま使う。
+  これで「クエスト中か」という別の条件が1つ減り、帰還の出口の鍵は1か所で決まる。使わなくなった変数 active_quest も消した。
+- 回数の扱いは表に2行足しただけ（STUCK_NEUTRAL_REASONS）。共通の判断のコードに、クエストの番号・場所・職業などの特別扱いは足していない。
+- 関係ない整理はしていない。
+
+■ オーナーへの問い
+なし（今の決まりの範囲で直した）。
+補足: 増える敵の印が付いたランダムクエストの階でも、60回止まった時点で帰還を読む（クエストは失敗になる）。これは「同じ止まりの境目で諦める」という今の決まりどおりです。
