@@ -1649,9 +1649,14 @@ class CombatMixin:
                 return candidate
         return None
     def _engagement_is_winnable(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
+        self, snapshot: Snapshot, hostiles: list[MonsterState],
+        damage_against=None,
     ) -> bool:
-        """Whether the visible engagement can be cleared before HP runs out."""
+        """Whether the visible engagement can be cleared before HP runs out.
+
+        ``damage_against`` (monster -> expected damage per action) adds an
+        attack the caller would use beside that monster (me_powers'
+        Teleport Away trigger passes me_ranged_first.best_expected)."""
         weapon = next(
             (
                 item for item in snapshot.equipment
@@ -1671,6 +1676,8 @@ class CombatMixin:
             damage = melee_damage
             if self._summoner_ranged_attack_available(snapshot, monster):
                 damage = max(damage, ranged_damage)
+            if damage_against is not None:
+                damage = max(damage, damage_against(monster))
             if damage <= 0:
                 return False
             turns_to_clear += max(1, ceil(monster.hp / damage))
@@ -2304,7 +2311,7 @@ class CombatMixin:
                 )
                 return stairs
 
-            if player.blind or player.confused or player.cut:
+            if status_cure.treats(self, snapshot):
                 potion = self._find_status_cure_potion(snapshot)
                 if potion is not None:
                     self.last_reason = (
@@ -2330,6 +2337,7 @@ class CombatMixin:
                         self._blind_cure_escape_carry = (
                             snapshot.floor_key, loss, deadline,
                         )
+                    status_cure.note_cure(self, snapshot)
                     return reserved_item_command(self, snapshot, "quaff", potion)
 
             if lethal or summoner_open:
@@ -2463,6 +2471,8 @@ class CombatMixin:
 
         if (cure := status_cure.status_cure_key(self, snapshot)) is not None:
             return cure
+        if (strike := status_cure.fight_through_key(self, snapshot)) is not None:
+            return strike  # blinded again right after a cure (owner 2026-11-01)
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
         if (

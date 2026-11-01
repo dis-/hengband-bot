@@ -15,7 +15,11 @@ checkpoint written at each stop, not at the decided board; life 16's
 recorded rows (``test_life016_latch_reproduces_the_recorded_return`` pins
 that the latch alone yields the recorded fundraising decisions).  Replies to
 posted keys are constructed from the game's prompts (cmd-magiceat.cpp,
-get_aim_dir).
+get_aim_dir).  The carried-wand case drops the pack's lit torches: beside
+the target the chooser weighs each answer's expected damage per action
+(owner 2026-11-01 「見込みの大きい方を使う」), and a thrown torch, as sure to
+kill as the wand and more likely to hit than the wand is to work, would be
+thrown (test_d57_me_combat_1101_recorded pins the torch).
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -162,6 +166,9 @@ class MagicEaterMiningDeathRecordedTest(harness.ProductionHarness):
                 raw = self.raw(life, turn)
                 # The executor's observation of an empty power list.
                 raw["_magic_eater_wand_charges"] = 0
+                # DECLARED CONSTRUCTED (module docstring): no lit torch.
+                raw["inventory"] = [item for item in raw["inventory"]
+                                    if (item.get("tval"), item.get("sval")) != (39, 0)]
                 policy = self.policy(life, raw)
                 key = self.choose(policy, raw)
                 self.assertEqual(policy.last_reason, WAND_REASON)

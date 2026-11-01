@@ -1,0 +1,122 @@
+LUNA-REPORT owner15-maint-1101（#47、持ち主の答え 2026-11-01 17時の 13「廃止する」と 15「作る」）
+基点: main ade15c353。ボットの振る舞いは変えていない（src/ の差分なし）。
+
+■ 結論
+  1. 古い一覧 scripts/town_producer_baseline.json とその検査 tests.test_town_structure_lint を廃止した。
+     town_structure_lint.py からは baseline との突き合わせだけを消し、町の仕事の一覧（town_work_manifest.py）と
+     item_sink_lint.py が使う census・梯子・品の意図の検査は残した。
+  2. 関数の移動・改名で review の記入を付け替える道具 scripts/town_work_rekey.py を足した。
+     town_work_manifest.py の「unmapped/stale」のエラーで、review が stale の時にこの道具を案内する。
+
+■ コミット
+  97d687566 Retire the town producer baseline and its structure lint test (#47)
+  72d612536 Add a tool that re-keys town work reviews of moved or renamed functions (#47)
+  （このあとに DIAG・REPORT のコミット 1 つ）
+
+■ 13. 廃止したものと、すべての参照
+  消したファイル: scripts/town_producer_baseline.json（777 件）、tests/test_town_structure_lint.py（19 件）。
+  基点では item_sink_lint.py の 192 件のうち 142 件がこの baseline の不一致だった（DIAG 参照）。
+  直した参照:
+  - scripts/town_structure_lint.py: PRODUCER_BASELINE と producer の findings を削除。
+    analyze_sources(sources, intent_baseline) になった。docstring に廃止を書いた。
+  - scripts/town_work_manifest.py: docstring の「older producer baseline」を「review が唯一の一覧（2026-11-01 に廃止）」に。
+  - scripts/town_structure_baselines.md: 「Producer baseline」の節を「Producer census」に書き直し
+    （新しい producer は manifest の unmapped で止まり、review か data の証明が要る）。
+  - SOL-DESIGN-town-progress.md・SOL-DESIGN-step1.5a-equipment-homefull.md: 廃止の注記を足した
+    （town_work_manifest が読む設計表の節の中だが、足した文に「_名前」は無いので選ばれる関数は変わらない。
+     manifest の検査 0 件で確認）。
+  - scripts/town_work_churn.py: FAMILY は過去のコミットの測定用なので path を残し、その理由をコメントにした
+    （消すと同じ範囲を測り直した時に選ぶコミットが変わる）。
+  - 記録（LUNA-*・SOL-REPORT*・validation/・reports/）は過去の事実なので書き換えていない。
+  残した検査の試験は移した（廃止した module のうち、残るコードを守る合成の盤面だけ）:
+  - census の到達（別名・callback・getattr・相対 import・subpackage・mixin・逆向きの import）5 件 →
+    tests.test_town_work_data_proof.ProducerCensusTest（manifest が読む census そのものを確かめる形に変えた）。
+  - 品の意図の検査 8 件 → tests.test_item_sink_lint.ItemIntentLintTest（item_sink_lint がこの検査を流す）。
+  - baseline だけを試していた 4 件（実際の baseline の一致、消えた項目、理由の分類、印と梯子の両方）は
+    検査ごと無くなったので移していない。実際のリポジトリの「新しい producer が止まる」は
+    tests.test_town_work_data_proof の test_unmapped_key_producer_fails_and_its_int_helper_needs_no_review が既に確かめている。
+  item_sink_lint.py の結果: 192 件 → 50 件。残りの 50 件は基点と 1 件残らず同じ（並べて比べた）。
+  tests.test_item_sink_lint の test_repository_item_sinks と test_every_pinned_adapter_call_still_exists（14 件の
+  subTest）は基点でも落ちている（この 50 件、checks.json に無い）。直していない（範囲の外、問い 2）。
+
+■ 15. 付け替えの道具 scripts/town_work_rekey.py
+  使い方: PYTHONPATH=src python scripts/town_work_rekey.py [--base REV] [--write]
+  - 移動前の木を git の版から読む（既定 HEAD＝まだコミットしていない移動。コミット済みなら --base main など）。
+  - review にあって今は選ばれない（stale）キーのうち、その関数が --base にあり作業ツリーから消えたものを、
+    --base に無く作業ツリーに現れた、review の無い選ばれた関数と本体で突き合わせる。
+  - 本体＝名前・docstring・位置を除いた AST（ast.dump、引数・飾り・注釈・中身は含む）。完全に同じ時だけ。
+  - 1 対 1 の時だけ付け替える。同じ本体が 2 つ以上なら「手で」と表示、本体が変わったものは stale のまま表示。
+  - 既定は表示だけ。--write は review の順番と中身（evidence などの文言）を変えずにキーだけ替えて書く
+    （json.dumps(ensure_ascii=False, indent=2)、LF。基点の書式と同じ）。そのあと manifest --write で索引を作り直す。
+  - 終了コード: 残り（手で直すもの）があれば 1、無ければ 0。
+  - town_work_manifest.generate のエラー: stale がある時だけ
+    「; if a function was moved or renamed, scripts/town_work_rekey.py re-keys its review (dry run, then --write)」を足す。
+  - git から木を読む処理は town_work_manifest.revision_sources() にまとめ、town_work_churn.py もそれを使う
+    （同じ 3 行が 2 か所にならないように。churn は ROOT を一時ディレクトリに替えるので git は lint.ROOT で動かす）。
+  手で確かめた流れ: 作業ツリーで _town_destroy_key を _town_destroy_item_key に改名 → manifest が
+  「unmapped=[…_town_destroy_item_key]; stale=[…_town_destroy_key]; …town_work_rekey.py…」で止まる →
+  rekey --write で 1 件付け替え（review の差分は 1 行）→ manifest --write が zero unmapped。そのあと元に戻した。
+  試験 tests.test_town_work_rekey（8 件、約 75 秒）:
+  - RekeyPlanTest（合成）: 関数の移動（docstring を消しても）が付け替わる、メソッドの改名（docstring が違っても）が
+    付け替わる、本体を変えたものは付け替わらない、同じ本体が 2 つなら手で、--write の順番と中身。
+  - RepositoryRekeyTest（実際のリポジトリ）: TownMixin._town_destroy_key の改名、policy_home.py の HomeMixin への
+    移動が付け替わり、作り直した索引が基点の索引のキーを替えただけと完全に一致。本体を 1 行変えた移動は付け替わらない。
+    manifest のエラーが道具を案内することも確かめる。
+  元に戻して確かめた（scripts を一時的に戻して実行し、戻した）:
+  - エラーの案内を消す → RepositoryRekeyTest の改名・移動の 2 件が FAIL。
+  - docstring を除かない → 合成の移動・改名と実リポジトリの改名・移動の 4 件が FAIL。
+
+■ 振る舞いが変わらない証拠
+  - git diff ade15c353..HEAD -- src/ は空（src/hengbot も town_work_sites.json も変えていない）。
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK。
+  - PYTHONPATH=src python scripts/town_work_manifest.py: 0 violation(s)（索引は基点と同じ）。
+  - checks.json の 98 module がすべて合格（下）。
+
+■ 検査
+  - 取り込みの検査 import: OK
+  - checks.json の 98 module: 589 件 OK（6 回に分けて流した: 334・57・60・55・54・29 件、失敗 0）
+  - 足した・変えた試験: tests.test_town_work_rekey 8 件 OK、tests.test_town_work_data_proof の ProducerCensusTest 5 件 OK
+    （module 全体 11 件 OK）、tests.test_item_sink_lint.ItemIntentLintTest 8 件 OK。
+  - 流していない: 全体テスト・preflight・mutation_check・fast_tier。
+
+■ 保守性
+  - 一覧が 1 つになった: 町の仕事の producer の記入は town_work_review.json だけ。新しい関数を足した枝が
+    baseline にも理由を書く二重の手間（と 142 件の放置）が無くなった。
+  - 付け替えの道具は 1 つのまとまった module（town_work_rekey.py）で、本体の比較・計画・適用が短い関数に分かれている。
+    選ぶ関数の決め方は manifest の inventory をそのまま使い、別の規則を作っていない。
+  - git の版から木を読む処理を revision_sources() 1 か所にまとめ、churn と道具で共有した。
+  - policy.py の分割（次の保守性の回）の前に用意したので、分割で review を手で付け替える作業が要らない
+    （本体を変えずに動かす限り）。
+  - 試験の壁: なし。期待値を緩めた試験もない。
+
+■ guard-tools に要る変更（編集していない）
+  C:\hengband-backups\guard-tools\merge_gate.py
+  - 36 行目 HYGIENE から "tests.test_town_structure_lint" を外す（module が無いので、HYGIENE を流す所では import の失敗になる。
+    190 行目のように HYGIENE を除外に使うだけなら害は無い）。
+  - 46-47 行目:
+      RETIRED = ["scripts/town_work_manifest.json.gz", "scripts/town_producer_baseline.json"]
+      REGISTRIES = ["scripts/town_work_review.json"]
+    （基点より前の枝が baseline に足していると modify/delete の衝突になる。RETIRED に入れれば gz と同じく削除のまま解く。
+     REGISTRIES に残すと merge_json_keys.py が消えたファイルを解こうとする。）
+  C:\hengband-backups\guard-tools\test-tiers.json
+  - 2377 行目 candidates の "tests.test_town_structure_lint" を外す（生成物なら次の生成で消えるはず）。
+    tests.test_town_work_rekey を足すかは tiers の規則に任せる。
+
+■ checks.json への提案（編集していない）
+  {
+   "id": "MAINT15-REKEY",
+   "owner": "2026-11-01 「作る」 (item 15: re-key town work reviews of moved/renamed functions; item 13 「廃止する」 retired the producer baseline, branch owner15-maint-1101)",
+   "tests": [
+    "tests.test_town_work_rekey"
+   ]
+  }
+  （約 75 秒。tests.test_town_work_data_proof は既に MAINT1-MANIFEST にあり、移した census の 5 件もそこで流れる。）
+
+■ 持ち主への問い
+  1. 移動と同時に本体も変えた関数（分割の時に self の呼び方を変えるなど）は付け替えない（手で）。
+     本体の比較を緩める（例: 名前の付け替えだけ同じとみなす）のは誤った付け替えの余地があるので入れていない。今のままでよいですか。
+  2. item_sink_lint.py（tests.test_item_sink_lint）も基点で 50 件の不一致のまま放置されている
+     （claims の producer を entry/adapter の外で呼ぶ 27 件、adapter の固定の不一致 14 件、
+      item_intent_baseline.json の消えた項目 3 件と未登録の品の意図 2 件、生の品のコマンド 2 件（morivant_tower.py ほか）、
+      choose_key の出口の記録 1 件、建物のメニューの組み立て 1 件）。
+     checks.json に無く PDCA の取り込みでは流れない。直して checks に戻すか、同じく廃止するか、どちらにしますか。

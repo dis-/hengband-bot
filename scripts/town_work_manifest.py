@@ -1,6 +1,7 @@
 """Generate/check slice-0 town work coverage. Never invent review entries.
 
-The reviewed map is separate from the older producer baseline. Every selected
+The reviewed map is the only producer review (the older producer baseline was
+retired on 2026-11-01). Every selected
 site (the conservative census, decorators, registries, literal ladder callbacks,
 decision entries and driver sends) needs a hand review entry in
 town_work_review.json, unless town_work_data_proof proves it observational
@@ -19,6 +20,7 @@ import ast
 import gzip
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import town_structure_lint as lint
@@ -47,6 +49,16 @@ REVIEW_DEFAULTS = dict(context='Possible town/store context: retained conservati
 def sources():
     return {p.relative_to(lint.POLICY_ROOT).as_posix(): p.read_text(encoding='utf8')
             for p in lint.POLICY_ROOT.rglob('*.py')}
+
+
+def revision_sources(revision):
+    """sources() as committed at a git revision (keys relative to src/hengbot)."""
+    def git(*args):
+        # lint.ROOT, not ROOT: town_work_churn points ROOT at a revision's design file in a temp dir.
+        return subprocess.run(['git', *args], cwd=lint.ROOT, capture_output=True, check=True).stdout
+    paths = git('ls-tree', '-r', '--name-only', revision, '--', 'src/hengbot').decode().split()
+    return {path.removeprefix('src/hengbot/'): git('show', f'{revision}:{path}').decode('utf8')
+            for path in paths if path.endswith('.py')}
 
 
 def complete_review(review):
@@ -146,7 +158,10 @@ def generate(source, reviewed, registry_review=None):
     missing = sorted(selected - reviewed.keys() - proved)
     stale = sorted(reviewed.keys() - selected)
     if missing or stale:
-        raise ValueError(f'unmapped candidates={missing}; stale reviews={stale}')
+        # A moved or renamed function leaves its review stale and the new site unmapped.
+        hint = ('; if a function was moved or renamed, scripts/town_work_rekey.py re-keys its review '
+                '(dry run, then --write)') if stale else ''
+        raise ValueError(f'unmapped candidates={missing}; stale reviews={stale}{hint}')
     reviewed = {site: complete_review(reviewed[site]) if site in reviewed else mechanical_review()
                 for site in selected}
     registry_review = (json.loads(REGISTRY_REVIEW.read_text(encoding='utf8'))

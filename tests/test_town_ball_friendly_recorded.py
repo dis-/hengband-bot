@@ -22,7 +22,12 @@ map's floor cell (37, 107), one step from the impact cell, so inside the
 radius-2 ball (cmd-zapwand.cpp:57, range-calc.cpp:267-290): すずめ (1 hp,
 beatable) or 農夫『マゴット』 (350 hp, not beatable at 129 hp).  Replies to the
 posted keys are constructed from the game's prompts (cmd-magiceat.cpp,
-get_aim_dir).
+get_aim_dir).  The cases that expect the ball drop the pack's lit torches:
+beside the 16 hp lunatic a thrown torch out-scores the 80% Fire Balls row
+(owner 2026-11-01 「見込みの大きい方を使う」, me_ranged_first), and the rule
+under test is the blast's.  The carried-wand cases also raise the displayed
+magic-device skill to 99: at the recorded 45 a level-50 Fire Balls wand works
+once in 27 uses (zapwand-execution.cpp:63-78), below the melee expectation.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -51,8 +56,13 @@ FIRE_BALL_KEY = "mBw1"   # wand sval 22 is I2A(22) 'w'; the target is south-west
 CARRIED_SLOT = "g"
 
 
-def board(friendly, *, carried_ball=False, cell=FRIENDLY_CELL):
+def board(friendly, *, carried_ball=False, cell=FRIENDLY_CELL, torches=True):
     raw = copy.deepcopy(CASE["board"])
+    if carried_ball:
+        raw["player"]["skill_ratings"]["magic_device"]["value"] = 99
+    if not torches:
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if (item.get("tval"), item.get("sval")) != (39, 0)]
     lunatic = raw["visible_monsters"][0]
     race_id, name = friendly
     index = lunatic["index"] + 1
@@ -88,7 +98,7 @@ class TownBallFriendlyTest(nokey.PostedKey):
         self.assertTrue(friendly["friendly"])
 
     def test_beatable_friendly_in_the_blast_still_gets_the_ball(self):
-        policy, raw, key = self.decide(SPARROW)
+        policy, raw, key = self.decide(SPARROW, torches=False)
         self.assertEqual((key, policy.last_reason), (FIRE_BALL_KEY, DEVICE_REASON))
         game, _ = self.post_power(policy, raw, key)
         self.assertEqual(game.accepted, ["m", "B", "w", "1"])
@@ -101,17 +111,19 @@ class TownBallFriendlyTest(nokey.PostedKey):
         self.post(policy, raw, key)
 
     def test_unbeatable_friendly_outside_the_blast_does_not_hold_the_ball(self):
-        policy, _raw, key = self.decide(MAGGOT, cell=OUTSIDE_CELL)
+        policy, _raw, key = self.decide(MAGGOT, cell=OUTSIDE_CELL, torches=False)
         self.assertEqual((key, policy.last_reason), (FIRE_BALL_KEY, DEVICE_REASON))
 
     def test_carried_ball_wand_follows_the_same_rule(self):
         # A carried wand is the same wand_effect (zapwand-execution.cpp:102).
-        policy, raw, key = self.decide(SPARROW, carried_ball=True)
+        policy, raw, key = self.decide(SPARROW, carried_ball=True, torches=False)
         self.assertEqual(policy.last_reason, WAND_REASON, key)
         self.assertIn(CARRIED_SLOT, key)
         self.post(policy, raw, key)
-        policy, raw, key = self.decide(MAGGOT, carried_ball=True)
-        self.assertEqual(policy.last_reason, TORCH_REASON, key)
+        policy, raw, key = self.decide(MAGGOT, carried_ball=True, torches=False)
+        # The ball is withheld; nothing else ranged is left, so the caller melees.
+        self.assertEqual(policy.last_reason, "melee", key)
+        self.assertNotIn(CARRIED_SLOT, key)
         self.post(policy, raw, key)
 
     def post_power(self, policy, raw, key):

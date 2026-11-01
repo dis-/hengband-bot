@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Default-deny producer and item-intent census, with reviewed exact baselines.
+"""Default-deny producer census and item-intent check, with a reviewed exact baseline.
 
 This is a conservative AST check, not a town predicate solver. Dungeon paths
 and data helpers are retained explicitly; no module or family is exempt.
-Baselines are inputs to review, never updated by running the checker.
+producer_census selects the functions town_work_manifest.py requires a review
+for (town_work_review.json); the older producer baseline was retired on
+2026-11-01 (owner: the duplicate list and its check are abolished). The item
+intent baseline is an input to review, never updated by running the checker.
 """
 from __future__ import annotations
 
@@ -15,7 +18,6 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_ROOT = ROOT / 'src' / 'hengbot'
-PRODUCER_BASELINE = Path(__file__).with_name('town_producer_baseline.json')
 INTENT_BASELINE = Path(__file__).with_name('item_intent_baseline.json')
 INTENT_NAME = re.compile(r'pending|retry|reserv|deferred|inflight|errand')
 IDENTITY_NAME = re.compile(r'(?:signature|identity|slot|letter|item_sig)(?:$|_)')
@@ -365,19 +367,8 @@ def source_registry(source):
     return {}
 
 
-def analyze_sources(sources, producer_baseline, intent_baseline):
+def analyze_sources(sources, intent_baseline):
     findings = []
-    candidates = producer_census(sources)
-    ladder = ladder_producers(sources.get('claim_ladder.py', ''))
-    unregistered = {site for site, row in candidates.items()
-                    if not (row['marked'] and row['name'] in ladder)}
-    for site in sorted(unregistered - producer_baseline.keys()):
-        findings.append(f'{site}: new unregistered key-returning producer; requires @claims and claim_ladder registration')
-    for site in sorted(producer_baseline.keys() - unregistered):
-        findings.append(f'{site}: producer baseline entry disappeared or became registered; review/remove it')
-    for site, reason in producer_baseline.items():
-        if not isinstance(reason, str) or not reason.startswith(('dungeon-only:', 'pure helper:', 'delegated adapter:', 'town producer to migrate:')):
-            findings.append(f'{site}: producer baseline needs a reviewed reason category')
     intents = intent_census(sources)
     registry = source_registry(sources.get('item_reservation.py', ''))
     core = ast.parse(sources.get('item_reservation.py', ''))
@@ -405,8 +396,7 @@ def analyze_sources(sources, producer_baseline, intent_baseline):
 def analyze_repository():
     sources = {path.relative_to(POLICY_ROOT).as_posix(): path.read_text(encoding='utf8')
                for path in POLICY_ROOT.rglob('*.py')}
-    findings = analyze_sources(sources, json.loads(PRODUCER_BASELINE.read_text(encoding='utf8')),
-                               json.loads(INTENT_BASELINE.read_text(encoding='utf8')))
+    findings = analyze_sources(sources, json.loads(INTENT_BASELINE.read_text(encoding='utf8')))
     from town_work_manifest import check_repository
     return findings + check_repository()
 

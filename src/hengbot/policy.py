@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import magic_eater, mapped_area, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, unseen_strike, wilderness_exit
+from hengbot import magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -588,6 +588,7 @@ from hengbot.model import (
     SV_SCROLL_DETECT_TRAP,
     SV_SCROLL_DETECT_ITEM,
     SV_SCROLL_DETECT_DOOR,
+    SV_SCROLL_DETECT_TREASURE,
     SV_SCROLL_LIGHT,
     SV_SCROLL_BLESSING,
     SV_SCROLL_HOLY_CHANT,
@@ -10928,6 +10929,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ))
         if summoner_ranged is not None:
             return summoner_ranged
+        # Class 16 sends an unbeatable hostile in range away (me_powers THREAT).
+        threat_power = me_powers.threat_key(self, snapshot)
+        if threat_power is not None:
+            return threat_power
         emergency = self._town_producer_entry("_emergency_item", lambda: self._emergency_item(snapshot, emergency_hostiles))
         if emergency is not None:
             if self._choke_plan_active(snapshot):
@@ -13834,12 +13839,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ]
 
     def _count_treasure_detection_scrolls(self, snapshot: Snapshot) -> int:
-        from hengbot.me_staff_sequence import SV_STAFF_DETECT_GOLD, absorbed_charges
-
-        # Class 16's absorbed Detect Treasure power counts by its charges.
+        # Class 16's absorbed Detect Treasure power counts by its charges
+        # (me_capability.REPLACES).
         return sum(
             it.count for it in snapshot.inventory if it.is_treasure_detection_scroll
-        ) + absorbed_charges(self, snapshot, SV_STAFF_DETECT_GOLD)
+        ) + me_capability.replacing_charges(
+            self, snapshot, (TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE))
 
     def _count_usable_torches(self, snapshot: Snapshot) -> int:
         return sum(
@@ -15487,7 +15492,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _request_identification(self, kind: str) -> None:
-        if kind == "full" and me_powerful_activation.absorbed(self, me_powerful_activation.IDENTIFY):
+        if kind == "full" and me_capability.replaced_by_absorbed(
+                self, None, (TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY)):
             # Class 16 serves *Identify* with Powerful Activation, never a scroll.
             return
         if kind == "normal" and self._identification_need != kind:

@@ -20,6 +20,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from hengbot import me_staff_sequence as sequence
+from hengbot.me_capability import record_key
 from hengbot.cli import (
     SendResult, _ExecutorInputPort, _build_argument_parser, _run_follow, _transport_key,
 )
@@ -328,8 +329,8 @@ class RestartForgetsAbsorptionsTest(PostedKey):
             if key:
                 policy.confirm_key_posted(key)
         record = sequence.state(policy)
-        self.assertEqual(record.absorbed, {sequence.SV_STAFF_IDENTIFY: 21,
-                                           sequence.SV_STAFF_DETECT_GOLD: 19})
+        self.assertEqual(record.absorbed, {record_key("staff", sequence.SV_STAFF_IDENTIFY): 21,
+                                           record_key("staff", sequence.SV_STAFF_DETECT_GOLD): 19})
         self.assertEqual(record.stage, 2)
         self.assertEqual((sold, bought), ([], []))
         # #47 D52: the buy round goes on to Telmora's shelf by the travel

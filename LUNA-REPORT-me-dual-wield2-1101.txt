@@ -1,0 +1,103 @@
+LUNA-REPORT-me-dual-wield2-1101（#47 二刀流が直っていない、n1-c life-096、2026-11-01）
+
+枝: me-dual-wield2-1101（main e69085962 から。直す前に main を取り込んだ: 新しいコミットはなかった）。
+push・取り込みはしていない。診断: LUNA-DIAG-me-dual-wield2-1101.txt。
+
+======================================================================
+オーナーの決定（11-01）
+問い「腕力が低い時に AC100 の比べ方で二刀流が勝つのをどうするか」への答え:「腕力の回復だけ直す」。
+→ 最適化の AC100 の比べ方は変えない。吸われた能力値を店の薬で戻さない不具合だけを直した。
+
+======================================================================
+結論（短く）
+- life-096 で左手に武器を入れたのは、最適化が選んだ装備の取引（decision 6626 'wl'・6627 'wly'、
+  equipment-transaction:equip、turn 1039841、較正あり）。前回直した「空の左手の戻し」ではない
+  （それより前の戻しは 40 回とも 'tb'）。
+- 最適化は二刀流の減りも重い武器の減りも正しく数えている。腕力が 6 まで吸われていたので、AC100 では
+  1本でも命中 7%、二刀流は両手とも下限 5% になり、回数の多い二刀流が 0.750 対 0.743 で勝った
+  （腕力 19 の時は棍棒1本が勝っていた）。
+- 直したこと: 腕力が吸われたまま、錬金術の店に腕力復活の薬が手の届く値段であっても買わなかった。
+
+======================================================================
+腕力復活の薬を買わなかった理由（根）
+- 店で買う物は policy_shop._legacy_next_purchase_unreserved が順に1つ選ぶ。資金稼ぎの間
+  （_fundraising_mode が prepare・mine・scavenge）は別の枝に入り、採掘の道具（掘る道具・財宝感知・
+  食料・光源・油・投げる松明・鑑定）と帰還の詔だけを見て「return None」で終わる
+  （policy_shop.py の旧 3562-3570 行）。吸われた能力値の薬（_restore_potion_purchase、旧 3618 行）は
+  資金稼ぎでない時の枝にしかなかった。
+- life-096 の錬金術の店の3回は、どれも資金稼ぎの間だった（決定の fundraising.mode）:
+  - 86（turn 1461360、prepare）: 欲しい物は帰還の詔（自宅に先にある）→ 店を出て自宅で取り出す。
+  - 91・92（turn 1462282、prepare）: 帰還の詔を1枚買い（'pj1\r\r'）、次の選びは None →
+    '\x1b' shop:in-store-done。棚には「腕力復活の薬 {25%引き}」$352、所持金 4670。
+  - 610（turn 1645367、mine）: 選びは None →「observed-page-nothing-wanted」で '\x1b'
+    shop:observe-and-leave。棚に $468 と $234、所持金 5983。
+- 町の順路は能力値の薬のために錬金術の店へ行く（policy_town.py の _needs_stat_restore）のに、店の中の
+  選びがそれを買わない、という食い違い。
+
+======================================================================
+直したこと（1コミット）
+  865fc6efa  Restore a drained stat on a fundraising visit's shelf (#47)
+- 資金稼ぎの枝の最後（採掘の道具と帰還の詔の後、つまりそれらを削らない位置）で、吸われた能力値の薬を
+  買う候補にした。全部の能力値に効く（_restore_potion_purchase が player.drained_stats の全部を見る）。
+- 「能力値の薬を、除外されていなければ返す」判定を ShopMixin._admitted_restore_potion_purchase の
+  1か所にまとめ、普通の枝と資金稼ぎの枝の両方がこれを読む（前は普通の枝に直書き）。
+- 買った後の restore:quaff-str（_stat_restore_quaff_key）は今のままで動く（テストで確かめた）。
+- town-work の manifest: 新しい関数の確認の行を scripts/town_work_review.json に足し、
+  _legacy_next_purchase_unreserved の説明に1文足して --write →「1091 candidates (161 proved data),
+  30045 sites, zero unmapped」、検査「0 violation(s)」。
+
+======================================================================
+テスト（tests/test_me_stat_restore_recorded.py、材料は tests/extract_me_stat_restore_fixture.py で作った
+tests/fixtures/me-stat-restore-20261101.json.gz）
+- test_capture_pins_the_unrestored_strength: 記録の 92 と 610 の決定・資金稼ぎの段・腕力が吸われている
+  こと・薬が所持金で買えること・「observed-page-nothing-wanted」を固定。
+- test_fundraising_visit_buys_and_drinks_the_restore_potion（prepare と mine の2つの盤面）: 記録の
+  錬金術の店の盤面から choose_key で決め、production の executor（買う時の個数と値段の確認の画面、
+  飲む時の「どの薬を飲みますか?」）で送る。直した後の流れ:
+    town-progress-invariant:continue-observed-shop → shop:one-shot-buy（腕力復活の薬）→
+    shop:one-shot-buy → restore:quaff-str → shop:approach。
+  作った物: 送ったキーへのゲームの返事（薬が鞄に入る・飲むと腕力が戻る）。決定の行から戻した物:
+  資金稼ぎの段、魔道具術師の取り込んだ杖の記録（死の時の policy-state）。
+- 直す前で落ちることの確認（policy_shop.py の差分を戻して流し、元に戻した）:
+  固定のテストは ok、買って飲むテストは prepare・mine とも FAIL（薬を買わずに店を出て、
+  shop:approach を繰り返したあと store:entry-await-observation で止まる）。
+
+検査:
+- (1) PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": ok。
+- (2)+(3) checks.json の全テスト（98 モジュール、重複を除く）と自分のテスト tests.test_me_stat_restore_recorded
+  を、コミット 865fc6efa の木で一度に流した: Ran 577 tests、OK（FAIL 0・ERROR 0）。
+  （1回目の 575 本 OK の実行は、途中で直す前と後を比べるために src を一時的に戻したので数えていない。）
+- 変えた所に直接関わる既存のモジュールも流した（全体テストではない）: test_me_town_stops_recorded・
+  test_lv7_town_stop_recorded・test_policy_fundraising と自分のテストで 66 本 ok。
+  test_blocked_purchase_namespace・test_declarations_r5・test_experience_potion・test_policy_shop・
+  test_shop_one_shot・test_town_plan_exhausted_wander・test_town_stops_1031_recorded は 381 本中 6 本 FAIL
+  （test_experience_potion の x3・x4・x5×2・x7 と test_policy_shop の
+  test_home_star_identify_source_breaks_incomplete_catalog_deadlock）。同じ 6 本は直す前の src
+  （main e69085962）でも同じく FAIL するので、この直しのせいではない（どれも checks.json には入っていない）。
+
+======================================================================
+checks.json への追加の案（checks.json は編集していない）
+  {
+   "id": "ME-STAT-RESTORE",
+   "defect": "#47 me-dual-wield2-1101（D 番号は監督が付ける）",
+   "owner": "2026-11-01 「腕力の回復だけ直す」",
+   "tests": ["tests.test_me_stat_restore_recorded"]
+  }
+
+======================================================================
+保守性
+- 新しい判断は足していない。前からある「吸われた能力値は錬金術の店で薬を買って飲む」決まりを、
+  資金稼ぎの間の買い物の順からも届くようにしただけ。
+- 「能力値の薬を返す（除外の確認つき）」を _admitted_restore_potion_purchase の1か所にし、二つの枝が
+  同じ関数を読む（同じ判定の書き写しを1つ減らした）。
+- 職業・品名・tval の特別扱いは足していない（魔道具術師の分岐なし。能力値ごとの薬は既存の
+  RESTORE_POTION_SVAL_BY_STAT の表）。
+- 新しい属性は足していない（復元チェックポイントに影響なし）。テストの壁も作っていない。
+
+======================================================================
+別の家族へ（直していない）
+- 腕力を吸う動かない敵（レッド・ゼリー）と遠距離・近接で戦い続けた（turn 349054-349212、12 回吸われた）。
+  動かない敵を避ける決まりは召喚する敵だけ（10-27・10-28）。広げるかはオーナーの決定。
+- 資金稼ぎでない時の枝でも、上の方の品が「自宅に先にある」（home-first）と、その店では能力値の薬を
+  含めて何も買わずに出る（_in_store_selection は1品だけを見る）。今回の記録では資金稼ぎの枝が原因で、
+  この形では起きていない。

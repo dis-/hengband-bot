@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import goal_route, lamp_fuel, me_powerful_activation, unseen_strike, wilderness_exit
+from hengbot import goal_route, lamp_fuel, me_capability, unseen_strike, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -126,9 +126,11 @@ class SupplyMixin:
         """Choose a cure for worn gear; failed strong removal proves permanence.
 
         Class 16 with the absorbed Remove Curse power needs no scroll: its
-        Powerful Activation (me_powerful_activation) serves every curse.
+        Powerful Activation (me_powerful_activation) serves every curse, the
+        *Remove Curse* scroll's (me_capability.REPLACES).
         """
-        if me_powerful_activation.serves(self, snapshot, me_powerful_activation.UNCURSE):
+        if me_capability.replaced_by_absorbed(
+                self, snapshot, (TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE)):
             return None
         targets = [item for item in snapshot.equipment if item.is_cursed
                    and self._item_signature(item) not in
@@ -538,15 +540,11 @@ class SupplyMixin:
         「以降、鑑定と財宝感知は取り込みで賄う」: the absorbed power is the
         Magic-Eater's Identify staff (it regenerates and refills);
         「鑑定の杖を21回取り込んだあとは…持ち物の要求からも外す」 also from the
-        displayed list alone (me_absorbed_substitutes).  The ordinary
-        departure gate and the forced departure's minimum read this one rule.
+        displayed list alone (the me_capability.REPLACES rows of the staff).
+        The ordinary departure gate and the forced departure's minimum read
+        this one rule.
         """
-        from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-        from hengbot.me_absorbed_substitutes import identify_staff_replaced
-        from hengbot.me_staff_sequence import absorbed as staff_absorbed
-        return bool((snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
-                     and staff_absorbed(self, SV_STAFF_IDENTIFY))
-                    or identify_staff_replaced(self, snapshot))
+        return me_capability.replaced_by_absorbed(self, snapshot, (TVAL_STAFF, SV_STAFF_IDENTIFY))
 
     def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_quest_head=True) -> bool:
         # A loot-collecting quest (its reviewed profile opts in with

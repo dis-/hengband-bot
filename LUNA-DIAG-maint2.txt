@@ -1,0 +1,66 @@
+LUNA-DIAG-maint2 (#47, 保守性 第2回 N1「取り込み済みか」「取り込んだ力が品の代わりになるか」) 2026-11-01
+基点: main e69085962（ブランチ maint2-me-capability-1101）。行番号はすべて main e69085962 のもの。
+
+1. 「取り込み済みか」の判定が 4 つ（根拠の規則がそれぞれ違う）
+  (a) me_staff_sequence.py:256 absorbed(policy, sval)
+      記録（MeStaffSequence.absorbed）だけ。キーは int の sval。職業の確認なし。
+      使う所: stage_complete:298・remaining_svals:318・retains:403・absorbed_charges:345（同ファイル）、
+      magic_eater_devices.py:104 _awaiting_absorption、policy_supply.py:546-548 _identify_staff_absorbed、
+      me_powerful_activation.py:118（一覧が無い時の代わり）。
+  (b) me_powerful_activation.py:109 absorbed(policy, effect)
+      その種類の一覧が表示済みならその一覧に行があるか（max は見ない）。無ければ (a)。職業の確認なし。
+      serves:104 が職業を足す。使う所: policy.py:15490 _request_identification（absorbed を直接）。
+  (c) me_absorbed_substitutes.py:98 held(policy, snapshot, power)
+      職業 16 かつ（表示された行の max > 0 または me_powers.recorded_charges > 0）。
+  (d) me_device_policy.py:100 absorbed(policy, snapshot, row) → (c) に丸投げ（Device.power で仮の Power を作る）。
+  ほかに「数」と「使えるか」が別々にある:
+      me_staff_sequence.py:261 absorbed_count（記録の値）、:267 extra_charges（"kind:sval" の記録）、
+      :345 absorbed_charges（記録の値、この盤面の一覧で current==0 ならこの turn だけ 0）、
+      :379 identify_power_available / :383 identify_power_command（:372 power_key 経由）、
+      me_absorbed_substitutes.py:107 absorbed_count（表示の max と記録の大きい方）、
+      :116 identify_staff_replaced（その数が 21 以上）、me_powers.py:435 observed_row・:443 recorded_charges・
+      :451 charges（表示の行、無ければ記録）。
+
+2. 力に似た型が 5 つ、IDENTIFY が 3 つ
+  me_device_attacks.py:68 Power、me_powers.py:134 Power、me_powerful_activation.py:58 Effect（names・scroll_sval
+  を自分で持つ）、me_device_policy.py:58 Device（:80 .power が仮の me_powers.Power を作る、:74 .key が記録の
+  キーを int と "kind:sval" に分ける）、me_absorbed_substitutes.py:78 Substitute。
+  IDENTIFY: me_absorbed_substitutes.py:69（仮の Power）、me_powerful_activation.py:75（Effect）、
+  me_staff_sequence.py:146 IDENTIFY_POWER_KEY（POWER_NAMES:123 と POWER_LETTER:120）。
+  KIND_LETTER は me_powers.py:118、me_device_attacks.py:58、me_powers_refresh.py:34 の 3 か所（N2 の範囲）。
+
+3. 疑われた潜在の不具合: 記録のキーが 2 つの名前空間に分かれている → 確認した（実在する）
+  記録を書く所: me_staff_sequence.py:250（read_powers、int の sval）、:739（_settle_pending、段階の杖は int の
+  sval、それ以外は Device.key = "kind:sval"、me_device_policy.py:73-77）。
+  読む所: me_powers.recorded_charges:446-448 は杖なら absorbed_charges(sval) = int のキーだけを見る。
+  me_absorbed_substitutes.absorbed_count:113 は種類を見ずに int のキー（recorded_count(policy, power.sval)）。
+  確かめ方（main e69085962、PYTHONPATH=src;tests、職業 16、表示された一覧なし、記録 = 段階の鑑定 21・
+  「staff:27」5（抹殺の杖、absorb_after_charge で塔で取り込んだもの）・「staff:22」6（スピードの杖）・
+  「wand:6」12（岩石溶解）):
+    Speed    : me_device_policy.absorbed=False  me_powers.recorded_charges=0  charge_first=True
+    Genocide : me_device_policy.absorbed=False  me_powers.recorded_charges=0  charge_first=True
+    岩石溶解 : held=True  me_powers.charges=12  me_absorbed_substitutes.absorbed_count=0
+    記録に杖 sval 6（解呪）の int キー 3 を足すと、岩石溶解の absorbed_count が 3 になる（杖と魔法棒の取り違え）。
+  結果: 段階の杖以外の杖（スピード、*破壊*、体力回復、力、聖浄、抹殺、魔力の嵐）を staff sequence が
+  塔で取り込むと、杖の一覧がもう一度表示されるまで「取り込んでいない・回数 0」と読まれる。決定に効く所:
+  me_device_policy.charge_first（absorb_after_charge で buy_more の無い抹殺・魔力の嵐は、取り込んだ後も
+  2 本目を「塔で充填してから取り込む」品として持ち帰る）と awaits_absorption（売らずに持ち続ける）。
+  buy_first と buy_more が両方ある杖（スピードなど）は purchase_wanted の答えが同じなので決定は変わらない。
+  absorbed_count の種類の取り違えは、今の呼び出し元が鑑定（杖 5）だけなので決定には効いていない（潜在）。
+  直し方（この回で直す、許された唯一の振る舞いの変更）: 記録のキーを (kind, sval) から作る 1 つの形
+  "kind:sval" にそろえ、古い int と "kind:sval" は読むときに移す。
+  公開の choose_key で確かめた（tests.test_me_record_key_recorded、記録した D24 の塔の盤面に抹殺の杖を
+  足した DECLARED CONSTRUCTED、本番の executor）: main e69085962 の src で 2 件とも失敗する
+  （charge_first が True、2 本目を足した盤面の判断が me-staff:recharge-all）。直した後は 2 件とも通る
+  （charge_first が False、判断は me-staff:return-outpost）。
+
+4. 「取り込んだ力が品の代わりになる」の判定の場所（12 か所以上）
+  policy_shop.py:2775（*解呪* の必要分の購入）、:2938（購入の段の一致）、:3344・:3346・:3348（候補から外す、
+  段階の杖・21 回の鑑定・強力発動の巻物の 3 つ）、:6487（*解呪* の予備の購入）、policy_fundraising.py:509
+  （*解呪* の購入）、policy_supply.py:131（呪いの解き方の要求）、:549（鑑定の杖の準備）、policy.py:15490
+  （*鑑定* の要求）、policy_identification.py:567・:1063（取り込んだ鑑定で鑑定する）、policy_home.py:2964
+  （取り込んだ鑑定を持ち歩く鑑定の手段とみなす）、policy_quest.py:807・:816・:1072（クエストの持ち物の
+  代わり）、policy_helpers.py:664-670（*破壊* の回数）、policy.py:13837-13842（財宝感知の数）。
+  表が 4 つに分かれている: me_absorbed_substitutes.SUBSTITUTES:85、me_powerful_activation.Effect.scroll_sval:62、
+  21 回の規則 me_absorbed_substitutes.py:116-124、段階の購入の除外 me_staff_sequence.py:397-400。
+  37c6d6ec0（2 つの力）は 10 ファイルを変えた。

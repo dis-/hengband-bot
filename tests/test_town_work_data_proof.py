@@ -70,6 +70,81 @@ class DataProofRulesTest(unittest.TestCase):
         self.assertFalse(proved(PROVED['compare'], origin='emit/driver'))
 
 
+def _policy_sources(body, helpers='', extra=None):
+    sources = {'policy.py': 'class HengbotPolicy:\n' + body + helpers, 'claim_ladder.py': ''}
+    sources.update(extra or {})
+    return sources
+
+
+class ProducerCensusTest(unittest.TestCase):
+    """The census selects every key-returning function choose_key can reach, so a new one needs a review.
+
+    Moved from the retired tests.test_town_structure_lint (2026-11-01); it now asserts the census the
+    manifest reads instead of the retired producer baseline's findings.
+    """
+    def assertCensus(self, sources, site):
+        self.assertIn(site, lint.producer_census(sources))
+
+    def test_undecorated_town_wait_producer_is_selected(self):
+        self.assertEqual(lint.producer_census(_policy_sources(' def choose_key(self, snapshot):\n  return None\n')),
+                         {})
+        self.assertCensus(_policy_sources(
+            ' def choose_key(self, snapshot):\n  key = self._new_town_work(snapshot)\n  return key\n',
+            ' def _new_town_work(self, snapshot):\n  return "5"\n'), 'policy.py:HengbotPolicy._new_town_work')
+
+    def test_alias_callback_and_opaque_return_paths_are_selected(self):
+        for expression in ('self._new_town_work(snapshot)',
+                           'self._adapter(lambda: self._new_town_work(snapshot))',
+                           'getattr(self, "_new_town_work")(snapshot)',
+                           'call(snapshot)'):
+            sources = _policy_sources(
+                ' def choose_key(self, snapshot):\n  call = self._new_town_work\n  key = ' + expression
+                + '\n  return key\n',
+                ' def _new_town_work(self, snapshot):\n  return "5"\n'
+                ' def _adapter(self, call):\n  return call()\n')
+            with self.subTest(expression=expression):
+                self.assertCensus(sources, 'policy.py:HengbotPolicy._new_town_work')
+
+    def test_module_and_method_aliases_are_selected(self):
+        for expression in ('work(snapshot)', 'self.adapt(work, snapshot)'):
+            sources = _policy_sources(' def choose_key(self, snapshot):\n  return ' + expression + '\n',
+                                      ' def adapt(self, call, snapshot):\n  return call(snapshot)\n')
+            sources['policy.py'] += '\ndef new_producer(snapshot):\n return "5"\nwork = new_producer\n'
+            with self.subTest(expression=expression):
+                self.assertCensus(sources, 'policy.py:new_producer')
+        self.assertCensus(_policy_sources(' def choose_key(self, snapshot):\n  return self.work(snapshot)\n',
+                                          ' def new_producer(self, snapshot):\n  return "5"\n'
+                                          ' work = new_producer\n'),
+                          'policy.py:HengbotPolicy.new_producer')
+
+    def test_imported_mixins_subpackages_and_callbacks_are_selected(self):
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  return self.new_work(snapshot)\n',
+                                  extra={'new_mixin.py': 'class NewMixin:\n def new_work(self, snapshot):\n'
+                                                         '  return "5"\n'})
+        sources['policy.py'] = 'from .new_mixin import NewMixin\n' + sources['policy.py']
+        self.assertCensus(sources, 'new_mixin.py:NewMixin.new_work')
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  return work(snapshot)\n',
+                                  extra={'town/work.py': 'WAIT = "5"\ndef produce(snapshot):\n return WAIT\n'})
+        sources['policy.py'] = 'from hengbot.town.work import produce as work\n' + sources['policy.py']
+        self.assertCensus(sources, 'town/work.py:produce')
+        for import_line, expression in (
+            ('from . import work', 'work.produce(snapshot)'),
+            ('from hengbot import work', 'work.produce(snapshot)'),
+            ('from hengbot.work import produce as callback', 'self.adapt(callback, snapshot)'),
+        ):
+            sources = _policy_sources(' def choose_key(self, snapshot):\n  return ' + expression + '\n',
+                                      ' def adapt(self, call, snapshot):\n  return call(snapshot)\n',
+                                      {'work.py': 'def produce(snapshot):\n return "5"\n'})
+            sources['policy.py'] = import_line + '\n' + sources['policy.py']
+            with self.subTest(import_line=import_line):
+                self.assertCensus(sources, 'work.py:produce')
+
+    def test_reverse_import_driver_is_not_a_policy_descendant(self):
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n', extra={
+            'driver.py': 'from hengbot.policy import HengbotPolicy\ndef new_work():\n return "5"\n'})
+        self.assertNotIn('driver.py:new_work', lint.producer_census(sources))
+
+
 def _mutant(sources):
     """The repository plus a new key producer, its int helper and a body edit of a reviewed producer."""
     mutant = dict(sources)

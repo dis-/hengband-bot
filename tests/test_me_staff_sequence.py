@@ -32,6 +32,7 @@ from hengbot.cli import (
 from hengbot.control_client import ControlClient
 from hengbot.input_executor import OperationExecutor
 from hengbot import me_staff_sequence as sequence
+from hengbot.me_capability import record_key
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.model import (
     Position, QuestState, Snapshot, StoreState, STORE_MAGIC, SV_STAFF_IDENTIFY,
@@ -329,7 +330,8 @@ class MeStaffSequenceTest(unittest.TestCase):
             **board.grids,
             Position(10, 12): replace(board.grids[Position(10, 12)], building_type=4)})
         key, _ = self.decide(policy, board)
-        self.assertEqual(policy._me_staff_sequence.absorbed, {SV_STAFF_IDENTIFY: 21, DETECT: 19})
+        self.assertEqual(policy._me_staff_sequence.absorbed,
+                         {record_key("staff", SV_STAFF_IDENTIFY): 21, record_key("staff", DETECT): 19})
         # Owner 2026-10-31: stage 1 is complete (decided once).  Stage 2's
         # buy round looks at Morivant's own Magic shelf first (#47 D52).
         self.assertEqual((key, policy.last_reason), (WAIT_KEY, "me-staff:stage1-complete"))

@@ -33,7 +33,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
-from hengbot import approach_walk, me_absorbed_substitutes, me_device_policy, me_powerful_activation, me_staff_sequence
+from hengbot import approach_walk, me_capability, me_device_policy, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.purchase_rungs import (
@@ -749,6 +749,18 @@ class ShopMixin(InStoreMixin):
             if item is not None:
                 return item
         return None
+
+    def _admitted_restore_potion_purchase(
+        self, snapshot: Snapshot, excluded_classes
+    ) -> StoreItem | None:
+        """The restore potion this page sells for a drained stat, unless excluded."""
+        restore = self._restore_potion_purchase(snapshot)
+        if restore is None or (
+            (restore.tval, restore.sval) in excluded_classes
+            and not self._identify_staff_swap_purchase(restore)
+        ):
+            return None
+        return restore
 
     @claims(ClaimOwner.SURVIVAL)
     def _stat_restore_quaff_key(
@@ -2772,7 +2784,8 @@ class ShopMixin(InStoreMixin):
             return None
         return next((item for item in store.items
                      if self._store_item_is_supply(item, kind)
-                     and not me_powerful_activation.replaces_scroll(self, snapshot, item)
+                     and not me_capability.replaced_by_absorbed(
+                         self, snapshot, item, me_capability.PURCHASE)
                      and item.price <= snapshot.player.gold), None)
 
     def _live_purchase_need(
@@ -2935,7 +2948,7 @@ class ShopMixin(InStoreMixin):
         return tuple(rungs)
 
     def _matching_live_purchase_rungs(self, snapshot: Snapshot, item) -> tuple[PurchaseMatch, ...]:
-        if me_powerful_activation.replaces_scroll(self, snapshot, item):
+        if me_capability.replaced_by_absorbed(self, snapshot, item, me_capability.PURCHASE):
             return ()
         context = PurchaseContext(snapshot)
         return tuple(match for rung in self._purchase_rungs(context) if (match := rung.match(context, item)) is not None)
@@ -3339,13 +3352,10 @@ class ShopMixin(InStoreMixin):
             item for item in store.items
             if ((item.tval, item.sval) not in excluded_classes
                 or self._identify_staff_swap_purchase(item))
-            # 「2本目は買わない」: after Q1 class 16 buys these two staffs
-            # only through me_staff_sequence.purchase (_next_purchase).
-            and not me_staff_sequence.purchase_excluded(self, snapshot, item)
-            # 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない」.
-            and not me_absorbed_substitutes.purchase_excluded(self, snapshot, item)
-            # Class 16 serves *Identify* / *Remove Curse* with Powerful Activation.
-            and not me_powerful_activation.replaces_scroll(self, snapshot, item)
+            # Class 16: what an absorbed power replaces, or the staff
+            # sequence alone buys (me_capability.REPLACES).
+            and not me_capability.replaced_by_absorbed(
+                self, snapshot, item, me_capability.CANDIDATE)
         )
         if (getattr(self, "_crossarea_fundraising_enforced", False)
                 and self._fundraising_mode in {"mine", "scavenge"}
@@ -3567,7 +3577,11 @@ class ShopMixin(InStoreMixin):
                 )
                 if recall is not None:
                     return recall
-            return None
+            # Below the whole kit and the recall, so it never starves them:
+            # a drained stat is restored here too (#47 n1-c life-096: STR
+            # 18/31 drained to 6 left on the Alchemist's shelf in every
+            # fundraising visit, and the optimizer dual wielded at the floor).
+            return self._admitted_restore_potion_purchase(snapshot, excluded_classes)
 
         mandatory = (
             self._mandatory_purchase(snapshot, excluded_classes=excluded_classes)
@@ -3615,10 +3629,8 @@ class ShopMixin(InStoreMixin):
                 and ((curse_scroll.tval, curse_scroll.sval) not in excluded_classes
                      or self._identify_staff_swap_purchase(curse_scroll))):
             return curse_scroll
-        restore = self._restore_potion_purchase(snapshot)
-        if (restore is not None
-                and ((restore.tval, restore.sval) not in excluded_classes
-                     or self._identify_staff_swap_purchase(restore))):
+        restore = self._admitted_restore_potion_purchase(snapshot, excluded_classes)
+        if restore is not None:
             return restore
         restore_life = self._restore_life_levels_purchase(snapshot)
         if (restore_life is not None
@@ -6484,7 +6496,8 @@ class ShopMixin(InStoreMixin):
         self, snapshot: Snapshot
     ) -> bool:
         return (
-            not me_powerful_activation.serves(self, snapshot, me_powerful_activation.UNCURSE)
+            not me_capability.replaced_by_absorbed(
+                self, snapshot, (TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE), me_capability.PURCHASE)
             and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
             and not self._recall_departure_shortage(snapshot)
             and self._home_star_remove_curse_count == 0
