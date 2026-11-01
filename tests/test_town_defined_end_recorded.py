@@ -144,16 +144,21 @@ class TownDefinedEndHomeLoopTest(TownWanderRecordedTest):
         end = verdict_town_end(gather_town_end(policy, board))
         self.assertEqual(end, ("drop-and-depart", ("home_candidate_resolved",)))
         key = town_end_key(policy, board)
-        # The forced departure first steps off the Home entrance, then reads
-        # the recall exactly as the departure owner does.
-        self.assertEqual((key, policy.last_reason), ("9", "town:blocked:repetition"))
-        self.assertEqual(policy._visit_departure_committed, "no-owner-answered")
+        # The board is still on the Home entrance: the established step off
+        # it comes first, then the forced departure reads the recall exactly
+        # as the departure owner does.
+        self.assertEqual(policy.last_reason, "town:entrance-step-off:town:end-step-off")
+        self.assertIn(key, "12346789")
         following = self.reply(raw, key)
         self.post(policy, raw, key, following)
         board = policy.with_known_skill_exp(
             parse_snapshot(copy.deepcopy(following), policy._monrace_knowledge))
-        key = str(policy.choose_key(board))
+        # DECLARED RECONSTRUCTED: the live latch persisted off the entrance
+        # (departure_block at 26099 failed home_candidate_resolved there).
+        policy._home_candidate_waiting = True
+        key = town_end_key(policy, board)
         self.assertEqual(policy.last_reason, "town:repetition-depart:recall")
+        self.assertEqual(policy._visit_departure_committed, "no-owner-answered")
         self.assertTrue(key.startswith("r"), key)
         record = [json.loads(line) for line in runtime_path(
             "keep-running-events.jsonl").read_text(encoding="utf-8").splitlines()][-1]

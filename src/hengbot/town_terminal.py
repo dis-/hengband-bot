@@ -2319,6 +2319,11 @@ def town_end_key(policy: Any, board: Any) -> str:
         # established safe step off the entrance comes before the end.
         return policy._town_entrance_step_off_key(board, TOWN_END_STEP_OFF)
     end = verdict_town_end(gather_town_end(policy, board))
+    if end.kind != "stop" and holds_town(policy, board):
+        # The town-map quest reward holds the town (leaving terminals are
+        # refused, QUEST_REWARD_FIRST) and none of its servers answered.
+        policy._town_blocked_reason = QUEST_REWARD_FIRST
+        return policy._town_blocked_key(board)
     if end.kind != "stop" or policy._visit_departure_committed:
         key = policy.force_visit_departure(
             board, TOWN_END_CAUSE,
