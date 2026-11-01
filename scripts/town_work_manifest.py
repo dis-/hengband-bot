@@ -1,15 +1,20 @@
 """Generate/check slice-0 town work coverage. Never invent review entries.
 
-The reviewed map is separate from the older producer baseline. The output
-contains the conservative census, decorators, registries, literal ladder
-callbacks, producer references/calls, direct decision branches and driver sends.
-AST digests make edits (including new branches in old functions) fail the gate.
+The reviewed map is separate from the older producer baseline. Every selected
+site (the conservative census, decorators, registries, literal ladder callbacks,
+decision entries and driver sends) needs a hand review entry in
+town_work_review.json. Reviews are keyed by stable identity (module:qualname),
+so a body edit needs neither a review nor a regeneration.
+
+The only generated file is the runtime index src/hengbot/town_work_sites.json
+(classification, rows and delegation per site; no line numbers or digests).
+The full evidence manifest (returns, predicates, call/ladder/registry sites) is
+written only on request with --evidence and is not committed.
 """
 from __future__ import annotations
 
 import argparse
 import ast
-import hashlib
 import gzip
 import json
 import re
@@ -19,7 +24,6 @@ import town_structure_lint as lint
 
 ROOT = lint.ROOT
 REVIEW = ROOT / 'scripts/town_work_review.json'
-OUTPUT = ROOT / 'scripts/town_work_manifest.json.gz'
 INDEX = ROOT / 'src/hengbot/town_work_sites.json'
 REGISTRY_REVIEW = ROOT / 'scripts/town_work_registry_review.json'
 SEAM_NAMES = {'_offer_execution', '_offer_execution_awaiting',
@@ -29,15 +33,13 @@ SEAM_NAMES = {'_offer_execution', '_offer_execution_awaiting',
               # A driver rewrite of the decided key is an emission too.
               'bind_driver_override'}
 REGISTRIES = {'_town_need_registry', '_purchase_rungs'}
+# The fields town_work.py reads at run time; the runtime index holds only these.
+RUNTIME_FIELDS = ('classification', 'rows', 'delegation')
 
 
 def sources():
     return {p.relative_to(lint.POLICY_ROOT).as_posix(): p.read_text(encoding='utf8')
             for p in lint.POLICY_ROOT.rglob('*.py')}
-
-
-def digest(node):
-    return hashlib.sha256(ast.dump(node, include_attributes=False).encode()).hexdigest()
 
 
 def registry_inventory(source):
@@ -52,7 +54,7 @@ def registry_inventory(source):
                     result.append(dict(id=f'need:{category}:{ordering}:{occurrence}',
                                        caller=site, line=node.lineno, callee='_TownNeedLookup.produces',
                                        category=category, ordering=ordering, occurrence=occurrence,
-                                       departure_blocking=blocking, ast_sha256=digest(node),
+                                       departure_blocking=blocking,
                                        expression=ast.unparse(node)))
         if fn.name == '_purchase_rungs':
             for node in lint.local_nodes(fn):
@@ -62,7 +64,7 @@ def registry_inventory(source):
                     result.append(dict(id=f'purchase:{identifier}', caller=site, line=node.lineno,
                                        callee='rung/match -> _atomic_shop_transaction_key',
                                        category=ast.unparse(node.args[1]),
-                                       ast_sha256=digest(node), expression=ast.unparse(node)))
+                                       expression=ast.unparse(node)))
     return result
 
 
@@ -130,7 +132,7 @@ def generate(source, reviewed, registry_review=None):
         if not all(review.get(k) for k in ('classification', 'rows', 'context', 'evidence')):
             raise ValueError(f'{site}: incomplete work review')
         entries.append(dict(site=site, line=fn.lineno, end_line=fn.end_lineno,
-                            ast_sha256=digest(fn), origins=sorted(set(origins[site])),
+                            origins=sorted(set(origins[site])),
                             return_evidence=[dict(line=n.lineno, expression=ast.unparse(n.value))
                                              for n in lint.local_nodes(fn)
                                              if isinstance(n, ast.Return) and n.value is not None],
@@ -149,7 +151,6 @@ def generate(source, reviewed, registry_review=None):
             if targets or isinstance(node, ast.Call) and callee in SEAM_NAMES:
                 calls.append(dict(caller=caller, line=node.lineno, callee=callee,
                                   targets=sorted(targets), expression=ast.unparse(node),
-                                  ast_sha256=digest(node),
                                   possible_town_context='conservative; use callee review',
                                   rows=sorted({r for target in targets for r in reviewed[target]['rows']}),
                                   admission='_town_producer_entry / town_work.validate_emit',
@@ -164,7 +165,7 @@ def generate(source, reviewed, registry_review=None):
                         for t in (node.targets if isinstance(node, ast.Assign) else [node.target]))
             ):
                 calls.append(dict(caller=caller, line=node.lineno, callee='<branch>', targets=[caller],
-                                  expression=ast.unparse(node), ast_sha256=digest(node),
+                                  expression=ast.unparse(node),
                                   possible_town_context=reviewed[caller]['context'],
                                   rows=reviewed[caller]['rows'],
                                   admission='_town_producer_entry / town_work.validate_emit',
@@ -187,7 +188,7 @@ def generate(source, reviewed, registry_review=None):
             ladder_sites.append(dict(caller='claim_ladder.py:_RUNGS', line=node.lineno,
                                      callee=producer, targets=resolved,
                                      rows=sorted({r for t in resolved for r in reviewed[t]['rows']}),
-                                     expression=ast.unparse(node), ast_sha256=digest(node),
+                                     expression=ast.unparse(node),
                                      admission='_town_producer_entry / town_work.validate_emit',
                                      observer='shadow-v1; no effect credit',
                                      possible_town_context='reviewed targets; conservative',
@@ -200,35 +201,37 @@ def generate(source, reviewed, registry_review=None):
 
 def check_repository():
     try:
-        expected = generate(sources(), json.loads(REVIEW.read_text(encoding='utf8')))
-        actual = json.loads(gzip.decompress(OUTPUT.read_bytes()))
+        expected = runtime_index(generate(sources(), json.loads(REVIEW.read_text(encoding='utf8'))))
         index = json.loads(INDEX.read_text(encoding='utf8'))
-        return ([] if expected == actual and index == runtime_index(expected)
-                else ['generated town work manifest is stale; review then regenerate'])
+        return [] if index == expected else ['town work site index is stale; review then regenerate (--write)']
     except (ValueError, OSError) as error:
         return [str(error)]
 
 
 def runtime_index(data):
-    # No line numbers (owner decision 2026-10-15, merge speed-up 4): nothing reads them at run time, and
-    # they made every source edit rewrite ~770 lines of this index. ast_sha256 still pins each site.
-    return {entry['site']: {k: entry[k] for k in
-                           ('classification', 'rows', 'delegation', 'ast_sha256')}
-            for entry in data['entries']}
+    # Only what town_work.py reads: no line numbers (owner decision 2026-10-15, merge speed-up 4) and no
+    # AST digests (2026-11-01), so a body edit leaves this file unchanged.
+    return {entry['site']: {k: entry[k] for k in RUNTIME_FIELDS} for entry in data['entries']}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--write', action='store_true')
+    parser.add_argument('--write', action='store_true', help='rewrite the runtime site index')
+    parser.add_argument('--evidence', metavar='PATH',
+                        help='also write the full evidence manifest (gzip JSON) to PATH for a review')
     args = parser.parse_args()
-    if args.write:
+    if args.write or args.evidence:
         data = generate(sources(), json.loads(REVIEW.read_text(encoding='utf8')))
-        OUTPUT.write_bytes(gzip.compress((json.dumps(data, ensure_ascii=False, indent=2) + '\n').encode(), mtime=0))
-        # LF like the committed file: a Windows text write produced CRLF, so every regeneration on an
-        # unchanged tree showed town_work_sites.json as modified and preflight asked for a commit.
-        INDEX.write_text(json.dumps(runtime_index(data), ensure_ascii=False, indent=2) + '\n', encoding='utf8',
-                         newline='\n')
-        print(f'town-work-manifest: {data["candidates"]} candidates, {len(data["call_sites"])} sites, zero unmapped')
+        if args.evidence:
+            Path(args.evidence).write_bytes(gzip.compress(
+                (json.dumps(data, ensure_ascii=False, indent=2) + '\n').encode(), mtime=0))
+        if args.write:
+            # LF like the committed file: a Windows text write produced CRLF, so every regeneration on an
+            # unchanged tree showed town_work_sites.json as modified and preflight asked for a commit.
+            INDEX.write_text(json.dumps(runtime_index(data), ensure_ascii=False, indent=2) + '\n',
+                             encoding='utf8', newline='\n')
+        print(f'town-work-manifest: {data["candidates"]} candidates, {len(data["call_sites"])} sites, '
+              'zero unmapped')
         return 0
     findings = check_repository()
     print(f'town-work-manifest: {len(findings)} violation(s)')
