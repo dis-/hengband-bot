@@ -1495,6 +1495,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "junk_destroy_now.py:destroy_now_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "destruction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "lamp_fuel.py:_lantern_identity": {
     "classification": "data",
     "rows": [
