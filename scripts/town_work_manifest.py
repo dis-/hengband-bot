@@ -3,8 +3,9 @@
 The reviewed map is separate from the older producer baseline. Every selected
 site (the conservative census, decorators, registries, literal ladder callbacks,
 decision entries and driver sends) needs a hand review entry in
-town_work_review.json. Reviews are keyed by stable identity (module:qualname),
-so a body edit needs neither a review nor a regeneration.
+town_work_review.json, unless town_work_data_proof proves it observational
+data. Reviews are keyed by stable identity (module:qualname), so a body edit
+that keeps a site's proof or review needs neither a review nor a regeneration.
 
 The only generated file is the runtime index src/hengbot/town_work_sites.json
 (classification, rows and delegation per site; no line numbers or digests).
@@ -21,6 +22,7 @@ import re
 from pathlib import Path
 
 import town_structure_lint as lint
+import town_work_data_proof as data_proof
 
 ROOT = lint.ROOT
 REVIEW = ROOT / 'scripts/town_work_review.json'
@@ -35,11 +37,42 @@ SEAM_NAMES = {'_offer_execution', '_offer_execution_awaiting',
 REGISTRIES = {'_town_need_registry', '_purchase_rungs'}
 # The fields town_work.py reads at run time; the runtime index holds only these.
 RUNTIME_FIELDS = ('classification', 'rows', 'delegation')
+# What a hand review may leave out: it needs a classification and evidence (and rows unless data).
+REVIEW_DEFAULTS = dict(context='Possible town/store context: retained conservatively; no module exclusion.',
+                       admission='_town_producer_entry / town_work.validate_emit',
+                       observer='shadow-v1 (effect observers pending later slices)',
+                       delegation=data_proof.DATA_REVIEW['delegation'])
 
 
 def sources():
     return {p.relative_to(lint.POLICY_ROOT).as_posix(): p.read_text(encoding='utf8')
             for p in lint.POLICY_ROOT.rglob('*.py')}
+
+
+def complete_review(review):
+    """A hand review with the fields it left out filled from REVIEW_DEFAULTS."""
+    defaults = dict(REVIEW_DEFAULTS)
+    if review.get('classification') == 'data':
+        defaults['rows'] = list(data_proof.DATA_REVIEW['rows'])
+    return {**defaults, **review}
+
+
+def mechanical_review():
+    """The review a site proved observational data gets instead of a hand entry."""
+    return complete_review(dict(data_proof.DATA_REVIEW,
+                                context='Mechanical: proved observational data by town_work_data_proof.',
+                                evidence='No str return/yield/lambda, no send seam, no mutation of objects '
+                                         'it did not create, no callbacks; census origin only.'))
+
+
+def proved_data(functions, names, origins, selected):
+    return data_proof.proved_data(functions, names, origins, selected, SEAM_NAMES)
+
+
+def kept_reviews(reviewed, proved):
+    """The hand reviews the proof does not make redundant (it would write the same runtime row)."""
+    return {site: review for site, review in reviewed.items() if site not in proved
+            or {k: complete_review(review).get(k) for k in RUNTIME_FIELDS} != data_proof.DATA_REVIEW}
 
 
 def registry_inventory(source):
@@ -109,10 +142,13 @@ def inventory(source):
 
 def generate(source, reviewed, registry_review=None):
     functions, selected, origins, names = inventory(source)
-    missing = sorted(selected - reviewed.keys())
+    proved = proved_data(functions, names, origins, selected)
+    missing = sorted(selected - reviewed.keys() - proved)
     stale = sorted(reviewed.keys() - selected)
     if missing or stale:
         raise ValueError(f'unmapped candidates={missing}; stale reviews={stale}')
+    reviewed = {site: complete_review(reviewed[site]) if site in reviewed else mechanical_review()
+                for site in selected}
     registry_review = (json.loads(REGISTRY_REVIEW.read_text(encoding='utf8'))
                        if registry_review is None else registry_review)
     registry = registry_inventory(source)
@@ -132,7 +168,7 @@ def generate(source, reviewed, registry_review=None):
         if not all(review.get(k) for k in ('classification', 'rows', 'context', 'evidence')):
             raise ValueError(f'{site}: incomplete work review')
         entries.append(dict(site=site, line=fn.lineno, end_line=fn.end_lineno,
-                            origins=sorted(set(origins[site])),
+                            origins=sorted(set(origins[site])), proved_data=site in proved,
                             return_evidence=[dict(line=n.lineno, expression=ast.unparse(n.value))
                                              for n in lint.local_nodes(fn)
                                              if isinstance(n, ast.Return) and n.value is not None],
@@ -230,8 +266,9 @@ def main():
             # unchanged tree showed town_work_sites.json as modified and preflight asked for a commit.
             INDEX.write_text(json.dumps(runtime_index(data), ensure_ascii=False, indent=2) + '\n',
                              encoding='utf8', newline='\n')
-        print(f'town-work-manifest: {data["candidates"]} candidates, {len(data["call_sites"])} sites, '
-              'zero unmapped')
+        proved = sum(entry['proved_data'] for entry in data['entries'])
+        print(f'town-work-manifest: {data["candidates"]} candidates ({proved} proved data), '
+              f'{len(data["call_sites"])} sites, zero unmapped')
         return 0
     findings = check_repository()
     print(f'town-work-manifest: {len(findings)} violation(s)')
