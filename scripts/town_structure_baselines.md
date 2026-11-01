@@ -1,33 +1,30 @@
 # Town ownership structural checks
 
-Run `PYTHONPATH=src python scripts/item_sink_lint.py`. It includes the producer
-and item-intent checks from `town_structure_lint.py`; neither checker updates
-its own baselines. `tests.test_town_structure_lint` and
-`tests.test_item_sink_lint` exercise their failure cases with AST mutations.
+Run `PYTHONPATH=src python scripts/item_sink_lint.py`. It includes the
+item-intent check from `town_structure_lint.py`, which does not update its own
+baseline. `tests.test_item_sink_lint` exercises the failure cases with AST
+mutations.
 
-## Producer baseline
+## Producer census
 
-`town_producer_baseline.json` grants exceptions at exact `file:qualified-function`
-sites. A new string/key producer reachable from `HengbotPolicy.choose_key` must
-have both an `@claims` marker and a producer entry in `claim_ladder.py`.
-Exceptions have one reviewed reason: dungeon-only, pure helper, delegated
-adapter, or town producer to migrate. There are no module/family exemptions.
-An exception that disappears, becomes unreachable, or becomes registered fails
-the check and must be removed in the same reviewed change.
+The producer baseline (`town_producer_baseline.json`) and
+`tests.test_town_structure_lint` were retired on 2026-11-01 (owner: the list
+duplicated `town_work_review.json` and was no longer maintained). A new
+string/key producer reachable from `HengbotPolicy.choose_key` is selected by
+`town_structure_lint.producer_census`, and `scripts/town_work_manifest.py`
+fails with "unmapped candidates" until it has a reviewed entry in
+`town_work_review.json` (or is proved observational data by
+`town_work_data_proof.py`). `tests.test_town_work_data_proof` exercises the
+census.
 
 The AST census respects imports (including relative imports, subpackages and
 aliases), expands reachable method/callback calls, and tracks returns through
 assignments, aliases, compositions and conditional expressions. It retains
 string-annotated/literal-returning functions and return-value dependencies
-conservatively: data helpers and dungeon paths appear in the explicit baseline
-even when they cannot independently emit a town action. Branch predicates and
-arbitrary generated Python are not evaluated. Literal `getattr` dispatch is
-resolved; computed reflection requires manual review.
-
-Do not refresh the baseline to make a failed check pass. Register a new
-producer; migrate old producers by removing their exceptions. The existing
-`reserved_item_command` adapter handles consumption and prompt tails so the
-consumption migration introduces no new unregistered producer definitions.
+conservatively: data helpers and dungeon paths are selected even when they
+cannot independently emit a town action. Branch predicates and arbitrary
+generated Python are not evaluated. Literal `getattr` dispatch is resolved;
+computed reflection requires manual review.
 
 ## Item-intent baseline
 
