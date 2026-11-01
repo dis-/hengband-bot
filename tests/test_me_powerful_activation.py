@@ -24,6 +24,7 @@ import tests  # noqa: F401 -- isolate live runtime files
 import copy
 from unittest import mock
 
+from hengbot import me_capability
 from hengbot import me_powerful_activation as powerful
 from hengbot import me_staff_sequence
 from hengbot.cli import _ExecutorInputPort, SendResult
@@ -46,6 +47,7 @@ RACIAL_PROMPT = "(特殊能力 a-c, '*'で一覧, '/'で閲覧, ESCで中断) �
 TYPE_PROMPT = "[A] 杖, [B] 魔法棒, [C] ロッド:"
 FULL_IDENTIFY_PROMPT = "どのアイテムを*鑑定*しますか? "
 NAMES = {powerful.IDENTIFY: "鑑定", powerful.UNCURSE: "解呪"}
+BY_SVAL_EFFECT = powerful.BY_SVAL
 
 
 def staff_list(effects=(powerful.IDENTIFY, powerful.UNCURSE), current=5):
@@ -88,7 +90,12 @@ class MagicEaterPowerfulActivationTest(executor_harness.ProductionHarness):
               store=None, worn=None):
         policy, raw = d25.MagicEaterTownStops2RecordedTest.boundary(self, LIFE)
         record = me_staff_sequence.state(policy)
-        record.absorbed = {sval: 1 for sval in me_staff_sequence.SEQUENCE_SVALS}
+        # The record holds the displayed list's staffs (an absorbed power is
+        # always listed, cmd-magiceat.cpp): the stage staffs and, among the
+        # two effects, only those the case lists.
+        listed = {effect.sval for effect in effects}
+        record.absorbed = {sval: 1 for sval in me_staff_sequence.SEQUENCE_SVALS
+                           if sval not in BY_SVAL_EFFECT or sval in listed}
         raw = copy.deepcopy(raw)
         raw["store"] = store
         raw["player"]["level"] = raw["player"]["max_level"] = level
@@ -199,9 +206,13 @@ class MagicEaterPowerfulActivationTest(executor_harness.ProductionHarness):
             with self.subTest(absorbed=[effect.name for effect in effects]):
                 policy, raw = self.board(level=9, effects=effects,
                                          worn={"is_ego": True, "known": True, "fully_known": False})
-                for _ in range(3):
-                    key = self.choose(policy, raw)
-                    self.assertFalse(policy.last_reason.startswith("me-powerful:"), key)
+                # DECLARED CONSTRUCTED: the staff sequence's town work silent.
+                # Without the Identify staff absorbed, stage 1 is unfinished and
+                # its errand would take the board before any identification.
+                with mock.patch.object(me_staff_sequence, "town_key", return_value=None):
+                    for _ in range(3):
+                        key = self.choose(policy, raw)
+                        self.assertFalse(policy.last_reason.startswith("me-powerful:"), key)
                 self.assertEqual(policy._identification_need == "full", requested,
                                  (key, policy.last_reason))
 
@@ -279,9 +290,16 @@ class MagicEaterPowerfulActivationTest(executor_harness.ProductionHarness):
         self.choose(policy, raw)
         board = parse_snapshot(raw, policy._monrace_knowledge)
         for effect in powerful.EFFECTS:
-            self.assertTrue(powerful.serves(policy, board, effect))
-        self.assertEqual({effect.scroll_sval for effect in powerful.EFFECTS},
-                         {SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE})
+            self.assertTrue(me_capability.has(policy, board, effect.kind, effect.sval))
+        replaced = {row.replaces.sval for row in me_capability.REPLACES
+                    if isinstance(row.replaces, me_capability.Kind)
+                    and row.replaces.tval == TVAL_SCROLL
+                    and row.power in {(effect.kind, effect.sval) for effect in powerful.EFFECTS}}
+        self.assertEqual(replaced, {SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE})
+        for sval in replaced:
+            for use in (me_capability.PURCHASE, me_capability.CANDIDATE, me_capability.NEED):
+                self.assertTrue(me_capability.replaced_by_absorbed(
+                    policy, board, (TVAL_SCROLL, sval), use))
 
 
 if __name__ == "__main__":

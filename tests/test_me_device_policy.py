@@ -31,7 +31,7 @@ from hengbot import me_device_policy as table
 from hengbot import me_staff_sequence as sequence
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import SV_WAND_MAGIC_MISSILE, SV_WAND_WONDER
-from hengbot.me_absorbed_substitutes import STONE_TO_MUD
+from hengbot.me_absorbed_substitutes import POWERS as SUBSTITUTE_POWERS
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_STAFF, TVAL_WAND, parse_snapshot
 from tests import test_input_executor as harness
 from tests import test_me_mining_death_recorded as mining
@@ -71,7 +71,7 @@ class TableTest(unittest.TestCase):
         stone = rows[(TVAL_WAND, SV_WAND_STONE_TO_MUD)]
         self.assertEqual((stone.buy_first, stone.buy_more, stone.absorb_after_charge),
                          (True, False, True))  # 「1本目だけ買う」, rule 3
-        self.assertEqual(STONE_TO_MUD.names, stone.names)
+        self.assertEqual(SUBSTITUTE_POWERS[("wand", SV_WAND_STONE_TO_MUD)].names, stone.names)
 
 
 class PurchaseTest(harness.ProductionHarness):
@@ -196,12 +196,21 @@ class AfterChargeTowerTest(harness.ProductionHarness):
     move_reply = staticmethod(_tower.move_reply)
 
     def test_the_staff_is_recharged_and_absorbed_after_the_stage(self):
+        policy, _, steps = self.absorb_after_stage(SPEED, "スピードの杖 (3回分)")
+        full = sequence.morivant_tower.device_definitions()[(TVAL_STAFF, SPEED)][0]
+        # Unfixed: the Speed staff is neither recharged for nor absorbed.
+        self.assertEqual(steps[-2:], ["me-staff:stage2-complete", ("absorb", TVAL_STAFF, SPEED, full)])
+        self.assertEqual(sequence.state(policy).absorbed[f"staff:{SPEED}"], full)
+
+    def absorb_after_stage(self, sval, name):
+        """(policy, the board after the return step, steps) of one Tower visit
+        that carries the D24 Identify row as staff ``sval`` with 3 charges."""
         from hengbot.policy_constants import WAIT_KEY
         from tests.test_me_tower_recharge_recorded import DIRECTIONS, recharge_all_screens
 
         raw = self.board()
         speed = d24_row(TVAL_STAFF, IDENTIFY)
-        speed.update(sval=SPEED, name="スピードの杖 (3回分)", charges=3, pval=3)
+        speed.update(sval=sval, name=name, charges=3, pval=3)
         raw["inventory"].append(speed)
         raw["inventory"].sort(key=lambda it: (-it["tval"], it["sval"]))
         for index, item in enumerate(raw["inventory"]):
@@ -212,7 +221,7 @@ class AfterChargeTowerTest(harness.ProductionHarness):
             key = self.decide(policy, raw)
             reason = policy.last_reason
             if reason == "me-staff:return-outpost":
-                break
+                return policy, raw, steps
             if reason == "me-staff:recharge-all":
                 total = sequence.recharge_cost(parse_snapshot(copy.deepcopy(raw), self.knowledge))
                 following = self.recharge_reply(raw)
@@ -231,12 +240,7 @@ class AfterChargeTowerTest(harness.ProductionHarness):
             else:
                 self.fail((key, reason, steps))
             raw = following
-        else:
-            self.fail(("no return", steps))
-        full = sequence.morivant_tower.device_definitions()[(TVAL_STAFF, SPEED)][0]
-        # Unfixed: the Speed staff is neither recharged for nor absorbed.
-        self.assertEqual(steps[-2:], ["me-staff:stage2-complete", ("absorb", TVAL_STAFF, SPEED, full)])
-        self.assertEqual(sequence.state(policy).absorbed[f"staff:{SPEED}"], full)
+        self.fail(("no return", steps))
 
 
 if __name__ == "__main__":

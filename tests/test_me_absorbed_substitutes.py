@@ -46,6 +46,7 @@ import unittest
 from unittest.mock import patch
 
 from hengbot import me_absorbed_substitutes as substitutes
+from hengbot import me_capability as capability
 from hengbot import me_staff_sequence as sequence
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions
@@ -275,10 +276,11 @@ class IdentifyStaffReplacedTest(unittest.TestCase):
                 self.choose(policy, raw)  # the decision observes the displayed list
                 board = parse_snapshot(raw, policy._monrace_knowledge)
                 # This new process's record is empty: only the list says so.
-                self.assertFalse(sequence.absorbed(policy, sequence.SV_STAFF_IDENTIFY))
-                self.assertEqual(substitutes.identify_staff_replaced(policy, board), replaced)
-                self.assertEqual(
-                    substitutes.purchase_excluded(policy, board, self.identify_staff), replaced)
+                self.assertNotIn("staff:5", capability.recorded(policy))
+                for use in (capability.CANDIDATE, capability.NEED):
+                    self.assertEqual("full-count" in [
+                        row.when for row in capability.waiving_rows(
+                            policy, board, self.identify_staff, use)], replaced)
                 if replaced:
                     self.assertTrue(policy._identify_staff_ready(board))
 

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import me_powerful_activation, mining_loadout
+from hengbot import me_capability, mining_loadout
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
@@ -506,7 +506,8 @@ class FundraisingMixin:
                 if item.tval == TVAL_SCROLL
                 and item.sval == SV_SCROLL_STAR_REMOVE_CURSE
                 and item.price <= snapshot.player.gold
-                and not me_powerful_activation.replaces_scroll(self, snapshot, item)
+                and not me_capability.replaced_by_absorbed(
+                    self, snapshot, item, me_capability.PURCHASE)
             ),
             None,
         )

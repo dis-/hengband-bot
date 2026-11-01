@@ -59,8 +59,8 @@ Common rules (approved): never while a hostile is visible or the character
 was just hit (a row marked ``beside_harmless`` is also cast while every
 visible hostile is harmless by the combat ladder's danger judgement, owner
 2026-11-01 「脅威でなければ感知する」; a row marked ``against_hostile`` is cast
-at a hostile, so neither rule applies to it), never with 0 charges (the last list the game displayed, else
-the absorption record), never in town or the wilderness, and a failed use is
+at a hostile, so neither rule applies to it), never with 0 charges (``me_capability.charges``: the last list the
+game displayed, else the absorption record), never in town or the wilderness, and a failed use is
 retried for the same trigger at the same place on the same floor until
 ``FAILURES_PER_PLACE`` failures (owner 2026-10-31 「最大5回まで同じ場所で試す」).
 Stage 1 (Identify, Treasure Location) keeps its owners in me_staff_sequence
@@ -78,9 +78,9 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_device_attacks import observe_lists
 from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
-    SV_STAFF_LITE, SV_STAFF_MAPPING, absorbed_charges, extra_charges,
+    SV_STAFF_LITE, SV_STAFF_MAPPING,
 )
-from hengbot import me_ranged_first
+from hengbot import me_capability, me_ranged_first
 from hengbot.me_device_policy import devices
 from hengbot.model import (
     SV_ROD_DISARMING, SV_ROD_TELEPORT_AWAY, SV_WAND_DISARMING, SV_WAND_TELEPORT_AWAY,
@@ -432,38 +432,8 @@ REQUIREMENTS = {
 
 # -- charges, gates and the producer ------------------------------------------
 
-def observed_row(policy, power: Power) -> dict | None:
-    """The power's row in the last list the game displayed for its kind."""
-    lists = getattr(policy, "_me_device_lists", None) or {}
-    if power.kind not in lists:
-        return None
-    return next((row for row in lists[power.kind][1] if row.get("name") in power.names), None)
-
-
-def recorded_charges(policy, snapshot, power: Power) -> int:
-    """Charges of an absorption the bot observed itself (me_staff_sequence:
-    the sequence's staffs and its extras)."""
-    if power.kind == "staff":
-        return absorbed_charges(policy, snapshot, power.sval)
-    return extra_charges(policy, power.kind, power.sval)
-
-
-def charges(policy, snapshot, power: Power) -> int:
-    """The power's charges in the last list the game displayed for its kind.
-
-    A list without the power's row predates its absorption (an absorbed
-    power stays listed, mind-magic-eater.cpp only adds to its count), so
-    then, as before any list of that kind was displayed in this life, the
-    absorption record serves (``recorded_charges``).
-    """
-    row = observed_row(policy, power)
-    if row is None:
-        return recorded_charges(policy, snapshot, power)
-    if power.kind == "rod":
-        charging, count = row.get("charging"), row.get("max")
-        return count - charging if isinstance(charging, int) and isinstance(count, int) else 0
-    current = row.get("current")
-    return current if isinstance(current, int) else 0
+def _charges(ctx, power) -> int:
+    return me_capability.charges(ctx.policy, ctx.snapshot, *power.ident)
 
 
 def _gate(policy, snapshot) -> bool:
@@ -524,12 +494,12 @@ def observe(policy, snapshot) -> None:
 def _usable(ctx, power, trigger) -> bool:
     return (all(REQUIREMENTS[name](ctx) for name in power.requires)
             and ctx.memory.failed[(power.ident, trigger, ctx.position)] < FAILURES_PER_PLACE
-            and charges(ctx.policy, ctx.snapshot, power) > 0)
+            and _charges(ctx, power) > 0)
 
 
 def _serving(ctx, power, trigger):
     """The row's own power, or its fallback when the row has no charge."""
-    if charges(ctx.policy, ctx.snapshot, power) > 0:
+    if _charges(ctx, power) > 0:
         return power if _usable(ctx, power, trigger) else None
     fallback = BY_KEY.get(power.fallback) if power.fallback is not None else None
     return fallback if fallback is not None and _usable(ctx, fallback, trigger) else None
