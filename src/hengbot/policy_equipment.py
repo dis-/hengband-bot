@@ -115,7 +115,6 @@ from hengbot.policy_constants import (
     WEAPON_BLOCK_LIMIT,
     _required_abilities_for_depth,
     required_depth_gates,
-    BREEDER_STALEMATE_TURN_LIMIT,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     EMERGENCY_RETURN_COUNT,

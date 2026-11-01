@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
-from hengbot import town_pack_headroom
+from hengbot import me_capability, town_pack_headroom
 from hengbot import town_travel
 from hengbot import unseen_strike
 from hengbot import random_quest_reserve
@@ -3664,7 +3664,7 @@ class TownMixin:
                     break
             if (
                 self._exact_potion_count(snapshot, SV_POTION_SPEED)
-                < int(force.get("speed_potions", 0))
+                < me_capability.force_count(self, snapshot, force, "speed_potions")
                 and STORE_BLACK not in self._town_store_attempted
             ):
                 add(STORE_BLACK, "quest-speed")
@@ -7625,7 +7625,8 @@ class TownMixin:
             self.last_reason = "town:teleport-refused-fare"
             return None
         result = self._town_teleport_route(snapshot, destination_town_id)
-        travel = self._town_teleport_travel_key(snapshot, result, reason)
+        travel = self._town_teleport_travel_key(
+            snapshot, result, destination_town_id, producer, reason)
         if travel is not None:
             return travel
         if result.key is not None:
@@ -7634,16 +7635,28 @@ class TownMixin:
                 self._declare_reach(
                     result.route.target, family=producer,
                     note="teleport-walk" if producer == "store-router" else None)
-            self._offer_execution(
-                result.key, producer=producer,
-                work_id=f"teleport:{destination_town_id}",
-                next_step="town.teleport.resume",
-                arguments=(destination_town_id, reason),
-                expected_effect=f"town:{destination_town_id}",
-                continuation="town.teleport.resume", budget_ref="town-travel",
-            )
-            return result.key
+            return self._offer_town_teleport_leg(
+                result.key, destination_town_id, producer, reason)
         return None
+
+    def _offer_town_teleport_leg(
+        self, key: str, destination_town_id: int, producer: str, reason: str
+    ) -> str:
+        """Declare ``key`` as a move of the inn leg to ``destination_town_id``.
+
+        Its continuation (town.teleport.resume) asks the leg again
+        (_town_holder_declared_key), so a held leg moves as the leg would:
+        the travel command where it serves, else the step.
+        """
+        self._offer_execution(
+            key, producer=producer,
+            work_id=f"teleport:{destination_town_id}",
+            next_step="town.teleport.resume",
+            arguments=(destination_town_id, reason),
+            expected_effect=f"town:{destination_town_id}",
+            continuation="town.teleport.resume", budget_ref="town-travel",
+        )
+        return key
 
     def _town_teleport_route(
         self, snapshot: Snapshot, destination_town_id: int
@@ -7674,31 +7687,42 @@ class TownMixin:
         )
 
     def _town_teleport_route_key(
-        self, snapshot: Snapshot, result: TownTeleportRoute, reason: str
+        self, snapshot: Snapshot, result: TownTeleportRoute,
+        destination_town_id: int, reason: str,
     ) -> str | None:
         """The move along ``result``: the travel to the inn's side, else its step.
 
         For the producers that declare the route themselves (the fixed
-        quests' q22 travel and prepare-return): the declaration's composed
-        key is this move, its goal and BFS rank stay the route's.
+        quests' q22 travel and prepare-return, both quest-request): the
+        declaration's composed key is this move, its goal and BFS rank stay
+        the route's; a held travel resumes as the inn leg
+        (_town_teleport_travel_key).
         """
-        return self._town_teleport_travel_key(snapshot, result, reason) or result.key
+        return self._town_teleport_travel_key(
+            snapshot, result, destination_town_id, "quest-request", reason,
+        ) or result.key
 
     def _town_teleport_travel_key(
-        self, snapshot: Snapshot, result: TownTeleportRoute, reason: str
+        self, snapshot: Snapshot, result: TownTeleportRoute,
+        destination_town_id: int, producer: str, reason: str,
     ) -> str | None:
         """The game's travel to the inn's side while the route has not reached it.
 
         Owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」
         (``town_travel``); the step onto the inn keeps its 'm' + destination
         tail, and where travel cannot serve this board the caller walks
-        ``result.key``.
+        ``result.key``.  The travel is the leg's own move
+        (_offer_town_teleport_leg): a held travel resumes by asking the leg
+        again, not by the generic route.resume single step.
         """
         route = result.route
         if route is None or route.first_step in (
                 self._town_teleport_building_positions(snapshot) or ()):
             return None
-        return town_travel.building_key(self, snapshot, route.target, reason)
+        travel = town_travel.building_key(self, snapshot, route.target, reason)
+        if travel is None:
+            return None
+        return self._offer_town_teleport_leg(travel, destination_town_id, producer, reason)
 
     def _town_teleport_building_positions(
         self, snapshot: Snapshot

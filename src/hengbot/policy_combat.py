@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_floor_record, breeder_quest, breeder_stalemate, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -25,7 +25,6 @@ from hengbot.monster_melee_evaluator import (
 from hengbot.projection_path import projection_path
 from hengbot.policy_types import ChokeEngagementPlan
 from hengbot.policy_constants import (
-    BREEDER_STALEMATE_TURN_LIMIT,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO,
@@ -804,11 +803,11 @@ class CombatMixin:
             and not haste_active
             and not self._escape_speed_attempted
         ):
-            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+            speed = speed_dose.key(self, snapshot, "emergency:quaff-speed",
+                                   rearm=("_escape_speed_attempted", False))
             if speed is not None:
                 self._escape_speed_attempted = True
-                self.last_reason = "emergency:quaff-speed"
-                return reserved_item_command(self, snapshot, "quaff", speed)
+                return speed
         return key
     def _strategic_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         return self._strategic_subset(snapshot, snapshot.visible_monsters)
@@ -835,6 +834,10 @@ class CombatMixin:
                 and not (
                     self._breeder_breakthrough_floor == snapshot.floor_key
                     and self._is_weak_breeder(snapshot, monster)
+                    # Survival first: a weak breeder biting us is fought.
+                    and not survival_preemption.strikes_from_adjacent(
+                        self, snapshot, monster
+                    )
                 )
             )
         ]
@@ -994,11 +997,7 @@ class CombatMixin:
             else 0
         )
         speed_spare = (
-            max(
-                0,
-                self._exact_potion_count(snapshot, SV_POTION_SPEED)
-                - ESP_THREAT_POTION_RESERVE,
-            )
+            speed_dose.spare(self, snapshot, ESP_THREAT_POTION_RESERVE)
             if speed_available
             else 0
         )
@@ -1186,15 +1185,13 @@ class CombatMixin:
             and not hunt["speed_drunk"]
             and visible_committed
         ):
-            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
-            if (
-                speed is not None
-                and self._exact_potion_count(snapshot, SV_POTION_SPEED)
-                > ESP_THREAT_POTION_RESERVE
-            ):
+            speed = speed_dose.key(
+                self, snapshot, "esp-threat:hunt-speed",
+                rearm=("_esp_threat_hunt", "speed_drunk", False),
+                potion_reserve=ESP_THREAT_POTION_RESERVE)
+            if speed is not None:
                 hunt["speed_drunk"] = True
-                self.last_reason = "esp-threat:hunt-speed"
-                return reserved_item_command(self, snapshot, "quaff", speed)
+                return speed
         adjacent = [
             monster for monster in strategic_hostiles
             if monster.distance <= 1
@@ -1336,6 +1333,19 @@ class CombatMixin:
 
     def _perceived_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         """Return de-duplicated sight and detection records for anticipation."""
+        return [
+            monster
+            for monster in self._sighted_or_detected_hostiles(snapshot)
+            if not (
+                self._breeder_breakthrough_floor == snapshot.floor_key
+                and self._is_weak_breeder(snapshot, monster)
+            )
+        ]
+
+    def _sighted_or_detected_hostiles(
+        self, snapshot: Snapshot
+    ) -> list[MonsterState]:
+        """Every hostile in sight or detection, one record per monster."""
         perceived: dict[int, MonsterState] = {
             monster.index: monster
             for monster in snapshot.detected_monsters
@@ -1348,14 +1358,7 @@ class CombatMixin:
                 if monster.hostile
             }
         )
-        return [
-            monster
-            for monster in perceived.values()
-            if not (
-                self._breeder_breakthrough_floor == snapshot.floor_key
-                and self._is_weak_breeder(snapshot, monster)
-            )
-        ]
+        return list(perceived.values())
     def _engagement_breeder_population(
         self, snapshot: Snapshot
     ) -> list[MonsterState]:
@@ -1416,7 +1419,7 @@ class CombatMixin:
                 best = monster
                 best_distance = distance
         return best
-    @claims(ClaimOwner.COMBAT)
+
     def _opening_q1_torches_reserved(self, snapshot: Snapshot) -> bool:
         """Every carried torch is the opening route's Q1 throwing reserve."""
         if not self._opening_q1_active(snapshot):
@@ -1424,7 +1427,9 @@ class CombatMixin:
         required = self._opening_q1_requirements(snapshot)[0][1]
         return self._count_throwing_torches(snapshot) <= required
 
-    def _ranged_projectile(self, snapshot: Snapshot):
+    def _ranged_projectile(
+        self, snapshot: Snapshot
+    ) -> tuple[str, InventoryItem, str] | None:
         """(command, item, reason) of the bow or throw the ranged rung uses, else None."""
         ammo = self._matching_ammo(snapshot)
         if ammo is not None:
@@ -1473,6 +1478,7 @@ class CombatMixin:
             self.last_reason = reason
         return key
 
+    @claims(ClaimOwner.COMBAT)
     def _ranged_attack_key(
         self,
         snapshot: Snapshot,
@@ -1744,51 +1750,11 @@ class CombatMixin:
         if self._breeder_engagement_floor != snapshot.floor_key:
             self._breeder_engagement_floor = snapshot.floor_key
             self._breeder_engagement_score = 0
-            self._breeder_engagement_start_count = None
-            self._breeder_engagement_start_turn = None
-            self._breeder_kills = 0
-            self._breeder_previous_exp = snapshot.player.exp
-            self._breeder_previous_indices.clear()
+            breeder_stalemate.forget(self)
         perceived_breeders = self._engagement_breeder_population(snapshot)
-        if (
-            self._breeder_previous_indices
-            and self._breeder_previous_exp is not None
-            and snapshot.player.exp > self._breeder_previous_exp
-            and self._breeder_previous_indices
-            - {monster.index for monster in perceived_breeders}
-            and (
-                self.last_reason == "melee"
-                or self.last_reason == "fundraise:eliminate-multiplier"
-                or self.last_reason.startswith(("ranged:", "hunt"))
-            )
-        ):
-            self._breeder_kills += 1
-        if perceived_breeders and self._breeder_engagement_start_count is None:
-            self._breeder_engagement_start_count = len(perceived_breeders)
-            self._breeder_engagement_start_turn = snapshot.turn
-        if (
-            self._breeder_engagement_start_count is not None
-            and len(perceived_breeders) < self._breeder_engagement_start_count
-        ):
-            self._breeder_engagement_start_turn = snapshot.turn
-        if (
-            self._breeder_engagement_start_count is not None
-            and self._breeder_kills >= 5
-            and len(perceived_breeders) > self._breeder_engagement_start_count
-        ):
+        if breeder_stalemate.flee_due(self, snapshot, perceived_breeders):
             self._breeder_breakthrough_floor = snapshot.floor_key
-        if (
-            self._breeder_engagement_start_count is not None
-            and self._breeder_engagement_start_turn is not None
-            and len(perceived_breeders) >= self._breeder_engagement_start_count
-            and snapshot.turn - self._breeder_engagement_start_turn
-            >= BREEDER_STALEMATE_TURN_LIMIT
-        ):
-            self._breeder_breakthrough_floor = snapshot.floor_key
-        self._breeder_previous_exp = snapshot.player.exp
-        self._breeder_previous_indices = {
-            monster.index for monster in perceived_breeders
-        }
+        breeder_floor_record.record(self, snapshot)
         breeders = (
             perceived_breeders
             if self._breeder_breakthrough_floor != snapshot.floor_key
@@ -2258,11 +2224,11 @@ class CombatMixin:
                 "operational_total"
             ]
             if projected >= threshold * snapshot.player.hp:
-                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                speed = speed_dose.key(self, snapshot, "quest-strategy:quaff-speed",
+                                       rearm=("_fixed_quest_speed_attempted", False))
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
-                    self.last_reason = "quest-strategy:quaff-speed"
-                    return reserved_item_command(self, snapshot, "quaff", speed)
+                    return speed
         q31_healing = self._q31_opening_heal_before_escape(
             snapshot, profile, hostiles
         )
@@ -2904,11 +2870,8 @@ class CombatMixin:
         self._strong_fight_speed_floor = snapshot.floor_key
         if self._player_hasted(snapshot):
             return None
-        speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
-        if speed is None:
-            return None
-        self.last_reason = "item:strong-fight-speed"
-        return reserved_item_command(self, snapshot, "quaff", speed)
+        return speed_dose.key(self, snapshot, "item:strong-fight-speed",
+                              rearm=("_strong_fight_speed_floor", None))
 
     def _unseen_loss_is_material(self, player, loss: int) -> bool:
         """USER DECISIONS 2026-10-03 (an unseen hit with nothing in view, and
@@ -3950,6 +3913,10 @@ class CombatMixin:
         """
         if self._breeder_breakthrough_floor != snapshot.floor_key:
             return None
+        # Owner 2026-11-02: the floor's quest type decides between leaving
+        # (kill-all) and pursuing the target clear of the swarm (breeder_quest).
+        breeder_quest.refresh_avoidance(self, snapshot)
+        abandon = breeder_quest.abandons_floor(self, snapshot)
         # A one-off emergency relocation does not start a town return, but an
         # already active return still needs an exit from this latched floor.
         # A kill-quest floor asks the quest exit lock, as the stair exits
@@ -3961,8 +3928,11 @@ class CombatMixin:
         # every 61 decisions until livelock-exhausted).
         if (
             self._fundraising_mode != "mine"
-            and self._active_fixed_quest_id(snapshot) is None
-            and not self._return_exit_locked(snapshot)
+            and (
+                abandon
+                or self._active_fixed_quest_id(snapshot) is None
+                and not self._return_exit_locked(snapshot)
+            )
             and (
                 not self._emergency_return_active
                 or self._returning_to_town
@@ -3982,6 +3952,9 @@ class CombatMixin:
                 self._returning_to_town = True
                 self.last_reason = "breeder-breakthrough:recall"
                 return self._read_dungeon_recall_scroll_key(snapshot, recall)
+        teleport = breeder_quest.teleport_key(self, snapshot)
+        if teleport is not None:
+            return teleport
         if self._fundraising_mode in {"mine", "scavenge"} and not any(
             monster.can_multiply
             and not self._is_weak_breeder(snapshot, monster)

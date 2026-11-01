@@ -298,6 +298,23 @@ def ladder_producers(source):
             and isinstance(node.args[0], ast.Constant)}
 
 
+def policy_receiver(site, function, policy_classes):
+    """The name a function writes policy state through, or None.
+
+    A method of the policy or its mixins writes ``self``; a module function
+    whose first parameter is ``policy`` (logic moved into a cohesive module,
+    e.g. mining_loadout.remember_combat_hands) writes ``policy``.  Unrelated
+    executor ``self`` attributes stay outside the census.
+    """
+    qualified = site.split(':', 1)[1]
+    if qualified.split('.')[0] in policy_classes:
+        return 'self'
+    arguments = function.args.args
+    if '.' not in qualified and arguments and arguments[0].arg == 'policy':
+        return 'policy'
+    return None
+
+
 def intent_census(sources):
     functions = collect(sources)
     policy_classes = policy_class_names(sources)
@@ -305,9 +322,8 @@ def intent_census(sources):
                     and any(kind in ast.unparse(fn.returns) for kind in ('InventoryItem', 'StoreItem'))}
     result = defaultdict(set)
     for site, function in functions.items():
-        # Only policy and its mixins, not unrelated executor self attributes.
-        owner = site.split(':', 1)[1].split('.')[0]
-        if owner not in policy_classes:
+        receiver = policy_receiver(site, function, policy_classes)
+        if receiver is None:
             continue
         nodes = list(local_nodes(function))
         tainted = {argument.arg for argument in (*function.args.args, *function.args.kwonlyargs)
@@ -331,21 +347,21 @@ def intent_census(sources):
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 for target in targets:
                     for child in ast.walk(target):
-                        if isinstance(child, ast.Name) and child.id != 'self' and child.id not in tainted:
+                        if isinstance(child, ast.Name) and child.id != receiver and child.id not in tainted:
                             tainted.add(child.id)
                             changed = True
         for node in nodes:
             targets = (node.targets if isinstance(node, ast.Assign) else [node.target]
                        if isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)) else [])
             if isinstance(node, ast.Call) and name(node.func) == 'setattr' and len(node.args) >= 3:
-                if isinstance(node.args[0], ast.Name) and node.args[0].id == 'self' and isinstance(node.args[1], ast.Constant):
+                if isinstance(node.args[0], ast.Name) and node.args[0].id == receiver and isinstance(node.args[1], ast.Constant):
                     attr = node.args[1].value
                     if isinstance(attr, str) and (INTENT_NAME.search(attr) or sensitive(node.args[2])):
                         result[attr].add(site)
             for target in targets:
                 for child in ast.walk(target):
                     if (isinstance(child, ast.Attribute) and isinstance(child.value, ast.Name)
-                            and child.value.id == 'self' and (INTENT_NAME.search(child.attr)
+                            and child.value.id == receiver and (INTENT_NAME.search(child.attr)
                             or getattr(node, 'value', None) is not None and sensitive(node.value)
                             or isinstance(target, ast.Subscript) and sensitive(target))):
                         result[child.attr].add(site)
@@ -353,7 +369,7 @@ def intent_census(sources):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 target = node.func.value
                 if (node.func.attr in {'add', 'append', 'extend', 'update', 'setdefault'}
-                        and isinstance(target, ast.Attribute) and name(target.value) == 'self'
+                        and isinstance(target, ast.Attribute) and name(target.value) == receiver
                         and (INTENT_NAME.search(target.attr) or any(sensitive(arg) for arg in node.args))):
                     result[target.attr].add(site)
     return dict(result)

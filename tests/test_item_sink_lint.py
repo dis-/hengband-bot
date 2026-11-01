@@ -48,6 +48,17 @@ class ItemSinkLintTest(unittest.TestCase):
         self.assertTrue(analyze_source(source + 'OTHER = RUMOR_KEY + "\\r"\n',
                                        'policy_constants.py', names=set()))
 
+    def test_tower_recharge_menu_pin_is_exact(self):
+        # The Tower of Sorcery's 'a' (building_recharge_all) + 'y', moved out of
+        # policy by db16ffae5; an item 'a' (aim a wand) in the module still fails.
+        source = ('RECHARGE_ALL_ACTION_KEY = "a"\n'
+                  'RECHARGE_ALL_TAIL = RECHARGE_ALL_ACTION_KEY + "y" + LEAVE_STORE_KEY\n')
+        self.assertEqual(analyze_source(source, 'morivant_tower.py', names=set()), [])
+        self.assertTrue(analyze_source(source + 'def aim(item):\n return RECHARGE_ALL_ACTION_KEY + item.slot\n',
+                                       'morivant_tower.py', names=set()))
+        self.assertTrue(analyze_source(source + 'AGAIN = RECHARGE_ALL_ACTION_KEY + "y"\n',
+                                       'morivant_tower.py', names=set()))
+
     def test_new_selector_cannot_serialize_reserved_item_without_verdict(self):
         for expression in ('item_command("deposit", reserved)',
                            'item_command("deposit", reserved, None)',
@@ -177,6 +188,23 @@ def choose_key(self, snapshot):
 """
         self.assertTrue(analyze_source(source, 'policy.py', names=set()))
 
+    def test_observation_after_the_record_keeps_the_exit(self):
+        # f7131f80e: the town cycle detector reads the final key after the record.
+        exit_source = """
+def choose_key(self, snapshot):
+    key = self._enforce_town_claim_result(snapshot, key)
+    self._record_decision_claim(snapshot, key)
+    self._town_progress_note_command(key)
+    return key
+"""
+        self.assertEqual(analyze_source(exit_source, 'policy.py', names=set()), [])
+        for tail in ('    key = self._town_progress_note_command(key)\n',
+                     '    self._town_progress_note_command(key := other)\n',
+                     '    self._record_decision_claim(snapshot, other)\n'):
+            with self.subTest(tail=tail):
+                mutant = exit_source.replace('    self._town_progress_note_command(key)\n', tail)
+                self.assertTrue(analyze_source(mutant, 'policy.py', names=set()))
+
     def test_low_level_adapter_cannot_bypass_verdict_in_a_new_module(self):
         for source in (
             'def selector(executor, snapshot, item):\n return executor.request_wield(snapshot, "goal", item, "main_hand", {})',
@@ -185,6 +213,26 @@ def choose_key(self, snapshot):
             'def selector(policy, item):\n destroy = policy._destroy_item_key\n return destroy(item)',
         ):
             self.assertTrue(analyze_source(source, 'town_new_selector.py', names=set()))
+
+
+class ProducerMarkTest(unittest.TestCase):
+    """The claims marks the item-sink review keys on (#47, 2026-11-01 triage).
+
+    7dceaccad inserted _opening_q1_torches_reserved between the
+    ``@claims(ClaimOwner.COMBAT)`` line and _ranged_attack_key: the predicate
+    took the mark, the ranged-attack producer lost it, and its six reviewed
+    direct calls (summoner kill, choke, ESP hunt, melee swarm, fundraising
+    loadout, guarded loot) left the review unnoticed.
+    """
+
+    def test_ranged_attack_producer_keeps_its_combat_mark(self):
+        from hengbot.claim_register import CLAIM_OWNER_ATTRIBUTE, ClaimOwner
+        from hengbot.policy import HengbotPolicy
+        self.assertIs(getattr(HengbotPolicy._ranged_attack_key, CLAIM_OWNER_ATTRIBUTE, None),
+                      ClaimOwner.COMBAT)
+        self.assertFalse(hasattr(HengbotPolicy._opening_q1_torches_reserved, CLAIM_OWNER_ATTRIBUTE))
+        self.assertIn('_ranged_attack_key', producer_names())
+        self.assertNotIn('_opening_q1_torches_reserved', producer_names())
 
 
 def _policy_sources(body, extra=None):
@@ -227,6 +275,21 @@ class ItemIntentLintTest(unittest.TestCase):
             'class HengbotPolicy:', 'class HengbotPolicy(ItemWork):')
         self.assertTrue(any('future_item: new unregistered item intent' in f
                             for f in lint.analyze_sources(sources, {})))
+
+    def test_module_function_writing_through_policy_is_scanned(self):
+        # #47 (2026-11-01 triage): mining_loadout.remember_combat_hands writes the
+        # registered _normal_weapon_identity through its ``policy`` parameter;
+        # the census saw only ``self`` and reported the source as disappeared.
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n', extra={
+            'loadout.py': ('def remember(policy, item):\n policy._kept_identity = equipment_identity(item)\n'
+                           'def helper(executor, item):\n executor._other_identity = equipment_identity(item)\n')})
+        findings = lint.analyze_sources(sources, {})
+        self.assertTrue(any('_kept_identity: new unregistered item intent (loadout.py:remember)' in f
+                            for f in findings), findings)
+        self.assertFalse(any('_other_identity' in f for f in findings), findings)
+        repository = lint.intent_census({path.relative_to(POLICY_ROOT).as_posix(): path.read_text(encoding='utf8')
+                                         for path in POLICY_ROOT.rglob('*.py')})
+        self.assertIn('mining_loadout.py:remember_combat_hands', repository['_normal_weapon_identity'])
 
     def test_reverse_import_driver_has_no_findings(self):
         sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n', extra={

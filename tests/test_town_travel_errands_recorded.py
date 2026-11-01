@@ -51,6 +51,14 @@ class TravelBeside:
         self.assertTrue(is_travel_macro(str(key)), (key, policy.last_reason))
         self.assertEqual(policy._town_travel_state.goal.distance_to(building), 1)
 
+    def assert_resumes_as_the_inn_leg(self, policy, destination, reason):
+        # #47 maint3-1101: a held travel asks the inn leg again
+        # (town.teleport.resume), not route.resume's one cell named
+        # fixedquest:request:approach.
+        execution = policy._claim_register.current.execution
+        self.assertEqual((execution.continuation, execution.arguments),
+                         ("town.teleport.resume", (destination, reason)))
+
 
 class QuestTravelRecordedTest(TravelBeside, QuestTravelFixtureMixin, nokey.PostedKey):
     setUpClass = classmethod(QuestTravelFixtureMixin.setUpClass.__func__)
@@ -74,6 +82,7 @@ class QuestTravelRecordedTest(TravelBeside, QuestTravelFixtureMixin, nokey.Poste
         # Unfixed: '7', the recorded single step.
         self.assert_travel_beside(policy, key, declaration.goal, "fixedquest:q22-travel")
         self.assertEqual((declaration.composed_key, declaration.bfs_rank), (str(key), 10))
+        self.assert_resumes_as_the_inn_leg(policy, 3, "fixedquest:q22-travel")
         self.post(policy, raw, str(key))
 
     def test_declared_prepare_return_rides_the_travel_command_to_the_inn(self):
@@ -93,6 +102,7 @@ class QuestTravelRecordedTest(TravelBeside, QuestTravelFixtureMixin, nokey.Poste
                          ("return-3", str(key)))
         # Unfixed: '7' (the recorded walk 7, 8, 9, 9, 9).
         self.assert_travel_beside(policy, key, declaration.goal, "fixedquest:prepare-return")
+        self.assert_resumes_as_the_inn_leg(policy, 0, "fixedquest:prepare-return")
         self.post(policy, raw, str(key))
 
 

@@ -1,0 +1,81 @@
+n1c-5f-loop-1102: n1-c life-100 のイークの洞窟5階の loop-detected（2026-11-02 01:59:56 / 02:00:03）
+
+■ 結論
+- 疑われていた rq-after-q2-1102（random_quest_hold.py、_is_descent_target の保留）は原因ではない。
+  止まった階はイークの洞窟（dungeon_id 2）の5階で、鉄獄ではないので保留は関係しない。
+  保留はそのまま残した。
+- 本当の原因: 交戦を避ける後退（threat:avoid-engagement）は、下がる前のマスを
+  「その階の間は通らないマス」（_engagement_avoid_cells）として登録するが、
+  下り階段への経路（_descent_step、src/hengbot/policy_navigation.py の _descent_step）だけが
+  その登録を見ておらず、すぐに同じマスへ戻っていた。探索・狩り・採掘・拾いなどの経路は
+  どれもこの登録を避けている。
+
+■ 証拠（C:\hengband-backups\pdca\captures\n1c-1102-0200）
+- 20261102-015956-loop-detected/bot-decisions.jsonl.gz
+  - 5322 turn 550738 (40,17) clear-descent '7'（大灰色ヘビ）、5323/5324 ranged:throw-torch で倒す。
+  - 5325 turn 550764 (39,16) approach-descent '9' → (38,17)、目標の階段 (29,34)。
+  - 5326 turn 550773 (38,17) threat:avoid-engagement '1' → (39,16)。
+    グリーン・ナーガ（race 94）が (38,25)、距離8、寝ている、経路距離 null。
+    rung は policy.py の「_flee_step#4」（_material_melee_engagement の後退）。
+  - 5327 turn 550782 (39,16) approach-descent '9' → (38,17)。以後この2つが交互に続き、
+    5364 で loop-detected（cells=[(38,17),(39,16)]）。
+- 20261102-020003-loop-detected: 再起動後も同じ交互を39回繰り返して止まった。
+- 後退の処理（policy.py の threat:avoid-engagement の分岐）は
+  _claim_engagement_avoid_cells((現在地,)) を呼び、注釈に
+  「A committed explore path otherwise walks straight back here」とある。下り階段の経路が
+  この登録を見ないため、まさにその「すぐ戻る」が起きていた。
+- 登録は階が変わるときに消える（policy_observation.py）。
+
+■ 直し（コミット 003620171）
+- src/hengbot/policy_navigation.py の _descent_step: 登録済みの経路の次の1歩と、
+  新しく探す幅優先探索の両方で、_engagement_avoid_cells のマスを通らない。
+  新しい振る舞いやしきい値は足していない（既にある「その階の間は通らない」を、
+  唯一の下り階段の経路でも守らせただけ）。
+- 記録の盤面では、turn 550782 の判断が '9'（(38,17) へ）から '6'（(39,17) へ、
+  避けるマスを回り込む）に変わった。回り込んだ先でまた後退すれば、そのマスも登録されるので、
+  登録は増える一方で同じ2マスの往復にはならない。どこを通っても階段に届かなければ、
+  既存の処理どおり階段の目標が期限切れになり、ほかの仕事（探索・拾い・帰る判断）に移る。
+
+■ テスト
+- 追加: tests/test_n1c_5f_loop_1102_recorded.py（2件）
+  - test_recorded_rows_alternate_between_retreat_and_descent: 記録の行の確認。
+  - test_descent_never_steps_back_onto_the_vetoed_cell: 5階の到着（turn 550684）から
+    turn 550782 までの記録の盤面を、公開の choose_key と本番の executor port で流し、
+    後退で (38,17) が登録された後に、下り階段の経路がそのマスへ踏み込まないことを確かめる。
+  - 盤面: tests/fixtures/n1c-5f-loop-20261102.json.gz（31KB、49盤面）、
+    抽出: tests/extract_n1c_5f_loop_1102_fixture.py。
+    サーバの incident-captures/20261102-015953-loop-detected を読み取りだけで
+    C:\hengband-backups\pdca\captures\n1c-1102-0200\incident-captures\ に写した。
+  - 構成と明示: 吸収済みの記録のキー（staff:<sval>）を、魔力の一覧の画面を作るときだけ sval に
+    直している（staff_screen_case）。方策には記録のままのキーを渡す。
+- 確認: import の確認 OK、追加テスト 2件 OK。
+- 元に戻した確認（1回）: src の変更を外すと
+  「AssertionError: True is not false : (550782, '9', 'approach-descent')」で失敗、戻すと OK。
+- town_work_manifest.py（書き込みなし）: 0 violation（_descent_step の検討の項目は
+  名前で引かれているので、本体の変更では追加も作り直しも不要）。
+
+■ checks.json に足す項目の案
+{
+  "id": "N1C-5F-LOOP-1102",
+  "owner": "2026-11-02 n1-c life-100 イークの洞窟5階: 交戦を避けて下がったマスへ下り階段の経路がすぐ戻る往復",
+  "tests": [
+    "tests.test_n1c_5f_loop_1102_recorded"
+  ]
+}
+
+■ 保守性
+- 直しは既存の _descent_step の中だけで、局所の名前 vetoed に1回まとめて、
+  2か所の判定で同じものを使う。新しい判定や定数は作っていない。
+  これで「後退したマスを通らない」が経路を探す処理すべてで揃った
+  （残っていた例外が下り階段の経路だけだった）。
+- 抽出とテストは d57（test_d57_nav_depth_1101_recorded）の RecordedDrive と new_policy を
+  そのまま使った。
+
+■ ほかの家族のこと
+- なし。
+
+■ 持ち主への問い
+1. 後退のきっかけになったグリーン・ナーガは寝ていて、距離8、経路距離 null（歩いて来られる道が
+   見えていない）だった。今の交戦の判定（_material_melee_engagement）は寝ているかどうかも
+   道があるかどうかも見ずに、最大の打撃×行動回数だけで「避ける」とする。寝ている・道の無い敵では
+   後退しないようにするかどうかは、新しい振る舞いになるので今回は変えていない。

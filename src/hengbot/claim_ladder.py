@@ -264,7 +264,8 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_town_kill_mob_key", "survival", "town:kill-mob"),        # 6156
     _decide("_breeder_breakthrough_key", "escape",
             "breeder-breakthrough:recall",
-            "breeder-breakthrough:wait-recall"),                       # 6170
+            "breeder-breakthrough:wait-recall",
+            "breeder-breakthrough:teleport"),                          # 6170
     _decide("_choke_engagement_key", "positioning", "melee:choke"),    # 6178
     _decide("_ranged_attack_key", "combat"),                           # 6194
     _decide("_fruitless_disengage_key", "escape",

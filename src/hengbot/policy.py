@@ -6,9 +6,9 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
+from hengbot import blind_strike, lamp_fuel, mining_loadout, random_quest_hold, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import immobile_threat_memory, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import immobile_threat_memory, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -251,7 +251,6 @@ from hengbot.policy_constants import (
     WEAPON_BLOCK_LIMIT,
     _required_abilities_for_depth,
     required_depth_gates,
-    BREEDER_STALEMATE_TURN_LIMIT,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     EMERGENCY_RETURN_COUNT,
@@ -2058,11 +2057,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._combat_fruitful = True
         self._breeder_engagement_floor: tuple[int, int, int] | None = None
         self._breeder_engagement_score = 0
+        # The breeder engagement window (breeder_stalemate, owner 2026-11-02).
         self._breeder_engagement_start_count: int | None = None
         self._breeder_engagement_start_turn: int | None = None
-        self._breeder_kills = 0
-        self._breeder_previous_exp: int | None = None
-        self._breeder_previous_indices: set[int] = set()
+        self._breeder_engagement_actions = 0
+        self._breeder_engagement_last_turn: int | None = None
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
         # Floor and snapshot turn of the decision that first waited for a
         # detected pack at a reached choke.  Retain an expired episode until an
@@ -2091,6 +2090,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             release_sites=("_release_choke_plan",),
         )
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
+        # The latch's restart record (breeder_floor_record); the CLI points
+        # the path beside the decision log.
+        self._breeder_floor_record_path = None
+        self._breeder_floor_record = None
         self._breeder_breakthrough_frontier_floor: tuple[int, int, int] | None = None
         self._breeder_breakthrough_frontier_goal: Position | None = None
         self._breeder_breakthrough_frontier_origin: Position | None = None
@@ -2694,6 +2697,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Class 16: the displayed absorbed-device lists and the last power use.
         me_powers.observe(self, snapshot)
         me_powerful_activation.observe(self, snapshot)
+        speed_dose.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._complete_character_dump(snapshot)
@@ -11125,10 +11129,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and not self._fixed_quest_speed_attempted
         ):
             self._fixed_quest_speed_attempted = True
-            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+            speed = speed_dose.key(self, snapshot, "quest:quaff-speed",
+                                   rearm=("_fixed_quest_speed_attempted", False))
             if speed is not None:
-                self.last_reason = "quest:quaff-speed"
-                return reserved_item_command(self, snapshot, "quaff", speed)
+                return speed
 
         # 0a. Open wilderness = a non-town surface tile the town routine strayed
         #     onto by crossing a map border. It spawns out-of-depth monsters (a
@@ -17715,13 +17719,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             for name in force.get("resists", ())
         )
         speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)
+        speed_required = me_capability.force_count(self, snapshot, force, "speed_potions")
         healing = self._strategy_heal_potion_count(snapshot, force)
         details = {
             "reference_ac": reference_ac,
             "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id)},
             "hp": {"measured": snapshot.player.max_hp, "required": acceptance_hp_floor(force, snapshot.player.class_id)},
             "carries": carry_status,
-            "speed_potions": {"measured": speed_count, "required": int(force.get("speed_potions", 0))},
+            "speed_potions": {"measured": speed_count, "required": speed_required},
             "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
             "resists": {"ready": resists_ready, "required": list(force.get("resists", ()))},
         }
@@ -17753,14 +17758,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             name for name, ready in (
                 ("hp", snapshot.player.max_hp >= acceptance_hp_floor(force, snapshot.player.class_id)),
                 ("dps", dps >= acceptance_dps_floor(force, snapshot.player.class_id)),
-                ("speed_potions", speed_count >= int(force.get("speed_potions", 0))),
+                ("speed_potions", speed_count >= speed_required),
                 ("heal_potions", healing >= int(force.get("heal_potions", 0))),
             ) if not ready
         ]
         return (
             snapshot.player.max_hp >= acceptance_hp_floor(force, snapshot.player.class_id)
             and dps >= acceptance_dps_floor(force, snapshot.player.class_id)
-            and speed_count >= int(force.get("speed_potions", 0))
+            and speed_count >= speed_required
             and healing >= int(force.get("heal_potions", 0))
         )
 
@@ -17910,8 +17915,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             is not None
         ):
             return False
-        speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
-        return speed is None or self._unique_fight_projection(
+        return not speed_dose.available(self, snapshot) or self._unique_fight_projection(
             snapshot,
             hostiles,
             target,
@@ -18904,11 +18908,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return None
         phase = self._quest_strategy_opening_phase.get(profile.quest_id, 0)
         if phase == 0 and bool(reposition.get("speed_first", False)):
-            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+            speed = speed_dose.key(
+                self, snapshot, "quest-strategy:q22-opening-speed",
+                rearm=("_quest_strategy_opening_phase", profile.quest_id, 0))
             if speed is not None:
                 self._quest_strategy_opening_phase[profile.quest_id] = 1
-                self.last_reason = "quest-strategy:q22-opening-speed"
-                return reserved_item_command(self, snapshot, "quaff", speed)
+                return speed
         if phase == 1 and bool(reposition.get("teleport_once", False)):
             teleport = self._find_teleport_scroll(snapshot)
             if teleport is not None:
@@ -19670,6 +19675,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return False
         if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
+            return False
+        # Owner 2026-11-02: no stairs into a pending random quest floor before Q2.
+        if snapshot.dungeon_level > 0 and random_quest_hold.crossing_held(
+            self, snapshot, snapshot.floor_key[0],
+            snapshot.dungeon_level, snapshot.dungeon_level + 1,
+        ):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
         # overshoot invariant is owned solely by _kill_quest_descent_allowed.

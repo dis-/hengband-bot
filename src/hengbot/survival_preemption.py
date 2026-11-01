@@ -15,8 +15,9 @@ This gate runs inside ``_town_producer_entry`` (every ladder producer passes
 it) and refuses those producers, so the board falls through to the existing
 emergency, flee and melee rungs.  It refuses only when the combat rungs can
 answer: the player is not afraid and the dungeon permits melee.  Suppressed
-weak breeders (``_strategic_subset``) are not attackers here, so the approved
-breeder walk-out keeps moving through them.  Approved quest floors keep their
+weak breeders (``_strategic_subset``) that do not strike from beside the
+player are not attackers here, so the approved breeder walk-out keeps moving
+past them.  Approved quest floors keep their
 navigator (it owns the floor's combat).  The rungs are named, and each call
 site falls through on None.
 
@@ -39,6 +40,15 @@ consulted above the combat rungs) stepped away from the Super Great Silver
 Jelly beside it twenty times while the jelly (speed +10) followed and touched
 it, HP 215 -> 80.  The walk is a navigation rung like the explore steps and
 is refused the same way while a hostile in view attacks from beside us.
+
+breeder-swarm-1102 (n1-c life-098, 鉄獄24階 random quest 41, 2026-11-02
+00:10-00:14): the weakness suppression hid the ソフトウェア・バグ (race 246,
+1d2 bite < 5% of 412 HP) that were biting from every side.  The quest-locked
+floor has no breakthrough exit, so 789 decisions beside a bug searched,
+broke out and wandered through 952 bites (HP 412 -> 166, five Potions of
+Healing).  A weak breeder that strikes from beside the player
+(``strikes_from_adjacent``) is an attacker and stays on the strategic list,
+so the melee rungs fight it; only breeders that do not attack are set aside.
 """
 
 PREEMPTED_RUNGS = frozenset({
@@ -61,12 +71,20 @@ PREEMPTED_RUNGS = frozenset({
 })
 
 
+def strikes_from_adjacent(policy, board, monster) -> bool:
+    """An awake, unafraid hostile beside the player that strikes it."""
+    return (
+        board.player.position.distance_to(monster.position) <= 1
+        and not monster.asleep and not monster.fearful
+        and (monster.max_melee_damage > 0 or policy._took_damage)
+    )
+
+
 def attacking_adjacent(policy, board) -> list:
     """Awake, unafraid strategic hostiles beside the player that strike."""
     return [
         monster for monster in policy._strategic_adjacent_hostiles(board)
-        if not monster.asleep and not monster.fearful
-        and (monster.max_melee_damage > 0 or policy._took_damage)
+        if strikes_from_adjacent(policy, board, monster)
     ]
 
 

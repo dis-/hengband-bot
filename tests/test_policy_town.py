@@ -3574,7 +3574,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             self.assertEqual(policy._fundraising_key(armed, []), "FINISH")
             finish.assert_called_once_with(armed)
 
-    def test_five_kill_growth_judgement_ends_mining_through_floor_exit(self):
+    def test_twenty_action_breeder_judgement_ends_mining_through_floor_exit(self):
         breeders = [
             hostile(
                 index, 10, 11 + index, distance=1 + index,
@@ -3592,8 +3592,11 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._fundraising_mode = "mine"
         # TEST_FAKERY_LINT_ALLOW: collaborator-wall: private branch unit isolates independent routing and readiness collaborators
         policy._breeder_engagement_floor = mining.floor_key
-        policy._breeder_kills = 5
+        # breeder_stalemate: the 20th action without bringing the two
+        # breeders below the one seen at engagement.
         policy._breeder_engagement_start_count = 1
+        policy._breeder_engagement_actions = 19
+        policy._breeder_engagement_last_turn = mining.turn - 1
 
         policy._update_combat_outcome(mining)
 

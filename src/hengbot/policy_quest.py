@@ -6,7 +6,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import me_q1_torch, quest_sweep_target, random_quest_reserve, town_travel
+from hengbot import breeder_quest, me_q1_torch, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -107,7 +107,6 @@ from hengbot.policy_types import (
     TownErrandPlan,
 )
 from hengbot.policy_constants import (
-    BREEDER_STALEMATE_TURN_LIMIT,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     EMERGENCY_RETURN_COUNT,
@@ -1959,11 +1958,11 @@ class QuestMixin(OpeningRouteMixin):
         for race_id in (Q2_WERERAT_RACE, Q2_WHITE_CROCODILE_RACE):
             if race_id in present and race_id not in self._q2_speed_attempted:
                 self._q2_speed_attempted.add(race_id)
-                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                # A failed cast re-arms nothing here: each race asks once.
+                speed = speed_dose.key(self, snapshot, "quest-strategy:q2-quaff-speed")
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
-                    self.last_reason = "quest-strategy:q2-quaff-speed"
-                    return reserved_item_command(self, snapshot, "quaff", speed)
+                    return speed
         return None
 
     def _q2_breach_key(
@@ -3017,16 +3016,16 @@ class QuestMixin(OpeningRouteMixin):
                 phase = 2
             if phase == 0:
                 self._quest_strategy_opening_phase[profile.quest_id] = 1
-                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                speed = speed_dose.key(
+                    self, snapshot,
+                    "quest-strategy:q22-opening-speed"
+                    if profile.quest_id == 22
+                    else "quest-strategy:opening-speed",
+                    rearm=("_quest_strategy_opening_phase", profile.quest_id, 0))
                 if speed is not None:
                     if profile.quest_id != 22:
                         self._fixed_quest_speed_attempted = True
-                    self.last_reason = (
-                        "quest-strategy:q22-opening-speed"
-                        if profile.quest_id == 22
-                        else "quest-strategy:opening-speed"
-                    )
-                    return reserved_item_command(self, snapshot, "quaff", speed)
+                    return speed
                 phase = 1
             if phase == 1:
                 self._quest_strategy_opening_phase[profile.quest_id] = 2
@@ -3257,10 +3256,10 @@ class QuestMixin(OpeningRouteMixin):
             ]
             if projected >= threshold * snapshot.player.hp:
                 self._fixed_quest_speed_attempted = True
-                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                speed = speed_dose.key(self, snapshot, "quest-strategy:quaff-speed",
+                                       rearm=("_fixed_quest_speed_attempted", False))
                 if speed is not None:
-                    self.last_reason = "quest-strategy:quaff-speed"
-                    return reserved_item_command(self, snapshot, "quaff", speed)
+                    return speed
 
         hold_value = profile.engagement_plan.get("hold_position")
         hold = self._quest_strategy_hold_positions.get(profile.quest_id)
@@ -4443,7 +4442,7 @@ class QuestMixin(OpeningRouteMixin):
                         route_declaration=declaration,
                         identity=candidate_identity,
                     )
-                key = self._town_teleport_route_key(snapshot, route_result, reason)
+                key = self._town_teleport_route_key(snapshot, route_result, target_town, reason)
                 if key is None:
                     return None
                 self.last_reason = reason
@@ -4650,7 +4649,7 @@ class QuestMixin(OpeningRouteMixin):
                 WAIT_KEY, reason=reason, decision_identity=context.identity,
                 route_declaration=declaration, identity=candidate_identity,
             )
-        key = self._town_teleport_route_key(snapshot, result, reason)
+        key = self._town_teleport_route_key(snapshot, result, 0, reason)
         if key is None:
             return None
         self.last_reason = reason
@@ -4774,14 +4773,17 @@ class QuestMixin(OpeningRouteMixin):
         ONCE) quest floor, and 'y' forfeits the quest.  The stair operation
         answers it when the shared light judgment releases the return exit
         lock (fixed ONCE or runtime kill quest), or when the runtime kill
-        quest's own exit lock has released.  A stair posted while the lock
-        holds leaves the question unowned so the executor stops visibly.
+        quest's own exit lock has released, or when a breeder stalemate
+        abandons a kill-all quest floor (breeder_quest).  A stair posted while
+        the lock holds leaves the question unowned so the executor stops
+        visibly.
         """
         return (
             key in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}
             and not snapshot.in_town
             and (
                 self._light_releases_quest_exit(snapshot)
+                or breeder_quest.abandons_floor(self, snapshot)
                 or (
                     self._active_fixed_quest_id(snapshot) is None
                     and self._active_kill_quest_id(snapshot) is not None
@@ -5039,8 +5041,7 @@ class QuestMixin(OpeningRouteMixin):
             + [FIXED_QUEST_CURE_CRITICAL_HP]
             * self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
         )
-        speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
-        hasted = speed_potion is not None
+        hasted = speed_dose.available(self, snapshot)
         modeled_speed = snapshot.player.speed + (SPEED_POTION_BONUS if hasted else 0)
         telemetry["hasted"] = hasted
 
@@ -5745,7 +5746,7 @@ class QuestMixin(OpeningRouteMixin):
             is not None
         ):
             return True
-        if self._find_exact_potion(fight_snapshot, SV_POTION_SPEED) is None:
+        if not speed_dose.available(self, fight_snapshot):
             return False
         return (
             self._unique_fight_projection(
@@ -5941,10 +5942,9 @@ class QuestMixin(OpeningRouteMixin):
             self._exact_potion_count(snapshot, SV_POTION_HEALING)
             + self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
         )
-        speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
         speed_plan = None
         if (
-            speed_potion is not None
+            speed_dose.available(self, snapshot)
             and not self._unique_speed_attempted
             and not self._unique_speed_was_active
         ):
@@ -6023,11 +6023,13 @@ class QuestMixin(OpeningRouteMixin):
                 )
                 return reserved_item_command(self, snapshot, "quaff", healing)
 
-        if speed_is_material and speed_potion is not None:
+        speed = (speed_dose.key(self, snapshot, "unique:quaff-speed",
+                                rearm=("_unique_speed_attempted", False))
+                 if speed_is_material else None)
+        if speed is not None:
             self._unique_speed_attempted = True
             self._unique_combat_committed_race_id = target.race_id
-            self.last_reason = "unique:quaff-speed"
-            return reserved_item_command(self, snapshot, "quaff", speed_potion)
+            return speed
         return None
 
     def _q31_opening_hold_is_controlled(

@@ -28,8 +28,8 @@
     "self._home_errand_knowledge_key(snapshot) @ If:body:snapshot.store is None and getattr(snapshot, 'in_town', False) and (not self._opening_q1_active(snapshot)) and ('home-scan-incomplete' in getattr(self._equipment_optimization_preparation, 'blockers', ()) or self._home_available(snapshot)) and (not snapshot.player.recalling) and (not any((grid.store_number >= 0 for grid in (snapshot.grid_at(snapshot.player.position),) if grid is not None))) and (not self._equipment_catalog.home_scan_complete or self._home_knowledge_invalidated) and (not self._home_knowledge_scan_requested) and (self._home_knowledge_scan_epoch is None) and (self._equipment_transaction_session is None) and (self._store_leave_inflight is None) and (self._store_entry_posted_owner is None) and (self._equipment_mutation.state.name == 'IDLE' or self._equipment_mutation.goal == 'transaction-apply') and (not self._town_space_deposit_actionable(snapshot)) and (not self._defer_town_errand('home-scan', 'outside-scan')) / If:body:self._home_errand.needs_knowledge": 1,
     "self._shopping_approach_key(snapshot, step, self.last_reason) @ If:body:posted_entry_owner is not None / If:orelse:observed_failed_entry / If:body:interrupted_travel_entry or travel_continue_prompt / If:body:step is not None": 1,
     "self._shopping_approach_key(snapshot, step, self.last_reason) @ If:body:posted_entry_owner is not None / If:orelse:observed_failed_entry / If:orelse:interrupted_travel_entry or travel_continue_prompt / If:body:state is not None and (self._store_entry_wait_key or '').startswith('\\x1b`') and (self.last_reason == 'store:entry-interrupted-replan') and (state.last_turn == snapshot.turn) and (snapshot.player.position.distance_to(state.goal) >= state.best_distance) / If:body:entry_observation_pending and snapshot.player.position != state.goal / If:body:step is not None": 1,
-    "self._home_catalogue_work_key(snapshot) @ If:orelse:unintended_store_context / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._store_visit is not None) and (self._store_visit.store_type != STORE_HOME) and (self._home_scan_source != 'foreign-store-page') and (self._equipment_transaction_session is None) and (not self._identify_staff_ready(snapshot)) and self._home_knowledge_current and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (not any((item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) for item in self._home_knowledge_items))) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and ((staged_home_operation := self._town_producer_entry('_release_staged_store_operation', lambda: self._release_staged_store_operation(snapshot), family=getattr(self._store_visit, 'operation_producer_family', None) or 'home-visit')) is not None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._home_full_relief is not None or (self._home_full_retry_deposits is not None and self._equipment_transaction_session is None)) and (not self._equipment_transaction_owned_items) and (self._home_atomic_deposit_pending is None) and (self._home_atomic_withdraw_pending is None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._equipment_transaction_session is not None) and (not self._home_entry_operation_posted) and (self._store_leave_inflight is None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and self._home_entry_operation_posted and (self._equipment_transaction_session is None) / If:orelse:snapshot.store is None and self._shop_observation is not None and (self._store_leave_inflight is not None) and (self._can_compose_shop_observation(snapshot) or self._can_resume_magic_shelf(snapshot)) / If:orelse:self._store_leave_inflight is not None / If:body:snapshot.store is not None and snapshot.store.store_type == STORE_HOME / If:orelse:snapshot.player.food_type == FOOD_TYPE_MANA and snapshot.player.hungry and (self._find_edible(snapshot) is None) and (self._home_atomic_deposit_pending is None) and (self._home_atomic_withdraw_pending is None) / If:orelse:self._home_catalogue_sequence_enforced() and (catalogue_key := self._home_catalogue_work_key(snapshot)) is not None": 1,
-    "self._queue_standing_home_digger(snapshot) @ If:orelse:unintended_store_context / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._store_visit is not None) and (self._store_visit.store_type != STORE_HOME) and (self._home_scan_source != 'foreign-store-page') and (self._equipment_transaction_session is None) and (not self._identify_staff_ready(snapshot)) and self._home_knowledge_current and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (not any((item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) for item in self._home_knowledge_items))) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and ((staged_home_operation := self._town_producer_entry('_release_staged_store_operation', lambda: self._release_staged_store_operation(snapshot), family=getattr(self._store_visit, 'operation_producer_family', None) or 'home-visit')) is not None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._home_full_relief is not None or (self._home_full_retry_deposits is not None and self._equipment_transaction_session is None)) and (not self._equipment_transaction_owned_items) and (self._home_atomic_deposit_pending is None) and (self._home_atomic_withdraw_pending is None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._equipment_transaction_session is not None) and (not self._home_entry_operation_posted) and (self._store_leave_inflight is None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and self._home_entry_operation_posted and (self._equipment_transaction_session is None) / If:orelse:snapshot.store is None and self._shop_observation is not None and (self._store_leave_inflight is not None) and (self._can_compose_shop_observation(snapshot) or self._can_resume_magic_shelf(snapshot)) / If:orelse:self._store_leave_inflight is not None / If:body:snapshot.store is not None and snapshot.store.store_type == STORE_HOME / If:orelse:snapshot.player.food_type == FOOD_TYPE_MANA and snapshot.player.hungry and (self._find_edible(snapshot) is None) and (self._home_atomic_deposit_pending is None) and (self._home_atomic_withdraw_pending is None) / If:orelse:self._home_catalogue_sequence_enforced() and (catalogue_key := self._home_catalogue_work_key(snapshot)) is not None / If:orelse:active_holder is not None and active_holder.owner.value == 'equipment-txn' and (session is not None) and getattr(self._store_visit, 'operation_posted', False) and (not getattr(self._store_visit, 'operation_released', False)) / If:orelse:(rearm := self._town_producer_entry('_home_rearm_key', lambda: self._home_rearm_key(snapshot), family='equipment-txn')) is not None / If:orelse:getattr(self, '_town_claim_bar_enforced', False) and self._equipment_transaction_session is not None and (self._equipment_transaction_session.pending_action is None) and ((holder := self._claim_errand_hold('__none__')) is not None) and (holder.owner.value == 'equipment-txn') and ((equipment_key := self._town_producer_entry('_equipment_transaction_home_key', lambda: self._equipment_transaction_home_key(snapshot), family='equipment-txn')) is not None) / If:orelse:self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._town_space_deposit_actionable(snapshot)) and getattr(self, '_queue_home_catalogue_shortages', lambda _snapshot: False)(snapshot) / If:orelse:self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None) / If:orelse:self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and ((standing_digger := self._queue_standing_home_digger(snapshot)) is not None)": 1
+    "self._home_catalogue_work_key(snapshot) @ If:orelse:unintended_store_context / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._store_visit is not None) and (self._store_visit.store_type != STORE_HOME) and (self._home_scan_source != 'foreign-store-page') and (self._equipment_transaction_session is None) and (not self._identify_staff_ready(snapshot)) and self._home_knowledge_current and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (not any((item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) for item in self._home_knowledge_items))) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and ((staged_home_operation := self._town_producer_entry('_release_staged_store_operation', lambda: self._release_staged_store_operation(snapshot), family=getattr(self._store_visit, 'operation_producer_family', None) or 'home-visit')) is not None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._home_full_relief is not None or (self._home_full_retry_deposits is not None and self._equipment_transaction_session is None)) and (not self._equipment_transaction_owned_items) and (self._home_atomic_deposit_pending is None) and (self._home_atomic_withdraw_pending is None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._equipment_transaction_session is not None) and (not self._home_entry_operation_posted) and (self._store_leave_inflight is None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and self._home_entry_operation_posted and (self._equipment_transaction_session is None) / If:orelse:snapshot.store is None and self._shop_observation is not None and (self._store_leave_inflight is not None) and (self._can_compose_shop_observation(snapshot) or self._can_resume_magic_shelf(snapshot)) / If:orelse:self._store_leave_inflight is not None / If:body:snapshot.store is not None and snapshot.store.store_type == STORE_HOME / If:orelse:snapshot.player.food_type == FOOD_TYPE_MANA and snapshot.player.hungry and (self._find_edible(snapshot) is None) and (self._home_atomic_deposit_pending is None) and (self._home_atomic_withdraw_pending is None) and (not town_pack_headroom.organizing(self, snapshot)) / If:orelse:self._home_catalogue_sequence_enforced() and (catalogue_key := self._home_catalogue_work_key(snapshot)) is not None": 1,
+    "self._queue_standing_home_digger(snapshot) @ If:orelse:unintended_store_context / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._store_visit is not None) and (self._store_visit.store_type != STORE_HOME) and (self._home_scan_source != 'foreign-store-page') and (self._equipment_transaction_session is None) and (not self._identify_staff_ready(snapshot)) and self._home_knowledge_current and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (not any((item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) for item in self._home_knowledge_items))) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and ((staged_home_operation := self._town_producer_entry('_release_staged_store_operation', lambda: self._release_staged_store_operation(snapshot), family=getattr(self._store_visit, 'operation_producer_family', None) or 'home-visit')) is not None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._home_full_relief is not None or (self._home_full_retry_deposits is not None and self._equipment_transaction_session is None)) and (not self._equipment_transaction_owned_items) and (self._home_atomic_deposit_pending is None) and (self._home_atomic_withdraw_pending is None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (self._equipment_transaction_session is not None) and (not self._home_entry_operation_posted) and (self._store_leave_inflight is None) / If:orelse:snapshot.store is not None and snapshot.store.store_type == STORE_HOME and self._home_entry_operation_posted and (self._equipment_transaction_session is None) / If:orelse:snapshot.store is None and self._shop_observation is not None and (self._store_leave_inflight is not None) and (self._can_compose_shop_observation(snapshot) or self._can_resume_magic_shelf(snapshot)) / If:orelse:self._store_leave_inflight is not None / If:body:snapshot.store is not None and snapshot.store.store_type == STORE_HOME / If:orelse:snapshot.player.food_type == FOOD_TYPE_MANA and snapshot.player.hungry and (self._find_edible(snapshot) is None) and (self._home_atomic_deposit_pending is None) and (self._home_atomic_withdraw_pending is None) and (not town_pack_headroom.organizing(self, snapshot)) / If:orelse:self._home_catalogue_sequence_enforced() and (catalogue_key := self._home_catalogue_work_key(snapshot)) is not None / If:orelse:active_holder is not None and active_holder.owner.value == 'equipment-txn' and (session is not None) and getattr(self._store_visit, 'operation_posted', False) and (not getattr(self._store_visit, 'operation_released', False)) / If:orelse:(rearm := self._town_producer_entry('_home_rearm_key', lambda: self._home_rearm_key(snapshot), family='equipment-txn')) is not None / If:orelse:getattr(self, '_town_claim_bar_enforced', False) and self._equipment_transaction_session is not None and (self._equipment_transaction_session.pending_action is None) and ((holder := self._claim_errand_hold('__none__')) is not None) and (holder.owner.value == 'equipment-txn') and ((equipment_key := self._town_producer_entry('_equipment_transaction_home_key', lambda: self._equipment_transaction_home_key(snapshot), family='equipment-txn')) is not None) / If:orelse:self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._town_space_deposit_actionable(snapshot)) and getattr(self, '_queue_home_catalogue_shortages', lambda _snapshot: False)(snapshot) / If:orelse:self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None) / If:orelse:self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and ((standing_digger := self._queue_standing_home_digger(snapshot)) is not None)": 1
   },
   "policy.py:_finish_mining_floor": {
     "self._leave_fundraising_floor(snapshot, allow_recall=not (self._fundraising_mode == 'mine' and self._breeder_breakthrough_floor == snapshot.floor_key)) @ ": 1
@@ -42,9 +42,6 @@
   },
   "policy.py:_immobile_breeder_giveup_key": {
     "self._explore_step(snapshot) @ ": 1
-  },
-  "policy.py:_low_hp_no_kit_hit_key": {
-    "self._direction_key(here, cell) @ If:body:melee / If:body:candidates and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1
   },
   "policy.py:_low_hp_walk_gate": {
     "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
@@ -102,9 +99,12 @@
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ For:(None,) / If:body:in_town and (not town_kill_owns_visible_target) and (not town_order_owns_step4) and (not held_claim_decision) and (not posted_shop_observation_wait) and (not arbiter.preview_may_select(self.last_reason, vector, retirement_key=current_retirement_key, route_receipt=inn_receipt)) / If:orelse:self._route_unavailable_terminal_candidate(rejected_candidate, key) / If:body:step is not None / If:orelse:transaction_owns_relocation and foreign_relocation / If:body:not transaction_owns_relocation": 1,
     "self._skill_exp_request_key(snapshot) @ For:(None,)": 1
   },
+  "policy_combat.py:_adjacent_ranged_key": {
+    "self._direction_key(player.position, target.position) @ ": 1
+  },
   "policy_combat.py:_breeder_breakthrough_key": {
     "self._breeder_breakthrough_escape_key(snapshot) @ ": 1,
-    "self._dungeon_recall_confirmation_key(snapshot) @ If:body:self._fundraising_mode != 'mine' and active_quest is None and (not self._emergency_return_active or self._returning_to_town) and (not snapshot.player.blind) and (not snapshot.player.confused)": 1
+    "self._dungeon_recall_confirmation_key(snapshot) @ If:body:self._fundraising_mode != 'mine' and self._active_fixed_quest_id(snapshot) is None and (not self._return_exit_locked(snapshot)) and (not self._emergency_return_active or self._returning_to_town) and (not snapshot.player.blind) and (not snapshot.player.confused)": 1
   },
   "policy_combat.py:_choke_engagement_key": {
     "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
@@ -171,26 +171,27 @@
     "self._leave_fundraising_floor(snapshot) @ If:body:self._returning_to_town and snapshot.dungeon_level > 0": 1,
     "self._return_to_town_key(snapshot, hostiles) @ If:body:snapshot.floor_key[0] == DUNGEON_YEEK_CAVE and snapshot.dungeon_level != 1": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._returning_to_town or self._should_start_town_return(snapshot)": 1,
-    "self._leave_fundraising_floor(snapshot) @ If:body:snapshot.player.gold >= self._fundraising_gold_target() and (not getattr(self, '_no_safe_destination_set', False)) and (getattr(self, '_supply_stockout_gold_target', None) is not None or self._fundraising_mode == 'scavenge' or (not self._known_treasure))": 1,
+    "self._leave_fundraising_floor(snapshot) @ If:body:snapshot.player.gold >= self._fundraising_gold_target() and self._fundraising_gold_return_applies() and (getattr(self, '_supply_stockout_gold_target', None) is not None or self._fundraising_mode == 'scavenge' or (not self._known_treasure))": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:no_food_left": 1,
     "self._explore_step(snapshot) @ If:body:self._fundraising_mode == 'scavenge'": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge'": 1,
     "self._mining_tunnel_key(snapshot, adjacent_gold.position, vein=adjacent_gold.position) @ If:body:adjacent_gold is not None": 1,
-    "self._leave_fundraising_floor(snapshot) @ If:body:not self._expedition_light_ready(snapshot) / If:body:light is None": 1,
+    "self._start_fundraising_return(snapshot) @ If:body:self._opening_q1_active(snapshot) and (not snapshot.in_town) / If:body:getattr(self, '_opening_q1_funding', None) is None": 1,
+    "self._start_fundraising_return(snapshot) @ If:body:self._fundraising_mode == 'scavenge' and (not self._scavenge_allowed(snapshot)) / If:body:not snapshot.in_town": 1,
+    "self._leave_fundraising_floor(snapshot) @ If:body:not self._expedition_light_ready(snapshot) / If:body:self._fundraising_wieldable_light(snapshot) is None": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' / If:body:len(snapshot.inventory) >= PACK_CAPACITY": 1,
-    "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' / If:body:not self._has_digging_tool(snapshot) and self._count_treasure_detection_scrolls(snapshot) > 0 and bool(self._known_treasure)": 1,
+    "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' / If:body:not self._has_digging_tool(snapshot) and self._count_treasure_detection_scrolls(snapshot) > 0 and bool(self._known_treasure) and (not self._diggerless_scavenge_allowed(snapshot))": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' / If:body:self._is_oscillating()": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:equipped_diggers < desired_diggers / If:body:any((item.slot == 'main_hand' and item.is_cursed for item in snapshot.equipment))": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:equipped_diggers < desired_diggers / If:body:wield is None": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:self._fundraising_mode == 'scavenge' / If:orelse:run_start_turn is None / If:body:snapshot.turn - run_start_turn >= SCAVENGE_RUN_TURN_LIMIT": 1,
     "self._leave_fundraising_floor(snapshot) @ If:body:getattr(self, '_crossarea_fundraising_enforced', False) / If:body:purpose is None or record is None or record.purpose != purpose or (record.status == 'failed') or (child is None) or (child.purpose_id != purpose.identity) or (not (child.direction == 'depart' and child.state == 'complete' or (child.direction == 'return' and child.state == 'posted'))) / If:body:restarted_without_purpose or (snapshot.player.hungry and self._find_edible(snapshot) is None)": 1,
-    "self._leave_fundraising_floor(snapshot) @ If:body:needs_initial_detection / If:body:scroll is None / If:body:needs_initial_detection": 1,
+    "self._leave_fundraising_floor(snapshot) @ If:body:needs_initial_detection / If:body:scroll is None and power is None / If:body:needs_initial_detection": 1,
     "self._mining_tapped_out_key(snapshot) @ If:body:not osc / If:body:step is not None / If:body:self._mining_route_visits[snapshot.player.position] >= MINING_ROUTE_REVISIT_LIMIT": 1,
-    "self._leave_fundraising_floor(snapshot) @ If:body:equipped_diggers < desired_diggers / If:body:wield is None / If:body:report is not None / If:body:report != 'goal-already-superseded' and self._digger_wield_attempts >= DIGGER_WIELD_LIMIT": 1,
-    "self._start_fundraising_return(snapshot) @ If:body:self._opening_q1_active(snapshot) and (not snapshot.in_town) / If:body:getattr(self, '_opening_q1_funding', None) is None": 1,
-    "self._start_fundraising_return(snapshot) @ If:body:self._fundraising_mode == 'scavenge' and (not self._detectionless_scavenge_allowed(snapshot)) / If:body:not snapshot.in_town": 1
+    "self._leave_fundraising_floor(snapshot) @ If:body:equipped_diggers < desired_diggers / If:body:wield is None / If:body:report is not None / If:body:report != 'goal-already-superseded' and self._digger_wield_attempts >= DIGGER_WIELD_LIMIT": 1
   },
   "policy_fundraising.py:_leave_fundraising_floor": {
+    "self._upstairs_door_key(snapshot) @ ": 1,
     "self._blocking_escape_melee_key(snapshot, self._physical_hostiles(snapshot), self._is_upstairs_target) @ ": 1,
     "self._explore_step(snapshot) @ If:orelse:recall is not None and (not player.blind) and (not player.confused) and self._can_read_scrolls(snapshot)": 1
   },
@@ -249,10 +250,10 @@
     "self._verified_destroy_key(snapshot, self._find_worthless_junk, 'inventory:destroy-worthless-junk') @ ": 1
   },
   "policy_identification.py:_full_pack_loot_triage_key": {
-    "self._floor_item_identify_key(snapshot, floor_item) @ For:sorted(loot_positions, key=lambda candidate: snapshot.player.position.distance_to(candidate)) / For:self._look_floor_items.get(position, ()) / If:body:item_base_cost(floor_item, self._baseitem_costs) is None / If:body:position == snapshot.player.position": 1,
-    "self._look_probe_key(snapshot) @ If:body:live_counts != cached_counts": 1,
+    "self._verified_destroy_key(snapshot, lambda current, selected=carried: selected if self._item_signature(selected) not in self._undestroyable_sigs and self._entire_stack_is_surplus(current, selected) else None, 'inventory:exchange-cheapest-surplus') @ ": 1,
     "self._look_probe_key(snapshot) @ If:body:self._look_floor_key != snapshot.floor_key": 1,
-    "self._verified_destroy_key(snapshot, lambda current, selected=carried: selected if self._item_signature(selected) not in self._undestroyable_sigs and self._entire_stack_is_surplus(current, selected) else None, 'inventory:exchange-cheapest-surplus') @ ": 1
+    "self._look_probe_key(snapshot) @ If:body:live_counts != cached_counts": 1,
+    "self._floor_item_identify_key(snapshot, floor_item) @ For:sorted(loot_positions, key=lambda candidate: snapshot.player.position.distance_to(candidate)) / For:self._look_floor_items.get(position, ()) / If:body:item_base_cost(floor_item, self._baseitem_costs) is None and self._floor_item_identifiable_at(snapshot, position, floor_item) / If:body:position == snapshot.player.position": 1
   },
   "policy_identification.py:_normal_loot_key": {
     "self._ranged_attack_key(snapshot, guarded, []) @ If:body:guarded": 1
@@ -283,7 +284,6 @@
     "self._fixed_quest_exit_key(snapshot, quest_id) @ If:body:snapshot.floor_key[2] == quest_id / If:body:quest.status == QUEST_STATUS_COMPLETED": 1,
     "self._fixed_quest_reward_key(snapshot, quest_id) @ If:body:info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER} / If:body:snapshot.in_town and self._fixed_quest_reward_pending == quest_id": 1,
     "self._fixed_quest_reward_key(snapshot, quest_id) @ If:body:self._fixed_quest_reward_pending == quest_id": 1,
-    "self._fixed_quest_reward_key(snapshot, self._fixed_quest_reward_pending) @ If:body:snapshot.in_town / If:body:self._fixed_quest_reward_pending is not None": 1,
     "self._return_to_town_key(snapshot, hostiles) @ If:body:info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER} / If:body:quest.status == QUEST_STATUS_COMPLETED / If:body:not snapshot.in_town": 1,
     "self._telmora_q2_travel_key(snapshot, quest) @ If:body:quest_id == 2": 1,
     "self._town_teleport_key(snapshot, 0, producer='quest-request', reason='fixedquest:prepare-return') @ If:body:snapshot.in_town / If:body:travel_quest is None and current_town_id == 1": 1,
@@ -334,11 +334,14 @@
     "self._direction_key(snapshot.player.position, ranked[0].position) @ If:body:engage_adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._q2_ranged_core_key(snapshot, profile, combat_hostiles) @ If:body:profile.required_force.get('launcher') and combat_hostiles": 1,
     "self._fixed_quest_exit_key(snapshot, snapshot.floor_key[2]) @ If:body:bool(abort.get('allowed', False)) and snapshot.player.hp_ratio <= float(abort.get('hp_ratio', 0)) / If:body:snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST": 1,
-    "self._explore_step(snapshot) @ If:body:may_leave_hold and battlefield is not None and (not mobile_visible) and (profile.quest_id != 34 or self._quest_final_target_position(profile, never_move_races) in self._quest_strategy_surveyed_placements.get(34, set())) / If:body:not unsurveyed / If:body:rounds >= int(profile.engagement_plan.get('max_sweep_rounds', 3))": 1,
+    "self._explore_step(snapshot) @ If:body:may_leave_hold and battlefield is not None and (not mobile_visible) and (last_seen_final is None) and (profile.quest_id != 34 or self._quest_final_target_position(profile, never_move_races) in self._quest_strategy_surveyed_placements.get(34, set())) / If:body:not unsurveyed / If:body:rounds >= int(profile.engagement_plan.get('max_sweep_rounds', 3))": 1,
     "self._direction_key(snapshot.player.position, planned_throw[1].position) @ If:body:combat_hostiles / If:body:planned_throw is not None": 1,
-    "self._direction_key(snapshot.player.position, target.position) @ If:body:combat_hostiles / If:body:profile.quest_id != 34 and torch is not None and targets / If:body:target is not None": 1,
-    "self._direction_key(final_approach, final_door) @ If:body:final_target_phase / If:body:target_position is not None / If:body:final_door_value is not None and final_approach_value is not None / If:body:not final_door_open / If:body:snapshot.player.position == final_approach": 1,
+    "self._direction_key(snapshot.player.position, target.position) @ If:body:combat_hostiles / If:body:profile.quest_id != 34 and targets and (torch is not None or me_q1_torch.applies(profile, snapshot)) / If:body:target is not None and torch is not None": 1,
+    "self._direction_key(final_approach, final_door) @ If:body:final_target_phase / If:body:target_position is not None / If:body:final_door_value is not None and final_approach_value is not None / If:orelse:final_door_open(snapshot, profile.engagement_plan) / If:body:snapshot.player.position == final_approach": 1,
     "self._direction_key(snapshot.player.position, blocker.position) @ If:body:not may_leave_hold and hold is not None and (snapshot.player.position != hold) / If:body:step is not None / If:body:blocker is not None / If:body:torch is not None": 1
+  },
+  "policy_quest.py:_quest_sequence_door_key": {
+    "self._direction_key(approach, door) @ If:body:snapshot.player.position == approach": 1
   },
   "policy_shop.py:_batch_sell_key": {
     "self._batch_sale_entry(snapshot, item, digit) @ For:candidates[:1]": 1,
@@ -469,19 +472,29 @@
   "policy.py:_release_unposted_store_watch": {
     "self._batch_sell_key(replace(snapshot, store=StoreState(int(pending['store_type']), []))) @ If:body:pending is not None and pending.get('phase') == 'await-sale'": 1
   },
+  "policy.py:_decide": {
+    "magic_eater.absorb_key(self, snapshot, physical_hostiles) @ ": 1
+  },
+  "town_quest_reward.py:reward_key": {
+    "policy._fixed_quest_reward_key(snapshot, quest_id) @ ": 1
+  },
   "town_terminal.py:_commit_home_withdraw": {
     "policy._defer_unobserved_home_withdrawal(signature) @ If:body:terminal in policy._town_visit_ledger.closed_terminals and policy._home_atomic_withdraw_pending is None / For:dict.fromkeys((target, *batch)) / If:body:signature in held and signature not in stored": 1
   },
   "policy_opening.py:_opening_q1_town_key": {
     "self._fixed_quest_key(snapshot, hostiles) @ ": 1,
-    "self._fixed_quest_key(snapshot, hostiles) @ If:body:self._fixed_quest_reward_pending is not None": 1,
+    "self._fixed_quest_key(snapshot, hostiles) @ If:body:town_quest_reward.pending(self, snapshot) is not None": 1,
     "self._town_kill_mob_key(snapshot) @ If:body:store is not None or self._physical_adjacent_hostiles(snapshot)": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:store is not None": 1,
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:store is not None or self._physical_adjacent_hostiles(snapshot) / If:body:adjacent and self._can_fight_in_dungeon(0)": 1,
-    "self._town_kill_mob_key(snapshot) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles": 1,
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles / If:body:adjacent": 1
+    "self._town_kill_mob_key(snapshot) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles": 1
+  },
+  "policy_opening.py:_opening_q1_strike": {
+    "self._direction_key(snapshot.player.position, target.position) @ ": 1
   },
   "policy_fundraising.py:_start_fundraising_return": {
+    "self._leave_fundraising_floor(snapshot) @ ": 1
+  },
+  "policy_fundraising.py:_mining_unbeatable_unique_abort_key": {
     "self._leave_fundraising_floor(snapshot) @ ": 1
   },
   "shop_purchase_dispatch.py:next_purchase_key": {
@@ -493,5 +506,30 @@
   "quest_opening_readiness.py:q34_readiness_rejection_key": {
     "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:step is not None": 1,
     "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:policy._start_fundraising(snapshot) / If:body:step is not None": 1
+  },
+  "blind_strike.py:strike_key": {
+    "policy._direction_key(snapshot.player.position, cells[0]) @ ": 1
+  },
+  "me_q1_torch.py:attack_key": {
+    "policy._direction_key(player.position, target.position) @ ": 1
+  },
+  "me_staff_sequence.py:_travel": {
+    "policy._town_teleport_key(snapshot, destination, producer=PRODUCER, reason=f'{REASON}{step}') @ ": 1
+  },
+  "me_staff_sequence.py:town_key": {
+    "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:phase == 'buy'": 1,
+    "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:phase == 'buy' / If:body:target is None / If:body:not _shelf_done(policy, snapshot) and STORE_MAGIC not in _fresh_pages(policy, snapshot)": 1
+  },
+  "q2_tower_recharge.py:_travel": {
+    "policy._town_teleport_key(snapshot, destination, producer=PRODUCER, reason=f'{REASON}{step}') @ ": 1
+  },
+  "return_yield.py:latched_return_key": {
+    "policy._return_to_town_key(snapshot, policy._strategic_hostiles(snapshot)) @ ": 1
+  },
+  "town_last_stand.py:key": {
+    "policy._direction_key(snapshot.player.position, monster.position) @ ": 1
+  },
+  "unseen_strike.py:key": {
+    "policy._direction_key(here, cell) @ ": 1
   }
 }

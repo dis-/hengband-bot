@@ -469,7 +469,6 @@ FLEE_HP_RATIO = 0.40  # below this, break off and run from any hostile
 SWARM_COUNT = 3  # a swarm starts at this many adjacent hostiles...
 SWARM_LOOKAHEAD = 3  # turns of incoming damage to sum for the swarm check
 COMBAT_OUTCOME_WINDOW = 300
-BREEDER_STALEMATE_TURN_LIMIT = 3000
 COMBAT_REASON_PREFIXES = ("melee", "ranged:", "hunt", "flee")
 # The Magic-Eater's absorbed Magic Missile (magic_eater.MISSILE_REASON).
 MAGIC_MISSILE_REASON = "quest-strategy:ranged-fire:magic-eater"
