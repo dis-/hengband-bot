@@ -13,8 +13,14 @@ from dataclasses import dataclass, replace
 import re
 from typing import Any, Callable, NamedTuple
 
+from hengbot.claim_goal_typing import (
+    KNOWLEDGE as OBSERVE_KNOWLEDGE,
+    STORE_OPERATION as OBSERVE_STORE_OPERATION,
+)
+from hengbot.claim_register import GOAL_OBSERVE, GOAL_REACH
 from hengbot.policy_constants import (
     EQUIPMENT_SLOT_KEY,
+    HOME_KNOWLEDGE_MACRO,
     LEAVE_STORE_KEY,
     SELL_KEY,
     FIXED_QUEST_REWARD_POSITIONS,
@@ -37,6 +43,7 @@ from hengbot.item_reservation import decision_memo, item_available, reservation_
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER
+from hengbot.town_arbiter import UNREGISTERED_FAMILY, owner_families, reason_owner_family
 
 
 @dataclass(frozen=True)
@@ -703,6 +710,10 @@ class TerminalDecl(NamedTuple):
     intended_terminal: Callable[[Any, Any], TerminalRef | None] | None
     mode: str
     no_refusal_reason: str = ""
+    # The owner family the rung's entry admits under when its call site
+    # names none (``RUNG_FAMILIES``); "" for a rung whose every call site
+    # passes ``family=``.
+    family: str = ""
 
 
 # Codes the quest-entry verdict can return.  Each is an existing blocker or
@@ -1834,6 +1845,248 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_town_special_key": TerminalDecl(departure_intended_terminal, ENFORCE),
     "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, ENFORCE),
 }
+
+
+# --- Town ownership (structure stage 2 B, step 1) ---------------------------
+# Owner 2026-10-28 「B: 場面の終点に一本化」: town_terminal is the one "who
+# acts" authority.  The three claim parts that still steer live keys moved
+# here: the rung -> family table, the census family of a reason, and the
+# town errand / cross-area Home hold.  The hold still reads the open claims
+# in ``policy._claim_register`` until a later slice replaces that state.
+
+# The family each town rung's entry admits under when its call site passes
+# no ``family=`` (formerly the claim ladder's rung table).
+RUNG_FAMILIES: dict[str, tuple[str, ...]] = {
+    "combat": ("_direction_key#2", "_ranged_attack_key#1", "_ranged_attack_key#2",
+        "_summoner_ranged_kill_key"),
+    "curse-enchant": ("_town_enchant_launcher_key", "_town_remove_curse_key"),
+    "departure": ("_descent_step", "_hunt_step#2", "_normal_loot_key#1", "_return_to_town_key#1",
+        "_return_to_town_key#2", "_return_to_town_key#3"),
+    "detectors": ("_breakout_restore_weapon_key#1", "_breakout_restore_weapon_key#2",
+        "_dark_locomotion_key", "_explore_step#1", "_navigation_livelock_key"),
+    "equipment-txn": ("_equipment_transaction_town_key#1", "_equipment_transaction_town_key#2",
+        "_equipment_transaction_town_owner_key", "_heavy_curse_inscription_key",
+        "_home_catalogue_work_key", "_shopping_approach_key#1",
+        "_town_random_teleport_suppression_key", "_town_restore_weapon_key"),
+    "escape": ("_blocking_escape_melee_key", "_breeder_breakthrough_escape_key",
+        "_breeder_breakthrough_key", "_direction_key#1", "_emergency_item", "_flee_step#2",
+        "_fruitless_disengage_key", "_item_destroying_breeder_leave_key", "_unseen_retreat_key"),
+    "esp-threat": ("_esp_threat_hunt_key", "_esp_threat_rest_key"),
+    "explore": ("_explore_step#2", "_immobile_breeder_giveup_key"),
+    "floor-loot": ("_chest_processing_key#1", "_chest_processing_key#2", "_conquest_loot_key",
+        "_normal_loot_key#2", "_victory_loot_key"),
+    "fundraising": ("_fundraising_key#1", "_fundraising_key#2"),
+    "home-scan": ("_home_full_knowledge_key",),
+    "home-visit": ("_home_disposal_processing_key", "_home_full_relief_key", "_home_full_skip_key"),
+    "hunt": ("_hunt_step#1", "_hunt_step#3"),
+    "identification": ("_town_device_processing_key", "_town_equipped_identification_key"),
+    "positioning": ("_choke_engagement_key", "_detected_threat_preparation_key", "_flee_step#3",
+        "_flee_step#4", "_melee_swarm_combat_key", "_paralyzer_prevention_key",
+        "_unseen_retreat_intercept_key"),
+    "quest-request": ("_fixed_quest_key#1", "_fixed_quest_key#2",
+        "_kill_quest_floor_recovery_key", "_start_kill_quest_regeneration",
+        "_town_order_step4_key#1", "_town_order_step4_key#2"),
+    "quest-sweep": ("navigator.decide",),
+    "shop-sell": ("_overweight_surplus_sale_key",),
+    "store-router": ("_released_restock_store_key", "_shopping_approach_key#2",
+        "_town_space_deposit_key"),
+    "survival": ("_experience_potion_quaff_key", "_flee_step#1", "_mana_food_loot_key",
+        "_mana_food_survival_override_key", "_stat_gain_quaff_key", "_stat_restore_quaff_key",
+        "_survival_gate_key#1", "_survival_gate_key#2", "_town_kill_mob_key"),
+    "town-plan": ("_town_overflow_destroy_key",),
+}
+_FAMILY_OF_RUNG = {name: family for family, names in RUNG_FAMILIES.items() for name in names}
+TERMINALS = {name: decl._replace(family=_FAMILY_OF_RUNG.get(name, ""))
+             for name, decl in TERMINALS.items()}
+
+# The registered owner families (``town_arbiter.owner_families``); any other
+# family a call site passes is admitted as UNREGISTERED_FAMILY.
+_OWNER_FAMILIES = frozenset(owner_families())
+# The town errand families whose store operation, exit or Reach/Observe errand
+# names its acting owner (claim_ladder.S3_FAMILIES reads this set).
+TOWN_OWNER_FAMILIES = frozenset({
+    "store-router",
+    "shop-buy",
+    "shop-sell",
+    "home-visit",
+    "home-errand",
+    "home-scan",
+    "equipment-txn",
+    "identification",
+    "curse-enchant",
+    "cross-town",
+    "rumor",
+})
+# The holders of the town errand hold: the town owners and the quest request.
+_ERRAND_HOLD_FAMILIES = TOWN_OWNER_FAMILIES | {"quest-request"}
+
+
+def rung_family(rung_name: str, family: Any = None) -> str:
+    """The family a town rung's entry admits under.
+
+    A call site's own ``family=`` wins (a registered family is itself, any
+    other is UNREGISTERED_FAMILY); otherwise the rung's declared family.
+    """
+    if family is not None:
+        name = str(getattr(family, "value", family) or UNREGISTERED_FAMILY)
+        return name if name in _OWNER_FAMILIES else UNREGISTERED_FAMILY
+    decl = TERMINALS.get(rung_name)
+    if decl is None or not decl.family:
+        raise ValueError(f"unknown town producer rung: {rung_name}")
+    return decl.family
+
+
+def claim_family_of(policy: Any, reason: str | None) -> str:
+    """The census family of a reason, answered by the live arbiter."""
+    if reason == "shop:in-store-done":
+        # A sale's no-effect exit is still that seller's operation. The
+        # acting owner declares it; the generic reason cannot turn it into
+        # a competing buyer while the sale observation is outstanding.
+        for offer in reversed(policy._execution_offers_for()):
+            if offer[0] == LEAVE_STORE_KEY and offer[2] == "shop:in-store-leave":
+                return offer[1]
+    if reason == "home:request-knowledge-scan":
+        # The scan can be a step of registered equipment catalogue work,
+        # rather than a new errand. Require the producer's explicit offer.
+        for offer in reversed(policy._execution_offers_for()):
+            if (offer[2] == "equipment:acquire-home-catalog"
+                    and offer[5] == "home-catalog-available"
+                    and offer[0] == HOME_KNOWLEDGE_MACRO):
+                return offer[1]
+    if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
+        return policy._visit_exit_family()
+    if reason and reason.startswith("town:entrance-step-off:"):
+        return policy._claim_family_of(reason.split(":", 2)[2])
+    if reason and reason.startswith((
+        "home:atomic-withdraw-target-unobserved",
+        "home:atomic-withdraw-slot-unobserved",
+        "home:atomic-withdraw-address-invalid",
+    )):
+        previous = getattr(getattr(policy, "_claim_register", None), "current", None)
+        if (previous is not None and previous.owner.value in {'equipment-txn'}):
+            return previous.owner.value
+    visit = getattr(policy, "_store_visit", None)
+    if reason in {"shop:one-shot-in-flight", "store:entry-await-observation"}:
+        family = (
+            getattr(visit, "operation_producer_family", None)
+            or getattr(visit, "claim_owner", None)
+            or getattr(visit, "opened_producer_family", None)
+        )
+        if family in TOWN_OWNER_FAMILIES:
+            return family
+    if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (visit is not None) and (getattr(visit, 'operation_producer_family', None) in {'equipment-txn'})):
+        return visit.operation_producer_family
+    if (reason and reason.startswith(("home:leave-", "home:store-context-exit"))
+            and visit is not None
+            and visit.owner == "equipment-transaction"):
+        return (
+            'equipment-txn'
+        )
+    if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (visit is not None) and (getattr(visit, 'claim_operation_identity', None) is not None) and (visit.claim_owner in {'home-visit', 'equipment-txn'})):
+        return visit.claim_owner
+    current = getattr(getattr(policy, "_claim_register", None), "current", None)
+    if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (current is not None) and current.is_open and (current.owner.value in {'equipment-txn'}) and (current.goal.source in {'transaction'})):
+        return current.owner.value
+    composing_family = getattr(visit, "operation_producer_family", None)
+    if composing_family is None:
+        composing_family = getattr(visit, "opened_producer_family", None)
+    if (reason and reason.startswith('home:atomic-') and (composing_family in {'equipment-txn'})):
+        return composing_family
+    if reason and reason.startswith(('home:atomic-', 'home:deposit', 'home:withdraw-', 'home:weight-overload-deposit', 'home:morivant-temporary-deposit', 'home:morivant-retry-temporary-deposit', 'home:leave-', 'home:store-context-exit')) and (composing_family in {'equipment-txn'}) and (getattr(policy, '_home_atomic_deposit_pending', None) is not None or getattr(policy, '_home_atomic_withdraw_pending', None) is not None):
+        return composing_family
+    arbiter = getattr(policy, "_town_turn_arbiter", None)
+    if arbiter is not None:
+        return arbiter.ownership_family(reason or "")
+    return reason_owner_family(reason or "")
+
+
+def errand_hold(policy: Any, family: str, *, enforced: bool | None = None,
+                arrival_board: Any = None) -> Any:
+    """Return the open town errand that owns a different producer's turn.
+
+    Callers ask before changing their own session, plan, or selection
+    state. ON also restores a town errand suspended by a higher owner
+    before a different errand can displace it.
+
+    ``arrival_board``: a standing cell Reach whose arrival that board
+    shows is finished work, not a holder.  S3.3 ON closes it on the same
+    evidence before any town producer asks (``choose_key``); the
+    cross-area Home hold reads that evidence without closing the claim.
+    """
+    def town_errand(claim):
+        return claim.owner.value in _ERRAND_HOLD_FAMILIES
+
+    register = getattr(policy, "_claim_register", None)
+    standing = getattr(register, "current", None)
+    if (
+        standing is not None
+        and standing.is_open
+        and town_errand(standing)
+        and standing.owner.value != family
+        and standing.goal.kind in {GOAL_REACH, GOAL_OBSERVE}
+        and not (arrival_board is not None
+                 and policy._claim_reach_arrival(arrival_board, standing)
+                 is not None)
+    ):
+        return standing
+    if enforced is None:
+        enforced = getattr(policy, "_town_claim_bar_enforced", False)
+    if enforced and register is not None:
+        for claim in reversed(register.suspended):
+            if (claim.closed is None
+                    and claim.state.value == "suspended"
+                    and town_errand(claim)
+                    and claim.owner.value != family
+                    and claim.goal.kind in {
+                        GOAL_REACH, GOAL_OBSERVE
+                    }
+                    and not (claim.goal.source == OBSERVE_KNOWLEDGE
+                             and policy._home_knowledge_current)):
+                return claim
+    return None
+
+
+def home_catalogue_sequence_enforced(policy: Any) -> bool:
+    """Protect physical Home work under cross-area or S3.3 enforcement."""
+    return bool(getattr(policy, "_crossarea_fundraising_enforced", False)
+                or getattr(policy, "_town_claim_bar_enforced", False))
+
+
+def home_catalogue_work_holder(policy: Any) -> Any:
+    holder = policy._claim_errand_hold("__none__", enforced=True)
+    declaration = getattr(holder, "execution", None)
+    if (declaration is not None
+            and declaration.work_id == "equipment:acquire-home-catalog"
+            and declaration.expected_effect == "home-catalog-available"):
+        return holder
+    return None
+
+
+def home_hold_board(policy: Any) -> Any:
+    """The board whose observed arrival ends a route for the Home hold.
+
+    S3.3 ON already closed that arrival before the producers ask, so ON
+    passes no board and keeps its own verdicts unchanged.
+    """
+    if getattr(policy, "_town_claim_bar_enforced", False):
+        return None
+    return getattr(policy, "_map_predicate_snapshot", None)
+
+
+def home_sequence_has_holder(policy: Any) -> bool:
+    if not policy._home_catalogue_sequence_enforced():
+        return False
+    # A route that this board shows arrived (at the Home it reached) is
+    # not a physical Home sequence; holding Home producers for it made
+    # every routed Home pass leave unfulfilled (live 2026-10-02 06:16).
+    holder = policy._claim_errand_hold(
+        "__none__", enforced=True, arrival_board=policy._home_hold_board())
+    visit = getattr(policy, "_store_visit", None)
+    return bool(holder is not None and (
+        policy._home_catalogue_work_holder() is not None
+        or (visit is not None and visit.store_type == STORE_HOME)
+        or (holder.goal.source == OBSERVE_STORE_OPERATION
+            and str(STORE_HOME) in holder.goal.expectation)))
 
 # The verdict of each non-quest terminal kind (gather, then the pure verdict).
 _TERMINAL_VERDICTS: dict[str, Callable[[Any, Any], Admission]] = {

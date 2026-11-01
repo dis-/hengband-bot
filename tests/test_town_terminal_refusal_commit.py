@@ -22,7 +22,7 @@ from unittest.mock import patch
 from hengbot import town_terminal
 from hengbot.model import TVAL_WAND
 from hengbot.policy import HengbotPolicy
-from hengbot.town_terminal import ENFORCE, TerminalDecl
+from hengbot.town_terminal import ENFORCE
 from policy_fixtures import item
 from test_goldburn_shopping_constructed import board
 from test_town_terminal_curse_remove import cursed_board, launcher_board
@@ -43,8 +43,7 @@ def decide(rung, snap, body, *, enforce, prepare=None):
     policy._decision_terminal_admissions = []
     offers, no_steps = [], []
     decl = town_terminal.TERMINALS[rung]
-    mode = {rung: TerminalDecl(
-        decl.intended_terminal, ENFORCE if enforce else town_terminal.SHADOW)}
+    mode = {rung: decl._replace(mode=ENFORCE if enforce else town_terminal.SHADOW)}
 
     def producer():
         if enforce:

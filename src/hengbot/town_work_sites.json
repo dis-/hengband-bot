@@ -9305,6 +9305,13 @@
     ],
     "delegation": "no independent success"
   },
+  "town_terminal.py:claim_family_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_terminal.py:commit_refusal": {
     "classification": "data",
     "rows": [
@@ -9325,6 +9332,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success"
+  },
+  "town_terminal.py:errand_hold": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "town_terminal.py:gather_equipment_command": {
     "classification": "data",
@@ -9397,6 +9411,13 @@
     "delegation": "selected child; no independent success"
   },
   "town_terminal.py:refused": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:rung_family": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

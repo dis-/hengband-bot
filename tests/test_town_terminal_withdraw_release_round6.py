@@ -37,8 +37,7 @@ class WithdrawReleaseTest(unittest.TestCase):
                     self.assertEqual(visit.opened_for_family, "home-errand")
                     self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
                     decl = tt.TERMINALS[rung]
-                    modes = {rung: tt.TerminalDecl(
-                        decl.intended_terminal, tt.ENFORCE if enforce else tt.SHADOW)}
+                    modes = {rung: decl._replace(mode=tt.ENFORCE if enforce else tt.SHADOW)}
                     calls = []
                     with patch.dict(tt.TERMINALS, modes):
                         key = policy._town_producer_entry(
