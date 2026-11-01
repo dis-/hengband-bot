@@ -1671,7 +1671,35 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_absorbed_substitutes.py:destruction_uses": {
+  "me_capability.py:_migrated": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:names": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:record_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:replacing_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:replacing_power": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1739,13 +1767,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_device_policy.py:Device.key": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_device_policy.py:Device.kind": {
     "classification": "data",
     "rows": [
@@ -1782,6 +1803,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_powerful_activation.py:Effect.key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_powerful_activation.py:Effect.names": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1893,13 +1921,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_powers.py:charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_powers.py:decision_reason": {
     "classification": "data",
     "rows": [
@@ -1914,26 +1935,12 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_powers.py:observed_row": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_powers.py:power_key": {
     "classification": "dungeon-only",
     "rows": [
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "me_powers.py:recorded_charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "me_powers.py:threat_key": {
     "classification": "dungeon-only",
@@ -2206,20 +2213,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "me_staff_sequence.py:absorbed_charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_staff_sequence.py:absorbed_count": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_staff_sequence.py:buy_target": {
     "classification": "data",
     "rows": [
@@ -2228,13 +2221,6 @@
     "delegation": "selected child; no independent success"
   },
   "me_staff_sequence.py:current_stage": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_staff_sequence.py:extra_charges": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

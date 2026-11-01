@@ -31,6 +31,7 @@ import unittest
 from pathlib import Path
 
 from hengbot import me_staff_sequence as sequence
+from hengbot.me_capability import record_key
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.model import _parse_items, parse_snapshot
@@ -195,7 +196,8 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
         # 2026-10-31 「1本取り込めたら次の段階に進む」), decided once.
         key = self.decide(policy, raw)
         self.assertEqual(sequence.state(policy).absorbed,
-                         {sequence.SV_STAFF_IDENTIFY: 21, DETECT: 19})
+                         {record_key("staff", sequence.SV_STAFF_IDENTIFY): 21,
+                          record_key("staff", DETECT): 19})
         # On the Tower's entrance grid the WAIT becomes the entrance step-off.
         self.assertEqual(policy.last_reason, "town:entrance-step-off:me-staff:stage1-complete")
         self.assertIn(key, DIRECTIONS)
@@ -211,7 +213,7 @@ class MeTowerRechargeRecordedTest(executor_pins.ProductionHarness):
         self.post(policy, raw, key, self.absorb_reply(raw, slot), [absorb])
         raw = self.absorb_reply(raw, slot)
         self.decide(policy, raw)
-        self.assertEqual(sequence.state(policy).absorbed[EVIL], 14)
+        self.assertEqual(sequence.state(policy).absorbed[record_key("staff", EVIL)], 14)
         self.assertEqual((policy.last_reason, policy._shopping_approach_store_type),
                          ("shop:travel", sequence.STORE_MAGIC))
 

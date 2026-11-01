@@ -661,13 +661,13 @@ class PolicyHelpersMixin:
         return 0
 
     def _total_destruction_uses(self, snapshot: Snapshot) -> int:
-        from hengbot.me_absorbed_substitutes import destruction_uses
+        from hengbot.me_capability import replacing_charges
 
         # Class 16's absorbed staff counts at a displayed 80%+ success
-        # (owner 2026-10-31 21:30).
+        # (owner 2026-10-31 21:30, me_capability.REPLACES).
         return sum(
             self._carried_destruction_uses(it) for it in snapshot.inventory
-        ) + destruction_uses(self, snapshot)
+        ) + replacing_charges(self, snapshot, (TVAL_STAFF, SV_STAFF_DESTRUCTION))
 
     def _has_destruction_method(self, snapshot: Snapshot) -> bool:
         """A *Destruction* scroll or a staff with charges left (the AGENTS.md 50F+

@@ -74,14 +74,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from hengbot import morivant_tower
+from hengbot import me_capability, morivant_tower
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, staple_food, staple_food_critical, staple_needs_recharge,
 )
 from hengbot.me_powers_refresh import KIND_LETTER, SEQUENCE_READ_REASON
 from hengbot.model import (
-    STORE_BLACK, STORE_MAGIC, SV_STAFF_IDENTIFY, TVAL_STAFF,
+    STORE_BLACK, STORE_MAGIC, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_GOLD,
+    SV_STAFF_DETECT_TRAP, SV_STAFF_IDENTIFY, SV_STAFF_LITE, SV_STAFF_MAPPING, TVAL_STAFF,
 )
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
@@ -90,15 +91,6 @@ from hengbot.policy_constants import (
     WAIT_KEY,
 )
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
-
-
-# sv-definition/sv-staff-types.h
-SV_STAFF_LITE = 8
-SV_STAFF_MAPPING = 9
-SV_STAFF_DETECT_GOLD = 10
-SV_STAFF_DETECT_TRAP = 12
-SV_STAFF_DETECT_DOOR = 13
-SV_STAFF_DETECT_EVIL = 15
 
 
 @dataclass(frozen=True)
@@ -118,15 +110,8 @@ STAGES = (
 SEQUENCE_SVALS = tuple(sval for stage in STAGES for sval in stage.svals)
 # cmd-magiceat.cpp prints and accepts I2A(sval) for every power.
 POWER_LETTER = {sval: chr(ord("a") + sval) for sval in SEQUENCE_SVALS}
-# The power list prints the baseitem name (BaseitemDefinitions ids 326, 301,
-# 300, 316, 318, 328, 306).
-POWER_NAMES = {SV_STAFF_IDENTIFY: ("鑑定", "Perception"),
-               SV_STAFF_DETECT_GOLD: ("財宝感知", "Treasure Location"),
-               SV_STAFF_DETECT_TRAP: ("トラップ感知", "Trap Location"),
-               SV_STAFF_DETECT_DOOR: ("ドア/階段感知", "Door/Stair Location"),
-               SV_STAFF_DETECT_EVIL: ("邪悪存在感知", "Detect Evil"),
-               SV_STAFF_MAPPING: ("周辺感知", "Enlightenment"),
-               SV_STAFF_LITE: ("光", "Light")}
+# The power list prints the baseitem name (the device policy table's row).
+POWER_NAMES = {sval: me_capability.names("staff", sval) for sval in SEQUENCE_SVALS}
 # Base pval and cost when the definitions cannot be read (the ids above).
 _FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200),
                   SV_STAFF_DETECT_TRAP: (12, 350), SV_STAFF_DETECT_DOOR: (15, 350),
@@ -143,7 +128,6 @@ ATTEMPT_LIMIT = 3
 REASON = "me-staff:"
 PRODUCER = "quest-request"  # the claim family of every sequence key
 STOP_REASON = "quest:blocked:me-staff"
-IDENTIFY_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_IDENTIFY]
 DETECT_POWER_KEY = "mA" + POWER_LETTER[SV_STAFF_DETECT_GOLD]
 DETECT_REASON = "fundraise:me-detect-treasure"
 BUY_RUNG = "me-staff:buy"
@@ -154,7 +138,8 @@ STOCKOUT_WHY = "staff-stockout"
 @dataclass
 class MeStaffSequence:
     """The sequence's own facts; the board supplies everything else."""
-    absorbed: dict = field(default_factory=dict)   # sval -> absorbed count
+    # me_capability.record_key(kind, sval) -> absorbed count (me_capability reads it)
+    absorbed: dict = field(default_factory=dict)
     bought: frozenset = frozenset()
     fundraise_runs: int = 0
     fundraise_target: int | None = None
@@ -163,9 +148,9 @@ class MeStaffSequence:
     reached_runs: int = 0                          # runs that met their target
     shelf_after_turn: int = -1
     rumor_batches: int = 0
-    attempts: dict = field(default_factory=dict)   # (step, sval) -> count
-    pending: tuple | None = None                   # (step, ((sval, charges), ...))
-    empty_turn: dict = field(default_factory=dict)  # sval -> turn seen empty
+    attempts: dict = field(default_factory=dict)   # (step, record key) -> count
+    pending: tuple | None = None                   # (step, ((record key, charges), ...))
+    empty_turn: dict = field(default_factory=dict)  # record key -> turn seen empty
     progress: tuple | None = None
     positions: dict = field(default_factory=dict)
     failure: str | None = None
@@ -217,6 +202,7 @@ def state(policy) -> MeStaffSequence:
     record = getattr(policy, "_me_staff_sequence", None)
     if record is None:
         record = policy._me_staff_sequence = MeStaffSequence()
+    me_capability.migrate(record)
     return record
 
 
@@ -246,31 +232,22 @@ def read_powers(policy, snapshot) -> bool:
         names = {name: sval for sval, pair in POWER_NAMES.items() for name in pair}
         for row in listed.get("rows", ()):
             sval = names.get(row.get("name"))
-            if sval is not None and sval not in record.absorbed:
+            if sval is None:
+                continue
+            key = me_capability.record_key("staff", sval)
+            if key not in record.absorbed:
                 record.absorbed = {**record.absorbed,
-                                   sval: max(1, int(row.get("max") or row.get("current") or 0))}
+                                   key: max(1, int(row.get("max") or row.get("current") or 0))}
         record.powers_read = True
     return record.powers_read
 
 
-def absorbed(policy, sval: int) -> bool:
-    record = getattr(policy, "_me_staff_sequence", None)
-    return record is not None and sval in record.absorbed
-
-
-def absorbed_count(policy, sval) -> int:
-    """The recorded count: the list's ``max`` (``read_powers``) or the charges absorbed."""
-    record = getattr(policy, "_me_staff_sequence", None)
-    return record.absorbed.get(sval, 0) if record is not None else 0
-
-
-def extra_charges(policy, kind: str, sval: int) -> int:
-    """The charges absorbed from an extra (``me_device_policy.Device.key``)."""
-    return absorbed_count(policy, f"{kind}:{sval}")
+def _absorbed(policy, sval: int) -> bool:
+    return me_capability.absorbed(policy, "staff", sval)
 
 
 def carried_extras(policy, snapshot) -> dict:
-    """key -> the carried identified device the table charges before absorbing.
+    """record key -> the carried identified device the table charges before absorbing.
 
     The current stage's own staffs stay ``carried_staffs``.
     """
@@ -280,11 +257,14 @@ def carried_extras(policy, snapshot) -> dict:
     found = {}
     for item in snapshot.inventory:
         row = me_device_policy.device(item)
-        if (row is None or not (item.aware and item.known) or row.key in found
-                or row.key in staffs):
+        if row is None:
+            continue
+        key = me_capability.record_key(row.kind, row.sval)
+        if (not (item.aware and item.known) or key in found
+                or (row.tval == TVAL_STAFF and row.sval in staffs)):
             continue
         if me_device_policy.charge_first(policy, snapshot, row):
-            found[row.key] = item
+            found[key] = item
     return found
 
 
@@ -297,7 +277,7 @@ def _short_of_max(item) -> bool:
 
 def stage_complete(policy, stage: Stage) -> bool:
     """「1本取り込めたら次の段階に進む」: one absorption of each, any charges."""
-    return all(absorbed(policy, sval) for sval in stage.svals)
+    return all(_absorbed(policy, sval) for sval in stage.svals)
 
 
 def current_stage(policy) -> Stage | None:
@@ -318,7 +298,7 @@ def active_svals(policy) -> tuple:
 def remaining_svals(policy) -> tuple:
     stage = current_stage(policy)
     return () if stage is None else tuple(
-        sval for sval in stage.svals if not absorbed(policy, sval))
+        sval for sval in stage.svals if not _absorbed(policy, sval))
 
 
 def is_sequence_staff(item, policy) -> bool:
@@ -342,26 +322,6 @@ def _needed(policy, snapshot) -> list:
     return [sval for sval in remaining_svals(policy) if sval not in carried]
 
 
-def absorbed_charges(policy, snapshot, sval: int) -> int:
-    """Charges the absorbed power serves, as last read from its own list.
-
-    The power list is observed only when it is cast (executor answers). A
-    power seen empty on this board serves nothing until game time passes
-    (it regenerates, and an inn rest refills it); otherwise its count does.
-    """
-    if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER or not absorbed(policy, sval):
-        return 0
-    record = state(policy)
-    listed = getattr(snapshot, "magic_eater_power_list", None)
-    if isinstance(listed, dict) and listed.get("kind") == "staff":
-        for row in listed.get("rows", ()):
-            if row.get("name") in POWER_NAMES[sval] and row.get("current") == 0:
-                record.empty_turn[sval] = snapshot.turn
-    if record.empty_turn.get(sval) == snapshot.turn:
-        return 0
-    return record.absorbed[sval]
-
-
 def cast_blocked(snapshot) -> bool:
     """Whether no absorbed power may be cast on this board."""
     player = snapshot.player
@@ -370,8 +330,10 @@ def cast_blocked(snapshot) -> bool:
 
 
 def power_key(policy, snapshot, sval: int) -> str | None:
-    """``m A <letter>`` for an absorbed power that may serve this board."""
-    if absorbed_charges(policy, snapshot, sval) <= 0 or cast_blocked(snapshot):
+    """``m A <letter>`` for an absorbed power that may serve this board (the
+    record's count, as ``me_capability.recorded_charges`` reads it)."""
+    if (me_capability.recorded_charges(policy, snapshot, "staff", sval) <= 0
+            or cast_blocked(snapshot)):
         return None
     return "mA" + POWER_LETTER[sval]
 
@@ -407,7 +369,7 @@ def retains(policy, snapshot, item) -> bool:
 
     return applies(policy, snapshot) and (
         _unread_sequence_staff(policy, snapshot, item)
-        or (is_sequence_staff(item, policy) and not absorbed(policy, item.sval))
+        or (is_sequence_staff(item, policy) and not _absorbed(policy, item.sval))
         or me_device_policy.awaits_absorption(policy, snapshot, item))
 
 
@@ -728,15 +690,14 @@ def _settle_pending(policy, snapshot) -> None:
         return
     step, before = record.pending
     record.pending = None
-    for sval, charges in before:
-        item = (staple_food(snapshot) if sval == STAPLE
-                else {**carried_staffs(policy, snapshot),
-                      **carried_extras(policy, snapshot)}.get(sval))
+    for key, charges in before:
+        item = (staple_food(snapshot) if key == STAPLE
+                else dict(_absorbable(policy, snapshot)).get(key))
         if step == "recharge" and item is not None and item.charges > charges:
-            record.attempts.pop(("recharge", sval), None)
+            record.attempts.pop(("recharge", key), None)
         if step == "absorb" and item is None:
             stage = current_stage(policy)
-            record.absorbed = {**record.absorbed, sval: charges}
+            record.absorbed = {**record.absorbed, key: charges}
             if stage is not None and stage_complete(policy, stage):
                 # The next stage gets its own fundraising run budget.
                 record.completed_stages = {**record.completed_stages,
@@ -799,17 +760,18 @@ def _recharge_key(policy, snapshot) -> str:
               if _short_of_max(item)]
     if staple_needs_recharge(snapshot):
         before.append((STAPLE, staple_food(snapshot).charges))
-    for sval, _charges in before:
-        if not _attempt(policy, "recharge", sval):
-            return _stop(policy, f"recharge-no-progress:{sval}")
+    for key, _charges in before:
+        if not _attempt(policy, "recharge", key):
+            return _stop(policy, f"recharge-no-progress:{key}")
     state(policy).pending = ("recharge", tuple(before))
     policy.last_reason = RECHARGE_ALL_REASON
     return policy._step_toward(snapshot, step, tail=RECHARGE_ALL_TAIL)
 
 
 def _absorbable(policy, snapshot) -> list:
-    """(key, item) to absorb: the stage's staffs by sval, then the extras."""
-    return [*sorted(carried_staffs(policy, snapshot).items()),
+    """(record key, item) to absorb: the stage's staffs by sval, then the extras."""
+    return [*((me_capability.record_key("staff", sval), item)
+              for sval, item in sorted(carried_staffs(policy, snapshot).items())),
             *carried_extras(policy, snapshot).items()]
 
 
@@ -819,10 +781,10 @@ def _absorb_key(policy, snapshot) -> str:
             or player.poisoned or player.cut or player.stunned or player.hallucinated):
         policy.last_reason = f"{REASON}recover"
         return REST_MACRO
-    sval, item = _absorbable(policy, snapshot)[0]
-    if not _attempt(policy, "absorb", sval):
-        return _stop(policy, f"absorb-no-progress:{sval}")
-    state(policy).pending = ("absorb", ((sval, item.charges),))
+    key, item = _absorbable(policy, snapshot)[0]
+    if not _attempt(policy, "absorb", key):
+        return _stop(policy, f"absorb-no-progress:{key}")
+    state(policy).pending = ("absorb", ((key, item.charges),))
     policy.last_reason = ABSORB_REASON
     return "G" + item.slot
 
