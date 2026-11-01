@@ -533,6 +533,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "79883cd73ac14b965c4092f89cab61bc438c7e6ba9a05b6ae39186e348cf9b82"
   },
+  "equipment_optimizer.py:_without_player_inscription": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "a81b502d3e795c675487d1eb4f168e130a8e1b5aa896d87726d91b973a4e1994"
+  },
   "equipment_optimizer.py:current_loadout": {
     "classification": "data",
     "rows": [
@@ -563,7 +571,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "cdd6563abe42cba31ee83e6a74d061c8312bdb4a3c2bf46b3fcc13439a15ebc6"
+    "ast_sha256": "f17fc81a7a36c0989a99de5a2100f2436677245a10137283efbb49baa3f37360"
   },
   "equipment_optimizer.py:light_source_quality": {
     "classification": "data",

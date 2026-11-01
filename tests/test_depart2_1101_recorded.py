@@ -46,6 +46,12 @@ import tests.test_unid_deposit_recorded as recorded
 FIXTURE = Path(__file__).with_name("fixtures") / "depart2-1101.json.gz"
 CLOAK = "クローク [1,+0] {Q34}"
 CLOAK_ID = "home:66af66797f74632f:0"
+TRIDENT = "(トランプ)トライデント"
+TRIDENT_ID = "pack:ed9c6339e356ce0d:0"
+
+
+def names_of(raw, slot):
+    return next(item["name"] for item in raw["inventory"] if item["slot"] == slot)
 
 
 def load_cases():
@@ -231,6 +237,61 @@ class PartialStackEquipRecordedTest(Depart2RecordedBase):
         cloak = next(it for it in following["inventory"] if it["slot"] == "h")
         following["inventory"].remove(cloak)
         following["equipment"].append(dict(cloak, slot="outer"))
+        self.post(policy, raw, key, following)
+
+
+class InscribedDepositRecordedTest(Depart2RecordedBase):
+    """Root 3: the trident inscribed mid-transaction is still the planned deposit."""
+
+    case_name = "trident"
+    board_name = "home"
+
+    def session(self):
+        """DECLARED RECONSTRUCTED: the session of decisions 3026-3043.
+
+        The rows name its one action (transaction_next: deposit
+        pack:ed9c6339e356ce0d:0); the identities are the planner's of the
+        recorded pack trident before the inscription.
+        """
+        plain = next(item for item in self.case["boards"]["plain"]["inventory"]
+                     if item["name"].startswith(TRIDENT))
+        item = _parse_items([plain], protocol=3)[0]
+        self.assertEqual(f"pack:{equipment_identity(item)}:0", TRIDENT_ID)
+        plan = EquipmentTransactionPlan((EquipmentTransaction(
+            PHASE_HOME_PREPARE, "deposit", TRIDENT_ID,
+            item_identity=equipment_identity(item),
+            move_identity=equipment_move_identity(item)),),
+            (), len(self.case["boards"]["plain"]["inventory"]))
+        return EquipmentTransactionSession(plan)
+
+    def test_recorded_inscription(self):
+        names = [[(it["name"], it["inscription"]) for it in self.case["boards"][board]["inventory"]
+                  if it["name"].startswith(TRIDENT)] for board in ("plain", "home")]
+        self.assertEqual([inscription for (_, inscription), in names], ["", "."])
+        self.assertTrue(names[1][0][0].endswith(", .}"))
+        self.assertEqual(self.decision(3042)["key"], "{m.\r")
+        self.assertEqual(self.decision(3043)["equipment"]["transaction_next"]["item_id"], TRIDENT_ID)
+        self.assertEqual((self.decision(3044)["reason"], self.decision(3044)["key"]),
+                         ("equipment-transaction:deposit-missing", "\x1b"))
+
+    def test_inscribed_trident_is_deposited(self):
+        policy, raw = self.boundary()
+        policy._equipment_transaction_session = self.session()
+        board = policy.with_known_skill_exp(
+            parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        policy.observe_store_screen(True)
+        key = str(policy.choose_key(board))
+        # Recorded: ('\x1b', equipment-transaction:deposit-missing) and the
+        # visit closure.
+        self.assertEqual((key, policy.last_reason), ("dm", "equipment-transaction:deposit"))
+        self.assertIsNone(policy._equipment_transaction_visit_closure)
+        self.assertTrue(names_of(raw, "m").startswith(TRIDENT))
+        # DECLARED CONSTRUCTED: store.cpp's Home deposit of the pack trident
+        # (the 58-item Home spans pages; the page shown keeps its letters).
+        following = copy.deepcopy(raw)
+        trident = next(it for it in following["inventory"] if it["slot"] == "m")
+        following["inventory"].remove(trident)
+        following["turn"] += 10
         self.post(policy, raw, key, following)
 
 

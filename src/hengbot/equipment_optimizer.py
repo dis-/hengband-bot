@@ -553,10 +553,40 @@ def equipment_identity(item: EquipmentItem) -> str:
     return _catalog_digest(_catalog_signature(item))
 
 
+def _without_player_inscription(name: str, inscription: str) -> str:
+    """The display name without the player's own inscription.
+
+    flavor-describer.cpp describe_inscription appends the inscription (up to
+    a '#', flavor-util.cpp get_inscription) as the last part of the closing
+    `` {...}`` block, after ", " when the block also shows a feeling, a
+    discount or the ability abbreviation.  A '%' inscription expands into
+    those abbreviations, so its name is kept whole.
+    """
+    shown = inscription.split("#", 1)[0]
+    head, separator, block = name.rpartition(" {")
+    if not shown or "%" in inscription or not separator or not block.endswith("}"):
+        return name
+    inner = block[:-1]
+    if inner == shown:
+        return head
+    if inner.endswith(", " + shown):
+        return f"{head} {{{inner[:-len(shown) - 2]}}}"
+    return name
+
+
 def equipment_move_identity(item: EquipmentItem) -> str:
-    """Player-visible identity that remains stable while a stack count moves."""
+    """Player-visible identity that stays stable while the item moves.
+
+    A stack count moving between Home and the pack, and the player's own
+    inscription (the random-teleport suppression's '.', the Q34 tag) leave
+    the physical item the same: an open transaction still finds the item it
+    planned (#47 D59, n1-c life-092 deposit-missing after the inscription).
+    """
     signature = _catalog_signature(item)
-    stable_name = re.sub(r"\((?:\d+)x\s+", "(", signature[0]) if signature[0] else None
+    stable_name = (
+        _without_player_inscription(
+            re.sub(r"\((?:\d+)x\s+", "(", signature[0]), getattr(item, "inscription", "") or "")
+        if signature[0] else None)
     return _catalog_digest((stable_name, *signature[1:3], *signature[4:]))
 
 
