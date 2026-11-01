@@ -248,6 +248,21 @@ class ItemIntentLintTest(unittest.TestCase):
         self.assertTrue(any('future_item: new unregistered item intent' in f
                             for f in lint.analyze_sources(sources, {})))
 
+    def test_module_function_writing_through_policy_is_scanned(self):
+        # #47 (2026-11-01 triage): mining_loadout.remember_combat_hands writes the
+        # registered _normal_weapon_identity through its ``policy`` parameter;
+        # the census saw only ``self`` and reported the source as disappeared.
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n', extra={
+            'loadout.py': ('def remember(policy, item):\n policy._kept_identity = equipment_identity(item)\n'
+                           'def helper(executor, item):\n executor._other_identity = equipment_identity(item)\n')})
+        findings = lint.analyze_sources(sources, {})
+        self.assertTrue(any('_kept_identity: new unregistered item intent (loadout.py:remember)' in f
+                            for f in findings), findings)
+        self.assertFalse(any('_other_identity' in f for f in findings), findings)
+        repository = lint.intent_census({path.relative_to(POLICY_ROOT).as_posix(): path.read_text(encoding='utf8')
+                                         for path in POLICY_ROOT.rglob('*.py')})
+        self.assertIn('mining_loadout.py:remember_combat_hands', repository['_normal_weapon_identity'])
+
     def test_reverse_import_driver_has_no_findings(self):
         sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n', extra={
             'driver.py': 'from hengbot.policy import HengbotPolicy\ndef new_work():\n return "5"\n'})
