@@ -765,7 +765,7 @@ class TownProgressInvariantTest(unittest.TestCase):
                     "TOWN_LIVENESS_INVARIANT_DEFECT",
                 )
 
-    def test_active_claim_allows_needed_supplier_and_boxed_landmark_travel(self):
+    def test_active_claim_allows_needed_supplier_travel(self):
         policy, snapshot, _store = self._case(price=999999, on_door=False)
         direction, key = next(iter(DIRECTION_KEYS.items()))
         policy._shopping_approach_goal = replace(
@@ -773,10 +773,7 @@ class TownProgressInvariantTest(unittest.TestCase):
             y=snapshot.player.position.y + direction[0],
             x=snapshot.player.position.x + direction[1],
         )
-        for reason in (
-            "shop:travel",
-            "town-progress-invariant:boxed-breakout-travel",
-        ):
+        for reason in ("shop:travel",):
             with self.subTest(reason=reason):
                 policy.last_reason = reason
                 with patch.object(policy, "_town_claims_active", return_value=True):

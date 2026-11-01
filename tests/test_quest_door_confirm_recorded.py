@@ -302,11 +302,9 @@ NOT_A_WALK = {
     "_town_kill_mob_key": "'+' + dir + 'y' attack on a town monster",
     "decide": "quest floor melee on an adjacent monster",
 }
-# The boxed town breakout chooses only candidates that exclude
-# has_quest_enter (policy_town.py _boxed_town_breakout_key candidate filter).
-TOWN_ROUTED_RESIDUAL = {
-    "_boxed_town_breakout_key",
-}
+# The boxed town breakout was the one town-routed residual; it was deleted
+# with the town defined end (owner 2026-11-02).
+TOWN_ROUTED_RESIDUAL: set[str] = set()
 STEP_ENTRY = "_step_toward"
 PREDICATE = "_step_raises_unintended_confirm"
 

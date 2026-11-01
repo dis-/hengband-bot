@@ -67,7 +67,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
-from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
+from hengbot.policy_constants import POLICY_FINAL_STOP_PREFIXES, POLICY_FINAL_STOP_REASONS
 from hengbot.town_arbiter import reason_owner_family
 
 
@@ -302,7 +302,7 @@ def classify_stop(
             for reason in (kind, row.get("reason"), window[-1] if window else None)
             if reason in POLICY_FINAL_STOP_REASONS
             or (isinstance(reason, str) and reason.startswith(
-                "ownership:holder-silent:"))
+                ("ownership:holder-silent:", *POLICY_FINAL_STOP_PREFIXES)))
         ),
         None,
     )

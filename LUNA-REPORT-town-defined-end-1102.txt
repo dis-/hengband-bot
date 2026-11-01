@@ -1,0 +1,95 @@
+LUNA-REPORT town-defined-end-1102（町の決まった終わり方・構造の直し第2段B と一緒に）
+
+== 持ち主の決定 ==
+2026-11-02 「決まった終わり方だけにする」: 町で担当が全員答えない時は (1) 出発の条件を満たしていれば出発、
+(2) 満たせない条件が生存に関わらなければそれを諦めて出発、(3) 生存に関わる条件が満たせなければ名前を付けて止める。
+歩き回る抜け出しは町では使わない。
+
+== 設計 ==
+- 町の終わり方は town_terminal.py の「town end」の節だけで決める（gather_town_end / verdict_town_end / town_end_key）。
+  新しい仕組みは足さず、既存の force_visit_departure（10-14 A0 の強制出発）と _town_blocked_key（名前付きの止まり）に渡す。
+- 入口: 本当の町のマス（snapshot.in_town。荒野の移動中は含まない）で、ダンジョン用の最後の手段
+  （往復時の breakout:least-visited、何もない時の _town_idle_key の stuck:wander）に落ちた時だけ。
+  そこに来るのは、生存（戦う・逃げる・休む・食べる）と町の担当がすべて答えなかった時（_decide の順番はそのまま）。
+- town_end_key の順:
+  1. 店回りの進め（_town_procurement_progress_key）に進む一歩があればそれ（今まで進捗の継ぎ目が stuck:wander を
+     書き換えていた一歩。判定は同じ _town_result_makes_progress）。
+  2. 採掘で入口の無い町なら町0へ戻る（2026-09-24 の決定。継ぎ目から _mining_walk_in_return_key へそのまま移した）。
+  3. 店の入口のマスにいれば、既存の安全な一歩で入口から降りる（担当は入口の外で自宅の取り出しや道を組むため）。
+  4. 町の地図のクエスト報酬が町を押さえている間（town_quest_reward.holds_town）は出発させず、答える担当が無ければ
+     town:blocked:quest-reward-first で止める。
+  5. 判定: 出発の最低条件（_departure_minimum）が全部満たされていれば、満たせない普通の出発条件を名前で諦めて
+     force_visit_departure(cause=no-owner-answered) で出発（帰還を読むか歩いて入るかは今までの出発と同じ）。
+     諦めた条件は keep-running-events.jsonl の closed_work.dropped_conditions に残る。
+     最低条件のどれかが満たせなければ town:blocked:survival:<最初の項目> で止める（最終停止の接頭辞として登録）。
+     同じ訪問で一度強制して失った出発は二度強制せず、既存の departure-unsatisfiable で止める（10-31 の決まり）。
+- 町では breakout:least-visited・boxed breakout travel・stuck:wander を使わない。ダンジョンでは今のまま。
+  boxed breakout の書き換え（3つの関数・継ぎ目の分岐・claim の型2行・lint の例外・purity の検査のマス）は消した。
+
+== 生存に関わる条件として扱った項目（_departure_minimum の19項目そのまま） ==
+recall_departure_ready（帰還と戻り用の1枚・在庫）、food_ready（＋在庫）、light_ready（2階以深はランタン）、
+cure_critical_ready（＋在庫）、teleport_ready（＋在庫）、identify_staff_ready（深い階では鑑定の杖の回数か取り込み）、
+remove_curse_ready、teleport_items_safe、temporary_status_clear、hp_full、mp_full、combat_weapon_ready（掘る道具を
+持っていない）、depth_abilities、inventory_weight_ready、equipment_observed、home_atomic_withdraw_clear、
+store_transfer_clear、equipment_transfer_clear、free_pack_slots_ready（1枠以上）。
+諦めてよいもの: それ以外の普通の出発条件（home_candidate_resolved、home_catalog_ready、home_pending_*、
+home_batch_review_clear、identification_need_clear、departure_*_clear、organization_complete、
+equipment_departure_ready、digger_withdrawal_resolved、quest_carry_ready、5枠の予備など）。
+
+== 4つの再起動の種類 ==
+- loop-detected（28）: 町で担当が答えない時の breakout／boxed travel／stuck:wander の1秒ごとの往復（D61、n1-c 11-01 23:50）は
+  起きなくなる。進める一歩が無ければ (2) で出発するか (3) で名前付きで止まる。ほかの根（店や自宅の中の往復）は各担当のまま。
+- departure-unsatisfiable（23）: 今までも force_visit_departure を通っていた（最低条件を満たせば (2) で出発）。
+  再起動になっていたのは最低条件が満たせない時（例 n1-b life-282・n1-a life-464 02:06 は identify_staff_ready）＝(3)。
+  名前は既存の departure-unsatisfiable のまま（記録の minimum.failed に項目がある）。
+- owner-retired-burst（18）: 同じく force_visit_departure を通る。n1-b life-283 23:34 は最低条件
+  （recall_departure_ready・food・cure・teleport）が満たせず (3)。名前は既存のまま。
+- pack-full-no-room（4）: 出発用の買い物が荷物の空きだけで断られる既存の名前付きの止まり。変えていない。
+- 追加の証拠: n1-a life-464 02:04 overweight-home-full-no-legal-relief は既存の名前付きの止まり（重さは最低条件）＝(3)。
+  n1-c life-100 02:04 equipment-transaction:home-route-repeat-terminal は装備の取引の止まりで、町の終わり方の外（D34 の系統）。
+
+== コミット ==
+- 090f3847e End a town visit no owner answers by departure or a named stop（解決役・入口・最終停止の接頭辞・採掘の戻りの移動・
+  _visit_departure_minimum・記録・新しいテストと抜き出し）
+- ea19dd624 Delete the boxed town breakout travel（消した物と、それを固定していたテスト・lint・purity のマス）
+- 75f302438 / 最後のマージ: main を取り込み（town_work_review.json の衝突は両方の追加をまとめて解消、manifest は zero unmapped）
+- 55b5de1df Do not charge a Home take's hand-off as a Home stop pass（自宅の取り出しの受け渡しが自宅の回数を使い切り、
+  取り出しの前に出発していた。boxed の寄り道が無くなって表に出た。test_unid_deposit_recorded が戻った）
+- 27b82be15 Keep the town end behind the quest reward and off store entrances
+
+== テスト ==
+新しい tests/test_town_defined_end_recorded.py（抜き出し tests/extract_town_defined_end_1102_fixtures.py、
+fixtures/town-defined-end-home-loop-2350.json.gz・town-defined-end-retired-burst-2334.json.gz）:
+- 23:50 の盤面: 記録の往復の確認、町の最後の手段が歩き回りにならない（choose_key＋本番の executor）、
+  担当が答えない時 home_candidate_resolved を諦めて入口から降り、帰還を読む（dropped_conditions を確認）。
+- 23:34 の盤面: 3回目の引退は既存の名前の止まり、担当が答えない時は town:blocked:survival:recall_departure_ready。
+期待値を新しい動きに直した既存のテスト: test_fundraise_kit_route_recorded（claim の liveness の止まり→生存の項目の止まり）、
+test_town_post_s2_r2（探索済みの往復→入口から降りる）、test_town_progress_invariant・test_policy_home・
+test_quest_door_confirm_recorded・test_ownership_s2a1_closure・test_town_stall・town_producer_purity_matrix（消した boxed の分）。壁は足していない。
+- 変更の前後で約80モジュールを比べた。変更前の src（main）でも落ちるもの（test_policy_town 11、test_policy_navigation 18、
+  test_policy_home 4、test_policy_shop 1、test_ownership_s2a1_closure 6 ほか）は同じで、新しく落ちるものは無い。
+- 変更を戻した確認（1回、src と scripts を main に戻して新しいテストを流す）: 8件中 1 failure（町の最後の手段が
+  stuck:wander になる）・3 errors（解決役の関数が無い）。burst の名前の止まりは変更前から同じ動き（回帰の守り）。
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok。town_work_manifest.py --write → zero unmapped。
+
+== checks.json に足す案（編集はしていない） ==
+  {"id": "town-defined-end", "defect": "D61-town-end",
+   "owner": "2026-11-02 「決まった終わり方だけにする」",
+   "tests": ["tests.test_town_defined_end_recorded", "tests.test_unid_deposit_recorded"]}
+
+== 保守性 ==
+- 終わり方の判断は town_terminal の1か所（gather/verdict/commit の形）。出発の最低条件の読みは _visit_departure_minimum の1つに
+  まとめ、force_visit_departure と _release_lost_visit_departure の重複を消した。採掘の戻りは1つの関数にして2か所から呼ぶ。
+- 最終停止の接頭辞は policy_constants の POLICY_FINAL_STOP_PREFIXES 1つで、cli と stop_shape が同じものを読む。
+- boxed breakout とその検査の負債（約190行）を消した。
+
+== 持ち主への問い ==
+Q1: 最低条件の19項目をそのまま「生存に関わる」としました。identify_staff_ready（深い階）、hp_full・mp_full、
+    temporary_status_clear、移しかけの取引の3項目は生存というより安全の条件です。このままでよいですか。
+Q2: 既存の departure-unsatisfiable と owner-retired-burst の止まりも、満たせない最低条件の名前
+    （town:blocked:survival:<項目>）で止めますか。変えると約10のテストと運転側の集計の種類が変わるので今回は変えていません。
+Q3: 町には「拒まれた移動を繰り返した時の breakout（_break_livelock）」と、未知のマスへの explore／probe、入口へ向かう
+    stuck:seek-stairs が残っています。担当の答えではない動きとしてこれらも町では終わり方に回しますか。
+Q4: claim の仕組み（実機では OFF）の liveness の分岐（stuck:wander／novel: の書き換え）は町ではもう通りません。
+    第2段B で claim の仕組みを消す時に一緒に消してよいですか。
+- 23:50 の往復の元（自宅の処分の回が route-claim-unfulfilled で閉じ続ける）は自宅の系統（D30）で、ここでは直していません。

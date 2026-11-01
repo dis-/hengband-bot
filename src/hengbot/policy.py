@@ -486,6 +486,7 @@ from hengbot.town_terminal import (
     may_take_board,
     rung_terminal,
     terminal_admission,
+    town_end_key,
     verdict_quest_work,
 )
 from hengbot.town_arbiter import (
@@ -9696,6 +9697,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.store.store_type == STORE_HOME
             and key == LEAVE_STORE_KEY
             and self.last_reason != "home:processing-complete"
+            # The take's hand-off to the outside composer is not a stop pass
+            # (its producer says so); charging it can block Home before the
+            # composed take is posted.
+            and self.last_reason != "home:leave-for-pending-withdraw"
             and not (
                 self.last_reason == "home:leave-after-one-operation"
                 and self._home_random_teleport_withdrawal is not None
@@ -12561,7 +12566,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
             # No reachable unexplored floor or frontier remains. Only now use a
             # local least-visited step to keep moving while secret-wall searches
-            # are exhausted elsewhere.
+            # are exhausted elsewhere.  Town has no such step: no owner
+            # answered, so the visit takes its declared end (owner 2026-11-02).
+            if snapshot.in_town:
+                return town_end_key(self, snapshot)
             step = self._least_visited_neighbor(snapshot)
             if step is not None:
                 self.last_reason = "breakout:least-visited"
@@ -12675,6 +12683,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "idle-fallback", lambda: self._town_idle_key(snapshot), family="idle")
 
     def _town_idle_key(self, snapshot: Snapshot) -> str:
+        if snapshot.in_town:
+            # No town owner answered: the visit takes its declared end
+            # instead of a least-visited wander (owner 2026-11-02).
+            return town_end_key(self, snapshot)
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "stuck:wander"

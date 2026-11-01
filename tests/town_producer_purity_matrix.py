@@ -8,14 +8,14 @@ from pathlib import Path
 import pickle
 from collections import Counter
 from dataclasses import dataclass
-from functools import cache, lru_cache
+from functools import cache
 
 from hengbot.model import (
-    parse_snapshot, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC,
+    parse_snapshot, STORE_MAGIC,
 )
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
-from hengbot.policy import HengbotPolicy, WAIT_KEY
+from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit
 
 
@@ -41,7 +41,6 @@ CACHE_FIELD_OWNERS = {
 }
 
 DIRECT_PRODUCERS = (
-    "_boxed_town_breakout_key",
     "_town_procurement_progress_key",
     "departure_block_state",
 )
@@ -50,7 +49,9 @@ PARTITION_MODULES = tuple(
     f"test_town_producer_purity_part{partition}"
     for partition in range(1, PARTITION_COUNT + 1)
 )
-FULL_CELL_COUNT = 1116
+# The boxed town breakout producer and its probe/equivalence cells were
+# deleted with it (owner 2026-11-02 town defined end): two direct cells remain.
+FULL_CELL_COUNT = 2
 PARTITION_CELL_INDEXES = tuple(
     tuple(range(partition, FULL_CELL_COUNT, PARTITION_COUNT))
     for partition in range(PARTITION_COUNT)
@@ -195,66 +196,6 @@ def _exemption_control():
     return set(DERIVED_CACHE_EXEMPTIONS) <= proven
 
 
-def _old_boxed_town_breakout_key(policy, snapshot):
-    """Byte-for-byte producer body from e67b56f, kept as the comparison oracle."""
-    here = snapshot.grid_at(snapshot.player.position)
-    current_store = here.store_number if here is not None else -1
-    for store_type in (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL):
-        if store_type == current_store:
-            continue
-        step = policy._shopping_approach_step(snapshot, store_type)
-        if step is None:
-            continue
-        key = policy._shopping_approach_key(
-            snapshot, step, "town-progress-invariant:boxed-breakout-travel"
-        )
-        if key not in {"", WAIT_KEY}:
-            return key
-    return None
-
-
-def _mutation_map(before, after):
-    return {
-        field: (before.get(field), after.get(field))
-        for field in before.keys() | after.keys()
-        if before.get(field) != after.get(field)
-    }
-
-
-def producer_equivalence():
-    """Sweep old versus commit over both captures, including a posted General visit."""
-    populations = {}
-    missing_mutations = set()
-    for capture in CAPTURES:
-        snapshots, _ = _snapshots(capture)
-        rows = {"unconstrained": 0, "posted_general": 0, "total": len(snapshots)}
-        prototype = checkpoint(HengbotPolicy())
-        old = restore_checkpoint(HengbotPolicy, prototype)
-        new = restore_checkpoint(HengbotPolicy, prototype)
-        for snapshot in snapshots:
-            for pinned, label in ((False, "unconstrained"), (True, "posted_general")):
-                if pinned:
-                    visit = StoreVisit(
-                        "town-errand", "shopping", STORE_GENERAL,
-                        operation_posted=True, operation_key="5",
-                    )
-                    old._store_visit = visit
-                    new._store_visit = pickle.loads(pickle.dumps(visit, protocol=5))
-                old_before = observable_policy_fields(old)
-                new_before = observable_policy_fields(new)
-                old_key = _old_boxed_town_breakout_key(old, snapshot)
-                new_key = new._commit_boxed_town_breakout_key(snapshot)
-                old_changes = _mutation_map(old_before, observable_policy_fields(old))
-                new_changes = _mutation_map(new_before, observable_policy_fields(new))
-                rows[label] += old_key == new_key
-                missing_mutations.update(old_changes.keys() - new_changes.keys())
-                if old_changes or new_changes or pinned:
-                    old = restore_checkpoint(HengbotPolicy, prototype)
-                    new = restore_checkpoint(HengbotPolicy, prototype)
-        populations[capture] = rows
-    return populations, missing_mutations
-
-
 def measure():
     snapshot = _surface_snapshot()
     impure = []
@@ -276,41 +217,12 @@ def measure():
     }
 
 
-def probe_sweep():
-    sweep = {}
-    for capture in CAPTURES:
-        snapshots, _ = _snapshots(capture)
-        prototype = checkpoint(HengbotPolicy())
-        policy = restore_checkpoint(HengbotPolicy, prototype)
-        calls = impure_calls = 0
-        for candidate in snapshots:
-            before = observable_policy_state(policy)
-            policy._boxed_town_breakout_key(candidate)
-            calls += 1
-            impure = observable_policy_state(policy) != before
-            impure_calls += impure
-            if impure:
-                policy = restore_checkpoint(HengbotPolicy, prototype)
-        sweep[capture] = {"calls": calls, "impure_calls": impure_calls}
-    return sweep
-
-
 def purity_cells():
-    """Return the old test's complete producer/cell matrix in execution order."""
-    cells = [
+    """Return the producer/cell matrix in execution order."""
+    return tuple(
         PurityCell("direct", "equip-swap", 0, producer=name)
         for name in DIRECT_PRODUCERS
-    ]
-    for capture in CAPTURES:
-        cells.extend(
-            PurityCell("probe", capture, row, producer="_boxed_town_breakout_key")
-            for row in range(_surface_snapshot_count(capture))
-        )
-    for capture in CAPTURES:
-        for row in range(_surface_snapshot_count(capture)):
-            cells.append(PurityCell("equivalence", capture, row, pinned=False))
-            cells.append(PurityCell("equivalence", capture, row, pinned=True))
-    return tuple(cells)
+    )
 
 
 def partition_cells(partition):
@@ -325,59 +237,17 @@ def assert_partition_is_pure(testcase, partition, *, indexes=None):
     cells = purity_cells()
     whole_capture_cache_before = _snapshots.cache_info()
 
-    @lru_cache(maxsize=1)
-    def snapshot_for(capture, row):
-        # A partition needs at most its current cell.  Retaining one parsed row
-        # bounds memory without changing the (capture, row) identity it sees.
-        return _snapshot_at_surface_row(capture, row)
-
     if partition == 0:
         testcase.assertTrue(_differ_detects_visit_mutation())
         testcase.assertTrue(_exemption_control())
 
     direct_policy = HengbotPolicy()
-    probe_state = {}
-    equivalence_prototype = checkpoint(HengbotPolicy())
     for index, cell in enumerate(cells):
         if index not in selected:
             continue
-        if cell.kind == "direct":
-            before = observable_policy_state(direct_policy)
-            result = getattr(direct_policy, cell.producer)(_surface_snapshot())
-            testcase.assertEqual(observable_policy_state(direct_policy), before)
-            if cell.producer == "_boxed_town_breakout_key":
-                testcase.assertEqual(result, "\x1b`n&.")
-            continue
-
-        snapshot = snapshot_for(cell.capture, cell.row)
-        if cell.kind == "probe":
-            policy, prototype = probe_state.get(cell.capture, (None, None))
-            if policy is None:
-                prototype = checkpoint(HengbotPolicy())
-                policy = restore_checkpoint(HengbotPolicy, prototype)
-            before = observable_policy_state(policy)
-            policy._boxed_town_breakout_key(snapshot)
-            testcase.assertEqual(observable_policy_state(policy), before)
-            probe_state[cell.capture] = (policy, prototype)
-            continue
-
-        old = restore_checkpoint(HengbotPolicy, equivalence_prototype)
-        new = restore_checkpoint(HengbotPolicy, equivalence_prototype)
-        if cell.pinned:
-            visit = StoreVisit(
-                "town-errand", "shopping", STORE_GENERAL,
-                operation_posted=True, operation_key="5",
-            )
-            old._store_visit = visit
-            new._store_visit = pickle.loads(pickle.dumps(visit, protocol=5))
-        old_before = observable_policy_fields(old)
-        new_before = observable_policy_fields(new)
-        old_key = _old_boxed_town_breakout_key(old, snapshot)
-        new_key = new._commit_boxed_town_breakout_key(snapshot)
-        old_changes = _mutation_map(old_before, observable_policy_fields(old))
-        new_changes = _mutation_map(new_before, observable_policy_fields(new))
-        testcase.assertEqual(new_key, old_key)
-        testcase.assertEqual(old_changes.keys() - new_changes.keys(), set())
+        before = observable_policy_state(direct_policy)
+        getattr(direct_policy, cell.producer)(_surface_snapshot())
+        testcase.assertEqual(observable_policy_state(direct_policy), before)
 
     testcase.assertEqual(
         _snapshots.cache_info(),
@@ -407,37 +277,19 @@ def assert_partitions_complete(testcase):
     testcase.assertEqual(set(flattened), set(range(len(cells))))
     testcase.assertEqual(
         Counter((cell.kind, cell.capture) for cell in cells),
-        Counter({
-            ("direct", "equip-swap"): 3,
-            ("probe", "equip-swap"): 145,
-            ("probe", "no-actionable"): 226,
-            ("equivalence", "equip-swap"): 290,
-            ("equivalence", "no-actionable"): 452,
-        }),
+        Counter({("direct", "equip-swap"): 2}),
     )
 
 
 if __name__ == "__main__":
     result = measure()
-    sweep = probe_sweep()
-    equivalence, missing_mutations = producer_equivalence()
     print(f"impure_producers={len(result['impure'])}")
     for producer in result["impure"]:
         print(f"impure: {producer}")
     print(f"visit_injection_detected={result['visit_injection_detected']}")
     print(f"exemption_control={result['exemption_control']}")
-    print(f"probe_sweep={sweep}")
-    print(f"producer_equivalence={equivalence}")
-    print(f"mutations OLD made that NEW does not = {missing_mutations}")
     raise SystemExit(bool(
         result["impure"]
         or not result["visit_injection_detected"]
         or not result["exemption_control"]
-        or any(row["impure_calls"] for row in sweep.values())
-        or missing_mutations
-        or any(
-            row[label] != row["total"]
-            for row in equivalence.values()
-            for label in ("unconstrained", "posted_general")
-        )
     ))

@@ -140,9 +140,10 @@ class PostS2OwnerDecisionTest(executor_harness.ProductionHarness):
         policy._town_progress_history().append(policy._town_progress_fingerprint(board))
         with patch.object(policy, "_town_special_key", return_value=None):
             key = self.decide(policy, board)
-        closed = policy._town_visit_ledger.closed_terminals
-        self.assertIn(TerminalRef("home-recovery", ("home-recovery",)), closed,
-                      (key, policy.last_reason, policy._town_errand_plan))
+        # Owner 2026-11-02 「決まった終わり方だけにする」: the explored
+        # oscillation no longer takes the detectors' breakout through the
+        # Home recovery terminal; the town end steps off the entrance.
+        self.assertEqual(policy.last_reason, "town:entrance-step-off:town:end-step-off")
         self.assertNotIn("owner-retired-burst", policy.last_reason)
         self.assertNotEqual(policy._shopping_approach_store_type, STORE_HOME)
         self.assertIsNone(policy._store_visit)

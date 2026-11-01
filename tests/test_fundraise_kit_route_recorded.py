@@ -183,12 +183,14 @@ class FundraiseKitRouteRecordedTest(unittest.TestCase):
     def test_control_home_covering_the_requirement_adds_no_supplier(self):
         # Control (constructed): with four of the five runs completed the kit
         # needs one scroll, which Home holds; no Alchemist claim is added
-        # and the closed Home leaves no route, as on 99c2fa87.
+        # and the closed Home leaves no route, as on 99c2fa87.  No owner
+        # answers: the town end (owner 2026-11-02) names the unmet minimum
+        # leaf instead of the claim liveness stop.
         _, results = self.replay(
             "route", self._route_walls(MINING_RUNS_PER_SET - 1), ROUTE_PIN)
         self.assertEqual(
             results[ROUTE_PIN][:2],
-            ("5", "town:blocked:no-actionable-claim-owner"))
+            ("5", "town:blocked:survival:recall_departure_ready"))
 
 
 if __name__ == "__main__":

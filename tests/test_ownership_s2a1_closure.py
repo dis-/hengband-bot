@@ -337,7 +337,6 @@ class GoalTypingTableTest(unittest.TestCase):
     SLOT_WRITERS = (
         "_declare_", "_adopt_decision_goal", "_shopping_approach_key(",
         "_stage_shopping_approach_key(", "_town_travel_key(",
-        "_commit_boxed_town_breakout_key(",
         "_town_teleport_key(",
     )
 

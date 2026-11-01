@@ -71,6 +71,8 @@ from hengbot.policy_constants import (
     IN_STORE_OPERATION_REASONS,
     LEAVE_STORE_KEY,
     POLICY_FINAL_STOP_REASONS,
+    POLICY_FINAL_STOP_PREFIXES,
+    TOWN_END_SURVIVAL_STOP_PREFIX,
     SKILL_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
 )
@@ -598,6 +600,7 @@ def _policy_final_stop_required(policy) -> bool:
                 and sequence is not None
                 and getattr(policy, "_owner_retired_forgiven_sequence", None) == sequence)
     return ((reason in POLICY_FINAL_STOP_REASONS and not forgiven)
+            or reason.startswith(POLICY_FINAL_STOP_PREFIXES)
             or reason.startswith(("ownership:holder-silent:",
                                   "ownership:declaration-",
                                   "ownership:contract-conflict:fundraising:")))
@@ -744,6 +747,9 @@ def _policy_final_stop_banner(reason: str) -> str:
     if reason.startswith("ownership:contract-conflict:fundraising:"):
         return (f"<{reason}> fundraising has no valid purpose continuation; "
                 "stopping the bot for investigation")
+    if reason.startswith(TOWN_END_SURVIVAL_STOP_PREFIX):
+        return (f"<{reason}> no town owner answered and this departure-minimum "
+                "(survival) leaf is unmet; stopping the bot for investigation")
     if reason.startswith("ownership:holder-silent:"):
         return (f"<{reason}> the town claim has no safe continuation; "
                 "stopping the bot for investigation")
@@ -768,6 +774,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:shop-required-operation-uncomposable": "a required operation on the observed shop page could not be completed within its existing transaction budget",
         "town:blocked:survival-mana-no-charges": "MANA survival has no reachable Home device charge",
         "town:blocked:overflow-no-legal-disposal": "overflow disposal is required but no legally destructible item exists",
+        "town:blocked:quest-reward-first": "a town-map quest reward holds the town and no owner can report or pick it up",
         "town:blocked:pack-full-no-room": "a departure purchase is refused only by the pack, and no carried stack can be shelved at Home, sold or destroyed",
         "town:blocked:recall-readiness-contradiction": "a recall was authorised and then contradicted with no state change",
         "town:blocked:walk-in-entrance-unavailable": "the mining plan refuses recall, and this town has no entrance the walk can use",

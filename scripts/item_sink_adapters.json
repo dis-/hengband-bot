@@ -401,12 +401,6 @@
   "policy_supply.py:_wilderness_survival_key": {
     "self._flee_step(snapshot, nearby_hostiles) @ If:body:nearby_hostiles": 1
   },
-  "policy_town.py:_boxed_town_breakout_key": {
-    "self._direction_key(snapshot.player.position, step) @ ": 1
-  },
-  "policy_town.py:_commit_boxed_town_breakout_key": {
-    "self._shopping_approach_key(snapshot, step, 'town-progress-invariant:boxed-breakout-travel') @ For:(STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL)": 1
-  },
   "policy_town.py:_return_to_town_key": {
     "self._dark_locomotion_key(snapshot) @ ": 1,
     "self._dungeon_recall_confirmation_key(snapshot) @ ": 1,

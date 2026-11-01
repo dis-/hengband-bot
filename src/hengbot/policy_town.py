@@ -1354,9 +1354,6 @@ class TownMixin:
                 reason in TOWN_CLAIM_ADVANCING_MOVE_REASONS
                 or "step-off" in reason
                 or reason.startswith("shop:")
-                or reason.startswith(
-                    "town-progress-invariant:boxed-breakout-travel"
-                )
             )
         # Keep this positive and closed.  Native store travel and dungeon entry
         # have explicit contracts that advance position/depth; an unknown macro
@@ -1847,20 +1844,6 @@ class TownMixin:
             and self._home_atomic_withdraw_pending is not None
         ):
             return key
-        plan = getattr(self, "_town_errand_plan", None)
-        plan_stop_pending = bool(
-            getattr(self, "_town_claim_bar_enforced", False)
-            and plan is not None and plan.index < len(plan.stops)
-        )
-        if (snapshot.store is None
-                and proposed_reason == "breakout:least-visited"
-                and not plan_stop_pending):
-            self._boxed_town_breakout_key(snapshot)
-            committed = self._commit_boxed_town_breakout_key(snapshot)
-            if committed is not None:
-                self.last_reason = "town-progress-invariant:boxed-breakout-travel"
-                return committed
-
         # Observing a wanted, affordable shelf is the entry phase of the
         # existing atomic contract.  Leaving is only its transport step: it is
         # a defect until the saved page is composed on the adjacent outside
@@ -1981,53 +1964,10 @@ class TownMixin:
                 )
                 self._record_shop_selector_diagnostics(snapshot, WAIT_KEY)
                 return WAIT_KEY
-            if (
-                enforce
-                and movement_key
-                and liveness_candidate
-                and self._fundraising_mode in {"mine", "scavenge"}
-                and self._town_walk_in_entrance(snapshot) is None
-            ):
-                # The last-resort town wander won with no claim to repair.  A
-                # mining/scavenge plan refuses every recall destination
-                # (_town_recall_destination) so that the bot walks in at level
-                # one, and this town holds no entrance that walk can use --
-                # _is_descent_target accepts a Yeek Cave entrance only from
-                # town 0, and this town's map has no entrance of its own.  The
-                # descent router therefore reports "no-known-downstairs", a
-                # fully-known town offers no frontier, and the wander ran until
-                # the arbiter retired the owner.
-                #
-                # USER DECISION 2026-09-24 (「採掘の段で、入口の無い町にいる
-                # 時はどうしますか」 -> 「町0へ戻る（推奨）」): go back to the
-                # Outpost through the same cross-town machinery the Morivant
-                # *Identify* trip uses and walk in from there.  The mine phase
-                # refuses recall destinations to conserve scrolls, so this
-                # never reads a Word of Recall.  The reason keeps the
-                # cross-town prefix, so the trip is owned and bounded by that
-                # family's existing budget and retirement rules.
-                if self._effective_town_id(snapshot) != OUTPOST_TOWN_ID:
-                    returning = self._town_teleport_key(snapshot, OUTPOST_TOWN_ID)
-                    if returning is not None:
-                        self.last_reason = "town:cross-town-walk-in-return"
-                        self._adopt_decision_goal()
-                        self._record_shop_selector_diagnostics(snapshot, returning)
-                        self._offer_execution(
-                            returning, producer="cross-town",
-                            work_id="town:cross-town-walk-in-return",
-                            next_step="cross-town.return-for-walk-in",
-                            arguments=(OUTPOST_TOWN_ID,),
-                            expected_effect="outpost-reached",
-                        )
-                        return returning
-                # The return is itself impossible (no fare, no reachable Inn,
-                # no legal exit -- town_teleport_refusal records a refused
-                # fare), or this is already the Outpost.  Name the missing
-                # entrance instead of wandering.
-                self._town_blocked_reason = "walk-in-entrance-unavailable"
-                self.last_reason = f"town:blocked:{self._town_blocked_reason}"
-                self._record_shop_selector_diagnostics(snapshot, WAIT_KEY)
-                return WAIT_KEY
+            if enforce and movement_key and liveness_candidate:
+                walk_in = self._mining_walk_in_return_key(snapshot)
+                if walk_in is not None:
+                    return walk_in
             self.last_reason = proposed_reason
             return key
         progress_key, progress_reason = progress
@@ -2073,6 +2013,52 @@ class TownMixin:
         )
         self._record_shop_selector_diagnostics(snapshot, progress_key)
         return progress_key
+
+    def _mining_walk_in_return_key(self, snapshot: Snapshot) -> str | None:
+        """The mining walk-in's own departure from a town without its entrance."""
+        if not (self._fundraising_mode in {"mine", "scavenge"}
+                and self._town_walk_in_entrance(snapshot) is None):
+            return None
+        # No town owner answered and no claim remains to repair.  A
+        # mining/scavenge plan refuses every recall destination
+        # (_town_recall_destination) so that the bot walks in at level
+        # one, and this town holds no entrance that walk can use --
+        # _is_descent_target accepts a Yeek Cave entrance only from
+        # town 0, and this town's map has no entrance of its own.  The
+        # descent router therefore reports "no-known-downstairs", a
+        # fully-known town offers no frontier, and the wander ran until
+        # the arbiter retired the owner.
+        #
+        # USER DECISION 2026-09-24 (「採掘の段で、入口の無い町にいる
+        # 時はどうしますか」 -> 「町0へ戻る（推奨）」): go back to the
+        # Outpost through the same cross-town machinery the Morivant
+        # *Identify* trip uses and walk in from there.  The mine phase
+        # refuses recall destinations to conserve scrolls, so this
+        # never reads a Word of Recall.  The reason keeps the
+        # cross-town prefix, so the trip is owned and bounded by that
+        # family's existing budget and retirement rules.
+        if self._effective_town_id(snapshot) != OUTPOST_TOWN_ID:
+            returning = self._town_teleport_key(snapshot, OUTPOST_TOWN_ID)
+            if returning is not None:
+                self.last_reason = "town:cross-town-walk-in-return"
+                self._adopt_decision_goal()
+                self._record_shop_selector_diagnostics(snapshot, returning)
+                self._offer_execution(
+                    returning, producer="cross-town",
+                    work_id="town:cross-town-walk-in-return",
+                    next_step="cross-town.return-for-walk-in",
+                    arguments=(OUTPOST_TOWN_ID,),
+                    expected_effect="outpost-reached",
+                )
+                return returning
+        # The return is itself impossible (no fare, no reachable Inn,
+        # no legal exit -- town_teleport_refusal records a refused
+        # fare), or this is already the Outpost.  Name the missing
+        # entrance instead of wandering.
+        self._town_blocked_reason = "walk-in-entrance-unavailable"
+        self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+        self._record_shop_selector_diagnostics(snapshot, WAIT_KEY)
+        return WAIT_KEY
 
     def _fundraising_identify_staff_only_block(
         self, snapshot: Snapshot
@@ -2166,80 +2152,6 @@ class TownMixin:
         }
         self._record_shop_selector_diagnostics(snapshot, proposed_key)
         return True
-
-    def _boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
-        """Probe a distinct-landmark escape without opening a store visit."""
-        route = self._boxed_town_breakout_route(snapshot)
-        if route is None:
-            here = snapshot.grid_at(snapshot.player.position)
-            return WAIT_KEY if here is not None and here.store_number >= 0 else None
-        store_type, goal, step = route
-        if (
-            self._has_light_equipped(snapshot)
-            and goal in snapshot.grids
-            and snapshot.player.position.distance_to(goal) >= TOWN_TRAVEL_MIN_DISTANCE
-            and self._town_travel_fallback != goal
-        ):
-            return f"\x1b`n{TOWN_TRAVEL_STORE_SYMBOLS[store_type]}."
-        return self._direction_key(snapshot.player.position, step)
-
-    def _boxed_town_breakout_route(
-        self, snapshot: Snapshot
-    ) -> tuple[int, Position, Position] | None:
-        """Return the first visible alternate-store route using derived map facts only."""
-        here = snapshot.grid_at(snapshot.player.position)
-        current_store = here.store_number if here is not None else -1
-        for store_type in (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL):
-            if store_type == current_store:
-                continue
-            route = self._nearest_goal_and_step(
-                snapshot, lambda grid, wanted=store_type: grid.store_number == wanted
-            )
-            if route is None and self._town_map_active(snapshot):
-                goal = self._town_map.store_position(store_type)
-                step = self._town_map_goal_step(snapshot, goal)
-                route = (goal, step) if step is not None else None
-            if route is None:
-                visible_goals = [
-                    grid.position
-                    for grid in snapshot.grids.values()
-                    if grid.store_number == store_type
-                ]
-                if visible_goals:
-                    goal = min(
-                        visible_goals,
-                        key=lambda pos: snapshot.player.position.distance_to(pos),
-                    )
-                    if (
-                        snapshot.player.position.distance_to(goal)
-                        >= TOWN_TRAVEL_MIN_DISTANCE
-                    ):
-                        route = (goal, goal)
-            if route is None:
-                continue
-            goal, step = route
-            if step != snapshot.player.position:
-                return store_type, goal, step
-        return None
-
-    def _commit_boxed_town_breakout_key(self, snapshot: Snapshot) -> str | None:
-        """Open and compose the store visit only after the breakout probe wins."""
-        here = snapshot.grid_at(snapshot.player.position)
-        current_store = here.store_number if here is not None else -1
-        for store_type in (STORE_HOME, STORE_MAGIC, STORE_ALCHEMIST, STORE_GENERAL):
-            if store_type == current_store:
-                continue
-            step = self._shopping_approach_step(
-                snapshot, store_type, router_plan_stop=True, route_family="detectors"
-            )
-            if step is None:
-                continue
-            key = self._shopping_approach_key(
-                snapshot, step, "town-progress-invariant:boxed-breakout-travel"
-            )
-            if key not in {"", WAIT_KEY}:
-                return key
-        return None
 
     def _town_entrance_step_off_key(
         self, snapshot: Snapshot, prior_reason: str | None
@@ -6029,29 +5941,36 @@ class TownMixin:
         if not (snapshot.in_town and self._visit_departure_committed
                 and not snapshot.player.recalling):
             return False
-        destination, dungeon = self._town_recall_destination(
-            snapshot, guardian_gate=False, safety_gate=False)
-        depth = self._dungeon_entry_depth(snapshot, dungeon, via_recall=destination is not None)
-        if self._departure_minimum(snapshot, depth)["holds"]:
+        if self._visit_departure_minimum(snapshot)[0]["holds"]:
             return False
         self._visit_departure_committed = None
         if self._town_blocked_reason == "repetition":
             self._town_blocked_reason = None
         return True
 
-    def force_visit_departure(self, snapshot: Snapshot, cause: str) -> str | None:
-        """Close exhausted visit work only at the two existing stop boundaries."""
+    def _visit_departure_minimum(self, snapshot: Snapshot) -> tuple[dict, str | None, int]:
+        """The departure minimum at the visit's own landing, its destination and depth."""
+        destination, dungeon = self._town_recall_destination(
+            snapshot, guardian_gate=False, safety_gate=False)
+        depth = self._dungeon_entry_depth(snapshot, dungeon, via_recall=destination is not None)
+        return self._departure_minimum(snapshot, depth), destination, depth
+
+    def force_visit_departure(self, snapshot: Snapshot, cause: str, *,
+                              dropped: tuple[str, ...] = ()) -> str | None:
+        """Close exhausted visit work and depart under the departure minimum.
+
+        ``dropped`` names the unmet ordinary departure conditions the caller
+        gives up for this visit; the visit-departure record keeps them.
+        """
         if self._visit_departure_committed:
             return self._town_blocked_key(snapshot)
         if cause in self._visit_departure_recorded:
             return None
-        destination, dungeon = self._town_recall_destination(
-            snapshot, guardian_gate=False, safety_gate=False)
-        depth = self._dungeon_entry_depth(snapshot, dungeon, via_recall=destination is not None)
-        minimum = self._departure_minimum(snapshot, depth)
+        minimum, destination, depth = self._visit_departure_minimum(snapshot)
         settlement = (getattr(self, "_owner_retired_progress", None) or {}).get("last_settlement", {})
         closed_work = {"reason": self.last_reason, "blocked_reason": self._town_blocked_reason,
-                       "operation_identity": settlement.get("operation_identity")}
+                       "operation_identity": settlement.get("operation_identity"),
+                       "dropped_conditions": list(dropped)}
         # Mark before calling existing fallback producers, which can themselves
         # resolve a terminal through _town_blocked_key.
         self._visit_departure_recorded.add(cause)
