@@ -5945,8 +5945,9 @@ class TownMixin:
                     and not self._supply_ledger(snapshot, depth)["cure"].obtainable)),
             "teleport_ready": lambda: self._teleport_ready(snapshot) and stock("teleport"),
             "identify_staff_ready": lambda: self._identify_staff_ready(snapshot, cache_fixed_quest_head=False)
-                and (depth < STAFF_IDENTIFY_MIN_DEPTH or
-                     self._total_identify_staff_charges(snapshot) >= STAFF_IDENTIFY_MIN_CHARGES),
+                and (depth < STAFF_IDENTIFY_MIN_DEPTH
+                     or self._identify_staff_absorbed(snapshot)
+                     or self._total_identify_staff_charges(snapshot) >= STAFF_IDENTIFY_MIN_CHARGES),
             "remove_curse_ready": lambda: self._required_remove_curse_kind(snapshot) is None,
             "teleport_items_safe": lambda: not self._teleport_blocked_by_equipment(
                 snapshot),
