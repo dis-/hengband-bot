@@ -138,5 +138,10 @@
   "_magic_staff_buy_watch": "Target charge count and generation observation for the already selected Magic Identify-staff purchase; its active reservation remains in _store_buy_inflight, no independent item operation.",
   "_magic_staff_buy_receipt": "Consumed Magic Identify-staff acquisition evidence, not a future selection or reservation; driver credits its target-scoped identity only once per visit.",
   "_plain_gear_dps_memo": "Expected-damage memo for the plain-gear junk class; no selected operation.",
-  "_opening_q1_progress": "Observed inventory/gold/stage fingerprint for a bounded no-progress watchdog; never selects or reserves an item."
+  "_opening_q1_progress": "Observed inventory/gold/stage fingerprint for a bounded no-progress watchdog; never selects or reserves an item.",
+  "_me_power_refresh_pending": "Magic-Eater power-list kinds still to browse (me_powers_refresh); a UI observation queue, not an item selector.",
+  "_q34_recharge_attempted": "Q34 throwing-stand targets (race and cell) already rested for; monster identities, not an item selector.",
+  "_q34_recharge_pending": "Turn and messages of the one Q34 rest just posted (q34_recharge); a rest observation, not an item selector.",
+  "_quest_carry_lowered": "Quest id and the lowered Q1 carry counts per category that the gold buys (policy_opening); counts, not a selected item identity or reservation.",
+  "_town_progress_command_pending": "Flag pairing a town decision's start state with its final key for cycle detection; no item identity."
 }

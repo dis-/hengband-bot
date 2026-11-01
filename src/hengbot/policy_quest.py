@@ -4442,7 +4442,7 @@ class QuestMixin(OpeningRouteMixin):
                         route_declaration=declaration,
                         identity=candidate_identity,
                     )
-                key = self._town_teleport_route_key(snapshot, route_result, reason)
+                key = self._town_teleport_route_key(snapshot, route_result, target_town, reason)
                 if key is None:
                     return None
                 self.last_reason = reason
@@ -4649,7 +4649,7 @@ class QuestMixin(OpeningRouteMixin):
                 WAIT_KEY, reason=reason, decision_identity=context.identity,
                 route_declaration=declaration, identity=candidate_identity,
             )
-        key = self._town_teleport_route_key(snapshot, result, reason)
+        key = self._town_teleport_route_key(snapshot, result, 0, reason)
         if key is None:
             return None
         self.last_reason = reason
