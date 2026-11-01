@@ -1,0 +1,130 @@
+LUNA-DIAG fix-depart2-1101 (#47 D59) — 2026-11-01
+
+対象: 観戦の魔道具術師 n1-c life-092（Lv21〜22、build bot-394c491c7。D54 の直し fe2bc54e3 を含む）。
+  13:47:59 town:blocked:departure-unsatisfiable（turn 2609774、decision 13470）
+  13:54:41 town:blocked:departure-unsatisfiable（turn 2648425、decision 3061）→ 13:55:35 見張りが引退
+    （same-stop-twice-in-30-min）
+  13:18:56 stuck-prompt:quest-strategy:ranged-fire:magic-eater（restart のみ）
+証拠（読み取りだけで写した）: C:\hengband-backups\pdca\captures\fix-depart2-1101\n1-c\life-092\
+  incident-captures\{20261101-131850-stuck-prompt, 20261101-134754-departure-unsatisfiable,
+  20261101-135436-departure-unsatisfiable}、captures\ の同じ 3 件と 11:55・13:08 の stuck-prompt 2 件、
+  bot-stderr.log、keep-running-events.jsonl、character-calibration.json。
+行番号は停止した版 394c491c7 のもの（本ブランチの元の b51bcda79 でも同じ箇所）。
+
+====================================================================
+0. 2 件の停止に共通の根（根1）: 強制出発の最低条件が「取り込んだ鑑定の杖」を数えない
+   （D54 の形ではない。新しい根）
+
+ keep-running-events.jsonl（policy_town.py:5995 _record_visit_departure の記録）:
+  13:47:51 turn 2609730 cause=departure-unsatisfiable outcome=hard_stop destination_depth=19
+           minimum.failed = ["identify_staff_ready"]（ほかの 18 項目はすべて true）
+  13:54:36 turn 2648425 同じく hard_stop、minimum.failed = ["identify_staff_ready"]、19F
+ 連鎖:
+  - 町の終端（policy_town.py:7196 / 7326、_town_blocked_key 6088）→ VISIT_CLOSABLE_REASONS なので
+    force_visit_departure（6040）で「止めないを既定に」の強制出発を試みる。
+  - その最低条件 _departure_minimum の identify_staff_ready（5947）:
+      _identify_staff_ready(...) and (depth < STAFF_IDENTIFY_MIN_DEPTH
+                                       or _total_identify_staff_charges(snapshot) >= 20)
+    後半は「持っている鑑定の杖の回数」だけを数える。
+  - ふつうの出発条件 _identify_staff_ready（policy_supply.py:535）は、魔道具術師が鑑定の杖を取り込んで
+    いれば（552、me_staff_sequence.absorbed）その力を鑑定の杖として true を返す（持ち主 10-30
+    「以降、鑑定と財宝感知は取り込みで賄う」）。policy-state.json の _me_staff_sequence.absorbed["5"]=21。
+    両方の停止の departure_block.values.identify_staff_ready は true。
+  - つまり最低条件だけが同じ決まりを読まず、19F の着地では 20 回の杖を要求 → 必ず hard_stop
+    （6084）→ 終端がそのまま停止になる。魔道具術師は 10F 以上へ出る限り、強制出発で救われない。
+ 直し: 「取り込みが鑑定の杖の代わりになる」を _identify_staff_absorbed（policy_supply.py）の 1 つの
+  述語にし、ふつうの条件と最低条件の両方がそれを読む。
+
+====================================================================
+1. 13:47:59（decision 13470）
+   最後の departure_block（decision 13455）.failed = ["equipment_departure_ready", "home_catalog_ready"]
+   （13470 の行には departure_block が無い: 13455 の終端の掛け金が発火しただけ）
+
+ 連鎖（decision-tail の行）:
+  13399 equipment-transaction:travel-home（9 手の装備の取引）。13400〜13413 で自宅に武器 6 本を預ける。
+  13426 equipment-transaction:atomic-withdraw '5pz1\r\x1b' … 自宅のクローク [1,+0] {Q34} の 4 着の山から
+        1 着を取る（ring: 店の行 2609615 で z が 4 着、2609624 で 3 着、袋の h が 1 着）。
+  13428 policy:none-store-exit '\x1b'（entry_blocker session-not-executable）
+        transaction_next = equip home:66af66797f74632f:0 → outer
+        根2: policy_equipment.py:2313-2324（自宅の中の equip）が袋の品を equipment_identity（数を含む）
+        だけで探す。予定の identity は 4 着の山のもので、取った 1 着とは数が違う → equip-item-missing。
+        同じ探し方の預ける（2349、move_identity も見る）と町の equip（2851、move_identity も見る）とは
+        食い違う。取引の確認（equipment_transaction_session.py:183・331）も move_identity を見る。
+  13429 town:blocked:equipment-transaction:equip-item-missing:home:66af66797f74632f:0（失敗した品に記録）
+  13430 equipment-transaction:equip 'wh'（町の側は move_identity で見つけて着る）
+  13431〜13454 残りの取引（籠手・弓・アミュレット）。13454 home:leave-after-one-operation の後、
+        預けた分だけ自宅の一覧が古い（blockers home-scan-incomplete）。
+  13455 town-progress-invariant:defect:town:blocked:departure-unsatisfiable=>town:entrance-step-off:
+        home:scan-step-off '6'。failed = equipment_departure_ready, home_catalog_ready。
+        この時の強制出発が根1で hard_stop（keep-running turn 2609730）。終端の掛け金
+        _town_blocked_reason="departure-unsatisfiable" が残る（policy-state.json にもある）。
+  13456〜13469 ~9 の読み直しと残りの取引（弓・アミュレット）、13469 home:route-claim-unfulfilled で自宅を出る。
+  13470 policy.py:10770 の掛け金の分岐（掛け金があり、直前の盤面が店）→ _town_blocked_key →
+        force_visit_departure は同じ cause を記録済みで None → town:blocked:departure-unsatisfiable '9'。
+ 判断:
+  - 停止そのものの根は根1（13455 で最低条件が成り立てば、その場で強制出発していた。本ブランチの
+    テストで同じ盤面が帰還の巻物を読むところまで進む）。
+  - 根2 はこの訪問の装備の失敗（クロークの取引の失敗の記録）の根。D54 の形ではない。
+  - 13455 で進む手があった（~9 の読み直し）のに終端の掛け金が残り、自宅を出た盤面で発火したこと
+    （policy_town.py:2071 の不変条件が終端を進む手に置き換える時に掛け金を外さない）は別の欠陥の候補。
+    根1 を直すと記録の道筋では現れない（13455 で出発が決まる）ので、本ブランチでは直していない
+    （報告の「残っていること」）。
+
+====================================================================
+2. 13:54:41（decision 3061）
+   departure_block.failed = ["equipment_departure_ready"]（3060 では recall_landing_not_guardian_blocked も）
+
+ 連鎖:
+  3019〜3026 取引（自宅へ預ける 1 手）が始まる: 3026 から transaction_next = deposit
+        pack:ed9c6339e356ce0d:0 =（トランプ）トライデント (1d8) (+5,+10) (+1探索) {+探r因水;麻遅活瞬/邪}
+        （ring の player_turn 2647476 では袋の n、銘なし）。
+  3042 equipment:suppress-random-teleport '{m.\r'（policy_town.py:5691）… ランダムテレポートを持つ
+        同じトライデントに '.' を刻む。名前が「…/邪, .}」に変わる（ring 2647486、inscription '.'）。
+        取引は動いたまま（_prepare_equipment_optimization の in-flight-session-return）。
+  3043 equipment-transaction:travel-home、3044 自宅で equipment-transaction:deposit-missing '\x1b'
+        根3: 預ける品を equipment_identity / equipment_move_identity（equipment_optimizer.py:540、どちらも
+        表示名を含む）で探すので、銘で名前が変わった品が見つからない（policy_equipment.py:2349-2392）。
+        失敗した品に記録し、訪問の閉じ（_equipment_transaction_visit_closure reason deposit-missing）。
+  3045〜3059 ほかの店（雑貨屋で 2 品買う、武器屋で 2 品売る）。
+  3060 town:entrance-step-off:town:unsafe-recall-fallback（failed equipment_departure_ready,
+        recall_landing_not_guardian_blocked）
+  3061 town:blocked:departure-unsatisfiable（_town_special_key → 7196 の終端）。強制出発は根1で hard_stop。
+ 判断:
+  - 停止の根は根1。装備の失敗の根は根3（D54 の形ではない）。
+  - equipment_departure_ready が false のままだったのは、訪問の閉じがある間 _prepare_equipment_optimization
+    （policy_equipment.py:867-885）が None を返し、_equipment_departure_ready（2912）が None の準備で
+    必ず false になるため（pack-space-home-full の閉じだけは前の準備を返す）。10-03 の決まり
+    （失敗した任意の装備の取引は、確かめた今の装備で出発する）とも食い違う。根3 を直すと記録の
+    道筋ではこの閉じは起きず、根1 で強制出発もできるので、本ブランチでは直していない（報告に書く）。
+
+====================================================================
+3. 13:18:56 stuck-prompt:quest-strategy:ranged-fire:magic-eater（restart）
+   bot-stderr.log: <stuck-prompt> owner=quest-strategy:ranged-fire:magic-eater phase=magic-eater
+   transport=accepted request_id=21455 ctx=command ctx_prompt="" reason=unowned Magic-Eater aim prompt
+
+ 連鎖:
+  4466 return:wait-recall（帰還を読んだ後、15F で待つ）。4476〜4481 オークの弩弓隊へ 'mBp1'（魔法棒 p）。
+  4480 の結果: 「呪文をうまく唱えられなかった！」（executor が FAILURES で見て終える）。
+  4481 'm' 'B' 'p' を送る（bot-posted-characters）。cmd-magiceat.cpp:521-533: 失敗すると get_aim_dir を
+        呼ばずに終わる。同じゲームターンで帰還が発動し、state の次の行は町（turn 2150168、
+        messages「呪文をうまく唱えられなかった！」「上に引っ張りあげられる感じがする！」）。
+        executor が読んだ画面は町の新しい階で、1 行目のメッセージ欄は空（control-at-stop の画面）。
+  根4: magic_eater_input.py:226-229（me_device_attacks_input.py:123-126 も同じ）: 方向を待つ段で
+        コマンド入力の画面を見ると「unowned Magic-Eater aim prompt」で止める。失敗の判定は画面の
+        メッセージ欄だけを見る（advance_magic_eater の FAILURES）。メッセージが消えた・押し出された時に
+        止まる。
+  同じ形: 同じ life の 11:55:14（ranged:magic-eater-device、13F、失敗の後に敵の攻撃のメッセージが続き
+        画面の 1 行目は「ダガー…が壊れてしまった！」）と 13:08:31（ranged:magic-eater-device、失敗の後に
+        帰還）。直近 24 時間の n1-c の stuck-prompt:quest-strategy:ranged-fire:magic-eater は 12 回、
+        stuck-prompt:ranged:magic-eater-device は 2 回（events.jsonl。前者 12 回のうち確かめたのは life-092
+        の 1 回だけ）。
+ 直し: 方向を待つ段でコマンド入力の画面に戻ったら、ゲームの答え（使用の失敗）として終える
+  （magic_eater_input.aim_never_asked。2 つの executor が同じ述語を読む）。
+
+====================================================================
+4. まとめ（根ごと）
+  根1 強制出発の最低条件が取り込んだ鑑定の杖を数えない — 2 件の停止の根（新しい根）。直した。
+  根2 自宅の中の equip が山から取った品を数込みの identity だけで探す — 13:47 の装備の失敗（新しい根）。直した。
+  根3 銘で名前が変わると取引の品が見つからない — 13:54 の装備の失敗（新しい根）。直した。
+  根4 方向を待つ段のコマンド画面を止まりと読む — 13:18（ほか 11:55・13:08）の restart。直した。
+  D54 の直し（fe2bc54e3: 自宅への預け、掘る道具なしの scavenge、品切れの回）の形はどれも含まれない。

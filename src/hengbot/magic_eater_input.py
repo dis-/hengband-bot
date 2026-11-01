@@ -230,6 +230,19 @@ def _answer(step, screen, operation):
     raise ValueError("unexpected prompt after Magic-Eater answer")
 
 
+def aim_never_asked(step, match) -> bool:
+    """The game is back at command input while the answer waits for a direction.
+
+    cmd-magiceat.cpp do_cmd_magic_eater asks get_aim_dir only after the use
+    succeeds; a failed use ends the command at its message (FAILURES).  When
+    the same game turn also changes the level (an activating recall), the new
+    floor is drawn before the screen is read and the message line is empty
+    (#47 D59, n1-c life-092 13:18: 'mBp' failed, then the recall), so the
+    command screen itself is the game's answer: the use failed.
+    """
+    return match.kind is ScreenKind.COMMAND and step.stage == "aim"
+
+
 def advance_magic_eater(executor, screen, match, deadline, outcome):
     operation = executor.active
     if not operation.continuations or not isinstance(operation.continuations[0], MagicEaterStep):
@@ -245,6 +258,9 @@ def advance_magic_eater(executor, screen, match, deadline, outcome):
         operation.continuations[0] = step
     if match.kind in {ScreenKind.MORE, ScreenKind.LEVEL_UP_STAT}:
         return None
+    if aim_never_asked(step, match):
+        operation.business_outcome = "failed:magic-eater"
+        step = replace(step, stage="done")
     if match.kind is ScreenKind.COMMAND:
         if step.stage == "done":
             operation.continuations.pop(0)

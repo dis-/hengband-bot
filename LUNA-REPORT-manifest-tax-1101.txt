@@ -1,0 +1,159 @@
+LUNA-REPORT manifest-tax-1101 (#47, 保守性 第1回「一覧の作り直しの手間から」) 2026-11-01
+ブランチ manifest-tax-1101（基点 main b51bcda79、最後に main dcda77b1a を取り込み済み）。push していない。
+診断の詳細は LUNA-DIAG-manifest-tax.txt。ボットの振る舞い（判断・キー）は変えていない。
+
+■ 結論
+  - 町の仕事の一覧の「作り直しの手間」の元は、実行時にどこからも読まれない 2 つだった:
+    (1) 各関数の AST の digest（town_work_sites.json と gz）、(2) 行番号・呼び出し 29,848 件を持つ 1.71 MB の gz。
+    どちらもコミットしないようにした。実行時の索引の値（分類・行・委任）は 1 件も変わっていない。
+  - bool や数を返すだけの関数は、AST で「キーを出せない」と証明できれば手書きの review を不要にした
+    （main で 161 件。手書きと食い違うものは 0 件）。キーを出しうる未登録の関数は、今までどおり検査で止まる。
+  - 最近 118 件のコミットのうち一覧の系統に触った 58 件を新しい規則で数え直すと、
+    30 件は何も要らず、4 件は索引の作り直しだけ（review なし）、24 件は review の追加が要る。
+
+■ 各ファイルが守っているもの（詳細は DIAG の 1 章）
+  - scripts/town_work_review.json（手書き）: 選ばれた関数ごとの分類。実行時の観測がその戻り値を仕事として
+    記録するか（producer/adapter/driver）、無視するか（data）、町では不明扱いか（dungeon-only）を決める。
+    review の無い関数があれば検査が「unmapped candidates」で止まる ← これが守るべき本体。
+  - src/hengbot/town_work_sites.json（生成、実行時に town_work.py が読む）: 上の分類のうち実行時に要る
+    3 欄（classification, rows, delegation）と「載っているか」。受領は判断ログに書かれるだけでキーの選択には
+    使われない。ast_sha256 はどこからも読まれていなかった。
+  - scripts/town_work_manifest.json.gz（生成）: 行番号つきの証拠一式。読むのは検査の「一致するか」だけ。
+  - scripts/town_work_registry_review.json（手書き 113 件）: 町の必要品の登録表と購入の段の行。ID は安定。
+    手間の元ではない（118 件中 1 回）。変更なし。
+  - scripts/town_producer_baseline.json（手書き 777 件）: town_structure_lint の未登録の producer の理由。
+    main で既に 143 件の不一致（PDCA の取り込みが流さないため保守されていない）。今回は触っていない（問い 1）。
+
+■ 変えたこと（コミット）
+  1. 698addb67 Stop committing town work digests and the evidence manifest
+     - town_work_manifest.py: digest を全部やめた。検査は「ソースと review から作った索引」と
+       コミットされた索引の一致だけを見る。gz は git rm し .gitignore に入れた。証拠一式は
+       --evidence PATH を付けた時だけ書く（レビュー用）。
+     - town_work_sites.json は ast_sha256 の行が消えただけ（旧索引から ast_sha256 を除いたものと完全一致）。
+  2. b2827c2c0 Review provably observational town work sites mechanically
+     - scripts/town_work_data_proof.py（新規、1 つのまとまった証明）: census だけが由来の関数で、
+       ・return / yield / lambda の本体が str になりえない（定数・比較・入れ物・数の演算・安全な組み込み・
+         同名の定義が全部証明済みの関数や self メソッドの呼び出しだけ）
+       ・送信の継ぎ目（send, post_keys, _post_and_barrier など）に同名の呼び出し先経由でも届かない
+       ・自分で作った入れ物以外を書き換えない（self や引数への代入・append 等・setattr・global なし、
+         呼ぶ関数・self メソッドも同じ）
+       ・引数や式の結果を呼ばない（callback は producer かもしれない）、読むだけの飾り以外が無い
+       を全部満たす時だけ data とする。行番号も digest も見ないので、本体を書き換えても証明が保たれる限り
+       何も要らない。
+     - 証明された関数には手書きの review が要らない（あれば手書きが優先）。索引の行は従来の data の行と同じ。
+       main の 161 件はすべて手で data と分類済みで、そのうち 159 件は機械の行と同じだったので review から削除
+       （1,077 → 918 件）。違う文言の 2 件（_perceived_hostiles、preservable）は残した。
+     - 手書きの review は classification と evidence（data 以外は rows も）だけでよくなった。
+       context / admission / observer / delegation は既定値（今までの最多の値）で埋まる。既存の項目は不変。
+     - scripts/town_work_churn.py: 過去のコミットを新しい規則で数え直す計測（下の数字）。
+     - tests/test_town_work_data_proof.py（新規 6 件）。
+  3. 21d1f4eae main dcda77b1a の取り込み（gz の modify/delete は削除のまま、索引は作り直し。
+     取り込み後の索引 = main の索引から ast_sha256 を除いたもの、1,079 件で完全一致）。
+  4. 報告のコミット（DIAG・REPORT・validation/manifest-tax-1101/）。
+
+■ 減った量（main b51bcda79 から最近 118 件の merge 以外のコミット。validation/manifest-tax-1101/churn-b51bcda79.json）
+  旧規則: 一覧の系統に触ったのは 58 件。gz は 58 件すべてで作り直し（うち 3 件は取り込み後の作り直しだけ）。
+  新規則での数え直し（各コミットと親の木に今の規則を当てた）:
+    何も要らない           30 件（gz と digest だけの変更、文言だけの任意の編集 9 件を含む）
+    索引の作り直しだけ      4 件（review なし。新しい関数・証明された関数が増えただけ）
+    review の追加が要る    24 件（キーを出しうる関数、str を返す data など人が決めるもの）
+  → 58 件中 34 件（59%）は review が要らなくなり、30 件（52%）は一覧のファイルに一切触れずに済んだ。
+  review の項目の数で: 新しく選ばれた 77 件のうち 10 件（13%）を証明が引き受けた。証明が無い場合（digest を
+    やめただけ）でも review が要るコミットは 25 件で、証明が単独で減らしたコミットは 1 件。手間の大半は
+    digest と gz だった。新しく足す data の多くはキーの文字（Power.key、encode_letter など）を返すので、
+    証明で data にはできない（人が「呼ぶ側が producer」と決める必要がある）。
+  取り込み: digest が無いので、2 本の枝の索引の変更は互いの行を足すだけになり、作り直しても差分が出ない。
+    「Regenerate the town work manifest after merging ...」のコミットは、索引そのものが衝突した時の後始末以外
+    出なくなる（今回の main の取り込みで索引が衝突したのは、main 側にまだ digest の行があったため。
+    作り直した索引は main の索引から digest を除いたものと一致した）。
+  旧規則で 1 行の無害な編集（_town_destroy_key の先頭に 1 文）をした時: 索引 1 行と gz の call_sites 1,771 件が
+    変わった。新規則: 何も変わらない（テストで固定）。
+
+■ 振る舞いが変わらない証拠
+  - src/hengbot の Python は 1 行も変えていない。変えたのは town_work_sites.json の ast_sha256 の削除だけで、
+    town_work.py が読む欄（存在・classification・rows・delegation）は main と完全一致（b51bcda79 時点 1,077 件、
+    取り込み後 1,079 件）。
+  - checks.json の全テストを main と枝で流し、公開の choose_key のすべての判断（キー・last_reason・
+    town_work の受領）を記録して比べた（validation/manifest-tax-1101/replay_choose_key.py と compare_replays.py）。
+    結果: main dcda77b1a と取り込み後の枝で、538 テスト、判断 3,015 件・受領 5,826 件がすべて一致
+    （違い 0 件。validation/manifest-tax-1101/replay-summary.json）。
+  - import check: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK（取り込み後）。
+
+■ 検査の結果
+  - checks.json のテスト（取り込み後の枝）: 95 モジュール 538 テスト、失敗 0、エラー 1（tests.test_d57_nav_depth_1101_recorded:
+    checks.json に載っているがまだ main に無い枝のテスト。main でも同じエラー）。
+  - tests.test_town_work_data_proof（新規 6 件）: OK（取り込み後 6 件 OK、68 秒）。
+      ・証明のつく形 5 種、つかない形 13 種（文字列定数・f 文字列・保存したキー・lambda・外の物の呼び出し・
+        % 演算・送信・送信する関数の呼び出し・self の書き換え・append・書き換える self メソッド・callback・
+        @claims）
+      ・本物のソースにキーを返す新しい producer と、その int を返す補助を足すと、producer だけが
+        「unmapped candidates」で止まり、補助は review 無しで data の行になる。producer に最小の review を
+        足すと通り、同時に入れた無害な本体の編集では索引の他の行が 1 つも変わらない。
+      ・リポジトリの索引が最新で digest が無いこと、証明が手書きの非 data の分類を上書きしないこと。
+      旧規則では「無害な編集で索引が変わらない」と「最小の review」の部分が失敗する（上の 1,771 件の計測）。
+  - tests.test_town_work_contract と tests.test_town_terminal_declarations（一覧を読む既存のテスト）:
+    取り込み前に 16 件 OK。
+  - town_work_manifest.py（検査）: 0 violation(s)、--write: 1,079 candidates (161 proved data), zero unmapped。
+
+■ 保守性
+  - 新しい判定は scripts/town_work_data_proof.py の 1 か所にまとめた（証明の規則・安全な組み込み・
+    書き換えの関数名などの表は先頭の定数）。town_work_manifest.py は proved_data / complete_review /
+    kept_reviews の短い関数で呼ぶだけ。送信の継ぎ目の名前は SEAM_NAMES を共有（重複なし）。
+  - 実行時の索引の欄は RUNTIME_FIELDS の 1 か所で決まり、town_work.py が読む欄と一致させた。
+  - 振る舞いを変えない整理（policy.py の段階的な分割を含む）で、本体を書き換えても一覧の作り直しが要らない。
+    移動・改名だけは review のキー（ファイル:修飾名）の付け替えが要る（問い 3）。
+  - 手書きの review は 159 件減り（13,673 → 11,924 行）、新しい項目は 3 欄で書ける。
+  - 1.71 MB の生成物が git から消えた。town_work_sites.json は 10,442 → 9,365 行。
+  - 一括の書式変更はしていない（review は既存の書式のまま項目を削っただけ。merge_json_keys で再ダンプが
+    一致することを確かめた）。
+
+■ guard-tools に必要な変更（私は編集していない。監督役が適用する）
+  この枝を取り込む前に merge_gate.py を直す必要がある。直さないと merge_branch の
+  git add scripts/town_work_manifest.json.gz が「pathspec did not match」で止まり、gz を変更した枝
+  （まだ動いている me-dual-wield-1101、d57-me-combat-1101、d57-nav-depth-1101 など）は modify/delete の
+  衝突で STOP になる。
+  C:\hengband-backups\guard-tools\merge_gate.py:
+    43 行目
+      - MANIFEST = ["scripts/town_work_manifest.json.gz", "src/hengbot/town_work_sites.json"]
+      + MANIFEST = ["src/hengbot/town_work_sites.json"]
+      + # No longer committed (#47, 2026-11-01): a branch that still changes it conflicts as modify/delete.
+      + RETIRED = ["scripts/town_work_manifest.json.gz"]
+    merge_branch の衝突の判定（116 行目付近）
+      - if not conflicted or any(path not in MANIFEST + REGISTRIES for path in conflicted):
+      + if not conflicted or any(path not in MANIFEST + REGISTRIES + RETIRED for path in conflicted):
+    衝突の解決（140 行目付近）
+        for path in conflicted:
+            if path in MANIFEST:
+                git("checkout", "--ours", path, cwd=work)
+      +     elif path in RETIRED:
+      +         git("rm", "-q", "-f", "--", path, cwd=work)
+    （git add *MANIFEST と git status -- *MANIFEST はそのまま索引だけを見るようになる。）
+  C:\hengband-backups\guard-tools\preflight.py:29（任意、直さなくても動く）
+      - MANIFEST = ["scripts/town_work_manifest.json.gz", "src/hengbot/town_work_sites.json"]
+      + MANIFEST = ["src/hengbot/town_work_sites.json"]
+  pdca_merge.py は merge_gate.merge_branch を使うだけなので変更不要。
+  順序: guard-tools を直す → この枝を取り込む → 残りの枝（その枝の gz の変更は削除で解決され、
+  索引は作り直される）。
+
+■ checks.json に足す案（編集していない）
+  {
+   "id": "MAINT1-MANIFEST",
+   "owner": "2026-11-01 「一覧の作り直しの手間から」 (town work manifest tax, branch manifest-tax-1101)",
+   "tests": [
+    "tests.test_town_work_data_proof"
+   ]
+  }
+  （約 50 秒。キーを出しうる未登録の関数が検査で止まること、索引が最新であることを取り込みのたびに確かめる。）
+
+■ 持ち主への問い
+  1. town_producer_baseline.json と test_town_structure_lint は main で 143 件の不一致のまま放置されている
+     （PDCA の取り込みは流さない）。town_work_review.json と同じ関数を粗く二重に持っているので、
+     廃止して review に一本化するか、直して checks に戻すか、どちらにしますか。
+  2. str を返す補助（キーの文字を作る Power.key、encode_letter、point_macro など）は今も手書きの review が要る。
+     review の 24 件の大半はこれ。「呼ぶ側の producer が review 済みなら補助は data」とみなせば減らせるが、
+     未登録の producer を見逃す余地ができる（観測は module 関数の戻り値を見ないため）。今のまま人が決める
+     でよいですか。
+  3. 関数の移動・改名（policy.py の分割など）では review のキーの付け替えが要る。本体が同じ関数の移動を
+     検出して review のキーを自動で付け替える道具を足しますか（次の保守性の回の候補）。
+  4. 戻り値の型の注釈（-> int など）を信じれば証明の範囲は広がる（実装はしていない。注釈は実行時に
+     強制されないため、今回は信じていない）。広げますか。

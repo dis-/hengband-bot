@@ -1,0 +1,1084 @@
+{
+ "commits": 118,
+ "touching": 58,
+ "review": 24,
+ "review_without_proof": 25,
+ "voluntary_text_edits": 9,
+ "index_only": 4,
+ "none": 30,
+ "rows": [
+  {
+   "commit": "d553d1347",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "6f8066a4f",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "2ac0826cb",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "e1c02cdd9",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "18904adcd",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": true,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "6dad75824",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": true,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "4f4a531fb",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": true,
+   "added": [
+    "policy_fundraising.py:FundraisingMixin._detect_treasure_read_key"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "407ea7bae",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "e3c1c4233",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": true,
+   "added": [
+    "goal_route.py:_commitments",
+    "goal_route.py:follow",
+    "goal_route.py:goal_kind",
+    "goal_route.py:nearest_goal_path",
+    "policy_town.py:TownMixin._town_entrance_cells"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "935265324",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "6889b8629",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "b4ba8b0db",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "c5cccc30f",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "4e99f367c",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "c17ca706d",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "1934957e3",
+   "touched": [
+    "scripts/town_producer_baseline.json",
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "morivant_tower.py:_building_position",
+    "morivant_tower.py:approach_key",
+    "policy.py:HengbotPolicy._take_claim_target",
+    "policy_town.py:TownMixin._town_teleport_travel_key",
+    "town_travel.py:approach_cell",
+    "town_travel.py:building_key",
+    "town_travel.py:point_macro",
+    "town_travel.py:travel_key"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": [
+    "town_travel.py:plain_cell"
+   ]
+  },
+  {
+   "commit": "063a8b3bc",
+   "touched": [
+    "scripts/town_producer_baseline.json",
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": true,
+   "added": [
+    "me_staff_sequence.py:_next_shelf"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "9cb89563a",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": true,
+   "added": [
+    "me_powers.py:Context.aim",
+    "me_powers.py:beam_direction",
+    "me_powers.py:decision_reason"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "e9de0984a",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "702b9e19c",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "b4a93949a",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "eea64b0ad",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "42f74f771",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": [
+    "policy_quest.py:QuestMixin._in_flight_fixed_quests"
+   ]
+  },
+  {
+   "commit": "f097b327f",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "16022ea75",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "86e27f679",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "quest_strategies.py:heal_potion_sval"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": [
+    "policy.py:HengbotPolicy._exact_potion_count",
+    "policy.py:HengbotPolicy._strategy_heal_potion_count",
+    "policy_shop.py:ShopMixin._strategy_potion_needs",
+    "quest_strategies.py:is_heal_potion_for"
+   ]
+  },
+  {
+   "commit": "af5bd663c",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": true,
+   "added": [
+    "lamp_fuel.py:_lantern_identity"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "bcbf4a935",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [
+    "me_device_attacks.py:attack_key",
+    "me_ranged_first.py:attack_key"
+   ],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "8c63e57fe",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "me_absorbed_substitutes.py:destruction_uses",
+    "me_powers.py:charges",
+    "me_powers.py:observed_row",
+    "me_powers.py:recorded_charges",
+    "me_staff_sequence.py:absorbed_count",
+    "me_staff_sequence.py:extra_charges",
+    "policy_helpers.py:PolicyHelpersMixin._total_destruction_uses"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "37c6d6ec0",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "me_powerful_activation.py:Effect.key",
+    "me_powerful_activation.py:Effect.reason",
+    "me_powerful_activation.py:_address",
+    "me_powerful_activation.py:_rest_key",
+    "me_powerful_activation.py:town_key",
+    "me_powerful_activation_input.py:advance_powerful"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "b93e6b126",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_registry_review.json",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "me_device_policy.py:Device.key",
+    "me_device_policy.py:Device.kind",
+    "me_device_policy.py:absorb_candidate",
+    "me_device_policy.py:device",
+    "me_device_policy.py:purchase_wanted"
+   ],
+   "removed": [
+    "magic_eater_devices.py:is_absorption_device"
+   ],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": [
+    "me_device_policy.py:devices"
+   ]
+  },
+  {
+   "commit": "339ade6de",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "30c81a123",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "policy_opening.py:OpeningRouteMixin._opening_q1_light_to_wield"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "844d408d1",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "24058d0bf",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "a0a3ae947",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": true,
+   "added": [
+    "me_absorbed_substitutes.py:carry_cast_key"
+   ],
+   "removed": [
+    "me_absorbed_substitutes.py:light_key"
+   ],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "b9c94281a",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "c643b5752",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "6b7a340ba",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "me_absorbed_substitutes.py:cast_key",
+    "me_absorbed_substitutes.py:light_key",
+    "policy_quest.py:QuestMixin._quest_light_key"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "cfc32e192",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "10ee4bcf7",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "policy_fundraising.py:FundraisingMixin._fundraising_wield_light_key"
+   ],
+   "removed": [
+    "policy_fundraising.py:FundraisingMixin._fundraising_wieldable_light"
+   ],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "245cea5e3",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "801b413d2",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": true,
+   "added": [
+    "me_staff_sequence.py:_give_up_town",
+    "me_staff_sequence.py:_next_search_leg",
+    "me_staff_sequence.py:_search_town",
+    "me_staff_sequence.py:_stockout_target"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": [
+    "policy_town.py:TownMixin._cross_town_candidate_order"
+   ]
+  },
+  {
+   "commit": "7aa5cc078",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "policy_observation.py:ObservationMixin._strategy_force_for_snapshot",
+    "quest_strategies.py:lower_carries"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": [
+    "policy_observation.py:ObservationMixin._strategy_force_unlowered",
+    "quest_strategies.py:carry_floor"
+   ]
+  },
+  {
+   "commit": "00190daa5",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": true,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "b12dd7de4",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "a80192777",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": true,
+   "added": [
+    "mining_loadout.py:empty_main_hand_weapon",
+    "mining_loadout.py:main_hand_weapon"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "61efb29f8",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": true,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "3ca1f0325",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "3a464fb88",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "dcb8b754a",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "survival_preemption.py:emergency_hostiles"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "6a037d02a",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "town_pack_headroom.py:make_room_for_purchase"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "7d35ba4f8",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "mining_loadout.py:restorable_item",
+    "mining_loadout.py:restorable_item.matches",
+    "mining_loadout.py:rollback_key",
+    "mining_loadout.py:worn_in_slot",
+    "policy_equipment.py:EquipmentMixin._mining_loadout_rollback_key"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "1ab873bdf",
+   "touched": [
+    "scripts/town_work_manifest.json.gz"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "471cbb6e6",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "approach_walk.py:walk_key"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "4c7d0752b",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "me_powers.py:Power.key",
+    "me_powers.py:Power.letter",
+    "me_powers.py:_serving",
+    "me_powers.py:encode_letter",
+    "me_powers.py:power_key"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "b51875db0",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "scripts/town_work_review.json",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": true,
+   "review_without_proof": true,
+   "index": true,
+   "text_only_edit": false,
+   "added": [
+    "town_last_stand.py:key",
+    "town_last_stand.py:target"
+   ],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  },
+  {
+   "commit": "856ea4fe8",
+   "touched": [
+    "scripts/town_work_manifest.json.gz",
+    "src/hengbot/town_work_sites.json"
+   ],
+   "review": false,
+   "review_without_proof": false,
+   "index": false,
+   "text_only_edit": false,
+   "added": [],
+   "removed": [],
+   "reclassified": [],
+   "unmapped": [],
+   "added_proved": []
+  }
+ ]
+}

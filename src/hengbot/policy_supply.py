@@ -532,6 +532,22 @@ class SupplyMixin:
             )
         return not judgment.faint_without_refill
 
+    def _identify_staff_absorbed(self, snapshot: Snapshot) -> bool:
+        """Whether an absorbed power stands in for the carried Identify staff.
+
+        「以降、鑑定と財宝感知は取り込みで賄う」: the absorbed power is the
+        Magic-Eater's Identify staff (it regenerates and refills);
+        「鑑定の杖を21回取り込んだあとは…持ち物の要求からも外す」 also from the
+        displayed list alone (me_absorbed_substitutes).  The ordinary
+        departure gate and the forced departure's minimum read this one rule.
+        """
+        from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+        from hengbot.me_absorbed_substitutes import identify_staff_replaced
+        from hengbot.me_staff_sequence import absorbed as staff_absorbed
+        return bool((snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+                     and staff_absorbed(self, SV_STAFF_IDENTIFY))
+                    or identify_staff_replaced(self, snapshot))
+
     def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_quest_head=True) -> bool:
         # A loot-collecting quest (its reviewed profile opts in with
         # carry_identify_staff) needs a carried Identify staff regardless of the
@@ -545,16 +561,7 @@ class SupplyMixin:
             and bool(strategy.engagement_plan.get("carry_identify_staff"))
         )
         charges = self._total_identify_staff_charges(snapshot)
-        from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-        from hengbot.me_absorbed_substitutes import identify_staff_replaced
-        from hengbot.me_staff_sequence import absorbed as staff_absorbed
-        if (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
-                and staff_absorbed(self, SV_STAFF_IDENTIFY)) or identify_staff_replaced(
-                    self, snapshot):
-            # 「以降、鑑定と財宝感知は取り込みで賄う」: the absorbed power is
-            # the Magic-Eater's Identify staff (it regenerates and refills);
-            # 「鑑定の杖を21回取り込んだあとは…持ち物の要求からも外す」 also
-            # from the displayed list alone (me_absorbed_substitutes).
+        if self._identify_staff_absorbed(snapshot):
             return True
         if self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH:
             if not quest_requires_identify:

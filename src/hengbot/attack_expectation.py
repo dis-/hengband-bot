@@ -69,8 +69,10 @@ def harms_on_touch(policy, target) -> bool:
     return bool(_flags(policy, target) & TOUCH_AURAS)
 
 
-def _worn(snapshot, slot, usable):
-    return next((item for item in snapshot.equipment if item.slot == slot and usable(item)), None)
+def _hand_weapon(snapshot, slot):
+    """The worn melee weapon of ``slot`` (a digger counts in the main hand)."""
+    return next((item for item in snapshot.equipment if item.slot == slot and (
+        item.is_melee_weapon or (slot == "main_hand" and item.is_digging_tool))), None)
 
 
 def melee(policy, snapshot, target) -> float:
@@ -80,10 +82,10 @@ def melee(policy, snapshot, target) -> float:
         return 0.0  # fear refuses melee (cmd-attack.cpp:228)
     ac = _armour(policy, target)
     damage = 0.0
-    main = _worn(snapshot, "main_hand", lambda item: item.is_melee_weapon or item.is_digging_tool)
+    main = _hand_weapon(snapshot, "main_hand")
     if main is not None and player.main_hand_blows > 0:
         damage += policy._main_hand_dps(snapshot, main, ac=ac)
-    sub = _worn(snapshot, "sub_hand", lambda item: item.is_melee_weapon)
+    sub = _hand_weapon(snapshot, "sub_hand")
     if sub is not None and player.sub_hand_blows > 0:
         damage += policy._sub_hand_dps(snapshot, sub, ac=ac)
     return min(damage, max(target.hp, 0))
