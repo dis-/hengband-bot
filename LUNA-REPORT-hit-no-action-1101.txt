@@ -1,0 +1,104 @@
+LUNA-REPORT-hit-no-action-1101.txt  (#47 D57 の続き、ブランチ hit-no-action-1101、main 38cc744aa から。最後に main 3b2930939 を取り込み済み)
+
+オーナー（2026-11-01）: 「life85は無抵抗で攻撃を受け続けているのも気になる。他に不具合がないか確認。」
+life085-passive-1101 の監査の「残り」(3)(4) の2つの道を、どちらも既存の決まり（生存優先・10-03 追加決定2）を
+戻す不具合として直した。診断は LUNA-DIAG-hit-no-action-1101.txt（鎖と行番号、作った盤面の答え）。
+main の記録の盤面はどちらの道にも来ないので、tests/fixtures/death-n1c-085-1101.json.gz（D57 の抜き出し）の盤面から
+作った盤面を、公開の choose_key に順に渡し、出たキーを本番の実行器に通した（作った部分はテストの docstring に明記）。
+
+■ 道1: 盲目でなく、見えない敵に隣から殴られている（コミット 51f026a5f）
+- 作った盤面: 1445613・1445625（暗い）。ゼリーを見えない敵にし（visible_monsters から外し、文の名前を「何か」に。
+  monster-attack-player.cpp:298-304 の形）、油つぼと予備のランタンを外し、HP を 225 → 130（1回で最大HPの4割の被害、
+  低HPの歩きの門の閾値 118 より上）にした。
+- main: '2' no-wait:least-visited（緊急の段が policy_combat.py:2432 で待ち → 待ちの書き換え 686-691 が
+  いちばん来ていないマスへ歩く。見えない敵への反撃は低HPの門 policy.py:10336-10385 の中だけ）。
+- 直し: 反撃（10-03 追加決定2 の「近接で敵の方向が分からなければランダムな方向に攻撃」）を新しいモジュール
+  src/hengbot/unseen_strike.py に移し、3か所から呼ぶ: 緊急の段の最後（盲目の一撃の次、待ちの前、
+  理由 emergency:unseen-strike）、待ちの書き換えの least-visited の前（no-wait:attack）、低HPの門（今のまま
+  no-wait:attack）。判定の文・候補のマス・乱数（ターンを種にする）は門の今のコードと同じ。足したのは
+  「怖がっている時は打たない」だけ（cmd-attack.cpp:228 で近接は断られる。blind_strike と同じ）。
+- 直した後: '+2' dark:no-recovery:emergency:unseen-strike（変更の命令で、見えなくてもそのマスの敵を攻撃する）。
+
+■ 道2: 怖がっている（コミット 095cd4dbe）
+- ゲームの事実: 怖がって止まるのは近接だけ（cmd-attack.cpp:228）。取り込んだ魔力は混乱だけを見る
+  （cmd-magiceat.cpp:492）、魔法棒は混乱で向きが乱れるだけ（zapwand-execution.cpp:69）、投げるには検査が無い。
+- 作った盤面: 1445613・1445625（記録の HP 80・71、ゼリーは見える）で player.status.afraid を true、油と予備の
+  ランタンを外した。
+- main: '5' emergency:wait（記録の死の盤面と同じ待ち）。鎖: 暗がりの歩き '2' dark:backtrack → 低HPの門が止める →
+  回復なし・暗くて巻物は読めない → policy.py:10535 `adjacent and not player.afraid` の中の遠隔の順
+  （me_ranged_first.attack_key）を飛ばす → 待ち。
+- 直し: me_ranged_first.afraid_key（怖がっている時は遠隔の順だけ、近接はしない）を足し、遠隔の順を
+  「怖がっていない」の中に持っていた戦いの段の全部（同じ根）から、近接の枝の後に呼ぶ: 緊急の段の最後
+  （policy_combat.py:2437）、低HPの門（policy.py:10528）、逃げ場が無い時（policy.py:11410、今は flee:wait）、
+  隘路の待ち2つ（policy_combat.py:3684・3885、今は melee:choke-hold の待ち）、召喚の敵の段2つ
+  （policy_combat.py:364・404）。戦いの段の近接（policy.py:11506 付近）は、怖がって隣に敵がいれば
+  _should_flee が先に逃げの段へ回すので来ない（足していない）。
+- 直した後: 'mBp8'（北のゼリーへマジック・ミサイル、本番の実行器の魔力の問いを通る）。
+
+■ テストと revert-proof（src の直しだけを戻して流し、戻した）
+tests.test_hit_no_action_1101_recorded（5件）
+  UnseenAttackerStrikeRecordedTest
+  - test_unseen_attacker_above_the_gate_threshold_is_struck_not_walked_from: コミット1を戻すと FAIL
+    （'2' != '+'、no-wait:least-visited の歩き）。緊急の段の1行だけ戻すと、待ちの書き換えが打つので
+    ('+2', 'no-wait:attack') になり、理由の確認で FAIL。待ちの書き換えの1行だけ戻すと通る（この盤面は緊急の段が
+    先に答える）。待ちの書き換えだけに来る盤面は、記録からも作った盤面からも見つからなかった（下の「残り」）。
+  - test_constructed_board_is_an_unseen_melee_hit（作った盤面の事実）・test_control_below_the_gate_threshold_the_gate_strikes
+    （記録の HP では main でも門が打つ対照）: 戻しても通る。
+  AfraidRangedAnswerRecordedTest
+  - test_afraid_low_hp_gate_fires_at_the_adjacent_jelly: コミット2を戻すと FAIL
+    （('5', 'emergency:wait') != ('mBp8', 'quest-strategy:ranged-fire:magic-eater')）。
+  - test_control_unafraid_the_jelly_is_answered_too: 戻しても通る（怖がっていなければ main でもゼリーを撃つ）。
+  revert-proof は取り込み後の版でも流し直した（取り込み後（2636c0dea）: コミット1の2か所（緊急の段・待ちの書き換え）を外すと test_unseen_attacker_above_the_gate_threshold_is_struck_not_walked_from が FAIL（'2' != '+'）、コミット2の src を戻すと test_afraid_low_hp_gate_fires_at_the_adjacent_jelly が FAIL（('5', 'emergency:wait')）。戻した後は5件 OK）。
+期待値を直した既存のテスト（テストの壁ではない）:
+  tests.test_low_hp_no_unchecked_walk.LowHpNoKitUnseenHitTest.test_unseen_melee_attacks_a_direction_instead_of_walking
+  'no-wait:attack' → 'emergency:unseen-strike'。この盤面（HP 420/731、見えない敵に噛まれた）は main でも緊急の段の
+  最後まで来て待ち、門が書き換えていた。今は緊急の段がその場で打つ（同じ '+' の手、理由だけが変わる）。
+
+■ 検査
+- import の確認（hengbot.cli, hengbot.policy）: OK
+- checks.json の全テスト（重複を除いて 90 項目）＋自分のテスト2つを、3つに分けて実行: 528件。525件 OK、失敗 0、import の失敗 3件（tests.test_idstaff_stockout_run_recorded・test_unid_device_deposit_recorded・test_diggerless_scavenge_recorded は checks.json に載っているが、まだ main 3b2930939 に無い別ブランチのテスト）
+- 関係するテスト（自分で追加で流した）: test_low_hp_no_unchecked_walk・test_policy_navigation・
+  test_step_key_unify_rubble・test_flee_into_rubble_recorded・test_owner_a_survival_recorded・
+  test_anti_melee_dungeon_recorded・test_n1c_deaths_1101_recorded（186件）。失敗は main と同じ3件だけ
+  （test_policy_navigation.TownTravelerCombatPriorityTest の友好的な敵の2件・3サブテスト。main 38cc744aa の src でも
+  同じく失敗。今回の変更とは関係ない）と、上で期待値を直した1件。
+- 町の仕事の目録: town_work_manifest.py --write で zero unmapped（unseen_strike.py:key と
+  me_ranged_first.py:afraid_key の review を scripts/town_work_review.json に足した。取り込み後も作り直した）。
+- tests.test_melee_site_lint は main 38cc744aa でも既に失敗している（blind_strike など4か所、24 か所 vs 期待 22）。
+  今回の変更で数も指摘も変わらない（反撃のマスは policy.py から unseen_strike.py へ動いただけで、
+  _can_fight_in_dungeon で守られている）。checks.json には無い。
+
+■ checks.json に足す案（このブランチでは checks.json は編集しない）
+  {"id": "D58-HIT-NO-ACTION", "owner": "2026-11-01 「life85は無抵抗で攻撃を受け続けているのも気になる。他に不具合がないか確認。」 (n1-c life-085, branch hit-no-action-1101)", "tests": ["tests.test_hit_no_action_1101_recorded", "tests.test_low_hp_no_unchecked_walk.LowHpNoKitUnseenHitTest"]}
+
+■ オーナーへの問い（新しい決まりが要るので実装していない）
+問い1: 見えない敵に「近接で」殴られた時の、見えない敵からの退き（unseen:reverse-choke、policy_supply.py:1921）と
+  帰還待ちの移動（unseen-recall:move の least-visited、policy_combat.py:2022-2032）。今はどちらも隘路・階段へ歩き、
+  追ってくる敵に殴られ続ける（作った盤面 HP 225 → 150 で main は '2' unseen:reverse-choke）。10-03 追加決定2 の範囲は
+  「閾値未満・手が無い時」なので、ここに広げるのは新しい決まり。
+  A（推奨）: 近接の文（射撃・呪文でない）の時は退かずに unseen_strike で打つ。射撃・呪文の時は今のまま退く。
+  B: 階段・隘路が近い（N歩以内）時だけ退き、それ以外は打つ。C: 今のまま。
+問い2: 怖がっている時、隣の敵が自分以上に速い時の逃げ（_should_flee、policy.py:13005「怖いので離れる」）。
+  作った盤面（明るい、怖がっている）では速さ+10 のゼリーから '2' flee で歩き、追われて触られ続ける。
+  A（推奨）: 遠隔の答え（me_ranged_first）があり、隣の敵が自分以上に速い時は逃げずに撃つ。B: 今のまま逃げる。
+問い3: 魔道具術師以外が怖がって隣に敵がいる時。弓・投げは隣の敵にも使える（cmd-shoot.cpp に恐怖の検査は無い）が、
+  _ranged_attack_key は「隣は近接の仕事」として断る。A: 怖がっている時だけ隣の敵にも射る・投げる。B（推奨）: 今のまま
+  （逃げの段が答える。問い2 の結果に合わせる）。
+問い4: NO_MELEE の迷宮（_can_fight_in_dungeon が False）でも遠隔の順まで止めている。ゲームが止めるのは近接だけ。
+  A（推奨）: 遠隔の順（me_ranged_first）は NO_MELEE でも使う。B: 今のまま（その迷宮には行かない前提）。
+
+■ 残り
+- 待ちの書き換え（_forbid_wait_while_damaged）の新しい1行だけを通る盤面は作れなかった（見えない敵の近接の後に、
+  緊急の段以外の待ちが来る盤面）。同じ関数を緊急の段と門が通して試しているので、動きは同じ。
+- 緊急の段の最後（policy_combat.py:2437）の afraid_key だけを通る盤面も、作った盤面では手前の逃げる一歩
+  （emergency:seek-upstairs）が先に出て、門がそれを止めて答えたので来なかった。
+
+■ 保守性
+- 見えない敵への反撃は unseen_strike.py の1か所（約70行）にまとめ、低HPの門の中にあった同じ処理（約20行）を消した。
+  緊急の段・待ちの書き換え・門の3つは同じ関数を呼ぶだけで、判定の文・候補のマス・乱数の重複は無い。
+  盲目の一撃（blind_strike）と同じ形（モジュールの関数と理由の定数）にそろえた。
+- 怖がっている時の遠隔の答えは me_ranged_first.afraid_key の1か所（遠隔の順を持つモジュール）に置き、7つの
+  戦いの段はそれを1行で呼ぶ。「怖がっていたら遠隔の順も飛ばす」という条件の取り違えを、各段で書き直さずに
+  1つの関数の docstring にゲームの出典と一緒に書いた。職業・クエスト・品の特別扱いは共有の判断のコードに足していない。
+- 町の仕事の目録の review を2行足した（どちらも survival の子、独立の進み無し）。
+- テストは D57 の部品（PostedDeathKey・boards・lamp_policy・フィクスチャ）を使い回し、新しい抜き出しは作っていない。
