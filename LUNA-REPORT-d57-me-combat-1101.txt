@@ -107,3 +107,14 @@ tests.test_d57_me_combat_1101_recorded（14件。記録の盤面 → 公開の c
 - me_ranged_first.attack_key の中を短い関数に分けた（_missile_ready・_fire_missile・_attack_wand・_use・_first_key）。
   隣でない敵の順は前と同じ。
 - テストは D57 の部品（PostedDeathKey・boards・new_policy）と既存の抜き出し（freeze）を使い回した。
+
+■ main eeb06117d（hit-no-action-1101・d57-nav-depth-1101）の取り込み（5eaba31cf）
+- 衝突の解き方: me_ranged_first.py は hit-no-action の afraid_key をそのまま残し、この枝の選び方（attack_key →
+  _strongest_adjacent_key）を通す。怖がっている時は attack_expectation.melee が 0 なので、afraid_key は遠隔を返す。
+  policy_observation.py は両方の observe の呼び出し（status_cure.observe、immobile_threat_memory の observe/forget、
+  over_extension.judge_dive）を残した。town_work_review.json は3方向で項目ごとに合わせた（両方が変えた項目は無し）。
+  目録は --write で作り直し zero unmapped（1088 候補）。
+- 取り込みの後の revert-proof（同じ結果）: (a) を戻すと 2件 FAIL、(b) 1件 FAIL、(c)（隣も固定の順に戻す）2件 FAIL、
+  オーラの除外だけを戻すと 1件 FAIL。
+- 検査: import OK。checks.json の全テスト＋自分のテスト（96項目）を8回に分けて 559件、失敗 0・import の失敗 0
+  （tests.test_hit_no_action_1101_recorded も通る）。
