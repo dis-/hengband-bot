@@ -28,12 +28,21 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import dataclasses
+import gzip
+import json
 import unittest
+from pathlib import Path
 
 from hengbot import unseen_strike
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.model import parse_snapshot
+from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
+from hengbot.policy import HengbotPolicy
+from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
+from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE, RETURN_TRIGGER
+from tests import test_input_executor as executor_pins
+from tests.test_dungeon_1031_recorded import READ_PROMPT, RecordedHarness, decide
 from tests import test_hit_no_action_1101_recorded as hit
 from tests import test_n1c_deaths_1101_recorded as d57
 from tests.test_esp_threat_rest_recorded import EDIT
@@ -159,6 +168,76 @@ class NoMeleeRangedOrderRecordedTest(d57.PostedDeathKey):
     def test_control_melee_allowed_the_jelly_is_answered_too(self):
         raw, key, reason = self.drive(d57.lamp_policy(), lit_boards())[-1]
         self.assertEqual(key[-1], "8", (key, reason))
+
+
+Q14_FIXTURE = Path(__file__).with_name("fixtures") / "owner15-q14-1101.json.gz"
+WARG_PROBLEM = 14
+TVAL_SCROLL, SV_TELEPORT = 70, 9
+
+
+class WargProblemTeleportReserveRecordedTest(RecordedHarness):
+    """Answer 4 「014 だけ広げる」: the five-scroll reserve covers Q14.
+
+    n1-c life-092 on イークの洞穴5階 with quest 14 TAKEN (1/16 wargs), fifteen
+    Scrolls of Teleportation (tests/extract_owner15_q14_1101_fixture.py).  A
+    new process with the repository's quest and monster data (as the CLI
+    loads them) replays the recorded boards; DECLARED CONSTRUCTED: the last
+    board carries four (or, for the control, five) scrolls, as if the
+    quest's emergencies had read the rest; the skill knowledge is supplied
+    before each decision (test_dungeon_1031_recorded.decide); the executor
+    reply is the same board ten turns later.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with gzip.open(Q14_FIXTURE, "rt", encoding="utf-8") as stream:
+            cls.case = json.load(stream)
+        root = Path(__file__).resolve().parents[1]
+        cls.monraces = load_monrace_knowledge(find_monrace_definitions(root, None))
+        cls.quests = load_quest_knowledge(find_quest_definitions(root))
+
+    def replay(self, scrolls):
+        boards = copy.deepcopy(self.case["boards"])
+        for item in boards[-1]["inventory"]:
+            if (item["tval"], item["sval"]) == (TVAL_SCROLL, SV_TELEPORT):
+                item["count"] = scrolls
+        policy = HengbotPolicy(monrace_knowledge=dict(self.monraces), quest_knowledge=self.quests)
+        policy.prime(parse_snapshot(copy.deepcopy(boards[0]), policy._monrace_knowledge))
+        for raw in boards[:-1]:
+            decide(policy, raw)
+        raw = boards[-1]
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(policy._active_kill_quest_id(board), WARG_PROBLEM)
+        self.assertEqual(policy._count_teleport_scrolls(board), scrolls)
+        return policy, raw, board
+
+    def test_recorded_rows(self):
+        self.assertEqual({(row["reason"]) for row in self.case["decisions"]}, {"explore"})
+        for raw in self.case["boards"]:
+            self.assertEqual((raw["floor"]["dungeon_id"], raw["floor"]["level"]), (2, 5))
+            quest, = [q for q in raw["progress"]["quests"] if q["id"] == WARG_PROBLEM]
+            self.assertEqual((quest["status"], quest["cur_num"], quest["max_num"]), (1, 1, 16))
+            self.assertEqual(sum(item["count"] for item in raw["inventory"]
+                                 if (item["tval"], item["sval"]) == (TVAL_SCROLL, SV_TELEPORT)), 15)
+            self.assertEqual(raw["visible_monsters"], [])
+
+    def test_below_the_reserve_the_return_reads_recall(self):
+        policy, raw, board = self.replay(RANDOM_QUEST_TELEPORT_RESERVE - 1)
+        key = decide(policy, copy.deepcopy(raw))
+        # Unfixed: the lock held and the bot explored on ('4', 'explore').
+        self.assertFalse(policy._quest_floor_exit_locked(board))
+        self.assertEqual((policy.last_reason, policy._last_return_trigger),
+                         ("return:recall", RETURN_TRIGGER))
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertEqual(key, "r" + recall.slot)
+        self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(READ_PROMPT)],
+                                   self.later(raw)), ["r", recall.slot])
+
+    def test_control_at_the_reserve_the_floor_stays_locked(self):
+        policy, raw, board = self.replay(RANDOM_QUEST_TELEPORT_RESERVE)
+        decide(policy, copy.deepcopy(raw))
+        self.assertTrue(policy._quest_floor_exit_locked(board))
+        self.assertNotEqual(policy.last_reason, "return:recall")
 
 
 if __name__ == "__main__":
