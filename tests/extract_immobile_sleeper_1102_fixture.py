@@ -9,7 +9,9 @@ seven cells east of the player on a clear row; the recorded bot retreated
 (``threat:avoid-engagement``), explored back towards it and boxed itself in.
 
 The fixture keeps the boards, the last skill-proficiency and Home knowledge
-rows of the ring before the boards, the monster knowledge of the boards'
+rows of the ring before the boards, the policy-state ``_me_staff_sequence``
+and the floor's device-power uses before the boards (``_me_power_floor``),
+the definitions of the entered dungeons, the monster knowledge of the boards'
 monsters and the compact decision rows of the same turns.  Only this
 extraction tool reads the capture; the committed test reads the fixture.
 """
@@ -21,6 +23,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from tests.extract_me_staff_loops_1031 import ring_rows
 
@@ -29,6 +32,8 @@ ROOT = Path("C:/hengband-backups/pdca/captures/hourly-0600-1102/"
             "n1-c-life-103-20261102-053149-loop-detected")
 RING = ROOT / "incident-captures/20261102-053145-loop-detected/snapshots/snapshots-current.jsonl.gz"
 DECISIONS = ROOT / "bot-decisions.jsonl.gz"
+POLICY_STATE = ROOT / "incident-captures/20261102-053145-loop-detected/policy-state.json"
+EDIT = Path("C:/hengband/lib/edit")
 OUTPUT = Path(__file__).with_name("fixtures") / "immobile-sleeper-20261102.json.gz"
 FIRST, LAST = 412529, 412823
 
@@ -55,6 +60,14 @@ def main():
     ids = {row["race_id"] for raw in boards
            for field in ("visible_monsters", "detected_monsters")
            for row in raw.get(field, [])}
+    state = json.loads(POLICY_STATE.read_text(encoding="utf-8"))["state"]
+    fixture["sequence"] = state["_me_staff_sequence"]
+    floor = state["_me_power_floor"]
+    fixture["power_floor"] = dict(floor, turn=FIRST, uses=[use for use in floor["uses"]
+                                               if use["turn"] < FIRST])
+    dungeons = load_dungeon_knowledge(EDIT / "DungeonDefinitions.jsonc")
+    fixture["dungeons"] = {key: asdict(dungeons[key])
+                           for key in sorted(boards[0]["progress"]["entered_dungeon_ids"])}
     fixture["monraces"] = {key: asdict(races[key]) for key in sorted(ids)}
     decisions = []
     with gzip.open(DECISIONS, "rt", encoding="utf-8") as stream:
