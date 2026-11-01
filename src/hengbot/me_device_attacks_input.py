@@ -20,7 +20,7 @@ from hengbot.input_context import read_input_view
 from hengbot.input_executor import Continuation, ScreenKind
 from hengbot.magic_eater_input import (
     EMPTY, FAILURES, MENU_PROMPTS, TYPE_PROMPTS, _owns_power_prompt, _wand_menu_answer,
-    kind_menu_wait, observed_power_list,
+    aim_never_asked, kind_menu_wait, observed_power_list,
 )
 from hengbot.me_device_attacks import DEVICE_REASON, POWERS
 from hengbot import me_absorbed_substitutes, me_powers
@@ -142,6 +142,9 @@ def advance_device(executor, screen, match, deadline, outcome):
         operation.continuations[0] = step
     if match.kind in {ScreenKind.MORE, ScreenKind.LEVEL_UP_STAT}:
         return None
+    if aim_never_asked(step, match):
+        operation.business_outcome = "failed:magic-eater"
+        step = replace(step, stage="done")
     if match.kind is ScreenKind.COMMAND and step.stage == "done":
         operation.continuations.pop(0)
         return None

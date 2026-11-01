@@ -55,6 +55,7 @@ from hengbot.equipment_transaction_session import (
     EquipmentTransactionObservation,
     EquipmentTransactionSession,
     observe_equipment_transactions,
+    planned_item,
 )
 from hengbot.equipment_transaction_planner import (
     PHASE_EQUIP,
@@ -2311,11 +2312,7 @@ class EquipmentMixin:
             return key
 
         if action.kind in {"equip", "reposition"}:
-            target = next((
-                item for item in snapshot.inventory
-                if item.is_equipment
-                and equipment_identity(item) == action.item_identity
-            ), None)
+            target = planned_item(action, snapshot.inventory)
             if target is None:
                 self._block_equipment_transaction(
                     f"equip-item-missing:{action.item_id}"
@@ -2347,17 +2344,7 @@ class EquipmentMixin:
             return key
 
         if action.kind == "deposit":
-            target = next(
-                (
-                    item
-                    for item in snapshot.inventory
-                    if item.is_equipment
-                    and (equipment_identity(item) == action.item_identity
-                         or (action.move_identity is not None
-                             and equipment_move_identity(item) == action.move_identity))
-                ),
-                None,
-            )
+            target = planned_item(action, snapshot.inventory)
             if target is None:
                 worn = next((
                     item for item in snapshot.equipment
@@ -2849,17 +2836,7 @@ class EquipmentMixin:
             return key
 
         if action.kind in {"equip", "reposition"}:
-            target = next(
-                (
-                    item
-                    for item in snapshot.inventory
-                    if item.is_equipment
-                    and (equipment_identity(item) == action.item_identity
-                         or (action.move_identity is not None
-                             and equipment_move_identity(item) == action.move_identity))
-                ),
-                None,
-            )
+            target = planned_item(action, snapshot.inventory)
             if target is None:
                 self._block_equipment_transaction(
                     f"equip-item-missing:{action.item_id}"

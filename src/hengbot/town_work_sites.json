@@ -533,6 +533,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "79883cd73ac14b965c4092f89cab61bc438c7e6ba9a05b6ae39186e348cf9b82"
   },
+  "equipment_optimizer.py:_without_player_inscription": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "a81b502d3e795c675487d1eb4f168e130a8e1b5aa896d87726d91b973a4e1994"
+  },
   "equipment_optimizer.py:current_loadout": {
     "classification": "data",
     "rows": [
@@ -563,7 +571,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "cdd6563abe42cba31ee83e6a74d061c8312bdb4a3c2bf46b3fcc13439a15ebc6"
+    "ast_sha256": "f17fc81a7a36c0989a99de5a2100f2436677245a10137283efbb49baa3f37360"
   },
   "equipment_optimizer.py:light_source_quality": {
     "classification": "data",
@@ -709,6 +717,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "388622aef0b67bf544be7859cfb2027fffad7bde12d84fce0a19eea9a95bf817"
+  },
+  "equipment_transaction_session.py:planned_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "156a86bb64c4dc6e5abeedf13027817cfce002662b169282dd05e85a0277cba9"
   },
   "flight_recorder.py:_position": {
     "classification": "data",
@@ -1798,7 +1814,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "005d0eab5e18d6f04fd51714a18d1e6ac89d2eddea58414cb7bfd4ffad4a1037"
+    "ast_sha256": "371dbeea646beed6f86d545395cfd682ffae04619bef20645b086d1603ab4c9e"
   },
   "mapped_area.py:current": {
     "classification": "data",
@@ -1887,7 +1903,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "28a4034f13ca6e23997d598b65a6cab10bce72ce0593475002506b46f8ca8c7c"
+    "ast_sha256": "833d16764bc172cc190da4d536303483f9da0c9b2e5ccfad4748791c17c107cb"
   },
   "me_device_policy.py:Device.key": {
     "classification": "data",
@@ -5564,7 +5580,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a3b1e5db5371df62c276bbc1cfade8207f32298c9de2c3f1f24b8f893c6e1d8d"
+    "ast_sha256": "d3402e0b27da8ed3741a6e5ad8e6fc5268111149abe91f9e2edabd0279910a41"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_key": {
     "classification": "producer",
@@ -5572,7 +5588,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "dd2e64703874c841c4d6d6da256ee5cd50492b3bd84db2fdd03332e32f426957"
+    "ast_sha256": "2276662d736daf5ee8d7ecbce0f34c48a6ad4c46386885b066c0344f4f0787f5"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_owner_key": {
     "classification": "producer",
@@ -8342,7 +8358,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "ccdbbf5761bd05a1ae306f10e158eacf1a3b18a564f3f6303c20c6185bdce577"
+    "ast_sha256": "8fc5c99a0486a66fc896be1561a342d35171d85e09034a845236bbeba1f62717"
   },
   "policy_supply.py:SupplyMixin._identify_staff_release_plan": {
     "classification": "data",
