@@ -1,0 +1,87 @@
+LUNA-REPORT breeder-quest-1102（クエストの階で増える敵の20回の決まりが働いた後の動き）
+
+■ オーナーの指示（そのまま）
+「20ターンの数え方はそれで良い。　全滅要求のクエストは達成できないので放棄。ランダムクエストなどターゲット討伐要求の場合はテレポートで距離を取り、増殖モンスターの近くを避けて続行」
+
+■ ゲーム本体の根拠（C:\hengband\src、lib\edit）
+- クエストの種類: system/dungeon/quest-definition.h:77-87 QuestKindType（KILL_LEVEL=1, KILL_ANY_LEVEL=2, FIND_ARTIFACT=3, FIND_EXIT=4, KILL_NUMBER=5, KILL_ALL=6, RANDOM=7, TOWER=8）。
+- 全滅が条件の種類: dungeon/quest-completion-checker.cpp complete_kill_all（KILL_ALL）と complete_tower（TOWER）は、倒した敵が最後の1匹（count_all_hostile_monsters() == 1）の時だけ達成になる。増え続ける敵がいる限り達成できない。
+- 目標を倒す種類: 同じファイルの complete_random（KILL_LEVEL と RANDOM）は、q_ptr->r_idx の種族を倒した数だけを数える。KILL_NUMBER（complete_kill_number）はどの敵を倒しても数が進むので、増える敵はむしろ進める。
+- データ: lib/edit/quests の KILL_ALL 20件はすべて "PRESET", "ONCE"。RANDOM は 040〜049。
+- 帰還で出ると失敗になるか: world/world-movement-processor.cpp:82-96 は、クエストの階（floor.is_in_quest()）でも帰還が働き、leave_quest_check と leave_tower_check を呼ぶ。
+  dungeon/quest.cpp leave_quest_check（243 行目）は、ONCE か RANDOM で TAKEN のクエストを FAILED にする（RANDOM は FloorChangeMode::NO_RETURN も付ける）。leave_tower_check は塔を FAILED にする。
+  spell-kind/spells-world.cpp recall_player の 440 行目は、クエストの階では「最深到達階より浅い」の問いを出さない。
+- 階段: cmd-action/cmd-move.cpp confirm_leave_level（58-76 行目）が RANDOM と ONCE のクエストの階で「本当にこの階を去りますか？」を聞き、出ると leave_quest_check。
+- 再挑戦しないこと: FAILED は TAKEN でも UNTAKEN でもないので、ボットの _fixed_quest_target（policy_quest.py）も _active_fixed_quest_id / _active_kill_quest_id（TAKEN だけ）も選ばない。
+- テレポートの手段: ボットが自分を飛ばす手段は、テレポートの巻物（sv 9）だけ（_find_teleport_scroll / _escape_scroll）。魔道具術師の力の表（me_powers.py）や杖・ロッドで自分を飛ばすものは使っていない（ロッド・魔法棒の TELEPORT_AWAY は敵を飛ばす）。
+  テレポート・レベルの巻物（sv 10）は使わない。spells-world.cpp:137-160 のとおり、クエストの階では天井を抜けて leave_quest_check を呼び、クエストが失敗になるため。
+
+■ 直し（コミット 1467ae8c7、取り込み 4f5d70329、レビューの登録 は下のコミット）
+新しいモジュール src/hengbot/breeder_quest.py に、クエストの種類ごとの表 RESPONSE_BY_QUEST_TYPE を置いた。
+  KILL_ALL・TOWER → ABANDON（放棄）、KILL_LEVEL・KILL_ANY_LEVEL・RANDOM → PURSUE（目標を追って続ける）。表に無い種類（KILL_NUMBER、FIND_*）は今までどおり。
+  種類は、階のクエスト（floor_key の3つ目）が TAKEN の時、静的な知識の種類、無ければ実行時の種類で決める（今ある _runtime_random_quest と同じ決め方）。クエストの番号の特別扱いは無い。
+1. 放棄: 抜け出す担当（policy_combat._breeder_breakthrough_key）の帰還の条件に「放棄する階」を足した。固定クエストの階でも、出口の鍵があっても、帰還の巻物を読む（理由は今ある breeder-breakthrough:recall）。
+   帰還の巻物が無い時は今までの抜け出す担当が上り階段へ行く。その「本当にこの階を去りますか？」は quest_leave_confirmation_owned が答える（放棄する階を足した）。
+2. 目標を追う: 出口の鍵がかかっている間（_return_exit_locked。鍵が外れたら今ある帰還が先）
+   - 20回の決まりで印が付いた最初の盤面で、テレポートの巻物を1本読む（breeder-breakthrough:teleport）。読んだら20回の数えを最初からにする（breeder_stalemate.forget）。
+     印は戦いの結果を決める処理（_update_combat_outcome）が判断の後に付けるので、読むのは20回目の次の盤面（記録では 2199871 の次の 2199883）。
+   - 見えている・感知した増える敵のまわり1マス（敵のマスと隣の8マス）を、道を選ぶ時に通らないマスにする（_engagement_avoid_cells。_refresh_warning_avoidance で毎回入れ替える）。
+     半径1は、噛みつきが届く範囲で、麻痺の敵を避ける今の処理（policy_combat._refresh_paralyzer_avoidance: NEIGHBOR_OFFSETS + (0, 0)）と同じ幅。新しい数は足していない。
+   - 隣で噛んでくる敵とは、breeder-swarm (a) のとおり戦う。テレポートの巻物が無い・読めない時は今までどおり。
+3. まわりの整理: _perceived_hostiles を、見えている・感知した敵の一覧（_sighted_or_detected_hostiles、新しい）と、弱い増える敵を外す絞り込みに分けた。印の付いた階では弱い増える敵が _perceived_hostiles から外れるので、避けるマスには新しい一覧を使う。
+   quest_knowledge.py に QUEST_TYPE_KILL_ALL と QUEST_TYPE_KILL_ANY_LEVEL を足した。breeder_stalemate.py に stalemate_standing（20回たまったか）を足し、flee_due もこれを使う。
+   claim_ladder.py の _breeder_breakthrough_key の理由に breeder-breakthrough:teleport を足した。
+4. town_work: breeder_quest.py:response（data）と breeder_quest.py:teleport_key（producer, survival）のレビューを scripts/town_work_review.json に足し、
+   scripts/town_work_manifest.py --write を流した（「zero unmapped」）。src/hengbot/town_work_sites.json が書き直された。
+
+■ 検査（記録の盤面 → 公開の choose_key → 本番の executor）
+新しいテスト: tests/test_breeder_quest_1102_recorded.py（5件。元のデータは breeder-swarm-1102 と同じ tests/fixtures/breeder-swarm-20261102.json.gz）
+  - test_recorded_floor_is_a_target_quest_with_teleports: 記録の階はランダムクエスト41（種類7、TAKEN、目標の種族1329、どの盤面にも見えていない）、テレポートの巻物7本、記録のボットは一度も読んでいない。
+  - test_target_quest_teleports_once_and_keeps_the_floor: 2199883 で 're'（テレポートの巻物）を読む。それまでは melee / ranged:fire。その後は2本目を読まず、帰還・階段・撃つことをせず、帰る印も付かない。
+  - test_target_quest_routes_clear_of_the_breeders: 印の付いた階の再起動後の盤面（2200918〜）で、避けるマスにバグのまわり1マスが入り、歩く1歩がそこに入らない（explore など）。帰還も撃つこともしない。
+  - test_without_teleportation_the_reserve_rule_still_leaves: テレポートの巻物を抜いた盤面では、今までどおり（random_quest_reserve：5本より少ないと鍵が外れる）帰還を読む。
+  - test_kill_all_quest_floor_is_abandoned_by_recall: 同じ盤面で階のクエストを25（幽霊屋敷：KILL_ALL、PRESET+ONCE、固定クエストの許可リストにある）に替えると、2199883 で 'rf'（帰還）を読み、帰る印が付き、階段の問いにも答える。
+  executor に読む操作を通すため、tests/test_breeder_swarm_1102_recorded.py の PostedSwarmKey.post に、巻物を選ぶ画面（READ_PROMPT）で答える分を足した（2つのテストで共有）。
+  既存の breeder-swarm のテスト2件（test_twenty_actions_without_reduction_latch_the_floor、test_restart_keeps_the_engagement_window）は、印の後の盤面で読む操作を executor に通せず落ちていたが、この共有の post で通る。期待する値は変えていない。
+作った部分（テストの説明に DECLARED と書いた）:
+  - テレポートの後の盤面は記録のまま（記録のボットはテレポートしていないので、プレイヤーは記録の場所にいる）。
+  - 全滅のクエストの例は、同じ盤面の階のクエストをクエスト25（TAKEN）に替え、ランダムクエスト41を消して作った。記録には全滅のクエストで印が付いた例が無かった。
+  - テレポートの巻物が無い例は、持ち物から抜いて作った。
+  - _fixed_quest_speed_attempted と、再起動の盤面を印付きで始めるのは breeder-swarm のテストと同じ。
+
+■ 戻して確かめた結果（1回）
+  1467ae8c7 を作業ツリーで戻し（git revert -n）、tests と breeder_quest.py・quest_knowledge.py・breeder_stalemate.py・claim_ladder.py は今のまま、policy_combat.py と policy_quest.py の配線だけ戻して流した。
+  - test_kill_all_quest_floor_is_abandoned_by_recall: ('6', 'breeder-breakthrough:seek-frontier') != ('rf', 'breeder-breakthrough:recall')（帰還せず、群れの中を未知の方へ歩く）
+  - test_target_quest_teleports_once_and_keeps_the_floor: ('4', 'melee') != ('re', 'breeder-breakthrough:teleport')
+  - test_target_quest_routes_clear_of_the_breeders: 避けるマスが空（2200918）
+  - 残り2件（記録の確認、巻物が無い時は今までどおり）は戻しても通る（そういう作り）。
+  元に戻して5件とも合格。git status はきれい。
+
+■ 確認の結果（main 21aacbbb7 を取り込んだ後、4f5d70329）
+- import の確認: OK
+- tests.test_breeder_quest_1102_recorded（5件）と tests.test_breeder_swarm_1102_recorded（7件）: OK
+- town_work_manifest.py --write: zero unmapped
+- checks.json、全体テスト、preflight などは決まりのとおり流していない。
+- 参考: test_policy_combat の breeder・breakthrough を名前に含むテストを流したら4件落ちた
+  （test_2230_capture_does_not_rest_among_eighteen_weak_breeders、test_latched_weak_breeder_is_escape_route_blocker_candidate、
+   test_low_hp_weak_breeder_does_not_preserve_declared_walkout、PredictiveEscapeTest.test_suppressed_weak_breeder_paralysis_remains_a_status_threat）。
+  src を breeder-swarm-1102 の先頭（586bb80c4）に戻しても同じ4件が落ちるので、この直しではなく、breeder-swarm (a)（隣で噛む弱い敵を戦う相手に残す）で期待する値が古くなったものと思われる。直していない（breeder-swarm の取り込みの前に見てほしい）。
+
+■ checks.json に足す案（checks.json は編集していない）
+{"id": "BREEDER-QUEST-1102", "owner": "2026-11-02 「全滅要求のクエストは達成できないので放棄。ランダムクエストなどターゲット討伐要求の場合はテレポートで距離を取り、増殖モンスターの近くを避けて続行」", "tests": ["tests.test_breeder_quest_1102_recorded"]}
+
+■ 保守性
+- 新しい決まりは breeder_quest.py の1か所にまとめた（種類ごとの表1つ、短い関数4つ）。抜け出す担当は表に聞くだけで、クエストの番号や種族の特別扱いは足していない。
+- 帰還の読み方・待ち方・確認は、抜け出す担当の今ある処理をそのまま使い、条件に1つ足しただけ（同じ処理を写していない）。
+- 避けるマスは、今ある共通の避けるマスの仕組み（_refresh_warning_avoidance の追加・取り消し）を使った。動かない召喚の敵の避け方と同じやり方。
+- _perceived_hostiles の中の「見えている・感知した敵をまとめる」部分を _sighted_or_detected_hostiles に分け、同じ処理を2か所に書かずに済むようにした。
+- 20回たまったかの判定は breeder_stalemate.stalemate_standing の1か所にした。
+
+■ オーナーへの問い（直していない）
+1. KILL_NUMBER（どの敵でも決まった数を倒す）は、増える敵を倒しても数が進むので、表に入れず今までどおりにした。これでよいか。FIND_ARTIFACT・FIND_EXIT も今までどおり。
+2. テレポートは「20回の決まりが働くたびに1本」にした。ただし印の付いた階では、弱い増える敵を数から外す今の作り（_perceived_hostiles）のため、弱い敵だけの群れでは数えが進まず、2回目のテレポートは起きない（1回だけ）。
+   その後に群れが追いついたら、隣で噛む敵と戦い、離れた敵のまわりは避けて歩く。もっと読む（例えば、近づかれるたびに読む）方がよいか。巻物が5本より少なくなると、今の決まり（random_quest_reserve）で帰還する。
+3. 避けるマスは通れないマスとして扱う。目標が増える敵に囲まれていると、目標まで歩けないことがある（その間は探索などを続け、隣で噛む敵とは戦う）。
+4. 自分を飛ばす手段は巻物だけ。魔道具術師がテレポートの杖を取り込んで使う、などはボットに無い。足す方がよいか（新しい動きなので足していない）。
+5. 固定クエストのうち、決まった作戦がある階（クエスト2の下水道など。navigator.decide は抜け出す担当より先に動く）で印が付いた時に、放棄が先に働くかは確かめていない。
+   クエスト2には今も作戦の中にテレポートで仕切り直す処理（quest-strategy:q2-teleport-reset）がある。
