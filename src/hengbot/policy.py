@@ -10525,6 +10525,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._direction_key(
                 player.position, self._weakest(adjacent).position
             )
+        if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
+            return ranged  # fear refuses melee only
         if low:
             answer = (blind_strike.emergency_key(self, snapshot)
                       or self._low_hp_no_kit_hit_key(snapshot, hostiles))
@@ -11405,6 +11407,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._town_producer_entry("_direction_key#1", lambda: self._direction_key(
                     player.position, self._weakest(strategic_adjacent).position
                 ))
+            if (ranged := me_ranged_first.afraid_key(self, snapshot, strategic_adjacent)) is not None:
+                return ranged  # fear refuses melee only
             self.last_reason = "flee:wait"
             return WAIT_KEY
 

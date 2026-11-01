@@ -10,6 +10,10 @@ boards (Lv18 zombie Magic-Eater, 236 max HP, 迷宮11階; the jelly
   rewrite walked to the least-visited cell (``no-wait:least-visited``).  The
   counterattack of USER DECISION 2026-10-03 追加決定2 (「近接で敵の方向が分から
   なければランダムな方向に攻撃。」) answered only below the threshold.
+* Afraid beside the jelly: the low-HP walk gate (and the other combat rungs)
+  tried the ranged order (me_ranged_first) only inside their unafraid melee
+  branch and waited (``emergency:wait``), although fear refuses melee only
+  (cmd-attack.cpp:228; cmd-magiceat.cpp:492 checks confusion).
 
 Fixture: tests/fixtures/death-n1c-085-1101.json.gz (the D57 extraction).
 Every decision is the public ``choose_key``; posted keys go through the
@@ -21,13 +25,16 @@ DECLARED CONSTRUCTED: the oil flasks and the spare lantern are out of the pack
 the unseen case the jelly is out of the visible list and its name in the
 messages is the game's hidden actor 「何か」 (monster-attack-player.cpp:298-304,
 monster-describer.cpp), and the HP is 225 then 130 (one blow of 95 >= 40% of
-the maximum, above the gate's threshold), as each case states.
+the maximum, above the gate's threshold); for the afraid case the player's
+status ``afraid`` is set on the recorded boards (recorded HP 80 then 71), as
+each case states.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import unittest
 
+from hengbot.magic_eater import MISSILE_REASON
 from hengbot.model import parse_snapshot
 from tests import test_n1c_deaths_1101_recorded as d57
 
@@ -37,8 +44,9 @@ JELLY_NAME = "『スーパー・グレート・シルバー・ゼリー』"
 STRIKE_FROM, STRIKE_AT = 1445613, d57.JELLY_WAIT_TURN
 
 
-def constructed(raw, *, hp=None, unseen=False):
+def constructed(raw, *, hp=None, unseen=False, afraid=False):
     raw = copy.deepcopy(raw)
+    raw["player"]["status"]["afraid"] = afraid
     raw["inventory"] = [item for item in raw["inventory"]
                         if item["tval"] not in (TVAL_LIGHT, TVAL_FLASK)]
     if hp is not None:
@@ -83,6 +91,29 @@ class UnseenAttackerStrikeRecordedTest(d57.PostedDeathKey):
         # The recorded HP (80, 71): the low-HP walk gate already struck on main.
         _policy, _raw, key, reason = self.drive_unseen((80, 71))
         self.assertEqual(key[0], "+", (key, reason))
+
+
+class AfraidRangedAnswerRecordedTest(d57.PostedDeathKey):
+    """Afraid beside the jelly: the ranged order answers, melee does not."""
+
+    def drive_afraid(self, *, afraid=True):
+        rows = [constructed(raw, afraid=afraid)
+                for raw in d57.boards(d57.CASE_085, STRIKE_FROM, STRIKE_AT)]
+        raw, key, reason = self.drive(d57.lamp_policy(), rows)[-1]
+        self.assertEqual(raw["turn"], STRIKE_AT)
+        return raw, key, reason
+
+    def test_afraid_low_hp_gate_fires_at_the_adjacent_jelly(self):
+        raw, key, reason = self.drive_afraid()
+        self.assertTrue(raw["player"]["status"]["afraid"])
+        self.assertEqual([(m["race_id"], m["y"], m["x"]) for m in raw["visible_monsters"]],
+                         [(d57.JELLY, 8, 6)])
+        # Unfixed: ('5', 'emergency:wait'), the recorded death's wait.
+        self.assertEqual((key, reason), ("mBp8", MISSILE_REASON))
+
+    def test_control_unafraid_the_jelly_is_answered_too(self):
+        _raw, key, reason = self.drive_afraid(afraid=False)
+        self.assertEqual(key[-1], "8", (key, reason))
 
 
 if __name__ == "__main__":

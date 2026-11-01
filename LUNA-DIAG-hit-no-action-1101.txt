@@ -44,16 +44,18 @@ main の答え: 1445613 '8' dark:no-recovery:dark:probe、1445625 '2' no-wait:le
 作った盤面: life-085 の 1445613・1445625（記録の HP 80・71、ゼリー @(8,6) が見える、1445613 は南に格闘家イーク）。
   DECLARED CONSTRUCTED: player.status.afraid を true にした。油つぼと予備のランタンを外した（同上）。
 main の答え: 1445613 'qb' dark:no-recovery:emergency:quaff-speed、1445625 '5' emergency:wait（記録の死の盤面と同じ待ち）。
-鎖:
-  1. 緊急の段 policy_combat.py:2416-2428: `if adjacent and not player.afraid and ...` の中で
-     me_ranged_first.attack_key（マジック・ミサイル 'mBp8'、D21）を試す。怖がっていると遠隔の順ごと飛ばす。
-  2. 2430 盲目でない → 2432 'emergency:wait'。_forbid_wait_while_damaged（policy_combat.py:698, 707）も
-     「怖がっていない」時だけ殴るので WAIT のまま。門は WAIT を歩きと見ないので素通し。
-  低HPの門 policy.py:10535-10545 も同じ形（`adjacent and not player.afraid` の中で遠隔の順）。作った盤面:
-  1445315-1445339（明るい 3 枚と、明かりが消えた 1445339）、怖がっている、油・予備のランタンを外す、
-  1445339 の HP を 110 にし（DECLARED CONSTRUCTED）、1445339 の 体力回復の薬 を外した（記録では 1445613 までに
-  飲んでいる）。main の答え: 1445339 は暗がりの歩きを門が止め、回復なし・巻物は暗くて読めない → 10535 を
-  怖がって飛ばす → 'emergency:wait' WAIT。
+鎖（1445625、_forbid_wait_while_damaged と _low_hp_walk_gate の入出力を記録して確かめた）:
+  1. 暗がりの歩き（policy_navigation.py:326-400 _dark_locomotion_key）が '2' dark:no-recovery:dark:backtrack
+     （北のゼリーから南へ歩く）。life085-passive-1101 の直し（survival_preemption）は「怖がっていない」敵の時だけ
+     歩きを断るので、怖がっている時はここに来る。
+  2. policy.py:3012 _low_hp_walk_gate: HP 71 < 118 → 歩きを止める → 回復の薬なし（致命傷の治癒は数えない）→
+     暗くて巻物は読めない → 10535-10545 `adjacent and not player.afraid and ...` の中の
+     me_ranged_first.attack_key（マジック・ミサイル 'mBp8'、D21）を、怖がっているので遠隔の順ごと飛ばす →
+     10548 盲目でない・見えない敵の文でない → 敵がいるので 'emergency:wait' WAIT。
+  明るい盤面でも同じ（1445315-1445328、怖がっている、巻物・スピードの薬・体力回復の薬を外し、1445328 の HP を
+  110 に: 緊急の段の '2' emergency:seek-upstairs を門が止め、同じく 'emergency:wait'）。
+  緊急の段の最後 policy_combat.py:2416-2428 も同じ形（怖がっていると遠隔の順ごと飛ばして 2432 で待つ）。
+  作った盤面ではその前の逃げる一歩が出るので、緊急の段の最後そのものには来なかった。
   同じ形（遠隔の順を「怖がっていない」の中に入れている）は他にもある: policy_combat.py:364（召喚の敵に追い詰め
   られた時）、394（動かない召喚の敵を避ける時）、3664・3863（隘路の待ち）、policy.py:11419（逃げ場が無い時の
   flee:cornered-attack → 怖がっていると flee:wait）。policy.py:11506（戦いの段の近接）は、怖がって隣に敵が
