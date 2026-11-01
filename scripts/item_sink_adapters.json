@@ -284,7 +284,6 @@
     "self._fixed_quest_exit_key(snapshot, quest_id) @ If:body:snapshot.floor_key[2] == quest_id / If:body:quest.status == QUEST_STATUS_COMPLETED": 1,
     "self._fixed_quest_reward_key(snapshot, quest_id) @ If:body:info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER} / If:body:snapshot.in_town and self._fixed_quest_reward_pending == quest_id": 1,
     "self._fixed_quest_reward_key(snapshot, quest_id) @ If:body:self._fixed_quest_reward_pending == quest_id": 1,
-    "self._fixed_quest_reward_key(snapshot, self._fixed_quest_reward_pending) @ If:body:snapshot.in_town / If:body:self._fixed_quest_reward_pending is not None": 1,
     "self._return_to_town_key(snapshot, hostiles) @ If:body:info is not None and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER} / If:body:quest.status == QUEST_STATUS_COMPLETED / If:body:not snapshot.in_town": 1,
     "self._telmora_q2_travel_key(snapshot, quest) @ If:body:quest_id == 2": 1,
     "self._town_teleport_key(snapshot, 0, producer='quest-request', reason='fixedquest:prepare-return') @ If:body:snapshot.in_town / If:body:travel_quest is None and current_town_id == 1": 1,
@@ -476,12 +475,15 @@
   "policy.py:_decide": {
     "magic_eater.absorb_key(self, snapshot, physical_hostiles) @ ": 1
   },
+  "town_quest_reward.py:reward_key": {
+    "policy._fixed_quest_reward_key(snapshot, quest_id) @ ": 1
+  },
   "town_terminal.py:_commit_home_withdraw": {
     "policy._defer_unobserved_home_withdrawal(signature) @ If:body:terminal in policy._town_visit_ledger.closed_terminals and policy._home_atomic_withdraw_pending is None / For:dict.fromkeys((target, *batch)) / If:body:signature in held and signature not in stored": 1
   },
   "policy_opening.py:_opening_q1_town_key": {
     "self._fixed_quest_key(snapshot, hostiles) @ ": 1,
-    "self._fixed_quest_key(snapshot, hostiles) @ If:body:self._fixed_quest_reward_pending is not None": 1,
+    "self._fixed_quest_key(snapshot, hostiles) @ If:body:town_quest_reward.pending(self, snapshot) is not None": 1,
     "self._town_kill_mob_key(snapshot) @ If:body:store is not None or self._physical_adjacent_hostiles(snapshot)": 1,
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:store is not None": 1,
     "self._town_kill_mob_key(snapshot) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles": 1

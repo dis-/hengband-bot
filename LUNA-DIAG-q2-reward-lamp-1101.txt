@@ -1,0 +1,79 @@
+LUNA-DIAG D62 (#47) 下水道（Q2）をクリアしたのにフェアノールのランプを持っていない（q2-reward-lamp-1101）
+
+所有者の問い（2026-11-01、逐語）:「ついでに下水道をクリアしたのにフェアノールのランプを持ってない理由も調べて」
+
+証拠（観戦サーバから読むだけで写した。C:\hengband-backups\pdca\captures\q2-reward-lamp-1101\）:
+ - snapshots-20261101-202425-3705dc.jsonl.gz（n1-c life-098 の盤面、20:04-20:24）
+ - bot-decisions-2007.jsonl（20:07:04 からの判断ログ。写した時点の名前は bot-decisions.jsonl.3）
+ - build: bot-e69085962（判断ログの session-start の argv）
+ 盤面の行番号は snapshots の行。
+
+------------------------------------------------------------------
+ゲーム側の仕組み（C:\hengband\src、lib\edit）
+------------------------------------------------------------------
+ - market/building-quest.cpp:70-75 castle_quest: COMPLETED のクエストを報告すると REWARDED にし、
+   wilderness.set_reinitialization(true)。cmd-building.cpp:402-404 で建物を出ると leaving=true になり、
+   町が作り直される。
+ - lib/edit/towns/02_Telmora.jsonc:195-207: '!' のマスは [EQU $QUEST2 3]（REWARDED）の間だけ
+   object 582（フェアノールのランプ、BaseitemDefinitions の tval 39 sval 2、LITE_2）を置く。
+ - floor/wild.cpp:541-545 wilderness_gen: 町を作った直後に REWARDED のクエストを全部 FINISHED にする。
+   そのため盤面では Q2 の状態は 2 から 4 に直接変わり、3 は見えない。この町の階を離れると
+   （宿・帰還・階段・荒野）、次に来た時は状態 4 で作られ、'!' はただの床になる。
+   ランプはこの 1 回の町の階にしか無い。
+
+------------------------------------------------------------------
+記録の流れ（life-098、ゾンビの魔道具術師 Lv21、荷物 21/23）
+------------------------------------------------------------------
+ 2520 20:08:00 t=1283380 (22,40) fixedquest:claim '9q<ESC>' rung _fixed_quest_key#2
+      → _fixed_quest_building_key が _fixed_quest_reward_pending=2 にする（policy_quest.py:5362-5363）。
+ 盤面 1633 t=1283392: Q2 の状態 4、grid_map.found_item_names [[22,42,"フェアノールのランプ {未鑑定}"]]、
+      自分は (21,41)（城の入口）。ランプは斜め隣。
+ 2521-2536 town-progress-invariant:defect:me-staff:return-outpost=>me-staff:return-outpost
+      （detectors _refuse_no_progress_cycle、route:store:37,28）。loot.visible に (22,42) が距離 1 で見えている。
+ 2537-2538 shop:in-store-buy（37,28 の店）
+ 2539-2566 me-staff:return-outpost（rung _fixed_quest_key#2 として記録）。2553 (23,42)、2554 (22,43)：
+      ランプの隣を通り過ぎた。2566 '3ma'：(28,56) の宿で前哨へ転移。
+ 2567 t=1283851 辺境の地（前哨）。ランプは無くなった。
+ 状態ログに出てくる唯一のフェアノールのランプは、店で売っていたエゴ品「暗視のフェアノールのランプ」（$4208）。
+
+------------------------------------------------------------------
+根 1: 報酬を拾う担当が、魔道具術師の町の担当より後ろにいる
+------------------------------------------------------------------
+ - 報酬を拾う処理（_fixed_quest_reward_pending → _fixed_quest_reward_key）は _fixed_quest_key の中
+   （policy_quest.py:4296-4330）でしか動かない。
+ - 町の最初の非常時でない担当は _opening_q34_town_key（policy.py:11026）。その中で
+   me_staff_sequence.town_key（「段が終わるまで町の唯一の担当」、policy_quest.py:590）、
+   q2_tower_recharge、me_powerful_activation が先に動く。
+ - 段の担当には「クエストがこの町を押さえている間は町を出ない」（_quest_holds_town、
+   me_staff_sequence.py:708-720）がある。しかしこれは先頭のクエストが REWARDED/FINISHED になった
+   時点で外れる。それはちょうど報酬が床に置かれた時。
+ - 町で拾うこと自体は止められていない。担当もいる（FIXED_QUEST_REWARD_POSITIONS[2]=(1,{(22,42)})）。
+   宿へ行く前に順番が回ってこないだけ。
+ 再現: 記録盤面（1631 で報告、1633）を新しい方針（fresh policy）で動かすと、pending=2 でも 4/4 回
+ me-staff:return-to-shop が選ばれる。記録では return-outpost（段の記録の状態は残っていないので、
+ 段階が違う。どちらでも町を出る）。
+
+------------------------------------------------------------------
+根 2: 町の荷物の取り置き（空き 4 枠）が、報酬のマスへの最後の 1 歩を断る
+------------------------------------------------------------------
+ - 根 1 を直しても、記録盤面では fixedquest:reward-approach:route-unavailable の WAIT になり、
+   報酬のマスへの道が無い。
+ - 原因: town_pack_budget.floor_step_fits（policy.py:20149 _walkable_neighbors、
+   policy_navigation.py:1908 _step_toward）。町で物のあるマスを歩くと拾ってしまうので、
+   空きが MIN_TERMINAL_FREE_PACK_SLOTS=4 を割るマスは歩かない（768febce1「暗黙の拾得の予算」）。
+   荷物は 21/23（空き 2）なので、(22,42) は道から外れる。
+ - 報酬の拾得そのもの（マスの上での 'g'、policy_quest.py:5568-5583）は予算を見ない（「報酬は必須」）。
+   荷物が満杯の時は既存の受け渡し（fixedquest:reward-pack-full）がある。
+   つまり予算は暗黙の拾得のためのもので、必須の報酬のマスへの 1 歩まで断るのは予算の意図と合わない。
+
+------------------------------------------------------------------
+ほかのクエスト（lib/edit/towns の 'rewarding'）
+------------------------------------------------------------------
+ ボットが受けるクエスト（FIXED_QUEST_ALLOWLIST）で、町の地図に報酬があるもの:
+ Q1・Q14・Q18・Q25（前哨 '!' (27,98)）、Q34・Q31（前哨 '@' (36,119)、Q31 は耐混乱の指輪）、
+ Q2（テルモラ (22,42)）、Q22（アングウィル (31,99)、エルフのクローク）。Q28 は報酬なし。
+ - 根 1 は、_opening_q34_town_key の魔道具術師の担当（段の担当・Q2 の塔での充填・強力発動）が動く間に
+   報告したすべての報酬で起きうる。Q34 は序盤の担当が先に拾うので起きない。戦士の n1-a/n1-b には
+   これらの担当が無い。life-098 の Q31 の指輪は拾って装備している（sub_ring 耐混乱の指輪）。
+ - 根 2 は職業によらず、空きが 4 枠未満で報告したすべての報酬で起きうる。
+ - 表に無い報酬（Q3・Q5・Q15・Q16・Q26 など）はボットが受けないクエスト。

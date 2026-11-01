@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
+from hengbot import blind_strike, lamp_fuel, mining_loadout, random_quest_hold, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import immobile_threat_memory, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
@@ -12611,13 +12611,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "search"
                 return SEARCH_KEY
 
-        has_downstairs = any(
-            grid.has_down_stairs for grid in snapshot.grids.values()
-        )
         if (
             snapshot.dungeon_level > 0
             and not forgetting_maze
-            and not has_downstairs
+            and not self._known_downstairs_reachable(snapshot)
         ):
             if (power := me_powers.power_key(self, snapshot, me_powers.SECRET_SEARCH)):
                 return power
@@ -19673,6 +19670,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return False
         if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
+            return False
+        # Owner 2026-11-02: no stairs into a pending random quest floor before Q2.
+        if snapshot.dungeon_level > 0 and random_quest_hold.crossing_held(
+            self, snapshot, snapshot.floor_key[0],
+            snapshot.dungeon_level, snapshot.dungeon_level + 1,
+        ):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
         # overshoot invariant is owned solely by _kill_quest_descent_allowed.
