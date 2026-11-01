@@ -1,0 +1,176 @@
+LUNA-REPORT maint2-me-capability-1101 (#47, 保守性 第2回 N1「取り込み済みか」「品の代わりになるか」) 2026-11-01
+ブランチ maint2-me-capability-1101（基点 main e69085962、終了時点で main は動いていない）。push していない。
+棚卸しと潜在の不具合の確認は LUNA-DIAG-maint2.txt。
+
+■ 結論
+  - 「取り込み済みか」「何回分あるか」を 1 つの窓口 src/hengbot/me_capability.py にまとめ、(kind, sval) で引く。
+    根拠の規則は 1 つ: 最後に表示された一覧のその行、なければ取り込みの記録（記録のキーは "kind:sval" に統一）。
+  - 「取り込んだ力が品の代わりになる」は同じモジュールの表 REPLACES（9 行）に一本化。購入・補給・クエストの
+    持ち物・鑑定の判定は replaced_by_absorbed（免除）と replacing_charges（回数に足す）の 2 つだけを聞く。
+  - 疑われた潜在の不具合は実在した（記録のキーが int と "kind:sval" に分かれ、杖の読み手は int しか見ない）。
+    この回で直した。振る舞いが変わるのはこの直しだけ（下の「振る舞い」）。
+
+■ 窓口（me_capability.py）
+  根拠: 最後に表示されたその種類の一覧にその力の行がある（cmd-magiceat.cpp は回数 0 の力を表示しない）、
+  または取り込みの記録（MeStaffSequence.absorbed）に record_key(kind, sval) がある。一覧に行が無くても
+  記録があれば取り込み済み（一覧が取り込みより前のもの。mind-magic-eater.cpp は回数を足すだけで消さない）。
+  absorbed(policy, kind, sval)        根拠だけ（盤面のいらない段階の判定が使う）
+  has(policy, snapshot, kind, sval)   職業 16 かつ absorbed（snapshot が None の呼び手は根拠だけ）
+  count(...)                          力の回数: 表示の max、なければ記録
+  charges(...)                        今使える回数: 表示の行（ロッドは回数－充填中）、なければ recorded_charges
+  recorded_charges(...)               記録の回数。この盤面の一覧で current が 0 ならこの turn だけ 0（回復するため）
+  migrate(record)                     古いチェックポイントの int キー（段階の杖の sval）を "staff:sval" に移す。
+                                      MeStaffSequence.absorbed と empty_turn の両方。me_staff_sequence.state() と
+                                      窓口の読み取りが呼ぶので、復元した直後から 1 つの形で読める。
+  names(kind, sval)                   一覧の名前は me_device_policy.json（95 行、データの持ち主）から引く。
+  データの持ち主は今までどおり me_powers（使う力の表）と me_device_policy.json（道具ごとの方針と名前）。
+
+■ 表（REPLACES）
+  1 行 = Replacement(power=(kind, sval), replaces=Kind(tval, sval) か Carry(category, name),
+                     when=条件の名前, amount=None（免除）か回数の読み方, uses=答える用途)
+  用途: PURCHASE（どの購入の道でも買わない）、CANDIDATE（店の通常の購入候補から外す）、NEED（要求を満たす）。
+  条件（WHEN、名前つきの短い関数）: held（取り込み済み）、full-count（回数が満タンの杖の回数以上 = 鑑定 21）、
+  reliable（表示の成功率 80% 以上）、staff-sequence（Q1 後は段階の杖を staff sequence だけが買う）。
+  回数の読み方（AMOUNT）: charges、recorded。
+  行（オーナーの言葉と対応）:
+    1 staff-sequence: 杖すべて → CANDIDATE（「2本目は買わない」。旧 me_staff_sequence.purchase_excluded）
+    2 光の杖 → クエストの光の巻物（免除。旧 SUBSTITUTES）
+    3 岩石溶解 → Q2 の壁破り（回数を足す。旧 SUBSTITUTES）
+    4 *破壊*の杖 → *破壊*の回数（reliable のとき回数を足す。旧 destruction_uses）
+    5 鑑定の杖 → 鑑定の杖の要求（NEED。旧 _identify_staff_absorbed の前半）
+    6 財宝感知の杖 → 財宝感知の巻物の数（recorded を足す。旧 policy.py の absorbed_charges）
+    7 鑑定の杖（full-count）→ 鑑定の杖（CANDIDATE と NEED。旧「21回取り込んだあと」の 2 か所）
+    8 鑑定の杖 → *鑑定*の巻物、9 解呪の杖 → *解呪*の巻物（全用途。旧 Effect.scroll_sval と replaces_scroll）
+  問い合わせ: replaced_by_absorbed(policy, snapshot, target, use)（target は品・(tval, sval)・Carry）、
+  replacing_charges(policy, snapshot, target)、replacing_power(target)（クエストが品の代わりに唱える力）、
+  waiving_rows（どの行が免除したかの内訳。テストと調査用）。
+  me_absorbed_substitutes.py は「クエストで品の代わりに唱える」だけになった（61 行）。唱える力 POWERS は
+  表の Carry 行から作る（me_powers の行があればそれ、無ければ表の名前で作り、魔法棒は方向を聞く。ロッドは
+  方向が道具ごとに違うので me_powers の行が要る。無ければ読み込み時に止まる）。
+
+■ 消した重複（死んだコードは残していない）
+  me_staff_sequence: absorbed / absorbed_count / extra_charges / absorbed_charges / IDENTIFY_POWER_KEY（未使用）、
+  POWER_NAMES の手書きの 7 行（device 表から作る）、段階の杖の sval 定数 6 つ（model.py に移した。
+  model に SV_STAFF_IDENTIFY などが既にある。me_staff_sequence からも今までどおり読める）。
+  me_powers: observed_row / recorded_charges / charges。
+  me_absorbed_substitutes: held / absorbed_count / identify_staff_replaced / purchase_excluded /
+  destruction_uses / carry_waived / carry_charges / Substitute / SUBSTITUTES / IDENTIFY / DESTRUCTION /
+  LIGHT / STONE_TO_MUD（仮の Power 3 つ）。
+  me_powerful_activation: serves / absorbed / replaces_scroll、Effect.names と scroll_sval（names は表から引く
+  性質に）、SV_STAFF_REMOVE_CURSE（model へ）。
+  me_device_policy: Device.key（記録のキーの分岐）と Device.power（仮の Power）。absorbed は窓口を呼ぶ
+  1 行の内部関数 _absorbed になった。
+  力に似た型: 5 → 3（me_device_attacks.Power、me_powers.Power、me_powerful_activation.Effect。
+  Device と Substitute から仮の Power を作るのをやめた）。IDENTIFY: 3 → 1（Effect の IDENTIFY）。
+  KIND_LETTER の 3 重は N2（メニューの実行役）の範囲なので触っていない。
+
+■ 呼び手（main の行 → 新しい問い合わせ）
+  policy_shop.py:2775・:2938・:6487、policy_fundraising.py:509 → replaced_by_absorbed(..., PURCHASE)
+  policy_shop.py:3344-3348（3 つの判定）→ replaced_by_absorbed(..., CANDIDATE) 1 つ
+  policy_supply.py:131（*解呪*）・:549（鑑定の杖）、policy.py:15490（*鑑定*）、policy_quest.py:816・:1072 → NEED
+  policy_quest.py:807（岩石溶解）、policy_helpers.py:670（*破壊*）、policy.py:13842（財宝感知）→ replacing_charges
+  policy_quest.py の唱える所（carry_cast_key）は me_absorbed_substitutes のまま（表の power を引く）。
+  policy_identification.py:567・:1063 と policy_home.py:2964 は「取り込んだ鑑定を今唱えられるか」
+  （me_staff_sequence.identify_power_available / identify_power_command、回数は窓口の recorded_charges）で、
+  品の代わりの判定ではないので呼び方は変えていない。
+
+■ 保守性（品の代わりになる取り込み道具を 1 つ足すのに直す場所）
+  前（main）: 力の定義（仮の Power か Effect、名前を手で書く）1 + どれかの表か述語（SUBSTITUTES / EFFECTS /
+    個別の関数）1 + 店の候補の除外（policy_shop.py:3344-3348 に 1 行）1 + 購入の段の一致（:2938）1 +
+    要求の判定ごとに 1 以上（補給・鑑定・クエスト）。少なくとも 5 か所・3 ファイル以上。実例: 37c6d6ec0
+    （*鑑定*・*解呪* の 2 つ）は判定の呼び手だけで 5 ファイル 7 か所（policy_shop 4・policy_fundraising・
+    policy_supply・policy.py）を変えた。
+  後: REPLACES に 1 行（名前は me_device_policy.json に 95 行すべてある）。購入・候補・要求・クエストの
+    持ち物・回数の呼び手は表を聞くので変えない。条件が新しければ WHEN に名前つきの関数 1 つ。
+    クエストで唱える持ち物の代わりも同じ 1 行（杖・魔法棒は POWERS が表から作る。ロッドだけ me_powers の行）。
+    今まで表を聞いていない新しい種類の要求を足す時だけ、その要求の場所で 1 回聞く。
+  テストで確かめた: tests.test_me_capability.NewRowEndToEndTest（記録した life-033 の盤面、錬金術の店の
+  *鑑定* の巻物）。表に 1 行足すだけで _next_purchase も購入の段の一致も外れる。
+
+■ 振る舞い（中立の証拠）
+    - checks.json の全テスト（98 件、575 テスト）を main e69085962 と枝で流し、公開の choose_key のすべての
+    判断（キー・last_reason・town_work の受領）を記録して比べた（validation/manifest-tax-1101 の
+    replay_choose_key.py と compare_replays.py。木はどちらも worktree の中に丸ごと書き出した: 外に置くと
+    lib/edit と strategy/ が見つからずテストが落ちる）。
+    結果: 両方とも 575 テスト・失敗 0・エラー 0、判断 3,280 件（3,305 行）・受領 5,858 件、違い 0 件。
+    2 つの出力はバイト単位で同一（cmp、sha256 9b259c23…）。validation/maint2-me-capability-1101/replay-summary.json。
+  - 潜在の不具合の直しは checks.json のテストの盤面には現れない（段階外の杖を取り込む盤面が無い）ので、
+    違いが 0 件なのと矛盾しない。直しの効果は下の新しい検査で示した。
+  - 同じ根拠の規則にまとめたことで、記録と表示が食い違う盤面（ゲームでは起きない）の答えは変わる
+    （下の「作り方の矛盾」）。記録した盤面では 1 件も起きていない。
+
+■ 潜在の不具合の直し（唯一の振る舞いの変更）
+  変わること: staff sequence が塔で取り込んだ段階外の杖（スピード・*破壊*・体力回復・力・聖浄・抹殺・
+  魔力の嵐）が、杖の一覧がもう一度表示されるまで「取り込んでいない・回数 0」と読まれていたのが、
+  取り込んだ直後から取り込み済み・記録の回数として読まれる。決定に効くのは抹殺・魔力の嵐
+  （absorb_after_charge で buy_more の無い行）の 2 本目: 前は塔で充填して取り込む品として持ち帰り
+  （売らずに持つ・塔で recharge-all）、後は表どおり普通の売却・保管の規則に従う。buy_more のある杖は答えが
+  同じ。count の杖と魔法棒の取り違え（魔法棒の力が int の杖のキーを読む）も消えた（今の呼び手は鑑定だけ
+  なので決定には効いていなかった）。
+  検査: tests.test_me_record_key_recorded（記録した D24 の塔の盤面、抹殺の杖を足した DECLARED CONSTRUCTED、
+  公開の choose_key と本番の executor）。
+    test_the_next_copy_is_not_charged_first: 直す前は charge_first が True
+    test_a_second_copy_does_not_keep_the_tower_visit: 直す前は me-staff:recharge-all、直した後は
+      me-staff:return-outpost
+  直す前（main e69085962 の src、枝のテスト）: 2 件とも失敗（AssertionError: True is not false、
+  'me-staff:recharge-all' != 'me-staff:return-outpost'）。直した後: 2 件とも OK（31 秒）。
+  同じ実行で取り出した塔の流れ（test_me_device_policy.absorb_after_stage）は main の src でも 8 件 OK。
+
+■ 検査
+  - import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK。モジュールを 1 つずつ先に
+    import しても循環しない（me_capability・me_staff_sequence・me_device_policy・me_absorbed_substitutes・
+    me_powers・me_powerful_activation・magic_eater_devices・me_device_attacks_input・policy_quest・policy_shop）。
+  - checks.json の全テスト（枝）: 98 件・575 テスト、失敗 0・エラー 0（上の replay と同じ実行）。
+  - 足したテスト: tests.test_me_capability 8 件 OK（3 秒）、tests.test_me_record_key_recorded 2 件 OK（31 秒）。
+  - 変えたテストのうち checks.json に無いもの: tests.test_me_staff_sequence ほか、ME の関連 14 モジュール
+    105 テスト OK（tests.test_me_device_attacks、test_zombie_me_food、test_me_powers_refresh を含む）。
+  - town_work_manifest.py --write: zero unmapped、検査 0 violation(s)。
+  - 全体テスト・preflight・mutation_check・fast_tier は流していない。
+
+■ テストの変更（壁は作っていない）
+  ・記録のキーの比較（{5: 21, 10: 19} → {"staff:5": 21, "staff:10": 19}）: test_me_nokey_1031_recorded、
+    test_me_staff_sequence、test_me_stage2_staffs、test_me_tower_recharge_recorded（期待値を新しい形に）。
+  ・消した関数を呼んでいた所を表と窓口に: test_me_absorbed_substitutes（21 回の規則は waiving_rows で
+    full-count の行を確かめる）、test_me_destruction_gate（replacing_charges）、test_me_device_policy
+    （STONE_TO_MUD → POWERS、塔の流れを absorb_after_stage に切り出して新しいテストと共有）、
+    test_me_powerful_activation（serves → has、scroll_sval → 表の行）。
+  ・test_me_powerful_activation の盤面の作り方を直した（下の「作り方の矛盾」）。
+
+■ 作り方の矛盾（テストの盤面）
+  test_me_powerful_activation の盤面は「段階の杖をすべて取り込んだ記録」と「表示された杖の一覧（解呪だけ、
+  または鑑定と解呪）」を別々に作っていた。解呪だけの場合、記録には鑑定（段階 1 の杖）があるのに一覧には
+  無い。ゲームでは起きない（取り込んだ力は一覧から消えない）。旧 me_powerful_activation.absorbed は一覧を
+  先に見るので「鑑定は無い」と答え、新しい 1 つの規則（行、なければ記録）は「ある」と答える。
+  直し: 記録をその場合の一覧に合わせた（解呪だけなら鑑定を記録に入れない）。そうすると段階 1 が未了になり
+  staff sequence の町の仕事が盤面を取るので、*鑑定* を頼むかを見る 1 件だけ staff sequence の town_key を
+  None にした（DECLARED CONSTRUCTED、理由をテストに書いた）。期待値は 1 つも変えていない。
+  この変更の後も replay の判断は main と同一（上）。
+
+■ town work の一覧
+  scripts/town_work_review.json: 消えた関数の review 8 件を削除、新しい 11 件を追加（すべて data、
+  classification と evidence だけ）。scripts/town_work_manifest.py --write: 1088 candidates (156 proved data),
+  zero unmapped。検査: 0 violation(s)。
+
+■ checks.json に足す案（編集していない）
+  {
+   "id": "MAINT2-ME-CAPABILITY",
+   "owner": "2026-11-01 N1 「取り込み済みか」の一本化と潜在の不具合 (branch maint2-me-capability-1101)",
+   "tests": [
+    "tests.test_me_capability",
+    "tests.test_me_record_key_recorded"
+   ]
+  }
+
+■ 持ち主への問い
+  1. 段階 1 の力（鑑定・財宝感知）の回数は今までどおり記録の値（recorded_charges: 一覧の current ではなく
+     max、空と表示された盤面だけ 0）で数え、ほかの力は表示の current を先に見る（charges）。中立のために
+     2 つの読み方を残した（表の AMOUNT の recorded と charges）。財宝感知の数（出発の判定）も表示の current
+     にそろえますか（そろえると、使った後の出発で数が減る）。
+  2. 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない」は今までどおり店の通常の候補から外すだけ
+     （CANDIDATE。購入の段の一致 _matching_live_purchase_rungs では外れない）。*鑑定*・*解呪* の巻物と
+     同じく、どの購入の道でも外す（PURCHASE）にしますか。
+  3. policy_shop.py:3335-3337 は段階の杖を excluded_classes にも入れている（_identify_staff_swap_purchase の
+     例外つき）。表の staff-sequence の行と重なっているが、例外の扱いが違うので残した。表に寄せますか。
+  4. 記録に入れる回数は取り込んだ品の charges。ロッドは charges を持たないので、もしロッドが
+     absorb_after_charge の行になると記録の回数が 0 になる（今の表にそういうロッドは無い）。そうなった時は
+     ロッドの回数（取り込んだ本数）を記録するよう直します。
