@@ -3916,12 +3916,19 @@ class CombatMixin:
         """
         if self._breeder_breakthrough_floor != snapshot.floor_key:
             return None
-        active_quest = self._active_quest_id(snapshot)
         # A one-off emergency relocation does not start a town return, but an
         # already active return still needs an exit from this latched floor.
+        # A kill-quest floor asks the quest exit lock, as the stair exits
+        # below and the town return do: once the lock released (a runtime
+        # RANDOM quest's stall boundary, the teleport reserve, ...) Recall is
+        # the exit.  Refusing it there left only the up-stairs walk, whose
+        # first step resets the stall streak and re-locks the floor (#47 D60,
+        # n1-c life-098, 鉄獄12階 random quest 43, 2026-11-01 20:01: one step
+        # every 61 decisions until livelock-exhausted).
         if (
             self._fundraising_mode != "mine"
-            and active_quest is None
+            and self._active_fixed_quest_id(snapshot) is None
+            and not self._return_exit_locked(snapshot)
             and (
                 not self._emergency_return_active
                 or self._returning_to_town

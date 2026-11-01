@@ -85,7 +85,11 @@ class BreederRefillEscapeRecordedTest(unittest.TestCase):
         self.assertEqual(self.policy.last_reason, "breeder-breakthrough:recall")
 
     def test_active_quest_floor_keeps_recall_suppressed(self):
-        with patch.object(self.policy, "_active_quest_id", return_value=41):
+        # The breakthrough's Recall asks the quest exit lock the town return
+        # asks (#47 D60): an active quest floor whose lock holds keeps it
+        # suppressed; a released lock reads it
+        # (test_n1c_stuck_wander_1101_recorded).
+        with patch.object(self.policy, "_return_exit_locked", return_value=True):
             key = self.policy._breeder_breakthrough_key(
                 self.board, self.policy._strategic_hostiles(self.board)
             )
