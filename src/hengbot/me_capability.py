@@ -251,9 +251,9 @@ REPLACES = (
     # its predicate also reads a displayed staff list into the record
     # (me_staff_sequence.read_powers), before any other row of a staff is asked.
     Replacement(None, Kind(TVAL_STAFF, None), when="staff-sequence", uses=frozenset({CANDIDATE})),
-    # 2026-10-30 「the two staffs are excluded from every class-16 purchase after Q1」 and
-    # 2026-11-01 21h 7 「表へ移す（入れ替えのための買い直しの例外も表の条件に）」: every pick
-    # of the ordinary order (the sequence's own rung buys them), but the Identify swap.
+    # After Q1 no pick of the ordinary order takes a stage staff (b9ec9b4a9; the
+    # sequence's own rung buys them), 2026-11-01 21h 7 「表へ移す（入れ替えのための
+    # 買い直しの例外も表の条件に）」: but the Identify swap.
     Replacement(None, Kind(TVAL_STAFF, None), when="stage-staff", uses=frozenset({ORDER})),
     # 2026-10-31 18h 1 「光の杖を取り込んでいる場合、クエスト要求の光の巻物を免除する」
     # (「光の巻物→購入を抑制」: a waived carry claims no scroll).

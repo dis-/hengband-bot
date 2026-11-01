@@ -3343,7 +3343,7 @@ class ShopMixin(InStoreMixin):
         # gates, and shelf evidence.  Only candidate enumeration uses this view.
         excluded_classes = set(excluded_classes)
         # A sell-then-rebuy, or a kind the ordinary order never picks
-        # (me_capability.REPLACES, use ORDER: the staff sequence's stage staffs).
+        # (me_capability.REPLACES, use ORDER).
         excluded_classes.update(
             (item.tval, item.sval)
             for item in store.items
