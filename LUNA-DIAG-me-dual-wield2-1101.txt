@@ -59,7 +59,7 @@ damage per player turn against AC 100」、warrior_equipment_evaluator.AC_REFERE
   コードの誤り（減りの抜け・計算違い）ではない。直すには比べ方の決まりを変える必要がある（オーナーの決定）。
 
 ======================================================================
-3. 腕力 18/31 → 6 の原因（別の家族、直していない）
+3. 腕力 18/31 → 6 の原因と、戻さなかった理由
 - 吸われたのは 2 回の戦い: turn 349054-349212 レッド・ゼリー（触って腕力を吸う、動かない敵）に
   quest-strategy:ranged-fire:magic-eater・melee:choke で戦い続け「ひどく弱くなった気がする」が 12 回。
   turn 1021949-1021993 巨大赤アリ（melee）で 5 回。
@@ -69,7 +69,14 @@ damage per player turn against AC 100」、warrior_equipment_evaluator.AC_REFERE
   '\x1b' town-progress-invariant:continue-observed-shop、91（1462282）'pj1\r\r' shop:in-store-buy は
   帰還の詔だけ、610（1645367）'\x1b' shop:observe-and-leave。命の間に restore:quaff-str は 0 回
   （quaff-con 2 回、quaff-chr 1 回）。
-- policy_shop._restore_potion_purchase（3618）は普通の買い物の順の中ほどにあり、その前の早い return
-  （3562-3570 の枝など）や town-progress-invariant の店の扱いで届いていないように見える。町の買い物の家族
-  （D34 など）の話なので、ここでは直さない。腕力が戻っていれば（17:14 の STR 19 では棍棒1本 4.45 が勝ち）
-  二刀流は選ばれなかった。
+- 腕力が戻っていれば（17:14 の STR 19 では棍棒1本 4.45 が勝ち）二刀流は選ばれなかった。
+
+追記（オーナー 11-01「腕力の回復だけ直す」の後に確かめた根）:
+- 3回の店の決定は、どれも資金稼ぎの間（決定の fundraising.mode: 86・91・92 は prepare、610 は mine）。
+- policy_shop._legacy_next_purchase_unreserved は資金稼ぎの間は採掘の道具と帰還の詔だけの枝に入り、
+  旧 3562-3570 行の「return None」で終わる。能力値の薬（_restore_potion_purchase、旧 3618 行）は
+  資金稼ぎでない時の枝にしかない。→ 92 は帰還の詔を買った後に選びが None で in-store-done、610 は
+  選びが None で「observed-page-nothing-wanted」。
+- 記録の店の盤面（turn 1462282・1645367）を、決定の行の資金稼ぎの段と死の時の杖の記録で戻した
+  policy に通すと、直す前は何も買わずに出て、直した後は腕力復活の薬を買って restore:quaff-str で飲む
+  （tests/test_me_stat_restore_recorded.py）。
