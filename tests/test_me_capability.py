@@ -119,8 +119,8 @@ class ReplacesTableTest(unittest.TestCase):
                 else:
                     self.assertEqual(len(capability.names(*row.power)), 2)
 
-    def test_every_carry_power_is_cast_through_the_executor(self):
-        for ident in capability.carry_powers():
+    def test_every_substitute_power_is_cast_through_the_executor(self):
+        for ident in capability.substitute_powers():
             power = substitutes.POWERS[ident]
             with self.subTest(power=ident):
                 self.assertEqual(power.names, capability.names(*ident))

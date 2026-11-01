@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, town_last_stand, unseen_strike
+from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, town_last_stand, unseen_strike
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -804,11 +804,11 @@ class CombatMixin:
             and not haste_active
             and not self._escape_speed_attempted
         ):
-            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+            speed = speed_dose.key(self, snapshot, "emergency:quaff-speed",
+                                   rearm=("_escape_speed_attempted", False))
             if speed is not None:
                 self._escape_speed_attempted = True
-                self.last_reason = "emergency:quaff-speed"
-                return reserved_item_command(self, snapshot, "quaff", speed)
+                return speed
         return key
     def _strategic_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         return self._strategic_subset(snapshot, snapshot.visible_monsters)
@@ -994,11 +994,7 @@ class CombatMixin:
             else 0
         )
         speed_spare = (
-            max(
-                0,
-                self._exact_potion_count(snapshot, SV_POTION_SPEED)
-                - ESP_THREAT_POTION_RESERVE,
-            )
+            speed_dose.spare(self, snapshot, ESP_THREAT_POTION_RESERVE)
             if speed_available
             else 0
         )
@@ -1186,15 +1182,13 @@ class CombatMixin:
             and not hunt["speed_drunk"]
             and visible_committed
         ):
-            speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
-            if (
-                speed is not None
-                and self._exact_potion_count(snapshot, SV_POTION_SPEED)
-                > ESP_THREAT_POTION_RESERVE
-            ):
+            speed = speed_dose.key(
+                self, snapshot, "esp-threat:hunt-speed",
+                rearm=("_esp_threat_hunt", "speed_drunk", False),
+                potion_reserve=ESP_THREAT_POTION_RESERVE)
+            if speed is not None:
                 hunt["speed_drunk"] = True
-                self.last_reason = "esp-threat:hunt-speed"
-                return reserved_item_command(self, snapshot, "quaff", speed)
+                return speed
         adjacent = [
             monster for monster in strategic_hostiles
             if monster.distance <= 1
@@ -2223,11 +2217,11 @@ class CombatMixin:
                 "operational_total"
             ]
             if projected >= threshold * snapshot.player.hp:
-                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                speed = speed_dose.key(self, snapshot, "quest-strategy:quaff-speed",
+                                       rearm=("_fixed_quest_speed_attempted", False))
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
-                    self.last_reason = "quest-strategy:quaff-speed"
-                    return reserved_item_command(self, snapshot, "quaff", speed)
+                    return speed
         q31_healing = self._q31_opening_heal_before_escape(
             snapshot, profile, hostiles
         )
@@ -2869,11 +2863,8 @@ class CombatMixin:
         self._strong_fight_speed_floor = snapshot.floor_key
         if self._player_hasted(snapshot):
             return None
-        speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
-        if speed is None:
-            return None
-        self.last_reason = "item:strong-fight-speed"
-        return reserved_item_command(self, snapshot, "quaff", speed)
+        return speed_dose.key(self, snapshot, "item:strong-fight-speed",
+                              rearm=("_strong_fight_speed_floor", None))
 
     def _unseen_loss_is_material(self, player, loss: int) -> bool:
         """USER DECISIONS 2026-10-03 (an unseen hit with nothing in view, and
