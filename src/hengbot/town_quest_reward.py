@@ -10,6 +10,12 @@ visit is built with status 4 and the cell is bare floor (#47 D62, n1-c
 life-098: the Telmora Q2 Feanorian lamp was seen at distance 1 and lost to
 the staff sequence's inn trip to the Outpost).
 
+The report itself waits for a free pack slot (owner 2026-11-02
+「空きが1つもないときはクエストの報告をしない」): a pack with no free slot
+cannot take the reward before another owner leaves the town, so the report
+of a quest of FIXED_QUEST_REWARD_POSITIONS yields to the room-making town
+owners (Home deposit, sale, junk destruction) until one slot is free.
+
 This module owns the reward latch ``_fixed_quest_reward_pending`` (set when
 the reward is claimed, rebuilt here from the allowlisted reward cell after a
 restart) and serves it as the first non-emergency town owner, ahead of the
@@ -21,12 +27,15 @@ FIXED_QUEST_REWARD_POSITIONS).
 from __future__ import annotations
 
 from hengbot.policy_constants import (
-    FIXED_QUEST_REWARD_POSITIONS, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, WAIT_KEY,
+    FIXED_QUEST_REWARD_POSITIONS, PACK_CAPACITY, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED,
+    WAIT_KEY,
 )
 from hengbot.town_pack_budget import explicit_pickup_cells
 
 PACK_FULL_REASON = "fixedquest:reward-pack-full"
 WAIT_REASON = "fixedquest:reward-wait"
+CLAIM_REASON = "fixedquest:claim"
+REPORT_PACK_FULL_REASON = "fixedquest:claim-pack-full"
 _HANDED_OVER = frozenset({QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED})
 
 
@@ -72,6 +81,35 @@ def reward_key(policy, snapshot) -> str | None:
         return None
     policy.last_reason = WAIT_REASON
     return WAIT_KEY
+
+
+def report_waits_for_room(snapshot, quest_id: int) -> bool:
+    """The report of a town-floor reward quest waits: no pack slot is free.
+
+    inventory/inventory-slot-types.h: the pack is slots 0..22 (INVEN_PACK 23
+    is only the overflow slot) and the snapshot lists those slots
+    (bot-json-output.cpp make_inventory_json), so PACK_CAPACITY minus the
+    listed items is the free slot count.
+    """
+    return (quest_id in FIXED_QUEST_REWARD_POSITIONS
+            and PACK_CAPACITY - len(snapshot.inventory) <= 0)
+
+
+def claim_key(policy, snapshot, quest_id: int) -> str | None:
+    """Report a COMPLETED fixed quest at its building.
+
+    A town-floor reward quest is not reported while the pack has no free
+    slot: None hands the board to the room-making town owners (the
+    ``quest-claim`` terminal refuses with ``free_pack_slots_ready``, whose
+    servers are those owners, and closes for the visit when none of them
+    progresses).
+    """
+    if report_waits_for_room(snapshot, quest_id):
+        policy.last_reason = REPORT_PACK_FULL_REASON
+        return None
+    return policy._fixed_quest_building_key(
+        snapshot, quest_id, CLAIM_REASON,
+        set_reward_pending=quest_id in FIXED_QUEST_REWARD_POSITIONS)
 
 
 def town_key(policy, snapshot, hostiles) -> str | None:

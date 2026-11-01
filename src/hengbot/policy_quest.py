@@ -4489,12 +4489,8 @@ class QuestMixin(OpeningRouteMixin):
                     if key is not None and self.last_reason != "return:wait-recall":
                         self.last_reason = "fixedquest:claim:return"
                     return key
-                return self._fixed_quest_building_key(
-                    snapshot,
-                    quest_id,
-                    "fixedquest:claim",
-                    set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
-                )
+                from hengbot import town_quest_reward
+                return town_quest_reward.claim_key(self, snapshot, quest_id)
             if quest.status == QUEST_STATUS_UNTAKEN:
                 if (
                     not snapshot.in_town
@@ -4524,12 +4520,8 @@ class QuestMixin(OpeningRouteMixin):
         if self._fixed_quest_reward_pending == quest_id:
             return self._fixed_quest_reward_key(snapshot, quest_id)
         if quest.status == QUEST_STATUS_COMPLETED:
-            return self._fixed_quest_building_key(
-                snapshot,
-                quest_id,
-                "fixedquest:claim",
-                set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
-            )
+            from hengbot import town_quest_reward
+            return town_quest_reward.claim_key(self, snapshot, quest_id)
         if quest.status == QUEST_STATUS_TAKEN:
             info = self._quest_knowledge.get(quest_id)
             if self.approved_quest_strategy(quest_id) is not None and info is not None and info.battlefield is not None:
