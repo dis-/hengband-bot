@@ -1,0 +1,79 @@
+n1c-ascend-loop-1102 の報告（2026-11-02）
+
+■ 持ち主の報告
+「n1-cが3Fで進展のない動きをしばらく繰り返している」
+
+■ 何が起きていたか（n1-c life-099、魔道具術師 Lv8、build bot-1579cff68、鉄獄）
+- 00:34:21〜00:38:46 に同じ形を8回くり返した（約37秒に1回）。
+  3F の下り坑道 (29,102) で descend → 5F の (5,46) に着く（下り坑道なので2階下）→
+  邪悪感知・罠感知・周辺感知 → すぐ stuck:ascend → 5F の (5,46) は上り坑道なので、
+  保存されていた 3F の (29,102) に戻る → 3F で約290判断（降りる禁止 200判断）歩き回る →
+  同じ下り坑道で descend。
+  記録: C:\hengband-backups\pdca\captures\n1c-ascend-loop-1102\bot-decisions-tail.jsonl.gz
+  の decision_sequence 9567-9570、9864、10163、10458、10764、11067、11361、11653-11656
+  （stuck:ascend の直前の行は毎回 me-power:new-floor:map-area）。
+- 5F の着いた部屋（4〜6行、35〜53列）は明るい部屋で、盤面では四方が壁。
+  周辺感知で部屋の西の壁の向こうに通路と下り階段 (6,25) が見えた。部屋の出口は
+  隠しドアで、隠しドアは周辺感知では花崗岩に見える（src/spell-kind/spells-floor.cpp
+  map_area は mimic の地形で記録する）。
+
+■ 原因
+src/hengbot/policy.py の探索の最後の段（直す前の 12610 行付近）:
+  has_downstairs = any(grid.has_down_stairs for grid in snapshot.grids.values())
+  if dungeon_level > 0 and not forgetting_maze and not has_downstairs:
+      → 隠し扉の能力・壁の捜索・seek-secret-wall
+隠し通路を探す処理は「下り階段を1つも知らない階」でしか動かなかった。
+周辺感知は隠しドアの向こうの階段も見せるので、「知っている」は「歩いて行ける」ではない。
+5F では探索の行き先が無く（部屋は全部見えていて、周辺感知の範囲の通路は探索済みの扱い）、
+階段 (6,25) へは道が無いので、隠し通路を探さずに stuck:seek-stairs（行ける階段なし）→
+足元の上り坑道で stuck:ascend になった。
+降りる禁止（DESCENT_BLOCK_DECISIONS=200）が切れると 3F で最寄りの下り坑道にまた行くので、
+保存された同じ 5F に着いて同じ判断をくり返した。
+
+00:39:23 の9回目は、着いた所に敵がいて戦い、落ちた物を拾う間に部屋を歩いた（その後の
+探索の段は別の道筋）。部屋の中を捜索してから stuck:recall-escape で町に帰り、ループは
+自然に終わった。
+
+■ 直したこと（コミット a81006ac5）
+- policy_navigation.py に _known_downstairs_reachable を足した: 足元が下り階段か、
+  知っている下り階段に歩いて行ける道がある（既存の _nearest_goal_and_step の BFS）時だけ真。
+- policy.py の上の条件を has_downstairs から not self._known_downstairs_reachable(snapshot)
+  に替えた。新しい振る舞いや数値は足していない。隠し通路を探す既存の処理（隠し扉の能力、
+  SEARCH_LIMIT、壁の捜索の回数）が、行けない階段しか知らない階でも動くようになっただけ。
+  捜索し尽くしたら、今までどおり階段か、行き詰まりの回数による帰還に進む。
+- 記録の盤面での結果: 直す前は '<' stuck:ascend、直した後は '9' seek-secret-wall。
+- main（ba70f3898）を取り込んだ（c03b85f73）。
+
+■ テスト
+- tests.test_n1c_ascend_loop_1102_recorded（1件）
+  記録の 5F の盤面（turn 337229）を公開の choose_key に通し、stuck:ascend ではなく
+  search / seek-secret-wall になること、出したキーが本番の executor の port で送られることを確かめる。
+  記録の8回の stuck:ascend の直前が map-area で、場所が (5,46) なことも確かめる。
+  盤面: tests/fixtures/n1c-ascend-loop-1102.json.gz（tests/extract_n1c_ascend_loop_1102.py で作る）。
+  作った部分（DECLARED CONSTRUCTED）: 周辺感知を使った記録を着いた所 (5,46) に入れた、
+  技能の知識、未鑑定の巻物（k）は鑑定できない物として扱う（記録の2606判断に
+  identify:pack-pressure が1度も無く、生きていたプロセスでは片付いていたため）。
+- 直す前に戻した確認（1回）: policy.py の変更だけ戻すと失敗（'stuck:ascend'）、戻すと合格。
+- 確認: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" OK、新しいテスト OK。
+  （このテストは tests/test_me_mining_death_recorded の部品を使うので、走らせる時は
+  PYTHONPATH="src;tests" が要る。既存の録画テストと同じ。）
+- scripts/town_work_manifest.py（書き込みなし）: 0 violation。登録した処理は変えていない。
+
+■ checks.json に足す案（checks.json は編集していない）
+{"id": "N1C-ASCEND-LOOP-1102", "owner": "2026-11-02 「n1-cが3Fで進展のない動きをしばらく繰り返している」", "tests": ["tests.test_n1c_ascend_loop_1102_recorded"]}
+
+■ 保守性
+- 新しい判定は道案内の持ち主（policy_navigation.py の下り階段の関数の並び、
+  _usable_downstairs の隣）に1つの短い関数で置き、道があるかの判定は既存の
+  _nearest_goal_and_step をそのまま使った。探索の段の中の「階段を知っているか」の
+  その場の書き方（any(...)）は消え、理由をこの関数の説明に書いた。
+- 職業・クエスト・地形の番号などの特別扱いは足していない。テストの壁も無い。
+
+■ 持ち主への問い（実装していない）
+1. 隠し通路が見つからない時: 捜索し尽くすと今までどおり足元の上り坑道で上がり、保存された
+   3F から同じ下り坑道でまた同じ部屋に来る。今回は行き詰まりの回数による帰還で終わったが、
+   「隠しドアの向こうと分かっている階段がある時は、掘る道具で壁を掘って行く」
+   （今は行き詰まりの回数が上限に達した後の breakout:dig-to-stairs だけ）か、
+   「その坑道はこの階では使わない」のどちらかにするか。
+2. 3F に戻ると、すでに見た階を約290判断歩き回ってから同じ坑道に戻る（降りる禁止 200判断の間の探索）。
+   保存された階に戻った時の扱いを変えるかは、持ち主の判断が要る。

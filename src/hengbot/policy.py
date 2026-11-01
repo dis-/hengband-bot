@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, town_pack_headroom
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import immobile_threat_memory, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -10976,6 +10976,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             )
             if immobile_summoner is not None:
                 return immobile_summoner
+            # Beside an avoided never-moving monster (owner 2026-11-01 21h).
+            step_out = immobile_threat_memory.step_out_key(self, snapshot)
+            if step_out is not None:
+                return step_out
 
         unseen_intercept = self._town_producer_entry("_unseen_retreat_intercept_key", lambda: self._unseen_retreat_intercept_key(
             snapshot, physical_hostiles, physical_adjacent
@@ -12608,13 +12612,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self.last_reason = "search"
                 return SEARCH_KEY
 
-        has_downstairs = any(
-            grid.has_down_stairs for grid in snapshot.grids.values()
-        )
         if (
             snapshot.dungeon_level > 0
             and not forgetting_maze
-            and not has_downstairs
+            and not self._known_downstairs_reachable(snapshot)
         ):
             if (power := me_powers.power_key(self, snapshot, me_powers.SECRET_SEARCH)):
                 return power
@@ -16500,7 +16501,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         so this cannot mistake a mining-specific relaxed target for a town
         departure shortage.  It deliberately leaves the run counter intact;
         food and return-ticket requirements still decide whether another trip
-        can leave town.
+        can leave town.  A mining trip that passes its own gates
+        (``_mining_departure_ready``) is not reopened: the ordinary shortage
+        is what the trip's gold pays for on the next return.
         """
         if (
             not snapshot.in_town
@@ -16525,6 +16528,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             status.count < status.required_departure and not status.obtainable
             for status in ledger.values()
         ):
+            return False
+        if self._mining_departure_ready(snapshot):
+            # Owner 2026-11-01 「採掘の要求品が優先」: a mining trip whose own
+            # gates pass leaves; what only the ordinary departure needs waits
+            # for the next return instead of reopening preparation.
             return False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
