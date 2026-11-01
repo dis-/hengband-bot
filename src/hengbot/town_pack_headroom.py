@@ -282,7 +282,7 @@ def make_room_for_purchase(policy, snapshot):
     return key(policy, snapshot)
 
 
-def _room_can_be_made(policy, snapshot):
+def room_can_be_made(policy, snapshot):
     """Whether this pass, or the identification it waits for, can free a slot."""
     return (any(preservable(policy, snapshot, item)
                 or policy._identification_flow_owns(item) for item in snapshot.inventory)
@@ -306,7 +306,7 @@ def pack_full_no_room(policy, snapshot):
             # The budget refuses a one-slot buy only at or below the floor.
             or PACK_CAPACITY - len(snapshot.inventory) > MIN_TERMINAL_FREE_PACK_SLOTS
             or organizing(policy, snapshot) or not eligible(policy, snapshot)
-            or _room_can_be_made(policy, snapshot)):
+            or room_can_be_made(policy, snapshot)):
         return None
     for store_type, stock in getattr(policy, "_town_supplier_stock", {}).items():
         if store_type == STORE_HOME:

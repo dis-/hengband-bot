@@ -47,9 +47,16 @@ class RewardPackFullHandoffTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._fixed_quest_reward_pending = 22
 
+        # The captured stand is on the emptied reward cell (31,99) with the
+        # Q22 reward, the Elven Cloak ([EQU $QUEST22 3], 04_Angwil.jsonc), in
+        # slot o: the pickup took the last slot, so the reward is complete
+        # (the recorded reward-pack-full WAIT was a stale latch).
+        self.assertEqual(snapshot.grid_at(snapshot.player.position).object_count, 0)
+        self.assertIn("エルフのクローク", next(item.name for item in snapshot.inventory if item.slot == "o"))
         key = policy._fixed_quest_key(snapshot, [])
         self.assertIsNone(key)
-        self.assertEqual(policy.last_reason, "fixedquest:reward-pack-full")
+        self.assertEqual(policy.last_reason, "fixedquest:reward-complete")
+        self.assertIsNone(policy._fixed_quest_reward_pending)
 
         key = policy._town_overflow_destroy_key(snapshot)
         self.assertEqual(key, "01ka")

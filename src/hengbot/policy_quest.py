@@ -587,14 +587,24 @@ class QuestMixin(OpeningRouteMixin):
         opening = self._opening_q1_town_key(snapshot, hostiles)
         if opening is not None:
             return opening
-        from hengbot import me_staff_sequence
-        staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
-        if staff_sequence is not None:
-            return staff_sequence
-        from hengbot import q2_tower_recharge
-        tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
-        if tower_recharge is not None:
-            return tower_recharge
+        # The reward of a quest just handed over lies on this town level only
+        # (wild.cpp wilderness_gen): pick it up before the class sequences
+        # below can leave the town (#47 D62).
+        from hengbot import town_quest_reward
+        reward = town_quest_reward.town_key(self, snapshot, hostiles)
+        if reward is not None:
+            return reward
+        # The class sequences that travel wait while the report or the
+        # pickup holds the town; the room-making owners take the board.
+        if not town_quest_reward.holds_town(self, snapshot):
+            from hengbot import me_staff_sequence
+            staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
+            if staff_sequence is not None:
+                return staff_sequence
+            from hengbot import q2_tower_recharge
+            tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
+            if tower_recharge is not None:
+                return tower_recharge
         from hengbot import me_powerful_activation
         powerful = me_powerful_activation.town_key(self, snapshot, hostiles)
         if powerful is not None:
@@ -4302,40 +4312,13 @@ class QuestMixin(OpeningRouteMixin):
             return None
         if snapshot.in_town:
             # A claimed floor reward is part of the quest transaction and must
-            # finish before selecting or travelling to another fixed quest.
-            # Reconstruct the in-memory latch after a bot/game restart from the
-            # dedicated allowlisted tile when the quest is already rewarded.
-            if self._fixed_quest_reward_pending is None:
-                for reward_quest_id in FIXED_QUEST_REWARD_POSITIONS:
-                    reward_quest = snapshot.quests.get(reward_quest_id)
-                    if reward_quest is None or reward_quest.status not in {
-                        QUEST_STATUS_REWARDED,
-                        QUEST_STATUS_FINISHED,
-                    }:
-                        continue
-                    if any(
-                        (grid := snapshot.grid_at(position)) is not None
-                        and grid.object_count > 0
-                        for position in self._fixed_quest_reward_positions(
-                            snapshot, reward_quest_id
-                        )
-                    ):
-                        self._fixed_quest_reward_pending = reward_quest_id
-                        break
-            if self._fixed_quest_reward_pending is not None:
-                reward_key = self._fixed_quest_reward_key(
-                    snapshot, self._fixed_quest_reward_pending
-                )
-                if reward_key is not None:
-                    return reward_key
-                if self._fixed_quest_reward_pending is not None:
-                    if self.last_reason == "fixedquest:reward-pack-full":
-                        # The reward owner has no safe quest-local disposal.
-                        # Release this rung so the town owners can deposit,
-                        # sell, or dispose of surplus and make room for it.
-                        return None
-                    self.last_reason = "fixedquest:reward-wait"
-                    return WAIT_KEY
+            # finish before selecting or travelling to another fixed quest
+            # (town_quest_reward; a full pack releases this rung so the town
+            # owners can make room for it).
+            from hengbot import town_quest_reward
+            reward_key = town_quest_reward.reward_key(self, snapshot)
+            if reward_key is not None or self._fixed_quest_reward_pending is not None:
+                return reward_key
 
             # Fixed-quest travel used to bypass ordinary town readiness entirely.
             # Let the town router shed weight at Home before accepting, claiming,
@@ -4509,12 +4492,8 @@ class QuestMixin(OpeningRouteMixin):
                     if key is not None and self.last_reason != "return:wait-recall":
                         self.last_reason = "fixedquest:claim:return"
                     return key
-                return self._fixed_quest_building_key(
-                    snapshot,
-                    quest_id,
-                    "fixedquest:claim",
-                    set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
-                )
+                from hengbot import town_quest_reward
+                return town_quest_reward.claim_key(self, snapshot, quest_id)
             if quest.status == QUEST_STATUS_UNTAKEN:
                 if (
                     not snapshot.in_town
@@ -4544,12 +4523,8 @@ class QuestMixin(OpeningRouteMixin):
         if self._fixed_quest_reward_pending == quest_id:
             return self._fixed_quest_reward_key(snapshot, quest_id)
         if quest.status == QUEST_STATUS_COMPLETED:
-            return self._fixed_quest_building_key(
-                snapshot,
-                quest_id,
-                "fixedquest:claim",
-                set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
-            )
+            from hengbot import town_quest_reward
+            return town_quest_reward.claim_key(self, snapshot, quest_id)
         if quest.status == QUEST_STATUS_TAKEN:
             info = self._quest_knowledge.get(quest_id)
             if self.approved_quest_strategy(quest_id) is not None and info is not None and info.battlefield is not None:
@@ -5562,6 +5537,17 @@ class QuestMixin(OpeningRouteMixin):
             self._fixed_quest_reward_pending = None
             return None
         positions = self._fixed_quest_reward_positions(snapshot, quest_id)
+        visible_reward = [
+            pos
+            for pos in positions
+            if (grid := snapshot.grid_at(pos)) is not None and grid.object_count > 0
+        ]
+        # Standing on the emptied reward cell completes the pickup, also
+        # when the reward took the last free slot (the pack is full now).
+        if snapshot.player.position in positions and not visible_reward:
+            self._fixed_quest_reward_pending = None
+            self.last_reason = "fixedquest:reward-complete"
+            return None
         if len(snapshot.inventory) >= PACK_CAPACITY:
             destroy = self._full_pack_destroy_key(snapshot)
             if destroy is not None:
@@ -5594,15 +5580,6 @@ class QuestMixin(OpeningRouteMixin):
         )
         if current is not None:
             return current
-        visible_reward = [
-            pos
-            for pos in positions
-            if (grid := snapshot.grid_at(pos)) is not None and grid.object_count > 0
-        ]
-        if snapshot.player.position in positions and not visible_reward:
-            self._fixed_quest_reward_pending = None
-            self.last_reason = "fixedquest:reward-complete"
-            return None
         target_positions = visible_reward or list(positions)
         context = getattr(self, "_decision_context", None)
         if context is None:

@@ -277,7 +277,8 @@ class IdentifyStaffReplacedTest(unittest.TestCase):
                 board = parse_snapshot(raw, policy._monrace_knowledge)
                 # This new process's record is empty: only the list says so.
                 self.assertNotIn("staff:5", capability.recorded(policy))
-                for use in (capability.CANDIDATE, capability.NEED):
+                # Owner 2026-11-01 21h 6 「どちらの流れでも買わない」: every use.
+                for use in sorted(capability.EVERY_USE):
                     self.assertEqual("full-count" in [
                         row.when for row in capability.waiving_rows(
                             policy, board, self.identify_staff, use)], replaced)

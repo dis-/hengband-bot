@@ -1,0 +1,107 @@
+LUNA-REPORT q2-reward-lamp-1101（D62、#47、2026-11-01〜02）
+
+発注: 所有者 11-01「ついでに下水道をクリアしたのにフェアノールのランプを持ってない理由も調べて」。
+枝: q2-reward-lamp-1101（main 64e63b6cf から。main a467fb56f と fc3b96a20 を取り込み済み）。
+診断: LUNA-DIAG-q2-reward-lamp-1101.txt（ゲーム側の仕組み・記録の判断の行・ほかのクエスト）。
+証拠: C:\hengband-backups\pdca\captures\q2-reward-lamp-1101\（n1-c life-098、build bot-e69085962）。
+
+------------------------------------------------------------------
+結論（なぜランプを持っていないか）
+------------------------------------------------------------------
+ - ボットは Q2 を報告した（判断 2520 fixedquest:claim '9q<ESC>'）。報告で REWARDED になり、町が作り直されて
+   '!' のマス (22,42) にランプが置かれ、直後に FINISHED になる（market/building-quest.cpp:70-75、
+   floor/wild.cpp:541-545、lib/edit/towns/02_Telmora.jsonc:195-207）。ランプはこの 1 回の町の階にしか無い。
+ - ボットはランプを見ていた（判断 2521 の loot.visible に距離 1）が、魔道具術師の杖の段の担当
+   （me-staff:return-outpost）が先に動き、ランプの隣を通って宿から前哨へ転移した（判断 2553・2566）。
+   町を出たのでランプは消えた。
+
+------------------------------------------------------------------
+1. 根 1: 報酬を拾う担当が、魔道具術師の町の担当より後ろにいる（コミット c8f490893）
+------------------------------------------------------------------
+原因: 報酬の拾得（_fixed_quest_reward_pending → _fixed_quest_reward_key）は _fixed_quest_key の中でしか
+ 動かず、_opening_q34_town_key では me_staff_sequence・Q2 の塔での充填・強力発動が先に動く。段の担当の
+ 「クエストが町を押さえている間は出ない」（_quest_holds_town）は、報酬が床に置かれる REWARDED/FINISHED で外れる。
+直し: 新しいモジュール src/hengbot/town_quest_reward.py が報酬の取り置き（再起動後の作り直しを 1 か所に。
+ _fixed_quest_key と Q1 の序盤にあった 2 つの写しを消した）と拾得を持ち、_opening_q34_town_key の中で
+ Q1 の序盤の後・杖の段の前に動く（policy_quest.py:590 付近）。殴られた直後・敵と接している時は生存の担当に譲る。
+
+------------------------------------------------------------------
+2. 根 2: 町の荷物の取り置き（空き 4 枠）が報酬のマスへの最後の 1 歩を断る（コミット 8cc952d27）
+------------------------------------------------------------------
+原因: 根 1 を直しても、荷物 21/23（空き 2）では town_pack_budget.floor_step_fits が物のあるマス (22,42) を
+ 道から外し、fixedquest:reward-approach:route-unavailable の WAIT になる。予算は暗黙の拾得のためのもので、
+ 報酬の拾得そのもの（'g'）は予算を見ない。満杯の時は既存の受け渡し（fixedquest:reward-pack-full）がある。
+直し: town_pack_budget.explicit_pickup_cells（文脈で、意図して拾うマスだけ予算から外す）。town_quest_reward が
+ 報酬の許可リストのマス（FIXED_QUEST_REWARD_POSITIONS）にだけ使う。途中の物の山は今まで通り予算で断る。
+
+------------------------------------------------------------------
+3. 検査（tests/test_q2_reward_lamp_recorded.py、3 件）
+------------------------------------------------------------------
+ 盤面: tests/fixtures/q2-reward-lamp-20261101.json.gz（抽出器 tests/extract_q2_reward_lamp_fixture.py、
+ 記録の盤面 1631・1633 と判断 2520-2567）。public choose_key と本番の実行器（ProductionHarness）で動かす。
+ 拾得・1 歩の後の盤面はエンジンの返事として作った物（テストの中で DECLARED CONSTRUCTED と明記）。
+ - tests.test_q2_reward_lamp_recorded.Q2RewardLampRecordedTest.test_recorded_decisions
+   記録の事実の固定（報告・距離 1 で見えていた・宿へ '3ma'・荷物 21/23・状態 4 でランプが床に 1 つ）。
+ - ...test_reward_owner_holds_the_board_after_the_report
+   報告の直後の盤面を報酬の担当が持つ（me-staff ではない）。
+ - ...test_lamp_is_picked_up_before_leaving_telmora
+   空き 2 枠のまま、報酬の担当だけで歩いて 'g'（fixedquest:reward-pickup）、ランプが荷物に入り、
+   次の盤面はほかの町の担当に戻る。
+ 戻した確認（作業ツリーを触らず、src を scratchpad に写して該当の行だけ戻して実行）:
+ - 根 1 だけ戻す（policy_quest.py の town_quest_reward.town_key の呼び出し 3 行を消す）:
+   test_reward_owner_holds_the_board_after_the_report が 'fixedquest:reward' not found in
+   'me-staff:return-to-shop' で FAIL、test_lamp_is_picked_up_before_leaving_telmora が
+   ('6', 'me-staff:return-to-shop') != ('g', 'fixedquest:reward-pickup') で FAIL。
+ - 根 2 だけ戻す（floor_step_fits の explicit_pickup_cells の条件を消す）:
+   test_lamp_is_picked_up_before_leaving_telmora が FAIL（報酬の担当が WAIT '5' を出し、
+   作った返事が無い: ('no constructed reply', '5')）。
+ - 直した版: 3 件 OK。test_recorded_decisions は記録の固定なので戻しても通る（直しの検査ではない）。
+
+------------------------------------------------------------------
+4. 流した検査（main fc3b96a20 を取り込んだ後の d5fb189a3）
+------------------------------------------------------------------
+ - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+ - checks.json の 86 項目・112 モジュール＋自分のテスト: 661 件 OK（3022 秒）。
+ - 関係するテスト: test_me_q1_torch_recorded、test_opening_route_recorded、test_reward_approach_progress、
+   test_reward_pack_full_handoff、test_town_pack_budget、test_town_terminal_n1a_recorded、
+   test_town_withdraw_pack_budget_recorded、test_unid_deposit_recorded、test_shop_one_shot: 117 件 OK（skip 1）。
+ - scripts/town_work_manifest.py --write: zero unmapped（1095 候補）。town_work_review.json に
+   town_quest_reward.py の pending・reward_key・town_key の 3 行を追加済み。
+ - 壁にしたテストは無い。
+
+------------------------------------------------------------------
+5. checks.json の案（編集していない）
+------------------------------------------------------------------
+{"id": "D62-Q2-REWARD-LAMP",
+ "owner": "2026-11-01「ついでに下水道をクリアしたのにフェアノールのランプを持ってない理由も調べて」 (branch q2-reward-lamp-1101)",
+ "tests": ["tests.test_q2_reward_lamp_recorded", "tests.test_reward_pack_full_handoff",
+           "tests.test_reward_approach_progress"]}
+
+------------------------------------------------------------------
+6. ほかのクエスト（町の地図に報酬があるもの）
+------------------------------------------------------------------
+ ボットが受けるもの: Q1・Q14・Q18・Q25（前哨 (27,98)）、Q34・Q31（前哨 (36,119)）、Q2（テルモラ (22,42)）、
+ Q22（アングウィル (31,99)）。根 1 は魔道具術師の町の担当が動く間に報告したすべてで起きえた（Q34 は序盤の
+ 担当が先に拾う）。根 2 は職業によらず空き 4 枠未満で報告したすべてで起きえた。どちらも
+ FIXED_QUEST_REWARD_POSITIONS の表で直したので、クエストごとの特例は無い。
+
+------------------------------------------------------------------
+保守性
+------------------------------------------------------------------
+ - 新しいロジックは town_quest_reward.py（報酬の取り置き・作り直し・拾得の順番）の 1 か所。取り置きの作り直しは
+   _fixed_quest_key（約 35 行）と Q1 の序盤（約 8 行）に別々の写しがあったのを 1 つの pending() にまとめた。
+   満杯の時に担当を離す・WAIT にする処理も reward_key() の 1 か所。
+ - 予算の例外は town_pack_budget の explicit_pickup_cells（文脈）だけで、floor_step_fits の呼び手（航行・
+   _walkable_neighbors）には分岐を足していない。例外のマスは報酬の表（FIXED_QUEST_REWARD_POSITIONS）から来る。
+ - 共有の判断コードにクエスト番号・町・職業の特例を書いていない。関係のない整理はしていない。
+
+------------------------------------------------------------------
+持ち主への問い
+------------------------------------------------------------------
+ 1. 荷物が満杯（23/23）で報告した時、報酬の担当は今まで通り盤面を離し（fixedquest:reward-pack-full）、
+    町の担当が場所を空けるのを待つ。しかし魔道具術師の杖の段の担当が先に動くと、場所を空ける前に宿へ行き、
+    報酬が消えうる（記録では起きていない。今回は空き 2 枠）。
+    案: (a) 今のまま（既存の受け渡しに任せる） (b) 報酬が床にある間は、町を出る担当（宿・帰還・荒野）を
+    断り、空ける担当だけを通す（新しい振る舞いなので未実装）。
+ 2. 殴られた・敵と接している時は生存の担当に譲る（生存優先）。その生存の担当が町を出ると報酬は消える。
+    これは生存優先の決まりどおりと考えて変えていない（確認だけ）。

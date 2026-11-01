@@ -1,0 +1,101 @@
+LUNA-REPORT me-capability2-1101（#47、持ち主の答え 2026-11-01 21時 の 5・6・7）2026-11-01
+ブランチ me-capability2-1101（main 64e63b6cf から。main a467fb56f・fc3b96a20 を取り込み済み。fc3b96a20 が今の main の先頭）。
+診断: LUNA-DIAG-me-capability2-1101.txt（鎖と行番号、決定の表の行）。push はしていない。
+
+■ コミット
+  b4091d13a Count the absorbed Detect Treasure power by its displayed charges（5）
+  0e00399af Move the stage-staff purchase exclusion into the REPLACES table（7）
+  b61e22d33 Keep the full Identify count out of every purchase path（6）
+  86acd6069 / 9a0f17056 main a467fb56f・fc3b96a20 の取り込み
+  b87ff5552 ORDER の行の出どころをコメントに書く（コメントだけ）
+  （この報告のコミット）
+
+■ 5. 取り込んだ財宝感知の数（出発の判定）  直した b4091d13a
+  原因: REPLACES の行 Replacement(("staff", 財宝感知), Kind(巻物, 財宝感知), amount="recorded") が
+    取り込みの記録（最大値）を読み、表示の一覧の current を見なかった。使った後（表示 1/19）でも 19 と数え、
+    採掘の出発の目標 6 を満たしたことになり、巻物を買わずに降りた。
+  直し: 行の amount を "charges"（表示の行が先、一覧を読んでいなければ記録）にした。ほかの力と同じ。
+    "recorded" を使う行はほかに無いので AMOUNT から消した。
+  盤面: 記録した n1-c life-021 の錬金術の店（D9 の fixture）。DECLARED CONSTRUCTED: 段階1を取り込んだ記録と表示の一覧。
+
+■ 6. 21回分の鑑定の力（どちらの流れでも買わない）  直した b61e22d33
+  原因: 行 when="full-count" の uses が {CANDIDATE, NEED} だけで、(a) 購入の段（ゾンビの tail:mana-food）が
+    鑑定の杖を食料として一致させ、(b) 入れ替えの買い直し（_identify_staff_swap_purchase）が店の通常の順の
+    直接の選びで回数の多い杖を通し、(c) 必要品の段（_departure_blocking_page_purchase_pure）は PURCHASE を聞かなかった。
+    記録した n1-c life-033 の魔法の店で、鑑定 21 回分を取り込んだゾンビが 鑑定の杖 (5x 18回分) を食料として 829 で買う。
+  直し: 行の uses を既定（全部の用途: PURCHASE・ORDER・CANDIDATE・NEED）にした（巻物 2 行と同じ）。
+    入れ替えの買い直しは PURCHASE で外れる品を通さない（1 つの問い合わせ）。必要品の段の候補も
+    _matching_live_purchase_rungs と同じ PURCHASE の判定を聞く。
+    巻物の 2 行も ORDER を含むようになったが、その巻物の直接の選びはもう PURCHASE で外れているので決定は変わらない
+    （下の replay で確かめた）。
+
+■ 7. 店の処理の中の段階の杖の判定（表へ移す）  直した 0e00399af（振る舞いは変えない）
+  今まで: policy_shop.py の _legacy_next_purchase_unreserved に、me_staff_sequence.applies なら段階の杖の種類を
+    excluded_classes に足すその場の判定があった（入れ替えの買い直しは各選びで通す）。
+  直し: 表に用途 ORDER（店の通常の順のすべての選びが守る品の種類の除外）を足し、行
+    Replacement(None, Kind(杖, すべて), when="stage-staff", uses={ORDER}) を足した。条件
+    me_staff_sequence.order_excluded = applies かつ 今までの段階の杖 かつ 入れ替えの買い直しでない
+    （入れ替えの例外が行の条件になった）。店は除外の組を「同じ品の売り直しの拒否、または表が ORDER で外す棚の行」
+    から作り、その場の判定は消した。
+  中立の確かめ: validation/manifest-tax-1101 の replay 道具（replay_choose_key.py・compare_replays.py）で、
+    checks.json の全テストと関係するテスト（657 件、決定 3409・受け取り 6293）の choose_key の判断を
+    A=b4091d13a（7 の前）・B=0e00399af（7 の後）・C=b61e22d33（6 の後）で比べた。A と B、B と C の違いは 0 件
+    （3 本の出力の sha256 が同じ 725751678989...）。結果は validation/me-capability2-1101/replay-summary.json。
+    3 件の読み込みの誤りは、その時の木（取り込み前）にまだ無かったテスト（test_owner15_survival_1101_recorded・
+    test_mapped_area_ledger_recorded・test_town_travel_errands_recorded）で、3 本とも同じ。
+    さらに ZombieFoodShelfTest.test_the_ordinary_order_never_feeds_on_an_absorbed_stage_staff が、
+    行 stage-staff を表から抜くと鑑定の杖を食料に買うことを示す（行が効いていることの確かめ）。
+
+■ テスト（新しく足したもの: tests/test_me_capability_rows_recorded.py、公開の choose_key と本番の executor）
+  tests.test_me_capability_rows_recorded.DetectTreasureCountTest.test_the_displayed_current_charges_count（5）
+  tests.test_me_capability_rows_recorded.DetectTreasureCountTest.test_the_record_counts_only_when_no_list_was_read（5、記録に戻る場合の守り）
+  tests.test_me_capability_rows_recorded.DetectTreasureCountTest.test_the_run_buys_the_missing_scrolls_before_it_descends（5）
+  tests.test_me_capability_rows_recorded.ZombieFoodShelfTest.test_no_purchase_path_buys_an_identify_staff_after_21_charges（6）
+  tests.test_me_capability_rows_recorded.ZombieFoodShelfTest.test_the_ordinary_order_never_feeds_on_an_absorbed_stage_staff（7）
+  変えたもの: tests.test_me_absorbed_substitutes（鑑定の行を全部の用途で確かめる）、
+    tests.test_me_capability（power が None の行に stage-staff を許す）。
+
+■ 直す前のコードで落ちることの確かめ（revert-proof、HEAD の写しに src の直しだけ戻して流した）
+  5 を戻す（行の amount を "recorded" に、AMOUNT に recorded を戻す）:
+    test_the_displayed_current_charges_count → FAIL（19 != 1）
+    test_the_run_buys_the_missing_scrolls_before_it_descends → FAIL（財宝感知の巻物 5 本を買わず、帰還の巻物・油を買って
+      seek-downstairs ×5 → descend）
+    test_the_record_counts_only_when_no_list_was_read → ok（直す前も同じ答えの守り。直しの対象ではない）
+    6・7 のテスト → ok
+  6 を戻す（b61e22d33 の src を逆に当てる）:
+    test_no_purchase_path_buys_an_identify_staff_after_21_charges → FAIL（[鑑定の杖 (5x 18回分)] != [スリープ・モンスターの魔法棒 (10回分)]）
+    5・7 のテスト → ok
+  7 は振る舞いを変えないので revert-proof ではなく上の replay（違い 0 件）で確かめた。
+  戻した木はスクラッチの写しで、この worktree の src は触っていない。
+
+■ 検査の数
+  (1) import の検査 PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK
+  (2)(3) checks.json の 107 モジュール ＋ 自分の 3 モジュール（tests.test_me_capability_rows_recorded・
+    tests.test_me_capability・tests.test_me_absorbed_substitutes。重なりを除き 108 モジュール）→ 8 つに分けて並べて流し、663 件すべて OK（失敗 0・誤り 0）
+  町の用事の一覧: scripts/town_work_manifest.py → 0 violation(s)（登録された作り手の一覧は変わらない）。
+
+■ checks.json への追加の案（checks.json は編集していない）
+  {"id": "OWNER9-ME-CAPABILITY2", "owner": "2026-11-01 21時 答え5「今残っている回数で数える」・6「どちらの流れでも買わない」・7「表へ移す」（入れ替えのための買い直しの例外も表の条件に）", "tests": ["tests.test_me_capability_rows_recorded"]}
+
+■ 保守性
+  - 新しい判定はすべて me_capability.REPLACES の行と WHEN の名前付きの条件に置いた。店の処理（policy_shop.py）の
+    段階の杖のその場の判定（me_staff_sequence.applies と active_svals を直接読む 3 行）を消し、店は表に
+    「ORDER で外れるか」を聞くだけになった。段階の杖の条件は持ち主のモジュール me_staff_sequence.order_excluded に 1 つ。
+  - 「どの購入の道でも買わない」は PURCHASE の 1 つの問い合わせ（replaced_by_absorbed）で、購入の段の一致・
+    必要品の段・入れ替えの買い直しが同じものを聞く（別の述語を書き足していない）。
+  - 鑑定の行の uses を既定に戻し、巻物の 2 行と同じ書き方になった（行ごとの例外が 1 つ減った）。
+  - AMOUNT の "recorded" を消し、数え方は "charges" の 1 つになった。
+  - 用途の定数は EVERY_USE 1 つにまとめた（途中にあった USES は消した）。
+  - テストの壁は足していない。
+
+■ ほかの家族のもの（直していない）
+  5 の盤面（DECLARED CONSTRUCTED）を出発まで進めると、財宝感知の巻物を買った後に金が 38 になり、能力の回復の要求
+  （錬金術の店、488）が買えないまま店と階段の間を往復して town:blocked:owner-retired で止まる（main では巻物を買わず
+  金が残るので降りる）。町の出発・往復の家族（D29/D30）。5 の直しで巻物を正しく買うようになったことで表に出る形。
+
+■ 持ち主への問い
+  - 上の往復: 出発の要求（財宝感知の巻物と能力の回復）が両方は買えない時にどちらを優先するか。案:
+    (a) 採掘の出発の財宝感知を先に満たし、能力の回復は次の帰りに回す（往復の判定を閉じる）
+    (b) 能力の回復を先に買い、財宝感知は残りの金で買える分だけ（足りなければ表示の回数で出る）
+    (c) 今のまま D29/D30 の家族の直しに任せる
+  - そのほかに新しい決まりが要る所は無かった。
