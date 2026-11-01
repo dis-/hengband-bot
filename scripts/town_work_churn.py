@@ -23,6 +23,8 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+# Paths as they existed in the measured history: town_producer_baseline.json (retired 2026-11-01) stays so a
+# rerun over the same commits selects the same ones.
 FAMILY = ('scripts/town_work_manifest.json.gz', 'src/hengbot/town_work_sites.json',
           'scripts/town_work_review.json', 'scripts/town_producer_baseline.json',
           'scripts/town_work_registry_review.json')

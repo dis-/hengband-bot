@@ -1,6 +1,7 @@
 """Generate/check slice-0 town work coverage. Never invent review entries.
 
-The reviewed map is separate from the older producer baseline. Every selected
+The reviewed map is the only producer review (the older producer baseline was
+retired on 2026-11-01). Every selected
 site (the conservative census, decorators, registries, literal ladder callbacks,
 decision entries and driver sends) needs a hand review entry in
 town_work_review.json, unless town_work_data_proof proves it observational

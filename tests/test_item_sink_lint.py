@@ -1,3 +1,4 @@
+import ast
 import sys
 import unittest
 from pathlib import Path
@@ -8,6 +9,7 @@ import tests  # noqa: F401
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from item_sink_lint import (ADAPTER_PATH, POLICY_ROOT, analyze_repository,
                             analyze_source, direct_calls, producer_names)
+import town_structure_lint as lint  # noqa: E402
 
 
 class ItemSinkLintTest(unittest.TestCase):
@@ -183,3 +185,101 @@ def choose_key(self, snapshot):
             'def selector(policy, item):\n destroy = policy._destroy_item_key\n return destroy(item)',
         ):
             self.assertTrue(analyze_source(source, 'town_new_selector.py', names=set()))
+
+
+def _policy_sources(body, extra=None):
+    sources = {'policy.py': 'class HengbotPolicy:\n' + body, 'claim_ladder.py': ''}
+    sources.update(extra or {})
+    return sources
+
+
+class ItemIntentLintTest(unittest.TestCase):
+    """The item-intent half of town_structure_lint, which item_sink_lint runs.
+
+    Moved from the retired tests.test_town_structure_lint (2026-11-01) with the producer baseline removed.
+    """
+    def test_mutations_in_actual_repository_paths(self):
+        sources = {path.relative_to(lint.POLICY_ROOT).as_posix(): path.read_text(encoding='utf8')
+                   for path in lint.POLICY_ROOT.rglob('*.py')}
+        intents = json.loads(lint.INTENT_BASELINE.read_text(encoding='utf8'))
+
+        def mutated_read_key(statements):
+            tree = ast.parse(sources['policy.py'])
+            policy = next(node for node in tree.body
+                          if isinstance(node, ast.ClassDef) and node.name == 'HengbotPolicy')
+            read = next(node for node in policy.body
+                        if isinstance(node, ast.FunctionDef) and node.name == '_read_key')
+            read.body[:0] = ast.parse(statements).body
+            return ast.unparse(ast.fix_missing_locations(tree))
+
+        mutant = dict(sources, **{'policy.py': mutated_read_key(
+            'signature = self._item_signature(item)\nself._foo_pending = signature')})
+        self.assertTrue(any('_foo_pending: new unregistered item intent' in finding
+                            for finding in lint.analyze_sources(mutant, intents)))
+        self.assertTrue(any('raw item command' in finding for finding in analyze_source(
+            mutated_read_key('return "q" + item.slot'), 'policy.py', names=producer_names(),
+            adapters=json.loads(ADAPTER_PATH.read_text(encoding='utf8')))))
+
+    def test_ancestor_with_non_mixin_name_is_scanned(self):
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n', extra={
+            'ancestor.py': 'class ItemWork:\n def prepare(self, item):\n  self.future_item = item\n'})
+        sources['policy.py'] = 'from .ancestor import ItemWork\n' + sources['policy.py'].replace(
+            'class HengbotPolicy:', 'class HengbotPolicy(ItemWork):')
+        self.assertTrue(any('future_item: new unregistered item intent' in f
+                            for f in lint.analyze_sources(sources, {})))
+
+    def test_reverse_import_driver_has_no_findings(self):
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n', extra={
+            'driver.py': 'from hengbot.policy import HengbotPolicy\ndef new_work():\n return "5"\n'})
+        self.assertEqual(lint.analyze_sources(sources, {}), [])
+
+    def test_new_pending_signature_attribute_mutation(self):
+        for statement in ('self._foo_pending = signature',
+                          'self._foo_pending = self._item_signature(item)',
+                          'setattr(self, "_foo_pending", signature)',
+                          'self._foo_pending.append(signature)'):
+            sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n'
+                ' def remember(self, item):\n  signature = self._item_signature(item)\n  ' + statement + '\n')
+            with self.subTest(statement=statement):
+                self.assertTrue(any('_foo_pending: new unregistered item intent' in f
+                                    for f in lint.analyze_sources(sources, {})))
+
+    def test_signature_identity_and_typed_item_without_pending_name(self):
+        for expr, annotation in (('self._item_signature(item)', ''),
+                                 ('equipment_identity(item)', ''),
+                                 ('equipment_move_identity(item)', ''),
+                                 ('InventoryItem()', ''), ('item', ': InventoryItem')):
+            sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n'
+                f' def remember(self, item{annotation}):\n  selected = {expr}\n  self.future_operation = selected\n')
+            with self.subTest(expr=expr):
+                self.assertTrue(any('future_operation: new unregistered' in f
+                                    for f in lint.analyze_sources(sources, {})))
+
+    def test_signature_parameter_slot_and_dictionary_key_intents(self):
+        for parameters, statement in (
+            ('signature', 'self.future_operation = signature'),
+            ('item', 'self.future_slot = item.slot'),
+            ('signature', 'self.future_operation[signature] = True'),
+            ('snapshot', 'self.future_operation = snapshot.inventory[0]'),
+        ):
+            sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n'
+                f' def remember(self, {parameters}):\n  {statement}\n')
+            with self.subTest(statement=statement):
+                self.assertTrue(any('new unregistered item intent' in f
+                                    for f in lint.analyze_sources(sources, {})))
+
+    def test_registered_source_requires_composed_component(self):
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  self._foo_pending = None\n  return None\n')
+        sources['item_reservation.py'] = ('ITEM_RESERVATION_SOURCES = '
+                                          '{"_foo_pending": ("unused", "future operation")}\n')
+        self.assertTrue(any('composed predicate' in f for f in lint.analyze_sources(sources, {})))
+        sources['item_reservation.py'] += '_SOURCE_PREDICATES = {"unused": predicate}\n'
+        self.assertEqual(lint.analyze_sources(sources, {}), [])
+
+    def test_explicit_non_item_intent_reason_and_staleness(self):
+        sources = _policy_sources(' def choose_key(self, snapshot):\n  self._probe_pending = True\n  return None\n')
+        exclusion = {'_probe_pending': 'UI observation flag, not an item selector.'}
+        self.assertEqual(lint.analyze_sources(sources, exclusion), [])
+        self.assertTrue(lint.analyze_sources(sources, {'_probe_pending': ''}))
+        sources['policy.py'] = sources['policy.py'].replace('  self._probe_pending = True\n', '')
+        self.assertTrue(any('disappeared' in f for f in lint.analyze_sources(sources, exclusion)))
