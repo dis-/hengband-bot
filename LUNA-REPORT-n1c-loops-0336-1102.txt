@@ -1,0 +1,131 @@
+n1c-loops-0336-1102: n1-c（魔道具術師、ビルド bot-df4001950）の2026-11-02 の2つのループ停止
+
+■ 結論
+1. life-100（Lv27、オークの洞窟16階、03:35〜03:36 に loop-detected 3回）
+   原因: 盤面の索引（policy_navigation.py の _build_grid_index）は、見えている敵のマスを
+   歩けるマスから外す。落ちている矢 (42,70)/(42,72) へは1マス幅の通路（42行）しか道がなく、
+   そこにモングバット（race 235）が (42,72)〜(42,77) を飛び回っていた。
+   - 見えている間（(42,92)）: 拾いの経路（policy_identification.py の _loot_step）が道を見つけられず、
+     拾いの請求を手放し（loot-retarget）、探索（再起動後は下り階段の経路）が '9' で (41,93) へ出る。
+   - 見えない間（(41,93)）: そのマスは歩けるマスに戻り、seek-loot が '1' で通路へ戻る。
+   この2つが40回交互に続いた。担当の食い違いではなく、「見えているかどうか」で拾いの道が
+   開いたり閉じたりしていた。
+2. life-101（新しい Lv1 のキャラ、アウトポスト、03:36〜03:38）
+   原因: 雑貨屋に普通の松明が無かった（棚には灼熱の松明 4491G のエゴ1本だけ）。Q34 の携行は
+   松明20本（所持5本）なので、序盤の Q34 の担当（policy_quest.py の _opening_q34_town_key）が
+   入荷待ちをした。この担当だけが待ちに '5'（その場で1ターン）を送っていた。町の共通の
+   入荷待ち（policy_town.py の _town_restock_wait_key、policy.py の _recall_restock_key）は
+   休憩 RESTOCK_WAIT_MACRO（R300）を送る。1,000ターンの待ちが同じ判断約93回になり、
+   観戦機の止まりの検査（同じ理由・キー・位置が50回以上）で stall-town-wait-restock-general として
+   止められた。再起動後は店に入って出る同じ手順が _refuse_no_progress_cycle に拒まれ
+   livelock:exhausted で3回止まり、引退した。
+
+■ 証拠（C:\hengband-backups\pdca\captures\n1c-loops-0336-1102）
+- life-100-033602/bot-decisions.jsonl.gz
+  - 21994〜22021 seek-loot で東の矢を拾い終え、22022 (41,93) seek-loot '1'（目標 (42,72)）。
+  - 22023 (42,92) explore '9'（モングバットが (42,74) に見える、loot.target null、
+    拾いの請求は closed_reason "loot-retarget"）。
+  - 以後 seek-loot '1'（見えない、(41,93)）と explore/approach-descent/breakout '9'（見える、(42,92)）の
+    交互、22094 で loop-detected（cells (41,93),(42,92),(42,93)）。再起動の2回も同じ交互。
+  - 拾いの妨げ（_loot_block_reason）は3回とも null（脅威にならない敵）。
+  - 記録の盤面で確かめた: (42,92) の時だけ歩けるマスの集合から (42,74) が抜け、
+    (41,93) では抜けていない。拾いの候補は同じ4か所。
+  - incident-captures/20261102-033533-loop-detected をサーバから読み取りだけで写した。
+- life-101-033837
+  - サーバの life-101 jsonlog/bot-decisions.jsonl（読み取りだけ、必要な行は
+    bot-decisions-session1-8-30.jsonl に写した）: 8〜19 shop:approach、20 shop:observe-and-leave
+    （shelf_evidence_skips: quest-throwing-items absent）、21 equipment-transaction:equip、
+    22 town:entrance-step-off、23 から town:wait-restock:general '5'。
+    25 〜 116 の約93回が '5'、その後 店に入って出て、また '5' …を7回。
+  - 町の仕事の記録の鎖: policy_quest.py:QuestMixin._opening_q34_town_key line 670 が '5'。
+  - サーバの captures/20261102-033815-stall-town-wait-restock-general（linux_soak.py の
+    stalled_reason）、incident-captures の livelock-exhausted 3件（rung _refuse_no_progress_cycle）。
+  - incident-captures/20261102-033821-livelock-exhausted を読み取りだけで写した（生まれた時からの盤面）。
+- ゲームの仕組み（C:\hengband\src）
+  - 店の入荷は入店の時だけ、前回の入荷から 10,000 ゲームターン後（store/cmd-store.cpp:94、
+    STORE_TICKS 1000 × TURNS_PER_TICK 10）。入荷が無い入店では last_visit は変わらない。
+  - 松明は雑貨屋の常時販売品（store/articles-on-sale.cpp:33）。入荷のたびに常時販売品から
+    作られる（store/store.cpp:465）。
+
+■ 直し
+- コミット 649a20e71 Route loot through visible non-blocking hostiles' cells
+  - policy_identification.py に _loot_route_hostile_cells を追加: 見えている敵のうち
+    _loot_block_reason を通った（拾いを妨げない）敵のマスで、覚えている床のもの。
+  - _normal_loot_key がそれを _loot_step に渡し、_loot_step は _position_target_step と
+    幅優先探索の両方でそのマスを通れるとする（policy.py の _walkable_neighbors と
+    _position_target_step に省略可能な引数 through を足した。既定は空で、他の呼び出しは変わらない）。
+  - これで拾いの道は敵が見えていても見えていなくても同じ。敵が射程や隣に来れば、
+    今までどおり戦闘の担当（より前の段）が受け持つ。歩いて隣に入ることはない
+    （隣に敵がいれば _loot_block_reason が adjacent-hostile で止める）。
+    交戦を避けるマス（_engagement_avoid_cells）と動かない脅威の周り（immobile_threat_memory）は
+    今までどおり通らない。
+  - 新しいしきい値は無い。「遠くの弱い敵は拾いの価値を消さない」（_normal_loot_key の注釈）を、
+    敵が見えている時にも守らせただけ（見えていない時はもともとその道を歩いていた）。
+- コミット「Rest through the opening Q34 restock wait」（649a20e71 の次、この報告と同じコミット）
+  - _opening_q34_town_key の入荷待ちのキーを WAIT_KEY から RESTOCK_WAIT_MACRO に変えた
+    （町の共通の入荷待ちと同じキー）。待ちの条件と時間（STORE_RESTOCK_WAIT_TURNS）は変えていない。
+  - 町の終わり方（town-defined-end-1102）とは重ならない: この場面は担当が答えている（待つ）場面で、
+    「担当が誰も答えない時」ではない。
+
+■ テスト
+- 追加: tests/test_n1c_loops_0336_1102_recorded.py（4件）
+  - LootCorridorRecordedTest.test_recorded_rows_alternate_on_the_bat_being_in_view: 記録の行の確認。
+  - LootCorridorRecordedTest.test_loot_walk_heads_down_the_corridor_while_the_bat_is_in_view:
+    turn 1469200〜1469360 の記録の盤面（16枚）を、公開の choose_key と本番の executor port で流す
+    （d57 の RecordedDrive）。モングバットが見えている盤面の歩きがすべて seek-loot で西へ進み、
+    (41,93) へ出ないこと、拾いの目標が (42,72) のままであること。
+  - OpeningRestockWaitRecordedTest.test_recorded_wait_posted_one_stay_per_decision: 記録の行の確認。
+  - OpeningRestockWaitRecordedTest.test_opening_restock_wait_rests_through_the_production_executor:
+    新しいキャラの最初の盤面（turn 75015）から、記録の雑貨屋の棚で、雑貨屋へ歩いて入り、
+    見て出て、入荷待ちになるまでを流し（test_me_town_stops_recorded の返事の作り方）、
+    待ちのキーが RESTOCK_WAIT_MACRO で、休憩の問い（cmd-move.cpp）に答えて送れること。
+  - 盤面: tests/fixtures/n1c-loot-corridor-20261102.json.gz（189KB）、
+    tests/fixtures/n1c-opening-restock-wait-20261102.json.gz（7KB）、
+    抽出: tests/extract_n1c_loops_0336_1102_fixtures.py。
+  - 構成と明示: life-100 の吸収済みの記録はキャプチャの _me_staff_sequence（キー staff:<sval> を
+    魔力の一覧の画面用に sval へ直す）。life-101 は新しいキャラなので状態なし。
+    記録の盤面はボットの歩きに従わないので、その返事である位置の詰まりの抜け（breakout）は
+    確認から外した。life-101 の押したキーへの返事（1歩、入口で記録の棚、休憩の問い、
+    休憩で 3,000 ゲームターン）は作ったもの。
+- 確認: import の確認 OK、追加テスト 4件 OK。
+- 元に戻した確認（各1回）:
+  - 根1: policy.py と policy_identification.py の変更を外すと
+    「AssertionError: 'approach-descent' != 'seek-loot'」で失敗、戻すと OK。
+  - 根2: policy_quest.py の変更を外すと
+    「('town:wait-restock:general', '5') != ('town:wait-restock:general', 'R300\r')」で失敗、戻すと OK。
+- town_work_manifest.py --write: zero unmapped（_loot_route_hostile_cells の検討の項目を
+  scripts/town_work_review.json に既存の書式で足した）。
+
+■ checks.json に足す項目の案
+{
+  "id": "N1C-LOOPS-0336-1102",
+  "owner": "2026-11-02 n1-c life-100 オークの洞窟16階: 通路の敵が見える時だけ拾いの道が閉じる往復 / life-101 新しいキャラの Q34 の入荷待ちが1ターンずつの '5' で止まりの検査に掛かる",
+  "tests": [
+    "tests.test_n1c_loops_0336_1102_recorded"
+  ]
+}
+
+■ 保守性
+- 拾いの道の「通ってよい敵のマス」は _loot_route_hostile_cells 1か所で作り、
+  経路の探索は既存の _walkable_neighbors / _position_target_step に省略可能な引数を1つ足して
+  使い回した（拾い専用の探索を複製していない）。
+- 入荷待ちのキーは共通の RESTOCK_WAIT_MACRO に揃えた。これで町の入荷待ちの3か所が同じキーになった。
+- テストは既存の RecordedDrive（d57）と MagicEaterTownStopsRecordedTest の boundary / reply、
+  lv7 の post を使い回した。
+
+■ ほかの家族のこと
+- life-101 の再起動後の livelock:exhausted（_refuse_no_progress_cycle）は、止まりの後の再起動で
+  同じ店に入って出る手順を繰り返した結果で、根2を直せば起きない。直していない。
+
+■ 持ち主への問い
+1. 新しいキャラで雑貨屋に普通の松明が無い時、Q34 の松明20本のために町で入荷を待つのでよいか。
+   ゲームは前回の入荷から 10,000 ゲームターン（store/cmd-store.cpp:94）経ってからの入店でしか
+   入荷しない。ボットの待ちは 1,000 ゲームターン（STORE_RESTOCK_WAIT_TURNS）ごとに店を見に行くので、
+   最初の約9回は空振りになる（休憩 R300 なら1回で 3,000 ターン進むので、店を見るのは約4回）。
+   選択肢: (a) 今のまま待つ、(b) 入荷の間隔を 10,000 ターンに合わせて空振りの入店をやめる、
+   (c) 所持の松明（5本）で Q34 に入れるように要求を下げる。今回は (a) のまま、待ちのキーだけ直した。
+2. 拾いの道の直しで、拾いを妨げない（脅威にならない）敵が唯一の通路にいる時、ボットはその敵へ
+   向かって歩き、射程に入れば撃つ（見えていない時は前からそうしていた）。この振る舞いでよいか。
+3. 観戦機の止まりの検査（linux_soak.py の stalled_reason）は直近の判断の行のバイト数で範囲を
+   決めるので、行が大きい（約26KB）時は約77行で判定する。休憩で待つようにしたので今回の場面は
+   掛からないが、ほかの1ターンずつの正当な待ちでも掛かりうる。
