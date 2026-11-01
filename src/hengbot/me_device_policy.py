@@ -37,7 +37,7 @@ Who acts on a row:
    (me_staff_sequence extras).
  * ``never``: nothing here acts; sale, food and keep rules decide.
 Absorbed means what the player saw: the power in the last displayed list or
-the absorption the bot observed (me_absorbed_substitutes.held).
+the absorption the bot observed (``me_capability.has``).
 """
 
 from __future__ import annotations
@@ -70,19 +70,6 @@ class Device:
     def kind(self) -> str:
         return KINDS[self.tval]
 
-    @property
-    def key(self):
-        """Its key in the staff sequence's record: a stage staff's sval (the
-        stage counts it), else kind:sval."""
-        return self.sval if self.stage is not None else f"{self.kind}:{self.sval}"
-
-    @property
-    def power(self):
-        from hengbot import me_powers
-
-        return me_powers.Power(self.kind, self.sval, self.names, f"{self.kind}:{self.sval}",
-                               0, 0, ())
-
 
 @lru_cache(maxsize=1)
 def devices() -> dict:
@@ -97,10 +84,10 @@ def device(item) -> Device | None:
     return devices().get((item.tval, item.sval))
 
 
-def absorbed(policy, snapshot, row: Device) -> bool:
-    from hengbot.me_absorbed_substitutes import held
+def _absorbed(policy, snapshot, row: Device) -> bool:
+    from hengbot import me_capability
 
-    return held(policy, snapshot, row.power)
+    return me_capability.has(policy, snapshot, row.kind, row.sval)
 
 
 def _magic_eater(snapshot) -> bool:
@@ -111,7 +98,7 @@ def _magic_eater(snapshot) -> bool:
 
 def _first_stage_copy(policy, snapshot, row: Device) -> bool:
     """「1本目だけ充填する」: a stage kind not yet absorbed."""
-    return row.stage is not None and not absorbed(policy, snapshot, row)
+    return row.stage is not None and not _absorbed(policy, snapshot, row)
 
 
 def charge_first(policy, snapshot, row: Device | None) -> bool:
@@ -119,7 +106,7 @@ def charge_first(policy, snapshot, row: Device | None) -> bool:
     if row is None or row.never:
         return False
     if row.absorb_after_charge:
-        return row.buy_more or not absorbed(policy, snapshot, row)
+        return row.buy_more or not _absorbed(policy, snapshot, row)
     return _first_stage_copy(policy, snapshot, row)
 
 
@@ -171,5 +158,5 @@ def purchase_wanted(policy, snapshot, item) -> bool:
             or not _magic_eater(snapshot) or not item.aware
             or _held_copy(policy, snapshot, row)):
         return False
-    wanted = row.buy_more if absorbed(policy, snapshot, row) else row.buy_first
+    wanted = row.buy_more if _absorbed(policy, snapshot, row) else row.buy_first
     return wanted and me_staff_sequence.spare_gold(policy, snapshot) >= item.price

@@ -92,7 +92,7 @@ the 10-05 stock-out mining decision or the next step-1.5 item). Overweight-with-
 are not solved here.
 
 ## Hygiene
-manifest regeneration; tests.test_ownership_s2b1_ladder, test_town_structure_lint, test_item_sink_lint,
+manifest regeneration; tests.test_ownership_s2b1_ladder, test_town_structure_lint (retired 2026-11-01), test_item_sink_lint,
 test_town_work_contract, test_ownership_s2a1_closure, test_test_fakery_lint, test_town_arbiter, plus the
 regression modules that broke 5029380e: tests.test_experience_potion, tests.test_unaffordable_claim_tour_recorded,
 tests.test_homefull3_recorded, tests.test_magic_required_staff_homefull_recorded, and the equipment

@@ -1671,7 +1671,35 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_absorbed_substitutes.py:destruction_uses": {
+  "me_capability.py:_migrated": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:names": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:record_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:replacing_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:replacing_power": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1686,6 +1714,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_device_attacks.py:attack_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_device_attacks.py:device_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -1732,13 +1767,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_device_policy.py:Device.key": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_device_policy.py:Device.kind": {
     "classification": "data",
     "rows": [
@@ -1775,6 +1803,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_powerful_activation.py:Effect.key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_powerful_activation.py:Effect.names": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1886,13 +1921,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_powers.py:charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_powers.py:decision_reason": {
     "classification": "data",
     "rows": [
@@ -1907,13 +1935,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_powers.py:observed_row": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_powers.py:power_key": {
     "classification": "dungeon-only",
     "rows": [
@@ -1921,12 +1942,12 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "me_powers.py:recorded_charges": {
-    "classification": "data",
+  "me_powers.py:threat_key": {
+    "classification": "dungeon-only",
     "rows": [
-      "data/no-independent-credit"
+      "quest-service"
     ],
-    "delegation": "selected child; no independent success"
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_powers_refresh.py:periodic_magic_eater_powers_key": {
     "classification": "producer",
@@ -1982,12 +2003,54 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_ranged_first.py:_aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_ranged_first.py:_attack_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_ranged_first.py:_fire_missile": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_first_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_strongest_adjacent_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_ranged_first.py:_throwable_torch": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "me_ranged_first.py:_use": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_ranged_first.py:afraid_key": {
     "classification": "producer",
@@ -2150,20 +2213,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "me_staff_sequence.py:absorbed_charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_staff_sequence.py:absorbed_count": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_staff_sequence.py:buy_target": {
     "classification": "data",
     "rows": [
@@ -2172,13 +2221,6 @@
     "delegation": "selected child; no independent success"
   },
   "me_staff_sequence.py:current_stage": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_staff_sequence.py:extra_charges": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -6847,6 +6889,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_shop.py:ShopMixin._admitted_restore_potion_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_shop.py:ShopMixin._ammo_purchase_preserves_plan": {
     "classification": "data",
     "rows": [
@@ -8753,6 +8802,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:fight_through_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "status_cure.py:status_cure_key": {
     "classification": "producer",

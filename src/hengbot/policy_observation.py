@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, summoner_wait
+from hengbot import blind_strike, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait
 import json
 
 from hengbot.claim_goal_typing import (
@@ -1027,6 +1027,7 @@ class ObservationMixin:
             None,
         )
         blind_strike.observe(self, snapshot)
+        status_cure.observe(self, snapshot)
         dark_recall.observe(self, snapshot)
         lamp_fuel.observe(self, snapshot)
         immobile_threat_memory.observe(self, snapshot)

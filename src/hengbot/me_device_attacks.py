@@ -259,11 +259,45 @@ def _candidates(policy, snapshot, target, direction):
             yield success * damage, power
 
 
+def optimistic_score(policy, snapshot, power, target):
+    """``power``'s score at an optimistic 100% success (no displayed row)."""
+    flags = getattr(policy._monrace_knowledge.get(target.race_id), "flags", None)
+    damage = expected_damage(power, snapshot.player.level, flags)
+    return min(damage, max(target.hp, 0))
+
+
 def missile_score(policy, snapshot, target):
     """Magic Missile's score when its row was not seen (optimistic: 100%)."""
-    flags = getattr(policy._monrace_knowledge.get(target.race_id), "flags", None)
-    damage = expected_damage(POWERS[MISSILE], snapshot.player.level, flags)
-    return min(damage, max(target.hp, 0))
+    return optimistic_score(policy, snapshot, POWERS[MISSILE], target)
+
+
+def scored(policy, snapshot, target, direction) -> list:
+    """(score, power) of every usable absorbed attack power, best first."""
+    player = snapshot.player
+    if (player.class_id != PLAYER_CLASS_MAGIC_EATER
+            or player.blind or player.confused or player.hallucinated):
+        return []
+    return sorted(_candidates(policy, snapshot, target, direction),
+                  key=lambda pair: (-pair[0], pair[1].kind != "rod", pair[1].level))
+
+
+def seen_missile_score(policy, snapshot, target, direction) -> float | None:
+    """Magic Missile's score from its displayed row, else None (row not seen)."""
+    return next((score for score, power in scored(policy, snapshot, target, direction)
+                 if (power.kind, power.sval) == MISSILE), None)
+
+
+def device_key(policy, power, direction) -> str:
+    """``m`` + kind + power (+ direction): the power's key (``DEVICE_REASON``)."""
+    policy.last_reason = DEVICE_REASON
+    return "m" + KIND_LETTER[power.kind] + power.letter + (direction if power.aimed else "")
+
+
+def strongest(policy, snapshot, target, direction):
+    """(score, power) of the best usable absorbed attack power other than
+    Magic Missile (the callers' own missile path fires that), else None."""
+    return next(((score, power) for score, power in scored(policy, snapshot, target, direction)
+                 if score > 0 and (power.kind, power.sval) != MISSILE), None)
 
 
 def attack_key(policy, snapshot, target, direction) -> str | None:
@@ -272,22 +306,16 @@ def attack_key(policy, snapshot, target, direction) -> str | None:
     None keeps the caller's order (absorbed Magic Missile, carried wand,
     torch, melee).  ``direction`` is the caller's aim at ``target``.
     """
-    player = snapshot.player
-    if (player.class_id != PLAYER_CLASS_MAGIC_EATER
-            or player.blind or player.confused or player.hallucinated):
+    ranked = scored(policy, snapshot, target, direction)
+    if not ranked or ranked[0][0] <= 0:
         return None
-    scored = sorted(_candidates(policy, snapshot, target, direction),
-                    key=lambda pair: (-pair[0], pair[1].kind != "rod", pair[1].level))
-    if not scored or scored[0][0] <= 0:
-        return None
-    score, power = scored[0]
+    score, power = ranked[0]
     if (power.kind, power.sval) == MISSILE:
         return None  # the caller's own Magic Missile path fires it
-    seen_missile = any((power.kind, power.sval) == MISSILE for _, power in scored)
+    seen_missile = any((power.kind, power.sval) == MISSILE for _, power in ranked)
     if not seen_missile and "wand" not in getattr(policy, "_me_device_lists", {}):
         # The wand list was never displayed: the caller may still fire Magic
         # Missile, so a power must beat it at an optimistic 100% success.
         if score <= missile_score(policy, snapshot, target):
             return None
-    policy.last_reason = DEVICE_REASON
-    return "m" + KIND_LETTER[power.kind] + power.letter + (direction if power.aimed else "")
+    return device_key(policy, power, direction)

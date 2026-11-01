@@ -29,6 +29,19 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    使用する」: they are asked with the trap the bot would disarm (the walk's
    trap step, policy_navigation._step_toward, or the chest pipeline's disarm
    phase) and the disarm command stays the fallback.
+ - テレポート・アウェイ (rod 13, wand 3): teleport_monster(dir, MAX_PLAYER_SIGHT
+   * 5) (cmd-zaprod.cpp:160, cmd-zapwand.cpp:110; spell-kind/spells-teleport.cpp:91),
+   a PROJECT_BEAM of AWAY_ALL along the aimed line up to the projection range
+   (project_hook): every monster on it is teleported away unless it resists
+   (effect/effect-monster-evil.cpp:7-30 effect_monster_away_resist: only a
+   RES_TELE race resists, always when it is also UNIQUE or RES_ALL, else when
+   its level beats randint1(100)).  Owner 2026-11-01 (#47 D57) 「勝てない敵が
+   射程内にいればいつでも使って良い」: aimed at a visible hostile the
+   engagement judgement (``_engagement_is_winnable`` on that monster, with the
+   damage per action me_ranged_first would deal beside it) says cannot be
+   beaten, whether or not a scroll could be read.  ``threat_key`` asks the
+   THREAT occasion once per visible hostile, nearest first, from the dungeon
+   ladder ahead of the emergency consumables.
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -46,8 +59,9 @@ Common rules (approved): never while a hostile is visible or the character
 was just hit (a row marked ``beside_harmless`` is also cast while every
 visible hostile is harmless by the combat ladder's danger judgement, owner
 2026-11-01 「脅威でなければ感知する」; the disarming rows likewise, owner
-2026-11-01 「脅威でなければ使う」), never with 0 charges (the last list the game displayed, else
-the absorption record), never in town or the wilderness, and a failed use is
+2026-11-01 「脅威でなければ使う」; a row marked ``against_hostile`` is cast
+at a hostile, so neither rule applies to it), never with 0 charges (``me_capability.charges``: the last list the
+game displayed, else the absorption record), never in town or the wilderness, and a failed use is
 retried for the same trigger at the same place on the same floor until
 ``FAILURES_PER_PLACE`` failures (owner 2026-10-31 「最大5回まで同じ場所で試す」).
 Stage 1 (Identify, Treasure Location) keeps its owners in me_staff_sequence
@@ -65,12 +79,13 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_device_attacks import observe_lists
 from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
-    SV_STAFF_LITE, SV_STAFF_MAPPING, absorbed_charges, extra_charges,
+    SV_STAFF_LITE, SV_STAFF_MAPPING,
 )
+from hengbot import me_capability, me_ranged_first
 from hengbot.me_device_policy import devices
 from hengbot.model import (
-    SV_ROD_DISARMING, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_WAND, Position,
-    game_distance,
+    SV_ROD_DISARMING, SV_ROD_TELEPORT_AWAY, SV_WAND_DISARMING, SV_WAND_TELEPORT_AWAY,
+    SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_WAND, Position, game_distance,
 )
 from hengbot.policy_constants import DIRECTION_KEYS, MONSTER_SPELL_MAX_RANGE
 from hengbot.projection_path import projection_path
@@ -85,6 +100,7 @@ DARK = "dark"
 REST = "rest"
 SECRET_SEARCH = "secret-search"
 TRAP = "trap"            # asked with the trap the bot would disarm
+THREAT = "threat"        # asked with each visible hostile (threat_key)
 MAP_AREA = "map-area"    # the effect whose area mapped_area reads
 
 DETECT_RAD = 30          # spell/spells-util.h DETECT_RAD_DEFAULT / DETECT_RAD_MAP
@@ -129,6 +145,7 @@ class Power:
     darkness_scaled: bool = True  # radius / 3 in a DARKNESS dungeon
     aimed: bool = False           # me_device_attacks_input asks no direction
     beside_harmless: bool = False  # also while the visible hostiles are not a threat
+    against_hostile: bool = False  # cast at a hostile: the hostile/hit rules do not apply
 
     @property
     def ident(self) -> tuple:
@@ -170,6 +187,13 @@ POWERS = (
     Power("wand", SV_WAND_TRAP_DOOR_DEST, devices()[(TVAL_WAND, SV_WAND_TRAP_DOOR_DEST)].names,
           "destroy-trap-door", 0, 62, ("trap-to-disarm",), darkness_scaled=False, aimed=True,
           beside_harmless=True),
+    # The rod recharges, so it comes before the wand.
+    Power("rod", SV_ROD_TELEPORT_AWAY, devices()[(TVAL_ROD, SV_ROD_TELEPORT_AWAY)].names,
+          "teleport-away", 0, 70, ("unbeatable-in-range",), darkness_scaled=False,
+          aimed=True, against_hostile=True),
+    Power("wand", SV_WAND_TELEPORT_AWAY, devices()[(TVAL_WAND, SV_WAND_TELEPORT_AWAY)].names,
+          "teleport-away", 0, 71, ("unbeatable-in-range",), darkness_scaled=False,
+          aimed=True, against_hostile=True),
 )
 BY_KEY = {power.ident: power for power in POWERS}
 
@@ -202,7 +226,7 @@ class Context:
     snapshot: object
     occasion: str
     memory: FloorMemory
-    target: Position | None = None  # the trap of the TRAP occasion
+    target: Position | None = None  # the trap of the TRAP occasion, the hostile of THREAT
 
     @property
     def position(self) -> Position:
@@ -233,6 +257,12 @@ class Context:
         """The direction key of a beam that reaches ``target``, else None."""
         return None if self.target is None else beam_direction(
             self.policy, self.snapshot, self.position, self.target)
+
+    @cached_property
+    def target_hostile(self):
+        """The visible hostile on ``target``, else None."""
+        return next((monster for monster in self.policy._physical_hostiles(self.snapshot)
+                     if monster.position == self.target), None)
 
     @cached_property
     def hostile_visible(self) -> bool:
@@ -363,6 +393,22 @@ def _light_sensitive_adjacent(ctx, power):
         for monster in ctx.snapshot.detected_monsters)
 
 
+def _resists_teleport_surely(ctx, monster) -> bool:
+    """effect_monster_away_resist: a RES_TELE race that is UNIQUE or RES_ALL."""
+    flags = getattr(ctx.policy._monrace_knowledge.get(monster.race_id), "flags", frozenset())
+    return "RES_TELE" in flags and bool(flags & {"UNIQUE", "RES_ALL"})
+
+
+def _unbeatable_in_range(ctx, power):
+    """A visible hostile on a beam's line that this character cannot beat."""
+    monster, policy = ctx.target_hostile, ctx.policy
+    if monster is None or ctx.aim is None or _resists_teleport_surely(ctx, monster):
+        return False
+    return not policy._engagement_is_winnable(
+        ctx.snapshot, [monster],
+        damage_against=lambda each: me_ranged_first.best_expected(policy, ctx.snapshot, each))
+
+
 @dataclass(frozen=True)
 class Trigger:
     name: str
@@ -380,6 +426,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("dark-room", frozenset({FLOOR}), _dark_room),
     Trigger("light-sensitive-adjacent", frozenset({FLOOR, DARK}), _light_sensitive_adjacent),
     Trigger("trap-to-disarm", frozenset({TRAP}), _trap_to_disarm),
+    Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
 )}
 
 REQUIREMENTS = {
@@ -390,38 +437,8 @@ REQUIREMENTS = {
 
 # -- charges, gates and the producer ------------------------------------------
 
-def observed_row(policy, power: Power) -> dict | None:
-    """The power's row in the last list the game displayed for its kind."""
-    lists = getattr(policy, "_me_device_lists", None) or {}
-    if power.kind not in lists:
-        return None
-    return next((row for row in lists[power.kind][1] if row.get("name") in power.names), None)
-
-
-def recorded_charges(policy, snapshot, power: Power) -> int:
-    """Charges of an absorption the bot observed itself (me_staff_sequence:
-    the sequence's staffs and its extras)."""
-    if power.kind == "staff":
-        return absorbed_charges(policy, snapshot, power.sval)
-    return extra_charges(policy, power.kind, power.sval)
-
-
-def charges(policy, snapshot, power: Power) -> int:
-    """The power's charges in the last list the game displayed for its kind.
-
-    A list without the power's row predates its absorption (an absorbed
-    power stays listed, mind-magic-eater.cpp only adds to its count), so
-    then, as before any list of that kind was displayed in this life, the
-    absorption record serves (``recorded_charges``).
-    """
-    row = observed_row(policy, power)
-    if row is None:
-        return recorded_charges(policy, snapshot, power)
-    if power.kind == "rod":
-        charging, count = row.get("charging"), row.get("max")
-        return count - charging if isinstance(charging, int) and isinstance(count, int) else 0
-    current = row.get("current")
-    return current if isinstance(current, int) else 0
+def _charges(ctx, power) -> int:
+    return me_capability.charges(ctx.policy, ctx.snapshot, *power.ident)
 
 
 def _gate(policy, snapshot) -> bool:
@@ -432,7 +449,6 @@ def _gate(policy, snapshot) -> bool:
         and not snapshot.in_town and not snapshot.on_open_wilderness
         and snapshot.dungeon_level > 0 and snapshot.store is None
         and not (player.blind or player.confused or player.hallucinated or player.paralyzed)
-        and not getattr(policy, "_took_damage", False)
     )
 
 
@@ -448,6 +464,10 @@ def visible_threat(policy, snapshot) -> bool:
 
 
 def _hostiles_allow(ctx, power) -> bool:
+    if power.against_hostile:
+        return True
+    if getattr(ctx.policy, "_took_damage", False):
+        return False
     return not ctx.hostile_visible or (power.beside_harmless and not ctx.threat_visible)
 
 
@@ -479,12 +499,12 @@ def observe(policy, snapshot) -> None:
 def _usable(ctx, power, trigger) -> bool:
     return (all(REQUIREMENTS[name](ctx) for name in power.requires)
             and ctx.memory.failed[(power.ident, trigger, ctx.position)] < FAILURES_PER_PLACE
-            and charges(ctx.policy, ctx.snapshot, power) > 0)
+            and _charges(ctx, power) > 0)
 
 
 def _serving(ctx, power, trigger):
     """The row's own power, or its fallback when the row has no charge."""
-    if charges(ctx.policy, ctx.snapshot, power) > 0:
+    if _charges(ctx, power) > 0:
         return power if _usable(ctx, power, trigger) else None
     fallback = BY_KEY.get(power.fallback) if power.fallback is not None else None
     return fallback if fallback is not None and _usable(ctx, fallback, trigger) else None
@@ -504,10 +524,11 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None) -
             continue
         for name in power.triggers:
             trigger = TRIGGERS[name]
-            if occasion not in trigger.occasions or not trigger.due(ctx, power):
+            if occasion not in trigger.occasions:
                 continue
+            # The charge check is cheap; a trigger may weigh a fight.
             used = _serving(ctx, power, name)
-            if used is None:
+            if used is None or not trigger.due(ctx, power):
                 continue
             reason = f"{REASON}:{name}:{used.effect}"
             key = used.key + (ctx.aim if used.aimed else "")
@@ -519,6 +540,14 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None) -
             )
             memory.pending = Use(power.ident, used.ident, name, ctx.position, snapshot.turn,
                                  reason, key, target)
+            return key
+    return None
+
+
+def threat_key(policy, snapshot) -> str | None:
+    """The THREAT occasion aimed at each visible hostile, nearest first."""
+    for monster in sorted(policy._physical_hostiles(snapshot), key=lambda each: each.distance):
+        if (key := power_key(policy, snapshot, THREAT, monster.position)) is not None:
             return key
     return None
 

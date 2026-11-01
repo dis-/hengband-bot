@@ -1,0 +1,102 @@
+LUNA-DIAG-d57-me-combat-1101.txt  (D57 の続き / #47、ブランチ d57-me-combat-1101、main fe2bc54e3 から)
+
+オーナーの答え（2026-11-01、memory d57-survival-answers-decision-20261101）のうち (a)(b)(c) の3つを実装する。
+証拠: C:\hengband-backups\pdca\captures\fix-n1c-deaths-1101\life-083・084・085（観戦サーバーから写し済み。読むだけ）、
+  D57 の診断 C:\hengband\bot-client\.worktrees\fix-n1c-deaths-1101\LUNA-DIAG-fix-n1c-deaths-1101.txt、
+  life-085 の監査 C:\hengband\bot-client\.worktrees\life085-passive-1101\LUNA-REPORT-life085-passive-1101.txt。
+版: 083・084・085 は bot-c326f0fd6。行番号は直す前の main fe2bc54e3 のもの。
+再生: スナップショットのリング（incident-captures/.../snapshots/snapshots-current.jsonl.gz）の盤面を
+  公開の choose_key に順に渡し、記録の判断（decision-tail.jsonl）と比べた。
+
+表の見方: 判断番号 ゲームターン HP 状態 キー 理由
+
+======================================================================
+(a) 盲目の治療: 「回復後即盲目になった場合は戦闘による状況打開を試みる」
+  n1-c life-084（Lv12、最大HP 151、迷宮14階）。敵: 充血アイ race 129（NEVER_MOVE、GAZE:BLIND）が東隣。
+  14005 1287788 HP113 盲目 'qc' item:cure-critical  「充血アイににらまれた。」「目が見えなくなってしまった！」
+  14006 1287796 HP145      'mBp6' ranged-fire      「やっと目が見えるようになった。」（治った。見えている盤面）
+  14007 1287806 HP137 盲目 'qc' item:cure-critical  （1行動見えた後に、にらまれて盲目）
+  14008 1287818 HP132 盲目 'qc' item:cure-critical  同じ盤面に「やっと目が見えるようになった。」と「目が見えなくなってしまった！」
+  14009 1287827 HP143 盲目 'qc'  （同じ。治した直後の盤面でまた盲目）
+  14010 1287840 HP147 盲目 'qc'  （同じ）
+  14011 1287848 HP128 盲目 'qc'  （同じ）
+  ... 14018 1287933 で9本目を飲み、「もう致命傷の治癒の薬を持っていない。」→ 1287948 以降は盲目のまま死亡。
+  鎖（main fe2bc54e3）:
+   - 一般の状態異常の段 policy_combat.py:2449 status_cure.status_cure_key（status_cure.py:14）は、盲目なら
+     いつでも致命傷の治癒を飲む。治した直後にまた盲目になったかを誰も見ていない。
+   - 緊急の段の治療 policy_combat.py:2297（_emergency_escape_pending の時）も同じく盲目なら飲む。
+   - 見えない帰還の枝 policy_combat.py:1986 は blind_only で同じ関数。
+   - 盲目の攻撃（blind_strike.py strike_key）は、覚えている隣の敵のマスを '+' で攻撃できるが、
+     薬がある間は呼ばれない（緊急の段の最後と低HPの歩きの門と見えない帰還の枝だけ）。
+  ゲームの事実: 致命傷の治癒は盲目を 0 にする（「やっと目が見えるようになった。」status/bad-status-setter.cpp:68）。
+   充血アイのにらみは毎ターン盲目にする（GAZE:BLIND）。治した直後の盤面に回復の文と盲目が両方あれば、
+   治してもすぐ盲目に戻ったことがゲームの文から分かる（見えない情報は使っていない）。
+  根: 「治した直後の盤面でまた盲目」を見る判断が無く、覚えている敵を攻撃する手を治療の後ろに置いている。
+  直し: status_cure.observe が、盲目の治療を選んだ次の盤面で「回復の文＋盲目」を見たら、その盲目を
+   見えるようになるか階を変えるまで「治しても無駄」と覚える。覚えている隣の敵（blind_strike の記憶）が
+   ある間は、一般の段も緊急の段も治さず、_emergency_item の治療の直後で fight_through_key が覚えている
+   マスを攻撃する（HP が低HPの閾値未満なら生存の段に任せる＝体力回復・テレポート・その段の盲目の攻撃）。
+   覚えている敵が無ければ攻撃のしようが無いので今のまま治す（「基本的には今のまま」）。
+   致命傷の治癒は今も HP の回復に数えない（HEAL_POTION_SVALS、policy_constants.py:538 はそのまま）。
+
+======================================================================
+(b) 取り込んだテレポート・アウェイ: 「勝てない敵が射程内にいればいつでも使って良い」
+  ゲームの仕組み（C:\hengband\src）:
+   - 魔法棒 sval 3（cmd-zapwand.cpp:110）とロッド sval 13（cmd-zaprod.cpp:160）は
+     teleport_monster(dir, MAX_PLAYER_SIGHT*5)（spell-kind/spells-teleport.cpp:91）＝ PROJECT_BEAM の AWAY_ALL。
+     方向に向けた直線上の敵すべてに効く。射程は project_hook の投射の長さ（me_powers.beam_direction と同じ）。
+   - 抵抗（effect/effect-monster-evil.cpp:7-30）: RES_TELE の種族だけが抵抗する。UNIQUE か RES_ALL なら必ず、
+     そうでなければ level > randint1(100) の時。
+   - 取り込んだ魔力は盲目でも暗くても使える（cmd-magiceat.cpp:492 は混乱だけを見る）。ただし狙う敵が見えない
+     時は撃たない（見えない情報を使わない）。
+  n1-c 3体とも死亡時に テレポート・アウェイ(12) を取り込んでいた（各ダンプ）。使う決まりが無かった
+  （me_powers.py:146 POWERS に行が無い、me_device_attacks の攻撃の表にも無い）。
+  記録の盤面: life-083（Lv14、最大HP 171、迷宮12階）
+   5617 1190738 HP72  盲目 'qb' item:cure-critical（シャドウ・ハウンドの暗黒のブレス）
+   5618 1190759 HP103      '5' return:wait-recall
+   5619 1190774 HP101 盲目 'qb' item:cure-critical（「もう致命傷の治癒の薬を持っていない」）
+   5620 1190789 HP118      'mBp4' ranged-fire → 5621 '4' melee（ブラウン・キラービートル race 236 が西隣、104 hp、AC 40、BITE 3d4）
+   5622 1190807 HP82  混乱 '6' emergency:cornered-attack（ミ=ゴウの召喚・幻覚。混乱で巻物も魔力も使えない）
+   5623 1190820 HP25  混乱 → 5624 1190838 HP0 死亡
+  「勝てない」の判定: 既存の判定は2つあるが、どちらも近接（と弓）しか数えない。
+   - 決闘の判定 _town_monster_unbeatable（policy_town.py:5287）: リングの全盤面で、やせこけた馬・コボルド・狼まで
+     「勝てない」（n1-c の近接は打撃修正 -29/-25 で命中 5% の床、_main_hand_dps 0.7）。
+   - 戦いの判定 _engagement_is_winnable（policy_combat.py:1644）: 同じく近接だけなので、イモリ（12 hp）まで
+     「勝てない」。
+   どちらをそのまま使っても、12回分を見えた敵に片端から撃ってしまう。そこで (c) の選び方の
+   「隣でこの敵に与える1回の行動あたりの見込みのダメージ」を _engagement_is_winnable の与ダメージに足して
+   判定した（damage_against の引数。既存の呼び出しは変わらない）。1190789 のビートルは
+   ミサイル 3d6=10.5 で10行動、その間の脅威予測 141 > HP 118 なので「勝てない」。
+  根: 取り込んだテレポート・アウェイの行が表に無い（使う判断が無い）。
+  直し: me_powers に行を2つ（ロッド13、魔法棒3、優先度 70/71、照準あり、against_hostile）と
+   引き金 unbeatable-in-range（THREAT の場面）を足した。threat_key が見えている敵を近い順に1体ずつ
+   尋ね、緊急の消耗品の段（_emergency_item、policy.py:10948）の直前で1回だけ呼ぶ。
+   against_hostile の行は「敵が見えていない・殴られていない」の共通の決まり（_gate の _took_damage、
+   me_powers.py:430）の対象外にした（敵に撃つ行なので）。引き金の重い判定の前に回数の確認を先にした。
+
+======================================================================
+(c) 隣の敵への攻撃: 「見込みの大きい方を使う」
+  鎖（main fe2bc54e3）: 戦いの段・緊急の段・町の最後の抵抗などすべての近接の前で
+   me_ranged_first.attack_key（me_ranged_first.py:59）が固定の順（強い取り込みの攻撃 → マジック・ミサイル
+   me_ranged_first.py:81 → 持っている攻撃の魔法棒 :94 → 予備の松明 :100）で最初に使えるものを返し、
+   どれも無い時だけ近接にしていた。それぞれの見込みのダメージは比べていない。
+  記録の盤面での見込み（1回の行動あたり、新しい attack_expectation と me_device_attacks の点数）:
+   - life-085 1445315（Lv18、ゼリー race 1273、AC 1、60 hp）: 近接 2.1（打撃修正 -10/-14、格闘 99 →
+     displayed_melee_hit_chance で命中 5% の床）、ミサイル 3d6 = 10.5。→ 記録どおりミサイルが正しい。
+     life-085 の監査の「近接は平均 19+23」は命中率を掛けていない値だった。
+   - life-077（D55、町、Lv8、見習戦士 race 43、AC 16、36 hp、予備の松明16本）: 松明 22.2
+     （1d6×火炎2.5倍の切り捨て×4−2 の平均 32.0、命中 69%）、ミサイル 2d6 = 7.0、近接 0.8。
+     → 松明が大きい。D55 の版はミサイルを撃っていた。
+   - D49（町、わめくキチガイ 16 hp）: 松明 16（体力で頭打ち）、ミサイル 7.0、近接 1.4。
+  根: 隣の敵への手を見込みで比べる判断が無い（順番だけ）。
+  直し: me_ranged_first.attack_key を、隣の敵なら _strongest_adjacent_key（各手の見込みを比べ、近接が
+   厳密に大きい時は None＝呼び元の近接）、隣でなければ今の固定の順（_first_key）にした。呼び元は変えて
+   いない（今 attack_key を呼んでいる全部の場所が同じ選び方を使う）。見込みは:
+   - 取り込みの攻撃: me_device_attacks の点数（表示の成功率×耐性の後のダメージ、体力で頭打ち）。
+     ミサイルは表示が無ければ 100% の楽観（今の missile_score）。
+   - 持っている魔法棒: zapwand-execution.cpp:63-78 の使用の成功率×同じダメージ。
+   - 点火した松明の投擲: throw-execution.cpp と combat/slaying.cpp と combat/shoot.cpp test_hit_fire の式。
+     盤面に無い to_h_b と to_d_m は QUEST_1 の承認済みの導出と同じ保守側の値（0 と −2）。
+   - 近接: _main_hand_dps + _sub_hand_dps を相手の AC で（policy_equipment に ac の引数を足した）。
+     触ると害のある敵（オーラ。player-damage.cpp touch_zap_player が処理する AURA_FIRE/COLD/ELEC）と
+     怖がっている時は 0。

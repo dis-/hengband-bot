@@ -7,9 +7,8 @@ from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
 from hengbot import me_q1_torch, quest_sweep_target, random_quest_reserve, town_travel
-from hengbot.me_absorbed_substitutes import (
-    CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key, carry_charges, carry_waived,
-)
+from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
+from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -804,7 +803,7 @@ class QuestMixin(OpeningRouteMixin):
             )
             # Owner 2026-10-31 「岩石溶解を取り込んでいるとき、クエストの魔法棒
             # 要求の代替にできる」: class 16's absorbed charges count alike.
-            charges += carry_charges(self, snapshot, "utility_tools", "wall_breach")
+            charges += replacing_charges(self, snapshot, Carry("utility_tools", "wall_breach"))
             return diggers + charges // Q2_BREACH_WALL_COUNT
         return 0
 
@@ -812,8 +811,8 @@ class QuestMixin(OpeningRouteMixin):
         self, snapshot: Snapshot, category: str, name: str, required: int
     ) -> int:
         """The carried count, or ``required`` when an absorbed power waives
-        the carry (class 16, me_absorbed_substitutes: owner 2026-10-31)."""
-        if carry_waived(self, snapshot, category, name):
+        the carry (class 16, me_capability.REPLACES: owner 2026-10-31)."""
+        if replaced_by_absorbed(self, snapshot, Carry(category, name)):
             return required
         return self._quest_named_item_count(snapshot, category, name)
 
@@ -1069,7 +1068,7 @@ class QuestMixin(OpeningRouteMixin):
                 if item.tval == TVAL_SCROLL and item.sval == QUEST_SCROLL_SVALS.get(
                     str(name)
                 ):
-                    if carry_waived(self, snapshot, "required_scrolls", str(name)):
+                    if replaced_by_absorbed(self, snapshot, Carry("required_scrolls", str(name))):
                         # 「光の巻物→購入を抑制」: a waived carry claims no
                         # scroll (no purchase, Home withdrawal or reservation).
                         return None

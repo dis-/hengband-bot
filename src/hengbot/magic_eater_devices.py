@@ -96,12 +96,12 @@ def staple_food_critical(snapshot: Snapshot) -> bool:
 
 
 def _awaiting_absorption(policy, item: InventoryItem | StoreItem) -> bool:
-    from hengbot import me_staff_sequence
+    from hengbot import me_capability, me_staff_sequence
 
     if item.tval == TVAL_WAND and item.sval == SV_WAND_MAGIC_MISSILE:
         return True
     return (me_staff_sequence.is_sequence_staff(item, policy)
-            and not me_staff_sequence.absorbed(policy, item.sval))
+            and not me_capability.absorbed(policy, "staff", item.sval))
 
 
 def is_mana_food_ware(policy, snapshot: Snapshot, item: InventoryItem | StoreItem) -> bool:

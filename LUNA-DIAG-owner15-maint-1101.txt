@@ -1,0 +1,39 @@
+LUNA-DIAG owner15-maint-1101（#47、持ち主の答え 2026-11-01 17時の 13 と 15。保守性の回、振る舞いは変えない）
+基点: main ade15c353
+
+この枝は止まりの直しではないので、記録の盤面・判断の行はない。対象は検査の道具だけ（src/hengbot は変えない）。
+
+■ 13. 古い一覧 scripts/town_producer_baseline.json とその検査 tests.test_town_structure_lint（「廃止する」）
+  役割:
+  - town_structure_lint.analyze_sources(sources, producer_baseline, intent_baseline)
+    （scripts/town_structure_lint.py:368-380 @ ade15c353）が producer_census の候補のうち
+    「@claims と claim_ladder の両方に載っていない」関数を baseline と突き合わせ、
+    新しい関数・消えた項目・理由の分類の無い項目を findings にしていた。
+  - 同じ census は town_work_manifest.inventory（scripts/town_work_manifest.py:105-106）が選ぶ関数の元で、
+    review（town_work_review.json）の無い関数は generate の「unmapped candidates」で止まる。
+    つまり baseline は review と同じ関数を粗い分類で二重に持っていた。
+  基点での状態:
+  - PYTHONPATH=src python scripts/item_sink_lint.py（town_structure_lint.analyze_repository を含む）:
+    192 件。うち baseline 由来 142 件（新しい関数の未登録・消えた項目）、それ以外 50 件。
+  - test_town_structure_lint も test_item_sink_lint も checks.json に無く、PDCA の取り込みでは流れない。
+  参照（追跡されているもの、記録の LUNA-*/SOL-REPORT*/validation/ reports/ を除く）:
+  - scripts/town_structure_lint.py:18 PRODUCER_BASELINE、:368-380 producer の findings、:408 の読み込み
+  - scripts/town_work_manifest.py:1-3 docstring（older producer baseline）
+  - scripts/town_work_churn.py:26-28 FAMILY（過去のコミットの測定用）
+  - scripts/town_structure_baselines.md:4-24（説明）
+  - SOL-DESIGN-town-progress.md:34-40, 372、SOL-DESIGN-step1.5a-equipment-homefull.md:95（設計の記述）
+  - tests/test_town_structure_lint.py（19 件）
+  - town_structure_lint を import するもの（残す）: town_work_manifest.py:24、town_work_data_proof.py:30、
+    item_sink_lint.py:310、tests/test_town_work_data_proof.py:17
+  guard-tools（編集しない、報告に書く）:
+  - C:\hengband-backups\guard-tools\merge_gate.py:36 HYGIENE に tests.test_town_structure_lint
+  - 同 :47 REGISTRIES に scripts/town_producer_baseline.json
+  - C:\hengband-backups\guard-tools\test-tiers.json:2377 candidates に tests.test_town_structure_lint
+  - checks.json・pdca の *.py には参照なし。
+
+■ 15. 関数の移動・名前の変更で review の記入を付け替える道具（「作る」）
+  - review のキーは module:qualname（town_work_manifest.generate の missing/stale、
+    scripts/town_work_manifest.py:143-149 @ ade15c353）。移動・改名すると古いキーが stale、新しいキーが
+    unmapped になり、generate が ValueError で止まる。付け替えは手作業だった。
+  - 移動前の本体はコミット済みの木にしかない（digest は manifest-tax-1101 で廃止済み）ので、
+    道具は git の版（既定 HEAD）と作業ツリーを比べる。

@@ -1,0 +1,82 @@
+LUNA-DIAG-me-dual-wield2-1101（#47 二刀流が直っていない、n1-c life-096、2026-11-01）
+
+オーナー（11-01）:「https://hengband.net/bot/ended-dump.txt?game=n1-c&life=96　二刀流直ってない」
+life-096（版 bot-ade15c353 → bot-e69085962、0462a73a3 と d553d1347 を含む）が 17:31 にイークの洞窟 1 階で
+スモール・コボルドに倒された。死んだ時: パイク (2d5) (+0,+0) ＋ ルツェルン・ハンマー (2d5) (+4,+5) の二刀流、
+打撃修正 (-121,-1)/(-105,+4)、打撃回数 1+1。腕力は「腕力x: 6  18/31」（吸われて 6、最大 18/31）。
+
+材料（読み取りのみで写した）: C:\hengband-backups\pdca\captures\me-dual-wield-1101\n1-c\life-096\
+  state.jsonl.gz（回転後、turn 1459515 から）、bot-decisions.jsonl.1.gz と bot-decisions.jsonl.gz（命の初めの
+  turn 75001 から死まで）、loadout-report.jsonl.gz（最適化の記録 259 行）、character-calibration.json.gz、
+  confirmed-loadout.json.gz、rest\{user,incident-captures,captures}\、eqtrace.txt・wield-trace.txt（写しから作った一覧）。
+
+======================================================================
+1. 左手に武器が最初に入った決定
+
+wield-trace.txt（命の初めからの全部の 'w'/'t' と戻し）で、掘る道具でない物が左手に入ったのは
+1 回目が次の決定:
+  6623 turn 1039841 'ta'  equipment-transaction:takeoff
+  6624              'th'  equipment-transaction:takeoff
+  6625              'wk'  equipment-transaction:equip
+  6626              'wl'  equipment-transaction:equip →「パイク (2d5) (+0,+0)(a)を両手で構えた。」
+  6627              'wly' equipment-transaction:equip →「二刀流で戦いますか？[y/n] ルツェルン・ハンマー (2d5)
+                                                       (+4,+5)(b)を左手に装備した。」
+  （17:26:45、自宅で、calibration present True、result_source in-flight-session-return）
+→ 入れたのは最適化の選んだ装備（装備の取引）。町の戻し・自宅の取引の別の道・Q34 の品・再起動後の
+  戻しの記録ではない。それより前の付け替えの戻しは全部 'tb'（左手は空に戻す、d553d1347 のとおり）。
+以後の付け替え（'ta','ta' で両手を外す）と戻し（melee:restore-weapon 'w?a','w?b'）は、最適化の勝ち
+（両手）を覚えた記録どおりに両手を戻している（mining_loadout.remember_combat_hands の最適化の勝ち）。
+
+======================================================================
+2. 最適化はなぜ二刀流を選んだか
+
+loadout-report.jsonl の最後の行（17:30:13、depth 127 の帯 19）:
+  combat_inputs: natural_str 3、intrinsic_str 3、natural_dex 17、melee_skill 89、two_weapon_skill 0、class 16
+  rank 1: パイク＋ルツェルン（dual）melee_output 0.750 survival_turns 1.011
+          手ごと to_hit -130 / -118、hit_chance_ac100 0.05 / 0.05、1回あたり 5.0 / 10.0、回数 1 / 1
+  rank 3: ルツェルン1本            melee_output 0.743 survival_turns 1.010
+          to_hit -8、hit_chance_ac100 0.07、1回あたり 10.6、回数 1
+勝ちの移り変わり（loadout-report）:
+  17:06-17:08 natural_str 17-19 ショート・ソード1本 / 17:14 STR 19 棍棒1本 4.45 / 17:18 STR 8 棍棒1本 2.53
+  / 17:26:43 STR 3 パイク＋ルツェルン 0.75。
+
+評価は二刀流の減りも重い武器の減りも数えている:
+- warrior_equipment_evaluator.py _dual_wield_penalty: (100 - two_weapon_skill/160) - (130 - 重さ)/8、竿状武器は
+  +10（player-status.cpp:1815-1846 calc_double_weapon_penalty と同じ）。two_weapon_skill 0 → 85〜98。
+- 同 evaluate_warrior_melee: ADJ_STR_HOLD[str] < 重さ/10 なら 2 × 差 を引く（重い武器、calc_to_hit）。
+- dump の -121/-105 とも合う（評価の -130/-118 は D50 の見込み熟練度 4000、実際の熟練度 0 で -20、
+  表示は skill_thn/3 = 29 を足す: -130-20+29 = -121、-118+4-20+29 = -105）。
+
+それでも二刀流が勝つ理由: 比べる相手の AC が 100 に決まっている（AGENTS.md「Weapon offense means expected
+damage per player turn against AC 100」、warrior_equipment_evaluator.AC_REFERENCE、オーナー 10-31 夜 D50
+「AC100 で比べる決まりは残す」）。腕力 6 では、1本でも命中が AC100 でほぼ下限（7%）、二刀流は両手とも
+下限 5%（hit_chance、reliability <= 0）。下限どうしでは「回数の多い方」が勝ち、0.750 > 0.743 になる。
+本当の敵の AC で数えると（同じ hit_chance、melee_skill 89）:
+                         AC100   AC24（D50 の 19 階の平均の例）  AC16（スモール・コボルド）
+  二刀流（両手の合計）   0.75    0.75                            0.75
+  ルツェルン1本           0.74    7.84                            8.59
+→ 1本の方が 10 倍強いが、AC100 の決まりの中では評価は正しく「二刀流がわずかに上」と言っている。
+  コードの誤り（減りの抜け・計算違い）ではない。直すには比べ方の決まりを変える必要がある（オーナーの決定）。
+
+======================================================================
+3. 腕力 18/31 → 6 の原因と、戻さなかった理由
+- 吸われたのは 2 回の戦い: turn 349054-349212 レッド・ゼリー（触って腕力を吸う、動かない敵）に
+  quest-strategy:ranged-fire:magic-eater・melee:choke で戦い続け「ひどく弱くなった気がする」が 12 回。
+  turn 1021949-1021993 巨大赤アリ（melee）で 5 回。
+- 腕力復活の薬は錬金術の店（STORE_ALCHEMIST = 4）にあった: state の turn 1461360・1462282
+  「腕力復活の薬 {25%引き}」$352（所持金 4904）、turn 1645367 $468 と $234（所持金 5983）。
+  board の player.stats.str.drained は True。それでも買っていない: decision 86（1461360）
+  '\x1b' town-progress-invariant:continue-observed-shop、91（1462282）'pj1\r\r' shop:in-store-buy は
+  帰還の詔だけ、610（1645367）'\x1b' shop:observe-and-leave。命の間に restore:quaff-str は 0 回
+  （quaff-con 2 回、quaff-chr 1 回）。
+- 腕力が戻っていれば（17:14 の STR 19 では棍棒1本 4.45 が勝ち）二刀流は選ばれなかった。
+
+追記（オーナー 11-01「腕力の回復だけ直す」の後に確かめた根）:
+- 3回の店の決定は、どれも資金稼ぎの間（決定の fundraising.mode: 86・91・92 は prepare、610 は mine）。
+- policy_shop._legacy_next_purchase_unreserved は資金稼ぎの間は採掘の道具と帰還の詔だけの枝に入り、
+  旧 3562-3570 行の「return None」で終わる。能力値の薬（_restore_potion_purchase、旧 3618 行）は
+  資金稼ぎでない時の枝にしかない。→ 92 は帰還の詔を買った後に選びが None で in-store-done、610 は
+  選びが None で「observed-page-nothing-wanted」。
+- 記録の店の盤面（turn 1462282・1645367）を、決定の行の資金稼ぎの段と死の時の杖の記録で戻した
+  policy に通すと、直す前は何も買わずに出て、直した後は腕力復活の薬を買って restore:quaff-str で飲む
+  （tests/test_me_stat_restore_recorded.py）。
