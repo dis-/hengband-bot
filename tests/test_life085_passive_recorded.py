@@ -70,6 +70,12 @@ class Life085PassiveRecordedTest(d57.PostedDeathKey):
         self.assertNotIn("dark:backtrack", reason)
         self.assertEqual(key[-1], "8", (key, reason))  # the jelly is north
 
+    def test_the_drained_lantern_gives_way_to_the_carried_fueled_lantern(self):
+        raw, key, reason = self.dark_answer(TVAL_FLASK)
+        spare = next(item for item in raw["inventory"] if item["tval"] == TVAL_LIGHT)
+        # Unfixed: no recovery (the walk, or the attack once the walk yields).
+        self.assertEqual((key, reason), ("w" + spare["slot"], "wield-light"))
+
     def test_control_with_oil_the_lamp_is_refilled(self):
         _raw, key, reason = self.dark_answer()
         self.assertEqual((key, reason), ("\\Fa", "refill-light"))
