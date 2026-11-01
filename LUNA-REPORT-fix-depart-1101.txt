@@ -1,0 +1,142 @@
+LUNA-REPORT fix-depart-1101 (#47 D54) — 2026-11-01（持ち主の Q1・Q2 の答えを反映した版）
+
+依頼: 直近 24 時間の停止のうち、build bot-f9c921d32 の昇格した 4 件
+（town:blocked:departure-unsatisfiable 3 件・town:blocked:owner-retired-burst 1 件）を、
+main 577cd246b の直し（f097b327f 鑑定待ちの装備を預ける、42f74f771 Q34 の持ち物）で直って
+いるか確かめ、直っていない根を直す。詳しい連鎖は LUNA-DIAG-fix-depart-1101.txt。
+ブランチ: fix-depart-1101（main 31306b6a8 から。その後 main c326f0fd6 を取り込んだ 179a40d0b）。
+push・main への取り込みはしていない。
+
+== 結論（件ごと） ==
+1. n1-a life-453（Lv26、failed ["identify_staff_ready"]）: main で直っていない。根 2 つを直した。
+   根1 鑑定の杖の品切れの回（1F で 1 回掘って時間を進める）が、所持金が資金稼ぎの目標
+     15,000 を超えていたため、Yeek 1F に着いた盤面でそのまま上った（885633 descend →
+     885634 fundraise:ascend）。店の棚は 10,000 ゲームターンたたないと入れ替わらない
+     （store/cmd-store.cpp:94）ので、次の訪問でも魔法店は品切れ。
+     → 品切れを待つための回（戦士の鑑定の杖・帰還、魔道具術師の杖）は金の目標で帰らない。
+       D35（魔道具術師の品切れの回）と同じ決まりを、同じ型の残りの 2 つに広げた（根の直し）。
+   根2 次の訪問で、闇市は前の訪問の棚（883949、再入荷の窓の中）を理由に必要の一覧から
+     飛ばされるのに、終端の「鑑定の杖は手に入らない」の判定は闇市が今回試されるのを待つ。
+     → 棚の証拠で飛ばされた停止は「試された」として読む（policy_instore._shelf_stop_tried）。
+2. n1-b life-284（Lv25、failed identify_staff_ready ほか 3 つ、空き 4）: main で直っていない
+   （記録の順の再生で、旧版でも main でも同じ判断の列で停止を再現）。持ち主の答え Q1
+   「魔法道具も自宅に預ける」で直した。鑑定待ちの未鑑定の魔道具（ロッド・魔法棒・杖）を
+   装備と同じく自宅に預け、空いた枠で鑑定の巻物を買い、巻物を持ったら預けた魔道具を
+   取り出す仕事（自宅の errand）を出す。記録の順の再生で、錬金術師の次の盤面（記録は寺院へ）が
+   自宅へ行って魔道具を預けるに変わり、そのあと鑑定の巻物 4 枚・魔法店の鑑定の杖を買える。
+3. n1-b life-286（Lv17）: main でも Q1 の直しでも、直ったとは証明できない。記録の順の再生は
+   ダンジョンからの同じプロセスの状態が ring の外で分かれる。停止盤面の枠では、Q1 の後でも
+   鑑定の巻物が袋の予算の中で買える（取得可能性 available）と判定され、魔法棒は預ける対象に
+   ならない（枠の状態では預け先の薬が見えるため）。つまりこの盤面は Q1 の直しを通らない。
+   同じ形（錬金術師が棚の証拠で飛ばされ、識別の必要が他の必要を止める）は残りうる。
+4. n1-a life-454（Lv8、Q1 直後、189 金、owner-retired-burst）: main で直っていない。持ち主の
+   決まり 10-23（掘れない時は売る→持っている財宝感知で 1F を歩いて稼ぐ）とコードの食い違いを
+   不具合として直した（Q2）。掘る道具が持ち物にも自宅にもなく、この訪問の雑貨屋に買える
+   道具がない時は、prepare のまま待たずに scavenge に入り、1F で持っている財宝感知を読み、
+   「道具を置き忘れた採掘として帰る」をしない。
+5. 現行の版（bot-04ad2c6d2）の昇格していない town:blocked: n1-a・n1-b は 01:40 以降なし。
+   n1-c life-079 の 03:59 departure-unsatisfiable（致命傷の治癒の薬 4/10、供給元なし）と
+   04:26 owner-retired-burst（掘る道具 1/2）は上のどれとも違う形で、魔道具術師（同じ回の別の
+   実装役の系統）なので報告だけ。
+
+== 直し（コミット、1 つの根に 1 つ） ==
+- b4ba8b0db「Count a supplier skipped on its shelf evidence as tried」（life-453 根2）
+  policy_instore.py に _shelf_stop_tried。policy.py の _identify_staff_procurement_impossible が読む。
+- 6889b8629「Keep restock time-pass runs mining past the gold target」（life-453 根1）
+  policy_fundraising.py に _restock_time_pass_run。_fundraising_gold_return_applies が読む。
+- 179a40d0b main c326f0fd6 の取り込み（manifest の衝突は --write で作り直した）。
+- 407ea7bae「Shelve devices waiting for identification at Home」（life-284、Q1）
+  policy_identification.py に _identification_waiting_item（識別の流れの装備、または未鑑定の
+  ロッド・魔法棒・杖）。policy_home.py の _identification_waiting_deposit がこれを読み、
+  魔道具術師の取り込んだ鑑定の力は「持っている源」として預けない。鑑定の巻物の数
+  （_outstanding_identification_count）に預けた魔道具を足す。取り出しは既存の
+  _bind_catalogued_home_identification_withdrawal に魔道具の分を足した（巻物を持ったら
+  identification-catalog の errand を出す）。review 2 件の説明を更新。
+- e1c02cdd9「Shelve waiting equipment before waiting devices」（Q1 の続き）
+  checks.json の tests.test_unid_scroll_room_recorded（life-282、D39）が 407ea7bae で FAIL した:
+  袋の最初の鑑定待ち＝未鑑定の魔法棒を先に預けると、その枠で巻物が買えて装備は袋のまま
+  鑑定され、自宅の 5 回の鑑定の杖を取り出す枠がなくなる（home:identify-staff-reserve-no-pack-
+  space）。預ける順を「鑑定待ちの装備が先、無い時だけ魔道具」にした。期待値は変えていない。
+- 4f4a531fb「Scavenge 1F with the carried detection when no digger can be had」（life-454、Q2）
+  policy_fundraising.py に _diggerless_scavenge_allowed と _scavenge_allowed（これまでの
+  _detectionless_scavenge_allowed の 4 か所の門は _scavenge_allowed を読む）。町では資金稼ぎの
+  終端の断り（town_terminal._commit_fundraising_run）が prepare を scavenge に決め、床では町の
+  決定（_scavenge_without_digger、policy_state の復元にも初期値を足した）を守る。財宝感知を
+  読む処理は採掘と共通の _detect_treasure_read_key に切り出した（review に 1 件足した）。
+- 各コミットで scripts/town_work_manifest.py --write（zero unmapped）。
+
+魔道具術師の食べ物の決まりへの影響: 預けるのは未鑑定の魔道具だけ。主食（鑑定済みの謎の魔法棒）・
+食べ物の魔道具（鑑定済みで回数あり）・取り込み待ちの杖（鑑定済み）は known なので対象外。
+取り込んだ鑑定の力がある時は預けない。
+
+== テスト ==
+1. tests.test_idstaff_stockout_run_recorded（life-453、3 件）
+   - test_stop_board_installs_the_stockout_run_again（根2）
+   - test_stockout_run_mines_instead_of_returning_on_the_gold_target（根1）
+2. tests.test_unid_device_deposit_recorded（life-284、3 件）
+   fixture tests/fixtures/unid-device-deposit-20261101.json.gz、抽出
+   tests/extract_unid_device_deposit_fixture.py（到着から停止までの ring の 35 行、判断の行、
+   記録の判断、前の訪問の武器屋・魔法店・闇市のページ）。
+   - test_recorded_stop: 停止・failed・未鑑定の魔道具 4 つ・記録の 16 番目の判断（寺院へ）を固定。
+   - test_waiting_device_is_shelved_to_make_the_scrolls_room: 記録の 16 の判断を再生して記録と
+     同じ鍵を確かめ（CLI の時計で出る保存・ダンプの 2 つを除く）、16 番目が自宅へ、次が
+     home:atomic-deposit で未鑑定の魔道具を 1 つ預け、空きが 5 になる。
+   - test_shelved_device_take_back_is_filed_once_a_source_is_carried: そこから作った返事で進め、
+     鑑定の巻物を買い、預けた魔道具の identification-catalog の errand が出て、その源が取り置ける。
+3. tests.test_diggerless_scavenge_recorded（life-454、2 件＋床 1 件）
+   fixture tests/fixtures/diggerless-scavenge-20261101.json.gz、抽出
+   tests/extract_diggerless_scavenge_fixture.py。
+   - test_town_chooses_the_scavenge_run: 停止盤面から、scavenge に決めて錬金術師・雑貨屋を見て
+     town:travel-entrance へ。
+   - DiggerlessScavengeFloorTest.test_scavenge_run_reads_the_carried_detection: life-453 の
+     Yeek 1F の盤面から掘る道具を除き 189 金にした盤面で、fundraise:detect-treasure を読み、
+     帰らない（読む鍵は本番 executor で巻物の問いに答えて送る）。
+戻して確かめた（git diff で patch を保存 → git checkout → 実行 → git apply。stash は使っていない）:
+  life-453 根1 を戻す: test_stockout_run_mines_... が FAIL（('fundraise:ascend', '<')）。
+  life-453 根2 を戻す: test_stop_board_installs_... が FAIL（town:blocked:departure-unsatisfiable、記録と同じ '9'）。
+  Q1 を全部戻す: 預ける・取り出すの 2 件が FAIL（16 番目の鍵が記録と同じ寺院 '\x1b`n$.'）。
+  Q1 の取り出しの部分だけ戻す: 取り出しの 1 件が FAIL（errand が出ない）。
+  Q2 を戻す: 2 件が FAIL（町は fundraise:fallback-exhausted-plan → stuck:wander、床は fundraise:ascend）。
+  装備を先にする順（e1c02cdd9）が無い状態: tests.test_unid_scroll_room_recorded が FAIL
+    （最初に預けるのが魔法棒、出発の葉 identify_staff_ready・home_candidate_resolved が残る）。
+  戻した後: すべて OK。
+
+== 検査 ==
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok
+- checks.json の検査と自分のテスト（82 個の指定）: 497 件 OK（1406 秒、e1c02cdd9 の後）。
+  e1c02cdd9 の前の回は tests.test_unid_scroll_room_recorded の 1 件が FAIL（上の説明）。この worktree に無い
+  tests.test_rq_teleport_reserve_recorded・tests.test_route_moving_blocker_recorded・
+  tests.test_goal_route（別の枝のもの）は除いた。
+- 全体テスト・preflight・mutation_check・fast_tier は流していない。
+
+== checks.json に足す案（編集はしていない） ==
+  {"id": "D54", "defect": "D54",
+   "owner": "2026-11-01 「直近24hの停止原因を集計して修正されていないものに着手」・Q1「魔法道具も自宅に預ける」・10-23 の決まり（掘れない時は持っている財宝感知で 1F）",
+   "tests": ["tests.test_idstaff_stockout_run_recorded",
+             "tests.test_unid_device_deposit_recorded",
+             "tests.test_diggerless_scavenge_recorded"]}
+
+== 残っていること ==
+- life-284 の取り出しは、errand が出て源を取り置くところまでテストで確かめた。作った返事で
+  さらに長く進めると、自宅で home:route-claim-unfulfilled のあと town:blocked:no-actionable-
+  claim-owner になる道筋があった。ただし同じ長い道筋では、作った店のページでの購入の送信も
+  executor に断られていた（枠の作りの限界）。本番で取り出しの take が送られるかは、実機の観戦で
+  確かめる必要がある。
+- life-286 は Q1 の直しを通らない盤面（上の 3）。再現できる記録が要る。
+
+== 保守性 ==
+- 新しい判断は持ち主のモジュールに置いた: 「棚の証拠で飛ばされた停止は試された」は棚の証拠を
+  持つ policy_instore.py（_shelf_stop_tried、_shelf_evidence_skips_need と同じ呼び出し）。
+  「品切れを待つための回」と「掘る道具なしの scavenge」は資金稼ぎの policy_fundraising.py
+  （_restock_time_pass_run・_diggerless_scavenge_allowed・_scavenge_allowed）。「鑑定を待つ物」は
+  識別の policy_identification.py（_identification_waiting_item）の 1 つの述語で、預ける判定・
+  巻物の数・取り出しの 3 か所が同じものを読む。
+- 重複を減らした: 財宝感知を読む処理を _detect_treasure_read_key に 1 つにした（採掘と scavenge）。
+  scavenge の門 4 か所は _scavenge_allowed を読む。_identify_staff_procurement_impossible で
+  同じ offer pages を 2 回作っていたのを 1 回にした。
+- 共通の判断に場面の特例（クエスト番号・店の名前・職業）を書いていない。魔道具術師は
+  「取り込んだ鑑定の力がある」という源の判定で扱い、職業の分岐を足していない。
+- テストは既存の枠（test_unid_deposit_recorded の停止盤面の枠、test_idstaff_stockout_kit_recorded
+  の記録の順の再生、test_me_stockout_run_recorded のダンジョンの方策の作り方）を使った。
+  extract_unid_deposit_fixture.freeze に home_answer の引数を足し、~9 の答えが ring に無い訪問にも
+  使えるようにした。テストの壁はない。

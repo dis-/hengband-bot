@@ -1073,6 +1073,18 @@ class InStoreMixin:
             )
         return False
 
+    def _shelf_stop_tried(self, snapshot: Snapshot, store_type: int, category: str) -> bool:
+        """Whether this visit has tried ``store_type`` for ``category``.
+
+        The stop was attempted, or a shelf observed within its restock window
+        proves it fruitless and the need registry skips it
+        (``_shelf_evidence_skips_need``, the same call ``add`` makes).  A
+        reader that waits for a supplier's attempt reads this, so it never
+        waits for a stop no owner will make (#47 D54, n1-a life-453).
+        """
+        return store_type in self._town_store_attempted or bool(self._in_store_best_effort(
+            "_shelf_evidence_skips_need", snapshot, store_type, category))
+
     def _in_store_decision_list(self, name: str) -> list:
         telemetry = getattr(self, "_in_store_telemetry", None)
         if not isinstance(telemetry, dict) or telemetry.get(
