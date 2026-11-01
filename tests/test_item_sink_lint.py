@@ -187,6 +187,26 @@ def choose_key(self, snapshot):
             self.assertTrue(analyze_source(source, 'town_new_selector.py', names=set()))
 
 
+class ProducerMarkTest(unittest.TestCase):
+    """The claims marks the item-sink review keys on (#47, 2026-11-01 triage).
+
+    7dceaccad inserted _opening_q1_torches_reserved between the
+    ``@claims(ClaimOwner.COMBAT)`` line and _ranged_attack_key: the predicate
+    took the mark, the ranged-attack producer lost it, and its six reviewed
+    direct calls (summoner kill, choke, ESP hunt, melee swarm, fundraising
+    loadout, guarded loot) left the review unnoticed.
+    """
+
+    def test_ranged_attack_producer_keeps_its_combat_mark(self):
+        from hengbot.claim_register import CLAIM_OWNER_ATTRIBUTE, ClaimOwner
+        from hengbot.policy import HengbotPolicy
+        self.assertIs(getattr(HengbotPolicy._ranged_attack_key, CLAIM_OWNER_ATTRIBUTE, None),
+                      ClaimOwner.COMBAT)
+        self.assertFalse(hasattr(HengbotPolicy._opening_q1_torches_reserved, CLAIM_OWNER_ATTRIBUTE))
+        self.assertIn('_ranged_attack_key', producer_names())
+        self.assertNotIn('_opening_q1_torches_reserved', producer_names())
+
+
 def _policy_sources(body, extra=None):
     sources = {'policy.py': 'class HengbotPolicy:\n' + body, 'claim_ladder.py': ''}
     sources.update(extra or {})

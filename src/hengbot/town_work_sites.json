@@ -4880,13 +4880,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_combat.py:CombatMixin._opening_q1_torches_reserved": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_combat.py:CombatMixin._paralyzer_prevention_key": {
     "classification": "producer",
     "rows": [

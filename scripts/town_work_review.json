@@ -11660,17 +11660,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "policy_combat.py:CombatMixin._opening_q1_torches_reserved": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure predicate: the opening route is active and the carried throwing torches do not exceed its Q1 reserve; read by _ranged_attack_key and me_ranged_first._throwable_torch, no command.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "policy_opening.py:OpeningRouteMixin._opening_q1_strike": {
     "classification": "producer",
     "rows": [

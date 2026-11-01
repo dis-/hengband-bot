@@ -1416,7 +1416,7 @@ class CombatMixin:
                 best = monster
                 best_distance = distance
         return best
-    @claims(ClaimOwner.COMBAT)
+
     def _opening_q1_torches_reserved(self, snapshot: Snapshot) -> bool:
         """Every carried torch is the opening route's Q1 throwing reserve."""
         if not self._opening_q1_active(snapshot):
@@ -1424,6 +1424,7 @@ class CombatMixin:
         required = self._opening_q1_requirements(snapshot)[0][1]
         return self._count_throwing_torches(snapshot) <= required
 
+    @claims(ClaimOwner.COMBAT)
     def _ranged_attack_key(
         self,
         snapshot: Snapshot,
