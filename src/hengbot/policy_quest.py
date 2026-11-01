@@ -6,7 +6,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import me_q1_torch, quest_sweep_target, random_quest_reserve, town_travel
+from hengbot import me_q1_torch, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -586,14 +586,24 @@ class QuestMixin(OpeningRouteMixin):
         opening = self._opening_q1_town_key(snapshot, hostiles)
         if opening is not None:
             return opening
-        from hengbot import me_staff_sequence
-        staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
-        if staff_sequence is not None:
-            return staff_sequence
-        from hengbot import q2_tower_recharge
-        tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
-        if tower_recharge is not None:
-            return tower_recharge
+        # The reward of a quest just handed over lies on this town level only
+        # (wild.cpp wilderness_gen): pick it up before the class sequences
+        # below can leave the town (#47 D62).
+        from hengbot import town_quest_reward
+        reward = town_quest_reward.town_key(self, snapshot, hostiles)
+        if reward is not None:
+            return reward
+        # The class sequences that travel wait while the report or the
+        # pickup holds the town; the room-making owners take the board.
+        if not town_quest_reward.holds_town(self, snapshot):
+            from hengbot import me_staff_sequence
+            staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
+            if staff_sequence is not None:
+                return staff_sequence
+            from hengbot import q2_tower_recharge
+            tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
+            if tower_recharge is not None:
+                return tower_recharge
         from hengbot import me_powerful_activation
         powerful = me_powerful_activation.town_key(self, snapshot, hostiles)
         if powerful is not None:
@@ -1948,11 +1958,11 @@ class QuestMixin(OpeningRouteMixin):
         for race_id in (Q2_WERERAT_RACE, Q2_WHITE_CROCODILE_RACE):
             if race_id in present and race_id not in self._q2_speed_attempted:
                 self._q2_speed_attempted.add(race_id)
-                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                # A failed cast re-arms nothing here: each race asks once.
+                speed = speed_dose.key(self, snapshot, "quest-strategy:q2-quaff-speed")
                 if speed is not None:
                     self._fixed_quest_speed_attempted = True
-                    self.last_reason = "quest-strategy:q2-quaff-speed"
-                    return reserved_item_command(self, snapshot, "quaff", speed)
+                    return speed
         return None
 
     def _q2_breach_key(
@@ -3006,16 +3016,16 @@ class QuestMixin(OpeningRouteMixin):
                 phase = 2
             if phase == 0:
                 self._quest_strategy_opening_phase[profile.quest_id] = 1
-                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                speed = speed_dose.key(
+                    self, snapshot,
+                    "quest-strategy:q22-opening-speed"
+                    if profile.quest_id == 22
+                    else "quest-strategy:opening-speed",
+                    rearm=("_quest_strategy_opening_phase", profile.quest_id, 0))
                 if speed is not None:
                     if profile.quest_id != 22:
                         self._fixed_quest_speed_attempted = True
-                    self.last_reason = (
-                        "quest-strategy:q22-opening-speed"
-                        if profile.quest_id == 22
-                        else "quest-strategy:opening-speed"
-                    )
-                    return reserved_item_command(self, snapshot, "quaff", speed)
+                    return speed
                 phase = 1
             if phase == 1:
                 self._quest_strategy_opening_phase[profile.quest_id] = 2
@@ -3246,10 +3256,10 @@ class QuestMixin(OpeningRouteMixin):
             ]
             if projected >= threshold * snapshot.player.hp:
                 self._fixed_quest_speed_attempted = True
-                speed = self._find_exact_potion(snapshot, SV_POTION_SPEED)
+                speed = speed_dose.key(self, snapshot, "quest-strategy:quaff-speed",
+                                       rearm=("_fixed_quest_speed_attempted", False))
                 if speed is not None:
-                    self.last_reason = "quest-strategy:quaff-speed"
-                    return reserved_item_command(self, snapshot, "quaff", speed)
+                    return speed
 
         hold_value = profile.engagement_plan.get("hold_position")
         hold = self._quest_strategy_hold_positions.get(profile.quest_id)
@@ -4301,40 +4311,13 @@ class QuestMixin(OpeningRouteMixin):
             return None
         if snapshot.in_town:
             # A claimed floor reward is part of the quest transaction and must
-            # finish before selecting or travelling to another fixed quest.
-            # Reconstruct the in-memory latch after a bot/game restart from the
-            # dedicated allowlisted tile when the quest is already rewarded.
-            if self._fixed_quest_reward_pending is None:
-                for reward_quest_id in FIXED_QUEST_REWARD_POSITIONS:
-                    reward_quest = snapshot.quests.get(reward_quest_id)
-                    if reward_quest is None or reward_quest.status not in {
-                        QUEST_STATUS_REWARDED,
-                        QUEST_STATUS_FINISHED,
-                    }:
-                        continue
-                    if any(
-                        (grid := snapshot.grid_at(position)) is not None
-                        and grid.object_count > 0
-                        for position in self._fixed_quest_reward_positions(
-                            snapshot, reward_quest_id
-                        )
-                    ):
-                        self._fixed_quest_reward_pending = reward_quest_id
-                        break
-            if self._fixed_quest_reward_pending is not None:
-                reward_key = self._fixed_quest_reward_key(
-                    snapshot, self._fixed_quest_reward_pending
-                )
-                if reward_key is not None:
-                    return reward_key
-                if self._fixed_quest_reward_pending is not None:
-                    if self.last_reason == "fixedquest:reward-pack-full":
-                        # The reward owner has no safe quest-local disposal.
-                        # Release this rung so the town owners can deposit,
-                        # sell, or dispose of surplus and make room for it.
-                        return None
-                    self.last_reason = "fixedquest:reward-wait"
-                    return WAIT_KEY
+            # finish before selecting or travelling to another fixed quest
+            # (town_quest_reward; a full pack releases this rung so the town
+            # owners can make room for it).
+            from hengbot import town_quest_reward
+            reward_key = town_quest_reward.reward_key(self, snapshot)
+            if reward_key is not None or self._fixed_quest_reward_pending is not None:
+                return reward_key
 
             # Fixed-quest travel used to bypass ordinary town readiness entirely.
             # Let the town router shed weight at Home before accepting, claiming,
@@ -4508,12 +4491,8 @@ class QuestMixin(OpeningRouteMixin):
                     if key is not None and self.last_reason != "return:wait-recall":
                         self.last_reason = "fixedquest:claim:return"
                     return key
-                return self._fixed_quest_building_key(
-                    snapshot,
-                    quest_id,
-                    "fixedquest:claim",
-                    set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
-                )
+                from hengbot import town_quest_reward
+                return town_quest_reward.claim_key(self, snapshot, quest_id)
             if quest.status == QUEST_STATUS_UNTAKEN:
                 if (
                     not snapshot.in_town
@@ -4543,12 +4522,8 @@ class QuestMixin(OpeningRouteMixin):
         if self._fixed_quest_reward_pending == quest_id:
             return self._fixed_quest_reward_key(snapshot, quest_id)
         if quest.status == QUEST_STATUS_COMPLETED:
-            return self._fixed_quest_building_key(
-                snapshot,
-                quest_id,
-                "fixedquest:claim",
-                set_reward_pending=bool(FIXED_QUEST_REWARD_POSITIONS.get(quest_id)),
-            )
+            from hengbot import town_quest_reward
+            return town_quest_reward.claim_key(self, snapshot, quest_id)
         if quest.status == QUEST_STATUS_TAKEN:
             info = self._quest_knowledge.get(quest_id)
             if self.approved_quest_strategy(quest_id) is not None and info is not None and info.battlefield is not None:
@@ -5063,8 +5038,7 @@ class QuestMixin(OpeningRouteMixin):
             + [FIXED_QUEST_CURE_CRITICAL_HP]
             * self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
         )
-        speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
-        hasted = speed_potion is not None
+        hasted = speed_dose.available(self, snapshot)
         modeled_speed = snapshot.player.speed + (SPEED_POTION_BONUS if hasted else 0)
         telemetry["hasted"] = hasted
 
@@ -5561,6 +5535,17 @@ class QuestMixin(OpeningRouteMixin):
             self._fixed_quest_reward_pending = None
             return None
         positions = self._fixed_quest_reward_positions(snapshot, quest_id)
+        visible_reward = [
+            pos
+            for pos in positions
+            if (grid := snapshot.grid_at(pos)) is not None and grid.object_count > 0
+        ]
+        # Standing on the emptied reward cell completes the pickup, also
+        # when the reward took the last free slot (the pack is full now).
+        if snapshot.player.position in positions and not visible_reward:
+            self._fixed_quest_reward_pending = None
+            self.last_reason = "fixedquest:reward-complete"
+            return None
         if len(snapshot.inventory) >= PACK_CAPACITY:
             destroy = self._full_pack_destroy_key(snapshot)
             if destroy is not None:
@@ -5593,15 +5578,6 @@ class QuestMixin(OpeningRouteMixin):
         )
         if current is not None:
             return current
-        visible_reward = [
-            pos
-            for pos in positions
-            if (grid := snapshot.grid_at(pos)) is not None and grid.object_count > 0
-        ]
-        if snapshot.player.position in positions and not visible_reward:
-            self._fixed_quest_reward_pending = None
-            self.last_reason = "fixedquest:reward-complete"
-            return None
         target_positions = visible_reward or list(positions)
         context = getattr(self, "_decision_context", None)
         if context is None:
@@ -5767,7 +5743,7 @@ class QuestMixin(OpeningRouteMixin):
             is not None
         ):
             return True
-        if self._find_exact_potion(fight_snapshot, SV_POTION_SPEED) is None:
+        if not speed_dose.available(self, fight_snapshot):
             return False
         return (
             self._unique_fight_projection(
@@ -5963,10 +5939,9 @@ class QuestMixin(OpeningRouteMixin):
             self._exact_potion_count(snapshot, SV_POTION_HEALING)
             + self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
         )
-        speed_potion = self._find_exact_potion(snapshot, SV_POTION_SPEED)
         speed_plan = None
         if (
-            speed_potion is not None
+            speed_dose.available(self, snapshot)
             and not self._unique_speed_attempted
             and not self._unique_speed_was_active
         ):
@@ -6045,11 +6020,13 @@ class QuestMixin(OpeningRouteMixin):
                 )
                 return reserved_item_command(self, snapshot, "quaff", healing)
 
-        if speed_is_material and speed_potion is not None:
+        speed = (speed_dose.key(self, snapshot, "unique:quaff-speed",
+                                rearm=("_unique_speed_attempted", False))
+                 if speed_is_material else None)
+        if speed is not None:
             self._unique_speed_attempted = True
             self._unique_combat_committed_race_id = target.race_id
-            self.last_reason = "unique:quaff-speed"
-            return reserved_item_command(self, snapshot, "quaff", speed_potion)
+            return speed
         return None
 
     def _q31_opening_hold_is_controlled(

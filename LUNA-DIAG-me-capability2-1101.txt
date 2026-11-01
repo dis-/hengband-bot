@@ -1,0 +1,81 @@
+LUNA-DIAG me-capability2-1101 (#47, 持ち主の答え 2026-11-01 21時 の 5・6・7) 2026-11-01
+基点: main 64e63b6cf（ブランチ me-capability2-1101）。行番号はすべて main 64e63b6cf のもの。
+決定の表 = src/hengbot/me_capability.py の REPLACES（maint2-me-capability-1101 で作った 1 つの表）。
+
+■ 5. 取り込んだ財宝感知の数（出発の判定）
+  鎖: 出発の判定・購入の段・店の候補 → policy.py:13837 _count_treasure_detection_scrolls
+      = 持っている巻物の数 + me_capability.replacing_charges(..., (TVAL_SCROLL, 財宝感知の巻物))
+      → me_capability.py:296 replacing_charges → 表の行 me_capability.py:252-253
+        Replacement(("staff", 財宝感知), Kind(巻物, 財宝感知), amount="recorded")
+      → AMOUNT["recorded"] = recorded_charges（me_capability.py:127-146）: 取り込みの記録の値（max）。
+        この盤面の一覧で current が 0 のときだけ 0。最後に表示された一覧の current（:94 observed_row）は見ない。
+      ほかの力（岩石溶解・*破壊*）は AMOUNT["charges"]（:149-158、表示の行が先、無ければ記録）。
+  使う所（数が効く判定）: policy_town.py:3340・3365・3371・3379・3409（採掘の出発の準備）、
+      policy_shop.py:2869（購入の段 mining:treasure-detection）・3429・3458（店の通常の順）、
+      policy_fundraising.py:284・383・405・434・555、policy_town.py:4977。
+  結果: 使った後の盤面（表示の current 1、記録 19）で 19 と数え、巻物を買わずに出発する。
+  確かめた盤面: 記録した n1-c life-021 の錬金術の店（D9、tests/fixtures/me-town-stops-20261030.json.gz、
+      巻物 0 本、出発の目標 6）、段階 1 を取り込んだ記録と表示の一覧（鑑定 21/21・財宝感知 1/19）は
+      DECLARED CONSTRUCTED。公開の choose_key と本番の executor で:
+        main: 帰還の巻物 1・油 1 を買って seek-downstairs → descend（財宝感知の巻物は買わない）、数 19。
+        直した後: 財宝感知の巻物 5 本を買う（数 1 → 6）。
+  直し方: 表の行の amount を "charges" にする（持ち主の答え「今残っている回数で数える」）。
+      ほかに "recorded" を使う行は無いので AMOUNT から消す（recorded_charges は charges の代わりと
+      me_staff_sequence.power_key が今までどおり使う）。
+
+■ 6. 鑑定の杖を 21 回分取り込んだあと（どちらの流れでも買わない）
+  鎖: 表の行 me_capability.py:255-256
+        Replacement(("staff", 鑑定), Kind(杖, 鑑定), when="full-count", uses={CANDIDATE, NEED})
+      PURCHASE を答えないので:
+      (a) 購入の段の一致 policy_shop.py:2950-2954 _matching_live_purchase_rungs は外さない
+          （ゾンビの段 tail:mana-food:2917 が取り込んだ鑑定の杖を食料の品として一致させる。
+          magic_eater_devices.py:107 is_mana_food_ware は取り込み済みの段階の杖を食料と数える）。
+      (b) 店の通常の順の「直接の選び」（候補 items を通らない所）は表を聞かない。段階の杖は
+          policy_shop.py:3348-3350 の除外の組（excluded_classes）で外れるが、どの所も
+          「組に無い、または入れ替えの買い直し（policy_shop.py:4447-4462 _identify_staff_swap_purchase）」
+          で通す。食料の選び policy_supply.py:1050-1069 _mana_food_purchase（:1068-1069）もそう。
+      (c) 必要品の段 policy_shop.py:3262-3330 _departure_blocking_page_purchase_pure は rung.match を
+          直接呼び、PURCHASE を聞かない（今は鑑定の杖の要求が NEED で出ないので効いていない）。
+  結果（決定に効く盤面）: 記録した n1-c life-033 の魔法の店（D25、tests/fixtures/n1c-town-stops2-20261030.json.gz、
+      ゾンビの魔道具術師、鑑定の杖 5x18回分 829・4x12回分 745 が棚にある）。DECLARED CONSTRUCTED:
+      段階 1 を取り込んだ記録と表示の一覧（鑑定 21/21）、食料の魔法道具を持たない（杖・魔法棒を外す）、
+      この訪問で 5 回分の鑑定の杖を売った（_town_visit_sale_identify_charges = 5）。
+        main（と PURCHASE を足すだけの直し）: 'pk1\r\r\x1b' shop:one-shot-buy で 鑑定の杖 (5x 18回分) を
+        829 で食料として買う（食料の数は満たされないまま）。
+  直し方（持ち主の答え「どちらの流れでも買わない」= 巻物の行と同じ全部の用途）:
+      - 行の uses を既定（全部の用途）にする。
+      - 入れ替えの買い直しは、表がどの購入の道でも外す品（PURCHASE）を通さない
+        （_identify_staff_swap_purchase に 1 つの問い合わせ。入れ替えはその品を買う理由がある時だけ）。
+      - 全部の用途に ORDER（7 で足す、店の通常の順のすべての選び）を含める。巻物の 2 行も同じになるが、
+        その巻物を返す直接の選び（_required_remove_curse_purchase:2775・_affordable_star_remove_curse）は
+        もう PURCHASE で外れ、クエストの持ち物の巻物は光とテレポートだけ（strategy/quests）なので
+        巻物の決定は変わらない。
+      - 必要品の段（:3262）の候補も PURCHASE を聞く（_matching_live_purchase_rungs と同じ 1 つの判定）。
+
+■ 7. 店の処理の中の段階の杖の判定（表へ移す、入れ替えの例外も表の条件に）
+  今: policy_shop.py:3348-3350
+        if me_staff_sequence.applies(self, snapshot):
+            excluded_classes.update((TVAL_STAFF, sval) for sval in me_staff_sequence.active_svals(self))
+      この組は _legacy_next_purchase_unreserved のすべての選びが使う: 候補 items（:3353-3354）、
+      :3378・:3443・:3670 食料（policy_supply.py:1050）、:3383・:3629 解呪、:3584・:3632 能力の回復
+      （:753）、:3587-3591 必要品（:3062、内側で食料とクエストの持ち物も）、:3637 経験値、:3645 クエスト、
+      :3783 *破壊*、:3789 闇市、:3793 道具の表、:3817 *解呪*、:3823 射撃の強化。
+      どの所も入れ替えの買い直し（:4447）を通す（:3793 だけ通さない）。
+  表の行 staff-sequence（me_capability.py:238、uses={CANDIDATE}、me_staff_sequence.py:359 purchase_excluded）
+      は候補 items だけで、しかも「知っている段階の杖（aware）・一覧を読む前の全部の段階の杖」と範囲が違う。
+      1 つにまとめると、知らない段階の杖・入れ替えの杖・一覧を読む前の段階 2 の杖で答えが変わる（中立でない）。
+  直し方（振る舞いを変えない）: 表に用途 ORDER（店の通常の順のすべての選びが守る、品の種類ごとの除外）を
+      足し、行 Replacement(None, Kind(杖, すべて), when="stage-staff", uses={ORDER}) を足す。条件
+      me_staff_sequence.order_excluded = applies かつ 今までの段階の杖（active_svals、aware を見ない）かつ
+      入れ替えの買い直しでない。店は除外の組を「同じ品の売り直しの拒否、または表が ORDER で外す棚の行」
+      から作る（:3343-3347 の内包表記に 1 つ足す）。:3348-3350 を消す。
+  中立の理由: 組は棚の行から作るので、入れ替えの杖だけが棚にある種類は組に入らないが、どの所も入れ替えの
+      杖を通すので答えは同じ。違いは :3793（道具の表）だけで、段階の杖の行は me_device_policy の
+      stage があり purchase_wanted が常に False（確かめた: 段階1・2 の 7 本すべて stage あり）。
+      棚に無い種類は組に入らないが、組を使う所はすべてこの店の棚（store.items）だけを見る。
+  確かめ方: validation/manifest-tax-1101 の replay 道具で checks.json の全テストの判断を main と比べる。
+
+■ 他の家族のもの（直していない）
+  5 の確かめの盤面（DECLARED CONSTRUCTED）を出発まで進めると、財宝感知の巻物を買った後に金が 38 になり、
+  能力の回復の要求（錬金術の店、488）が買えないまま店と階段の間を往復して town:blocked:owner-retired で
+  止まる（main では巻物を買わず金が残り、同じ盤面で降りる）。町の出発・往復の家族（D29/D30）。

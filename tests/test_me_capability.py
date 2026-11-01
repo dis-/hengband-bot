@@ -115,12 +115,12 @@ class ReplacesTableTest(unittest.TestCase):
                 self.assertTrue(row.amount is None or row.amount in capability.AMOUNT)
                 self.assertTrue(row.uses <= capability.EVERY_USE and row.uses)
                 if row.power is None:
-                    self.assertEqual(row.when, "staff-sequence")
+                    self.assertIn(row.when, {"staff-sequence", "stage-staff"})
                 else:
                     self.assertEqual(len(capability.names(*row.power)), 2)
 
-    def test_every_carry_power_is_cast_through_the_executor(self):
-        for ident in capability.carry_powers():
+    def test_every_substitute_power_is_cast_through_the_executor(self):
+        for ident in capability.substitute_powers():
             power = substitutes.POWERS[ident]
             with self.subTest(power=ident):
                 self.assertEqual(power.names, capability.names(*ident))

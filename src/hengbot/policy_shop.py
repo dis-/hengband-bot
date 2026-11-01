@@ -344,7 +344,7 @@ class ShopMixin(InStoreMixin):
         return (
             ("quest:speed", (TVAL_POTION, SV_POTION_SPEED),
              self._exact_potion_count(snapshot, SV_POTION_SPEED),
-             int(force.get("speed_potions", 0))),
+             me_capability.force_count(self, snapshot, force, "speed_potions")),
             ("quest:healing", (TVAL_POTION, heal_potion_sval(force)),
              self._strategy_heal_potion_count(snapshot, force),
              int(force.get("heal_potions", 0))),
@@ -2759,6 +2759,8 @@ class ShopMixin(InStoreMixin):
             )
             and item.count > 0
             and snapshot.player.gold - item.price >= reserve
+            and not me_capability.replaced_by_absorbed(
+                self, snapshot, item, me_capability.PURCHASE)
         ]
         if not optional:
             return None
@@ -2915,7 +2917,7 @@ class ShopMixin(InStoreMixin):
                 for status in self._quest_carry_status(snapshot, force).values()
             )
             add(rung("quest:carry", "quest-carry", carry_live, lambda i: self._quest_carry_target_for_item(snapshot, i, force) is not None and (self._quest_carry_target_for_item(snapshot, i, force)[0] != "launcher_ammo" or self._ammo_purchase_preserves_plan(snapshot, i)) and self._quest_carry_target_for_item(snapshot, i, force)[1] < self._quest_carry_target_for_item(snapshot, i, force)[2]))
-            add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: int(force.get("speed_potions", 0))))
+            add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < me_capability.force_count(self, snapshot, force, "speed_potions"), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: me_capability.force_count(self, snapshot, force, "speed_potions")))
             add(rung("quest:healing", "healing", lambda: self._strategy_heal_potion_count(snapshot, force) < int(force.get("heal_potions", 0)), lambda i: is_heal_potion_for(i, force), current=lambda: self._strategy_heal_potion_count(snapshot, force), target=lambda: int(force.get("heal_potions", 0))))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
         add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and (not self._food_ready(snapshot) or (getattr(self, "_crossarea_fundraising_enforced", False) and self._fundraising_mode in {"mine", "scavenge"} and self._find_edible(snapshot) is None)), lambda i: is_mana_food_ware(self, snapshot, i)))
@@ -3295,6 +3297,8 @@ class ShopMixin(InStoreMixin):
                 matches = rung.match(PurchaseContext(snapshot), item)
                 if matches is None or self._purchase_churn_rejected(
                     store.store_type, item
+                ) or me_capability.replaced_by_absorbed(
+                    self, snapshot, item, me_capability.PURCHASE
                 ):
                     continue
                 quantity = self._purchase_quantity(snapshot, item)
@@ -3340,14 +3344,14 @@ class ShopMixin(InStoreMixin):
         # Keep the observed Store intact for charge comparisons, Home/pack
         # gates, and shelf evidence.  Only candidate enumeration uses this view.
         excluded_classes = set(excluded_classes)
+        # A sell-then-rebuy, or a kind the ordinary order never picks
+        # (me_capability.REPLACES, use ORDER).
         excluded_classes.update(
             (item.tval, item.sval)
             for item in store.items
             if self._purchase_churn_rejected(store.store_type, item)
+            or me_capability.replaced_by_absorbed(self, snapshot, item, me_capability.ORDER)
         )
-        if me_staff_sequence.applies(self, snapshot):
-            excluded_classes.update(
-                (TVAL_STAFF, sval) for sval in me_staff_sequence.active_svals(self))
         items = tuple(
             item for item in store.items
             if ((item.tval, item.sval) not in excluded_classes
@@ -3645,7 +3649,8 @@ class ShopMixin(InStoreMixin):
                     and ((carry.tval, carry.sval) not in excluded_classes
                          or self._identify_staff_swap_purchase(carry))):
                 return carry
-            if self._exact_potion_count(snapshot, SV_POTION_SPEED) < int(force.get("speed_potions", 0)):
+            if self._exact_potion_count(snapshot, SV_POTION_SPEED) < me_capability.force_count(
+                    self, snapshot, force, "speed_potions"):
                 speed = next((it for it in items if it.tval == TVAL_POTION
                               and it.sval == SV_POTION_SPEED and it.price <= gold), None)
                 if speed is not None:
@@ -4451,7 +4456,8 @@ class ShopMixin(InStoreMixin):
         店の回数の多い杖に買い替える」.  A shelf Identify staff with more
         per-staff charges than every Identify staff sold this visit is the
         replacement the sale was for, not a sell-then-rebuy of the same item;
-        an equal-or-emptier one still is.
+        an equal-or-emptier one still is.  Never a staff no purchase path
+        buys (me_capability.REPLACES PURCHASE: an absorbed power replaces it).
         """
         sold = self._town_visit_sale_identify_charges
         return (
@@ -4459,6 +4465,7 @@ class ShopMixin(InStoreMixin):
             and item.sval == SV_STAFF_IDENTIFY
             and sold is not None
             and max(item.charges, item.pval) > sold
+            and not me_capability.replaced_by_absorbed(self, None, item, me_capability.PURCHASE)
         )
 
     @staticmethod

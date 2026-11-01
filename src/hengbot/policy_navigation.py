@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dark_recall, immobile_threat_memory, mapped_area, me_powers
+from hengbot import dark_recall, immobile_threat_memory, mapped_area, me_powers, unseen_strike
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -354,6 +354,11 @@ class NavigationMixin:
         ):
             self._clear_dark_route()
             return None
+        # A melee blow of an unseen attacker is struck back before a dark step
+        # (owner 2026-11-01 21h, answer 3; unseen_strike).
+        if (strike := unseen_strike.key(self, snapshot, self._physical_hostiles(snapshot),
+                                        unseen_strike.DARK_REASON)) is not None:
+            return strike
         self._blocked_unknown.difference_update(
             (visited.y, visited.x)
             for visited, count in self._visit_counts.items()
@@ -1226,6 +1231,23 @@ class NavigationMixin:
         self._door_t = door
         self._rubble_t = rubble
         self._marked_t = marked
+
+    def _known_downstairs_reachable(self, snapshot: Snapshot) -> bool:
+        """A known downstairs is under the player or has a walking route.
+
+        A magic mapping (map_area) shows stairs beyond a secret door, which
+        maps as granite (spells-floor.cpp), so a known downstairs is not
+        proof that the floor has a known way down.  Exploration that ran
+        dry asks this before giving up on secret exits for the stairs.
+        """
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.has_down_stairs:
+            return True
+        if not any(grid.has_down_stairs for grid in snapshot.grids.values()):
+            return False
+        return self._nearest_goal_and_step(
+            snapshot, lambda grid: grid.has_down_stairs
+        ) is not None
 
     def _usable_downstairs(self, snapshot: Snapshot) -> set[Position]:
         """Downstairs the descent owner may still route to on this floor visit.

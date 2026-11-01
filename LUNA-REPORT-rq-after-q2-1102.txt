@@ -1,0 +1,101 @@
+LUNA-REPORT rq-after-q2-1102（鉄獄のランダムクエストを Q2 の後に回す）
+
+ブランチ rq-after-q2-1102（main 1579cff68 から。最後に main 0a1a4704f を取り込み済み）。push していない。
+
+1. オーナーの指示
+
+  「angband 6F, 12Fのランダムクエストに挑む順が早いので達成率が低い。Q2の後に回したい」（2026-11-02）
+
+2. 作ったもの
+
+  Q2（下水道）が未受諾または受諾中の間は、鉄獄のまだ済んでいない一番浅いランダムクエストの階へ
+  階段で降りない。潜るのはその1つ上の階まで（今のデータでは鉄獄5階まで）。
+  Q2 が済んだら（達成・報酬・完了・失敗のどれか）この制限はなくなり、ほかは何も変わらない。
+
+  - 新しいモジュール src/hengbot/random_quest_hold.py
+    - first_held_level(policy, snapshot, dungeon_id): いま制限している一番浅い階（なければ None）
+    - crossing_held(policy, snapshot, dungeon_id, current, destination): current < 階 <= destination か
+  - policy.py の _is_descent_target（降りる先の判定。descend・approach-descent・seek-downstairs・
+    stuck:seek-stairs が全部これを通る）に1か所だけ足した。ダンジョンの中だけで効く。
+  - 階の数（6・12）はコードに書いていない。クエストの知識（lib/edit/quests/040〜049_RandomQuest.jsonc の
+    "type": "RANDOM"・"level"・"dungeon"）から求める。職業による分け方もない。
+
+3. ゲーム本体の根拠
+
+  - birth/game-play-initializer.cpp init_dungeon_quests: ランダムクエスト 10 件は生まれた時に全部 TAKEN、
+    階はデータの level のまま（鉄獄 6・12・24・38・44・50・56・62・76・88 階）。
+  - dungeon/quest.cpp leave_quest_check: ランダムクエストの階を出ると FAILED（ONCE と同じ扱い）。
+  - QuestList::find_shallowest_random_quest_id（quest-list.cpp:523）と bot-json-output.cpp
+    make_disclosed_quests_json: 進行中のランダムクエストは一番浅い1件だけ、しかも鉄獄の最深到達階が
+    その階に届いてから開示される。済んだもの・失敗したものは開示される。未受諾の固定クエスト（Q2 の
+    UNTAKEN）は一覧に出ない。
+    → 「開示された行が済んだと言っていなければ未了」、「Q2 の行が無いか TAKEN なら Q2 は未了」とした。
+  - spells-world.cpp recall_player / reset_recall と dungeon-processor.cpp:114: 帰還の深さは
+    実際に立った最深の階か、それより浅く下げた階にしかならない（rumor.cpp:52 は最浅の階）。
+    ランダムクエストの階に立って出れば失敗になるので、未了のランダムクエストの階より深い所へ
+    帰還で着くことは起きない。そのため帰還先の選び方（_recall_destination_safe・
+    _pick_alternate_dungeon）には手を入れていない。「この階に戻って来ますか？」の問いも浅くする
+    向きだけなので影響しない。
+
+4. 既にその階にいる場合
+
+  制限は「今の階 < クエストの階 <= 行き先」の時だけ。ランダムクエストの階（やそれより深い所）に
+  既にいる時は何も変えず、クエストの担当と出口の鍵（_quest_floor_exit_locked）に任せる。
+  クエストを片付ければ次の未了の階（12階）までの制限に変わる。
+
+5. 制限の階で降りられない時の動き
+
+  新しい振る舞いは足していない。耐性が足りない時の深さの制限と同じく、その階を探索し、探索し終われば
+  既存の「stuck:seek-stairs / stuck:ascend」で上り階段から新しい階へ行き、帰還の引き金（物資・光源・
+  荷物など）がそろえば町へ帰る。生存処理は変えていない。
+
+6. テスト（記録した盤面）
+
+  tests/test_rq_after_q2_recorded.py（3件）
+  - 盤面: 観戦の n1-c life-080（2026-11-01、
+    viewing-incidents-20261101/n1-c/life-080/incident-captures/20261101-050908-stuck-prompt）。
+    鉄獄5階、ターン 577494〜577526 で下り階段へ歩き、記録の決定 1872（577526）が descend '>'、
+    577527 は鉄獄6階のランダムクエスト 49。この時 Q2 は一覧に無い（未受諾）。
+  - 公開の choose_key と本番の executor の口（_ExecutorInputPort）で、記録の盤面を順に流す。
+  - Q2 が未了: 4 盤面とも '>' を出さない（explore '7','4','4' の後 search 's'）。
+  - Q2 が済み（宣言した組み立て: 全盤面に Q2 の FINISHED の行を足す）: 記録どおり
+    approach-descent '7'、seek-downstairs '4','4'、descend '>'。
+  - 宣言した復元: その階での魔道具の使用の記憶（me-power の記録の決定 1748〜1850。capture の
+    _me_power_floor は後の町のもの）、クエストの知識はフィクスチャの RANDOM の行。
+  - フィクスチャ tests/fixtures/rq-after-q2-n1c-080-1102.json.gz、
+    抽出 tests/extract_rq_after_q2_fixture.py。
+
+  差し戻しの確認（1回）: policy.py の変更だけを戻して流すと
+    test_before_q2_the_dive_stops_above_the_random_quest_floor が失敗（'>' が出る）、他の2件は通る。
+    戻すと 3 件とも通る。
+
+7. 検査
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK（取り込み後も OK）
+  - tests.test_rq_after_q2_recorded: Ran 3 tests、OK（取り込み後も OK）
+  - 既存のテストの期待値は変えていない。テストの壁はない。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。裏の処理は残していない。
+  - town-work の生産者は変えていないので manifest は触っていない。
+
+8. 保守性
+
+  - 新しい決まり（どのクエストで解けるか・どの階を止めるか・越える時だけ止める）は
+    random_quest_hold.py の1か所にある。Q2 の番号は q2_tower_recharge.Q2_QUEST_ID を使い回した。
+  - 判定の入り口は _is_descent_target の1行だけで、降りる担当は全部それを通るので重複がない。
+
+9. checks.json の案（編集していない）
+
+  {"id": "RQ-AFTER-Q2",
+   "defect": "owner 2026-11-02 n1-c life-080 鉄獄5階→6階（ランダムクエスト 49）",
+   "owner": "2026-11-02 「angband 6F, 12Fのランダムクエストに挑む順が早いので達成率が低い。Q2の後に回したい」",
+   "tests": ["tests.test_rq_after_q2_recorded"]}
+
+10. オーナーへの問い
+
+  問い1: Q2 に失敗した時（下水道を出て FAILED）も制限を解いている。Q2 をもう達成できないので
+    そうしたが、失敗の時は別の扱い（例: Q2 の推奨の強さに届くまで止める）にするか。
+  問い2: Q2 を一度も受けないキャラ（Q2 の作戦が承認されない・行けない場合）は、鉄獄が5階で止まり
+    続ける。そのまま（他のダンジョンで稼ぐ）でよいか。
+  付記（問いではない）: 鉄獄6階のクエストは最深到達階が6階に届くまで画面の一覧に出ない
+    （find_shallowest_random_quest_id）。制限はゲームに同梱されたクエストのデータ（lib/edit）から
+    階を知っている。ボットは既にこのデータで RANDOM かを判定している（_runtime_random_quest）。
