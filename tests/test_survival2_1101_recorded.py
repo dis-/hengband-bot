@@ -18,6 +18,12 @@
    the Anti-melee cave 45F, the recorded death of 2026-10-23;
    tests/fixtures/anti-melee-death-20261023.jsonl.gz): main walked beside its
    attackers ('4' explore, '3' threat:avoid-engagement, '7' approach-descent).
+3. 「どちらも先に反撃」 (answer 3): a melee blow of an attacker the player
+   cannot see is struck back (unseen_strike) before the walk home without
+   Recall (``return:explore``) and before a dark step (``dark:backtrack``),
+   as the unseen retreat and the recall wait already do.  Built from n1-c
+   life-085's jelly boards 1445321-1445339 (tests/fixtures/death-n1c-085-
+   1101.json.gz; Labyrinth 11F, the lantern drained dark at 1445339).
 
 Fixture: tests/fixtures/survival2-1101.json.gz
 (tests/extract_survival2_1101_fixtures.py).  Every decision is the public
@@ -33,7 +39,11 @@ recorded board where the unfixed walk had put the player beside it; the
 afraid cases of answer 2 set ``player.status.afraid`` on the Anti-melee
 boards and take NO_MELEE out of the loaded dungeon definition (as
 test_anti_melee_dungeon_recorded's controls do), the faster-player control
-also sets the player's speed to 130.
+also sets the player's speed to 130; the answer-3 boards are
+test_hit_no_action_1101_recorded.constructed's unseen boards (no oil flask or
+spare lantern, the jelly out of the visible list and named 「何か」) without
+the Word of Recall scroll, the arrow control's messages mspell-bolt.cpp:21's
+「何かが矢を放った。」 (test_owner15_survival_1101_recorded.ARROW).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -45,12 +55,15 @@ from pathlib import Path
 
 from tempfile import TemporaryDirectory
 
-from hengbot import immobile_threat_memory, me_powers
+from hengbot import immobile_threat_memory, me_powers, unseen_strike
 from hengbot import me_staff_sequence as sequence
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import DIRECTION_KEYS
 from tests import test_anti_melee_dungeon_recorded as anti_melee
+from tests import test_hit_no_action_1101_recorded as hit
 from tests import test_me_staff_loops_1031_recorded as loops
+from tests import test_n1c_deaths_1101_recorded as d57
+from tests import test_owner15_survival_1101_recorded as owner15
 from tests.test_me_nokey_1031_recorded import PostedKey
 
 
@@ -233,6 +246,54 @@ class MeleeRefusedRangedRecordedTest(PostedKey):
         _raw, _board, _policy, key, reason = self.decide(
             self.lines[0], melee_allowed=True, afraid=True, speed=130)
         self.assertEqual(reason, "flee", key)
+
+
+TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL = 70, 11
+DARK_FIRST, DARK_LAST = 1445321, d57.DARK_TURN
+
+
+def unseen_walk_boards(*, arrow=False):
+    """life-085's boards with a hidden attacker, no light to restore and no Recall."""
+    rows = []
+    for raw in d57.boards(d57.CASE_085, DARK_FIRST, DARK_LAST):
+        raw = hit.constructed(raw, unseen=True)
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if (item["tval"], item["sval"]) != (TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)]
+        if arrow:
+            raw["messages"] = [owner15.ARROW]
+        rows.append(raw)
+    return rows
+
+
+class UnseenWalkStrikeRecordedTest(d57.PostedDeathKey):
+    """Answer 3: the walk home and the dark walk strike a hidden melee attacker first."""
+
+    def test_constructed_boards_are_unseen_melee_hits_in_the_dark(self):
+        rows = unseen_walk_boards()
+        self.assertEqual(d57.recorded(d57.CASE_085)[DARK_LAST], ("dark:no-recovery:dark:backtrack", "7"))
+        for raw in rows:
+            self.assertEqual(raw["visible_monsters"], [])
+            self.assertIn("何かに触られた。", raw["messages"])
+        board = parse_snapshot(rows[-1], d57.new_policy(d57.CASE_085)._monrace_knowledge)
+        self.assertEqual(board.light_radius, 0)
+        self.assertFalse(any(item.is_scroll and item.sval == SV_SCROLL_WORD_OF_RECALL
+                             for item in board.inventory))
+
+    def test_walk_home_and_dark_walk_strike_the_melee_attacker(self):
+        rows = self.drive(d57.lamp_policy(), unseen_walk_boards())
+        # Unfixed: ('7', 'return:explore') twice, then
+        # ('7', 'dark:no-recovery:dark:backtrack'), steps away from the jelly.
+        self.assertEqual([(raw["turn"], key[0], reason) for raw, key, reason in rows[:2]],
+                         [(1445321, "+", unseen_strike.RETURN_REASON),
+                          (1445328, "+", unseen_strike.RETURN_REASON)])
+        raw, key, reason = rows[2]
+        self.assertEqual((raw["turn"], key[0]), (DARK_LAST, "+"))
+        self.assertTrue(reason.endswith(unseen_strike.DARK_REASON), reason)
+
+    def test_control_arrow_evidence_keeps_both_walks(self):
+        rows = self.drive(d57.lamp_policy(), unseen_walk_boards(arrow=True))
+        self.assertEqual([reason for _raw, _key, reason in rows],
+                         ["return:explore", "return:explore", "dark:no-recovery:dark:backtrack"])
 
 
 if __name__ == "__main__":
