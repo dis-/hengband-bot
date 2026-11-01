@@ -13,6 +13,7 @@ import unittest
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import WAIT_KEY
 from hengbot.policy_types import DecisionCandidate
+from hengbot.town_travel import is_travel_macro
 from tests.test_quest_travel_progress import QuestTravelFixtureMixin
 
 
@@ -51,11 +52,16 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
             declaration = key.route_declaration
             self.assertEqual(declaration.producer_branch, "return-3")
             observed.append((str(key), declaration.bfs_rank))
+            self.assertEqual(declaration.composed_key, str(key))
+            self.assertEqual(policy._town_travel_state.goal.distance_to(declaration.goal), 1)
             self.assertEqual(
                 policy._town_turn_arbiter.telemetry["budget_remaining_estimate"], 3
             )
             self.assertNotIn("quest-request", policy._town_turn_arbiter._retired)
-        self.assertEqual([key for key, _rank in observed], ["7", "8", "9", "9", "9"])
+        # Owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」: the
+        # game's travel to the inn's side (the recorded walk was 7, 8, 9, 9, 9).
+        self.assertEqual(len(observed), 5)
+        self.assertTrue(all(is_travel_macro(key) for key, _rank in observed), observed)
         self.assertTrue(all(a > b for a, b in zip(
             [rank for _key, rank in observed],
             [rank for _key, rank in observed][1:],
@@ -271,7 +277,7 @@ class QuestPrepareReturnStage2Pins(QuestTravelFixtureMixin, unittest.TestCase):
         )
         key = policy.choose_key(entrance)
         policy.confirm_key_posted(key)
-        self.assertEqual(key, "7")
+        self.assertTrue(is_travel_macro(key), key)   # the travel to the inn's side
         self.assertEqual(
             policy.last_reason,
             "fixedquest:prepare-return",

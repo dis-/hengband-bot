@@ -11,8 +11,10 @@ import tests  # noqa: F401
 from hengbot.claim_register import reach
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
+from hengbot.town_travel import is_travel_macro
 
 FIXTURE = Path(__file__).parent / "fixtures" / "live22-bounty"
+OFFICE = Position(25, 71)
 
 
 def boards():
@@ -41,6 +43,22 @@ def bounty_result(policy, board):
 
 
 class Live22BountyTest(unittest.TestCase):
+    def assertOfficeTravel(self, policy, result):
+        """The office walk rides the game's travel command to the office's
+        side (owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」;
+        the recorded live key was the single step '7')."""
+        key, reason = result
+        self.assertEqual(reason, "bounty:approach")
+        self.assertTrue(is_travel_macro(key), key)
+        self.assertEqual(policy._town_travel_state.goal.distance_to(OFFICE), 1)
+        return key
+
+    @staticmethod
+    def travel_cell(policy):
+        """The declared destination: the travel's cell beside the office."""
+        goal = policy._town_travel_state.goal
+        return (goal.y, goal.x)
+
     def test_recorded_cycle_and_bounty_destination(self):
         with gzip.open(FIXTURE / "decisions.jsonl.gz", "rt", encoding="utf8") as source:
             rows = list(map(json.loads, source))
@@ -55,14 +73,14 @@ class Live22BountyTest(unittest.TestCase):
     def test_recorded_production_path_first_divergence_is_office_walk(self):
         for restored in (False, True):
             policy, recorded = attached_policy()
-            self.assertEqual(bounty_result(policy, recorded[0]), ("7", "bounty:approach"))
+            self.assertOfficeTravel(policy, bounty_result(policy, recorded[0]))
             if restored:
                 policy = pickle.loads(pickle.dumps(policy))
             # Live sends 3 here. Never feed the resulting store page as the
-            # consequence of this new 7: this is the last replayed decision.
-            self.assertEqual(bounty_result(policy, recorded[1]), ("7", "bounty:approach"))
+            # consequence of this new walk: this is the last replayed decision.
+            self.assertOfficeTravel(policy, bounty_result(policy, recorded[1]))
             self.assertEqual(policy._decision_goal[0], "quest-request")
-            self.assertEqual(policy._decision_goal[1].cell, (25, 71))
+            self.assertEqual(policy._decision_goal[1].cell, self.travel_cell(policy))
             self.assertEqual(policy._shopping_approach_goal, Position(37, 91))
 
     def test_recorded_supplier_entry_has_typed_nothing_to_do_release(self):
@@ -76,8 +94,8 @@ class Live22BountyTest(unittest.TestCase):
         self.assertEqual(offer[10], "nothing-to-do-here:supplier:4")
         # This independently attached ESC matches live decision 5125, so its
         # recorded outside board is an action-consistent continuation.
-        self.assertEqual(bounty_result(policy, recorded[4]), ("7", "bounty:approach"))
-        self.assertEqual(policy._decision_goal[1].cell, (25, 71))
+        self.assertOfficeTravel(policy, bounty_result(policy, recorded[4]))
+        self.assertEqual(policy._decision_goal[1].cell, self.travel_cell(policy))
 
     def test_recorded_supplier_asks_family_gate_off_and_on_after_restore(self):
         for enforced in (False, True):
@@ -120,10 +138,13 @@ class Live22BountyTest(unittest.TestCase):
                 "_atomic_shop_transaction_key", lambda: self.fail("supplier displaced bounty"),
                 family="shop-buy"), None)
             self.assertEqual(policy._town_holder_structural_stop(holder, board), None)
-            self.assertEqual(policy._town_holder_declared_key(holder, board), "7")
-            self.assertEqual(policy.last_reason, "bounty:approach")
-            self.assertEqual(policy._s33_shadow_verdict(board, "7")["would_stop"], None)
-            self.assertEqual(policy._s33_shadow_verdict(board, "7")["holder_family"], "quest-request")
+            # The held bounty resumes its own producer (bounty.resume), whose
+            # walk is the travel to the office's side.
+            resumed = self.assertOfficeTravel(policy, (
+                policy._town_holder_declared_key(holder, board), policy.last_reason))
+            self.assertEqual(policy._s33_shadow_verdict(board, resumed)["would_stop"], None)
+            self.assertEqual(policy._s33_shadow_verdict(board, resumed)["holder_family"],
+                             "quest-request")
             self.assertEqual(policy._s33_shadow_verdict(board, None)["would_stop"], None)
 
     def test_repeated_ineffective_declared_route_stops_instead_of_other_errand(self):
