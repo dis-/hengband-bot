@@ -11,6 +11,11 @@ n1-c life-098 (Magic-Eater, Lv31, 412 max HP) on 鉄獄24階, random quest 41
     wandered through 952 bites (HP 412 -> 166, five Potions of Healing).
     Owner rule 「生存処理を優先しなければキャラクタは死亡する。当然の結果。」:
     a weak breeder that strikes from beside the player is fought.
+(b) The latch lived in the process only: after the loop-detected stop of
+    00:10:35 (turn 2200908) the restarted process (00:10:42) began the floor
+    in state 1 and fired bolts (``ranged:fire``) into the 22 bugs until the
+    latch re-armed at 00:11:00.  The latch is carried beside the decision
+    log (breeder_floor_record).
 
 Fixture: tests/fixtures/breeder-swarm-20261102.json.gz
 (tests/extract_breeder_swarm_1102_fixture.py).  Every decision is the public
@@ -18,7 +23,8 @@ Fixture: tests/fixtures/breeder-swarm-20261102.json.gz
 (test_me_nokey_1031_recorded.PostedKey).
 DECLARED RECONSTRUCTED: the capture's policy state holds
 ``_fixed_quest_speed_attempted`` true (the quest's Potion of Speed was already
-drunk); the swarm boards start with the floor latched (their recorded
+drunk; the restarted process drank it at turn 2200918, the board its policy
+is primed on); the swarm boards and the stopped process's restart boards start with the floor latched (their recorded
 ``search`` / ``breakout:*`` answers are the latch's; the latch itself is not
 in the diagnostic policy state).
 """
@@ -27,10 +33,13 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import copy
 import gzip
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from hengbot.model import parse_snapshot
+from hengbot.policy import ConservativePolicy
 from tests import test_me_nokey_1031_recorded as nokey
 from tests import test_me_staff_loops_1031_recorded as loops
 
@@ -88,6 +97,56 @@ class BitingSwarmRecordedTest(PostedSwarmKey):
         rows = self.drive(policy, boards)
         for raw, key, reason in rows:
             self.assertEqual(reason, "melee", (raw["turn"], key))
+        self.assertEqual(policy._breeder_breakthrough_floor, QUEST_FLOOR)
+
+
+STOP_TURN, RESTART_SKILL_TURN = 2200908, 2200918
+
+
+class RestartKeepsTheLatchRecordedTest(PostedSwarmKey):
+    """(b) the restarted process keeps the floor in state 2."""
+
+    def setUp(self):
+        super().setUp()
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.record = Path(directory.name) / "breeder-floor.json"
+
+    def test_recorded_restart_fired_bolts(self):
+        rows = recorded()
+        after = [raw["turn"] for raw in CASE["restart"] if raw["turn"] > RESTART_SKILL_TURN]
+        self.assertEqual({rows[turn][0] for turn in after}, {"ranged:fire"})
+        # The stopped process: latched (state 2) breakouts.
+        self.assertEqual({rows[raw["turn"]][0] for raw in CASE["restart"]
+                          if raw["turn"] < STOP_TURN},
+                         {"breakout:least-visited", "no-wait:melee"})
+        # The restarted one drank the quest's Potion of Speed, then fired.
+        self.assertEqual(rows[RESTART_SKILL_TURN], ("quest:quaff-speed", "qa"))
+
+    def test_restart_on_the_latched_floor_stays_in_state_2(self):
+        stopped = [raw for raw in CASE["restart"] if raw["turn"] < STOP_TURN]
+        restarted = [raw for raw in CASE["restart"] if raw["turn"] >= RESTART_SKILL_TURN]
+        previous = new_policy(stopped)
+        previous._breeder_floor_record_path = self.record
+        previous._breeder_breakthrough_floor = QUEST_FLOOR
+        for raw in stopped:
+            previous.confirm_key_posted(loops.decide(previous, raw))
+        self.assertTrue(self.record.exists())
+        record = self.record
+
+        class Restarted(ConservativePolicy):
+            # The CLI points the path beside the decision log before the
+            # process's first board.
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._breeder_floor_record_path = record
+
+        with mock.patch.object(loops, "ConservativePolicy", Restarted):
+            policy = new_policy(restarted)
+        self.assertEqual(policy._breeder_breakthrough_floor, QUEST_FLOOR)
+        rows = self.drive(policy, restarted[1:])
+        for raw, key, reason in rows:
+            self.assertFalse(reason.startswith("ranged:"), (raw["turn"], key, reason))
         self.assertEqual(policy._breeder_breakthrough_floor, QUEST_FLOOR)
 
 

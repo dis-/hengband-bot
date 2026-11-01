@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait
+from hengbot import blind_strike, breeder_floor_record, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait
 import json
 
 from hengbot.claim_goal_typing import (
@@ -1100,6 +1100,8 @@ class ObservationMixin:
         # The same for this town visit's purchases (visit-purchase retention).
         self._carry_town_visit_purchases_across_restart(
             snapshot, previous_floor is None)
+        # The same for this floor's breeder breakthrough latch.
+        breeder_floor_record.carry(self, snapshot, previous_floor is None)
         # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
         # an attack the player's own teleport already left behind is no reason
         # for a retreat after the landing; only a new unseen hit observed from

@@ -2091,6 +2091,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             release_sites=("_release_choke_plan",),
         )
         self._breeder_breakthrough_floor: tuple[int, int, int] | None = None
+        # The latch's restart record (breeder_floor_record); the CLI points
+        # the path beside the decision log.
+        self._breeder_floor_record_path = None
+        self._breeder_floor_record = None
         self._breeder_breakthrough_frontier_floor: tuple[int, int, int] | None = None
         self._breeder_breakthrough_frontier_goal: Position | None = None
         self._breeder_breakthrough_frontier_origin: Position | None = None

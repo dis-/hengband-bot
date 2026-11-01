@@ -186,6 +186,9 @@ def normalize_policy_state(restored, *, restart=False):
     # A scavenge run's 10,000-turn clock begins on its first Yeek Cave 1F
     # board; old checkpoints have not recorded that boundary yet.
     restored.__dict__.setdefault("_scavenge_run_start_turn", None)
+    # The breeder latch's restart record (breeder_floor_record).
+    restored.__dict__.setdefault("_breeder_floor_record_path", None)
+    restored.__dict__.setdefault("_breeder_floor_record", None)
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         current_ledger.__dict__.setdefault(
