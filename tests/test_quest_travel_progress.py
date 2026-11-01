@@ -28,6 +28,7 @@ from hengbot.policy_types import DecisionCandidate
 from hengbot.quest_knowledge import load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.town_maps import parse_town_map
+from hengbot.town_travel import is_travel_macro
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,6 +148,12 @@ class QuestTravelProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
                 self.assertIsInstance(key, DecisionCandidate)
                 declaration = key.route_declaration
                 self.assertIsNotNone(declaration)
+                # Owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」:
+                # the declared route is ridden by the game's travel command to
+                # the inn's side (the recorded walk stepped one cell each).
+                self.assertTrue(is_travel_macro(str(key)), key)
+                self.assertEqual(declaration.composed_key, str(key))
+                self.assertEqual(policy._town_travel_state.goal.distance_to(declaration.goal), 1)
                 if snapshot.turn not in seen_turns:
                     observed.append((snapshot.turn, declaration.bfs_rank))
                     seen_turns.add(snapshot.turn)
@@ -180,10 +187,14 @@ class QuestTravelProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
         self.assertFalse(
             policy._valid_q22_travel_declaration(snapshot, collision, collision.reason)
         )
-        self.assertEqual(
-            len(policy._town_arbiter_progress_vector(snapshot, collision.reason, collision)),
-            8,
-        )
+        # Without the declaration's authority the vector holds the durable
+        # parts and the travel's declared walk to the inn's side (the
+        # generic declared-walk measure, D49), never the declaration's part.
+        vector = policy._town_arbiter_progress_vector(snapshot, collision.reason, collision)
+        goal = policy._town_travel_state.goal
+        self.assertEqual(len(vector), 9)
+        self.assertEqual(vector[-1][:4], ("locomotion", "quest-request", snapshot.floor_key, goal))
+        self.assertFalse(any(isinstance(part, tuple) and "travel" in part[:6] for part in vector))
 
     @staticmethod
     def _without_inn_metadata(raw):
