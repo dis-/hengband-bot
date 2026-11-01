@@ -75,11 +75,22 @@ def _hand_weapon(snapshot, slot):
         item.is_melee_weapon or (slot == "main_hand" and item.is_digging_tool))), None)
 
 
+def melee_refused(policy, snapshot) -> bool:
+    """The game refuses this board's melee blow: fear or a NO_MELEE dungeon.
+
+    Fear refuses melee only (cmd-attack.cpp:228) and so does a NO_MELEE
+    dungeon (cmd-attack.cpp:202 「なぜか攻撃することができない。」); the
+    absorbed powers check confusion (cmd-magiceat.cpp:492), wands randomize
+    under confusion (zapwand-execution.cpp:69) and throws check neither."""
+    return (snapshot.player.afraid
+            or not policy._can_fight_in_dungeon(snapshot.floor_key[0]))
+
+
 def melee(policy, snapshot, target) -> float:
     """Melee's expected damage per player action against ``target``, else 0."""
     player = snapshot.player
-    if player.afraid or harms_on_touch(policy, target):
-        return 0.0  # fear refuses melee (cmd-attack.cpp:228)
+    if melee_refused(policy, snapshot) or harms_on_touch(policy, target):
+        return 0.0  # fear or NO_MELEE refuses melee (cmd-attack.cpp:228, :202)
     ac = _armour(policy, target)
     damage = 0.0
     main = _hand_weapon(snapshot, "main_hand")

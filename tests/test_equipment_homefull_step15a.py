@@ -726,14 +726,24 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         self.assertIsNone(policy._equipment_transaction_session)
 
         # DECLARED CONSTRUCTED outside-Home board: the closure blocks optimizer
-        # replanning for this epoch, and a new town epoch releases the latch.
+        # replanning for this epoch (the visit's failed optional change, #47
+        # D59 follow-up), and a new town epoch releases the latch.
         outside = replace(home, store=None)
         policy.observe_town_visit_epoch(True, outside.turn)
-        self.assertIsNone(policy._prepare_equipment_optimization(outside))
+        self.assert_closed_visit_failure(policy._prepare_equipment_optimization(outside))
         self.assertIsNone(policy._equipment_transaction_session)
         policy.observe_town_visit_epoch(False, outside.turn + 1)
         policy.observe_town_visit_epoch(True, outside.turn + 2)
         self.assertIsNone(policy._equipment_transaction_visit_closure)
+
+    def assert_closed_visit_failure(self, preparation):
+        """The closed visit reads as the failed optional change, with no plan.
+
+        USER DECISION 2026-10-03 「失敗した任意の装備の変更は今の確定した装備で
+        出発」 (#47 D59 follow-up): the ordinary departure reads this verdict."""
+        self.assertIsNotNone(preparation)
+        self.assertIsNone(preparation.transaction)
+        self.assertEqual(preparation.blockers, ('equipment-transaction-failed',))
 
     def test_eqtxn_missing_deposit_is_visit_bounded(self):
         # DECLARED CONSTRUCTED missing target on the captured Home board.
@@ -758,7 +768,7 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         self.assertEqual(policy._equipment_transaction_visit_closure['reason'], 'deposit-missing')
         self.assertIsNone(policy._equipment_transaction_session)
         # DECLARED CONSTRUCTED same town board: no replacement plan this visit.
-        self.assertIsNone(policy._prepare_equipment_optimization(board))
+        self.assert_closed_visit_failure(policy._prepare_equipment_optimization(board))
         self.assertIsNone(policy._equipment_transaction_session)
 
 

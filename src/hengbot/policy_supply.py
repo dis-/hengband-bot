@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import goal_route, lamp_fuel, me_capability, wilderness_exit
+from hengbot import goal_route, lamp_fuel, me_capability, unseen_strike, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -1969,6 +1969,11 @@ class SupplyMixin:
             for monster in hostiles
         ):
             return None
+        # A melee blow is struck back; spell and missile evidence is walked
+        # out of (owner 2026-11-01, unseen_strike).
+        if (strike := unseen_strike.key(
+                self, snapshot, hostiles, unseen_strike.RETREAT_REASON)) is not None:
+            return strike
 
         if not active:
             self._unseen_retreat_floor = snapshot.floor_key

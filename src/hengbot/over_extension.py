@@ -16,8 +16,12 @@ the over-extension alternate count as they do for the main target.  While
 Angband's recall is unlocked the main target is Angband and the alternate's
 dives (the Labyrinth of n1-c life-084/085) were judged on the guardian
 bounce alone, so repeated emergency escapes there never moved the character
-shallower.  A conquest target's dives keep that guardian-bounce-only
-judgement (no owner rule covers them).
+shallower.
+
+Owner 2026-11-01 (#47, answer 5 「緊急の逃げも数える」): a conquest target's
+dives after Angband is unlocked count their emergency escapes too, so every
+judged dive does.  The esp-threat return (``esp-threat:leave-recall``) is no
+emergency escape (EMERGENCY_ESCAPE_REASONS) and stays uncounted (answer 6).
 """
 
 from __future__ import annotations
@@ -25,12 +29,12 @@ from __future__ import annotations
 from hengbot.policy_constants import OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX
 
 
-def judge_dive(policy, *, guardian_bounce: bool, count_emergencies: bool) -> None:
+def judge_dive(policy, *, guardian_bounce: bool) -> None:
     """Advance, clear or hold ``_target_empty_dives`` for the dive that just ended."""
     if policy._dive_loot > OVEREXTEND_LOOT_MAX:
         policy._target_empty_dives = 0
         policy._guardian_bounce_dives = 0
-    elif count_emergencies and policy._dive_emergencies >= OVEREXTEND_EMERGENCY_MIN:
+    elif policy._dive_emergencies >= OVEREXTEND_EMERGENCY_MIN:
         policy._target_empty_dives += 1
     elif guardian_bounce:
         # Uncounted, a guardian we cannot yet beat flip-flops town<->guardian

@@ -10528,8 +10528,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._direction_key(
                 player.position, self._weakest(adjacent).position
             )
-        if (ranged := me_ranged_first.afraid_key(self, snapshot, adjacent)) is not None:
-            return ranged  # fear refuses melee only
+        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
+            return ranged  # fear and NO_MELEE refuse melee only
         if low:
             answer = (blind_strike.emergency_key(self, snapshot)
                       or self._low_hp_no_kit_hit_key(snapshot, hostiles))
@@ -11387,6 +11387,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return blocker
             if (stand := town_last_stand.key(self, snapshot, strategic_hostiles, "flee:cornered-attack")) is not None:
                 return stand
+            if (ranged := me_ranged_first.outpaced_afraid_key(self, snapshot, strategic_adjacent)) is not None:
+                return ranged  # a faster attacker follows every step away
             step = self._town_producer_entry("_flee_step#2", lambda: self._flee_step(snapshot, strategic_hostiles))
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below
@@ -11414,8 +11416,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return self._town_producer_entry("_direction_key#1", lambda: self._direction_key(
                     player.position, self._weakest(strategic_adjacent).position
                 ))
-            if (ranged := me_ranged_first.afraid_key(self, snapshot, strategic_adjacent)) is not None:
-                return ranged  # fear refuses melee only
+            if (ranged := me_ranged_first.melee_refused_key(self, snapshot, strategic_adjacent)) is not None:
+                return ranged  # fear and NO_MELEE refuse melee only
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
@@ -11516,6 +11518,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return self._town_producer_entry("_direction_key#2", lambda: self._direction_key(
                 player.position, self._weakest(combat_adjacent).position
             ))
+        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, combat_adjacent)) is not None:
+            return ranged  # NO_MELEE refuses melee only (fear flees above)
 
         # 2r. Ranged attack: fire matching ammo (or throw a spare oil flask) at a
         # ray-aligned hostile before it closes. Fear blocks melee but NOT firing,
