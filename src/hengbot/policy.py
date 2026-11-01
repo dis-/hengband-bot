@@ -774,7 +774,7 @@ WARNING_PROMPT_MESSAGE_PREFIXES = (
 
 # Word of Recall asks this only when the current floor is shallower than the
 # dungeon's saved recall destination. Refusing preserves the deepest floor;
-# the executor owns this question only for the return:recall operation.
+# the executor answers it for every operation (only recall_player asks it).
 RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES = (
     "ここは最深到達階より浅い階です。この階に戻って来ますか？",
     "Reset recall depth?",
