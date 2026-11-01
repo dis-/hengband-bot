@@ -31,6 +31,11 @@ from hengbot.monrace_knowledge import _strip_jsonc
 # ring toward the town border. (Over-blocking at worst makes a tile unreachable;
 # it never routes the bot somewhere unsafe.)
 _WALKABLE_CHARS = frozenset(".,<>")
+# The same rule by terrain: the JSONC legend (TownPreferences.jsonc) draws
+# grass as '-' (GRASS) and dirt as ',' (DIRT); TerrainDefinitions.jsonc gives
+# both, like FLOOR, the MOVE and FLOOR flags.  Trees (MOVE without FLOOR,
+# movement-execution.cpp doubles the turn) stay blocked as above.
+_WALKABLE_TERRAINS = frozenset({"FLOOR", "GRASS", "DIRT"})
 # Store terrains map to the bot's store_type (General Store -> STORE_GENERAL 0,
 # Home -> STORE_HOME 7), matching the store-sale-type enum order.
 _STORE_TERRAINS = {
@@ -213,7 +218,8 @@ def parse_town_map(
             pos = Position(y, x)
             definition = definitions.get(symbol, {})
             terrain = str(definition.get("terrain", ""))
-            if symbol in _WALKABLE_CHARS or symbol in floor_symbols:
+            if (symbol in _WALKABLE_CHARS or symbol in floor_symbols
+                    or terrain in _WALKABLE_TERRAINS):
                 walkable.add(pos)
             if terrain in _STORE_TERRAINS:
                 stores[_STORE_TERRAINS[terrain]] = pos
