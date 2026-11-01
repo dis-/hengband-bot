@@ -1,0 +1,58 @@
+LUNA-DIAG me-detection-rod-1101 (#47, 2026-11-01)
+所有者の指示: 「全感知のロッドの使い方について　邪悪感知を使うタイミングで全感知が使用可能なら代わりに使用する。安全なら強力発動で使う。」
+調べた時点: main fc3b96a20。
+
+1. 邪悪感知を決める場所（main）
+ - 表の行: src/hengbot/me_powers.py:165-166 POWERS の staff SV_STAFF_DETECT_EVIL、effect "detect-evil"、
+   きっかけ ("new-floor", "before-rest")、優先度 10。
+ - きっかけ: _new_floor（その階で使っていない）と _before_rest（同じマスで使っていない）、TRIGGERS の表。
+   場面は new-floor が FLOOR、before-rest が REST。
+ - 呼ぶ所: policy.py:11608（FLOOR、生存の段の後の床の段）と policy.py:12245（REST、休む段の直前）。
+   どちらも me_powers.power_key(policy, snapshot, 場面) の1行の問い合わせ。
+ - 共通の決まり: _gate（main の me_powers.py:444、職業16・protocol 3・町と荒野でない・盲目などでない）、
+   _hostiles_allow（466、見える敵がいない・殴られた直後でない。beside_harmless の行は脅威でない敵なら可）、
+   _usable（499、requires・同じ場所で FAILURES_PER_PLACE=5 回まで・回数 > 0）、_serving（自分の行、回数0なら fallback）。
+ - 記録: power_key が FloorMemory.pending に Use(served, used, trigger, position, turn, reason, key) を置き、
+   observe が次の盤面で completed_operation_owner == reason なら使った（時間が進んだ）・失敗（refusal failed:）・
+   取り消し（同じターン）を分ける。uses_of(row) は served か used がその行の Use。
+
+2. 取り込んだロッドの回数・充填の読み方
+ - me_capability.charges(policy, snapshot, "rod", sval)（me_capability.py:149）: 表示された一覧の行
+   （me_device_attacks.observe_lists が覚える _me_device_lists["rod"]）があれば max - charging、無ければ
+   取り込みの記録（MeStaffSequence.absorbed の "rod:6"）。ロッドの取り込みは記録に入らないので、実際は
+   一覧の表示が根拠になる。充填中の古い一覧で使おうとしても、実行器が一覧の「充填:1/1」を見て ESC し
+   （me_device_attacks_input._row の usable = first < second）、時間は進まず、その時の一覧が盤面に残るので、
+   次の判断では回数0になる。
+
+3. 強力発動の送り方と問いの答え方
+ - me_powerful_activation.Effect.key: "U" + KIND_LETTER[kind] + encode_letter(sval)（町の鑑定・解呪だけ、杖だけ）。
+ - 実行器: observed_input.py:119-120 が compile_powerful(key, owner) を呼ぶ（その前に 114-115 の compile_device が
+   me-power: の理由なら m の鍵を要求して例外を出す）。me_powerful_activation_input.compile_powerful は
+   "U" + "A" だけを受け、PowerfulStep(sval) を作る。advance_powerful → _answer の段:
+   racial（「どの能力を使いますか？」の一覧から 強力発動 の行の文字）→ kind（[A]/[B]/[C] の問い、
+   または use_menu の種類の一覧。杖の行 0 に固定）→ power（一覧の行。空・充填中は ESC）→
+   target（*鑑定* の品）→ done。
+ - HP: cmd-action/cmd-racial.cpp:435-449 racial_power_reduce_mana は cost/2 + 1d(cost/2)（cost 以下）を
+   HP から引く。action/racial-execution.cpp:146 は HP < cost のとき「本当に今の衰弱した状態で…」を聞く。
+   cost(level) = 10 + (lvl-10)/2、最低レベル 10（me_powerful_activation.MIN_LEVEL）。
+   do_cmd_magic_eater が false を返す（一覧で ESC、ロッドの use_charge が無い）と racial は取り消しで HP を払わない
+   （cmd-racial.cpp:493-503）。
+ - ゲーム: rod_effect（cmd-item/cmd-zaprod.cpp:47-110）の SV_ROD_DETECTION は detect_all(detect_rad)、
+   強力発動なら detect_rad = DETECT_RAD_DEFAULT * 3 / 2 = 45。detect_all（spell-kind/spells-detection.cpp:622-647）は
+   罠・ドア・階段・金・物・透明な敵・普通の敵。do_cmd_magic_eater（cmd-item/cmd-magiceat.cpp:488-600）は強力発動でも
+   同じ1回分を使う。
+
+4. ダンジョンの段の HP の閾値（「安全」の材料）
+ - policy._low_hp_walk_threshold(max_hp) = max(max_hp * 0.5, max_hp - 300)（policy.py:10326、LOW_HP_WALK_RATIO・
+   LOW_HP_WALK_MARGIN）: 低 HP の歩きの門（policy.py:10335）、survival_preemption.py:102、status_cure.py:61、
+   policy_combat.py の各所。
+ - EMERGENCY_RETURN_HP_RATIO 0.50（policy.py:1127、<= で緊急帰還）、HEAL_HP_RATIO・FLEE_HP_RATIO 0.40、
+   PANIC_HP_RATIO 0.20。どれも上の閾値（>= 50%）より低いので、HP が上の閾値を「超えて」いれば全部の外。
+ - 生存以外の HP の段: REST_TARGET_HP_RATIO 0.90（休む）、DESCEND_MIN_HP_RATIO 0.85（降りる前に休む）。
+   これは危険の段ではないので「安全」の材料にしない（報告の問いに書く）。
+
+5. 記録された盤面
+ - C:\hengband-backups\pdca\captures\viewing-incidents-20261101\n1-c\life-073\incident-captures\
+   20261101-004025-stuck-prompt: レベル 11、HP 143、全感知のロッドを持ち物 p に持つ（未取り込み）。
+   決定 15253（turn 788206、鉄獄7階に着いた所）me-power:new-floor:detect-evil mAp、
+   決定 14980（turn 785562、鉄獄8階、HP 122/143）me-power:before-rest:detect-evil mAp。

@@ -24,6 +24,7 @@ from hengbot.magic_eater_input import (
 )
 from hengbot.me_device_attacks import DEVICE_REASON, POWERS
 from hengbot import me_absorbed_substitutes, me_powers
+from hengbot.me_powerful_activation import RACIAL_KEY
 
 
 CHARGING = ("その魔法はまだ充填している最中だ。", "The magic is still charging.")
@@ -60,7 +61,8 @@ def _power(kind, sval):
 
 def compile_device(key, owner):
     table = _table(owner)
-    if table is None:
+    if table is None or key.startswith(RACIAL_KEY):
+        # A utility power cast by Powerful Activation (me_powerful_activation_input).
         return None
     match = _KEY.fullmatch(key)
     if match is None:

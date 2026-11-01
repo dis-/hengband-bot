@@ -1,0 +1,114 @@
+q31-huorn-first-1102 報告（クエスト31『柳じじい』で、テレポート・アウェイがあれば初手でフオルンをどかす）
+
+■ 持ち主の指示
+「テレポートアウェイがあるなら初手でフォルンをどかす。その後の行動は作戦通り。」
+
+■ 何が起きていたか
+- n1-c life-099（魔道具術師 Lv23）は、入口の保持位置 [18,1] から [16,3] のフオルン（種族 329）を
+  射撃していた。決定 1381（ターン 691383）で「フオルンがあなたを引き戻した。」となり、
+  [17,2] のサスカッチ2体の隣へ引き出された。これが死亡までの流れの始まりだった
+  （証拠: C:\hengband-backups\pdca\captures\n1c-death-1102-0148\last-table.txt、
+  tests/fixtures/death-n1c-099-1102.json.gz）。
+- 入った時の盤面（ターン 691290、決定 1365）では、見える敵は0体（フオルンはまだ暗くて見えない）。
+  記録では quest-strategy:hold（'5'）だった。
+
+■ ゲームの仕組み（C++ の根拠）
+- TELE_TO（引き戻す）: mspell/mspell-floor.cpp:173-190 spell_RF6_TELE_TO が
+  teleport_player_to でプレイヤーを唱えた敵の隣へ移す。
+- 唱えられる範囲: mspell/mspell-attack.cpp:319（距離が get_max_range() を超えると唱えない）、
+  get_max_range() は 18（system/angband-system.cpp:45-48）。さらにプレイヤーへの射線が要る
+  （mspell/mspell-lite.cpp:209-215 decide_lite_projection の projectable）。
+  [16,3] のフオルンは保持位置から距離2で、[17,2] が床なので射線が通る。
+- テレポート・アウェイは狙った方向へのビーム（spell-kind/spells-teleport.cpp:91-95
+  teleport_monster → project_hook、PROJECT_BEAM の AWAY_ALL）。射線（projection）は要るが、
+  的が見えている必要はない（方向キーで撃つ）。木（TREE）は PROJECTION を持たないので
+  ビームを止める（lib/edit/TerrainDefinitions.jsonc の TREE の flags）。[18,1]→[17,2]→[16,3] は床。
+- 動かない敵にも効く: teleport_away（spells-teleport.cpp:109-170）と
+  cave_monster_teleportable_bold（grid/grid.cpp:897-926）は行き先のマスだけを見て、
+  NEVER_MOVE を見ない。耐えるのは RES_TELE だけ（effect/effect-monster-evil.cpp:7-30）。
+  フオルン（329）・柳じじい（206）は RES_TELE を持たない（lib/edit/MonraceDefinitions.jsonc）。
+  なおフオルンは BLINK も持つ。
+
+■ 直し（コミット 4b2d4dbcb、マニフェスト ca90dfda9）
+- 作戦のデータ: strategy/quests/QUEST_31.jsonc の engagement_plan に
+  "opening_teleport_away": [{"race_id":329,"target":[16,3],"stand":[18,1]}] を足した
+  （持ち主の指示を opening_teleport_away_note に書いた）。射撃点の一覧と同じ、
+  lib/edit/quests/031_OldManWillow.jsonc の固定の地図の配置。
+- 新しいモジュール src/hengbot/quest_opening_away.py: 作戦が名前を挙げた的のうち、
+  今いるマスがその stand で、プレイヤーが「見えて空いている」と確かめていない的に、
+  me_powers の QUEST_OPENING の場面を聞く。
+- me_powers.py: テレポート・アウェイの2行（ロッド13 → 魔法棒3）に引き金
+  quest-opening-target を足した（同じ階で同じ的に1回。失敗した時は今の決まりどおり
+  同じ場所で5回まで）。罠解除と同じ「1つの的に1回」の判定を _aimed_once にまとめた。
+- policy_quest._quest_execute_key: 取り込み（absorb_key）の直後、作戦の他の処理より先に
+  quest_opening_away.key を聞く。テレポート・アウェイが無ければ None で、作戦は今のまま。
+  緊急処理などの生存の段は、今までどおりこれより先に動く。
+- 新しい閾値は作っていない。クエスト番号を共通の判定に書いていない（的は作戦のデータ）。
+
+■ 戦士などの品の道（魔法棒・ロッドを持ち物から使う道）
+- 調べた結果、今のボットには、持ち物の魔法棒を狙って使う（'a'）道も、狙うロッドを
+  振る道も無い。input_executor の品の問い（source_prompts）に「どの魔法棒で狙いますか?」が無く、
+  SV_WAND_TELEPORT_AWAY は買う・残す判定にしか使われていない。
+  そのため今回は魔道具術師の取り込んだ力の道だけを作った。持ち主への問い1を参照。
+
+■ 退避の後、入口へ戻る間に戦いをおろそかにしたか（retake-hold の確認）
+- 結論: おろそかにしていない（否定）。直していない。
+- quest-strategy:retake-hold は Q31 の階で11回（ターン 691401〜691445 の8回、691494、
+  691557、691578）。盤面（フィクスチャー）で確かめると、11回とも見える敵0体・感知した敵0体で、
+  その手の前のメッセージに被弾が無い（「まだ 14巻の テレポートの巻物を持っている。」など）。
+- 敵が見えた最初の盤面では、すぐに戦いに替わった: 691451（ヴォーパル・バニーが隣、
+  quest-strategy:melee '1'）、691584（サーベル・タイガーが隣、melee '1'）。691499 は
+  距離20のフオルンが見えて item:heal。見える敵・感知した敵の横や中を歩いて通ったことは無い。
+- 戻る間の HP: 186〜190/310（60〜61%）、170/310（55%、691494）、242〜244/310（78%）。
+  中止の閾値（25%）よりずっと上。691494 の次の手（691499）で体力回復の薬を飲んでいる。
+  ただし、戻る先の入口のまわりには、退避の前にいた機動敵の群れがいる（見えてはいない）。
+  HP 55〜61% のまま戻ってその群れに当たったのは今の作戦どおりの動き（問い2）。
+
+■ テスト
+- 新しいテスト: tests/test_q31_huorn_first_1102_recorded.py
+  Q31HuornFirstRecordedTest.test_the_entry_board_teleports_the_huorn_away_through_the_executor
+  入った時の盤面（691290、記録は hold '5'）を公開の choose_key に通し、
+  ("mCn9", "me-power:quest-opening-target:teleport-away") を選ぶ。そのキーを本番の executor で送り、
+  種類の問い → ロッドの一覧 → 方向の問いに m, C, n, 9 と答える。
+  魔法棒・ロッドの一覧は test_n1c_death_1102_recorded.LISTS（死亡時のダンプから作ったもの）。
+- 確認: import の確認 OK、追加テスト 1件 OK。触った共通の部品の確認として
+  test_n1c_death_1102_recorded（2件）も OK（入口の盤面の次からの期待値は変わらない）。
+- 元に戻した確認（1回）: policy_quest.py の変更を外すと
+  「Tuples differ: ('5', 'quest-strategy:hold') != ('mCn9', 'me-power:quest-opening-target:teleport-away')」
+  で失敗（記録と同じ）、戻すと OK。
+- town_work_manifest.py --write: main を取り込んだ後 zero unmapped。
+  scripts/town_work_review.json に quest_opening_away.py:key を足し、power_key の説明の
+  引き金の一覧に quest-opening-target を足した。
+
+■ checks.json に足す項目の案
+{
+  "id": "Q31-HUORN-FIRST-1102",
+  "owner": "2026-11-02 「テレポートアウェイがあるなら初手でフォルンをどかす。その後の行動は作戦通り。」 Q31 の入口でフオルン [16,3] にテレポート・アウェイを先に向ける",
+  "tests": [
+    "tests.test_q31_huorn_first_1102_recorded"
+  ]
+}
+
+■ 保守性
+- 新しい処理は quest_opening_away.py（作戦のデータを読むだけの小さなモジュール）と、
+  me_powers の表の1行（引き金）にまとめた。キーの組み立て・充填の数・失敗の回数・
+  executor の答え方は me_powers と me_device_attacks_input の今の仕組みをそのまま使う。
+- 罠解除と新しい引き金で同じだった「同じ階で同じ的に1回」を _aimed_once にまとめた。
+- 的はクエストの作戦のデータにあり、共通の判定にクエスト番号・種族番号を書いていない。
+
+■ ほかの家族のこと
+- なし。
+
+■ 持ち主への問い（今回は直していない）
+1. 戦士など魔道具術師でないキャラは、持ち物の魔法棒・ロッドを狙って使う道がまだ無い。
+   テレポート・アウェイの魔法棒・ロッドを持っていても、今回の初手は使わない。
+   品の道（'a' / 'z' と方向の問いへの答え）を作るか。
+2. 退避した後、HP 55〜61% のまま入口へ歩いて戻り、入口のまわりの群れに当たっている
+   （691451 で接触、691456 で回復薬）。歩いて戻る前に回復する・休む決まりは今は無い。
+   今のままでよいか。
+3. どかしたフオルンの行き先は無作為（少なくとも距離50を目指すが、地図が狭いので近くに
+   落ちることがある）。別の場所から引き戻すこともあり得る。その後は作戦どおり（射撃点 [16,3] は
+   空になり、配置の掃討で探す）でよいか。
+4. 入口の盤面ではフオルンはまだ見えない。作戦のデータ（固定の地図）にある位置へ方向で撃つ。
+   見えて空いていると確かめたマスには撃たない。固定の地図の配置を知っている前提は
+   射撃点と同じだが、公平さの点でこれでよいか。
