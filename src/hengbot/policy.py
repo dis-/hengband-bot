@@ -16503,7 +16503,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         so this cannot mistake a mining-specific relaxed target for a town
         departure shortage.  It deliberately leaves the run counter intact;
         food and return-ticket requirements still decide whether another trip
-        can leave town.
+        can leave town.  A mining trip that passes its own gates
+        (``_mining_departure_ready``) is not reopened: the ordinary shortage
+        is what the trip's gold pays for on the next return.
         """
         if (
             not snapshot.in_town
@@ -16528,6 +16530,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             status.count < status.required_departure and not status.obtainable
             for status in ledger.values()
         ):
+            return False
+        if self._mining_departure_ready(snapshot):
+            # Owner 2026-11-01 「採掘の要求品が優先」: a mining trip whose own
+            # gates pass leaves; what only the ordinary departure needs waits
+            # for the next return instead of reopening preparation.
             return False
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
