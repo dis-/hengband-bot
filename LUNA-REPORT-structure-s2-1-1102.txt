@@ -1,0 +1,98 @@
+LUNA-REPORT structure-s2-1-1102（構造の直し 第2段B の1本目: live のキーに効く claim の3か所を town_terminal へ移す）
+
+== 持ち主の決定 ==
+- 2026-10-28 「B: 場面の終点に一本化」: town_terminal を「誰が動くか」の唯一の持ち主にし、記録だけの claim の仕組みは消す。
+- 2026-11-01 「第2段を再開する」、2026-11-02 「構造の第2段から」。今回は第2段の1本目だけ（振る舞いは変えない）。
+
+== 移したもの（どこからどこへ） ==
+(a) rung → family の表（claim_ladder の _RUNGS の family 列のうち、町の入口 _town_producer_entry が読んでいた分）
+    → town_terminal.RUNG_FAMILIES（family ごとに rung 名を並べた表）。TerminalDecl に family の欄を足し、
+      TERMINALS を作った直後にこの表で埋める。
+    → 入口は town_terminal.rung_family(rung_name, family) を聞く。claim_ladder.rung_named / rung_of はもう読まない。
+      呼び出し側が family= を渡した時は、登録された持ち主の名前（town_arbiter.owner_families）ならそのまま、
+      それ以外は unregistered（今までの rung_of(family, None) と同じ答え。全 30 family で確かめた）。
+      family= が無く表にも無い rung は今までどおり ValueError。
+(b) _claim_family_of（理由の文字列 → 持ち主の family）→ town_terminal.claim_family_of(policy, reason)。
+(c) 町の用事の hold と、crossarea の自宅の hold
+    _claim_errand_hold → town_terminal.errand_hold
+    _home_sequence_has_holder → town_terminal.home_sequence_has_holder
+    それだけが使う3つの部品 _home_catalogue_sequence_enforced / _home_catalogue_work_holder / _home_hold_board
+    → town_terminal の同名（頭の _ なし）の関数。
+- claim_ladder.S3_FAMILIES は town_terminal.TOWN_OWNER_FAMILIES を読む（集合の持ち主を town_terminal に移した）。
+- policy の6つのメソッドは1行の委譲として残した。呼び出し 70 か所とテストの patch の場所（test_declarations_r4 は
+  policy._claim_errand_hold を patch する）が変わらないため。移した関数どうしも policy のメソッド越しに呼ぶので、
+  patch の効き方も今までと同じ。
+
+== 振る舞いが変わらないことの証拠 ==
+- 記録の盤面の再生（validation/manifest-tax-1101 の replay_choose_key.py と compare_replays.py。木はどちらも
+  worktree の中に git archive で丸ごと書き出した: .replay-base = main ff4196953、.replay-branch = この枝 f2e6933c7）。
+  対象: 町に関わるテスト 284 モジュール（名前に town/home/shop/store/terminal/crossarea/depart/fundrais/errand/
+  s33/ownership/declarations を含むもの、crossarea を ON にするテスト 78 本、移した関数を名指しするテスト）。
+  結果: main 2,848 テスト・枝 2,849 テスト（足した1本は choose_key を呼ばない）、失敗 122・エラー 28 は両方同じ
+  （main で既に落ちているもの）。公開の choose_key の判断 13,746 件（1,033 テスト）・town_work の受領 45,336 件を
+  キー・last_reason・受領ごとに比べて違い 0 件。2つの出力はバイト単位で同一（sha256 02a20c36da919c8b…）。
+  validation/structure-s2-1-1102/replay-summary.json、テストの一覧は replay-test-ids.txt。
+- 移した関数を名指しするテストと町の終点のテスト（25 モジュール: test_declarations_r10/r4、test_home_scan_owner_priority、
+  test_live22_bounty、test_live23_home_cycle、test_live32_shop_leave、test_overweight_home_hold_recorded、
+  test_ownership_*（6本）、test_s33_*（3本）、test_town_terminal_*（7本、指定の declarations・routes_round6・
+  refusal_round7 を含む）、test_item_sink_lint、test_town_work_data_proof）を PYTHONPATH="src;tests" で main と枝で流した。
+  main 166 テスト・枝 167 テスト（足した1本）、どちらも failures=9 errors=7 で、落ちるテストの一覧は完全に同じ。
+  落ちるものはすべて main でも落ちる（下の「main で既に落ちているもの」）。
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok。
+- town_work: town_work_rekey.py は 0 件（本体を self→policy に書き換えたので同じ本体と見なされない）。
+  新しい3つ（town_terminal.py:claim_family_of・errand_hold・rung_family）の review を town_work_review.json に
+  今の書式のまま手で差し込み、town_work_manifest.py --write → zero unmapped。
+
+== テストの変更 ==
+- tests/test_town_terminal_declarations.py: test_2_modes は family を TERMINALS[name].family から読む。
+  test_2b_rung_families_are_the_ladder_families を足した（移した表が claim_ladder と一致すること、登録された family の
+  集合が一致すること、rung_family の3つの答えと ValueError）。claim_ladder を消す時に一緒に消すテスト。
+- TerminalDecl を作り直して mode だけ差し替えていた5本（identify_carried・refusal_commit・refusal_round7・routes_round6・
+  withdraw_release_round6）は decl._replace(mode=...) にした。作り直すと family の欄が落ちるため。意味は同じ。
+- 壁は足していない。
+
+== main で既に落ちているもの（今回の変更とは関係ない） ==
+- test_town_terminal_declarations.test_4_codes_and_table_agree: verdict_town_end が返す "depart" などの文字列が
+  宣言された拒否の名前に無い（town-defined-end-1102 の取り込みから）。町の終点を直している town-end-mining-1102 の範囲。
+- test_ownership_s2a1_closure・s2b1_ladder・s2b1b_close_pairs・s2b2_bar・s3_3_delegation_record・s3a_record:
+  共通の test_ownership_claims.py の 69 行目で AttributeError（'NoneType' object has no attribute 'state'）になり
+  読み込みで落ちる。claim の仕組みのテストで、第2段の後の段で消す予定のもの。
+- test_live23_home_cycle.test_digger_withdrawal_is_for_mining_departure_only、
+  test_declarations_r4.test_unresolved_direction_releases_route、test_item_sink_lint の3件、
+  test_s33_batch_context.test_outside_takeoff_runs_through_choose_key の2件、
+  test_overweight_home_hold_recorded の2件（exhausted_home_bound…、unposted_home_deposit_routes_home_again）。
+  注意: 自宅の hold を記録の盤面で固定しているテスト（overweight_home_hold_recorded）と claim のテスト6本は
+  main で既に赤なので、今回の中立の根拠は再生の比較（違い 0）による。3本目（状態を移す）の前にこれらを直すか
+  消すかを決める必要がある。
+
+== コミット ==
+- f2e6933c7 Move the live claim ownership parts into town_terminal
+- 43ece7286 Merge branch 'main' into structure-s2-1-1102（main e8f860713、衝突なし。取り込み後に import・manifest
+  （0 violation）・指定の3本の終点のテストを流し直した。test_4 は取り込み後の main でも同じく落ちる）
+- （この報告と再生の要約のコミット）
+
+== 保守性 ==
+- 「誰が動くか」の live の判断のうち claim の仕組みに残っていた3つが town_terminal の1つの節
+  （「Town ownership (structure stage 2 B, step 1)」、TERMINALS のすぐ後）にまとまった。rung の宣言（終点・mode）と
+  family が同じ TerminalDecl に載るので、rung を足す時に見る表が1つになった。
+- 行数: policy.py −149/+26（6つのメソッドの本体を消し委譲に）、claim_ladder.py −14/+3、town_terminal.py +253
+  （表 約45行・集合 約25行・移した関数 約170行）、テスト +25/−16、review/manifest +54。src 全体では +130 前後で、
+  増えた分は表を family ごとの一覧にしたことと docstring による。
+- 入口は claim_ladder を読まなくなった（policy の claim_rung_named の import を消した）。
+- 残り（第2段の2〜4本目）:
+  2本目: enforced（--enforce-town-claims）でだけ通る分岐 約45か所を消す。flag は live で OFF なので中立。
+  3本目: 影・記録・委譲（delegation）の仕組みを消す。その前に、errand_hold と claim_family_of がまだ読んでいる
+      policy._claim_register（current / suspended）の状態を town_terminal 側の状態に置き換える必要がある。
+      ここが一番危ない（crossarea ON の自宅の窓の記録で再生して確かめる）。
+  4本目: claim_register・claim_goal_typing・emit_ownership・ownership_metrics・claim_ladder のモジュールと、
+      その時点の claim のテスト（約45ファイル）と flag を消す。今回足した test_2b もここで消す。
+  あわせて: policy の6つの委譲メソッドは、呼び出し側を town_terminal へ直接向けた時点で消す（呼び出し 70 か所、
+  他の担当と衝突しやすいので後の1本でまとめて）。town_terminal は claim_register / claim_goal_typing から
+  Goal の種類の文字列（Reach/Observe、KNOWLEDGE、STORE_OPERATION）を import している。3本目で状態を移す時に一緒に移す。
+  claim_ladder の冒頭の「Record-only」の説明は古い（今回で町の入口からも読まれなくなったが、
+  記録用の rung_of はまだ policy が使う）。4本目で消える。
+
+== 危険と注意 ==
+- town_terminal の town_end_key を並行して直している town-end-mining-1102 との衝突を避けるため、今回の節は
+  ファイルの途中（TERMINALS の直後）に置き、review の追加も town_end の項目から離れた所に入れた。
+- 持ち主への問いはない（振る舞いを変えない切り出しのため）。
