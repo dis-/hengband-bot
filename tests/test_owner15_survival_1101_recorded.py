@@ -41,6 +41,7 @@ from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_kno
 from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE, RETURN_TRIGGER
+from tests import test_d57_nav_depth_1101_recorded as nav
 from tests import test_input_executor as executor_pins
 from tests.test_dungeon_1031_recorded import READ_PROMPT, RecordedHarness, decide
 from tests import test_hit_no_action_1101_recorded as hit
@@ -238,6 +239,55 @@ class WargProblemTeleportReserveRecordedTest(RecordedHarness):
         decide(policy, copy.deepcopy(raw))
         self.assertTrue(policy._quest_floor_exit_locked(board))
         self.assertNotEqual(policy.last_reason, "return:recall")
+
+
+class ConquestDiveOverExtensionRecordedTest(nav.RecordedDrive):
+    """Answer 5 「緊急の逃げも数える」: a conquest target's dive counts them.
+
+    n1-c life-083's recorded Labyrinth dive (tests/fixtures/
+    d57-n1c-083-1101.json.gz: emergency teleports, no pickup, Word of Recall
+    home at turn 1187204), driven as test_d57_nav_depth_1101_recorded drives
+    it.  DECLARED CONSTRUCTED: Angband's recall is unlocked on every board;
+    the Labyrinth is the conquest target (the conquest selection,
+    ``_conquest_target``, names it; no over-extension alternate); the streak
+    starts at 1 with the recorded row's last over-extended depth.
+    """
+
+    def drive(self, *, conquest):
+        boards = copy.deepcopy(nav.CASE_083["boards"])
+        for raw in boards:
+            raw["progress"]["angband_recall_unlocked"] = True
+        policy = nav.new_policy(nav.CASE_083, boards)
+        start = nav.CASE_083["decisions"][0]["over_extension"]
+        if conquest:
+            policy._conquest_target = lambda _snapshot: nav.LABYRINTH
+            policy._target_dungeon_id = nav.LABYRINTH
+            policy._target_dungeon_reason = "conquest"
+        else:
+            policy._alternate_dungeon = start["alternate_dungeon_id"]
+            policy._alternate_dungeon_reason = "over_extended_dives"
+            policy._target_dungeon_id = start["target_dungeon_id"]
+        policy._target_empty_dives = 1
+        policy._last_overextended_depth = start["last_overextended_depth"]
+        rows = self.drive_boards(nav.CASE_083, boards, policy)
+        self.assertEqual(rows[-1][0]["turn"], nav.ARRIVAL_TURN)
+        self.assertTrue(rows[-1][0]["floor"]["in_town"])
+        reasons = [reason for _raw, _key, reason in rows]
+        self.assertGreaterEqual(reasons.count("emergency:teleport"), 2, reasons)
+        self.assertNotIn("esp-threat:leave-recall", reasons)
+        return policy
+
+    def test_conquest_dive_advances_the_streak(self):
+        policy = self.drive(conquest=True)
+        self.assertEqual((policy._target_dungeon_id, policy._target_dungeon_reason),
+                         (nav.LABYRINTH, "conquest"))
+        # Unfixed: 1, the guardian-bounce-only judgement held the streak.
+        self.assertEqual(policy._target_empty_dives, 2)
+
+    def test_control_alternate_dive_advances_the_streak(self):
+        policy = self.drive(conquest=False)
+        self.assertEqual((policy._target_empty_dives, policy._alternate_dungeon),
+                         (2, nav.LABYRINTH))
 
 
 if __name__ == "__main__":

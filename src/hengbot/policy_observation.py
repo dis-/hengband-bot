@@ -524,8 +524,7 @@ class ObservationMixin:
                     self._no_depth_progress_dives = 0
                 elif can_descend_further:
                     self._no_depth_progress_dives += 1
-                over_extension.judge_dive(
-                    self, guardian_bounce=guardian_bounce, count_emergencies=True)
+                over_extension.judge_dive(self, guardian_bounce=guardian_bounce)
             elif self._dive_dungeon == pursued_target and normal_dive:
                 # A dive of an alternate or conquest target while Angband's
                 # recall is unlocked: the judgement above reads the Angband
@@ -533,10 +532,9 @@ class ObservationMixin:
                 # these dives (live 2026-09-25: seven Orc-cave bounces, streak
                 # held at 0).  The depth-progress judgement keeps judging
                 # exactly the dives it judged before; the streak counts the
-                # alternate's emergencies too (owner 2026-11-01, D57).
-                over_extension.judge_dive(
-                    self, guardian_bounce=guardian_bounce,
-                    count_emergencies=self._dive_dungeon == self._alternate_dungeon)
+                # alternate's and the conquest target's emergencies too
+                # (owner 2026-11-01, D57 and answer 5).
+                over_extension.judge_dive(self, guardian_bounce=guardian_bounce)
             self._dive_dungeon = None
             self._dive_start_recall_depth = None
         conquered_now = set(snapshot.conquered_dungeon_ids)
