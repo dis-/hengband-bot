@@ -125,3 +125,19 @@ Q14 の盤面と判断の行を C:\hengband-backups\pdca\captures\owner15-surviv
 - 職業・品・町の名前の特別扱いを共有の判断のコードに足していない。テストは既存の枠（D57 の PostedDeathKey、
   RecordedHarness、D59 の Depart2RecordedBase、D57 の RecordedDrive）を使い、新しい枠は作っていない。
   関係のない整理はしていない。テストの壁は無い。
+
+== 追記: main 64e63b6cf の取り込み（f961cfcc5） ==
+- 衝突の解き方: me_ranged_first は main の隣の敵の選び方（_strongest_adjacent_key、attack_expectation）の上に
+  melee_refused_key と outpaced_afraid_key を残した。「近接が断られる」の述語 melee_refused は attack_expectation に
+  移し（me_ranged_first は attack_expectation を読む。逆向きの import にならないように）、attack_expectation.melee は
+  怖がっている時に加えて NO_MELEE の階でも近接の見込みを0にする（隣の敵の選び方が断られる近接を選ばない）。
+  policy_supply は main の me_capability とこのブランチの unseen_strike を両方 import する。
+  scripts/town_work_review.json は base・こちら・main の3つを項目ごとに合わせた（こちらの変更4つと afraid_key の
+  削除を main の版に当てた。両方が同じ項目を変えた所は無い）。town_work_sites.json は main の版から
+  town_work_manifest.py --write で作り直した（zero unmapped、1091 candidates）。名前の変更で古くなった review は無い。
+- 取り込み後の revert-proof（直しの部分を手で戻して流し、git checkout で戻した）: 1 の2か所・3（全部と戦いの段の1行）・
+  2・4・5・6 とも、取り込み前と同じテストが同じ答えで FAIL。戻した後は18件 OK。attack_expectation.melee の
+  NO_MELEE の0だけを戻しても18件は通る（ゼリーの盤面ではどのみち遠隔の見込みが大きい。整合のための変更）。
+- 検査: import OK。checks.json（84 項目、102 の指定、すべてこの worktree にある）を 7 回に分けて 600 件すべて OK。
+  自分のテストと期待値を直したテスト: test_owner15_survival_1101_recorded 18件・test_equipment_homefull_step15a 20件・
+  test_me_staff_loops_1031_recorded 4件 OK、test_reverse_choke_loot_loop_recorded は main と同じ1件だけ FAIL。
