@@ -9695,6 +9695,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and snapshot.store.store_type == STORE_HOME
             and key == LEAVE_STORE_KEY
             and self.last_reason != "home:processing-complete"
+            # The take's hand-off to the outside composer is not a stop pass
+            # (its producer says so); charging it can block Home before the
+            # composed take is posted.
+            and self.last_reason != "home:leave-for-pending-withdraw"
             and not (
                 self.last_reason == "home:leave-after-one-operation"
                 and self._home_random_teleport_withdrawal is not None
