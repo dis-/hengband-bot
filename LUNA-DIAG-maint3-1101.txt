@@ -1,0 +1,134 @@
+LUNA-DIAG maint3-1101（#47、2026-11-01 21時の持ち主の答え 9「中身を見てから決める」と、トラベルの続きの不具合）
+基点: main 64e63b6cf。行番号は基点のもの。
+
+==================================================================
+A. item_sink_lint（tests.test_item_sink_lint）の 50 件の仕分け
+==================================================================
+検査の働き: scripts/item_sink_lint.py は @claims の付いた関数（producer）を、入口
+（_town_producer_entry の lambda）か、item_sink_adapters.json に固定した呼び出し（関数ごとの式＋
+囲む if/for の条件の文字列＋回数）以外から呼ぶと落とす。ほかに生の品のコマンドの組み立て、
+choose_key の出口、品の意図（town_structure_lint の intent_census）を見る。
+50 件は PDCA の間（10-29 22時〜）に checks.json に無く流れなかった間の変更で出た。
+
+A1. 本当の不具合（直す）: @claims の印が別の関数に移っていた — 9 件
+  連鎖: 7dceaccad（10-31 22:09「Use the Magic-Eater's ranged attacks in town fights」）が
+  policy_combat.py:1419 の `@claims(ClaimOwner.COMBAT)` と `def _ranged_attack_key` の間に
+  `_opening_q1_torches_reserved`（bool を返す述語）を差し込んだ。印は述語に付き、
+  _ranged_attack_key は producer でなくなった（claim_register.py:1010 claims は属性を付けるだけ）。
+  結果:
+  - _ranged_attack_key の固定した 6 か所の直接の呼び出し（policy.py:_summoner_ranged_kill_key、
+    policy_combat.py:_choke_engagement_key・_esp_threat_hunt_key・_melee_swarm_combat_key、
+    policy_fundraising.py:_fundraising_combat_equipment_key、policy_identification.py:_normal_loot_key）
+    が検査から消え「pinned adapter call site changed or disappeared」6 件。_ranged_attack_key 自身の固定も 1 件。
+  - 述語を呼ぶ 2 か所が「calls a claims producer outside」2 件
+    （policy_combat.py:1452 _ranged_attack_key、me_ranged_first.py:61 _throwable_torch）。
+  - town_work_review.json にも述語の記入があり（data、no command）、印を戻すと stale になる。
+  振る舞いへの影響: 印を読むのは policy.py:3563 _offer_execution の入口の探索（引数 2 個の関数だけ）
+  で、_ranged_attack_key（引数 4 個）は対象外。今の振る舞いは変わっていないが、遠隔攻撃の
+  producer が品の扱いの検査（新しい直接の呼び出しを止める）から外れていた。
+  直し: 印を _ranged_attack_key に戻す。述語の review を消し manifest を作り直す。
+  検査: tests.test_item_sink_lint.ProducerMarkTest（印の持ち主）＋ test_repository_item_sinks。
+
+A2. 古い固定（式は同じ、囲む条件の文字列だけ変わった）: 15 件 → 固定を今の式へ
+  - policy.py:_choose_key 3 件（9339・9400 と固定 1）: 条件に
+    `not town_pack_headroom.organizing(self, snapshot)` が加わった（町の空きの整理）。呼ぶ関数・引数は同じ。
+  - policy_fundraising.py:_fundraising_key 6 件（1447・1550・1565・1719・1856 と固定 1）:
+    `_detectionless_scavenge_allowed`→`_scavenge_allowed`、`_no_safe_destination_set`→
+    `_fundraising_gold_return_applies()`、`light is None`→`_fundraising_wieldable_light(snapshot) is None`、
+    `_diggerless_scavenge_allowed` の追加、`scroll is None and power is None`（魔道具術師の財宝感知の力）。
+  - policy_identification.py:_full_pack_loot_triage_key 2 件（668 と固定 1）:
+    `_floor_item_identifiable_at` の追加。
+  - policy_quest.py:_quest_execute_key 4 件（3790・4050・4137 と固定 1）: me_q1_torch.applies の追加
+    （松明を投げる）、`last_seen_final is None` の追加、`not final_door_open` の分岐を
+    `final_door_open(...)` の orelse に書き換え。
+
+A3. 古い固定（呼び出しが小さな関数へ移った）: 4 件 → 固定を移す
+  - policy.py:_low_hp_no_kit_hit_key の `_direction_key(here, cell)` → unseen_strike.py:69 key（見えない敵への反撃）。
+  - policy_opening.py:_opening_q1_town_key の 2 か所の `_direction_key` → policy_opening.py:348 _opening_q1_strike
+    （7dceaccad、町の戦いを迷宮の順で）。
+
+A4. 新しい直接の呼び出し（中身を見た。入口を通さないのが正しい）: 13 件 → 固定に足す
+  生存・戦闘（町の用事より先。生存が先の決まり）:
+  - blind_strike.py:62 strike_key、me_q1_torch.py:26 attack_key、town_last_stand.py:57 key、
+    unseen_strike.py:69 key — どれも隣の敵への近接の `_direction_key`（既存の固定の
+    _blocking_escape_melee_key などと同じ形）。
+  迷宮だけ:
+  - policy_fundraising.py:634 _mining_unbeatable_unique_abort_key → _leave_fundraising_floor
+    （グレーター・ヘル=ビーストで採掘を切り上げる）。
+  - policy_fundraising.py:733 _leave_fundraising_floor → _upstairs_door_key（上り階段の扉）と固定 1 件。
+  - policy_quest.py:2878 _quest_sequence_door_key → _direction_key（Q34 の扉）。
+  - return_yield.py:43 latched_return_key → _return_to_town_key（既存の _fruitless_disengage_key の固定と同じ）。
+  入口を通った producer の子:
+  - me_staff_sequence.py:730 _travel、:882・:897 town_key、q2_tower_recharge.py:164 _travel —
+    policy_quest.py:591/595 _opening_q34_town_key の中（policy.py:11026 で
+    _town_producer_entry(family="quest-request")）。_town_teleport_key 自身も入口を持つ
+    （policy_town.py:7599 "town-teleport"）。quest_opening_readiness.q34_readiness_rejection_key の固定と同じ形。
+  - policy.py:11609 _decide → magic_eater.absorb_key（b93e6b126、迷宮の床で取り込む）。生存の段の後。
+    町ではこの関数は誕生時の魔法の矢の魔法棒だけを取り込み（magic_eater.py:29）、それは先に
+    _opening_q34_town_key（入口あり）が取り込む。観戦の記録: n1-c life-098 の町の
+    magic-eater:absorb 10 件はすべて塔の充填の後（me_staff_sequence の取り込み）。固定に足し、
+    残る心配（町で別の担当が保持している時）は報告に書く。
+
+A5. choose_key の出口の規則が古い: 1 件 → 規則を直す
+  policy.py:3343-3346: f7131f80e（10-31「Judge a town macro as a cycle only when the same key repeats
+  from the same state」）が `_record_decision_claim(snapshot, key)` と `return key` の間に
+  `self._town_progress_note_command(key)`（最後のキーを記録するだけ、key を書き換えない）を足した。
+  規則は「最後から 2 文目が _record_decision_claim」を求める。直し: 記録と return の間の、
+  名前を書き換えない式文（代入・:= なし）を許す。enforce→record→return の順と同じ key の検査はそのまま。
+
+A6. 生の品のコマンドの誤検知・建物のメニューの固定: 3 件 → 固定を今の式へ
+  - morivant_tower.py:40 `RECHARGE_ALL_TAIL = RECHARGE_ALL_ACTION_KEY + "y" + LEAVE_STORE_KEY`:
+    塔の 'a'（building_recharge_all、全部を充填）＋確認の y。品の 'a'（魔法棒を向ける）ではない
+    （db16ffae5 で policy から移した）。NON_ITEM_COMPOSITIONS に ('morivant_tower.py', '<module>') を足す。
+  - policy_quest.py:1367/1508 _morivant_full_identify_key: 6dbe54895（D34）が鑑定の後ろを
+    FULL_IDENTIFY_DISMISS_SUFFIX（ESC×8、建物を出てしまう）から BUILDING_IDENTIFY_DISMISS_SUFFIX
+    （空白×8）に替えた。図書館の 'a'＋品の位置は建物の命令。固定の式を今のものへ。
+
+A7. 品の意図の一覧: 5 件
+  - 消えた 3 件（_normal_sub_hand_identity・_normal_weapon_identity は ITEM_RESERVATION_SOURCES の
+    登録、_normal_sub_hand_name は除外の記入）: 消えていない。mining_loadout.py:96-116 の
+    `policy._normal_...` に移った（module の関数、第 1 引数 policy）。intent_census
+    （town_structure_lint.py:301）は policy の class の `self.` だけを見るので、保守性の決まりで
+    module に移した書き込みが見えない（検査の穴）。直し: 第 1 引数が policy の module の関数も
+    policy の場所として数える。これで新たに 3 つ見える（me_powers_refresh._me_power_refresh_pending
+    ＝力の一覧を開く種類、q34_recharge._q34_recharge_pending＝休んだ盤面、_q34_recharge_attempted＝
+    充填した的）。どれも品でない → 除外の理由を書く。
+  - 新しい 2 件: _quest_carry_lowered（policy_opening.py:273、Q1 の持ち物の数の下げ (1, 数)）、
+    _town_progress_command_pending（policy_town.py:1472、町の進みの記録の印）。品でない → 除外。
+
+==================================================================
+B. 保持されたクエストの用事のトラベルが 1 歩ずつ続く
+   （所有者「街での移動は可能な限りトラベルコマンドを活用して」）
+==================================================================
+連鎖（宿のトラベル、D52）:
+ 1. policy_town.py:7609 _town_teleport_dispatch_key → :7627 _town_teleport_travel_key →
+    :7689 town_travel.building_key → town_travel.py:87 travel_key → policy_town.py:5199 _town_travel_key。
+ 2. _town_travel_key :5254-5261 の offer: next_step="route.resume", arguments=("store", 宿の隣のマス),
+    producer=_claim_family_of(reason)（me-staff:・fixedquest: は quest-request）。
+    宿への 1 歩（トラベルが使えない盤面）は :7633-7643 で宿の自分の続き town.teleport.resume
+    （arguments=(行き先, reason)）なのに、トラベルだけ汎用の route.resume になる。
+ 3. 保持者の続き: 町の梯子が黙った盤面（policy.py:2878-2905 choose_key、key is None の時だけ）で
+    policy.py:6327 _town_holder_ladder_result → :6545 _town_holder_declared_key。
+    awaiting の route.resume（:6574-6586）を acting にして :6662-6694 へ。route_kind "store" は
+    トラベルを出さず（"entrance" だけ :6667-6672 で出す）、:6688 の 1 マスの `_direction_key`、
+    名前は :6680 "fixedquest:request:approach"（quest-request の家族すべて）。
+    → 宿のトラベル（魔道具術師の宿の行き来、q2_tower_recharge、fixedquest:q<id>-travel・
+    文脈なしの prepare-return、cross-town、金策の Outpost 戻り）が保持されて続く時、
+    トラベルでなく 1 歩ずつ、用事と違う名前で歩く。
+    owner15-me-explore-1101（未取り込み）の q22-travel と文脈ありの prepare-return
+    （_town_teleport_route_key → _town_teleport_travel_key）も同じ。賞金首は bounty.resume で避けている
+    （me-explore の policy.py:18109）。
+ 4. 記録の盤面: tests/fixtures/me-staff-loops-20261031.json.gz の "inn"（n1-c life-067、塔の後の宿の行き来）。
+    基点で choose_key は '\x1b`n3333...66.'（me-staff:return-to-shop）、宣言は
+    route.resume ('store', (42, 93))。
+ 5. 観戦の記録（読むだけ）: n1-c・n1-b・n1-a の bot-decisions の fixedquest:request:approach
+    1404・175・10 件はすべて execution なし（policy_quest.py:5366 _fixed_quest_building_key の
+    依頼の建物への 1 歩。例 n1-c life-098 decision 1673-1684、Telmora に着いてから 11 歩）。
+    保持者の続き（execution.next_step route.resume）の行は 0 件: トラベルの後に戦闘で止まっても、
+    次の盤面は担当が自分でトラベルを出し直していた（n1-c life-081 decision 12-14 など）。
+    この不具合は梯子が黙った盤面（担当が黙り、他の用事は保持で後回し）でだけ出る。
+直し: 宿のトラベルの offer を宿の続き town.teleport.resume にする（_town_teleport_travel_key で、
+ 1 歩の枝と同じ offer を 1 か所の関数で出す）。続きは _town_teleport_key を呼び直すので、
+ トラベルが使える盤面ではトラベルを出し直す（使えなければ今の 1 歩）。
+残り（この直しの外）: 塔への接近（morivant_tower.approach_key、me-staff:approach-tower・q2 の塔）と
+ 噂の宿（town:rumor）のトラベルは route.resume のまま（自分の続きの仕組みが無い）。報告の問い。

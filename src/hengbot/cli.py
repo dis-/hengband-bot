@@ -3888,6 +3888,10 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     policy._town_visit_purchase_path = args.decision_log.with_name(
         "town-visit-purchases.json"
     )
+    # This floor's breeder judgement, for a restart on the same floor.
+    policy._breeder_floor_record_path = args.decision_log.with_name(
+        "breeder-floor.json"
+    )
     policy._character_calibration_path = args.decision_log.with_name(
         "character-calibration.json"
     )

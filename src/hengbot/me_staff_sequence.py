@@ -362,6 +362,15 @@ def purchase_excluded(policy, snapshot, item) -> bool:
         is_sequence_staff(item, policy) or _unread_sequence_staff(policy, snapshot, item))
 
 
+def order_excluded(policy, snapshot, item) -> bool:
+    """After Q1 no pick of the ordinary buy order takes a staff of a stage
+    reached so far (known or not), but the emptiest-for-fuller Identify swap
+    (``_identify_staff_swap_purchase``; owner 2026-11-01 21h 7)."""
+    return (applies(policy, snapshot) and item.tval == TVAL_STAFF
+            and item.sval in active_svals(policy)
+            and not policy._identify_staff_swap_purchase(item))
+
+
 def retains(policy, snapshot, item) -> bool:
     """A bought staff (or a device the policy table still absorbs) stays
     carried until it is absorbed."""

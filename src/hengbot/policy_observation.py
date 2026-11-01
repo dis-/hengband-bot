@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait
+from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait
 import json
 
 from hengbot.claim_goal_typing import (
@@ -970,11 +970,7 @@ class ObservationMixin:
             self._breeder_breakthrough_floor = None
             summoner_wait.forget_floor_visit(self)
             immobile_threat_memory.forget_floor_visit(self)
-            self._breeder_engagement_start_count = None
-            self._breeder_engagement_start_turn = None
-            self._breeder_kills = 0
-            self._breeder_previous_exp = None
-            self._breeder_previous_indices.clear()
+            breeder_stalemate.forget(self)
             if snapshot.in_town:
                 # Owner rule (2026-10-31): the escape descent cooldown keeps the
                 # bot off the floor it fled; back in town every walk-in
@@ -1100,6 +1096,8 @@ class ObservationMixin:
         # The same for this town visit's purchases (visit-purchase retention).
         self._carry_town_visit_purchases_across_restart(
             snapshot, previous_floor is None)
+        # The same for this floor's breeder breakthrough latch.
+        breeder_floor_record.carry(self, snapshot, previous_floor is None)
         # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
         # an attack the player's own teleport already left behind is no reason
         # for a retreat after the landing; only a new unseen hit observed from

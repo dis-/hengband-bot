@@ -17,6 +17,10 @@
     "max_simultaneous_melee": 3,
     "max_damage_ratio": 1.0,
     "hold_budget": 2200,
+    "opening_teleport_away_note": "Owner 2026-11-02 「テレポートアウェイがあるなら初手でフォルンをどかす。その後の行動は作戦通り。」: the Huorn at [16,3] has a clear line to the hold and pulls the player out of it with TELE_TO.",
+    "opening_teleport_away": [
+      {"race_id":329,"target":[16,3],"stand":[18,1]}
+    ],
     "throwing_points": [
       {"race_id":329,"target":[16,3],"stand":[18,1],"recovery_cells":[[17,2],[16,3]]},
       {"race_id":329,"target":[3,8],"stand":[10,1],"recovery_cells":[[9,2],[8,3],[7,4],[6,5],[5,6],[4,7],[3,8]]},

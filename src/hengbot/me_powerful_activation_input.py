@@ -22,7 +22,7 @@ from hengbot.magic_eater_input import (
     EMPTY, FAILURES, LIST_CHOICE_KINDS, MENU_PROMPTS, TYPE_PROMPTS, _owns_power_prompt,
     _wand_menu_answer, kind_menu_wait, observed_power_list,
 )
-from hengbot.me_device_attacks_input import CHARGING, _row
+from hengbot.me_device_attacks_input import _KINDS, CHARGING, _row
 from hengbot import me_powerful_activation as powerful
 from hengbot import me_powers
 
@@ -35,12 +35,13 @@ _RACIAL_ROW = re.compile(
     r"(?P<label>[a-z0-9]\)|》|>)?\s*(?:" + "|".join(map(re.escape, POWER_NAME))
     + r")\s+\d+\s+\d+\s+\d+%")
 FULL_IDENTIFY_PROMPTS = ("どのアイテムを*鑑定*しますか?", "*Identify* which item?")
-_KEY = re.compile(r"U(?P<kind>A)(?P<letter>[a-z0-9])(?P<target>(?:/?[a-w])?)")
+_KEY = re.compile(r"U(?P<kind>[ABC])(?P<letter>[a-z0-9])(?P<target>(?:/?[a-w])?)")
 
 
 @dataclass(frozen=True)
 class PowerfulStep(Continuation):
     sval: int = 5
+    kind: str = "staff"
     target: str = ""
     stage: str = "racial"
     attempts: int = 0
@@ -50,11 +51,12 @@ def compile_powerful(key, owner):
     match = _KEY.fullmatch(key)
     if match is None:
         return None
-    effect = powerful.BY_SVAL.get(me_powers.decode_letter(match["letter"]))
+    effect = powerful.activatable(me_powers.kind_of(match["kind"]),
+                                  me_powers.decode_letter(match["letter"]))
     if effect is None or effect.targeted != bool(match["target"]):
         raise ValueError("invalid Magic-Eater powerful activation")
     return powerful.RACIAL_KEY, [PowerfulStep(frozenset(), "", sval=effect.sval,
-                                              target=match["target"])]
+                                              kind=effect.kind, target=match["target"])]
 
 
 def _owns_racial_prompt(reading):
@@ -98,7 +100,7 @@ def _target_answer(step, reading):
 
 
 def _answer(step, reading, lines, operation):
-    effect = powerful.BY_SVAL[step.sval]
+    effect = powerful.activatable(step.kind, step.sval)
     row0 = lines[0].strip() if lines else ""
     if step.stage == "racial":
         answer = _racial_answer(reading, lines)
@@ -111,7 +113,7 @@ def _answer(step, reading, lines, operation):
         if reading.kind == "command_char" and reading.prompt.rstrip() in TYPE_PROMPTS:
             return me_powers.KIND_LETTER[effect.kind], "power"
         if kind_menu_wait(reading, row0, MENU_PROMPTS):
-            answer = _wand_menu_answer(lines, 0)
+            answer = _wand_menu_answer(lines, _KINDS.index(effect.kind))
             return answer, "power" if answer == "\r" else "kind"
         raise ValueError("unowned Magic-Eater type prompt")
     if step.stage == "power":
@@ -172,7 +174,7 @@ def advance_powerful(executor, screen, match, deadline, outcome):
         if _owns_power_prompt(reading) or _owns_racial_prompt(reading):
             # A missing or empty power returns to command input before the
             # next decision; the list is kept on the board.
-            listed = observed_power_list(lines, "staff")
+            listed = observed_power_list(lines, step.kind)
             if listed is not None and _owns_power_prompt(reading):
                 operation.magic_eater_power_list = listed
             operation.continuations[0] = replace(step, stage="done", attempts=0)

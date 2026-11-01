@@ -1,0 +1,109 @@
+LUNA-REPORT maint3-1101（#47、持ち主の答え 9「中身を見てから決める」と、保持されたトラベルの続き）
+枝: maint3-1101。最初の基点 main 64e63b6cf、取り込んだ main: a467fb56f（fd98b1b14）、fc3b96a20（d43172d55）、
+1579cff68（最後の取り込み）。押し上げ（push）はしていない。git stash は使っていない。
+診断は LUNA-DIAG-maint3-1101.txt（連鎖と file:line）。
+
+------------------------------------------------------------------
+1. A: item_sink_lint の 50 件の仕分け（tests.test_item_sink_lint は緑）
+------------------------------------------------------------------
+| 区分 | 件数 | 判断 | 対応 | コミット |
+| A1 @claims の印が述語に移っていた（7dceaccad が印と _ranged_attack_key の間に _opening_q1_torches_reserved を差し込んだ） | 9 | 本当の不具合（遠隔攻撃の producer が検査から外れていた。振る舞いは変わっていない） | 印を _ranged_attack_key に戻す、述語の review を消し manifest を作り直す | 50c09cd06 |
+| A2 固定した呼び出しの、囲む条件の文字列だけが変わった（_choose_key 3、_fundraising_key 6、_full_pack_loot_triage_key 2、_quest_execute_key 4） | 15 | 古い固定（式・引数は同じ） | 固定を今の条件へ | f7c8942de |
+| A3 呼び出しが小さな関数へ移った（unseen_strike.key、_opening_q1_strike） | 4 | 古い固定 | 固定を移す | f7c8942de |
+| A4 新しい直接の呼び出し（生存・戦闘の近接 4、迷宮だけの金策・クエスト 5、入口を通った _opening_q34_town_key の子 3、迷宮の床での absorb_key 1） | 13 | 中身を見て、入口を通さないのが正しい | 固定に足す（理由は DIAG A4） | f7c8942de |
+| A5 choose_key の出口の規則（記録と return の間の _town_progress_note_command） | 1 | 古い規則 | 名前を書き換えない式文を許す。代入・:=・2 回目の記録は今も落とす | f83c500f0 |
+| A6 生の品のコマンドの誤検知（塔の全部充填 'a'+y）・図書館の鑑定の後ろ（ESC×8→空白×8、D34） | 3 | 古い固定 | NON_ITEM_COMPOSITIONS に 1 行、固定の式を今へ | f7c8942de |
+| A7 品の意図の一覧（消えた 3、新しい 2） | 5 | 検査の穴（module に移した書き込みが見えない）＋品でない新しい印 | 第 1 引数が policy の module の関数も数える。新たに見えた 3 つと新しい 2 つは理由つきで除外 | 224306bc7 |
+| 取り込み後: _breeder_breakthrough_key の帰還の確認（D60 8a8fab334 が条件を変えた） | 1（検査の行 2） | 古い固定（同じ呼び出し、迷宮だけ） | 固定を今の条件へ | 2a8335e7b |
+
+------------------------------------------------------------------
+2. B: 保持された宿へのトラベルが 1 歩ずつ続く（所有者「街での移動は可能な限りトラベルコマンドを活用して」）
+------------------------------------------------------------------
+ 原因: 宿の行き来のトラベル（_town_teleport_travel_key → town_travel.building_key → _town_travel_key）が
+ 汎用の続き route.resume ('store', 宿の隣) を宣言し、同じ行き来の 1 歩は宿の自分の続き town.teleport.resume
+ だった。町の梯子が黙った盤面で保持者が続ける時（policy.py _town_holder_declared_key）、route.resume の
+ "store" はトラベルを出さず 1 マスだけ歩き、名前は quest-request の家族すべてで "fixedquest:request:approach"。
+ 直し（f1393cf52）: トラベルと 1 歩の offer を 1 つの関数 _offer_town_teleport_leg（policy_town.py）にまとめ、
+ 続きを town.teleport.resume (行き先, 理由) にした。続きは _town_teleport_key を呼び直すので、トラベルが
+ 使える盤面ではトラベルのマクロを出し直す（使えなければ今までの 1 歩）。
+ 取り込み後（9885838cd）: main に入った owner15-me-explore-1101 の _town_teleport_route_key
+ （fixedquest:q22-travel と宣言つきの prepare-return）が古い 3 引数で呼んでいた（取り込んだままでは
+ TypeError になる）。行き先（q22 は町 3、prepare-return はアウトポスト 0）と producer quest-request を渡し、
+ この 2 つも保持された時に宿の行き来として続くようにした。owner15-me-explore の報告の問い 2 はこれで直る。
+ 賞金首は bounty.resume のまま（me-explore の直し）。
+
+------------------------------------------------------------------
+3. テスト（新しい・変えたもの）と戻しての確認
+------------------------------------------------------------------
+ 戻し方: コミットの src・scripts の差分を git show <sha> -- <files> | git apply -R、実行、git checkout -- <files>。
+ - tests.test_town_travel_resume_recorded（新。記録の盤面 n1-c life-067 の宿の行き来、public choose_key と
+   本番の executor）:
+   HeldInnTravelRecordedTest.test_inn_travel_declares_the_legs_own_resume
+   HeldInnTravelRecordedTest.test_held_inn_travel_resumes_with_the_travel_command
+   → offer を戻すと ('route.resume', ('store', (42, 93))) と ('3', 'fixedquest:request:approach') で 2 件 FAIL。
+ - tests.test_town_travel_errands_recorded（main のものに続きの確認を足した）:
+   QuestTravelRecordedTest.test_q22_travel_rides_the_travel_command_to_the_inn
+   QuestTravelRecordedTest.test_declared_prepare_return_rides_the_travel_command_to_the_inn
+   → offer を戻すと ('route.resume', ('store', (27, 55))) / ('route.resume', ('store', (14, 89))) で 2 件 FAIL。
+ - tests.test_item_sink_lint:
+   ProducerMarkTest.test_ranged_attack_producer_keeps_its_combat_mark（50c09cd06 を戻す → 9 件 FAIL）
+   ItemIntentLintTest.test_module_function_writing_through_policy_is_scanned（224306bc7 を戻す → 2 件 FAIL）
+   ItemSinkLintTest.test_observation_after_the_record_keeps_the_exit（f83c500f0 を戻す → 2 件 FAIL）
+   ItemSinkLintTest.test_tower_recharge_menu_pin_is_exact（f7c8942de を戻す → 9 件 FAIL）
+   test_repository_item_sinks は上のどれを戻しても FAIL。
+
+------------------------------------------------------------------
+4. 流した検査
+------------------------------------------------------------------
+ - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+ - fc3b96a20 の取り込み後: checks.json の 112 件（107 モジュール）＋ test_item_sink_lint、
+   test_town_travel_resume_recorded、test_town_travel_errands_recorded、test_quest_travel_progress、
+   test_quest_prepare_return_stage2、test_live22_bounty を 1 回で流して 754 テスト OK（3635 秒）。
+   続きの確認を足した後の test_town_travel_errands_recorded と test_town_travel_resume_recorded は別に 6 件 OK。
+ - 1579cff68 の取り込み後: import OK、test_item_sink_lint（30）、test_town_travel_resume_recorded、
+   test_town_travel_errands_recorded、test_n1c_stuck_wander_1101_recorded、test_breeder_refill_escape_recorded
+   は固定を直した後 OK（直す前は item_sink_lint の 2 件が D60 の条件の変更で FAIL → 2a8335e7b）。
+   この取り込みで変わった src は policy_combat.py の _breeder_breakthrough_key と policy_constants.py だけなので、
+   checks.json の全体は流し直していない。
+ - checks.json の今の 113 件のうち tests.test_n1c_town_wander_1101_recorded（D61）はまだ main に無い。
+ - scripts/town_work_manifest.py --write: zero unmapped（1092 candidates、30010 sites）。
+
+------------------------------------------------------------------
+5. checks.json の案（編集していない）
+------------------------------------------------------------------
+{"id": "MAINT3-ITEM-SINK-TRAVEL-RESUME",
+ "owner": "2026-11-01 答え 9「中身を見てから決める」・「街での移動は可能な限りトラベルコマンドを活用して」 (branch maint3-1101)",
+ "tests": ["tests.test_item_sink_lint", "tests.test_town_travel_resume_recorded"]}
+ 注意: test_item_sink_lint は固定の式の文字列を見るので、src の条件を変える直しのたびに固定の更新が要る
+ （今回も取り込んだ D60 で 1 件）。台帳に入れれば、そのつど実装役が中身を見て直すことになる。
+ test_town_travel_errands_recorded は OWNER15-ME-EXPLORE に既にある。
+
+------------------------------------------------------------------
+保守性
+------------------------------------------------------------------
+ - B の新しいロジックは宿の行き来の持ち主（policy_town.py）の 1 つの関数 _offer_town_teleport_leg だけ。
+   トラベルと 1 歩が同じ offer を 2 回書かず、続きの名前・引数・予算が 1 か所で決まる。保持者の続き
+   （policy.py）と town_travel は変えていない。q22・prepare-return も同じ関数を通る。共有コードに担当名・
+   町・クエスト番号の特例は足していない。
+ - A は検査の側だけ。印の位置を正し、意図の一覧の穴（module の関数）をふさいだので、保守性の決まりで
+   module に移した書き込みも今後は見える。出口の規則は「観察だけの式文」を許す一般の規則にし、
+   関数名の特例にしていない。固定は表（item_sink_adapters.json、item_intent_baseline.json）の行だけ。
+ - 関係のない整理はしていない。壁（期待値を正しい動きに合わせずに足した除外）は無い。
+
+------------------------------------------------------------------
+持ち主への問い
+------------------------------------------------------------------
+ 1. 塔への接近（morivant_tower.approach_key、me-staff:approach-tower・Q2 の塔）と噂の宿（town:rumor）の
+    トラベルは、今も汎用の route.resume を宣言する（自分の続きの仕組みが無い）。保持された時は 1 歩ずつ
+    "fixedquest:request:approach" などの名前で歩く。
+    案: (a) 今のまま（観戦の記録では保持者の続きの行は 0 件。担当が次の盤面で自分でトラベルを出し直している）
+        (b) 塔・噂にもそれぞれの続きを作り、保持された時もトラベルを出し直す（今回の宿と同じ形）
+        (c) 保持者の route.resume で "store" の行き先にもトラベルを出す（全部の担当に一度に効くが、
+            汎用の続きの振る舞いが変わる）
+ 2. （観察）図書館への歩き（town:morivant-full-identify:library、me-explore の直し）の offer は
+    next_step="library.approach" で続きが無い。保持者が続けようとすると古い宣言として止まる見込み
+    （記録では未確認）。問い 1 と同じ扱いでよいか。
+ 3. A4 の magic_eater.absorb_key（_decide の中、生存の段の後）は、町では誕生時の魔法の矢の魔法棒だけを
+    取り込み、それは先に入口のある _opening_q34_town_key が取り込む。町で別の担当が保持している時に
+    これが割り込む盤面は記録に無い。固定に足したが、町では入口を通すべきか。
+    案: (a) 今のまま（迷宮の床の取り込みとして固定） (b) 町では _town_producer_entry を通す

@@ -1,0 +1,90 @@
+LUNA-REPORT quest-report-slot-1102（2026-11-02）
+
+発注: 所有者 11-02「空きが1つもないときはクエストの報告をしない」。
+枝: quest-report-slot-1102（q2-reward-lamp-1101 の先端 04968b53f から。main 1579cff68 を取り込み済み）。
+前提: LUNA-REPORT-q2-reward-lamp-1101.txt の持ち主への問い 1（満杯で報告すると、場所を空ける前に
+ほかの担当が町を出て報酬が消えうる）への答え。
+
+------------------------------------------------------------------
+ゲーム側の仕組み（C:\hengband\src）
+------------------------------------------------------------------
+ - 報告: market/building-quest.cpp castle_quest（57-75 行）が COMPLETED を REWARDED にし、
+   wilderness.set_reinitialization(true) で町を作り直させる。
+ - 置き方: 町の作り直しで lib/edit/towns の [EQU $QUESTn 3] の規則が報酬を '!' のマスに置き、
+   floor/wild.cpp wilderness_gen（541-545 行）が直後に REWARDED を FINISHED にする。次に作られる町は
+   状態 4 なので報酬は無い。報酬はこの 1 回の町の階にしか無い。
+ - 空きの数: inventory/inventory-slot-types.h の INVEN_PACK = 23。ザックは 0〜22 番
+   （INVEN_PACK_SLOTS）で、23 番は溢れた時の一時的な枠（27 行の注）。矢筒は無い（矢弾もザックの枠を使う）。
+   bot/bot-json-output.cpp make_inventory_json（1205 行〜）は INVEN_PACK_SLOTS の有効な品だけを出すので、
+   空き = PACK_CAPACITY(23) - len(inventory)。拾えるかは inventory-object.cpp
+   check_store_item_to_inventory（inven_cnt < INVEN_PACK、または重ねられる品）で、ランプは重ならない。
+
+------------------------------------------------------------------
+直し（コミット 3c0fc8259、d04f54557）
+------------------------------------------------------------------
+ - town_quest_reward.py に report_waits_for_room（報酬の表 FIXED_QUEST_REWARD_POSITIONS のクエストで
+   空きが 0）と claim_key（報告の担当）を足した。claim_key は空きが 0 なら
+   fixedquest:claim-pack-full で None を返し、そうでなければ今まで通り _fixed_quest_building_key
+   （fixedquest:claim）を呼ぶ。
+ - policy_quest.py _fixed_quest_key の報告 2 か所（討伐クエストの枝と一般の枝）を claim_key の
+   呼び出しに置き換えた（同じ呼び出しの写しが 2 つあったのを 1 つに）。
+ - town_terminal.py terminal_admission: 'quest-claim' の終点を、report_waits_for_room の時に
+   free_pack_slots_ready で断る（'quest-reward' の終点と同じ符号）。この符号の担い手は既存の
+   _SPACE_SERVERS（自宅に預ける・整理の売却・町の計画）なので、場所を空ける担当に盤面が渡る。
+ - 回らないこと: 断った終点は、担い手が進まなければその訪問の間「閉じた」と記録される
+   （terminal-refused-unserved / yield-without-server-progress、ボットは止めない）。1 枠空けば
+   判定が通り、閉じた記録に関係なく報告する。どの担当も空けられない時は、空き 0 では出発の条件
+   free_pack_slots_ready（policy_town.py）と帰還の pack-too-full が既存の名前付きの止まりになる。
+   報告前なので報酬はまだ置かれておらず、町を出ても失うものは無い（クエストは COMPLETED のまま）。
+ - 閾値は所有者の指示どおり「空き 0」だけ。町の取り置き（空き 4 枠、town_pack_budget.permits）は使っていない。
+ - town_work_review.json に town_quest_reward.py:claim_key の行を足し、town_work_manifest.py --write
+   （1096 候補、zero unmapped）。
+
+------------------------------------------------------------------
+検査（tests/test_quest_report_slot_recorded.py、2 件）
+------------------------------------------------------------------
+ 盤面: tests/test_q2_reward_lamp_recorded.py の記録の盤面（n1-c life-098、判断 2520 の Telmora の報告の盤面、
+ 21/23、Q2 COMPLETED、城の 1 歩手前）。荷物は記録の盤面から作った物（DECLARED CONSTRUCTED: 記録の
+ 未鑑定の硬革帽子・革グローブの写しを足して 23/23 と 22/23）。public choose_key と本番の実行器で動かす。
+ - ...QuestReportSlotRecordedTest.test_full_pack_does_not_report_and_makes_room
+   23/23: 報告しない（鍵に 'q' が無い）。shop:travel で雑貨屋 (32,56) へ（町の用事の計画の最初の店で、
+   依頼元に shop-sell がある）。'quest-claim' の終点は free_pack_slots_ready で断られ、報酬の取り置きは
+   立たない。移動の鍵を実行器で送る（返事は作った物）。
+ - ...test_one_free_slot_reports
+   22/23: 記録どおり '9q<ESC>' fixedquest:claim で報告し、報酬の取り置き（Q2）が立つ。
+ 既存のテストの更新: test_q2_reward_lamp_recorded.py の post 補助を、町の移動の鍵が実行器では
+ その引き金（cli.TRAVEL_MACRO_TRIGGERS、'\x1b`n!.' → '\x0b'）で送られる本番の動きに合わせた
+ （_transport_key で比べる。歩く鍵と 'g' は変わらない）。壁にしたテストは無い。
+ 戻した確認（1 回）: src の差分を patch に保存して git checkout -- src、実行、git apply で戻した。
+   test_full_pack_does_not_report_and_makes_room が FAIL（'q' unexpectedly found in '9q\x1b'、
+   満杯でも報告した）。test_one_free_slot_reports は OK（直しの前から報告する）。直した版は 2 件 OK。
+
+ 流した検査（main 1579cff68 を取り込んだ後）:
+ - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+ - tests.test_quest_report_slot_recorded と tests.test_q2_reward_lamp_recorded: 5 件 OK。
+ - 共通の決まりどおり checks.json・全体テストは流していない。
+
+------------------------------------------------------------------
+checks.json の案（編集していない）
+------------------------------------------------------------------
+{"id": "QUEST-REPORT-SLOT",
+ "owner": "2026-11-02「空きが1つもないときはクエストの報告をしない」 (branch quest-report-slot-1102)",
+ "tests": ["tests.test_quest_report_slot_recorded", "tests.test_q2_reward_lamp_recorded"]}
+
+------------------------------------------------------------------
+保守性
+------------------------------------------------------------------
+ - 報告を待つ判定は town_quest_reward.report_waits_for_room の 1 か所で、本体（claim_key）と終点の
+   判定（terminal_admission）の両方がこれを読む。判定の写しは無い。
+ - 報告の呼び出しは policy_quest.py に同じ写しが 2 つあったのを claim_key の 1 つにまとめた。
+ - クエスト番号・町・職業の特例は無い。対象は報酬の表 FIXED_QUEST_REWARD_POSITIONS だけで決まる。
+ - 拒否の符号は既存の free_pack_slots_ready（担い手の表 REFUSAL_SERVERS も既存）を使い、新しい符号や
+   閾値は作っていない。
+
+------------------------------------------------------------------
+持ち主への問い
+------------------------------------------------------------------
+ 1. 空きが 1 つ以上あれば報告する（指示どおり）。ただし空き 1〜3 で報告すると、報酬を拾った後は
+   町の取り置き（空き 4 枠）を下回る。これは今までと同じで変えていない（確認だけ）。
+ 2. 報告を待つ間に、魔道具術師の杖の段などがほかの町へ移ることがある（記録の盤面では雑貨屋へ売りに行く）。
+   報告前なので報酬は失われないが、Q2 の報告がテルモラへの次の訪問まで延びうる。今のままでよいか。

@@ -1,0 +1,173 @@
+"""Fixed-quest rewards placed on a town map: picked up before leaving town.
+
+market/building-quest.cpp castle_quest turns a COMPLETED quest into REWARDED
+and asks for the town to be rebuilt; floor/wild.cpp wilderness_gen then builds
+the town from lib/edit/towns, whose ``[EQU $QUESTn 3]`` feature rule puts the
+reward object on its floor cell, and right after that turns every REWARDED
+quest into FINISHED.  So the reward exists only on this town level: once the
+character leaves (the inn, recall, a stair or the wilderness), every later
+visit is built with status 4 and the cell is bare floor (#47 D62, n1-c
+life-098: the Telmora Q2 Feanorian lamp was seen at distance 1 and lost to
+the staff sequence's inn trip to the Outpost).
+
+The report itself waits for a free pack slot (owner 2026-11-02
+「空きが1つもないときはクエストの報告をしない」): a pack with no free slot
+cannot take the reward before another owner leaves the town, so the report
+of a quest of FIXED_QUEST_REWARD_POSITIONS yields to the room-making town
+owners (Home deposit, sale, junk destruction) until one slot is free.
+
+Until the reward is in the pack, the report and the pickup are the town's
+priority (owner 2026-11-02 「空きを作って報告し、報酬を回収するまでを優先
+したい」): ``holds_town`` is the one predicate.  While it holds, the town
+terminals that leave the town (town_terminal.TOWN_LEAVING_TERMINALS: inn
+travel, recall, descent, cross-town trips, fundraising runs) are refused and
+the class town sequences that travel (``_opening_q34_town_key``) wait, so the
+room-making owners and the report/reward owners take the board; survival
+families stay exempt.  With no free slot and no room that can be made, the
+existing named stop ``town:blocked:pack-full-no-room`` ends the visit's work
+instead of a wander.
+
+This module owns the reward latch ``_fixed_quest_reward_pending`` (set when
+the reward is claimed, rebuilt here from the allowlisted reward cell after a
+restart) and serves it as the first non-emergency town owner, ahead of the
+class-specific town sequences; the pickup itself stays
+``_fixed_quest_reward_key`` (the allowlisted cells of
+FIXED_QUEST_REWARD_POSITIONS).
+"""
+
+from __future__ import annotations
+
+from hengbot.policy_constants import (
+    FIXED_QUEST_REWARD_POSITIONS, PACK_CAPACITY, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED,
+    WAIT_KEY,
+)
+from hengbot.town_pack_budget import explicit_pickup_cells
+from hengbot.town_pack_headroom import PACK_FULL_NO_ROOM, room_can_be_made
+
+PACK_FULL_REASON = "fixedquest:reward-pack-full"
+WAIT_REASON = "fixedquest:reward-wait"
+CLAIM_REASON = "fixedquest:claim"
+REPORT_PACK_FULL_REASON = "fixedquest:claim-pack-full"
+_HANDED_OVER = frozenset({QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED})
+
+
+def _reward_on_floor(policy, snapshot, quest_id: int) -> bool:
+    """An object lies on one of this quest's allowlisted reward cells."""
+    return any(
+        (grid := snapshot.grid_at(position)) is not None and grid.object_count > 0
+        for position in policy._fixed_quest_reward_positions(snapshot, quest_id))
+
+
+def pending(policy, snapshot) -> int | None:
+    """The latched reward quest; rebuilt from the visible reward after a restart."""
+    if policy._fixed_quest_reward_pending is None:
+        for quest_id in FIXED_QUEST_REWARD_POSITIONS:
+            quest = snapshot.quests.get(quest_id)
+            if (quest is not None and quest.status in _HANDED_OVER
+                    and _reward_on_floor(policy, snapshot, quest_id)):
+                policy._fixed_quest_reward_pending = quest_id
+                break
+    return policy._fixed_quest_reward_pending
+
+
+def reward_key(policy, snapshot) -> str | None:
+    """Approach and pick up the latched reward of this town.
+
+    None when nothing is latched or the pickup finished on this board, and
+    when the pack is full: the town owners then make room for it.  A latch
+    that has no step this board waits rather than leaving the town.
+
+    The reward is an explicit pickup (its own ``g`` on the cell): the walk
+    onto its allowlisted cells is not an implicit town pickup, so the slot
+    reserve of town_pack_budget.floor_step_fits does not refuse that step
+    (the full pack keeps its own handoff).
+    """
+    quest_id = pending(policy, snapshot)
+    if quest_id is None:
+        return None
+    with explicit_pickup_cells(policy._fixed_quest_reward_positions(snapshot, quest_id)):
+        key = policy._fixed_quest_reward_key(snapshot, quest_id)
+    if key is not None or policy._fixed_quest_reward_pending is None:
+        return key
+    if policy.last_reason == PACK_FULL_REASON:
+        return None
+    policy.last_reason = WAIT_REASON
+    return WAIT_KEY
+
+
+def report_waits_for_room(snapshot, quest_id: int) -> bool:
+    """The report of a town-floor reward quest waits: no pack slot is free.
+
+    inventory/inventory-slot-types.h: the pack is slots 0..22 (INVEN_PACK 23
+    is only the overflow slot) and the snapshot lists those slots
+    (bot-json-output.cpp make_inventory_json), so PACK_CAPACITY minus the
+    listed items is the free slot count.
+    """
+    return (quest_id in FIXED_QUEST_REWARD_POSITIONS
+            and PACK_CAPACITY - len(snapshot.inventory) <= 0)
+
+
+def claim_key(policy, snapshot, quest_id: int) -> str | None:
+    """Report a COMPLETED fixed quest at its building.
+
+    A town-floor reward quest is not reported while the pack has no free
+    slot: None hands the board to the room-making town owners (the
+    ``quest-claim`` terminal refuses with ``free_pack_slots_ready``, whose
+    servers are those owners, and closes for the visit when none of them
+    progresses).
+    """
+    if report_waits_for_room(snapshot, quest_id):
+        policy.last_reason = REPORT_PACK_FULL_REASON
+        return None
+    return policy._fixed_quest_building_key(
+        snapshot, quest_id, CLAIM_REASON,
+        set_reward_pending=quest_id in FIXED_QUEST_REWARD_POSITIONS)
+
+
+def holds_town(policy, board) -> bool:
+    """The report or the pickup of a town-map reward is this town's priority.
+
+    The fixed-quest owner intends the claim of a FIXED_QUEST_REWARD_POSITIONS
+    quest here (its own terminal admits, or waits only for a free slot) or
+    the pickup of the latched reward on this town level.  A character that
+    is hungry with nothing to eat is the survival owners' (survival first).
+    """
+    from hengbot.town_terminal import (
+        fixed_quest_intended_terminal, gather_quest_work, verdict_quest_work,
+    )
+    if (not board.in_town
+            or (board.player.hungry and policy._find_edible(board) is None)):
+        return False
+    terminal = fixed_quest_intended_terminal(policy, board)
+    if (terminal is None or terminal.args[:1] == ()
+            or terminal.args[0] not in FIXED_QUEST_REWARD_POSITIONS):
+        return False
+    if terminal.terminal_id == "quest-reward":
+        return True
+    # A claim refused by the cross-town shopping hold waits for that trip.
+    return (terminal.terminal_id == "quest-claim"
+            and verdict_quest_work(gather_quest_work(policy, board)).admitted)
+
+
+def _no_room_key(policy, snapshot) -> str | None:
+    """The named stop when the held report or pickup has no slot to be made."""
+    if (PACK_CAPACITY - len(snapshot.inventory) > 0
+            or room_can_be_made(policy, snapshot) or not holds_town(policy, snapshot)):
+        return None
+    policy._town_blocked_reason = PACK_FULL_NO_ROOM
+    return policy._town_blocked_key(snapshot)
+
+
+def town_key(policy, snapshot, hostiles) -> str | None:
+    """The reward pickup ahead of the other non-emergency town owners.
+
+    A hit this turn or a hostile in contact keeps the board for the town's
+    survival owners (shelter, recovery, fight/flee; survival first): the
+    reward stays on the floor while the character stays in this town.
+    """
+    if (not snapshot.in_town or snapshot.store is not None
+            or getattr(policy, "_took_damage", False)
+            or policy._physical_adjacent_hostiles(snapshot)):
+        return None
+    key = reward_key(policy, snapshot)
+    return key if key is not None else _no_room_key(policy, snapshot)

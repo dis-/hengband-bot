@@ -76,6 +76,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "breeder_quest.py:response": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "No independent success; _breeder_breakthrough_key selects the command."
+  },
+  "breeder_quest.py:teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "character_sheet.py:_cells": {
     "classification": "data",
     "rows": [
@@ -1033,6 +1047,13 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "immobile_threat_memory.py:step_out_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "input_executor.py:OperationExecutor._after_post": {
     "classification": "driver",
     "rows": [
@@ -1671,7 +1692,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_absorbed_substitutes.py:item_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_capability.py:_migrated": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:force_count": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1700,6 +1735,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_capability.py:replacing_power": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:waiving_rows": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1837,6 +1879,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_powerful_activation.py:racial_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powerful_activation.py:town_key": {
     "classification": "producer",
     "rows": [
@@ -1907,7 +1956,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powers.py:_activation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powers.py:_serving": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:_usable": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -4668,6 +4731,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_combat.py:CombatMixin._adjacent_ranged_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_combat.py:CombatMixin._attributable_observed_loss": {
     "classification": "data",
     "rows": [
@@ -4887,13 +4957,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_combat.py:CombatMixin._opening_q1_torches_reserved": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_combat.py:CombatMixin._paralyzer_prevention_key": {
     "classification": "producer",
     "rows": [
@@ -4929,6 +4992,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_combat.py:CombatMixin._ranged_projectile": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_combat.py:CombatMixin._ranged_target": {
     "classification": "data",
     "rows": [
@@ -4937,6 +5007,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_combat.py:CombatMixin._refresh_paralyzer_avoidance": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._sighted_or_detected_hostiles": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -7906,6 +7983,13 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "policy_town.py:TownMixin._offer_town_teleport_leg": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_town.py:TownMixin._outpost_fare_recovery_key": {
     "classification": "producer",
     "rows": [
@@ -8698,6 +8782,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_opening_away.py:key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_opening_readiness.py:q34_readiness_rejection_key": {
     "classification": "adapter",
     "rows": [
@@ -8819,6 +8910,27 @@
     "delegation": "selected child; no independent success"
   },
   "sol_events.py:serialize_event": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "speed_dose.py:_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "speed_dose.py:_renewing": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "speed_dose.py:key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9080,6 +9192,41 @@
       "data/no-independent-credit"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_quest_reward.py:_no_room_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_quest_reward.py:claim_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_quest_reward.py:pending": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_quest_reward.py:reward_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_quest_reward.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_terminal.py:_commit_curse_remove": {
     "classification": "adapter",

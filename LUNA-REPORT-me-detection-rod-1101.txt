@@ -1,0 +1,143 @@
+LUNA-REPORT me-detection-rod-1101 (#47, 2026-11-01)
+所有者の指示: 「全感知のロッドの使い方について　邪悪感知を使うタイミングで全感知が使用可能なら代わりに使用する。安全なら強力発動で使う。」
+枝: me-detection-rod-1101（main fc3b96a20 から、最後に main df4001950 を取り込んだ）。
+コミット e7f7f84e4（実装と検査）、main の取り込み4回（f9525e20e・3d1976e16・4b6314a79・0a9040d16、どれも衝突なし）、この報告のコミット。
+調べた内容: LUNA-DIAG-me-detection-rod-1101.txt。
+
+1. ゲームの事実（C++ で確かめた）
+ - 全感知のロッドは rod sval 6（sv-definition/sv-rod-types.h:11）。rod_effect（cmd-item/cmd-zaprod.cpp:107-110）が
+   detect_all(detect_rad) を呼ぶ。detect_all（spell-kind/spells-detection.cpp:622-647）は罠・ドア・階段・金・物・
+   透明な敵・普通の敵を感知するので、邪悪感知（detect_monsters_evil）を含む。
+ - 強力発動なら detect_rad = DETECT_RAD_DEFAULT * 3 / 2 = 45（cmd-zaprod.cpp:50）、使う回数は普通と同じ1回
+   （cmd-item/cmd-magiceat.cpp:488-600 do_cmd_magic_eater）。
+ - 強力発動の HP: cost(level) = 10 + (lvl-10)/2、実際に引くのは cost/2 + 1d(cost/2)（cost 以下、
+   cmd-action/cmd-racial.cpp:435-449）。HP < cost の時だけ「本当に今の衰弱した状態で…」を聞く
+   （action/racial-execution.cpp:146）。一覧で ESC すると do_cmd_magic_eater が false を返し、HP は払わない
+   （cmd-racial.cpp:493-503）。強力発動の能力の失敗率は 0。
+
+2. 変えたこと
+ - me_powers の表（src/hengbot/me_powers.py）:
+   - Power に欄を2つ足した。preferred（その行のきっかけで、使えるなら代わりに使う力の (kind, sval) の並び）と
+     powerful（POWERFUL の条件の名前。成り立てば強力発動で使う）。
+   - 邪悪感知の行に preferred=(("rod", 6),)、全感知のロッドの行（きっかけ無し、effect "detect-all"、
+     powerful="when-safe"）を足した。
+   - _serving: 使える preferred の力を先に返す（使えるかは今の _usable のまま: 回数 > 0・同じ場所で5回まで・
+     requires）。Use の served は邪悪感知の行のままなので、全感知を使えばその階の邪悪感知の「着いた時」と
+     「休む前」は済んだことになる（代わりに使う）。
+   - 見える敵・殴られた直後・町と荒野の決まり、失敗5回の決まりは邪悪感知の行の物がそのまま効く。全感知が
+     5回失敗した場所では邪悪感知に戻る。回数が無い（充填中）・取り込んでいない時は今までどおり mAp。
+   - POWERFUL = {"when-safe": _when_safe}: 見える敵がいない・殴られた直後でない・me_powerful_activation.pays_safely。
+     power_key は成り立てば鍵を U + 種類 + 文字にし、理由の末尾に ":powerful" を付ける
+     （例 me-power:new-floor:detect-all:powerful）。成り立たなければ普通に mCg。
+ - 「安全」の HP（me_powerful_activation.pays_safely）: レベル >= MIN_LEVEL（10）かつ
+   HP - cost(level) > policy._low_hp_walk_threshold(max_hp)。新しい定数は無い。
+   _low_hp_walk_threshold = max(50%, max-300)（policy.py:10326）はダンジョンの段で一番高い低 HP の閾値
+   （低 HP の歩きの門 policy.py:10335、survival_preemption.py:102、status_cure.py:61、policy_combat.py の各所）。
+   その「より上」なら、緊急帰還（<= 50%、policy.py:1127）・回復薬と逃走（40%）・PANIC（20%）の外でもある。
+   HP < cost の問いも出ない。
+ - 強力発動の実行器（me_powerful_activation_input.py）: 鍵の種類を A だけから A/B/C に広げ、何を使うかは
+   me_powerful_activation.activatable(kind, sval)（町の鑑定・解呪、または powerful の付いた me_powers の行。
+   狙う行は除く）から取る。種類の問いは use_menu の一覧でもその種類の行へ動く（今までは杖の行に固定）。
+   問いの答え方は今の手順をそのまま使い、写しは作っていない。
+ - me_device_attacks_input.compile_device: me-power の理由でも U で始まる鍵は強力発動の実行器に任せる（1行）。
+ - model.py に SV_ROD_DETECTION = 6。
+ - town_work の一覧: scripts/town_work_review.json に4件（_serving の説明の更新、_usable・_activation・racial_key の
+   data の記録）、scripts/town_work_manifest.py --write は zero unmapped、town_work_sites.json を更新。
+
+ 罠の感知・ドア/階段の感知の行について（決めたこと）: 全感知は罠もドアも階段も感知するが、罠の感知の行と
+ ドア/階段の行の「感知した範囲」には数えていない。数えると着いた時のトラップ感知の杖や隠し扉を探す前の
+ ドア/階段感知を使わなくなり、所有者の文（邪悪感知の代わり）より広く動きが変わるため。問い1に書いた。
+
+3. 検査（tests/test_me_detection_rod_1101_recorded.py、11件。記録された n1-c life-073 の盤面
+   （tests/fixtures/me-detection-rod-1101.json.gz、抽出は tests/extract_me_detection_rod_1101.py）を公開の
+   choose_key と本番の実行器（_ExecutorInputPort）に通す。作った部分は冒頭に DECLARED CONSTRUCTED と書いた:
+   取り込んだロッドの一覧の行、低 HP とレベル9の値、8階の先の使用、町への帰還を止める patch、敵のいる場合のイーク、
+   ゲームの問いの画面）
+ - test_recorded_arrival_cast_detect_evil: 記録どおり（決定 15253 mAp）、未取り込みなら今の鍵 mAp のまま。
+ - test_absorbed_charged_detection_replaces_detect_evil_powerful_when_safe: 7階に着いて UCg、実行器が U/b/C/g と答える。
+   次は邪悪感知ではなくトラップ感知（mAm）、記録は served=邪悪感知・used=全感知。
+ - test_low_hp_or_low_level_casts_ordinary_detection: 費用の後の HP が閾値ちょうど → mCg（m/C/g）、レベル9 → mCg、
+   1 HP 多ければ UCg。
+ - test_charging_or_unabsorbed_detection_leaves_detect_evil: 充填中・未取り込みは mAp。
+ - test_stale_list_rod_found_charging_is_cancelled_then_detect_evil: 古い一覧で UCg、ゲームの一覧が充填中なら
+   ESC（HP は払わない）、次は mAp。
+ - test_failed_detection_retried_five_times_then_detect_evil: 失敗5回まで全感知、その後 mAp。
+ - test_visible_hostile_or_just_hit_casts_neither: 見える敵がいれば全感知も邪悪感知も使わない（脅威でない敵なら
+   周辺感知は今のまま使う）、殴られた直後は何も使わない。
+ - test_use_menu_kind_menu_moves_to_the_rod_row: use_menu の種類の一覧で U/b/2/2/Enter/g。
+ - test_powerful_when_safe_also_needs_no_visible_hostile: 脅威でない敵のそばで使う行（beside_harmless）に
+   powerful を付けた場合も、敵が見えていれば普通の発動（「安全」の条件が1か所にある確認）。
+ - test_recorded_rest_casts_detection_before_resting: 記録の8階の休む前（決定 14980、HP 122/143 → 費用後 112）で UCg、
+   HP 80 なら mCg。
+ - test_preferred_and_powerful_rows_are_executable: 表の preferred・powerful の行がそろい、強力発動で実行できる。
+ 変えた期待値・壁: 無い。
+
+ 外して確かめた結果（src を戻して流し、元に戻した。stash は使っていない）
+ - src の変更を全部戻す: 11件中8件が落ちる（記録どおりの mAp、充填中・未取り込み、敵がいる時の3件は元の動きの
+   確認なので通る）。
+ - _serving の preferred を戻す: 7件が落ちる（強力・普通・失敗・休む前・古い一覧）。
+ - 邪悪感知の行の preferred の欄を外す: 同じ7件が落ちる。
+ - power_key の強力発動の選択を外す（常に普通）: 5件が落ちる。
+ - pays_safely の HP の条件を外す: test_low_hp_or_low_level_casts_ordinary_detection [hp low] と
+   test_recorded_rest_casts_detection_before_resting が落ちる。
+ - _when_safe の「見える敵・殴られた直後」を外す: test_powerful_when_safe_also_needs_no_visible_hostile が落ちる。
+ - 実行器の鍵を A だけに戻す: 4件が落ちる。activatable を BY_SVAL に戻す: 4件が落ちる。
+ - 種類の一覧の行を杖に固定に戻す: test_use_menu_kind_menu_moves_to_the_rod_row が落ちる。
+ - compile_device の U の除外を戻す: 4件が落ちる。
+
+ 流した検査（前景で）
+ - 最終（main df4001950 を取り込んだ後、11-02 の決まり TASK-COMMON-1102: import と自分の検査だけ）:
+   import の検査 通過、tests.test_me_detection_rod_1101_recorded 11件 通過、
+   town_work_manifest.py --write zero unmapped。
+ - それより前（11-01 の決まりで checks.json を流した分）:
+   - main 1579cff68 の取り込み後: 109 モジュール中 108 が通過。落ちた1件 tests.test_n1c_town_wander_1101_recorded は
+     その時の木に無いモジュール（main に後から入った物）。
+   - main dde4725af の取り込み後: 121 モジュール中 120 モジュール 770件が通過。落ちた1件 tests.test_rq_after_q2_recorded は
+     同じく木に無いモジュール。
+   - main 5ed1ebcbb の取り込み後: 途中まで（127 中 約75 モジュール）流し、11-02 の決まりに変わったので止めた。
+     tests.test_n1b_279_death_recorded の test_harmless_suppressed_breeders_keep_the_strategic_list が落ちたが、
+     こちらの src の変更を外した main 5ed1ebcbb の木でも同じく落ちる（この枝の原因ではない。main の不具合として
+     別に見てほしい）。
+ - tests.test_me_detection_rod_1101_recorded 11件: 通過。
+ - scripts/town_work_manifest.py --write: zero unmapped。scripts/town_work_manifest.py（検査）: 0 violation(s)。
+ - 関係する既存の検査（tests.test_me_stage2_powers、test_me_powerful_activation、test_me_powerful_stuck_recorded、
+   test_me_disarm_powers、test_me_device_attacks、test_me_mapping_1101_recorded）45件: 通過。
+
+4. checks.json に足す案（このファイルは変えていない）
+ {"id": "ME-DETECTION-ROD",
+  "owner": "2026-11-01 「全感知のロッドの使い方について　邪悪感知を使うタイミングで全感知が使用可能なら代わりに使用する。安全なら強力発動で使う。」",
+  "tests": ["tests.test_me_detection_rod_1101_recorded"]}
+
+5. 観戦ページの決まりごと
+ - decisions.json はこの木には無い（観戦サーバの spectator の decisions.json、作成は make_decisions.py）。
+   魔道具術師の組に次の1件を足すとよい（公開向けの文）:
+   「全感知のロッドを取り込んだら、邪悪感知を使う場面（階に着いた時・休む前）で充填が済んでいれば代わりに
+   全感知を使う。レベル10以上で、敵が見えず、強力発動の費用を払っても HP が低 HP の線より上に残るなら強力発動で使う。」
+
+6. 保守性
+ - 新しい動きは me_powers の表のデータ（preferred と powerful の2つの欄と1行）、条件の表 POWERFUL の1項目、
+   HP の決まり1つ（me_powerful_activation.pays_safely）に置いた。方針のコードに sval の if は無い。
+ - 次に「よりよい力が代わりに使われる」力を足すとき: その力の行を1行（無ければ）と、代わられる行の preferred に
+   1項目。次に「安全なら強力発動」の力を足すとき: その行に powerful="when-safe" を1つ（狙わない力なら実行器は
+   そのまま動く。狙う力は activatable が受け付けないので、実行器に方向の段を足す必要がある）。
+ - 使い回した物: 回数（me_capability.charges）、失敗5回と共通の決まり（me_powers）、低 HP の閾値
+   （policy._low_hp_walk_threshold）、強力発動の費用と最低レベル（me_powerful_activation.cost・MIN_LEVEL）、
+   問いの答え方（me_powerful_activation_input の段、me_device_attacks_input の _row・_KINDS）、名前（me_device_policy）。
+ - よくなった点: 強力発動の鍵の組み立てが racial_key の1か所になった（町の Effect.key も使う）。強力発動の実行器は
+   杖の固定（鍵の A、種類の一覧の行 0、一覧の読み取りの "staff"）が無くなり、どの種類の力でも同じ手順で答える。
+ - 行数: me_powers.py +約50（説明を含む）、me_powerful_activation.py +約40（説明を含む）、他は数行。
+
+7. 並行の枝との重なり
+ - me-capability2-1101（me_capability の REPLACES・charges）: me_capability.py は変えていない。
+ - me_powers.py の Power の欄の並び（fallback の後に2つ足した）、POWERS の先頭（邪悪感知の行の直後に1行）、
+   _serving の先頭、power_key の鍵の組み立ての所が、同じ所を直す枝と近い。
+
+8. 所有者への問い
+ - 問い1（罠・ドア/階段の感知）: 全感知は罠・ドア・階段も感知する（強力発動なら半径45）。全感知を使った所を
+   トラップ感知の「感知した範囲」やドア/階段感知の「隠し扉を探す前」に数えて、その杖を使わないようにしてよいか。
+   今は数えず、着いた時に全感知の後でトラップ感知の杖も使う（1ターンと1回分を使う）。
+ - 問い2（安全の HP の線）: 「安全」は生存の段（低 HP の歩きの門、max(50%, 最大-300)）より上に残ることにした。
+   休む段（90% 未満で休む）と降りる前（85% 以上で降りる）は危険の段ではないので数えていない。
+   強力発動の後に休むことがある（例: 最大 HP 100 で費用 10 なら 90%）。休む線まで残す方がよいか。
+ - 問い3（休む前の強力発動）: 休む前は HP が減っているが、生存の線より上なら強力発動で使う（記録の8階: 122/143 → 112）。
+   休む前は普通の発動にする方がよいか。
