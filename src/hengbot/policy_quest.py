@@ -6,7 +6,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import me_q1_torch, quest_sweep_target, random_quest_reserve
+from hengbot import me_q1_torch, quest_sweep_target, random_quest_reserve, town_travel
 from hengbot.me_absorbed_substitutes import (
     CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key, carry_charges, carry_waived,
 )
@@ -1533,7 +1533,12 @@ class QuestMixin(OpeningRouteMixin):
                             cause="library-entry-step-unavailable",
                         )
                     return key
-                key = self._step_toward(snapshot, step)
+                # The game's travel to the Library's side (town_travel), else
+                # the single step; either is the expedition's library route.
+                key = town_travel.building_key(
+                    self, snapshot, library_pos if library_pos is not None else step_target,
+                    "town:morivant-full-identify:library",
+                ) or self._step_toward(snapshot, step)
                 if key is not None:
                     self._offer_execution(
                         key, producer="cross-town",

@@ -31,15 +31,18 @@ import gzip
 import json
 import unittest
 
-from hengbot.model import parse_snapshot
+from hengbot.model import Position, parse_snapshot
 from hengbot.policy_types import DecisionCandidate
 from hengbot.town_travel import is_travel_macro
+from recorded_session_replay import replay_session
 from tests import test_live22_bounty as live22
 from tests import test_me_nokey_1031_recorded as nokey
+from tests import test_morivant_library_identify_recorded as library
 from tests.test_quest_travel_progress import ROOT, QuestTravelFixtureMixin
 
 PREPARE_RETURN = ROOT / "tests/fixtures/quest-prepare-return-town3-walk-stage2.jsonl.gz"
 FIRST_RETURN_TURN = 2856703
+LIBRARY_WALK = 7678
 
 
 class TravelBeside:
@@ -109,6 +112,26 @@ class BountyApproachRecordedTest(TravelBeside, nokey.PostedKey):
         self.assertEqual(policy._claim_register.current.execution.continuation, "bounty.resume")
         with gzip.open(live22.FIXTURE / "state.jsonl.gz", "rt", encoding="utf8") as source:
             raw = json.loads(next(source))
+        self.post(policy, raw, key)
+
+
+class LibraryWalkRecordedTest(TravelBeside, nokey.PostedKey):
+    setUpClass = classmethod(library.MorivantLibraryIdentifyRecordedTest.setUpClass.__func__)
+
+    def test_library_walk_rides_the_travel_command(self):
+        for policy, board, recorded in replay_session(self, self.pin, self.monrace):
+            key = policy.choose_key(board)
+            if recorded["decision_sequence"] == LIBRARY_WALK:
+                break
+            policy.confirm_key_posted(key)
+        self.assertEqual((recorded["reason"], recorded["key"]),
+                         ("town:morivant-full-identify:library", "1"))
+        # Unfixed: '1', the first of the 14 recorded single steps.
+        self.assert_travel_beside(policy, key, Position(*library.LIBRARY),
+                                  "town:morivant-full-identify:library")
+        raw = next(json.loads(line) for line in reversed(self.pin["lines"])
+                   if json.loads(line).get("turn") == board.turn
+                   and json.loads(line).get("player"))
         self.post(policy, raw, key)
 
 
