@@ -31,6 +31,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_supply import supply_ledger_observer_memo
 from hengbot.store_sale import ZERO_BASE_KINDS
+from hengbot.unwanted_kinds import UNWANTED_TVALS, is_unwanted_kind
 
 
 class PolicyHelpersMixin:
@@ -306,7 +307,9 @@ class PolicyHelpersMixin:
         warrior cannot read and ammunition for an unused launcher.  Fair play:
         ``is_cursed``/``is_broken`` are exported for known items only, ``sval``
         for aware kinds only, tval always.  Third and fourth realm books are
-        always carried home and sold (owner 2026-10-20), never junk.
+        always carried home and sold (owner 2026-10-20), never junk.  Owner
+        2026-11-02 adds the unwanted kinds (``unwanted_kinds``: figurines,
+        statues, capture balls, other realms' first and second books).
 
         Without a board only the item's own classes apply (remains, cursed,
         harmful-consumable); a board adds the retention / ownership gates and
@@ -350,6 +353,10 @@ class PolicyHelpersMixin:
         elif item.is_spellbook and snapshot.player.class_id in {
                 PLAYER_CLASS_WARRIOR, PLAYER_CLASS_BERSERKER}:
             junk = "unusable-book"
+        # Owner 2026-11-02: figurines, statues, capture balls and the cheap
+        # books of other realms are never kept (unwanted_kinds).
+        elif is_unwanted_kind(item, self.__dict__.get("_own_book_tvals")):
+            junk = "unwanted-kind"
         # Supervisor Q7: only the launcher worn now counts; with none worn
         # every ammunition stays, and a quest reservation keeps its stack.
         elif (item.is_ammo
@@ -391,12 +398,14 @@ class PolicyHelpersMixin:
         """A visible pile whose tvals alone are junk is not loot.
 
         The board shows only tvals, so beyond remains only the unused-ammo
-        class can be decided before a pickup (2026-10-20, step 1a); the probe
-        stands for any stack of that tval, whatever its unseen quality.
+        class and the unwanted tvals (statues, figurines, capture balls) can
+        be decided before a pickup (2026-10-20, step 1a); the probe stands for
+        any stack of that tval, whatever its unseen quality.
         """
         if self._floor_pile_is_worthless(grid):
             return True
         return bool(grid.object_tvals) and all(
+            tval in UNWANTED_TVALS or tval in {1, 3, 10} or
             decision_memo(self, "floor-unused-ammo", snapshot, tval, lambda tval=tval: (
                 probe := InventoryItem(slot="floor", name="", count=1, tval=tval,
                                        sval=-1, aware=True, known=True,
