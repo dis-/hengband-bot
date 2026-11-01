@@ -25,21 +25,20 @@ The game (C++ source):
    PERMA_CURSE, no prompt) (cmd-item/cmd-usestaff.cpp staff_effect,
    spell-kind/spells-perception.cpp, spells-curse-removal.cpp).
 
-Rules: once a power is absorbed (the game's displayed staff list, else the
-staff sequence's absorption record) its scroll is never bought or required
-(``replaces_scroll``, ``serves``), and the town work it serves is this
-module's ``town_key``.  Only these two powers.
+Rules: once a power is absorbed (``me_capability.has``) its scroll is never
+bought or required (the ``me_capability.REPLACES`` rows of the *Identify* and
+*Remove Curse* scrolls), and the town work it serves is this module's
+``town_key``.  Only these two powers.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from hengbot import me_powers, me_staff_sequence
+from hengbot import me_capability, me_powers
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
-    SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_SCROLL,
-    item_requires_full_identification,
+    SV_STAFF_IDENTIFY, SV_STAFF_REMOVE_CURSE, item_requires_full_identification,
 )
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, REST_MACRO
 
@@ -47,7 +46,6 @@ from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, REST_MACRO
 REASON = "me-powerful"
 RACIAL_KEY = "U"
 MIN_LEVEL = 10           # class-racial-switcher.cpp rpi.min_level
-SV_STAFF_REMOVE_CURSE = 6  # sv-definition/sv-staff-types.h
 MEMORY = "_me_powerful"
 # Uses of one power on one item before it is given up (the owner's retry
 # bound for absorbed powers, me_powers.FAILURES_PER_PLACE).
@@ -58,10 +56,13 @@ ATTEMPTS_PER_TARGET = me_powers.FAILURES_PER_PLACE
 class Effect:
     name: str
     sval: int                  # the absorbed staff power
-    names: tuple[str, str]     # its list name (BaseitemDefinitions ja, en)
-    scroll_sval: int           # the scroll it replaces
     targeted: bool             # identify_fully asks for an item
     kind: str = "staff"
+
+    @property
+    def names(self) -> tuple[str, str]:
+        """Its list name (the device policy table's BaseitemDefinitions name)."""
+        return me_capability.names(self.kind, self.sval)
 
     @property
     def key(self) -> str:
@@ -72,10 +73,8 @@ class Effect:
         return f"{REASON}:{self.name}"
 
 
-IDENTIFY = Effect("identify", SV_STAFF_IDENTIFY, me_staff_sequence.POWER_NAMES[SV_STAFF_IDENTIFY],
-                  SV_SCROLL_STAR_IDENTIFY, True)
-UNCURSE = Effect("uncurse", SV_STAFF_REMOVE_CURSE, ("解呪", "Remove Curse"),
-                 SV_SCROLL_STAR_REMOVE_CURSE, False)
+IDENTIFY = Effect("identify", SV_STAFF_IDENTIFY, True)
+UNCURSE = Effect("uncurse", SV_STAFF_REMOVE_CURSE, False)
 EFFECTS = (UNCURSE, IDENTIFY)
 BY_SVAL = {effect.sval: effect for effect in EFFECTS}
 
@@ -97,32 +96,6 @@ def _memory(policy) -> Memory:
         memory = Memory()
         setattr(policy, MEMORY, memory)
     return memory
-
-
-# -- the purchase and supply rules ---------------------------------------------
-
-def serves(policy, snapshot, effect: Effect) -> bool:
-    """Whether class 16 has absorbed the effect's staff power."""
-    return snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER and absorbed(policy, effect)
-
-
-def absorbed(policy, effect: Effect) -> bool:
-    """The last displayed list of the kind, else the staff sequence's record.
-
-    Both are class 16's own (me_device_attacks.observe_lists clears the
-    lists for every other class every decision).
-    """
-    lists = getattr(policy, "_me_device_lists", None) or {}
-    if effect.kind in lists:
-        return any(row.get("name") in effect.names for row in lists[effect.kind][1])
-    return me_staff_sequence.absorbed(policy, effect.sval)
-
-
-def replaces_scroll(policy, snapshot, item) -> bool:
-    """A *Identify* / *Remove Curse* scroll whose power is absorbed."""
-    return item.tval == TVAL_SCROLL and any(
-        item.sval == effect.scroll_sval and serves(policy, snapshot, effect)
-        for effect in EFFECTS)
 
 
 # -- the town work --------------------------------------------------------------
@@ -151,7 +124,7 @@ def _address(item) -> str:
 def _work(policy, snapshot):
     memory = _memory(policy)
     for effect in EFFECTS:
-        if not serves(policy, snapshot, effect):
+        if not me_capability.has(policy, snapshot, effect.kind, effect.sval):
             continue
         target = TARGETS[effect](policy, snapshot)
         if target is None:
@@ -190,7 +163,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if work is None or snapshot.player.level < MIN_LEVEL:
         return None
     effect, target, signature = work
-    if me_powers.charges(policy, snapshot, effect) <= 0:
+    if me_capability.charges(policy, snapshot, effect.kind, effect.sval) <= 0:
         return None  # the absorbed power regenerates; nothing is bought
     if snapshot.player.hp <= cost(snapshot.player.level):
         return _rest_key(policy, snapshot, hostiles)

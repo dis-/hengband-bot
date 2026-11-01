@@ -22,7 +22,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from hengbot import me_absorbed_substitutes as substitutes
+from hengbot import me_capability
+from hengbot.model import SV_STAFF_DESTRUCTION, TVAL_STAFF
 from hengbot.model import parse_snapshot
 from tests import test_q2_tower_recharge_recorded as q2_town
 
@@ -65,7 +66,8 @@ class AbsorbedRequirementTest(unittest.TestCase):
         for fail, counted in ((20, 6), (15, 6), (21, 0)):
             with self.subTest(fail=fail):
                 policy, board = self.observed(power_list("staff", [("*破壊*", 6, 9, fail)]))
-                self.assertEqual(substitutes.destruction_uses(policy, board), counted)
+                self.assertEqual(me_capability.replacing_charges(
+                    policy, board, (TVAL_STAFF, SV_STAFF_DESTRUCTION)), counted)
                 self.assertEqual(policy._total_destruction_uses(board), counted)
                 self.assertEqual(policy._has_destruction_method(board), counted > 0)
                 missing, row = self.gate(policy, board)

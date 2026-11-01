@@ -1,0 +1,15 @@
+{
+ "main": "e69085962",
+ "branch": "maint2-me-capability-1101 at 2ada22c31 (working tree before the commit, identical sources)",
+ "tool": "validation/manifest-tax-1101/replay_choose_key.py and compare_replays.py, each tree a full export inside the worktree",
+ "tests_run": 575,
+ "failures": 0,
+ "errors": 0,
+ "skipped": 0,
+ "decisions": 3280,
+ "decision_lines": 3305,
+ "receipts": 5858,
+ "differing_decisions": 0,
+ "jsonl_sha256_both": "9b259c23a6ee64f0f168bbd54da6ae943897d68bb46c2aa04357e6cf00783951",
+ "note": "the two replay outputs are byte-identical (cmp); the defect check tests.test_me_record_key_recorded is not a checks.json test"
+}

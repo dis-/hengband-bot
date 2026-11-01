@@ -10776,17 +10776,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "me_staff_sequence.py:absorbed_charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Absorbed power charges from the sequence record and the observed staff power list; consumed by detection counts.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "me_staff_sequence.py:power_key": {
     "classification": "data",
     "rows": [
@@ -11627,17 +11616,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "me_device_policy.py:Device.key": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure property: the device's key in the staff sequence's record (stage sval or kind:sval).",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "me_device_policy.py:Device.kind": {
     "classification": "data",
     "rows": [
@@ -11678,72 +11656,6 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Data/selector result; no independent command or effect credit. predicate: whether the me-device:policy rung and the shop selector buy this shelf row (buy_first / buy_more within me_staff_sequence.spare_gold).",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "me_absorbed_substitutes.py:destruction_uses": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure count: the absorbed *Destruction* staff's displayed charges when its displayed success rate is 80%+, added to _total_destruction_uses.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "me_powers.py:charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure count: an absorbed power's charges from the displayed list, else the absorption record.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "me_powers.py:observed_row": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure lookup: the power's row in the last displayed list of its kind.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "me_powers.py:recorded_charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure count: charges of an absorption the bot observed (staff sequence record).",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "me_staff_sequence.py:absorbed_count": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure count: the staff sequence record's count for one key.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "me_staff_sequence.py:extra_charges": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure count: the record's charges of a kind:sval extra.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -12074,5 +11986,49 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-01 (#47 D57) 「回復後即盲目になった場合は戦闘による状況打開を試みる」: blind, latched by status_cure.observe (the board right after a blindness cure shows 「やっと目が見えるようになった。」 and the player blind again), a remembered adjacent attacker (blind_strike.remembered_cells), not afraid, HP at or above the low-HP walk threshold and fighting allowed in this dungeon: blind_strike.strike_key ('+' and a direction) under blind:fight-through, else None. Called only from _emergency_item right after the status cure; dungeon only (blind_strike memory is per floor); no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_capability.py:_migrated": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure key: an old int record key (a stage staff's sval) as record_key('staff', sval); other keys unchanged."
+  },
+  "me_capability.py:names": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure lookup: the power list's (ja, en) name of a (kind, sval) from the device policy table (me_device_policy.json)."
+  },
+  "me_capability.py:record_key": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure key: the absorption record's 'kind:sval' key of a power; read by the capability facade, never posted."
+  },
+  "me_capability.py:replacing_charges": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure count: the charges the REPLACES counting rows (wall breach, *Destruction*, Treasure Location) add to an item's count when their condition holds."
+  },
+  "me_capability.py:replacing_power": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure lookup: the (kind, sval) of the first REPLACES row's power for a target; me_absorbed_substitutes.carry_cast_key composes the cast key from it."
+  },
+  "me_powerful_activation.py:Effect.names": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure property: the effect's power list name from the device policy table, read by the executor's row match."
+  },
+  "policy_helpers.py:PolicyHelpersMixin._has_destruction_method": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: _total_destruction_uses > 0 (carried *Destruction* uses plus the absorbed staff's REPLACES charges)."
+  },
+  "policy_observation.py:ObservationMixin._missing_required_abilities": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure list: the required abilities the board lacks (the *Destruction* gate reads _has_destruction_method); no command by itself."
+  },
+  "policy_quest.py:QuestMixin._quest_carry_status": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure status: carried counts of each quest carry against its requirement (an absorbed power's REPLACES row waives or adds charges)."
+  },
+  "policy_quest.py:QuestMixin._quest_carry_target_for_item": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure lookup: the quest carry an item would serve, None for a carry a REPLACES row waives; no command by itself."
+  },
+  "policy_quest.py:QuestMixin._quest_named_item_count": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure count: carried items of one named quest carry (Stone to Mud charges include the REPLACES row's absorbed charges)."
   }
 }

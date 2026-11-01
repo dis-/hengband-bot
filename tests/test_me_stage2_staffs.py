@@ -26,6 +26,7 @@ import tests  # noqa: F401
 import copy
 
 from hengbot import me_staff_sequence as sequence
+from hengbot.me_capability import record_key
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import WAIT_KEY
@@ -219,8 +220,9 @@ class Stage2TowerTest(executor_harness.ProductionHarness):
             ("absorb", LIGHT), ("absorb", MAPPING), ("absorb", TRAP), ("absorb", DOOR),
             ("absorb", EVIL), "me-staff:stage2-complete"])
         record = sequence.state(policy)
-        self.assertEqual(record.absorbed, {IDENTIFY: 21, DETECT: 19, LIGHT: 19, MAPPING: 11,
-                                           TRAP: 12, DOOR: 15, EVIL: 14})
+        self.assertEqual(record.absorbed, {record_key("staff", sval): count for sval, count in (
+            (IDENTIFY, 21), (DETECT, 19), (LIGHT, 19), (MAPPING, 11), (TRAP, 12), (DOOR, 15),
+            (EVIL, 14))})
         self.assertEqual(sorted(record.completed_stages), [1, 2])
         self.assertEqual((record.stage, record.remaining), (3, ()))
         self.assertTrue(sequence.complete(policy))
