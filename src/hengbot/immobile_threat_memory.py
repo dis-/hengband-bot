@@ -86,8 +86,13 @@ def _drains_stats(policy, monster: MonsterState) -> bool:
 
 
 def _avoided(policy, snapshot, monster: MonsterState) -> bool:
-    """A remembered never-moving monster whose ring leaves the routes."""
-    return _drains_stats(policy, monster) or _lethal(policy, snapshot, monster)
+    """A remembered never-moving monster whose ring leaves the routes.
+
+    A never-moving summoner that drains (キリス・ウンゴルの番人) stays the
+    immobile-summoner owner's (``_immobile_summoner_key``), which already
+    keeps out of its sight and fights it when no retreat is left."""
+    return ((_drains_stats(policy, monster) and not monster.can_summon)
+            or _lethal(policy, snapshot, monster))
 
 
 def _ring(position: Position) -> set[Position]:
