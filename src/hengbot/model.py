@@ -1244,7 +1244,7 @@ def parse_snapshot(
     monsters: list[MonsterState] = []
     for monster_data in data.get("visible_monsters", []):
         index = int(monster_data["index"])
-        position = positions.get(index)
+        position = positions.get(index) or _exported_position(monster_data)
         if position is None:
             continue
         friendly = bool(monster_data.get("friendly", False))
@@ -1568,6 +1568,19 @@ def _optional_int(value: Any) -> int | None:
 
 def _optional_bool(value: Any) -> bool | None:
     return value if isinstance(value, bool) else None
+
+
+def _exported_position(monster_data: Mapping[str, Any]) -> Position | None:
+    """The cell the game exports with a monster in view (#47 D57, n1-c life-085).
+
+    bot-json-output.cpp make_visible_monsters_json lists a monster the player
+    sees (ml and the grid in view) with its y/x, because it "can be perceived
+    without knowing its terrain (infravision, detection)": the zombie's
+    infravision showed the Super Great Silver Jelly beside it in the dark,
+    but its unlit cell was not in the grid map, so the monster was dropped.
+    """
+    y, x = _optional_int(monster_data.get("y")), _optional_int(monster_data.get("x"))
+    return None if y is None or x is None else Position(y, x)
 
 
 def _monster_screen_fields(monster_data: Mapping[str, Any]) -> dict[str, Any]:

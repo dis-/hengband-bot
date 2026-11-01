@@ -122,6 +122,26 @@ def lamp_policy():
     return policy
 
 
+class JellyInViewRecordedTest(PostedDeathKey):
+    """life-085: the jelly the game shows by infravision is on the board."""
+
+    def test_the_game_lists_the_jelly_beside_the_player(self):
+        raw = next(raw for raw in CASE_085["boards"] if raw["turn"] == JELLY_WAIT_TURN)
+        self.assertEqual([(m["race_id"], m["y"], m["x"]) for m in raw["visible_monsters"]],
+                         [(JELLY, 8, 6)])
+        self.assertEqual((raw["player"]["y"], raw["player"]["x"]), (9, 6))
+        board = parse_snapshot(copy.deepcopy(raw), new_policy(CASE_085)._monrace_knowledge)
+        self.assertEqual([(m.race_id, m.distance) for m in board.visible_monsters], [(JELLY, 1)])
+
+    def test_dark_emergency_answers_the_adjacent_jelly(self):
+        policy = lamp_policy()
+        rows = self.drive(policy, boards(CASE_085, 1445613, JELLY_WAIT_TURN))
+        raw, key, reason = rows[-1]
+        self.assertEqual(raw["turn"], JELLY_WAIT_TURN)
+        self.assertNotEqual(key, "5", reason)
+        self.assertEqual(key[-1], "8", (key, reason))  # the jelly's direction
+
+
 class BlindEmergencyStrikeRecordedTest(PostedDeathKey):
     """life-084: blind without a cure, the emergency ladder waited to death."""
 
