@@ -2,6 +2,13 @@
 
 These tails have no checkpoint. We stop at the first changed command and
 never describe later captured boards as a continuation of that command.
+
+Owner 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の
+出発は拒否する。」: the forced visit departure leaves only when every
+departure condition holds; with one unmet it starts one mining cycle
+(town_end_mining).  The recorded boards fail home_catalog_ready alone, so
+they start the cycle; the departure mechanics are exercised on the same
+boards with Home's catalogue complete (DECLARED CONSTRUCTED, ``catalogued``).
 """
 import tests  # noqa: F401
 
@@ -18,7 +25,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from hengbot import cli
+from hengbot import cli, town_end_mining
 from hengbot.model import DUNGEON_YEEK_CAVE, Position, TVAL_POTION, SV_POTION_CURE_CRITICAL, TVAL_STAFF, SV_STAFF_IDENTIFY
 from hengbot.policy import HengbotPolicy, TR_NO_TELE
 from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, READ_KEY, WAIT_KEY
@@ -34,6 +41,13 @@ BOARDS = sorted(FIXTURES.glob("*.state.jsonl.gz"))
 
 def ready_board():
     return board_policy(last_row(BOARDS[0]))
+
+
+def catalogued(policy):
+    """DECLARED CONSTRUCTED: Home's catalogue complete (home_catalog_ready,
+    the recorded boards' only unmet condition), so the departure may leave."""
+    policy._equipment_catalog.home_scan_complete = True
+    return policy
 
 
 class MinimumTest(unittest.TestCase):
@@ -148,9 +162,7 @@ class DepartureTest(unittest.TestCase):
         return [json.loads(row) for row in path.read_text(encoding="utf-8").splitlines()]
 
     def test_five_last_boards_cross_real_policy_or_driver_stop_boundary_once(self):
-        expected = ["rha", "rfa", "2", "reb", "reb"]
-        self.assertEqual(len(BOARDS), len(expected))
-        for path, wanted in zip(BOARDS, expected):
+        for path in BOARDS:
             with self.subTest(capture=path.name), TemporaryDirectory() as root, patch.dict(
                     os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 decision = last_row(path.with_name(path.name.replace(".state.", ".decision.")))
@@ -175,13 +187,15 @@ class DepartureTest(unittest.TestCase):
                 else:
                     policy._town_blocked_reason = cause
                     key = policy._town_blocked_key(board)
-                self.assertEqual(key, wanted)
-                self.assertEqual(policy._town_blocked_reason, "repetition")
-                policy._town_blocked_key(board)
+                # home_catalog_ready is unmet: no forced departure, one cycle.
+                self.assertEqual((key, policy.last_reason), (WAIT_KEY, town_end_mining.START_REASON))
+                self.assertIsNone(policy._town_blocked_reason)
+                self.assertEqual(policy._fundraising_mode, "prepare")
                 rows = self.records(root)
                 self.assertEqual(len(rows), 1)
                 self.assertEqual(rows[0]["cause"], cause)
-                self.assertEqual(rows[0]["outcome"], "forced_departure")
+                self.assertEqual(rows[0]["outcome"], "mining_cycle")
+                self.assertEqual(rows[0]["closed_work"]["unmet"], ["home_catalog_ready"])
                 self.assertEqual(rows[0]["minimum"]["failed"], [])
                 self.assertEqual(rows[0]["free_pack_slots"], PACK_CAPACITY - len(board.inventory))
 
@@ -190,6 +204,7 @@ class DepartureTest(unittest.TestCase):
             with self.subTest(cause=cause), TemporaryDirectory() as root, patch.dict(os.environ,
                     HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
                 policy, board, _ = ready_board()
+                catalogued(policy)
                 policy._town_blocked_reason = cause
                 self.assertEqual(policy._town_blocked_key(board), "rha")
                 self.assertEqual(len(self.records(root)), 1)
@@ -206,6 +221,7 @@ class DepartureTest(unittest.TestCase):
             with self.subTest(safe=safe), TemporaryDirectory() as root, patch.dict(os.environ,
                     HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 policy, board, _ = ready_board()
+                catalogued(policy)
                 if not safe:
                     board = replace(board, player=replace(board.player, hp=1))
                 args = SimpleNamespace(owner_retired_log_only=True)
@@ -215,13 +231,17 @@ class DepartureTest(unittest.TestCase):
                     policy.last_reason = "shop:approach"
                     policy._town_turn_arbiter.retire("store-router", ("unchanged",))
                     key = cli._handle_owner_retirement(args, board, "5", policy)
+                # Unsafe (HP 1, the hp_full leaf): no departure; the burst
+                # starts one mining cycle, whose own gates and the survival
+                # owners come first.
                 self.assertEqual(key, "rha" if safe else WAIT_KEY)
-                self.assertEqual(cli._policy_final_stop_required(policy), not safe)
-                self.assertEqual(self.records(root)[0]["outcome"], "forced_departure" if safe else "hard_stop")
+                self.assertFalse(cli._policy_final_stop_required(policy))
+                self.assertEqual(self.records(root)[0]["outcome"], "forced_departure" if safe else "mining_cycle")
                 self.assertEqual(len(self.records(root)), 1)
 
-    def test_one_slot_record_and_real_latched_entry(self):
+    def test_one_slot_record_starts_the_mining_cycle(self):
         policy, board, depth = ready_board()
+        catalogued(policy)
         while len(board.inventory) < PACK_CAPACITY - 1:
             board = replace(board, inventory=board.inventory + [replace(item("z", TVAL_POTION, 0), weight=0)])
         # DECLARED CONSTRUCTED: visible active dungeon entrance under player.
@@ -230,18 +250,19 @@ class DepartureTest(unittest.TestCase):
         board = replace(board, grids={entrance.position: entrance})
         with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
             key = policy.force_visit_departure(board, "home-known-empty-withdrawal")
-            self.assertEqual(key, ENTER_DUNGEON_MACRO)
+            # One free slot fails the ordinary five-slot reserve
+            # (free_pack_slots_ready): no walk-in departure, one mining cycle.
+            self.assertEqual((key, policy.last_reason), (WAIT_KEY, town_end_mining.START_REASON))
             row = self.records(root)[0]
             self.assertEqual(row["free_pack_slots"], 1)
             self.assertEqual(row["closed_work_under_five"], ["home-known-empty-withdrawal"])
-            self.assertEqual(row["entry_method"], "walk")
-            self.assertEqual(row["destination_depth"], policy._dungeon_entry_depth(
-                board, policy._active_dungeon_target(), via_recall=False))
-            self.assertEqual(policy._town_blocked_key(board), ENTER_DUNGEON_MACRO)
+            self.assertEqual((row["outcome"], row["entry_method"]), ("mining_cycle", "yeek-income"))
+            self.assertEqual(row["closed_work"]["unmet"], ["free_pack_slots_ready"])
             self.assertEqual(len(self.records(root)), 1)
 
     def test_committed_visit_preempts_release_shopping_and_refused_entrance(self):
         policy, board, _ = ready_board()
+        catalogued(policy)
         policy._observe(board)
         with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
             policy.force_visit_departure(board, "departure-unsatisfiable")
@@ -257,6 +278,7 @@ class DepartureTest(unittest.TestCase):
 
     def test_committed_recall_keeps_existing_hard_hazard_cancellation(self):
         policy, board, _ = ready_board()
+        catalogued(policy)
         with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
             self.assertEqual(policy.force_visit_departure(board, "departure-unsatisfiable"), "rha")
             # DECLARED CONSTRUCTED: NO_TELE becomes known while recall is armed.
@@ -284,13 +306,13 @@ class DepartureTest(unittest.TestCase):
                         policy, "procurement_requirements", return_value=[{
                             "item": "Word of Recall scrolls", "blocked_reason": "no-actionable-supplier"}]):
                     key = policy._town_blocked_key(board)
-                    self.assertEqual(key, WAIT_KEY)
-                    self.assertEqual(policy._fundraising_mode, None if exhausted else "prepare")
-                    self.assertEqual(policy._town_blocked_reason, "departure-unsatisfiable" if exhausted else None)
-                    if exhausted:
-                        policy._town_blocked_key(board)
+                    # The town end's mining cycle comes before the supply
+                    # stockout run and its three-run bound (no owner cap).
+                    self.assertEqual((key, policy.last_reason), (WAIT_KEY, town_end_mining.START_REASON))
+                    self.assertEqual(policy._fundraising_mode, "prepare")
+                    self.assertIsNone(policy._town_blocked_reason)
                 row = self.records(root)[0]
-                self.assertEqual(row["outcome"], "hard_stop" if exhausted else "fallback")
+                self.assertEqual(row["outcome"], "mining_cycle")
                 self.assertIn("recall_departure_ready", row["minimum"]["failed"])
                 self.assertEqual(len(self.records(root)), 1)
 
@@ -303,7 +325,8 @@ class DepartureTest(unittest.TestCase):
         with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
             self.assertEqual(policy.force_visit_departure(board, "equipment-departure-incomplete"), WAIT_KEY)
             self.assertEqual(policy._fundraising_mode, "prepare")
-            self.assertEqual(self.records(root)[0]["outcome"], "fallback")
+            # The ability gap is an unmet condition: the mining cycle opens.
+            self.assertEqual(self.records(root)[0]["outcome"], "mining_cycle")
             self.assertIn("depth_abilities", self.records(root)[0]["minimum"]["failed"])
 
     def test_transfer_debt_cannot_fall_back_to_income(self):

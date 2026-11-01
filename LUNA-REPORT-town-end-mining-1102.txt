@@ -1,0 +1,100 @@
+LUNA-REPORT town-end-mining-1102（町の終わり方: 条件を満たせなければ採掘を1サイクル）
+
+== 持ち主の決定 ==
+2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。」
+（問い「最低条件の19項目を全部生存として、満たせなければ名前を付けて止めるか」への答え）
+
+== 変えたこと ==
+- 出発の条件のどれかが満たせない時は、もう出発しない。town-defined-end の「最低条件の外の条件を名前で諦めて出発する」
+  終わり方は消した。最低条件の項目が満たせない時も、すぐには止めない。
+- 代わりに採掘を1サイクル行う。新しいモジュール src/hengbot/town_end_mining.py が、今の資金稼ぎの担当に
+  1回だけの採掘（準備から始める。鑑定の杖や帰還の品切れの採掘と同じ形）を開かせる（_open_one_mining_run）。
+  採掘の出発は自分の条件のまま（「採掘の要求品が優先」、_mining_departure_ready・降りる時の検査）。
+  採掘の1回は階を掘り尽くしてから戻る（品切れの採掘と同じく、店の補充に時間が要るため。_restock_time_pass_run）。
+  金額の目標で途中で終わらない（_end_fundraising_set_at_gold_target の例外）。
+  町へ戻ったらその採掘はそこで終わり（_end_mining_set）、次に担当が答えない時に条件をもう一度確かめる。
+  まだ満たせなければ次の1サイクル（回数の上限は付けていない。持ち主の決まりが無いため）。
+- 1か所で判断する: town_terminal の verdict_town_end（depart / mine / stop）。
+  町の終わり方（town_end_key）と、ほかの訪問を閉じる強制出発（force_visit_departure: no-owner-answered、
+  departure-unsatisfiable、owner-retired-burst ほか VISIT_CLOSABLE_REASONS）が同じ判定を使う。
+  したがって3回の引退（burst）でも、条件が満たせなければ強制出発や止まりの代わりに採掘を始める（調整役の追加の指示）。
+- 名前付きで止まるのは、その採掘が出発できない時だけ:
+  - すでに採掘のセットが開いていて、担当が答えない（採掘の条件が満たせない）
+  - この訪問で開いた採掘が、町を出る前にほかの担当に閉じられた（Q34 の松明の買い物、制覇の出発など）
+  - 最初の Q34 が松明を買っている間（_start_fundraising と同じ条件。_opening_q34_holds_fundraising に切り出した）
+  - 移しかけの取引がある（force_visit_departure の品切れの採掘と同じ条件）
+  止まりの名前: 最低条件の項目なら town:blocked:survival:<項目>（今のまま）、それ以外は新しい town:blocked:unmet:<名前>
+  （POLICY_FINAL_STOP_PREFIXES に登録、cli の表示文も追加）。
+- 残したもの: クエスト報酬が町を押さえている時（holds_town）、店の入口から降りる一歩、採掘の入口の無い町からの戻り、
+  生存の担当が先（_decide の順はそのまま。町の終わり方は担当が全員答えない時だけ）。
+
+== 採掘の記録（再起動で失わない） ==
+- policy._town_end_mining_cycle = TownEndMiningCycle(unmet, cycles, started_turn, stage, visit_epoch)
+  stage: town（町で準備中）→ run（イークの洞窟1階）→ returned（戻った）／ departed（町で条件が満たされて普通に出発した）。
+- 判断ログの隣の town-end-mining.json に書く（cli が _town_end_mining_path を設定。runtime_paths にも登録）。
+  プロセスの最初の盤面で、同じか後のゲームターンなら戻す: town なら町で採掘を開き直す、run で1階なら採掘として続ける、
+  run で町なら1サイクル済み。flight_recorder の記録にも入れた。
+- 同じ条件が続けて満たせない時は cycles が増える（1, 2, ...）。keep-running-events.jsonl に outcome=mining_cycle と
+  closed_work.unmet が残る。
+
+== テスト ==
+tests/test_town_defined_end_recorded.py（記録の盤面: n1-c 23:50 自宅の往復、n1-b 23:34 引退3回）を新しい動きに直した:
+- test_no_owner_starts_one_mining_cycle_instead_of_dropping（23:50）: 判定は ("mine", home_candidate_resolved)、
+  WAIT と town:end-mining-cycle、強制出発しない、記録のファイルと keep-running の mining_cycle を確認。
+  続けて choose_key＋本番の executor で12手まで: 歩き回り・止まりなし、出発する時は満たせない条件が無い。
+- test_cycle_survives_a_restart_and_retries_after_its_run（23:50）: 再起動した policy が記録から採掘を開き直す、
+  1回の後（DECLARED CONSTRUCTED）セットが閉じ、同じ条件で2サイクル目（cycles=2）、セットが開いたまま担当が答えなければ名前付きの止まり。
+- test_no_owner_stops_under_the_unmet_survival_leaf（23:34）: Q34 が松明を買う間は採掘を始められず、
+  town:blocked:survival:recall_departure_ready で止まる（採掘の条件が満たせない側）。
+- 期待値を直した既存のテスト: tests/test_keep_running_a0.py（記録の盤面5枚は home_catalog_ready だけが満たせない
+  → 強制出発ではなく採掘。出発の仕組みを確かめるテストは自宅の目録を済ませた盤面で行う（catalogued、DECLARED CONSTRUCTED）。
+  1枠だけ空きの盤面は5枠の予備が満たせないので採掘。品切れの採掘と能力不足の資金稼ぎより採掘のサイクルが先）。壁は足していない。
+- 結果: test_town_defined_end_recorded 9件 OK。test_keep_running_a0 17件中1件失敗
+  （test_committed_visit_preempts_release_shopping_and_refused_entrance。main でも同じ 'R&\r' != '5' で落ちる、変更前から）。
+  関係を確かめるため一度だけ流したもの: test_fundraise_kit_route_recorded、test_unid_deposit_recorded、test_town_post_s2_r2、
+  test_town_progress_invariant、test_owner_retirement_slice1、test_depart2_1101_recorded、test_town_followups_recorded は OK。
+  test_quest_door_confirm_recorded の構造の1件は main でも落ちる（変更と無関係）。
+- 変更を戻した確認（1回）: town_terminal.py を戻すと 9件中 1 failure（判定が drop-and-depart）・1 error（dropped 引数）。
+  src 全体を戻すと town_end_mining が無く読み込みで失敗。
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok。town_work_manifest.py --write → zero unmapped
+  （town_end_mining.py:start と town_terminal.py:town_end_stop_reason の審査を追加、town_end_key の説明を更新）。
+- main（424cb439c、n1c-loops-0336-1102 と q14-lv8-1102 を含む）を取り込み済み。取り込み後も上の結果は同じ。
+
+== 追加の証拠: owner-retired-burst（C:\hengband-backups\pdca\captures\burst-0446-1102） ==
+- n1-b life-291 04:46:16（bot-f334cbd12）と 04:47:45（bot-ff4196953、再起動した新しい policy で10手で同じ形）:
+  採掘から戻る → 自宅（Home の回が home:route-claim-unfulfilled で閉じる: 04:46 は決定145→147、04:47 は2→5）→ 武器屋・闇市 →
+  帰還先（20階）に free_action が無いので「帰還先が全部条件不足」の資金稼ぎ（準備）が始まる（155／8）→ 次の手で
+  fundraise:fallback-exhausted-plan（156／9: 財宝感知 0/5 のまま、町の計画が尽きたと読む）→ _break_town_cycle が全店を閉じる →
+  town:blocked:depth-gate:destination-20:missing-free_action（157／10、資金稼ぎがもう開いているので
+  _start_no_safe_destination_fundraising が偽）→ 3回の引退で burst。所持金は約100万。
+- 財宝感知の供給元は自宅（崩した後の計画が ['Home'] だけ）で、その自宅はこの訪問で route-claim-unfulfilled で閉じていた。
+  記録の盤面から新しい policy で再現を試したが、自宅を閉じた状態（自宅の回の内部の記録）を作れず、計画は自宅へ向かい再現しなかった
+  （policy の checkpoint が無い）。根は自宅の回が閉じ続けること（D30 の系統、town-defined-end の報告の 23:50 と同じ形）と見ている。
+  ここでは直していない。新しいテストも足していない。
+- 今回の変更で burst の時にどうなるか: この盤面ではもう資金稼ぎのセットが開いているので、採掘の判定は stop（名前付き）。
+  burst は今のまま止まる。
+- n1-a life-464 04:35:28: 自宅の不要品の掃除（home:junk-sweep-withdraw → full-home-discard → unwanted-kind）の往復で burst。
+  自宅の系統（D30）。直していない。n1-b 04:15:10 は記録が無く見ていない。
+
+== checks.json に足す案（編集はしていない） ==
+  {"id": "town-end-mining", "defect": "D61-town-end-mining",
+   "owner": "2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。」",
+   "tests": ["tests.test_town_defined_end_recorded", "tests.test_keep_running_a0"]}
+
+== 保守性 ==
+- 採掘のサイクルの状態と記録は town_end_mining.py の1か所（start / finish_run / carry / outstanding / closed_in_town）。
+- 判定は town_terminal.verdict_town_end の1つで、町の終わり方と強制出発の両方がそれを読む（drop-and-depart の
+  dropped 引数は消した）。
+- 採掘を1回だけ開く手順を _open_one_mining_run に、採掘のセットを終える手順を _end_mining_set にまとめた
+  （回数の終わりのその場の11行を置き換え）。Q34 の条件は _opening_q34_holds_fundraising に切り出して _start_fundraising と共有。
+
+== 持ち主への問い ==
+Q1: 同じ条件が何サイクル続けても満たせない時の決まりがありません（今は毎回1サイクル採掘して再挑戦し続ける）。
+    上限や止まり方を決めますか。cycles の数は記録に残しています。
+Q2: 「条件未達の出発は拒否」を、町の終わり方だけでなく、訪問を閉じる強制出発のすべて（departure-unsatisfiable、
+    owner-retired-burst ほか、10-14 の A0「最低条件で出発」）に当てました。A0 の記録の盤面5枚は自宅の目録
+    （home_catalog_ready）だけが未達で、今後は出発せず採掘します。これでよいですか。
+Q3: 5枠の予備（free_pack_slots の普通の条件）が満たせない時も採掘になります（A0 の「1枠でも出発」をやめる）。よいですか。
+Q4: 採掘の1回は階を掘り尽くしてから戻るようにしました（品切れの採掘と同じ）。金額の目標で戻る普通の採掘の方がよいですか。
+Q5: n1-b の burst: 財宝感知が自宅にあるのに自宅の回がこの訪問で閉じた時、錬金術の店で買うなど別の供給元を使いますか
+    （今は準備が尽きて depth-gate で止まる）。根の自宅の回の閉じ方は D30 で直す前提です。

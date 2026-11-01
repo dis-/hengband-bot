@@ -2301,6 +2301,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # old captures read these with getattr defaults.
         self._supply_stockout_cycles = 0
         self._supply_stockout_gold_target = None
+        # The town end's mining cycle for unmet departure conditions
+        # (town_end_mining) and its record beside the decision log.
+        self._town_end_mining_cycle = None
+        self._town_end_mining_path = None
         self._mining_scroll_used_floor: tuple[int, int, int] | None = None
         # The scavenge run town chose because no digger can be had (2026-10-23).
         self._scavenge_without_digger = False
@@ -16498,13 +16502,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._device_identification_candidate = None
         self._home_candidate_waiting = False
 
+    def _opening_q34_holds_fundraising(self, snapshot: Snapshot) -> bool:
+        """Whether the opening Q34 still buys its torches (no mining set)."""
+        return (self._opening_q34_active(snapshot)
+                and self._opening_q34_torch_shortage(snapshot) > 0)
+
     def _start_fundraising(self, snapshot: Snapshot) -> bool:
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return True
-        if (
-            self._opening_q34_active(snapshot)
-            and self._opening_q34_torch_shortage(snapshot) > 0
-        ):
+        if self._opening_q34_holds_fundraising(snapshot):
             return False
         if snapshot.player.gold >= FUNDRAISING_START_GOLD:
             return False

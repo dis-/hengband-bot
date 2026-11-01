@@ -33,6 +33,7 @@ from hengbot.policy_constants import (
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
+from hengbot import town_end_mining
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -2253,23 +2254,34 @@ def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
 # ------------------------------------------------------------------ town end
 # Owner 2026-11-02 「決まった終わり方だけにする」: a town board on which no
 # owner answers ends the visit in one of three declared ways, never by the
-# dungeon wander fallbacks (breakout:least-visited, stuck:wander).
-#   depart          every ordinary departure condition holds;
-#   drop-and-depart the unmet conditions are outside the departure minimum
-#                   (policy._departure_minimum, the survival leaves), so they
-#                   are given up for this visit, by name;
-#   stop            a departure-minimum leaf is unmet: the named stop
-#                   town:blocked:survival:<leaf>.
+# dungeon wander fallbacks (breakout:least-visited, stuck:wander).  Owner
+# 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は
+# 拒否する。」: no departure leaves with a condition unmet.
+#   depart  every ordinary departure condition holds;
+#   mine    a condition is unmet: one mining cycle through the fundraising
+#           owners (town_end_mining), then the conditions are retried;
+#   stop    a condition is unmet and the mining cycle cannot leave (a mining
+#           set is already open and no owner answered, this visit's cycle was
+#           closed in town, the opening Q34 holds fundraising, or a transfer
+#           is still in flight): town:blocked:survival:<leaf> for a
+#           departure-minimum leaf (policy._departure_minimum), else
+#           town:blocked:unmet:<name>.
 TOWN_END_CAUSE = "no-owner-answered"
 TOWN_END_STEP_OFF = "town:end-step-off"
+# The minimum leaves a mining preparation cannot start over (the transfer
+# gate the supply-stockout mining fallback of force_visit_departure applies).
+MINING_START_TRANSFER_LEAVES = (
+    "home_atomic_withdraw_clear", "store_transfer_clear", "equipment_transfer_clear")
 
 
 @dataclass(frozen=True)
 class TownEndMaterial:
-    """The unmet ordinary departure conditions and departure-minimum leaves."""
+    """The unmet departure conditions and whether a mining cycle may start."""
 
     unmet: tuple[str, ...]
     survival_unmet: tuple[str, ...]
+    mining_set_open: bool
+    mining_startable: bool
 
 
 class TownEnd(NamedTuple):
@@ -2279,17 +2291,31 @@ class TownEnd(NamedTuple):
 
 def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:
     minimum, _destination, _depth = policy._visit_departure_minimum(board)
-    return TownEndMaterial(unmet=gather_recall_departure(policy, board).failed,
-                           survival_unmet=tuple(minimum["failed"]))
+    return TownEndMaterial(
+        unmet=gather_recall_departure(policy, board).failed,
+        survival_unmet=tuple(minimum["failed"]),
+        mining_set_open=town_end_mining.mining_set_open(policy),
+        mining_startable=(
+            all(minimum["values"][name] is True for name in MINING_START_TRANSFER_LEAVES)
+            and not policy._opening_q34_holds_fundraising(board)
+            and not town_end_mining.closed_in_town(policy)))
 
 
 def verdict_town_end(material: TownEndMaterial) -> TownEnd:
-    """Pure: survival leaves stop, other unmet conditions are dropped."""
+    """Pure: depart when nothing is unmet, else mine once, else stop."""
+    unmet = tuple(dict.fromkeys((*material.survival_unmet, *material.unmet)))
+    if not unmet:
+        return TownEnd("depart", ())
+    if material.mining_set_open or not material.mining_startable:
+        return TownEnd("stop", unmet)
+    return TownEnd("mine", unmet)
+
+
+def town_end_stop_reason(material: TownEndMaterial, end: TownEnd) -> str:
+    """The named stop's blocked reason: the first unmet condition."""
     if material.survival_unmet:
-        return TownEnd("stop", material.survival_unmet)
-    if material.unmet:
-        return TownEnd("drop-and-depart", material.unmet)
-    return TownEnd("depart", ())
+        return f"survival:{material.survival_unmet[0]}"
+    return f"unmet:{end.conditions[0]}"
 
 
 def town_end_key(policy: Any, board: Any) -> str:
@@ -2298,11 +2324,12 @@ def town_end_key(policy: Any, board: Any) -> str:
     The store router's composed procurement progress that makes progress
     (the step the progress seam used to substitute for a wander, judged by
     the same predicate) and the mining walk-in's own
-    departure (a town without its entrance) still answer first.  Otherwise
-    the departure leaves through the established forced visit departure,
-    which reads the recall or walks in exactly as the departure owner
-    chooses.  A departure the visit already forced once and lost is not
-    forced again: it stops under the existing departure-unsatisfiable.
+    departure (a town without its entrance) still answer first.  A board
+    with every condition met leaves through the established forced visit
+    departure, which reads the recall or walks in exactly as the departure
+    owner chooses; one with a condition unmet starts one mining cycle there.  A
+    departure the visit already forced once and lost is not forced again: it
+    stops under the existing departure-unsatisfiable.
     """
     progress = policy._town_procurement_progress_key(board)
     if progress is not None and progress[0] and policy._town_result_makes_progress(
@@ -2318,19 +2345,20 @@ def town_end_key(policy: Any, board: Any) -> str:
         # the town owners do not compose (Home batches, approaches).  The
         # established safe step off the entrance comes before the end.
         return policy._town_entrance_step_off_key(board, TOWN_END_STEP_OFF)
-    end = verdict_town_end(gather_town_end(policy, board))
+    material = gather_town_end(policy, board)
+    end = verdict_town_end(material)
     if end.kind != "stop" and holds_town(policy, board):
         # The town-map quest reward holds the town (leaving terminals are
         # refused, QUEST_REWARD_FIRST) and none of its servers answered.
         policy._town_blocked_reason = QUEST_REWARD_FIRST
         return policy._town_blocked_key(board)
     if end.kind != "stop" or policy._visit_departure_committed:
-        key = policy.force_visit_departure(
-            board, TOWN_END_CAUSE,
-            dropped=end.conditions if end.kind == "drop-and-depart" else ())
+        # The forced visit departure departs or starts the mining cycle by
+        # the same verdict (one place for every visit-closing cause).
+        key = policy.force_visit_departure(board, TOWN_END_CAUSE)
         if key is not None:
             return key
     policy._town_blocked_reason = (
-        f"survival:{end.conditions[0]}" if end.kind == "stop"
+        town_end_stop_reason(material, end) if end.kind == "stop"
         else "departure-unsatisfiable")
     return policy._town_blocked_key(board)

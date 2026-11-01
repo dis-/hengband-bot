@@ -1,10 +1,13 @@
-"""Town defined end: no owner answers -> depart or a named stop (2026-11-02).
+"""Town defined end: no owner answers -> depart, mine once, or a named stop.
 
-Owner 2026-11-02 「決まった終わり方だけにする」: on a town board on which no
-owner answers, the visit (1) departs when every departure condition holds,
-(2) gives up unmet conditions outside the departure minimum by name and
-departs, or (3) stops under town:blocked:survival:<leaf> when a minimum leaf
-is unmet.  The dungeon wander fallbacks (breakout:least-visited,
+Owner 2026-11-02 「決まった終わり方だけにする」 and 「満たせなければ採掘を
+1サイクル行い再度トライ。条件未達の出発は拒否する。」: on a town board on
+which no owner answers, the visit (1) departs when every departure condition
+holds, (2) with a condition unmet starts one mining cycle through the
+fundraising owners (town_end_mining) and retries the conditions, never
+departing with them unmet, or (3) stops under town:blocked:survival:<leaf>
+(a departure-minimum leaf) or town:blocked:unmet:<name> when that cycle
+cannot leave.  The dungeon wander fallbacks (breakout:least-visited,
 stuck:wander) and the boxed-breakout store travel are not used in town; the
 existing visit-closing stops (departure-unsatisfiable, the three-
 retirement burst) keep their existing names.
@@ -36,11 +39,12 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 
-from hengbot import cli, me_capability, me_staff_sequence
+from hengbot import cli, me_capability, me_staff_sequence, town_end_mining
 from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.runtime_paths import runtime_path
 from tests.test_esp_threat_rest_recorded import EDIT, _policy
+from hengbot.town_terminal import gather_town_end, town_end_key, verdict_town_end
 from tests.test_n1c_town_wander_1101_recorded import TownWanderRecordedTest
 
 
@@ -48,6 +52,7 @@ FIXTURES = Path(__file__).with_name("fixtures")
 HOME_LOOP = FIXTURES / "town-defined-end-home-loop-2350.json.gz"
 RETIRED_BURST = FIXTURES / "town-defined-end-retired-burst-2334.json.gz"
 WANDER = ("breakout:", "stuck:wander", "boxed-breakout-travel")
+DEPARTING = ("town:character-dump", "town:recall-", "town:travel-entrance")
 SURVIVAL_STOP = "town:blocked:survival:"
 # The stores the recorded visit had entered before the board (decision
 # 26099 departure_block.town_ledger.store_visits).
@@ -128,9 +133,10 @@ class TownDefinedEndHomeLoopTest(TownWanderRecordedTest):
         self.assertFalse(_wanders(reasons), reasons)
         self.assertEqual(reasons[2], "town-progress-invariant:approach", reasons)
 
-    def test_no_owner_drops_the_home_candidate_and_departs(self):
-        from hengbot.town_terminal import gather_town_end, town_end_key, verdict_town_end
+    def unanswered_board(self):
+        """The 26099 board off the Home entrance, every owner exhausted."""
         policy, raw = self.boundary()
+        policy._town_end_mining_path = runtime_path("town-end-mining.json")
         # DECLARED RECONSTRUCTED from the decision log at 26099: every store
         # of the visit entered, Home's pass closed with its candidate still
         # waiting, and nothing on Home's shelf left to take this visit.
@@ -139,33 +145,100 @@ class TownDefinedEndHomeLoopTest(TownWanderRecordedTest):
         policy._deferred_home_items.update(
             policy._item_signature(item) for item in policy._home_knowledge_items)
         policy._home_candidate_waiting = True
-        board = policy.with_known_skill_exp(
-            parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
-        end = verdict_town_end(gather_town_end(policy, board))
-        self.assertEqual(end, ("drop-and-depart", ("home_candidate_resolved",)))
-        key = town_end_key(policy, board)
+        key = town_end_key(policy, self.board(policy, raw))
         # The board is still on the Home entrance: the established step off
-        # it comes first, then the forced departure reads the recall exactly
-        # as the departure owner does.
+        # it comes first.
         self.assertEqual(policy.last_reason, "town:entrance-step-off:town:end-step-off")
         self.assertIn(key, "12346789")
         following = self.reply(raw, key)
         self.post(policy, raw, key, following)
-        board = policy.with_known_skill_exp(
-            parse_snapshot(copy.deepcopy(following), policy._monrace_knowledge))
         # DECLARED RECONSTRUCTED: the live latch persisted off the entrance
         # (departure_block at 26099 failed home_candidate_resolved there).
         policy._home_candidate_waiting = True
+        return policy, following
+
+    @staticmethod
+    def board(policy, raw):
+        return policy.with_known_skill_exp(
+            parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+
+    def test_no_owner_starts_one_mining_cycle_instead_of_dropping(self):
+        policy, raw = self.unanswered_board()
+        board = self.board(policy, raw)
+        end = verdict_town_end(gather_town_end(policy, board))
+        self.assertEqual(end, ("mine", ("home_candidate_resolved",)))
         key = town_end_key(policy, board)
-        self.assertEqual(policy.last_reason, "town:repetition-depart:recall")
-        self.assertEqual(policy._visit_departure_committed, "no-owner-answered")
-        self.assertTrue(key.startswith("r"), key)
+        # No departure with the condition unmet: one mining cycle opens in
+        # the fundraising owners' preparation.
+        self.assertEqual((key, policy.last_reason), ("5", town_end_mining.START_REASON))
+        self.assertIsNone(policy._visit_departure_committed)
+        self.assertEqual((policy._fundraising_mode, policy._planned_mining_runs), ("prepare", 1))
+        self.assertEqual(policy._town_end_mining_cycle, town_end_mining.TownEndMiningCycle(
+            ("home_candidate_resolved",), 1, raw["turn"], "town", policy._town_visit_epoch))
+        stored = json.loads(policy._town_end_mining_path.read_text(encoding="utf-8"))
+        self.assertEqual((stored["unmet"], stored["stage"]), (["home_candidate_resolved"], "town"))
         record = [json.loads(line) for line in runtime_path(
             "keep-running-events.jsonl").read_text(encoding="utf-8").splitlines()][-1]
-        self.assertEqual((record["cause"], record["outcome"]),
-                         ("no-owner-answered", "forced_departure"))
-        self.assertEqual(record["closed_work"]["dropped_conditions"],
-                         ["home_candidate_resolved"])
+        self.assertEqual((record["cause"], record["outcome"]), ("no-owner-answered", "mining_cycle"))
+        self.assertEqual(record["closed_work"]["unmet"], ["home_candidate_resolved"])
+        following = self.reply(raw, key)
+        self.post(policy, raw, key, following)
+        raw = following
+        # The fundraising owners continue through the public chooser and the
+        # production executor; the visit leaves only once nothing is unmet.
+        reasons = []
+        for _ in range(12):
+            # DECLARED CONSTRUCTED: the bookkeeping fillers (save, dump) are
+            # outside this harness's screens; the latch is held as live.
+            policy._periodic_dump_requested = policy._periodic_save_requested = False
+            policy._home_candidate_waiting = True
+            board = self.board(policy, raw)
+            policy.observe_store_screen(board.store is not None)
+            key, reason = str(policy.choose_key(board)), policy.last_reason
+            reasons.append(reason)
+            if reason.startswith(DEPARTING):
+                break
+            self.assertFalse(reason.startswith("town:blocked:"), reasons)
+            following = self.reply(raw, key)
+            self.post(policy, raw, key, following)
+            raw = following
+        else:
+            self.fail(reasons)
+        self.assertFalse(_wanders(reasons), reasons)
+        self.assertNotIn("town:repetition-depart:recall", reasons)
+        self.assertEqual(gather_town_end(policy, board).unmet, (), reasons)
+
+    def test_cycle_survives_a_restart_and_retries_after_its_run(self):
+        policy, raw = self.unanswered_board()
+        board = self.board(policy, raw)
+        town_end_key(policy, board)
+        # A restarted process restores the open cycle from the record.
+        restarted, _ = self.boundary()
+        restarted._town_end_mining_path = policy._town_end_mining_path
+        town_end_mining.carry(restarted, board, True)
+        self.assertEqual(restarted._town_end_mining_cycle, policy._town_end_mining_cycle)
+        self.assertEqual((restarted._fundraising_mode, restarted._planned_mining_runs),
+                         ("prepare", 1))
+        # DECLARED CONSTRUCTED: the cycle's run on Yeek Cave 1F and its return.
+        policy._fundraising_mode = "mine"
+        town_end_mining.finish_run(policy, board)
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertEqual(policy._town_end_mining_cycle.stage, "returned")
+        # The return's town floor change clears the visit's departure record
+        # (policy_observation); the same unmet condition starts the next
+        # cycle, with no cap.
+        policy._visit_departure_recorded.clear()
+        policy._home_candidate_waiting = True
+        self.assertEqual(town_end_key(policy, board), "5")
+        self.assertEqual(policy.last_reason, town_end_mining.START_REASON)
+        self.assertEqual(policy._town_end_mining_cycle.cycles, 2)
+        # While its set is open and no owner answers, the cycle that cannot
+        # leave stops by name instead of opening another one.
+        policy._visit_departure_recorded.clear()
+        policy._home_candidate_waiting = True
+        town_end_key(policy, board)
+        self.assertTrue(policy.last_reason.startswith("town:blocked:"), policy.last_reason)
+        self.assertTrue(cli._policy_final_stop_required(policy), policy.last_reason)
 
 
 class TownDefinedEndRetiredBurstTest(unittest.TestCase):
@@ -208,8 +281,11 @@ class TownDefinedEndRetiredBurstTest(unittest.TestCase):
         self.assertEqual(key, "5")
 
     def test_no_owner_stops_under_the_unmet_survival_leaf(self):
-        from hengbot.town_terminal import gather_town_end, town_end_key, verdict_town_end
         policy, board = self.boundary()
+        # The opening Q34 still buys its torches (decisions: wait-restock
+        # general): no mining cycle can start, so the unmet minimum leaf
+        # stops by name instead of a departure.
+        self.assertTrue(policy._opening_q34_holds_fundraising(board))
         end = verdict_town_end(gather_town_end(policy, board))
         self.assertEqual(end.kind, "stop")
         self.assertEqual(end.conditions[0], "recall_departure_ready")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait
+from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait, town_end_mining
 import json
 
 from hengbot.claim_goal_typing import (
@@ -754,6 +754,9 @@ class ObservationMixin:
                 self._mining_runs_completed += 1
             if self._fundraising_mode == "scavenge":
                 self._sell_scavenged_consumables = True
+            if not aborted_run:
+                # The town end's cycle is one run: its set ends on return.
+                town_end_mining.finish_run(self, snapshot)
             self._mining_scroll_used_floor = None
             self._mining_detection_centers.clear()
             self._town_store_attempted.clear()
@@ -1102,6 +1105,8 @@ class ObservationMixin:
             snapshot, previous_floor is None)
         # The same for this floor's breeder breakthrough latch.
         breeder_floor_record.carry(self, snapshot, previous_floor is None)
+        # The same for the town end's mining cycle.
+        town_end_mining.carry(self, snapshot, previous_floor is None)
         # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
         # an attack the player's own teleport already left behind is no reason
         # for a retreat after the landing; only a new unseen hit observed from
