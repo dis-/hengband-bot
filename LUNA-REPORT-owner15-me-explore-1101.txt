@@ -134,3 +134,15 @@ D52（me-tower-trips-1101）の問い 3 で後回しにした町の歩きのト�
     D52 の宿へのトラベル（fixedquest:q<id>-travel ほか）と今回の q22・prepare-return も、保持された時は
     この名前で 1 歩ずつ続く。賞金首は自分の offer で避けた。保持者の続きを担当ごとの続きに分ける直しを
     別に出してよいか。
+
+------------------------------------------------------------------
+追記: main 64e63b6cf の取り込み（コミット 4c631c003）
+------------------------------------------------------------------
+ - 衝突 3 ファイルは両方の振る舞いを残した: me_powers.py は罠の解除 3 行の beside_harmless と main の
+   テレポート・アウェイの 2 行（against_hostile）・me_capability の説明、policy.py・policy_quest.py は
+   town_travel の import と main の me_capability の import。
+ - scripts/town_work_manifest.py --write: zero unmapped（1090 候補）。town_work_rekey.py は 0 件（動いた関数なし）。
+ - 取り込み後の確認: import OK。checks.json の 102 モジュール全部（601 件）OK。自分のテストと直したピン、
+   関係するテストも OK。
+ - 取り込み後の戻した確認（src を main 64e63b6cf に戻して実行）: 答え 8 の 1 件、答え 10 の 2 件、
+   トラベルの 4 件、live22 の 3 件が落ちる。賞金首の offer を外すと 'route.resume' != 'bounty.resume' で落ちる。
