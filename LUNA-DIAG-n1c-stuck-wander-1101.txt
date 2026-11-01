@@ -1,0 +1,84 @@
+LUNA-DIAG n1c-stuck-wander-1101 (#47 D60)
+
+Owner question (2026-11-01): 「n1-cがダンジョン内でstuck:wanderしていた理由」
+
+Case: n1-c life-098, Lv21 Magic-Eater (zombie), 鉄獄12階 (floor key (1,12,43)),
+build bot-461b75b92.  incident 20261101-200240-livelock-exhausted, capture
+20261101-200245-loop-detected.  HP 223/223, no visible hostile, carried 9 Word
+of Recall and 6 Teleportation, up-stairs remembered at (4,81) and (36,171).
+Evidence (read-only copies): C:\hengband-backups\pdca\captures\n1c-stuck-wander-1101\
+  incident-captures\20261101-200240-livelock-exhausted\ (decision-tail, policy-state,
+  remembered-map, snapshots), captures\20261101-200245-loop-detected\,
+  life-098-jsonlog\bot-decisions.jsonl.1.gz (19:45:30-20:07, includes the restart),
+  transitions.txt (reason transitions extracted from it).
+
+Answer in one line: the floor was an active runtime RANDOM quest (quest 43) with the
+breeder breakthrough latched on it.  The quest exit lock holds every exit until 60
+stuck decisions in a row.  When it let go, the breakthrough (ranked above the town
+return) took the decision.  It refused Recall because a quest was active, and took
+ONE up-stairs step.  That step reset the stuck streak, so the lock closed again.
+Result: one step every 61 decisions, wandering in between, until livelock-exhausted.
+
+Chain
+1. 19:58:44 emergency:teleport 'rh' (decision 7813) from (32,60) to (16,17), a room
+   in the west of the floor.  The floor's other exits were explored or expired;
+   explore found no live frontier (map_memory open_frontiers 13), so from 19:59:03
+   the ladder ran the stuck family (search / breakout:least-visited / seek-secret-wall /
+   stuck:wander).
+2. The quest exit lock: src/hengbot/policy_quest.py:4742 _quest_floor_exit_locked.  For a
+   runtime RANDOM quest it releases only at policy_quest.py:4774-4781
+   (_stuck_escape_streak >= STUCK_ESCAPE_LIMIT = 60).  The streak counts STUCK_FAMILY
+   reasons and resets on any other reason (policy_observation.py:279-284).
+   The stuck ladder's own Recall escapes refuse quest floors (policy.py:12458 and
+   12675, floor_key[2] == 0), and stuck:seek-stairs asks the same lock
+   (policy.py _floor_navigation_exit_locked).
+3. The breeder latch (_breeder_breakthrough_floor == (1,12,43)) was set by earlier
+   breeder fights on this floor (policy_combat.py:1744/1752; the ring does not
+   reach them, but only a latched floor emits breeder-breakthrough:*).  In _decide
+   the breakthrough runs at policy.py:11153, above the town return
+   (_return_to_town_key#3, policy.py:11868).
+4. _breeder_breakthrough_key (policy_combat.py:3900, before the fix 3915-3939): its
+   Recall branch needed `_active_quest_id(snapshot) is None`, so on quest 43 it was
+   skipped even after the lock released.  It fell to _breeder_breakthrough_escape_key
+   (policy_combat.py:3963).  The lock was released (streak 60), so it routed to the
+   nearest up-stairs (4,81) through remembered terrain and took one step
+   (breeder-breakthrough:seek-upstairs).
+5. That reason is not in STUCK_FAMILY_REASONS or STUCK_NEUTRAL_REASONS
+   (policy_constants.py:890/916), so the next observation reset the streak to 0.
+   The lock closed again for the next 60 decisions.
+   Recorded rows: seek-upstairs at decisions 7979, 8040, 8101, 8162, 8223, 8284, 8405,
+   8466, 8527, 8588, 8649, 8710, 8813, 8874, 8935, 8996, 9057, 9118 (61 apart from
+   8040 on); fixture rows 9058-9117 are 60 x stuck:wander.  Positions stay in the
+   pocket (y 14-22, x 5-22).
+6. 20:02:40 livelock-exhausted, 20:02:45 loop-detected (cli), the bot restarted at
+   20:02:47 with a fresh policy (no breeder latch).  Its 61st decision (seq 61, turn
+   1189101) was return:recall 'ri' (trigger pack-full, rung _return_to_town_key#3):
+   with no latch the town return was the first owner reached at the released lock,
+   and it read Recall.  The character left the floor.
+
+What it was NOT
+- Not an unreachable region: a remembered route to (4,81) existed.  The replay of
+  board 1188007 with the capture's terrain composes the recorded '1'
+  (breeder-breakthrough:seek-upstairs).
+- Not route-moving-blocker / goal_route commitment, mapped_area or
+  immobile_threat_memory (no hostile seen in the window; the claim rungs are
+  _breeder_breakthrough_escape_key / _explore_step#1/#2).
+- Not D46 return_yield.breeder_walkout_owns: that yield is only in the immobile
+  summoner owner (policy_combat.py:383), and no summoner was in view.
+- Not a recent merge: the Recall gate dates from a14b3013f (2026-10-17) and the streak
+  reset is older.  This needs the rare combination of a latched breeder floor, an
+  active kill quest and a stalled pocket.
+
+Replay (scratch probe, then the committed test)
+- streak 59 + last_reason stuck:wander -> after observe 60 -> unfixed:
+  breeder-breakthrough:seek-upstairs '1' (= recorded); fixed: breeder-breakthrough:recall 'ri'.
+- streak 58 -> 59: the lock holds; explore '4' (no exit) on both trees.
+
+Roots (one commit each)
+R1 The breakthrough's Recall gate asked "is a quest active", not the quest exit lock,
+   while its stair exits and the town return ask the lock.
+   Fix: ask _return_exit_locked (the town return's lock); fixed quest floors keep the
+   refusal.  Commit 8a8fab334.
+R2 The breakthrough's walk out reset the stall streak that had released the lock, so
+   with no readable Recall it would still move one step per 61 decisions.
+   Fix: the two walk reasons hold the streak (STUCK_NEUTRAL_REASONS).  Commit 14944bdc0.
