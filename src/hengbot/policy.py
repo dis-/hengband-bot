@@ -10933,10 +10933,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ))
         if summoner_ranged is not None:
             return summoner_ranged
-        # Class 16 sends an unbeatable hostile in range away (me_powers THREAT).
-        threat_power = me_powers.threat_key(self, snapshot)
-        if threat_power is not None:
-            return threat_power
         emergency = self._town_producer_entry("_emergency_item", lambda: self._emergency_item(snapshot, emergency_hostiles))
         if emergency is not None:
             if self._choke_plan_active(snapshot):
@@ -10953,6 +10949,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The emergency ladder is exempt from sibling hysteresis: the
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
+        # Class 16 sends an unbeatable hostile in range away (me_powers THREAT)
+        # only once the emergency ladder above has declined: survival first.
+        threat_power = me_powers.threat_key(self, snapshot)
+        if threat_power is not None:
+            return threat_power
 
         item_destroying_breeder_exit = self._town_producer_entry(
             "_item_destroying_breeder_leave_key",
