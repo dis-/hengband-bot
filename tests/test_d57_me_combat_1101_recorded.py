@@ -42,9 +42,9 @@ through the production executor port):
 - n1-c life-083 (tests/fixtures/d57-me-combat-083-1101.json.gz,
   tests/extract_d57_me_combat_1101_fixtures.py): sighted again at turn
   1190789 (HP 118/171) beside a ブラウン・キラービートル (race 236, 104 hp,
-  three bites); the recorded answer was the Magic Missile and melee, then
-  confusion and death beside it.  Missile 3d6 needs ten actions while the
-  beetle's bites outdamage the 118 hp: not winnable.
+  AC 40, a 3d4 bite); the recorded answer was the Magic Missile and melee, then
+  confusion and death beside it.  Missile 3d6 needs ten actions, over which the
+  threat projection's bites (141) outdamage the 118 hp: not winnable.
 DECLARED RECONSTRUCTED: the life-083 displayed wand list carries the absorbed
 テレポート・アウェイ (12) and マジック・ミサイル (23) of the death dump
 (bot_test2_Autodump_2026-11-01_064803.txt); the fail percentages are
