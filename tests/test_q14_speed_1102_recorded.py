@@ -105,11 +105,13 @@ class Q14SpeedPotionRecordedTest(executor_harness.ProductionHarness):
             category for category, _kind, _carried, required
             in policy._strategy_potion_needs(board, self.strategies[14].required_force)
             if required > 0})
-        # The next gate decides now: four wargs adjacent for three turns
-        # (188) against half of max HP 129 -- the owner question in
-        # LUNA-REPORT-n1c-q14-speed-1102.txt; the town errands go on.
-        self.assertEqual(readiness["reason"], "three-turn-threat")
-        self.assertFalse(readiness["verdict"])
+        # The next gate: four wargs adjacent for three turns (188) against
+        # max HP 129 x 1.6 -- owner 2026-11-02 「Lv.8で受けられる程度に受注要件を
+        # 下げる」 (tests.test_q14_lv8_1102_recorded).  This Lv8 board passes;
+        # its staff sequence (stage 1) still owns the town step first.
+        self.assertEqual((readiness["worst_adjacent"], readiness["max_damage_ratio"]), (188, 1.6))
+        self.assertEqual(readiness["reason"], "ready")
+        self.assertTrue(readiness["verdict"])
         self.assertEqual(policy.last_reason, "shop:travel")
         # DECLARED CONSTRUCTED: the engine's reply to the travel macro.
         following = copy.deepcopy(raw)
