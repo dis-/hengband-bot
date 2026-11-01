@@ -12,6 +12,12 @@
    n1-a life-459 (Lv15 warrior, random quest 49): the control on a quest
    floor, where a 自縛霊 (race 1012, NEVER_MOVE, TOUCH:LOSE_WIS) beside it is
    fought as before.
+2. 「近接できない時だけ使う」 (answer 2): while melee is refused (fear or a
+   NO_MELEE dungeon) every class fires its bow or throws at the adjacent
+   hostile.  c4-a life-014 (Lv40 warrior, 高速度のロング・ボウ and 99 arrows,
+   the Anti-melee cave 45F, the recorded death of 2026-10-23;
+   tests/fixtures/anti-melee-death-20261023.jsonl.gz): main walked beside its
+   attackers ('4' explore, '3' threat:avoid-engagement, '7' approach-descent).
 
 Fixture: tests/fixtures/survival2-1101.json.gz
 (tests/extract_survival2_1101_fixtures.py).  Every decision is the public
@@ -23,7 +29,11 @@ incident capture's ``_me_staff_sequence``, and its floor memory of the
 Magic-Eater powers holds the floor's recorded new-floor casts (decision rows
 4545-4549, turns 1063321-1063367), which the board window does not reach.
 DECLARED CONSTRUCTED: the beside-the-jelly cases start a fresh policy on the
-recorded board where the unfixed walk had put the player beside it.
+recorded board where the unfixed walk had put the player beside it; the
+afraid cases of answer 2 set ``player.status.afraid`` on the Anti-melee
+boards and take NO_MELEE out of the loaded dungeon definition (as
+test_anti_melee_dungeon_recorded's controls do), the faster-player control
+also sets the player's speed to 130.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -33,10 +43,13 @@ import json
 import unittest
 from pathlib import Path
 
+from tempfile import TemporaryDirectory
+
 from hengbot import immobile_threat_memory, me_powers
 from hengbot import me_staff_sequence as sequence
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import DIRECTION_KEYS
+from tests import test_anti_melee_dungeon_recorded as anti_melee
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests.test_me_nokey_1031_recorded import PostedKey
 
@@ -156,6 +169,70 @@ class StatDrainImmobileRecordedTest(PostedKey):
                 self.post(policy, raw, key)
                 policy.confirm_key_posted(key)
         self.assertEqual(decided[-2], (374106, "2", "melee"))  # the ghost south of it
+
+
+class MeleeRefusedRangedRecordedTest(PostedKey):
+    """Answer 2: while melee is refused, the bow answers the adjacent hostile."""
+
+    _board = anti_melee.AntiMeleeDungeonRecordedTest._board
+
+    @classmethod
+    def setUpClass(cls):
+        with gzip.open(anti_melee.FIXTURE, "rt", encoding="utf-8") as stream:
+            cls.lines = list(stream)
+        cls.monrace = anti_melee.load_monrace_knowledge(anti_melee.EDIT / "MonraceDefinitions.jsonc")
+        cls.dungeons = anti_melee.load_dungeon_knowledge(anti_melee.EDIT / "DungeonDefinitions.jsonc")
+
+    def setUp(self):
+        self._directory = TemporaryDirectory()
+
+    def tearDown(self):
+        self._directory.cleanup()
+
+    def decide(self, line, *, melee_allowed=False, afraid=False, speed=None):
+        raw = json.loads(line)
+        raw["player"]["status"]["afraid"] = afraid
+        if speed is not None:
+            raw["player"]["speed"] = speed
+        line = json.dumps(raw, ensure_ascii=False)
+        policy, board = self._board(line, melee_allowed=melee_allowed)
+        return raw, board, policy, str(policy.choose_key(board)), policy.last_reason
+
+    def assert_fires_at_adjacent(self, raw, board, policy, key, reason):
+        here = board.player.position
+        adjacent = {DIRECTION_KEYS[(m.position.y - here.y, m.position.x - here.x)]
+                    for m in board.visible_monsters if m.position.distance_to(here) == 1}
+        arrows = next(item for item in board.inventory if item.tval == 17)
+        self.assertEqual(reason, "ranged:fire", (board.turn, key))
+        self.assertEqual(key[:2], "f" + arrows.slot, (board.turn, key))
+        self.assertIn(key[2:], adjacent, (board.turn, key))
+        self.post(policy, raw, key)  # the production executor sends the whole command
+
+    def test_no_melee_dungeon_fires_at_the_adjacent_attacker(self):
+        # Unfixed: '4' explore, '3' threat:avoid-engagement, '7' approach-descent.
+        for line in self.lines:
+            raw, board, policy, key, reason = self.decide(line)
+            self.assertEqual(board.player.class_id, 0)  # a warrior
+            self.assertIn("NO_MELEE", policy._dungeon_knowledge[anti_melee.ANTI_MELEE_CAVE].flags)
+            self.assert_fires_at_adjacent(raw, board, policy, key, reason)
+
+    def test_afraid_beside_a_faster_attacker_fires(self):
+        # Unfixed: the flee rung walks away from attackers of speed 115-120.
+        for line in self.lines:
+            raw, board, policy, key, reason = self.decide(line, melee_allowed=True, afraid=True)
+            self.assertTrue(all(m.speed >= board.player.speed for m in board.visible_monsters
+                                if m.distance == 1))
+            self.assert_fires_at_adjacent(raw, board, policy, key, reason)
+
+    def test_control_an_ordinary_adjacent_fight_stays_melee(self):
+        for line, (turn, recorded_key) in zip(self.lines, anti_melee.RECORDED):
+            _raw, _board, _policy, key, reason = self.decide(line, melee_allowed=True)
+            self.assertEqual((key, reason), (recorded_key, "melee"), turn)
+
+    def test_control_afraid_and_faster_than_the_attackers_flees(self):
+        _raw, _board, _policy, key, reason = self.decide(
+            self.lines[0], melee_allowed=True, afraid=True, speed=130)
+        self.assertEqual(reason, "flee", key)
 
 
 if __name__ == "__main__":

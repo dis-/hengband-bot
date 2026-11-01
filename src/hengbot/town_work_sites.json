@@ -3363,13 +3363,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "policy.py:HengbotPolicy._matching_ammo": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy.py:HengbotPolicy._monster_can_approach": {
     "classification": "data",
     "rows": [
@@ -4674,6 +4667,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._adjacent_ranged_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_combat.py:CombatMixin._attributable_observed_loss": {
     "classification": "data",
