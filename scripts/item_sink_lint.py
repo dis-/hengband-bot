@@ -110,6 +110,22 @@ def _terms(node):
     return [node]
 
 
+def _exit_statements(function):
+    """``choose_key``'s body without the observations after its claim record.
+
+    A bare call statement between ``_record_decision_claim`` and the return
+    (``_town_progress_note_command(key)``, f7131f80e) only reads the final
+    key: it binds no name, so the returned key is still the recorded one.
+    """
+    body = list(function.body)
+    while (len(body) >= 3 and isinstance(body[-2], ast.Expr)
+           and isinstance(body[-2].value, ast.Call)
+           and _name(body[-2].value.func) != '_record_decision_claim'
+           and not any(isinstance(node, ast.NamedExpr) for node in ast.walk(body[-2]))):
+        del body[-2]
+    return body
+
+
 def _valid_verdict(function, verdict):
     if isinstance(verdict, ast.Call) and _name(verdict.func) == 'reservation_verdict':
         return True
@@ -273,20 +289,21 @@ def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
                                  if isinstance(ancestor, ast.FunctionDef)), None) is node]
             non_none = [child for child in returns if child.value is not None
                         and not (isinstance(child.value, ast.Constant) and child.value.value is None)]
+            body = _exit_statements(node)
             if len(non_none) != 1:
                 findings.append(f'line {node.lineno}: choose_key must have exactly one non-None return site')
-            elif (len(returns) != 1 or len(node.body) < 3
-                  or not isinstance(node.body[-1], ast.Return)
-                  or not isinstance(node.body[-2], ast.Expr)
-                  or not isinstance(node.body[-2].value, ast.Call)
-                  or _name(node.body[-2].value.func) != '_record_decision_claim'
-                  or not node.body[-2].value.args
-                  or ast.dump(node.body[-2].value.args[-1]) != ast.dump(non_none[0].value)
-                  or not isinstance(node.body[-3], ast.Assign)
-                  or len(node.body[-3].targets) != 1
-                  or ast.unparse(node.body[-3].targets[0]) != ast.unparse(non_none[0].value)
-                  or not isinstance(node.body[-3].value, ast.Call)
-                  or _name(node.body[-3].value.func) != '_enforce_town_claim_result'):
+            elif (len(returns) != 1 or len(body) < 3
+                  or not isinstance(body[-1], ast.Return)
+                  or not isinstance(body[-2], ast.Expr)
+                  or not isinstance(body[-2].value, ast.Call)
+                  or _name(body[-2].value.func) != '_record_decision_claim'
+                  or not body[-2].value.args
+                  or ast.dump(body[-2].value.args[-1]) != ast.dump(non_none[0].value)
+                  or not isinstance(body[-3], ast.Assign)
+                  or len(body[-3].targets) != 1
+                  or ast.unparse(body[-3].targets[0]) != ast.unparse(non_none[0].value)
+                  or not isinstance(body[-3].value, ast.Call)
+                  or _name(body[-3].value.func) != '_enforce_town_claim_result'):
                 findings.append(f'line {node.lineno}: choose_key exit must enforce and record its final decision claim')
     return sorted(set(findings))
 

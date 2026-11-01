@@ -177,6 +177,23 @@ def choose_key(self, snapshot):
 """
         self.assertTrue(analyze_source(source, 'policy.py', names=set()))
 
+    def test_observation_after_the_record_keeps_the_exit(self):
+        # f7131f80e: the town cycle detector reads the final key after the record.
+        exit_source = """
+def choose_key(self, snapshot):
+    key = self._enforce_town_claim_result(snapshot, key)
+    self._record_decision_claim(snapshot, key)
+    self._town_progress_note_command(key)
+    return key
+"""
+        self.assertEqual(analyze_source(exit_source, 'policy.py', names=set()), [])
+        for tail in ('    key = self._town_progress_note_command(key)\n',
+                     '    self._town_progress_note_command(key := other)\n',
+                     '    self._record_decision_claim(snapshot, other)\n'):
+            with self.subTest(tail=tail):
+                mutant = exit_source.replace('    self._town_progress_note_command(key)\n', tail)
+                self.assertTrue(analyze_source(mutant, 'policy.py', names=set()))
+
     def test_low_level_adapter_cannot_bypass_verdict_in_a_new_module(self):
         for source in (
             'def selector(executor, snapshot, item):\n return executor.request_wield(snapshot, "goal", item, "main_hand", {})',
