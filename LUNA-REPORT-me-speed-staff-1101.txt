@@ -1,0 +1,118 @@
+LUNA-REPORT me-speed-staff-1101 (#47, 持ち主の決定 2026-11-01) 2026-11-02
+基点: me-capability2-1101 の先端 06cf30d94（main fc3b96a20 を含む）。その後 main ba70f3898 を取り込んだ（マージ b15c3a69d）。
+直しのコミット: 500d835c6。
+
+持ち主の決定（原文）:
+「スピードの薬の購入ルールについて。スピードの杖の取り込み後、成功率が80%以上なら以降スピードの薬の購入、
+持ち歩きをやめる。スピードの薬を使用する場面では代わりに取り込んだ杖を試みる。」
+
+■ ゲームの裏付け（C:\hengband\src）
+  - 杖: cmd-item/cmd-usestaff.cpp:239-243 SV_STAFF_SPEED
+      set_acceleration(randint1(30) + (powerful ? 30 : 15))。魔道具術師の取り込んだ杖は
+      cmd-item/cmd-magiceat.cpp:577 staff_effect(..., powerful, ...) で同じ効果。
+      通常の m コマンドは powerful=false なので 16〜45 ターン（強力発動なら 31〜60）。
+  - 薬: object-use/quaff/quaff-effects.cpp:375-383 QuaffEffects::speed()
+      set_acceleration(randint1(25) + 15)（16〜40 ターン）。すでに加速中なら +5 ターン延ばすだけ。
+  - どちらも同じ「加速」の効果で速さ +10（player-status/player-speed.cpp:189-190、
+      is_fast は player/player-status.cpp:3078-3081）。status/buff-setter.cpp:180-201 の
+      set_acceleration は今の残りより短い値では上書きしない。違いは長さだけ（杖は延長しない）。
+  - 成功率の表示: cmd-item/cmd-magiceat.cpp:266-298 で一覧の各行に失敗率（{:3}%）を出す。
+      ボットは magic_eater_input.py:134 で success = 100 - fail として読む。
+      失敗: cmd-magiceat.cpp:521-531 「呪文をうまく唱えられなかった！」、1 ターン使い、回数は減らない。
+
+■ 変えたこと（表で決める・*破壊*の杖の行と同じ作り）
+  1. me_capability.REPLACES に 1 行:
+       Replacement(("staff", SV_STAFF_SPEED), Kind(TVAL_POTION, SV_POTION_SPEED), when="reliable", cast=True)
+     条件は *破壊* の行と同じ "reliable"（最後に表示された一覧の成功率）。80 は新しい定数を作らず、
+     DESTRUCTION_MIN_SUCCESS を RELIABLE_MIN_SUCCESS に名前を変えて 2 つの行で共有した（持ち主の同じ数）。
+     この行は PURCHASE・ORDER・CANDIDATE・NEED のすべてに答えるので、購入の段（quest:speed・
+     black-market:speed）の一致（_matching_live_purchase_rungs）と店の通常の順はこれだけで止まる。
+  2. 持ち歩きの要求: required_force の speed_potions を読む所はすべて me_capability.force_count
+     （表で満たされていれば 0）を通す。受諾（policy.py _approved_strategy_force_ready）、Q1 の
+     開幕の品（policy_opening.py）、出発の金の取り置き（policy_shop.py _strategy_potion_needs）、
+     購入の段 quest:speed、店の直接の選び（policy_shop.py）、闇市への町の道（policy_town.py）。
+     受諾・入場・購入で同じ数になる。闇市の任意の買い（_black_market_optional_purchase）は
+     PURCHASE の免除を聞く。
+     持っている薬は売らせない: 持ち物の保持（policy_supply.py _carry_strategy_potion_target）は
+     変えていない（下の問い 2）。
+  3. 使う場面: 新しいモジュール src/hengbot/speed_dose.py。薬を飲んでいた所はすべて
+     speed_dose.key(policy, snapshot, 理由, rearm=..., potion_reserve=...) を呼ぶ:
+       表の行の力が使える（成功率 80% 以上・回数あり・盲目などでない）なら 'mA' + 'w' を唱える
+       （理由に ":absorbed-power" を付け、me_device_attacks_input が杖の質問と一覧に答える）。
+       無ければ持っている薬を飲む（場面ごとの取り置き数より多い時だけ）。無ければ今までどおり。
+     唱えて失敗したら（executor の受け取りの refusal "failed:magic-eater"）、その場面の一度きりの印を
+     1 回だけ戻し（rearm）、その階では次に聞かれた時に薬を飲む（無ければ今までどおり）。
+     対象の場面: 緊急の逃走（emergency:quaff-speed）、強い戦い（item:strong-fight-speed）、
+     ESP の脅威狩り（esp-threat:hunt-speed）、固定クエストの開幕（Q22 など）・Q2 の種族ごと・
+     quest-strategy:quaff-speed（Q31 の開幕など）、
+     クエストの quest:quaff-speed、ユニークとの戦い（unique:quaff-speed）。
+     戦いの見積もり（速度の分を足すか）も speed_dose.available / spare で杖を数える
+     （policy.py の帰還判定、policy_quest.py の固定クエストの見込み・ユニーク、policy_combat.py の ESP 狩り）。
+  4. 80% 未満・取り込んでいない・魔道具術師でない: 何も変わらない（表の条件が成り立たないので
+     force_count は元の数、speed_dose.key は薬を飲む）。
+
+■ 保守性
+  - 置き場所: 「何が何を代わるか」は me_capability.REPLACES の 1 行、「使う時の選び方」は
+    speed_dose.py（1 つのモジュール・短い関数 6 つ）。場面のコードには杖・クラスの判定を書いていない。
+  - 再利用: 成功率の読み（WHEN["reliable"]・observed_row）、唱える鍵（me_absorbed_substitutes.cast_key）、
+    executor の答え（me_absorbed_substitutes.POWERS）をそのまま使った。carry_powers を
+    substitute_powers に広げ（Carry の行と cast の行）、item_cast_key を足した。
+  - 良くなった所: 場面ごとにばらばらだった「薬を探して飲む」10 か所が 1 つの関数になった。
+    speed_potions の数の読みも 1 つの関数（force_count、表 FORCE_KINDS で品の種類を引く）。
+    これから別の品を力で代えるときは表に 1 行と FORCE_KINDS に 1 行で済む。
+  - 壁はない。既存のテスト test_me_capability の 1 件は名前の変更（carry_powers → substitute_powers）に
+    合わせて直した（期待値は同じ）。
+  - town-work の目録: 新しい 5 か所（item_cast_key、force_count、waiving_rows、speed_dose._cast_key、
+    speed_dose.key）を scripts/town_work_review.json に足し、town_work_manifest.py --write は zero unmapped。
+
+■ テスト（tests/test_me_speed_staff_1101_recorded.py、7 件）
+  盤面:
+  - n1-c life-085（Lv18 ゾンビの魔道具術師、ターン 1444679、闇市）: Q2 の力の要求でスピードの薬 2 本
+    （measured 0・required 2）を決定 9047 で買った（shop:in-store-buy 'pg2'）。この生涯は 08:50 の
+    記録で staff:22（スピードの杖）を 8 回分取り込んでいた。
+    フィクスチャ tests/fixtures/me-speed-staff-life085-1101.json.gz（tests/extract_me_speed_staff_1101_fixture.py）。
+  - n1-c life-083（tests/fixtures/d57-n1c-083-1101.json.gz）: ターン 1187014 でマジック・ミサイルが
+    空振りし、同じターンの 2 回目の決定で item:strong-fight-speed 'qb'（スピードの薬）。
+  DECLARED RECONSTRUCTED: life-085 の杖の記録（死亡時の _me_staff_sequence、段階 3。09:24 の記録には
+    staff:22 が無い）、闇市の訪問と町の予定（決定 9046/9047 の store_visit と stops）、棚の画面が
+    ページに一致していたこと（記録の in-store の前提）。
+  DECLARED CONSTRUCTED: 表示された杖の一覧のスピードの行（8/8、失敗率 20・15・21）、life-083 の
+    2 回目の決定のミサイル 0 回（_magic_eater_wand_charges 0）、送った鍵への返事（杖の一覧の画面、
+    失敗の文言、購入の返事。品の質問は記録の画面 live-screen-cap-05）。
+  件:
+   1 SpeedPotionPurchaseRecordedTest.test_recorded_rows（記録の確認）
+   2 ...test_control_unlisted_or_unreliable_staff_buys_the_recorded_potions（一覧なし・失敗率 21 → 記録どおり 'pg2'）
+   3 ...test_reliable_staff_waives_the_speed_potions_through_the_executor（失敗率 20・15 → 体力回復の薬 'ph'、
+     要求 0、購入の段に一致しない、executor で購入）
+   4 SpeedStaffCastRecordedTest.test_recorded_rows
+   5 ...test_control_unlisted_or_unreliable_staff_quaffs_the_recorded_potion（→ 記録どおり 'qb'）
+   6 ...test_reliable_staff_is_cast_instead_through_the_executor（→ 'mAw'、executor が m A w を送る）
+   7 ...test_failed_cast_falls_back_to_the_carried_potion（失敗の返事 → 次の決定で 'qb'）
+  直す前に戻した結果（src の差分を外して実行）: 3・6・7 が失敗（'pg2' のまま、'qb' のまま）、
+    1・2・4・5 は通る（対照）。speed_dose の rearm だけを外すと 7 が失敗（失敗の後に '8' melee）。
+
+■ 検査
+  - import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" OK
+  - checks.json の全テスト（重複を除いた全部）＋ tests.test_me_speed_staff_1101_recorded・
+    tests.test_me_capability・tests.test_me_destruction_gate: 677 件、失敗 0。エラー 1 件は
+    tests.test_n1c_town_wander_1101_recorded の読み込みの失敗（checks.json に後から足された D61 のテストで、
+    実行した時点のこのブランチにはまだ無かった。main 取り込み後に下で流して通った）。
+  - town-work: tests.test_town_work_data_proof・test_town_work_rekey・test_town_work_observer_recorded 22 件 OK
+  - main 取り込み後: import OK、town-work の目録 zero unmapped（index の変更なし）、
+    tests.test_me_speed_staff_1101_recorded・test_me_capability・test_me_destruction_gate・
+    test_n1c_stuck_wander_1101_recorded・test_n1c_town_wander_1101_recorded・test_breeder_refill_escape_recorded 28 件 OK
+
+■ checks.json への追加の提案（編集はしていない）
+  {"id": "D62", "tests": ["tests.test_me_speed_staff_1101_recorded"]}
+  （D61 は使用済み。id は台帳の次の番号に合わせて付け直してください）
+
+■ 持ち主への問い
+  1. 唱えて失敗したとき: 今は「その階では次から薬を飲む（無ければ今までどおり）」にしている。
+     失敗しても同じ階でもう一度杖を試みる方がよいか（成功率 80% 以上なので 2 回続けて失敗するのは 4% 以下）。
+  2. 持っているスピードの薬: 売らせない・自宅に預けさせないために持ち物の保持（緊急用の 10 本までの
+     取り置き）は変えていない。このため家にある薬を取り出して持つ動き（保持の目標）が残る可能性がある。
+     取り込み後は保持もやめる（自宅に置く）方がよいか。
+  3. 戦いの見積もりでは、杖を「使える 1 回」として数え、20% 以下の失敗は見込んでいない。これでよいか。
+  4. 気づいたこと（別の家族）: life-085 の 08:50 の記録には staff:22 があったが、09:24 の死亡時の記録には
+     無い（再起動で記録が戻らなかった可能性）。この規則は表示された一覧（成功率つき）だけで判定するので
+     影響はないが、記録の欠けは別に調べる価値がある。

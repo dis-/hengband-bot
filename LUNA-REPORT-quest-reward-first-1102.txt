@@ -1,0 +1,109 @@
+LUNA-REPORT quest-reward-first-1102（2026-11-02）
+
+発注: 所有者 11-02「空きを作って報告し、報酬を回収するまでを優先したい」。
+枝: quest-reward-first-1102（quest-report-slot-1102 の先端から。main ba70f3898 を取り込み済み 6f481ec30）。
+前提: LUNA-REPORT-q2-reward-lamp-1101.txt（報酬の担当を杖の段の前へ）、
+      LUNA-REPORT-quest-report-slot-1102.txt（空き 0 では報告しない）。後者の持ち主への問い 2 への対応。
+
+------------------------------------------------------------------
+何が起きていたか
+------------------------------------------------------------------
+ - 記録の n1-c life-098 のテルモラの報告後の盤面（Q2 状態 4、ランプが (22,42)）を荷物 23/23 にすると
+   （DECLARED CONSTRUCTED）、報酬の担当は fixedquest:reward-pack-full で None を返し、次の
+   魔道具術師の杖の段が me-staff:return-to-shop（宿から前哨へ）で町を出ようとした。町を出ると
+   ランプは消える（floor/wild.cpp wilderness_gen が置いた直後に FINISHED にする）。
+ - 報告前（COMPLETED・空き 0）も、報告を待つ間は町を出る担当（宿の移動・帰還・階段・町間の旅・
+   資金稼ぎ）を止める仕組みが無かった（杖の段は Q2 が先頭の時だけ _quest_holds_town で止まる）。
+ - もう 1 つ見つけた不具合: 空き 1 で拾うと荷物が 23/23 になり、_fixed_quest_reward_key が
+   「荷物が満杯」の判定を「報酬のマスが空になった」の判定より先に見るため、取り置きが消えず
+   reward-pack-full の WAIT を空のマスで続けていた。tests/test_reward_pack_full_handoff.py の
+   記録の盤面（9ec39c05、Angwil (31,99)、23/23）がまさにこれで、Q22 の報酬のエルフのクローク
+   （[EQU $QUEST22 3]、04_Angwil.jsonc の object 90）が slot o に入っており、マスは空だった。
+
+------------------------------------------------------------------
+直し
+------------------------------------------------------------------
+ 1. fdb04f2d6 Complete the town reward pickup that takes the last pack slot
+    policy_quest.py _fixed_quest_reward_key: 報酬のマスに立ちマスが空なら、満杯の判定より先に
+    完了（fixedquest:reward-complete、取り置きを消す）。判定の行を前へ移しただけ（写しは無い）。
+    既存のテストの更新: test_reward_pack_full_handoff の最初のテストの期待を reward-pack-full から
+    reward-complete に直した（記録の盤面はクロークを拾い終えた後の古い取り置き。
+    マスが空で slot o にクロークがあることもテストで確かめる）。壁ではない。
+ 2. 12763d5a1 Make room, report and collect a town-map quest reward before leaving
+    - town_quest_reward.holds_town（判定は 1 つ）: 町の固定クエストの担当の終点
+      （town_terminal.fixed_quest_intended_terminal）が、FIXED_QUEST_REWARD_POSITIONS のクエストの
+      報告（quest-claim。町間の買い物の取り置きで断られていない時）か、この町の床の報酬の拾得
+      （quest-reward）なら真。空腹で食べる物が無い時は偽（生存優先）。
+    - town_terminal.terminal_admission: 町を出る終点 TOWN_LEAVING_TERMINALS（inn-travel・cross-town・
+      departure-recall・descent・descent-here・fundraising）を holds_town の間 quest-reward-first で断る。
+      担い手は既存の _SPACE_SERVERS（自宅に預ける・整理の売却・町の計画）と quest-request。
+      生存の家族（EXEMPT_FAMILIES）は今まで通り判定の外。
+    - cross_town_intended_terminal: 町間の旅以外の担当の宿の移動（_terminal_town_travel）は今まで
+      終点が無かった。holds_town の間だけ TerminalRef("inn-travel", (担当, 行き先)) を出す
+      （ふだんは今まで通り None。ADMIT の時の振る舞いを変えないため）。宣言の続き
+      （town.teleport.resume）から再開する宿の移動もここで止まる。
+    - policy_quest.py _opening_q34_town_key: holds_town の間は、旅をする職業の段（杖の段・Q2 の塔での
+      充填）を呼ばない。強力発動（町の中で済む）は今まで通り。
+    - 空きが作れない時: holds_town・空き 0・town_pack_headroom.room_can_be_made が偽（自宅に預ける・
+      売る・壊す・鑑定待ちのどれも無い）なら、報酬の担当が既存の名前付きの止まり
+      town:blocked:pack-full-no-room（_town_blocked_key）を出す。うろうろしない。
+      _room_can_be_made は公開名 room_can_be_made にした（呼び出しは 1 か所増えただけ）。
+    - town_work_review.json に town_quest_reward.py:_no_room_key を足し、town_key の説明を更新。
+      scripts/town_work_manifest.py --write: 1097 候補、zero unmapped。
+
+------------------------------------------------------------------
+検査（tests/test_quest_reward_first_recorded.py、1 件）
+------------------------------------------------------------------
+ tests.test_quest_reward_first_recorded.QuestRewardFirstRecordedTest.test_room_report_and_reward_before_leaving_telmora
+ 盤面: tests/test_q2_reward_lamp_recorded.py の記録の報告後の盤面（新しい抽出器は無し）。荷物は
+ test_quest_report_slot_recorded と同じ作り方で 23/23（DECLARED CONSTRUCTED）。public choose_key と
+ 本番の実行器（ProductionHarness）で動かす。
+  - 杖の段はこの盤面で町を出たい（me_staff_sequence.town_key が me-staff:return-to-shop）。
+  - 直した版の最初の判断は shop:approach（町の用事の計画で場所を作りに店へ）。取り置きは Q2 のまま、
+    杖の段の宿の移動の終点は inn-travel で quest-reward-first で断られる。
+  - 売却で 1 枠空いた盤面（DECLARED CONSTRUCTED: 魔法店 (37,42) でスロウ・モンスターの魔法棒を売った後）
+    から、fixedquest:reward-approach だけで歩いて 'g'（fixedquest:reward-pickup）、ランプが荷物に入る。
+  - 次の判断で取り置きが消え（23/23 でも完了）、杖の段が me-staff:travel-morivant で町を出る。
+    宿の移動の終点はもう出ない（断られない）。
+ 戻した確認（1 回）: src の差分を patch に保存して git checkout -- src、実行、git apply で戻した。
+   FAIL: 'me-staff:return-to-shop' != 'shop:approach'（報酬を残して前哨へ出る）。直した版は OK。
+
+ 流した検査:
+ - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+ - tests.test_quest_reward_first_recorded（1）、期待を直した tests.test_reward_pack_full_handoff（3）、
+   前の 2 本の枝のテスト tests.test_quest_report_slot_recorded（2）・tests.test_q2_reward_lamp_recorded（3）:
+   9 件 OK。
+ - 終点の表を変えたので、その表のテスト tests.test_town_terminal_declarations・
+   tests.test_town_terminal_routes_round6・tests.test_town_terminal_refusal_round7 も流した（OK、
+   round6/7 は PYTHONPATH に tests も要る）。checks.json・全体テストは流していない。
+
+------------------------------------------------------------------
+checks.json の案（編集していない）
+------------------------------------------------------------------
+{"id": "QUEST-REWARD-FIRST",
+ "owner": "2026-11-02「空きを作って報告し、報酬を回収するまでを優先したい」 (branch quest-reward-first-1102)",
+ "tests": ["tests.test_quest_reward_first_recorded", "tests.test_reward_pack_full_handoff",
+           "tests.test_quest_report_slot_recorded", "tests.test_q2_reward_lamp_recorded"]}
+
+------------------------------------------------------------------
+保守性
+------------------------------------------------------------------
+ - 「町の報酬を優先する」の判定は town_quest_reward.holds_town の 1 か所。終点の判定
+   （terminal_admission・cross_town_intended_terminal）と職業の段の呼び出し（_opening_q34_town_key）が
+   同じ関数を読む。判定の中身は固定クエストの担当の終点（fixed_quest_intended_terminal）そのもので、
+   報告・報酬の条件の写しは無い。
+ - クエスト番号・町・職業の特例は無い。対象は報酬の表 FIXED_QUEST_REWARD_POSITIONS で、町を出る
+   終点は TOWN_LEAVING_TERMINALS の表、担い手は REFUSAL_SERVERS の表に 1 行。
+ - 止まりの名前・担い手・空きを作れるかの判定は既存のもの（pack-full-no-room、_SPACE_SERVERS、
+   room_can_be_made）を使い、新しい閾値や方策の属性は作っていない（復元のチェックポイントに影響なし）。
+ - 報酬の完了の判定は行を前へ移しただけで、写しを増やしていない。
+
+------------------------------------------------------------------
+持ち主への問い
+------------------------------------------------------------------
+ 1. 空腹で食べる物が無い時だけ、町を出る担当を止めない（生存優先）。魔道具術師の主食の杖が 0 回で
+    塔へ行く足（staple_food_critical）は、空腹になるまでは報酬を先にする。これでよいか。
+ 2. 空きが作れない時は pack-full-no-room で止まる（報告前でも）。報告前ならクエストは COMPLETED のまま
+    なので、止まらずに町を出て次の訪問で報告する選択もある。止める方でよいか。
+ 3. 報酬を拾って 23/23 になった直後に、杖の段がそのままモリバントへ移る（記録の盤面）。空き 4 枠の
+    取り置きを下回ったまま町を出るのは今までと同じで変えていない（確認だけ）。

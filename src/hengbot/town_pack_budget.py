@@ -32,6 +32,25 @@ def room_assumed() -> bool:
     return _ROOM_ASSUMED.get()
 
 
+_EXPLICIT_PICKUP_CELLS: ContextVar[frozenset] = ContextVar(
+    "town_explicit_pickup_cells", default=frozenset())
+
+
+@contextmanager
+def explicit_pickup_cells(cells):
+    """Let a walk end on cells whose objects the caller picks up on purpose.
+
+    The floor-step budget is for implicit pickups (walking over a pile in
+    town picks it up); a mandatory pickup's own cell is not one.  Only
+    town_quest_reward asks it, for its allowlisted reward cells.
+    """
+    token = _EXPLICIT_PICKUP_CELLS.set(frozenset(cells))
+    try:
+        yield
+    finally:
+        _EXPLICIT_PICKUP_CELLS.reset(token)
+
+
 def permits(snapshot, slots: int) -> bool:
     return (not getattr(snapshot, "in_town", False) or slots <= 0
             or PACK_CAPACITY - len(snapshot.inventory) - slots
@@ -54,7 +73,7 @@ def below_floor(snapshot) -> bool:
 
 
 def floor_step_fits(snapshot, position) -> bool:
-    if not getattr(snapshot, "in_town", False):
+    if not getattr(snapshot, "in_town", False) or position in _EXPLICIT_PICKUP_CELLS.get():
         return True
     grid = snapshot.grids.get(position)
     return grid is None or permits(snapshot, grid.object_count)

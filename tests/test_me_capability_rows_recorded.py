@@ -11,6 +11,9 @@
   sequence's stage staffs leave every pick of the shop's ordinary buy order
   through the table row ``stage-staff`` (use ORDER), not an inline check in
   policy_shop (behaviour-neutral, validation/me-capability2-1101).
+Owner 2026-11-01 「採掘の要求品が優先」: the mining trip that bought its
+  scrolls departs; the ordinary departure's unaffordable needs wait for the
+  next return (policy._restart_fundraising_for_unaffordable_departure).
 
 Boards: the recorded n1-c life-021 explicit-target fundraising run at the
 Alchemist (D9, tests/fixtures/me-town-stops-20261030.json.gz,
@@ -107,6 +110,28 @@ class DetectTreasureCountTest(executor_harness.ProductionHarness):
         # Unfixed: the run bought its recall and oil and descended with one
         # charge against the six detections it needs.
         self.assertIn((DETECTION, 5), self.bought, reasons[-6:])
+
+    def test_the_run_departs_to_mine_after_the_scrolls(self):
+        # Owner 2026-11-01 「採掘の要求品が優先」: with 38 gold left after the
+        # scrolls, what only the ordinary departure needs (the drained STR's
+        # Restore Strength at 488, four Teleportation scrolls) waits for the
+        # next return; the ready mining trip is not reopened as preparation.
+        self.listed = staff_list(detect=(1, 19))
+        modes = []
+
+        def done(policy, raw, key):
+            # Unfixed: seek-downstairs in "mine", then "prepare" again, the
+            # shop tour, and town:blocked:owner-retired.
+            self.assertFalse(modes[-1:] == ["mine"] and policy._fundraising_mode == "prepare",
+                             (self.bought, policy.last_reason))
+            modes.append(policy._fundraising_mode)
+            return key.startswith(">")
+
+        policy, raw, reasons = self.drive(self.LIFE, limit=200, done=done)
+        self.assertEqual((policy.last_reason, policy._fundraising_mode), ("descend", "mine"), reasons[-6:])
+        self.assertIn((DETECTION, 5), self.bought)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual((board.player.gold, board.player.drained_stats), (38, ("str",)))
 
 
 class ZombieFoodShelfTest(executor_harness.ProductionHarness):

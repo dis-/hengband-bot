@@ -16,7 +16,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_FINISHED,
 )
 from hengbot.item_reservation import decision_memo
-from hengbot import me_ranged_first
+from hengbot import me_capability, me_ranged_first
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import (
     acceptance_dps_floor, acceptance_hp_floor, carry_floor, is_heal_potion_for,
@@ -152,7 +152,8 @@ class OpeningRouteMixin:
             ("quest-healing", 0 if no_heal else int(force.get("heal_potions", 0)),
              self._strategy_heal_potion_count(snapshot, force),
              lambda item: is_heal_potion_for(item, force)),
-            ("quest-speed", 0 if no_heal else int(force.get("speed_potions", 0)),
+            ("quest-speed", 0 if no_heal else me_capability.force_count(
+                self, snapshot, force, "speed_potions"),
              self._exact_potion_count(snapshot, SV_POTION_SPEED),
              lambda item: item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED),
         )
@@ -386,14 +387,10 @@ class OpeningRouteMixin:
             return self._opening_q1_stop(self._opening_q1_failure)
         if self._effective_town_id(snapshot) != 0:
             return self._opening_q1_stop("not-in-outpost")
-        # Reconstruct the same allowlisted reward latch as _fixed_quest_key
-        # after a restart, before purchasing anything for the next quest.
-        if self._fixed_quest_reward_pending is None and any(
-                (grid := snapshot.grid_at(position)) is not None and grid.object_count > 0
-                for position in self._fixed_quest_reward_positions(snapshot, 34)):
-            self._fixed_quest_reward_pending = 34
-        # Finish the reward pickup transaction before spending its proceeds.
-        if self._fixed_quest_reward_pending is not None:
+        # Finish the reward pickup transaction (the latch rebuilt after a
+        # restart, town_quest_reward) before spending its proceeds.
+        from hengbot import town_quest_reward
+        if town_quest_reward.pending(self, snapshot) is not None:
             key = self._fixed_quest_key(snapshot, hostiles)
             if key is not None:
                 return key

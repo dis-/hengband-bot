@@ -1,0 +1,71 @@
+LUNA-REPORT mining-supplies-first-1101（持ち主の決定 2026-11-01 23時「採掘の要求品が優先。これは以前にも決定したはず。」）2026-11-01
+ブランチ mining-supplies-first-1101（me-capability2-1101 の先頭 06cf30d94 から。main fc3b96a20 は取り込み済みで、main は動いていない）。push はしていない。
+
+■ 止まりの形
+  me-capability2-1101 の 5 の盤面（記録した n1-c life-021 の錬金術の店、DECLARED CONSTRUCTED: 段階1の取り込みと財宝感知 1/19 の表示）を
+  出発まで進めると、財宝感知の巻物 5 本・帰還の巻物 1 本・油つぼ 1 個を買って 38 金になり、
+  seek-downstairs（採掘 "mine"）→ 次の判断で "prepare" に戻る → 店の巡回 → town:blocked:owner-retired で止まる。
+
+■ 原因（policy.py の _restart_fundraising_for_unaffordable_departure、直す前の 16511〜16530 行）
+  この関数は町で "mine" のまま用事の計画が尽きた時、資金稼ぎの無い普通の出発の帳簿（_supply_ledger を _fundraising_mode=None で読む）に
+  買えない不足が1つでもあれば "prepare" に戻し、店の試みの記録を消して計画を作り直す。
+  この盤面の普通の帳簿では テレポートの巻物 0/4 が買えない（38 金、錬金術の店で確かめ済み）。テレポートは採掘の出発の条件ではない
+  （採掘の出発の判定 _descent_is_blocked の "mine" の枝と _fundraising_departure_ready は、帰還の巻物・食料・光源・財宝感知・掘る道具・
+  体力などだけを見る）。それでも普通の出発の不足だけで、出発できる採掘の旅を毎回 "prepare" に戻していた。
+  戻るたびに店の試みが消え、能力の回復（筋力の回復の薬 488、買えない）を求めて錬金術の店へ行き直し、店と階段を往復した。
+  能力の回復の薬そのものは、買う順（policy_shop._legacy_next_purchase_unreserved の資金稼ぎの枝）で既に採掘の品・帰還の巻物より後にあり、
+  採掘の出発も止めていない。止めていたのは上の戻しで、能力の回復は往復の行き先として見えていた。
+  （trace: 手順 101 seek-downstairs "mine" → 102 shop:approach "prepare"、戻した行は policy.py:16528 の self._fundraising_mode = "prepare"）
+
+■ 直し（コミット下記）
+  - policy_fundraising.py に _mining_departure_ready を足した。町で "mine" の時に、採掘の出発の判定（_descent_is_blocked、採掘の出発の
+    条件の持ち主）が通るかを聞く。聞いても次の降りる判断が記録する断りの理由（_descent_refusal_reason）は変えない。
+  - _restart_fundraising_for_unaffordable_departure は、普通の出発に買えない不足があっても、採掘の旅が自分の条件を満たしていれば
+    "prepare" に戻さない。普通の出発だけの不足（テレポート・能力の回復など）は、採掘で稼いだ次の帰りに買う。
+  - 採掘の旅が求める生き残りの条件（帰還の巻物・食料・光源と燃料・体力）は変えていない（同じ判定を聞くだけで、緩めていない）。
+    採掘の旅の条件が満たされない時（例: 体力が満タンでない、帰還の巻物も歩いて入る道も無い）は、今までどおり "prepare" に戻す。
+  - 新しい閾値は作っていない。
+
+■ テスト（公開の choose_key と本番の executor）
+  足したもの:
+    tests.test_me_capability_rows_recorded.DetectTreasureCountTest.test_the_run_departs_to_mine_after_the_scrolls
+      記録した life-021 の盤面を最大 200 手進め、財宝感知の巻物 5 本を買い、"mine" のまま降りる（descend）。"mine" から "prepare" へ
+      戻ったら落ちる。降りる時に 38 金・筋力は減ったまま（能力の回復は次の帰り）であることも確かめる。
+  期待値を新しい振る舞いへ直したもの（10-08 の記録した盤面 unaffordable-fundraise-home-exhausted-20261008.json.gz）:
+    tests.test_crossarea_fundraising.CrossAreaFundraisingTest.test_recorded_exhausted_home_shortage_leaves_a_ready_mining_trip
+      元の test_recorded_exhausted_home_shortage_reopens_fundraising_preparation は、普通の出発の魔力の食料 14/15（買えない）だけで
+      "prepare" に戻ることを求めていた。この盤面の採掘の旅は自分の条件を満たしている（イークの洞穴に歩いて入れる・食料の判定も通る）ので、
+      持ち主の決定ではこれは出発すべき旅。期待値を「"mine" のまま、降りる判定は止めない」に直した（壁ではなく正しい振る舞いへの更新）。
+      実際の choose_key（ladder を差し替えない）でも town:travel-entrance（入口へ向かう）になることを確かめた。
+    tests.test_crossarea_fundraising.CrossAreaFundraisingTest.test_recorded_exhausted_home_shortage_reopens_a_blocked_mining_trip
+      同じ盤面で体力を 1 減らす（DECLARED CONSTRUCTED。採掘の出発の条件そのもの）と、今までどおり "prepare" に戻り、
+      降りる判定は帰還か食料の不足で止まる。戻しの枝が残っていることの守り。
+  テストの壁は足していない。
+
+■ 直す前のコードで落ちることの確かめ（revert-proof、src の差分だけを git diff で保存→git checkout→実行→git apply で戻した）
+  test_the_run_departs_to_mine_after_the_scrolls → FAIL（[財宝感知の巻物 5, 帰還の詔の巻物 1, 油つぼ 1] を買った後 'shop:approach' で "mine"→"prepare"）
+  test_recorded_exhausted_home_shortage_leaves_a_ready_mining_trip → FAIL（'prepare' != 'mine'）
+  test_recorded_exhausted_home_shortage_reopens_a_blocked_mining_trip → ok（直す前も同じ答えの守り。直しの対象ではない）
+  直した後は 3 件とも ok。
+
+■ 検査の数
+  (1) PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK
+  (2)(3) checks.json の 107 モジュール ＋ 自分の 2 モジュール（tests.test_crossarea_fundraising・tests.test_me_capability_rows_recorded）
+    合わせて 109 モジュール → 8 つに分けて並べて流し、681 件すべて OK（失敗 0・誤り 0）
+  町の用事の一覧: scripts/town_work_manifest.py → 0 violation(s)（登録された作り手は変えていない）
+
+■ checks.json への追加の案（checks.json は編集していない）
+  {"id": "OWNER-MINING-SUPPLIES-FIRST", "owner": "2026-11-01 23時「採掘の要求品が優先。これは以前にも決定したはず。」（09-18 の Q1 採掘優先）", "tests": ["tests.test_me_capability_rows_recorded.DetectTreasureCountTest.test_the_run_departs_to_mine_after_the_scrolls", "tests.test_crossarea_fundraising"]}
+
+■ 保守性
+  - 「採掘の旅が出発できるか」は、採掘の出発の条件の持ち主（_descent_is_blocked の "mine" の枝）に聞く 1 つの名前付きの問い
+    _mining_departure_ready を policy_fundraising.py（資金稼ぎの出発の判定がある所）に置いた。条件の写しや新しい述語は書いていない。
+  - 戻しの関数には 1 つの条件を足しただけで、職業・クエスト・店の名前の特別扱いは無い。docstring に決定の出どころを書いた。
+  - 10-08 のテストは盤面の読み込みを 1 つの関数にまとめ、出発できる旅と出発できない旅の 2 件に分けた。
+
+■ ほかの家族のもの・気付いたこと
+  - 能力の回復の NeedSpec（policy_town.py の ("stat-restore", "normal", 1, True)）は departure_blocking=True のままで、買えない時に
+    錬金術の店を1回見に行く（店の試みが消えなければ1回で終わる）。採掘の出発は止めないので今回は変えていない。
+
+■ 持ち主への問い
+  - 無し（決定どおりに直した。新しい閾値や振る舞いは足していない）。
