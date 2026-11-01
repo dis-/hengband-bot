@@ -12075,5 +12075,29 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "town_quest_reward.py:pending": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Returns the latched fixed-quest reward id (int | None): rebuilds _fixed_quest_reward_pending after a restart from an object on an allowlisted reward cell (FIXED_QUEST_REWARD_POSITIONS) of a REWARDED/FINISHED quest; the one rebuild for _fixed_quest_key, the Q1 opening and the town reward owner. Emits no command.",
+    "delegation": "selected child; no independent success"
+  },
+  "town_quest_reward.py:reward_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "evidence": "#47 D62: the latched town-map reward's approach and pickup, delegated to the existing _fixed_quest_reward_key (fixedquest:reward-approach / reward-pickup, its route-unavailable declaration) under town_pack_budget.explicit_pickup_cells for the allowlisted reward cells; None when nothing is latched, the pickup finished or the pack is full (fixedquest:reward-pack-full hands over to the town space owners); otherwise WAIT fixedquest:reward-wait. Called by _fixed_quest_key and town_key.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_quest_reward.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "evidence": "#47 D62: castle_quest REWARDED + wilderness_gen (reward object placed, then FINISHED) put the reward on this town level only; delegated by the existing _opening_q34_town_key owner after the Q1 opening and before the class-16 staff sequence, Q2 Tower recharge and Powerful Activation, so no owner leaves the town before the reward is picked up. Outside a store, no adjacent hostile (survival first); the key is reward_key's.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
