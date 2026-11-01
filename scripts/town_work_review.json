@@ -5594,6 +5594,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "_leave_fundraising_floor; no independent progress"
   },
+  "policy_fundraising.py:FundraisingMixin._detect_treasure_read_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Income floor only (Yeek cave 1F): the mining run's first detection and the diggerless scavenge run's carried detection (owner 2026-10-23).",
+    "evidence": "Reads one carried Treasure Detection scroll through _read_key and offers that read as the fundraising detect step; extracted unchanged from _fundraising_key's mining branch; no town progress credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_fundraising.py:FundraisingMixin._fundraising_key": {
     "classification": "producer",
     "rows": [
@@ -11208,7 +11219,7 @@
       "fundraising"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Rung-specific entry refusal adapter: same no-step offer and detection settlement as the skipped town call of _fundraising_key; never borrowed by the departure dispatcher; no key or independent progress.",
+    "evidence": "Rung-specific entry refusal adapter: same no-step offer and detection settlement as the skipped town call of _fundraising_key, and the diggerless scavenge settlement of a prepare run (owner 2026-10-23); never borrowed by the departure dispatcher; no key or independent progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

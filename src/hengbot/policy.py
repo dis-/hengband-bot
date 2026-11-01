@@ -2296,6 +2296,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._supply_stockout_cycles = 0
         self._supply_stockout_gold_target = None
         self._mining_scroll_used_floor: tuple[int, int, int] | None = None
+        # The scavenge run town chose because no digger can be had (2026-10-23).
+        self._scavenge_without_digger = False
         self._mining_detection_centers: list[Position] = []
         self._sell_scavenged_consumables = False
         self._normal_weapon_name: str | None = None
@@ -10191,7 +10193,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 "mine"
                 if main_hand_digger is not None
                 or (treasure_scrolls > 0 and self._has_digging_tool(snapshot))
-                else ("scavenge" if self._detectionless_scavenge_allowed(snapshot)
+                else ("scavenge" if self._scavenge_allowed(snapshot)
                       else "prepare")
             )
             if main_hand_digger is not None:

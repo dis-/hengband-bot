@@ -4973,7 +4973,7 @@ class TownMixin:
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             if self._planned_mining_runs is None:
                 self._activate_partial_mining_plan(snapshot)
-            detection_low = self._count_treasure_detection_scrolls(snapshot) < self._mining_detection_scroll_target(snapshot)
+            detection_low =self._count_treasure_detection_scrolls(snapshot) < self._mining_detection_scroll_target(snapshot)
             if detection_low and STORE_HOME in self._town_store_attempted and STORE_ALCHEMIST in self._town_store_attempted:
                 if self._count_treasure_detection_scrolls(snapshot) > 0:
                     self._activate_partial_mining_plan(snapshot)
@@ -5853,7 +5853,7 @@ class TownMixin:
             or (self._fundraising_mode == "mine"
                 and not self._fundraising_departure_ready(snapshot))
             or (self._fundraising_mode == "scavenge"
-                and not self._detectionless_scavenge_allowed(snapshot))
+                and not self._scavenge_allowed(snapshot))
         ):
             detection_store = self._settle_fundraising_detection(snapshot)
             if detection_store is not None:

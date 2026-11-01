@@ -264,6 +264,7 @@ def normalize_policy_state(restored, *, restart=False):
     # predate the identify-staff mining-plan flag; False preserves their
     # former terminal-transition behavior.
     restored.__dict__.setdefault("_identify_staff_mining_plan", False)
+    restored.__dict__.setdefault("_scavenge_without_digger", False)
     # Older captures predate the recall-stockout time-pass flag; False keeps
     # their former set-end behavior (no stockout exemption).
     restored.__dict__.setdefault("_recall_stockout_mining_plan", False)
