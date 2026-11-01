@@ -28,6 +28,7 @@ from hengbot import town_terminal
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.town_terminal import NOT_APPLICABLE, TerminalRef
+from hengbot.town_travel import is_travel_macro
 from test_goldburn_shopping_constructed import board
 from test_quest_travel_progress import QuestTravelFixtureMixin
 
@@ -116,8 +117,11 @@ class RungOneAskedOnlyByItsTerminalTest(QuestTravelFixtureMixin, unittest.TestCa
                 policy.confirm_key_posted(key)
                 if raw["turn"] >= 2856703:
                     keys.append((str(key), key.reason))
-        self.assertEqual(keys, [(step, "fixedquest:prepare-return")
-                                for step in ("7", "8", "9", "9", "9")])
+        # The recorded walk stepped 7, 8, 9, 9, 9; the declared route now rides
+        # the game's travel command to the inn's side (owner 2026-11-01
+        # 「街での移動は可能な限りトラベルコマンドを活用して」).
+        self.assertEqual([reason for _key, reason in keys], ["fixedquest:prepare-return"] * 5)
+        self.assertTrue(all(is_travel_macro(key) for key, _reason in keys), keys)
         self.assertIn("fixed_quest_return_intended_terminal", callers)
         self.assertNotIn("_decide", callers)
 
