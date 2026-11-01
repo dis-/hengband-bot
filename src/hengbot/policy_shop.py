@@ -750,6 +750,18 @@ class ShopMixin(InStoreMixin):
                 return item
         return None
 
+    def _admitted_restore_potion_purchase(
+        self, snapshot: Snapshot, excluded_classes
+    ) -> StoreItem | None:
+        """The restore potion this page sells for a drained stat, unless excluded."""
+        restore = self._restore_potion_purchase(snapshot)
+        if restore is None or (
+            (restore.tval, restore.sval) in excluded_classes
+            and not self._identify_staff_swap_purchase(restore)
+        ):
+            return None
+        return restore
+
     @claims(ClaimOwner.SURVIVAL)
     def _stat_restore_quaff_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
@@ -3567,7 +3579,11 @@ class ShopMixin(InStoreMixin):
                 )
                 if recall is not None:
                     return recall
-            return None
+            # Below the whole kit and the recall, so it never starves them:
+            # a drained stat is restored here too (#47 n1-c life-096: STR
+            # 18/31 drained to 6 left on the Alchemist's shelf in every
+            # fundraising visit, and the optimizer dual wielded at the floor).
+            return self._admitted_restore_potion_purchase(snapshot, excluded_classes)
 
         mandatory = (
             self._mandatory_purchase(snapshot, excluded_classes=excluded_classes)
@@ -3615,10 +3631,8 @@ class ShopMixin(InStoreMixin):
                 and ((curse_scroll.tval, curse_scroll.sval) not in excluded_classes
                      or self._identify_staff_swap_purchase(curse_scroll))):
             return curse_scroll
-        restore = self._restore_potion_purchase(snapshot)
-        if (restore is not None
-                and ((restore.tval, restore.sval) not in excluded_classes
-                     or self._identify_staff_swap_purchase(restore))):
+        restore = self._admitted_restore_potion_purchase(snapshot, excluded_classes)
+        if restore is not None:
             return restore
         restore_life = self._restore_life_levels_purchase(snapshot)
         if (restore_life is not None
