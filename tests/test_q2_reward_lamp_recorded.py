@@ -163,6 +163,29 @@ class Q2RewardLampRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual(policy._fixed_quest_reward_pending, 2)
         self.post(policy, reported, key, self.reply(reported, key))
 
+    def test_lamp_is_picked_up_before_leaving_telmora(self):
+        policy, raw = self.reported()
+        reasons = []
+        for _ in range(6):
+            key = self.decide(policy, raw)
+            reasons.append((key, policy.last_reason))
+            following = self.reply(raw, key)
+            self.post(policy, raw, key, following)
+            raw = following
+            if key == "g":
+                break
+        # The pack keeps 2 of 23 slots free, under the 4 the town walk
+        # reserves for implicit pickups; the reward cell is an explicit pickup.
+        self.assertEqual(len(self.case["reported_board"]["inventory"]), 21)
+        self.assertEqual(reasons[-1], ("g", "fixedquest:reward-pickup"), reasons)
+        self.assertTrue(all(reason.startswith("fixedquest:reward") for _, reason in reasons), reasons)
+        board = parse_snapshot(copy.deepcopy(raw), self.monrace)
+        self.assertIn(LAMP_NAME, [item.name for item in board.inventory])
+        # The next board belongs to the other town owners again.
+        self.decide(policy, raw)
+        self.assertIsNone(policy._fixed_quest_reward_pending)
+        self.assertFalse(policy.last_reason.startswith("fixedquest:reward"), policy.last_reason)
+
 
 if __name__ == "__main__":
     import unittest

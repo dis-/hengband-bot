@@ -12044,7 +12044,7 @@
     "rows": [
       "quest-service"
     ],
-    "evidence": "#47 D62: the latched town-map reward's approach and pickup, delegated to the existing _fixed_quest_reward_key (fixedquest:reward-approach / reward-pickup, its route-unavailable declaration); None when nothing is latched, the pickup finished or the pack is full (fixedquest:reward-pack-full hands over to the town space owners); otherwise WAIT fixedquest:reward-wait. Called by _fixed_quest_key and town_key.",
+    "evidence": "#47 D62: the latched town-map reward's approach and pickup, delegated to the existing _fixed_quest_reward_key (fixedquest:reward-approach / reward-pickup, its route-unavailable declaration) under town_pack_budget.explicit_pickup_cells for the allowlisted reward cells; None when nothing is latched, the pickup finished or the pack is full (fixedquest:reward-pack-full hands over to the town space owners); otherwise WAIT fixedquest:reward-wait. Called by _fixed_quest_key and town_key.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_quest_reward.py:town_key": {

@@ -23,6 +23,7 @@ from __future__ import annotations
 from hengbot.policy_constants import (
     FIXED_QUEST_REWARD_POSITIONS, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, WAIT_KEY,
 )
+from hengbot.town_pack_budget import explicit_pickup_cells
 
 PACK_FULL_REASON = "fixedquest:reward-pack-full"
 WAIT_REASON = "fixedquest:reward-wait"
@@ -54,11 +55,17 @@ def reward_key(policy, snapshot) -> str | None:
     None when nothing is latched or the pickup finished on this board, and
     when the pack is full: the town owners then make room for it.  A latch
     that has no step this board waits rather than leaving the town.
+
+    The reward is an explicit pickup (its own ``g`` on the cell): the walk
+    onto its allowlisted cells is not an implicit town pickup, so the slot
+    reserve of town_pack_budget.floor_step_fits does not refuse that step
+    (the full pack keeps its own handoff).
     """
     quest_id = pending(policy, snapshot)
     if quest_id is None:
         return None
-    key = policy._fixed_quest_reward_key(snapshot, quest_id)
+    with explicit_pickup_cells(policy._fixed_quest_reward_positions(snapshot, quest_id)):
+        key = policy._fixed_quest_reward_key(snapshot, quest_id)
     if key is not None or policy._fixed_quest_reward_pending is None:
         return key
     if policy.last_reason == PACK_FULL_REASON:
