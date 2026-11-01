@@ -34,6 +34,7 @@ import unittest
 from hengbot.model import parse_snapshot
 from hengbot.policy_types import DecisionCandidate
 from hengbot.town_travel import is_travel_macro
+from tests import test_live22_bounty as live22
 from tests import test_me_nokey_1031_recorded as nokey
 from tests.test_quest_travel_progress import ROOT, QuestTravelFixtureMixin
 
@@ -90,6 +91,25 @@ class QuestTravelRecordedTest(TravelBeside, QuestTravelFixtureMixin, nokey.Poste
         # Unfixed: '7' (the recorded walk 7, 8, 9, 9, 9).
         self.assert_travel_beside(policy, key, declaration.goal, "fixedquest:prepare-return")
         self.post(policy, raw, str(key))
+
+
+class BountyApproachRecordedTest(TravelBeside, nokey.PostedKey):
+    def test_office_walk_rides_the_travel_command(self):
+        policy, recorded = live22.attached_policy()
+        board = recorded[0]
+        # The captured process already held the skill knowledge.
+        policy.consume_skill_knowledge({
+            "player": {"level": board.player.level},
+            "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
+        })
+        key = policy.choose_key(board)
+        # Unfixed: '7' (recorded decision 5123).
+        self.assert_travel_beside(policy, key, live22.OFFICE, "bounty:approach")
+        # The office's own work stays the declared continuation.
+        self.assertEqual(policy._claim_register.current.execution.continuation, "bounty.resume")
+        with gzip.open(live22.FIXTURE / "state.jsonl.gz", "rt", encoding="utf8") as source:
+            raw = json.loads(next(source))
+        self.post(policy, raw, key)
 
 
 if __name__ == "__main__":
