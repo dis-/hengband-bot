@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, me_ranged_first, paralyzer_contact, return_yield, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import blind_strike, breeder_floor_record, breeder_quest, breeder_stalemate, me_ranged_first, paralyzer_contact, return_yield, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -1339,6 +1339,19 @@ class CombatMixin:
 
     def _perceived_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:
         """Return de-duplicated sight and detection records for anticipation."""
+        return [
+            monster
+            for monster in self._sighted_or_detected_hostiles(snapshot)
+            if not (
+                self._breeder_breakthrough_floor == snapshot.floor_key
+                and self._is_weak_breeder(snapshot, monster)
+            )
+        ]
+
+    def _sighted_or_detected_hostiles(
+        self, snapshot: Snapshot
+    ) -> list[MonsterState]:
+        """Every hostile in sight or detection, one record per monster."""
         perceived: dict[int, MonsterState] = {
             monster.index: monster
             for monster in snapshot.detected_monsters
@@ -1351,14 +1364,7 @@ class CombatMixin:
                 if monster.hostile
             }
         )
-        return [
-            monster
-            for monster in perceived.values()
-            if not (
-                self._breeder_breakthrough_floor == snapshot.floor_key
-                and self._is_weak_breeder(snapshot, monster)
-            )
-        ]
+        return list(perceived.values())
     def _engagement_breeder_population(
         self, snapshot: Snapshot
     ) -> list[MonsterState]:
@@ -3878,6 +3884,10 @@ class CombatMixin:
         """
         if self._breeder_breakthrough_floor != snapshot.floor_key:
             return None
+        # Owner 2026-11-02: the floor's quest type decides between leaving
+        # (kill-all) and pursuing the target clear of the swarm (breeder_quest).
+        breeder_quest.refresh_avoidance(self, snapshot)
+        abandon = breeder_quest.abandons_floor(self, snapshot)
         # A one-off emergency relocation does not start a town return, but an
         # already active return still needs an exit from this latched floor.
         # A kill-quest floor asks the quest exit lock, as the stair exits
@@ -3889,8 +3899,11 @@ class CombatMixin:
         # every 61 decisions until livelock-exhausted).
         if (
             self._fundraising_mode != "mine"
-            and self._active_fixed_quest_id(snapshot) is None
-            and not self._return_exit_locked(snapshot)
+            and (
+                abandon
+                or self._active_fixed_quest_id(snapshot) is None
+                and not self._return_exit_locked(snapshot)
+            )
             and (
                 not self._emergency_return_active
                 or self._returning_to_town
@@ -3910,6 +3923,9 @@ class CombatMixin:
                 self._returning_to_town = True
                 self.last_reason = "breeder-breakthrough:recall"
                 return self._read_dungeon_recall_scroll_key(snapshot, recall)
+        teleport = breeder_quest.teleport_key(self, snapshot)
+        if teleport is not None:
+            return teleport
         if self._fundraising_mode in {"mine", "scavenge"} and not any(
             monster.can_multiply
             and not self._is_weak_breeder(snapshot, monster)

@@ -6,7 +6,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import me_q1_torch, quest_sweep_target, random_quest_reserve, town_travel
+from hengbot import breeder_quest, me_q1_torch, quest_sweep_target, random_quest_reserve, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -4798,14 +4798,17 @@ class QuestMixin(OpeningRouteMixin):
         ONCE) quest floor, and 'y' forfeits the quest.  The stair operation
         answers it when the shared light judgment releases the return exit
         lock (fixed ONCE or runtime kill quest), or when the runtime kill
-        quest's own exit lock has released.  A stair posted while the lock
-        holds leaves the question unowned so the executor stops visibly.
+        quest's own exit lock has released, or when a breeder stalemate
+        abandons a kill-all quest floor (breeder_quest).  A stair posted while
+        the lock holds leaves the question unowned so the executor stops
+        visibly.
         """
         return (
             key in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}
             and not snapshot.in_town
             and (
                 self._light_releases_quest_exit(snapshot)
+                or breeder_quest.abandons_floor(self, snapshot)
                 or (
                     self._active_fixed_quest_id(snapshot) is None
                     and self._active_kill_quest_id(snapshot) is not None
