@@ -41,7 +41,9 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    damage per action me_ranged_first would deal beside it) says cannot be
    beaten, whether or not a scroll could be read.  ``threat_key`` asks the
    THREAT occasion once per visible hostile, nearest first, from the dungeon
-   ladder ahead of the emergency consumables.
+   ladder after the emergency consumables.  Owner 2026-11-02 「テレポート
+   アウェイがあるなら初手でフォルンをどかす。」: the QUEST_OPENING occasion is
+   asked with a quest plan's opening target (quest_opening_away).
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -101,6 +103,7 @@ REST = "rest"
 SECRET_SEARCH = "secret-search"
 TRAP = "trap"            # asked with the trap the bot would disarm
 THREAT = "threat"        # asked with each visible hostile (threat_key)
+QUEST_OPENING = "quest-opening"  # asked with a quest plan's opening target (quest_opening_away)
 MAP_AREA = "map-area"    # the effect whose area mapped_area reads
 
 DETECT_RAD = 30          # spell/spells-util.h DETECT_RAD_DEFAULT / DETECT_RAD_MAP
@@ -189,10 +192,12 @@ POWERS = (
           beside_harmless=True),
     # The rod recharges, so it comes before the wand.
     Power("rod", SV_ROD_TELEPORT_AWAY, devices()[(TVAL_ROD, SV_ROD_TELEPORT_AWAY)].names,
-          "teleport-away", 0, 70, ("unbeatable-in-range",), darkness_scaled=False,
+          "teleport-away", 0, 70, ("unbeatable-in-range", "quest-opening-target"),
+          darkness_scaled=False,
           aimed=True, against_hostile=True),
     Power("wand", SV_WAND_TELEPORT_AWAY, devices()[(TVAL_WAND, SV_WAND_TELEPORT_AWAY)].names,
-          "teleport-away", 0, 71, ("unbeatable-in-range",), darkness_scaled=False,
+          "teleport-away", 0, 71, ("unbeatable-in-range", "quest-opening-target"),
+          darkness_scaled=False,
           aimed=True, against_hostile=True),
 )
 BY_KEY = {power.ident: power for power in POWERS}
@@ -376,12 +381,23 @@ def _dark_room(ctx, power):
     return any(grid is None or not grid.known for grid in grids)
 
 
-def _trap_to_disarm(ctx, power):
-    """The trap is on a beam's line and no power was aimed at it on this
-    floor (a use that took its turn and left the trap leaves it to the
-    disarm command)."""
+def _aimed_once(ctx, trigger) -> bool:
+    """The target is on a beam's line and no power was aimed at it for
+    ``trigger`` on this floor."""
     return ctx.aim is not None and not any(
-        use.trigger == "trap-to-disarm" and use.target == ctx.target for use in ctx.memory.uses)
+        use.trigger == trigger and use.target == ctx.target for use in ctx.memory.uses)
+
+
+def _trap_to_disarm(ctx, power):
+    """Once per trap (a use that took its turn and left the trap leaves it to
+    the disarm command)."""
+    return _aimed_once(ctx, "trap-to-disarm")
+
+
+def _quest_opening_target(ctx, power):
+    """Once per quest plan's opening target on this floor visit (the target
+    need not be in sight: the beam follows the aimed line)."""
+    return _aimed_once(ctx, "quest-opening-target")
 
 
 def _light_sensitive_adjacent(ctx, power):
@@ -427,6 +443,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("light-sensitive-adjacent", frozenset({FLOOR, DARK}), _light_sensitive_adjacent),
     Trigger("trap-to-disarm", frozenset({TRAP}), _trap_to_disarm),
     Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
+    Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
 )}
 
 REQUIREMENTS = {
