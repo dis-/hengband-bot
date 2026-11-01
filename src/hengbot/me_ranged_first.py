@@ -80,6 +80,20 @@ def melee_refused_key(policy, snapshot, adjacent) -> str | None:
     return attack_key(policy, snapshot, policy._weakest(adjacent))
 
 
+def outpaced_afraid_key(policy, snapshot, adjacent) -> str | None:
+    """Afraid beside an attacker at least as fast: this ranged order, else None.
+
+    Owner 2026-11-01 「遠隔の手段があれば撃つ」: walking away from it donates a
+    blow every step (n1-c life-085's speed +10 jelly), so the flee rung fires
+    instead of walking; without a ranged answer it flees as before.  The
+    survival ladder above the flee rung answers first."""
+    if not snapshot.player.afraid:
+        return None
+    speed = snapshot.player.speed
+    return melee_refused_key(
+        policy, snapshot, [monster for monster in adjacent if monster.speed >= speed])
+
+
 def attack_key(policy, snapshot, target) -> str | None:
     """The ranged answer to ``target`` (adjacent or ray-aligned), else None."""
     origin, cell = snapshot.player.position, target.position

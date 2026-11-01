@@ -11382,6 +11382,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return blocker
             if (stand := town_last_stand.key(self, snapshot, strategic_hostiles, "flee:cornered-attack")) is not None:
                 return stand
+            if (ranged := me_ranged_first.outpaced_afraid_key(self, snapshot, strategic_adjacent)) is not None:
+                return ranged  # a faster attacker follows every step away
             step = self._town_producer_entry("_flee_step#2", lambda: self._flee_step(snapshot, strategic_hostiles))
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below

@@ -11964,5 +11964,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Beside an adjacent hostile while the game refuses melee: afraid (#47 hit-no-action-1101; cmd-attack.cpp:228) or in a NO_MELEE dungeon (owner 2026-11-01 「遠隔と取り込んだ力は使う」; cmd-attack.cpp:202): attack_key against the weakest adjacent hostile, else None; called after the melee branch of the lethal-emergency ladder, the low-HP walk gate, the cornered flee, the combat rung, the two choke holds and the two summoner rungs; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:outpaced_afraid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Afraid beside an adjacent hostile at least as fast as the player (owner 2026-11-01 「遠隔の手段があれば撃つ」): melee_refused_key against the faster adjacent hostiles, else None; called by the flee rung before its _flee_step walk (stairs, the disengage blocker and the town last stand answer first); no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

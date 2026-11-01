@@ -2003,6 +2003,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_ranged_first.py:outpaced_afraid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_staff_sequence.py:_absorb_key": {
     "classification": "producer",
     "rows": [

@@ -39,6 +39,7 @@ from pathlib import Path
 
 from hengbot import me_staff_sequence as sequence
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _advance_town_blocked_iteration
+from hengbot.magic_eater import MISSILE_REASON
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import ConservativePolicy
@@ -102,13 +103,21 @@ class MeStaffLoopsRecordedTest(nokey.PostedKey):
         return rows
 
     def test_afraid_opening_route_yields_to_the_survival_ladder(self):
+        # #47 owner 2026-11-01 「遠隔の手段があれば撃つ」: the doll is as fast as
+        # the player (speed 110), so the flee rung fires the absorbed Magic
+        # Missile instead of walking (me_ranged_first.outpaced_afraid_key);
+        # its power prompts go through the executor of the town fights.
+        from tests.test_town_combat_survival_recorded import TownCombatSurvivalTest
+        helper = TownCombatSurvivalTest("test_recorded_fight_answers_with_the_absorbed_magic_missile")
+        self.addCleanup(helper.doCleanups)
         case = CASE["opening"]
         policy = new_policy(case, case["skill"])
-        rows = self.drive(policy, case["boards"])
+        rows = helper.drive(policy, case["boards"])
         for raw, key, reason in rows:
             self.assertTrue(raw["player"]["status"]["afraid"])
             self.assertNotEqual(reason, "melee", (raw["turn"], key))
             self.assertNotEqual(reason, "quest:blocked:opening-route", (raw["turn"], key))
+            self.assertEqual(reason, MISSILE_REASON, (raw["turn"], key))
         self.assertIsNone(getattr(policy, "_opening_q1_failure", None))
 
     def test_walk_to_the_inn_after_stage1_is_arbiter_progress(self):
