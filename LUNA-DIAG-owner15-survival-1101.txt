@@ -1,0 +1,106 @@
+LUNA-DIAG-owner15-survival-1101.txt  (#47、ブランチ owner15-survival-1101、main ade15c353 から)
+
+持ち主の答え（2026-11-01 17時、memory owner-answers-15-decisions-20261101.md、逐語）:
+ 1「近接で殴られたら反撃」（近接の手がかりなら反撃、呪文・矢の手がかりの時だけ退く）
+ 2「遠隔の手段があれば撃つ」（無ければ逃げる。生存処理が先）
+ 3「遠隔と取り込んだ力は使う」（src cmd-attack.cpp:202 は近接だけ止める）
+ 4「014 だけ広げる」（ワーグ。008・009 は最終盤で決め直す）
+ 5「緊急の逃げも数える」 / 6（心眼の帰還 esp-threat:leave-recall）「数えない」（今のまま）
+ D59 の続き: 10-03 の決まり「失敗した任意の装備の変更は今の確定した装備で出発」を閉じた取引にも当てる
+ （LUNA-REPORT-fix-depart2-1101.txt の Q1 (A)）。
+
+盤面: 記録の盤面から作る（どれも DECLARED CONSTRUCTED/RECONSTRUCTED をテストに明記）。
+ - n1-c life-085（tests/fixtures/death-n1c-085-1101.json.gz、D57 の抜き出し、迷宮11階、Lv18 ゾンビの魔道具術師、
+   速さ+10 の『スーパー・グレート・シルバー・ゼリー』が隣）。
+ - n1-c life-092 の Q14（ワーグを殱滅せよ、イークの洞穴5階、テレポートの巻物15本）の盤面 2636850-2637300
+   （観戦サーバの state.jsonl と jsonlog/bot-decisions.jsonl から読み取りだけで
+   C:\hengband-backups\pdca\captures\owner15-survival-1101\n1-c\life-092\ に写した）。
+ - n1-c life-083（tests/fixtures/d57-n1c-083-1101.json.gz、迷宮の潜り、緊急のテレポート7回・拾い0）。
+ - n1-c life-092 の 13:54 の停止盤面（tests/fixtures/depart2-1101.json.gz の trident/stop）。
+
+■ 1. 見えない敵から退く処理（近接の手がかり）
+作った盤面: life-085 の 1445315-1445328（明るい、ゼリーが隣 (12,4)/(13,4)）。ゼリーを visible_monsters から外し、
+ 文の名前を「何か」に（monster-attack-player.cpp:298-304、monster-describer.cpp）、明かりの文を外した
+ （「何かに触られた。」「触られた。」の近接の文、被害 232→228→223）。
+main の答え: 1445321・1445328 とも '7' unseen:reverse-choke（隣の見えない敵から離れる歩き）。
+ 帰還中（player.recalling を true）にすると 1445321 '7' unseen-recall:move。
+鎖:
+ 1. policy_observation.py:1021 _unseen_attack_evidence = 「何かに触られた。」（policy.py:19841 _is_unseen_attack_message）。
+ 2. policy.py:10979 → policy_supply.py:1930 _unseen_retreat_key: eligible_hit（被害・見えない攻撃の証拠・見える敵なし）
+    → 退きを始め（1994 escape_state.enter("unseen")）→ 2034-2037 '7' unseen:reverse-choke。
+    呪文・矢の文かどうかを見ない（近接の文でも歩く）。
+ 3. 帰還中: policy_combat.py:1970-2039 の見えない敵の帰還待ち → 2030-2039 '7' unseen-recall:move。同じく文の種類を見ない。
+根: 見えない敵からの退き（2つの歩き）が、近接の手がかり（unseen_strike.hit_in_melee、呪文・射撃の文でない被害）
+ でも歩く。持ち主の答え1で、近接の手がかりなら反撃（unseen_strike.key、10-03 追加決定2 と同じ反撃）、
+ 呪文・矢の手がかりの時だけ退く。
+直し: 2つの歩きの前に unseen_strike の1つの入口（retreat_key）を呼ぶ。近接の手がかりなら打ち、
+ それ以外（呪文・矢・前の盤面の保留の手がかり）は今のまま退く。
+
+■ 2. 恐怖で自分以上に速い敵が隣
+作った盤面: life-085 の 1445315-1445328（明るい、明かりの文を外す）で player.status.afraid を true
+ （記録の HP 232→228→223、ゼリー（速さ+10=120）が隣、プレイヤー 110）。
+main の答え: 1445315 'qb' emergency:quaff-speed（生存の段）、1445321・1445328 '2' flee（ゼリーから南へ歩く）。
+ 対照: プレイヤーの速さを 130 にしても '2' flee（こちらが速い時は今のまま逃げる）。
+鎖:
+ 1. policy.py:12991-12993 _should_flee: 怖がっていて隣に敵 → True（「Fear forbids melee」）。
+ 2. policy.py:11352 逃げの段: 階段なし → 11371 town_last_stand（町だけ）→ 11376 _flee_step → '2' flee。
+    遠隔の順（me_ranged_first、取り込んだマジック・ミサイル 'mBp8'）は 11404-11413 の「逃げ場が無い時」まで来ない。
+根: 恐怖は近接だけを止める（cmd-attack.cpp:228）のに、隣の速い敵から歩いて逃げ、追われて殴られ続ける。
+直し: 逃げの段の歩き（_flee_step）の前に、怖がっていて隣に自分以上に速い敵がいる時は me_ranged_first の遠隔の順を
+ 撃つ（無ければ今のまま逃げる）。生存の段（緊急の段）はこれより前にある（1445315 の quaff-speed）。
+
+■ 3. 近接禁止（NO_MELEE）の階
+作った盤面: life-085 の 1445613-1445625（記録の HP 80・71、ゼリーが見えて隣、油と予備のランタンを外す）と
+ 1445315-1445328（明るい、明かりの文を外す）。迷宮（dungeon 4）の地下の知識に NO_MELEE を足した
+ （test_anti_melee_dungeon_recorded と同じ、dungeon knowledge の旗だけ変える）。
+main の答え: 1445625 '5' emergency:wait（隣のゼリーに何もしない）、1445321・1445328 '7' hunt（隣のゼリーの周りを歩く）。
+鎖:
+ 1. 1445625: policy.py:10519-10530 低HPの門: `adjacent and not player.afraid and _can_fight_in_dungeon(...)` が偽 →
+    me_ranged_first.afraid_key は怖がっていないので None（me_ranged_first.py:68-70 は NO_MELEE も見て None）→ 待ち。
+ 2. 1445321: policy.py:11493-11512 戦いの段の近接: _can_fight_in_dungeon が偽 → 2r _ranged_attack_key は
+    「隣は近接の仕事」で断る（policy_combat.py:1444）→ 狩りの歩き。
+ 同じ形（遠隔の順を近接の条件の中に置く）: policy.py:11404、policy_combat.py:366・395・2426・3676・3877。
+ ゲーム: NO_MELEE が断るのは近接だけ（cmd-attack.cpp:202「なぜか攻撃することができない。」）。取り込んだ力・
+ 魔法棒・投げ（cmd-magiceat.cpp、zapwand-execution.cpp、throw-execution.cpp）は NO_MELEE を見ない。
+根: 「近接が断られる時の遠隔の順」が恐怖だけを数え、NO_MELEE の時は遠隔の順ごと止める（me_ranged_first.afraid_key の
+ _can_fight_in_dungeon、戦いの段は遠隔の順を近接の条件の中でしか呼ばない）。
+直し: me_ranged_first の afraid_key を「近接が断られる時（恐怖または NO_MELEE）の遠隔の順」にする
+ （melee_refused_key に改名、7か所の呼び出しはそのまま）。戦いの段の近接（policy.py:11493）の後にも同じ1行を足す。
+
+■ 4. 5本の決まりを固定クエスト014へ
+記録の盤面: life-092 の Q14 の盤面（2636950-2637028、探索中、テレポートの巻物15本、Q14 は受けた状態、討伐 1/16）。
+ 作った盤面: 巻物を4本にした（5本の対照も）。
+main の答え: 4本でも出口の鍵（_quest_floor_exit_locked）が True のまま、'7'/'4' explore（帰らない）。
+鎖: random_quest_reserve.py:27-36 teleport_reserve_spent は _runtime_random_quest（RANDOM の種類）だけを数える。
+ Q14 は KILL_LEVEL（lib/edit/quests/014_WargProblem.jsonc）なので、policy_quest.py:4768（出口の鍵の解除）と
+ policy_town.py:7855（帰る理由）のどちらにも来ない。
+根: 5本の決まりの対象がランダムクエストだけ。持ち主の答え4で 014 にも広げる（008・009 は除く）。
+直し: random_quest_reserve に対象の固定クエストの表（014 の1行）を置き、teleport_reserve_spent が
+ 「ランダムクエスト、または表のクエスト」を数える。
+
+■ 5. 鉄獄解禁後の攻略中のダンジョンの潜り
+記録の盤面: life-083 の迷宮の潜り（緊急のテレポート3回が出る、拾い0、1187204 で町に着く）。
+ 作った盤面: 鉄獄の帰還を解禁（progress.angband_recall_unlocked）、迷宮を攻略の目標（_conquest_target を迷宮に固定、
+ 代わりのダンジョンなし）、連続の数 1 から。
+main の答え: 町に着いた後の連続の数は 1 のまま（数えない）。代わりのダンジョンの時は 2 に進む（D57）。
+鎖: policy_observation.py:529-546 の pursued_target の潜りは
+ over_extension.judge_dive(count_emergencies=self._dive_dungeon == self._alternate_dungeon) で、攻略の目標の潜りは
+ 守護者のはね返りだけを数える（over_extension.py の docstring「A conquest target's dives keep that guardian-bounce-only
+ judgement (no owner rule covers them)」）。
+根: 持ち主の答え5で、攻略中の潜りも緊急の逃げを数える。どの潜りも数えるので count_emergencies の引数が要らなくなる。
+直し: judge_dive は常に緊急の逃げを数える（引数を消す）。esp-threat:leave-recall は EMERGENCY_ESCAPE_REASONS
+ （policy_constants.py:855）に無いので数えない（答え6、今のまま）。
+
+■ 6. D59 の続き（閉じた取引の訪問）
+記録の盤面: life-092 13:54 の停止盤面（decision 3061、town:blocked:departure-unsatisfiable、failed
+ ["equipment_departure_ready"]、equipment.result_source "town-visit-transaction-closed" = 3044 の deposit-missing の閉じ）。
+ 根3（dc3ff4126）で記録の道筋では閉じが起きないので、3044 が書いた閉じ（deposit-missing、その訪問の epoch、
+ トライデントの identity）を DECLARED RECONSTRUCTED で置く。
+main の答え: _equipment_departure_ready が False（ふつうの出発ができない、強制出発の最低条件だけで出る）。
+鎖: policy_equipment.py:2921 → _prepare_equipment_optimization の 868-895: その訪問の閉じ（pack-space-home-full 以外）
+ → None を返す → 2950-3050 のどの「出発してよい」枝も preparation を要るので ready False。
+根: 10-03 の決まり（失敗した任意の取引は確定した今の装備で出発、_safe_optional_equipment_failure_departure）が、
+ 同じ訪問のうちに閉じた取引（deposit-missing・retain-reserved）に当たらない。
+直し: 閉じた訪問では準備を「取引失敗」（transaction None、blockers ("equipment-transaction-failed",)。
+ 同じ訪問で Home が使えない時に既にある形、policy_equipment.py:1597-1601）として返す。同じ計画は作り直さない
+ （閉じの意味はそのまま）。ふつうの出発条件は既存の任意の失敗の枝で出る。
