@@ -48,6 +48,10 @@ me_ranged_first.melee_refused_key、unseen_strike.RETREAT_REASON など）の上
  （_immobile_summoner_key の直後）に輪の外の一番近い空きマスへ一歩出る（step_out_key）。出口が鍵の階
  （クエスト）では輪を作らないので今どおり戦う（記録 D: n1-a life-459 のクエスト 49 で隣の自縛霊と戦う）。
  遠くから撃つ処理（_ranged_attack_key 等）は変えない（「離れて撃つのは可」）。職業の分岐は無い。
+追記（直しの後に分かったこと）: 動かず召喚もする吸う敵（397 キリス・ウンゴルの番人、LOSE_STR）は
+ _immobile_summoner_key の持ち物（視線のマスを避け、撤退できなければ近づいて倒す、10-27 の決まり）。
+ 輪をかけると、階段も巻物も無い時の summoner:cornered-approach が隣へ行けず explore になった
+ （tests.test_immobile_summoner_recorded の no-exit の盤面）。→ 吸う敵の輪は召喚しない敵だけにした。
 
 ======================================================================
 ■ 2. 魔道具術師以外の職業の、恐怖・近接禁止の時の隣の敵
@@ -57,8 +61,12 @@ me_ranged_first.melee_refused_key、unseen_strike.RETREAT_REASON など）の上
     でなければ applies() が偽（me_ranged_first.py:49）、取り込んだ力も無いので候補なし → None。
  3. 恐怖: _should_flee → 逃げの段（policy.py:11352 付近）の歩き・待ち。近接禁止: 戦いの段の近接（policy.py:11501）
     が _can_fight_in_dungeon で飛ばされ、2r（policy.py:11524-11530）の _ranged_attack_key が隣を断る。
-記録 E: c4-a life-014（戦士、高速度のロング・ボウ・矢99本、近接禁止の洞窟45階、隣に敵）: main の choose_key は
- 8823126 '4' explore、8823394 '3' threat:avoid-engagement、8823592 '7' approach-descent（隣の敵に撃たない）。
+記録 E: c4-a life-014（戦士、高速度のロング・ボウ・矢99本、近接禁止の洞窟45階、隣に敵）: main（a467fb56f）の
+ choose_key は 8823126 '4' explore、8823394 '3' threat:avoid-engagement、8823592 '7' approach-descent（撃たない）。
+ policy.py:11525 の melee_refused_key（owner15）は魔道具術師の順だけで None、2r の _ranged_attack_key は隣を断る。
+ 同じ盤面で近接禁止を外して怖がらせると（作った盤面）、敵（速さ115-120）がプレイヤー（110）より速いので
+ 逃げの段の outpaced_afraid_key（me_ranged_first、魔道具術師の順だけ）も None → '_flee_step' の flee。
+ 非魔道具術師の記録の盤面で怖がっているものは観戦の記録に無い（戦士は恐れ知らずの指輪）。
 根: 近接が断られる時の遠隔の順に弓・投げ（_ranged_attack_key）が入っていない。
 直し: _ranged_attack_key は近接が断られる時（attack_expectation.melee_refused）だけ隣の敵を射つ・投げる。
  me_ranged_first.melee_refused_key は魔道具術師の順の後に同じ _ranged_attack_key を聞く（近接の断りの入口は1つ）。
@@ -69,4 +77,21 @@ me_ranged_first.melee_refused_key、unseen_strike.RETREAT_REASON など）の上
 owner15（答え1）で unseen:reverse-choke と unseen-recall:move は unseen_strike.key を先に聞くようになったが、
  帰還の巻物の無い町への帰り道（policy_town.py:8321 return:explore）と明かりの無い歩き
  （policy_navigation.py:392 dark:backtrack）は聞かない（owner15 の報告の問い2）。
- （盤面と鎖の行番号は owner15 を取り込んだ後に追記する。）
+作った盤面: n1-c life-085 の 1445321-1445339（迷宮11階、tests/fixtures/death-n1c-085-1101.json.gz）を
+ test_hit_no_action_1101_recorded.constructed(unseen=True)（油つぼ・予備のランタンを外す、ゼリーを見える一覧から外し
+ 名前を「何か」に）にし、帰還の詔を外した。どの盤面も「何かに触られた。」（近接の手がかり）。
+main（owner15 取り込み後、a467fb56f）の答え: 1445321 '7' return:explore、1445328 '7' return:explore、
+ 1445339 '7' dark:no-recovery:dark:backtrack（記録の 1445339 も '7' dark:no-recovery:dark:backtrack）。
+鎖:
+ 1. return:explore: policy.py:11000-11012 見えない敵の退き（_unseen_retreat_key、policy_supply.py:1975 の
+    unseen_strike.key で '+' を作る）は contested_action になるが、帰り道が立っている（_returning_to_town）と
+    _return_to_town_key#1 が先に答える（「帰りがこの争いの決定を持つ」）。帰還の巻物が無いので
+    policy_town.py:8327 の探索の一歩 return:explore（見えない敵を見ない）。
+ 2. dark:backtrack: 明かりが無く戻せないと policy.py:11026（帰り道の中は policy_town.py:8122）の
+    _dark_locomotion_key（policy_navigation.py:326）が、見えない敵の手がかりを見ずに 397 行の一歩を出す。
+    survival_preemption の歩きの止めは見えている隣の敵だけ。
+ 対照: 文を「何かが矢を放った。」（mspell-bolt.cpp:21）にすると、どちらも今どおり歩く（答え1と同じ区別）。
+根: 「近接の手がかりなら先に反撃」の入口（unseen_strike.key）を、この2つの歩きが聞いていない。
+直し: policy_town.py の return:explore の一歩の前と、dark walk の階段の確認の後・一歩（backtrack/probe）の前に
+ unseen_strike.key（理由 unseen:strike-return / unseen:strike-dark）。呪文・矢の手がかりは今どおり歩く。
+ 明るい盤面（帰還の詔あり）の return:recall（巻物を読む）は答えの対象外なので変えない。

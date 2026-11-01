@@ -1,0 +1,91 @@
+LUNA-REPORT-survival2-1101.txt  (#47、ブランチ survival2-1101、main 64e63b6cf から、途中で main a467fb56f を取り込み)
+
+持ち主の答え（2026-11-01 21時、owner-answers-9-decisions-20261101）の 1〜3 を直した。診断は
+LUNA-DIAG-survival2-1101.txt（鎖・行番号・盤面の答え）。push・main への取り込みはしていない。stash は使っていない。
+観戦サーバからは読み取りだけ（ssh で盤面の範囲を書き出し、C:\hengband-backups\pdca\captures\survival2-1101\ に
+写した。README.txt に元のファイル、ring_window.py が書き出しに使った台本）。
+
+== 直し（1つの根に1コミット、1 は追いのコミット1つ） ==
+- f5aa8c697 診断（LUNA-DIAG-survival2-1101.txt。後で 3 の盤面と 1 の追記を足した）。
+1. 4b19471d6「Avoid never-moving monsters whose blows drain a stat」（答え1「近づかずに避ける」）
+   immobile_threat_memory.py:59 の表 STAT_DRAIN_BLOW_EFFECTS（LOSE_STR/INT/WIS/DEX/CON/CHR/ALL、
+   race-info-tokens-table.cpp:72-78）と述語 _drains_stats（:82）・_avoided（:88）。observe（:108）は、その階で
+   覚えた動かない敵のうち「1ターンで死ぬ」（D57）か「能力値を吸う」ものの周り（自分のマスと隣）を歩きの索引から
+   外す（狩り・拾い・探索・降り・逃げが同じ索引を使う）。既に輪の中に立っていれば step_out_key（:140）が輪の外の
+   一番近い空きマスへ一歩出る（理由 immobile-threat:step-out）。呼ぶのは policy.py:10979（_immobile_summoner_key の
+   直後、見えない敵の退き・戦いの段より前、緊急の段より後）。出口が鍵の階（クエスト）は輪を作らないので今どおり戦う。
+   遠くから撃つ段は変えない（「離れて撃つのは可」）。
+   61281a40f「Leave a never-moving summoner that drains to its own owner」（同じ根の追い）: 動かない召喚の敵で
+   吸うもの（397 キリス・ウンゴルの番人）は _immobile_summoner_key のもの（10-27 の決まり: 視線のマスを避け、
+   撤退できなければ近づいて倒す）。輪をかけると no-exit の cornered-approach が explore になった
+   （tests.test_immobile_summoner_recorded、checks.json の外の既存テスト）ので、吸う敵の輪は召喚しない敵だけ。
+2. f104ae485「Fire or throw at an adjacent hostile while melee is refused」（答え2「近接できない時だけ使う」）
+   policy_combat.py:1451 _adjacent_ranged_key: attack_expectation.melee_refused（恐怖・NO_MELEE）の時だけ、遠隔の段の
+   弾（:1427 _ranged_projectile に切り出した: 合う矢弾 → 浅い階の松明 → 予備の油つぼ。今までの選び方と同じ）を
+   一番弱い隣の敵の方向へ撃つ・投げる。_ranged_attack_key（:1496）の隣の枝と、me_ranged_first.melee_refused_key
+   （me_ranged_first.py:85-86、魔道具術師の順の後）がこれを聞く。近接が断られない隣の戦いは今どおり近接。
+3. 2f5ef2fc8「Strike a hidden melee attacker before the walk home and the dark walk」（答え3「どちらも先に反撃」）
+   帰還の巻物の無い帰り道の探索の一歩の前（policy_town.py:8318-8320、理由 unseen:strike-return）と、暗がりの歩きの
+   階段の確認の後・一歩（backtrack/probe）の前（policy_navigation.py:358-361、unseen:strike-dark）で
+   unseen_strike.key を聞く。呪文・矢の手がかりは今どおり歩く。理由の定数は unseen_strike.py に足した。
+- 9d9020d79 main a467fb56f（owner15-survival-1101・owner15-me-explore-1101 を含む）の取り込み。食い違いなし。
+- （この報告と診断の追記のコミット）
+
+== テスト（tests.test_survival2_1101_recorded、__N_NEW__件） ==
+盤面は観戦の記録から（tests/extract_survival2_1101_fixtures.py → tests/fixtures/survival2-1101.json.gz、
+c4-a の近接禁止の死 anti-melee-death-20261023.jsonl.gz、D57 の life-085 の盤面）。公開の choose_key に渡し、
+出たキーは本番の実行器（_ExecutorInputPort）に通した。作った部分は docstring に DECLARED CONSTRUCTED/RECONSTRUCTED。
+- StatDrainImmobileRecordedTest（6件）: 記録の行の確認、life-092 の狩りが輪に入らない、隣に立った盤面から出る、
+  life-287（戦士）の狩りが輪に入らない、隣から出て倒された後は輪が消える、対照: クエスト 49 の階は今どおり戦う。
+- MeleeRefusedRangedRecordedTest（4件）: 近接禁止の洞窟の3盤面で隣へ矢、近接禁止を外して怖がらせた3盤面で矢
+  （敵の方が速い）、対照: ふつうの隣の戦いは記録どおり近接、対照: プレイヤーの方が速いと逃げる。
+- UnseenWalkStrikeRecordedTest（3件）: 作った盤面の確認、帰り道2盤面と暗がり1盤面で先に打つ、対照: 矢の手がかりは歩く。
+
+直さないと落ちることの確かめ（src の該当の差分を戻して流し、戻した）:
+- 1（immobile_threat_memory.py・policy.py を戻す）: 4件落ちる。life-092 1065156 ('1', 'hunt')、
+  1065165 ('1', 'melee')、life-287 929114 ('4', 'hunt')、929121 ('4', 'melee')。記録の行・クエストの対照は通る。
+- 2（policy_combat.py・me_ranged_first.py を戻す）: 2件落ちる。近接禁止 'explore'、怖がり 'flee'。対照2件は通る。
+- 3（policy_town.py・policy_navigation.py を戻す）: 1件落ちる（1445321・1445328 が ('7', 'return:explore')）。
+  policy_navigation.py だけ戻すと同じ1件が 1445339 の '7'（dark:backtrack）で落ちる。
+- 1 の追い（_avoided の召喚の除き）: 除かないと tests.test_immobile_summoner_recorded の
+  test_constructed_no_exit_also_attacks が ('4', 'explore') で落ちた（直しの途中で見つけた）。
+
+== 検査 ==
+- PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": 通る。
+- checks.json の全テスト（107 の識別子）＋ tests.test_survival2_1101_recorded ＋ tests.test_immobile_summoner_recorded
+  ＋ tests.test_anti_melee_dungeon_recorded: __CHECKS__
+- scripts/town_work_manifest.py --write: zero unmapped（新しい review: immobile_threat_memory.py:step_out_key、
+  policy_combat.py:CombatMixin._adjacent_ranged_key。説明を直した: _ranged_attack_key、melee_refused_key、
+  unseen_strike.key。古くなった review を1つ消した: policy.py:HengbotPolicy._matching_ammo（_ranged_projectile へ
+  移った呼び出しで候補から外れた、manifest の stale の指摘））。
+- 全体テスト・preflight・mutation_check・fast_tier は流していない。裏の処理は残していない。
+
+== 保守性 ==
+- 1 の判断は、動かない敵の「近づかない輪」を持つ immobile_threat_memory にまとめた（表1つ・述語2つ・step_out_key）。
+  避けるマスを足す新しい集合は作らず、D57 と同じ歩きの索引（policy_navigation._build_grid_index）だけで全部の
+  歩きに効く。種族番号・職業・クエスト番号の分岐は無い。決定の段には1行（呼ぶだけ）。召喚の敵は今の持ち主に残し、
+  2つの持ち主が同じ敵を取り合わないようにした。
+- 2 は遠隔の段の弾の選び方を _ranged_projectile の1か所にし（今まで _ranged_attack_key の中だけにあった）、
+  隣の撃ちと遠くの撃ちが同じ選び方を使う。「近接が断られる時の答え」は me_ranged_first.melee_refused_key の
+  1つの入口のまま（7か所の呼び出しは変えない）で、職業の分岐は足していない。
+- 3 は unseen_strike の1つの入口を2つの歩きが1行ずつ呼ぶ（判定の文・候補のマス・乱数の重複なし）。
+- テストは既存の道具を使った（loops.new_policy、d57.PostedDeathKey、test_me_nokey の PostedKey、
+  anti_melee の _board、hit.constructed、owner15.ARROW）。新しい投稿の道具は作っていない。
+- テストの壁は無い。既存テストの期待値は変えていない。
+- 行数: policy_combat.py は +35 行（+60 −25）（_adjacent_ranged_key の25行が新しい。切り出しで _ranged_attack_key は短くなった）。
+
+== checks.json に足す案（このブランチでは編集していない） ==
+  {"id": "SURVIVAL2", "owner": "2026-11-01 21時 未決の問い9件の答え1〜3（「近づかずに避ける」「近接できない時だけ使う」「どちらも先に反撃」）(branch survival2-1101)",
+   "tests": ["tests.test_survival2_1101_recorded", "tests.test_immobile_summoner_recorded", "tests.test_anti_melee_dungeon_recorded"]}
+
+== 持ち主への問い（新しい決まりが要るので実装していない） ==
+問い1: 能力値の維持。維持していれば吸われない（do_dec_stat、status/base-status.cpp:209）。今は維持があっても避ける。
+  A: 吸う能力値を全部維持していれば避けない（ふつうの敵として扱う）。 B: 今のまま（維持があっても避ける）。
+問い2: 「遠隔で倒せるなら離れて撃つのは可」。今は既存の遠隔の段に任せた（狙える・弾がある時に撃つかは今までどおり。
+  倒せる見込みは数えない）。life-092 の盤面では撃たずに探索で離れた。
+  A: 今のまま。 B: 倒せる見込みがある時（召喚の敵の遠隔の決まりと同じ3発以内）は離れたマスから撃って倒しに行く。
+（観察だけ）通路をふさぐ吸う敵（迷宮の細い通路の life-287 の (6,43) のような所）で他に道が無い時は、D57 の輪と同じく
+  その先へは歩かない。探索が尽きた時の今の決まり（階段・帰還など）が答える。実機で止まりが出たら直す。
+
+== 呼び出し元への申し送り ==
+- 観戦の decisions.json（決まりごとのページ）に答え1〜3を足すなら、このブランチの取り込みの後に。
