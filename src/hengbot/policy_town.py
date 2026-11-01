@@ -2906,6 +2906,8 @@ class TownMixin:
                 or getattr(self, "_supply_stockout_gold_target", None) is not None
                 # The no-safe-destination set has no gold objective.
                 or getattr(self, "_no_safe_destination_set", False)
+                # The town end's retry cycle needs its kit at any gold.
+                or town_end_mining.outstanding(self)
             )
             and not self._opening_q34_active(snapshot)
         )
@@ -7062,7 +7064,12 @@ class TownMixin:
                     finally:
                         self._terminal_town_recall_read = previous
 
-        if recall_dest is not None and not departure_ok:
+        # Owner 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ」: while
+        # the town end's mining cycle is open its departure is the mining
+        # walk-in, which keeps its own gates (town_end_mining); the dive's
+        # unmet conditions are what the cycle retries afterwards.
+        if (recall_dest is not None and not departure_ok
+                and not town_end_mining.outstanding(self)):
             blocker = self._terminal_equipment_blocker(snapshot)
             # Equipment evaluation can exhaust the shop plan and install a
             # supply remedy. Offer it even when another hard leaf also fails;
