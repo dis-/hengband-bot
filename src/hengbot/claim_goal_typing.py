@@ -548,8 +548,6 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         # any recorded ledger).
         ("livelock:seek-window-edge", T, EFFECT),
         ("town-progress-invariant:", T, EFFECT),
-        ("town-progress-invariant:boxed-breakout-travel", R, ENTRANCE),
-        ("town-progress-invariant:boxed-breakout-travel:await-entry", O, STORE_ENTRY),
         ("town-liveness-invariant:", T, EFFECT),
         ("town:cycle-break", T, EFFECT),
         ("posting-contract:", T, EFFECT),

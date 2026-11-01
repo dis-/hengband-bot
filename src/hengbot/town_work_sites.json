@@ -7793,26 +7793,12 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_town.py:TownMixin._boxed_town_breakout_key": {
-    "classification": "producer",
-    "rows": [
-      "store-approach"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "policy_town.py:TownMixin._build_town_errand_plan": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
-  },
-  "policy_town.py:TownMixin._commit_boxed_town_breakout_key": {
-    "classification": "producer",
-    "rows": [
-      "store-approach"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_town.py:TownMixin._compute_town_need_supplier_reachable": {
     "classification": "data",

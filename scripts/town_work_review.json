@@ -12123,27 +12123,5 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
-  },
-  "policy_town.py:TownMixin._boxed_town_breakout_key": {
-    "classification": "producer",
-    "rows": [
-      "store-approach"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "policy_town.py:TownMixin._commit_boxed_town_breakout_key": {
-    "classification": "producer",
-    "rows": [
-      "store-approach"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

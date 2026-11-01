@@ -4867,27 +4867,6 @@ class RearmAndBreakoutRegressionTest(unittest.TestCase):
         self.assertIsNotNone(policy._equipment_transaction_session)
         self.assertNotIn(home_owned.id, policy._equipment_transaction_failed_items)
 
-    def test_boxed_breakout_uses_distinct_landmark_travel_not_wait(self):
-        position = Position(119, 31)
-        snapshot = Snapshot(
-            player(position.y, position.x),
-            {position: replace(grid(position.y, position.x), store_number=STORE_GENERAL)},
-            [], floor_key=(0, 0, 0), town_flag=True,
-        )
-        policy = HengbotPolicy()
-        macro = "\x1b`n7."
-        policy.last_reason = "breakout:least-visited"
-        with patch.object(policy, "_shopping_approach_step", return_value=Position(1, 1)), patch.object(
-            policy, "_shopping_approach_key", return_value=macro
-        ):
-            key = policy._town_procurement_decision(snapshot, policy_module.WAIT_KEY)
-
-        self.assertEqual(key, macro)
-        self.assertNotEqual(key, policy_module.WAIT_KEY)
-        self.assertEqual(
-            policy.last_reason, "town-progress-invariant:boxed-breakout-travel"
-        )
-
 
 class ComposedWithdrawWrongItemRecordedPins(unittest.TestCase):
     @staticmethod

@@ -128,7 +128,6 @@ class TownStallIncidentTest(unittest.TestCase):
 
             cls.policy._set_town_store_attempted = record_latch
             for method_name in (
-                "_commit_boxed_town_breakout_key",
                 "_purchase_has_fresh_home_absence",
                 "_town_procurement_progress_key",
             ):
