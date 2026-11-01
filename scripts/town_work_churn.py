@@ -38,9 +38,7 @@ def tree_state(commit):
     """Sites needing a hand review, kept reviews, runtime index and unmapped sites of one commit."""
     sys.path.insert(0, str(ROOT / 'scripts'))
     import town_work_manifest as generator
-    paths = git('ls-tree', '-r', '--name-only', commit, '--', 'src/hengbot').decode().split()
-    sources = {path.removeprefix('src/hengbot/'): git('show', f'{commit}:{path}').decode('utf8')
-               for path in paths if path.endswith('.py')}
+    sources = generator.revision_sources(commit)
     reviewed = json.loads(git('show', f'{commit}:scripts/town_work_review.json'))
     with tempfile.TemporaryDirectory(prefix='town-work-churn-') as raw:
         design = Path(raw) / 'SOL-DESIGN-town-progress.md'
