@@ -16,6 +16,13 @@ n1-c life-098 (Magic-Eater, Lv31, 412 max HP) on 鉄獄24階, random quest 41
     in state 1 and fired bolts (``ranged:fire``) into the 22 bugs until the
     latch re-armed at 00:11:00.  The latch is carried beside the decision
     log (breeder_floor_record).
+(c) Owner 2026-11-02 「攻撃用の物資は制限しない。ただし、20ターンで数が減らせない
+    なら逃走を選択する。」: the first bug came into view at turn 2199675; the
+    recorded build latched the floor eight actions later (state-2 ``search``
+    at 2199751, the five-kill growth switch).  Now the floor is latched when
+    20 player actions (boards whose game turn advanced) have not brought the
+    breeder count below the count at engagement (breeder_stalemate), and the
+    window survives a restart.
 
 Fixture: tests/fixtures/breeder-swarm-20261102.json.gz
 (tests/extract_breeder_swarm_1102_fixture.py).  Every decision is the public
@@ -103,14 +110,30 @@ class BitingSwarmRecordedTest(PostedSwarmKey):
 STOP_TURN, RESTART_SKILL_TURN = 2200908, 2200918
 
 
-class RestartKeepsTheLatchRecordedTest(PostedSwarmKey):
-    """(b) the restarted process keeps the floor in state 2."""
+class RecordedRestart(PostedSwarmKey):
+    """The restart record beside a temporary decision log."""
 
     def setUp(self):
         super().setUp()
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.record = Path(directory.name) / "breeder-floor.json"
+
+    def restarted_policy(self, boards):
+        """A new process: the CLI points the record path before its first board."""
+        record = self.record
+
+        class Restarted(ConservativePolicy):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._breeder_floor_record_path = record
+
+        with mock.patch.object(loops, "ConservativePolicy", Restarted):
+            return new_policy(boards)
+
+
+class RestartKeepsTheLatchRecordedTest(RecordedRestart):
+    """(b) the restarted process keeps the floor in state 2."""
 
     def test_recorded_restart_fired_bolts(self):
         rows = recorded()
@@ -132,22 +155,66 @@ class RestartKeepsTheLatchRecordedTest(PostedSwarmKey):
         for raw in stopped:
             previous.confirm_key_posted(loops.decide(previous, raw))
         self.assertTrue(self.record.exists())
-        record = self.record
-
-        class Restarted(ConservativePolicy):
-            # The CLI points the path beside the decision log before the
-            # process's first board.
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self._breeder_floor_record_path = record
-
-        with mock.patch.object(loops, "ConservativePolicy", Restarted):
-            policy = new_policy(restarted)
+        policy = self.restarted_policy(restarted)
         self.assertEqual(policy._breeder_breakthrough_floor, QUEST_FLOOR)
         rows = self.drive(policy, restarted[1:])
         for raw, key, reason in rows:
             self.assertFalse(reason.startswith("ranged:"), (raw["turn"], key, reason))
         self.assertEqual(policy._breeder_breakthrough_floor, QUEST_FLOOR)
+
+
+ENGAGED_TURN, RECORDED_LATCH_TURN, FLEE_TURN = 2199675, 2199751, 2199871
+
+
+class TwentyActionFlightRecordedTest(RecordedRestart):
+    """(c) no reduction in 20 player actions latches the floor for flight."""
+
+    def test_recorded_rows_latched_after_eight_actions(self):
+        rows = recorded()
+        turns = [raw["turn"] for raw in CASE["engage"]]
+        self.assertEqual(turns[0], ENGAGED_TURN)
+        self.assertEqual(turns.index(RECORDED_LATCH_TURN), 8)
+        self.assertEqual(turns.index(FLEE_TURN), 20)
+        self.assertEqual(rows[RECORDED_LATCH_TURN], ("search", "s"))
+        counts = [sum(m["race_id"] == SOFTWARE_BUG for m in raw["visible_monsters"])
+                  for raw in CASE["engage"]]
+        self.assertEqual(counts[0], 1)
+        self.assertTrue(all(count >= 1 for count in counts))
+
+    def latched_turns(self, policy, boards):
+        rows = self.drive(policy, boards)
+        return [(raw["turn"], policy_floor) for (raw, _key, _reason), policy_floor
+                in zip(rows, self._latches)]
+
+    def drive(self, policy, boards):
+        self._latches = []
+        rows = []
+        for raw in boards:
+            rows.extend(super().drive(policy, [raw]))
+            self._latches.append(policy._breeder_breakthrough_floor)
+        return rows
+
+    def assert_flight_at_the_twentieth_action(self, turns):
+        for turn, latch in turns:
+            expected = QUEST_FLOOR if turn >= FLEE_TURN else None
+            self.assertEqual(latch, expected, turn)
+
+    def test_twenty_actions_without_reduction_latch_the_floor(self):
+        policy = new_policy(CASE["engage"])
+        turns = self.latched_turns(policy, CASE["engage"])
+        self.assert_flight_at_the_twentieth_action(turns)
+        rows = self.drive(new_policy(CASE["engage"]), CASE["engage"][:20])
+        for raw, key, reason in rows:
+            self.assertIn(reason, {"melee", "ranged:fire"}, (raw["turn"], key))
+
+    def test_restart_keeps_the_engagement_window(self):
+        boards = CASE["engage"]
+        previous = new_policy(boards)
+        previous._breeder_floor_record_path = self.record
+        before = self.latched_turns(previous, boards[:10])
+        policy = self.restarted_policy(boards[10:])
+        after = self.latched_turns(policy, boards[10:])
+        self.assert_flight_at_the_twentieth_action(before + after)
 
 
 if __name__ == "__main__":

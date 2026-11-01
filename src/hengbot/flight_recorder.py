@@ -150,6 +150,10 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         # The breeder breakthrough latch ("state 2"), restored after a
         # restart from breeder_floor_record.
         "_breeder_breakthrough_floor",
+        "_breeder_engagement_floor",
+        "_breeder_engagement_start_count",
+        "_breeder_engagement_start_turn",
+        "_breeder_engagement_actions",
         # The anticipatory detected-threat episode: its hold and the covered
         # cell a started retreat committed to.  Their omission is why the
         # 2026-09-23 loot/choke alternation had to be re-derived by replay

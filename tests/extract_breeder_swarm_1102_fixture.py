@@ -10,6 +10,8 @@ C:/hengband-backups/pdca/captures/n1c-breeder-supplies-1102/:
            2200918-2201001 (the new one, firing bolts again).  They are in the
            ring generation snapshots-20261102-001207-473375 of the 00:13:16
            capture.
+  engage   the same generation: boards of turns 2199675-2199905, the first
+           ソフトウェア・バグ in view (00:10:09) and the fight that followed.
   swarm    the 00:13:16 capture's live ring: boards of turns 2207334-2207416,
            seven or eight ソフトウェア・バグ (race 246) beside the player while it
            searched (``search``).
@@ -38,6 +40,7 @@ RING = CAPTURE / "snapshots-current.jsonl.gz"
 DECISIONS = ROOT / "life-098-dec.jsonl"
 OUTPUT = Path(__file__).with_name("fixtures") / "breeder-swarm-20261102.json.gz"
 SPANS = {
+    "engage": (GENERATION, ((2199675, 2199905),)),
     "restart": (GENERATION, ((2200874, 2200901), (2200918, 2201001))),
     "swarm": (RING, ((2207334, 2207416),)),
 }

@@ -39,6 +39,7 @@ import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 from test_policy import FOOD, POTION, SCROLL, STAFF
 import hengbot.policy_combat as policy_combat_module
+from hengbot.breeder_stalemate import FLEE_AFTER_PLAYER_ACTIONS
 from hengbot.policy_constants import FOOD_TYPE_MANA
 
 
@@ -2552,45 +2553,39 @@ class CombatTest(unittest.TestCase):
         self.assertIn(key, {"7", "8", "9", "4", "6", "1", "2", "3"})
         self.assertTrue(policy.last_reason.startswith("melee"))
 
-    def test_breeder_latch_requires_five_kills_and_growth(self):
+    def test_breeder_latch_requires_twenty_actions_without_reduction(self):
+        # Owner 2026-11-02 (breeder_stalemate): 「20ターンで数が減らせないなら
+        # 逃走を選択する。」 -- one action per board whose game turn advanced.
         base = self._small_breeder_group_snapshot(ranged=False)
 
-        def observe_kills(policy, count, visible_count):
-            current = base
-            policy._update_combat_outcome(current)
-            for kill in range(1, count + 1):
-                policy.last_reason = "melee"
-                breeders = [
-                    replace(monster, index=100 * kill + index)
-                    for index, monster in enumerate(
-                        (
-                            base.visible_monsters
-                            * ((visible_count + 1) // 2)
-                        )[:visible_count],
-                        1,
-                    )
-                ]
-                current = replace(
-                    base,
-                    player=replace(base.player, exp=kill),
-                    visible_monsters=breeders,
+        def observed(turn, count):
+            breeders = [
+                replace(monster, index=100 + index)
+                for index, monster in enumerate(
+                    (base.visible_monsters * count)[:count]
                 )
-                policy._update_combat_outcome(current)
-            return current
+            ]
+            return replace(base, turn=turn, visible_monsters=breeders)
 
-        four_kills = HengbotPolicy()
-        observe_kills(four_kills, 4, 3)
-        self.assertIsNone(four_kills._breeder_breakthrough_floor)
+        policy = HengbotPolicy()
+        policy._update_combat_outcome(observed(100, 3))
+        for action in range(1, FLEE_AFTER_PLAYER_ACTIONS):
+            policy._update_combat_outcome(observed(100 + 10 * action, 3))
+            # A board of the same game turn is not another action.
+            policy._update_combat_outcome(observed(100 + 10 * action, 4))
+        self.assertIsNone(policy._breeder_breakthrough_floor)
 
-        no_growth = HengbotPolicy()
-        observe_kills(no_growth, 5, 2)
-        self.assertIsNone(no_growth._breeder_breakthrough_floor)
+        grown = observed(100 + 10 * FLEE_AFTER_PLAYER_ACTIONS, 5)
+        policy._update_combat_outcome(grown)
+        self.assertEqual(policy._breeder_breakthrough_floor, grown.floor_key)
 
-        grown = HengbotPolicy()
-        grown_snapshot = observe_kills(grown, 5, 3)
-        self.assertEqual(
-            grown._breeder_breakthrough_floor, grown_snapshot.floor_key
-        )
+        reduced = HengbotPolicy()
+        reduced._update_combat_outcome(observed(100, 3))
+        for action in range(1, FLEE_AFTER_PLAYER_ACTIONS + 1):
+            # Below the engagement count once: a new 20-action window.
+            count = 2 if action == 10 else 3
+            reduced._update_combat_outcome(observed(100 + 10 * action, count))
+        self.assertIsNone(reduced._breeder_breakthrough_floor)
 
     def test_breeder_stalemate_timeout_ends_mining_through_floor_exit(self):
         base = self._small_breeder_group_snapshot(ranged=False)
@@ -2607,11 +2602,12 @@ class CombatTest(unittest.TestCase):
 
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
-        for turn, count in ((100, 4), (900, 6), (1700, 7), (2500, 4), (3099, 5)):
-            policy._update_combat_outcome(observed(turn, count))
+        for action in range(FLEE_AFTER_PLAYER_ACTIONS):
+            count = (4, 6, 7, 4, 5)[action % 5]
+            policy._update_combat_outcome(observed(100 + 10 * action, count))
             self.assertIsNone(policy._breeder_breakthrough_floor)
 
-        timed_out = observed(3100, 6)
+        timed_out = observed(100 + 10 * FLEE_AFTER_PLAYER_ACTIONS, 6)
         policy._update_combat_outcome(timed_out)
         self.assertEqual(policy._breeder_breakthrough_floor, timed_out.floor_key)
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, me_ranged_first, paralyzer_contact, return_yield, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -25,7 +25,6 @@ from hengbot.monster_melee_evaluator import (
 from hengbot.projection_path import projection_path
 from hengbot.policy_types import ChokeEngagementPlan
 from hengbot.policy_constants import (
-    BREEDER_STALEMATE_TURN_LIMIT,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO,
@@ -1713,51 +1712,11 @@ class CombatMixin:
         if self._breeder_engagement_floor != snapshot.floor_key:
             self._breeder_engagement_floor = snapshot.floor_key
             self._breeder_engagement_score = 0
-            self._breeder_engagement_start_count = None
-            self._breeder_engagement_start_turn = None
-            self._breeder_kills = 0
-            self._breeder_previous_exp = snapshot.player.exp
-            self._breeder_previous_indices.clear()
+            breeder_stalemate.forget(self)
         perceived_breeders = self._engagement_breeder_population(snapshot)
-        if (
-            self._breeder_previous_indices
-            and self._breeder_previous_exp is not None
-            and snapshot.player.exp > self._breeder_previous_exp
-            and self._breeder_previous_indices
-            - {monster.index for monster in perceived_breeders}
-            and (
-                self.last_reason == "melee"
-                or self.last_reason == "fundraise:eliminate-multiplier"
-                or self.last_reason.startswith(("ranged:", "hunt"))
-            )
-        ):
-            self._breeder_kills += 1
-        if perceived_breeders and self._breeder_engagement_start_count is None:
-            self._breeder_engagement_start_count = len(perceived_breeders)
-            self._breeder_engagement_start_turn = snapshot.turn
-        if (
-            self._breeder_engagement_start_count is not None
-            and len(perceived_breeders) < self._breeder_engagement_start_count
-        ):
-            self._breeder_engagement_start_turn = snapshot.turn
-        if (
-            self._breeder_engagement_start_count is not None
-            and self._breeder_kills >= 5
-            and len(perceived_breeders) > self._breeder_engagement_start_count
-        ):
+        if breeder_stalemate.flee_due(self, snapshot, perceived_breeders):
             self._breeder_breakthrough_floor = snapshot.floor_key
-        if (
-            self._breeder_engagement_start_count is not None
-            and self._breeder_engagement_start_turn is not None
-            and len(perceived_breeders) >= self._breeder_engagement_start_count
-            and snapshot.turn - self._breeder_engagement_start_turn
-            >= BREEDER_STALEMATE_TURN_LIMIT
-        ):
-            self._breeder_breakthrough_floor = snapshot.floor_key
-        self._breeder_previous_exp = snapshot.player.exp
-        self._breeder_previous_indices = {
-            monster.index for monster in perceived_breeders
-        }
+        breeder_floor_record.record(self, snapshot)
         breeders = (
             perceived_breeders
             if self._breeder_breakthrough_floor != snapshot.floor_key
