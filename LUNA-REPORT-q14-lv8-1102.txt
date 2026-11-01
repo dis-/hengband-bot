@@ -1,0 +1,99 @@
+q14-lv8-1102: 「Q14 の「3ターンの被害」の関門を Lv8 で受けられる程度に下げる」
+
+オーナーの決定（2026-11-02、原文）
+  「Lv.8で受けられる程度に受注要件を下げる。実際にはそこまで脅威になることはない。」
+
+結論
+- strategy/quests/QUEST_14.jsonc の engagement_plan に max_damage_ratio 1.6 を足した
+  （これまでは共通の値 FIXED_QUEST_MAX_DAMAGE_RATIO 0.50）。コードの変更は無い。
+- 3ターンの被害の関門（src/hengbot/policy_quest.py 5180-5184）は、もとからこの値を
+  quest_entry_requirements.entry_damage_ratio で戦略ファイルから読む（Q31 は 1.0、Q34 はクラス16だけ 1.0）。
+- 同時に隣接する数（max_simultaneous_melee 4）、RAND_25 の被害半減（0.5）、
+  required_force（min_hp 120 / min_expected_dps 13 / level_guideline 8）は変えていない。
+  Lv8 の記録の盤面はどれもこの力の条件を満たしていた（下の表）。
+- 受注だけの変更。クエスト中の中止（hp_ratio 0.30）と回復（heal_threshold_ratio 0.55）、
+  生存処理、ほかのクエストは変えていない。
+
+数の決め方（記録の盤面で測った値）
+  関門は「ワーグ4体が最大のダイスで3ターン隣接した被害 worst_adjacent」が
+  「最大HP（＋数えられる回復薬）× max_damage_ratio」以上なら断る。
+  | 盤面 | Lv | 最大HP | AC | 加速 | worst_adjacent | 通るのに要る比 |
+  | n1-c life-102 03:59 turn 860272（Q14 の判定の盤面） | 8 | 129 | 15 | なし | 188 | 1.46 より大 |
+  | n1-c life-102 04:12 turn 910377（帰還を読んだ盤面） | 11 | 146 | 24 | あり | 116 | 0.79 より大 |
+  | n1-b life-285 戦士 turn 85510（町、死亡の前） | 8 | 191 | 16 | なし | 188 | 0.98 より大 |
+  | 戦略ファイルの Lv8 の下限（min_hp 120、reference_ac 20、加速なし） | 8 | 120 | 20 | なし | 184 | 1.53 より大 |
+  - 戦略ファイルの Lv8 の下限ちょうどのキャラが通る値として 184/120=1.53 を小数1桁で切り上げ 1.6 にした。
+    これで関門が断るのは、最大HP がおおむね Lv8 の下限 120 を下回るときだけになる
+    （AC15 なら 188/1.6=117.5 HP 以上で通る）。
+  - Lv8 の力（strategy_force）: n1-c HP129 / DPS 18.5（要 120 / 13）、戦士 HP191 / DPS 25.8。
+    どちらも今の required_force を満たすので、min_hp・min_expected_dps・level_guideline は下げていない。
+  - 戦士の盤面は回復薬（致命傷の治癒）を持たず重量超過だった。調べるために手元で
+    致命傷の治癒2本を足し、重量の判定だけ外して測った値（188）。テストには入れていない
+    （戦士の Lv8 で Q14 が先頭のクエストになる盤面が記録に無い。サーバの n1-a・n1-b の
+    残っている全キャラの判定記録に Q14 の行は0件）。
+
+直したこと（コミット 下記）
+- strategy/quests/QUEST_14.jsonc: engagement_plan.max_damage_ratio 1.6（旧 0.50）。
+  オーナーの言葉、旧と新の数、元にした Lv8 の HP と被害を注記した。
+
+テスト
+- 新しいテスト tests.test_q14_lv8_1102_recorded（3件）。fixture は tests/fixtures/q14-lv8-1102.json.gz、
+  抽出は tests/extract_q14_lv8_1102_fixture.py。
+  元: n1-c life-102 の 04:12:50 の辺境の地の盤面（turn 910377、決定 1783 town:recall-to-angband、
+  three-turn-threat worst_adjacent 116 >= 146×0.5）。手元の写し:
+  C:\hengband-backups\pdca\captures\q14-lv8-1102\n1-c\life-102\
+  （スナップショットの輪 snapshots-20261102-041827-23dbdf.jsonl.gz、decisions-0413.jsonl、
+  policy-state-0427.json）。
+  - 公開の choose_key で Q14 の判定が failed []、worst_adjacent 116、max_damage_ratio 1.6、
+    reason ready、verdict True になり、last_reason が fixedquest:request:approach
+    （依頼の建物へ向かう）になることを確かめ、出たキーを本番の executor に通す。
+  - Q14 だけが変わったこと（隣接4体・中止0.30・回復0.55・min_hp 120 のまま、Q31 は 1.0、
+    Q1/Q2/Q22 は値なし）を確かめる。
+- 期待値を直した既存のテスト: tests.test_q14_speed_1102_recorded の
+  test_recorded_board_passes_q14_strategy_force_without_speed。
+  Lv8（HP129）の 03:59 の盤面は three-turn-threat で断る、という期待を、
+  worst_adjacent 188・比 1.6 で ready・verdict True に改めた。この盤面では魔道具術師の杖の段
+  （段1、未取り込み）が先に町の手順を持つので、キーは shop:travel のまま（変更前と同じ）。
+- 結果: 2モジュール 6件すべて通る。取り込みの確認 PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" も通る。
+- 元に戻す確認（1回）: QUEST_14.jsonc を戻すと新しいテストの3件中2件が失敗
+  （(116, 0.5) != (116, 1.6) と KeyError 'max_damage_ratio'）。戻すと全部通る。
+
+宣言（再構成）
+- 04:12 の盤面の杖の記録は、盤面の後で最も近い 04:27 の診断チェックポイントのもの
+  （7本すべて取り込み済み、04:09 のモリバントの塔で取り込み）。盤面の時点の記録は残っていない。
+- 新しいプロセスで盤面を流すので、店の棚の記憶などは記録の行（技能・自宅）以外は空。
+  変更前の同じ盤面は帰還ではなく shop:travel になる（記録の決定と同じではない）。
+  変更後に Q14 へ向かうことは、この再構成の上で確かめた。
+- Lv8 の盤面（03:59）は杖の段1が町の手順を持つため、そこで「Q14 へ向かう」までは確かめられない。
+  そこでは判定が通ること（verdict True）までを確かめた。
+
+checks.json の追加案
+  {
+   "id": "Q14-LV8-THREAT",
+   "owner": "2026-11-02 Lv.8で受けられる程度に受注要件を下げる。実際にはそこまで脅威になることはない。",
+   "tests": [
+    "tests.test_q14_lv8_1102_recorded",
+    "tests.test_q14_speed_1102_recorded"
+   ]
+  }
+
+保守性
+- 数は戦略ファイル1か所だけで決まり、コードは既存の entry_damage_ratio の1か所で読む。
+  クエスト番号やクラスの特別扱いはコードに足していない。
+- テストは test_q14_speed_1102_recorded と同じ組み立て（test_q14_heal_ccw_recorded の town_maps と ROOT、
+  test_lv7_town_stop_recorded の post）を使い回し、抽出は extract_dungeon_1031_fixture の ring_rows と sha を使う。
+
+ついでに見えたこと（直していない・ほかの担当）
+- life-102 の 04:22（決定 3140〜3175、Lv11 HP151、加速あり、回復の予算 451）は three-turn-threat を
+  通ったあと toughest-kill-time で断っていた。main_hand_melee_output 3.0（力の判定の DPS は 24.0）。
+  直前に fundraise:wield-digging-tool / town:restore-combat-weapon があり、掘る道具を持ったまま
+  判定した疑いがある。今回の変更（比 1.6）とは別の関門で、武器の持ち替えの担当の範囲。
+
+オーナーへの問い
+1. 戦士（n1-a・n1-b）は記録上 Lv8 の時点で Q14 を受ける順番に来ていない（判定の行が0件）。
+   戦士の Lv8 の盤面（HP191）は比 1.6 なら通るが、回復薬2本を持たないので力の判定（heal_potions）で断る。
+   これは購入の段が買うもので今回の変更の外と考えたが、それでよいか。
+2. 比 1.6 は「最大HP を超える最悪の被害でも受ける」値で、実際の安全は通路での戦い方と
+   クエスト中の中止（HP30%）・回復（55%）に任せる。もう一つの案として、隣接の数
+   max_simultaneous_melee を 4 から 2（戦略の通常の段の「通路で平均1.5体」）に下げ、比 1.0 にする
+   方法もある（Lv8 HP129 で 94 < 129）。ただし 4体は 2026-07-22 に承認された想定なので変えなかった。

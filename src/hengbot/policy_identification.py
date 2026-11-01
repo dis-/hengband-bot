@@ -1282,6 +1282,7 @@ class IdentificationMixin:
         *,
         include_unsafe: bool = False,
         max_path_distance: int | None = None,
+        through: frozenset[tuple[int, int]] = frozenset(),
     ) -> Position | None:
         candidates = self._loot_candidates(snapshot, include_unsafe=include_unsafe)
         if candidates and self._loot_defer_blocker == "navigation-ledger:loot":
@@ -1296,7 +1297,7 @@ class IdentificationMixin:
             and target is not None
             and target in candidates
         ):
-            step = self._position_target_step(snapshot, target)
+            step = self._position_target_step(snapshot, target, through=through)
             if step is not None:
                 return step
 
@@ -1315,7 +1316,7 @@ class IdentificationMixin:
                 return first_step
             if max_path_distance is not None and distance >= max_path_distance:
                 continue
-            for neighbor in self._walkable_neighbors(snapshot, pos):
+            for neighbor in self._walkable_neighbors(snapshot, pos, through=through):
                 if (
                     neighbor in seen
                     or neighbor in self._engagement_avoid_cells
@@ -1544,13 +1545,34 @@ class IdentificationMixin:
             )
             return current_loot
         step = self._loot_step(
-            snapshot, max_path_distance=max_path_distance
+            snapshot, max_path_distance=max_path_distance,
+            through=self._loot_route_hostile_cells(hostiles),
         )
         if step is None:
             return None
         self.last_reason = seek_reason
         self._declare_reach(self._loot_target)
         return self._step_toward(snapshot, step)
+
+    def _loot_route_hostile_cells(
+        self, hostiles: list[MonsterState]
+    ) -> frozenset[tuple[int, int]]:
+        """Remembered floor under the visible hostiles that do not block loot.
+
+        The grid index drops every visible monster's cell from the walkable
+        floor, so a weak monster standing in the one corridor to the loot
+        closed the loot route only while it was in view: n1-c life-100
+        (Orc cave 16F, 2026-11-02 03:35) stepped out of the corridor on the
+        exploration or descent route when a モングバット was visible, and back in on the
+        loot route as soon as it was not, until the loop detector stopped the
+        bot.  Hostiles past ``_loot_block_reason`` do not erase floor value
+        (``_normal_loot_key``), so the loot route is the same in and out of
+        view; combat owns the monster once it is in range or adjacent.
+        """
+        return frozenset(
+            key for monster in hostiles
+            if (key := (monster.position.y, monster.position.x)) in self._remembered_floor_t
+        )
 
     def _loot_block_reason(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

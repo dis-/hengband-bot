@@ -198,6 +198,7 @@ from hengbot.policy_constants import (
     READ_KEY,
     RECALL_MIN_DEPTH,
     REFILL_KEY,
+    RESTOCK_WAIT_MACRO,
     SEARCH_KEY,
     SEARCH_LIMIT,
     SELL_KEY,
@@ -666,8 +667,11 @@ class QuestMixin(OpeningRouteMixin):
             self._town_restock_wait_until is not None
             and snapshot.turn < self._town_restock_wait_until
         ):
+            # The shared restock wait's key (policy_town._town_restock_wait_key):
+            # one stay per decision posted ~90 identical decisions per wait
+            # (n1-c life-101, 2026-11-02 03:38: the viewer's stall stop).
             self.last_reason = self._restock_wait_reason(snapshot)
-            return WAIT_KEY
+            return RESTOCK_WAIT_MACRO
         # A false readiness verdict evaluated by this decision is work, not an
         # idle state.  The opening remains the sole owner: try its bounded shop
         # route regardless of whether the fundraising latch can start, then

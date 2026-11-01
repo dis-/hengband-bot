@@ -3,7 +3,18 @@
   "name": {"ja": "ワーグを殲滅せよ", "en": "Warg problem"},
   "approved": true,
   "approved_note": "2026-07-17 にユーザー承認済み。条件付き加速薬と実測戦力ゲートを使用し、退却を許可する。2026-07-22 に同時隣接4体を上限とし、RAND_25の不規則移動を被害半減として扱う物資なしTier2（HP 150 / DPS 36）をユーザー承認。",
-  "engagement_plan": {"opening": "地下5階の到着地点から偵察し、ワーグを一体ずつ引き寄せる。", "hold_position": null, "formation": "現地で確認した最も狭い通路を使う。ランダム階のため固定座標はない。", "max_simultaneous_melee": 4, "random_move_damage_factor": 0.5},
+  "engagement_plan": {"opening": "地下5階の到着地点から偵察し、ワーグを一体ずつ引き寄せる。", "hold_position": null, "formation": "現地で確認した最も狭い通路を使う。ランダム階のため固定座標はない。", "max_simultaneous_melee": 4, "random_move_damage_factor": 0.5,
+    // 2026-11-02 owner: 「Lv.8で受けられる程度に受注要件を下げる。実際にはそこまで脅威になることはない。」
+    // The three-turn-threat acceptance gate (four Wargs adjacent at maximum
+    // dice for three turns) compared that worst case with half of max HP
+    // (the shared 0.50) and refused every Lv8-11 board: n1-c life-102 Lv8
+    // max HP 129 AC15 -> 188 (needs > 1.46), Lv11 HP 146 hasted -> 116;
+    // n1-b life-285 warrior Lv8 HP 191 AC16 -> 188 (needs > 0.98).  A
+    // character exactly at this file's Lv8 floor (required_force min_hp 120,
+    // reference_ac 20) projects 184, 184/120 = 1.53, so the budget is 1.6
+    // (old 0.50): the gate now refuses only below the Lv8 floor.  Acceptance
+    // only; the in-quest abort (hp_ratio 0.30) and heal (0.55) rules stay.
+    "max_damage_ratio": 1.6},
   "priority_targets": [257],
   "consumable_plan": {
     "speed_potion": "conditional",
