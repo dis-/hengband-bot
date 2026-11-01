@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, town_last_stand, unseen_strike
+from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -835,6 +835,10 @@ class CombatMixin:
                 and not (
                     self._breeder_breakthrough_floor == snapshot.floor_key
                     and self._is_weak_breeder(snapshot, monster)
+                    # Survival first: a weak breeder biting us is fought.
+                    and not survival_preemption.strikes_from_adjacent(
+                        self, snapshot, monster
+                    )
                 )
             )
         ]
