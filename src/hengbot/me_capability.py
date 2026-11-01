@@ -30,8 +30,9 @@ Facts about one power, keyed by (kind, sval) ("staff", "wand", "rod"):
 ``REPLACES`` is the table of what an absorbed power stands in for: one row
 per (power, replaced item kind or quest carry).  A row either waives the
 item (``replaced_by_absorbed``, for the uses it names: ``PURCHASE`` no
-purchase path buys it, ``CANDIDATE`` it is no ordinary shop candidate,
-``NEED`` a requirement for it is met) or adds the power's charges to the
+purchase path buys it, ``ORDER`` no pick of the shop's ordinary buy order
+takes its kind, ``CANDIDATE`` it is no ordinary shop candidate, ``NEED`` a
+requirement for it is met) or adds the power's charges to the
 item's count (``replacing_charges``, read as ``AMOUNT`` names), when its
 named condition (``WHEN``) holds.  The purchase, supply, quest-carry and
 identification code ask these two functions; adding a device that replaces
@@ -174,10 +175,16 @@ class Carry:
     name: str
 
 
-PURCHASE = "purchase"    # no purchase path buys the item (not even a purchase rung)
+# No purchase path buys the item: not a purchase rung, the needs stage, the
+# Identify swap, nor (with ORDER and CANDIDATE) the ordinary buy order.
+PURCHASE = "purchase"
+# No pick of the shop's ordinary buy order (its candidates and its direct
+# picks) takes a shelf row of the item's kind: the shop's excluded classes,
+# which every pick lets the Identify swap pass.
+ORDER = "order"
 CANDIDATE = "candidate"  # not one of the shop's ordinary purchase candidates
 NEED = "need"            # a requirement for the item (supply, identification, quest) is met
-EVERY_USE = frozenset({PURCHASE, CANDIDATE, NEED})
+EVERY_USE = frozenset({PURCHASE, ORDER, CANDIDATE, NEED})
 
 # Owner 2026-10-31 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える」.
 DESTRUCTION_MIN_SUCCESS = 80
@@ -220,15 +227,23 @@ def _staff_sequence(policy, snapshot, row, target) -> bool:
     return not isinstance(target, (Kind, tuple)) and purchase_excluded(policy, snapshot, target)
 
 
+def _stage_staff(policy, snapshot, row, target) -> bool:
+    """After Q1 the ordinary order takes no staff of a stage reached so far,
+    but the Identify swap (asked of a shelf row)."""
+    from hengbot.me_staff_sequence import order_excluded
+
+    return not isinstance(target, (Kind, tuple)) and order_excluded(policy, snapshot, target)
+
+
 WHEN = {
     "held": _held,
     "full-count": _full_count,
     "reliable": _reliable,
     "staff-sequence": _staff_sequence,
+    "stage-staff": _stage_staff,
 }
 AMOUNT = {
     "charges": lambda policy, snapshot, kind, sval: max(0, charges(policy, snapshot, kind, sval)),
-    "recorded": recorded_charges,
 }
 
 REPLACES = (
@@ -236,6 +251,10 @@ REPLACES = (
     # its predicate also reads a displayed staff list into the record
     # (me_staff_sequence.read_powers), before any other row of a staff is asked.
     Replacement(None, Kind(TVAL_STAFF, None), when="staff-sequence", uses=frozenset({CANDIDATE})),
+    # After Q1 no pick of the ordinary order takes a stage staff (b9ec9b4a9; the
+    # sequence's own rung buys them), 2026-11-01 21h 7 「表へ移す（入れ替えのための
+    # 買い直しの例外も表の条件に）」: but the Identify swap.
+    Replacement(None, Kind(TVAL_STAFF, None), when="stage-staff", uses=frozenset({ORDER})),
     # 2026-10-31 18h 1 「光の杖を取り込んでいる場合、クエスト要求の光の巻物を免除する」
     # (「光の巻物→購入を抑制」: a waived carry claims no scroll).
     Replacement(("staff", SV_STAFF_LITE), Carry("required_scrolls", "light")),
@@ -249,11 +268,14 @@ REPLACES = (
     # 2026-10-30 「以降、鑑定と財宝感知は取り込みで賄う」.
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_STAFF, SV_STAFF_IDENTIFY),
                 uses=frozenset({NEED})),
+    # 2026-11-01 21h 5 「今残っている回数で数える」: the displayed current charges
+    # first, like every other power (the record only when no list was read).
     Replacement(("staff", SV_STAFF_DETECT_GOLD), Kind(TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE),
-                amount="recorded"),
+                amount="charges"),
     # 2026-10-31 18h 2 「鑑定の杖を21回取り込んだあとは鑑定の杖を購入しない。持ち物の要求からも外す。」
+    # 2026-11-01 21h 6 「どちらの流れでも買わない」 (every use, like the two scroll rows).
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_STAFF, SV_STAFF_IDENTIFY),
-                when="full-count", uses=frozenset({CANDIDATE, NEED})),
+                when="full-count"),
     # 2026-10-31 night 「該当の杖を取り込んだら上位鑑定と上位解呪の巻物は以降購入せず
     # 強力発動で対応する」 (me_powerful_activation casts them).
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY)),

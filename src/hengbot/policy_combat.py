@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, me_ranged_first, paralyzer_contact, return_yield, status_cure, town_last_stand, unseen_strike
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
@@ -1424,6 +1424,57 @@ class CombatMixin:
         required = self._opening_q1_requirements(snapshot)[0][1]
         return self._count_throwing_torches(snapshot) <= required
 
+    def _ranged_projectile(
+        self, snapshot: Snapshot
+    ) -> tuple[str, InventoryItem, str] | None:
+        """(command, item, reason) of the bow or throw the ranged rung uses, else None."""
+        ammo = self._matching_ammo(snapshot)
+        if ammo is not None:
+            return "fire", ammo, "ranged:fire"
+        torch = self._first_item(
+            snapshot, lambda it: it.is_torch and it.fuel > 0
+        )
+        if self._opening_q1_torches_reserved(snapshot):
+            torch = None
+        if (
+            torch is not None
+            and 1 <= snapshot.dungeon_level <= TORCH_THROW_MAX_DEPTH
+        ):
+            # Early floors: spam thrown torches (user directive) — ~1g each
+            # and half of them survive on the floor for pickup.
+            return "throw", torch, "ranged:throw-torch"
+        # Deeper with no ammo: throw a spare flask of oil while keeping
+        # the lantern-fuel reserve intact. Potions are NEVER thrown.
+        flask = self._first_item(snapshot, lambda it: it.is_oil)
+        if flask is None or self._supply_ledger(snapshot, snapshot.dungeon_level)["oil"].count <= OIL_TARGET:
+            return None
+        return "throw", flask, "ranged:throw-oil"
+
+    def _adjacent_ranged_key(
+        self, snapshot: Snapshot, adjacent: list[MonsterState]
+    ) -> str | None:
+        """While melee is refused: the bow or throw at the weakest adjacent hostile.
+
+        Owner 2026-11-01 21h (answer 2, 「近接できない時だけ使う」): fear and a
+        NO_MELEE dungeon refuse melee only (attack_expectation.melee_refused);
+        a shot or a throw in the target's direction hits the first monster on
+        its path, the adjacent one (cmd-shoot.cpp and throw-execution.cpp
+        check neither).  An ordinary adjacent fight stays melee (None)."""
+        player = snapshot.player
+        if (not adjacent or player.confused or player.blind
+                or not attack_expectation.melee_refused(self, snapshot)):
+            return None
+        chosen = self._ranged_projectile(snapshot)
+        if chosen is None:
+            return None
+        kind, projectile, reason = chosen
+        target = self._weakest(adjacent)
+        key = reserved_item_command(self, snapshot, kind, projectile,
+                                    suffix=self._direction_key(player.position, target.position))
+        if key is not None:
+            self.last_reason = reason
+        return key
+
     @claims(ClaimOwner.COMBAT)
     def _ranged_attack_key(
         self,
@@ -1433,7 +1484,8 @@ class CombatMixin:
     ) -> str | None:
         """Fire at (or throw oil at) a hostile before it closes.
 
-        Adjacency is melee's job; confusion randomizes the aim direction and
+        Adjacency is melee's job unless melee is refused
+        (``_adjacent_ranged_key``); confusion randomizes the aim direction and
         blindness hides the ray, so both bail. Fear deliberately does NOT
         bail — do_cmd_fire works while afraid, which turns the old
         flee-while-shot-to-death pattern into an exchange."""
@@ -1441,33 +1493,18 @@ class CombatMixin:
         for index in self._ranged_target_signatures.keys() - visible_indices:
             self._ranged_target_signatures.pop(index, None)
             self._ranged_target_attempts.pop(index, None)
-        if adjacent or not hostiles:
+        if not hostiles:
             return None
+        if adjacent:
+            return self._adjacent_ranged_key(snapshot, adjacent)
         player = snapshot.player
         if player.confused or player.blind:
             return None
-        ammo = self._matching_ammo(snapshot)
-        torch = self._first_item(
-            snapshot, lambda it: it.is_torch and it.fuel > 0
-        )
-        if self._opening_q1_torches_reserved(snapshot):
-            torch = None
-        if ammo is not None:
-            kind, projectile, reason = "fire", ammo, "ranged:fire"
-        elif (
-            torch is not None
-            and 1 <= snapshot.dungeon_level <= TORCH_THROW_MAX_DEPTH
-        ):
-            # Early floors: spam thrown torches (user directive) — ~1g each
-            # and half of them survive on the floor for pickup.
-            kind, projectile, reason = "throw", torch, "ranged:throw-torch"
-        else:
-            # Deeper with no ammo: throw a spare flask of oil while keeping
-            # the lantern-fuel reserve intact. Potions are NEVER thrown.
-            flask = self._first_item(snapshot, lambda it: it.is_oil)
-            if flask is None or self._supply_ledger(snapshot, snapshot.dungeon_level)["oil"].count <= OIL_TARGET:
-                return None
-            kind, projectile, reason = "throw", flask, "ranged:throw-oil"
+        chosen = self._ranged_projectile(snapshot)
+        if chosen is None:
+            return None
+        kind, projectile, reason = chosen
+        ammo = projectile if kind == "fire" else None
 
         if self._ranged_target_macro_signature is not None:
             (

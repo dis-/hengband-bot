@@ -77,10 +77,13 @@ def melee_refused_key(policy, snapshot, adjacent) -> str | None:
     attacker (#47 hit-no-action-1101, n1-c life-085's jelly), and in a
     NO_MELEE dungeon every rung skipped it (owner 2026-11-01 「遠隔と取り込んだ
     力は使う」).  The callers' melee keeps its own fear and dungeon checks; the
-    adjacent chooser scores melee zero while it is refused (attack_expectation)."""
+    adjacent chooser scores melee zero while it is refused (attack_expectation).
+    After this order, every class's bow or throw answers too (owner 2026-11-01
+    21h, 「近接できない時だけ使う」, the ranged rung's ``_adjacent_ranged_key``)."""
     if not adjacent or not attack_expectation.melee_refused(policy, snapshot):
         return None
-    return attack_key(policy, snapshot, policy._weakest(adjacent))
+    return (attack_key(policy, snapshot, policy._weakest(adjacent))
+            or policy._adjacent_ranged_key(snapshot, adjacent))
 
 
 def outpaced_afraid_key(policy, snapshot, adjacent) -> str | None:

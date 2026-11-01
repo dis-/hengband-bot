@@ -443,7 +443,7 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         self.assertIsNone(older._fundraising_runs_started)
         self.assertFalse(older._fundraising_affordable_food_seen)
 
-    def test_recorded_exhausted_home_shortage_reopens_fundraising_preparation(self):
+    def recorded_exhausted_home_board(self, *, hp_short=0):
         fixture = Path(__file__).parent / "fixtures" / (
             "unaffordable-fundraise-home-exhausted-20261008.json.gz"
         )
@@ -453,6 +453,9 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         )
         with gzip.open(fixture, "rt", encoding="utf-8") as source:
             raw_board = json.load(source)
+        # DECLARED CONSTRUCTED where set: the character is below full HP, a
+        # gate of the mining departure itself (_fundraising_departure_ready).
+        raw_board["player"]["hp"] -= hp_short
         board = parse_snapshot(
             raw_board, load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
         )
@@ -469,17 +472,34 @@ class CrossAreaFundraisingTest(unittest.TestCase):
         food = ledger["food"]
         self.assertEqual((food.count, food.required_departure, food.obtainable),
                          (14, 15, False))
+        return policy, board
+
+    def choose_with_exhausted_plan(self, policy, board):
         with (patch.object(policy, "_skill_exp_request_key", return_value=None),
               patch.object(policy, "_refresh_carried_equipment_catalog"),
               patch.object(policy, "_choose_key_with_latch_capture",
                            return_value="5")):
             policy.choose_key(board)
+
+    def test_recorded_exhausted_home_shortage_reopens_a_blocked_mining_trip(self):
+        policy, board = self.recorded_exhausted_home_board(hp_short=1)
+        self.choose_with_exhausted_plan(policy, board)
         self.assertEqual(policy._fundraising_mode, "prepare")
         self.assertEqual(policy._fundraising_runs_started, 1)
         # Preparation cannot waive the return ticket or ordinary food gate.
         self.assertTrue(policy._descent_is_blocked(board))
         self.assertIn(policy._descent_refusal_reason,
                       {"recall-departure-shortage", "food-departure-shortage"})
+
+    def test_recorded_exhausted_home_shortage_leaves_a_ready_mining_trip(self):
+        # Owner 2026-11-01 「採掘の要求品が優先」: the ordinary departure's
+        # unaffordable food charge waits for the next return; the mining trip,
+        # whose own gates pass, keeps its mode and leaves.
+        policy, board = self.recorded_exhausted_home_board()
+        self.choose_with_exhausted_plan(policy, board)
+        self.assertEqual(policy._fundraising_mode, "mine")
+        self.assertEqual(policy._fundraising_runs_started, 1)
+        self.assertFalse(policy._descent_is_blocked(board))
 
 
 if __name__ == "__main__":

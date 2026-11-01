@@ -1033,6 +1033,13 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "immobile_threat_memory.py:step_out_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "input_executor.py:OperationExecutor._after_post": {
     "classification": "driver",
     "rows": [
@@ -4668,6 +4675,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_combat.py:CombatMixin._adjacent_ranged_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_combat.py:CombatMixin._attributable_observed_loss": {
     "classification": "data",
     "rows": [
@@ -4921,6 +4935,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_combat.py:CombatMixin._ranged_projectile": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_combat.py:CombatMixin._ranged_target": {
     "classification": "data",
