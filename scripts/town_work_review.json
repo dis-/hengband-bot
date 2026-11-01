@@ -12874,7 +12874,7 @@
       "survival"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Status treatment (blind/confused/cut) quaffing Cure Critical Wounds or Healing via reserved_item_command; shared by the combat status-cure rung and the unseen-recall blind cure (death 1, #47); consumers in generated manifest, no independent progress.",
+    "evidence": "Status treatment (blind/confused/cut) quaffing Cure Critical Wounds or Healing via reserved_item_command; shared by the combat status-cure rung and the unseen-recall blind cure (death 1, #47); no blindness cure while status_cure.cure_futile (blinded again right after a cure with a remembered adjacent attacker, owner 2026-11-01); consumers in generated manifest, no independent progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -13756,6 +13756,17 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-01 (#47 D57) 「勝てない敵が射程内にいればいつでも使って良い」: me_powers.power_key's THREAT occasion asked with each visible hostile, nearest first (the Teleport Away rows, rod 13 then wand 3, aimed at a hostile on a beam's line that _engagement_is_winnable with me_ranged_first.best_expected says cannot be beaten); None otherwise. Called once from the dungeon ladder ahead of _emergency_item; power_key's gate keeps it out of town and the wilderness.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "status_cure.py:fight_through_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-01 (#47 D57) 「回復後即盲目になった場合は戦闘による状況打開を試みる」: blind, latched by status_cure.observe (the board right after a blindness cure shows 「やっと目が見えるようになった。」 and the player blind again), a remembered adjacent attacker (blind_strike.remembered_cells), not afraid, HP at or above the low-HP walk threshold and fighting allowed in this dungeon: blind_strike.strike_key ('+' and a direction) under blind:fight-through, else None. Called only from _emergency_item right after the status cure; dungeon only (blind_strike memory is per floor); no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

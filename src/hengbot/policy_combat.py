@@ -2301,7 +2301,7 @@ class CombatMixin:
                 )
                 return stairs
 
-            if player.blind or player.confused or player.cut:
+            if status_cure.treats(self, snapshot):
                 potion = self._find_status_cure_potion(snapshot)
                 if potion is not None:
                     self.last_reason = (
@@ -2327,6 +2327,7 @@ class CombatMixin:
                         self._blind_cure_escape_carry = (
                             snapshot.floor_key, loss, deadline,
                         )
+                    status_cure.note_cure(self, snapshot)
                     return reserved_item_command(self, snapshot, "quaff", potion)
 
             if lethal or summoner_open:
@@ -2455,6 +2456,8 @@ class CombatMixin:
 
         if (cure := status_cure.status_cure_key(self, snapshot)) is not None:
             return cure
+        if (strike := status_cure.fight_through_key(self, snapshot)) is not None:
+            return strike  # blinded again right after a cure (owner 2026-11-01)
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
         if (

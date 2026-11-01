@@ -2,6 +2,14 @@
 
 Memory d57-survival-answers-decision-20261101 (owner, verbatim):
 
+(a) 盲目の治療 「基本的には今のまま。回復後即盲目になった場合は戦闘による
+    状況打開を試みる。致命傷治癒はHP回復の効果に期待しない。HPが減ったら
+    体力回復かテレポート。」 -- a board right after a blindness cure that shows
+    the cure's 「やっと目が見えるようになった。」 and the player blind again
+    latches that blindness: no cure while an attacker is remembered beside
+    the player, the remembered cell is struck instead (status_cure,
+    blind_strike); below the low-HP threshold the survival ladders keep the
+    turn.
 (b) 取り込んだテレポート・アウェイ 「勝てない敵が射程内にいればいつでも使って良い」
     -- the absorbed Teleport Away (wand 3 / rod 13) is aimed at a visible
     hostile on a beam's line that the engagement judgement says cannot be
@@ -26,6 +34,11 @@ through the production executor port):
   is the 5% floor (warrior_equipment_evaluator.displayed_melee_hit_chance),
   so melee expects about 2 against the 3d6 missile's 10.5 and the recorded
   missile stays the answer.
+- n1-c life-084 (tests/fixtures/d57-me-combat-084-1101.json.gz): the
+  充血アイ (race 129, NEVER_MOVE, GAZE:BLIND) east of the Lv12 Magic-Eater;
+  the board of turn 1287818, right after the cure of 1287806, shows the
+  cure's message and the player blind again, as do the next three; the
+  recorded bot drank a Cure Critical Wounds on each (nine in all).
 - n1-c life-083 (tests/fixtures/d57-me-combat-083-1101.json.gz,
   tests/extract_d57_me_combat_1101_fixtures.py): sighted again at turn
   1190789 (HP 118/171) beside a ブラウン・キラービートル (race 236, 104 hp,
@@ -36,7 +49,9 @@ DECLARED RECONSTRUCTED: the life-083 displayed wand list carries the absorbed
 テレポート・アウェイ (12) and マジック・ミサイル (23) of the death dump
 (bot_test2_Autodump_2026-11-01_064803.txt); the fail percentages are
 constructed (10%, 5%).
-DECLARED CONSTRUCTED: the life-085 melee cases raise both hands' displayed
+DECLARED CONSTRUCTED: the life-084 controls start the drive blind (nothing
+remembered) or lower the latched board's HP below the low-HP threshold; the
+life-085 melee cases raise both hands' displayed
 to-hit by 30 (an off hand that hits, as me-dual-wield-1101 pursues), and the
 aura case gives the jelly's race AURA_FIRE.
 """
@@ -58,7 +73,7 @@ from tests import test_n1c_deaths_1101_recorded as d57
 from tests import test_town_last_stand_ranged_recorded as d55
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
-from tests.test_me_mining_death_recorded import MagicEaterMiningDeathRecordedTest as mining
+from tests import test_me_mining_death_recorded as mining_death
 
 
 def _fixture(life):
@@ -134,18 +149,71 @@ class AdjacentAttackChoiceRecordedTest(d57.PostedDeathKey):
 
 
 
+def decide_all(policy, rows):
+    """Every board through the public choose_key, as the recorded run saw them."""
+    answers = []
+    for raw in rows:
+        key = loops.decide(policy, raw)
+        answers.append((raw, key, policy.last_reason))
+        policy.confirm_key_posted(key)
+    return answers
+
+
+CURED_TURN, REBLINDED_TURN = 1287806, 1287818
+EYE = d57.BLOODSHOT_EYE
+
+
+class BlindedAgainAfterTheCureRecordedTest(d57.PostedDeathKey):
+    """(a) blinded again right after the cure: fight, do not cure."""
+
+    def test_recorded_rows(self):
+        rows = d57.recorded(CASE_084)
+        for turn in (CURED_TURN, REBLINDED_TURN, 1287827, 1287840, 1287848):
+            self.assertEqual(rows[turn], ("item:cure-critical", "qc"), turn)
+        raw = next(raw for raw in CASE_084["boards"] if raw["turn"] == REBLINDED_TURN)
+        self.assertTrue(raw["player"]["status"]["blind"])
+        self.assertIn("やっと目が見えるようになった。", raw["messages"])
+        self.assertIn("目が見えなくなってしまった！", raw["messages"])
+
+    def answers(self, first=1287774, last=1287848, policy=None):
+        rows = d57.boards(CASE_084, first, last)
+        return {raw["turn"]: (raw, key, reason) for raw, key, reason in decide_all(
+            policy or d57.new_policy(CASE_084), rows)}
+
+    def test_blinded_again_strikes_the_remembered_eye_through_the_executor(self):
+        answers = self.answers()
+        for turn in (REBLINDED_TURN, 1287827, 1287840, 1287848):
+            self.assertEqual(answers[turn][1:], ("+6", "blind:fight-through"), turn)
+        raw, key, _reason = answers[REBLINDED_TURN]
+        policy = d57.new_policy(CASE_084)
+        policy.last_reason = "blind:fight-through"
+        self.post(policy, raw, key)
+
+    def test_control_the_first_blinding_is_still_cured(self):
+        answers = self.answers()
+        self.assertEqual(answers[1287788][1:], ("qc", "item:cure-critical"))
+        # One sighted board between the cure and the gaze: not right after.
+        self.assertEqual(answers[CURED_TURN][1:], ("qc", "item:cure-critical"))
+
+    def test_control_nothing_remembered_keeps_the_cure(self):
+        answers = self.answers(first=CURED_TURN, last=REBLINDED_TURN,
+                               policy=d57.new_policy(dict(CASE_084, boards=d57.boards(
+                                   CASE_084, CURED_TURN, REBLINDED_TURN))))
+        self.assertEqual(answers[REBLINDED_TURN][1:], ("qc", "item:cure-critical"))
+
+    def test_control_low_hp_is_the_survival_ladders(self):
+        rows = d57.boards(CASE_084, 1287774, REBLINDED_TURN)
+        rows[-1]["player"]["hp"] = 60  # below max(151 * 0.5, 151 - 300)
+        policy = d57.new_policy(CASE_084)
+        # No Healing potion and no readable scroll: the emergency ladder's
+        # own blind strike, not its cure.
+        self.assertEqual(decide_all(policy, rows)[-1][1:], ("+6", "emergency:blind-strike"))
+
+
 class TeleportAwayRecordedTest(d57.PostedDeathKey):
     """(b) an unbeatable hostile in range is sent away."""
 
-    post_power = mining.post
-
-    def decide_all(self, policy, rows):
-        answers = []
-        for raw in rows:
-            key = loops.decide(policy, raw)
-            answers.append((raw, key, policy.last_reason))
-            policy.confirm_key_posted(key)
-        return answers
+    post_power = mining_death.MagicEaterMiningDeathRecordedTest.post
 
     def beetle_policy(self, *, listed=True):
         policy = d57.new_policy(CASE_083)
@@ -168,7 +236,7 @@ class TeleportAwayRecordedTest(d57.PostedDeathKey):
 
     def test_the_unbeatable_beetle_is_sent_away_through_the_executor(self):
         policy = self.beetle_policy()
-        raw, key, reason = self.decide_all(policy, copy.deepcopy(CASE_083["boards"]))[-1]
+        raw, key, reason = decide_all(policy, copy.deepcopy(CASE_083["boards"]))[-1]
         self.assertEqual((raw["turn"], key, reason), (BEETLE_TURN, "mBd4", AWAY_REASON))
         game, _ = self.post_power(policy, raw, key, [
             prompt(TYPE_PROMPT), power_screen("wand", [("d", TELEPORT_AWAY, 12, 12, 10),
@@ -177,7 +245,7 @@ class TeleportAwayRecordedTest(d57.PostedDeathKey):
         self.assertEqual(game.accepted, ["m", "B", "d", "4"])
 
     def test_control_without_the_power_the_missile_answers(self):
-        raw, key, reason = self.decide_all(self.beetle_policy(listed=False),
+        raw, key, reason = decide_all(self.beetle_policy(listed=False),
                                            copy.deepcopy(CASE_083["boards"]))[-1]
         self.assertEqual((key, reason), ("mBp4", MISSILE_REASON))
 
@@ -187,7 +255,7 @@ class TeleportAwayRecordedTest(d57.PostedDeathKey):
         for monster in rows[-1]["visible_monsters"]:
             monster["health"] = "almost_dead"
         policy = self.beetle_policy()
-        raw, key, reason = self.decide_all(policy, rows)[-1]
+        raw, key, reason = decide_all(policy, rows)[-1]
         self.assertNotEqual(reason, AWAY_REASON, key)
 
 
