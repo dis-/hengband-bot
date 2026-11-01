@@ -16,6 +16,17 @@ cannot take the reward before another owner leaves the town, so the report
 of a quest of FIXED_QUEST_REWARD_POSITIONS yields to the room-making town
 owners (Home deposit, sale, junk destruction) until one slot is free.
 
+Until the reward is in the pack, the report and the pickup are the town's
+priority (owner 2026-11-02 「空きを作って報告し、報酬を回収するまでを優先
+したい」): ``holds_town`` is the one predicate.  While it holds, the town
+terminals that leave the town (town_terminal.TOWN_LEAVING_TERMINALS: inn
+travel, recall, descent, cross-town trips, fundraising runs) are refused and
+the class town sequences that travel (``_opening_q34_town_key``) wait, so the
+room-making owners and the report/reward owners take the board; survival
+families stay exempt.  With no free slot and no room that can be made, the
+existing named stop ``town:blocked:pack-full-no-room`` ends the visit's work
+instead of a wander.
+
 This module owns the reward latch ``_fixed_quest_reward_pending`` (set when
 the reward is claimed, rebuilt here from the allowlisted reward cell after a
 restart) and serves it as the first non-emergency town owner, ahead of the
@@ -31,6 +42,7 @@ from hengbot.policy_constants import (
     WAIT_KEY,
 )
 from hengbot.town_pack_budget import explicit_pickup_cells
+from hengbot.town_pack_headroom import PACK_FULL_NO_ROOM, room_can_be_made
 
 PACK_FULL_REASON = "fixedquest:reward-pack-full"
 WAIT_REASON = "fixedquest:reward-wait"
@@ -112,6 +124,40 @@ def claim_key(policy, snapshot, quest_id: int) -> str | None:
         set_reward_pending=quest_id in FIXED_QUEST_REWARD_POSITIONS)
 
 
+def holds_town(policy, board) -> bool:
+    """The report or the pickup of a town-map reward is this town's priority.
+
+    The fixed-quest owner intends the claim of a FIXED_QUEST_REWARD_POSITIONS
+    quest here (its own terminal admits, or waits only for a free slot) or
+    the pickup of the latched reward on this town level.  A character that
+    is hungry with nothing to eat is the survival owners' (survival first).
+    """
+    from hengbot.town_terminal import (
+        fixed_quest_intended_terminal, gather_quest_work, verdict_quest_work,
+    )
+    if (not board.in_town
+            or (board.player.hungry and policy._find_edible(board) is None)):
+        return False
+    terminal = fixed_quest_intended_terminal(policy, board)
+    if (terminal is None or terminal.args[:1] == ()
+            or terminal.args[0] not in FIXED_QUEST_REWARD_POSITIONS):
+        return False
+    if terminal.terminal_id == "quest-reward":
+        return True
+    # A claim refused by the cross-town shopping hold waits for that trip.
+    return (terminal.terminal_id == "quest-claim"
+            and verdict_quest_work(gather_quest_work(policy, board)).admitted)
+
+
+def _no_room_key(policy, snapshot) -> str | None:
+    """The named stop when the held report or pickup has no slot to be made."""
+    if (PACK_CAPACITY - len(snapshot.inventory) > 0
+            or room_can_be_made(policy, snapshot) or not holds_town(policy, snapshot)):
+        return None
+    policy._town_blocked_reason = PACK_FULL_NO_ROOM
+    return policy._town_blocked_key(snapshot)
+
+
 def town_key(policy, snapshot, hostiles) -> str | None:
     """The reward pickup ahead of the other non-emergency town owners.
 
@@ -123,4 +169,5 @@ def town_key(policy, snapshot, hostiles) -> str | None:
             or getattr(policy, "_took_damage", False)
             or policy._physical_adjacent_hostiles(snapshot)):
         return None
-    return reward_key(policy, snapshot)
+    key = reward_key(policy, snapshot)
+    return key if key is not None else _no_room_key(policy, snapshot)

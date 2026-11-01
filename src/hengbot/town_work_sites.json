@@ -9073,6 +9073,13 @@
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success."
   },
+  "town_quest_reward.py:_no_room_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "town_quest_reward.py:claim_key": {
     "classification": "producer",
     "rows": [

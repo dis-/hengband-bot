@@ -594,14 +594,17 @@ class QuestMixin(OpeningRouteMixin):
         reward = town_quest_reward.town_key(self, snapshot, hostiles)
         if reward is not None:
             return reward
-        from hengbot import me_staff_sequence
-        staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
-        if staff_sequence is not None:
-            return staff_sequence
-        from hengbot import q2_tower_recharge
-        tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
-        if tower_recharge is not None:
-            return tower_recharge
+        # The class sequences that travel wait while the report or the
+        # pickup holds the town; the room-making owners take the board.
+        if not town_quest_reward.holds_town(self, snapshot):
+            from hengbot import me_staff_sequence
+            staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
+            if staff_sequence is not None:
+                return staff_sequence
+            from hengbot import q2_tower_recharge
+            tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
+            if tower_recharge is not None:
+                return tower_recharge
         from hengbot import me_powerful_activation
         powerful = me_powerful_activation.town_key(self, snapshot, hostiles)
         if powerful is not None:
