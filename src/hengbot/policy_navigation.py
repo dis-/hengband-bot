@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dark_recall, mapped_area, me_powers
+from hengbot import dark_recall, immobile_threat_memory, mapped_area, me_powers
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1198,6 +1198,12 @@ class NavigationMixin:
             rubble.discard(key)
         for monster in snapshot.detected_monsters:
             key = (monster.position.y, monster.position.x)
+            floor.discard(key)
+            door.discard(key)
+            rubble.discard(key)
+        # Owner 2026-11-01 「その階の間覚えて隣を避ける」 (#47 D57).
+        for cell in immobile_threat_memory.route_cells(self):
+            key = (cell.y, cell.x)
             floor.discard(key)
             door.discard(key)
             rubble.discard(key)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, dark_recall, lamp_fuel, summoner_wait
+from hengbot import blind_strike, dark_recall, immobile_threat_memory, lamp_fuel, summoner_wait
 import json
 
 from hengbot.claim_goal_typing import (
@@ -1000,6 +1000,7 @@ class ObservationMixin:
             self._recent_since_teleport = None
             self._breeder_breakthrough_floor = None
             summoner_wait.forget_floor_visit(self)
+            immobile_threat_memory.forget_floor_visit(self)
             self._breeder_engagement_start_count = None
             self._breeder_engagement_start_turn = None
             self._breeder_kills = 0
@@ -1057,6 +1058,7 @@ class ObservationMixin:
         blind_strike.observe(self, snapshot)
         dark_recall.observe(self, snapshot)
         lamp_fuel.observe(self, snapshot)
+        immobile_threat_memory.observe(self, snapshot)
         self._took_curse_damage = self._took_damage and any(
             " drains HP from you!" in message
             or " drains life from you!" in message
