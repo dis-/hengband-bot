@@ -1975,6 +1975,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_ranged_first.py:afraid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_ranged_first.py:attack_key": {
     "classification": "producer",
     "rows": [
@@ -9248,6 +9255,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "none"
+  },
+  "unseen_strike.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "warrior_equipment_evaluator.py:displayed_melee_hit_chance": {
     "classification": "data",
