@@ -68,7 +68,8 @@ class FloorVisit:
     cells: frozenset[Position] = frozenset()
 
 
-def _never_moves(policy, monster: MonsterState) -> bool:
+def never_moves(policy, monster: MonsterState) -> bool:
+    """The race knowledge says the monster never leaves its cell (NEVER_MOVE)."""
     knowledge = policy._monrace_knowledge.get(monster.race_id)
     return knowledge is not None and "NEVER_MOVE" in knowledge.flags
 
@@ -90,9 +91,14 @@ def _avoided(policy, snapshot, monster: MonsterState) -> bool:
 
     A never-moving summoner that drains (キリス・ウンゴルの番人) stays the
     immobile-summoner owner's (``_immobile_summoner_key``), which already
-    keeps out of its sight and fights it when no retreat is left."""
-    return ((_drains_stats(policy, monster) and not monster.can_summon)
-            or _lethal(policy, snapshot, monster))
+    keeps out of its sight and fights it when no retreat is left.  A
+    monster whose touch the engagement gate counts as material
+    (``_material_melee_damage``) is passed around by its ring instead of
+    retreated from at a distance (shoot-immobile-sleeper-1102)."""
+    if monster.can_summon:
+        return _lethal(policy, snapshot, monster)
+    return (_drains_stats(policy, monster) or _lethal(policy, snapshot, monster)
+            or policy._material_melee_damage(snapshot, monster))
 
 
 def _ring(position: Position) -> set[Position]:
@@ -116,7 +122,7 @@ def observe(policy, snapshot) -> None:
         setattr(policy, MEMORY, visit)
     perceived = {monster.position: monster
                  for monster in policy._perceived_hostiles(snapshot)
-                 if _never_moves(policy, monster)}
+                 if never_moves(policy, monster)}
     visit.monsters.update(perceived)
     for position, monster in list(visit.monsters.items()):
         if position not in perceived and policy._player_can_see_empty_cell(
@@ -135,6 +141,13 @@ def route_cells(policy) -> frozenset[Position]:
     """The cells this floor visit's avoided never-moving monsters take out of routes."""
     visit = getattr(policy, MEMORY, None)
     return frozenset() if visit is None else visit.cells
+
+
+def ringed(policy, monster: MonsterState) -> bool:
+    """Its ring already leaves this floor visit's routes: routing passes around it."""
+    visit = getattr(policy, MEMORY, None)
+    return (visit is not None and monster.position in visit.monsters
+            and monster.position in visit.cells)
 
 
 def step_out_key(policy, snapshot) -> str | None:

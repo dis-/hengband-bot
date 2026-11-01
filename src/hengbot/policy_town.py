@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import me_capability, town_pack_headroom
-from hengbot import town_travel
+from hengbot import town_end_mining, town_travel
 from hengbot import unseen_strike
 from hengbot import random_quest_reserve
 
@@ -2906,6 +2906,8 @@ class TownMixin:
                 or getattr(self, "_supply_stockout_gold_target", None) is not None
                 # The no-safe-destination set has no gold objective.
                 or getattr(self, "_no_safe_destination_set", False)
+                # The town end's retry cycle needs its kit at any gold.
+                or town_end_mining.outstanding(self)
             )
             and not self._opening_q34_active(snapshot)
         )
@@ -4853,6 +4855,8 @@ class TownMixin:
             # D1 time-pass, not a funding set: the D2 gold end does not apply
             # to its outstanding run while the recall stockout persists.
             and not self._recall_stockout_run_outstanding(snapshot)
+            # The town end's mining cycle runs to its one run (town_end_mining).
+            and not town_end_mining.outstanding(self)
             and getattr(self, "_supply_stockout_gold_target", None) is None
             # No safe recall landing: the set runs to its run count whatever
             # the gold (user decision 2026-10-19).
@@ -5955,13 +5959,16 @@ class TownMixin:
         depth = self._dungeon_entry_depth(snapshot, dungeon, via_recall=destination is not None)
         return self._departure_minimum(snapshot, depth), destination, depth
 
-    def force_visit_departure(self, snapshot: Snapshot, cause: str, *,
-                              dropped: tuple[str, ...] = ()) -> str | None:
-        """Close exhausted visit work and depart under the departure minimum.
+    def force_visit_departure(self, snapshot: Snapshot, cause: str) -> str | None:
+        """Close exhausted visit work: depart, or mine once while unmet.
 
-        ``dropped`` names the unmet ordinary departure conditions the caller
-        gives up for this visit; the visit-departure record keeps them.
+        Owner 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件
+        未達の出発は拒否する。」: the departure leaves only when every
+        departure condition holds (town_terminal.verdict_town_end); with a
+        condition unmet it starts one mining cycle (town_end_mining) when the
+        cycle can start, else the existing fallbacks and the hard stop.
         """
+        from hengbot.town_terminal import gather_town_end, verdict_town_end
         if self._visit_departure_committed:
             return self._town_blocked_key(snapshot)
         if cause in self._visit_departure_recorded:
@@ -5969,12 +5976,19 @@ class TownMixin:
         minimum, destination, depth = self._visit_departure_minimum(snapshot)
         settlement = (getattr(self, "_owner_retired_progress", None) or {}).get("last_settlement", {})
         closed_work = {"reason": self.last_reason, "blocked_reason": self._town_blocked_reason,
-                       "operation_identity": settlement.get("operation_identity"),
-                       "dropped_conditions": list(dropped)}
+                       "operation_identity": settlement.get("operation_identity")}
         # Mark before calling existing fallback producers, which can themselves
         # resolve a terminal through _town_blocked_key.
         self._visit_departure_recorded.add(cause)
-        if minimum["holds"]:
+        end = verdict_town_end(gather_town_end(self, snapshot))
+        if end.kind == "mine":
+            key = town_end_mining.start(self, snapshot, end.conditions)
+            self._town_blocked_reason = None
+            self._record_visit_departure(snapshot, cause, minimum, "mining_cycle",
+                                         "yeek-income", depth,
+                                         {**closed_work, "unmet": list(end.conditions)})
+            return key
+        if minimum["holds"] and end.kind == "depart":
             self._break_town_cycle(snapshot)
             self._town_blocked_reason = "repetition"
             self._town_cycle_breaks = TOWN_CYCLE_BREAK_LIMIT
@@ -6433,6 +6447,19 @@ class TownMixin:
             return RESTOCK_WAIT_MACRO
         return None
 
+    def _end_mining_set(self) -> None:
+        """End the open mining set after its planned runs (the run-count end)."""
+        self._no_safe_destination_set = False
+        self._fundraising_mode = None
+        self._mining_runs_completed = 0
+        self._planned_mining_runs = None
+        self._identify_staff_mining_plan = False
+        self._recall_stockout_mining_plan = False
+        self._town_store_attempted.clear()
+        self._town_restock_suppressed = False
+        self._town_errand_plan = None
+        self._supply_stockout_gold_target = None
+
     def _town_special_key(self, snapshot: Snapshot) -> str | None:
         full_identify_trip = self._morivant_full_identify_key(snapshot)
         if full_identify_trip is not None:
@@ -6533,16 +6560,7 @@ class TownMixin:
                       or getattr(self, "_no_safe_destination_set", False))))
             and self._mining_runs_completed >= self._effective_mining_run_target()
         ):
-            self._no_safe_destination_set = False
-            self._fundraising_mode = None
-            self._mining_runs_completed = 0
-            self._planned_mining_runs = None
-            self._identify_staff_mining_plan = False
-            self._recall_stockout_mining_plan = False
-            self._town_store_attempted.clear()
-            self._town_restock_suppressed = False
-            self._town_errand_plan = None
-            self._supply_stockout_gold_target = None
+            self._end_mining_set()
             return None
 
         # A resumed bot does not retain the in-memory partial batch selected
@@ -7046,7 +7064,12 @@ class TownMixin:
                     finally:
                         self._terminal_town_recall_read = previous
 
-        if recall_dest is not None and not departure_ok:
+        # Owner 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ」: while
+        # the town end's mining cycle is open its departure is the mining
+        # walk-in, which keeps its own gates (town_end_mining); the dive's
+        # unmet conditions are what the cycle retries afterwards.
+        if (recall_dest is not None and not departure_ok
+                and not town_end_mining.outstanding(self)):
             blocker = self._terminal_equipment_blocker(snapshot)
             # Equipment evaluation can exhaust the shop plan and install a
             # supply remedy. Offer it even when another hard leaf also fails;

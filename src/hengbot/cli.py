@@ -73,6 +73,7 @@ from hengbot.policy_constants import (
     POLICY_FINAL_STOP_REASONS,
     POLICY_FINAL_STOP_PREFIXES,
     TOWN_END_SURVIVAL_STOP_PREFIX,
+    TOWN_END_UNMET_STOP_PREFIX,
     SKILL_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
 )
@@ -555,7 +556,12 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
     if record is not None:
         claim = getattr(getattr(policy, "_claim_register", None), "current", None)
         execution = getattr(claim, "execution", None)
-        if execution is not None and execution.state in {"ready", "posted", "awaiting"}:
+        # The work this decision sends ("acting") or observes ("awaiting"):
+        # ClaimRegister.declare_execution has no "ready"/"posted" state, so
+        # a sent command's later evidenced completion (a Home junk sweep's
+        # observed destroy, n1-a life-464 2026-11-02 04:35) never earned
+        # credit and three Home re-entries made a burst.
+        if execution is not None and execution.state in {"acting", "awaiting"}:
             state["admitted"].add(execution.work_id)
         # Do not use the legacy vector's final integer: some walkers put
         # Manhattan distance there, and some do not name a target at all.
@@ -750,6 +756,10 @@ def _policy_final_stop_banner(reason: str) -> str:
     if reason.startswith(TOWN_END_SURVIVAL_STOP_PREFIX):
         return (f"<{reason}> no town owner answered and this departure-minimum "
                 "(survival) leaf is unmet; stopping the bot for investigation")
+    if reason.startswith(TOWN_END_UNMET_STOP_PREFIX):
+        return (f"<{reason}> no town owner answered, this departure condition "
+                "is unmet and the mining cycle cannot leave; stopping the bot "
+                "for investigation")
     if reason.startswith("ownership:holder-silent:"):
         return (f"<{reason}> the town claim has no safe continuation; "
                 "stopping the bot for investigation")
@@ -3892,6 +3902,10 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     # This floor's breeder judgement, for a restart on the same floor.
     policy._breeder_floor_record_path = args.decision_log.with_name(
         "breeder-floor.json"
+    )
+    # The town end's open mining cycle, for a restart during the cycle.
+    policy._town_end_mining_path = args.decision_log.with_name(
+        "town-end-mining.json"
     )
     policy._character_calibration_path = args.decision_log.with_name(
         "character-calibration.json"

@@ -1,0 +1,112 @@
+LUNA-REPORT home-loops-0446-1102（自宅の往復による owner-retired-burst 2件）
+
+== 結論 ==
+- 根は2つ。どちらも直して、根ごとに1コミットにした。
+  1. n1-b life-291（04:46／04:47）: 自宅の目録の請求（_has_actionable_incomplete_home_item）が、
+     *鑑定* を待つ既知の装備（エルフのローブ）を、*鑑定* の手段を持っていないのに「この訪問で扱える」と数えていた。
+     実際に取り出す担当（_bind_catalogued_home_identification_withdrawal）は手段が無いと何もしない。
+     請求と担当が食い違い、自宅の回は毎回 home:route-claim-unfulfilled で閉じ、回数の上限で自宅がこの訪問で塞がった。
+     その後に開いた「帰還先が全部条件不足」の資金稼ぎは、財宝感知の巻物が自宅の棚にあるのに取りに行けず、
+     depth-gate で止まって3回の引退で burst になった。→ 8820377b7
+  2. n1-a life-464（04:35）: 自宅の不要品の掃除は、1回の入店で1品を取り出して外で壊す（#95 の決まり）。
+     3個のモンスター・ボールを壊すたびに壊れたことは観測されていたが、burst の数え方がそれを進捗と数えなかった。
+     (a) 数え方は「認められた実行」を状態 ready/posted/awaiting で認めるが、ClaimRegister に ready/posted の状態は無く、
+     送るコマンドの状態は acting なので、送った操作の完了がいつまでも数えられなかった。
+     (b) 壊す操作の識別子が品の名前だけで、どのボールも同じだった（認められても1回しか数えない）。
+     3回の入り直しで引退が3回たまり burst。取り出し→破壊は1つの担当（自宅の full relief）が最後までやっていて、
+     預け直しや破壊の拒否は無かった（依頼文の仮説とは違った）。→ 3f42e1c85
+
+== 証拠 ==
+n1-a life-464 Lv38（bot-3aec0670c）04:35:28
+- 記録: C:\hengband-backups\pdca\captures\burst-0446-1102\n1-a-20261102-043528-town-blocked-owner-retired-burst
+  と、サーバから写した C:\hengband-backups\pdca\captures\burst-0446-1102\n1-a-life-464-incident-20261102-043526
+  （snapshots-current.jsonl.gz に前の訪問の店のページがある）。
+- 決定 3439/3447/3452 home-errand:atomic-withdraw:full-home-discard（'5   po' 'pn' 'pm'、自宅の4ページ目の3個）、
+  3440/3448/3453 home:junk-sweep:unwanted-kind（'01kk'）、次の決定で closed_reason home-full-destroy-observed。
+- 実行の識別子は3回とも home-full-destroy:('モンスター・ボール (空)', 11, 0)、状態は acting。
+- サーバの jsonlog/owner-retired-log-only.jsonl: 2568438（home-visit）、2568503（home-scan）、2568547（store-router）、
+  2568570（home-scan）の4回、retirements_without_progress 1,1,2,3、matched_effect_identity は全部空 → 3回目で stopping。
+- モンスター・ボールは重ならない（src/system/item/item-entity.cpp ItemEntity::is_similar_part: CAPTURE は 0、is_similar_for_store も false）ので1個ずつ。
+
+n1-b life-291 Lv26 戦士（bot-f334cbd12 04:46:16、bot-ff4196953 04:47:45）
+- 記録: C:\hengband-backups\pdca\captures\burst-0446-1102\n1-b-20261102-044745-...（再起動後の決定 0-18）と 04:46 の分。
+- 04:47: 決定 2 home:scan-complete-from-open-page、5 home:route-claim-unfulfilled、8 で資金稼ぎ（prepare）が開き、
+  9 fundraise:fallback-exhausted-plan、10-17 town:blocked:depth-gate:destination-20:missing-free_action、18 burst。
+- 自宅の棚に 財宝感知の巻物 5、*鑑定* 待ちのエルフのローブ [2,+15] (+3隠密)（known、fully_known でない）。
+  持ち物に *鑑定* の手段は無い。
+- 記録の盤面を新しい policy で再生（テスト）すると、目録の請求は equipment-catalog のまま、
+  自宅の未達の回の数は 1→3（1回の回で2つ増える。下の「見つけたが直していない点」2）で自宅が blocked_stores に入り、
+  資金稼ぎの fundraising-kit の請求は _town_claims_active に数えられず、危険な帰還先の判定（policy_town.py の
+  unsafe target の枝）が depth-gate で止めた。前の担当が再現できなかったのは、新しい policy では自宅の回の内部状態が
+  無かったためで、再起動直後の 04:47 の回を決定 0 の盤面から流すと policy の checkpoint なしで再現した。
+
+== 変更 ==
+1. 8820377b7 Claim Home for catalogued gear only with an identification source
+   - policy_home.py: _home_catalog_identification_source（目録の自宅の品1つを今すぐ鑑定できる持ち物の手段）を足し、
+     取り出しの担当と自宅の目録の請求の両方がこれを使う。既知の品で手段が無ければ請求しない。
+   - town_work_review.json に審査の項目を1つ（data/no-independent-credit）。manifest は zero unmapped。
+2. 3f42e1c85 Credit each observed Home junk-sweep destroy as visit progress
+   - cli.py _observe_owner_retired_progress: 認める状態を {"acting", "awaiting"} にした（数えるのは今まで通り
+     証拠つきの完了の受領だけ）。
+   - policy_home.py: 自宅の full relief の破壊ごとに識別子を付ける（品の名前＋送った決定の番号）。
+     待っている間は同じ識別子、終わったら他の破壊の項目と一緒に消す。
+
+== テスト ==
+- 新しいテスト: tests/test_home_loops_0446_recorded.py（4件）
+  - FundraisePlanRecordedTest.test_recorded_stop / test_robe_without_a_source_claims_no_home_pass
+  - JunkSweepRecordedTest.test_recorded_stop / test_each_observed_destroy_is_credited_progress
+  記録の盤面を既存の静的ゲームの helper（test_unid_deposit_recorded）に付け、鍵はすべて公開の choose_key から、
+  production executor を通して送る。各決定は運転の引退の入口 cli._handle_owner_retirement（--owner-retired-log-only）
+  で精算する。fixture は tests/extract_home_loops_0446_fixtures.py が作る。
+  DECLARED RECONSTRUCTED: n1-a は決定 3426（town:recall-stockout-mining）の採掘の準備（prepare、1回）。
+  DECLARED CONSTRUCTED: 自宅の棚（盤面の ~9 の答え、52行のページ）、ページ送りの入店、強制破壊の返事。
+- 結果: import の確認 OK、新しいテスト 4件 OK（main を取り込んだ後も OK）。既存のテストの期待値は変えていない（壁なし）。
+- 元に戻す確認（各1回）:
+  - 根1: 目録の請求の hunk を戻すと test_robe_without_a_source_claims_no_home_pass が失敗
+    （shop:travel → scan → home:route-claim-unfulfilled → … → fundraise:fallback-exhausted-plan →
+    town:blocked:depth-gate:destination-20:missing-free_action。記録と同じ順）。戻して OK。
+  - 根2: cli.py と policy_home.py の hunk を戻すと test_each_observed_destroy_is_credited_progress が失敗
+    （3個目の破壊の後の入り直しで town:blocked:owner-retired-burst）。戻して OK。
+  - 補足（実験）: 状態の修正だけで識別子を直さないと、やはり3個目の後で burst（最初の1個しか数えない）。
+
+== checks.json に足す案（編集はしていない） ==
+  {"id": "home-loops-0446", "defect": "D30-home-loops-0446",
+   "owner": "2026-11-02 「同じ根の型が繰り返したら場面ではなく根を直す」",
+   "tests": ["tests.test_home_loops_0446_recorded"]}
+
+== 見つけたが直していない点（持ち主の判断か、別の系統） ==
+1. 04:46 の n1-b（再起動前）では、自宅から スピードの薬 を1つ取ったら、持ち物の「スピードの薬 {50%引き}」と
+   重なって名前が変わり（stack_force_costs で割引の違う品も重なり、割引は大きい方に揃う: item-entity.cpp ItemEntity::absorb）、取り出しの確認
+   （_observe_home_atomic_withdrawal_outside の _inventory_signature_count、名前の完全一致）が 0→0 と数えて
+   target-unobserved（決定 145-146、メッセージ「10服の スピードの薬 {50%引き}(a)を取った。」）。
+   自宅の回は未達になる。直すなら数える識別を割引・刻みを除いた名前（_sale_item_identity など）に揃える。
+   取り出しの数え方は多くの場所が使うので、今回は直していない。
+2. 自宅の回が home:route-claim-unfulfilled で閉じる時、その枝の _report_town_stop_pass と、出る時の共通の報告の
+   両方が数え、未達の回の数が1回の回で2増える（再生で 1→3）。上限3なので2回目の回で自宅が塞がる。
+3. 訪問の途中で開いた資金稼ぎの組（_start_no_safe_destination_fundraising）は _town_store_attempted を消すが、
+   自宅の blocked_stores（回数の上限）は残る。今回の根を直せば起きないが、別の理由で自宅が塞がった後に開いた組は
+   自宅の財宝感知に届かない（前回の報告の Q5）。
+4. 根1を直す前の再生では、fundraise:fallback-exhausted-plan の判定が「組を開く時に作り直し待ちにした計画」
+   （_retire_town_errand_plan_for_rebuild は index を末尾にするだけ）を「全部の店を回った」と読んでいた。
+   根1を直すと作り直しが同じ決定で起きるので再現しない。直していない。
+5. n1-a の再生で、新しい policy は自宅の つるはし を2本目の掘る道具として取ったが、実機は取らずに
+   「Digging tool 1/2」で雑貨屋を計画していた（決定 3437）。系統外なので見ていない。
+
+== 持ち主への問い ==
+Q1: burst の数え方で、送ったコマンド（acting）の完了の受領も進捗に数えるようにしました。受領を出す担当は
+    9か所で、識別子が同じものは1回の訪問で1回しか数えません。これでよいですか。
+Q2: 上の1（割引の重なりで取り出しを見失う）を、取り出しの数え方を割引・刻みを除いた名前に揃えて直しますか。
+Q3: 上の3（訪問の途中で開いた資金稼ぎの組の時、塞がった自宅を開け直すか、錬金術の店で買うか）をどうしますか。
+
+== 保守性 ==
+- 「目録の自宅の品を今すぐ鑑定できる手段」の判定を _home_catalog_identification_source の1か所にまとめ、
+  取り出しの担当と目録の請求が同じものを読む（請求と担当の食い違いの型、D61 と同じ形をなくす）。
+- 破壊の識別子は自宅の full relief の状態（relief["destroy_work_id"]）の中に置き、既存の破壊の項目の後始末
+  （3か所）と一緒に消す。
+- burst の数え方は認める状態の集合を1つ直しただけ（存在しない状態名を消した）。
+- テストの共通部分（記録の訪問を運転の引退の入口まで通して流す）は BurstVisitRecordedTest にまとめた。
+
+== コミット ==
+- 8820377b7 Claim Home for catalogued gear only with an identification source
+- 3f42e1c85 Credit each observed Home junk-sweep destroy as visit progress
+- main を取り込み済み（マージコミット）。push はしていない。

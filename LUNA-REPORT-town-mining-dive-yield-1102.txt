@@ -1,0 +1,95 @@
+LUNA-REPORT town-mining-dive-yield-1102（町の終わりの採掘のサイクルが潜る出発の判定で止められる）
+
+ブランチ town-mining-dive-yield-1102（main 2726a3bf5 から。hourly-0600-1102 の草地の直しを含む）。
+push していない。止まり2（n1-c life-103 の loop-detected）はオーナーへ回すので触っていない。
+
+1. 止まり
+
+  n1-a life-464（戦士 Lv38、所持金 41,715、bot-10ac9173a）2026-11-02 05:49
+  town:blocked:departure-unsatisfiable。
+  departure_block.failed = identify_staff_ready, home_candidate_resolved,
+  identification_need_clear, departure_identification_need_clear。
+
+2. 原因（2つ）
+
+  決定 5453（ターン 2870486）: 町の終わりが採掘を1サイクル始めた（town:end-mining-cycle、
+  fundraising は prepare、1回）。準備に要る物は財宝感知の巻物 0/1、2本目の掘る道具 1/2。
+
+  (a) 準備の店の用事（_town_need_candidates の fundraising-detection・mining-detection・
+      fundraising-kit・fundraising-digger）は fundraising_active の時だけ立つ。
+      fundraising_active（policy_town.py:2894-2913）は所持金が FUNDRAISING_GOLD_TARGET
+      （15,000）未満か、そこに並べた時間つぶしの採掘（帰還の巻物の品切れ・鑑定の杖の品切れ・
+      品切れの採掘・安全な行き先が無い時）の時だけ真。町の終わりのサイクルが入っていなかった
+      （導入の 459902860 は _restock_time_pass_run と D2 の金の終わりには足したが、ここは漏れ）。
+      金持ちのキャラでは準備の用事が1つも立たない（記録の home_route_projection の
+      rebuilt_stops も []）。
+  (b) 決定 5454（次の盤面）: 町の用事の claim が無いので、_town_special_key の潜る出発の判定
+      （policy_town.py:7065 のブロック、停止は :7133）が帰還の条件をもう一度読み、
+      departure-unsatisfiable で止めた。force_visit_departure は同じ原因を記録済みなので
+      None を返し、町の終わりの名前付きの停止にもならなかった。
+
+3. 直し（コミット e0c07dd14、policy_town.py の2か所）
+
+  - fundraising_active の条件に town_end_mining.outstanding(self) を足した（:2909-2910）。
+    ほかの時間つぶしの採掘と同じく、金額に関係なくサイクルの準備の用事を立てる。
+  - 潜る出発の判定のブロックを、サイクルが開いている間は飛ばす（:7067-7072）。
+    サイクルの出発は採掘の歩いての入場で、自分の門（_mining_departure_ready）を持つ。
+    準備の物を買えない時は、町の終わりの判定が mining_set_open で stop になり、
+    town:blocked:unmet:<名前> / survival:<葉> の名前付きで止まる（設計どおり、新しい振る舞いは無い）。
+  - 新しい関数は無い。town-work の manifest は --write で zero unmapped（ファイルの変更なし）。
+
+4. テスト: tests/test_town_mining_dive_yield_1102_recorded.py（2件）
+
+  - 記録の確かめ: 決定 5453 がサイクルの開始、5454 が停止、claim は空、failed がサイクルの
+    unmet と同じ、所持金 15,000 超、財宝感知の巻物が足りない。
+  - 停止の盤面（ターン 2870501）を公開の choose_key で決め、出た鍵を本番の executor の口に流す。
+    town:blocked: で止まらないこと、その盤面の町の用事にサイクルの財宝感知
+    （fundraising-detection・mining-detection）があること。
+  - 宣言した復元: サイクルは記録の開始の盤面で本番の town_end_mining.start を
+    checkpoint の unmet と訪問の epoch で呼んで開く。訪問の出発の記録に記録の原因
+    （departure-unsatisfiable）を入れる。訪問の帳簿の店の訪問数・用事の試行数は停止の行の
+    departure_block.town_ledger。
+  - 宣言した組み立て: 知識の再要求（~f・~9）への答えは訪問の記録の技能と自宅の行。
+    鍵の後の executor の盤面は停止の盤面の10ゲームターン後。
+  - 復元していないもの: 訪問で閉じた店の道（記録の停止の行には生きた claim が無い）。
+    新しい方策は自分の自宅の用事を先に回るので、テストは停止そのものではなく、停止の盤面で
+    サイクルの準備の用事が立つことを固定している。
+  - フィクスチャ tests/fixtures/town-mining-dive-yield-1102.json.gz（20KB）、
+    抽出 tests/extract_town_mining_dive_yield_1102_fixture.py
+    （材料は C:\hengband-backups\pdca\captures\hourly-0600-1102\n1-a-life-464-…\incident-captures\ に
+    写したもの）。
+
+  差し戻しの確認（1回、src の2か所を一緒に戻す）:
+    test_the_cycle_plans_its_kit_instead_of_stopping が失敗（用事に財宝感知が無い:
+    deposit・black-market・ammo・equipment-catalog・stat-restore・space-deposit・
+    identification-withdrawal・identify-staff）。戻すと 2 件とも通る。
+  注意: 2か所目（:7065 の判定を飛ばす）は、この記録の盤面ではほかの用事が先に盤面を取るので、
+    単独では固定できていない（準備の物を買えない時に名前付きの停止になる道）。
+
+5. 検査
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+  - tests.test_town_mining_dive_yield_1102_recorded: Ran 2 tests、OK
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - 既存のテストの期待値は変えていない。テストの壁はない。裏の処理は残していない。git stash は使っていない。
+
+6. 保守性
+
+  - 「サイクルが開いているか」は town_end_mining.outstanding の1つの述語を使い回した
+    （既に _restock_time_pass_run と D2 の金の終わりが使っているもの）。新しい定数・特別扱いは無い。
+  - 金持ちの準備に用事を立てる理由は、fundraising_active の並びに1行と注釈で足した
+    （ほかの時間つぶしの採掘と同じ場所）。
+
+7. checks.json の案（編集していない）
+
+  {"id": "TOWN-END-MINING-KIT",
+   "defect": "2026-11-02 n1-a life-464 町の終わりの採掘のサイクルが準備の物を買わず、潜る出発の判定で departure-unsatisfiable",
+   "owner": "2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。」",
+   "tests": ["tests.test_town_mining_dive_yield_1102_recorded"]}
+
+8. オーナーへの問い
+
+  なし（承認済みの決まりの実装の漏れ）。
+  付記: この時は荷物の空きが4（最低5）で、店の選択に pack_refusal "full-pack-nonstacking" が
+  出ていた。財宝感知の巻物を新しい枠で買えなければ、直した後も town:blocked:unmet:<名前> の
+  名前付きで止まる見込み（設計どおり）。

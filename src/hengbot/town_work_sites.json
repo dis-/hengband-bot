@@ -3056,6 +3056,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._engagement_danger_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._entrance_travel_key": {
     "classification": "producer",
     "rows": [
@@ -3936,6 +3943,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._stuck_escape_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy.py:HengbotPolicy._summoner_ranged_kill_key": {
     "classification": "producer",
@@ -5733,6 +5747,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_home.py:HomeMixin._home_available": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._home_catalog_identification_source": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9077,6 +9098,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_end_mining.py:mining_set_open": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_end_mining.py:start": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "town_last_stand.py:key": {
     "classification": "producer",
     "rows": [
@@ -9454,6 +9489,13 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_terminal.py:town_end_stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "town_terminal.py:verdict_home_withdraw": {
     "classification": "data",

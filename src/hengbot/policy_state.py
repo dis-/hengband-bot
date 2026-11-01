@@ -211,6 +211,9 @@ def normalize_policy_state(restored, *, restart=False):
     # does not know why its target was chosen.
     restored.__dict__.setdefault("_target_dungeon_reason", None)
     restored.__dict__.setdefault("_alternate_dungeon_reason", None)
+    # The town end's mining cycle (town_end_mining) postdates version 5.
+    restored.__dict__.setdefault("_town_end_mining_cycle", None)
+    restored.__dict__.setdefault("_town_end_mining_path", None)
     if not restart and restored.__dict__.get("_policy_state_version") == 5:
         return restored
     retire_strip_calibration_state(restored)

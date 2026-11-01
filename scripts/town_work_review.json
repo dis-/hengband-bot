@@ -3132,6 +3132,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy.py:HengbotPolicy._stuck_escape_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "departure"
+    ],
+    "context": "No town key: its only callers run under _stuck_escape_permitted, which requires not snapshot.in_town.",
+    "evidence": "Extracted from the 7b stuck-escape branch of _choose_key (dig to known stairs, recall escape, teleport escape); both call sites (7b and the engagement-veto confinement before breakout:least-visited) are guarded by _stuck_escape_permitted. Children keep their own _town_producer_entry rows.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy.py:HengbotPolicy._stat_gain_quaff_key": {
     "classification": "producer",
     "rows": [
@@ -5229,6 +5240,17 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _home_available returns bool used as input/observation, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._home_catalog_identification_source": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _home_catalog_identification_source returns tuple[str, InventoryItem] | None (the carried source for one catalogued Home item, shared by the catalogued take binder and the Home catalogue claim) used as input/observation, not an independently selected game action",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -12284,7 +12306,7 @@
       "cross-town"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "owner decision 2026-11-02 「決まった終わり方だけにする」: the only town fallback when no owner answers; delegates the mining walk-in return, force_visit_departure (depart / drop non-minimum conditions and depart) or the named _town_blocked_key stop (town:blocked:survival:<leaf>).",
+    "evidence": "owner decision 2026-11-02 「決まった終わり方だけにする」: the only town fallback when no owner answers; delegates the mining walk-in return, force_visit_departure (depart when nothing is unmet / one town_end_mining cycle while a condition is unmet; owner 2026-11-02 「条件未達の出発は拒否する」) or the named _town_blocked_key stop (town:blocked:survival:<leaf> / town:blocked:unmet:<name>) when the cycle cannot leave.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12352,6 +12374,28 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Pure verdict over TownEndMaterial; returns a TownEnd tuple, never a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_end_mining.py:start": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "owner decision 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。」: opens one one-run mining set (_open_one_mining_run) and offers WAIT under fundraise:town-end-mining; reached only from force_visit_departure when a departure condition is unmet.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_terminal.py:town_end_stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure name of the town end's named stop (survival:<leaf> or unmet:<name>); no key, offer or state write.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

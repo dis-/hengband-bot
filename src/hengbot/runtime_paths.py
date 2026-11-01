@@ -32,6 +32,7 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_unseen_attack_path",
     "_town_visit_purchase_path",
     "_breeder_floor_record_path",
+    "_town_end_mining_path",
 )
 
 
