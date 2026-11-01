@@ -1,0 +1,72 @@
+LUNA-DIAG survival2-1101（#47、持ち主の答え 2026-11-01 21時の 1〜3、memory owner-answers-9-decisions-20261101）
+基点: main 64e63b6cf。2・3 は owner15-survival-1101 の名前（attack_expectation.melee_refused、
+me_ranged_first.melee_refused_key、unseen_strike.RETREAT_REASON など）の上に作る。
+
+持ち主の答え（逐語）:
+ 1「近づかずに避ける」（召喚の敵と同じ。遠隔で倒せるなら離れて撃つのは可。撤退できない時は今どおり倒す）
+ 2「近接できない時だけ使う」（弓・投擲）
+ 3「どちらも先に反撃」
+
+証拠（読み取りだけで写した。C:\hengband-backups\pdca\captures\survival2-1101\README.txt に元のファイル）:
+ - n1-c life-092（Lv12 ゾンビの魔道具術師、鉄獄14階、build 38cc744aa）の盤面 1064800-1065500 と判断の行
+ - n1-b life-287（Lv23 戦士、迷宮15階、build 04ad2c6d2）の盤面 929000-929200（判断の記録は消えている）
+ - n1-a life-459（Lv15 戦士、ランダムクエスト 49 の鉄獄6階）の盤面 374000-374200
+ - n1-c life-096（me-dual-wield-1101 の写し）: 判断の行だけ（盤面の state.jsonl は 03:2x の片付けで消えた範囲）
+ - c4-a life-014（Lv40 戦士、近接禁止の洞窟45階、2026-10-23 の死）: tests/fixtures/anti-melee-death-20261023.jsonl.gz
+
+======================================================================
+■ 1. 能力値を吸う動かない敵（赤いジェリーなど）
+ゲーム: 打撃の効果 LOSE_STR/INT/WIS/DEX/CON/CHR/ALL（info-reader/race-info-tokens-table.cpp:72-78）は
+ monster-attack-switcher.cpp:466-486 → do_dec_stat（status/base-status.cpp:209、維持があれば減らない）。
+ NEVER_MOVE は動かない（monster-floor/monster-move.cpp:430）が、隣のプレイヤーには打撃が届く。
+ MonraceDefinitions の NEVER_MOVE で能力値を吸う打撃を持つ種族は 15（80 放射能の目、108、131 レッド・ゼリー、
+ 202、397 キリス・ウンゴルの番人、1012 自縛霊 など）。
+
+記録 A: n1-c life-092、鉄獄14階（判断の行 bot-decisions.jsonl.5）
+ 4723 1065093 seek-loot '2'（レッド・ゼリー (16,86) が見える）
+ 4726 1065124 hunt '7' / 4727 1065135 hunt '7' / 4728 1065146 hunt '4' / 4729 1065156 hunt '1' → (15,87)（ゼリーの隣）
+ 4730-4737 1065165-1065232 ranged:magic-eater-device 'mBo1'（隣で撃つ）、4738-4741 'mBp1'
+ 「レッド・ゼリーに触られた。」「ひどく弱くなった気がする。」が8回、ゼリーは 1065268 に死ぬ。
+記録 B: n1-b life-287（戦士）、迷宮15階: 929114 で眠っているゼリー (6,43) が見え、記録の盤面の位置は
+ 929121 (6,44)（隣）→ 929134・929144 近接で2回吸われ、929149 に倒す。
+記録 C: n1-c life-096、鉄獄7階（判断の行だけ、bot-decisions.jsonl.1）
+ 2443 349046 seek-loot '6'（_normal_loot_key#2）→ (27,70)、ゼリーは (26,71)
+ 2444-2449 'mBp9' quest-strategy:ranged-fire:magic-eater（隣で撃つ）、2450 melee:choke '4'、2451 seek-loot '6' で隣へ戻る、
+ 2452-2463 も同じ。「ひどく弱くなった気がする。」12回（LUNA-DIAG-me-dual-wield2-1101.txt の3）。腕力 18/31 → 6。
+
+鎖（記録 A・B を今の main で choose_key に通すと同じ鍵を出す: 1065156 '1' hunt、929114 '4' hunt）:
+ 1. policy_combat.py:4443 _hunt_step: easy(m)（ゼリーは最大HPがプレイヤー以下・眠り）→ 4543 _nearest_goal_step で
+    「ゼリーの隣」へ向かう一歩。
+ 2. 歩きの索引から外れるのは immobile_threat_memory（D57、immobile_threat_memory.py:observe）の「1ターンで死ぬ」
+    動かない敵の周りだけ（_lethal、threat_prediction(turns=1, contact=True)）。ゼリーの打撃は致命的でないので
+    輪が無く、狩り・拾い（記録 C の seek-loot）・探索が隣のマスへ行く。
+ 3. 隣に立った後は戦いの段（policy.py:11501 の近接、me_ranged_first の隣の比べ、quest-strategy の撃ち）が隣で戦う。
+ 4. 動かない召喚の敵（_immobile_summoner_key、policy_combat.py:272）は can_summon の時だけで、ゼリーは対象外。
+根: 「近づかずに避ける」動かない敵の判定が「1ターンで死ぬ」だけで、能力値を吸う打撃を見ていない。
+直し: immobile_threat_memory の1つの表 STAT_DRAIN_BLOW_EFFECTS と述語で、能力値を吸う動かない敵の周りも
+ 歩きの索引から外す（狩り・拾い・探索・降り・逃げのどれも同じ索引）。既に輪の中に立っていれば、戦いの段より前
+ （_immobile_summoner_key の直後）に輪の外の一番近い空きマスへ一歩出る（step_out_key）。出口が鍵の階
+ （クエスト）では輪を作らないので今どおり戦う（記録 D: n1-a life-459 のクエスト 49 で隣の自縛霊と戦う）。
+ 遠くから撃つ処理（_ranged_attack_key 等）は変えない（「離れて撃つのは可」）。職業の分岐は無い。
+
+======================================================================
+■ 2. 魔道具術師以外の職業の、恐怖・近接禁止の時の隣の敵
+鎖（main）:
+ 1. policy_combat.py:1443 _ranged_attack_key: `if adjacent or not hostiles: return None`（「隣は近接の仕事」）。
+ 2. me_ranged_first.afraid_key（owner15 で melee_refused_key）→ attack_key → _strongest_adjacent_key: 魔道具術師
+    でなければ applies() が偽（me_ranged_first.py:49）、取り込んだ力も無いので候補なし → None。
+ 3. 恐怖: _should_flee → 逃げの段（policy.py:11352 付近）の歩き・待ち。近接禁止: 戦いの段の近接（policy.py:11501）
+    が _can_fight_in_dungeon で飛ばされ、2r（policy.py:11524-11530）の _ranged_attack_key が隣を断る。
+記録 E: c4-a life-014（戦士、高速度のロング・ボウ・矢99本、近接禁止の洞窟45階、隣に敵）: main の choose_key は
+ 8823126 '4' explore、8823394 '3' threat:avoid-engagement、8823592 '7' approach-descent（隣の敵に撃たない）。
+根: 近接が断られる時の遠隔の順に弓・投げ（_ranged_attack_key）が入っていない。
+直し: _ranged_attack_key は近接が断られる時（attack_expectation.melee_refused）だけ隣の敵を射つ・投げる。
+ me_ranged_first.melee_refused_key は魔道具術師の順の後に同じ _ranged_attack_key を聞く（近接の断りの入口は1つ）。
+ ふつうの隣の戦いは今どおり近接。
+
+======================================================================
+■ 3. 見えない敵の近接の手がかりで、return:explore と dark:backtrack も先に反撃
+owner15（答え1）で unseen:reverse-choke と unseen-recall:move は unseen_strike.key を先に聞くようになったが、
+ 帰還の巻物の無い町への帰り道（policy_town.py:8321 return:explore）と明かりの無い歩き
+ （policy_navigation.py:392 dark:backtrack）は聞かない（owner15 の報告の問い2）。
+ （盤面と鎖の行番号は owner15 を取り込んだ後に追記する。）
