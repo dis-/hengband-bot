@@ -84,6 +84,7 @@ DARK = "dark"
 REST = "rest"
 SECRET_SEARCH = "secret-search"
 TRAP = "trap"            # asked with the trap the bot would disarm
+MAP_AREA = "map-area"    # the effect whose area mapped_area reads
 
 DETECT_RAD = 30          # spell/spells-util.h DETECT_RAD_DEFAULT / DETECT_RAD_MAP
 LITE_RADIUS = 2          # cmd-usestaff.cpp lite_area(..., 2)
@@ -148,7 +149,7 @@ POWERS = (
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
-          "map-area", DETECT_RAD, 30, ("new-floor", "stairs-needed-and-unknown"),
+          MAP_AREA, DETECT_RAD, 30, ("new-floor", "stairs-needed-and-unknown"),
           fallback=("staff", SV_STAFF_DETECT_DOOR), beside_harmless=True),
     Power("staff", SV_STAFF_DETECT_DOOR, POWER_NAMES[SV_STAFF_DETECT_DOOR],
           "detect-doors-stairs", DETECT_RAD, 40, ("before-secret-search",)),
@@ -213,8 +214,12 @@ class Context:
         info = getattr(self.policy, "_dungeon_knowledge", {}).get(self.snapshot.floor_key[0])
         return None if info is None else "DARKNESS" in info.flags
 
-    def radius(self, power: Power) -> int:
-        if power.darkness_scaled and self.darkness():
+    def radius(self, power: Power, *, unknown_is_dark: bool = False) -> int:
+        """The power's radius here; ``unknown_is_dark`` takes the DARKNESS third
+        when the dungeon is not in the knowledge (the smaller area is the safe
+        reading of what a cast covered)."""
+        darkness = self.darkness()
+        if power.darkness_scaled and (darkness or (unknown_is_dark and darkness is None)):
             return power.radius // 3
         return power.radius
 
@@ -511,6 +516,18 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None) -
                                  reason, key, target)
             return key
     return None
+
+
+def mapped_areas(policy, snapshot) -> tuple:
+    """(centre, radius) of every map-area this floor visit cast (the
+    mapped_area module's source; a failed or refused cast is not a use)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return ()
+    ctx = Context(policy, snapshot, FLOOR, memory)
+    return tuple(
+        (use.position, ctx.radius(BY_KEY[use.used], unknown_is_dark=True))
+        for use in memory.uses if BY_KEY[use.used].effect == MAP_AREA)
 
 
 def decision_reason(policy, key) -> str | None:

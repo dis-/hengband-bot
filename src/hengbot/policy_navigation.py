@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dark_recall, me_powers
+from hengbot import dark_recall, mapped_area, me_powers
 from hengbot.claim_goal_typing import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1182,6 +1182,13 @@ class NavigationMixin:
         rubble = remembered_rubble - blocked_rubble
         known = set(remembered_known)
         marked = set(remembered_marked)
+        # Owner 2026-11-01 「部屋だけ見て回る」: the blank corridor of a magic
+        # mapping is walkable and explored, and so is every grid of the
+        # mapped area already seen; an unseen room stays unexplored.
+        area = mapped_area.refresh(self, snapshot, remembered_known, remembered_floor)
+        if area is not None:
+            floor |= area.walkable(remembered_known, self._blocked_unknown)
+            marked |= area.explored(remembered_known)
         for pos, grid in snapshot.grids.items():
             if not grid.has_monster:
                 continue
@@ -1369,9 +1376,10 @@ class NavigationMixin:
                 self.last_reason = "seek-downstairs"
                 self._declare_reach(target)
                 return first
-            grid = snapshot.grids.get(pos)
-            if pos != origin and grid is not None:
-                if self._is_frontier(snapshot, grid):
+            # A magic mapping's blank corridor is not on the board: the
+            # remembered test reads it (and is the board test elsewhere).
+            if pos != origin:
+                if self._is_remembered_frontier(snapshot, pos):
                     visits = self._visit_counts[pos]
                     target_distance = pos.distance_to(target)
                     score = (
@@ -1724,10 +1732,13 @@ class NavigationMixin:
                 # light boundary. Sweep every remembered passable tile at least
                 # once before declaring that only frontier/secret-door work is
                 # left.
+                # Inside a magic mapping every walkable grid is either mapped
+                # corridor or already seen: none is owed a visit.
                 if (
                     self._visit_counts[pos] == 0
                     and (pos.y, pos.x) in self._floor_t
                     and pos not in self._unenterable_explore_goals
+                    and not mapped_area.covers(self, (pos.y, pos.x))
                 ):
                     goal = pos
                     break

@@ -13647,5 +13647,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "owner 2026-11-01 「街での移動は可能な限りトラベルコマンドを活用して」: the one 'may this move use travel' rule (light, the smallest key queue), delegating to policy._town_travel_key, which offers route:<kind> work bounded by TownTravelProgress; returns None where the caller walks."
+  },
+  "mapped_area.py:current": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure lookup: the policy's MappedArea of this floor visit (getattr default None); refresh sets None on the surface, in town and on quest floors, so town walks see no mapped area.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

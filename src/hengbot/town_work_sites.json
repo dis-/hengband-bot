@@ -1800,6 +1800,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "005d0eab5e18d6f04fd51714a18d1e6ac89d2eddea58414cb7bfd4ffad4a1037"
   },
+  "mapped_area.py:current": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "84c19c1708cfd80468fa714c43dd76334a4d17c8ffc5f6e8bc96610531e4bcb2"
+  },
   "me_absorbed_substitutes.py:carry_cast_key": {
     "classification": "data",
     "rows": [
@@ -6858,7 +6866,7 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "edcb63370a533a8471073cbd07075a44758964115893c8396f3017d393e25732"
+    "ast_sha256": "ab65664ae842985743085fac49a7fc1e38283519381ec60bc7e407432b473581"
   },
   "policy_navigation.py:NavigationMixin._disengage_move_or_escalate": {
     "classification": "producer",
@@ -6914,7 +6922,7 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "4eca6189d4da39bb323cb0ed61729ff7617dd449f3c7018dfd151adfdaa79835"
+    "ast_sha256": "145c27cad199dec88526f6498a2d07c94521cc210a1a2319e59e64c9ead2d2e1"
   },
   "policy_navigation.py:NavigationMixin._remember_stair_command": {
     "classification": "adapter",
