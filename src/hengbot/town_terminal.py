@@ -32,6 +32,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
+from hengbot.town_quest_reward import report_waits_for_room
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -2095,6 +2096,9 @@ def terminal_admission(policy: Any, board: Any, terminal: TerminalRef) -> Admiss
         slots = max(1, here.object_count) if here is not None else 1
         if not permits(board, slots):
             admission = refused(("free_pack_slots_ready",))
+    if (admission.admitted and terminal.terminal_id == "quest-claim"
+            and report_waits_for_room(board, terminal.args[0])):
+        admission = refused(("free_pack_slots_ready",))
     if admission.admitted and terminal.terminal_id == "quest-entry":
         quest_id = terminal.args[0]
         info = policy._quest_knowledge.get(quest_id)

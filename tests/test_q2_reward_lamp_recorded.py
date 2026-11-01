@@ -27,7 +27,9 @@ from pathlib import Path
 
 from hengbot import me_staff_sequence
 from hengbot.baseitem_knowledge import load_baseitem_costs
-from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
+from hengbot.cli import (
+    PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain, _transport_key,
+)
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.model import Position, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -94,7 +96,8 @@ class Q2RewardLampRecordedTest(executor_harness.ProductionHarness):
             posting_contract=PostingContract(), in_store=False)
         self.assertTrue(sent, getattr(port.last_result, "reason", None))
         self.assertEqual(port.last_result.outcome, "completed")
-        self.assertEqual(game.accepted, [key])
+        # A native travel key is posted as its tunnel macro trigger (cli.TRAVEL_MACRO_TRIGGERS).
+        self.assertEqual(game.accepted, [_transport_key(key, True)])
 
     def decide(self, policy, raw):
         return str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), self.monrace)))
