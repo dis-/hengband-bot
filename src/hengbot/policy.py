@@ -17499,7 +17499,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
 
     def _position_target_step(
-        self, snapshot: Snapshot, target: Position
+        self, snapshot: Snapshot, target: Position,
+        *, through: frozenset[tuple[int, int]] = frozenset(),
     ) -> Position | None:
         start = snapshot.player.position
         seen = {start}
@@ -17508,7 +17509,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             pos, first_step = queue.popleft()
             if pos == target:
                 return first_step
-            for neighbor in self._walkable_neighbors(snapshot, pos):
+            for neighbor in self._walkable_neighbors(snapshot, pos, through=through):
                 if neighbor in seen or neighbor in self._engagement_avoid_cells:
                     continue
                 seen.add(neighbor)
@@ -20163,8 +20164,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         *,
         allow_damaging: bool | None = None,
         goal: Callable[[GridState], bool] | None = None,
+        through: frozenset[tuple[int, int]] = frozenset(),
     ) -> list[Position]:
-        floor = self._floor_t
+        floor = self._floor_t | through if through else self._floor_t
         door = self._door_t
         rubble = self._rubble_t
         y = pos.y

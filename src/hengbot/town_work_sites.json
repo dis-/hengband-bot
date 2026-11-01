@@ -6172,6 +6172,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_identification.py:IdentificationMixin._loot_route_hostile_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_identification.py:IdentificationMixin._loot_step": {
     "classification": "data",
     "rows": [
