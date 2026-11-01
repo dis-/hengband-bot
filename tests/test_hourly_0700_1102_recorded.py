@@ -19,11 +19,15 @@ from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _dispatch_response_lines,
     _make_jsonl_barrier_drain, _report_state_stream_rollover, _send_new_decision_key,
 )
+from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
+from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
+from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
-from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
+from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO, STORE_HOME
+from hengbot.policy_types import TownErrandPlan
 from tests import test_input_executor as executor_pins
 from test_esp_threat_rest_recorded import EDIT, _policy
 
@@ -110,6 +114,60 @@ class StateStreamRolloverHomeListTest(RecordedTownPolicy):
         # Recorded: '' home-errand:await-fresh-knowledge (no-key-exhausted).
         self.assertEqual((key, policy.last_reason),
                          (HOME_KNOWLEDGE_MACRO, "home-errand:request-knowledge:identification"))
+
+
+class EquipmentDepositAfterIdentificationWithdrawalTest(RecordedTownPolicy):
+    """n1-c life-103 06:41:31 equipment-transaction:home-route-repeat-terminal.
+
+    The identification-catalog withdrawal (1880, ``5pi<ESC>``) took the
+    unknown chain mail from Home; identified, the equipment plan deposits it
+    back.  Its stop was already Home, so the equipment owner kept the town
+    plan whose only Home need was the finished identification-withdrawal,
+    and _shopping_approach_step refused that stop while no Home errand was
+    filed: home-route-unavailable, abandon-blocked, repeat-terminal.  The
+    same plan stands in all five home-route-repeat-terminal stops of
+    2026-11-01/02.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.case = _cases()["home-route"]
+
+    def test_equipment_deposit_routes_home_past_the_spent_identification_stop(self):
+        decision, raw = self.case["decision"], self.case["board"]
+        self.assertEqual((decision["decision_sequence"], decision["key"], decision["reason"]),
+                         (1885, "5", "equipment-transaction:home-route-unavailable"))
+        self.assertEqual(self.case["withdrawal"]["reason"],
+                         "home-errand:atomic-withdraw:identification-catalog")
+        # DECLARED RECONSTRUCTED: the last Home list (turn 1808157) less the
+        # chain mail the recorded withdrawal took (now in the pack).
+        home = [item for item in self.case["home"]["knowledge"]["items"]
+                if (item["tval"], item["sval"]) != (37, 4)]
+        policy = self.primed(raw, home, self.case["skill"])
+        board = self.board(policy, raw)
+        action = decision["transaction_next"]
+        item = next(item for item in board.inventory
+                    if f"pack:{equipment_identity(item)}:0" == action["item_id"])
+        # DECLARED RECONSTRUCTED: the session and plan the decision row and
+        # policy-state record (one deposit; Home stop for identification).
+        policy._equipment_transaction_session = EquipmentTransactionSession(
+            EquipmentTransactionPlan((EquipmentTransaction(
+                **action, item_identity=equipment_identity(item),
+                move_identity=equipment_move_identity(item)),), (), len(board.inventory)))
+        plan = self.case["town_errand_plan"]
+        policy._town_errand_plan = TownErrandPlan(
+            [int(stop) for stop in plan["stops"]],
+            need_categories={int(k): tuple(v) for k, v in plan["need_categories"].items()},
+            completed_this_visit=list(plan["completed_this_visit"]),
+            requester_families={int(k): frozenset(v)
+                                for k, v in plan["requester_families"].items()})
+        self.assertFalse(policy._home_errand.active)
+
+        key = policy._equipment_transaction_town_key(board)
+        # Recorded: '5' equipment-transaction:home-route-unavailable.
+        self.assertEqual(policy.last_reason, "equipment-transaction:approach-home")
+        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+        self.assertEqual(key, "1")  # (44,124) -> the Home entrance (45,123)
 
 
 class EspThreatRecallDepthQuestionTest(executor_pins.ProductionHarness):
