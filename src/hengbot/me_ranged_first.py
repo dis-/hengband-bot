@@ -169,6 +169,13 @@ def _aim(snapshot, target) -> str:
                            max(-1, min(1, cell.x - origin.x)))]
 
 
+def best_expected(policy, snapshot, target) -> float:
+    """The larger expected damage per action this chooser would deal beside ``target``."""
+    options = _adjacent_options(policy, snapshot, target, _aim(snapshot, target))
+    return max([score for score, _send in options]
+               + [attack_expectation.melee(policy, snapshot, target)])
+
+
 def attack_key(policy, snapshot, target) -> str | None:
     """The ranged answer to ``target`` (adjacent or ray-aligned), else None."""
     origin, cell = snapshot.player.position, target.position

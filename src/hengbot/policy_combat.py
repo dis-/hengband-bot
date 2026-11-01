@@ -1642,9 +1642,14 @@ class CombatMixin:
                 return candidate
         return None
     def _engagement_is_winnable(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
+        self, snapshot: Snapshot, hostiles: list[MonsterState],
+        damage_against=None,
     ) -> bool:
-        """Whether the visible engagement can be cleared before HP runs out."""
+        """Whether the visible engagement can be cleared before HP runs out.
+
+        ``damage_against`` (monster -> expected damage per action) adds an
+        attack the caller would use beside that monster (me_powers'
+        Teleport Away trigger passes me_ranged_first.best_expected)."""
         weapon = next(
             (
                 item for item in snapshot.equipment
@@ -1664,6 +1669,8 @@ class CombatMixin:
             damage = melee_damage
             if self._summoner_ranged_attack_available(snapshot, monster):
                 damage = max(damage, ranged_damage)
+            if damage_against is not None:
+                damage = max(damage, damage_against(monster))
             if damage <= 0:
                 return False
             turns_to_clear += max(1, ceil(monster.hp / damage))

@@ -2106,7 +2106,7 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "c52a4536c7f201b69ab8f2a9cc1a669419344d382684eb8189d94c00cff6bd55"
+    "ast_sha256": "ef95d678032f7179b64ca371b042e095b51d308933b6c93f67a5e43956c315e2"
   },
   "me_powers.py:recorded_charges": {
     "classification": "data",
@@ -2115,6 +2115,14 @@
     ],
     "delegation": "selected child; no independent success",
     "ast_sha256": "3f4dee32510dec44c09fe2f01a52b3e4b107e39691be4b528143e8f6059fa26f"
+  },
+  "me_powers.py:threat_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "ast_sha256": "bdc13fd7071d52de905cade2f5b6dfd4ba812dc523a3e562b25d1f7a39d772fa"
   },
   "me_powers_refresh.py:periodic_magic_eater_powers_key": {
     "classification": "producer",
@@ -3138,7 +3146,7 @@
       "bookkeeping"
     ],
     "delegation": "selected child; no independent success",
-    "ast_sha256": "d0dd9ca6d9815b156b228bdee4b5ae4735099b6b1e3a8cc8878436ee1611c75d"
+    "ast_sha256": "878af4cd624f1a9c46df254a0efc064171d40873f41996471ba6f2369d2cef4b"
   },
   "policy.py:HengbotPolicy._decision_offer_buffer": {
     "classification": "data",
