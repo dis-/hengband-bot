@@ -1,0 +1,11 @@
+{
+ "main": "dcda77b1a",
+ "branch": "manifest-tax-1101 after merging dcda77b1a",
+ "tests_run": 538,
+ "failures": 0,
+ "errors": 1,
+ "error_note": "tests.test_d57_nav_depth_1101_recorded is listed in checks.json but not yet on main (both trees)",
+ "decisions": 3015,
+ "receipts": 5826,
+ "differing_decisions": 0
+}
