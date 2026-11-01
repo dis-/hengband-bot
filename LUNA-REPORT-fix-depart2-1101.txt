@@ -1,0 +1,139 @@
+LUNA-REPORT fix-depart2-1101 (#47 D59) — 2026-11-01
+
+依頼: 観戦の魔道具術師 n1-c life-092（Lv21〜22、build bot-394c491c7。D54 の直し fe2bc54e3 を含む）が
+13:47:59 と 13:54:41 の town:blocked:departure-unsatisfiable で引退した件の根を直す。13:18:56 の
+stuck-prompt:quest-strategy:ranged-fire:magic-eater（restart）も調べる。詳しい連鎖は
+LUNA-DIAG-fix-depart2-1101.txt。
+ブランチ: fix-depart2-1101（main b51bcda79 から。最後に main dcda77b1a を取り込んだ d16990c42）。
+push・main への取り込みはしていない。証拠は観戦サーバから読み取りだけで
+C:\hengband-backups\pdca\captures\fix-depart2-1101\n1-c\life-092\ に写した。
+
+== 結論（停止ごと） ==
+1. 13:47:59（decision 13470）: 最後の departure_block（13455）.failed =
+   ["equipment_departure_ready", "home_catalog_ready"]。13470 は 13455 の終端が残した掛け金の発火。
+2. 13:54:41（decision 3061）: departure_block.failed = ["equipment_departure_ready"]。
+   どちらも終端の後の強制出発（force_visit_departure、「止めないを既定に」）が hard_stop になり、
+   その最低条件が identify_staff_ready だけで失敗していた（keep-running-events.jsonl、19F 着地）。
+   → 根1（2 件に共通）: 最低条件が「取り込んだ鑑定の杖（21 回）」を数えず、持っている杖の 20 回を
+     要求した。ふつうの出発条件は取り込みを数える（持ち主 10-30「以降、鑑定と財宝感知は取り込みで
+     賄う」）。D54 の形ではない新しい根。直した。
+   装備が出発できない状態になった根（どちらも D54 の形ではない新しい根。直した）:
+   → 根2（13:47）: 自宅の 4 着の山から 1 着取ったクロークを、自宅の中の equip が数込みの identity
+     だけで探して見つけられなかった（equip-item-missing）。預ける側と町の equip は move identity も
+     見ていた。
+   → 根3（13:54）: 取引が預けようとしていたトライデントにランダムテレポート抑止の '.' が刻まれ、
+     名前が変わって自宅で見つからなかった（deposit-missing）→ 訪問の閉じで equipment_departure_ready
+     が訪問の終わりまで false。
+3. 13:18:56 restart: 魔法棒の使用が失敗し（方向を聞かない）、同じゲームターンに帰還が発動して町が
+   描かれ、失敗のメッセージが画面に無かった。executor は方向を待つ段でコマンド画面を「持ち主の無い
+   問い」として止めた。
+   → 根4: 同じ life の 11:55（失敗の後に敵のメッセージが続いて押し出された）と 13:08（帰還）も同じ形。
+     直近 24 時間の n1-c で stuck-prompt:quest-strategy:ranged-fire:magic-eater は 12 回、
+     stuck-prompt:ranged:magic-eater-device は 2 回（確かめたのは life-092 の 3 回）。直した。
+
+== 直し（コミット、1 つの根に 1 つ） ==
+- 37cb7c523 診断（LUNA-DIAG-fix-depart2-1101.txt）。
+- 9e0ced187「Count the absorbed Identify staff in the forced departure's minimum」（根1）
+  policy_supply.py に _identify_staff_absorbed（取り込みが鑑定の杖の代わりになる、の 1 つの述語）。
+  _identify_staff_ready と policy_town.py の _departure_minimum の identify_staff_ready がこれを読む。
+- 52c22e40a「Wear an item taken from a Home stack under its move identity」（根2）
+  equipment_transaction_session.py に planned_item（予定の品を identity か move identity で探す）。
+  policy_equipment.py の 3 か所（自宅の equip・預ける・町の equip）がこれを読む。
+- dc3ff4126「Keep the move identity across the player's inscription」（根3）
+  equipment_optimizer.py の equipment_move_identity が表示名からプレイヤーの銘を除いて数える
+  （_without_player_inscription。flavor-describer.cpp describe_inscription: 銘は閉じ括弧の塊の最後の
+  部分。'#' 以降は表示されない、'%' の銘は展開されるので除かない）。equipment_identity（目録の id・
+  失敗の記録・保存された記録）は変えていない。
+- 1c1b23244「End a Magic-Eater use at a command screen that asked no direction」（根4）
+  magic_eater_input.py に aim_never_asked。方向を待つ段でコマンド画面に戻ったら使用の失敗として
+  終える（cmd-magiceat.cpp:521-533）。me_device_attacks_input.py も同じ述語を読む。
+- d16990c42 main dcda77b1a の取り込み（town_work_review.json の衝突は両方の項目を残し、manifest は
+  --write で作り直した）。
+- 各コミットで scripts/town_work_manifest.py --write（zero unmapped）。review に 2 件
+  （planned_item、_without_player_inscription）を足し、equipment_move_identity の説明を更新した。
+
+== テスト（tests.test_depart2_1101_recorded、10 件） ==
+fixture tests/fixtures/depart2-1101.json.gz、抽出 tests/extract_depart2_1101_fixture.py（停止ごとに
+町の盤面・訪問中の店のページと知識・名前付きの盤面・判断の行・policy-state の staff 記録と失敗の品・
+keep-running の記録。13:18 は最後の 2 盤面・止まった画面・stuck の行）。
+tests/test_unid_deposit_recorded.py の枠（prime、本番の応答処理、公開 choose_key、本番 executor）を使う。
+- ForcedDepartureAbsorbedIdentifyRecordedTest
+  - test_recorded_stops: 2 件の終端・hard_stop・minimum.failed ["identify_staff_ready"]・19F・取り込み 21 回・
+    袋に鑑定の杖なし、13:47 の掛け金と 13455 の failed を固定。
+  - test_latched_stop_departs_on_the_absorbed_identify_staff: 13:47 の停止盤面（掛け金と直前の自宅の
+    盤面を DECLARED RECONSTRUCTED）で choose_key が終端にならず強制出発が決まり、本番 executor を
+    通して進み、帰還の巻物を読む（town:repetition-depart:recall）。
+- TridentStopMinimumRecordedTest.test_forced_departure_minimum_holds: 13:54 の停止盤面で CLI と同じ
+  公開の force_visit_departure が出発の鍵を返す。
+- PartialStackEquipRecordedTest（13428 の自宅の盤面、取引は transaction_next から DECLARED RECONSTRUCTED）
+  - test_recorded_take、test_taken_cloak_is_worn_in_home（'wh' equipment-transaction:equip、executor）。
+- InscribedDepositRecordedTest（3044 の自宅の盤面、取引は 3026〜3043 の transaction_next から）
+  - test_recorded_inscription、test_inscribed_trident_is_deposited（'dm' equipment-transaction:deposit、
+    訪問の閉じなし、executor）。
+- FailedUseRecallRecordedTest（test_recorded_stuck_prompt、test_town_command_screen_ends_the_failed_use:
+  'mBp6' の後に記録の町の画面 → SENT、送ったのは m B p、business_outcome failed:magic-eater）。
+- FailedDeviceUseRecallTest.test_town_command_screen_ends_the_failed_rod_use（me_device_attacks_input の
+  側。test_me_device_attacks の炎の矢のロッドの盤面と記録の町の画面）。
+戻して確かめた（git diff で patch を保存 → git checkout → 実行 → git apply。stash は使っていない）:
+  根1 を戻す: test_latched_stop_... が FAIL（'town:blocked:departure-unsatisfiable'、鍵 '9'、hard_stop =
+    記録と同じ）、test_forced_departure_minimum_holds が FAIL（None）。
+  根2 を戻す: test_taken_cloak_is_worn_in_home が FAIL（('\x1b', 'policy:none-store-exit') = 記録の 13428）。
+  根3 を戻す: test_inscribed_trident_is_deposited が FAIL（('\x1b', 'equipment-transaction:deposit-missing')
+    = 記録の 3044）。
+  根4 を戻す: 2 件が FAIL（TERMINAL「<stuck-prompt> owner=quest-strategy:ranged-fire:magic-eater
+    phase=magic-eater … reason=unowned Magic-Eater aim prompt」= 13:18 の記録の行、
+    owner=ranged:magic-eater-device = 11:55・13:08 の記録の owner）。
+  戻した後: すべて OK。テストの壁はない。
+
+== 検査 ==
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok（取り込み後）
+- checks.json の検査（94 個の指定。この worktree に無い tests.test_d57_nav_depth_1101_recorded は除いた）:
+  3 つに分けて 537 件すべて OK（221 件 603 秒・163 件 688 秒・153 件 561 秒、main 取り込み後の d16990c42）。
+- 関係する既存のテストと自分のテスト（14 モジュール: test_depart2_1101_recorded、
+  test_equipment_transaction_session、test_equipment_homefull_step15a、test_equipment_swap_loop_incident、
+  test_item_reservation、test_keep_running_a0、test_town_terminal_departure、test_magic_eater_o3、
+  test_me_device_attacks、test_policy_equipment、test_policy_home、test_equipment_deposit_owner_recorded、
+  test_equipment_home_entry_cycle_recorded、test_home_full_relief_recorded）: 516 件中 failures 14・errors 1（skipped 4）。
+  失敗した 15 件（test_equipment_swap_loop_incident の店の probe 7 件、test_keep_running_a0 1 件、
+  test_policy_equipment 3 件、test_policy_home 4 件）は main dcda77b1a の src（git archive）でも同じく失敗する
+  （main ではさらに test_policy_home の 1 件が error）。本ブランチの変更で生じたものではない。
+  test_depart2_1101_recorded の 10 件は OK。
+- 全体テスト・preflight・mutation_check・fast_tier は流していない。
+
+== checks.json に足す案（編集はしていない） ==
+  {"id": "D59", "defect": "D59",
+   "owner": "2026-11-01 「直近24hの停止原因を集計して修正されていないものに着手」・10-30「以降、鑑定と財宝感知は取り込みで賄う」・10-14「止めないを既定に」",
+   "tests": ["tests.test_depart2_1101_recorded"]}
+
+== 持ち主への問い ==
+Q1（根3 の後に残る、訪問の閉じ）: 自宅の取引が訪問のうちに閉じた時（deposit-missing・retain-reserved）、
+  _prepare_equipment_optimization が None を返すので equipment_departure_ready が訪問の終わりまで false に
+  なり、ふつうの出発ができません（強制出発の最低条件だけで出ます）。どうしますか。
+  (A) 10-03 の決まり（失敗した任意の装備の取引は、確かめた今の装備で出発する）を閉じた取引にも当てる:
+      閉じた訪問では準備を「取引失敗」として返し、ふつうの出発条件で出られるようにする（推奨）。
+  (B) 今のまま（閉じた訪問はふつうの出発をしない。強制出発で出る）。
+  記録の道筋は根3 で閉じが起きなくなり、根1 で強制出発もできるので、本ブランチでは手を付けていません。
+
+== 残っていること ==
+- 13455 の終端を町の進捗の不変条件（policy_town.py:2071）が進む手（~9 の読み直し）に置き換えた時、
+  終端の掛け金 _town_blocked_reason が残り、次に自宅を出た盤面（policy.py:10770 の店の文脈の分岐）で
+  発火した。根1 を直すと記録の道筋では 13455 で出発が決まるので現れない。置き換えた時に掛け金を外す
+  直しの候補（不変条件が「進む手がある」と示した終端は前提が崩れている）。
+- 根4 の 12 回のうち確かめたのは life-092 の 3 回だけ（ほかの life の記録は ring が古い）。
+- 魔道具術師の procurement_requirements の表示は「Identify staff charges 0/20」のまま（判断には使って
+  いない表示。ふつうの条件は取り込みを数える）。
+
+== 保守性 ==
+- 新しい判断は持ち主のモジュールの 1 つの述語に置いた: 「取り込みが鑑定の杖の代わりになる」は
+  policy_supply.py の _identify_staff_absorbed（それまで _identify_staff_ready の中にあった条件を
+  取り出した。ふつうの条件と強制出発の最低条件が同じものを読み、2 つが食い違うことがなくなった）。
+  「予定の品を探す」は取引の持ち主 equipment_transaction_session.py の planned_item（policy_equipment.py
+  で 3 回書かれていた探し方、うち 1 つだけ move identity を見ない食い違いを 1 つにした。policy_equipment.py は 23 行減）。
+  「プレイヤーの銘を除いた名前」は品の同一性を決める equipment_optimizer.py の
+  _without_player_inscription（ゲームの describe_inscription の形を 1 か所に書いた）。
+  「方向を聞かれずにコマンドへ戻った」は magic_eater_input.py の aim_never_asked（2 つの executor が
+  同じ述語を読む）。
+- 共通の判断に場面の特例（クエスト番号・品の tval/sval・店や町の名前・職業）を書いていない。魔道具術師は
+  既存の取り込みの記録（me_staff_sequence.absorbed）と取り込みの代わり（me_absorbed_substitutes）で扱う。
+- テストは既存の枠（test_unid_deposit_recorded の停止盤面の枠、test_magic_eater_o3 の run_follow、
+  test_me_device_attacks の盤面）を使い、新しい枠は作っていない。関係のない整理はしていない。
