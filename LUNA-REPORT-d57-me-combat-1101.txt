@@ -1,0 +1,131 @@
+LUNA-REPORT-d57-me-combat-1101.txt  (D57 の続き / #47、ブランチ d57-me-combat-1101、main fe2bc54e3 から、main b51bcda79 を取り込み済み)
+
+オーナー（2026-11-01、memory d57-survival-answers-decision-20261101）の答え (a)(b)(c) を実装した。
+診断: LUNA-DIAG-d57-me-combat-1101.txt（各件の鎖と記録の判断の行）。観戦サーバーは読んだだけ。
+
+■ 直し（1つの根に1コミット）
+コミット b31bd938b「Weigh the adjacent attack by its expected damage per action」  (c)
+  - 隣の敵には、取り込みの攻撃・マジック・ミサイル・持っている攻撃の魔法棒・予備の松明・近接のうち、
+    1回の行動あたりの見込みのダメージが大きいものを使う。近接が厳密に大きい時は None（呼び元の近接）。
+    同点は今の順（遠隔が先）。隣でない敵は今の固定の順のまま。
+  - 置き場所: me_ranged_first.py:153 _strongest_adjacent_key（:129 _adjacent_options が候補と見込み、
+    :179 attack_key が隣か否かで振り分け、:108 _first_key が今の順）。呼び元は1つも変えていない
+    （今 attack_key を呼ぶ戦いの段・緊急の段・町の最後の抵抗・Q1 の開幕の全部が同じ選び方を使う）。
+  - 見込みの計算は新しいモジュール attack_expectation.py（ゲームのソースの式）:
+    :76 melee（_main_hand_dps + _sub_hand_dps を相手の AC で。オーラ AURA_FIRE/COLD/ELEC と怖がりは 0、:45）、
+    :109 torch_throw（1d6、火炎2.5倍/HURT_FIRE 5倍/アンデッド5倍、TR_THROW の4倍、test_hit_fire の命中）、
+    :134 carried_wand（:124 device_use_success＝zapwand-execution.cpp の使用の成功率）。
+    取り込みの攻撃は me_device_attacks の点数（:274 scored、:296 strongest、:290 device_key、:262 optimistic_score）。
+  - policy_equipment.py:3401/:3425 の手ごとの DPS に ac の引数を足した（既定は今の AC_REFERENCE）。
+  - 記録の盤面での結果: life-085 のゼリーは近接 2.1（打撃修正 -10/-14 で命中 5% の床）＜ミサイル 10.5 で
+    記録どおりミサイル。life-077（D55）の見習戦士は松明 22.2 ＞ミサイル 7.0 で松明を投げる（D55 の版はミサイル）。
+コミット 863aa12db「Send an unbeatable hostile in range away with the absorbed Teleport Away」  (b)
+  - me_powers.py:186/:189 にロッド13・魔法棒3の テレポート・アウェイ の行（優先度 70/71、照準あり、against_hostile）、
+    :397 引き金 unbeatable-in-range（THREAT の場面）、:391 確実に抵抗する種族（RES_TELE かつ UNIQUE/RES_ALL）は除く、
+    :572 threat_key が見えている敵を近い順に尋ねる。policy.py:10949 で緊急の消耗品の段の直前に1回呼ぶ。
+  - 「勝てない」は _engagement_is_winnable（policy_combat.py:1644、引数 damage_against を足した:1672）に
+    me_ranged_first.best_expected（:172、隣でこの敵に与える見込み）を足して判定（→ 問い1）。
+  - me_powers.py:491 _hostiles_allow: against_hostile の行は「敵が見えている・殴られた」の共通の決まりの
+    対象外（_gate から殴られた判定を移した。他の行の振る舞いは同じ）。引き金の判定の前に回数を確かめる順にした。
+  - 記録の盤面での結果: life-083 の 1190789（HP 118、ブラウン・キラービートル 104 hp が西隣、記録は 'mBp4'→
+    '4' の後に混乱して死亡）は 'mBd4' me-power:unbeatable-in-range:teleport-away。
+コミット d1feeb027「Fight through a blindness that returns right after its cure」  (a)
+  - status_cure.py:36 observe: 盲目の治療を選んだ次の盤面に「やっと目が見えるようになった。」と盲目が両方あれば、
+    その盲目を見えるようになるか階を変えるまで覚える。:50 cure_futile（覚えている隣の敵がある時だけ真）、
+    :67 treats（一般の段と緊急の段 policy_combat.py:2304 が同じ判定を使う）、:57 fight_through_key を
+    _emergency_item の治療の直後（policy_combat.py:2459）で呼び、blind_strike.strike_key で覚えているマスを攻撃。
+    HP が低HPの閾値未満なら生存の段に任せる（体力回復・テレポート・その段の盲目の攻撃）。覚えている敵が無ければ
+    今のまま治す。致命傷の治癒は今も HP の回復に数えない（HEAL_POTION_SVALS は変えていない）。
+  - policy_observation.py:1058 で observe を呼ぶ。
+  - 記録の盤面での結果: life-084 の 1287818・1287827・1287840・1287848（記録はどれも 'qc'）は '+6'
+    blind:fight-through（充血アイのマス）。1287788 と 1287806（1行動見えた後の盲目）は今のまま 'qc'。
+コミット 91c98c723「Keep the town ball cases on the blast rule under the adjacent chooser」
+  - (c) の結果、既存の町の玉の検査の盤面で松明（や近接）が玉より大きくなったので、玉の決まりを見る検査の入力から
+    松明を外し、持っている玉の魔法棒の場合は表示の魔道具スキルを 99 にした（DECLARED CONSTRUCTED と明記）。
+    （このコミットだけ (c) の後に分かれた。(c) のコミットの上では test_town_ball_friendly_recorded が3件落ちる。）
+e7130d46a は main（life085-passive・me-dual-wield）の取り込み。town_work の目録は --write で作り直した。
+
+■ テストと revert-proof（src の直しだけを戻して流し、戻した）
+tests.test_d57_me_combat_1101_recorded（14件。記録の盤面 → 公開の choose_key → 本番の実行器）
+  フィクスチャ: tests/fixtures/d57-me-combat-083-1101.json.gz・-084-1101.json.gz
+  （tests/extract_d57_me_combat_1101_fixtures.py）、既存の death-n1c-077/085-1101.json.gz。
+  - (c) を戻すと 2件 FAIL: test_beside_the_novice_warrior_the_torch_outscores_the_missile（ミサイルのまま）、
+    test_hitting_blades_melee_the_jelly（ミサイルのまま）。オーラの除外だけを戻すと
+    test_a_touch_aura_keeps_the_jelly_off_melee が FAIL。
+  - (b) を戻すと 1件 FAIL: test_the_unbeatable_beetle_is_sent_away_through_the_executor（'mBp4' のまま）。
+  - (a) を戻すと 2件 FAIL: test_blinded_again_strikes_the_remembered_eye_through_the_executor（'qc' のまま）、
+    test_control_low_hp_is_the_survival_ladders（'emergency:cure-critical' のまま）。
+  - 残り（記録の行、対照: ミサイルが正しいゼリー、力の無い時のミサイル、勝てるビートル、最初の盲目の治療、
+    何も覚えていない時の治療）は戻しても通る。
+期待値を直した既存の検査（壁ではなく、入力を明記して正しい動きに合わせた）:
+  test_me_device_attacks（取り込みの攻撃の検査の盤面から松明を外す。悪臭雲は使用の成功率 95% の持っている
+  魔法棒 'ah' が 90% の取り込みより大きい）、test_town_combat_survival_recorded・
+  test_town_last_stand_ranged_recorded（ミサイルの場合は松明を外す）、test_me_mining_death_recorded
+  （持っている魔法棒の場合は松明を外す）、test_town_ball_friendly_recorded（上のコミット）。テストの壁は無い。
+
+■ 検査
+- import の確認（hengbot.cli, hengbot.policy）: OK（取り込みの後も OK）
+- checks.json の全テスト＋自分のテスト（95項目）を6回に分けて実行: 573件。失敗 0。
+  import の失敗 2件は tests.test_hit_no_action_1101_recorded（checks.json にあるが main b51bcda79 にまだ無い別ブランチ）。
+  途中で test_town_ball_friendly_recorded の3件が落ちたので上のコミットで直し、流し直して OK。
+- 自分のテスト: 14件 OK。
+- 町の仕事の目録: town_work_manifest.py は zero unmapped（各コミットで review を足して --write）。
+
+■ checks.json に足す案（このブランチでは checks.json は編集しない）
+  {"id": "D57-ME-COMBAT", "owner": "2026-11-01 (a)「基本的には今のまま。回復後即盲目になった場合は戦闘による状況打開を試みる。致命傷治癒はHP回復の効果に期待しない。HPが減ったら体力回復かテレポート。」(b)「勝てない敵が射程内にいればいつでも使って良い」(c)「見込みの大きい方を使う」 (n1-c life-083/084/085・077, branch d57-me-combat-1101)", "tests": ["tests.test_d57_me_combat_1101_recorded"]}
+
+■ オーナーへの問い（新しい決まりが要る部分。実装はしていないか、仮の形を書いた）
+問い1（(b) の「勝てない」）: 既存の判定（決闘の判定・戦いの判定）はどちらも近接（と弓）しか数えず、命中 5% の
+  二刀流の n1-c ではイモリや狼まで「勝てない」になる。今は戦いの判定に (c) の見込み（ミサイル・松明など）を
+  足して判定した（ビートルは勝てない、ゼリー・充血アイ・イモリは勝てる）。
+  A（実装済み）: このまま。B: 既存の判定をそのまま使う（ほぼ全部の敵に撃つ）。C: 別の基準を決めてもらう。
+問い2（(b) の順）: テレポート・アウェイは緊急の消耗品の段（テレポートの巻物・回復薬）の前に置いた。
+  勝てない敵が1体で射程内なら、巻物が読めても先にアウェイを撃つ。
+  A（実装済み）: このまま。B: 緊急の段が何もしない時だけ撃つ。
+問い3（(c) の松明）: 松明の投擲は命中で平均 32 と大きく、Lv8 では松明がミサイル（7）や近接に勝つので、
+  隣の敵には予備の松明を投げ続ける（光源が松明の時に1本残す・Q1 の取り置きは今のまま）。
+  A（実装済み）: このまま。B: 光源の予備として N 本は投げない（本数を決めてもらう）。
+問い4（(a) の「即」）: 「治した次の盤面でまた盲目」だけを数えた。1287796 のように1行動見えた後に
+  にらまれた盲目（1287806）は今のまま治す。
+  A（実装済み）: このまま。B: 治してから見えている盤面が1枚以内の再盲目も数える。
+
+■ 取り込みの注意（並行の枝）
+- hit-no-action-1101（まだ main に無い）は me_ranged_first に afraid_key を足し、attack_key を呼ぶ。この枝の
+  attack_key は怖がっている時に近接を 0 にするので、そのまま遠隔を選ぶ（食い違いは無い）。同じファイルの
+  同じあたりを触るので、取り込みで小さな衝突が出る可能性がある。
+- policy_combat.py の緊急の段の最後（blind_strike.emergency_key の前後）は hit-no-action も触る。
+
+■ 保守性
+- 新しい判断は名前の付いた置き場所に入れた: 隣の敵の手の選び方は me_ranged_first の1か所（呼び元は変えない）、
+  見込みの式は新しいモジュール attack_expectation（ゲームのソースの式と出典をまとめて書いた）、
+  テレポート・アウェイは me_powers の表の2行と引き金1つ（今後の「敵に向けて撃つ」力も against_hostile の行で足せる）、
+  盲目の「治しても無駄」は status_cure の1か所（一般の段と緊急の段が同じ treats を使い、緊急の段の
+  盲目・混乱・切り傷の条件の重複を1つ減らした）。
+- 既存の部品を使い回した: me_device_attacks の点数、_main_hand_dps/_sub_hand_dps（AC の引数だけ足した）、
+  _engagement_is_winnable（与ダメージの引数だけ足した）、me_powers.beam_direction、blind_strike の記憶と攻撃。
+  共有の判断の道（policy.py）には特別扱い（クラス・クエスト番号・sval）を書いていない（policy.py は1行の呼び出しだけ）。
+- me_ranged_first.attack_key の中を短い関数に分けた（_missile_ready・_fire_missile・_attack_wand・_use・_first_key）。
+  隣でない敵の順は前と同じ。
+- テストは D57 の部品（PostedDeathKey・boards・new_policy）と既存の抜き出し（freeze）を使い回した。
+
+■ main eeb06117d（hit-no-action-1101・d57-nav-depth-1101）の取り込み（5eaba31cf）
+- 衝突の解き方: me_ranged_first.py は hit-no-action の afraid_key をそのまま残し、この枝の選び方（attack_key →
+  _strongest_adjacent_key）を通す。怖がっている時は attack_expectation.melee が 0 なので、afraid_key は遠隔を返す。
+  policy_observation.py は両方の observe の呼び出し（status_cure.observe、immobile_threat_memory の observe/forget、
+  over_extension.judge_dive）を残した。town_work_review.json は3方向で項目ごとに合わせた（両方が変えた項目は無し）。
+  目録は --write で作り直し zero unmapped（1088 候補）。
+- 取り込みの後の revert-proof（同じ結果）: (a) を戻すと 2件 FAIL、(b) 1件 FAIL、(c)（隣も固定の順に戻す）2件 FAIL、
+  オーラの除外だけを戻すと 1件 FAIL。
+- 検査: import OK。checks.json の全テスト＋自分のテスト（96項目）を8回に分けて 559件、失敗 0・import の失敗 0
+  （tests.test_hit_no_action_1101_recorded も通る）。
+
+■ main ade15c353（fix-depart2-1101・manifest-tax-1101）の取り込み（5e88d8759）
+- scripts/town_work_manifest.json.gz は main で追跡をやめたので、衝突は削除として解いた。
+- 合わせた木で equipment_mutation.py:_requested_effect が未対応の候補になった理由: manifest-tax の
+  データの証明（scripts/town_work_data_proof.py）は「同じ名前の関数の定義が全部証明できること」を求める。
+  この枝の attack_expectation.py に同じ名前の _worn（引数の関数を呼ぶ）があり、_requested_effect が呼ぶ
+  equipment_mutation._worn の証明が外れた。審査の項目を足すのではなく、こちらの補助を _hand_weapon
+  （引数の関数を呼ばず、手の条件を中に書く）に改名して直した。振る舞いは同じ。
+- 目録: --write の後、検査の形で 0 violation・zero unmapped（1090 候補、証明済みのデータ 161）。main との差は
+  この枝の審査の項目9件の追加と3件の evidence の更新だけ。
+- 検査: import OK。checks.json の全テスト＋自分のテスト（98項目）を8回に分けて 575件、失敗 0。

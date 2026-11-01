@@ -1692,6 +1692,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_device_attacks.py:device_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_device_attacks_input.py:advance_device": {
     "classification": "driver",
     "rows": [
@@ -1928,6 +1935,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powers.py:threat_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_powers_refresh.py:periodic_magic_eater_powers_key": {
     "classification": "producer",
     "rows": [
@@ -1982,12 +1996,54 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_ranged_first.py:_aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_ranged_first.py:_attack_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_ranged_first.py:_fire_missile": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_first_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_strongest_adjacent_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_ranged_first.py:_throwable_torch": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "me_ranged_first.py:_use": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_ranged_first.py:afraid_key": {
     "classification": "producer",
@@ -8746,6 +8802,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:fight_through_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "status_cure.py:status_cure_key": {
     "classification": "producer",

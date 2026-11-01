@@ -10967,9 +10967,9 @@
       "survival"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "D21 class-16 ranged answer to an adjacent attacker, called from the dungeon and town combat rungs and the opening route's _opening_q1_strike before their melee key (owner 2026-10-31 「近接以外の攻撃手段も街で使う」): first the stronger absorbed attack power (me_device_attacks, also on quest floors except quest 1), then the absorbed Magic Missile, a known attack wand (in town not a ball or breath that would catch an unbeatable friendly: me_device_attacks.catches_unbeatable_friendly) and a spare lit torch (non-quest floors only; the opening route's Q1 torch reserve is kept); None for other classes. Town combat arbitrates as survival (town_arbiter TOWN_COMBAT_REASON_PREFIXES).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "D21 class-16 ranged answer to an attacker, called from the dungeon and town combat rungs and the opening route's _opening_q1_strike before their melee key (owner 2026-10-31 「近接以外の攻撃手段も街で使う」). An adjacent target goes to _strongest_adjacent_key (owner 2026-11-01 「見込みの大きい方を使う」: the larger expected damage per action among the absorbed powers, Magic Missile, a carried attack wand, a spare lit torch and melee; None is the caller's melee); any other target to _first_key's fixed order. None for other classes. Town combat arbitrates as survival (town_arbiter TOWN_COMBAT_REASON_PREFIXES).",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_ranged_first.py:_throwable_torch": {
@@ -11235,7 +11235,7 @@
       "survival"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Status treatment (blind/confused/cut) quaffing Cure Critical Wounds or Healing via reserved_item_command; shared by the combat status-cure rung and the unseen-recall blind cure (death 1, #47); consumers in generated manifest, no independent progress.",
+    "evidence": "Status treatment (blind/confused/cut) quaffing Cure Critical Wounds or Healing via reserved_item_command; shared by the combat status-cure rung and the unseen-recall blind cure (death 1, #47); no blindness cure while status_cure.cure_futile (blinded again right after a cure with a remembered adjacent attacker, owner 2026-11-01); consumers in generated manifest, no independent progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -11312,7 +11312,7 @@
       "quest-service"
     ],
     "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
-    "evidence": "Class-16 absorbed utility power (m + A/B/C + I2A(sval)) chosen from the me_powers table by named triggers (new-floor, stairs-needed-and-unknown, before-rest, before-secret-search, left-detected-trap-area, dark-room, light-radius-zero, light-sensitive-adjacent, trap-to-disarm); returns None in town, on the open wilderness, in a store, below dungeon level 1, while a hostile is visible (a beside_harmless row also while every visible hostile is harmless), after damage or when blind/confused/hallucinating/paralyzed; called only from the dungeon floor, dark-locomotion, rest and secret-wall-search rungs of _decide, and with the trap to aim at (m + B/C + letter + direction) from the walk's trap step (policy_navigation._step_toward) and the chest pipeline's disarm phase (policy_identification._chest_processing_key).",
+    "evidence": "Class-16 absorbed utility power (m + A/B/C + I2A(sval)) chosen from the me_powers table by named triggers (new-floor, stairs-needed-and-unknown, before-rest, before-secret-search, left-detected-trap-area, dark-room, light-radius-zero, light-sensitive-adjacent, trap-to-disarm, unbeatable-in-range); returns None in town, on the open wilderness, in a store, below dungeon level 1, while a hostile is visible (a beside_harmless row also while every visible hostile is harmless) or after damage (neither for an against_hostile row: Teleport Away, asked by threat_key) or when blind/confused/hallucinating/paralyzed; called only from the dungeon floor, dark-locomotion, rest and secret-wall-search rungs of _decide, and with the trap to aim at (m + B/C + letter + direction) from the walk's trap step (policy_navigation._step_toward) and the chest pipeline's disarm phase (policy_identification._chest_processing_key).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -11963,6 +11963,105 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Afraid beside an adjacent hostile with melee allowed in the dungeon (#47 hit-no-action-1101; fear refuses melee only, cmd-attack.cpp:228): attack_key against the weakest adjacent hostile, else None; called after the unafraid melee branch of the lethal-emergency ladder, the low-HP walk gate, the cornered flee, the two choke holds and the two summoner rungs; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_first_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The fixed ranged order for a target that is not adjacent: the stronger absorbed attack power (me_device_attacks.attack_key, also on quest floors except quest 1), the absorbed Magic Missile, a known attack wand (in town not a ball or breath that would catch an unbeatable friendly) and a spare lit torch; None otherwise. Called only by me_ranged_first.attack_key; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_strongest_adjacent_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-01 「見込みの大きい方を使う」: beside the target, the ranged answer whose expected damage per action (me_device_attacks scores, attack_expectation for the carried wand, the torch and melee) is not below melee's, else None (the caller's melee; melee scores zero against a touch aura or while afraid). Called only by me_ranged_first.attack_key; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_fire_missile": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The absorbed Magic Missile key mBp + direction under MISSILE_REASON; called only by _first_key and _adjacent_options' sender; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_use": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "reserved_item_command for a carried wand (aim) or a spare lit torch (throw) with the aim direction under the caller's reason; None when the reservation refuses; called only by _first_key and _adjacent_options' senders.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_attack_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure selector of a known charged attack wand from the pack (not a town ball/breath that would catch an unbeatable friendly); no command.",
+    "delegation": "selected child; no independent success"
+  },
+  "me_ranged_first.py:_aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure direction key toward the target; no command.",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_attacks.py:device_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The absorbed power's key m + A/B/C + I2A(sval) (+ direction) under DEVICE_REASON; called only by me_device_attacks.attack_key and me_ranged_first._adjacent_options' sender; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_powers.py:threat_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-01 (#47 D57) 「勝てない敵が射程内にいればいつでも使って良い」: me_powers.power_key's THREAT occasion asked with each visible hostile, nearest first (the Teleport Away rows, rod 13 then wand 3, aimed at a hostile on a beam's line that _engagement_is_winnable with me_ranged_first.best_expected says cannot be beaten); None otherwise. Called once from the dungeon ladder ahead of _emergency_item; power_key's gate keeps it out of town and the wilderness.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "status_cure.py:fight_through_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-01 (#47 D57) 「回復後即盲目になった場合は戦闘による状況打開を試みる」: blind, latched by status_cure.observe (the board right after a blindness cure shows 「やっと目が見えるようになった。」 and the player blind again), a remembered adjacent attacker (blind_strike.remembered_cells), not afraid, HP at or above the low-HP walk threshold and fighting allowed in this dungeon: blind_strike.strike_key ('+' and a direction) under blind:fight-through, else None. Called only from _emergency_item right after the status cure; dungeon only (blind_strike memory is per floor); no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

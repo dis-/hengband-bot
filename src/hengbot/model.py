@@ -344,6 +344,7 @@ SV_WAND_DISARMING = 4       # sv-definition/sv-wand-types.h
 SV_WAND_TRAP_DOOR_DEST = 5
 SV_WAND_STONE_TO_MUD = 6
 SV_ROD_IDENTIFY = 2
+SV_ROD_TELEPORT_AWAY = 13     # sv-definition/sv-rod-types.h
 SV_ROD_DISARMING = 14       # sv-definition/sv-rod-types.h
 SV_ROD_LITE = 15
 SV_DIGGING_SHOVEL = 1
