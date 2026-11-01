@@ -11389,7 +11389,7 @@
       "quest-service"
     ],
     "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
-    "evidence": "Class-16 absorbed utility power (m + A/B/C + I2A(sval)) chosen from the me_powers table by named triggers (new-floor, stairs-needed-and-unknown, before-rest, before-secret-search, left-detected-trap-area, dark-room, light-radius-zero, light-sensitive-adjacent, trap-to-disarm, unbeatable-in-range); returns None in town, on the open wilderness, in a store, below dungeon level 1, while a hostile is visible (a beside_harmless row also while every visible hostile is harmless) or after damage (neither for an against_hostile row: Teleport Away, asked by threat_key) or when blind/confused/hallucinating/paralyzed; called only from the dungeon floor, dark-locomotion, rest and secret-wall-search rungs of _decide, and with the trap to aim at (m + B/C + letter + direction) from the walk's trap step (policy_navigation._step_toward) and the chest pipeline's disarm phase (policy_identification._chest_processing_key).",
+    "evidence": "Class-16 absorbed utility power (m + A/B/C + I2A(sval)) chosen from the me_powers table by named triggers (new-floor, stairs-needed-and-unknown, before-rest, before-secret-search, left-detected-trap-area, dark-room, light-radius-zero, light-sensitive-adjacent, trap-to-disarm, unbeatable-in-range, quest-opening-target); returns None in town, on the open wilderness, in a store, below dungeon level 1, while a hostile is visible (a beside_harmless row also while every visible hostile is harmless) or after damage (neither for an against_hostile row: Teleport Away, asked by threat_key) or when blind/confused/hallucinating/paralyzed; called only from the dungeon floor, dark-locomotion, rest and secret-wall-search rungs of _decide, and with the trap to aim at (m + B/C + letter + direction) from the walk's trap step (policy_navigation._step_toward) and the chest pipeline's disarm phase (policy_identification._chest_processing_key).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12041,6 +12041,17 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-01 (#47 D57) 「勝てない敵が射程内にいればいつでも使って良い」: me_powers.power_key's THREAT occasion asked with each visible hostile, nearest first (the Teleport Away rows, rod 13 then wand 3, aimed at a hostile on a beam's line that _engagement_is_winnable with me_ranged_first.best_expected says cannot be beaten); None otherwise. Called once from the dungeon ladder ahead of _emergency_item; power_key's gate keeps it out of town and the wilderness.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_opening_away.py:key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-02 「テレポートアウェイがあるなら初手でフォルンをどかす。」: me_powers.power_key's QUEST_OPENING occasion (the Teleport Away rows, rod 13 then wand 3, trigger quest-opening-target, once per target per floor visit) aimed at each engagement_plan.opening_teleport_away target of the approved quest strategy whose stand is the player's cell and which the player does not see empty; None otherwise. Called only from PolicyQuestMixin._quest_execute_key on the quest's own floor; power_key's gate keeps it out of town and the wilderness.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "status_cure.py:fight_through_key": {
