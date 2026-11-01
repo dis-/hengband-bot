@@ -556,7 +556,12 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
     if record is not None:
         claim = getattr(getattr(policy, "_claim_register", None), "current", None)
         execution = getattr(claim, "execution", None)
-        if execution is not None and execution.state in {"ready", "posted", "awaiting"}:
+        # The work this decision sends ("acting") or observes ("awaiting"):
+        # ClaimRegister.declare_execution has no "ready"/"posted" state, so
+        # a sent command's later evidenced completion (a Home junk sweep's
+        # observed destroy, n1-a life-464 2026-11-02 04:35) never earned
+        # credit and three Home re-entries made a burst.
+        if execution is not None and execution.state in {"acting", "awaiting"}:
             state["admitted"].add(execution.work_id)
         # Do not use the legacy vector's final integer: some walkers put
         # Manhattan distance there, and some do not name a target at all.

@@ -370,6 +370,7 @@ class HomeMixin:
         relief.pop("destroy_posted", None)
         relief.pop("destroy_before_count", None)
         relief.pop("destroy_pending_key", None)
+        relief.pop("destroy_work_id", None)
 
     @claims(ClaimOwner.HOME_VISIT)
     def _defer_home_full_deposit(self, snapshot: Snapshot) -> None:
@@ -683,7 +684,7 @@ class HomeMixin:
         relief["withdrawn"] = False
         pack_only = relief.get("pack_only", False)
         for field in ("identifying", "identification_counts", "mode", "destroy_posted", "destroy_pending_key",
-                      "destroy_before_count", "pack_only", "stock_count"):
+                      "destroy_before_count", "destroy_work_id", "pack_only", "stock_count"):
             relief.pop(field, None)
         self._release_claim_goal(
             reason, owners=("identification",), kinds=("Observe",),
@@ -956,8 +957,11 @@ class HomeMixin:
                                         else f"home:junk-sweep:{relief['sweep_class']}"
                                         if relief.get("sweep")
                                         else "home:full-destroy-surplus")
+                    if not posted:
+                        relief["destroy_work_id"] = (
+                            f"home-full-destroy:{sale_identity}:{self._decision_sequence}")
                     self._offer_execution(
-                        key, producer="home-visit", work_id=f"home-full-destroy:{sale_identity}",
+                        key, producer="home-visit", work_id=relief["destroy_work_id"],
                         next_step="home.full-destroy.observe" if posted else "inventory.destroy.send",
                         arguments=(sale_identity, count), expected_effect="surplus-stack-removed",
                         continuation="home.full-destroy.observe",
@@ -1012,7 +1016,7 @@ class HomeMixin:
                     if relief.get("destroy_posted"):
                         self._offer_execution_done(
                             producer="home-visit",
-                            work_id=f"home-full-destroy:{sale_identity}",
+                            work_id=relief["destroy_work_id"],
                             evidence="surplus-stack-removal-observed",
                         )
                 # Stock space is earned by the take, but the next take/deposit
@@ -1025,6 +1029,7 @@ class HomeMixin:
                 relief.pop("destroy_posted", None)
                 relief.pop("destroy_pending_key", None)
                 relief.pop("destroy_before_count", None)
+                relief.pop("destroy_work_id", None)
                 relief.pop("mode", None)
                 self._home_errand.finish()
                 self._invalidate_home_observation()
@@ -3821,6 +3826,25 @@ class HomeMixin:
         if owner_indices and index <= min(owner_indices):
             self._invalidate_home_observation()
 
+    def _home_catalog_identification_source(
+        self, snapshot: Snapshot, item
+    ) -> tuple[str, InventoryItem] | None:
+        """The carried source that identifies one catalogued Home item now.
+
+        The single test of the catalogued take (the binder below) and of the
+        Home catalogue claim (``_has_actionable_incomplete_home_item``): a
+        known item that needs *Identify* takes a full-tier source.
+        """
+        full = bool(
+            item.known
+            and item_requires_full_identification(item)
+            and not item.fully_known
+        )
+        return self._find_identification_source(
+            snapshot, full=full, reliable_only=True,
+            reservation_target=self._item_signature(item),
+        )
+
     def _bind_catalogued_home_identification_withdrawal(
         self, snapshot: Snapshot
     ) -> None:
@@ -3865,16 +3889,7 @@ class HomeMixin:
             signature = self._item_signature(owned.item)
             if signature not in observed or signature in self._deferred_home_items:
                 continue
-            full = bool(
-                owned.item.known
-                and item_requires_full_identification(owned.item)
-                and not owned.item.fully_known
-            )
-            source = self._find_identification_source(
-                snapshot, full=full, reliable_only=True,
-                reservation_target=signature,
-            )
-            if source is None:
+            if self._home_catalog_identification_source(snapshot, owned.item) is None:
                 continue
             self._file_home_errand(
                 snapshot,
@@ -5002,6 +5017,18 @@ class HomeMixin:
                 signature in self._unbuyable_full_identify_sigs
                 and not full_identify_available
             ):
+                continue
+            if (
+                owned.item.known
+                and self._home_catalog_identification_source(snapshot, owned.item) is None
+            ):
+                # Known gear waiting for *Identify*: the catalogued take
+                # (_bind_catalogued_home_identification_withdrawal) needs a
+                # carried source, and Home item selection is never decided
+                # on the open page.  Without one no Home producer can act, so
+                # the claim closed every Home pass as
+                # home:route-claim-unfulfilled until the pass bound blocked
+                # Home for the visit (n1-b life-291 2026-11-02 04:46/04:47).
                 continue
             needs_normal_identification = (
                 not owned.item.known
