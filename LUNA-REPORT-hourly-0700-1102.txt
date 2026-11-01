@@ -1,0 +1,192 @@
+LUNA-REPORT hourly-0700-1102（2026-11-02 06:10〜07:02 の観戦ボットの止まり4件）
+
+ブランチ hourly-0700-1102（main c116f37e1 から）。push していない。git stash は使っていない。
+材料は C:\hengband-backups\pdca\captures\hourly-0700-1102\ に写したもの。各止まりの
+incident-captures（meta.json・policy-state.json・decision-tail.jsonl・snapshots-current.jsonl.gz）は
+サーバから読み取りだけで写して同じ場所に足した。
+
+コミット（1つの根に1つ）
+  981b8e35b Answer the recall depth question for every operation        （止まり3）
+  e49ac61ab Request a Home list again after the state stream rolls over （止まり1）
+  1719ddda4 Let an equipment Home session move past a spent identification stop（止まり2）
+  止まり4は並行の shoot-immobile-sleeper-1102 と同じ根なので直していない（下の4）。
+
+
+1. 止まり1: n1-a life-464（戦士 Lv38、町、bot-10ac9173a）06:10:25 no-key-exhausted
+
+  記録: 決定 10029 が ~9 を送り、自宅の一覧（ターン 3003423、179品）を受け取った。預け入れ
+  （10032 dm）の後、10034 がもう一度 ~9<ESC> を送った（ターン 3003443）。その答えは届かず、
+  10035 で町の不変条件の検出が店4へ寄り道、10037 の home-errand:await-fresh-knowledge が
+  鍵なし（''）で待ち、次の盤面が来ないので停止。
+
+  原因: ゲームの出力の切り替え（bot-json-output.cpp write_snapshot、:2461）は state.jsonl が
+  BOT_JSON_OUTPUT_MAX_BYTES（256MiB）に達すると、次の記録を書く前にファイルを空にする。
+  ~9 で書かれた自宅の一覧は、読まれる前に消えた。
+    - 停止時の state.jsonl はターン 3003443 から始まる（=その直後に切り替わった）。
+    - スナップショットの記録（ボットが読んだ行）に 3003423 より後の自宅の一覧は無い。
+    - 10034 の state の応答は 110KB（一覧の画面）で、ゲームは一覧を出していた
+      （cmd-knowledge.cpp:115 は '9' で必ず出力する）。
+  ボット側: 読み取り（cli.py _make_jsonl_barrier_drain）は縮みを見て先頭から読み直すだけで、
+  消えた答えを方策に知らせない。自宅の待ち（policy_home.py:1447 _home_knowledge_await_key）は
+  届くはずの答えを鍵なしで待つ（:1475 の key は ""）ので、そのまま止まる。
+
+  直し（e49ac61ab）:
+    - cli.py:3826 読み取りが切り替えを見たら印を残す（take_rollover、:3851）。
+    - cli.py:4722 フォローループが渡された記録を配った後で印を取り、
+      _report_state_stream_rollover（:2319）で方策に知らせる。配った後なので、切り替えの後に
+      書かれて届いた答えは既にその要求を片付けている。主ループの読み直し（:5477）も同じく知らせる。
+    - policy_home.py:1838 observe_state_stream_rollover: 送りっぱなしの ~9（と ~f）の要求を
+      片付ける（既存の settle_home_knowledge_request を使う）。持ち主は次の盤面で最初と同じく
+      もう一度 ~9 を送る。新しい振る舞いではなく、届かなかった要求のやり直し。
+    - 新しい関数を足したので town_work_manifest.py --write を流した: zero unmapped（ファイルの変更なし）。
+
+  テスト: tests.test_hourly_0700_1102_recorded.StateStreamRolloverHomeListTest
+    - 記録の確かめ: 10034 の鍵と理由、10037 の '' と理由、stdout の <no-key-exhausted>、
+      切り替え後の state.jsonl がターン 3003443 から始まる。
+    - 記録の盤面（ターン 3003443）に方策を置き、記録の鍵 ~9<ESC> を confirm_key_posted で送った
+      ことにする。本番の _make_jsonl_barrier_drain を切り替え前のファイル（ターン 3003433 の行）に
+      付け、記録の切り替え後の行で置き換える。drain → _dispatch_response_lines → take_rollover →
+      _report_state_stream_rollover。停止の盤面（3003796）で公開の choose_key が
+      ~9<ESC> home-errand:request-knowledge:identification を返す。
+    - 宣言した復元: 自宅の用事（目的 identification、一覧待ち）を記録の理由どおりに file した。
+    - 差し戻しの確認（1回、policy_home.py の hunk を戻す）: 失敗。
+      ('', 'home-errand:await-fresh-knowledge:identification') ＝記録の停止と同じ。戻して通る。
+
+
+2. 止まり2: n1-c life-103（魔道具術師 Lv19、町、bot-2726a3bf5）06:41:31
+   equipment-transaction:home-route-repeat-terminal
+
+  記録: 1880 home-errand:atomic-withdraw:identification-catalog（5pi<ESC>、自宅から未鑑定の
+  鎖かたびら [14] を出す）→ 1882 鑑定（(-2) [14,+3]）→ 装備の計画はそれを自宅へ戻す（預ける1件）。
+  1883 入口から降りる → 1884 abandon-blocked → 1885 home-route-unavailable（'5'）→ 1886 →
+  1887 home-route-repeat-terminal。
+
+  原因: 町の計画（policy-state の _town_errand_plan）は stops [7]、need_categories
+  {7: ["identification-withdrawal"]}、requester_families {7: ["home-errand"]} のまま残っていた。
+    - policy_equipment.py:2706-2720 装備の持ち主は、計画の今の行き先が既に自宅なので計画を
+      置き換えない。
+    - policy_shop.py:5641-5653 の判定は「自宅の必要が identification-withdrawal だけで、
+      自宅の用事が出されていない」時に自宅への移動を断る（引き出しの持ち主が用事を出すまで
+      動かないための判定）。引き出しは終わっていて用事は無いので、装備の移動も断られた。
+    - policy_equipment.py:2768 home-route-unavailable → 取りやめ → 同じ計画を作り直す、の繰り返し。
+  同じ型: サーバの home-route-repeat-terminal の5件（n1-a life-460 ×2・life-464、n1-c life-100・
+  life-103、11-01〜02）は全部この計画を持っていた。4件は鑑定のための引き出しの直後。
+
+  直し（1719ddda4）: policy_shop.py:5652 その判定に `and not equipment_home_route` を足した。
+  equipment_home_route は同じ関数の頭（:5613）にある既存の述語（装備の計画が自宅を要し、
+  自宅が塞がれておらず訪問の上限内）。既に自宅の矢弾の取り出しを除外しているのと同じ形。
+  新しい関数は無い。manifest は zero unmapped。
+
+  テスト: tests.test_hourly_0700_1102_recorded.EquipmentDepositAfterIdentificationWithdrawalTest
+    - 記録の盤面（1885、ターン 1809910、(44,124)）に方策を置き、装備の持ち主
+      _equipment_transaction_town_key を呼ぶ。直した後は equipment-transaction:approach-home、
+      店の行き先は自宅、鍵は '1'（入口 (45,123) へ）。
+    - 宣言した復元: 決定の行の transaction_next（預ける1件）から装備の計画、policy-state の
+      _town_errand_plan、自宅の一覧は最後の一覧（1808157）から引き出した鎖かたびらを除いたもの。
+    - 公開の choose_key を通していない理由: 新しい方策では魔道具術師の杖の段階などの状態が
+      無く、自宅の古い一覧から別の未鑑定品（六尺棒）の用事を立ててしまい、記録の道に乗らない
+      （記録の局面では用事は出ていなかった）。持ち主の関数で固定した。
+    - 差し戻しの確認（1回、policy_shop.py の hunk を戻す）: 失敗。
+      equipment-transaction:home-route-unavailable ＝記録の '5' と同じ。戻して通る。
+
+
+3. 止まり3: n1-c life-103（Lv22、15階、bot-2726a3bf5）06:49:23 stuck-prompt:esp-threat:leave-recall
+
+  記録: 決定 3738 esp-threat:leave-recall が rh（h＝帰還の巻物）を読んだ。bot-stderr の
+  <stuck-prompt> owner=esp-threat:leave-recall ctx_prompt=「ここは最深到達階より浅い階です。
+  この階に戻って来ますか？ [y/n]」reason=unowned confirm。停止画面の1行目も同じ問い。
+
+  原因: input_executor.py の _is_recall_depth_confirm は、この問いに n（最深階を保つ）と答える
+  持ち主を名前の一覧で持っていた。esp-threat:leave-recall（policy_combat.py:1255-1259 が
+  return:recall を言い換えた名前）が一覧に無かった。同じ型の3件目以上（10-16
+  breeder-breakthrough:recall、10-26 fixedquest:claim:return、今回）なので場面ではなく根を直した。
+
+  直し（981b8e35b）: input_executor.py:1117 問いの文だけで判定する（持ち主の一覧を消した）。
+  この問いはゲームの recall_player（spells-world.cpp:443、地下・最深階より浅い・帰還の発動中で
+  ない）だけが出す。断っても帰還の発動は変わらない。呼ぶ側 :1602 と、既存のテスト2件の期待値を
+  合わせた:
+    - tests/test_input_executor.py の test_recall_depth_confirm_is_refused_only_for_recall_owner を
+      test_recall_depth_confirm_is_refused_for_any_owner に改め、一覧外の持ち主（not-recall）も
+      n で答えて完了するのを正しい期待値にした（壁ではなく期待値の更新）。
+    - tests/test_curse_priority_recorded.py の述語の呼び出しを新しい引数に合わせた。
+
+  テスト: tests.test_hourly_0700_1102_recorded.EspThreatRecallDepthQuestionTest
+    - 記録の盤面（ターン 1853588、15階、h が帰還の巻物、帰還の発動なし）で、記録の鍵 rh を
+      記録の持ち主の名前で本番の executor の口（_send_new_decision_key）に流す。
+      読む巻物の問い → 深さの問い → 次の画面。r, h, n と送って完了。
+    - 宣言した組み立て: 断った後の盤面（帰還が発動）。
+    - 差し戻しの確認（1回、input_executor.py の hunk を戻す）: 失敗。
+      ['r', 'h'] で止まる ＝記録と同じ。戻して通る。
+
+
+4. 止まり4: n1-c life-103（Lv25、18階、bot-c116f37e1）07:02:47 loop-detected — 直していない
+
+  並行の shoot-immobile-sleeper-1102（ダンジョンの交戦を避ける寄り道・往復）と同じ根なので、
+  ここで止めた。
+  記録: (2,30)⇔(2,31) で no-wait:flee（6）と explore（4）が交互（決定 6096〜6131）。
+  (2,30) からは西の (2,10) に墓に住むもの（race 124 Crypt Creep、S_UNDEAD・CAUSE_1、
+  max_ranged_damage 44）が見え、(2,31) からは見えない。黒オークの群れ（race 149）が
+  y=2 の通路の西 18〜20 マスにいる。
+  記録の盤面を同じ方策で流し直すと、(2,30) の元の判断は毎回 summoner:hold-choke の '5'
+  （summoner_wait.py:81）で、それを policy_combat.py の _forbid_wait_while_damaged が
+  書き換えていた:
+    - :599-623 の許された待ちに summoner:hold-choke は入らない（":hold" で終わらない）。
+    - :625 under_fire（射線があり1ターンの予測ダメージ > 0）で待ちを拒み、:684 no-wait:flee で
+      東へ1歩 → 見えなくなり explore が西へ戻る。
+    - summoner_wait.py:104 は最後の鍵が '5'/hold-choke でない決定ごとに待ちの時計を消すので、
+      SUMMONER_WAIT_GAME_TURNS の打ち切りに届かず、往復が終わらない。
+  並行の担当への材料として渡す（召喚の敵の待ちと、生存の待ちの拒否の食い違い）。
+
+
+5. 検査
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+  - tests.test_hourly_0700_1102_recorded: Ran 3 tests、OK（各根に1件）
+  - 期待値を変えた既存のテスト: test_input_executor の recall_depth の3件、
+    test_curse_priority_recorded の test_recorded_mining_cursed_weapon_returns_and_keeps_ownership: OK
+  - scripts/town_work_manifest.py --write: zero unmapped（2回、ファイルの変更なし）
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - 付記: 述語の引数を変えたので tests.test_input_context_structure を1回流した。
+    test_prompt_text_is_referenced_only_where_it_is_today が me_powers_refresh.py の
+    periodic_magic_eater_powers_key で失敗するが、main のまま（この変更とは関係ない）。
+  - テストの壁はない。裏の処理は残していない。src/・tests/・scripts/ はコミットの外の変更なし。
+
+
+6. 保守性
+
+  - 止まり3: 持ち主の名前の一覧（読む場所が増えるたびに足していた）を消し、問いの文の1つの
+    述語にした。ゲームの出どころ（recall_player）を注釈に書いた。
+  - 止まり1: 切り替えの検出は既にある読み取りの縮みの判定に印を1つ足しただけ。方策への知らせは
+    cli.py の1関数（_report_state_stream_rollover）、片付けは自宅の知識の持ち主（policy_home.py）の
+    既存の settle_home_knowledge_request を使う1関数。
+  - 止まり2: 同じ関数の既存の述語 equipment_home_route を使い回し、新しい条件・定数は無い。
+  - 抽出は tests/extract_hourly_0700_1102_fixtures.py の1つで3件をまとめ、既存の ring_rows を
+    使い回した。テストは1つのモジュールに根ごとのクラス、方策の準備は共通のクラス1つ。
+
+
+7. checks.json の案（編集していない）
+
+  {"id": "RECALL-DEPTH-ANY-OWNER",
+   "defect": "2026-11-02 n1-c life-103 esp-threat:leave-recall の帰還で「最深到達階より浅い階」の問いが unowned confirm",
+   "owner": "同じ型が3件目になったら場面の直しをやめ根を直す（10-20 の決まり）",
+   "tests": ["tests.test_hourly_0700_1102_recorded.EspThreatRecallDepthQuestionTest"]}
+  {"id": "STATE-ROLLOVER-HOME-LIST",
+   "defect": "2026-11-02 n1-a life-464 state.jsonl の切り替えで ~9 の答えが消え、自宅の用事が鍵なしで待って no-key-exhausted",
+   "owner": "止めないを既定に（10-14 大方針 A）",
+   "tests": ["tests.test_hourly_0700_1102_recorded.StateStreamRolloverHomeListTest"]}
+  {"id": "EQUIPMENT-HOME-AFTER-ID-WITHDRAW",
+   "defect": "2026-11-01/02 home-route-repeat-terminal 5件、鑑定の引き出しの古い計画が装備の預け入れの自宅への道を断る",
+   "owner": "止めないを既定に（10-14 大方針 A）",
+   "tests": ["tests.test_hourly_0700_1102_recorded.EquipmentDepositAfterIdentificationWithdrawalTest"]}
+
+
+8. オーナーへの問い
+
+  (1) 止まり3の直しで、帰還の巻物と知らずに読んだ未鑑定の巻物（鑑定のための読み）が浅い階で
+      この問いを出した時も n と答えて続ける（これまでは止まっていた）。最深階を保つ答えは
+      これまでと同じで、帰還の発動はどちらでも変わらない。これでよいか。
+  (2) 止まり1は ~9 と ~f だけを片付ける。ほかの送りっぱなしの観察（look の問い合わせなど）も
+      切り替えで消えうるが、今回の証拠は無いので触っていない。広げるか。
+  (3) 止まり4（召喚の敵の待ち summoner:hold-choke を、射線があると生存の側が「待ち禁止」で
+      逃げに書き換える）は並行の担当に渡す。どちらを優先するかはオーナーの判断が要るかもしれない
+      （遠い召喚の敵の CAUSE_1 の射線で待ちを禁じるのが正しいか）。

@@ -1776,7 +1776,7 @@ class TcpBarrierPinTest(ProductionHarness):
         self.assertEqual(result.outcome, "completed")
         self.assertEqual(game.accepted, ["6", "n"])
 
-    def test_recall_depth_confirm_is_refused_only_for_recall_owner(self):
+    def test_recall_depth_confirm_is_refused_for_any_owner(self):
         prompts = (
             "ここは最深到達階より浅い階です。この階に戻って来ますか？ [y/n]",
             "Reset recall depth? [y/n]",
@@ -1795,15 +1795,18 @@ class TcpBarrierPinTest(ProductionHarness):
                 self.assertEqual(result.outcome, "completed", result.reason)
                 self.assertEqual(game.accepted, ["rj", "n"])
 
+        # Only recall_player asks it, so an owner outside the recall readers
+        # (n1-c life-103 esp-threat:leave-recall, 2026-11-02) gets the same
+        # refusal instead of an unowned-confirm stop.
         game, _client, executor = self.make()
-        game.screens = [prompt_screen(prompts[1])]
+        game.screens = [prompt_screen(prompts[1]), command_screen(3)]
         executor.observe_boundary(deadline=9999999999)
         result = executor.submit(
             Operation(4557, "not-recall", "x", executor.ready_board),
             deadline=9999999999,
         )
-        self.assertEqual(result.outcome, "stuck-prompt")
-        self.assertEqual(game.accepted, ["x"])
+        self.assertEqual(result.outcome, "completed", result.reason)
+        self.assertEqual(game.accepted, ["x", "n"])
 
     def test_recall_depth_confirm_is_refused_for_every_dungeon_recall_reader(self):
         # c4-a life-003 20261016-204039: breeder-breakthrough:recall read 're'
