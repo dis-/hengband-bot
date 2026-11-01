@@ -710,6 +710,14 @@
     "delegation": "selected child; no independent success",
     "ast_sha256": "388622aef0b67bf544be7859cfb2027fffad7bde12d84fce0a19eea9a95bf817"
   },
+  "equipment_transaction_session.py:planned_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "ast_sha256": "156a86bb64c4dc6e5abeedf13027817cfce002662b169282dd05e85a0277cba9"
+  },
   "flight_recorder.py:_position": {
     "classification": "data",
     "rows": [
@@ -5556,7 +5564,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "a3b1e5db5371df62c276bbc1cfade8207f32298c9de2c3f1f24b8f893c6e1d8d"
+    "ast_sha256": "d3402e0b27da8ed3741a6e5ad8e6fc5268111149abe91f9e2edabd0279910a41"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_key": {
     "classification": "producer",
@@ -5564,7 +5572,7 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "ast_sha256": "dd2e64703874c841c4d6d6da256ee5cd50492b3bd84db2fdd03332e32f426957"
+    "ast_sha256": "2276662d736daf5ee8d7ecbce0f34c48a6ad4c46386885b066c0344f4f0787f5"
   },
   "policy_equipment.py:EquipmentMixin._equipment_transaction_town_owner_key": {
     "classification": "producer",

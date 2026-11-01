@@ -339,6 +339,24 @@ class EquipmentTransactionSession:
         return False
 
 
+def planned_item(action: EquipmentTransaction, items):
+    """The carried equipment item a planned action names, else None.
+
+    The item matches by its identity, or by its move identity once a stack
+    count moved: a take of one cloak from a Home stack of four leaves a pack
+    item whose count, and so whose identity, is not the planned stack's
+    (#47 D59, n1-c life-092).  Every executor lookup of a planned carried
+    item reads this one rule.
+    """
+    return next((
+        item for item in items
+        if item.is_equipment
+        and (equipment_identity(item) == action.item_identity
+             or (bool(action.move_identity)
+                 and equipment_move_identity(item) == action.move_identity))
+    ), None)
+
+
 def observe_equipment_transactions(
     snapshot: Snapshot,
     *,

@@ -32,13 +32,20 @@ import json
 from pathlib import Path
 
 from hengbot import me_staff_sequence
-from hengbot.model import SV_STAFF_IDENTIFY, TVAL_STAFF, StoreItem, StoreState, parse_snapshot
+from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
+from hengbot.equipment_transaction_planner import (
+    PHASE_EQUIP, PHASE_HOME_PREPARE, EquipmentTransaction, EquipmentTransactionPlan,
+)
+from hengbot.equipment_transaction_session import EquipmentTransactionSession
+from hengbot.model import SV_STAFF_IDENTIFY, TVAL_STAFF, StoreItem, StoreState, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.test_esp_threat_rest_recorded import EDIT
 import tests.test_unid_deposit_recorded as recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "depart2-1101.json.gz"
+CLOAK = "クローク [1,+0] {Q34}"
+CLOAK_ID = "home:66af66797f74632f:0"
 
 
 def load_cases():
@@ -168,6 +175,63 @@ class TridentStopMinimumRecordedTest(Depart2RecordedBase):
         key = policy.force_visit_departure(board, "departure-unsatisfiable")
         self.assertIsNotNone(key)
         self.assertEqual(policy._visit_departure_committed, "departure-unsatisfiable")
+
+
+class PartialStackEquipRecordedTest(Depart2RecordedBase):
+    """Root 2: a cloak taken from a Home stack is worn, not reported missing."""
+
+    board_name = "taken"
+
+    def session(self):
+        """DECLARED RECONSTRUCTED: the session of decisions 13420-13428.
+
+        The decision rows name its next actions (transaction_next: withdraw,
+        then equip home:66af66797f74632f:0 to outer); the identities are the
+        planner's (equipment_transaction_planner) of the recorded Home stack.
+        """
+        stack = next(item for item in self.case["boards"]["stack"]["store"]["items"]
+                     if item["name"] == CLOAK)
+        item = _parse_items([stack], protocol=3)[0]
+        self.assertEqual(f"home:{equipment_identity(item)}:0", CLOAK_ID)
+        identities = dict(item_identity=equipment_identity(item),
+                          move_identity=equipment_move_identity(item))
+        plan = EquipmentTransactionPlan((
+            EquipmentTransaction(PHASE_HOME_PREPARE, "withdraw", CLOAK_ID, **identities),
+            EquipmentTransaction(PHASE_EQUIP, "equip", CLOAK_ID, "outer", **identities),
+        ), (), len(self.case["boards"]["stack"]["inventory"]))
+        session = EquipmentTransactionSession(plan, physical_context="home")
+        session.index = 1  # the take was observed (decision 13427)
+        return session
+
+    def test_recorded_take(self):
+        stack, taken = (self.case["boards"][name] for name in ("stack", "taken"))
+        self.assertEqual([it["count"] for it in stack["store"]["items"] if it["name"] == CLOAK], [4])
+        self.assertEqual([it["count"] for it in taken["store"]["items"] if it["name"] == CLOAK], [3])
+        self.assertEqual([(it["slot"], it["count"]) for it in taken["inventory"]
+                          if it["name"] == CLOAK], [("h", 1)])
+        self.assertEqual(self.decision(13426)["key"], "5pz1\r\x1b")
+        self.assertEqual(self.decision(13428)["equipment"]["transaction_next"],
+                         {"phase": "equip", "kind": "equip", "item_id": CLOAK_ID,
+                          "target_slot": "outer"})
+        self.assertEqual(self.decision(13429)["reason"],
+                         f"town:blocked:equipment-transaction:equip-item-missing:{CLOAK_ID}")
+
+    def test_taken_cloak_is_worn_in_home(self):
+        policy, raw = self.boundary()
+        policy._equipment_transaction_session = self.session()
+        board = policy.with_known_skill_exp(
+            parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        policy.observe_store_screen(True)
+        key = str(policy.choose_key(board))
+        # Recorded: ('\x1b', policy:none-store-exit) with the session blocked
+        # on equip-item-missing.
+        self.assertEqual((key, policy.last_reason), ("wh", "equipment-transaction:equip"))
+        self.assertEqual(policy._equipment_transaction_session.blockers, [])
+        following = copy.deepcopy(raw)
+        cloak = next(it for it in following["inventory"] if it["slot"] == "h")
+        following["inventory"].remove(cloak)
+        following["equipment"].append(dict(cloak, slot="outer"))
+        self.post(policy, raw, key, following)
 
 
 if __name__ == "__main__":
