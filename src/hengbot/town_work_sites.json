@@ -9070,6 +9070,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_end_mining.py:mining_set_open": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_end_mining.py:start": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "town_last_stand.py:key": {
     "classification": "producer",
     "rows": [
@@ -9426,6 +9440,13 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_terminal.py:town_end_stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "town_terminal.py:verdict_home_withdraw": {
     "classification": "data",

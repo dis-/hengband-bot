@@ -12240,7 +12240,7 @@
       "cross-town"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "owner decision 2026-11-02 「決まった終わり方だけにする」: the only town fallback when no owner answers; delegates the mining walk-in return, force_visit_departure (depart / drop non-minimum conditions and depart) or the named _town_blocked_key stop (town:blocked:survival:<leaf>).",
+    "evidence": "owner decision 2026-11-02 「決まった終わり方だけにする」: the only town fallback when no owner answers; delegates the mining walk-in return, force_visit_departure (depart when nothing is unmet / one town_end_mining cycle while a condition is unmet; owner 2026-11-02 「条件未達の出発は拒否する」) or the named _town_blocked_key stop (town:blocked:survival:<leaf> / town:blocked:unmet:<name>) when the cycle cannot leave.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -12308,6 +12308,28 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Pure verdict over TownEndMaterial; returns a TownEnd tuple, never a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_end_mining.py:start": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "owner decision 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。」: opens one one-run mining set (_open_one_mining_run) and offers WAIT under fundraise:town-end-mining; reached only from force_visit_departure when a departure condition is unmet.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_terminal.py:town_end_stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure name of the town end's named stop (survival:<leaf> or unmet:<name>); no key, offer or state write.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
