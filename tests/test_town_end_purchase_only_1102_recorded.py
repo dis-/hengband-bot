@@ -17,6 +17,12 @@ B. The Home list is read before the departure judgement: a visit closing on
 a store entrance while the list is still owed steps off the entrance, and
 the next board reads the list.
 
+A. Owner 2026-11-02 「購入に関する問題以外は採掘せずに名前を付けて停止を採用」:
+the town end mines only for purchase gaps; with the list current and a
+non-purchase condition unmet it stops by that condition's name.  (The
+purchase-gap cycle is pinned on the 23:50 board in
+tests/test_town_defined_end_recorded.py.)
+
 Fixture: tests/fixtures/town-end-purchase-only-1102.json.gz
 (tests/extract_town_end_purchase_only_1102_fixture.py).  Every decision is
 the public ``choose_key``; walking keys go through the production executor
@@ -30,7 +36,8 @@ the visit ledger's store visits and need attempts are decision 7's
 (decision 6, shelf evidence).
 DECLARED CONSTRUCTED: the executor's board after a step is the recorded
 board with the player on the stepped cell, ten game turns later; the reply to
-``~9`` is the Home row the recorded process read at turn 950629.
+``~9`` is the Home row the recorded process read at turn 950629; the A test's
+waiting Home candidate.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -40,7 +47,7 @@ import json
 import unittest
 from pathlib import Path
 
-from hengbot import me_capability, me_staff_sequence, town_end_mining
+from hengbot import cli, me_capability, me_staff_sequence, town_end_mining, town_terminal
 from hengbot.model import _parse_items, parse_snapshot
 from tests import test_d57_nav_depth_1101_recorded as nav
 from tests import test_me_staff_loops_1031_recorded as loops
@@ -94,7 +101,8 @@ class HomeListBeforeDepartureTest(nav.RecordedDrive):
         self.assertEqual(str(policy.choose_key(board_of(policy, RESTART))), recorded(5)["key"])
         self.assertEqual(policy.last_reason, "shop:travel")
 
-    def test_home_list_is_read_before_the_departure_judgement(self):
+    def read_home_list(self):
+        """Drive the 949982 board until the Home list is read; return the board."""
         policy = new_policy()
         ledger = recorded(7)["departure_block"]["town_ledger"]
         policy._town_visit_ledger.store_visits.update(
@@ -120,11 +128,28 @@ class HomeListBeforeDepartureTest(nav.RecordedDrive):
         self.assertEqual(policy.last_reason, "home:request-knowledge-scan")
         policy.consume_home_knowledge(
             tuple(_parse_items(CASE["home"]["knowledge"]["items"], protocol=3)))
+        return policy, board
+
+    def test_home_list_is_read_before_the_departure_judgement(self):
+        policy, board = self.read_home_list()
         # With the list read the departure has nothing unmet: no mining.
         self.assertEqual(policy._departure_block_state(board)["failed"], [])
         policy.choose_key(board)
         self.assertNotEqual(policy.last_reason, town_end_mining.START_REASON)
         self.assertIsNone(policy._fundraising_mode)
+
+    def test_non_purchase_condition_stops_by_name_without_mining(self):
+        policy, board = self.read_home_list()
+        # DECLARED CONSTRUCTED: Home's candidate is left waiting with the
+        # list current, and no owner answers (the town end).
+        policy._home_candidate_waiting = True
+        self.assertEqual(town_terminal.verdict_town_end(town_terminal.gather_town_end(
+            policy, board)), ("stop", ("home_candidate_resolved",)))
+        town_terminal.town_end_key(policy, board)
+        self.assertEqual(policy.last_reason, "town:blocked:unmet:home_candidate_resolved")
+        self.assertTrue(cli._policy_final_stop_required(policy))
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertFalse(town_end_mining.outstanding(policy))
 
 
 if __name__ == "__main__":
