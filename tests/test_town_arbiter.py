@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.cli import _write_decision
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -668,7 +668,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         opening the other, on which the old Manhattan part stayed flat -- is
         progress on every step and never retires, however long it is.
         """
-        from hengbot.town_terminal import reach_goal as reach
+        from hengbot.town_hold import reach_goal as reach
         from hengbot.model import STORE_HOME
 
         snapshot = self._postlevel_snapshot()
@@ -726,7 +726,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                                     position=replace(goal, y=y, x=x),
                                 ),
                             )
-                            claimed.append(town_terminal.claim_goal_distance(
+                            claimed.append(town_hold.claim_goal_distance(
                                 policy,
                                 moved, reach((goal.y, goal.x))
                             ))

@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_calibration import LegacyCalibrationDebtError, refuse_legacy_calibration_debt
@@ -42,7 +42,7 @@ class CalibrationCheckpointTest(unittest.TestCase):
         # unpickles to a pseudo-member that no live member equals, and the
         # shared upgrade drops it.  Nothing raises while restoring.
         from hengbot.town_arbiter import ClaimOwner
-        from hengbot.town_terminal import Claim, Goal
+        from hengbot.town_hold import Claim, Goal
         from hengbot.home_visit import HomeVisitKind, HomeVisitRequest, HomeVisitState
         from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
         from hengbot.retired_values import is_retired
@@ -170,7 +170,7 @@ class RestoredCalibrationBoundaryTest(unittest.TestCase):
                 policy._calibration_stripped_unrestored = True
                 if marker == "target":
                     policy._calibration_session_target = session.target_loadout_id
-                town_terminal.open_execution_delegation(
+                town_hold.open_execution_delegation(
                     policy,
                     "calibration", "equipment-txn", ("session", "strip"),
                     ("calibration", "strip"), "observed-takeoffs", "budget")

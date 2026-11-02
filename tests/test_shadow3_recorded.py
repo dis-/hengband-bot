@@ -14,8 +14,8 @@ import unittest
 
 import tests  # noqa: F401
 from tests.hold_closings import recorded_closings
-from hengbot import town_terminal
-from hengbot.town_terminal import observe_goal as observe, reach_goal as reach
+from hengbot import town_hold
+from hengbot.town_hold import observe_goal as observe, reach_goal as reach
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.equipment_optimizer import equipment_move_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
@@ -156,7 +156,7 @@ class Shadow3Test(unittest.TestCase):
                 # boundary must leave, with no second sale or empty-key wait.
                 key = policy.choose_key(before)
                 self.assertEqual(key, '\x1b')
-                self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'shop-sell')
+                self.assertEqual(town_hold.standing_claim(policy).owner.value, 'shop-sell')
                 self.assertEqual(policy._town_hold.claims.current.execution.producer, 'shop-sell')
                 self.clean(policy, before, key)
 
@@ -219,7 +219,7 @@ class Shadow3Test(unittest.TestCase):
                 if enforced:
                     self.assertEqual(policy.last_reason, 'town:restore-combat-weapon')
                     self.assertEqual(key, row(3782)['key'])
-                    self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'equipment-txn')
+                    self.assertEqual(town_hold.standing_claim(policy).owner.value, 'equipment-txn')
 
 
 if __name__ == '__main__':

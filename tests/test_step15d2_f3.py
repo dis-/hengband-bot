@@ -14,7 +14,7 @@ from hengbot.model import (
 )
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
-from hengbot.town_terminal import offered_steps
+from hengbot.town_hold import offered_steps
 from policy_fixtures import item
 from test_step15d2_f2 import _board
 

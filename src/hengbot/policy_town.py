@@ -14,18 +14,18 @@ from hengbot.item_reservation import (
 )
 from hengbot.item_reservation import reserved_item_command, reservation_verdict, item_available
 
-from hengbot.town_terminal import (
+from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
     goal_typing as claim_goal_typing,
 )
-from hengbot.town_terminal import claim_family_of as town_claim_family_of
-from hengbot.town_terminal import errand_hold as town_errand_hold
-from hengbot.town_terminal import GOAL_REACH as CLAIM_GOAL_REACH
+from hengbot.town_hold import claim_family_of as town_claim_family_of
+from hengbot.town_hold import errand_hold as town_errand_hold
+from hengbot.town_hold import GOAL_REACH as CLAIM_GOAL_REACH
 
 # Round 4 (F4): the escape ledger key that keeps the up-stairs target beside
-# the cached ``return:upstairs-step`` (record-only; cleared with the ledger).
+# the cached ``return:upstairs-step`` (for the town hold; cleared with the ledger).
 CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
 _town_store_position_indices = WeakKeyDictionary()
 # The grids mapping and emitted window the retained town facts were last
@@ -60,7 +60,7 @@ def _cache_claim_need_candidates(function):
             return function(self, snapshot)
     return run
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot.town_terminal import TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES
+from hengbot.town_hold import TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STUCK_ESCAPE_LIMIT, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.policy_constants import MORIVANT_LIBRARY_BUILDING_TYPE, OUTPOST_TOWN_ID, STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
@@ -71,7 +71,7 @@ from hengbot.policy_types import (
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.town_terminal import gather_store_buy, verdict_store_buy, plan_stop_admission
-from hengbot.town_terminal import hold_claims, offer_buffer, offered_steps, standing_claim
+from hengbot.town_hold import hold_claims, offer_buffer, offered_steps, standing_claim
 from dataclasses import dataclass, replace
 import json
 import os
@@ -5179,13 +5179,13 @@ class TownMixin:
                 cause="unbeatable-attacker-delegated",
             )
             return None
-        # Record-only (S2b.1b): the last-known cell this producer may be
+        # For the town hold (S2b.1b): the last-known cell this producer may be
         # walking to, before the loop below overwrites it.
         last_known = self._town_hunt_target
         for target in targets:
             self._town_hunt_target = target.position
             if player.position.distance_to(target.position) <= 1:
-                # S2b.1b round 2, record-only: acting on a monster in sight
+                # S2b.1b round 2, for the town hold: acting on a monster in sight
                 # again -- the friendly-fire attack here, or the ordinary
                 # adjacent melee this ``None`` hands to -- ends the walk to
                 # where one was last seen, as the approach below does.
@@ -5217,7 +5217,7 @@ class TownMixin:
                 lambda grid, target=target: grid.position.distance_to(target.position) <= 1,
             )
             if step is not None:
-                # S2b.1b, record-only: a monster in sight again ends the walk
+                # S2b.1b, for the town hold: a monster in sight again ends the walk
                 # to where one was last seen (its separate ``last-known``
                 # Reach claim, rev 9.3 R5).
                 self._release_claim_goal(
@@ -5242,7 +5242,7 @@ class TownMixin:
                     )
                 return key
         if self._town_hunt_target is not None:
-            # S2b.1b, record-only: this producer chases only what it sees.  A
+            # S2b.1b, for the town hold: this producer chases only what it sees.  A
             # chased monster still perceived by detection alone is not
             # ``target-lost`` at the exit, yet the chase of its identity ends
             # here; the walk below is the separate ``last-known`` claim.
@@ -8028,7 +8028,7 @@ class TownMixin:
             )
         finally:
             upstairs_step_target = self._take_claim_target()
-        # Round 4 (F4), record-only: ``read_once`` caches the step for the
+        # Round 4 (F4), for the town hold: ``read_once`` caches the step for the
         # decision, so a second read captures nothing; keep the target beside
         # the cached step in the same per-decision ledger.
         if upstairs_step_target is not None:

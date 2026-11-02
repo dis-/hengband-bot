@@ -39,7 +39,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_types import SupplyStatus, TownMapRoute
 from hengbot.quest_strategies import StrategyProfile
-from hengbot.town_terminal import standing_claim
+from hengbot.town_hold import standing_claim
 
 
 # Decision-row telemetry (cli._capture_decision_facts) evaluates the supply
@@ -2099,7 +2099,7 @@ class SupplyMixin:
         a normal floor).
         """
         route = self._nearest_goal_route(snapshot, predicate)
-        # Record-only (rev 9.3 R2): a claim site that asked for it receives
+        # For the town hold (rev 9.3 R2): a claim site that asked for it receives
         # the target this route chose, so it declares the far target rather
         # than the first step.  Only an armed capture is written, so a pure
         # caller's state is untouched.

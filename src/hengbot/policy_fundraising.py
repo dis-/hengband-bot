@@ -6,7 +6,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from hengbot.town_terminal import (
+from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
@@ -1693,7 +1693,7 @@ class FundraisingMixin:
                 lambda grid: grid.position.distance_to(target.position) <= 1,
             )
             if step is not None:
-                # S2b.1b, record-only: fundraising's own order puts the
+                # S2b.1b, for the town hold: fundraising's own order puts the
                 # multiplier first; the loot or treasure walk it held ends.
                 self._release_claim_goal(
                     "loot-yield:eliminate-multiplier", self._loot_target,
@@ -1768,7 +1768,7 @@ class FundraisingMixin:
             self._mining_route_visits.clear()
             self._mining_navigation_visits.clear()
             self._mining_oscillation_retargets = 0
-            # S2b.1b, record-only: realised loot comes before the vein (the
+            # S2b.1b, for the town hold: realised loot comes before the vein (the
             # comment above); the treasure walk it held ends here.
             self._release_claim_goal(
                 "treasure-yield:seek-loot", self._treasure_target,
@@ -2170,7 +2170,7 @@ class FundraisingMixin:
                         distance + 1,
                     )
                 )
-        # Record-only (rev 9.3 R2): the chosen wall cell is in the score
+        # For the town hold (rev 9.3 R2): the chosen wall cell is in the score
         # (``pos.y, pos.x``); an armed claim site receives it.
         capture = self.__dict__.get("_claim_target_capture")
         if capture is not None:

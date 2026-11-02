@@ -21,7 +21,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.cli import (
     PostingContract, STATIONARY_REASONS, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
 )
@@ -194,9 +194,9 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
                             turn=board.turn + 10)
             key = policy.choose_key(board)
             self.assertEqual((str(key), policy.last_reason), ("6", "summoner:cornered-approach"))
-            self.assertNotEqual(town_terminal.decision_rung(policy), "fallback:unregistered")
-            self.assertEqual(town_terminal.standing_claim(policy).goal.kind, "Reach")
-            self.assertEqual(town_terminal.standing_claim(policy).owner.value, "combat")
+            self.assertNotEqual(town_hold.decision_rung(policy), "fallback:unregistered")
+            self.assertEqual(town_hold.standing_claim(policy).goal.kind, "Reach")
+            self.assertEqual(town_hold.standing_claim(policy).owner.value, "combat")
             # DECLARED CONSTRUCTED: adapt the response substrate to this
             # quest's coordinates/floor; every posted movement is one step.
             raw = copy.deepcopy(record["board"])

@@ -16,7 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.cli import LOOP_WINDOW, _cell_loop_guard_applies, _is_looping, _policy_final_stop_required
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, Q34_FINAL_DOOR_ATTEMPT_LIMIT, WAIT_KEY
@@ -120,7 +120,7 @@ class Q34FinalRoomRecordedTest(ProductionHarness):
         # the placement sweep; it is a moving step, not a lock pick.
         self.assertEqual(self.post(policy, raw, self.board(79296) | {"turn": 79308}), "6")
         self.assertEqual(policy.last_reason, "quest-strategy:approach-sequence-door")
-        goal = Position(*list(town_terminal.standing_claim(policy).goal.cell))
+        goal = Position(*list(town_hold.standing_claim(policy).goal.cell))
         self.assertEqual(goal, Position(5, 15))
         plan = policy.approved_quest_strategy(34).engagement_plan
         area = final_search_area(policy._quest_knowledge[34].battlefield.terrain, plan)
@@ -140,7 +140,7 @@ class Q34FinalRoomRecordedTest(ProductionHarness):
         key = self.post(policy, lost, following)
         self.assertNotEqual(key, "6")
         self.assertEqual(policy.last_reason, "quest-strategy:approach-final-target")
-        self.assertEqual(list(town_terminal.standing_claim(policy).goal.cell), [3, 13])
+        self.assertEqual(list(town_hold.standing_claim(policy).goal.cell), [3, 13])
 
         board = parse_snapshot(lost, {})
         plan = policy.approved_quest_strategy(34).engagement_plan
@@ -158,7 +158,7 @@ class Q34FinalRoomRecordedTest(ProductionHarness):
         self.assertEqual(policy.last_reason, "quest-strategy:placement-sweep")
         plan = policy.approved_quest_strategy(34).engagement_plan
         area = final_search_area(policy._quest_knowledge[34].battlefield.terrain, plan)
-        self.assertIn(Position(*list(town_terminal.standing_claim(policy).goal.cell)), area)
+        self.assertIn(Position(*list(town_hold.standing_claim(policy).goal.cell)), area)
         self.assertNotIn(Position(1, 15), area)
         # The approved final door and its sequence (2026-10-30) are the only
         # avoided-list exceptions; [4,17] stays avoided.

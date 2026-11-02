@@ -13,8 +13,8 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
-from hengbot import town_terminal
-from hengbot.town_terminal import observe_goal as observe
+from hengbot import town_hold
+from hengbot.town_hold import observe_goal as observe
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
@@ -96,7 +96,7 @@ class HomeExitRecordedTest(unittest.TestCase):
                     key = policy.choose_key(snapshot)
                     self.assertEqual(key, ' ')
                     self.assertEqual(policy.last_reason, 'equipment-transaction:seek-home-page')
-                    self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'equipment-txn')
+                    self.assertEqual(town_hold.standing_claim(policy).owner.value, 'equipment-txn')
                     self.assertEqual(policy._home_full_retry_deposits, retry)
                     self.assertIsNone(session.pending_action)
                     policy.confirm_key_posted(key)
@@ -108,7 +108,7 @@ class HomeExitRecordedTest(unittest.TestCase):
                     key = policy.choose_key(target_page)
                     self.assertEqual(key, 'pz')
                     self.assertEqual(policy.last_reason, 'equipment-transaction:withdraw')
-                    self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'equipment-txn')
+                    self.assertEqual(town_hold.standing_claim(policy).owner.value, 'equipment-txn')
                     policy.confirm_key_posted(key)
                     self.assertEqual(session.pending_action.kind, 'withdraw')
 
@@ -159,7 +159,7 @@ class HomeExitRecordedTest(unittest.TestCase):
                 self.assertEqual(policy.last_reason, 'equipment-transaction:deposit')
                 self.assertIsNone(policy._home_full_retry_deposits)
                 self.assertIsNone(policy._home_atomic_deposit_pending)
-                self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'equipment-txn')
+                self.assertEqual(town_hold.standing_claim(policy).owner.value, 'equipment-txn')
                 self.assertEqual(item_reserved_by_other(policy, snapshot, target,
                     ('home-visit', 'deposit')).owner, 'equipment-txn')
                 policy.confirm_key_posted(key)

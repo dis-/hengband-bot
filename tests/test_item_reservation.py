@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 from dataclasses import replace
 import tests  # noqa: F401
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.model import parse_snapshot, StoreState, STORE_WEAPON
 from hengbot.policy import HengbotPolicy
 from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
@@ -31,7 +31,7 @@ def choose_key_with_exit_shadow(policy, board):
     (structure stage 2 B slice 4); the shadow is read where the row read it.
     """
     seen = {}
-    advance = town_terminal.advance_hold
+    advance = town_hold.advance_hold
 
     def advance_with_shadow(policy_, snapshot, key):
         seen['shadow'] = reservation_shadow(policy_)

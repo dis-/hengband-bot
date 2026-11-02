@@ -15,7 +15,7 @@ import unittest
 
 import tests  # noqa: F401
 from hengbot import town_terminal
-from hengbot.town_terminal import observe_goal as observe
+from hengbot.town_hold import observe_goal as observe
 from hengbot.policy_types import in_flight_clause
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest
 from hengbot.model import parse_snapshot, STORE_HOME, Position, Snapshot

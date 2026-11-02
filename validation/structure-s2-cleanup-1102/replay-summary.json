@@ -1,0 +1,10 @@
+{
+ "tools": "validation/structure-s2-cleanup-1102/replay_hold.py (structure-s2-4's tool; the hold read from town_hold when the tree has it, else town_terminal), run_shards.py (6 shards per tree, both trees at once), compare_hold.py (--common-tests; --map town_hold.py:=town_terminal.py: for moved site names, 0 rows needed it)",
+ "modules": "replay-test-ids.txt: structure-s2-4's replay-test-ids-merge.txt (271) minus 5 modules absent on main 877f8c225 (266; it includes the five town tests)",
+ "trees": {"main": "877f8c225", "branch": "4d9f1da6c (git archive of each)"},
+ "main": {"tests": 2951, "failures": 194, "errors": 21, "skipped": 15},
+ "branch": {"tests": 2951, "failures": 192, "errors": 21, "skipped": 15},
+ "only_main_outcomes": ["test_town_terminal_declarations test_1_every_entry_rung_is_declared FAIL", "test_town_terminal_declarations test_2b_rung_families_are_the_ladder_families FAIL"],
+ "compared": {"decisions": 14487, "receipts": 46450, "hold_and_defer_calls": 667752, "errand_deferred_rows": 3542, "outcome_rows": 228, "differing": 6},
+ "differing_detail": "message text of tests failing on both sides only: test_town_pack_budget x4 and test_the_13_classified_rungs (set order), test_shadow_and_enforce_preserve_all_49_regression_conditions (one character of a truncated message)"
+}

@@ -14,7 +14,7 @@ from hengbot.policy_constants import LEAVE_STORE_KEY
 from hengbot.policy_state import normalize_policy_state
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.item_reservation import ITEM_RESERVATION_SOURCES
-from hengbot.town_terminal import offer_buffer
+from hengbot.town_hold import offer_buffer
 from policy_fixtures import grid, item
 import test_policy_home as home_fixtures
 from test_goldburn_shopping_constructed import board

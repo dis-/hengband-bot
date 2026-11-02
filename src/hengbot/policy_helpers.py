@@ -4,7 +4,7 @@ from hengbot.dungeon_knowledge import exploration_destination_allowed
 
 from dataclasses import replace
 
-from hengbot.town_terminal import (
+from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,

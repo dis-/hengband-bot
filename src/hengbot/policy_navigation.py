@@ -4,12 +4,12 @@ from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
 from hengbot import dark_recall, immobile_threat_memory, mapped_area, me_powers, unseen_strike
-from hengbot.town_terminal import (
+from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
-from hengbot.town_terminal import claim_family_of as town_claim_family_of
+from hengbot.town_hold import claim_family_of as town_claim_family_of
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy_constants import (
@@ -191,7 +191,7 @@ from hengbot.model import (
     item_requires_full_identification,
 )
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
-from hengbot.town_terminal import standing_claim
+from hengbot.town_hold import standing_claim
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
     STUCK_DOOR_MESSAGE_FRAGMENTS,

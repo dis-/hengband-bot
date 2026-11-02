@@ -140,8 +140,8 @@ class MagicEaterO3Test(unittest.TestCase):
         self.assertEqual(policy.last_reason, ABSORB_REASON)
 
     def test_absorption_registers_quest_owner_and_observation_goal(self):
-        from hengbot.town_terminal import goal_typing
-        from hengbot.town_terminal import rung_of
+        from hengbot.town_hold import goal_typing
+        from hengbot.town_hold import rung_of
         from hengbot.town_arbiter import reason_owner_family
         from hengbot.town_arbiter import CLAIM_OWNER_ATTRIBUTE
         from hengbot.magic_eater import absorb_key

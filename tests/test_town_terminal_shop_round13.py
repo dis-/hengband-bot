@@ -13,7 +13,7 @@ from policy_fixtures import grid
 from policy_fixtures import item
 from hengbot.model import TVAL_SCROLL, SV_SCROLL_IDENTIFY
 from hengbot.policy_constants import LEAVE_STORE_KEY
-from hengbot.town_terminal import offer_buffer
+from hengbot.town_hold import offer_buffer
 from test_goldburn_shopping_constructed import board
 from test_town_terminal_departure import policy_on
 
