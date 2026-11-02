@@ -21,12 +21,27 @@ def refuses_route(policy, store_type) -> bool:
             and session.required_context == "outside_home")
 
 
+def withdraws_first(session) -> bool:
+    """Whether the open Home session's next action is a withdraw, nothing of
+    it in hand yet: the session's own Home route goes first.
+
+    Owner 2026-11-03 「先に自宅で取り出す」 (n1-c life-112, 2026-11-02 23:43):
+    the withdraw of 六尺棒 {Q34} waited while the town plan routed to the
+    Armoury; every approach was refused (route-refused:2, ``5``) until
+    town:blocked:owner-retired-burst.  The session re-enters Home even when
+    this visit was there already, then the other errand goes on.
+    """
+    action = session.current_action
+    return (session.required_context == "home" and session.pending_action is None
+            and action is not None and action.kind == "withdraw")
+
+
 def equipment_route_key(policy, snapshot):
     session = policy._equipment_transaction_session
     # A pack equip/takeoff owns this square, and a posted action owns its
-    # observation. Home work keeps its existing route/visit dispatcher.
+    # observation. Other Home work keeps its existing route/visit dispatcher.
     if (session is not None and not session.complete
-            and session.required_context != "home"):
+            and (session.required_context != "home" or withdraws_first(session))):
         key = policy._equipment_transaction_town_key(snapshot)
         # A rejected first action leaves no physical restoration debt. Close
         # its failed ownership now, before the caller retries supplier routing.
