@@ -607,6 +607,12 @@ FIXED_QUEST_REWARD_POSITIONS = {
 
 REST_MACRO = "R&\r"
 
+# The walking return's bounded stationary holds: the wall search for a hidden
+# up staircase (bounded per wall by _wall_search_counts) and the Word of Recall
+# countdown.  The CLI cell guard exempts them, so an owner that relabels the
+# return (fixedquest:claim:return) keeps these labels.
+RETURN_STATIONARY_REASONS = frozenset({"return:search-upstairs", "return:wait-recall"})
+
 AIM_WAND_KEY = "a"
 
 EQUIPMENT_SLOT_KEY = {
