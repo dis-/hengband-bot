@@ -8019,6 +8019,16 @@ class TownMixin:
             )
             return key
 
+        # Every walk home below (to a known up-stair, a secret wall, the
+        # frontier) answers a melee blow of an unseen attacker with a strike
+        # first (owner 2026-11-01 21h, answer 3 「どちらも先に反撃」;
+        # unseen_strike).  n1-b life-299 (2026-11-03 01:26, オークの洞窟19階):
+        # blind, its cures spent, it walked 26 cells to the known up-stair
+        # bitten by a ヴラスタ on every step (HP 505 -> 252).
+        if (strike := unseen_strike.key(
+                self, snapshot, hostiles, unseen_strike.RETURN_REASON)) is not None:
+            return strike
+
         self._claim_target_capture = []
         try:
             upstairs_step = self._escape_state.read_once(
@@ -8183,11 +8193,6 @@ class TownMixin:
             )
             return key
         if step is not None:
-            # A melee blow of an unseen attacker is struck back before the
-            # walk (owner 2026-11-01 21h, answer 3; unseen_strike).
-            if (strike := unseen_strike.key(
-                    self, snapshot, hostiles, unseen_strike.RETURN_REASON)) is not None:
-                return strike
             if self._is_oscillating():
                 # 通常の探索の抜け出し（breakout:seek-frontier）と同じく、
                 # 経路が見つかったら振動の履歴を捨てる。残すと 8 回の壁の

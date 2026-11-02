@@ -3839,6 +3839,18 @@ class EquipmentMixin:
         replacing_no_teleport = self._no_teleport_rearm_pending or (
             blocked_weapon_in_pack and not safe_weapon_equipped
         )
+        if (mining_loadout.stray_off_hand_digger(snapshot) is not None
+                and not replacing_no_teleport):
+            # The main hand already holds the combat weapon, so taking the
+            # off-hand digger off (_restore_mining_combat_hand_key above) is
+            # the whole restoration; wielding a pack weapon would only swap
+            # the worn one into the pack, board after board.  A takeoff the
+            # pack cannot take leaves the loadout as it is.
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="restore-combat-weapon",
+                cause="off-hand-digger-takeoff-unavailable",
+            )
+            return None
         # Owner 2026-10-31 「町でも持たせる」: an empty main hand is re-armed.
         empty_hand_weapon = mining_loadout.empty_main_hand_weapon(self, snapshot)
         if (

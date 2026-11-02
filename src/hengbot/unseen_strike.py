@@ -27,7 +27,10 @@ attacker's line.
 #47 (owner 2026-11-01 21h, answer 3 「どちらも先に反撃」): so do the walk home
 without Recall (``return:explore``) and the dark walk's steps
 (``dark:backtrack``, ``dark:probe``), which answered a hidden attacker's melee
-blow with a step away (constructed from n1-c life-085's jelly boards).
+blow with a step away (constructed from n1-c life-085's jelly boards).  The
+walk home strikes before every one of its walks, the one to a known up-stair
+(``return:seek-upstairs``) included, and a blindness that comes back right
+after a cure is fought through on this evidence (status_cure; n1-b life-299).
 """
 
 import random
@@ -35,6 +38,29 @@ import re
 
 from hengbot.model import Position
 from hengbot.policy_constants import ALTER_KEY, DIRECTION_KEYS
+
+# The Japanese blow texts of monster-attack-describer.cpp:64-229.  The first
+# blow of a round names its actor (「何かに噛まれた。」 for a hidden one), the
+# later blows print the text alone (monster-attack-player.cpp abbreviate == 1).
+JA_BLOW_ACTS = (
+    "殴られた。",
+    "触られた。",
+    "パンチされた。",
+    "蹴られた。",
+    "ひっかかれた。",
+    "噛まれた。",
+    "刺された。",
+    "斬られた。",
+    "角で突かれた。",
+    "押し潰された。",
+    "飲み込まれた。",
+    "よだれをたらされた。",
+    "唾を吐かれた。",
+    "にらまれた。",
+    "泣き叫ばれた。",
+    "胞子を飛ばされた。",
+    "金をせがまれた。",
+)
 
 REASON = "no-wait:attack"
 EMERGENCY_REASON = "emergency:unseen-strike"
@@ -53,14 +79,18 @@ def hit_in_melee(policy, snapshot) -> bool:
     ):
         return False
     messages = [re.sub(r" <x[1-9]\d*>$", "", m) for m in snapshot.messages]
+    # Blind, every attacker is hidden, so a later blow's bare text counts too
+    # (n1-b life-299: blind boards whose only blow text is 「噛まれた。」).
+    blind = snapshot.player.blind
     return any(
-        policy._is_unseen_attack_message(m) and not policy._is_unseen_spell_message(m)
+        (policy._is_unseen_attack_message(m) and not policy._is_unseen_spell_message(m))
+        or (blind and m in JA_BLOW_ACTS)
         for m in messages
     )
 
 
-def key(policy, snapshot, hostiles, reason: str = REASON) -> str | None:
-    """Attack one random free neighbour after an unseen melee hit, else None."""
+def strike_cell(policy, snapshot, hostiles) -> Position | None:
+    """The random free neighbour struck after an unseen melee hit, else None."""
     if not hit_in_melee(policy, snapshot):
         return None
     if snapshot.player.afraid or not policy._can_fight_in_dungeon(snapshot.floor_key[0]):
@@ -79,6 +109,13 @@ def key(policy, snapshot, hostiles, reason: str = REASON) -> str | None:
     ]
     if not candidates:
         return None
-    cell = random.Random(snapshot.turn).choice(candidates)
+    return random.Random(snapshot.turn).choice(candidates)
+
+
+def key(policy, snapshot, hostiles, reason: str = REASON) -> str | None:
+    """Attack one random free neighbour after an unseen melee hit, else None."""
+    target = strike_cell(policy, snapshot, hostiles)
+    if target is None:
+        return None
     policy.last_reason = reason
-    return ALTER_KEY + policy._direction_key(here, cell)
+    return ALTER_KEY + policy._direction_key(snapshot.player.position, target)

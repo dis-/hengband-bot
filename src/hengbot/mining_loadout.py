@@ -192,6 +192,22 @@ def main_hand_weapon(policy, snapshot):
     return None
 
 
+def stray_off_hand_digger(snapshot):
+    """The digger worn in the off hand beside a main-hand combat weapon, else None.
+
+    The restore takes it off (``_restore_mining_combat_hand_key``); when the
+    town pack budget refuses that takeoff, wielding a pack weapon into the
+    main hand only displaced the worn one into the pack: n1-c life-113
+    (2026-11-03 01:34) swapped タルワール and サーベル beside the off-hand
+    穴掘りのドワーフのつるはし until stall:town:restore-combat-weapon, twice.
+    """
+    main, sub = worn_in_slot(snapshot, "main_hand"), worn_in_slot(snapshot, "sub_hand")
+    if (sub is None or not sub.is_digging_tool or main is None
+            or main.is_digging_tool or not main.is_melee_weapon):
+        return None
+    return sub
+
+
 def empty_main_hand_weapon(policy, snapshot):
     """The carried weapon an empty main hand takes, or None (no digger held).
 

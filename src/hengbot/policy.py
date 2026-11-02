@@ -16439,25 +16439,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             message
         ):
             return True
-        japanese_acts = (
-            "殴られた。",
-            "触られた。",
-            "パンチされた。",
-            "蹴られた。",
-            "ひっかかれた。",
-            "噛まれた。",
-            "刺された。",
-            "斬られた。",
-            "角で突かれた。",
-            "押し潰された。",
-            "飲み込まれた。",
-            "よだれをたらされた。",
-            "唾を吐かれた。",
-            "にらまれた。",
-            "泣き叫ばれた。",
-            "胞子を飛ばされた。",
-            "金をせがまれた。",
-        )
         japanese_subject_acts = (
             "は請求書をよこした。",
             "が体の上を這い回った。",
@@ -16488,7 +16469,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "begs you for money.",
         )
         return (
-            message in {f"何かに{act}" for act in japanese_acts}
+            message in {f"何かに{act}" for act in unseen_strike.JA_BLOW_ACTS}
             or message in {f"何か{act}" for act in japanese_subject_acts}
             or message
             in {

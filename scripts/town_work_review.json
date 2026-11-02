@@ -10740,6 +10740,22 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_staff_sequence.py:_phase_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Split out of me_staff_sequence.town_key (n1-c life-112 2026-11-03 01:12 quest:blocked:me-staff no-progress:travel): this board's step of the staff sequence's phase (buy / rumor / travel / recharge / absorb / return), each a delegated shop approach, fundraising run, rumor flow, inn teleport, Tower recharge or absorption, or a named stop (''); None when the phase's leg yields (a quest errand holding the town, _travel). town_key counts its standstill guard only on the boards this returns a key for.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_staff_sequence.py:_fundraise": {
     "classification": "producer",
     "rows": [
@@ -11758,6 +11774,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Melee hit by an unseen attacker, not afraid, melee allowed in the dungeon (USER DECISION 2026-10-03 追加決定2; #47 hit-no-action-1101): alter ('+' and a random free neighbour seeded by the turn) under the caller's reason, else None; called by the lethal-emergency ladder before its last WAIT (emergency:unseen-strike), the wait-while-damaged rewrite before its least-visited walk and the low-HP walk gate's no-kit answer (no-wait:attack), the unseen-attacker retreat before its reverse-choke walk (unseen:strike) and the recall wait before its unseen-recall walk (unseen-recall:strike; owner 2026-11-01 「近接で殴られたら反撃」, spell or missile evidence keeps walking), the walk home without Recall before return:explore (unseen:strike-return) and the dark walk before its backtrack/probe step (unseen:strike-dark; owner 2026-11-01 21h 「どちらも先に反撃」); dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "unseen_strike.py:strike_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: strike_cell returns the Position of the random free neighbour unseen_strike.key strikes after an unseen melee hit (or None); status_cure.cure_futile reads it to decide whether a re-blinded player can fight through instead of curing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   },
   "me_ranged_first.py:_first_key": {
     "classification": "producer",

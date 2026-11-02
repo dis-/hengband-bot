@@ -18,11 +18,17 @@ again or leaves the floor: while blind_strike remembers an attacker beside
 the player no cure is drunk for it and ``fight_through_key`` strikes that
 cell instead; below the low-HP threshold the survival ladders keep the turn
 (Healing, a teleport, their own blind strike).  With no remembered attacker
-there is nothing to fight and the cure stays as before.  Confusion and cuts
-are still treated.
+the unseen attacker's melee blow on the board is struck back the way every
+survival path answers it (unseen_strike, owner 2026-10-03 「近接で敵の方向が
+分からなければランダムな方向に攻撃。」); with neither there is nothing to
+fight and the cure stays as before.  n1-b life-299 (2026-11-03 01:26,
+オークの洞窟19階): a ヴラスタ (BITE:BLIND x2) came out of the dark and
+blinded it before any sighted board showed it, so nothing was remembered;
+seven Cure Critical Wounds went on the blindness, each re-blinded by the
+next bite.  Confusion and cuts are still treated.
 """
 
-from hengbot import blind_strike
+from hengbot import blind_strike, unseen_strike
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_POTION_CURE_CRITICAL
 from hengbot.policy_constants import REST_MACRO
@@ -52,20 +58,26 @@ def observe(policy, snapshot) -> None:
 
 
 def cure_futile(policy, snapshot) -> bool:
-    """Whether this blindness came back right after a cure and a remembered
-    attacker beside the player can be fought instead (no cure for it)."""
+    """Whether this blindness came back right after a cure and its attacker
+    can be fought instead (no cure for it): one remembered beside the player,
+    or an unseen one whose melee blow landed on this board and a free
+    neighbour to strike it in."""
     return (getattr(policy, _LATCH, None) == snapshot.floor_key
-            and bool(blind_strike.remembered_cells(policy, snapshot)))
+            and (bool(blind_strike.remembered_cells(policy, snapshot))
+                 or unseen_strike.strike_cell(policy, snapshot,
+                                              policy._physical_hostiles(snapshot)) is not None))
 
 
 def fight_through_key(policy, snapshot) -> str | None:
-    """Strike the remembered attacker instead of the futile cure, else None."""
+    """Strike the attacker instead of the futile cure, else None."""
     player = snapshot.player
     if (not player.blind or player.afraid or not cure_futile(policy, snapshot)
             or player.hp < policy._low_hp_walk_threshold(player.max_hp)
             or not policy._can_fight_in_dungeon(snapshot.floor_key[0])):
         return None
-    return blind_strike.strike_key(policy, snapshot, FIGHT_THROUGH_REASON)
+    return (blind_strike.strike_key(policy, snapshot, FIGHT_THROUGH_REASON)
+            or unseen_strike.key(policy, snapshot, policy._physical_hostiles(snapshot),
+                                 FIGHT_THROUGH_REASON))
 
 
 def treats(policy, snapshot, *, blind_only: bool = False) -> bool:
