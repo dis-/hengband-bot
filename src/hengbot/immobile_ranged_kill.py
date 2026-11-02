@@ -30,7 +30,13 @@ applied to the never-moving monster:
   below the current HP -- the summoner rule's ``_predicted_damage(...,
   turns=3) >= hp`` refusal with the walk counted;
 - no other hostile is in view or beside the player: those go to the normal
-  ladder first (survival first).
+  ladder first (survival first);
+- it was not out of view from a shooting cell the player reached since it
+  was last perceived (``immobile_threat_memory.unaimed``): a dark or
+  invisible monster cannot be aimed at, and the walk back to that cell
+  alternated with the summoner zone's step out of it (n1-c life-110,
+  Orc cave 22F, 2026-11-02 22:44: a クイルスルグ remembered at (37,141),
+  ``7`` to (42,141) and ``3`` back until the loop detector stopped the bot).
 
 On a floor whose exit is locked nothing changes: the existing fight owners
 decide there.
@@ -79,7 +85,8 @@ def plan(policy, snapshot, monster: MonsterState) -> KillPlan | None:
     if (snapshot.in_town or player.blind or player.confused
             or policy._floor_navigation_exit_locked(snapshot)
             or policy._matching_ammo(snapshot) is None
-            or _others_present(policy, snapshot, monster)):
+            or _others_present(policy, snapshot, monster)
+            or immobile_threat_memory.unaimed(policy, monster.position)):
         return None
     shots = policy._summoner_shots_to_kill(snapshot, monster)
     if shots is None or shots > SUMMONER_RANGED_KILL_SHOTS:
@@ -138,6 +145,9 @@ def key(policy, snapshot) -> str | None:
             return policy._step_toward(snapshot, found.step)
         target = visible.get(monster.position)
         if target is None:
-            continue  # out of sight from the shooting cell: nothing to aim at
+            # Out of sight from the shooting cell: nothing to aim at until
+            # it is perceived again.
+            immobile_threat_memory.mark_unaimed(policy, monster.position)
+            continue
         return policy._ranged_attack_key(snapshot, [target], [])
     return None

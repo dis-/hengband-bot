@@ -1,0 +1,92 @@
+"""Freeze the hourly-2300-1102 boards (n1-a life-466, 2026-11-02 23:18).
+
+Sources, copied read-only from the viewing server to
+C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-a/life-466/:
+
+  captures/20261102-231848-town-blocked-departure-unsatisfiable/state.jsonl.gz
+      the stop board (turn 676638, town:blocked:departure-unsatisfiable),
+      the Home list read on it and the skill row.
+  incident-captures/20261102-231856-posting-contract-recall-already-active/
+  snapshots/snapshots-current.jsonl.gz
+      the restarted session's recall read board (turn 677221, decision 12
+      town:recall-to-yeek-cave ``rgb``) and the next board (677231, decision
+      13 town:cancel-wrong-recall-destination ``rg``).
+
+and from .../hourly-2300-1102/n1-b/life-297/:
+
+  captures/20261102-224947-loop-detected/state.jsonl.gz
+      the loop-detected board (turn 400979, 15F, confused:wait);
+  incident-captures/20261102-224945-loop-detected/snapshots/snapshots-current.jsonl.gz
+      its skill row and Home list.
+
+and from .../hourly-2300-1102/n1-c/life-111/incident-captures/
+20261102-231544-loop-detected/snapshots/snapshots-current.jsonl.gz:
+      the two boards of the 1F fundraise:seek-loot oscillation (turns 593549
+      at (49,37) and 593556 at (49,36), a sleeping louse in view) and the
+      skill row.
+
+Only this extraction tool reads the captures; the committed test reads the
+fixture.
+"""
+
+from __future__ import annotations
+
+import gzip
+import json
+from pathlib import Path
+
+from tests.extract_me_staff_loops_1031 import ring_rows
+from tests.extract_n1c_loops_0336_1102_fixtures import write
+
+
+LIFE = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-a/life-466")
+STOP = LIFE / "captures" / "20261102-231848-town-blocked-departure-unsatisfiable"
+RECALL = (LIFE / "incident-captures"
+          / "20261102-231856-posting-contract-recall-already-active")
+N1B = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-b/life-297")
+N1C = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-c/life-111")
+N1C110 = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-c/life-110")
+SUMMONER_TURNS = (1036087, 1036098, 1036105, 1036117, 1036559, 1036566)
+OUTPUT = Path(__file__).with_name("fixtures") / "hourly-2300-1102.json.gz"
+
+
+def rows_of(path: Path) -> list[dict]:
+    with gzip.open(path, "rt", encoding="utf-8") as stream:
+        return [json.loads(line) for line in stream if line.strip()]
+
+
+def board(rows, turn):
+    return [row for row in rows if row["type"] == "player_turn" and row["turn"] == turn][-1]
+
+
+def knowledge(rows, category):
+    return [row for row in rows if row["type"] == "knowledge"
+            and row["knowledge"]["category"] == category][-1]
+
+
+def main():
+    stop = rows_of(STOP / "state.jsonl.gz")
+    recall = ring_rows(RECALL / "snapshots" / "snapshots-current.jsonl.gz")
+    confused = rows_of(N1B / "captures" / "20261102-224947-loop-detected" / "state.jsonl.gz")
+    confused_ring = ring_rows(N1B / "incident-captures" / "20261102-224945-loop-detected"
+                              / "snapshots" / "snapshots-current.jsonl.gz")
+    loot = ring_rows(N1C / "incident-captures" / "20261102-231544-loop-detected"
+                     / "snapshots" / "snapshots-current.jsonl.gz")
+    summoner = ring_rows(N1C110 / "incident-captures" / "20261102-224412-loop-detected"
+                         / "snapshots" / "snapshots-current.jsonl.gz")
+    write(OUTPUT, dict(
+        source="state.jsonl.gz of the n1-a life-466 hourly-2300-1102 captures",
+        identify=dict(stop=board(stop, 676638), home=knowledge(stop, "home"),
+                      skill=knowledge(stop, "skill_exp")),
+        recall=dict(read=board(recall, 677221), next=board(recall, 677231),
+                    skill=knowledge(recall, "skill_exp")),
+        confused=dict(stop=board(confused, 400979), home=knowledge(confused_ring, "home"),
+                      skill=knowledge(confused_ring, "skill_exp")),
+        loot=dict(west=board(loot, 593549), east=board(loot, 593556),
+                  skill=knowledge(loot, "skill_exp")),
+        summoner=dict(boards=[board(summoner, turn) for turn in SUMMONER_TURNS],
+                      skill=knowledge(summoner, "skill_exp"))))
+
+
+if __name__ == "__main__":
+    main()

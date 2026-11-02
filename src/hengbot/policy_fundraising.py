@@ -1754,7 +1754,12 @@ class FundraisingMixin:
             # Mined gold piles inherit Hengband's `unsafe` cave flag even when no
             # monster is visible. Survival and adjacent combat have already run,
             # so do not leave those drops behind merely because of that flag.
-            visible_loot_step = self._loot_step(snapshot, include_unsafe=True)
+            # The route keeps the floor under visible hostiles, as
+            # _normal_loot_key's does (_loot_route_hostile_cells).
+            visible_loot_step = self._loot_step(
+                snapshot, include_unsafe=True,
+                through=self._loot_route_hostile_cells(hostiles),
+            )
 
         # A floor item is already realised value. Collect the nearest reachable
         # one before detecting, mining, or exploring for another vein.

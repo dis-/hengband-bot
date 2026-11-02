@@ -392,6 +392,12 @@ STATIONARY_REASONS = frozenset(
         # _fruitless_disengage_key re-labels return:* reasons before the CLI
         # sees them; this is the same bounded _wall_search_counts search above.
         "combat:disengage-search-upstairs",
+        # Riding out confusion with no physical hostile: the game's
+        # confusion timer counts down every player turn
+        # (magic-effects-timeout-reducer.cpp mod_confusion(-1)), so the hold
+        # ends by itself (n1-b life-297 2026-11-02 22:49 stopped as
+        # loop-detected after 170 waits).
+        "confused:wait",
     }
 )
 

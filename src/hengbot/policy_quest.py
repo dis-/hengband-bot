@@ -4585,11 +4585,9 @@ class QuestMixin(OpeningRouteMixin):
                     "fixedquest:request",
                     set_reward_pending=False,
                 )
-            if quest.status != QUEST_STATUS_TAKEN:
-                return None
-            # A taken kill quest uses ordinary entrance routing and stair descent.
-            self._target_dungeon_id = info.dungeon
-            self._target_dungeon_reason = "quest_dungeon"
+            # A taken kill quest uses ordinary entrance routing and stair
+            # descent; its dungeon is the observed target
+            # (_taken_kill_quest_dungeon).
             return None
         if snapshot.floor_key[2] == quest_id:
             if quest.status == QUEST_STATUS_COMPLETED:
@@ -4876,6 +4874,30 @@ class QuestMixin(OpeningRouteMixin):
         return self._kill_quest_exit_would_fail(snapshot) or (
             active_fixed is not None and self._fixed_quest_is_once(active_fixed)
         )
+
+    def _taken_kill_quest_dungeon(self, snapshot: Snapshot) -> int | None:
+        """The dungeon of the taken fixed kill quest, the board's target.
+
+        Selected with the other dungeon targets on every board.  It used to
+        be assigned inside _fixed_quest_key, after observation had put the
+        conquest target back, so boards that never reach that rung (a store
+        page, the board after a recall read) disagreed with the read and the
+        recall was cancelled as wrong-destination (n1-a life-466 2026-11-02
+        23:18, Yeek cave read / Labyrinth on the next board, read/cancel x2).
+        """
+        quest_id = self._fixed_quest_target(snapshot)
+        if quest_id is None or quest_id == self._fixed_quest_reward_pending:
+            return None
+        quest = self._known_fixed_quests(snapshot).get(quest_id)
+        info = self._quest_knowledge.get(quest_id)
+        if (
+            quest is None
+            or quest.status != QUEST_STATUS_TAKEN
+            or info is None
+            or info.type not in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
+        ):
+            return None
+        return info.dungeon
 
     def _fixed_quest_target(self, snapshot: Snapshot) -> int | None:
         def supported(quest_id: int) -> bool:
