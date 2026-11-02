@@ -23,7 +23,7 @@ from hengbot.model import Position
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import town_work_manifest as generator
-from ownership_on_corpus import MANIFEST, read_json, run_window
+from town_work_corpus import MANIFEST, read_json, run_window
 from tests.gate_sample import sample
 
 
@@ -188,7 +188,7 @@ class TownWorkContractTest(unittest.TestCase):
                 unmapped=sum(bool(r['reason']) for r in results)), indent=2) + '\n', encoding='utf8')
 
     def test_both_captures_all_complete_boards_and_recorded_producers(self):
-        from ownership_on_corpus import new_policy, monraces
+        from town_work_corpus import new_policy, monraces
         from hengbot.model import parse_snapshot
         fixture = Path(__file__).parent / 'fixtures/town-work-slice0-captures-20261006.json.gz'
         self.assertEqual(hashlib.sha256(fixture.read_bytes()).hexdigest(),

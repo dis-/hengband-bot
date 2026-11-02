@@ -25,6 +25,10 @@ _RETIRED_CLAIM_RECORD_NAMES = (
     # Slice 4: the decision claim row's own diagnostics.
     "_decision_displaced_producer", "_decision_plan_rebuild_deferred",
     "_decision_plan_change_evidence",
+    # Slice 4 step 5: the bar switch (always off) and its per-decision skips.
+    "_claim_bar_enforced", "_decision_bar_skips",
+    # The dead town liveness stop of the procurement seam (slice 4 step 5).
+    "_town_liveness_invariant_defect",
 )
 
 
@@ -427,11 +431,6 @@ def normalize_policy_state(restored, *, restart=False):
     # S2b.1 round 2 (rev 10.1 item 9): the per-decision trigger slot, reset
     # at every ``choose_key`` entry like the two above.
     restored.__dict__.setdefault("_decision_triggers", None)
-    # S2b.2: the per-decision record of the rungs a bar skipped (reset at
-    # every ``choose_key`` entry), and the switch that lets a bar skip one --
-    # off, as it is in every checkpoint this change can meet.
-    restored.__dict__.setdefault("_decision_bar_skips", None)
-    restored.__dict__.setdefault("_claim_bar_enforced", False)
     # In-store shop operations (SOL-DESIGN-store-reentry-20261003 3.2):
     # captures before the switch existed held no in-store entry, breaker,
     # shelf evidence or shadow state; off/empty is what they behaved as.

@@ -1820,7 +1820,9 @@ class TownMixin:
             )
             return WAIT_KEY
 
-        claims_active = self._town_claims_active(snapshot)
+        # Records the live route owners (``_town_claim_categories``) that the
+        # town plan and the town end read.
+        self._town_claims_active(snapshot)
 
         # Durable session ownership survives reason relabelling and blockers.
         if self._equipment_transaction_owns_town_relocation(snapshot):
@@ -1885,36 +1887,6 @@ class TownMixin:
             return key
         progress = self._town_procurement_progress_key(snapshot)
         if progress is None:
-            liveness_candidate = (
-                proposed_reason == "stuck:wander"
-                or proposed_reason.startswith("novel:")
-            )
-            if enforce and movement_key and liveness_candidate and (
-                claims_active or getattr(self, "_town_liveness_claim_retired", False)
-            ):
-                blocked_reason = (
-                    "retired-equipment-transaction-failed"
-                    if getattr(self, "_town_liveness_claim_retired", False)
-                    else "no-actionable-claim-owner"
-                )
-                self.last_reason = f"town:blocked:{blocked_reason}"
-                self._town_liveness_invariant_defect = {
-                    "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
-                    "winning_rung": proposed_reason,
-                    "resolution": self.last_reason,
-                    "claim_retired": getattr(
-                        self, "_town_liveness_claim_retired", False
-                    ),
-                }
-                self._town_progress_invariant_defect = dict(
-                    self._town_liveness_invariant_defect
-                )
-                self._record_shop_selector_diagnostics(snapshot, WAIT_KEY)
-                return WAIT_KEY
-            if enforce and movement_key and liveness_candidate:
-                walk_in = self._mining_walk_in_return_key(snapshot)
-                if walk_in is not None:
-                    return walk_in
             self.last_reason = proposed_reason
             return key
         progress_key, progress_reason = progress

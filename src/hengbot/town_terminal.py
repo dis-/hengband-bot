@@ -1946,24 +1946,6 @@ class Goal:
     monster: tuple[int, int] | None = None
     place: str | None = None
 
-    def as_dict(self) -> dict:
-        if self.kind == GOAL_REACH:
-            if self.monster is not None:
-                return {"kind": GOAL_REACH, "monster": list(self.monster)}
-            if self.place is not None:
-                return {"kind": GOAL_REACH, "place": self.place}
-            return {"kind": GOAL_REACH, "cell": list(self.cell or ())}
-        if self.kind == GOAL_OBSERVE:
-            row = {
-                "kind": GOAL_OBSERVE,
-                "expectation": list(self.expectation),
-                "within": self.within,
-            }
-            if self.source is not None:
-                row["source"] = self.source
-            return row
-        return {"kind": GOAL_TERMINAL, "effect": self.effect}
-
 
 def reach_goal(cell: tuple[int, int]) -> Goal:
     """Arrive at one cell, named as ``(y, x)`` rather than as a ``Position``."""
@@ -2110,8 +2092,7 @@ class Bar:
     which one of them was perceived (the bar's own start when none was).
 
     ``rung`` (round 2) is the ladder rung of the claim that earned the bar
-    (``rung_of_claim``); the switch skips that rung before it
-    runs.  ``clearance`` and ``reason`` are, for an errand bar, the durable
+    (``rung_of_claim``).  ``clearance`` and ``reason`` are, for an errand bar, the durable
     part of the retirement clearance key when the bar was set and the reason
     it was computed for (``claim_errand_clearance``).
     """
@@ -2287,7 +2268,7 @@ class ClaimRegister:
         S2b.1 a suspended claim comes back only through ``resume`` (design rev
         10.1 item 5), under its own id.
 
-        S2b.1 record-only facts: ``rank`` / ``rung`` and ``trigger_monsters``
+        S2b.1 facts: ``rank`` / ``rung`` and ``trigger_monsters``
         of a newly opened claim; ``survival`` follows the latest decision;
         ``perceived_turn`` -- the game turn, when one of the claim's trigger
         monsters is perceived on this board -- moves ``last_perceived_turn``
@@ -3563,20 +3544,6 @@ TOWN_ERRAND_FAMILIES = frozenset({
 # that triggered them.
 TRIGGER_FAMILIES = frozenset({
     "positioning", "hunt", "esp-threat", "combat", "escape",
-})
-
-# S2b.2 round 2 (design 3.3's plumbing): the rungs of ``_decide`` that ask
-# ``policy._claim_bar_skips`` before they run and are not called while a bar a
-# claim of theirs earned stands (switch on only).  A gated rung is one a bar
-# can carry -- ``rung_of`` gives it a threat-triggered Reach/Observe reason --
-# and that cannot answer survival, since whether an answer is survival is
-# known only after the rung has run.  ``tests/test_ownership_s2b2_bar.py``
-# pins this set against the wiring in the source.
-BAR_GATED_RUNGS = frozenset({
-    "_detected_threat_preparation_key",
-    "_breeder_breakthrough_key",
-    "_choke_engagement_key",
-    "_breeder_breakthrough_escape_key",
 })
 
 PREEMPTION = "preemption"
@@ -5184,7 +5151,7 @@ def claim_owner_transition(
       not a violation (round 2 F1/F2);
     * the same owner replacing its own open goal otherwise is a retarget
       violation (rev 10 item 4) -- never a preemption followed by
-      ``resume-goal-changed`` on the same row;
+      ``resume-goal-changed`` on the same decision;
     * any other owner change is a violation, and so is any ordinary
       change away from a store-operation or transaction ``Observe`` claim
       (rev 10.1 item 6). A town survival decision suspends an S3 holder;
@@ -5431,7 +5398,7 @@ def claim_bar_for(policy, snapshot: Snapshot, claim, ending: str):
     """The bar a claim that ended this way earns, or ``None``.
 
     Design 3.2: a preemptor that does not reach its own goal is barred;
-    survival is exempt (the row's ``survival`` flag, rev 10.1 item 3).
+    survival is exempt (the claim's ``survival`` flag, rev 10.1 item 3).
     Design 3.3: a retired claim bars its owner for the same goal.
 
     * Only a Reach or Observe claim, never a survival one, and never one
@@ -5532,7 +5499,7 @@ def open_execution_delegation(
     work_identity: tuple, purpose_identity: tuple,
     expected_effect: str, budget_reference: str,
 ) -> ExecutionDelegation:
-    """Reserve a named child before invoking its executor (record-only)."""
+    """Reserve a named child before invoking its executor."""
     work_identity = tuple(work_identity)
     purpose_identity = tuple(purpose_identity)
     for record in hold_delegations(policy):

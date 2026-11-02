@@ -1885,13 +1885,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # goal it declared.  Setting it to None disables recording entirely,
         # which is how the neutrality pin replays the same boards without it.
         self._town_hold = TownHold.fresh()
-        # S2b.2 (design 3.2 / 3.3): the switch that lets the bar table change
-        # a decision.  OFF is the default and the only shipped setting: the
-        # table is kept and every decision records what it *would* bar
-        # (``would_bar``), but no rung is skipped.  Turned on only by tests
-        # until a live measurement decides otherwise (user decision
-        # 2026-09-26).
-        self._claim_bar_enforced = False
         # A restored checkpoint may predate this attribute; readers use
         # getattr(..., False) until its first decision.
         self._crossarea_fundraising_enforced = False
@@ -2524,7 +2517,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_goal = None
         self._decision_expectation = None
         self._decision_triggers = None
-        self._decision_bar_skips = None
         self._hunt_step_target = None
 
     def __setstate__(self, state):
@@ -2661,8 +2653,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_non_discardable = None
         # S2b.1 (rev 10.1 item 9): the trigger monsters a producer declares.
         self._decision_triggers = None
-        # S2b.2: the rungs the bar skipped on this decision (switch on only).
-        self._decision_bar_skips = None
         self._decision_errand_deferred = []
         self._decision_terminal_admissions = []
         self._observe_home_atomic_deposit_outside(snapshot)
@@ -2711,7 +2701,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.prompt_owner_handoff = None
         self._town_progress_invariant_defect = {}
         self._withdrawal_unfulfilled_defect = {}
-        self._town_liveness_invariant_defect = {}
         self._town_liveness_claim_retired = False
         arbiter = getattr(self, "_town_turn_arbiter", None)
         if arbiter is None:
@@ -3166,18 +3155,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_progress_note_command(key)
         return key
 
-    # -- S1 attribution (SOL-DESIGN-ownership-contract.md 3.1, 4, 6/S1) ----
+    # -- The producers' side of the town hold (town_terminal) ---------------
     #
-    # Recording only.  Nothing below is read back by a producer, the ladder or
-    # the driver, and no branch here can reach a key or a reason.
-
-
-    # -- S2a.1 goal slot and closing paths (design rev 9.1/9.2) -------------
-    #
-    # Every helper below is record-only: it writes the per-decision goal slot
-    # or calls the claim register, and returns nothing a producer reads.  A
-    # producer calls them on the board that uses its own target; the
-    # declaration at the ``choose_key`` exit reads only the slot.
+    # A producer names its goal in the per-decision slots or closes the goal
+    # it drops; ``town_terminal.advance_hold`` reads the slots at the
+    # ``choose_key`` exit and moves the hold, which later decisions read (the
+    # errand hold, the bars, the delegation tokens).  Nothing here returns a
+    # value a producer reads.
 
     def _declare_goal(
         self, goal: Goal, family: str | None = None, note: str | None = None
@@ -3477,10 +3461,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             kinds=(CLAIM_GOAL_OBSERVE,), sources=(CLAIM_OBSERVE_STORE_ENTRY,),
         )
 
-    # -- S2b.1: the ladder, preemption and violations (design rev 10.1) -------
-    #
-    # Record-only, like everything above: these helpers read the snapshot and
-    # the claim register, and write only the register and the decision row.
+    # -- S2b.1: the trigger monsters of a decision (design rev 10.1) ----------
 
     def _declare_triggers(self, monsters, family: str | None = None) -> None:
         """Record-only (rev 10.1 item 9): the monsters this producer acted on.
@@ -3500,47 +3481,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 for monster in monsters
             })),
         )
-
-    # -- S2b.2: the bar table (design 3.2, 3.3, 5.4.1) ----------------------
-    #
-    # Record-only while ``_claim_bar_enforced`` is off (the default and the
-    # only shipped setting): the helpers below write the register and the
-    # decision row.  With the switch on, ``_claim_bar_skips`` also keeps a
-    # barred rung from running at all (design 3.3's plumbing), which is
-    # exercised by tests only.
-
-    def _claim_bar_skips(self, snapshot: Snapshot, rung_name: str) -> bool:
-        """Design 3.3's plumbing, decided before the rung runs (switch on).
-
-        ``_decide`` asks this right before it calls a gated rung
-        (``town_terminal.BAR_GATED_RUNGS``), and does not call the rung when
-        the answer is True, so a barred producer spends none of its own state
-        (a choke plan's decision counters, a committed route).  With the
-        switch off -- the default and the only shipped setting -- it answers
-        False at once and the rung runs exactly as before.  With it on, the
-        rung is skipped while a bar that a claim of this rung earned stands
-        on this board.  The gated rungs cannot answer survival, and survival
-        claims earn no bar.
-        """
-        if not getattr(self, "_claim_bar_enforced", False):
-            return False
-        register = town_hold_claims(self)
-        if register is None:
-            return False
-        for bar in register.bars:
-            if bar.rung != rung_name or town_claim_bar_after(self, snapshot, bar) is None:
-                continue
-            self._decision_bar_skips = [
-                *(getattr(self, "_decision_bar_skips", None) or ()),
-                {
-                    "rung": rung_name,
-                    "owner": bar.owner.value,
-                    "goal": bar.goal.as_dict(),
-                    "bar_since_turn": bar.since_turn,
-                },
-            ]
-            return True
-        return False
 
     def _town_errand_deferral(self, family, reason, snapshot=None,
                               *, work_identity=None, enforced=True,
@@ -7597,13 +7537,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ))
         detected_preparation = None
         if unseen_action is None:
-            detected_preparation = (
-                None
-                if self._claim_bar_skips(snapshot, "_detected_threat_preparation_key")
-                else self._town_producer_entry("_detected_threat_preparation_key", lambda: self._detected_threat_preparation_key(
-                    snapshot, physical_hostiles
-                ))
-            )
+            detected_preparation = self._town_producer_entry("_detected_threat_preparation_key", lambda: self._detected_threat_preparation_key(
+                snapshot, physical_hostiles
+            ))
         contested_action = unseen_action or detected_preparation
         if contested_action is not None:
             # An ordinary or already-latched town return owns this contested
@@ -7765,26 +7701,18 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and self._breeder_breakthrough_floor == snapshot.floor_key
         ):
             self._release_choke_plan("breeder-breakthrough")
-        breakthrough = (
-            None
-            if self._claim_bar_skips(snapshot, "_breeder_breakthrough_key")
-            else self._town_producer_entry("_breeder_breakthrough_key", lambda: self._breeder_breakthrough_key(
-                snapshot, strategic_hostiles
-            ))
-        )
+        breakthrough = self._town_producer_entry("_breeder_breakthrough_key", lambda: self._breeder_breakthrough_key(
+            snapshot, strategic_hostiles
+        ))
         if breakthrough is not None:
             if self._choke_plan_active(snapshot):
                 self._release_choke_plan("breeder-breakthrough")
             self._declare_triggers(strategic_hostiles)  # record-only
             return breakthrough
 
-        choke_plan = (
-            None
-            if self._claim_bar_skips(snapshot, "_choke_engagement_key")
-            else self._town_producer_entry("_choke_engagement_key", lambda: self._choke_engagement_key(
-                snapshot, physical_hostiles, physical_adjacent
-            ))
-        )
+        choke_plan = self._town_producer_entry("_choke_engagement_key", lambda: self._choke_engagement_key(
+            snapshot, physical_hostiles, physical_adjacent
+        ))
         if choke_plan is not None:
             return choke_plan
 
@@ -7861,11 +7789,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # remembered up-stairs, else to the nearest live frontier.  With
             # neither, fall through to the ordinary navigation ladder like
             # the non-mining exhausted floor.
-            escape = (
-                None
-                if self._claim_bar_skips(snapshot, "_breeder_breakthrough_escape_key")
-                else self._town_producer_entry("_breeder_breakthrough_escape_key", lambda: self._breeder_breakthrough_escape_key(snapshot))
-            )
+            escape = self._town_producer_entry("_breeder_breakthrough_escape_key", lambda: self._breeder_breakthrough_escape_key(snapshot))
             if escape is not None:
                 return escape
 

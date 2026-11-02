@@ -1,4 +1,9 @@
-"""Frozen corpus adapters shared by extraction, tests and the report writer."""
+"""The frozen town decision corpus the town work contract tests replay.
+
+Windows of recorded town decisions (fixtures/ownership-on-replay-20261005.json.gz,
+extracted 2026-10-05 for the retired ownership switch) replayed through the
+public policy boundary: only causally valid prefixes, one window at a time.
+"""
 
 import base64
 from functools import lru_cache
@@ -13,7 +18,7 @@ from hengbot.latch_onset_capture import restore_checkpoint
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from ownership_on_replay import replay_window
+from dataclasses import dataclass
 
 FIXTURES = Path(__file__).parent / "fixtures"
 MANIFEST = FIXTURES / "ownership-on-replay-20261005.json.gz"
@@ -48,7 +53,7 @@ def static_game_data():
     # never its policy state, mutable histories or character calibration.
     from test_esp_threat_rest_recorded import _policy
     from tempfile import TemporaryDirectory
-    with TemporaryDirectory(prefix="ownership-data-") as raw:
+    with TemporaryDirectory(prefix="town-work-data-") as raw:
         template = _policy(Path(raw), monraces())
         return {
             "town_map": template._town_map,
@@ -118,3 +123,47 @@ def run_window(window, directory):
         decisions = inputs()
     enable_live_switches(policy)
     return replay_window(window["name"], policy, decisions)
+
+
+@dataclass
+class ReplayResult:
+    window: str
+    rows_replayed: int = 0
+    matched_rows: int = 0
+    town_rows: int = 0
+    first_divergence: dict | None = None
+
+
+def replay_window(name, policy, decisions):
+    """Choose and acknowledge matching decisions only; stop at first difference.
+
+    The caller supplies an iterator of (recorded decision, board supplier). A
+    supplier is deliberately lazy: no response/knowledge/effect of the next
+    historical command is delivered after a divergence.  Conservatively
+    compare both key and reason; even a reason-only difference ends this
+    window.  None and the empty key are distinct.
+    """
+    from hengbot.policy import staged_prompt_chain_matches
+
+    result = ReplayResult(name)
+    for recorded, board_supplier in decisions:
+        board = board_supplier()
+        key = policy.choose_key(board)
+        result.rows_replayed += 1
+        result.town_rows += bool(board.in_town)
+        if (key, policy.last_reason) != (recorded["key"], recorded["reason"]):
+            result.first_divergence = {
+                "row": recorded["row"],
+                "recorded": [recorded["key"], recorded["reason"]],
+                "new": [key, policy.last_reason],
+            }
+            break
+        result.matched_rows += 1
+        if key:
+            policy.confirm_key_posted(key)
+            chain = policy.peek_staged_prompt_chain()
+            if chain is not None and staged_prompt_chain_matches(chain, key):
+                policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
+        if key is None:
+            break
+    return result
