@@ -1610,7 +1610,8 @@ class HomeMixin:
         )
 
     def _retire_vanished_pending_withdrawals(self, snapshot: Snapshot) -> None:
-        """Retire Home withdrawals of items neither in Home nor carried.
+        """Retire Home withdrawals of items neither in Home nor carried, and
+        the pending one whose confirmed take emptied it from Home.
 
         The Home withdrawal verdict refuses a request whose item a current
         Home list lacks (town_terminal.verdict_home_withdraw).  A pending
@@ -1629,11 +1630,22 @@ class HomeMixin:
         carried = {self._item_signature(item)
                    for item in (*snapshot.inventory, *snapshot.equipment)}
 
-        def vanished(signature):
-            return signature is not None and signature not in carried and not (
-                verdict_home_withdraw(gather_home_withdraw(
-                    self, snapshot, target=signature)).admitted)
+        def left_home(signature):
+            return signature is not None and not verdict_home_withdraw(
+                gather_home_withdraw(self, snapshot, target=signature)).admitted
 
+        def vanished(signature):
+            return signature not in carried and left_home(signature)
+
+        taken = getattr(self, "_home_pending_take_confirmed", None)
+        if taken == self._home_pending_item and left_home(taken):
+            # Its own take was confirmed (policy observation) and the current
+            # Home list no longer holds it: the withdrawal is complete.  n1-b
+            # life-295 2026-11-02: the confirmed 財宝感知 take stayed pending
+            # outside Home, so the Home leg's terminal was refused as
+            # reservation-unavailable on every board and the queued shovel and
+            # the *Remove Curse* withdrawal behind it never ran.
+            self._release_confirmed_home_take()
         if vanished(self._home_pending_item):
             self._defer_unobserved_home_withdrawal(self._home_pending_item)
         if self._home_pending_item is None:
@@ -1647,6 +1659,16 @@ class HomeMixin:
             report = visit.consume_report()
             self._pending_home_visit_report = (
                 f"home-visit:{report.request.requester}:{report.outcome}")
+
+    def _release_confirmed_home_take(self) -> None:
+        """End the pending withdrawal whose own take was confirmed.
+
+        Complete work, so no deferral and no failed-withdrawal record.
+        """
+        self._home_pending_take_confirmed = None
+        self._home_pending_item = None
+        self._home_pending_slot = None
+        self._home_pending_quantity = None
 
     def _ensure_home_visit_request(self, snapshot: Snapshot) -> bool:
         """File before approach; reports are consumed explicitly, never waited."""
@@ -3535,10 +3557,7 @@ class HomeMixin:
                     # The pending item's own take is confirmed: its withdrawal
                     # is complete, not unobserved.  Release it without a
                     # deferral or a failed-withdrawal record.
-                    self._home_pending_take_confirmed = None
-                    self._home_pending_item = None
-                    self._home_pending_slot = None
-                    self._home_pending_quantity = None
+                    self._release_confirmed_home_take()
                 if catalogued_beyond_prefix:
                     self._invalidate_home_observation()
                     self.last_reason = "home:await-fresh-knowledge"
