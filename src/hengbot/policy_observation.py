@@ -671,6 +671,10 @@ class ObservationMixin:
                 self._target_dungeon_id = alternate
                 self._target_dungeon_reason = "safe_fallback"
                 self._conquest_committed = None
+        quest_dungeon = self._taken_kill_quest_dungeon(snapshot)
+        if quest_dungeon is not None:
+            self._target_dungeon_id = quest_dungeon
+            self._target_dungeon_reason = "quest_dungeon"
 
         # Fresh conquest: the char just killed a dungeon's final guardian while
         # standing in it. Latch it so the loot phase grabs the drop before recalling

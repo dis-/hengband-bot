@@ -7,11 +7,14 @@ Fixture: tests/extract_hourly_2300_1102_fixtures.py.
 
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
+import copy
 import gzip
 import json
 import unittest
 from pathlib import Path
 
+from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from tests import test_input_executor as executor_pins
 from test_hourly_0700_1102_recorded import RecordedTownPolicy
 
 
@@ -62,6 +65,59 @@ class VanishedIdentificationCandidateTest(RecordedTownPolicy):
         self.assertIsNone(policy._identification_need)
         self.assertFalse(policy._home_candidate_waiting)
         self.assertEqual(policy._departure_block_state(board)["failed"], [])
+
+
+class QuestDungeonTargetAcrossBoardsTest(RecordedTownPolicy, executor_pins.ProductionHarness):
+    """n1-a life-466 23:18:56 posting-contract:recall-already-active.
+
+    The restarted session read Word of Recall to the Yeek cave (decision 12,
+    ``rgb``: quest 14, a taken kill quest there, set the target inside
+    _fixed_quest_key).  On the next board (13) observation had put the
+    conquest target, the Labyrinth, back before that rung ran, so the active
+    recall was cancelled as town:cancel-wrong-recall-destination; the same
+    read and cancel repeated (17, 18) until the posting contract stopped it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cases = _cases()
+        cls.case, cls.home = cases["recall"], cases["identify"]["home"]
+
+    def test_recall_board_keeps_the_quest_dungeon_read(self):
+        case = self.case
+        policy = self.primed(case["read"], self.home["knowledge"]["items"], case["skill"])
+        board = self.board(policy, case["next"])
+        self.assertTrue(board.player.recalling)
+        self.assertEqual(list(board.entered_dungeon_ids), [1, 2, 4, 14, 18])
+        # DECLARED RECONSTRUCTED: the recorded read ``rgb`` chose letter b,
+        # the Yeek cave (dungeon 2).
+        policy._pending_recall_dungeon_id = 2
+        key = policy.choose_key(board)
+        # Recorded: 'rg' town:cancel-wrong-recall-destination.
+        self.assertEqual((key, policy.last_reason), ("1", "town:wait-recall-step-off"))
+        self.assertEqual((policy._target_dungeon_id, policy._target_dungeon_reason),
+                         (2, "quest_dungeon"))
+
+        raw = case["next"]
+        game = executor_pins.FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = executor_pins.command_screen(raw["turn"])
+        # DECLARED CONSTRUCTED: the game's reply to the step.
+        moved = copy.deepcopy(raw)
+        moved["turn"] += 10
+        moved["player"]["y"] += 1
+        moved["player"]["x"] -= 1
+        game.screens = [executor_pins.command_screen(moved["turn"])]
+        game.states = [moved]
+        _game, _client, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        sent, _line = _send_new_decision_key(
+            port, "recorded-board", key, None, set(), in_store=False,
+            decision={"sequence": 13, "reason": policy.last_reason},
+            snapshot=board, posting_contract=PostingContract())
+        self.assertTrue(sent, port.last_result.stop_line)
+        self.assertEqual(game.accepted, ["1"])
 
 
 if __name__ == "__main__":

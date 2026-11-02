@@ -631,7 +631,11 @@ class FixedQuestTest(unittest.TestCase):
         policy._target_dungeon_id = 7
 
         self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+        # The taken kill quest's dungeon is selected with the other targets
+        # on every observed board (n1-a life-466 2026-11-02).
+        policy._observe(snapshot)
         self.assertEqual(policy._target_dungeon_id, DUNGEON_YEEK_CAVE)
+        self.assertEqual(policy._target_dungeon_reason, "quest_dungeon")
         self.assertTrue(policy._taken_kill_quest_requires_walk_in(
             replace(snapshot, recall_depth=8)
         ))
