@@ -6965,9 +6965,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         adjacent = [
             m for m in hostiles if m.position.distance_to(player.position) <= 1
         ]
+        # An unseen attacker's melee blow on this board is an adjacent attacker
+        # the step cannot be checked against: it is struck back below (追加決定2,
+        # unseen_strike).  n1-a life-466 (2026-11-03 02:31, オークの洞窟14階):
+        # blind, the emergency walk to the up-stair went on bitten by a ヴラスタ
+        # on almost every step (HP 274 -> 23).  Only a step onto an up-stair
+        # still escapes it (owner 2026-11-03).
         if (
             key in DIRECTION_KEYS.values()
             and self.last_reason in self.LOW_HP_CHECKED_STEP_REASONS
+            and (not unseen_strike.hit_in_melee(self, snapshot)
+                 or unseen_strike.up_stair_step(self, snapshot, target))
             and len([
                 m for m in hostiles if m.position.distance_to(target) <= 1
             ]) <= len(adjacent)
@@ -7027,7 +7035,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
             return ranged  # fear and NO_MELEE refuse melee only
         if low:
-            answer = (blind_strike.emergency_key(self, snapshot)
+            answer = (unseen_strike.speed_key(self, snapshot)
+                      or blind_strike.emergency_key(self, snapshot)
                       or self._low_hp_no_kit_hit_key(snapshot, hostiles))
             if answer is not None:
                 return answer

@@ -9519,12 +9519,26 @@
     ],
     "delegation": "none"
   },
+  "unseen_strike.py:_open_neighbour": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "unseen_strike.py:key": {
     "classification": "producer",
     "rows": [
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "unseen_strike.py:speed_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "unseen_strike.py:strike_cell": {
     "classification": "data",

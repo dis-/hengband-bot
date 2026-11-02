@@ -11775,6 +11775,27 @@
     "evidence": "Melee hit by an unseen attacker, not afraid, melee allowed in the dungeon (USER DECISION 2026-10-03 追加決定2; #47 hit-no-action-1101): alter ('+' and a random free neighbour seeded by the turn) under the caller's reason, else None; called by the lethal-emergency ladder before its last WAIT (emergency:unseen-strike), the wait-while-damaged rewrite before its least-visited walk and the low-HP walk gate's no-kit answer (no-wait:attack), the unseen-attacker retreat before its reverse-choke walk (unseen:strike) and the recall wait before its unseen-recall walk (unseen-recall:strike; owner 2026-11-01 「近接で殴られたら反撃」, spell or missile evidence keeps walking), the walk home without Recall before return:explore (unseen:strike-return) and the dark walk before its backtrack/probe step (unseen:strike-dark; owner 2026-11-01 21h 「どちらも先に反撃」); dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "unseen_strike.py:_open_neighbour": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: whether one neighbour of the player is a passable non-door cell, read from the board's grid or, where the board shows none, from the remembered floor (n1-a life-466 blind boards); strike_cell filters its candidates with it.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)"
+  },
+  "unseen_strike.py:speed_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Below the low-HP threshold, after an unseen attacker's melee blow and with no heal answer left in the low-HP walk gate: the Speed dose of speed_dose.key (absorbed Speed staff cast or a carried Potion of Speed) while the speed field shows no haste, under unseen:quaff-speed, else None (owner 2026-11-03 「必要なら加速や体力回復など危険度に応じて物資を使用すること。」; n1-a life-466); dungeon survival only; no independent progress.",
+    "delegation": "selected child; no independent success"
+  },
   "unseen_strike.py:strike_cell": {
     "classification": "data",
     "rows": [
