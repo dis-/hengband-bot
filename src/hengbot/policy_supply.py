@@ -338,8 +338,14 @@ class SupplyMixin:
         only above the carried gold, or (owner 2026-11-02 「品切れも採掘に回す」)
         every supplier was visited this visit and none sells it within the
         gold.  A supplier not yet visited this visit is the shopping's to
-        visit first, so it keeps the shortage out of the gaps.
+        visit first, so it keeps the shortage out of the gaps -- unless the
+        shopping skips it on a shelf observed within its restock window
+        (``_shelf_stop_tried``): n1-c life-112 (2026-11-03 00:35) found the
+        Alchemist out of Cure Critical Wounds, the plan skipped the Temple on
+        its earlier page, and the unvisited Temple kept the stockout out of
+        the gaps, so the town end stopped instead of mining.
         """
+        from hengbot.town_terminal import SUPPLY_KIND_BY_CATEGORY
         status = self._supply_ledger(snapshot, self._planned_depth()).get(kind)
         if (status is None or status.count >= status.required_departure
                 or STORE_HOME in status.stores):
@@ -353,9 +359,11 @@ class SupplyMixin:
         if prices and min(prices) > snapshot.player.gold:
             return True
         visited = self._visit_supplier_pages(snapshot)
+        category = next((category for category, each in SUPPLY_KIND_BY_CATEGORY.items()
+                         if each == kind), kind)
         for store_type in status.stores:
             page = visited.get(store_type)
-            if page is None and store_type not in self._town_store_attempted:
+            if page is None and not self._shelf_stop_tried(snapshot, store_type, category):
                 return False
             if page is not None and any(
                     self._supply_ware(snapshot, kind, store_type, item)

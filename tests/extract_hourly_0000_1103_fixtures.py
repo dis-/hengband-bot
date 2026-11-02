@@ -20,6 +20,12 @@ C:/hengband-backups/pdca/captures/hourly-0000-1103/n1-c/life-112/:
   incident-captures/20261103-000557-quest-blocked-me-staff/policy-state.json
       the staff sequence record before the restart (its absorbed staffs) and
       at the stop.
+  incident-captures/20261103-003458-town-blocked-survival-cure_critical_ready/
+      snapshots/snapshots-current.jsonl.gz: the Temple page of the previous
+      visit (turn 956577) and its earlier page (932815), the Alchemist page
+      of this visit (962488), the stop board (963401), its Home list and
+      skill row; policy-state.json: the staff sequence record; and
+      decision-tail.jsonl: the stop row's departure block.
 
 Only this extraction tool reads the captures; the committed test reads the
 fixture.
@@ -46,6 +52,9 @@ STAFF_TURN = 605456
 STAFF_DECISIONS = (467, 544, 545, 546, 547, 548, 549)
 BEFORE_RESTART = LIFE / "incident-captures" / "20261103-000449-loop-detected" / "policy-state.json"
 AT_STOP = LIFE / "incident-captures" / "20261103-000557-quest-blocked-me-staff" / "policy-state.json"
+CURE = LIFE / "incident-captures" / "20261103-003458-town-blocked-survival-cure_critical_ready"
+CURE_PAGES = {"temple_before": (932815, 3), "temple": (956577, 3), "alchemist": (962488, 4)}
+CURE_STOP = 963401
 OUTPUT = Path(__file__).with_name("fixtures") / "hourly-0000-1103.json.gz"
 
 
@@ -92,6 +101,26 @@ def staff_case():
         before_restart=sequence_record(BEFORE_RESTART), at_stop=sequence_record(AT_STOP))
 
 
+def cure_case():
+    ring = ring_rows(CURE / "snapshots" / "snapshots-current.jsonl.gz")
+    pages = {name: next(row for row in ring if row["type"] == "store" and row["turn"] == turn
+                        and row["store"]["store_type"] == store)
+             for name, (turn, store) in CURE_PAGES.items()}
+    tail = []
+    for line in (CURE / "decision-tail.jsonl").read_text(encoding="utf-8").splitlines():
+        try:
+            tail.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass  # The bounded tail starts in the middle of a JSON record.
+    stop_row = tail[-1]
+    return dict(
+        pages=pages, board=board(ring, CURE_STOP), home=knowledge(ring, "home", CURE_STOP),
+        skill=knowledge(ring, "skill_exp", CURE_STOP),
+        sequence=sequence_record(CURE / "policy-state.json"),
+        stop={key: stop_row[key] for key in ("decision_sequence", "turn", "reason", "key")},
+        departure_block=stop_row["departure_block"])
+
+
 def main():
     state = rows_of(BURST / "state.jsonl.gz")
     ring = ring_rows(RING)
@@ -105,7 +134,8 @@ def main():
                    home=knowledge(ring, "home", BOARD_TURNS["entrance"]),
                    skill=knowledge(ring, "skill_exp", BOARD_TURNS["entrance"]),
                    decisions=decisions),
-        staff=staff_case()))
+        staff=staff_case(),
+        cure=cure_case()))
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ from hengbot.equipment_optimizer import equipment_identity, equipment_move_ident
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot import me_staff_sequence as sequence
+from hengbot.town_terminal import gather_town_end, verdict_town_end
 from tests import test_input_executor as executor_pins
 from tests.test_me_nokey_1031_recorded import PostedKey
 from test_hourly_0700_1102_recorded import RecordedTownPolicy
@@ -25,6 +26,7 @@ from test_hourly_0700_1102_recorded import RecordedTownPolicy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "hourly-0000-1103.json.gz"
 TVAL_AMULET = 40
+SV_CCW = 36  # 致命傷の治癒の薬 (lib/edit BaseitemDefinitions)
 
 
 def _cases():
@@ -170,6 +172,81 @@ class RememberedStaffListAfterRestartTest(RecordedTownPolicy, PostedKey):
         # DECLARED CONSTRUCTED: cmd-move.cpp asks the rest count.
         self.post(policy, raw, key, [executor_pins.prompt_screen(
             "休憩 (0-9999, '*' で HP/MP全快, '&' で必要なだけ): &")])
+
+
+class TempleShelfEvidenceStockoutTest(RecordedTownPolicy, PostedKey):
+    """n1-c life-112 00:34:58 town:blocked:survival:cure_critical_ready.
+
+    Back from 18F with 5 of 10 Cure Critical Wounds potions, the visit found
+    the Alchemist without them (962488).  The Temple had sold its last 10 to
+    the previous visit (956577, restocked then), so the plan skipped it on
+    that page (shelf-evidence), but the purchase-gap reader counted only
+    suppliers visited or attempted in this visit: the stockout was not a
+    purchase gap and the town end stopped instead of starting the mining
+    cycle (owner 2026-11-02 「品切れも採掘に回す」).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.case = _cases()["cure"]
+
+    def policy(self):
+        case = self.case
+        raw = case["board"]
+        policy = self.primed(raw, case["home"]["knowledge"]["items"], case["skill"])
+        policy._in_store_ops_enabled = True  # live argv (--in-store-shop-ops)
+        # DECLARED RECONSTRUCTED from policy-state.json: the staff sequence
+        # record (all stage staffs absorbed).
+        recorded = case["sequence"]
+        record = sequence.state(policy)
+        record.absorbed = dict(recorded["absorbed"])
+        record.bought = frozenset(recorded["bought"])
+        record.stage = recorded["stage"]
+        record.powers_read = True
+        pages = case["pages"]
+        # The two Temple pages as the shelf evidence observes them; the
+        # second opens another visit (DECLARED RECONSTRUCTED: the earlier
+        # page's visit identity), 23,762 game turns later: a restock.
+        earlier = self.board(policy, pages["temple_before"])
+        policy._observe_shelf_evidence(earlier)
+        town = policy._effective_town_id(earlier)
+        policy._in_store_attribute("_shelf_evidence")["pages"][(town, 3)]["opened_sequence"] = -1
+        temple = self.board(policy, pages["temple"])
+        policy._observe_shelf_evidence(temple)
+        ccw = next(item for item in temple.store.items if item.tval == 75 and item.sval == SV_CCW)
+        # DECLARED RECONSTRUCTED: the visit's recorded purchase of all ten
+        # (the pack holds 10 on the next board, 956606).
+        policy._note_shelf_trade(temple, 3, "buy", (ccw.name, 75, SV_CCW), ccw.count)
+        # This visit: the Alchemist page and the stores the ledger records
+        # as visited (departure_block.town_ledger.store_visits).
+        alchemist = self.board(policy, pages["alchemist"])
+        policy._town_supplier_stock[4] = alchemist.store
+        policy._town_supplier_stock_observations = {4: (0, alchemist.turn)}
+        for store in map(int, case["departure_block"]["town_ledger"]["store_visits"]):
+            policy._town_store_attempted[store] = alchemist.turn
+        return policy, self.board(policy, raw), raw
+
+    def test_recorded_stop(self):
+        case = self.case
+        self.assertEqual((case["stop"]["reason"], case["departure_block"]["failed"]),
+                         ("town:blocked:survival:cure_critical_ready", ["cure_critical_ready"]))
+        self.assertNotIn("3", case["departure_block"]["town_ledger"]["store_visits"])
+        temple = case["pages"]["temple"]["store"]["items"]
+        self.assertEqual([(item["count"], item["price"]) for item in temple
+                          if item["tval"] == 75 and item["sval"] == SV_CCW], [(10, 158)])
+        self.assertFalse(any(item["tval"] == 75 and item["sval"] == SV_CCW
+                             for item in case["pages"]["alchemist"]["store"]["items"]))
+        self.assertEqual([item["count"] for item in case["board"]["inventory"]
+                          if item["tval"] == 75 and item["sval"] == SV_CCW], [5])
+
+    def test_temple_skipped_on_its_shelf_makes_the_stockout_a_purchase_gap(self):
+        policy, board, raw = self.policy()
+        material = gather_town_end(policy, board)
+        self.assertEqual(material.purchase_gaps, ("cure_critical_ready",))
+        self.assertEqual(verdict_town_end(material).kind, "mine")
+        key = policy.choose_key(board)
+        self.assertNotEqual(policy.last_reason, "town:blocked:survival:cure_critical_ready")
+        self.post(policy, raw, key)
 
 
 if __name__ == "__main__":
