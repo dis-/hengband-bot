@@ -1607,6 +1607,45 @@ class HomeMixin:
             ),
         )
 
+    def _retire_vanished_pending_withdrawals(self, snapshot: Snapshot) -> None:
+        """Retire Home withdrawals of items neither in Home nor carried.
+
+        The Home withdrawal verdict refuses a request whose item a current
+        Home list lacks (town_terminal.verdict_home_withdraw).  A pending
+        withdrawal whose item has also left the pack (n1-a life-464
+        2026-11-02: the full-Home discard took ドラゴン・グローブ and destroyed
+        it) stayed filed, every Home leg was that refused request, and the
+        mining cycle could not take the Treasure Detection scrolls stored
+        there.  Observed outside a store between operations; the existing
+        unaddressable-claim close (_defer_unobserved_home_withdrawal) and the
+        visit's unoperated report retire it.
+        """
+        if (not snapshot.in_town or snapshot.store is not None
+                or self._home_atomic_withdraw_pending is not None):
+            return
+        from hengbot.town_terminal import gather_home_withdraw, verdict_home_withdraw
+        carried = {self._item_signature(item)
+                   for item in (*snapshot.inventory, *snapshot.equipment)}
+
+        def vanished(signature):
+            return signature is not None and signature not in carried and not (
+                verdict_home_withdraw(gather_home_withdraw(
+                    self, snapshot, target=signature)).admitted)
+
+        if vanished(self._home_pending_item):
+            self._defer_unobserved_home_withdrawal(self._home_pending_item)
+        if self._home_pending_item is None:
+            for signature in [s for s in self._home_pending_batch if vanished(s)]:
+                self._defer_unobserved_home_withdrawal(signature)
+        visit = getattr(self, "_home_visit", None)
+        request = visit.request if visit is not None else None
+        if (request is not None and request.kind == HomeVisitKind.WITHDRAW
+                and vanished(request.address or request.item_identity)
+                and visit.report_unoperated("reservation-unavailable")):
+            report = visit.consume_report()
+            self._pending_home_visit_report = (
+                f"home-visit:{report.request.requester}:{report.outcome}")
+
     def _ensure_home_visit_request(self, snapshot: Snapshot) -> bool:
         """File before approach; reports are consumed explicitly, never waited."""
         if getattr(self, "_home_visit", None) is None:
