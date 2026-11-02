@@ -114,7 +114,7 @@ class JunkScopeRecordedTest(unittest.TestCase):
         )
         return snapshots
 
-    def _dungeon(self, *added, sling=False, bare=False):
+    def _dungeon(self, *added, sling=False, bare=False, juice=True):
         policy = _policy(self.directory, self.monrace)
         policy._crossarea_fundraising_enforced = True
         board = self._consume(policy, self.dungeon_lines[0])[-1]
@@ -130,6 +130,11 @@ class JunkScopeRecordedTest(unittest.TestCase):
         # remains slots from q on (the pack stays full, which starts the
         # recorded return); ``bare`` drops every recorded remain.
         added = {chr(ord("q") + index): item for index, item in enumerate(added)}
+        # Without ``juice`` the recorded リンゴジュースの薬 (slot b, 「捨てる」 in
+        # the owner's 2026-11-02 consumable table, so destroyed first) becomes
+        # a 耐火の薬 (75/30, 「拾って持ち歩く」): the pack stays full and the
+        # decision below is about the class under test.
+        added.update({} if juice else {"b": _consumable("b", "耐火の薬", 75, 30)})
         board = replace(board, inventory=type(board.inventory)(
             replace(added[item.slot], slot=item.slot) if item.slot in added else item
             for item in board.inventory
@@ -179,7 +184,11 @@ class JunkScopeRecordedTest(unittest.TestCase):
         self.assertEqual({item.slot: policy._junk_class(board, item)
                           for item in board.inventory
                           if policy._junk_class(board, item) is not None},
-                         dict.fromkeys("qrstuvw", "remains"))
+                         {"b": "table-discard", **dict.fromkeys("qrstuvw", "remains")})
+        # The recorded Apple Juice (b) is the first stack destroyed.
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
+        self.assertTrue(key.endswith("kb"), key)
 
     def test_control_books_stay_for_a_class_that_reads_them(self):
         policy, board = self._dungeon(bare=True)
@@ -255,14 +264,14 @@ class JunkScopeRecordedTest(unittest.TestCase):
         for item in (CURSED_ARMOUR, CURSED_EGO, CURSED_POLEARM, SALT_WATER,
                      BOOKS[0]):
             with self.subTest(item=item.name):
-                policy, board = self._dungeon(item)
+                policy, board = self._dungeon(item, juice=False)
                 self.assertTrue(policy._should_start_town_return(board))
                 key = policy.choose_key(board)
                 self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
                 self.assertTrue(key.endswith("kq"), key)
 
     def test_return_start_destroys_bolts_for_an_unworn_launcher(self):
-        policy, board = self._dungeon(sling=True)
+        policy, board = self._dungeon(sling=True, juice=False)
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
         self.assertTrue(key.endswith("kp"), key)
@@ -270,7 +279,7 @@ class JunkScopeRecordedTest(unittest.TestCase):
     def test_control_return_start_keeps_non_junk(self):
         for item in (CURSED_ARTIFACT, UNCURSED_EGO, BOOKS[2], BOOKS[3]):
             with self.subTest(item=item.name):
-                policy, board = self._dungeon(item)
+                policy, board = self._dungeon(item, juice=False)
                 key = policy.choose_key(board)
                 # The next recorded remain (slot r) goes instead.
                 self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")

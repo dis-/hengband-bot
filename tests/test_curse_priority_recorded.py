@@ -89,7 +89,9 @@ class CursePriorityRecordedTest(unittest.TestCase):
         shop = replace(board, player=replace(board.player, gold=20000),
                        store=StoreState(STORE_TEMPLE, [ware]))
         shopper = self.policy(shop, home=True)
-        self.assertEqual(shopper._affordable_star_remove_curse(shop), ware)
+        # Owner 2026-11-02 consumable table: no 「購入する」 on *解呪*, so the
+        # optional reserve is not offered at all.
+        self.assertIsNone(shopper._affordable_star_remove_curse(shop))
         self.assertIsNone(shopper._next_purchase(shop))
 
     def test_home_withdrawn_scroll_is_read_and_observed_cure_releases_need(self):

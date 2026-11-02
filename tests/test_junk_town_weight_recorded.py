@@ -265,16 +265,18 @@ class TownJunkStepWallTest(unittest.TestCase):
         corpse = next(item for item in board.inventory if item.slot == "p")
         self.assertEqual((corpse.tval, policy._junk_class(board, corpse)), (10, "remains"))
         key = policy.choose_key(board)
+        # Owner 2026-11-02 consumable table: the recorded リンゴジュースの薬
+        # (slot b, table-discard) goes before the corpse.
         self.assertEqual((key, policy.last_reason),
-                         ("01kp", "inventory:destroy-worthless-junk"))
+                         ("01kb", "inventory:destroy-worthless-junk"))
 
     def test_wall_restores_the_pre_step_decision(self):
         policy, board = self._board()
         with pre_town_junk_step_rule():
             key = policy.choose_key(board)
-        self.assertEqual(
-            (key, policy.last_reason),
-            ("~9\x1b", "equipment-transaction:catalogue-request-knowledge"))
+        # Owner 2026-11-02 consumable table: the pack's 「拾って自宅に片付ける」
+        # kinds send the pre-step decision to the Home ('(' travel).
+        self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
 
 
 class TownJunkStepInFlightTest(unittest.TestCase):
@@ -380,12 +382,15 @@ class TownJunkStepBeforeWeightReliefTest(unittest.TestCase):
         relief = policy._weight_relief_selection(board)
         self.assertEqual(relief.route, "deposit")
         self.assertNotIn("f", [item.slot for item in relief.deposits])
+        # Owner 2026-11-02 consumable table: the 減毒の薬 (slot a) is
+        # 「捨てる」 (table-discard) and is the first junk stack destroyed.
+        self.assertEqual(policy._junk_class(board, board.inventory[0]), "table-discard")
         self.assertEqual((policy.choose_key(board), policy.last_reason),
-                         ("01kf", "inventory:destroy-worthless-junk"))
+                         ("01ka", "inventory:destroy-worthless-junk"))
 
         policy, board = self._board()
         after = replace(board, turn=board.turn + 10,
-                        inventory=[item for item in board.inventory if item.slot != "f"])
+                        inventory=[item for item in board.inventory if item.slot not in "af"])
         self.assertTrue(policy._inventory_overweight(after))
         policy._town_need_candidates(after)
         self.assertEqual((policy.choose_key(after), policy.last_reason),

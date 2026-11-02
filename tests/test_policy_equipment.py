@@ -248,6 +248,7 @@ from hengbot.policy import (
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
+from recorded_consumable_policy import pre_consumable_table_replay
 try:
     from trajectory_harness import drive_trajectory
 except ModuleNotFoundError:
@@ -6058,6 +6059,10 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         key = policy.choose_key(outside)
         return key, policy.last_reason, policy
 
+    # declared wall: the subject is the outside equip; the owner's 2026-11-02
+    # table sends the board's テレポート・レベル (g) and 解呪 (k) scrolls to
+    # the Home first.
+    @pre_consumable_table_replay
     def test_captured_r5_board_wields_outside_instead_of_waiting_at_home(self):
         # On 6ccc8a04 this decision is the live one,
         # `5 / equipment-transaction:travel-home:await-entry`.
@@ -6066,6 +6071,10 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertEqual((key, reason), ("wqy", "equipment-transaction:equip"))
         self.assertIsNotNone(policy._equipment_transaction_session)
 
+    # declared wall: the subject is the outside equip; the owner's 2026-11-02
+    # table sends the board's テレポート・レベル (g) and 解呪 (k) scrolls to
+    # the Home first.
+    @pre_consumable_table_replay
     def test_captured_r5_raw_board_does_not_return_to_home(self):
         # The raw board still owes another owner's work (the *Identify* of
         # pack item p); that runs first and is not a Home entry either.

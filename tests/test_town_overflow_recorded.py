@@ -92,7 +92,9 @@ class TownOverflowRecordedTest(unittest.TestCase):
         self.assertEqual(
             [(item.slot, count) for item, count in
              policy._home_deposit_batch(board, deposit)],
-            [("d", 1)],
+            # Owner 2026-11-02 consumable table: every restore potion is
+            # 「拾って自宅に片付ける」, so the batch shelves all five stacks.
+            [("d", 1), ("e", 1), ("f", 1), ("g", 2), ("h", 1)],
         )
 
     def test_mining_tools_and_identification_pending_equipment_stay_carried(self):
@@ -124,13 +126,16 @@ class TownOverflowRecordedTest(unittest.TestCase):
         )
         self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
 
-    def test_restore_potion_deposit_is_only_for_pack_pressure(self):
+    def test_restore_potions_are_shelved_without_pack_pressure(self):
+        # Owner 2026-11-02 consumable table: restore potions are
+        # 「拾って自宅に片付ける」, so they are shelved with room in the pack
+        # too (before the table, only under pack pressure).
         policy, board = self.policy_board(self.records[0])
         roomy = replace(
             board, inventory=board.inventory[:PACK_CAPACITY - MIN_TERMINAL_FREE_PACK_SLOTS],
         )
         for item in roomy.inventory[3:8]:
-            self.assertFalse(policy._home_deposit_candidate(item, roomy))
+            self.assertTrue(policy._home_deposit_candidate(item, roomy))
         self.assertIsNone(policy._town_overflow_destroy_key(roomy))
         unknown = replace(board.inventory[3], known=False, aware=False)
         self.assertFalse(policy._home_deposit_candidate(unknown, board))

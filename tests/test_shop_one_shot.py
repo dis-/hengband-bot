@@ -472,7 +472,10 @@ class ShopOneShotTest(unittest.TestCase):
 
     def test_pending_inscription_bound_sale_outranks_purchase_and_composes_exact_tail(self):
         """The frozen low-level sale may not lose its second visit to buying."""
-        sold = item("b", TVAL_POTION, SV_POTION_RESIST_COLD, name="potion")
+        # An unknown flavour: the owner's 2026-11-02 table makes the identified
+        # low-level sale kinds 「捨てる」 junk (destroyed, not sold), and Resist
+        # Cold a carry kind; unknown potions stay low-level sale stock.
+        sold = item("b", TVAL_POTION, SV_POTION_RESIST_COLD, name="potion", aware=False)
         wanted = store_item(
             "m", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, price=24, count=46
         )

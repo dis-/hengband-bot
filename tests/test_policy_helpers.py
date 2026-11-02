@@ -87,8 +87,8 @@ SV_POTION_CURE_LIGHT = 34
 class ItemShedListTest(unittest.TestCase):
     """User-flagged always-shed items — the Sleep potion and Holy Chant scroll
     (「捨てる」 in the owner's consumable table, 2026-11-02) and the Rod of
-    Light — are sold in town (alchemist / magic shop) and destroyed when the
-    pack is full, while useful lookalikes are kept.  The table marks the
+    Light — are destroyed when the pack is full (the potions and scrolls as
+    junk, never sold), while useful lookalikes are kept.  The table marks the
     Resist Cold potion 「拾って持ち歩く」, so it is no longer shed."""
 
     def _snap(self, inventory):
@@ -111,13 +111,16 @@ class ItemShedListTest(unittest.TestCase):
         self.assertFalse(pol._is_disposable_item(item("b", TVAL_ROD, SV_ROD_IDENTIFY)))
 
     def test_alchemist_sells_potion_and_scroll(self):
+        # Owner 2026-11-02 consumable table: identified 「捨てる」 kinds are
+        # destroyed as junk, not sold; unknown flavours stay sale stock.
         pol = HengbotPolicy()
+        self.assertIsNone(
+            pol._find_low_level_sale(self._snap([item("b", TVAL_POTION, SV_POTION_CURE_LIGHT)])))
+        self.assertIsNone(
+            pol._find_low_level_sale(self._snap([item("b", TVAL_SCROLL, SV_SCROLL_HOLY_CHANT)])))
         self.assertEqual(
-            pol._find_low_level_sale(self._snap([item("b", TVAL_POTION, SV_POTION_CURE_LIGHT)])).slot,
-            "b",
-        )
-        self.assertEqual(
-            pol._find_low_level_sale(self._snap([item("b", TVAL_SCROLL, SV_SCROLL_HOLY_CHANT)])).slot,
+            pol._find_low_level_sale(self._snap(
+                [item("b", TVAL_POTION, SV_POTION_CURE_LIGHT, aware=False)])).slot,
             "b",
         )
 
@@ -183,7 +186,7 @@ class StoreSellGateTest(unittest.TestCase):
         self.assertNotIn(policy._item_signature(potion), policy._unsellable_items)
 
     def test_same_turn_unchanged_sale_latches_after_one_emitted_attempt(self):
-        potion = item("a", TVAL_POTION, SV_POTION_CURE_LIGHT)
+        potion = item("a", TVAL_POTION, SV_POTION_CURE_LIGHT, aware=False)
         snap = self._store([potion], STORE_ALCHEMIST)
         policy = HengbotPolicy()
 
@@ -197,7 +200,7 @@ class StoreSellGateTest(unittest.TestCase):
         self.assertIn(policy._item_signature(potion), policy._unsellable_items)
 
     def test_changed_turn_latches_only_after_three_attempts(self):
-        potion = item("a", TVAL_POTION, SV_POTION_CURE_LIGHT)
+        potion = item("a", TVAL_POTION, SV_POTION_CURE_LIGHT, aware=False)
         policy = HengbotPolicy()
 
         for turn in range(2):

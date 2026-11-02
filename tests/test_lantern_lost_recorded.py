@@ -166,6 +166,7 @@ class LanternLostRecordedTest(unittest.TestCase):
     @pre_town_junk_step_replay
     def test_recorded_town_board_keeps_the_empty_lantern(self):
         policy, board = self._board(1)
+        board = _without_table_discards(policy, board)
         lantern = next(item for item in board.inventory if item.is_lantern)
         self.assertEqual((lantern.slot, lantern.fuel), ("n", 0))
         oil = next(item for item in board.inventory if item.is_oil)
@@ -177,6 +178,7 @@ class LanternLostRecordedTest(unittest.TestCase):
 
     def test_control_empty_torch_is_still_disposable_with_oil(self):
         policy, board = self._board(1)
+        board = _without_table_discards(policy, board)
         lantern = next(item for item in board.inventory if item.is_lantern)
         torch = next(item for item in board.equipment if item.is_light)
         # Constructed: an exhausted torch in place of the pack lantern.
@@ -195,6 +197,7 @@ class LanternLostRecordedTest(unittest.TestCase):
 
     def test_control_spare_lantern_beside_worn_lantern_stays_disposable(self):
         policy, board = self._board(1)
+        board = _without_table_discards(policy, board)
         lantern = next(item for item in board.inventory if item.is_lantern)
         # Constructed: a fuelled lantern worn instead of the torch.
         board = _with_worn_light(
@@ -204,6 +207,15 @@ class LanternLostRecordedTest(unittest.TestCase):
         disposable = policy._find_disposable_item(board)
         self.assertIsNotNone(disposable)
         self.assertEqual(disposable.slot, "n")
+
+
+def _without_table_discards(policy, board):
+    """DECLARED CONSTRUCTED: the pack without the recorded リンゴジュースの薬
+    (「捨てる」 in the owner's 2026-11-02 consumable table, destroyed first),
+    so the disposal below is about the lights."""
+    return replace(board, inventory=type(board.inventory)(
+        item for item in board.inventory
+        if policy._junk_class(board, item) != "table-discard"))
 
 
 if __name__ == "__main__":

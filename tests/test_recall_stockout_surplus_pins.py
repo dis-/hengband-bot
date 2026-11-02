@@ -138,16 +138,19 @@ class RecallStockoutSurplusPins(unittest.TestCase):
         self.assertEqual(history_deposits, ordinary_deposits)
 
     def test_identify_first_and_no_open_home_unbound_deposit(self):
-        """The captured pre-Home producer acts before the later bound deposit."""
+        """The captured visit reaches its bound deposit without an unbound one.
+
+        The recorded pre-Home producer destroyed the 光の巻物 (disposable then);
+        the owner's 2026-11-02 consumable table makes it a carry kind, so no
+        disposal precedes the deposit now.
+        """
         with TemporaryDirectory() as directory:
             decisions, _ = replay_to_home_return(
                 HengbotPolicy(home_disposal_state=self._state(Path(directory)))
             )
-        first_disposal = next(i for i, row in enumerate(decisions)
-                              if row[3] == "inventory:destroy-disposable-item")
-        deposit = next(i for i, row in enumerate(decisions)
-                       if row[3] == "home:atomic-deposit")
-        self.assertLess(first_disposal, deposit)
+        self.assertNotIn("inventory:destroy-disposable-item",
+                         [row[3] for row in decisions])
+        self.assertIn("home:atomic-deposit", [row[3] for row in decisions])
         self.assertNotIn(
             "home:route-claim-unfulfilled", [row[3] for row in decisions]
         )
