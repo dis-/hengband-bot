@@ -1,0 +1,89 @@
+LUNA-REPORT hourly-1800-1102（n1-b life-295 の Q2 残りの掃引の停止）
+
+ブランチ hourly-1800-1102（main 1329dfdac から作成）。push していない。
+証拠の写し: C:\hengband-backups\pdca\captures\hourly-1800-1102\20261102-181028-stall-floor-dwell-quest-strategy-q-residual-sweep\
+（bot-decisions.jsonl.gz・state.jsonl.gz・control-at-stop.json.gz・bot-stderr.log。サーバは読み取りだけ。
+テスト用に、サーバの ring generation snapshots-20261102-175909 からこの life の Lv22 の ~f の行（turn 638621）を
+skill-exp-knowledge-638621.json として同じ場所に写した）。
+
+
+1. stall:floor-dwell:quest-strategy:q#-residual-#-sweep ×1（修正済み）
+
+  件数・ビルド: 1 件（2026-11-02 18:10:28）、bot-9afd9203e。n1-b life-295、戦士 Lv22、HP 430/430、鉄獄15階、
+  クエスト 2。
+
+  クエストと場面: Q2 の残りの掃引（quest-strategy:q2-residual-86-sweep、種族 86）。種族 86 の配置は
+  (1,1)・(3,1)・(3,7)。光の半径は 2 で、(1,1) と (3,7) は 6 マス離れた暗いマス。
+  決定 22618〜22822（記録の 205 行すべて）は同じ 12 手の往復
+  (1,1)→(1,5)→(2,6)→(3,7)→(2,6)→(1,5)→(1,1)。敵は見えていない（visible_hostiles 0、HP は満タン）。
+  サーバの盤面で数えると、この往復は turn 641840 から停止まで 14,165 枚続いた（Q2 に入ったのは turn 635436）。
+
+  原因（policy_quest._q2_phase_key の残りの掃引）:
+    観測の目標（配置から距離 10 以内の歩けるマス）を「行った」と記録するのは、その盤面で「まだ空と
+    確かめられていない配置」の分だけだった。ところが自分の立っているマスは常に「空と確かめた」扱い
+    （_quest_cell_confirmed_empty: 自分のマスに敵はいない）なので、(3,7) に立った盤面では配置 (3,7) が
+    未確認の一覧から外れ、配置 (3,7) の目標 (3,7) の訪問が記録されない。離れると (3,7) は暗くて
+    また未確認になり、距離 0 の目標 (3,7) が未訪問のまま残る。(1,1) も同じ。こうして (1,1) と (3,7) の
+    あいだを永久に往復した。照準・回避マス・召喚の輪・増殖の決まりによる拒否ではない（それらは
+    この段に出てこない）。
+  証拠: 録画の 15 枚の盤面に新しいポリシー（Q2 の順の段階と先の 4 種族を済ませた状態、宣言した再構成）
+  を当てると、元のコードで録画と同じキー（(3,7) で '7'、(1,1) で '6'、route target は (1,1) と (3,7) の交互）
+  が出る。
+
+  直し（コミット 7018ce412、src/hengbot/policy_quest.py の残りの掃引の段だけ）:
+    今いるマスがその配置の観測の目標なら、未確認かどうかに関係なく、その種族のすべての配置について
+    訪問を記録する。目標の集め方・順・経路は変えていない。新しい振る舞い・閾値はない
+    （「行った目標はもう行かない」という既存の有限の掃引を、確かめた配置にも当てるだけ）。
+
+  テスト: tests.test_q2_residual_dark_placement_1102_recorded.Q2ResidualDarkPlacementRecordedTest（2 件）
+    - test_recorded_boards_walked_the_dark_placement_loop: 録画の位置とキー（暗い配置で引き返す）を固定。
+    - test_sweep_records_the_dark_placement_visits_and_finishes: 録画の 15 枚を公開の choose_key に通し、
+      出たキーを本番の executor（test_me_nokey_1031_recorded.PostedKey）で送る。(1,1)・(3,7) の自分の目標が
+      訪問済みになることを確かめ、続けて最後の盤面で出た手どおりに位置だけ動かすと（宣言した仮定の
+      歩み）、種族 86 の掃引が 600 手以内に終わり、q2-final-patrol に進む（手元では 375 手）。
+    元に戻した確認（1 回）: src の直しを戻すと、訪問の記録の assert（(1,1) の自分の目標が無い）で失敗。
+    戻して合格。
+  抽出: tests/extract_q2_residual_dark_placement_1102_fixture.py
+        → tests/fixtures/q2-residual-dark-placement-20261102.json.gz（11 KB）
+
+  以前の同じ場面: tests.test_q2_residual_recorded（10-25）と tests.test_q2_residual_sweep_recorded（10-18）も
+  同じ (1,x)〜(3,7) の種族 86 の往復だった（3 回目）。今回は場面ではなく「訪問を記録する範囲」という
+  根を直した。2 つの既存テストは期待値を変えずに合格（関係のある 2 本だけ流した）。
+
+
+2. 確認
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": 成功。
+  - 新しいテスト 2 件: 合格。既存の Q2 残りの掃引のテスト 2 本（3 件）: 合格。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - src に関数は足していないので town_work_manifest は回していない（町の仕事の producer も変えていない）。
+  - テストの壁はない。裏の処理は残していない。git stash は使っていない。
+
+
+3. 同じ記録で見えた別の件（直していない・別の系統）
+
+  - bot-stderr.log に town:blocked:work-contract:unmapped-producer が多数ある（この停止より前の町）。
+    町の請求の系統（structure-s2-3-1102 の担当範囲）と考え、見ていない。
+  - bot-stderr.log に save archive failed（git add saves/BOT_PLAY が終了コード 128）が繰り返し出ている。
+    運転の環境の件で、ボットの判断ではない。
+
+
+4. 保守性
+
+  - 直しは残りの掃引の段の中で「訪問の記録」と「目標の集め方」を 2 つのループに分け、記録の範囲を
+    種族のすべての配置にした。訪問の印の形（floor, -race, placement, goal）は既存のまま、新しい定数・
+    特別扱い（クエスト番号・座標）は足していない。
+  - 使っていなかった一時変数 residual_race を消し、印の接頭辞を 1 か所で作るようにした。
+
+
+5. checks.json の案（編集していない）
+
+  {"id": "Q2-RESIDUAL-DARK-PLACEMENT-VISIT",
+   "defect": "Q2 の残りの掃引で、立つと確認済みになる暗い配置のマスの訪問が記録されず、(1,1) と (3,7) を 14,165 枚往復して stall:floor-dwell で止まった（n1-b life-295 2026-11-02 18:10）",
+   "owner": "同じ根の型が繰り返したら場面でなく根を直す（2026-10-20）",
+   "tests": ["tests.test_q2_residual_dark_placement_1102_recorded"]}
+
+
+6. オーナーへの問い
+
+  なし。
