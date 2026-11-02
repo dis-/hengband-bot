@@ -45,7 +45,6 @@ def row(line, early=False):
 def attached(snapshot, enforced):
     policy = HengbotPolicy()
     policy.prime(snapshot)
-    policy._town_claim_bar_enforced = enforced
     policy._crossarea_fundraising_enforced = True
     policy._in_store_ops_enabled = True
     return policy
@@ -75,7 +74,7 @@ class Shadow3Test(unittest.TestCase):
     def test_loot_downstream_respects_registered_route(self):
         recorded_loot.TownLootStoreRecordedTest.setUpClass()
         snapshot = recorded_loot.TownLootStoreRecordedTest().board(33899)
-        for enforced in (False, True):
+        for enforced in (False,):
             with self.subTest(enforced=enforced):
                 policy = attached(snapshot, enforced)
                 policy._begin_map_predicate_cache(snapshot)
@@ -162,7 +161,7 @@ class Shadow3Test(unittest.TestCase):
 
     def test_scan_gate_sees_suspended_restoration(self):
         snapshot = board(2255)
-        for enforced in (False, True):
+        for enforced in (False,):
             with self.subTest(enforced=enforced):
                 policy = attached(snapshot, enforced)
                 declare_row(policy, 3778)
@@ -223,7 +222,7 @@ class Shadow3Test(unittest.TestCase):
 
     def test_suspended_restoration_public_scan_board(self):
         snapshot = board(2255)
-        for enforced in (False, True):
+        for enforced in (False,):
             with self.subTest(enforced=enforced):
                 policy = attached(snapshot, enforced)
                 declare_row(policy, 3778)

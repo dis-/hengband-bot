@@ -1,0 +1,113 @@
+LUNA-REPORT structure-s2-2-1102（構造の直し 第2段B の2本目: --enforce-town-claims が ON の時だけ通る分岐を消す）
+
+== 持ち主の決定 ==
+- 2026-10-28 「B: 場面の終点に一本化」。2026-11-01 「第2段を再開する」、2026-11-02 「構造の第2段から」。
+- 今回は2本目だけ。flag は live で OFF なので、消しても live の振る舞いは変わらない。
+
+== 消したもの ==
+src（16 ファイル、+33/−1,268 行。うち policy.py +20/−708、town_work_sites.json −214 は生成物）
+- _town_claim_bar_enforced を読む分岐 41 か所（policy.py 28、item_reservation 3、town_terminal 3、
+  policy_shop 2、policy_equipment・policy_helpers・policy_home・policy_navigation・policy_town 各1）。
+  _enforce_town_claim_result の中では1つの enforced から6つの分岐が分かれていたので、分岐の数では約45。
+  - 「if enforced and ...: 本体」は本体ごと消した。「X if enforced else None」は None に、
+    「not enforced or Y」は真に、「enforced or Z」は Z にした。
+  - choose_key の ON 専用の再試行の繰り返し（holder を順に呼ぶ while）、到着の完了・委譲の観察の前処理、
+    posted_shop_observation_wait、held_claim_decision、arbiter の「held」の退役の枝を消した。
+- ON の時しか呼ばれなくなった関数（choose_key から到達できなくなったもの。town_structure_lint の呼び出しの
+  グラフで確かめた）10個: _town_held_decision、_town_unbound_entry_wait、_town_refuse_rewrite、
+  _retire_finished_home_errand_plan_stop、_town_holder_ladder_result、_town_holder_declared_key、
+  _town_declared_producer_result、_town_declaration_stop、_town_release_declared_holder、
+  _home_tail_leave_continuation。
+- flag 本体: CLI の --enforce-town-claims、policy._town_claim_bar_enforced の初期値、チェックポイント復元の既定値、
+  セッション開始の記録の "enforce_town_claims" の欄、起動時の stderr の行の enforce_town_claims= の部分。
+  src に読む所が残らないので CLI の引数も消した（運用の起動スクリプトにこの引数を渡すものは無い）。
+- town_terminal: errand_hold の enforced の既定値を False に（自宅の hold は今までどおり enforced=True を
+  明示して呼ぶ）。home_catalogue_sequence_enforced は crossarea だけを見る。home_hold_board は常に盤面を返す。
+scripts
+- town_work_review.json: 消した関数と、それに連れて候補でなくなった _decision_offer_buffer の review 7件を
+  今の書式のまま行ごと削除（再シリアライズしていない）。town_work_manifest.py --write → zero unmapped。
+- item_sink_adapters.json: 消した _town_holder_declared_key の pin を削除。choose_key と _choose_key の pin は
+  呼び出しの位置の条件の文字列だけが変わったので、その2件を新しい文字列に置き換えた（呼び出しの数は同じ）。
+  このファイルは json.dumps(indent=2) で元とバイト単位で一致することを確かめてから書いた。
+- step_gate_lint.py: _town_holder_declared_key の許可の1行を削除。
+
+== 振る舞いが変わらないことの証拠 ==
+- 記録の盤面の再生（validation/manifest-tax-1101 の replay_choose_key.py と compare_replays.py。
+  1本目と同じく木は worktree の中に git archive で書き出した。.replay-base = main de6355774、
+  .replay-branch = この枝の src と scripts、テストは両方とも main のもの）。
+  対象は 1本目の 284 モジュールと、flag を使う残りの9モジュールの計 293（replay-test-ids.txt）。
+  比べる時は両方の木で _town_claim_bar_enforced を「常に False・書き込みは無視」にした（live と同じ設定。
+  ON にするテストがあっても OFF で動く）。shim は validation/structure-s2-2-1102/replay_flag_off.py。
+  結果: 3,127 テスト、公開の choose_key の判断 main 13,830 件・枝 13,829 件（1,124 テスト）、
+  town_work の受領 47,008 件で、違いは 1 件だけ。
+  その1件は test_home_interruption_constructed の test_await_entry_consumes_once_and_held_preview_uses_shared_receipt
+  の8番目の判断で、このテストは消した _town_held_decision を patch して holder を返させている
+  （flag が OFF なら必ず None を返していた関数なので、live では起きない状態）。枝では patch が失敗して
+  その判断の前で止まる。このテストは今回消した。
+  validation/structure-s2-2-1102/replay-summary.json。
+- 1本目の再生（main 2,848 テスト）より数が多いのは、flag を使う9モジュールを足したため。
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok（main の取り込み後にも）。
+- 指定の3本: tests.test_town_terminal_routes_round6、tests.test_town_terminal_refusal_round7、
+  tests.test_town_terminal_declarations.TerminalDeclarationTest.test_2b_rung_families_are_the_ladder_families
+  → 取り込み後に OK（tests.test_hourly_0700_1102_recorded・test_cli_town_claim_switch と合わせ 25 テスト）。
+- 影響を受けたテスト 68 モジュールを main（.replay-base）と枝で流して比べた: 枝で新しく落ちるテストは 0。
+  test_step_gate_lint・test_item_sink_lint（PYTHONPATH に scripts も要る）は main と同じ5件が落ちる
+  （breeder_breakthrough・_town_procurement_decision・_town_special_key の pin のずれ、step gate の census。
+  どれも今回の前から）。
+- town_work_manifest: 0 violation。
+
+== テストの変更（壁は足していない） ==
+ON（flag を True にする）でしか意味のないテストを消した。OFF の脚がある繰り返しは OFF だけ残した。
+- 消したファイル: tests/test_live10.py、tests/test_live11.py（テストがすべて ON の holder の実行器を試すもの。
+  fixtures は他のテストが使うので残した）。
+- クラスごと消した: test_cli_town_claim_switch.TownClaimSwitchTest（flag の CLI・記録・復元の3本）、
+  test_declarations_r4.DeferredHomeScanGapTest。
+- メソッドを消した（ファイル・クラスごと消した分と合わせてテストメソッドは計 75 本減った）: test_crossarea_fundraising 1、test_crossarea_live2 2、test_declarations_r10 6、
+  test_declarations_r11 1、test_declarations_r12 5、test_declarations_r3b 2、test_execution_declaration 8、
+  test_home_interruption_constructed 1、test_home_route_release_recorded 1、test_inn_interruption_constructed 1、
+  test_item_reservation 1、test_live22_bounty 2、test_live23_home_cycle 1、test_live32_shop_leave 3、
+  test_live37_home_scan 1、test_live8 3、test_quest_door_confirm_recorded 1、test_s33_batch_admission 5、
+  test_s33_batch_context 1、test_s33_batch_replay 1、test_s33_phase2_idle 1、test_s33_phase2_quest 2、
+  test_s33_shadow 4、test_s33_shadow_recorded 4（OFF の影の判定を ON と比べるもの）、test_s33_shadow_zero 2、
+  test_shop_one_shot 1、test_torch_predicate_recorded 1、test_town_magic_continuation_d5 1、
+  test_town_terminal_holds_round18 1、test_town_travel_resume_recorded 1、test_ownership_s3a_record 2。
+- 「for enforced in (False, True)」を (False,) にした（OFF の確認は残す）8本: test_equipment_deposit_owner_recorded 1、
+  test_live22_bounty 1、test_live37_home_scan 1、test_s33_batch_context 1、test_s33_shadow_zero 1、
+  test_shadow3_recorded 3。
+- そのほか: flag を代入するだけの行（今は誰も読まない）を削除（flag を参照していたテストは 59 ファイル、変更したテストは 63 ファイル）。使われなくなった補助関数
+  （test_s33_shadow の compare、test_s33_batch_replay の admission_replays、test_s33_shadow_zero の
+  recorded_verdict・recompute_board）を削除。test_s33_shadow_recorded は残る1本の OFF の確認だけにして
+  docstring と import を直した。test_quest_door_confirm_recorded の歩く関数の一覧から消した関数名を除いた。
+  test_town_travel_resume_recorded の docstring から ON の説明を除いた。
+- 注意: test_declarations_r11 と test_ownership_* は main でも読み込みで落ちる（1本目の報告のとおり）。
+
+== コミット ==
+- 90d6d2025 Delete the code paths that only run with --enforce-town-claims
+- （main 46348f994 の取り込み。衝突なし。取り込み後に import・manifest・指定の3本を流し直した）
+- （この報告と再生の要約）
+
+== 保守性 ==
+- src で 1,268 行・scripts の review と pin で 257 行を消した。「誰が動くか」の判断の経路が ON/OFF の2通りから
+  live の1通りになり、choose_key の中の holder の再試行の繰り返しと、holder の宣言を実行する約 400 行の
+  分岐の網（_town_holder_declared_key とその4つの部品）が無くなった。
+- town_terminal の自宅の hold は「crossarea のときだけ」という1つの条件になった（今まで claim の flag と
+  crossarea の2つを OR していた）。
+- 残り（3・4本目）:
+  3本目: 影・記録・委譲を消す。_s33_shadow_verdict とそれだけが使う _town_final_declaration_stop・
+    _town_unrestored_stop、_record_decision_claim、_claim_suspended_exit、_execution_delegations、
+    _decision_errand_deferred・_decision_rewrite_refused・_decision_gate_final_count・
+    _decision_cancelled_home_reservation（今回で書く所が無くなり、記録に空のまま載るだけのものを含む）、
+    _decision_no_step_release（書くだけで読む所は今回で無くなった）。
+    errand_hold と claim_family_of がまだ読む policy._claim_register（current / suspended）を town_terminal の
+    状態に置き換えるのが先（1本目の報告の注意どおり、ここが一番危ない）。
+    _town_holder_wait_key（procurement の hold から呼ばれる）と _claim_exit_completion はまだ live の経路にある。
+  4本目: claim_register・claim_goal_typing・emit_ownership・ownership_metrics・claim_ladder と、
+    claim のテスト（test_ownership_*、test_s33_*、test_declarations_r*、tests/ownership_on_*.py）、
+    _claim_bar_enforced（S2b.2 の bar の flag、CLI は無い）を消す。policy の6つの委譲メソッドは呼び出し側
+    （70 か所）を town_terminal に向けた時に消す。
+  ほか: item_reservation の _selector_skip は呼び出しが1か所になった（record の側）。3本目で一緒に見る。
+
+== 危険と注意 ==
+- --enforce-town-claims を付けて起動すると argparse で止まる（運用のスクリプトには無いことを確かめた）。
+- セッション開始の記録から "enforce_town_claims" の欄が消える。読む道具は src・scripts・tools に無い。
+- 持ち主への問いはない。

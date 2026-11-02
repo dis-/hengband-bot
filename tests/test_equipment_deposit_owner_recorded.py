@@ -95,7 +95,6 @@ class DepositOwnerRecordedTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy.prime(board)
         policy._in_store_ops_enabled = True
-        policy._town_claim_bar_enforced = enforced
         policy._equipment_transaction_session = pending
         policy._home_knowledge_current = True
         policy._equipment_catalog.home_scan_complete = True
@@ -172,7 +171,6 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 policy = HengbotPolicy()
                 policy.prime(board)
                 policy._in_store_ops_enabled = True
-                policy._town_claim_bar_enforced = enforced
                 policy._home_knowledge_current = True
                 pending = session(13273)
                 pending.dispatch(pending.current_action, observe_equipment_transactions(board))
@@ -192,7 +190,7 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 self.assertIsNotNone(pending.pending_action)
 
     def test_successful_deposit_exit_keeps_the_next_item_goal_registered(self):
-        for enforced in (False, True):
+        for enforced in (False,):
             with self.subTest(enforced=enforced):
                 policy, board, pending, target = self.retry_scene(enforced, first=True)
                 policy._home_full_retry_deposits = None
@@ -227,7 +225,6 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 board = captured_board(DATA['boards']['8403902:player_turn'])
                 policy = HengbotPolicy()
                 policy.prime(board)
-                policy._town_claim_bar_enforced = enforced
                 pending = session(13237)
                 pending.index = 2
                 action = pending.current_action

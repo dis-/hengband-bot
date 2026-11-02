@@ -214,27 +214,6 @@ class QuestDoorConfirmRecordedTest(unittest.TestCase):
         )
         self.assertEqual(policy._town_map_goal_step(board, self.BEYOND), ENTRANCE)
 
-    def test_declared_route_resume_refuses_the_entrance(self):
-        # ac203b36: '3' (the bare route step onto the entrance).
-        board = self.pocket_board()
-        policy = self.policy(board)
-        holder = SimpleNamespace(
-            owner=SimpleNamespace(value="store-router"),
-            claim_id=1,
-            execution=SimpleNamespace(
-                state="acting", next_step="route.resume",
-                arguments=("store", (self.BEYOND.y, self.BEYOND.x)),
-                work_id="route:store:26,48", expected_effect="arrive:26,48",
-                budget_ref="town-travel", continuation="route.resume",
-                evidence=None, cause=None,
-            ),
-        )
-        with patch.object(
-            HengbotPolicy, "_town_holder_structural_stop", return_value=None
-        ):
-            key = policy._town_holder_declared_key(holder, board)
-        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "nav:confirm-cell-avoided"))
-
     def wait_holder(self):
         return SimpleNamespace(
             owner=SimpleNamespace(value="store-router"),
@@ -342,7 +321,7 @@ class StepEntryStructureTest(unittest.TestCase):
         )
         self.assertEqual(bypass, [])
         for name in (
-            "_break_livelock", "_town_holder_declared_key", "_town_holder_wait_key",
+            "_break_livelock", "_town_holder_wait_key",
         ):
             self.assertIn(PREDICATE, walkers[name])
 

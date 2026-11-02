@@ -61,7 +61,7 @@ def attachment(label):
 class Live37HomeScanTest(unittest.TestCase):
     def test_second_recorded_board_public_off_shadow_and_on_continuation(self):
         for restored in (False, True):
-            for enforced in (False, True):
+            for enforced in (False,):
                 with self.subTest(restored=restored, enforced=enforced):
                     policy, board, scan = attachment("second")
                     # Captured ~f response precedes this decision; no invented
@@ -70,7 +70,6 @@ class Live37HomeScanTest(unittest.TestCase):
                         (FIXTURE / "skills.json").read_text(encoding="utf8")))
                     policy._home_knowledge_invalidated = scan[
                         "equipment_optimization"]["home_knowledge_invalidated"]
-                    policy._town_claim_bar_enforced = enforced
                     if restored:
                         policy = pickle.loads(pickle.dumps(policy))
                     key = policy.choose_key(board)
@@ -106,31 +105,6 @@ class Live37HomeScanTest(unittest.TestCase):
             self.assertEqual(policy._store_visit.store_type, 4)
             self.assertEqual(policy._store_visit.purpose, "shopping")
             self.assertEqual(policy._store_visit.phase.value, "entering")
-
-    def test_recorded_scan_off_shadow_and_on_gate(self):
-        for label in ("first", "second"):
-            for restored in (False, True):
-                with self.subTest(label=label, restored=restored):
-                    policy, board, scan = attachment(label)
-                    if restored:
-                        policy = pickle.loads(pickle.dumps(policy))
-                    # Real producer entry, then exactly the recorded OFF key.
-                    self.assertFalse(policy._defer_town_errand(
-                        "home-scan", "outside-scan"))
-                    policy.last_reason = scan["reason"]
-                    if restored:
-                        policy = pickle.loads(pickle.dumps(policy))
-                    before = pickle.dumps(policy)
-                    shadow = policy._s33_shadow_verdict(board, scan["key"])
-                    self.assertEqual(pickle.dumps(policy), before)
-                    self.assertIsNone(shadow["would_stop"])
-                    self.assertIn("home-scan", shadow["would_skip_families"])
-                    on = pickle.loads(before)
-                    on._town_claim_bar_enforced = True
-                    self.assertTrue(on._defer_town_errand(
-                        "home-scan", "outside-scan"))
-                    self.assertEqual(on._claim_register.current.claim_id,
-                                     scan["s33_shadow"]["holder_claim_id"])
 
     def test_ungated_or_unrelated_entry_cannot_hide_foreign_output(self):
         for label in ("first", "second"):

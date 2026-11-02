@@ -17,7 +17,6 @@ class DeclarationR11Test(unittest.TestCase):
     @staticmethod
     def policy_with_holder(family="home-visit"):
         policy = HengbotPolicy()
-        policy._town_claim_bar_enforced = True
         policy._claim_register.declare(
             family, observe(("operation",), 8, "store-operation"))
         return policy
@@ -63,7 +62,6 @@ class DeclarationR11Test(unittest.TestCase):
         held = decisions.decide("shop:approach", cell=(38, 106), key="7")
         self.assertEqual((held["owner"], held["goal"]["cell"], held["state"]),
                          ("store-router", [38, 106], "active"))
-        policy._town_claim_bar_enforced = True
         policy.last_reason = "town:kill-mob-approach"
         emitted = policy._town_producer_entry(
             "_town_kill_mob_key", lambda: "1")
@@ -84,7 +82,6 @@ class DeclarationR11Test(unittest.TestCase):
         decisions = _Decisions()
         held = decisions.decide("shop:approach", cell=(38, 106), key="7")
         policy = decisions.policy
-        policy._town_claim_bar_enforced = True
         policy.last_reason = "town:rumor-batch"
         self.assertIsNone(policy._enforce_town_claim_result(
             decisions.board, "R"))
@@ -97,7 +94,6 @@ class DeclarationR11Test(unittest.TestCase):
         board = short_route_board()
         policy = HengbotPolicy()
         policy.prime(board)
-        policy._town_claim_bar_enforced = True
         policy._claim_register.declare(
             "home-visit", observe(("held-work",), 99, "test"),
             floor=board.floor_key)
@@ -115,24 +111,10 @@ class DeclarationR11Test(unittest.TestCase):
         self.assertEqual(passes, [1])
         self.assertEqual(policy.last_reason, "ownership:gate-missing:rumor")
 
-    def test_4_holder_family_controls_rewrite_refusal(self):
-        policy = self.policy_with_holder("store-router")
-        policy.last_reason = "shop:approach"
-        holder = policy._town_held_decision("6")
-        self.assertIs(holder, policy._claim_register.current)
-        policy._town_refuse_rewrite("no-progress", holder)
-        self.assertEqual(policy._decision_rewrite_refused[-1], {
-            "stage": "no-progress", "holder_family": "store-router",
-            "holder_claim_id": holder.claim_id,
-        })
-        policy.last_reason = "town:rumor-batch"
-        self.assertIsNone(policy._town_held_decision("R"))
-
     def test_4_public_holder_key_records_skipped_rewrites(self):
         board = short_route_board()
         policy = HengbotPolicy()
         policy.prime(board)
-        policy._town_claim_bar_enforced = True
         policy._claim_register.declare(
             "store-router", observe(("held-work",), 99, "test"),
             floor=board.floor_key)
@@ -176,7 +158,6 @@ class DeclarationR11Test(unittest.TestCase):
 
     def test_7_plan_next_gates_other_town_family(self):
         policy = HengbotPolicy()
-        policy._town_claim_bar_enforced = True
         policy._town_errand_plan = TownErrandPlan(
             [STORE_HOME, STORE_MAGIC],
             requester_families={STORE_HOME: ("home-visit",),

@@ -49,7 +49,6 @@ class LiveShortRouteTest(unittest.TestCase):
                          (223, "town:travel-entrance", 59))
         policy = HengbotPolicy()
         policy.prime(board)
-        policy._town_claim_bar_enforced = True
         policy._decision_sequence = 223
         policy._claim_register._next_id = 140
         claim = policy._claim_register.declare(
@@ -94,7 +93,6 @@ class LiveShortRouteTest(unittest.TestCase):
                          (219, [31, 119]))
         policy = HengbotPolicy()
         policy.prime(board)
-        policy._town_claim_bar_enforced = True
         claim = policy._claim_register.declare(
             "store-router", reach((31, 119)), floor=board.floor_key,
         )

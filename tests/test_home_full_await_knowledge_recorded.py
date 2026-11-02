@@ -51,7 +51,6 @@ class HomeFullAwaitKnowledgeRecordedTest(unittest.TestCase):
         policy._build_grid_index(parse_snapshot(self.rows[59]))
         policy.prime(board)
         policy.consume_skill_knowledge(self.pin["skill_knowledge"]["row"])
-        policy._town_claim_bar_enforced = enforced
         # DECLARED CONSTRUCTED ledger: a two-stack blocked deposit budget.
         # Keep recorded inventory identities; no readiness/selection is patched.
         entries = tuple((policy._item_signature(item), item.count, item.count)

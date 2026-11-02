@@ -17,7 +17,6 @@ from s33_phase2_fixtures import board, town_map
 def bounty_policy(snapshot, enforced):
     policy = HengbotPolicy(town_map=town_map())
     policy.prime(snapshot)
-    policy._town_claim_bar_enforced = enforced
     policy._home_knowledge_current = True
     policy._equipment_catalog.home_scan_complete = True
     office = Position(25, 71)  # recorded building_type 13
@@ -63,47 +62,6 @@ class BountyRouteTest(unittest.TestCase):
             vector = policy._town_arbiter_progress_vector(current, 'bounty:approach')
             distances.append(vector[-1][-1])
         self.assertEqual(distances, [11, 10])
-
-    def test_constructed_changed_walk_reaches_office_without_retirement(self):
-        snapshot = board(11498)
-        policy = bounty_policy(snapshot, True)
-        office = Position(25, 71)
-        initial = policy._town_map_goal_route(snapshot, office).remaining_edges
-        for _ in range(initial):
-            key = policy.choose_key(snapshot)
-            self.assertTrue(policy.last_reason.startswith('bounty:'), policy.last_reason)
-            self.assertFalse(policy._town_turn_arbiter.telemetry.get('retired', False))
-            self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
-            direction = key[0]
-            route = policy._town_map_goal_route(snapshot, office)
-            self.assertEqual(direction, policy._direction_key(snapshot.player.position, route.first_step))
-            vector = policy._town_arbiter_progress_vector(snapshot, 'bounty:approach')
-            self.assertEqual(vector[-1][-1], route.remaining_edges)
-            # DECLARED CONSTRUCTED successful move, never the old log's effect.
-            snapshot = replace(snapshot, turn=snapshot.turn + 1,
-                player=replace(snapshot.player, position=route.first_step))
-        self.assertEqual(snapshot.player.position, office)
-
-    def test_constructed_ineffective_step_remains_bounded(self):
-        snapshot = board(11498)
-        policy = bounty_policy(snapshot, True)
-        budget = policy._town_turn_arbiter.registry['quest-request'].budget
-        held_id = policy._claim_register.current.claim_id
-        retired_claim = None
-        reasons = []
-        for _ in range(budget + 2):
-            snapshot = replace(snapshot, turn=snapshot.turn + 1)
-            key = policy.choose_key(snapshot)
-            reasons.append(policy.last_reason)
-            current = policy._claim_register.current
-            if current.claim_id == held_id and current.closed == 'retired':
-                retired_claim = current
-            if key is None or policy.last_reason != 'bounty:approach':
-                break
-        self.assertTrue(any(reason != 'bounty:approach' for reason in reasons), reasons)
-        self.assertIsNotNone(retired_claim)
-        self.assertNotEqual(policy._claim_register.current.claim_id, held_id)
-        self.assertNotEqual(policy._claim_register.current.owner.value, 'quest-request')
 
 
 if __name__ == '__main__':

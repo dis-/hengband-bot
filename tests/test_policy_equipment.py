@@ -6026,7 +6026,6 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         policy._home_knowledge_current = not knowledge_invalidated
         policy._home_knowledge_invalidated = knowledge_invalidated
         policy._equipment_catalog.home_scan_complete = True
-        policy._town_claim_bar_enforced = True
         session = policy_module.EquipmentTransactionSession(
             policy_module.EquipmentTransactionPlan((action,), (), 20)
         )

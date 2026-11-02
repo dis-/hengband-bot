@@ -38,7 +38,6 @@ class ReservedFareTest(executor_harness.ProductionHarness):
             with self.subTest(claim_bar=enforced):
                 raw = self.broke()
                 p = self.policy(raw)
-                p._town_claim_bar_enforced = enforced
                 original = copy.deepcopy(raw["inventory"])
                 key, reason, board = self.decide(p, raw)
                 self.assertEqual(reason, "shop:outpost-fare-sale-approach")
@@ -97,7 +96,6 @@ class ReservedFareTest(executor_harness.ProductionHarness):
         raw = self.shop(self.broke())
         p = self.policy(raw)
         for enforced in (False, True):
-            p._town_claim_bar_enforced = enforced
             board = parse_snapshot(raw, self.monrace)
             item = board.inventory[3]
             self.assertEqual(p._retention_surplus(board, item), 0)

@@ -45,7 +45,6 @@ class EquipmentHomeEntryCycleRecordedTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy.prime(snapshot)
         policy._in_store_ops_enabled = True
-        policy._town_claim_bar_enforced = True
         policy._equipment_transaction_session = EquipmentTransactionSession(
             EquipmentTransactionPlan((action,), (), 0), physical_context="home",
         )

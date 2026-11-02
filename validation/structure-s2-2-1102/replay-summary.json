@@ -1,0 +1,14 @@
+{
+ "tool": "validation/structure-s2-2-1102/replay_flag_off.py (validation/manifest-tax-1101/replay_choose_key.py plus one shim: HengbotPolicy._town_claim_bar_enforced reads False and ignores writes, i.e. the live setting) and validation/manifest-tax-1101/compare_replays.py; each tree a full git archive inside the worktree, both with main's tests",
+ "test_ids": "replay-test-ids.txt: the 284 modules of structure-s2-1-1102 plus the 9 other modules that set or read the switch (293)",
+ "trees": {"main": "de6355774", "branch": "90d6d2025 (src and scripts only; tests from main)"},
+ "tests_run": {"main": 3127, "branch": 3127},
+ "failures": {"main": 265, "branch": 263},
+ "errors": {"main": 34, "branch": 63},
+ "decisions": {"main": 13830, "branch": 13829},
+ "tests_with_decisions": 1124,
+ "receipts": 47008,
+ "differing": 1,
+ "differing_detail": "tests.test_home_interruption_constructed.HomeInterruptionTest.test_await_entry_consumes_once_and_held_preview_uses_shared_receipt decision 8: the test patches the deleted _town_held_decision to return a holder (a state the live switch never produces: with the switch off it always returned None), so on the branch patch.object raises before that decision. The test is deleted in 90d6d2025.",
+ "note": "The extra branch errors are main's tests that call or patch the deleted functions directly; the extra main failures are the enforced-mode tests that fail once the shim forces the switch off. Neither changes a recorded decision."
+}

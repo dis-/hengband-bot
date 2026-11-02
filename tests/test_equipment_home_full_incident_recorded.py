@@ -52,7 +52,6 @@ class EquipmentHomeFullIncidentRecordedTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy.prime(outside)
         policy._in_store_ops_enabled = True
-        policy._town_claim_bar_enforced = True
         policy._equipment_transaction_session = session
         policy._home_knowledge_current = True
         policy._equipment_catalog.home_scan_complete = True

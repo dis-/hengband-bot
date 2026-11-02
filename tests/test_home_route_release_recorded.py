@@ -40,7 +40,6 @@ def reconstructed(pin, enforced):
     policy = HengbotPolicy()
     policy.prime(after)
     policy.consume_skill_knowledge(pin["skill_knowledge"])
-    policy._town_claim_bar_enforced = enforced
     policy._decision_sequence = 3
     key = "do28\rdl\x1b"
     targets = (before.inventory[14], before.inventory[11])
@@ -152,12 +151,3 @@ class HomeRouteReleaseTest(unittest.TestCase):
             self.assertEqual(policy._home_atomic_deposit_pending[3], 0)
             self.assertFalse(policy._store_visit.operation_effect_observed)
 
-
-    def test_survival_can_interrupt_pending_observation(self):
-        policy, before, after, entries = reconstructed(self.pins[0], True)
-        key = policy.choose_key(replace(after, player=replace(after.player, hp=1)))
-        self.assertTrue(policy.decision_claim["survival"])
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
-        self.assertEqual(policy._home_atomic_deposit_pending[3], 1)
-        self.assertNotEqual(key, "5")

@@ -29,7 +29,6 @@ def attachment(enforced=False, crossarea=True):
     boards = [replace(board, player=replace(board.player,
               two_weapon_skill=skills[1], shield_skill=skills[3])) for board in boards]
     policy = HengbotPolicy()
-    policy._town_claim_bar_enforced = enforced
     policy._crossarea_fundraising_enforced = crossarea
     policy.prime(boards[0])
     prior = parse_snapshot(json.loads(
@@ -298,22 +297,6 @@ class Live23HomeCycleTest(unittest.TestCase):
             self.assertIsNone(policy._queue_standing_home_digger(boards[1]))
             self.assertIsNone(policy._home_pending_item)
             self.assertEqual(policy._decision_errand_deferred[-1]["holder_family"], "equipment-txn")
-
-    def test_earlier_home_operation_defers_catalogue_before_producer_mutation(self):
-        # Supplemental registration-order case uses the incident's real Home
-        # operation shape; it is not presented as a sequential live replay.
-        for enforced, crossarea in ((False, True), (True, False)):
-            policy, boards = attachment(enforced, crossarea)
-            holder = policy._claim_register.declare(
-                "home-visit", observe((7, 1970, "ds\x1b"), 8, "store-operation"),
-                non_discardable=True)
-            policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-            policy._map_predicate_snapshot = boards[0]
-            self.assertIsNone(policy._town_producer_entry(
-                "_equipment_transaction_town_key",
-                lambda: self.fail("later equipment producer ran"), family="equipment-txn"))
-            self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
-            self.assertIsNone(policy._equipment_transaction_session)
 
     def test_recorded_off_scan_continues_registered_catalogue(self):
         # The unchanged entry/scan actions and their recorded knowledge response.

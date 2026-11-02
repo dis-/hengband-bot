@@ -107,7 +107,6 @@ class N1aTerminalAdmissionTest(unittest.TestCase):
         for board, live_ready_key in zip(self.boards, expected_live):
             with self.subTest(turn=board.turn):
                 policy = self.policy(board)
-                self.assertFalse(getattr(policy, "_town_claim_bar_enforced", False))
                 with patch.object(HengbotPolicy, "_equipment_departure_ready", _entry_ready(False)):
                     self.assertIsNone(self.quest_key(policy, board))
                 self.assertIsNone(policy._town_blocked_reason)

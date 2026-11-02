@@ -38,7 +38,6 @@ class HomeSurplusSaleScreenRecordedTest(unittest.TestCase):
     def policy_at(self, board, *, enabled, enforced=False, opened=6335):
         policy = HengbotPolicy()
         policy.prime(board)
-        policy._town_claim_bar_enforced = enforced
         policy._in_store_ops_enabled = enabled
         policy.observe_store_screen(True)
         target = next(i for i in board.inventory if i.inscription == '@0')
@@ -168,7 +167,6 @@ class HomeSurplusSaleScreenRecordedTest(unittest.TestCase):
             untagged if i == original else i for i in board.inventory))
         policy = HengbotPolicy()
         policy.prime(before)
-        policy._town_claim_bar_enforced = True
         policy._in_store_ops_enabled = True
         policy.observe_store_screen(True)
         policy._home_full_relief = {

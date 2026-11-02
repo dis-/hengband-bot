@@ -83,7 +83,6 @@ def new_policy(directory, calibration=None):
 
 
 def enable_live_switches(policy):
-    policy._town_claim_bar_enforced = True
     policy._crossarea_fundraising_enforced = True
     policy._in_store_ops_enabled = True
 

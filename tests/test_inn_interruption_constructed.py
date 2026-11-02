@@ -230,25 +230,6 @@ class InnInterruptionTest(unittest.TestCase):
             self.assertTrue(telemetry["progress"])
             self.assertEqual(policy._owner_retired_no_progress_count, 0)
 
-    def test_held_route_preview_uses_the_same_qualified_receipt(self):
-        policy = policy_for(1)
-        for at in [(23, 47), (22, 48), (23, 49), (23, 50), (23, 51)]:
-            emit(policy, 1, at, Q2)
-        emit(policy, 1, (23, 51), "town:kill-mob-approach", "6")
-        emit(policy, 1, (21, 65), Q2)
-        emit(policy, 1, (22, 64), Q2)
-        emit(policy, 1, (22, 64), "town:kill-mob-approach", "6")
-        holder = policy._claim_register.declare("quest-request", reach((28, 56)),
-                                                 floor=(0, 0, 0))
-        # Independent held-claim seam: the real retained Reach is supplied at
-        # the holder boundary; the policy gate is otherwise in its OFF mode.
-        with patch.object(policy, "_town_held_decision", return_value=holder):
-            key, _, telemetry = emit(policy, 1, (21, 65), Q2)
-        self.assertEqual(str(key), "1")
-        self.assertFalse(telemetry["retired"])
-        self.assertNotIn("arbiter-retirement", {
-            row["stage"] for row in policy._decision_rewrite_refused})
-
     def test_rebaseline_preserves_already_spent_own_budget(self):
         policy = policy_for(1)
         emit(policy, 1, (23, 51), Q2)

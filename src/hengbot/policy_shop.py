@@ -3269,10 +3269,7 @@ class ShopMixin(InStoreMixin):
         store = snapshot.store
         if store is None or store.store_type == STORE_HOME:
             return None
-        enforced = (
-            getattr(self, "_town_claim_bar_enforced", False)
-            or self._home_sequence_has_holder()
-        )
+        enforced = self._home_sequence_has_holder()
         deferral = self._town_errand_deferral(
             "shop-buy", "purchase", snapshot, enforced=True,
             arrival_board=self._home_hold_board() if enforced else None,
@@ -6498,11 +6495,6 @@ class ShopMixin(InStoreMixin):
             self.last_reason = reason_before_composition
         self._shop_observation = None
         offer_outcome(None, "uncomposable-page-released")
-        if getattr(self, "_town_claim_bar_enforced", False):
-            # No shelf command was selected. The outside route still owns its
-            # fallback key; a speculative shop:leave must not label that walk
-            # as an unposted sale operation with no execution declaration.
-            self.last_reason = reason_before_composition
         return None
 
     def _star_remove_curse_reserve_purchase_needed(
