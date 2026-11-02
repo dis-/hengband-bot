@@ -14,15 +14,15 @@ from hengbot.item_reservation import (
 )
 from hengbot.item_reservation import reserved_item_command, reservation_verdict, item_available
 
-from hengbot.claim_goal_typing import (
+from hengbot.town_terminal import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
-    GOAL_NOTE_LAST_KNOWN as CLAIM_GOAL_NOTE_LAST_KNOWN,
-    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
     goal_typing as claim_goal_typing,
 )
-from hengbot.claim_register import GOAL_REACH as CLAIM_GOAL_REACH
+from hengbot.town_terminal import claim_family_of as town_claim_family_of
+from hengbot.town_terminal import errand_hold as town_errand_hold
+from hengbot.town_terminal import GOAL_REACH as CLAIM_GOAL_REACH
 
 # Round 4 (F4): the escape ledger key that keeps the up-stairs target beside
 # the cached ``return:upstairs-step`` (record-only; cleared with the ledger).
@@ -59,8 +59,8 @@ def _cache_claim_need_candidates(function):
         with claim_candidate_cache(self, snapshot):
             return function(self, snapshot)
     return run
-from hengbot.claim_register import ClaimOwner, claims
-from hengbot.claim_ladder import TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES
+from hengbot.town_arbiter import ClaimOwner, claims
+from hengbot.town_terminal import TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STUCK_ESCAPE_LIMIT, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.policy_constants import MORIVANT_LIBRARY_BUILDING_TYPE, OUTPOST_TOWN_ID, STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REST_MACRO, TOWN_TELEPORT_COST
@@ -1730,9 +1730,9 @@ class TownMixin:
             self._town_blocked_reason = "overweight-home-unreachable"
             return self._town_blocked_key(snapshot)
         if self._defer_town_errand("store-router", "procurement-decision"):
-            if self._claim_family_of(self.last_reason) == "store-router":
+            if town_claim_family_of(self, self.last_reason) == "store-router":
                 return self._town_holder_wait_key(
-                    self._claim_errand_hold("store-router"), snapshot
+                    town_errand_hold(self, "store-router"), snapshot
                 )
             return None
         proposed_reason = self.last_reason or ""
@@ -1820,7 +1820,9 @@ class TownMixin:
             )
             return WAIT_KEY
 
-        claims_active = self._town_claims_active(snapshot)
+        # Records the live route owners (``_town_claim_categories``) that the
+        # town plan and the town end read.
+        self._town_claims_active(snapshot)
 
         # Durable session ownership survives reason relabelling and blockers.
         if self._equipment_transaction_owns_town_relocation(snapshot):
@@ -1885,36 +1887,6 @@ class TownMixin:
             return key
         progress = self._town_procurement_progress_key(snapshot)
         if progress is None:
-            liveness_candidate = (
-                proposed_reason == "stuck:wander"
-                or proposed_reason.startswith("novel:")
-            )
-            if enforce and movement_key and liveness_candidate and (
-                claims_active or getattr(self, "_town_liveness_claim_retired", False)
-            ):
-                blocked_reason = (
-                    "retired-equipment-transaction-failed"
-                    if getattr(self, "_town_liveness_claim_retired", False)
-                    else "no-actionable-claim-owner"
-                )
-                self.last_reason = f"town:blocked:{blocked_reason}"
-                self._town_liveness_invariant_defect = {
-                    "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
-                    "winning_rung": proposed_reason,
-                    "resolution": self.last_reason,
-                    "claim_retired": getattr(
-                        self, "_town_liveness_claim_retired", False
-                    ),
-                }
-                self._town_progress_invariant_defect = dict(
-                    self._town_liveness_invariant_defect
-                )
-                self._record_shop_selector_diagnostics(snapshot, WAIT_KEY)
-                return WAIT_KEY
-            if enforce and movement_key and liveness_candidate:
-                walk_in = self._mining_walk_in_return_key(snapshot)
-                if walk_in is not None:
-                    return walk_in
             self.last_reason = proposed_reason
             return key
         progress_key, progress_reason = progress
@@ -2142,14 +2114,13 @@ class TownMixin:
             or prior_reason == "equipment-transaction:abandon-blocked"
         ):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
-            self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
-            producer = self._claim_family_of(prior_reason)
-            if producer != self._claim_family_of(self.last_reason):
+            self._declare_reach(step)
+            producer = town_claim_family_of(self, prior_reason)
+            if producer != town_claim_family_of(self, self.last_reason):
                 # A physical entrance step is the current work's envelope.
                 # It does not admit a new departure producer.
                 self.last_reason = prior_reason
-                self._declare_reach(step, family=producer,
-                                    note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(step, family=producer)
             if key is not None:
                 self._offer_execution(
                     key, producer=producer,
@@ -4275,46 +4246,6 @@ class TownMixin:
                 )
                 for store_type in dict.fromkeys(stops)
             }
-        if previous is not None:
-            old_stop = (previous.stops[previous.index]
-                        if previous.index < len(previous.stops) else None)
-            new_stop = plan.stops[0] if plan is not None else None
-            old_categories = tuple(sorted(previous.need_categories.items()))
-            new_categories = (
-                tuple(sorted(plan.need_categories.items())) if plan is not None else ()
-            )
-            old_next = (previous.stops[previous.index + 1]
-                        if previous.index + 1 < len(previous.stops) else None)
-            new_next = (plan.stops[1]
-                        if plan is not None and len(plan.stops) > 1 else None)
-            if old_stop != new_stop or old_next != new_next:
-                self._decision_plan_change_evidence = {
-                    "previous_stops": tuple(previous.stops),
-                    "previous_index": previous.index,
-                    "new_stops": tuple(stops),
-                    "previous_stop": old_stop,
-                    "new_stop": new_stop,
-                    "previous_next_stop": old_next,
-                    "new_next_stop": new_next,
-                    "previous_categories": old_categories,
-                    "new_categories": new_categories,
-                }
-            held = standing_claim(self)
-            visit = getattr(self, "_store_visit", None)
-            current_stop = (
-                previous.stops[previous.index]
-                if previous.index < len(previous.stops)
-                else getattr(visit, "store_type", None)
-            )
-            if (
-                held is not None and held.is_open
-                and held.owner.value in CLAIM_TOWN_ERRAND_FAMILIES
-                and current_stop is not None
-                and (plan is None or plan.stops[0] != current_stop)
-            ):
-                self._decision_plan_rebuild_deferred = (
-                    getattr(self, "_decision_plan_rebuild_deferred", 0) + 1
-                )
         if plan is not None and previous is not None:
             # The route is a replaceable ordering projection, but completion
             # and blocking are visit facts.  Preserve them when changing the
@@ -5073,7 +5004,7 @@ class TownMixin:
     ) -> str | None:
         """Bound native travel by observed progress; otherwise use BFS walking."""
         route_kind = "entrance" if reason == "town:travel-entrance" else "store"
-        family = self._claim_family_of(reason)
+        family = town_claim_family_of(self, reason)
         work_id = f"route:{route_kind}:{goal.y},{goal.x}"
         def no_route(cause: str) -> None:
             self._offer_execution_no_step(
@@ -5346,9 +5277,7 @@ class TownMixin:
             )
             if step is not None:
                 self.last_reason = "town:kill-mob-approach"
-                self._declare_reach(
-                    self._town_hunt_target, note=CLAIM_GOAL_NOTE_LAST_KNOWN
-                )
+                self._declare_reach(self._town_hunt_target)
                 key = self._step_toward(snapshot, step)
                 if key is not None:
                     self._offer_execution(
@@ -6877,7 +6806,7 @@ class TownMixin:
                     )
                     if neighbors:
                         self.last_reason = "town:wait-recall-step-off"
-                        self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
+                        self._declare_reach(neighbors[0])
                         key = self._step_toward(snapshot, neighbors[0])
                         if key is not None:
                             self._offer_execution(

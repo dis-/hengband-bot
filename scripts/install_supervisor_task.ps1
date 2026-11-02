@@ -59,7 +59,7 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings -Force `
-    -Description 'Hengbot supervision: check the bot/measurement/review fronts and escalate a sustained stall to the desktop.' | Out-Null
+    -Description 'Hengbot supervision: check the bot/review fronts and escalate a sustained stall to the desktop.' | Out-Null
 
 $registered = Get-ScheduledTask -TaskName $TaskName
 Write-Output "REGISTERED $TaskName state=$($registered.State) every ${IntervalMinutes}m"

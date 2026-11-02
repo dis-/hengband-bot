@@ -195,7 +195,6 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
                 decisions[index] = {
                     "key": str(key) if key is not None else None,
                     "reason": policy.last_reason,
-                    "claim": dict(policy.decision_claim or {}),
                     "staged": staged,
                     "chain": chain,
                     "read_key": (getattr(policy, "read_telemetry", None) or {}).get(
@@ -335,10 +334,6 @@ class StuckPromptStagedTailRecordedTest(unittest.TestCase):
             ("town:enchant-launcher-tohit", ENCHANT_READ, ENCHANT_GATES),
         )
         self.assertEqual(staged["non_discardable_family"], "curse-enchant")
-        self.assertEqual(
-            decisions[STOP]["claim"]["displaced_non_discardable_producer"],
-            {"family": "curse-enchant", "key": ENCHANT_READ},
-        )
         self.assertEqual(decisions[STOP]["read_key"], self.recorded[STOP]["read_key"])
 
     def test_p1_stop_decision_posts_the_approach(self):

@@ -5,7 +5,7 @@
 """
 
 from hengbot.model import TVAL_WAND
-from hengbot.claim_register import claims
+from hengbot.town_arbiter import claims
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, is_absorption_device
 from hengbot.me_device_policy import absorb_candidate
 from hengbot.policy_constants import MAGIC_MISSILE_REASON

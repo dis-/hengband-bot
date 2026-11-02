@@ -49,6 +49,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from tests.hold_closings import requester_families
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_ALCHEMIST, STORE_BLACK, STORE_MAGIC, TVAL_SCROLL
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -198,8 +199,7 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
             key = original(policy, board)
             seen["keys"].append(key)
             if len(seen["keys"]) == first_changed + 1:
-                seen["requesters"] = (policy.decision_claim or {}).get(
-                    "requester_families")
+                seen["requesters"] = requester_families(policy)
             return key
 
         with patch.object(HengbotPolicy, "choose_key", choose_key):

@@ -6,7 +6,11 @@ from hengbot.item_reservation import (
     store_item_key,
 )
 
-from hengbot.claim_register import ClaimOwner, claims, terminal as claim_terminal
+from hengbot.town_arbiter import ClaimOwner, claims
+from hengbot.town_terminal import end_execution_delegation as town_end_execution_delegation
+from hengbot.town_terminal import claim_family_of as town_claim_family_of
+from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
+from hengbot.town_terminal import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
@@ -1523,8 +1527,8 @@ class HomeMixin:
             "filed", request.signature, request.quantity,
             request.origin, request.purpose,
         )
-        self._open_execution_delegation(
-            parent_family, "home-errand", filing_identity,
+        town_open_execution_delegation(
+            self, parent_family, "home-errand", filing_identity,
             ("home-request", request.purpose, request.signature),
             "inventory-effect", "home-errand-existing-budget",
         )
@@ -1545,8 +1549,8 @@ class HomeMixin:
                 producer="home-errand", work_id=f"home-request:{filing_identity}",
                 cause="town-pack-budget",
             )
-            self._end_execution_delegation(
-                "home-errand", filing_identity,
+            town_end_execution_delegation(
+                self, "home-errand", filing_identity,
                 completed=False, cause="town-pack-budget",
             )
             return False
@@ -1567,8 +1571,8 @@ class HomeMixin:
                 post_on_emit=False,
             )
             if self._home_errand.needs_knowledge:
-                self._open_execution_delegation(
-                    "home-errand", "home-scan",
+                town_open_execution_delegation(
+                    self, "home-errand", "home-scan",
                     ("knowledge", self._home_knowledge_scan_epoch,
                      request.signature, request.purpose),
                     ("home-request", request.purpose, request.signature),
@@ -1583,8 +1587,8 @@ class HomeMixin:
                 producer="home-errand", work_id=f"home-request:{filing_identity}",
                 cause="file-refused",
             )
-            self._end_execution_delegation(
-                "home-errand", filing_identity,
+            town_end_execution_delegation(
+                self, "home-errand", filing_identity,
                 completed=False, cause="file-refused",
             )
         return filed
@@ -3335,7 +3339,7 @@ class HomeMixin:
         self, key: str | None, signature: tuple
     ) -> None:
         """The request owner names its recovery after an invalid Home address."""
-        family = self._claim_family_of(self.last_reason)
+        family = town_claim_family_of(self, self.last_reason)
         if family not in {"home-errand", "home-visit"}:
             return
         self._offer_execution(
@@ -3865,7 +3869,7 @@ class HomeMixin:
         )
         self._compose_home_operation(
             snapshot, key, operation_key,
-            producer_family=self._claim_family_of(reason),
+            producer_family=town_claim_family_of(self, reason),
         )
         self.last_reason = reason
         return key
@@ -4613,8 +4617,8 @@ class HomeMixin:
             return False
         operation_identity = (STORE_HOME, visit.opened_sequence, operation_key)
         parent_family = producer_family or "home-visit"
-        self._open_execution_delegation(
-            parent_family, "home-tail",
+        town_open_execution_delegation(
+            self, parent_family, "home-tail",
             ("staged-tail", *operation_identity),
             ("visit-operation", visit.opened_sequence, operation_key),
             "staged-tail-released/operation-effect", "home-operation-existing-budget",
@@ -4995,8 +4999,8 @@ class HomeMixin:
             "filed", identification_signature, 1,
             "home-catalog", "identification",
         )
-        self._open_execution_delegation(
-            "identification", "home-errand", filing_identity,
+        town_open_execution_delegation(
+            self, "identification", "home-errand", filing_identity,
             ("identification", identification_signature),
             "filed-home-request", "identification/home-errand-existing-budget",
         )

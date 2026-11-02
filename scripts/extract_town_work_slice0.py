@@ -43,7 +43,7 @@ def main():
             claim = row.get('claim') or {}
             decisions.append(dict(physical_row=physical, sequence=row.get('decision_sequence'),
                                   turn=row.get('turn'), key=row.get('key'), reason=row.get('reason'),
-                                  rung=claim.get('rung'), execution=claim.get('execution'),
+                                  rung=row.get('rung') or claim.get('rung'), execution=claim.get('execution'),
                                   store_type=row.get('store_type')))
         boards = []
         response_rows = []

@@ -37,6 +37,7 @@ import json
 import unittest
 from pathlib import Path
 
+from hengbot import town_terminal
 from hengbot import me_staff_sequence as sequence
 from hengbot.cli import TOWN_BLOCKED_STOP_LIMIT, _advance_town_blocked_iteration
 from hengbot.magic_eater import MISSILE_REASON
@@ -134,8 +135,7 @@ class MeStaffLoopsRecordedTest(nokey.PostedKey):
             if policy.last_reason == "me-staff:return-to-shop":
                 self.assertTrue(telemetry.get("progress"), (raw["turn"], key, telemetry))
                 self.assertFalse(policy._town_turn_arbiter.retirement_pending, raw["turn"])
-                self.assertEqual((policy.decision_claim or {}).get("goal", {}).get("kind"),
-                                 "Reach")
+                self.assertEqual(town_terminal.standing_claim(policy).goal.kind, "Reach")
 
         self.drive(policy, case["boards"], each)
         self.assertEqual(set(reasons), {"me-staff:return-to-shop"})

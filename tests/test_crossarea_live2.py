@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import tests  # noqa: F401
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.equipment_transaction_planner import (
     EquipmentTransaction, EquipmentTransactionPlan,

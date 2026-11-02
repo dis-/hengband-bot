@@ -10,7 +10,9 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401 -- runtime file isolation
-from hengbot.claim_register import observe
+from tests.hold_closings import recorded_closings
+from hengbot import town_terminal
+from hengbot.town_terminal import observe_goal as observe
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy, HOME_KNOWLEDGE_MACRO
@@ -86,8 +88,7 @@ class CatcycleTest(unittest.TestCase):
                     key = policy.choose_key(boards[0])
                     self.assertEqual((key, policy.last_reason),
                                      ("", "equipment-transaction:catalogue-await-knowledge"))
-                    self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
-                    self.assertIsNone(policy.decision_claim["violation"])
+                    self.assertEqual(town_terminal.standing_claim(policy).owner.value, "equipment-txn")
                     self.assertFalse(policy._home_knowledge_current)
 
     def test_in_home_catalogue_reply_adopts_before_next_home_work(self):
@@ -95,7 +96,7 @@ class CatcycleTest(unittest.TestCase):
         for restored in (False, True):
             policy, boards, reply = attach()
             key = policy._home_catalogue_work_key(boards[1])
-            policy._record_decision_claim(boards[1], key)
+            town_terminal.advance_hold(policy, boards[1], key)
             policy.confirm_key_posted(key)
             holder_id = policy._town_hold.claims.current.claim_id
             if restored:
@@ -108,17 +109,17 @@ class CatcycleTest(unittest.TestCase):
             self.assertFalse(policy._home_knowledge_invalidated)
             # Independently attach the recorded entrance to the adopted state;
             # this is not a sequential replay of the changed 1065 decision.
-            policy.choose_key(boards[2])
-            closed = policy.decision_claim["closed_claim"]
-            self.assertEqual(closed["claim_id"], holder_id)
-            self.assertEqual((closed["closed"], closed["closed_reason"]),
+            with recorded_closings() as closings:
+                policy.choose_key(boards[2])
+            closed = next(claim for claim in closings if claim.claim_id == holder_id)
+            self.assertEqual((closed.closed, closed.closed_reason),
                              ("complete", "home-knowledge-current"))
 
     def test_posted_scan_waits_for_reply_without_reissuing(self):
         # Supplemental delayed-response seam, not a historical next-board claim.
         policy, boards, _ = attach()
         key = policy._home_catalogue_work_key(boards[1])
-        policy._record_decision_claim(boards[1], key)
+        town_terminal.advance_hold(policy, boards[1], key)
         policy.confirm_key_posted(key)
         scan = policy.choose_key(boards[2])
         self.assertEqual(scan, "")

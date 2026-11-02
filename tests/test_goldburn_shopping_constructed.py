@@ -22,7 +22,7 @@ from hengbot.model import Position, Snapshot, QuestState, STORE_ALCHEMIST, TVAL_
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_FINISHED
 from hengbot.policy_types import CrossTownShoppingExpedition
-from hengbot.claim_register import reach_place
+from hengbot.town_terminal import reach_place_goal as reach_place
 from hengbot.town_terminal import gather_quest_work, verdict_quest_work
 
 FIXTURE = Path(__file__).parent / "fixtures/goldburn-20261003.decisions.json"

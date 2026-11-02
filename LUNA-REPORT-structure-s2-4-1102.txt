@@ -1,0 +1,194 @@
+LUNA-REPORT structure-s2-4-1102（構造の直し 第2段B の4本目・最後: 請求の仕組みの型・順位・目的の型を town_terminal へ移し、記録だけの仕組みを消す）
+
+== 前提 ==
+- 持ち主の決定: 2026-10-28 「B: 場面の終点に一本化」。2026-11-02 「街に関する構造整理は優先度を上げて。半端になるのが一番良くない」。
+- 計画: LUNA-REPORT-structure-s2-3-1102.txt の「4本目に残すもの」。土台 main ccef9bcc9。手順ごとに1コミット。
+- 結果: 町の hold（town_terminal.TownHold）の状態・型・順位・目的の型・進め方は town_terminal の1か所にまとまり、
+  claim_register・claim_ladder・claim_goal_typing・emit_ownership・ownership_metrics・stop_shape・plan_handoff と
+  記録だけの行（decision_claim）は src から無くなった。第2段B はこれで終わり。
+
+== コミット ==
+1. 75ecde5cc Move the town hold's claim types, ladder and goal typing into town_terminal
+2. a54af03c4 Read the town fuse and the seek-shelter release from the town hold
+3. a5d2732f4 Move emit_ownership's live parts to their owners and delete the claim record modules
+4. 3592ff968 Call town_terminal directly instead of the policy's hold delegates
+5. a3cabe780 Delete the tests and tools of the retired claim machinery and the bar switch
+   d846f4e2e Merge main into structure-s2-4-1102（main 9548e37f4。town-end-purchase-only などを含む。衝突なし）
+   （この報告と検証の道具のコミット）
+
+== 1. 型・順位・目的の型・hold の部品を town_terminal へ ==
+- claim_register の Goal / ExecutionDeclaration / Claim / Bar / ClaimRegister / ClaimState と目的の作り方
+  （reach_goal・reach_monster_goal・reach_place_goal・observe_goal・terminal_goal。terminal という名前は
+  town_terminal の TerminalRef の引数名とぶつかるので改名）を town_terminal の「hold の記録」の節へ。
+- 持ち主の列挙 ClaimOwner・owner_of・@claims の印（CLAIM_OWNER_ATTRIBUTE）は持ち主の一覧を持つ town_arbiter へ
+  （town_terminal は town_arbiter を読むので、逆向きの依存を作らない）。
+- 順位（claim_ladder の _RUNGS・rung_of・owner_change・nests_over・resumable_index など）を RUNG_FAMILIES の
+  すぐ後ろへ。RUNG_FAMILIES を順位の表から作り直すことも試したが、_immobile_summoner_key だけ食い違う
+  （RUNG_FAMILIES に無いので rung_family が ValueError、順位では explore）ので、振る舞いを変えないため表は2つのまま。
+- 目的の型の表（GOAL_TYPING と goal_typing・is_survival など）を town_terminal へ。読まれていなかった
+  OPERATION_CLAIMS・ORDINARY_OWNER_PREFIXES・TRANSACTION_OWNERS は持ってこなかった。
+- advance_hold と errand_hold が呼んでいた policy の部品 31 個（_claim_goal・_claim_exit_completion・
+  _claim_owner_transition・_claim_resolve_suspended・_claim_suspended_exit・_claim_set_bars・_claim_bar_*・
+  委譲の寿命 _open/_end/_bind/_observe/_cancel_unbound_execution_delegations・_record_execution_declaration・
+  _visit_exit_family など）を town_terminal の関数（policy を第1引数）へ。producer 側の窓口
+  （_declare_*・_offer_*・_release_claim_goal・_complete_claim_goal）は policy に残した（テストが policy の
+  属性として差し替える所で、advance_hold もそこを通して呼ぶので差し替えが効き続ける）。
+- policy.claim()（ClaimScope）は誰も使っていなかったので消した。
+- この時点の claim_register・claim_ladder・claim_goal_typing は移した名前を読み直すだけの殻（3本目で消す）。
+- town_work_review.json は移した関数のキーを今の書式のまま付け替え（rekey 5件、手で8件、選ばれなくなった2件を削除）。
+
+== 2. 記録の行 decision_claim を消す ==
+decision_claim は記録だけと書かれていたが、3か所で読まれていた。その3つだけを hold に持たせ、行は消した。
+- cli の町の fuse（_advance_town_blocked_iteration）: 行の Reach の claim_id と距離 → town_terminal.decision_reach
+  （TownHold.last_reach。advance_hold が行と同じ式で計算）。
+- 次の判断の seek-shelter の解放（advance_hold の中）: 行の reason → TownHold.last_reason。
+- 判断の記録（bot-decisions.jsonl）: 行の claim をまるごと → 判断の行に "rung"（TownHold.last_rung）と
+  "terminal_admission"（_decision_terminal_admissions）を直接書く。観戦の順位のページ（build_ladder_page）と
+  slice0 の抽出は新しい "rung" を読み、古い記録は今までどおり claim.rung を読む。
+- 消したもの: _write_decision_claim_row と _record_decision_claim（choose_key は town_advance_hold を直接呼ぶ）、
+  HoldStep、閉じた請求・中断から閉じた請求の記録（_closing・take_closing・_suspended_closings）、
+  would_bar・would_skip、違反の中身（owner_transition は「落とした」の真偽だけを返す。bar はこれで立つ）、
+  goal_missing と目的の note（claim_goal は目的だけを返す。producer の one-step・last-known の note も消した。
+  teleport-walk の note は _adopt_decision_goal が読むので残す）、Claim.budget、barring、型の行の形
+  （as_dict・closing_dict）、DecisionCandidate.claim_id（誰も読まない）、行だけの診断
+  _decision_displaced_producer・_decision_plan_rebuild_deferred・_decision_plan_change_evidence と
+  町の計画の作り直しでそれを作っていた塊。
+- 古いチェックポイント: policy_state._adopt_decision_claim が pickle の decision_claim を hold の
+  last_reason・last_reach・last_rung に移してから捨てる（復元直後の判断の seek-shelter の解放も同じになる）。
+  消した属性は _RETIRED_CLAIM_RECORD_NAMES で落とす。観察用の複製（observer_copy）も3つを写す。
+- テスト: decision_claim の欄を読んでいた約40本を hold の値に機械的に置き換えた
+  （owner・claim_id・goal・execution → town_terminal.standing_claim、rung → decision_rung、
+  requester_families → 店の訪問から、item_reservation_shadow → hold を進める所で reservation_shadow を読む）。
+  閉じた請求を読んでいた4本は tests/hold_closings.py の recorded_closings（ClaimRegister._note_ended を見る）へ。
+  記録だけの欄の確認（violation is None、goal_missing、scan-during-pending-atomic、visit_owner_mismatch、
+  displaced_non_discardable_producer）は外し、違反と S2a.1 の閉じ方の数を固定するだけのテスト
+  （test_town_approach_retired と test_unaffordable_claim_tour の test_s3_new_code_replay_names_remaining_violations、
+  test_s2a1_observe_goals_complete_on_their_confirmed_effect）は消した。bar の行を数えていた3本は
+  hold に立っている bar を読むように直した。
+- item_intent_baseline.json から消えた2つの属性の行を削除（item_sink_lint の新しい指摘 2件を 0 に戻す）。
+
+== 3. emit_ownership の生きた部品を持ち主へ、記録の module を消す ==
+- movement_destination（cli）: 方向キーの表は policy_constants.DIRECTION_KEYS の逆と同じだったので、
+  policy_constants.DIRECTION_DELTAS を足して cli._movement_destination がそれを読む（重複した表を1つに）。
+- in_flight_clause（town_arbiter が読む）: StoreVisit の隣（policy_types）へ。
+- 消した module: emit_ownership、ownership_metrics、stop_shape、plan_handoff、claim_register、claim_ladder、
+  claim_goal_typing。cli の OwnershipMetricsLedger（ownership-metrics.jsonl）と判断の行の town_emit_ownership も。
+  順位の記録用の pair_scope・is_s3_rung・SCOPE_* も。
+- 古いチェックポイントの claim_register の名前: retired_values.retired_module が "hengbot.claim_register" を
+  ファイルの無い module として登録し、今の型を古い名前で持つ（town_terminal を読み込んだ時点で登録）。
+  pickle はそのまま今の型で読み込む（protocol 0 で古い名前に書き換えた pickle を読み戻して確かめた）。
+- supervisor_check の measurement の前線は ownership-metrics.jsonl だけを読んでいたので外した（前線は bot と review。
+  スケジュールの HengbotSupervisorCheck は無効のまま）。
+- 消したテスト・道具: test_emit_ownership、test_town_emit_ownership_recorded、town_emit_ownership_matrix、
+  town_emit_ownership_recorded、test_town_acquire_bypass_recorded と town_acquire_bypass_recorded（emit の目標の導出を
+  記録の上で数えるもの）、test_stop_shape_recorded と抽出・固定物、test_s3_live_report、scripts の
+  ownership_metrics_report・measure_s3_prereq・s3_live_report・measure_s3_3_on（どれも消した module を読む）。
+- town_work_manifest.py は順位の呼び出し先を claim_ladder.py ではなく town_terminal.py から読む。
+
+== 4. policy の6つの1行の委譲を消す ==
+- _claim_family_of・_claim_errand_hold・_home_catalogue_sequence_enforced・_home_catalogue_work_holder・
+  _home_hold_board・_home_sequence_has_holder を消し、呼ぶ所（policy・policy_home・policy_navigation・
+  policy_shop・policy_town・policy_equipment・town_terminal、約60か所）を town_terminal の関数へ直接向けた。
+- テスト2本の呼び方と item_sink_adapters.json の位置の条件の文字列3件を同じように書き換えた。
+
+== 5. 記録の仕組みだけを試すテスト・道具と bar のスイッチを消す ==
+- 消したテスト: test_ownership_* 12本、test_s33_* 10本、test_declarations_r* 6本、tests/ownership_on_replay.py・
+  extract_ownership_on_replay.py・run_shadow3_validation.py、scripts の first_divergence_s3_3.py・
+  s33_shadow_report.py、使われなくなった固定物 ownership_claim_lint_sample.py。
+- 残したもの: town_work の契約テスト2本が使う凍結された町の判断の再生（ownership_on_corpus）は
+  tests/town_work_corpus.py に名前を変えて残した（ownership の違反の数えはやめた）。生き残るテストが消すテストから
+  借りていた補助（corridor、attach_claim・attach_visit）はそのテストの中へ移した。
+- bar のスイッチ: _claim_bar_enforced（いつも False）と _decide の4つの段の前の _claim_bar_skips、
+  _decision_bar_skips、BAR_GATED_RUNGS、Goal.as_dict を消した（スイッチが False なら _claim_bar_skips は
+  必ず False で、4つの段はそのまま走っていた）。
+- policy_town._town_procurement_decision の liveness_candidate の塊（no-actionable-claim-owner /
+  retired-equipment-transaction-failed で WAIT、_mining_walk_in_return_key）を消した。届かないことの証明:
+  この塊は「not snapshot.in_town なら return」の後にあるので町の盤面だけで、提案の理由が "stuck:wander" か
+  "novel:" で始まる時だけ動く。src で last_reason に "stuck:wander" を書くのは _town_idle_key の1か所だけで、
+  その前に「snapshot.in_town なら town_end_key を返す」があるので迷宮の盤面だけ。"novel:" を書く所は src に無い
+  （arbiter の登録の接頭辞と目的の型の表の行にあるだけ）。_town_claims_active は _town_claim_categories を
+  書くので呼び出しは残した。この塊を作った盤面で試していた constructed のテスト2本
+  （test_town_progress_invariant の test_captured_town_wander_retires_phantom_equipment_failure と
+  test_randomized_active_claim_non_goal_moves_are_rejected。町の producer を差し替えて stuck:wander を出させる）と
+  その固定物も消した。_mining_walk_in_return_key は town_end_key が使うので残る。
+
+== 振る舞いが変わらないことの証拠 ==
+道具: validation/structure-s2-4-1102/（3本目の replay_hold.py を、型や置き場所が変わっても同じ値を比べるように
+直したもの。errand hold は town_terminal.errand_hold の関数と、それを名前で持つ全 module の globals を包むので、
+委譲を通っても直接でも1回と数える。各判断の行に町の fuse の入力（claim_id と距離。2本目の前は decision_claim から、
+後は decision_reach から）と、hold の状態の要約（立っている請求の id・持ち主・目的・状態・閉じ方・実行の宣言、
+中断の列、bar、委譲）を書く。落ちた・error・skip のテストごとに結果の行も書く。compare_hold.py は
+--drop-claim-row（行を消した手順で decision_claim の列を外す）と --common-tests（消した・名前を変えたテストを
+除いて両側にあるテストだけ比べ、片側だけのテストを並べる）を足した）。
+対象: 3本目の 287 モジュールから 5本目で消すテストを除いた 262 モジュール（replay-test-ids.txt）、12 組。
+木は worktree の中に git archive で書き出した（後始末済み）。
+
+- 土台 ccef9bcc9: 2,947 テスト（落ちる 190・error 23・skip 15。main でもともと赤い物）。
+- 1. 土台と比べて、判断 13,314 件・受領 45,042 件・hold と defer の呼び出し 546,625 件・errand_deferred の行
+  3,540 件、decision_claim の行全体（--claim-row）も同じ。違い 2 件: test_home_deposit_hang の時間切れの子プロセス
+  （並列の負荷で。単独では通る）、test_the_13_classified_rungs の失敗の文の集合の並び（両側で同じ失敗）。
+- 2. 1 と比べて（decision_claim の列は外し、名前を変えた・消したテストを除いて）判断 13,216 件・受領 44,986 件・
+  呼び出し 544,694 件・行 3,537 件が同じ。違い 2 件は両側で落ちるテストの文だけ（lint の行番号、集合の並び）。
+- 3. 2 と比べて判断 12,939 件が同じ。この回の再生では、3 の時点で消すテスト（test_s33_*）から補助を借りていた
+  8 モジュールが読み込みで落ちていた。補助をそのテストの中へ移す変更を 3 のコミットに入れ直した（今の 3 には入っている。
+  src は同じ）。ほかは時間の揺れ（test_home_light_alternation_cli、単独では通る）と文の違い。
+- 4. 3 と比べて判断 12,937 件・受領 43,489 件・呼び出し 540,453 件・行 3,336 件が同じ。違いは時間の揺れと文だけ。
+- 5. と土台を直接比べて（全体の中立）: 判断 13,215 件・受領 44,984 件・呼び出し 544,580 件・行 3,536 件が同じ。
+  違い 2 件は両側で落ちるテストの文だけ。
+- 自宅の窓の記録のテスト 15 モジュール（3本目の一覧と同じ）: 土台と 5 で、行のある 72 テストの結果が全部同じ
+  （赤は同じ 11 件。前から）。
+- まとめ: validation/structure-s2-4-1102/replay-summary.json。
+
+== main の取り込み ==
+- d846f4e2e: main 9548e37f4（hourly-1800〜2000-1102、town-end-purchase-only（verdict_town_end の purchase_gaps・
+  LEAF_SUPPLY_LABELS、force_visit_departure、_home_catalogue_scan_owed、_supply_priced_out など）、
+  immobile-weak-kill、hunt-redetect など）を取り込んだ。git の衝突なし。main で新しくできた hunt_target.py と
+  immobile_ranged_kill.py が消した claim_goal_typing の note（last-known・one-step）を読んでいたので、
+  ほかの所と同じく note 無しの目的の宣言にした（note は読む所が無い）。town-end-purchase-only の変更はそのまま。
+- 取り込みの中立: main 9548e37f4 と取り込み後の枝で、上の 262 モジュールと main が足した記録のテスト 9 本
+  （271 モジュール）を再生。両側にあるテストで判断 14,437 件・受領 46,422 件・hold と defer の呼び出し 666,744 件・
+  errand_deferred の行 3,540 件が同じ。違い 7 件はどれも両側で落ちるテストの失敗の文の違いだけ
+  （item_sink_lint の行番号、集合の並び順 5 件、traceback の 2 文字）。
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok（各手順と取り込みの後）。
+- town_work_manifest.py --write → zero unmapped（各手順と取り込みの後）。
+
+== 保守性 ==
+- 消した行: 全体で +4,133 / −20,924（src +3,658 / −6,686、tests +436 / −12,532、scripts +39 / −1,706）。
+  手順ごと: 1. +3,893/−4,144（移動が主）、2. +444/−1,497、3. +134/−5,493、4. +71/−118、5. +124/−10,205。
+- 消したファイル 55（src の module 7: claim_register・claim_ladder・claim_goal_typing・emit_ownership・
+  ownership_metrics・stop_shape・plan_handoff、scripts 6、tests と固定物 42）。足したのは tests/hold_closings.py
+  （閉じた請求を見る補助と店の訪問の依頼者の読み取り）と、名前を変えた tests/town_work_corpus.py だけ。
+- policy.py の行数: 19,112 → 17,313（−1,799）。cli.py 6,080 → 6,019、policy_town.py 8,523 → 8,452。
+  town_terminal.py は 3,086 → 6,217（hold の型・順位・目的の型・進め方が来たため）。
+- 町の hold について「誰が持ち・どこで変わるか」は town_terminal の1か所: 状態（TownHold）、型、順位、目的の型、
+  毎判断の進め方（advance_hold）、読み取り（errand_hold・standing_claim・decision_reach など）。policy は producer
+  側の窓口（目的を書く・自分の目的を閉じる・offer）だけを持ち、hold を policy の委譲越しに読む所は無くなった。
+- 記録だけと書かれていたが live に効いていた3つの読み（町の fuse・seek-shelter・判断の記録）を名前のある値
+  （last_reach・last_reason・last_rung）にしたので、行の約 250 行の診断と一緒に読み違える余地が無くなった。
+- 方向キーの表の重複（emit_ownership と policy_constants）を1つにした。
+- 「記録だけ」の見出しのうち、hold に読まれる producer 側の窓口の節の見出しは実際の役割に直した。
+
+== 残したもの・理由 ==
+- town_terminal.py が 6,217 行になった。発注どおり town_terminal に入れたが、hold の部分（記録の型・目的の型・順位・
+  進め方、約 3,000 行）は町の終点の判定（admission）と別の関心なので、town_hold.py のような module に分けると
+  読みやすい。pickle の名前（hengbot.town_terminal.TownHold など）を保つ再出力が要るので、別の手順として残した。
+- RUNG_FAMILIES と順位の表は隣り合ったが2つのまま（上の _immobile_summoner_key の食い違い。1つにすると
+  rung_family の答えが変わる）。
+- producer 側の個々の呼び出しに残る「# record-only」のコメント（_declare_triggers の横など約15か所）は
+  実際には hold が読むので不正確だが、各所の言い換えが要るので今回は節の見出しだけ直した。
+- scripts の batchfixB_event.py・live29_revert_check.py は過去の1回限りの確かめの道具で、消した
+  test_declarations_r14 の名前を持ったまま（動かすと失敗する）。revert_homefull3.py は過去の版の写しの上で動くので
+  claim_goal_typing.py の名前が残る。
+- coordinator から聞かれた bot-stderr.log の town:blocked:work-contract:unmapped-producer: 今回の請求の仕組みとは
+  別の町の作業の受領（town_work.validate_emit、slice 0 の影の検査）で、cli.work_receipt が無効な受領を
+  1件ずつ stderr に書く。hourly-2000-1102 の n1-b（639 行）では判断の行の受領で無効なのは
+  policy_equipment._equipment_town_outcome の offer の5件だけで、残りは送る所（driver-submit・executor-post）の
+  受領（作業の記録が付かない送信）。今回の手順では受領の数も内容も変わっていない（比べた receipts が同じ）ので、
+  静かにはなっていない。town_work の担当の話として残す。
+
+== 危険と注意 ==
+- 新しいチェックポイントを古い版の bot で読むことはできない（TownHold の last_* や town_terminal の型を知らない）。
+  運用は新しい版で続きから運転するだけなので問題ないはず。
+- 判断の記録（bot-decisions.jsonl）から claim と town_emit_ownership の欄が無くなり、rung と terminal_admission が
+  直接載る。ownership-metrics.jsonl は書かれなくなる。読む道具は消したか新しい欄に向けた。
+- 持ち主への問いはない。

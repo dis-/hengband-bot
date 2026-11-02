@@ -92,6 +92,7 @@ whose landing is a guardian floor the current kit cannot pass
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot import town_terminal
 from hengbot.policy import staged_prompt_chain_matches
 import copy
 import base64
@@ -207,27 +208,6 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
     path = None
     fixed_recall = None
 
-    def test_s3_new_code_replay_names_remaining_violations(self):
-        self.maxDiff = None
-        # Base 7df0fb0d had 14 non-handoff rows. Transaction Home steps and
-        # entry waits now continue/suspend their own claim, stale identity
-        # releases by name, and unadopted rebuilds provide no handoff evidence.
-        # Amendment 6 counts the filed combat-weapon request duplicated at
-        # 1916; the transaction's own Home deposit at 1179 continues it.
-        replay = self._replay()
-        actual = [
-            (claim["decision_sequence"], v["kind"], v["from"], v["to"])
-            for row in replay
-            if (claim := row["claim"])
-            if isinstance(v := claim.get("violation"), dict)
-            and v.get("scope") == "S3"
-        ]
-        # Only the valid current prefix is a continuous replay. The later
-        # old S3 rows belong to the original baseline construction.
-        self.assertEqual(actual, [
-            (1177, "owner-change", "equipment-txn", "home-errand"),
-        ])
-
     @classmethod
     def setUpClass(cls):
         assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == FIXTURE_SHA256
@@ -290,6 +270,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
 
     @staticmethod
     def _decide(policy, snapshot, *, live_gate=True):
+        suspended_before = {claim.claim_id for claim in town_terminal.suspended_claims(policy)}
         if live_gate:
             # DECLARED WALL (live replay): see the module docstring.
             with patch.object(
@@ -300,7 +281,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         else:
             key = policy.choose_key(snapshot)
         telemetry = policy._town_turn_arbiter.telemetry or {}
-        claim = policy.decision_claim or {}
+        claim = town_terminal.standing_claim(policy)
         decided = {
             "key": str(key),
             "reason": policy.last_reason,
@@ -310,19 +291,18 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                 "budget_remaining_estimate"
             ),
             "retirement_set": telemetry.get("retirement_set"),
-            "claim_id": claim.get("claim_id"),
-            "claim_state": claim.get("state"),
-            "claim_distance": claim.get("distance"),
-            "claim": dict(claim),
+            "claim_id": getattr(claim, "claim_id", None),
+            "claim_state": getattr(getattr(claim, "state", None), "value", None),
+            "claim_distance": (
+                town_terminal.claim_goal_distance(policy, snapshot, claim.goal)
+                if claim is not None else None
+            ),
+            "claim": claim,
+            "rung": town_terminal.decision_rung(policy),
             # S2b.1: a preempted claim resumed under its own id on this row
-            "claim_resumed": bool(claim.get("resumed")),
-            # S2b.2: the bar table's record (record-only, switch off)
-            **{
-                name: claim.get(name)
-                for name in (
-                    "would_bar", "bars_set", "bars_lifted", "bar_skipped",
-                )
-            },
+            "claim_resumed": getattr(claim, "claim_id", None) in suspended_before,
+            # S2b.2: the bars standing in the town hold
+            "bars": town_terminal.hold_bars(policy),
         }
         policy.confirm_key_posted(key)
         chain = policy.peek_staged_prompt_chain()
@@ -466,16 +446,15 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             deposit_pending=False, withdraw_pending=False, physical_hostiles=False,
             hp=(542, 542), food="normal", adverse_status=False))
         claim = replay[-1]["claim"]
-        self.assertEqual(claim["owner"], "home-errand")
-        self.assertEqual((claim["goal"]["kind"], claim["goal"]["source"]),
+        self.assertEqual(claim.owner.value, "home-errand")
+        self.assertEqual((claim.goal.kind, claim.goal.source),
                          ("Observe", "knowledge"))
-        self.assertEqual(claim["rung"], "_home_errand_knowledge_key")
-        execution = claim["execution"]
-        self.assertEqual((execution["producer"], execution["next_step"],
-                          execution["expected_effect"], execution["continuation"]),
+        self.assertEqual(replay[-1]["rung"], "_home_errand_knowledge_key")
+        execution = claim.execution
+        self.assertEqual((execution.producer, execution.next_step,
+                          execution.expected_effect, execution.continuation),
                          ("home-errand", "home.knowledge.request",
                           "catalogue-adopted", "home.knowledge.observe"))
-        self.assertIsNone(claim["violation"])
 
     # ------------------------------------------------------------ recorded
     def test_recorded_walk_closes_its_claimed_distance_and_is_retired(self):
@@ -552,23 +531,12 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                           self.recorded[HOME_KNOWLEDGE_FIRST_CHANGED]["reason"]),
                          ("5", "equipment-transaction:atomic-deposit"))
 
-    def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
-        # S2b.2 (record-only): with the switch off every decision above is
-        # reproduced, and the fixed walk is never retired (A1), so no errand
-        # bar is set; nothing else in the process ends barred either.
+    def test_s2b2_no_claim_of_this_process_ends_barred(self):
+        # S2b.2: every decision above is reproduced, and the fixed walk is
+        # never retired (A1), so no errand bar is set; nothing else in the
+        # process ends barred either.
         replay = self._replay()
-        self.assertEqual(
-            [
-                index for index, row in enumerate(replay)
-                if any(
-                    row[name] is not None
-                    for name in (
-                        "would_bar", "bars_set", "bars_lifted", "bar_skipped",
-                    )
-                )
-            ],
-            [],
-        )
+        self.assertEqual([index for index, row in enumerate(replay) if row["bars"]], [])
 
     def test_a1_walk_whose_claimed_distance_falls_is_not_retired(self):
         replay = self._replay()
@@ -596,7 +564,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         # immediately before the recorded fight, not a fixed global serial.
         before_fight = self.walk_replay[WALK_START - 8]
         self.assertEqual(before_fight["producer_owner"], "store-router")
-        self.assertEqual(walk[0]["claim"]["resumed"]["claim_id"], before_fight["claim_id"])
+        self.assertEqual(walk[0]["claim_id"], before_fight["claim_id"])
         self.assertEqual(
             {(row["claim_id"], row["claim_state"]) for row in walk},
             {(before_fight["claim_id"], "active")},

@@ -22,8 +22,8 @@ from tempfile import TemporaryDirectory
 
 import test_identify_staff_swap_churn_recorded as churn
 from combat_decision_walls import pre_combat_decisions_rule
-from hengbot.claim_goal_typing import GOAL_TERMINAL, goal_typing
-from hengbot.claim_ladder import rung_of
+from hengbot.town_terminal import GOAL_TERMINAL, goal_typing
+from hengbot.town_terminal import rung_of
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.warrior_optimization import load_character_calibration
 from recorded_junk_scope import pre_home_junk_sweep_rule

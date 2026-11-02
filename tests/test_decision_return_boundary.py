@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import patch
 from tests import test_item_reservation as fixture
-from hengbot.item_reservation import reserved_item_command
+from hengbot import town_terminal
+from hengbot.item_reservation import reservation_shadow, reserved_item_command
 
 
 class DecisionReturnBoundaryTest(unittest.TestCase):
@@ -9,11 +10,12 @@ class DecisionReturnBoundaryTest(unittest.TestCase):
 
     def assert_boundary(self, policy, board, expected):
         events = []
-        record = policy._record_decision_claim
-        def write(snapshot, key):
+        advance = town_terminal.advance_hold
+        def write(policy_, snapshot, key):
             events.append(('record', key))
-            return record(snapshot, key)
-        with patch.object(policy, '_record_decision_claim', side_effect=write):
+            self.exit_shadow = reservation_shadow(policy_)
+            return advance(policy_, snapshot, key)
+        with patch('hengbot.policy.town_advance_hold', write):
             key = policy.choose_key(board)
         self.assertEqual(key, expected)
         self.assertEqual([event for event in events if event[0] == 'record'], [('record', key)])
@@ -54,6 +56,5 @@ class DecisionReturnBoundaryTest(unittest.TestCase):
                 choose.assert_called_once_with(board)
                 reason = 'ownership:item-reserved:deposit:equipment-txn'
                 self.assertEqual(policy.last_reason, reason)
-                self.assertEqual([row['would_stop'] for row in
-                                  policy.decision_claim['item_reservation_shadow']
+                self.assertEqual([row['would_stop'] for row in self.exit_shadow
                                   if 'would_stop' in row], [reason])

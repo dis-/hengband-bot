@@ -89,10 +89,8 @@ def replay_n1(name):
                 start = time.perf_counter()
                 key = policy.choose_key(board)
                 elapsed = time.perf_counter() - start
-                claim = getattr(policy, 'decision_claim', None) or {}
                 trace.append(dict(turn=board.turn, key=None if key is None else str(key),
                                   reason=policy.last_reason, seconds=elapsed,
-                                  admissions=list(getattr(policy, '_decision_terminal_admissions', ())),
-                                  preempted='preempted-by:quest-request' in json.dumps(claim)))
+                                  admissions=list(getattr(policy, '_decision_terminal_admissions', ()))))
                 policy.confirm_key_posted(key)
     return trace

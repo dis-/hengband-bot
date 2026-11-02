@@ -80,6 +80,7 @@ from tempfile import TemporaryDirectory
 from dataclasses import replace
 from unittest.mock import patch
 
+from hengbot import town_terminal
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import EMPTY_DIVE_LIMIT, POLICY_FINAL_STOP_REASONS
@@ -133,12 +134,8 @@ VALVE = 258  # the decision whose observation lands the third bounce in town
 
 
 def _bar_record(policy):
-    """S2b.2: the bar table's record on the decision row (record-only)."""
-    claim = policy.decision_claim or {}
-    return {
-        name: claim.get(name)
-        for name in ("would_bar", "bars_set", "bars_lifted", "bar_skipped")
-    }
+    """S2b.2: the bars standing in the town hold after a decision."""
+    return town_terminal.hold_bars(policy)
 # Named change for the r3 terminal pin: every other candidate's recall
 # landing moved onto its own guardian floor (Forest max 32, Mountain max 50,
 # Castle max 65), none of whose guardians the recorded kit can beat.
@@ -323,20 +320,14 @@ class GuardianRecallPingPongRecordedTest(unittest.TestCase):
             ("1", "town:entrance-step-off:town:unsafe-recall-fallback"),
         )
 
-    def test_s2b2_the_bar_table_records_nothing_here_with_the_switch_off(self):
-        # S2b.2 (record-only): the switch is off, every recorded decision is
-        # reproduced (above), and no claim of this window ends barred -- the
-        # ping-pong is a departure/recall latch, which no bar catches.
+    def test_s2b2_no_claim_of_this_window_ends_barred(self):
+        # S2b.2: every recorded decision is reproduced (above), and no claim
+        # of this window ends barred -- the ping-pong is a departure/recall
+        # latch, which no bar catches.
         decided, _arrivals, _valve = self._live()
         bars = type(self).live_bars
         self.assertEqual(len(bars), len(decided))
-        self.assertEqual(
-            [
-                index for index, row in enumerate(bars)
-                if any(value is not None for value in row.values())
-            ],
-            [],
-        )
+        self.assertEqual([index for index, row in enumerate(bars) if row], [])
 
     # ------------------------------------------------------------ G2
     def test_g2_every_guardian_bounce_is_counted_and_the_valve_fires(self):

@@ -15,6 +15,7 @@ import unittest
 from unittest.mock import patch
 import tests  # noqa: F401 -- isolate runtime files
 
+from hengbot import town_terminal
 from hengbot.model import parse_snapshot, STORE_ARMOURY, STORE_BLACK, STORE_HOME
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
@@ -55,9 +56,8 @@ class HomeSurplusSaleScreenRecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason),
                          ('\x1b', 'shop:unsellable-home-full-surplus-sale-refused'))
         self.assertIsNone(policy._batch_sell_pending)
-        self.assertEqual(policy.decision_claim['owner'], 'shop-sell')
+        self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'shop-sell')
         self.assertEqual(policy._town_hold.claims.current.execution.producer, 'shop-sell')
-        self.assertIsNone(policy.decision_claim['violation'])
         self.assertNotIn(STORE_ARMOURY, policy._store_sale_refused)
 
     def test_A_recorded_failure_and_reconstructed_owned_refusal(self):

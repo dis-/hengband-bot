@@ -21,7 +21,7 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import (
     acceptance_dps_floor, acceptance_hp_floor, carry_floor, is_heal_potion_for,
 )
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
 

@@ -41,7 +41,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hengbot import immobile_threat_memory
-from hengbot.claim_goal_typing import GOAL_NOTE_ONE_STEP
 from hengbot.model import MonsterState, Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, SUMMONER_RANGED_KILL_SHOTS
 
@@ -135,7 +134,7 @@ def key(policy, snapshot) -> str | None:
             continue
         if found.step is not None:
             policy.last_reason = APPROACH_REASON
-            policy._declare_reach(found.step, note=GOAL_NOTE_ONE_STEP)
+            policy._declare_reach(found.step)
             return policy._step_toward(snapshot, found.step)
         target = visible.get(monster.position)
         if target is None:

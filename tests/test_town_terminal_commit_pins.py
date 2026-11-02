@@ -166,7 +166,7 @@ class LedgerRestoreAndRecordTest(unittest.TestCase):
             yields = []
             for _decision in range(2):
                 policy.choose_key(board)
-                rows = policy.decision_claim["terminal_admission"]
+                rows = policy._decision_terminal_admissions
                 quest_rows = [row for row in rows if row["rung"] == "_fixed_quest_key#1"]
                 self.assertEqual(len(quest_rows), 1)
                 yields.append(quest_rows[0]["yields"])

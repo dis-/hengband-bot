@@ -4,12 +4,12 @@ from hengbot.dungeon_knowledge import exploration_destination_allowed
 
 from dataclasses import replace
 
-from hengbot.claim_goal_typing import (
+from hengbot.town_terminal import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import Loadout
 from hengbot.model import (

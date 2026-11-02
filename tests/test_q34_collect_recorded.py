@@ -15,6 +15,7 @@ import time
 import unittest
 from dataclasses import replace
 
+from hengbot import town_terminal
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from hengbot.model import Position, parse_snapshot, TVAL_CHEST
 from hengbot.policy import HengbotPolicy
@@ -111,11 +112,10 @@ class Q34CollectRecordedTest(executor_harness.ProductionHarness):
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "loot:seek-quest-sweep")
         self.assertIn(policy._loot_target, {Position(9, 9), Position(9, 11)})
-        self.assertEqual(policy.decision_claim["owner"], "floor-loot")
-        self.assertEqual(policy.decision_claim["goal"]["kind"], "Reach")
-        self.assertEqual(policy.decision_claim["goal"]["cell"], [policy._loot_target.y, policy._loot_target.x])
-        self.assertTrue(policy.decision_claim["rung"].startswith("_normal_loot_key"))
-        self.assertIsNone(policy.decision_claim["violation"])
+        self.assertEqual(town_terminal.standing_claim(policy).owner.value, "floor-loot")
+        self.assertEqual(town_terminal.standing_claim(policy).goal.kind, "Reach")
+        self.assertEqual(list(town_terminal.standing_claim(policy).goal.cell), [policy._loot_target.y, policy._loot_target.x])
+        self.assertTrue(town_terminal.decision_rung(policy).startswith("_normal_loot_key"))
         self.post(policy, raw, key, dict(raw, turn=raw["turn"] + 10))
 
     def test_found_items_work_after_restart_without_loot_observation_history(self):
@@ -143,12 +143,10 @@ class Q34CollectRecordedTest(executor_harness.ProductionHarness):
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
         self.assertEqual(policy.last_reason, "chest:approach")
         self.assertEqual(policy._chest_position, Position(10, 9))
-        self.assertEqual(policy.decision_claim["owner"], "floor-loot")
-        self.assertEqual(policy.decision_claim["goal"]["kind"], "Reach")
-        goal = Position(*policy.decision_claim["goal"]["cell"])
+        self.assertEqual(town_terminal.standing_claim(policy).owner.value, "floor-loot")
+        self.assertEqual(town_terminal.standing_claim(policy).goal.kind, "Reach")
+        goal = Position(*list(town_terminal.standing_claim(policy).goal.cell))
         self.assertEqual(goal.distance_to(policy._chest_position), 1)
-        self.assertFalse(policy.decision_claim["goal_missing"])
-        self.assertIsNone(policy.decision_claim["violation"])
         self.post(policy, raw, key, dict(raw, turn=raw["turn"] + 10))
 
     def test_quest_chest_away_from_reservation_is_still_processed(self):

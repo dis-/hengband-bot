@@ -20,7 +20,7 @@ import re
 from enum import Enum
 from typing import Callable, Iterable, Literal
 from pathlib import Path
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot.latch_onset_capture import (
     CAPTURE_DECISIONS_AFTER_ONSET,

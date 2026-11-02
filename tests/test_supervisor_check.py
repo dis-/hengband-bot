@@ -59,19 +59,6 @@ class SyntheticTree:
             json.dumps(row) + "\n", encoding="utf-8")
         return self
 
-    def metrics(self, rows: list[dict]) -> "SyntheticTree":
-        (self.runtime / "ownership-metrics.jsonl").write_text(
-            "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
-        return self
-
-    def progress(self, session: str, samples: list[tuple[float, int]]) -> "SyntheticTree":
-        rows = [{"time": stamp(samples[0][0] + 60), "kind": "session-start",
-                 "session": session, "pid": 4242}]
-        rows += [{"time": stamp(age), "kind": "decision-progress", "session": session,
-                  "decisions": count, "decision_sequence": count - 1}
-                 for age, count in samples]
-        return self.metrics(rows)
-
     def hold(self, reason: str) -> "SyntheticTree":
         (self.runtime / "maintenance.hold").write_text(reason, encoding="utf-8")
         return self
@@ -158,53 +145,6 @@ class SupervisorCheckTest(unittest.TestCase):
         front = self.front("bot")
         self.assertFalse(front["ok"])
         self.assertIn("10m00s", front["evidence"])
-
-    # -- measurement front ----------------------------------------------
-
-    def test_measurement_stalls_when_the_decision_count_does_not_advance(self):
-        self.identities[13008] = "python.exe -m hengbot"
-        self.tree.bot_pid(13008).decisions(4, 1242)
-        self.tree.progress("13008-a", [(65, 1216), (5, 1216)])
-        front = self.front("measurement")
-        self.assertFalse(front["ok"])
-        self.assertIn("stuck at 1216", front["evidence"])
-
-    def test_measurement_is_ok_when_the_count_advances(self):
-        self.identities[13008] = "python.exe -m hengbot"
-        self.tree.bot_pid(13008).decisions(4, 1242)
-        self.tree.progress("13008-a", [(65, 862), (5, 1216)])
-        front = self.front("measurement")
-        self.assertTrue(front["ok"], front["evidence"])
-        self.assertIn("+354", front["evidence"])
-
-    def test_measurement_stalls_when_progress_rows_stop_while_the_bot_runs(self):
-        self.identities[13008] = "python.exe -m hengbot"
-        self.tree.bot_pid(13008).decisions(4, 1242)
-        self.tree.progress("13008-a", [(900, 862), (600, 1216)])
-        front = self.front("measurement")
-        self.assertFalse(front["ok"])
-        self.assertIn("10m00s old", front["evidence"])
-
-    def test_measurement_does_not_duplicate_the_bot_front_when_no_bot_runs(self):
-        self.tree.decisions(6 * 3600, 1573)
-        verdict = self.check()
-        self.assertFalse(verdict["fronts"]["bot"]["ok"])
-        self.assertTrue(verdict["fronts"]["measurement"]["ok"])
-        self.assertEqual(verdict["stalled"], ["bot"])
-
-    def test_session_end_while_the_process_lives_is_a_measurement_stall(self):
-        self.identities[13008] = "python.exe -m hengbot"
-        self.tree.bot_pid(13008).decisions(4, 1242)
-        self.tree.metrics([
-            {"time": stamp(400), "kind": "session-start", "session": "13008-a"},
-            {"time": stamp(300), "kind": "decision-progress", "session": "13008-a",
-             "decisions": 100},
-            {"time": stamp(200), "kind": "session-end", "session": "13008-a",
-             "how": "process-exit"},
-        ])
-        front = self.front("measurement")
-        self.assertFalse(front["ok"])
-        self.assertIn("ended while the bot process still runs", front["evidence"])
 
     # -- review front ---------------------------------------------------
 
@@ -342,7 +282,7 @@ class SupervisorCheckTest(unittest.TestCase):
              "--state-dir", str(self.state), "--now", NOW.isoformat()],
             capture_output=True, text=True, cwd=str(ROOT))
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        for name in ("bot", "measurement", "review"):
+        for name in ("bot", "review"):
             self.assertIn(f"{name} ok:", run.stdout)
         self.assertTrue((self.state / "verdict-session.json").exists())
 
@@ -384,7 +324,7 @@ class SupervisionScriptTest(unittest.TestCase):
         """E2: before this, a checker that died left the run silent."""
         verdict = {"time": NOW.isoformat(), "root": str(self.directory),
                    "fronts": {name: {"ok": True, "evidence": "fine"}
-                              for name in ("bot", "measurement", "review")},
+                              for name in ("bot", "review")},
                    "stalled": []}
         prepared = self.directory / "verdict-source.json"
         prepared.write_text(json.dumps(verdict), encoding="utf-8")
@@ -413,7 +353,7 @@ class SupervisionScriptTest(unittest.TestCase):
     def test_a_healthy_checker_raises_no_checker_fault(self):
         verdict = {"time": NOW.isoformat(), "root": str(self.directory),
                    "fronts": {name: {"ok": True, "evidence": "fine"}
-                              for name in ("bot", "measurement", "review")},
+                              for name in ("bot", "review")},
                    "stalled": []}
         prepared = self.directory / "verdict-source.json"
         prepared.write_text(json.dumps(verdict), encoding="utf-8")
@@ -470,7 +410,7 @@ class SessionVerdictAgeTest(unittest.TestCase):
                            / "hengbot-supervisor")
         verdict = {"time": NOW.isoformat(), "root": str(self.directory),
                    "fronts": {name: {"ok": True, "evidence": "fine"}
-                              for name in ("bot", "measurement", "review")},
+                              for name in ("bot", "review")},
                    "stalled": []}
         prepared = self.directory / "verdict-source.json"
         prepared.write_text(json.dumps(verdict), encoding="utf-8")

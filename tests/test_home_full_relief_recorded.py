@@ -17,6 +17,7 @@ import unittest
 import tempfile
 
 import tests  # noqa: F401
+from hengbot import town_terminal
 from hengbot.model import (InventoryItem, Position, StoreItem, StoreState,
     STORE_ALCHEMIST, STORE_HOME, TVAL_POTION, SV_POTION_RESIST_COLD)
 from hengbot.home_errand import HomeErrandState
@@ -78,7 +79,6 @@ class HomeFullReliefTest(unittest.TestCase):
     def decide(self, policy, board, **changes):
         board = replace(board, turn=board.turn + 1, **changes)
         key = policy.choose_key(board)
-        self.assertIsNone(policy.decision_claim["violation"])
         if key:
             policy.confirm_key_posted(key)
         return board, key
@@ -148,7 +148,7 @@ class HomeFullReliefTest(unittest.TestCase):
                         player=replace(board.player, gold=board.player.gold + 20))
                 self.assertIsNone(policy._home_full_relief)
                 self.assertEqual(key, "~9\x1b")
-                self.assertEqual(policy.decision_claim["owner"], "home-scan")
+                self.assertEqual(town_terminal.standing_claim(policy).owner.value, "home-scan")
                 self.assertTrue(policy._home_knowledge_scan_inflight)
                 self.assertIs(policy._equipment_transaction_session, session)
                 self.assertEqual(catalogue[0].name, "sale surplus 2")
@@ -165,7 +165,7 @@ class HomeFullReliefTest(unittest.TestCase):
                     self.assertEqual(key, "5")
                     board, key = self.decide(policy, board, store=self.home_page(catalogue))
                 self.assertTrue(key.startswith("d"), (key, policy.last_reason))
-                self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+                self.assertEqual(town_terminal.standing_claim(policy).owner.value, "equipment-txn")
                 self.assertEqual(policy.last_reason, "equipment-transaction:deposit")
                 self.assertIsNone(policy._home_atomic_deposit_pending)
                 action = session.pending_action

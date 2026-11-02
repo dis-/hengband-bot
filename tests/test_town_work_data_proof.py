@@ -71,7 +71,7 @@ class DataProofRulesTest(unittest.TestCase):
 
 
 def _policy_sources(body, helpers='', extra=None):
-    sources = {'policy.py': 'class HengbotPolicy:\n' + body + helpers, 'claim_ladder.py': ''}
+    sources = {'policy.py': 'class HengbotPolicy:\n' + body + helpers, 'town_terminal.py': ''}
     sources.update(extra or {})
     return sources
 

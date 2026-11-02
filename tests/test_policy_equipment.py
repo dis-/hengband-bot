@@ -6001,7 +6001,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         next action wields pack item 496a911c336315db to sub_hand outside
         Home, and the Home knowledge is invalidated.
         """
-        from hengbot.claim_register import observe
+        from hengbot.town_terminal import observe_goal as observe
 
         fixture_path = (
             Path(__file__).parent / "fixtures" / "town-idle-d1-r5-r6-boards.jsonl.gz"

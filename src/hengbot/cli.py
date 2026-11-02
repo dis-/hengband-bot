@@ -41,7 +41,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.town_travel import is_travel_macro
-from hengbot.town_terminal import offer_buffer, standing_claim, town_hold
+from hengbot.town_terminal import decision_reach, decision_rung, offer_buffer, standing_claim, town_hold
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
@@ -59,8 +59,9 @@ from hengbot.policy import (
     required_depth_gates,
     staged_prompt_chain_matches,
 )
-from hengbot.claim_goal_typing import SURVIVAL_REASON_PREFIXES
+from hengbot.town_terminal import SURVIVAL_REASON_PREFIXES
 from hengbot.policy_constants import (
+    DIRECTION_DELTAS,
     CHARACTER_DUMP_MACRO,
     COMBAT_REASON_PREFIXES,
     ENTER_DUNGEON_MACRO,
@@ -83,7 +84,6 @@ from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT
 from hengbot.policy_supply import supply_ledger_observer_memo
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
 from hengbot.runtime_paths import runtime_dir, runtime_path
-from hengbot.emit_ownership import emit_ownership_verdict, movement_destination
 from hengbot.flight_recorder import (
     DEFAULT_CAPTURE_LOG_ROTATE_BYTES,
     DEFAULT_CHECKPOINT_INTERVAL,
@@ -94,10 +94,6 @@ from hengbot.flight_recorder import (
     append_session_marker,
     map_memory_summary,
     rotate_log,
-)
-from hengbot.ownership_metrics import (
-    OWNERSHIP_METRICS_NAME,
-    OwnershipMetricsLedger,
 )
 from hengbot.save_archive import LIVE_SAVE_PATH, SaveArchiveCoordinator
 from hengbot.spectator import SPECTATE_BACKLOG_POLL_SECONDS, SpectatorWriter
@@ -467,7 +463,7 @@ TOWN_FUSE_COMBAT_REASON_PREFIXES = (
 # them forever. A continuous town residence this long is faulty regardless of
 # the recorded reasons (about 25+ minutes at normal decision cadence).
 TOWN_RESIDENCE_STOP_LIMIT = 1500
-# Defined in policy_constants so hengbot.stop_shape can read it without
+# Defined in policy_constants so a reader of recorded rows can name it without
 # importing the driver; re-exported here, where its operator banner lives.
 
 
@@ -914,14 +910,8 @@ def _advance_town_blocked_iteration(
     )
     previous_reason = getattr(policy, "_town_fuse_previous_reason", None)
     policy._town_fuse_previous_reason = policy.last_reason
-    claim = getattr(policy, "decision_claim", None) or {}
-    goal = claim.get("goal") or {}
-    reach = (
-        (claim.get("claim_id"), claim["distance"])
-        if goal.get("kind") == "Reach"
-        and isinstance(claim.get("distance"), int)
-        else None
-    )
+    # The town hold's Reach progress of this decision: (claim_id, distance).
+    reach = decision_reach(policy)
     previous_reach = getattr(policy, "_town_fuse_previous_reach", None)
     policy._town_fuse_previous_reach = reach
     streak = _advance_town_blocked_streak(
@@ -1272,7 +1262,6 @@ def _decision_record(
     requested_store: int | None = None,
     acquire_result: str | None = None,
     arbiter: dict | None = None,
-    town_emit_ownership: dict | None = None,
     home_route_refusal: dict | None = None,
     retention_reservations: list[dict] | None = None,
     deposit_keep_conflict: dict | None = None,
@@ -1281,7 +1270,8 @@ def _decision_record(
     home_atomic_withdraw: dict | None = None,
     home_candidate_waiting: bool | None = None,
     identification_need: str | None = None,
-    claim: dict | None = None,
+    rung: str | None = None,
+    terminal_admission: list | None = None,
     town_idle_d0: dict | None = None,
 ) -> dict:
     player = snapshot.player
@@ -1308,9 +1298,11 @@ def _decision_record(
         "key": key,
         "home_candidate_waiting": home_candidate_waiting,
         "identification_need": identification_need,
-        # The ownership contract's S1 attribution, written by ``choose_key``
-        # as plain data.  Absent on a row no ``choose_key`` produced.
-        **({"claim": claim} if claim else {}),
+        # The rung the town hold ranked this decision at, and the town
+        # terminal admissions it refused (town_terminal).  Absent on a row no
+        # ``choose_key`` produced.
+        **({"rung": rung} if rung else {}),
+        **({"terminal_admission": terminal_admission} if terminal_admission else {}),
         **(
             {"home_atomic_withdraw": home_atomic_withdraw}
             if home_atomic_withdraw
@@ -1330,11 +1322,6 @@ def _decision_record(
         ),
         **({"arbiter": arbiter} if arbiter is not None else {}),
         **({"town_idle_d0": town_idle_d0} if town_idle_d0 is not None else {}),
-        **(
-            {"town_emit_ownership": town_emit_ownership}
-            if town_emit_ownership is not None
-            else {}
-        ),
         # Preserve the player-visible evidence associated with the exact board
         # against which this key was chosen.  In particular, repeat counters in
         # the message line let an incident review distinguish a newly rejected
@@ -2011,8 +1998,6 @@ def _write_decision(
     town_stall_report: dict | None | object = _AUTO_TOWN_STALL_REPORT,
     timing: dict | None = None,
     decision_facts: dict | None = None,
-    town_emit_ownership: dict | None = None,
-    ownership_ledger: OwnershipMetricsLedger | None = None,
 ) -> None:
     if economy_ledger is not None:
         economy_ledger.observe(snapshot, key, reason)
@@ -2189,7 +2174,6 @@ def _write_decision(
                         and (snapshot.in_town or snapshot.store is not None)
                         else None
                     ),
-                    town_emit_ownership,
                     (
                         policy.home_route_refusal_state()
                         if policy is not None
@@ -2236,13 +2220,13 @@ def _write_decision(
                         else None
                     ),
                     (
-                        claim
+                        decision_rung(policy)
                         if policy is not None
-                        and isinstance(
-                            claim := getattr(policy, "decision_claim", None), dict
-                        )
-                        and claim.get("decision_sequence")
-                        == getattr(policy, "_decision_sequence", None)
+                        else None
+                    ),
+                    (
+                        list(getattr(policy, "_decision_terminal_admissions", None) or ())
+                        if policy is not None
                         else None
                     ),
                 )
@@ -2307,10 +2291,6 @@ def _write_decision(
                 }
             json.dump(record, file, ensure_ascii=False)
             file.write("\n")
-            if ownership_ledger is not None:
-                # Recording only (S0 measurement): the ledger reads the row
-                # that was just written and never answers the driver.
-                ownership_ledger.note_decision(record)
     except OSError as exc:
         print(f"failed to write decision log: {exc}", file=sys.stderr)
 
@@ -2983,7 +2963,7 @@ def _quest_entry_continuations(snapshot, key: str, owner: str) -> list[Continuat
     here = snapshot.grid_at(snapshot.player.position)
     enters = bool(here is not None and here.has_quest_enter and key == ">")
     if key in DIRECTION_KEYS:
-        target = snapshot.grid_at(movement_destination(snapshot.player.position, key))
+        target = snapshot.grid_at(_movement_destination(snapshot.player.position, key))
         enters = bool(target is not None and target.has_quest_enter)
     if not enters:
         return []
@@ -3529,8 +3509,9 @@ def _look_barrier_timed_release(
 
 
 def _movement_destination(position, key: str):
-    """Compatibility wrapper around the shared direction projection."""
-    return movement_destination(position, key)
+    """The exact adjacent cell a direction command steps to."""
+    dy, dx = DIRECTION_DELTAS[key]
+    return type(position)(position.y + dy, position.x + dx)
 
 
 def _chest_movement_response_pending(
@@ -4019,14 +4000,13 @@ def main(argv: list[str] | None = None) -> int:
         wait_telemetry.flush()
     args.wait_telemetry = wait_telemetry
 
-    ownership_ledger: OwnershipMetricsLedger | None = None
     if args.decision_log is not None and not args.once:
         rotate_log(
             args.decision_log,
             args.recorder_log_rotate_bytes,
             args.recorder_log_generations,
         )
-        session_marker = append_session_marker(
+        append_session_marker(
             args.decision_log,
             sys.argv if argv is None else argv,
             input_delays=input_delays,
@@ -4034,15 +4014,6 @@ def main(argv: list[str] | None = None) -> int:
             enforce_crossarea_fundraising=args.enforce_crossarea_fundraising,
             in_store_shop_ops=args.in_store_shop_ops,
         )
-        # S0 measurement ledger (SOL-DESIGN-ownership-contract.md section 6),
-        # plus the S1 claim ledger it writes beside itself.  Their own files:
-        # the state log is truncated when the game relaunches.
-        ownership_ledger = OwnershipMetricsLedger(
-            args.decision_log.with_name(OWNERSHIP_METRICS_NAME)
-        )
-        ownership_ledger.note_session_start(session_marker)
-        atexit.register(ownership_ledger.note_session_end, "process-exit")
-    args.ownership_ledger = ownership_ledger
 
     if args.list_windows:
         from hengbot.input_windows import list_windows
@@ -4265,21 +4236,15 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"invalid snapshot: {exc}", file=sys.stderr)
                 return 2
             policy.prime(snapshot)
-            emit_visit = copy.copy(policy._store_visit)
-            emit_approach_store = policy._shopping_approach_store_type
             slow_decisions = SlowDecisionRecorder(
                 getattr(args, "slow_decision_sample", 0), args.decision_log,
             )
             key = slow_decisions.choose_key(policy, snapshot)
             key = policy.validate_read_key(snapshot, key)
-            emit_ownership = emit_ownership_verdict(
-                emit_visit, snapshot, key, emit_approach_store
-            ).as_dict()
             decision_facts = _capture_decision_facts(snapshot, policy)
             _write_decision(
                 args.decision_log, snapshot, key, policy.last_reason, policy,
                 decision_facts=decision_facts,
-                town_emit_ownership=emit_ownership,
             )
             if key is None:
                 print(f"<no-key:{policy.last_reason}>", flush=True)
@@ -4364,11 +4329,6 @@ def _run_follow(
         getattr(args, "slow_decision_sample", 0), args.decision_log,
     )
     wait_telemetry: WaitTelemetry = args.wait_telemetry
-    # None for a --once run and for drivers built by tests, which write no
-    # session of their own; every use below is guarded.
-    ownership_ledger: OwnershipMetricsLedger | None = getattr(
-        args, "ownership_ledger", None
-    )
     recorder_root = (
         args.decision_log.parent if args.decision_log is not None else runtime_dir()
     )
@@ -4468,9 +4428,6 @@ def _run_follow(
 
     def incident_stop(kind: str, snapshot) -> int:
         finish_pending_batch()
-        if ownership_ledger is not None:
-            ownership_ledger.note_stop(kind, list(recent_reasons))
-            ownership_ledger.note_session_end(f"incident-stop:{kind}")
         _freeze_incident_safely(
             recorder,
             kind, policy, snapshot, args.decision_log, list(recent_reasons)
@@ -4836,8 +4793,7 @@ def _run_follow(
                         policy._store_leave_inflight is not None
                     )
                     phase_started_at = time.perf_counter()
-                    emit_visit = copy.copy(policy._store_visit)
-                    emit_approach_store = policy._shopping_approach_store_type
+                    visit_before = copy.copy(policy._store_visit)
                     policy.observe_store_screen(store_screen_verified)
                     chosen_key = slow_decisions.choose_key(policy, snapshot)
                     _record_atomic_home_page(
@@ -4849,7 +4805,7 @@ def _run_follow(
                     )
                     phase_started_at = time.perf_counter()
                     key = policy.validate_read_key(snapshot, chosen_key)
-                    key = _handle_owner_retirement(args, snapshot, key, policy, emit_visit)
+                    key = _handle_owner_retirement(args, snapshot, key, policy, visit_before)
                     if spectator is not None and not key:
                         spectator.observe(
                             snapshot, key, policy.last_reason,
@@ -4859,9 +4815,6 @@ def _run_follow(
                             screen_client=executor.client if executor is not None else None,
                             policy=policy,
                         )
-                    emit_ownership = emit_ownership_verdict(
-                        emit_visit, snapshot, key, emit_approach_store
-                    ).as_dict()
                     _add_phase_ms(
                         decision_timing, "validate_emit_ms", phase_started_at
                     )
@@ -4880,8 +4833,6 @@ def _run_follow(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, timing=decision_timing,
                             decision_facts=decision_facts,
-                            town_emit_ownership=emit_ownership,
-                            ownership_ledger=ownership_ledger,
                         )
                         print(f"<no-key:{policy.last_reason}>", flush=True)
                         if _declaration_requires_no_send(key, policy.last_reason):
@@ -5019,7 +4970,6 @@ def _run_follow(
                                 ),
                             },
                             decision_facts=decision_facts,
-                            ownership_ledger=ownership_ledger,
                         )
                         print(
                             _policy_final_stop_banner(policy.last_reason),
@@ -5177,8 +5127,6 @@ def _run_follow(
                         policy, economy_ledger, repeating_reason_count,
                         town_stall_report, timing=decision_timing,
                         decision_facts=decision_facts,
-                        town_emit_ownership=emit_ownership,
-                        ownership_ledger=ownership_ledger,
                     )
                     if posting_contract.last_incident is not None:
                         incident = posting_contract.last_incident
@@ -5203,17 +5151,12 @@ def _run_follow(
                             str(incident.get("key", key)),
                         )
                         phase_started_at = time.perf_counter()
-                        emit_visit = copy.copy(policy._store_visit)
-                        emit_approach_store = policy._shopping_approach_store_type
                         key = slow_decisions.choose_key(policy, snapshot)
                         decision_timing["choose_key_ms"] += round(
                             (time.perf_counter() - phase_started_at) * 1000, 3
                         )
                         phase_started_at = time.perf_counter()
                         key = policy.validate_read_key(snapshot, key)
-                        emit_ownership = emit_ownership_verdict(
-                            emit_visit, snapshot, key, emit_approach_store
-                        ).as_dict()
                         _add_phase_ms(
                             decision_timing, "validate_emit_ms", phase_started_at
                         )
@@ -5229,8 +5172,6 @@ def _run_follow(
                                 args.decision_log, snapshot, key, policy.last_reason,
                                 policy, economy_ledger, timing=decision_timing,
                                 decision_facts=decision_facts,
-                                town_emit_ownership=emit_ownership,
-                                ownership_ledger=ownership_ledger,
                             )
                             print(f"<no-key:{policy.last_reason}>", flush=True)
                             if _declaration_requires_no_send(
@@ -5292,8 +5233,6 @@ def _run_follow(
                             args.decision_log, snapshot, key, policy.last_reason,
                             policy, economy_ledger, timing=decision_timing,
                             decision_facts=decision_facts,
-                            town_emit_ownership=emit_ownership,
-                            ownership_ledger=ownership_ledger,
                         )
                     if not sent:
                         if (

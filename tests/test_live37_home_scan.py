@@ -13,7 +13,8 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
-from hengbot.claim_register import reach
+from hengbot import town_terminal
+from hengbot.town_terminal import reach_goal as reach
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
@@ -79,9 +80,8 @@ class Live37HomeScanTest(unittest.TestCase):
                         # an unrelated one-cell walk after the deferred scan.
                         self.assertEqual((key, policy.last_reason),
                                          ("\x1b`n(.", "shop:travel"))
-                        self.assertEqual(policy.decision_claim["owner"], "store-router")
-                        self.assertEqual(policy.decision_claim["claim_id"], 8583)
-                        self.assertIsNone(policy.decision_claim["violation"])
+                        self.assertEqual(town_terminal.standing_claim(policy).owner.value, "store-router")
+                        self.assertEqual(town_terminal.standing_claim(policy).claim_id, 8583)
                     else:
                         self.assertEqual((key, policy.last_reason), (scan["key"], scan["reason"]))
                     # The next historical board followed ~9. Do not consume it

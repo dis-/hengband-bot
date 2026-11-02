@@ -216,7 +216,6 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
                         read_board, policy.choose_key(read_board)
                     )
                 read = (read_key, policy.last_reason)
-                read_claim = dict(policy.decision_claim or {})
                 policy.confirm_key_posted(read_key)
                 chain = policy.peek_staged_prompt_chain()
                 if chain is not None and staged_prompt_chain_matches(chain, read_key):
@@ -228,7 +227,6 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
                 departure_board = policy._recall_departure_board(cancel_board)
                 result = {
                     "read": read,
-                    "read_claim": read_claim,
                     "read_board": read_board,
                     "cancel_board": cancel_board,
                     "read_signature": read_signature,
@@ -245,7 +243,6 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
                     cancel_board, policy.choose_key(cancel_board)
                 )
                 result["cancel"] = (cancel_key, policy.last_reason)
-                result["cancel_claim"] = dict(policy.decision_claim or {})
                 result["cancelled_flag"] = getattr(
                     policy, "_town_visit_unready_recall_cancelled", False
                 )

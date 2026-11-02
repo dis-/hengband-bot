@@ -22,6 +22,13 @@ _RETIRED_CLAIM_RECORD_NAMES = (
     "_decision_declaration_mismatch", "_decision_home_approach_fails_before",
     "_decision_gate_final_count", "_decision_rewrite_refused",
     "_decision_no_step_release", "_decision_cancelled_home_reservation",
+    # Slice 4: the decision claim row's own diagnostics.
+    "_decision_displaced_producer", "_decision_plan_rebuild_deferred",
+    "_decision_plan_change_evidence",
+    # Slice 4 step 5: the bar switch (always off) and its per-decision skips.
+    "_claim_bar_enforced", "_decision_bar_skips",
+    # The dead town liveness stop of the procurement seam (slice 4 step 5).
+    "_town_liveness_invariant_defect",
 )
 
 
@@ -55,9 +62,6 @@ def retire_strip_calibration_state(restored) -> None:
     register = getattr(state.get("_town_hold"), "claims", None)
     if register is not None:
         _retire_claim_family(register)
-    claim = state.get("decision_claim")
-    if claim is not None and is_retired(getattr(claim, "owner", None)):
-        state["decision_claim"] = None
     registry = state.get("_owner_expectations")
     if registry is not None:
         pending_owners = registry.__dict__.get("_pending")
@@ -180,6 +184,33 @@ def _restore_terminal_admission_ledger(ledger) -> None:
     ledger.__dict__.setdefault("terminal_server_vectors", {})
 
 
+def _adopt_decision_claim(state) -> None:
+    """Move a checkpoint's decision claim row into the town hold's record.
+
+    Until stage 2 B slice 4 the policy kept the latest decision's claim row
+    in ``decision_claim``: the next decision's seek-shelter release read its
+    reason and the driver's town fuse read its Reach claim and distance.  The
+    town hold keeps exactly those now (``TownHold.last_reason`` /
+    ``last_reach`` / ``last_rung``); the row itself is gone.
+    """
+    if "decision_claim" not in state:
+        return
+    claim = state.pop("decision_claim")
+    hold = state.get("_town_hold")
+    if hold is None or "last_reason" in hold.__dict__:
+        return
+    claim = claim if isinstance(claim, dict) else {}
+    goal = claim.get("goal") or {}
+    distance = claim.get("distance")
+    hold.last_reason = claim.get("reason")
+    hold.last_reach = (
+        (claim.get("claim_id"), distance)
+        if goal.get("kind") == "Reach" and isinstance(distance, int)
+        else None
+    )
+    hold.last_rung = claim.get("rung")
+
+
 def _adopt_town_hold(state) -> None:
     """Move a checkpoint's claim register and delegations into the town hold.
 
@@ -196,7 +227,7 @@ def _adopt_town_hold(state) -> None:
         return
     # ``town_arbiter`` imports this module, and the register imports the
     # arbiter's families, so the import is local to break that cycle.
-    from hengbot.claim_register import ClaimRegister
+    from hengbot.town_terminal import ClaimRegister
     from hengbot.town_terminal import TownHold
 
     register = state.pop("_claim_register", ClaimRegister())
@@ -216,6 +247,7 @@ def normalize_policy_state(restored, *, restart=False):
     once from the persisted calibration file (``cli``), never here.
     """
     _adopt_town_hold(restored.__dict__)
+    _adopt_decision_claim(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     for name in _RETIRED_CLAIM_RECORD_NAMES:
         restored.__dict__.pop(name, None)
@@ -390,7 +422,6 @@ def normalize_policy_state(restored, *, restart=False):
                 permanent_values=(*town_block.permanent_values, permanent),
             )
             latches["_town_blocked_reason"] = town_block
-    restored.__dict__.setdefault("decision_claim", None)
     # S2a.1: the per-decision goal slots (reset at every ``choose_key`` entry
     # anyway), the register's pending closing, and the expectation
     # registry's record of why it popped an owner.  Absent means "nothing
@@ -400,11 +431,6 @@ def normalize_policy_state(restored, *, restart=False):
     # S2b.1 round 2 (rev 10.1 item 9): the per-decision trigger slot, reset
     # at every ``choose_key`` entry like the two above.
     restored.__dict__.setdefault("_decision_triggers", None)
-    # S2b.2: the per-decision record of the rungs a bar skipped (reset at
-    # every ``choose_key`` entry), and the switch that lets a bar skip one --
-    # off, as it is in every checkpoint this change can meet.
-    restored.__dict__.setdefault("_decision_bar_skips", None)
-    restored.__dict__.setdefault("_claim_bar_enforced", False)
     # In-store shop operations (SOL-DESIGN-store-reentry-20261003 3.2):
     # captures before the switch existed held no in-store entry, breaker,
     # shelf evidence or shadow state; off/empty is what they behaved as.
@@ -428,11 +454,9 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.pop("_claim_target_capture", None)
     register = restored._town_hold.claims
     if register is not None:
-        register.__dict__.setdefault("_closing", None)
         # S2b.1 (design rev 10.1 item 5): a checkpoint pickled before the
         # suspended stack held no suspended claim; an empty stack is exact.
         register.__dict__.setdefault("_suspended", [])
-        register.__dict__.setdefault("_suspended_closings", [])
         # S2b.2: a checkpoint pickled before the bar table held no bar and
         # no pending ending; empty is exact.
         register.__dict__.setdefault("_bars", [])

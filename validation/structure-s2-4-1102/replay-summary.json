@@ -1,0 +1,19 @@
+{
+ "tools": "validation/structure-s2-4-1102/replay_hold.py (errand hold wrapped at town_terminal.errand_hold and every module global bound to it; per decision: key, reason, town_work receipts, the cli town fuse input (claim_id, distance) and a digest of the hold (standing claim, suspended stack, bars, delegations), errand-deferred rows, every hold/defer call; an outcome row per failing/erroring/skipped test), run_shards.py (12 shards), compare_hold.py (--drop-claim-row, --common-tests)",
+ "modules": "replay-test-ids.txt: slice 3's 287 modules minus the tests deleted in step 5 (262)",
+ "base_ccef9bcc9": {"tests": 2947, "failures": 190, "errors": 23, "skipped": 15},
+ "step_1_vs_base": {"decisions": 13314, "receipts": 45042, "hold_and_defer_calls": 546625, "errand_deferred_rows": 3540, "decision_claim_row_compared": true, "differing": 2,
+   "differing_detail": "test_home_deposit_hang hard-timeout subprocess under load (passes alone); test_the_13_classified_rungs: same failure, set order in its message"},
+ "step_2_vs_step_1": {"common_tests_only": true, "decisions": 13216, "receipts": 44986, "hold_and_defer_calls": 544694, "errand_deferred_rows": 3537, "differing": 2,
+   "differing_detail": "message text of two tests failing on both sides (item sink lint line numbers; set order)"},
+ "step_3_vs_step_2": {"common_tests_only": true, "decisions": 12939, "differing": 9,
+   "differing_detail": "8 modules failed to import at step 3 because they imported helpers from test_s33_* (fixed by moving the helpers in step 3 after this run: the shipped step 3 commit includes the move); test_home_light_alternation_cli timing flake (passes alone); set-order/line-number message differences"},
+ "step_4_vs_step_3": {"common_tests_only": true, "decisions": 12937, "receipts": 43489, "hold_and_defer_calls": 540453, "errand_deferred_rows": 3336, "differing": 9,
+   "differing_detail": "flakes (hard timeout, CLI timing) and message text only (lint, set order)"},
+ "step_5_vs_base_overall": {"common_tests_only": true, "drop_claim_row": true, "decisions": 13215, "receipts": 44984, "hold_and_defer_calls": 544580, "errand_deferred_rows": 3536, "differing": 2,
+   "differing_detail": "message text only (item sink lint, set order)"},
+ "merge_main_9548e37f4": {"modules": "replay-test-ids-merge.txt (271: the list plus main's new test modules)", "trees": {"main": "9548e37f4", "branch": "d846f4e2e"},
+   "common_tests_only": true, "decisions": 14437, "receipts": 46422, "hold_and_defer_calls": 666744, "errand_deferred_rows": 3540, "differing": 7,
+   "differing_detail": "message text of tests failing on both sides only (item sink lint, set order x5, a 2-character traceback difference)"},
+ "home_window_modules": {"modules": 15, "tests_with_rows": 72, "red_before": 11, "red_after": 11, "differing": 0}
+}

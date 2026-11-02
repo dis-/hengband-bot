@@ -33,7 +33,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot.claim_goal_typing import GOAL_NOTE_LAST_KNOWN
 from hengbot.model import Position, game_distance
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_RANDOM
 
@@ -161,5 +160,5 @@ def route_key(policy, snapshot, hostiles) -> str | None:
         visit.position = None
         return None
     policy.last_reason = REASON
-    policy._declare_reach(goal, note=GOAL_NOTE_LAST_KNOWN)
+    policy._declare_reach(goal)
     return policy._step_toward(snapshot, step)

@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot import cli
-from hengbot.claim_register import reach
+from hengbot.town_terminal import reach_goal as reach
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import Position
 from hengbot.policy import HengbotPolicy
