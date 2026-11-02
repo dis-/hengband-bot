@@ -91,6 +91,18 @@ class N1cCureStockoutTest(unittest.TestCase):
         policy.confirm_key_posted(policy.choose_key(arrival))
         return policy, arrival
 
+    def test_arrival_visits_the_cure_suppliers_again(self):
+        policy, arrival = self.arrive()
+        # The earlier visit's shelves are not this visit's evidence: both
+        # suppliers are to be visited again (not no-actionable-supplier).
+        self.assertFalse(set(CURE_SUPPLIERS) & set(policy._town_supplier_stock))
+        cure = policy._supply_ledger(arrival, policy._planned_depth())["cure"]
+        self.assertLess(cure.count, cure.required_departure)
+        self.assertTrue(cure.obtainable)
+        row = next(row for row in policy.procurement_requirements(arrival)
+                   if row["item"] == "Cure Critical Wounds potions")
+        self.assertNotIn("blocked_reason", row)
+
     def test_stockout_at_every_supplier_starts_the_mining_cycle(self):
         policy, _arrival = self.arrive()
         policy.consume_home_knowledge(())
