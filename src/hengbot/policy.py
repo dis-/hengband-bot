@@ -3516,7 +3516,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Design 3.3's plumbing, decided before the rung runs (switch on).
 
         ``_decide`` asks this right before it calls a gated rung
-        (``claim_ladder.BAR_GATED_RUNGS``), and does not call the rung when
+        (``town_terminal.BAR_GATED_RUNGS``), and does not call the rung when
         the answer is True, so a barred producer spends none of its own state
         (a choke plan's decision counters, a committed route).  With the
         switch off -- the default and the only shipped setting -- it answers

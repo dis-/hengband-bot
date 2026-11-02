@@ -10,7 +10,7 @@ from hengbot.cli import _dispatch_response_lines
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 
 
 FIXTURE = Path(__file__).parent / "fixtures"

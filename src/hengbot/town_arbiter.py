@@ -6,7 +6,6 @@ from collections import Counter
 from typing import Callable, Mapping
 
 from hengbot.latch_onset_capture import assignment_provenance
-from hengbot.emit_ownership import in_flight_clause
 from hengbot.model import Position, Snapshot, STORE_HOME
 from hengbot.policy_constants import (
     CALIBRATION_HOME_VISIT_LIMIT,
@@ -30,6 +29,7 @@ from hengbot.policy_types import (
     OwnerProgressCore,
     StoreVisit,
     StoreVisitPhase,
+    in_flight_clause,
 )
 
 
@@ -43,8 +43,8 @@ RECALL_ACTIVATION_MAX_GAME_TURNS = (
     RECALL_ACTIVATION_MAX_PLAYER_TURNS * HENGBAND_TURNS_PER_TICK
 )
 # The family ``owner_for_reason`` answers for a reason no registration claims.
-# It is a real owner name in every reader (stop_shape.CATCH_ALL_FAMILIES, the
-# decision row's ``arbiter.owner``), so the claim register enumerates it too.
+# It is a real owner name in every reader (the decision row's
+# ``arbiter.owner``), so the owner enum (``ClaimOwner``) enumerates it too.
 UNREGISTERED_FAMILY = "unregistered"
 
 RECALL_WAIT_REASONS = frozenset({
@@ -795,7 +795,8 @@ def reason_owner_family(reason: str) -> str:
 
     This is the **census** answer (``ownership_family``) -- who owns the
     producer -- because that is what every reader of this function wants: the
-    claim ledger, ``stop_shape.producer_identity`` and the ownership lint.
+    town hold's claims (``town_terminal.claim_family_of``) and the ownership
+    lint.
     The arbitration answer, which decides budgets and retirement inside town,
     is ``reason_arbitration_family`` below and is unchanged by S2a.
     """

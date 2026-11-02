@@ -225,6 +225,24 @@ class StoreVisit:
         self.outcome = outcome
 
 
+def in_flight_clause(visit: StoreVisit | None) -> str | None:
+    """Name the first clause that makes a store visit in flight (None if none)."""
+    if visit is None:
+        return None
+    if visit.operation_posted and not visit.operation_released:
+        return "operation-posted-not-released"
+    if visit.operation_released and not visit.operation_effect_observed:
+        return "operation-released-effect-not-observed"
+    if visit.phase == StoreVisitPhase.ENTERING and visit.posted_sequence is not None:
+        return "entering-with-posted-sequence"
+    if (
+        visit.phase == StoreVisitPhase.LEAVING
+        and (visit.posted_sequence is not None or visit.posted_turn is not None)
+    ):
+        return "leaving-with-posted-sequence"
+    return None
+
+
 @dataclass(frozen=True)
 class EmissionState:
     """Observable state whose recurrence proves an emitted cycle made no progress."""

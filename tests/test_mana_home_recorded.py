@@ -14,13 +14,38 @@ import unittest
 
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest, HomeVisitState
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
-from hengbot.claim_register import reach
+from hengbot.town_terminal import ClaimState, ExecutionDeclaration, Goal, reach_goal as reach
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import parse_snapshot, TVAL_WAND, TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, STORE_HOME
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO, WAIT_KEY
+from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from policy_fixtures import item
+
+
+def _tuples(value):
+    return tuple(map(_tuples, value)) if isinstance(value, list) else value
+
+
+def attach_claim(policy, recorded):
+    """Reconstruct a recorded claim row as the hold's standing claim (plain data)."""
+    goal = Goal(**{k: _tuples(v) for k, v in recorded['goal'].items()})
+    claim = policy._town_hold.claims.declare(recorded['owner'], goal,
+                                             non_discardable=recorded.get('non_discardable', False))
+    execution = recorded.get('execution')
+    declaration = (ExecutionDeclaration(**{k: _tuples(v) for k, v in execution.items()})
+                   if execution else None)
+    policy._town_hold.claims._claim = replace(claim, claim_id=recorded['claim_id'],
+        execution=declaration, state=ClaimState(recorded.get('state', 'active')))
+    policy._town_hold.claims._next_id = recorded['claim_id'] + 1
+    return policy._town_hold.claims.current
+
+
+def attach_visit(policy, row):
+    if row.get('store_visit'):
+        policy._store_visit = StoreVisit(**{**row['store_visit'],
+            'phase': StoreVisitPhase(row['store_visit']['phase'])})
 
 FIXTURE = Path(__file__).parent / 'fixtures/mana-home-20261005.json.gz'
 
@@ -197,7 +222,6 @@ class ManaHomeRecordedTest(unittest.TestCase):
         self.assertIsNotNone(policy._home_full_relief)
 
     def test_posted_registered_observer_keeps_owner_until_effect(self):
-        from test_s33_shadow_zero import attach_claim, attach_visit
         policy, board, _device, _old = self.wall(catalogue=False)
         raw = next(x['raw'] for x in self.data['decisions'] if x['row'] == 8934)
         held = attach_claim(policy, raw['claim'])

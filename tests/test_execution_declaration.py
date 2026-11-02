@@ -11,9 +11,7 @@ from unittest.mock import patch
 from dataclasses import replace
 
 from hengbot import town_terminal
-from hengbot.claim_register import (
-    ClaimRegister, observe, reach,
-)
+from hengbot.town_terminal import ClaimRegister, observe_goal as observe, reach_goal as reach
 from hengbot.cli import _declaration_requires_no_send
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import Position, parse_snapshot

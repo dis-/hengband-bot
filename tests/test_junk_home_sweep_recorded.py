@@ -31,8 +31,8 @@ from dataclasses import replace
 from unittest.mock import patch
 
 import test_junk_plain_gear_recorded as plain
-from hengbot.claim_goal_typing import GOAL_OBSERVE, goal_typing
-from hengbot.claim_ladder import rung_of
+from hengbot.town_terminal import GOAL_OBSERVE, goal_typing
+from hengbot.town_terminal import rung_of
 from hengbot.model import STORE_HOME
 from hengbot.policy_constants import HOME_BATCH_RESERVED_SLOTS
 

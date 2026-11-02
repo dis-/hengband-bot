@@ -12,7 +12,7 @@ import unittest
 import tests  # noqa: F401 -- runtime file isolation
 from tests.hold_closings import recorded_closings
 from hengbot import town_terminal
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy, HOME_KNOWLEDGE_MACRO

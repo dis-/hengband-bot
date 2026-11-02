@@ -293,13 +293,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "emit_ownership.py:in_flight_clause": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "equipment_capacity.py:plan_equipment_transactions": {
     "classification": "data",
     "rows": [
@@ -8248,6 +8241,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_types.py:TownTravelProgress.record": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_types.py:in_flight_clause": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

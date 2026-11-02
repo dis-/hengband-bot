@@ -15,7 +15,7 @@ from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_HOME, Position, parse_snap
 from hengbot.cli import _dispatch_response_lines
 from hengbot.policy import HengbotPolicy
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 
 FIXTURE = Path(__file__).parent / "fixtures/live23-home-cycle"

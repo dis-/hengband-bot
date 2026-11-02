@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from hengbot import town_terminal as tt
-from hengbot.claim_register import CLAIM_OWNER_ATTRIBUTE, ClaimOwner
+from hengbot.town_arbiter import CLAIM_OWNER_ATTRIBUTE, ClaimOwner
 from hengbot.policy import HengbotPolicy
 from hengbot.model import STORE_GENERAL, STORE_HOME, StoreState, TVAL_SCROLL, SV_SCROLL_IDENTIFY
 from hengbot.policy_constants import LEAVE_STORE_KEY

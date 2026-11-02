@@ -14,7 +14,7 @@ import unittest
 
 import tests  # noqa: F401
 from hengbot import town_terminal
-from hengbot.claim_register import reach
+from hengbot.town_terminal import reach_goal as reach
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase

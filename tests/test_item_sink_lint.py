@@ -214,7 +214,7 @@ class ProducerMarkTest(unittest.TestCase):
     """
 
     def test_ranged_attack_producer_keeps_its_combat_mark(self):
-        from hengbot.claim_register import CLAIM_OWNER_ATTRIBUTE, ClaimOwner
+        from hengbot.town_arbiter import CLAIM_OWNER_ATTRIBUTE, ClaimOwner
         from hengbot.policy import HengbotPolicy
         self.assertIs(getattr(HengbotPolicy._ranged_attack_key, CLAIM_OWNER_ATTRIBUTE, None),
                       ClaimOwner.COMBAT)
@@ -224,7 +224,7 @@ class ProducerMarkTest(unittest.TestCase):
 
 
 def _policy_sources(body, extra=None):
-    sources = {'policy.py': 'class HengbotPolicy:\n' + body, 'claim_ladder.py': ''}
+    sources = {'policy.py': 'class HengbotPolicy:\n' + body, 'town_terminal.py': ''}
     sources.update(extra or {})
     return sources
 

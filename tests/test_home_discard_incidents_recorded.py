@@ -19,7 +19,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitRequest, HomeVisitKind
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 import test_homefull3_recorded as homefull3
 
 FIXTURE = Path(__file__).parent / 'fixtures/home-discard-20261005.json.gz'

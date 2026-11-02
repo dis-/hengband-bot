@@ -15,7 +15,7 @@ import unittest
 import tests  # noqa: F401
 from tests.hold_closings import recorded_closings
 from hengbot import town_terminal
-from hengbot.claim_register import observe, reach
+from hengbot.town_terminal import observe_goal as observe, reach_goal as reach
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.equipment_optimizer import equipment_move_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan

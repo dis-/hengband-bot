@@ -12,7 +12,7 @@ from hengbot.model import (
 )
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
-from hengbot.claim_ladder import rung_named, TOWN_RANK
+from hengbot.town_terminal import rung_named, TOWN_RANK
 from policy_fixtures import (
     item, seed_character_calibration, seed_confirmed_loadout,
     set_completed_equipment_optimization,

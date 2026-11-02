@@ -41,7 +41,8 @@ class CalibrationCheckpointTest(unittest.TestCase):
         # Old checkpoints and recordings keep deciding: a retired value
         # unpickles to a pseudo-member that no live member equals, and the
         # shared upgrade drops it.  Nothing raises while restoring.
-        from hengbot.claim_register import Claim, ClaimOwner, Goal
+        from hengbot.town_arbiter import ClaimOwner
+        from hengbot.town_terminal import Claim, Goal
         from hengbot.home_visit import HomeVisitKind, HomeVisitRequest, HomeVisitState
         from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
         from hengbot.retired_values import is_retired

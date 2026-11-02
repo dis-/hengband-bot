@@ -37,6 +37,7 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.home_visit import HomeVisitKind
+from hengbot.retired_values import retired_module
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
 from hengbot import town_end_mining
@@ -3387,6 +3388,15 @@ class TownHold:
         return duplicate
 
 
+# Checkpoints pickled before structure stage 2 B slice 4 name the claim
+# records by their former module (claim_register); they load as these.
+retired_module(
+    "hengbot.claim_register", Bar=Bar, Claim=Claim, ClaimOwner=ClaimOwner,
+    ClaimRegister=ClaimRegister, ClaimState=ClaimState,
+    ExecutionDeclaration=ExecutionDeclaration, Goal=Goal,
+)
+
+
 def town_hold(policy: Any) -> TownHold | None:
     return getattr(policy, "_town_hold", None)
 
@@ -3504,7 +3514,7 @@ TERMINALS = {name: decl._replace(family=_FAMILY_OF_RUNG.get(name, ""))
 # family a call site passes is admitted as UNREGISTERED_FAMILY.
 _OWNER_FAMILIES = frozenset(owner_families())
 # The town errand families whose store operation, exit or Reach/Observe errand
-# names its acting owner (claim_ladder.S3_FAMILIES reads this set).
+# names its acting owner (the ladder's S3 families).
 TOWN_OWNER_FAMILIES = frozenset({
     "store-router",
     "shop-buy",
@@ -3573,8 +3583,6 @@ PREEMPTION = "preemption"
 VIOLATION = "violation"
 # Survival that does not outrank the holder replaces it (not a violation).
 SURVIVAL_DISPLACED = "survival-displaced"
-SCOPE_IN = "in-scope"
-SCOPE_S3 = "S3"
 
 
 @dataclass(frozen=True)
@@ -3929,18 +3937,6 @@ def rung_of_claim(
     return rung_named(rung_name) or rung_of(
         family, None, non_discardable=non_discardable
     )
-
-
-def is_s3_rung(rung: Rung) -> bool:
-    """Rev 10.1 item 8: an S3 family, or ``departure`` in town."""
-    return rung.family in TOWN_OWNER_FAMILIES or (
-        rung.family == "departure" and rung.section == SECTION_TOWN
-    )
-
-
-def pair_scope(held: Rung, new: Rung) -> str:
-    """A pair with an S3 rung on either side is reported on the S3 lines."""
-    return SCOPE_S3 if is_s3_rung(held) or is_s3_rung(new) else SCOPE_IN
 
 
 def never_suspended(goal_kind: str | None, goal_source: str | None) -> bool:
@@ -5093,7 +5089,7 @@ def claim_suspended_exit(policy, snapshot: Snapshot, register) -> None:
     (S2b.1b) a suspended chase whose monster is no longer perceived is
     released ``target-lost``, as an active one is.  No store-operation or
     transaction ``Observe`` is ever on the stack
-    (``claim_ladder.never_suspended``).
+    (``never_suspended``).
     """
     position = snapshot.player.position
     for claim in register.suspended:

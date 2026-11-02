@@ -21,7 +21,7 @@ from unittest.mock import patch
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.home_errand import HomeErrandRequest
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 import test_home_full_relief_recorded as full_relief
 

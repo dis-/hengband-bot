@@ -168,6 +168,8 @@ DIRECTION_KEYS: dict[tuple[int, int], str] = {
     (1, 1): "3",
 }
 NEIGHBOR_OFFSETS = tuple(DIRECTION_KEYS.keys())
+# The (dy, dx) a direction command steps by.
+DIRECTION_DELTAS: dict[str, tuple[int, int]] = {key: offset for offset, key in DIRECTION_KEYS.items()}
 CARDINAL_OFFSETS = ((-1, 0), (0, -1), (0, 1), (1, 0))
 STORE_RESTOCK_WAIT_TURNS = 1000
 STORE_RESTOCK_REST_GAME_TURNS = 3000
@@ -316,7 +318,7 @@ EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS = frozenset(
 )
 
 # Reasons on which the driver stops instead of deciding again.  It lives here,
-# not in cli.py, so a reader of recorded rows (hengbot.stop_shape) can name a
+# not in cli.py, so a reader of recorded rows can name a
 # policy-declared final stop without importing the driver.  cli.py re-exports
 # it and owns the operator banner for each entry.
 POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset(

@@ -14,7 +14,7 @@ import unittest
 
 import tests  # noqa: F401
 from hengbot import town_terminal
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession

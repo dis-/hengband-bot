@@ -1,4 +1,4 @@
-"""Enum values retired with the strip calibration, readable only from old pickles.
+"""Enum values and module paths retired from the policy, readable only from old pickles.
 
 A checkpoint pickled before the equipped C-sheet calibration can carry a
 ``HomeVisitKind("calibration-restore")`` or ``ClaimOwner("calibration")``.  The
@@ -11,6 +11,8 @@ retired value before a decision reads the state.
 from __future__ import annotations
 
 from enum import Enum
+import sys
+from types import ModuleType
 
 _RETIRED: dict[tuple[type, str], Enum] = {}
 
@@ -34,3 +36,19 @@ def is_retired(value: object) -> bool:
         isinstance(value, Enum)
         and value._name_ not in type(value)._member_map_
     )
+
+
+def retired_module(name: str, **attributes: object) -> None:
+    """Keep a deleted module's pickled class paths loadable.
+
+    A checkpoint pickles each object under its class's module path; after
+    the module is deleted, unpickling would fail before the checkpoint
+    upgrade could inspect the state.  The retired path is registered as a
+    module with no file holding the current classes under their old names,
+    so ``pickle`` resolves them and the restored objects are current ones.
+    """
+    if name in sys.modules:
+        return
+    module = ModuleType(name, "Retired module path, readable only from old pickles.")
+    module.__dict__.update(attributes)
+    sys.modules[name] = module

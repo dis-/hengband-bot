@@ -7,7 +7,7 @@ a marker the lint stops recognising -- or starts recognising where it should
 not -- fails rather than quietly changing the number.
 """
 
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
 
 
 class Sample:

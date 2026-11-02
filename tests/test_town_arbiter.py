@@ -668,7 +668,7 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         opening the other, on which the old Manhattan part stayed flat -- is
         progress on every step and never retires, however long it is.
         """
-        from hengbot.claim_register import reach
+        from hengbot.town_terminal import reach_goal as reach
         from hengbot.model import STORE_HOME
 
         snapshot = self._postlevel_snapshot()

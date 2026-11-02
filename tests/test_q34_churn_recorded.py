@@ -15,7 +15,8 @@ from pathlib import Path
 import unittest
 
 from tests.hold_closings import recorded_closings
-from hengbot.claim_register import ClaimOwner, reach
+from hengbot.town_arbiter import ClaimOwner
+from hengbot.town_terminal import reach_goal as reach
 from hengbot.model import Position, parse_snapshot
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
 import tests.test_input_executor as executor_harness
