@@ -114,6 +114,7 @@ class ObservationMixin:
         self._observe_remove_curse(snapshot)
         self._observe_launcher_enchant(snapshot)
         self._observe_departure_prices(snapshot)
+        self._retire_vanished_pending_withdrawals(snapshot)
         previous_floor = self._floor_key
         if self._breeder_fled_floor is not None and (
             snapshot.in_town

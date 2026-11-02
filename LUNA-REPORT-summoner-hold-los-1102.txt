@@ -1,0 +1,227 @@
+LUNA-REPORT summoner-hold-los-1102（2026-11-02）
+
+worktree: C:\hengband\bot-client\.worktrees\summoner-hold-los-1102（ブランチ summoner-hold-los-1102、main 46348f994 から）
+コミット: 6f4e38ffd Hold for summoners only where no visible hostile can shoot（A の直し）
+push はしていない。
+
+
+1. A: n1-c life-103（Lv25、18階、bot-c116f37e1）07:02:47 loop-detected — 直した
+
+  オーナーの決定（2026-11-02）:
+  「撃たれる場所は待つポイントとして不適当なので撃たれない場所で待つ。無理ならテレポート。」
+
+  記録: C:\hengband-backups\pdca\captures\hourly-0700-1102\n1-c-life-103-20261102-070247-loop-detected
+    決定 6095 explore '4'（(2,31)→(2,30)）、6096 no-wait:flee '6'、6097 explore '4' … 6131 まで交互。
+    HP は 335/335 のまま（実際には撃たれていない）。
+  記録の盤面を流し直すと（ターン 1971637、(2,30)）:
+    - 墓に住むもの（race 124、S_UNDEAD・CAUSE_1）が (2,10)、まっすぐな通路の西 20 マス。
+    - 召喚の敵の待ち summoner:hold-choke の '5' を、policy_combat.py の _forbid_wait_while_damaged が
+      「射線（_has_line_of_fire）があり 1 ターンの予測ダメージ 20 > 0」で拒み、no-wait:flee '6'。
+    - (2,31) からは見えないので explore が西へ戻る。summoner_wait.py の時計は '5' 以外の決定で消える
+      ので、打ち切り（SUMMONER_WAIT_GAME_TURNS）に届かない。
+    - 通路の y=2 の行はどのマスも射線上（ブレゼンハムの直線）。わきの (3,32) は開いたマスが 3 で
+      待つ場所（開いたマス 2 以下）にならない。
+
+  直し（すべて summoner_wait.py の hold_key の入口）:
+    - 待つ場所を決める前に、そのマスが「撃たれる場所」かを見る（_shot_at）。
+      撃たれる場所 ＝ そのマスで今ダメージを受けた、または見えている敵のどれかが
+        (a) 生存の側の判定と同じ射線と予測ダメージ（_fire_reaches。_forbid_wait_while_damaged から
+            取り出して共通にした。生存の側の振る舞いは変えていない）、または
+        (b) ゲームの projectable()（projection-path-calculator.cpp:262-272。モンスターの魔法は
+            mspell-lite.cpp:209-212 decide_lite_projection で projectable が通る時だけ撃つ）を
+            移植した _may_project が届く。
+      (a) を含めるので、選んだ待ちを生存の側が書き換えることはない（往復の元が消える）。
+    - 撃たれる場所なら、そのマスを今の階の訪問のあいだ通らない（_claim_engagement_avoid_cells。
+      階が変わる時だけ消える）。探索の道に入っていれば捨てる。
+    - 別の待つ場所（開いたマス 2 以下・見えているマス・敵に近づかない、の既存の
+      _validated_choke_route に「撃たれず、避けるマスでない」の絞り込み admit を足した）へ
+      歩く（summoner:hold-reposition）。
+    - 無ければ既存の逃げの巻物（_escape_scroll：テレポートを先に、無ければショート・テレポート）を
+      読む（summoner:hold-teleport）。
+    - それも無ければ None を返し、後ろの既存の段（逃げなど）に任せる。印を付けたマスへは戻らない。
+    - 新しい定数・魔法の数は無い（届く距離はゲームの MONSTER_SPELL_MAX_RANGE をそのまま使う）。
+    - 新しい理由を claim_goal_typing.py（positioning / escape）、town_arbiter.py、
+      低 HP の歩きの検査（LOW_HP_CHECKED_STEP_REASONS、melee:choke-reposition と同じ扱い）に登録。
+
+  記録の盤面での結果: (2,30) で 'rf'（テレポートの巻物 15 枚の f）summoner:hold-teleport。
+    (2,30) は避けるマスに入り、次の (2,31) の盤面で explore は '6'（東）を選び、西へ戻らない。
+
+  テスト: tests.test_summoner_hold_los_1102_recorded.SummonerHoldUnderFireTest
+          .test_shot_hold_point_teleports_and_is_not_walked_back_into
+    - 記録の 3 盤面（1971629 / 1971637 / 1971646）を公開の choose_key に流す。記録の鍵と理由
+      （explore '4'、no-wait:flee '6'、explore '4'）をまず確かめる。
+    - 1971637 で ('rf', summoner:hold-teleport)、(2,30) が避けるマスにあること、1971646 で '4' でないこと。
+    - 'rf' を本番の executor（_send_new_decision_key）に流し、読む巻物の問い → 次の画面で
+      r, f を受け付けて completed。
+    - 宣言した組み立て: テレポートの後の盤面（ターンだけ進める）。
+    - 抽出: tests/extract_summoner_hold_los_1102_fixture.py → tests/fixtures/summoner-hold-los-1102.json.gz
+    - 差し戻しの確認（1 回、summoner_wait.py の hunk を戻す）: 失敗。
+      ('6', 'no-wait:flee') != ('rf', 'summoner:hold-teleport') ＝記録と同じ。戻して通る。
+
+  期待値を変えた既存のテスト（壁ではなく、新しい正しい振る舞いへの更新）:
+    tests/test_flee_into_rubble_recorded.py（同じ型の場面: 召喚の敵の待ちを生存の側が書き換えていた）
+    - 2 件: 鍵は同じ 'T8'（岩を掘る）で、理由が no-wait:flee → summoner:hold-reposition。
+    - test_refused_dig_is_not_repeated: 掘るのを断られた後、前は ('1', no-wait:least-visited) で
+      その場をうろついたが、ほかに待つ場所が無いので ('rh', summoner:hold-teleport)。
+    - test_control_flee_over_open_floor_is_unchanged は変更なしで通る（生存の側は変わっていない）。
+
+
+2. B: n1-a life-464（戦士 Lv40、町、bot-e8f860713）07:12:40 town:blocked:survival:cure_critical_ready
+   — 町の終わり方の決まりの不具合ではない。直していない（D30 の家の引き出しの系統）
+
+  記録: C:\hengband-backups\pdca\captures\hourly-0800-1102\20261102-071240-town-blocked-survival-cure-critical-ready
+        と、サーバの incident-captures/20261102-071239-town-blocked-survival-cure_critical_ready（読み取りだけ）。
+  build e8f860713 は main の祖先で、その後の main に関係する直しは無い。
+
+  致命傷の治癒の薬を買えなかった理由:
+    - 在庫切れ。ターン 3311391 の錬金術の店の棚（state.jsonl の store_type 4）に sval 36 が無い
+      （あるのは 知能・器用さ復活の薬と巻物だけ）。
+    - 所持金は 24,901 で足りる。持ち物の空きは 8 枠で足りる。手持ち 8/10（2 本足りない）。
+      procurement_requirements は no-actionable-supplier。
+    - 2 本足りないので _cure_critical_ready の「1 本だけ足りず、どこにも無い」の例外にも入らない。
+
+  採掘の 1 サイクルは始まっていた:
+    - 決定 2301 town:end-mining-cycle '5'（keep-running-events の outcome mining_cycle、
+      unmet = cure_critical_ready, home_candidate_resolved、ターン 3311414）。fundraising の mode は prepare。
+    - 次の盤面 2302 で準備の担当がどれも鍵を出せず、mining_set_open のまま誰も答えないので、
+      決まりどおり「採掘のサイクル自体が出られない」名前付きの停止になった。
+
+  サイクルが出られなかった理由（決定 2302 の claim.terminal_admission）:
+    - _fundraising_key#1（fundraising prepare の出発）: refused、fundraising-no-detection
+      （財宝感知の巻物 0 枚。採掘の要求品）。
+    - _shopping_approach_key#2（家への道）: 家の引き出し「ドラゴン・グローブ [4,+8] {r呪}」(31,3) が
+      refused、reservation-unavailable。
+    - 財宝感知の巻物は家に 4 枚、錬金術の店に 64 枚（24 金）あるが、どちらも取れなかった:
+      2299 の店の選び方は shop:home-first-before-purchase（policy_shop.py:5390-5411、買う前に家の分を
+      先に取る）で店の買い物を家へ譲り、家への道の唯一の終点は手袋の引き出しで、それが断られた。
+    - その手袋はもう家に無い。家の一覧で 3311003 にはあるが、3311022 の
+      home-errand:atomic-withdraw:full-home-discard と home:junk-sweep の後の 3311414 の一覧には無い
+      （装備中のものは別の [4,+11] {r時, .}）。古い引き出しの依頼が残ったまま、
+      reservation-unavailable の受け手（town_terminal.py:923、鑑定の杖・鑑定の手段・町の移動だけ）にも
+      当たらず、家で財宝感知を取る道が組み立たない。
+  結論: 町の終わり方（満たせなければ採掘 1 サイクル、出られなければ名前付きで止まる）は決まりどおり。
+    根は「家から消えた品の引き出しの依頼が残り、家への道（と、それに譲った店の買い物）を塞ぐ」こと。
+    家の引き出し・town:blocked の系統（D30）の担当に渡す。
+
+
+3. 検査
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+  - tests.test_summoner_hold_los_1102_recorded: Ran 1 test、OK
+  - 期待値を変えた tests.test_flee_into_rubble_recorded: OK（4 件）
+  - 付記: 振る舞いが近いので tests.test_immobile_summoner_recorded と
+    tests.test_detected_pack_no_choke_recorded も 1 回流した。前者は OK。後者の
+    test_closed_loop_collects_loot_without_tripping_the_loop_detector は KeyError (0, 0) で
+    落ちるが、変更を全部戻した main のままでも同じく落ちる（この変更とは関係ない）。
+  - scripts/town_work_manifest.py --write: zero unmapped（2 回、2 回目は変化なし）。
+    town_work_review.json に summoner_wait.py:_leave_shot_hold_point_key を既存の書式で足した。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - テストの壁はない。裏の処理は残していない。src/・tests/・scripts/ はコミットの外の変更なし。
+
+
+4. 保守性
+
+  - 新しい判断は召喚の敵の待ちの持ち主 summoner_wait.py の 2 つの短い関数（_shot_at、
+    _leave_shot_hold_point_key）だけ。hold_key の 3 つの呼び出し元はそのまま使える。
+  - 「撃たれているか」の述語を _forbid_wait_while_damaged の中の式から _fire_reaches に取り出し、
+    生存の側と待つ場所の選び方が同じ 1 つの述語を使う（食い違いが往復の元だった）。
+  - 待つ場所を探すのは既存の _validated_choke_route に絞り込みの引数を 1 つ足しただけ（BFS を
+    もう 1 つ書いていない）。マスの印は既存の _claim_engagement_avoid_cells、テレポートは既存の
+    _escape_scroll / _read_key を使う。
+  - クエスト番号・種族・職業などの特別扱いは無い。
+
+
+5. checks.json の案（編集していない）
+
+  {"id": "SUMMONER-HOLD-OUT-OF-FIRE",
+   "defect": "2026-11-02 n1-c life-103 18F 召喚の敵の待ち summoner:hold-choke を射線上で選び、生存の側が no-wait:flee に書き換え、explore が戻って loop-detected",
+   "owner": "撃たれる場所は待つポイントとして不適当なので撃たれない場所で待つ。無理ならテレポート。（2026-11-02）",
+   "tests": ["tests.test_summoner_hold_los_1102_recorded.SummonerHoldUnderFireTest",
+             "tests.test_flee_into_rubble_recorded.FleeIntoRubbleRecordedTest"]}
+
+
+6. オーナーへの問い
+
+  (1) 「撃たれる場所」に生存の側と同じ射線（距離の上限なし）を含めた。今回の墓に住むものは
+      距離 20 で、ゲームでは届く距離 18（mspell-attack.cpp:320）を超えるので実際には撃てないが、
+      生存の側がこの射線で待ちを拒むので、待つ場所の側も同じに揃えた。その結果、まっすぐな通路では
+      テレポートを読む。生存の側の射線にも距離の上限を入れる（速い敵が近づいて撃つ分の危険を取る）か
+      どうかは、生存の判断の変更なので触っていない。このままでよいか。
+  (2) テレポートは既存の逃げの巻物の順（テレポート、無ければショート・テレポート）にした。
+      ショート・テレポートも「テレポート」に含めてよいか。
+  (3) 巻物が無い時は、印を付けたマスへ戻らないことだけ保ち、後ろの既存の段（逃げなど）に任せる。
+      これでよいか。
+  (4) B は D30（家の引き出し・town:blocked）の担当へ渡す。家から消えた品の引き出しの依頼を、
+      家の一覧が新しくなった時に片付けるのが直し方の候補（新しい振る舞いではなく古い依頼の片付け）。
+
+
+7. 追加の指示（2026-11-02）への対応
+
+  main 1f15e98d1 を取り込んだ（be40f40d9）。取り込み後に import と manifest（zero unmapped）を確かめた。
+
+  7-1. 撃たれる場所をゲームの実際の届く距離で決める — コミット 9057e1cab
+    - 6 章の問い (1) への答え（事実の訂正）。モンスターの遠隔攻撃（ボルト・ボール・ブレス・矢・
+      直接の魔法）はすべて make_attack_spell の魔法で、cdis が get_max_range() = 18 を超える
+      プレイヤーには撃たない（mspell-attack.cpp:320、angband-system.cpp:45-48）。
+      射線の経路も同じ距離で終わる（projection-path-calculator.cpp:262-272）。
+    - _fire_reaches の先頭で、_monster_cast_distance がゲームの MONSTER_SPELL_MAX_RANGE を
+      超えたら撃たれないとした。召喚の敵の待ちと _forbid_wait_while_damaged の両方がこの
+      1 つの述語を使うので、両方がゲームと揃う。届く距離の内側は前と同じ。
+    - 記録の 18 階の盤面（墓に住むものは cdis 20）: (2,30) で ('5', summoner:hold-choke) の
+      待ちを続け、生存の側も書き換えない。テレポートしない。
+    - テスト tests.test_summoner_hold_los_1102_recorded（2 件）:
+        test_recorded_hold_beyond_the_creeps_reach_is_kept … 記録の盤面で待ちが残る。'5' を
+          本番の executor に流して completed。
+        test_hold_inside_reach_moves_out_of_it_and_is_vetoed … 宣言した組み立て: 敵を (2,16)
+          （cdis 14）に置く。(2,30) は撃たれる場所として避けるマスになり、敵の届く距離の外の
+          待つ場所へ東に歩く ('6', summoner:hold-reposition)。
+        （ほかに待つ場所が無い時のテレポートは tests.test_flee_into_rubble_recorded が押さえる。）
+    - 差し戻しの確認（1 回、policy_combat.py の hunk を戻す）: 2 件とも失敗
+      （記録の盤面は ('rf', summoner:hold-teleport) に戻る）。戻して通る。
+    - test_flee_into_rubble_recorded は変更なしで通る（蛇人間は届く距離の内側）。
+
+  7-2. B の根: 家から消えた品の引き出しを片付ける — コミット 5a924f9bb
+    - 根: 全部の家の処分（full-home-discard）が ドラゴン・グローブ [4,+8] {r呪} を取り出し（2293）、
+      壊した（2295）。それでも legacy-withdrawal の待ちの品（_home_pending_item）と、家への訪問の
+      依頼がそのまま残った。そのため家への道は毎回この引き出しになり、今の家の一覧（3311414）に
+      無いので reservation-unavailable で断られた。家の財宝感知 4 枚を取れず、採掘のサイクルは
+      出られなかった（2302）。
+    - 直し（policy_home.py の _retire_vanished_pending_withdrawals を 1 つ足し、
+      policy_observation.py の _observe から盤面ごとに呼ぶ。町で、店の外で、家の取り出しの途中で
+      ない時だけ）:
+        既存の家の引き出しの判定（town_terminal.gather_home_withdraw / verdict_home_withdraw ＝
+        今の家の一覧に品があるか）が断り、かつ持ち物にも装備にも無い品なら、次のとおりにする。
+        - 待ちの品（とその後の一括の分）は既存の _defer_unobserved_home_withdrawal で閉じる。
+        - 出してある家への訪問の依頼は、既存の report_unoperated("reservation-unavailable") で
+          閉じる。
+      新しい判定・定数はない。
+    - テスト tests.test_vanished_home_withdraw_1102_recorded
+        .VanishedHomeWithdrawTest.test_withdrawal_of_a_destroyed_item_is_retired
+        - 記録の 2295 の「…を壊した。」、2301 の採掘のサイクル、2302 の家の引き出しの断り
+          （手袋、reservation-unavailable）をまず確かめる。家の一覧に手袋が無く、財宝感知が 4 枚あり、
+          持ち物にも無いことも確かめる。
+        - 宣言した再構成: 待ちの引き出し（2302 の断られた終点が名指しする手袋）と出した依頼、
+          2301 の採掘のサイクル。再起動した方策を記録の盤面（ターン 3311423）で初期化した。
+        - choose_key の後、待ちの品が消え、手袋の依頼が残らず、
+          home-visit:legacy-withdrawal:reservation-unavailable が報告され、town:blocked にならない。
+          その鍵を本番の executor に流す。
+        - 抽出: tests/extract_vanished_home_withdraw_1102_fixture.py →
+          tests/fixtures/vanished-home-withdraw-1102.json.gz
+        - 限界: 再起動した方策は生の方策の町の計画（家→錬金術の店）を持たない。そのため、家で
+          財宝感知を取るところまでは再現していない。押さえているのは根（消えた品の引き出しが残る）だけ。
+    - 差し戻しの確認（1 回、policy_home.py と policy_observation.py の hunk を戻す）: 失敗
+      （手袋の待ちが残る）。戻して通る。
+
+  7-3. 検査（追加分）
+    - import: OK。manifest --write: zero unmapped。
+    - tests.test_summoner_hold_los_1102_recorded（2）、tests.test_vanished_home_withdraw_1102_recorded（1）、
+      tests.test_flee_into_rubble_recorded（4）、tests.test_hourly_0700_1102_recorded（3、家の道に近いので
+      付記で 1 回）: OK。
+    - checks.json の案（追加）:
+      {"id": "HOME-WITHDRAW-VANISHED-ITEM",
+       "defect": "2026-11-02 n1-a life-464 全部の家の処分で壊した手袋の引き出しが残り、家への道が reservation-unavailable で断られ続け、採掘のサイクルが財宝感知を取れず town:blocked:survival:cure_critical_ready",
+       "owner": "満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。（2026-11-02）",
+       "tests": ["tests.test_vanished_home_withdraw_1102_recorded.VanishedHomeWithdrawTest"]}
+      SUMMONER-HOLD-OUT-OF-FIRE の tests に変更はない（同じモジュール）。
+    - 6 章の問い (1) と (4) は、この対応で片付いた。(2)（ショート・テレポートも含めるか）と
+      (3)（巻物が無い時）は残る。

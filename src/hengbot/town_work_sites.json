@@ -8772,6 +8772,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "summoner_wait.py:_leave_shot_hold_point_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
   "summoner_wait.py:hold_key": {
     "classification": "action",
     "rows": [

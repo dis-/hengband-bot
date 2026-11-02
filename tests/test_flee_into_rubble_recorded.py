@@ -11,6 +11,12 @@ Fixture rows (copied as-is, raw encoding):
      same square after the restart, one 蛇人間 at (15,40); recorded '8'
      no-wait:flee, again refused twelve times.
 
+The recorded WAIT was the summoner choke hold.  Since the owner decision of
+2026-11-02 (「撃たれる場所は待つポイントとして不適当なので撃たれない場所で
+待つ。無理ならテレポート。」) the hold itself leaves a point in the line of
+fire (summoner:hold-reposition, the same rubble tunnel), and once the dig is
+refused and no other hold point remains it reads Teleportation.
+
 DECLARED CONSTRUCTED: the runtime state a single row cannot carry -- the ~f
 skill-exp cache and the fixed-quest speed potion already tried (the recorded
 policy had tried it); the refused-dig test reposts the same board at the same
@@ -92,7 +98,7 @@ class FleeIntoRubbleRecordedTest(unittest.TestCase):
         )
         self.assertEqual(
             (self.policy.choose_key(board), self.policy.last_reason),
-            ("T8", "no-wait:flee"),
+            ("T8", "summoner:hold-reposition"),
         )
 
     def test_recorded_restart_board_tunnels_the_rubble(self):
@@ -102,7 +108,7 @@ class FleeIntoRubbleRecordedTest(unittest.TestCase):
         )
         self.assertEqual(
             (self.policy.choose_key(board), self.policy.last_reason),
-            ("T8", "no-wait:flee"),
+            ("T8", "summoner:hold-reposition"),
         )
 
     def test_refused_dig_is_not_repeated(self):
@@ -111,8 +117,8 @@ class FleeIntoRubbleRecordedTest(unittest.TestCase):
             board = self._board(0)
             keys.append((self.policy.choose_key(board), self.policy.last_reason))
         self.assertNotIn(("8", "no-wait:flee"), keys)
-        self.assertEqual(keys[:4], [("T8", "no-wait:flee")] * 4)
-        self.assertEqual(keys[4:], [("1", "no-wait:least-visited")] * 2)
+        self.assertEqual(keys[:4], [("T8", "summoner:hold-reposition")] * 4)
+        self.assertEqual(keys[4:], [("rh", "summoner:hold-teleport")] * 2)
 
     def test_control_flee_over_open_floor_is_unchanged(self):
         board = self._board(0)
