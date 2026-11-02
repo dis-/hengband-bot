@@ -10740,6 +10740,22 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_staff_sequence.py:_phase_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Split out of me_staff_sequence.town_key (n1-c life-112 2026-11-03 01:12 quest:blocked:me-staff no-progress:travel): this board's step of the staff sequence's phase (buy / rumor / travel / recharge / absorb / return), each a delegated shop approach, fundraising run, rumor flow, inn teleport, Tower recharge or absorption, or a named stop (''); None when the phase's leg yields (a quest errand holding the town, _travel). town_key counts its standstill guard only on the boards this returns a key for.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_staff_sequence.py:_fundraise": {
     "classification": "producer",
     "rows": [

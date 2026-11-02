@@ -879,8 +879,23 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         record.target_reached = False
     if policy._physical_adjacent_hostiles(snapshot):
         return None
-    if _no_progress(policy, snapshot, phase):
+    key = _phase_key(policy, snapshot, phase, stage)
+    if key is None:
+        # Another owner takes the board (a quest errand holding the town
+        # keeps the travel leg, _travel): its boards are not the sequence's
+        # standstill.  n1-c life-112 (2026-11-03 01:12): the travel phase
+        # yielded to the recall to Angband and the eight waits on its cell
+        # stopped the bot as no-progress:travel.
+        return None
+    if key and _no_progress(policy, snapshot, phase):
         return _stop(policy, f"no-progress:{phase}")
+    return key
+
+
+def _phase_key(policy, snapshot, phase: str, stage) -> str | None:
+    """This board's step of the phase: a key, a named stop (''), or None."""
+    record = state(policy)
+    gold = snapshot.player.gold
     supplies = supply_cost(policy, snapshot)
     carried = frozenset(carried_staffs(policy, snapshot))
     if stage is not None and stage.partial_buy and carried - record.bought:
