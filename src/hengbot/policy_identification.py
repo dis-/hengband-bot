@@ -738,6 +738,33 @@ class IdentificationMixin:
         self._release_stale_home_candidate_waiting(snapshot)
         return True
 
+    def _release_vanished_identification_candidate(self, snapshot: Snapshot) -> None:
+        """Drop the identify request whose candidate no longer exists.
+
+        The candidate can leave without being identified (the game destroys a
+        pseudo-felt {壊れている} item, or the bot sold or dropped it).  With
+        neither the pack, the equipment nor the current Home list holding it,
+        no owner can serve the request; the latched need would otherwise fail
+        departure for good (n1-a life-466 2026-11-02 23:18).
+        """
+        signature = self._identification_candidate
+        if (
+            signature is None
+            or self._home_pending_item is not None
+            or not self._home_knowledge_current
+        ):
+            return
+        held = (
+            *snapshot.inventory, *snapshot.equipment,
+            *self._home_knowledge_items[:self._home_knowledge_valid_before],
+        )
+        if any(self._item_signature(item) == signature for item in held):
+            return
+        self._release_identification_source_reservation(signature)
+        self._identification_candidate = None
+        self._identification_need = None
+        self._release_stale_home_candidate_waiting(snapshot)
+
     def _full_identification_purchase_wanted(self) -> bool:
         """Retry excluded full-identify candidates on any observed stocked shop."""
         return self._identification_need == "full" or any(

@@ -6675,6 +6675,7 @@ class TownMixin:
         # A completed scan with no pending Home or identification owner cannot
         # legitimately defer departure.  This also repairs old visit state
         # created before disposal completion released the latch at its source.
+        self._release_vanished_identification_candidate(snapshot)
         self._release_stale_home_candidate_waiting(snapshot)
         # A consumed/moved item can leave the old in-memory pointer behind even
         # though there is no longer an errand capable of clearing it.  Do this
