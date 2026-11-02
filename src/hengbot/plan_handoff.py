@@ -1,6 +1,6 @@
 """Shared record-only classification of an interrupted town errand."""
 
-from hengbot.claim_ladder import TOWN_ERRAND_FAMILIES
+from hengbot.town_terminal import TOWN_ERRAND_FAMILIES
 
 
 def is_plan_handoff(*, holder_family, next_family, holder_kind,

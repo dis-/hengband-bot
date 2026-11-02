@@ -196,7 +196,7 @@ def _adopt_town_hold(state) -> None:
         return
     # ``town_arbiter`` imports this module, and the register imports the
     # arbiter's families, so the import is local to break that cycle.
-    from hengbot.claim_register import ClaimRegister
+    from hengbot.town_terminal import ClaimRegister
     from hengbot.town_terminal import TownHold
 
     register = state.pop("_claim_register", ClaimRegister())

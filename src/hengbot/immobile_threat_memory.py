@@ -48,7 +48,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from hengbot.claim_goal_typing import GOAL_NOTE_ONE_STEP
+from hengbot.town_terminal import GOAL_NOTE_ONE_STEP
 from hengbot.model import MonsterState, Position
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, ExplorationPathOutcome
 

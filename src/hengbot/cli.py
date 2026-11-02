@@ -59,7 +59,7 @@ from hengbot.policy import (
     required_depth_gates,
     staged_prompt_chain_matches,
 )
-from hengbot.claim_goal_typing import SURVIVAL_REASON_PREFIXES
+from hengbot.town_terminal import SURVIVAL_REASON_PREFIXES
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
     COMBAT_REASON_PREFIXES,

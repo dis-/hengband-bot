@@ -6,13 +6,13 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from hengbot.claim_goal_typing import (
+from hengbot.town_terminal import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
     GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
 )
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.model import (
     DUNGEON_YEEK_CAVE,
     STORE_ALCHEMIST,

@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from hengbot import town_terminal
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_calibration import LegacyCalibrationDebtError, refuse_legacy_calibration_debt
@@ -165,7 +166,8 @@ class RestoredCalibrationBoundaryTest(unittest.TestCase):
                 policy._calibration_stripped_unrestored = True
                 if marker == "target":
                     policy._calibration_session_target = session.target_loadout_id
-                policy._open_execution_delegation(
+                town_terminal.open_execution_delegation(
+                    policy,
                     "calibration", "equipment-txn", ("session", "strip"),
                     ("calibration", "strip"), "observed-takeoffs", "budget")
                 restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))

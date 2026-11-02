@@ -105,67 +105,10 @@ from hengbot.equipment_mutation import (
     EquipmentMutationResult,
     EquipmentMutationState,
 )
-from hengbot.claim_register import (
+from hengbot.town_arbiter import (
     CLAIM_OWNER_ATTRIBUTE,
-    BAR_ERRAND as CLAIM_BAR_ERRAND,
-    BAR_THREAT as CLAIM_BAR_THREAT,
-    CLOSED_BY_COMPLETE as CLAIM_CLOSED_BY_COMPLETE,
-    CLOSED_BY_RETIRED as CLAIM_CLOSED_BY_RETIRED,
-    SUSPENDED_EXPIRED as CLAIM_SUSPENDED_EXPIRED,
-    Bar as ClaimBar,
     ClaimOwner,
-    ClaimState,
-    ExecutionDeclaration,
-    ClaimRegister,
-    ClaimScope,
-    Goal,
-    bar_after_board as claim_bar_after_board,
     claims,
-    observe as claim_observe,
-    owner_of as claim_owner_of,
-    reach as claim_reach,
-    reach_monster as claim_reach_monster,
-    reach_place as claim_reach_place,
-    terminal as claim_terminal,
-    GOAL_OBSERVE as CLAIM_GOAL_OBSERVE,
-    GOAL_REACH as CLAIM_GOAL_REACH,
-    GOAL_TERMINAL as CLAIM_GOAL_TERMINAL,
-)
-from hengbot.claim_goal_typing import (
-    FLOOR_CHANGE as CLAIM_FLOOR_CHANGE,
-    FLOOR_EXPECTATION as CLAIM_FLOOR_EXPECTATION,
-    OBSERVE_WITHIN as CLAIM_OBSERVE_WITHIN,
-    STORE_OPERATION as CLAIM_OBSERVE_STORE_OPERATION,
-    STORE_ENTRY as CLAIM_OBSERVE_STORE_ENTRY,
-    KNOWLEDGE as CLAIM_OBSERVE_KNOWLEDGE,
-    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
-    STORE_OPERATION_OWNERS as CLAIM_STORE_OPERATION_OWNERS,
-    GOAL_NOTE_NO_SLOT as CLAIM_GOAL_NOTE_NO_SLOT,
-    GOAL_NOTE_OWNER_MISMATCH as CLAIM_GOAL_NOTE_OWNER_MISMATCH,
-    TELEPORT_WALK_NOTE as CLAIM_TELEPORT_WALK_NOTE,
-    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
-    HOME_EFFECT_OWNERS as CLAIM_HOME_EFFECT_OWNERS,
-    HOME_EFFECT_SOURCES as CLAIM_HOME_EFFECT_SOURCES,
-    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
-    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
-    MONSTER_CHASE_OWNERS as CLAIM_MONSTER_CHASE_OWNERS,
-    goal_typing as claim_goal_typing,
-    is_survival as claim_is_survival,
-)
-from hengbot.claim_ladder import (
-    BAR_GATED_RUNGS as CLAIM_BAR_GATED_RUNGS,
-    PREEMPTION as CLAIM_PREEMPTION,
-    SURVIVAL_DISPLACED as CLAIM_SURVIVAL_DISPLACED,
-    TRIGGER_FAMILIES as CLAIM_TRIGGER_FAMILIES,
-    VIOLATION as CLAIM_VIOLATION,
-    nests_over as claim_nests_over,
-    owner_change as claim_owner_change,
-    pair_scope as claim_pair_scope,
-    resumable_index as claim_resumable_index,
-    rung_of as claim_rung_of,
-    rung_of_claim as claim_rung_of_claim,
-    S3_FAMILIES as CLAIM_S3_FAMILIES,
-    TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES,
 )
 from hengbot.policy_types import (
     EXPECTATION_POP_SATISFIED,
@@ -461,6 +404,39 @@ from hengbot.town_terminal import (
     standing_claim as town_standing_claim,
     suspended_claims as town_suspended_claims,
     take_offers as town_take_offers,
+    BAR_ERRAND as CLAIM_BAR_ERRAND,
+    Bar as ClaimBar,
+    Goal,
+    observe_goal as claim_observe,
+    reach_goal as claim_reach,
+    reach_monster_goal as claim_reach_monster,
+    reach_place_goal as claim_reach_place,
+    GOAL_OBSERVE as CLAIM_GOAL_OBSERVE,
+    GOAL_REACH as CLAIM_GOAL_REACH,
+    STORE_OPERATION as CLAIM_OBSERVE_STORE_OPERATION,
+    STORE_ENTRY as CLAIM_OBSERVE_STORE_ENTRY,
+    KNOWLEDGE as CLAIM_OBSERVE_KNOWLEDGE,
+    ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
+    STORE_OPERATION_OWNERS as CLAIM_STORE_OPERATION_OWNERS,
+    TELEPORT_WALK_NOTE as CLAIM_TELEPORT_WALK_NOTE,
+    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
+    HOME_EFFECT_OWNERS as CLAIM_HOME_EFFECT_OWNERS,
+    HOME_EFFECT_SOURCES as CLAIM_HOME_EFFECT_SOURCES,
+    LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+    EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
+    MONSTER_CHASE_OWNERS as CLAIM_MONSTER_CHASE_OWNERS,
+    is_survival as claim_is_survival,
+    rung_of as claim_rung_of,
+    TOWN_OWNER_FAMILIES as CLAIM_S3_FAMILIES,
+    CLAIM_ANY_CELL,
+    cancel_unbound_execution_delegations as town_cancel_unbound_execution_delegations,
+    claim_bar_after as town_claim_bar_after,
+    claim_bar_for as town_claim_bar_for,
+    claim_errand_clearance as town_claim_errand_clearance,
+    claim_exit_completion as town_claim_exit_completion,
+    claim_goal_distance as town_claim_goal_distance,
+    close_claim as town_close_claim,
+    visit_exit_family as town_visit_exit_family,
 )
 from hengbot.town_arbiter import (
     UNREGISTERED_FAMILY,
@@ -2681,7 +2657,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._complete_character_dump(snapshot)
         # A producer that never reached the previous decision's claim exit
         # cannot carry an unbound grant into this decision.
-        self._cancel_unbound_execution_delegations()
+        town_cancel_unbound_execution_delegations(self)
         # S2a.1 (design rev 9 item 2): the per-decision goal slot.  Only a
         # producer writes it, on the board whose key uses its target; the
         # declaration at the exit reads nothing else.  Record-only.
@@ -3111,7 +3087,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.decision_attribution = arbiter.decision_owner_for_reason(self.last_reason)
             if self.last_reason in {"shop:await-leave-confirmation",
                                     "shop:await-leave-generation"}:
-                self.decision_attribution = self._visit_exit_family()
+                self.decision_attribution = town_visit_exit_family(self)
             if (
                 self._equipment_transaction_session is None
                 and self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
@@ -3204,21 +3180,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # Recording only.  Nothing below is read back by a producer, the ladder or
     # the driver, and no branch here can reach a key or a reason.
 
-    def claim(self, owner, goal: Goal, *, non_discardable: bool = False):
-        """``with self.claim(owner, goal):`` -- the marker of design 5.1.
-
-        With recording switched off (the hold's ``claims`` is None) the scope
-        still works and declares into a register nobody reads, so disabling
-        the recording cannot change what a producer does.
-        """
-        register = town_hold_claims(self)
-        return ClaimScope(
-            register if register is not None else ClaimRegister(),
-            owner,
-            goal,
-            non_discardable=non_discardable,
-            opened_sequence=self._decision_sequence,
-        )
 
     # -- S2a.1 goal slot and closing paths (design rev 9.1/9.2) -------------
     #
@@ -3226,18 +3187,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # or calls the claim register, and returns nothing a producer reads.  A
     # producer calls them on the board that uses its own target; the
     # declaration at the ``choose_key`` exit reads only the slot.
-
-    def _visit_exit_family(self) -> str:
-        """Return the captured operation's owner for a store leave barrier."""
-        visit = getattr(self, "_store_visit", None)
-        producer = getattr(visit, "operation_producer_family", None)
-        if producer in CLAIM_S3_FAMILIES:
-            return producer
-        requester = getattr(visit, "exit_requester", None)
-        if (requester in CLAIM_S3_FAMILIES
-                and requester in getattr(visit, "requester_families", ())):
-            return requester
-        return "barrier-provenance-missing"
 
     def _claim_family_of(self, reason: str | None) -> str:
         return town_claim_family_of(self, reason)
@@ -3415,178 +3364,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             budget_ref="home-knowledge-existing-epoch",
         )
 
-    def _record_execution_declaration(self, claim, key, reason: str) -> None:
-        register = town_hold_claims(self)
-        buffer = town_take_offers(self)
-        offers = buffer.steps if buffer is not None else ()
-        no_steps = buffer.no_steps if buffer is not None else ()
-        waits = buffer.waits if buffer is not None else ()
-        offer = next((candidate for candidate in reversed(offers)
-                      if key == candidate[0]
-                      and claim.owner.value == candidate[1]), None)
-        no_step = (
-            next((candidate for candidate in reversed(no_steps)
-                  if claim.owner.value == candidate[0]), None)
-            if key is None else None
-        )
-        wait = next((candidate for candidate in reversed(waits)
-                     if key == candidate[0]
-                     and claim.owner.value == candidate[1]), None)
-        posted_wait = (
-            key is None and claim.execution is not None
-            and claim.execution.state == "awaiting"
-            and claim.execution.operation_ref is not None
-        )
-        if posted_wait:
-            # A producer's no-key result cannot settle an unresolved send.
-            offer = None
-            no_step = None
-            wait = None
-        if wait is not None and (offer is None or wait[6] > offer[12]) and (
-            no_step is None or wait[6] > no_step[3]
-        ):
-            _, producer, work_id, operation_ref, effect, continuation, _ = wait
-            current_execution = claim.execution
-            if (current_execution is None
-                    or current_execution.state != "awaiting"
-                    or current_execution.operation_ref != operation_ref):
-                register.declare_execution(
-                    claim.claim_id, work_id=work_id, producer=producer,
-                    state="awaiting", operation_ref=operation_ref,
-                    expected_effect=effect, continuation=continuation,
-                )
-            offer = None
-            no_step = None
-        if no_step is not None and (offer is None or no_step[3] > offer[12]):
-            producer, work_id, fact, _, state = no_step
-            if state == "done":
-                register.declare_execution(
-                    claim.claim_id, work_id=work_id, producer=producer,
-                    state="done", evidence=fact,
-                )
-            else:
-                register.declare_execution(
-                    claim.claim_id, work_id=work_id, producer=producer,
-                    state="releasing", cause=fact,
-                )
-            offer = None
-        if offer is not None:
-            (_, producer, work_id, step, args, effect, continuation, budget,
-             state, evidence, cause, post_on_emit, _, entry) = offer
-            register.declare_execution(
-                claim.claim_id, work_id=work_id, producer=producer,
-                state=state, next_step=step, arguments=args,
-                expected_effect=effect, continuation=continuation,
-                budget_ref=budget, evidence=evidence, cause=cause,
-                producer_entry=entry,
-            )
-            # The driver alone can turn an emitted command into a posted wait.
-            if state == "acting" and post_on_emit and key not in (None, ""):
-                self._execution_pending_post = (claim.claim_id, key, work_id)
-
-    def _claim_refresh_non_discardable(self, owner) -> None:
-        """Refresh the producer's per-decision slot from its live obligation."""
-        family = owner.value
-        if family == "equipment-txn" and getattr(
-            self, "_equipment_transaction_owned_items", None
-        ):
-            self._declare_non_discardable(family)
-        elif family in {'home-visit', 'home-errand', 'equipment-txn'} and (getattr(self, '_home_atomic_withdraw_pending', None) is not None or getattr(self, '_home_atomic_deposit_pending', None) is not None or False) and (not (family == 'home-errand' and (self.last_reason or '').startswith('home-errand:request-knowledge'))):
-            self._declare_non_discardable(family)
-        else:
-            chain = getattr(self, "_staged_prompt_chain", None)
-            if chain is not None and self._claim_family_of(chain.get("owner")) == family:
-                self._declare_non_discardable(family)
-
-    _CLAIM_ANY_CELL = object()
-
-    def _claim_close(
-        self,
-        event: str,
-        label: str,
-        *,
-        owners,
-        cell=_CLAIM_ANY_CELL,
-        kinds: tuple[str, ...] | None = None,
-        sources: tuple[str, ...] | None = None,
-        monsters=None,
-    ) -> None:
-        """Close the standing claim when it is exactly the goal ended here.
-
-        The standing claim is the one the previous decision declared.  Rev
-        9.2 (U): every closing names the owners it may close, and closes
-        nothing when the standing claim belongs to another; beyond that it
-        closes only a claim that is still open and of one of ``kinds``, and
-
-        * a site that names the ``cell`` it drops closes only a Reach goal
-          aimed at exactly that cell (``None`` names no goal: nothing
-          closes), and by default only Reach goals;
-        * a site that names ``monsters`` closes only a Reach goal on one of
-          those ``(index, race_id)`` identities;
-        * an ``Observe`` goal closes only when ``sources`` is ``None`` or one
-          of them is a prefix of its source.
-
-        S2b.1b: a ``complete`` or ``release`` that names exactly the goal it
-        ends (a ``cell`` or ``monsters``) also closes that goal while a
-        preemption holds it on the suspended stack (design rev 10.1 item 5).
-        The producer drops its goal where it always did; before, the closing
-        found another owner's claim standing and closed nothing, so the
-        suspended claim was later displaced and counted as a violation.
-        """
-        register = town_hold_claims(self)
-        if register is None:
-            return
-        names = {getattr(owner, "value", owner) for owner in owners}
-        cell_named = cell is not self._CLAIM_ANY_CELL
-        named_monsters = None if monsters is None else set(monsters)
-        if kinds is None:
-            kinds = (
-                (CLAIM_GOAL_REACH,)
-                if cell_named or named_monsters is not None
-                else (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
-            )
-
-        def matches(claim) -> bool:
-            if claim.owner.value not in names:
-                return False
-            goal = claim.goal
-            if goal.kind not in kinds:
-                return False
-            if goal.kind == CLAIM_GOAL_REACH and cell_named:
-                if not isinstance(cell, Position) or goal.cell != (cell.y, cell.x):
-                    return False
-            if goal.kind == CLAIM_GOAL_REACH and named_monsters is not None:
-                if goal.monster is None or goal.monster not in named_monsters:
-                    return False
-            if goal.kind == CLAIM_GOAL_OBSERVE and sources is not None:
-                if goal.source is None or not str(goal.source).startswith(
-                    tuple(sources)
-                ):
-                    return False
-            return True
-
-        standing = register.current
-        if standing is not None and standing.is_open and matches(standing):
-            if event == "complete":
-                register.complete(label)
-            elif event == "expire":
-                register.expire(label)
-            else:
-                register.release(label)
-            return
-        if event == "expire" or (
-            event != "complete" and not (cell_named or named_monsters is not None)
-        ):
-            return
-        for claim in reversed(register.suspended):
-            if matches(claim):
-                register.close_suspended(
-                    claim.claim_id,
-                    "complete" if event == "complete" else "release",
-                    label,
-                )
-                return
-
     def _release_esp_threat_rest_hunt(self, label: str) -> None:
         """Record-only (S2b.1b): the rest slot's WEAK / MEDIUM hunt ends.
 
@@ -3621,16 +3398,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 return
 
     def _release_claim_goal(
-        self, label: str, cell=_CLAIM_ANY_CELL, *, owners, **scope
+        self, label: str, cell=CLAIM_ANY_CELL, *, owners, **scope
     ) -> None:
         """A producer gives up its multi-decision goal (design rev 9 item 3)."""
-        self._claim_close("release", label, owners=owners, cell=cell, **scope)
+        town_close_claim(self, "release", label, owners=owners, cell=cell, **scope)
 
     def _complete_claim_goal(
-        self, label: str, cell=_CLAIM_ANY_CELL, *, owners, **scope
+        self, label: str, cell=CLAIM_ANY_CELL, *, owners, **scope
     ) -> None:
         """A producer's own arrival or confirmation branch saw the goal met."""
-        self._claim_close("complete", label, owners=owners, cell=cell, **scope)
+        town_close_claim(self, "complete", label, owners=owners, cell=cell, **scope)
 
     def _complete_observed_effect(self, label: str, *, owners, sources) -> None:
         """A posted store/Home operation's effect was confirmed (item 3).
@@ -3685,15 +3462,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     sources=(CLAIM_OBSERVE_STORE_OPERATION,),
                 )
             elif operation_posted:
-                self._claim_close(
-                    "expire", "completed-unobserved",
+                town_close_claim(
+                    self, "expire", "completed-unobserved",
                     owners=operation_owners,
                     kinds=(CLAIM_GOAL_OBSERVE,),
                     sources=(CLAIM_OBSERVE_STORE_OPERATION,),
                 )
             else:
-                self._claim_close(
-                    "release", "visit-closed-no-operation",
+                town_close_claim(
+                    self, "release", "visit-closed-no-operation",
                     owners=operation_owners,
                     kinds=(CLAIM_GOAL_OBSERVE,),
                     sources=(CLAIM_OBSERVE_STORE_OPERATION,),
@@ -3713,487 +3490,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             label, owners=CLAIM_ENTRANCE_OWNERS,
             kinds=(CLAIM_GOAL_OBSERVE,), sources=(CLAIM_OBSERVE_STORE_ENTRY,),
         )
-
-    def _claim_operation_goal(self, snapshot, owner, reason, content):
-        """The active operation's stable identity, independent of step posts."""
-        if content == CLAIM_OBSERVE_STORE_ENTRY:
-            return None
-        if owner.value == "equipment-txn" and content == "transaction":
-            session = getattr(self, "_equipment_transaction_session", None)
-            if session is not None:
-                opened = getattr(session, "opened_sequence", None)
-                if opened is None:
-                    opened = self._decision_sequence
-                    session.opened_sequence = opened
-                return claim_observe(
-                    (opened, tuple(map(repr, session.plan.actions))),
-                    EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT,
-                    source="transaction",
-                )
-        if content == CLAIM_OBSERVE_KNOWLEDGE:
-            return claim_observe(
-                (STORE_HOME, "knowledge",
-                 getattr(self, "_home_knowledge_scan_epoch", None)
-                 or getattr(self, "_town_visit_epoch", None)),
-                STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_KNOWLEDGE,
-            )
-        if content != CLAIM_OBSERVE_STORE_OPERATION:
-            return None
-        visit = getattr(self, "_store_visit", None)
-        if owner.value in {"shop-buy", "shop-sell"} and visit is not None:
-            if visit.operation_key is not None:
-                return claim_observe(
-                    (visit.store_type, visit.operation_key, visit.opened_sequence),
-                    STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
-                )
-        if owner.value in {'home-visit', 'equipment-txn'} and reason.startswith(('home:atomic-', 'home:deposit', 'home:withdraw-', 'home:weight-overload-deposit', 'home:morivant-temporary-deposit', 'home:morivant-retry-temporary-deposit', 'home:morivant-restore-temporary-deposit', 'home:leave-', 'home:store-context-exit')) and (visit is not None) and (visit.store_type == STORE_HOME):
-            withdrawal = getattr(self, "_home_atomic_withdraw_pending", None)
-            deposit = getattr(self, "_home_atomic_deposit_pending", None)
-            withdraw_step = "withdraw" in reason or reason.startswith(
-                ("home:leave-", "home:store-context-exit")
-            )
-            identity = getattr(visit, "claim_operation_identity", None)
-            if identity is None and visit.operation_key is not None:
-                identity = (STORE_HOME, visit.opened_sequence, visit.operation_key)
-            if withdrawal is not None and identity is not None and withdraw_step:
-                return claim_observe(
-                    identity,
-                    STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
-                )
-            if deposit is not None and identity is not None:
-                return claim_observe(
-                    identity,
-                    STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
-                )
-        if owner.value == "home-errand":
-            request = getattr(getattr(self, "_home_errand", None), "request", None)
-            if request is not None:
-                operation = (
-                    "knowledge",
-                    getattr(self, "_home_knowledge_scan_epoch", None)
-                    or getattr(self, "_town_visit_epoch", None),
-                ) if reason.startswith("home-errand:request-knowledge") else (
-                    getattr(visit, "claim_operation_identity", None)
-                    if visit is not None and visit.store_type == STORE_HOME
-                    else None
-                )
-                return claim_observe(
-                    (STORE_HOME, "errand", repr(request.signature), operation),
-                    STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_STORE_OPERATION,
-                )
-        chain = getattr(self, "_staged_prompt_chain", None)
-        if chain is not None and owner.value in {"identification", "curse-enchant"}:
-            return claim_observe(
-                (chain.get("owner"), len(chain.get("gates", ()))),
-                len(chain.get("gates", ())),
-                source=CLAIM_OBSERVE_STORE_OPERATION,
-            )
-        return None
-
-    def _claim_goal(
-        self, snapshot: Snapshot, key, owner: ClaimOwner, reason: str, standing
-    ) -> tuple[Goal, bool, str | None]:
-        """This decision's goal from the slot, whether it is missing, and why.
-
-        Design rev 9 item 2 and rev 9.2 (C).  The kind comes from the
-        checked-in typing table (``claim_goal_typing``); the content comes
-        from what a producer wrote on this board, and only when that
-        producer's family is the row's owner:
-
-        * ``Reach``: the slot's goal (a cell, a monster, or a place) when its
-          family is this owner; otherwise the decision declares ``Terminal``
-          and records ``goal_missing`` with ``no-slot`` or ``owner-mismatch``.
-        * ``Observe``: a floor change is always the table's own content; any
-          other ``Observe`` takes the expectation posted on this board by
-          this owner (another owner's is not used: ``owner-mismatch``), else
-          the same owner's still-open ``Observe`` claim (a transaction's later
-          keys continue it), else the table's content.
-        * ``Terminal``: the effect label.
-        """
-        if reason.startswith("town:entrance-step-off:"):
-            reason = reason.split(":", 2)[2]
-        # Catalogue acquisition owns its observed result across entry and
-        # scan steps. Opening the page alone cannot discharge that work.
-        if any(offer[0] == key and offer[1] == owner.value
-               and offer[5] == "home-catalog-available"
-               for offer in town_offered_steps(self)):
-            if (standing is not None and standing.is_open
-                    and standing.owner == owner
-                    and (standing.goal.source == CLAIM_OBSERVE_KNOWLEDGE
-                         or (standing.goal.source == CLAIM_OBSERVE_STORE_ENTRY
-                             and standing.execution is not None
-                             and standing.execution.expected_effect == "home-catalog-available"))):
-                return standing.goal, False, None
-            return claim_observe(
-                (STORE_HOME, "knowledge", self._town_visit_epoch),
-                STORE_STUCK_LIMIT, source=CLAIM_OBSERVE_KNOWLEDGE,
-            ), False, None
-        if (
-            standing is not None and standing.is_open and (standing.owner == owner) and (reason == 'store:entry-await-observation' and standing.goal.source in {CLAIM_OBSERVE_STORE_OPERATION, 'transaction'} or (reason == 'home:scan-incomplete-open-page' and standing.goal.source == CLAIM_OBSERVE_KNOWLEDGE) or (reason == 'shop:one-shot-in-flight' and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION))
-        ):
-            # Neither a lagged store entry nor an incomplete Home page ends
-            # the operation or knowledge observation it is waiting for.
-            return standing.goal, False, None
-        if (reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}
-                and standing is not None and standing.is_open
-                and standing.owner == owner
-                and standing.goal.kind == CLAIM_GOAL_OBSERVE
-                and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION
-                and not getattr(getattr(self, "_store_visit", None),
-                                "operation_effect_observed", False)):
-            return standing.goal, False, None
-        visit = getattr(self, "_store_visit", None)
-        completed_transaction = (
-            reason == "home:leave-after-one-operation"
-            and town_hold_claims(self) is not None
-            and town_standing_claim(self) is not None
-            and town_standing_claim(self).closed == "complete"
-            and town_standing_claim(self).closed_reason == "equipment-transaction-complete"
-        )
-        if (
-            reason in {"shop:leave", "shop:store-context-exit",
-                       "shop:await-leave-confirmation",
-                       "shop:await-leave-generation"}
-            or reason.startswith("home:leave-")
-            or reason == "home:store-context-exit"
-        ) and (completed_transaction or (visit is not None and visit.operation_effect_observed)):
-            if (
-                standing is not None and standing.is_open and (standing.owner == owner) and (standing.goal.kind == CLAIM_GOAL_OBSERVE) and (standing.goal.source in {CLAIM_OBSERVE_STORE_OPERATION, 'transaction'})
-            ):
-                return standing.goal, False, None
-            return claim_terminal(reason), False, None
-        if owner.value in {'equipment-txn'} and reason.startswith(('home:atomic-', 'home:deposit', 'home:withdraw-', 'home:weight-overload-deposit', 'home:morivant-temporary-deposit', 'home:morivant-retry-temporary-deposit', 'home:leave-', 'home:store-context-exit', 'equipment-transaction:await-confirmation', 'equipment-transaction:home-route-unavailable')):
-            if (standing is not None and standing.is_open and (standing.owner == owner) and (standing.goal.source in {'transaction'})):
-                return standing.goal, False, None
-            operation = self._claim_operation_goal(snapshot, owner, reason, "transaction")
-            if operation is not None:
-                return operation, False, None
-        row = claim_goal_typing(owner.value, reason)
-        effect = claim_terminal(reason or "policy:none")
-        chain = getattr(self, "_staged_prompt_chain", None)
-        if chain is not None and self._claim_family_of(chain.get("owner")) == owner.value:
-            staged = self._claim_operation_goal(
-                snapshot, owner, reason, CLAIM_OBSERVE_STORE_OPERATION
-            )
-            if staged is not None:
-                return staged, False, None
-        if row is None or row.kind == CLAIM_GOAL_TERMINAL:
-            if owner.value == "home-visit" and reason.startswith((
-                "home:leave-", "home:store-context-exit",
-            )):
-                operation = self._claim_operation_goal(
-                    snapshot, owner, reason, CLAIM_OBSERVE_STORE_OPERATION
-                )
-                if operation is not None:
-                    return operation, False, None
-            if (
-                standing is not None and standing.is_open
-                and standing.owner == owner
-                and standing.goal.source == CLAIM_FLOOR_CHANGE
-                and reason.startswith("town:wait-recall")
-            ):
-                return standing.goal, False, None
-            return effect, False, None
-        if (
-            standing is not None and standing.is_open
-            and standing.owner == owner
-            and standing.goal.source == CLAIM_FLOOR_CHANGE
-            and reason.startswith("town:wait-recall")
-        ):
-            return standing.goal, False, None
-        # A route to the next transaction step is still the same open
-        # session. The separately ruled await-entry wait keeps its own
-        # store-entry goal once the entrance command has been posted.
-        if (
-            row.kind == CLAIM_GOAL_REACH and owner.value in {'equipment-txn'} and (not reason.endswith(':await-entry'))
-        ):
-            operation = self._claim_operation_goal(
-                snapshot, owner, reason, "transaction"
-            )
-            if operation is not None:
-                return operation, False, None
-        if row.kind == CLAIM_GOAL_REACH:
-            slot = getattr(self, "_decision_goal", None)
-            if not (
-                isinstance(slot, tuple)
-                and len(slot) in (2, 3)
-                and isinstance(slot[1], Goal)
-                and slot[1].kind == CLAIM_GOAL_REACH
-            ):
-                return effect, True, CLAIM_GOAL_NOTE_NO_SLOT
-            if slot[0] != owner.value:
-                return effect, True, CLAIM_GOAL_NOTE_OWNER_MISMATCH
-            note = slot[2] if len(slot) == 3 else None
-            return slot[1], False, (
-                note if note != CLAIM_TELEPORT_WALK_NOTE else None
-            )
-        within = CLAIM_OBSERVE_WITHIN.get(row.content, OWNER_EXPECTATION_MAX_TURNS)
-        if row.content == CLAIM_OBSERVE_STORE_ENTRY:
-            visit = getattr(self, "_store_visit", None)
-            if (
-                reason == "store:entry-await-observation"
-                and visit is not None and visit.goal is not None
-                and (snapshot.player.position.y, snapshot.player.position.x)
-                    != (visit.goal.y, visit.goal.x)
-            ):
-                return claim_reach((visit.goal.y, visit.goal.x)), False, None
-            target = getattr(self, "_store_entry_wait_owner", None)
-            if target is None and visit is not None:
-                target = visit.store_type
-            return claim_observe(
-                (CLAIM_OBSERVE_STORE_ENTRY, target), within,
-                source=CLAIM_OBSERVE_STORE_ENTRY,
-            ), False, None
-        if row.content == CLAIM_FLOOR_CHANGE:
-            return (
-                claim_observe(
-                    CLAIM_FLOOR_EXPECTATION, within, source=CLAIM_FLOOR_CHANGE
-                ),
-                False,
-                None,
-            )
-        operation = self._claim_operation_goal(snapshot, owner, reason, row.content)
-        if operation is not None:
-            return operation, False, None
-        note = None
-        posted = getattr(self, "_decision_expectation", None)
-        if (
-            isinstance(posted, tuple)
-            and len(posted) == 2
-            and isinstance(posted[1], Goal)
-            and posted[1].kind == CLAIM_GOAL_OBSERVE
-        ):
-            if posted[0] == owner.value:
-                return posted[1], False, None
-            note = CLAIM_GOAL_NOTE_OWNER_MISMATCH
-        if (
-            standing is not None
-            and standing.is_open
-            and standing.owner == owner
-            and standing.goal.kind == CLAIM_GOAL_OBSERVE
-            and standing.goal.source != CLAIM_FLOOR_CHANGE
-        ):
-            return standing.goal, False, note
-        return claim_observe((row.content,), within, source=row.content), False, note
-
-    def _claim_owner_retired(self, owner) -> bool:
-        """Whether the arbiter already holds this owner's claim as retired."""
-        arbiter = getattr(self, "_town_turn_arbiter", None)
-        telemetry = getattr(arbiter, "telemetry", None) if arbiter else None
-        if not isinstance(telemetry, dict):
-            return False
-        return bool(
-            telemetry.get("retired")
-            and telemetry.get("producer_owner") == owner.value
-        )
-
-    @staticmethod
-    def _claim_perceived_monster(snapshot: Snapshot, identity):
-        """The perceived monster with this ``(index, race_id)``, if any."""
-        for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters):
-            if (monster.index, monster.race_id) == tuple(identity):
-                return monster
-        return None
-
-    def _claim_entered_store_at(self, snapshot: Snapshot, cell) -> bool:
-        """The board is inside the store whose entrance is ``cell``."""
-        visit = getattr(self, "_store_visit", None)
-        entrance = getattr(visit, "goal", None)
-        return (
-            snapshot.store is not None
-            and isinstance(entrance, Position)
-            and tuple(cell) == (entrance.y, entrance.x)
-        )
-
-    def _claim_reach_arrival(self, snapshot: Snapshot, claim) -> str | None:
-        """The observed arrival that completes a cell Reach claim, read-only.
-
-        The same evidence ``_claim_exit_completion`` closes the claim on: the
-        player stands on the goal cell of the claim's own floor (never the
-        open wilderness), or is inside the store whose entrance is the cell.
-        """
-        goal = claim.goal
-        if (goal.kind != CLAIM_GOAL_REACH or goal.monster is not None
-                or goal.cell is None):
-            return None
-        if claim.floor is not None and tuple(claim.floor) != tuple(snapshot.floor_key):
-            return None
-        if snapshot.on_open_wilderness:
-            return None
-        position = snapshot.player.position
-        if goal.cell == (position.y, position.x):
-            return "reached"
-        if self._claim_entered_store_at(snapshot, goal.cell):
-            return "entered-store"
-        return None
-
-    def _claim_exit_completion(self, snapshot: Snapshot, standing, pops) -> None:
-        """Close the standing claim on what this board shows.
-
-        * Reach, cell: the player stands on the goal cell on the claim's own
-          floor (never on the open wilderness, whose grids are not local-map
-          cells), or stands in the store whose entrance is the goal.
-        * Reach, monster (rev 9.2 M): ``complete`` when the monster is
-          adjacent, ``release`` when it is no longer perceived (it left
-          perception or died).
-        * Reach, place: only its producer's arrival test closes it.
-        * Observe, floor change: ``snapshot.floor_key`` differs from the
-          floor the claim was opened on; after 350 game turns it expires.
-        * Observe, posted expectation: ``complete`` when the registry popped
-          it as satisfied, or (rev 9.2 O) when the registry's own
-          satisfaction test holds for it now, read-only and without a pop.
-        * Observe older than its ``within`` (rev 9.2 E) closes ``expired``.
-          ``within`` is counted in the unit its constant is defined in: game
-          turns for the floor change (``RECALL_ACTIVATION_MAX_GAME_TURNS``),
-          decisions for ``OWNER_EXPECTATION_MAX_TURNS`` and
-          ``STORE_STUCK_LIMIT``, which both count decisions where they are
-          defined.
-        """
-        if standing is None or not standing.is_open:
-            return
-        own = (standing.owner,)
-        goal = standing.goal
-        position = snapshot.player.position
-        same_floor = standing.floor is None or tuple(standing.floor) == tuple(
-            snapshot.floor_key
-        )
-        if goal.kind == CLAIM_GOAL_REACH:
-            if goal.monster is not None:
-                monster = self._claim_perceived_monster(snapshot, goal.monster)
-                if monster is None or not same_floor:
-                    self._release_claim_goal("target-lost", owners=own)
-                elif position.distance_to(monster.position) <= 1:
-                    self._complete_claim_goal("target-adjacent", owners=own)
-                return
-            if goal.cell is None:
-                return
-            if not same_floor or snapshot.on_open_wilderness:
-                return
-            arrival = self._claim_reach_arrival(snapshot, standing)
-            if arrival is not None:
-                self._complete_claim_goal(arrival, owners=own)
-                return
-            visit = getattr(self, "_store_visit", None)
-            entrance = getattr(visit, "goal", None)
-            context = getattr(getattr(self, "_home_visit", None), "context_token", None)
-            if (
-                entrance is not None
-                and goal.cell == (entrance.y, entrance.x)
-                and (
-                    (isinstance(context, tuple) and context[0] == "outside-ready")
-                    or getattr(self, "_home_entry_operation_posted", False)
-                    or getattr(self, "_intentional_entrance_activation", False)
-                )
-            ):
-                self._complete_claim_goal("entered-outside", owners=own)
-            return
-        if goal.kind != CLAIM_GOAL_OBSERVE:
-            return
-        if (
-            goal.source == CLAIM_OBSERVE_KNOWLEDGE
-            and (getattr(self, "_home_knowledge_current", False)
-                 or getattr(self, "_claim_home_knowledge_observed", False))
-        ):
-            self._complete_claim_goal("home-knowledge-current", owners=own)
-            return
-        session = getattr(self, "_equipment_transaction_session", None)
-        opened = getattr(session, "opened_sequence", None)
-        session_replaced = (
-            session is not None
-            and any(part.isdecimal() for part in goal.expectation)
-            and (opened is None or str(opened) not in goal.expectation)
-        )
-        if (
-            goal.source in {'transaction'} and standing.owner.value in {'equipment-txn'} and (session_replaced or (session is None and (getattr(self, '_equipment_transaction_owned_items', None) or False)))
-        ):
-            terminal = (
-                getattr(self, "_equipment_transaction_restore_terminal", None)
-                or ("session-replaced" if session_replaced else None)
-                or self.last_reason or "session-cleared"
-            )
-            self._release_claim_goal(
-                f"abandoned:{terminal}", owners=own,
-                kinds=(CLAIM_GOAL_OBSERVE,), sources=(goal.source,),
-            )
-            return
-        if goal.source == CLAIM_FLOOR_CHANGE:
-            if standing.floor is not None and not same_floor:
-                self._complete_claim_goal("floor-changed", owners=own)
-            elif (
-                goal.within is not None
-                and standing.opened_turn is not None
-                # S2b.1 (rev 10.1 item 6): the turns spent suspended do not
-                # count against a resumed claim's ``within``.
-                and snapshot.turn - standing.opened_turn
-                - (standing.suspended_turns or 0) > goal.within
-            ):
-                self._claim_close("expire", "within-exceeded", owners=own)
-            return
-        if goal.source == CLAIM_OBSERVE_STORE_ENTRY:
-            # Restored pre-live23 declarations also named catalogue work,
-            # although their goal was typed as entry. Honor the named effect.
-            declaration = getattr(standing, "execution", None)
-            catalogue_work = (declaration is not None
-                              and declaration.expected_effect == "home-catalog-available")
-            if catalogue_work and self._home_knowledge_current:
-                self._complete_claim_goal("home-knowledge-current", owners=own)
-                return
-            visit = getattr(self, "_store_visit", None)
-            entrance = getattr(visit, "goal", None)
-            if (
-                not catalogue_work
-                and snapshot.store is not None
-                and str(snapshot.store.store_type) in goal.expectation
-                and (
-                    entrance is None
-                    or self._claim_entered_store_at(
-                        snapshot, (entrance.y, entrance.x)
-                    )
-                )
-            ):
-                self._complete_claim_goal("entered-store", owners=own)
-                return
-        if any(
-            owner == goal.source and why == EXPECTATION_POP_SATISFIED
-            for owner, why in pops
-        ):
-            self._complete_claim_goal("expectation-satisfied", owners=own)
-            return
-        registry = getattr(self, "_owner_expectations", None)
-        if (
-            registry is not None
-            and goal.source is not None
-            and hasattr(registry, "verdict")
-            and registry.pending(goal.source) is not None
-            and registry.verdict(
-                goal.source, self._progress_core_of(snapshot)
-            ) == EXPECTATION_POP_SATISFIED
-        ):
-            self._complete_claim_goal("expectation-satisfied", owners=own)
-            return
-        if (
-            goal.within is not None
-            and standing.opened_sequence is not None
-            # S2b.1 (rev 10.1 item 6): nor do the decisions spent suspended.
-            and self._decision_sequence - standing.opened_sequence
-            - (standing.suspended_decisions or 0) >= goal.within
-        ):
-            self._claim_close("expire", "within-exceeded", owners=own)
-
-    def _claim_goal_distance(self, snapshot: Snapshot, goal: Goal):
-        position = snapshot.player.position
-        if goal.kind != CLAIM_GOAL_REACH:
-            return None
-        if goal.cell is not None:
-            return position.distance_to(Position(*goal.cell))
-        if goal.monster is not None:
-            monster = self._claim_perceived_monster(snapshot, goal.monster)
-            return (
-                position.distance_to(monster.position)
-                if monster is not None
-                else None
-            )
-        return None
 
     def _record_decision_claim(self, snapshot: Snapshot, key) -> None:
         """Advance the town hold on this decision, then record its claim row.
@@ -4370,7 +3666,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self.decision_claim = {
             **({"item_reservation_shadow": reservation_shadow(self)}
                if reservation_shadow(self) else {}),
-            **claim.as_dict(distance=self._claim_goal_distance(snapshot, claim.goal)),
+            **claim.as_dict(distance=town_claim_goal_distance(self, snapshot, claim.goal)),
             "decision_sequence": self._decision_sequence,
             "reason": reason,
             "fundraising_purpose": (
@@ -4413,7 +3709,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "visit_requester": visit_requester,
             "visit_operator": claim.owner.value if visit is not None else None,
             "barrier_provenance": (
-                self._visit_exit_family()
+                town_visit_exit_family(self)
                 if reason in {"shop:await-leave-confirmation",
                               "shop:await-leave-generation"} else None
             ),
@@ -4496,261 +3792,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # Record-only, like everything above: these helpers read the snapshot and
     # the claim register, and write only the register and the decision row.
 
-    def _claim_suspended_exit(self, snapshot: Snapshot, register) -> None:
-        """Rules (i) and (ii) of rev 10.1 item 6, on the suspended stack.
-
-        (i) After a floor change (a town departure is one) a suspended
-        floor-change ``Observe`` completes and every other suspended claim is
-        released ``suspended-expired``.  (ii) On the same floor, a suspended
-        ``Reach`` completes when the board shows it met, by the tests an
-        active claim uses: the player on its cell, or next to its monster; and
-        (S2b.1b) a suspended chase whose monster is no longer perceived is
-        released ``target-lost``, as an active one is.  No store-operation or
-        transaction ``Observe`` is ever on the stack
-        (``claim_ladder.never_suspended``).
-        """
-        position = snapshot.player.position
-        for claim in register.suspended:
-            goal = claim.goal
-            if (
-                goal.kind == CLAIM_GOAL_OBSERVE
-                and goal.source == CLAIM_OBSERVE_KNOWLEDGE
-                and (getattr(self, "_home_knowledge_current", False)
-                     or getattr(self, "_claim_home_knowledge_observed", False))
-            ):
-                register.close_suspended(
-                    claim.claim_id, "complete", "home-knowledge-current"
-                )
-                continue
-            if claim.floor is None:
-                # Round 3: a claim restored from before ``floor`` existed.
-                # The first board that sees it suspended is its floor, so it
-                # expires on the first floor change from here.
-                register.stamp_suspended_floor(claim.claim_id, snapshot.floor_key)
-                continue
-            if tuple(claim.floor) != tuple(
-                snapshot.floor_key
-            ):
-                if (
-                    goal.kind == CLAIM_GOAL_OBSERVE
-                    and goal.source == CLAIM_FLOOR_CHANGE
-                ):
-                    register.close_suspended(
-                        claim.claim_id, "complete", "floor-changed"
-                    )
-                else:
-                    register.close_suspended(
-                        claim.claim_id, "release", CLAIM_SUSPENDED_EXPIRED
-                    )
-                continue
-            if goal.kind == CLAIM_GOAL_OBSERVE and goal.source == CLAIM_OBSERVE_STORE_ENTRY:
-                if (
-                    snapshot.store is not None
-                    and str(snapshot.store.store_type) in goal.expectation
-                ):
-                    register.close_suspended(
-                        claim.claim_id, "complete", "entered-store"
-                    )
-                continue
-            if goal.kind != CLAIM_GOAL_REACH:
-                continue
-            if goal.monster is not None:
-                monster = self._claim_perceived_monster(snapshot, goal.monster)
-                if monster is None:
-                    # S2b.1b: the active claim's own rule (rev 9.2 M,
-                    # ``_claim_exit_completion``): a chased monster that is
-                    # no longer perceived -- killed by the preemptor's shot,
-                    # or gone -- releases the chase, suspended or not.
-                    register.close_suspended(
-                        claim.claim_id, "release", "target-lost"
-                    )
-                elif position.distance_to(monster.position) <= 1:
-                    register.close_suspended(
-                        claim.claim_id, "complete", "target-adjacent"
-                    )
-            elif goal.cell is not None and not snapshot.on_open_wilderness:
-                # Round 3: the same tests as an active Reach claim
-                # (``_claim_exit_completion``): on the cell, or inside the
-                # store whose entrance is the cell.
-                if goal.cell == (position.y, position.x):
-                    register.close_suspended(
-                        claim.claim_id, "complete", "reached"
-                    )
-                elif self._claim_entered_store_at(snapshot, goal.cell):
-                    register.close_suspended(
-                        claim.claim_id, "complete", "entered-store"
-                    )
-
-    def _claim_owner_transition(
-        self, register, standing, owner, goal, rung, survival, non_discardable,
-        *, snapshot
-    ):
-        """How this decision treats the claim the previous one declared.
-
-        Returns ``(action, label, violation)``.  Only a held claim that is
-        still open with a Reach or Observe goal matters:
-
-        * an owner change to a strictly higher rung (rev 10 item 2) is a
-          preemption -- the caller suspends the holder (``survival-preemption``
-          when the new decision is survival, as S2a.1 labelled it);
-        * survival that does not outrank the holder, or the same owner turning
-          to another goal on a survival decision, replaces it -- the caller
-          releases it ``survival-displaced``; survival is exempt, so this is
-          not a violation (round 2 F1/F2);
-        * the same owner replacing its own open goal otherwise is a retarget
-          violation (rev 10 item 4) -- never a preemption followed by
-          ``resume-goal-changed`` on the same row;
-        * any other owner change is a violation, and so is any ordinary
-          change away from a store-operation or transaction ``Observe`` claim
-          (rev 10.1 item 6). A town survival decision suspends an S3 holder;
-          adjacent melee also suspends a pending town monster chase.
-
-        Nothing stops: the row records it.
-        """
-        if (
-            standing is None
-            or not standing.is_open
-            or standing.goal.kind not in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
-        ):
-            return None, None, None
-        if register.continues(owner, goal, non_discardable):
-            # The same owner pursuing the same goal keeps its claim, survival
-            # or not (``declare`` updates its survival flag).
-            return None, None, None
-        if (standing.owner == owner and standing.goal.source in {'transaction'} and (goal.source == CLAIM_OBSERVE_STORE_ENTRY) and (self.last_reason or '').endswith(':await-entry')):
-            return CLAIM_PREEMPTION, "transaction-entry-wait", None
-        # S3 town operations survive an emergency even when their Observe
-        # source normally forbids suspension.  Other owners keep the ladder's
-        # bounded-rank preemption rule.
-        if (survival and standing.owner != owner
-                and snapshot.in_town
-                and (standing.owner.value in CLAIM_S3_FAMILIES
-                     or (standing.owner.value == "survival"
-                         and self.last_reason == "melee"))):
-            return CLAIM_PREEMPTION, "survival-preemption", None
-        held = claim_rung_of_claim(
-            standing.owner, standing.rung,
-            non_discardable=standing.non_discardable,
-        )
-        if standing.owner == owner:
-            verdict = CLAIM_SURVIVAL_DISPLACED if survival else CLAIM_VIOLATION
-            kind = "retarget"
-        else:
-            verdict = claim_owner_change(
-                held_rank=held.rank,
-                held_goal_kind=standing.goal.kind,
-                held_goal_source=standing.goal.source,
-                held_survival=standing.survival,
-                new_rank=rung.rank,
-                new_survival=survival,
-            )
-            kind = "owner-change"
-        if verdict == CLAIM_PREEMPTION:
-            return CLAIM_PREEMPTION, (
-                "survival-preemption"
-                if survival
-                else f"preempted-by:{owner.value}"
-            ), None
-        if verdict == CLAIM_SURVIVAL_DISPLACED:
-            return CLAIM_SURVIVAL_DISPLACED, CLAIM_SURVIVAL_DISPLACED, None
-        plan_changed = bool(getattr(self, "_decision_plan_change_evidence", None))
-        from hengbot.plan_handoff import is_plan_handoff
-        if kind == "owner-change" and is_plan_handoff(
-            holder_family=standing.owner.value,
-            next_family=owner.value,
-            holder_kind=standing.goal.kind,
-            holder_non_discardable=standing.non_discardable,
-            same_rank=held.rank == rung.rank,
-            plan_changed=plan_changed,
-        ):
-            kind = "plan-handoff"
-        if (kind == 'owner-change' and standing.non_discardable and non_discardable and (standing.owner.value in {'equipment-txn', 'home-visit', 'home-errand'}) and (owner.value in {'equipment-txn', 'home-visit', 'home-errand'})):
-            kind = "transaction-contention"
-        return None, None, {
-            "kind": kind,
-            "from": standing.owner.value,
-            "to": owner.value,
-            "claim_id": standing.claim_id,
-            "goal": standing.goal.as_dict(),
-            "from_rank": held.rank,
-            "to_rank": rung.rank,
-            "scope": claim_pair_scope(held, rung),
-            "survival": bool(standing.survival or survival),
-        }
-
-    def _claim_resolve_suspended(
-        self, register, owner, goal, rung, survival, non_discardable
-    ):
-        """Rule (iii) of rev 10.1 item 6: resume, nest or displace.
-
-        Unless this decision continues the current claim:
-
-        * a claim of the same owner and goal suspended **anywhere** in the
-          stack resumes (returned, for the caller to ``resume`` under its id);
-          the claims above it that this decision outranks stay suspended, the
-          others are displaced as below;
-        * otherwise the stack is read from the top: the same owner with
-          another goal releases it ``resume-goal-changed`` (rev 10 item 3), a
-          new claim opens and the claims below are read on; a strictly
-          higher rung nests over it (only a
-          strictly higher rung: that is the bound on the depth); survival
-          displaces it ``survival-displaced`` (exempt, no violation); any other
-          owner displaces it -- a violation, recorded with the release
-          ``resume-displaced`` -- and the next claim down is read the same
-          way.
-        """
-        if register.continues(owner, goal, non_discardable):
-            return None
-        stack = register.suspended
-        if survival and any(
-            claim.owner.value in CLAIM_S3_FAMILIES for claim in stack
-        ):
-            return None
-        if (goal.source == CLAIM_OBSERVE_STORE_ENTRY
-                and (self.last_reason or "").endswith(":await-entry")):
-            return None
-        match = claim_resumable_index(stack, owner, goal, non_discardable)
-        for index in range(len(stack) - 1, -1, -1):
-            top = stack[index]
-            if index == match:
-                return top
-            held = claim_rung_of_claim(
-                top.owner, top.rung, non_discardable=top.non_discardable
-            )
-            if match is None and top.owner == owner:
-                register.close_suspended(
-                    top.claim_id, "release", "resume-goal-changed"
-                )
-                # the new claim opens here; the claims below are read the
-                # same way, so it never sits above one it does not outrank
-                continue
-            if claim_nests_over(top_rank=held.rank, new_rank=rung.rank):
-                if match is None:
-                    return None
-                continue
-            if survival:
-                register.close_suspended(
-                    top.claim_id, "release", CLAIM_SURVIVAL_DISPLACED
-                )
-                continue
-            register.close_suspended(
-                top.claim_id,
-                "release",
-                "resume-displaced",
-                violation={
-                    "kind": "displaced",
-                    "from": top.owner.value,
-                    "to": owner.value,
-                    "claim_id": top.claim_id,
-                    "goal": top.goal.as_dict(),
-                    "from_rank": held.rank,
-                    "to_rank": rung.rank,
-                    "scope": claim_pair_scope(held, rung),
-                    "survival": bool(top.survival or survival),
-                },
-            )
-        return None
-
     def _declare_triggers(self, monsters, family: str | None = None) -> None:
         """Record-only (rev 10.1 item 9): the monsters this producer acted on.
 
@@ -4770,43 +3811,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             })),
         )
 
-    def _claim_trigger_monsters(self, owner, goal):
-        """Rev 10.1 item 9 / design 5.4.1: the monsters behind a new claim.
-
-        For a Reach or Observe claim of positioning, hunt, esp-threat, combat
-        or escape: the ``(index, race_id)`` pairs its producer declared on
-        this board (``_declare_triggers``), plus the chased monster of a
-        monster goal (hunt, whose target is its goal).  A producer that
-        declared none records none -- never every perceived hostile.
-        """
-        if (
-            owner.value not in CLAIM_TRIGGER_FAMILIES
-            or goal.kind not in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE)
-        ):
-            return ()
-        found: set[tuple[int, int]] = set()
-        slot = getattr(self, "_decision_triggers", None)
-        if (
-            isinstance(slot, tuple)
-            and len(slot) == 2
-            and slot[0] == owner.value
-        ):
-            found.update(tuple(pair) for pair in slot[1])
-        if goal.monster is not None:
-            found.add((int(goal.monster[0]), int(goal.monster[1])))
-        return tuple(sorted(found))
-
-    @staticmethod
-    def _claim_trigger_perceived(snapshot: Snapshot, triggers):
-        """The game turn, when one of ``triggers`` is perceived on this board."""
-        if not triggers:
-            return None
-        wanted = {tuple(pair) for pair in triggers}
-        for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters):
-            if (monster.index, monster.race_id) in wanted:
-                return snapshot.turn
-        return None
-
     # -- S2b.2: the bar table (design 3.2, 3.3, 5.4.1) ----------------------
     #
     # Record-only while ``_claim_bar_enforced`` is off (the default and the
@@ -4814,249 +3818,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # decision row.  With the switch on, ``_claim_bar_skips`` also keeps a
     # barred rung from running at all (design 3.3's plumbing), which is
     # exercised by tests only.
-
-    @staticmethod
-    def _claim_perceived_pairs(snapshot: Snapshot) -> frozenset:
-        """Every ``(index, race_id)`` this board perceives (seen or detected)."""
-        return frozenset(
-            (int(monster.index), int(monster.race_id))
-            for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
-        )
-
-    @staticmethod
-    def _claim_durable_clearance(key):
-        """The durable part of a retirement clearance key (round 2).
-
-        User decision 2026-09-26: a town-errand bar lifts only when the
-        durable part of the clearance key changes -- inventory, gold,
-        equipment and the other durable facts of the progress vector, the
-        quest and departure tuples -- never by the player's own movement.
-        ``_town_retirement_clearance_key`` is the progress vector (its durable
-        facts plus, for a walking owner, a ``("locomotion", ...)`` part that
-        carries the distance to the goal), the departure tuple (whose last
-        element is the same locomotion part), or the quest route-unavailable
-        tuples (durable already).  So: the locomotion parts go, the departure
-        tuple loses its last element, and the progress core -- position,
-        turn and sequence already zeroed by the vector -- also forgets the
-        hit points and the store the player stands in, which walking and
-        waiting change without any errand being done.
-        """
-        if not isinstance(key, tuple):
-            return key
-        if key and key[0] == "departure":
-            return key[:-1]
-        durable = []
-        for part in key:
-            if isinstance(part, tuple) and part and part[0] == "locomotion":
-                continue
-            if isinstance(part, OwnerProgressCore):
-                part = replace(
-                    part,
-                    position=Position(0, 0),
-                    turn=0,
-                    decision_sequence=0,
-                    hp=0,
-                    store_type=None,
-                )
-            durable.append(part)
-        return tuple(durable)
-
-    def _claim_errand_clearance(self, snapshot: Snapshot, owner: str, reason):
-        """The durable clearance key of an errand owner on this board."""
-        return self._claim_durable_clearance(
-            self._town_retirement_clearance_key(snapshot, owner, reason)
-        )
-
-    def _claim_bar_after(
-        self, snapshot: Snapshot, bar: ClaimBar, perceived=None
-    ) -> ClaimBar | None:
-        """``bar`` as this board leaves it, ``None`` when the board lifts it."""
-        return claim_bar_after_board(
-            bar,
-            turn=snapshot.turn,
-            perceived=(
-                perceived
-                if perceived is not None
-                else self._claim_perceived_pairs(snapshot)
-            ),
-            hold=DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
-            clearance_of=lambda errand: self._claim_errand_clearance(
-                snapshot, errand.owner.value, errand.reason
-            ),
-        )
-
-    def _claim_bar_lift(self, snapshot: Snapshot, register) -> list[dict]:
-        """Design 3.2 / 3.3: the lift pass of this board.
-
-        A threat-triggered bar lifts once ``DETECTED_THREAT_HOLD_MAX_GAME_TURNS``
-        game turns (the existing 50-turn clock of the detected-threat choke
-        release) have passed with none of its trigger monsters perceived; an
-        errand bar lifts when the durable part of its owner's retirement
-        clearance key differs from the one recorded when it was set.  Returns
-        the lifted bars as row entries.
-        """
-        bars = register.bars
-        if not bars:
-            return []
-        perceived = self._claim_perceived_pairs(snapshot)
-        kept = []
-        lifted = []
-        for bar in bars:
-            after = self._claim_bar_after(snapshot, bar, perceived)
-            if after is None:
-                lifted.append({
-                    **bar.as_dict(),
-                    "lifted_turn": snapshot.turn,
-                    "lifted_sequence": self._decision_sequence,
-                })
-            else:
-                kept.append(after)
-        if lifted or kept != list(bars):
-            register.replace_bars(kept)
-        return lifted
-
-    def _claim_bar_for(self, snapshot: Snapshot, claim, ending: str):
-        """The bar a claim that ended this way earns, or ``None``.
-
-        Design 3.2: a preemptor that does not reach its own goal is barred;
-        survival is exempt (the row's ``survival`` flag, rev 10.1 item 3).
-        Design 3.3: a retired claim bars its owner for the same goal.
-
-        * Only a Reach or Observe claim, never a survival one, and never one
-          that completed.
-        * The preemptors are the threat-triggered owners (rev 10.1 item 9's
-          ``TRIGGER_FAMILIES``: positioning, hunt, esp-threat, combat,
-          escape) -- the owners that take the decision from the ordinary ones
-          because of monsters.  Their claim is barred when it ends without
-          its goal: released, expired, retired, dropped by another owner or by
-          its own retarget (a violation), or displaced from the stack.  Two
-          endings are not the claim's own failure and bar nothing: survival
-          replacing it (``survival-displaced``, design 3.4) and a floor change
-          while it was suspended (``suspended-expired``).
-        * Any other owner is barred by retirement only, as an errand owner;
-          the bar records the durable part of its retirement clearance key
-          (round 2) and lifts when that changes.
-        * A Terminal claim never ends abandoned, so combat melee is never
-          barred (rev 10.1 item 4, the known gap).
-        """
-        if claim is None or claim.survival:
-            return None
-        if claim.goal.kind not in (CLAIM_GOAL_REACH, CLAIM_GOAL_OBSERVE):
-            return None
-        if ending == CLAIM_CLOSED_BY_COMPLETE:
-            return None
-        if claim.closed_reason in (
-            CLAIM_SURVIVAL_DISPLACED, CLAIM_SUSPENDED_EXPIRED
-        ):
-            return None
-        threat = claim.owner.value in CLAIM_TRIGGER_FAMILIES
-        perceived_now = self._claim_trigger_perceived(
-            snapshot, claim.trigger_monsters
-        )
-        common = {
-            "owner": claim.owner,
-            "goal": claim.goal,
-            "rung": claim_rung_of_claim(
-                claim.owner, claim.rung, non_discardable=claim.non_discardable
-            ).name,
-            "since_turn": snapshot.turn,
-            "since_sequence": self._decision_sequence,
-            "claim_id": claim.claim_id,
-            "ending": (
-                ending if claim.closed_reason is None
-                else f"{ending}:{claim.closed_reason}"
-            ),
-        }
-        if threat:
-            return ClaimBar(
-                kind=CLAIM_BAR_THREAT,
-                triggers=tuple(claim.trigger_monsters),
-                last_perceived_turn=(
-                    perceived_now
-                    if perceived_now is not None
-                    else claim.last_perceived_turn
-                ),
-                **common,
-            )
-        no_step = (claim.closed_reason or "").startswith("no-step:")
-        if ending != CLAIM_CLOSED_BY_RETIRED and not no_step:
-            return None
-        # The retirement is this decision's (``_claim_owner_retired``), so the
-        # reason the key is computed for is the decision's own.
-        reason = None if no_step else (
-            self.last_reason
-            if self._claim_family_of(self.last_reason) == claim.owner.value
-            else None
-        )
-        return ClaimBar(
-            kind=CLAIM_BAR_ERRAND,
-            clearance=self._claim_errand_clearance(
-                snapshot, claim.owner.value, reason
-            ),
-            reason=reason,
-            **common,
-        )
-
-    def _claim_set_bars(self, snapshot: Snapshot, register, *, dropped=None):
-        """Bar the claims that ended on this decision; returns row entries.
-
-        ``register.take_ended`` gives every claim a closing call ended since
-        the last declaration (a producer's release, the exit's expiry, a
-        retirement, a suspended claim displaced or released); ``dropped`` is
-        the held claim this row's violation left without a closing.
-        """
-        ended = [(claim, claim.closed) for claim in register.take_ended()]
-        if dropped is not None:
-            ended.append((dropped, "abandoned"))
-        entries = []
-        for claim, ending in ended:
-            bar = self._claim_bar_for(snapshot, claim, ending)
-            if bar is None:
-                continue
-            register.set_bar(bar)
-            entries.append(bar.as_dict())
-        return entries
-
-    def _claim_would_bar(self, register, claim, survival):
-        """Design 3.2 / 3.3 at the exit: the bar this decision would meet.
-
-        The decided owner and goal matched against the table as the ladder
-        would have read it; survival is never barred.  Recorded on the row;
-        with the switch off it changes nothing.
-        """
-        if survival or claim is None:
-            return None
-        bar = register.barring(claim.owner, claim.goal)
-        if bar is None:
-            return None
-        return {
-            "owner": bar.owner.value,
-            "goal": bar.goal.as_dict(),
-            "bar_since_turn": bar.since_turn,
-            "triggers": [list(pair) for pair in bar.triggers],
-        }
-
-    @staticmethod
-    def _claim_would_skip(register, rung, survival):
-        """Round 2: the skip the switch would have made on this decision.
-
-        The switch decides before a rung runs, so it can only know the rung,
-        not the goal the rung would choose: a gated rung
-        (``claim_ladder.BAR_GATED_RUNGS``) is skipped while a bar that a claim
-        of that rung earned stands.  Recorded when the decided rung is one of
-        them, beside ``would_bar``'s exact owner-and-goal match.
-        """
-        if survival or rung.name not in CLAIM_BAR_GATED_RUNGS:
-            return None
-        for bar in register.bars:
-            if bar.rung == rung.name:
-                return {
-                    "rung": rung.name,
-                    "owner": bar.owner.value,
-                    "goal": bar.goal.as_dict(),
-                    "bar_since_turn": bar.since_turn,
-                }
-        return None
 
     def _claim_bar_skips(self, snapshot: Snapshot, rung_name: str) -> bool:
         """Design 3.3's plumbing, decided before the rung runs (switch on).
@@ -5077,7 +3838,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if register is None:
             return False
         for bar in register.bars:
-            if bar.rung != rung_name or self._claim_bar_after(snapshot, bar) is None:
+            if bar.rung != rung_name or town_claim_bar_after(self, snapshot, bar) is None:
                 continue
             self._decision_bar_skips = [
                 *(getattr(self, "_decision_bar_skips", None) or ()),
@@ -5096,158 +3857,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return town_errand_hold(self, family, enforced=enforced,
                                 arrival_board=arrival_board)
 
-    def _open_execution_delegation(
-        self, parent_family: str, delegate_family: str,
-        work_identity: tuple, purpose_identity: tuple,
-        expected_effect: str, budget_reference: str,
-    ) -> ExecutionDelegation:
-        """Reserve a named child before invoking its executor (record-only)."""
-        work_identity = tuple(work_identity)
-        purpose_identity = tuple(purpose_identity)
-        for record in town_hold_delegations(self):
-            if (record.lifecycle in {"reserved", "open"}
-                    and record.parent_family == parent_family
-                    and record.delegate_family == delegate_family
-                    and record.work_identity == work_identity
-                    and record.purpose_identity == purpose_identity):
-                return record
-        record = ExecutionDelegation(
-            None, parent_family, delegate_family, work_identity,
-            purpose_identity, self._decision_sequence, expected_effect,
-            budget_reference, "reserved",
-        )
-        town_hold_delegations(self).append(record)
-        return record
-
-    def _end_execution_delegation(
-        self, delegate_family: str, work_identity: tuple,
-        *, completed: bool, cause: str,
-    ) -> None:
-        for record in town_hold_delegations(self):
-            if (record.lifecycle in {"reserved", "open"}
-                    and record.delegate_family == delegate_family
-                    and record.work_identity == tuple(work_identity)):
-                record.lifecycle = "completed" if completed else "released"
-                record.ending = cause
-
-    def _bind_execution_delegations(self, claim) -> None:
-        """Bind same-decision reservations or cancel an unmatched opening."""
-        for record in town_hold_delegations(self):
-            if (record.lifecycle != "reserved"
-                    or record.opening_decision != self._decision_sequence):
-                continue
-            if claim is not None and claim.is_open and (
-                claim.owner.value == record.parent_family
-            ):
-                record.parent_claim_id = claim.claim_id
-                record.lifecycle = "open"
-                record.execution = ExecutionDeclaration(
-                    claim.claim_id, str(record.work_identity), 1,
-                    record.delegate_family, "acting",
-                    next_step="delegate.dispatch",
-                    arguments=record.work_identity,
-                    expected_effect=record.expected_effect,
-                    continuation="parent.resume",
-                    budget_ref=record.budget_reference,
-                )
-            else:
-                record.lifecycle = "released"
-                record.ending = "exit-owner-mismatch"
-
-    def _cancel_unbound_execution_delegations(self) -> None:
-        """End reservations left behind by a decision without a claim exit."""
-        for record in town_hold_delegations(self):
-            if record.lifecycle == "reserved":
-                record.lifecycle = "released"
-                record.ending = "exit-not-reached"
-
-    def _observe_execution_delegations(self) -> None:
-        """Retire children only when their named source resolves."""
-        session = self._equipment_transaction_session
-        visit = self._store_visit
-        for record in town_hold_delegations(self):
-            if record.lifecycle != "open":
-                continue
-            work = record.work_identity
-            if work[:1] == ("session",):
-                same_session = (
-                    session is not None
-                    and session.target_loadout_id == work[2]
-                    and tuple((action.kind, action.target_slot,
-                               action.item_identity)
-                              for action in session.plan.actions) == work[3]
-                )
-                if not same_session:
-                    record.lifecycle = "released"
-                    record.ending = "session-replaced-or-ended"
-                elif session.complete:
-                    record.lifecycle = "completed"
-                    record.ending = "session-effect-observed"
-            elif work[:1] in {("home-operation",), ("staged-tail",)}:
-                identity = tuple(work[1:])
-                if visit is not None and visit.claim_operation_identity == identity:
-                    if visit.operation_effect_observed:
-                        record.lifecycle = "completed"
-                        record.ending = "home-operation-effect-observed"
-                elif visit is None or visit.phase == StoreVisitPhase.CLOSED:
-                    record.lifecycle = "released"
-                    record.ending = "home-operation-ended-unobserved"
-            elif work[:1] == ("route",):
-                if visit is not None and visit.opened_sequence == work[1]:
-                    parent = town_standing_claim(self)
-                    arrived_claim = (
-                        parent is not None
-                        and parent.claim_id == record.parent_claim_id
-                        and parent.closed == CLAIM_CLOSED_BY_COMPLETE
-                    )
-                    if arrived_claim or visit.phase in {
-                        StoreVisitPhase.OPERATING, StoreVisitPhase.LEAVING,
-                        StoreVisitPhase.CLOSED,
-                    }:
-                        record.lifecycle = "completed"
-                        record.ending = "route-arrived"
-                elif visit is None:
-                    record.lifecycle = "released"
-                    record.ending = "route-ended-unobserved"
-            elif record.delegate_family == "home-scan":
-                if self._home_knowledge_current:
-                    record.lifecycle = "completed"
-                    record.ending = "catalogue-adopted"
-            elif work[:1] == ("filed",):
-                request = self._home_errand.request
-                if request is None or (
-                    request.signature, request.quantity,
-                    request.origin, request.purpose
-                ) != work[1:]:
-                    record.lifecycle = "released"
-                    record.ending = "filed-request-replaced"
-                elif not self._home_errand.active:
-                    record.lifecycle = "completed" if (
-                        self._home_errand.state.value == "done"
-                    ) else "released"
-                    record.ending = f"filed-request:{self._home_errand.state.value}"
-            if record.lifecycle == "open" and record.parent_claim_id is not None:
-                register = town_hold_claims(self)
-                live = [register.current, *register.suspended]
-                if not any(
-                    claim is not None and claim.claim_id == record.parent_claim_id
-                    and claim.is_open for claim in live
-                ):
-                    record.lifecycle = "released"
-                    record.ending = "parent-claim-ended"
-        for record in town_hold_delegations(self):
-            declaration = getattr(record, "execution", None)
-            if declaration is None or record.lifecycle == "open":
-                continue
-            state = "done" if record.lifecycle == "completed" else "releasing"
-            if declaration.state != state:
-                record.execution = replace(
-                    declaration, revision=declaration.revision + 1,
-                    state=state, next_step=None, arguments=(),
-                    evidence=record.ending if state == "done" else None,
-                    cause=record.ending if state == "releasing" else None,
-                )
-
     def _town_errand_deferral(self, family, reason, snapshot=None,
                               *, work_identity=None, enforced=True,
                               arrival_board=None):
@@ -5258,7 +3867,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 if (bar.kind == CLAIM_BAR_ERRAND
                         and ":no-step:" in (bar.ending or "")
                         and bar.owner.value == family
-                        and self._claim_bar_after(snapshot, bar) is not None):
+                        and town_claim_bar_after(self, snapshot, bar) is not None):
                     return {"holder_family": family, "holder_claim_id": None,
                             "deferred_family": family, "deferred_reason": reason,
                             "token_would_admit": False, "token_work_identity": None,
@@ -5682,7 +4291,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 ended = replace(holder, closed="release",
                                 closed_reason="no-step:unposted")
             if ended is not None:
-                bar = self._claim_bar_for(snapshot, ended, ended.closed)
+                bar = town_claim_bar_for(self, snapshot, ended, ended.closed)
                 if bar is not None:
                     register.set_bar(bar)
             self.last_reason = f"ownership:holder-released:{holder.owner.value}"
@@ -5777,7 +4386,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._adopt_home_catalogue(tuple(
                         self._inventory_item_from_store_item(item)
                         for item in snapshot.store.items))
-                self._claim_exit_completion(snapshot, holder, [])
+                town_claim_exit_completion(self, snapshot, holder, [])
                 self.last_reason = "equipment-transaction:home-catalog-acquired"
                 self._offer_execution(
                     LEAVE_STORE_KEY, producer=family,
@@ -6474,7 +5083,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # this work before any subsequent Home operation is considered.
             self._store_leave_inflight = None
             if self._home_knowledge_current and not self._home_knowledge_invalidated:
-                self._claim_exit_completion(snapshot, catalogue_holder, [])
+                town_claim_exit_completion(self, snapshot, catalogue_holder, [])
             else:
                 return self._home_catalogue_work_key(snapshot)
         if (snapshot.in_town and self._home_knowledge_scan_inflight
@@ -7248,8 +5857,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         source="fundraising-purpose",
                     ),
                     kind=CLAIM_BAR_ERRAND,
-                    clearance=self._claim_errand_clearance(
-                        snapshot, "fundraising", None
+                    clearance=town_claim_errand_clearance(
+                        self, snapshot, "fundraising", None
                     ),
                     rung="fundraising",
                     since_turn=snapshot.turn,

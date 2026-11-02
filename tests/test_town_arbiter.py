@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from hengbot import town_terminal
 from hengbot.cli import _write_decision
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -725,7 +726,8 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
                                     position=replace(goal, y=y, x=x),
                                 ),
                             )
-                            claimed.append(policy._claim_goal_distance(
+                            claimed.append(town_terminal.claim_goal_distance(
+                                policy,
                                 moved, reach((goal.y, goal.x))
                             ))
                             rows.append(policy._town_turn_arbiter.observe(

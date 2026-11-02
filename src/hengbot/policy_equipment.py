@@ -4,7 +4,8 @@ from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import item_available
 from hengbot.town_pack_budget import home_take_fits
 
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
+from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import consumable_policy, mining_loadout
@@ -3713,8 +3714,8 @@ class EquipmentMixin:
             filing_identity = (
                 "filed", signature, 1, "home-page", "combat-weapon"
             )
-            self._open_execution_delegation(
-                "equipment-txn", "home-errand", filing_identity,
+            town_open_execution_delegation(
+                self, "equipment-txn", "home-errand", filing_identity,
                 ("combat-weapon", signature), "filed-home-request",
                 "equipment/home-errand-existing-budget",
             )
