@@ -1703,6 +1703,23 @@ class EquipmentMixin:
             keys.add(f"identity:{action.item_identity}")
         return frozenset(keys)
 
+    def _equipment_restore_refusals(
+        self, action: EquipmentTransaction | None, failed_before: frozenset[str],
+    ) -> frozenset[str]:
+        """Failed-item memory that refuses restoring a taken-off item.
+
+        A failed deposit refused only Home's shelf, not wearing the item: the
+        abandoned swap still restores what it took off.  n1-a life-464
+        2026-11-02: the session took off 西方国のダガー (the only Free Action
+        source) to deposit it, Home was full, the abandonment dropped its
+        restoration with the deposit's failure, and the 23F departure lost
+        free_action (town:blocked:survival:depth_abilities).
+        """
+        failed = frozenset(self._equipment_transaction_failed_items)
+        if action is None or action.kind != "deposit":
+            return failed
+        return failed_before | (failed - self._equipment_action_memory_keys(action))
+
     def _equipment_memory_contains(
         self, memory: set[str], item: OwnedEquipment
     ) -> bool:
@@ -1801,6 +1818,7 @@ class EquipmentMixin:
             else:
                 self._equipment_transaction_route_abandonment = route_abandonment
                 self._equipment_transaction_route_terminal_pending = False
+        failed_before = frozenset(self._equipment_transaction_failed_items)
         if action is not None:
             if route_blocked and snapshot is not None:
                 # The ledger ceiling normally abandons an active Home session
@@ -1828,6 +1846,7 @@ class EquipmentMixin:
                 self._equipment_quarantine_burned_ids.update(action_memory_keys)
             if not route_blocked and not owner_retired:
                 self._equipment_transaction_failed_items.update(action_memory_keys)
+        restore_refusals = self._equipment_restore_refusals(action, failed_before)
         self._discard_unposted_equipment_transaction_command()
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
@@ -1900,7 +1919,7 @@ class EquipmentMixin:
                 and (
                     identity not in owned_by_identity
                     or not self._equipment_memory_contains(
-                        self._equipment_transaction_failed_items,
+                        restore_refusals,
                         owned_by_identity[identity],
                     )
                 )

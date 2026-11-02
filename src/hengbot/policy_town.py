@@ -5846,9 +5846,19 @@ class TownMixin:
         condition unmet it starts one mining cycle (town_end_mining) when the
         cycle can start, else the existing fallbacks and the hard stop.
         """
-        from hengbot.town_terminal import gather_town_end, verdict_town_end
+        from hengbot.town_terminal import TOWN_END_STEP_OFF, gather_town_end, verdict_town_end
         if self._visit_departure_committed:
             return self._town_blocked_key(snapshot)
+        here = snapshot.grid_at(snapshot.player.position)
+        if (snapshot.store is None and here is not None and here.store_number >= 0
+                and self._home_catalogue_scan_owed() and self._home_available(snapshot)):
+            # The Home list is read before the departure judgement: its
+            # outside ``~9`` waits for a board off a store entrance (n1-c
+            # life-107 18:38, the visit closed on the Black Market entrance
+            # with only the unread Home list unmet).  Step off; the next
+            # board reads the list and judges the departure again.
+            self._town_blocked_reason = None
+            return self._town_entrance_step_off_key(snapshot, TOWN_END_STEP_OFF)
         if cause in self._visit_departure_recorded:
             return None
         minimum, destination, depth = self._visit_departure_minimum(snapshot)

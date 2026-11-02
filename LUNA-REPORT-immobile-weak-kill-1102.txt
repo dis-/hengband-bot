@@ -1,0 +1,114 @@
+immobile-weak-kill-1102 報告（2026-11-02）
+
+■ 指示
+- 「n1-cが迷宮でおそらく弱い動かない敵を避け続けてガーディアンに接触できずに18Fを延々と彷徨っている。
+  弱い敵まで避けると不具合が大きそうなので遠距離攻撃、召喚魔法がなければ普通に倒して。」
+- 追加「遠距離で安全に倒せるなら倒す方を優先する。思ったより探索に与える不具合が大きかった。」
+
+■ 実機で起きたこと（n1-c life-107 魔道具術師 Lv26、build bot-ddd9d4258、迷宮18階＝最下層・ガーディアンの階）
+写し: C:\hengband-backups\pdca\captures\immobile-weak-kill-1102\
+  live\eye-20261102-2002-rows.jsonl.gz（20:02:15-20:02:21 の盤面 85 枚）
+  live\eye-20261102-2002-decisions.jsonl.gz（同じターンの判断 55 行）
+  20261102-195503-loop-detected\（policy-state.json など。スナップショットは大きいので写していない）
+- 18階の判断 19:50-20:10 の内訳: explore 3846、seek-loot 708、ranged:fire 341、stuck:seek-stairs 328、
+  ranged:fire-target 192、summoner:seek-upstairs 66、detected:hold-choke 62 など。
+- 避けていた動かない敵（判断の threat_prediction で never_moves の敵）:
+  1. 発光アイ（race 80、NEVER_MOVE、GAZE:LOSE_STR、DRAIN_MANA、18HP）(6,7) — 94 判断で見えていた。
+     仕組み: immobile_threat_memory の能力値吸収の輪（survival2-1101）。アイは一マス幅の通路の角にいて、
+     輪が通路そのものを経路から外していた。通路 (13..16,6) からは見えるが弾道が通らず（_may_project 偽）、
+     射撃の段は `*t` の空撃ちを各マス3回（ranged:fire-target fn*t5、手応えなし）→ explore で引き返す、を
+     19:56〜20:08 に何周も繰り返した（例: ターン 1801400-1801509）。(8,6)＝輪の2マス手前からは弾道が通り、
+     矢1発の期待値 58 > 18HP で倒せた。
+  2. 閾に棲む者（race 263、NEVER_MOVE、S_MONSTER・BO_ACID、240HP）— 19:51 に動かない召喚者の回避
+     （explore:avoid-immobile-summoner → summoner:seek-upstairs 66 判断）。3発で倒せないので新しい規則でも
+     回避のまま（正しい）。
+  3. 魔法おばけキノコ・ブラウン・モルド・ラーカー等は見えた回数が少なく、回避の仕組みは動いていなかった。
+- detected:hold-choke（62）と stuck:seek-stairs（328）の盤面には動かない敵がいなかった（感知した別の敵・
+  最下層で階段を探す動き）。私の担当外（D31 の系統）。アイの先の通路にガーディアンがいたかは盤面からは
+  確かめられない（通路の東は未知のまま）。
+
+■ 直し（commit b60cc18d8、main と統合 0fece8723）
+1. 一つの判定: immobile_threat_memory.is_avoidable_immobile(policy, monster)
+   ＝ NEVER_MOVE かつ（召喚魔法 または 遠距離攻撃）。遠距離攻撃はゲームの攻撃マスクから導いた
+   （race-ability-mask.cpp:81-88 RF_ABILITY_ATTACK_MASK。INDIRECT の自分向け魔法 SHRIEK/HASTE/HEAL/
+   INVULNER/BLINK/WORLD/TPORT/RAISE_DEAD と SPECIAL 以外はすべて遠距離攻撃: ボルト・ボール・ブレス・矢・
+   SCARE/SLOW/HOLD/TELE_TO/DRAIN_MANA など）。
+   fought_normally ＝ 動かない かつ 上に当たらず 生存の輪（吸収・一撃死）にも当たらない → 普通の敵。
+2. 弱い動かない敵（遠距離も召喚もない）: 「触れると痛い」だけでは輪を作らない（輪の条件の material の項を
+   遠距離攻撃ありに限定）、交戦の門（_material_melee_engagement＝threat:avoid-engagement の退却と狩りの
+   easy 判定）と _engagement_danger_cells の迂回からも外す。→ 狩りで近づき近接で倒す。
+3. 安全に遠距離で倒せるなら倒す（新モジュール immobile_ranged_kill）。「安全な遠距離撃破」の定義は既存の
+   規則だけを使った:
+   - 召喚者を3発以内で倒す規則（_summoner_ranged_kill_key、11-01 survival2 の問い2「3発以内」）:
+     _summoner_shots_to_kill ≤ SUMMONER_RANGED_KILL_SHOTS(3)、合う矢弾あり、盲目・混乱でない。
+   - 射撃マス: 今のマスか、経路（輪は既に経路から外れている）で一番近い、距離 2〜RANGED_MAX_DISTANCE で
+     自分の弾道が届く（_may_project）マス。
+   - その間に死なない: 一撃死の輪と同じ接触時予測 threat_prediction(contact=True) を「歩数＋射撃数」ターンで
+     計算し現在 HP 未満（召喚者規則の _predicted_damage(turns=3) >= hp で断る判定に歩数を足したもの。
+     接触予測なので届かない打撃も数え、安全側）。
+   - 他の敵が見えている・隣にいる時はやらない（通常の段が先、生存優先）。出口が閉じた階（クエスト）は
+     今まで通り既存の戦闘の持ち主が決める。
+   順序: 緊急・麻痺予防の後、_immobile_summoner_key と輪からの退避の前。撃てる時は _ranged_attack_key、
+   届かない時は射撃マスへ一歩（理由 immobile-threat:approach-to-shoot）。
+   動かない召喚者のうち安全に倒せるものは視線の区域（zone）を作らない（_immobile_summoner_key の記憶から外す）。
+4. 生存の輪は残した: 一撃死の接触（デスソード、d57）と能力値吸収（survival2）。ただし両者も「安全に遠距離で
+   倒せる」なら撃つ（輪は隣のマスだけを外すので撃つ邪魔にならない）。
+
+■ 結果（記録盤面、公開の choose_key と本番の executor）
+- アイの盤面: (15,6) から approach-to-shoot で (14,6)→(13,6)→(12,5)→(11,6)→(10,6)→(9,6)→(8,6)、
+  (8,6) で fn*t5（アイに弾道が通る）。輪のマスは一度も踏まない。
+- 矢を外した盤面: アイは今まで通り避ける（輪あり、近づかない）。
+- 弱く作り替えたアイ（呪文なし、10d10×2 の打撃＝material だが一撃死でなく吸収なし）: 輪なし、退却なし、
+  hunt で近づき (7,6) で近接。
+- 動かない召喚者（既存テストの通路）: HP1 → ranged:fire（以前は summoner:recall）、1600HP → summoner:recall のまま。
+- クイルスルグ（summoner-downstairs の記録、48HP、ボルト99本）: 1枚目の盤面は approach-to-shoot に変わった。
+
+■ テスト
+- 新規: tests/test_immobile_weak_kill_1102_recorded.py（4件）
+  fixture tests/fixtures/immobile-weak-kill-20261102.json.gz（抽出 tests/extract_immobile_weak_kill_1102_fixture.py。
+  ガーディアンの判定に使うので迷宮などのガーディアンの種族も入れた）。
+  DECLARED RECONSTRUCTED: 魔道具の使用記録と _me_staff_sequence は同じ階の 19:55:03 の policy-state から。
+  DECLARED CONSTRUCTED: 歩いた後の盤面（同じ盤面でプレイヤーだけ動かす）、矢を外した盤面、弱いアイ。
+- 期待値を新しい振る舞いに更新（壁なし）:
+  - tests/test_immobile_summoner_recorded.py: test_constructed_avoid_even_a_three_shot_finish →
+    test_constructed_three_shot_finish_is_shot_not_avoided（ranged:fire）と
+    test_constructed_summoner_beyond_three_shots_is_still_avoided（summoner:recall）。
+  - tests/test_summoner_downstairs_1102_recorded.py: 記録の1枚目は撃ちに行く
+    test_recorded_board_shoots_the_killable_summoner を追加。回避の床ルールの検査はボルトを外した盤面
+    （DECLARED CONSTRUCTED）で今まで通り。
+- import 検査: OK。
+- 取り消しの証明（1回）: src を戻すと新テストのうち2件が落ちる（(8,6) まで歩かず (15,6) で空撃ち、
+  弱いアイに輪がある・新しい関数がない）。戻すと 4件 OK。矢なしの件は変更前後とも通る対照。
+- 関係テストの前後比較（変更の影響を確かめるため、関係するものだけ）: test_immobile_summoner_recorded の
+  7件、test_ownership_s2a1/s2b1 の読み込みエラーは変更前から落ちている（変更と無関係）。
+  test_d57_nav_depth の control 1件は変更前に落ち、変更後は通った。survival2・immobile_sleeper・d57・
+  n1c_deaths は前後とも通る。
+- town-work manifest: immobile_ranged_kill.py:key（producer/combat）と :plan（data）を review に追加、zero unmapped。
+
+■ checks.json への登録案
+{
+  "id": "IMMOBILE-WEAK-KILL-1102",
+  "owner": "2026-11-02「遠距離攻撃、召喚魔法がなければ普通に倒して」「遠距離で安全に倒せるなら倒す方を優先する」・迷宮18Fで発光アイの輪が通路を塞ぎ彷徨う",
+  "tests": [
+    "tests.test_immobile_weak_kill_1102_recorded",
+    "tests.test_immobile_summoner_recorded",
+    "tests.test_summoner_downstairs_1102_recorded"
+  ]
+}
+
+■ 保守性
+- 判定は immobile_threat_memory に集めた（has_ranged_attack／is_avoidable_immobile／avoided（旧 _avoided を公開）／
+  fought_normally／remembered）。交戦の門・危険マス・輪はこの一つの判定を呼ぶ。
+- 安全な遠距離撃破は新モジュール immobile_ranged_kill に一つ（plan／key／killable）。既存の召喚者3発規則・
+  _may_project・threat_prediction・_ranged_attack_key を再利用し、新しい閾値は作っていない。
+- 遠距離攻撃の一覧はゲームの攻撃マスクから導いた定数一つ（NON_ATTACK_ABILITIES）。種族名・ID の特別扱いはない。
+
+■ オーナーへの問い
+1. 能力値吸収の動かない敵（赤いゼリー等、遠距離攻撃も召喚もない）: 11-01 survival2 の「近づかずに避ける」を
+   残した。安全に撃てる時は撃つが、矢弾がない時は避ける。今回の「遠距離・召喚がなければ普通に倒す」と
+   食い違うので、吸収の敵も矢弾がなければ近接で倒すか、今のまま避けるか。
+2. 一撃で死ぬ接触の動かない敵（デスソード、遠距離なし）: 生存優先で輪を残した。これも同じ扱いでよいか。
+3. 遠距離攻撃の範囲: ゲームの攻撃マスクに従い、ダメージのない視線の呪文（SCARE・SLOW・DRAIN_MANA・
+   DARKNESS・TRAPS 等）も遠距離攻撃に数えた（例: シルバー・ゼリーは DRAIN_MANA があるので今まで通り避ける側）。
+   ダメージのあるものだけに絞るか。
+4. 召喚者に近づく間の召喚は予測に入れていない（既存の3発規則と同じ）。

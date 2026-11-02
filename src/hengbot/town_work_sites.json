@@ -1033,6 +1033,27 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "hunt_target.py:route_key": {
+    "classification": "producer",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "immobile_ranged_kill.py:key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "immobile_ranged_kill.py:plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "immobile_threat_memory.py:route_cells": {
     "classification": "data",
     "rows": [
@@ -4816,6 +4837,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._equipment_restore_refusals": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._equipment_slot_candidate_counts": {
     "classification": "data",
     "rows": [
@@ -7343,6 +7371,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_supply.py:SupplyMixin._identify_staff_offer_pages": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_supply.py:SupplyMixin._identify_staff_priced_out": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_supply.py:SupplyMixin._identify_staff_ready": {
     "classification": "data",
     "rows": [
@@ -7500,6 +7542,20 @@
     "delegation": "selected child; no independent success"
   },
   "policy_supply.py:SupplyMixin._supply_page_offers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_supply.py:SupplyMixin._supply_priced_out": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_supply.py:SupplyMixin._supply_ware": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9181,6 +9237,20 @@
     "delegation": "selected child; no independent success"
   },
   "town_terminal.py:plan_stop_admission": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:purchase_gaps": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:purchase_gaps.priced_out": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -42,6 +42,16 @@ sustained (monster-attack-switcher.cpp:466-486 -> do_dec_stat,
 status/base-status.cpp:209).  Its touch reaches only the cells beside it, so
 the same ring leaves the routes, and a player already standing in a ring
 steps out of it (``step_out_key``) before the combat rungs answer.
+
+Owner 2026-11-02 (immobile-weak-kill-1102): 「弱い動かない敵まで避けると不具合が
+大きそうなので遠距離攻撃、召喚魔法がなければ普通に倒して」 -- a never-moving
+monster without a ranged attack or a summon spell (``is_avoidable_immobile``)
+is an ordinary enemy: its touch alone no longer rings it or makes the
+engagement gate retreat from it (``fought_normally``).  The survival rings
+stay: a one-turn lethal contact and a stat-draining blow (owner 11-01 21h)
+are kept until the owner says otherwise.  「遠距離で安全に倒せるなら倒す方を
+優先する」: every never-moving monster that is still kept away from is shot
+when the bot can kill it safely from range (immobile_ranged_kill).
 """
 
 from __future__ import annotations
@@ -49,6 +59,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from hengbot.model import MonsterState, Position
+from hengbot.monrace_knowledge import SUMMON_ABILITIES
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, ExplorationPathOutcome
 
 MEMORY = "_immobile_threat_memory"
@@ -57,6 +68,14 @@ STEP_OUT_REASON = "immobile-threat:step-out"
 # The blow effects that lower a stat (race-info-tokens-table.cpp:72-78).
 STAT_DRAIN_BLOW_EFFECTS = frozenset({
     "LOSE_STR", "LOSE_INT", "LOSE_WIS", "LOSE_DEX", "LOSE_CON", "LOSE_CHR", "LOSE_ALL",
+})
+# The abilities outside the game's attack masks (race-ability-mask.cpp:81-88
+# RF_ABILITY_ATTACK_MASK): RF_ABILITY_INDIRECT_MASK (101-105) less its
+# summons, and SPECIAL.  Every other ability -- bolts, beams, balls, breaths,
+# arrows, rockets and the spells aimed at the player (SCARE, SLOW, HOLD,
+# TELE_TO, DRAIN_MANA, ...) -- is a ranged attack.
+NON_ATTACK_ABILITIES = frozenset({
+    "SHRIEK", "HASTE", "HEAL", "INVULNER", "BLINK", "WORLD", "TPORT", "RAISE_DEAD", "SPECIAL",
 })
 
 
@@ -73,6 +92,28 @@ def never_moves(policy, monster: MonsterState) -> bool:
     return knowledge is not None and "NEVER_MOVE" in knowledge.flags
 
 
+def has_ranged_attack(knowledge) -> bool:
+    """The race casts or shoots something at the player from a distance."""
+    return any(ability not in NON_ATTACK_ABILITIES and ability not in SUMMON_ABILITIES
+               for ability in knowledge.abilities)
+
+
+def is_avoidable_immobile(policy, monster: MonsterState) -> bool:
+    """A never-moving monster with a ranged attack or a summon spell (owner
+    2026-11-02): the only kind the avoidance mechanisms keep away from, apart
+    from the survival rings (``avoided``)."""
+    knowledge = policy._monrace_knowledge.get(monster.race_id)
+    return (knowledge is not None and "NEVER_MOVE" in knowledge.flags
+            and (knowledge.can_summon or has_ranged_attack(knowledge)))
+
+
+def fought_normally(policy, snapshot, monster: MonsterState) -> bool:
+    """A never-moving monster no avoidance applies to: no ring, no retreat,
+    no detour -- the ordinary combat ladder fights it (owner 2026-11-02)."""
+    return (never_moves(policy, monster) and not is_avoidable_immobile(policy, monster)
+            and not avoided(policy, snapshot, monster))
+
+
 def _lethal(policy, snapshot, monster: MonsterState) -> bool:
     prediction = policy.threat_prediction(
         snapshot, [monster], PREDICTION_TURNS, contact=True)
@@ -85,19 +126,21 @@ def _drains_stats(policy, monster: MonsterState) -> bool:
         blow.effect in STAT_DRAIN_BLOW_EFFECTS for blow in knowledge.blows)
 
 
-def _avoided(policy, snapshot, monster: MonsterState) -> bool:
+def avoided(policy, snapshot, monster: MonsterState) -> bool:
     """A remembered never-moving monster whose ring leaves the routes.
 
     A never-moving summoner that drains (キリス・ウンゴルの番人) stays the
     immobile-summoner owner's (``_immobile_summoner_key``), which already
     keeps out of its sight and fights it when no retreat is left.  A
-    monster whose touch the engagement gate counts as material
-    (``_material_melee_damage``) is passed around by its ring instead of
-    retreated from at a distance (shoot-immobile-sleeper-1102)."""
+    ranged never-moving monster whose touch the engagement gate counts as
+    material (``_material_melee_damage``) is passed around by its ring
+    instead of retreated from at a distance (shoot-immobile-sleeper-1102);
+    without a ranged attack its touch alone is fought (owner 2026-11-02)."""
     if monster.can_summon:
         return _lethal(policy, snapshot, monster)
     return (_drains_stats(policy, monster) or _lethal(policy, snapshot, monster)
-            or policy._material_melee_damage(snapshot, monster))
+            or (is_avoidable_immobile(policy, monster)
+                and policy._material_melee_damage(snapshot, monster)))
 
 
 def _ring(position: Position) -> set[Position]:
@@ -130,10 +173,16 @@ def observe(policy, snapshot) -> None:
     visit.cells = frozenset() if policy._floor_navigation_exit_locked(snapshot) else frozenset(
         cell
         for position, monster in visit.monsters.items()
-        if _avoided(policy, snapshot, monster)
+        if avoided(policy, snapshot, monster)
         for cell in _ring(position)
     )
     _drop_committed_paths(policy, visit.cells)
+
+
+def remembered(policy) -> tuple[MonsterState, ...]:
+    """Every never-moving monster this floor visit remembers (avoided or not)."""
+    visit = getattr(policy, MEMORY, None)
+    return () if visit is None else tuple(visit.monsters.values())
 
 
 def route_cells(policy) -> frozenset[Position]:

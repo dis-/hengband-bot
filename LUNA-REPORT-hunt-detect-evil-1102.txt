@@ -1,0 +1,91 @@
+LUNA-REPORT hunt-detect-evil-1102（ランダムクエストの討伐対象・ガーディアンを感知で探す）
+
+オーナーの指示（2026-11-02）
+  「ランダムクエスト討伐対象やガーディアンを討伐するとき、対象が邪悪なら邪悪感知を用いて探すロジックが欲しい」
+  追加「全感知を使うケースは対象が邪悪であることに拘らない」
+
+コミット
+  f3ca64022 Search for the hunted quest target or guardian by detection
+
+■ 記録で見た症状
+  - n1-c life-103（Lv30 魔道具術師）鉄獄24階 ランダムクエスト41、対象『金のスニッチ』（race 1329、EVIL ではない）。
+    対象を一度も見ないまま breakout:least-visited を続け livelock:exhausted（2026-11-02 09:09、
+    viewing-incidents-20261102/n1-c/life-103/incident-captures/20261102-090917-livelock-exhausted）。
+    全感知のロッド（取り込み済み）は休む前の強力発動で何度も使っていたが、探すための使い方ではなかった。
+  - n1-c life-098（Lv21）鉄獄12階 ランダムクエスト43、対象 鬼殺隊の『先輩』（race 1164、EVIL）。
+    turn 1172193 に一度見え、テレポート・アウェイの魔法棒で飛ばした後（unbeatable-in-range）見失い、
+    stuck:wander の後 livelock:exhausted（20261101-200240-livelock-exhausted）。
+  - サーバの記録（~/hengbot-soak/n1-c/life-*/captures、読むだけ）でも、クエスト43・49の対象は
+    1138・291・1077・1076・138 がすべて EVIL。12階・6階のランダムクエストは邪悪な対象が多い。
+
+■ 直したこと
+  1. 新しいモジュール src/hengbot/hunt_target.py
+     - 追う種族: この階のランダムクエスト（RANDOM / KILL_LEVEL）の対象（固定の作戦が無いもの。
+       _locked_kill_quest_targets と同じ _quest_target_race_id）。無ければ、目標のダンジョンの最終階で、
+       未征服かつ装備で倒せる（_guardian_fight_viable）ガーディアン。
+     - 感知の印は次の行動で消える（spells-detection.cpp keep_detected_monsters の説明、MARK は SHOW が
+       無ければ行動ごとに外れる）ので、ゲームが見せたマスをその階の間だけ覚える（見えたものだけ。
+       覗き見はしない）。そのマスが空だと見えたら忘れる（immobile_threat_memory と同じ確かめ方）。
+     - route_key: 覚えたマスへ歩く（理由 hunt:detected-target）。感知は探索済みの範囲の外まで届くので、
+       既知の道が無いときは、プレイヤーより対象に近い探索の境目（探索と同じ _is_frontier）へ歩く。
+       どちらも無ければ忘れる。敵が見えている時・殴られた直後・帰還の途中は歩かない。
+       入れた場所は _kill_quest_floor_recovery_key の後（生存の段・感知の段の後、探索の前）。
+  2. me_powers の表に引き金 "hunt-target-unseen" を1つ足した（表のデータだけで表す）。
+     - 邪悪存在感知の行と全感知（ロッド sval 6）の行の両方に付けた。行の効果がその種族を感知できる時だけ
+       撃つ（hunt_target.REVEALS: detect-evil は EVIL、detect-all はすべて。spells-detection.cpp の
+       detect_monsters_evil と detect_all→detect_monsters_invis/normal で確認）。
+       → 邪悪な対象: 邪悪感知の行（全感知が使えれば既存の preferred で全感知、安全なら強力発動）。
+       → 邪悪でない対象: 全感知の行だけが撃つ。邪悪感知は撃たない（今までと同じ）。
+     - 間隔の決まりは地図の行と同じ「前に使った所から感知の半径以上離れてから」。その種族を感知できた
+       前の使用（邪悪な対象なら邪悪感知と全感知、そうでなければ全感知だけ）すべてから半径以上。
+       半径は DETECT_RAD 30（spell/spells-util.h DETECT_RAD_DEFAULT）、強力発動は 30*3/2=45
+       （cmd-item/cmd-zaprod.cpp:50）、DARKNESS のダンジョンでは 1/3。
+     - 共通の決まり（敵が見えている・殴られた直後は撃たない、5回失敗した場所では諦める）は既存のまま。
+  3. policy.py: ガーディアンの階の判定を _target_guardian_floor_id に切り出し、
+     _viable_target_guardian_visible と hunt_target で共用（判定の重複なし）。
+
+■ テスト（tests/test_hunt_detect_1102_recorded.py、7件、全部合格）
+  記録の盤面: snitch-24f（life-103 turn 2408201、記録の判断 12584 は explore）、
+  senior-12f（life-098 turn 1171515）。公開の choose_key と本番の executor を通す。
+  - 邪悪でない対象＋全感知あり → UCg（me-power:hunt-target-unseen:detect-all:powerful）、
+    U b C g の順に受理、次の盤面で感知した対象へ hunt:detected-target で歩く（印が消えた次の盤面でも）。
+  - 邪悪でない対象＋全感知なし → explore のまま（変わらない）。
+  - 強力発動の全感知が 44 マス先にあれば撃たず、45 マス先なら撃つ。
+  - 邪悪な対象: 記録どおりの使用歴では (16,97) の邪悪感知が12マス先にあるので撃たない（間隔の決まり）。
+    その1回を除くと mAp（me-power:hunt-target-unseen:detect-evil）、m A p の順に受理。
+  - 殴られた直後は撃たない。
+  宣言した作り物: 全感知のロッドの一覧の行、senior-12f の (16,97) の使用を除いた使用歴、
+  キーへのゲームの返事、感知した対象の位置（次の盤面）。
+  revert-proof（1回）: src/hengbot/me_powers.py と policy.py を戻すと 3件失敗（撃つ2件と45マスの件）、
+  4件（変わらない側）は合格。戻して合格を確認。
+  確認: import の確認、このテスト、town_work_manifest.py --write（zero unmapped、
+  hunt_target.py:route_key のレビューを追加）。
+
+■ checks.json に足す案
+  {
+   "id": "HUNT-DETECT-TARGET",
+   "owner": "2026-11-02「ランダムクエスト討伐対象やガーディアンを討伐するとき、対象が邪悪なら邪悪感知を用いて探すロジックが欲しい」「全感知を使うケースは対象が邪悪であることに拘らない」",
+   "tests": [
+    "tests.test_hunt_detect_1102_recorded"
+   ]
+  }
+
+■ 保守性
+  - 追う種族・感知したマスの記憶・そこへの歩き方は hunt_target.py の1か所。me_powers 側は引き金1つと
+    「どの効果がどの種族を感知するか」の表（REVEALS）だけ。感知の道具が増えても REVEALS と表の行に
+    名前を足すだけでよい。
+  - ガーディアンの階の判定は _target_guardian_floor_id に1つにまとめ、既存の判定と共用した。
+  - クエストの番号・種族の番号・職業名は共通の判断に書いていない（クエストの種類は表の集合）。
+
+■ やらなかったこと・オーナーへの質問
+  1. 魔道具術師以外（戦士の n1-a・n1-b）が持ち歩く邪悪存在感知の杖や全感知のロッドを使う道は
+     作っていない。今の観戦用の非魔道具術師はこれらを買わず持っておらず、杖・ロッドを使う道で
+     見つけたのは鑑定用だけ（使える物だけを使う、の決まり）。邪悪感知の巻物は lib/edit に無い。
+     必要なら別の発注にしたい。
+  2. 間隔の決まりは「前に使った所から半径以上離れてから」をそのまま使った。対象は動くので、同じ範囲を
+     長くさまようと二度と撃たない（life-098 は (16,17) の近くで約1万5千ゲームターン stuck:wander して
+     いた）。地図と違い、一定の時間が経ったら同じ場所でも撃ち直してよいか、決めてほしい。
+  3. life-098 の『先輩』は見えた時に「倒せない」と判断され、テレポート・アウェイで飛ばしていた。
+     感知で見つけて近づいても、見えた後は既存の戦闘の判断（倒せなければ飛ばす）のまま。倒せない
+     クエスト対象を探し続けるかは今回変えていない。
+  4. ガーディアンの階は記録の盤面が無く、テストはランダムクエストの盤面だけ。

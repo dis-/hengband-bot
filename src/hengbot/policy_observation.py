@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait, town_end_mining
+from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait, town_end_mining
 import json
 
 from hengbot.town_terminal import (
@@ -978,6 +978,7 @@ class ObservationMixin:
             self._breeder_breakthrough_floor = None
             summoner_wait.forget_floor_visit(self)
             immobile_threat_memory.forget_floor_visit(self)
+            hunt_target.forget_floor_visit(self)
             breeder_stalemate.forget(self)
             if snapshot.in_town:
                 # Owner rule (2026-10-31): the escape descent cooldown keeps the
@@ -1033,6 +1034,7 @@ class ObservationMixin:
         dark_recall.observe(self, snapshot)
         lamp_fuel.observe(self, snapshot)
         immobile_threat_memory.observe(self, snapshot)
+        hunt_target.observe(self, snapshot)
         self._took_curse_damage = self._took_damage and any(
             " drains HP from you!" in message
             or " drains life from you!" in message

@@ -1599,9 +1599,12 @@ class NavigationMixin:
         identity: ExplorationGoalIdentity,
     ) -> bool:
         if identity.kind == ExplorationGoalKind.VISIT:
+            # A visit goal seen inside the player's own light on the way is
+            # explored (#101), as _plan_explore_path_pass no longer owes it.
             return (
                 snapshot.player.position == identity.position
                 or self._visit_counts[identity.position] > 0
+                or (identity.position.y, identity.position.x) in self._marked_t
             )
         if identity.kind == ExplorationGoalKind.FRONTIER:
             return not self._is_remembered_frontier(snapshot, identity.position)
@@ -1758,10 +1761,16 @@ class NavigationMixin:
                 # once before declaring that only frontier/secret-door work is
                 # left.
                 # Inside a magic mapping every walkable grid is either mapped
-                # corridor or already seen: none is owed a visit.
+                # corridor or already seen: none is owed a visit.  Neither is
+                # floor already explored (_marked_t): owner 2026-10-23 (#101)
+                # 「探索済みとする」 -- floor seen inside the player's own light
+                # is explored, and the unknown ground beyond it is reached as a
+                # frontier.  Stepping on every such cell swept a dark cave floor
+                # cell by cell for half an hour (hourly-1900-1102).
                 if (
                     self._visit_counts[pos] == 0
                     and (pos.y, pos.x) in self._floor_t
+                    and (pos.y, pos.x) not in self._marked_t
                     and pos not in self._unenterable_explore_goals
                     and not mapped_area.covers(self, (pos.y, pos.x))
                 ):

@@ -33,6 +33,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_TAKEN,
     QUEST_STATUS_UNTAKEN,
     STAFF_IDENTIFY_MIN_SUCCESS,
+    SUPPLY_LABEL_KINDS,
     TOWN_TELEPORT_COST,
     TOWN_TRAVEL_STALL_LIMIT,
 )
@@ -1414,6 +1415,18 @@ def stockout_mining_intended_terminal(
     return stockout_mining_supply_terminal(policy, board, failed=failed)
 
 
+# The procurement requirement labels (policy_supply.procurement_requirements)
+# that supply each departure leaf.
+LEAF_SUPPLY_LABELS: dict[str, frozenset[str]] = {
+    "recall_departure_ready": frozenset({"Word of Recall scrolls"}),
+    "food_ready": frozenset({"Food rations", "Device charges for food"}),
+    "light_ready": frozenset({"Flasks of oil"}),
+    "teleport_ready": frozenset({"Teleport scrolls"}),
+    "cure_critical_ready": frozenset({"Cure Critical Wounds potions"}),
+    "remove_curse_ready": frozenset({"Remove Curse scrolls", "*Remove Curse* scrolls"}),
+}
+
+
 def stockout_mining_supply_terminal(
     policy: Any, board: Any, *, failed: tuple[str, ...] | None = None,
 ) -> TerminalRef | None:
@@ -1422,14 +1435,7 @@ def stockout_mining_supply_terminal(
     The dispatcher consumes the departure's failed leaves; terminal admission
     separately checks the physical surface before starting a mining run.
     """
-    labels = {
-        "recall_departure_ready": {"Word of Recall scrolls"},
-        "food_ready": {"Food rations", "Device charges for food"},
-        "light_ready": {"Flasks of oil"},
-        "teleport_ready": {"Teleport scrolls"},
-        "cure_critical_ready": {"Cure Critical Wounds potions"},
-        "remove_curse_ready": {"Remove Curse scrolls", "*Remove Curse* scrolls"},
-    }
+    labels = LEAF_SUPPLY_LABELS
     # Installing a one-run procurement plan is not ordinary dungeon entry.
     # Optional catalogue/identification work can remain pending; physical
     # transfers must settle before another expedition can own the board.
@@ -6071,16 +6077,20 @@ def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
 # owner answers ends the visit in one of three declared ways, never by the
 # dungeon wander fallbacks (breakout:least-visited, stuck:wander).  Owner
 # 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は
-# 拒否する。」: no departure leaves with a condition unmet.
+# 拒否する。」: no departure leaves with a condition unmet.  Owner 2026-11-02
+# 「購入に関する問題以外は採掘せずに名前を付けて停止を採用」: only a purchase
+# gap (a supply the seen shelves sell above the carried gold) is mined for.
 #   depart  every ordinary departure condition holds;
-#   mine    a condition is unmet: one mining cycle through the fundraising
-#           owners (town_end_mining), then the conditions are retried;
-#   stop    a condition is unmet and the mining cycle cannot leave (a mining
-#           set is already open and no owner answered, this visit's cycle was
-#           closed in town, the opening Q34 holds fundraising, or a transfer
-#           is still in flight): town:blocked:survival:<leaf> for a
-#           departure-minimum leaf (policy._departure_minimum), else
-#           town:blocked:unmet:<name>.
+#   mine    every unmet condition is a purchase gap: one mining cycle through
+#           the fundraising owners (town_end_mining), then the conditions are
+#           retried;
+#   stop    a condition other than a purchase gap is unmet (an owner's defect
+#           to fix; it names the stop even beside a purchase gap), or the
+#           mining cycle cannot leave (a mining set is already open and no
+#           owner answered, this visit's cycle was closed in town, the opening
+#           Q34 holds fundraising, or a transfer is still in flight):
+#           town:blocked:survival:<leaf> for a departure-minimum leaf
+#           (policy._departure_minimum), else town:blocked:unmet:<name>.
 TOWN_END_CAUSE = "no-owner-answered"
 TOWN_END_STEP_OFF = "town:end-step-off"
 # The minimum leaves a mining preparation cannot start over (the transfer
@@ -6097,6 +6107,8 @@ class TownEndMaterial:
     survival_unmet: tuple[str, ...]
     mining_set_open: bool
     mining_startable: bool
+    # The unmet conditions that are purchase gaps (``purchase_gaps``).
+    purchase_gaps: tuple[str, ...] = ()
 
 
 class TownEnd(NamedTuple):
@@ -6104,11 +6116,30 @@ class TownEnd(NamedTuple):
     conditions: tuple[str, ...]
 
 
+def purchase_gaps(policy: Any, board: Any, unmet: tuple[str, ...]) -> tuple[str, ...]:
+    """The ``unmet`` leaves whose every short supply is priced above the gold."""
+    ledger = policy._supply_ledger(board, policy._planned_depth())
+
+    def priced_out(name: str) -> bool:
+        if name == "identify_staff_ready":
+            return policy._identify_staff_priced_out(board)
+        short = [kind for kind in {SUPPLY_LABEL_KINDS[label]
+                                   for label in LEAF_SUPPLY_LABELS.get(name, ())}
+                 if kind in ledger and ledger[kind].count < ledger[kind].required_departure]
+        return bool(short) and all(policy._supply_priced_out(board, kind) for kind in short)
+
+    return tuple(name for name in unmet if priced_out(name))
+
+
 def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:
     minimum, _destination, _depth = policy._visit_departure_minimum(board)
+    unmet = gather_recall_departure(policy, board).failed
+    survival_unmet = tuple(minimum["failed"])
     return TownEndMaterial(
-        unmet=gather_recall_departure(policy, board).failed,
-        survival_unmet=tuple(minimum["failed"]),
+        unmet=unmet,
+        survival_unmet=survival_unmet,
+        purchase_gaps=purchase_gaps(
+            policy, board, tuple(dict.fromkeys((*survival_unmet, *unmet)))),
         mining_set_open=town_end_mining.mining_set_open(policy),
         mining_startable=(
             all(minimum["values"][name] is True for name in MINING_START_TRANSFER_LEAVES)
@@ -6117,20 +6148,24 @@ def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:
 
 
 def verdict_town_end(material: TownEndMaterial) -> TownEnd:
-    """Pure: depart when nothing is unmet, else mine once, else stop."""
+    """Pure: depart when nothing is unmet, mine once for purchase gaps, else stop."""
     unmet = tuple(dict.fromkeys((*material.survival_unmet, *material.unmet)))
     if not unmet:
         return TownEnd("depart", ())
+    defects = tuple(name for name in unmet if name not in material.purchase_gaps)
+    if defects:
+        return TownEnd("stop", defects)
     if material.mining_set_open or not material.mining_startable:
         return TownEnd("stop", unmet)
     return TownEnd("mine", unmet)
 
 
 def town_end_stop_reason(material: TownEndMaterial, end: TownEnd) -> str:
-    """The named stop's blocked reason: the first unmet condition."""
-    if material.survival_unmet:
-        return f"survival:{material.survival_unmet[0]}"
-    return f"unmet:{end.conditions[0]}"
+    """The named stop's blocked reason: the first condition the stop names."""
+    first = end.conditions[0]
+    if first in material.survival_unmet:
+        return f"survival:{first}"
+    return f"unmet:{first}"
 
 
 def overweight_home_key(policy: Any, board: Any) -> str | None:

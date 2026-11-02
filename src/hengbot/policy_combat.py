@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_threat_memory, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -329,7 +329,9 @@ class CombatMixin:
         ):
             return None
         for monster in perceived:
-            if self._summoner_never_approaches(snapshot, monster):
+            # One killed safely from range is shot, not avoided (owner 11-02).
+            if (self._summoner_never_approaches(snapshot, monster)
+                    and not immobile_ranged_kill.killable(self, snapshot, monster)):
                 remembered[monster.position] = monster.race_id
             else:
                 remembered.pop(monster.position, None)
