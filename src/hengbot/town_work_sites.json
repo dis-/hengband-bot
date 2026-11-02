@@ -4317,6 +4317,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._viable_target_guardian_visible": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._victory_loot_key": {
     "classification": "producer",
     "rows": [
@@ -4854,6 +4861,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_combat.py:CombatMixin._summoner_may_summon_next_turn": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_combat.py:CombatMixin._summoner_never_approaches": {
     "classification": "data",
@@ -6368,6 +6382,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_quest.py:QuestMixin._duel_fight_viable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_quest.py:QuestMixin._evaluate_fixed_quest_readiness": {
     "classification": "data",
     "rows": [
@@ -6481,6 +6502,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_quest.py:QuestMixin._fixed_quest_target.supported": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._guardian_fight_viable": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

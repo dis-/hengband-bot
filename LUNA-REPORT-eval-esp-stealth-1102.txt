@@ -1,0 +1,162 @@
+LUNA-REPORT eval-esp-stealth-1102（2026-11-02、branch eval-esp-stealth-1102、59230b90d の上）
+
+コミット
+  81f5484bd Read only a teleport for the guardian reposition                      （1. 守護者の位置の取り直し）
+  ac716601c Value telepathy highly and stealth somewhat in the loadout comparison  （2. テレパシーと隠密の評価）
+
+
+1. guardian:teleport-to-cover はショート・テレポートで代えず、テレポートだけを読む — 直した（81f5484bd）
+
+  ユーザー（原文）: 「そもそもショートテレポートでは十分な距離が稼げないため代替にならない。」
+
+  直し: policy_combat.py の緊急の逃げの段で、守護者の位置の取り直し（guardian_reposition。召喚の敵が次の
+    ターンに召喚でき、倒すべき守護者が 1 体見えていて、予測の被害が HP 未満）の時だけ
+    _escape_scroll(snapshot, teleport_only=guardian_reposition) で読む。gloves-phase-1102 で足した
+    teleport_only をそのまま使う（読める条件の判定は _escape_scroll の 1 か所のまま）。
+    守護者でない緊急の逃げ（emergency:teleport / emergency:phase）は今のまま。
+
+  テレポートが無い時の次の段（今のまま）:
+    - その前に階段（_escape_by_stairs）が先に試される（変更なし）。
+    - 巻物の段の次は帰還の詔（emergency:recall）。条件は「地下にいる・帰還中でない・クエストの階で
+      出口が閉じられていない・巻物を読める」。守護者はダンジョンの守護者でクエストではないので、
+      多くの場合この帰還を読み、その階（守護者の挑戦）から離れる。
+    - 帰還も無ければ、回復薬（HP が低い時）→ 上り階段を探す → 町の最後の戦い → 逃げる一歩 →
+      隣の敵を殴る → emergency:wait。
+    - 記録の盤面では 'ri' emergency:recall（下のテスト）。
+
+  記録: C:\hengband-backups\pdca\captures\unfixed-24h-1031\n1-b\life-249\
+    - captures\20261030-002001-loop-detected\bot-decisions.jsonl.gz の決定 15005（turn 463280）
+      'rh' guardian:teleport-to-cover（h はテレポートの巻物 14 枚、g はショート・テレポート 1 枚）。
+    - 盤面は incident-captures\20261030-002000-loop-detected\snapshots\snapshots-current.jsonl.gz の
+      turn 463280 の行。戦士 Lv19、イークの洞穴 13F、守護者 237 イークの大王『ボルドール』が見えている。
+    - 全キャプチャの決定ログで guardian:teleport-to-cover はこの 1 件だけだった。
+
+  テスト: tests.test_guardian_phase_1102_recorded.GuardianRepositionTeleportOnlyRecordedTest（2 件）
+    - 抽出: tests/extract_guardian_phase_1102_fixture.py → tests/fixtures/guardian-phase-20261030.json.gz
+      （盤面 1 行、その前の ~f の技能の行、決定 15003-15006 の鍵と理由）。
+    - 新しい policy に公開の choose_key で流す。記録の盤面ではそのまま 'rh' guardian:teleport-to-cover
+      （記録と同じ）。
+    - 宣言した組み立て: 目標のダンジョン（2）、2 件目ではテレポートの巻物（h）を抜いて
+      ショート・テレポート（g）だけにする。結果は 'ri' emergency:recall（'rg' も guardian:teleport-to-cover
+      も出ない）。
+    - 本番の executor には流していない（鍵は普通の読む操作）。
+    - 差し戻しの確認（policy_combat.py の hunk を戻す）: 失敗（AssertionError: 'rg' == 'rg'。
+      ショート・テレポートを読む）。戻して通る。
+
+  town-work の manifest: この変更で _viable_target_guardian_visible・_duel_fight_viable・
+    _guardian_fight_viable が候補になったので、scripts/town_work_review.json に既存の形式（data、
+    returns bool）で 3 件足し、--write で zero unmapped を確かめた（同じコミットに入れた）。
+
+
+2. 装備の比較でテレパシーを高く、隠密を少し評価する — 直した（ac716601c）
+
+  ユーザー（原文）: 「装備の比較方法は定義済のはずだが、改めて答えるとその中ではテレパシーを高く評価、
+    隠密を多少評価する」
+
+  既に決まっていた比較の方法（引用）:
+    - bot-client/AGENTS.md「Authoritative depth requirements」:
+      「Among loadouts satisfying the depth requirements, maximize offense and defense. Do not trade
+      away a required resistance or ability for raw AC or damage.」
+      「Weight is not an equipment comparison criterion.」
+      テレパシーは 50F からの必須の能力（表の 50-80F・81F+ の行）。それより浅い所では評価に入っていなかった。
+    - ユーザーの決定 2026-10-02（memory equipment-margin-ratio-decision-20261002）:
+      「指輪で優先度が低いのはどう見ても守りの指輪。ACの評価が高すぎる。」→「生存÷撃破の比で比べる」、
+      追加で「足切りも比に置き換える」。
+      実装: combat_margin = 生存ターン ÷ 撃破ターン（warrior_loadout_evaluator.py）、1% の帯の中は同等、
+      攻撃は 5% を「実質的な差」とする（equipment_optimizer.py _prefer・_stable_operational_best）。
+    - 光源: 2026-10-19「照らせる範囲も比べる」、2026-10-23「合計で比べる」（同点の時の比べ方）。
+    - warrior_optimization.py の注釈: ESP などの旗は「評価の使い手がまだ無く、作った点数は付けない」。
+      つまり、テレパシーも隠密も比較に入っていなかった（戦闘の模擬に効かないため、AC の高い品に必ず負けた）。
+      memory の class-magic-aptitude・light-radius-total・equipment-optimization-structural-rework にも
+      テレパシー・隠密の評価の決定は無かった。
+
+  選んだ数（既存の比の基準に合わせ、比に掛ける割合として足す。src/hengbot/equipment_utility.py の表）:
+    - 全テレパシー（TR_TELEPATHY 79）: +10%（TELEPATHY_BONUS 0.10）。
+      理由: 攻撃の「実質的な差」5% の 2 倍、同等の帯 1% の 10 倍。小さな AC の差には勝つが、大きな生存・
+      攻撃の差には負ける。参考: 10-02 の実測で AC +19 は 21F の被近接を 22.7% 下げた（生存は約 +29%）ので、
+      その規模の AC の差にはテレパシーでも勝たない。
+    - 種族ごとの ESP（TR_ESP_ANIMAL 104 〜 TR_ESP_UNIQUE 115）: 1 種類 +1%（同等の帯 1 つ分）、
+      合計の上限 +5%（全テレパシーの半分）、全テレパシーがあれば足さない。全テレパシーが一番高い。
+    - 隠密（TR_STEALTH 8、pval 1 あたり）: +0.5%。+2 で同等の帯 1 つ分なので、ほぼ同じ装備の間の
+      決め手になる程度（「多少」）。pval は符号つきで足す（ゲームの player-status/player-stealth.cpp と同じ）。
+    - 透明視・再生・遅消化・警告・オーラは足していない（今回の答えに無い）。
+    - 生まれつきのテレパシー（較正の TR 旗）がある時は、どの装備でも同じ +10% になり差を生まない。
+
+  どこで効くか:
+    - combat_margin（生存÷撃破の比）に (1 + 割合) を掛ける（有限の時）。同じ値を LoadoutMetrics.utility_value
+      に残し、_prefer の同点の決め手（secondary_value の次）、_stable_operational_best の決め手の並び
+      （secondary_value の次）、パレートの前線の比べに足した。
+    - BENEFICIAL_GEAR_FLAGS（warrior_loadout_search.py）に隠密と ESP の種類を足した（テレパシー 79 は
+      元から入っていた）。これで、ESP・隠密を持つ品が「上位の品に支配されている」として探索から外されたり、
+      素の装備の見比べ（_plain_gear_armour_dominated）や disposable_dominated_item_ids で壊す・処分する
+      候補になったりしない。
+    - 限界（変えていない）: 比の前にある足切り（攻撃の半分の足切り、生存 30 ターンの足切り、
+      攻撃の 95% の足切り）には割合を入れていない。攻撃が 5% を超えて下がる品は、テレパシーがあっても
+      選ばれない。品が 44 以上の時の探索は今の装備から 1 か所ずつ替える探索のまま。
+
+  テスト: tests.test_eval_esp_stealth_1102_recorded.EquipmentUtilityRecordedTest（2 件）
+    - 記録の盤面: n1-a life-464（戦士 Lv40）の決定 2293 の町の盤面（tests/fixtures/gloves-phase-1102.json.gz、
+      tests.test_gloves_phase_1102_recorded と同じ再生を公開の choose_key で流す）。その後、本番の
+      _prepare_equipment_optimization をその盤面の品の一覧（142 品）で動かす。
+    - 宣言した組み立て（再生自体の較正・~f・~9 のほかに、各テストで家に 1 品）:
+      a. 装備中のドラゴン・グローブ [4,+11] {r時} の写しで to_a 8（AC 3 低い）＋テレパシー
+         → 選ばれる腕はテレパシーの手袋、utility_value 0.10。
+      b. 家の ★センゲル王の金属帽子 [3,+12] (+3) の写しに隠密の旗を足す（pval 3 が隠密 +3 になる）
+         → 選ばれる頭は隠密の写し、utility_value 0.015（戦闘の値は同じなので同点の決め手）。
+    - 差し戻しの確認（1 回、src の 4 ファイルの hunk を戻す。equipment_utility.py は残す）: 2 件とも失敗
+      （'equipped:8f2b0ceb6cf8a721:0' != 'home:telepathy-gloves'、
+       'equipped:c5ae2aa611667f03:0' != 'home:stealth-helm'）。戻して通る。
+    - 関係する既存のテスト tests.test_gloves_phase_1102_recorded（2 件、同じ表と同じ盤面）も
+      期待値を変えずに通る。
+    - 新しい関数（equipment_utility.utility_value）を足したので town_work_manifest.py --write を流した:
+      zero unmapped（新しい候補は無い）。
+
+
+3. 検査
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+  - 新しいテスト: test_guardian_phase_1102_recorded 2 件 OK（約 11 秒）、
+    test_eval_esp_stealth_1102_recorded 2 件 OK（約 75 秒）。
+  - 関係する既存のテスト: test_gloves_phase_1102_recorded 2 件 OK（期待値の変更なし）。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - 注意: 装備の最適化を記録で固定しているほかのテストのうち、一覧に ESP・隠密の品がある盤面は
+    選ばれる装備が変わる可能性がある（例: classC2-departure の 警告の指輪 {警~死}、depart2-1101 の
+    探索のアミュレット {~デ}・賢者のアミュレット、friendly-unbeatable・warrior-q1-lower の
+    探索のアミュレット）。決まりどおり流していないので、取り込みの前の確認で落ちたら新しい振る舞いに
+    期待値を合わせる。
+  - テストの壁はない。裏の処理は残していない。git stash は使っていない。
+
+
+4. 保守性
+
+  - 1. は既存の _escape_scroll(teleport_only=...) を使う 1 か所の変更。新しい探し方や条件の写しは無い。
+  - 2. は「戦闘の模擬に効かない装備の価値」を 1 つのモジュール equipment_utility.py にまとめた
+    （旗の番号・割合・計算が 1 か所。ゲームの tr-types.h の番号と出どころを注釈に書いた）。
+    評価器はその関数を呼ぶだけ、BENEFICIAL_GEAR_FLAGS は同じモジュールの UTILITY_FLAGS を使うので、
+    支配の比べと評価の旗が食い違わない。ほかの旗を後で評価するときもこの表に足せばよい。
+  - LoadoutMetrics の使われていない relevant_traits は触っていない。
+
+
+5. checks.json の案（編集していない）
+
+  {"id": "GUARDIAN-REPOSITION-TELEPORT-ONLY",
+   "defect": "守護者の位置の取り直し guardian:teleport-to-cover がテレポートの無い時にショート・テレポートを読んでいた（n1-b life-249 決定 15005 の盤面）",
+   "owner": "そもそもショートテレポートでは十分な距離が稼げないため代替にならない。（2026-11-02）",
+   "tests": ["tests.test_guardian_phase_1102_recorded.GuardianRepositionTeleportOnlyRecordedTest"]}
+  {"id": "LOADOUT-TELEPATHY-STEALTH-VALUED",
+   "defect": "装備の比較（生存÷撃破の比）がテレパシー・ESP・隠密を見ず、テレパシーの品が AC の高い品に負けていた",
+   "owner": "装備の比較方法は定義済のはずだが、改めて答えるとその中ではテレパシーを高く評価、隠密を多少評価する（2026-11-02）",
+   "tests": ["tests.test_eval_esp_stealth_1102_recorded.EquipmentUtilityRecordedTest"]}
+
+
+6. ユーザーへの問い
+
+  - 問い 1: 選んだ数（全テレパシー +10%、種族の ESP 1 種類 +1%・上限 +5%、隠密 1 あたり +0.5%）でよいか。
+    「高く」「多少」を既存の 5%・1% の基準に合わせて決めた。
+  - 問い 2: テレパシーは比の前の「攻撃の 95% の足切り」に入れていない。攻撃が 5% を超えて下がる
+    テレパシーの品は選ばれない。それでよいか（足切りにも入れると振る舞いが大きく変わる）。
+  - 問い 3: 守護者の位置の取り直しでテレポートが無い時は、今のまま帰還の詔を読んでその階を離れる
+    （守護者への挑戦はその回は終わる）。それでよいか。
+  - 申し送り（既存の性質、今回は変えていない）: BENEFICIAL_GEAR_FLAGS の支配の比べは pval の符号を
+    見ない（腕力などと同じく、負の隠密の品も「旗が多い方」になりうる）。負の pval は呪われた品が多く
+    素の装備・探索の対象になることはまれ。
