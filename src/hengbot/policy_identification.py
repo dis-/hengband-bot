@@ -822,6 +822,33 @@ class IdentificationMixin:
             and STORE_ALCHEMIST not in self._town_store_attempted
         )
 
+    def _defer_identification_candidate(
+        self, signature: tuple[str, int, int], home_site: str
+    ) -> None:
+        """Defer an identification candidate this town visit cannot serve.
+
+        A carried candidate (pack or worn) joins the visit's unidentifiable
+        carried set, which every in-town observation keeps; a Home deferral
+        of a carried item is released by the next board's carried-catalog
+        refresh (``_refresh_carried_equipment_catalog``), so the refused
+        worn-item identification asked for the source again on every board
+        and the need hid every later town need from the router (n1-a
+        life-468 07:26, n1-b life-302 07:32: the town end stopped under
+        identify_staff_ready with the Magic shop and Black Market unvisited).
+        Anything else is deferred at Home under ``home_site``.
+        """
+        carried = any(
+            owned.origin in {"pack", "equipped"}
+            and self._item_signature(owned.item) == signature
+            for owned in self._equipment_catalog.items
+        )
+        if carried:
+            self._town_unidentifiable_carried_sigs.add(signature)
+            self._equipment_optimization_signature = None
+            self._equipment_optimization_preparation = None
+        else:
+            self._defer_home_item(signature, home_site)
+
     @staticmethod
     def _identification_flow_candidate(
         item: InventoryItem | StoreItem,

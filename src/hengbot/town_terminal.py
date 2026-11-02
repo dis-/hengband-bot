@@ -305,11 +305,16 @@ def launcher_enchant_scroll_held(policy: Any, board: Any) -> bool:
 
 
 def equipped_identification_target(policy: Any, board: Any) -> Any:
-    """The worn item ``_town_equipped_identification_key`` identifies, or None."""
+    """The worn item ``_town_equipped_identification_key`` identifies, or None.
+
+    A worn item this visit cannot identify (the visit's unidentifiable
+    carried set, ``_defer_identification_candidate``) is skipped like a
+    carried one (``carried_identification_target``)."""
     return next(
         (item for item in board.equipment
          if item.slot in EQUIPMENT_SLOT_KEY
          and policy._item_signature(item) not in policy._deferred_home_items
+         and policy._item_signature(item) not in policy._town_unidentifiable_carried_sigs
          and policy._identification_flow_candidate(item)),
         None)
 

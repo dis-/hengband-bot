@@ -3304,16 +3304,8 @@ class EquipmentMixin:
                 cause="town-equipment-context-unavailable",
             )
             return None
-        target = next(
-            (
-                item
-                for item in snapshot.equipment
-                if item.slot in EQUIPMENT_SLOT_KEY
-                and self._item_signature(item) not in self._deferred_home_items
-                and self._identification_flow_candidate(item)
-            ),
-            None,
-        )
+        from hengbot.town_terminal import equipped_identification_target
+        target = equipped_identification_target(self, snapshot)
         if target is None:
             self._offer_execution_no_step(
                 producer="identification", work_id="identify:equipped",

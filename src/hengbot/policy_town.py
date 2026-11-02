@@ -4816,18 +4816,11 @@ class TownMixin:
                 if pending is not None
                 else self._identification_candidate
             )
-            candidate_origins = {
-                owned.origin
-                for owned in self._equipment_catalog.items
-                if candidate is not None
-                and self._item_signature(owned.item) == candidate
-            }
-            if candidate is not None and candidate_origins & {"pack", "equipped"}:
-                self._town_unidentifiable_carried_sigs.add(candidate)
-                self._equipment_optimization_signature = None
-                self._equipment_optimization_preparation = None
-            elif candidate is not None and "home" in candidate_origins:
-                self._defer_home_item(candidate, "full-identify-expedition-capacity")
+            if candidate is not None and any(
+                    self._item_signature(owned.item) == candidate
+                    for owned in self._equipment_catalog.items):
+                self._defer_identification_candidate(
+                    candidate, "full-identify-expedition-capacity")
             elif self._device_identification_candidate is not None:
                 self._deferred_device_items.add(self._device_identification_candidate)
             self._home_pending_item = None
