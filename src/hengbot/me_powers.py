@@ -53,6 +53,12 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    its row's ``powerful`` "when-safe" casts it through Powerful Activation
    (me_powerful_activation; rod_effect's powerful radius is DETECT_RAD * 3 / 2,
    cmd-zaprod.cpp:50, for the same charge, cmd-magiceat.cpp:488).
+ - Hunting (owner 2026-11-02 「ランダムクエスト討伐対象やガーディアンを討伐するとき、
+   対象が邪悪なら邪悪感知を用いて探す」, 「全感知を使うケースは対象が邪悪であることに
+   拘らない」): the "hunt-target-unseen" trigger of both rows asks hunt_target
+   for the hunted race shown nowhere; a row casts only when its effect reveals
+   that race (hunt_target.REVEALS), so Detect Evil searches for an EVIL target
+   and the rod for any.  hunt_target.route_key then walks to the shown cell.
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -95,7 +101,7 @@ from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
     SV_STAFF_LITE, SV_STAFF_MAPPING,
 )
-from hengbot import me_capability, me_ranged_first
+from hengbot import hunt_target, me_capability, me_ranged_first
 from hengbot.me_device_policy import devices
 from hengbot.model import (
     SV_ROD_DETECTION, SV_ROD_DISARMING, SV_ROD_TELEPORT_AWAY, SV_WAND_DISARMING, SV_WAND_TELEPORT_AWAY,
@@ -180,12 +186,14 @@ class Power:
 
 POWERS = (
     # Owner 2026-11-01 「邪悪感知を使うタイミングで全感知が使用可能なら代わりに使用する。
-    # 安全なら強力発動で使う。」: the rod has no triggers of its own.
+    # 安全なら強力発動で使う。」: the rod serves the Detect Evil row's triggers.
+    # Owner 2026-11-02 「対象が邪悪であることに拘らない」: the rod's own trigger
+    # searches for any hunted race; the Detect Evil row's only for an EVIL one.
     Power("staff", SV_STAFF_DETECT_EVIL, POWER_NAMES[SV_STAFF_DETECT_EVIL],
-          "detect-evil", DETECT_RAD, 10, ("new-floor", "before-rest"),
+          "detect-evil", DETECT_RAD, 10, ("new-floor", "before-rest", "hunt-target-unseen"),
           preferred=(("rod", SV_ROD_DETECTION),)),
     Power("rod", SV_ROD_DETECTION, devices()[(TVAL_ROD, SV_ROD_DETECTION)].names,
-          "detect-all", DETECT_RAD, 10, (), powerful="when-safe"),
+          "detect-all", DETECT_RAD, 10, ("hunt-target-unseen",), powerful="when-safe"),
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
@@ -434,6 +442,29 @@ def _resists_teleport_surely(ctx, monster) -> bool:
     return "RES_TELE" in flags and bool(flags & {"UNIQUE", "RES_ALL"})
 
 
+def _cast_radius(ctx, use) -> int:
+    """The radius an earlier use detected: rod_effect's powerful detect_rad is
+    DETECT_RAD_DEFAULT * 3 / 2 (cmd-item/cmd-zaprod.cpp:50)."""
+    radius = ctx.radius(BY_KEY[use.used])
+    return radius * 3 // 2 if use.reason.endswith(POWERFUL_SUFFIX) else radius
+
+
+def _hunt_target_unseen(ctx, power):
+    """The hunted random-quest target or guardian is shown nowhere, this row's
+    effect reveals its race, and every earlier use that would have revealed it
+    is at least its radius away (again only after moving the detection radius,
+    as the mapping row; owner 2026-11-02, hunt_target)."""
+    policy = ctx.policy
+    race = hunt_target.unseen_race(policy, ctx.snapshot)
+    if race is None:
+        return False
+    flags = hunt_target.race_flags(policy, race)
+    if not hunt_target.REVEALS[power.effect](flags):
+        return False
+    return all(ctx.distance(use.position) >= _cast_radius(ctx, use) for use in ctx.memory.uses
+               if (reveals := hunt_target.REVEALS.get(BY_KEY[use.used].effect)) and reveals(flags))
+
+
 def _unbeatable_in_range(ctx, power):
     """A visible hostile on a beam's line that this character cannot beat."""
     monster, policy = ctx.target_hostile, ctx.policy
@@ -463,6 +494,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("trap-to-disarm", frozenset({TRAP}), _trap_to_disarm),
     Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
     Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
+    Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
 )}
 
 REQUIREMENTS = {

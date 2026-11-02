@@ -11,6 +11,9 @@ cannot leave.  The dungeon wander fallbacks (breakout:least-visited,
 stuck:wander) and the boxed-breakout store travel are not used in town; the
 existing visit-closing stops (departure-unsatisfiable, the three-
 retirement burst) keep their existing names.
+Owner 2026-11-02 「購入に関する問題以外は採掘せずに名前を付けて停止を採用」:
+the mining cycle is only for purchase gaps (a supply the seen shelves sell
+above the carried gold); any other unmet condition stops by its name.
 
 Recorded boards (fixtures: tests/extract_town_defined_end_1102_fixtures.py):
 
@@ -52,7 +55,6 @@ FIXTURES = Path(__file__).with_name("fixtures")
 HOME_LOOP = FIXTURES / "town-defined-end-home-loop-2350.json.gz"
 RETIRED_BURST = FIXTURES / "town-defined-end-retired-burst-2334.json.gz"
 WANDER = ("breakout:", "stuck:wander", "boxed-breakout-travel")
-DEPARTING = ("town:character-dump", "town:recall-", "town:travel-entrance")
 SURVIVAL_STOP = "town:blocked:survival:"
 # The stores the recorded visit had entered before the board (decision
 # 26099 departure_block.town_ledger.store_visits).
@@ -162,11 +164,42 @@ class TownDefinedEndHomeLoopTest(TownWanderRecordedTest):
         return policy.with_known_skill_exp(
             parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
 
-    def test_no_owner_starts_one_mining_cycle_instead_of_dropping(self):
+    def purchase_gap_board(self):
+        """DECLARED CONSTRUCTED: the unanswered board with a purchase gap.
+
+        Home's candidate is resolved, one Word of Recall is carried and the
+        gold (100) is below the Recall price the visit's Alchemist page
+        showed (239): Recall is short only because gold is.
+        """
+        policy, raw = self.unanswered_board()
+        policy._home_candidate_waiting = False
+        raw = copy.deepcopy(raw)
+        raw["player"]["gold"] = 100
+        recall = next(item for item in raw["inventory"] if item["tval"] == 70 and item["sval"] == 11)
+        recall["count"] = 1
+        return policy, raw
+
+    def test_non_purchase_condition_stops_by_name_without_mining(self):
         policy, raw = self.unanswered_board()
         board = self.board(policy, raw)
+        # Owner 2026-11-02 「購入に関する問題以外は採掘せずに名前を付けて停止」:
+        # the recorded unmet Home candidate is no purchase gap.
         end = verdict_town_end(gather_town_end(policy, board))
-        self.assertEqual(end, ("mine", ("home_candidate_resolved",)))
+        self.assertEqual(end, ("stop", ("home_candidate_resolved",)))
+        events = runtime_path("keep-running-events.jsonl")
+        before = events.read_text(encoding="utf-8") if events.exists() else ""
+        town_end_key(policy, board)
+        self.assertEqual(policy.last_reason, "town:blocked:unmet:home_candidate_resolved")
+        self.assertTrue(cli._policy_final_stop_required(policy), policy.last_reason)
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertIsNone(policy._town_end_mining_cycle)
+        self.assertEqual(events.read_text(encoding="utf-8") if events.exists() else "", before)
+
+    def test_purchase_gap_starts_one_mining_cycle(self):
+        policy, raw = self.purchase_gap_board()
+        board = self.board(policy, raw)
+        end = verdict_town_end(gather_town_end(policy, board))
+        self.assertEqual(end, ("mine", ("recall_departure_ready",)))
         key = town_end_key(policy, board)
         # No departure with the condition unmet: one mining cycle opens in
         # the fundraising owners' preparation.
@@ -174,42 +207,26 @@ class TownDefinedEndHomeLoopTest(TownWanderRecordedTest):
         self.assertIsNone(policy._visit_departure_committed)
         self.assertEqual((policy._fundraising_mode, policy._planned_mining_runs), ("prepare", 1))
         self.assertEqual(policy._town_end_mining_cycle, town_end_mining.TownEndMiningCycle(
-            ("home_candidate_resolved",), 1, raw["turn"], "town", policy._town_visit_epoch))
+            ("recall_departure_ready",), 1, raw["turn"], "town", policy._town_visit_epoch))
         stored = json.loads(policy._town_end_mining_path.read_text(encoding="utf-8"))
-        self.assertEqual((stored["unmet"], stored["stage"]), (["home_candidate_resolved"], "town"))
+        self.assertEqual((stored["unmet"], stored["stage"]), (["recall_departure_ready"], "town"))
         record = [json.loads(line) for line in runtime_path(
             "keep-running-events.jsonl").read_text(encoding="utf-8").splitlines()][-1]
         self.assertEqual((record["cause"], record["outcome"]), ("no-owner-answered", "mining_cycle"))
-        self.assertEqual(record["closed_work"]["unmet"], ["home_candidate_resolved"])
-        following = self.reply(raw, key)
-        self.post(policy, raw, key, following)
-        raw = following
-        # The fundraising owners continue through the public chooser and the
-        # production executor; the visit leaves only once nothing is unmet.
-        reasons = []
-        for _ in range(12):
-            # DECLARED CONSTRUCTED: the bookkeeping fillers (save, dump) are
-            # outside this harness's screens; the latch is held as live.
-            policy._periodic_dump_requested = policy._periodic_save_requested = False
-            policy._home_candidate_waiting = True
-            board = self.board(policy, raw)
-            policy.observe_store_screen(board.store is not None)
-            key, reason = str(policy.choose_key(board)), policy.last_reason
-            reasons.append(reason)
-            if reason.startswith(DEPARTING):
-                break
-            self.assertFalse(reason.startswith("town:blocked:"), reasons)
-            following = self.reply(raw, key)
-            self.post(policy, raw, key, following)
-            raw = following
-        else:
-            self.fail(reasons)
-        self.assertFalse(_wanders(reasons), reasons)
-        self.assertNotIn("town:repetition-depart:recall", reasons)
-        self.assertEqual(gather_town_end(policy, board).unmet, (), reasons)
+        self.assertEqual(record["closed_work"]["unmet"], ["recall_departure_ready"])
+
+    def test_purchase_gap_beside_a_defect_stops_on_the_defect(self):
+        policy, raw = self.purchase_gap_board()
+        policy._home_candidate_waiting = True
+        board = self.board(policy, raw)
+        end = verdict_town_end(gather_town_end(policy, board))
+        self.assertEqual(end, ("stop", ("home_candidate_resolved",)))
+        town_end_key(policy, board)
+        self.assertEqual(policy.last_reason, "town:blocked:unmet:home_candidate_resolved")
+        self.assertIsNone(policy._fundraising_mode)
 
     def test_cycle_survives_a_restart_and_retries_after_its_run(self):
-        policy, raw = self.unanswered_board()
+        policy, raw = self.purchase_gap_board()
         board = self.board(policy, raw)
         town_end_key(policy, board)
         # A restarted process restores the open cycle from the record.
@@ -228,14 +245,12 @@ class TownDefinedEndHomeLoopTest(TownWanderRecordedTest):
         # (policy_observation); the same unmet condition starts the next
         # cycle, with no cap.
         policy._visit_departure_recorded.clear()
-        policy._home_candidate_waiting = True
         self.assertEqual(town_end_key(policy, board), "5")
         self.assertEqual(policy.last_reason, town_end_mining.START_REASON)
         self.assertEqual(policy._town_end_mining_cycle.cycles, 2)
         # While its set is open and no owner answers, the cycle that cannot
         # leave stops by name instead of opening another one.
         policy._visit_departure_recorded.clear()
-        policy._home_candidate_waiting = True
         town_end_key(policy, board)
         self.assertTrue(policy.last_reason.startswith("town:blocked:"), policy.last_reason)
         self.assertTrue(cli._policy_final_stop_required(policy), policy.last_reason)
