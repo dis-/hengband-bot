@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
-from hengbot import me_capability, town_pack_headroom
+from hengbot import consumable_policy, me_capability, town_pack_headroom
 from hengbot import town_end_mining, town_travel
 from hengbot import unseen_strike
 from hengbot import random_quest_reserve
@@ -5084,6 +5084,8 @@ class TownMixin:
         if (
             self._item_signature(item) in self._unsellable_items
             or self._sale_retains_digging_tool(snapshot, item)
+            # The owner's table shelves these at Home (consumable_policy).
+            or consumable_policy.shelved_at_home(item)
         ):
             return None
         for store_type in (

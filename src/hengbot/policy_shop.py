@@ -991,7 +991,6 @@ class ShopMixin(InStoreMixin):
                     and (it.is_potion or it.is_scroll)
                     and not it.aware
                 )
-                or consumable_policy.discarded(it)
                 or (it.known and it.is_ego and it.is_cursed and not it.is_artifact)
             )
             and not (

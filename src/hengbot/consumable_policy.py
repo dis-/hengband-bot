@@ -20,8 +20,8 @@ Who acts on a row:
    existing junk paths (junk_destroy_now in the dungeon, the town junk rungs)
    destroy a carried one -- unless a requirement reserves it (the junk class's
    own retention / procurement gates).  It is also the full-pack disposable
-   and the low-level sale kind set (policy_helpers._is_disposable_item,
-   policy_shop._find_low_level_sale).
+   kind set (policy_helpers._is_disposable_item); an identified potion or
+   scroll is no longer low-level sale stock (「捨てる」, not sold).
  * ``shelved_at_home``: policy_home._home_deposit_candidate deposits a ``home``
    kind that has no ``carry`` flag on the Home visit, unless
    ``carry_required`` names a requirement that reads it from the pack.
