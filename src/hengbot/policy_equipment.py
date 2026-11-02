@@ -3057,21 +3057,9 @@ class EquipmentMixin:
                 # The memo key proves that this timed-out search has exactly the
                 # same semantic inputs as the earlier completed search.
                 ready = True
-            elif (
-                "pending-random-teleport-suppression" in preparation.blockers
-                and not self._missing_required_abilities(snapshot, depth)
-                and not self._random_teleport_suppression_actionable(snapshot, preparation)
-            ):
+            elif self._suppression_waits_on_current_loadout(snapshot, preparation, depth):
                 ready = True
-                if commit and self._equipment_optional_failure_pending is None:
-                    self._stage_optional_equipment_failure_departure(
-                        snapshot,
-                        depth,
-                        reason=(
-                            "random-teleport-suppression-unactionable-"
-                            "current-loadout"
-                        ),
-                    )
+                self._stage_suppression_wait_departure(snapshot, depth, commit)
             elif (
                 "incomplete-equipment-catalog" in preparation.blockers
                 and self._identification_need_unsatisfiable(snapshot)
@@ -3089,6 +3077,22 @@ class EquipmentMixin:
                     )
                     for owned in incomplete
                 )
+        if (
+            not ready
+            and not complete_now
+            and self._equipment_transaction_session is None
+            and getattr(preparation, "result", None) is not None
+            and tuple(preparation.blockers) == ("pending-random-teleport-suppression",)
+            and self._selected_suppressions_all_at_home(preparation)
+            and self._suppression_waits_on_current_loadout(snapshot, preparation, depth)
+        ):
+            # Owner 2026-11-03 (answer, n1-b life-298): 「鑑定待ちでも止めない」
+            # / 「鑑定できない訪問では取り出さない」 -- the only blocker is a
+            # selected Home item this visit cannot withdraw or identify, so the
+            # visit departs on the worn loadout even though it is not confirmed
+            # for the optimizer inputs that selected the Home item.
+            ready = True
+            self._stage_suppression_wait_departure(snapshot, depth, commit)
         if not ready and codes is not None:
             codes.extend(self._equipment_departure_refusal_codes(
                 snapshot, preparation, depth))
@@ -3096,6 +3100,28 @@ class EquipmentMixin:
             self._equipment_departure_cache_token = cache_token
             self._equipment_departure_cache_value = ready
         return ready
+
+    def _suppression_waits_on_current_loadout(self, snapshot, preparation, depth) -> bool:
+        """A pending random-teleport suppression no producer can act on this
+        visit, with no required ability missing from the worn loadout."""
+        return bool(
+            "pending-random-teleport-suppression" in preparation.blockers
+            and not self._missing_required_abilities(snapshot, depth)
+            and not self._random_teleport_suppression_actionable(snapshot, preparation)
+        )
+
+    def _selected_suppressions_all_at_home(self, preparation) -> bool:
+        """Every selected item still waiting for its suppression is at Home."""
+        pending = self._selected_random_teleport_suppressions(preparation)
+        return bool(pending) and all(owned.origin == "home" for owned in pending)
+
+    def _stage_suppression_wait_departure(self, snapshot, depth, commit: bool) -> None:
+        if commit and self._equipment_optional_failure_pending is None:
+            self._stage_optional_equipment_failure_departure(
+                snapshot,
+                depth,
+                reason="random-teleport-suppression-unactionable-current-loadout",
+            )
 
     def _equipment_departure_refusal_codes(self, snapshot, preparation, depth):
         """Name each part of the preparation that refused a departure verdict."""
