@@ -577,6 +577,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     *_rows(
         "positioning",
         ("detected:", R, WALK_TARGET),
+        ("detected:hold-choke", T, EFFECT),
         ("melee:choke", T, EFFECT),
         ("melee:choke-reposition", R, WALK_TARGET),
         ("summoner:hold-choke", T, EFFECT),

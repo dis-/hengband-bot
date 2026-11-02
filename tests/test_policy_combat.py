@@ -39,6 +39,7 @@ import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
 from test_policy import FOOD, POTION, SCROLL, STAFF
 import hengbot.policy_combat as policy_combat_module
+from hengbot.summoner_wait import DETECTED_HOLD_CHOKE_REASON as DETECTED_HOLD  # a detected pack holds no summoner
 from hengbot.breeder_stalemate import FLEE_AFTER_PLAYER_ACTIONS
 from hengbot.policy_constants import FOOD_TYPE_MANA
 
@@ -569,7 +570,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             [(key, reason) for _position, key, reason in decisions],
             [
                 ("8", "detected:prepare-choke"),
-                (WAIT_KEY, "summoner:hold-choke"),
+                (WAIT_KEY, DETECTED_HOLD),
             ] * 3,
         )
         self.assertFalse(
@@ -655,7 +656,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
         key = policy._detected_threat_preparation_key(arrival, [])
 
-        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "summoner:hold-choke"))
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, DETECTED_HOLD))
         self.assertIsNone(policy._detected_threat_route)
         self.assertEqual(policy._detected_threat_hold, (arrival.floor_key, 130))
 
@@ -715,14 +716,14 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             current[0].turn
             for previous, current in zip(replay, replay[1:])
             if previous[2] == "detected:prepare-choke"
-            and current[2] == "summoner:hold-choke"
+            and current[2] == DETECTED_HOLD
         )
         released = [
             decision for decision in replay
             if decision[0].turn - started_turn
             > DETECTED_THREAT_HOLD_MAX_GAME_TURNS
         ]
-        forbidden = {"summoner:hold-choke", "detected:prepare-choke"}
+        forbidden = {DETECTED_HOLD, "detected:prepare-choke"}
         recorded_after_expiry = Counter(
             row["reason"] for row in recorded
             if row["turn"] - started_turn
@@ -761,7 +762,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
         self.assertEqual(
             (last_inside[1], last_inside[2]),
-            (WAIT_KEY, "summoner:hold-choke"),
+            (WAIT_KEY, DETECTED_HOLD),
         )
         self.assertGreater(
             last_inside[0].turn - started_turn,
@@ -769,11 +770,11 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         )
         self.assertNotIn(
             outside[0][2],
-            {"summoner:hold-choke", "detected:prepare-choke"},
+            {DETECTED_HOLD, "detected:prepare-choke"},
         )
         self.assertFalse(
             any(
-                decision[2] in {"summoner:hold-choke", "detected:prepare-choke"}
+                decision[2] in {DETECTED_HOLD, "detected:prepare-choke"}
                 for decision in outside
             )
         )
@@ -797,7 +798,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         self.assertTrue(replay[-1][0].turn < visible.turn < detected_again.turn)
         self.assertNotIn(
             replay[-1][2],
-            {"summoner:hold-choke", "detected:prepare-choke"},
+            {DETECTED_HOLD, "detected:prepare-choke"},
         )
         self.assertTrue(
             any(monster.perception != "detected" for monster in visible.visible_monsters)
@@ -809,7 +810,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         self.assertIn(
             (key, policy.last_reason),
             {
-                (WAIT_KEY, "summoner:hold-choke"),
+                (WAIT_KEY, DETECTED_HOLD),
                 ("8", "detected:prepare-choke"),
             },
         )

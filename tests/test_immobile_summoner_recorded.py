@@ -436,8 +436,9 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         policy = self._policy(board)
         for delta in (0, 10, 20, 30, 40, 50, 60):
             current = replace(board, turn=board.turn + delta)
+            # The hold awaits the pack, which holds no summoner.
             self.assertEqual((str(policy.choose_key(current)), policy.last_reason),
-                             ("5", "summoner:hold-choke"))
+                             ("5", "detected:hold-choke"))
             self.assertFalse(policy._summoner_never_approaches(current, far))
             self.assertEqual(policy._summoner_wait.started, {})
             self.assertEqual(policy._summoner_wait.refused, {})
