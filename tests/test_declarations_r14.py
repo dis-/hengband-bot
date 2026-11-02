@@ -31,7 +31,7 @@ class DeclarationR14Test(unittest.TestCase):
                     policy.confirm_key_posted(data['key'])
                     if restored:
                         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-                    parent = policy._claim_register.current
+                    parent = policy._town_hold.claims.current
                     self.assertEqual(parent.owner.value, 'store-router')
                     self.assertEqual(parent.goal.source, 'store-entry')
                     declaration = parent.execution

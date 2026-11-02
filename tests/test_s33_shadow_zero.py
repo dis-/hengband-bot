@@ -43,15 +43,15 @@ def tuples(value):
 def attach_claim(policy, recorded):
     """Reconstruct plain claim data; no policy checkpoint was captured."""
     goal = Goal(**{k: tuples(v) for k, v in recorded['goal'].items()})
-    claim = policy._claim_register.declare(recorded['owner'], goal,
+    claim = policy._town_hold.claims.declare(recorded['owner'], goal,
                                          non_discardable=recorded.get('non_discardable', False))
     execution = recorded.get('execution')
     declaration = (ExecutionDeclaration(**{k: tuples(v) for k, v in execution.items()})
                    if execution else None)
-    policy._claim_register._claim = replace(claim, claim_id=recorded['claim_id'],
+    policy._town_hold.claims._claim = replace(claim, claim_id=recorded['claim_id'],
         execution=declaration, state=ClaimState(recorded.get('state', 'active')))
-    policy._claim_register._next_id = recorded['claim_id'] + 1
-    return policy._claim_register.current
+    policy._town_hold.claims._next_id = recorded['claim_id'] + 1
+    return policy._town_hold.claims.current
 
 
 def attach_visit(policy, row):
@@ -117,9 +117,9 @@ class ShadowZeroTest(unittest.TestCase):
             policy = HengbotPolicy()
             policy.prime(board)
             policy._equipment_catalog.home_scan_complete = True
-            holder = policy._claim_register.declare('home-visit',
+            holder = policy._town_hold.claims.declare('home-visit',
                 observe(('deposit',), 8, 'store-operation'))
-            policy._claim_register.declare_execution(holder.claim_id, producer='home-visit',
+            policy._town_hold.claims.declare_execution(holder.claim_id, producer='home-visit',
                 work_id='home:operation', state='awaiting', operation_ref='decision:1:da',
                 expected_effect='home-inventory-effect', continuation='home.operation.observe')
             with patch.object(policy, '_dungeon_entry_allowed', return_value=True), \
@@ -128,7 +128,7 @@ class ShadowZeroTest(unittest.TestCase):
             self.assertEqual(key, None if enforced else '>')
             self.assertTrue(any(r['deferred_reason'] == 'entry:direct-descent'
                                 for r in policy._decision_errand_deferred))
-            self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
+            self.assertEqual(policy._town_hold.claims.current.claim_id, holder.claim_id)
 
     def test_sale_refusal_declares_its_registered_exit_owner(self):
         from test_item_reservation import ItemReservationTest
@@ -142,9 +142,9 @@ class ShadowZeroTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ('\x1b', reason))
         self.assertEqual(policy._claim_family_of(reason), 'shop-sell')
         self.assertIsNotNone(goal_typing('shop-sell', reason))
-        holder = policy._claim_register.declare('shop-sell', observe(('sale',), 8, 'store-operation'))
+        holder = policy._town_hold.claims.declare('shop-sell', observe(('sale',), 8, 'store-operation'))
         policy._record_execution_declaration(holder, key, reason)
-        execution = policy._claim_register.current.execution
+        execution = policy._town_hold.claims.current.execution
         self.assertEqual((execution.producer, execution.next_step, execution.expected_effect),
                          ('shop-sell', 'store.leave.send', 'outside-store'))
 

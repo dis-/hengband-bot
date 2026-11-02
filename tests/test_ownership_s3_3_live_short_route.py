@@ -50,16 +50,16 @@ class LiveShortRouteTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy.prime(board)
         policy._decision_sequence = 223
-        policy._claim_register._next_id = 140
-        claim = policy._claim_register.declare(
+        policy._town_hold.claims._next_id = 140
+        claim = policy._town_hold.claims.declare(
             "store-router", reach(tuple(claim_row["goal"]["cell"])),
             opened_sequence=223, floor=board.floor_key,
             opened_turn=board.turn - 1,
         )
-        policy._claim_register._claim = replace(claim, state=ClaimState.AWAITING)
+        policy._town_hold.claims._claim = replace(claim, state=ClaimState.AWAITING)
         # The fixture predates serialized declarations. Rebuild the posted
         # route identity from decision 223, as the live declaration writer does.
-        policy._claim_register.declare_execution(
+        policy._town_hold.claims.declare_execution(
             claim.claim_id, work_id="route:entrance:31:150",
             producer="store-router", state="awaiting",
             next_step="route.resume", arguments=("entrance", (31, 150)),
@@ -70,14 +70,14 @@ class LiveShortRouteTest(unittest.TestCase):
             Position(31, 150), prior["claim"]["distance"], 0, 0,
             prior["turn"],
         )
-        key = policy._town_holder_wait_key(policy._claim_register.current, board)
+        key = policy._town_holder_wait_key(policy._town_hold.claims.current, board)
         self.assertEqual(key, ENTRANCE_TRAVEL_MACRO)
         self.assertEqual(policy._town_travel_state.best_distance, 5)
-        self.assertEqual(policy._claim_register.current.claim_id, 140)
-        self.assertEqual(policy._claim_register.current.goal.cell, (31, 150))
-        self.assertEqual(policy._claim_register.current.budget,
+        self.assertEqual(policy._town_hold.claims.current.claim_id, 140)
+        self.assertEqual(policy._town_hold.claims.current.goal.cell, (31, 150))
+        self.assertEqual(policy._town_hold.claims.current.budget,
                          claim_row["budget"])
-        self.assertTrue(policy._claim_register.current.is_open)
+        self.assertTrue(policy._town_hold.claims.current.is_open)
         self.assertNotEqual(policy.last_reason, "ownership:holder-silent:store-router")
 
     def test_open_store_reach_walks_when_plan_identity_is_lost(self):
@@ -93,21 +93,21 @@ class LiveShortRouteTest(unittest.TestCase):
                          (219, [31, 119]))
         policy = HengbotPolicy()
         policy.prime(board)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "store-router", reach((31, 119)), floor=board.floor_key,
         )
-        policy._claim_register._claim = replace(claim, state=ClaimState.AWAITING)
-        policy._claim_register.declare_execution(
+        policy._town_hold.claims._claim = replace(claim, state=ClaimState.AWAITING)
+        policy._town_hold.claims.declare_execution(
             claim.claim_id, work_id="route:store:31:119",
             producer="store-router", state="awaiting",
             next_step="route.resume", arguments=("store", (31, 119)),
             operation_ref="decision:219", expected_effect="store-page-open",
             continuation="route.resume", budget_ref="route-existing-budget",
         )
-        key = policy._town_holder_wait_key(policy._claim_register.current, board)
+        key = policy._town_holder_wait_key(policy._town_hold.claims.current, board)
         self.assertIn(key, "12346789")
         self.assertEqual(policy.last_reason, "shop:approach")
-        self.assertEqual(policy._claim_register.current.goal.cell, (31, 119))
+        self.assertEqual(policy._town_hold.claims.current.goal.cell, (31, 119))
 
 
 if __name__ == "__main__":

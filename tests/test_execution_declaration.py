@@ -53,11 +53,11 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy._decision_sequence = 41
         policy._home_knowledge_scan_requested = True
         policy._home_knowledge_scan_epoch = 7
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "home-scan", observe(("home-knowledge-current",), 8, "knowledge"))
         key = policy._town_holder_wait_key(claim, board)
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual(key, "5")
         self.assertEqual((declaration.producer, declaration.next_step,
                           declaration.work_id),
@@ -87,10 +87,10 @@ class ExecutionDeclarationTest(unittest.TestCase):
         item = SimpleNamespace(slot="h", count=5, charges=0, tval=39, sval=0)
         board = SimpleNamespace(inventory=(item,), player=SimpleNamespace(gold=42))
         key = policy._home_deposit_key(board, item)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "home-visit", observe(("inventory",), 8, "store-operation"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual(key, "dh3\r")
         self.assertEqual((declaration.state, declaration.next_step,
                           declaration.arguments),
@@ -106,10 +106,10 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy._last_sell_sig = ("h", ("torch", 39, 0), 5, 0, 1, 42)
         policy._store_sell_stuck_count = 999
         key = policy._home_deposit_key(board, item)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "home-visit", observe(("store",), 8, "store-operation"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((key, declaration.producer, declaration.next_step),
                          ("\x1b", "home-visit", "store.leave.send"))
 
@@ -117,10 +117,10 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._decision_sequence = 44
         key = policy._shop(SimpleNamespace(store=None))
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "shop-sell", observe(("store",), 8, "store-operation"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((key, declaration.producer, declaration.next_step,
                           declaration.expected_effect),
                          ("\x1b", "shop-sell", "store.leave.send",
@@ -138,10 +138,10 @@ class ExecutionDeclarationTest(unittest.TestCase):
         with (patch.object(policy, "_next_purchase", return_value=ware),
               patch.object(policy, "_purchase_quantity", return_value=1)):
             key = policy._shop(board)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "shop-buy", observe(("inventory",), 8, "store-operation"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((key, declaration.producer, declaration.next_step),
                          ("pa\r", "shop-buy", "shop.purchase.send"))
 
@@ -163,31 +163,31 @@ class ExecutionDeclarationTest(unittest.TestCase):
         with (patch.object(policy, "_next_purchase", return_value=ware),
               patch.object(policy, "_purchase_quantity", return_value=1)):
             wait_key = policy._atomic_shop_transaction_key(outside)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "shop-buy", observe(("inventory",), 8, "store-operation"))
         policy._record_execution_declaration(claim, wait_key, policy.last_reason)
-        self.assertEqual(policy._claim_register.current.execution.next_step,
+        self.assertEqual(policy._town_hold.claims.current.execution.next_step,
                          "shop.one-shot.dispatch")
-        self.assertEqual(policy._claim_register.current.execution.state,
+        self.assertEqual(policy._town_hold.claims.current.execution.state,
                          "acting")
-        self.assertIsNone(policy._claim_register.current.execution.operation_ref)
+        self.assertIsNone(policy._town_hold.claims.current.execution.operation_ref)
         policy.confirm_key_posted(wait_key)
         # tests/test_live11.py:57-63; Claude ruling 2026-10-01 05:10:
         # posted entry awaits the store page, not the unposted purchase tail.
-        self.assertEqual(policy._claim_register.current.execution.state,
+        self.assertEqual(policy._town_hold.claims.current.execution.state,
                          "awaiting")
-        self.assertIsNone(policy._claim_register.current.execution.operation_ref)
+        self.assertIsNone(policy._town_hold.claims.current.execution.operation_ref)
         operation_key = policy._release_staged_store_operation(
             replace(outside, store=observed))
         self.assertEqual(operation_key, "pa\r\x1b")
         policy._record_execution_declaration(
-            policy._claim_register.current, operation_key, policy.last_reason)
-        self.assertEqual(policy._claim_register.current.execution.next_step,
+            policy._town_hold.claims.current, operation_key, policy.last_reason)
+        self.assertEqual(policy._town_hold.claims.current.execution.next_step,
                          "shop.one-shot.send")
         policy.confirm_key_posted(operation_key)
-        self.assertEqual(policy._claim_register.current.execution.state,
+        self.assertEqual(policy._town_hold.claims.current.execution.state,
                          "awaiting")
-        self.assertEqual(policy._claim_register.current.execution.operation_ref,
+        self.assertEqual(policy._town_hold.claims.current.execution.operation_ref,
                          f"decision:45:{operation_key}")
 
     def test_home_errand_filing_leave_names_its_request(self):
@@ -203,10 +203,10 @@ class ExecutionDeclarationTest(unittest.TestCase):
             knowledge_current=True,
         )
         key = policy._shop(board)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "home-errand", observe(("inventory",), 8, "store-operation"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((key, declaration.producer, declaration.next_step),
                          ("\x1b", "home-errand", "store.leave.send"))
 
@@ -215,10 +215,10 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy._decision_sequence = 48
         policy.last_reason = "home-errand:target-unobserved:combat-weapon"
         policy._offer_unaddressed_home_withdraw("\x1b", ("weapon", 1, 2))
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "home-errand", observe(("inventory",), 8, "store-operation"))
         policy._record_execution_declaration(claim, "\x1b", policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.next_step,
                           declaration.arguments),
                          ("home-errand", "store.leave.send",
@@ -227,7 +227,7 @@ class ExecutionDeclarationTest(unittest.TestCase):
     def test_refused_transport_remains_named_acting_work(self):
         policy = HengbotPolicy()
         policy._decision_sequence = 32
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "home-visit", observe(("inventory",), 8, "store-operation"))
         policy._offer_execution(
             "dh3\r", producer="home-visit", work_id="deposit:torch",
@@ -235,14 +235,14 @@ class ExecutionDeclarationTest(unittest.TestCase):
         )
         policy._record_execution_declaration(claim, "dh3\r", "home:deposit")
         policy.refuse_key_posting("home:deposit", "dh3\r")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.state, declaration.next_step,
                           declaration.operation_ref, declaration.evidence),
                          ("acting", "transport.resolve-refusal", None,
                           "posting-refused"))
         self.assertIsNone(policy._execution_pending_post)
         policy.confirm_key_posted("dh3\r")
-        self.assertEqual(policy._claim_register.current.execution.state,
+        self.assertEqual(policy._town_hold.claims.current.execution.state,
                          "acting")
 
     def test_session_installation_offers_first_action_before_send(self):
@@ -252,10 +252,10 @@ class ExecutionDeclarationTest(unittest.TestCase):
         session = SimpleNamespace(current_action=action, executable=True,
                                   required_context="legacy")
         policy._set_equipment_transaction_session(session)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "equipment-txn", observe(("transaction",), 8, "equipment"))
         policy._record_execution_declaration(claim, "", "equipment:session-installed")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.state, declaration.next_step,
                           declaration.arguments, declaration.operation_ref),
                          ("acting", "equipment.next-action",
@@ -300,28 +300,28 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy.prime(board)
         policy._decision_sequence = 223
-        policy._claim_register._next_id = 140
+        policy._town_hold.claims._next_id = 140
         key = policy._town_travel_key(
             board, Position(31, 150), ENTRANCE_TRAVEL_MACRO,
             "town:travel-entrance",
         )
         self.assertEqual(key, ENTRANCE_TRAVEL_MACRO)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "store-router", reach((31, 150)), floor=board.floor_key,
         )
         policy._record_execution_declaration(claim, key, "town:travel-entrance")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((claim.claim_id, declaration.state,
                           declaration.next_step, declaration.arguments),
                          (140, "acting", "route.resume",
                           ("entrance", (31, 150))))
         policy.confirm_key_posted(key)
-        self.assertEqual(policy._claim_register.current.execution.state,
+        self.assertEqual(policy._town_hold.claims.current.execution.state,
                          "awaiting")
-        policy._town_holder_wait_key(policy._claim_register.current, board)
-        self.assertEqual(policy._claim_register.current.execution.state,
+        policy._town_holder_wait_key(policy._town_hold.claims.current, board)
+        self.assertEqual(policy._town_hold.claims.current.execution.state,
                          "acting")
-        self.assertEqual(policy._claim_register.current.execution.next_step,
+        self.assertEqual(policy._town_hold.claims.current.execution.next_step,
                          "route.resume")
 
     def test_store_router_short_entrance_walk_declares_final_direction(self):
@@ -331,11 +331,11 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy._decision_sequence = 224
         policy._town_travel_key = lambda *args: None
         policy._town_map_goal_step = lambda *args: Position(32, 145)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "store-router", reach((31, 150)), floor=board.floor_key)
         key = policy._town_holder_wait_key(claim, board)
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.next_step,
                           declaration.arguments),
                          ("store-router", "route.resume",
@@ -355,10 +355,10 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy._shopping_approach_goal = Position(10, 10)
         key = policy._shopping_approach_key(
             board, board.player.position, "shop:travel")
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "store-router", reach((10, 10)))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((key, declaration.state, declaration.cause),
                          ("", "releasing", "no-walkable-step-off"))
 
@@ -372,17 +372,17 @@ class ExecutionDeclarationTest(unittest.TestCase):
         key = "CRa\x1b"
         self.assertTrue(policy._compose_home_operation(
             board, key, "Ra", producer_family="home-visit"))
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "home-visit", observe(("inventory",), 8, "store-operation"))
         policy._record_execution_declaration(claim, key, "home:atomic-withdraw")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.state, declaration.next_step,
                           declaration.work_id),
                          ("acting", "home.operation.send", "home-operation:25:Ra"))
         policy.confirm_key_posted(key)
-        self.assertEqual(policy._claim_register.current.execution.operation_ref,
+        self.assertEqual(policy._town_hold.claims.current.execution.operation_ref,
                          f"decision:26:{key}")
-        closed = policy._claim_register.complete("home-withdraw-observed")
+        closed = policy._town_hold.claims.complete("home-withdraw-observed")
         self.assertEqual((closed.execution.state, closed.execution.evidence),
                          ("done", "home-withdraw-observed"))
 
@@ -397,12 +397,12 @@ class ExecutionDeclarationTest(unittest.TestCase):
         policy._owner_may_select = lambda *args: False
         key = policy._suppress_pending_stair_command(board, ">")
         self.assertEqual(key, "")
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "departure", observe(("floor",), 350, "floor-change"))
-        policy._claim_register.await_observation()
+        policy._town_hold.claims.await_observation()
         policy._record_execution_declaration(
-            policy._claim_register.current, key, "stair:await-observation")
-        declaration = policy._claim_register.current.execution
+            policy._town_hold.claims.current, key, "stair:await-observation")
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.state, declaration.next_step,
                           declaration.operation_ref),
                          ("acting", "stair.post", None))

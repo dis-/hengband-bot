@@ -47,8 +47,8 @@ def attached(board, session):
     # the identity the real completion path closes after observed work.
     goal = policy._claim_operation_goal(board, ClaimOwner.EQUIPMENT_TXN,
                                         "equipment-transaction:constructed", "transaction")
-    claim = policy._claim_register.declare("equipment-txn", goal, floor=board.floor_key)
-    policy._claim_register.declare_execution(claim.claim_id, producer="equipment-txn",
+    claim = policy._town_hold.claims.declare("equipment-txn", goal, floor=board.floor_key)
+    policy._town_hold.claims.declare_execution(claim.claim_id, producer="equipment-txn",
         work_id="equipment:constructed", state="acting", next_step="equipment.next-action",
         expected_effect="equipment-action-confirmed", continuation="equipment.next-action")
     return policy
@@ -62,9 +62,9 @@ class ReconciliationTest(unittest.TestCase):
         policy = attached(board, session)
         policy._home_knowledge_current = True
         policy._equipment_catalog.home_scan_complete = True
-        claim = policy._claim_register.current
+        claim = policy._town_hold.claims.current
         action = session.current_action
-        policy._claim_register.declare_execution(claim.claim_id, producer="equipment-txn",
+        policy._town_hold.claims.declare_execution(claim.claim_id, producer="equipment-txn",
             work_id=f"equipment:{session.target_loadout_id}:0", state="acting",
             next_step="equipment.next-action",
             arguments=(action.kind, action.target_slot, action.item_identity),

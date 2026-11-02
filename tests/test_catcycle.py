@@ -35,11 +35,11 @@ def attach(enforced=False, crossarea=True):
     recorded = rows("decisions")[0]
     policy._decision_sequence = recorded["decision_sequence"]
     goal = recorded["claim"]["goal"]
-    holder = policy._claim_register.declare("equipment-txn", observe(
+    holder = policy._town_hold.claims.declare("equipment-txn", observe(
         goal["expectation"], goal["within"], goal["source"]),
         opened_sequence=recorded["decision_sequence"], floor=boards[0].floor_key)
     declaration = recorded["claim"]["execution"]
-    policy._claim_register.declare_execution(
+    policy._town_hold.claims.declare_execution(
         holder.claim_id, producer=declaration["producer"],
         work_id=declaration["work_id"], state=declaration["state"],
         next_step=declaration["next_step"],
@@ -97,7 +97,7 @@ class CatcycleTest(unittest.TestCase):
             key = policy._home_catalogue_work_key(boards[1])
             policy._record_decision_claim(boards[1], key)
             policy.confirm_key_posted(key)
-            holder_id = policy._claim_register.current.claim_id
+            holder_id = policy._town_hold.claims.current.claim_id
             if restored:
                 policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
             with TemporaryDirectory() as raw:
@@ -129,8 +129,8 @@ class CatcycleTest(unittest.TestCase):
         self.assertEqual(key, "")
         self.assertEqual(policy.last_reason, "equipment-transaction:catalogue-await-knowledge")
         self.assertTrue(policy._home_knowledge_scan_inflight)
-        self.assertEqual(policy._claim_register.current.execution.state, "awaiting")
-        self.assertEqual(policy._claim_register.current.execution.operation_ref,
+        self.assertEqual(policy._town_hold.claims.current.execution.state, "awaiting")
+        self.assertEqual(policy._town_hold.claims.current.execution.operation_ref,
                          f"decision:{policy._decision_sequence - 2}:{HOME_KNOWLEDGE_MACRO}")
 
 

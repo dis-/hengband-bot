@@ -6031,12 +6031,12 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         )
         policy._equipment_transaction_session = session
         session.opened_sequence = 1
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "equipment-txn",
             observe(("recorded-session",), 8, source="transaction"),
             floor=outside.floor_key,
         )
-        policy._claim_register.declare_execution(
+        policy._town_hold.claims.declare_execution(
             claim.claim_id, producer="equipment-txn", work_id="equipment:outside",
             state="acting", next_step="equipment.next-action",
             expected_effect="equipment-action-confirmed",

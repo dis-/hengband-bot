@@ -287,8 +287,8 @@ class HomeInterruptionTest(unittest.TestCase):
 
     def test_no_path_no_credit_and_cli_cannot_use_a_fabricated_step(self):
         policy, _ = home_policy()
-        claim = policy._claim_register.declare("equipment-txn", reach((45, 123)), floor=(0, 0, 0))
-        policy._claim_register.declare_execution(claim.claim_id, work_id="constructed-home", producer="equipment-txn",
+        claim = policy._town_hold.claims.declare("equipment-txn", reach((45, 123)), floor=(0, 0, 0))
+        policy._town_hold.claims.declare_execution(claim.claim_id, work_id="constructed-home", producer="equipment-txn",
                                                  state="awaiting")
         with patch("hengbot.town_work.current_record", return_value={"work_id": "constructed-home"}):
             emit(policy, (45, 101), APPROACH, "6")

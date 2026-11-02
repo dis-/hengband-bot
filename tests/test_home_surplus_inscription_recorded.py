@@ -69,7 +69,7 @@ class HomeSurplusInscriptionRecordedTest(unittest.TestCase):
                 self.assertEqual(policy._batch_sell_pending['phase'], 'await-sale')
                 self.assertEqual(policy._in_store_entry_ledger['pending']['kind'], 'sell')
                 self.assertEqual(policy._store_visit.operation_key, key)
-                self.assertEqual(policy._claim_register.current.execution.producer, 'shop-sell')
+                self.assertEqual(policy._town_hold.claims.current.execution.producer, 'shop-sell')
 
 if __name__ == '__main__':
     unittest.main()

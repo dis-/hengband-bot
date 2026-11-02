@@ -424,10 +424,10 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 decided = (str(key), policy.last_reason)
                 recorded = tuple(self.boundaries["recorded"][index])
                 self.assertEqual(decided, recorded)
-                register = policy._claim_register
-                policy._claim_register = copy.copy(register)
+                register = policy._town_hold.claims
+                policy._town_hold.claims = copy.copy(register)
                 _recorded_process_capture(policy, snapshot)
-                policy._claim_register = register
+                policy._town_hold.claims = register
                 policy.confirm_key_posted(key)
         self.fail("equipment-choice divergence was not reached")
 
@@ -519,10 +519,10 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                 # capture, as the live driver's observer scope now does; no
                 # decision reads the register, so the recorded decisions
                 # cannot move (test_s0 below still pins them).
-                register = policy._claim_register
-                policy._claim_register = copy.copy(register)
+                register = policy._town_hold.claims
+                policy._town_hold.claims = copy.copy(register)
                 _recorded_process_capture(policy, snapshot)
-                policy._claim_register = register
+                policy._town_hold.claims = register
                 policy.confirm_key_posted(key)
                 chain = policy.peek_staged_prompt_chain()
                 if chain is not None and staged_prompt_chain_matches(chain, key):

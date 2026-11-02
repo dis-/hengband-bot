@@ -111,7 +111,7 @@ class HomeFullAwaitKnowledgeRecordedTest(unittest.TestCase):
                                      expected, f"first divergence at state line {line}")
                 self.assertEqual(self.decide(policy, sold_board), HOME_KNOWLEDGE_MACRO)
                 self.assertEqual(policy._home_full_relief["remaining"], 1)
-                scan_claim = policy._claim_register.current
+                scan_claim = policy._town_hold.claims.current
                 self.assertEqual(scan_claim.owner.value, "home-scan")
                 # DECLARED CONSTRUCTED response: the historical scan was not
                 # requested at this sale. Remove its observed withdrawn stack
@@ -120,8 +120,8 @@ class HomeFullAwaitKnowledgeRecordedTest(unittest.TestCase):
                 fresh = tuple(item for item in catalogue
                               if policy._sale_item_identity(item) != identity)
                 policy.consume_home_knowledge(fresh)
-                self.assertEqual(policy._claim_register.current.claim_id, scan_claim.claim_id)
-                self.assertEqual(policy._claim_register.current.closed, "complete")
+                self.assertEqual(policy._town_hold.claims.current.claim_id, scan_claim.claim_id)
+                self.assertEqual(policy._town_hold.claims.current.closed, "complete")
                 self.assertFalse(policy._home_knowledge_scan_inflight)
                 # Changed scan means subsequent town navigation is constructed.
                 next_board = replace(sold_board, turn=sold_board.turn + 1, messages=())

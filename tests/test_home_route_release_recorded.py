@@ -58,10 +58,10 @@ def reconstructed(pin, enforced):
                "weight-overload", entries[0][0], quantity=28))
     visit.begin_approach(2)
     policy._prepare_home_visit_operation("put", entries[0][0], ("captured-pack",))
-    claim = policy._claim_register.declare("home-visit",
+    claim = policy._town_hold.claims.declare("home-visit",
         observe((STORE_HOME, 2, key), STORE_STUCK_LIMIT, source="store-operation"),
         floor=after.floor_key)
-    policy._claim_register.declare_execution(claim.claim_id, producer="home-visit",
+    policy._town_hold.claims.declare_execution(claim.claim_id, producer="home-visit",
         work_id=f"home-operation:2:{key}", state="acting",
         next_step="home.operation.send", expected_effect="home-inventory-effect",
         continuation="home.operation.observe", budget_ref="home-operation-existing-budget")

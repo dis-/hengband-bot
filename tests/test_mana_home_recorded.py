@@ -69,19 +69,19 @@ class ManaHomeRecordedTest(unittest.TestCase):
                     policy, board, device, old = self.wall(row)
                     # CONSTRUCTED registered deposit route with its original
                     # rank. It must be suspended with its id and goal intact.
-                    held = policy._claim_register.declare('home-visit', reach((45, 125)))
-                    policy._claim_register._claim = replace(
+                    held = policy._town_hold.claims.declare('home-visit', reach((45, 125)))
+                    policy._town_hold.claims._claim = replace(
                         held, rank=64, rung='_home_disposal_processing_key')
                     self.assertEqual(policy._count_mana_food_uses(board), 0)
                     self.assertEqual(policy.choose_key(board), '5pa\x1b')
                     self.assertEqual(policy.last_reason, 'survival:mana-home-withdraw')
                     self.assertEqual(policy._home_visit.request.requester, 'survival')
                     self.assertEqual(policy._home_visit.operation, ('take', policy._item_signature(device)))
-                    self.assertEqual(policy._claim_register.current.owner.value, 'survival')
-                    self.assertEqual(policy._claim_register.current.execution.producer, 'survival')
+                    self.assertEqual(policy._town_hold.claims.current.owner.value, 'survival')
+                    self.assertEqual(policy._town_hold.claims.current.execution.producer, 'survival')
                     self.assertEqual(policy._home_visit.queued, [old])
-                    self.assertEqual(policy._claim_register.suspended[-1].claim_id, held.claim_id)
-                    self.assertEqual(policy._claim_register.suspended[-1].goal, held.goal)
+                    self.assertEqual(policy._town_hold.claims.suspended[-1].claim_id, held.claim_id)
+                    self.assertEqual(policy._town_hold.claims.suspended[-1].goal, held.goal)
 
     def test_restored_policy_refiles_missing_executor_for_survival(self):
         policy, board, _device, _old = self.wall(catalogue=False)
@@ -204,7 +204,7 @@ class ManaHomeRecordedTest(unittest.TestCase):
         attach_visit(policy, raw)
         policy._decision_sequence = 2534
         # CONSTRUCTED current emitter declaration for already-sent input.
-        policy._claim_register._claim = replace(held, execution=replace(
+        policy._town_hold.claims._claim = replace(held, execution=replace(
             held.execution, state='awaiting', operation_ref='decision:2534', next_step=None))
         visit = policy._home_visit
         visit.record_operation('put', visit.request.item_identity, 0)
@@ -214,8 +214,8 @@ class ManaHomeRecordedTest(unittest.TestCase):
             ((policy._item_signature(carried), carried.count, 1),), None, board.turn, 0)
         policy._home_entry_operation_posted = True
         self.assertIsNotNone(policy.choose_key(board))
-        self.assertEqual(policy._claim_register.current.owner.value, 'home-visit')
-        self.assertEqual(policy._claim_register.current.claim_id, held.claim_id)
+        self.assertEqual(policy._town_hold.claims.current.owner.value, 'home-visit')
+        self.assertEqual(policy._town_hold.claims.current.claim_id, held.claim_id)
         self.assertEqual(policy._home_visit.request.requester, 'home-deposit')
         self.assertIsNotNone(policy._home_atomic_deposit_pending)
 

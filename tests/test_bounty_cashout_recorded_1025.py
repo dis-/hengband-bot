@@ -101,13 +101,13 @@ class BountyCashoutRecordedTest(unittest.TestCase):
             # DECLARED CONSTRUCTED: the hand-over has no effect on the board.
             snapshot = replace(snapshot, turn=snapshot.turn + 1)
             keys.append(policy.choose_key(snapshot))
-            current = policy._claim_register.current
+            current = policy._town_hold.claims.current
             if current.closed == "retired":
                 retired = current
         self.assertEqual(keys[:budget], ["7cy\x1b"] * budget)
         self.assertIsNotNone(retired)
         self.assertEqual(retired.owner.value, "quest-request")
-        self.assertNotEqual(policy._claim_register.current.owner.value,
+        self.assertNotEqual(policy._town_hold.claims.current.owner.value,
                             "quest-request")
         self.assertNotEqual(keys[-1], "7cy\x1b")
 

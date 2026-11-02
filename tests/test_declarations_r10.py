@@ -15,10 +15,10 @@ class TownDeclarationRulingTest(unittest.TestCase):
         policy = HengbotPolicy()
         board = short_route_board()
         policy.prime(board)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             family, observe(("held-work",), 99, "test"),
             floor=board.floor_key)
-        policy._claim_register.declare_execution(
+        policy._town_hold.claims.declare_execution(
             claim.claim_id, work_id="held-work", producer=family,
             state=state, **fields)
         return policy, board

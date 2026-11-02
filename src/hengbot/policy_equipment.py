@@ -324,6 +324,7 @@ from hengbot.warrior_optimization import (
 from hengbot.launcher_damage import launcher_average_damage
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.warrior_equipment_evaluator import AC_REFERENCE, melee_hit_chance
+from hengbot.town_terminal import standing_claim
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,
@@ -2077,7 +2078,7 @@ class EquipmentMixin:
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
         if key is not None and session is not None and not session.executable:
-            held = self._claim_register.current
+            held = standing_claim(self)
             declaration = getattr(held, "execution", None)
             if held is not None and held.owner.value == producer and declaration is not None:
                 # The item-specific failure belongs to this work's exit.
@@ -2177,7 +2178,7 @@ class EquipmentMixin:
         if action is None or action.kind != "deposit":
             return False
         already_closed = self._equipment_home_full_refused_this_visit()
-        held = self._claim_register.current
+        held = standing_claim(self)
         continuation = getattr(held, "execution", None)
         admitted_continuation = bool(
                 snapshot.store is not None

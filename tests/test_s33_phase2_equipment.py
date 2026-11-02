@@ -27,10 +27,10 @@ class EquipmentReleaseTest(unittest.TestCase):
         for _ in range(EQUIPMENT_TRANSACTION_CONFIRMATION_LIMIT):
             pending.observe(observation)
         policy._equipment_transaction_session = pending
-        claim = policy._claim_register.declare('equipment-txn',
+        claim = policy._town_hold.claims.declare('equipment-txn',
             observe(('recorded-pending-deposit',), 8, source='transaction'),
             floor=snapshot.floor_key)
-        policy._claim_register.declare_execution(claim.claim_id,
+        policy._town_hold.claims.declare_execution(claim.claim_id,
             producer='equipment-txn', work_id='equipment:town:pending:017513216e865629',
             state='acting', next_step='equipment.action.observe', arguments=('dm',),
             expected_effect='equipment-action-confirmed', continuation='equipment.next-action')
@@ -38,7 +38,7 @@ class EquipmentReleaseTest(unittest.TestCase):
         self.assertEqual(key, '5')
         self.assertEqual(policy.last_reason, 'equipment-transaction:confirmation-stall-bound')
         self.assertIsNone(policy._equipment_transaction_session)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual(declaration.next_step, 'equipment.confirmation-stall-stop')
         self.assertIsNone(declaration.continuation)
 

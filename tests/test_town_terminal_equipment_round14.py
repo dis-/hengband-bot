@@ -17,6 +17,7 @@ from hengbot.policy_state import normalize_policy_state
 from hengbot.item_reservation import ITEM_RESERVATION_SOURCES
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.model import STORE_HOME
+from hengbot.town_terminal import offer_buffer
 from test_goldburn_shopping_constructed import board
 from test_town_terminal_departure import policy_on
 
@@ -70,7 +71,7 @@ class EquipmentCommandAdmissionTest(unittest.TestCase):
                     self.assertEqual(row["live"], [])
                     self.assertEqual(row["mode"], mode)
                     outcomes.append((session._prepared, policy._equipment_transaction_prepared_key,
-                                     policy.last_reason, repr(policy._decision_offer_buffer())))
+                                     policy.last_reason, repr(offer_buffer(policy))))
                 self.assertEqual(outcomes[0], outcomes[1])
 
     def test_admitted_command_preserves_the_real_preparation_and_offer(self):
@@ -83,7 +84,7 @@ class EquipmentCommandAdmissionTest(unittest.TestCase):
             self.assertIsNone(session.pending_action)
             self.assertIsNone(policy._terminal_equipment_command)
             self.assertEqual(policy._decision_terminal_admissions, [])
-            self.assertTrue(policy._decision_offer_buffer().steps)
+            self.assertTrue(offer_buffer(policy).steps)
 
     def test_material_and_terminal_reads_do_not_prepare_or_offer_a_command(self):
         policy, snap, session, action, observation = command(home=True)

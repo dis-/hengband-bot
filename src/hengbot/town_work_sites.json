@@ -2556,13 +2556,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy.py:ExecutionDelegation.as_dict": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy.py:HengbotPolicy._active_dungeon_target": {
     "classification": "data",
     "rows": [
@@ -8903,6 +8896,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "town_terminal.py:ExecutionDelegation.as_dict": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_terminal.py:_commit_curse_remove": {
     "classification": "adapter",
     "rows": [
@@ -9050,6 +9050,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_terminal.py:hold_claims": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_terminal.py:home_withdraw_intended_terminal": {
     "classification": "data",
     "rows": [
@@ -9099,6 +9106,13 @@
     ],
     "delegation": "no independent success"
   },
+  "town_terminal.py:standing_claim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_terminal.py:terminal_admission": {
     "classification": "data",
     "rows": [
@@ -9117,6 +9131,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_terminal.py:town_end_stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:town_hold": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

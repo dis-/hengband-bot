@@ -502,7 +502,7 @@ class _Decisions:
 
     @property
     def register(self) -> ClaimRegister:
-        return self.policy._claim_register
+        return self.policy._town_hold.claims
 
 
 class StackSemanticsTest(unittest.TestCase):
@@ -1131,7 +1131,7 @@ class RoundThreeTest(unittest.TestCase):
     def test_a_floorless_claim_suspended_now_expires_on_the_next_floor(self):
         run = _Decisions()
         register, claim = self._floorless_register(run, run.cell(3))
-        run.policy._claim_register = pickle.loads(pickle.dumps(register))
+        run.policy._town_hold.claims = pickle.loads(pickle.dumps(register))
         self.assertIsNone(run.register.current.floor)
         swing = run.decide("melee")
         self.assertEqual(swing["closed_claim"]["claim_id"], claim.claim_id)
@@ -1147,7 +1147,7 @@ class RoundThreeTest(unittest.TestCase):
         self.assertIsNone(stacked.floor)
         state = {"_claim_register": register}
         restored = pickle.loads(pickle.dumps(state))["_claim_register"]
-        run.policy._claim_register = restored
+        run.policy._town_hold.claims = restored
         # the first board that sees it suspended stamps its floor ...
         run.decide("melee")
         (stamped,) = run.register.suspended
@@ -1430,7 +1430,7 @@ class RestoredCheckpointTest(unittest.TestCase):
     def test_a_pre_s2b1_register_in_a_policy_declares_and_preempts(self):
         run = _Decisions()
         restored = self._pre_s2b1_register(goal=reach(run.cell(3)))
-        run.policy._claim_register = restored
+        run.policy._town_hold.claims = restored
         row = run.decide("melee")
         # the held claim has no recorded rung: its family's ordinary rung
         self.assertEqual(row["closed_claim"]["closed_reason"],
@@ -1456,9 +1456,9 @@ class RestoredCheckpointTest(unittest.TestCase):
         self.assertNotIn("_decision_triggers", state)
         restored = restore_checkpoint(HengbotPolicy, encoded)
         self.assertIsNone(restored.__dict__["_decision_triggers"])
-        self.assertEqual(restored._claim_register.__dict__["_suspended"], [])
+        self.assertEqual(restored._town_hold.claims.__dict__["_suspended"], [])
         self.assertEqual(
-            restored._claim_register.__dict__["_suspended_closings"], []
+            restored._town_hold.claims.__dict__["_suspended_closings"], []
         )
         key = restored.choose_key(snapshot)
         self.assertEqual(

@@ -105,7 +105,7 @@ class GoldburnShoppingConstructedTest(unittest.TestCase):
     def test_arrival_completes_transport_claim_before_shop_entry(self):
         policy = shopping_policy()
         snap = board()
-        register = policy._claim_register
+        register = policy._town_hold.claims
         claim = register.declare("cross-town", reach_place("town:1"))
         register.declare_execution(
             claim.claim_id, work_id="cross-town-shopping:travel:1",

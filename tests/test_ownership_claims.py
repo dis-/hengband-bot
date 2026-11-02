@@ -206,7 +206,7 @@ class _Replay:
         if not register:
             # The seam the neutrality pin needs: with no register there is no
             # declaration, no claim block and no ledger record.
-            policy._claim_register = None
+            policy._town_hold.claims = None
         if skill is not None:
             policy.consume_skill_knowledge(skill)
         trajectory = []
@@ -393,7 +393,7 @@ class PreS1CheckpointTest(unittest.TestCase):
         restored = restore_checkpoint(
             HengbotPolicy, capture["producer_checkpoint_pickle_b64"]
         )
-        self.assertIsInstance(restored._claim_register, ClaimRegister)
+        self.assertIsInstance(restored._town_hold.claims, ClaimRegister)
         self.assertIsNone(restored.decision_claim)
         self.assertEqual(
             (restored.choose_key(snapshot), restored.last_reason),

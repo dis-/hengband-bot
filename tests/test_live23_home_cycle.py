@@ -54,10 +54,10 @@ class Live23HomeCycleTest(unittest.TestCase):
 
         policy = HengbotPolicy()
         policy._crossarea_fundraising_enforced = True
-        holder = policy._claim_register.declare(
+        holder = policy._town_hold.claims.declare(
             "equipment-txn", observe((str(page.turn), str(page.store.store_type),
                                       "knowledge"), 8, "knowledge"))
-        policy._claim_register.declare_execution(
+        policy._town_hold.claims.declare_execution(
             holder.claim_id, producer="equipment-txn",
             work_id="equipment:acquire-home-catalog", state="acting",
             next_step="home.catalogue.acquire",
@@ -105,7 +105,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                     self.assertEqual((key, policy.last_reason), (
                         HOME_KNOWLEDGE_MACRO,
                         "equipment-transaction:catalogue-request-knowledge"))
-                    holder_id = policy._claim_register.current.claim_id
+                    holder_id = policy._town_hold.claims.current.claim_id
                     policy.confirm_key_posted(key)
                     if restored:
                         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
@@ -321,12 +321,12 @@ class Live23HomeCycleTest(unittest.TestCase):
                             HOME_KNOWLEDGE_MACRO,
                             "equipment-transaction:catalogue-request-knowledge"))
                         self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
-                        holder_id = policy._claim_register.current.claim_id
+                        holder_id = policy._town_hold.claims.current.claim_id
                         self.assertEqual(policy.decision_claim["claim_id"], holder_id)
                         self.assertIsNone(policy.decision_claim["violation"])
-                        self.assertEqual(policy._claim_register.current.execution.work_id,
+                        self.assertEqual(policy._town_hold.claims.current.execution.work_id,
                                          "equipment:acquire-home-catalog")
-                        self.assertEqual(policy._claim_register.current.execution.continuation,
+                        self.assertEqual(policy._town_hold.claims.current.execution.continuation,
                                          "home.catalogue.acquire")
                     policy.confirm_key_posted(key)
                     if index == 2:
@@ -346,9 +346,9 @@ class Live23HomeCycleTest(unittest.TestCase):
         self.assertEqual((partial.store.stock_num, len(partial.store.items)), (131, 52))
         for enforced in (False, True):
             policy, _ = attachment(enforced=enforced, crossarea=False)
-            holder = policy._claim_register.declare("equipment-txn", observe(
+            holder = policy._town_hold.claims.declare("equipment-txn", observe(
                 goal["expectation"], goal["within"], goal["source"]))
-            policy._claim_register.declare_execution(
+            policy._town_hold.claims.declare_execution(
                 holder.claim_id, producer=execution["producer"], work_id=execution["work_id"],
                 state=execution["state"], next_step=execution["next_step"],
                 expected_effect=execution["expected_effect"], continuation=execution["continuation"])
@@ -357,7 +357,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                              "equipment-transaction:catalogue-request-knowledge")
             self.assertFalse(policy._home_knowledge_current)
             policy._record_decision_claim(partial, HOME_KNOWLEDGE_MACRO)
-            self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
+            self.assertEqual(policy._town_hold.claims.current.claim_id, holder.claim_id)
             policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
             policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
             self.assertTrue(policy._home_knowledge_scan_inflight)

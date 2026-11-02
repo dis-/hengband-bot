@@ -57,7 +57,7 @@ class CalibrationCheckpointTest(unittest.TestCase):
         visit.queued.append(HomeVisitRequest(restore_kind, "calibration"))
         visit.queued.append(HomeVisitRequest(HomeVisitKind.SCAN, "home-scan"))
         visit.previous_completed_delta = (1, ("oil", 77, 0), restore_kind, "calibration")
-        register = policy._claim_register
+        register = policy._town_hold.claims
         register._claim = Claim(claim_id=7, owner=family, goal=Goal(kind="Observe"))
         register._ended.append(Claim(claim_id=6, owner=family, goal=Goal(kind="Observe")))
         policy.decision_claim = register._claim
@@ -71,8 +71,8 @@ class CalibrationCheckpointTest(unittest.TestCase):
         self.assertIsNone(restored._home_visit.operation)
         self.assertEqual([r.kind for r in restored._home_visit.queued], [HomeVisitKind.SCAN])
         self.assertIsNone(restored._home_visit.previous_completed_delta)
-        self.assertIsNone(restored._claim_register._claim)
-        self.assertEqual(restored._claim_register._ended, [])
+        self.assertIsNone(restored._town_hold.claims._claim)
+        self.assertEqual(restored._town_hold.claims._ended, [])
         self.assertIsNone(restored.decision_claim)
         self.assertIsNone(restored._home_atomic_withdraw_pending)
         for name in ("_calibration_phase", "_calibration_stripped_unrestored",
@@ -172,7 +172,7 @@ class RestoredCalibrationBoundaryTest(unittest.TestCase):
                 self.assertIsNone(restored._equipment_transaction_session)
                 self.assertIsNone(restored._equipment_transaction_prepared_key)
                 self.assertFalse(any(record.parent_family == "calibration"
-                                     for record in restored._execution_delegations))
+                                     for record in restored._town_hold.delegations))
                 self.assertNotIn("_calibration_phase", vars(restored))
 
     def test_ordinary_equipment_session_survives_restore(self):

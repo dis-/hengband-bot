@@ -98,8 +98,8 @@ class TownCureCatalogueContinuationTest(replay._RecordedProcess):
         self.assertTrue(policy._store_page_can_request_knowledge(board))
         self.assertFalse(policy._home_knowledge_scan_inflight)
         self.assertIsNone(policy._home_knowledge_scan_epoch)
-        holder_id = policy._claim_register.current.claim_id
-        self.assertEqual(policy._claim_register.current.owner.value, "home-scan")
+        holder_id = policy._town_hold.claims.current.claim_id
+        self.assertEqual(policy._town_hold.claims.current.owner.value, "home-scan")
         self.assertEqual(policy._home_visit.state.value, "approaching")
         self.assertEqual(policy._home_visit.request.item_identity[1:], (70, 26))
         self.assertEqual(policy._home_visit.queued, [])

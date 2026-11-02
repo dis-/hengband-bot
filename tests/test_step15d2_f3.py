@@ -14,6 +14,7 @@ from hengbot.model import (
 )
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
+from hengbot.town_terminal import offered_steps
 from policy_fixtures import item
 from test_step15d2_f2 import _board
 
@@ -96,10 +97,10 @@ class Step15d2F3Test(unittest.TestCase):
         }
         policy._home_knowledge_current = False
         self.assertTrue(policy._home_full_relief_yields_to_store_operation(board))
-        offers = len(policy._execution_offers_for())
+        offers = len(offered_steps(policy))
         self.assertIsNone(policy._home_full_relief_key(board))
         self.assertFalse(policy._home_knowledge_current)
-        self.assertEqual(len(policy._execution_offers_for()), offers)
+        self.assertEqual(len(offered_steps(policy)), offers)
 
     def test_entry_budget_stop_is_visible_and_keeps_the_existing_budget(self):
         policy, board = self._required_board()

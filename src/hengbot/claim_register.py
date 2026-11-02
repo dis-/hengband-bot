@@ -30,9 +30,10 @@ What a claim is
 
 Plain data only (design 5.4).  A goal holds a ``(y, x)`` tuple, never a
 ``Position``; a claim holds no ``DecisionCandidate`` and no snapshot.  The
-register lives in the policy's ``__dict__``, so it is pickled into every
-checkpoint: it keeps the current claim and a counter, never a history, and
-the history lives in the ledger file instead.
+register lives in the town hold (``town_terminal.TownHold``, the policy's
+``_town_hold``), so it is pickled into every checkpoint: it keeps the current
+claim and a counter, never a history, and the history lives in the ledger
+file instead.
 
 ``closed`` and the five states
 ------------------------------

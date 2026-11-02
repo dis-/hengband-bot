@@ -30,14 +30,14 @@ def attachment(label):
     prior, scan = rows(label, "decisions")
     policy = HengbotPolicy()
     policy._decision_sequence = scan["decision_sequence"]
-    policy._claim_register._next_id = prior["claim"]["claim_id"]
-    claim = policy._claim_register.declare(
+    policy._town_hold.claims._next_id = prior["claim"]["claim_id"]
+    claim = policy._town_hold.claims.declare(
         "store-router", reach(tuple(prior["claim"]["goal"]["cell"])),
         opened_sequence=prior["decision_sequence"],
         floor=tuple(prior["floor"][key] for key in ("dungeon_id", "level", "quest_id")))
     declaration = prior["claim"]["execution"]
     # The recorded prior key was posted. Shadow names its awaiting holder.
-    policy._claim_register.declare_execution(
+    policy._town_hold.claims.declare_execution(
         claim.claim_id, producer=declaration["producer"], work_id=declaration["work_id"],
         state="awaiting", arguments=("store", tuple(declaration["arguments"][1])),
         operation_ref=f"decision:{prior['decision_sequence']}:{prior['key']}",

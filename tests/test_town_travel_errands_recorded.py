@@ -55,7 +55,7 @@ class TravelBeside:
         # #47 maint3-1101: a held travel asks the inn leg again
         # (town.teleport.resume), not route.resume's one cell named
         # fixedquest:request:approach.
-        execution = policy._claim_register.current.execution
+        execution = policy._town_hold.claims.current.execution
         self.assertEqual((execution.continuation, execution.arguments),
                          ("town.teleport.resume", (destination, reason)))
 
@@ -119,7 +119,7 @@ class BountyApproachRecordedTest(TravelBeside, nokey.PostedKey):
         # Unfixed: '7' (recorded decision 5123).
         self.assert_travel_beside(policy, key, live22.OFFICE, "bounty:approach")
         # The office's own work stays the declared continuation.
-        self.assertEqual(policy._claim_register.current.execution.continuation, "bounty.resume")
+        self.assertEqual(policy._town_hold.claims.current.execution.continuation, "bounty.resume")
         with gzip.open(live22.FIXTURE / "state.jsonl.gz", "rt", encoding="utf8") as source:
             raw = json.loads(next(source))
         self.post(policy, raw, key)

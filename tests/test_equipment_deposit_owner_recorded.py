@@ -50,18 +50,18 @@ def session(line):
 
 
 def declared(policy, pending, *, awaiting=False):
-    claim = policy._claim_register.declare('equipment-txn',
+    claim = policy._town_hold.claims.declare('equipment-txn',
         observe((repr(pending.plan.actions),), 8, source='transaction'),
         non_discardable=True)
     action = pending.pending_action or pending.current_action
-    policy._claim_register.declare_execution(claim.claim_id,
+    policy._town_hold.claims.declare_execution(claim.claim_id,
         producer='equipment-txn', work_id=f'equipment:{pending.target_loadout_id}:{pending.index}',
         state='awaiting' if awaiting else 'acting',
         next_step=None if awaiting else 'equipment.next-action',
         arguments=(action.kind, action.target_slot, action.item_identity),
         operation_ref='decision:12:dl' if awaiting else None,
         expected_effect='equipment-action-confirmed', continuation='equipment.next-action')
-    return policy._claim_register.current
+    return policy._town_hold.claims.current
 
 
 class DepositOwnerRecordedTest(unittest.TestCase):
@@ -178,7 +178,7 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 declared(policy, pending, awaiting=True)
                 key = policy.choose_key(after)
                 self.assertEqual(key, '\x1b')
-                self.assertEqual(policy._claim_register.current.execution.continuation,
+                self.assertEqual(policy._town_hold.claims.current.execution.continuation,
                                  'equipment.next-action')
                 policy.confirm_key_posted(key)
                 self.assertIsNotNone(pending.pending_action)
@@ -205,7 +205,7 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 key = policy.choose_key(after)
                 self.assertEqual(key, 'dm' if enforced else '\x1b')
                 self.assertEqual(pending.index, 1)
-                self.assertEqual(policy._claim_register.current.execution.continuation,
+                self.assertEqual(policy._town_hold.claims.current.execution.continuation,
                                  'equipment.next-action')
                 policy.confirm_key_posted(key)
                 outside = replace(after, store=None, turn=after.turn + 5)
@@ -229,4 +229,4 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 self.assertTrue(policy.last_reason.endswith('equipment-transaction:confirmation-stall-bound'))
                 self.assertIsNone(policy.decision_claim['violation'])
                 self.assertIsNone(policy._equipment_transaction_session)
-                self.assertIsNone(policy._claim_register.current.execution.continuation)
+                self.assertIsNone(policy._town_hold.claims.current.execution.continuation)

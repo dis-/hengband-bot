@@ -37,8 +37,8 @@ def route_policy(board, *, family="store-router", enforced=True):
     policy._home_knowledge_current = True
     policy._equipment_catalog.home_scan_complete = True
     cell = (10, 14)
-    claim = policy._claim_register.declare(family, reach(cell), floor=board.floor_key)
-    policy._claim_register.declare_execution(
+    claim = policy._town_hold.claims.declare(family, reach(cell), floor=board.floor_key)
+    policy._town_hold.claims.declare_execution(
         claim.claim_id, work_id="route:constructed", producer=family,
         state="acting", next_step="route.resume", arguments=("store", cell),
         expected_effect="arrive", continuation="route.resume", budget_ref="town-travel")

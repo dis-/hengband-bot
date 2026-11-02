@@ -164,7 +164,7 @@ def _quiet_dungeon_board(**player_fields):
 def _standing(policy, family, reason, goal, board):
     """The claim the previous row left, opened at its own rung."""
     rung = rung_of(family, reason)
-    register = policy._claim_register
+    register = policy._town_hold.claims
     register.declare(
         family, goal, floor=board.floor_key,
         opened_sequence=policy._decision_sequence, opened_turn=board.turn,
@@ -175,7 +175,7 @@ def _standing(policy, family, reason, goal, board):
 
 
 def _suspend_standing(policy, board, label="preempted-by:combat"):
-    register = policy._claim_register
+    register = policy._town_hold.claims
     register.suspend(label, sequence=policy._decision_sequence, turn=board.turn)
     register.take_closing()
 
@@ -360,7 +360,7 @@ class EspThreatRestHuntTest(unittest.TestCase):
         _standing(policy, "esp-threat", "esp-threat:hunt-strong", reach(cell), board)
         _suspend_standing(policy, board)
         policy._release_esp_threat_rest_hunt("esp-threat:rest-gate-closed")
-        self.assertEqual(len(policy._claim_register.suspended), 1)
+        self.assertEqual(len(policy._town_hold.claims.suspended), 1)
 
 
 # -- (a) hunt>explore -----------------------------------------------------------
@@ -490,10 +490,10 @@ class SuspendedNamedReleaseTest(unittest.TestCase):
         policy, claim, loot = self._loot_walk(board)
         other = Position(loot.y, loot.x - 1)
         policy._release_claim_goal("loot-retarget", other, owners=("floor-loot",))
-        self.assertEqual(len(policy._claim_register.suspended), 1)
+        self.assertEqual(len(policy._town_hold.claims.suspended), 1)
         policy._release_claim_goal("loot-retarget", loot, owners=("floor-loot",))
-        self.assertEqual(policy._claim_register.suspended, ())
-        (closing,) = policy._claim_register.take_suspended_closings()
+        self.assertEqual(policy._town_hold.claims.suspended, ())
+        (closing,) = policy._town_hold.claims.take_suspended_closings()
         self.assertEqual(
             (closing["claim_id"], closing["closed_reason"]),
             (claim.claim_id, "loot-retarget"),
@@ -503,7 +503,7 @@ class SuspendedNamedReleaseTest(unittest.TestCase):
         board = _quiet_dungeon_board()
         policy, _claim, _loot = self._loot_walk(board)
         policy._release_claim_goal("anything", owners=("floor-loot",))
-        self.assertEqual(len(policy._claim_register.suspended), 1)
+        self.assertEqual(len(policy._town_hold.claims.suspended), 1)
 
 
 # -- (a) positioning>combat -----------------------------------------------------
@@ -861,7 +861,7 @@ class RecordOnlyTest(unittest.TestCase):
         for register_on in (True, False):
             policy, board, patches = build()
             if not register_on:
-                policy._claim_register = None
+                policy._town_hold.claims = None
             for patcher in patches:
                 patcher.start()
             try:

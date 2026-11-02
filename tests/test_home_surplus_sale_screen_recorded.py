@@ -56,7 +56,7 @@ class HomeSurplusSaleScreenRecordedTest(unittest.TestCase):
                          ('\x1b', 'shop:unsellable-home-full-surplus-sale-refused'))
         self.assertIsNone(policy._batch_sell_pending)
         self.assertEqual(policy.decision_claim['owner'], 'shop-sell')
-        self.assertEqual(policy._claim_register.current.execution.producer, 'shop-sell')
+        self.assertEqual(policy._town_hold.claims.current.execution.producer, 'shop-sell')
         self.assertIsNone(policy.decision_claim['violation'])
         self.assertNotIn(STORE_ARMOURY, policy._store_sale_refused)
 

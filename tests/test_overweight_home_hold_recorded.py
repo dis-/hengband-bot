@@ -254,7 +254,7 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
 
     def test_pre_fix_checkpoint_retains_the_historical_arrived_open_route(self):
         policy, board = _Unpickler(io.BytesIO(self.independent[HOME]), self.monrace).load()
-        holder = policy._claim_register.current
+        holder = policy._town_hold.claims.current
         self.assertTrue(holder.is_open)
         self.assertEqual(holder.owner.value, "store-router")
         self.assertEqual(holder.goal.cell, (board.player.position.y, board.player.position.x))

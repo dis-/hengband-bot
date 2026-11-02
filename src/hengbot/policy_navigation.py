@@ -190,6 +190,7 @@ from hengbot.model import (
     item_requires_full_identification,
 )
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
+from hengbot.town_terminal import standing_claim
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
     STUCK_DOOR_MESSAGE_FRAGMENTS,
@@ -238,7 +239,7 @@ class NavigationMixin:
                 )
                 return probe
             self.last_reason = "stair:await-observation"
-            current = getattr(self._claim_register, "current", None)
+            current = standing_claim(self)
             declaration = None if current is None else current.execution
             if (declaration is None or declaration.state != "awaiting"
                     or not declaration.work_id.startswith("stair:")):

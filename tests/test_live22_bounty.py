@@ -12,6 +12,7 @@ from hengbot.claim_register import reach
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.town_travel import is_travel_macro
+from hengbot.town_terminal import offer_buffer, offered_steps
 
 FIXTURE = Path(__file__).parent / "fixtures" / "live22-bounty"
 OFFICE = Position(25, 71)
@@ -88,7 +89,7 @@ class Live22BountyTest(unittest.TestCase):
         board = recorded[3]  # independent attachment, never post-divergence
         policy._map_predicate_snapshot = board
         self.assertEqual(policy._town_order_step4_key(board), "\x1b")
-        offer = policy._execution_offers_for()[-1]
+        offer = offered_steps(policy)[-1]
         self.assertEqual(offer[1:3], ("quest-request", "normal-step4-bounty"))
         self.assertEqual(offer[8], "releasing")
         self.assertEqual(offer[10], "nothing-to-do-here:supplier:4")
@@ -103,7 +104,7 @@ class Live22BountyTest(unittest.TestCase):
                 policy, recorded = attached_policy()
                 board = recorded[3]
                 policy._map_predicate_snapshot = board
-                policy._claim_register.declare("store-router", reach((25, 71)))
+                policy._town_hold.claims.declare("store-router", reach((25, 71)))
                 if restored:
                     policy = pickle.loads(pickle.dumps(policy))
                 key = policy._town_order_step4_key(board)
@@ -136,9 +137,9 @@ class Live22BountyTest(unittest.TestCase):
         # Supplemental unit case, not a claim that the divergent replay cashed out.
         cleared = replace(board, inventory=[item for item in board.inventory if not item.is_bounty])
         self.assertEqual(policy._town_order_step4_key(cleared), None)
-        self.assertEqual(policy._decision_offer_buffer().no_steps[-1][:3],
+        self.assertEqual(offer_buffer(policy).no_steps[-1][:3],
                          ("quest-request", "normal-step4-bounty", "bounty-removed"))
-        self.assertEqual(policy._decision_offer_buffer().no_steps[-1][4], "done")
+        self.assertEqual(offer_buffer(policy).no_steps[-1][4], "done")
         self.assertEqual(policy._town_order_operation, None)
 
     def test_other_routes_keep_their_supplier_progress_after_restore(self):
@@ -190,7 +191,7 @@ class Live22BountyTest(unittest.TestCase):
         policy = pickle.loads(pickle.dumps(policy))
         self.assertIsNone(policy._bounty_cashout_key(board))
         self.assertIsNone(policy._town_blocked_reason)
-        self.assertEqual(policy._decision_offer_buffer().no_steps[-1][:3],
+        self.assertEqual(offer_buffer(policy).no_steps[-1][:3],
                          ("quest-request", "normal-step4-bounty",
                           "bounty-office-step-off-unavailable"))
 

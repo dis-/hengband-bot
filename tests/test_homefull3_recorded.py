@@ -125,7 +125,7 @@ class RecordedHomeFull3Test(unittest.TestCase):
             p._town_visit_ledger.unsatisfied_passes[STORE_HOME] = 3
             request = HomeErrandRequest(signature, 1, 'home-catalog', 'full-home-sale')
             p._file_home_errand(b, request, knowledge_current=False)
-            p._claim_register.declare('home-errand', observe(('home-request',), 8, source='store-operation'), floor=b.floor_key)
+            p._town_hold.claims.declare('home-errand', observe(('home-request',), 8, source='store-operation'), floor=b.floor_key)
             key = p.choose_key(b)
             self.assertTrue(key.startswith('~9'), (key, p.last_reason))
             self.assertEqual(p.decision_claim['owner'], 'home-errand')

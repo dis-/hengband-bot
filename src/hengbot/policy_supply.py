@@ -39,6 +39,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_types import SupplyStatus, TownMapRoute
 from hengbot.quest_strategies import StrategyProfile
+from hengbot.town_terminal import standing_claim
 
 
 # Decision-row telemetry (cli._capture_decision_facts) evaluates the supply
@@ -1599,7 +1600,7 @@ class SupplyMixin:
             if (self._home_atomic_deposit_pending is not None
                     or self._home_atomic_withdraw_pending is not None
                     or getattr(getattr(self, "_home_visit", None), "entry_pending", False)):
-                holder = getattr(getattr(self, "_claim_register", None), "current", None)
+                holder = standing_claim(self)
                 execution = getattr(holder, "execution", None)
                 if (holder is not None and holder.is_open and execution is not None
                         and execution.state == "awaiting"

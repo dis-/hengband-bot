@@ -10,6 +10,7 @@ from unittest.mock import patch
 from hengbot import town_terminal as tt
 from hengbot.item_reservation import ITEM_RESERVATION_SOURCES, ReservationVerdict
 from hengbot.policy_state import normalize_policy_state
+from hengbot.town_terminal import offer_buffer
 from policy_fixtures import item
 import test_policy_home as home_fixtures
 from test_goldburn_shopping_constructed import board
@@ -46,7 +47,7 @@ class DisposalAdmissionTest(unittest.TestCase):
                 self.assertEqual(row["live"], [])
                 self.assertEqual(row["mode"], mode)
                 outcomes.append((key, policy.last_reason, policy._destroy_watch,
-                                 repr(policy._decision_offer_buffer())))
+                                 repr(offer_buffer(policy))))
             self.assertEqual(outcomes[0], outcomes[1])
 
     def test_whole_stack_control_keeps_the_original_force_destroy_bytes(self):
@@ -69,7 +70,7 @@ class DisposalAdmissionTest(unittest.TestCase):
             row, = policy._decision_terminal_admissions
             self.assertEqual(row["codes"], ["disposal-quantity-invalid"])
             self.assertEqual(policy.last_reason, "ownership:item-reserved:overweight-surplus:serializer-error")
-            outcomes.append((key, policy.last_reason, repr(policy._decision_offer_buffer())))
+            outcomes.append((key, policy.last_reason, repr(offer_buffer(policy))))
         self.assertEqual(outcomes[0], outcomes[1])
 
     def test_partial_control_uses_the_observed_surplus_quantity(self):

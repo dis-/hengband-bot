@@ -178,6 +178,6 @@ class HomeScanOwnerPriorityTest(QuestTravelFixtureMixin, unittest.TestCase):
             key = policy.choose_key(board(turn=101 + count))
             self.assertEqual((str(key), policy.last_reason),
                              ("", "home:scan-await-observation"))
-            self.assertEqual(policy._claim_register.current.owner.value, "home-scan")
+            self.assertEqual(policy._town_hold.claims.current.owner.value, "home-scan")
             self.assertEqual(policy._home_knowledge_scan_wait_decisions, count)
             self.assertEqual(policy._home_knowledge_scan_epoch, epoch)

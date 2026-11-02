@@ -25,16 +25,16 @@ class BookkeepingDeclarationTest(unittest.TestCase):
         with patch.object(policy, "_periodic_filler_is_safe", return_value=True):
             key = policy._periodic_game_save_key(board, "6")
         self.assertEqual(key, "\x13")
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "bookkeeping", observe(("save",), 8, "periodic"))
         policy._record_execution_declaration(claim, "6", policy.last_reason)
-        self.assertIsNone(policy._claim_register.current.execution)
+        self.assertIsNone(policy._town_hold.claims.current.execution)
 
         policy._periodic_save_requested = True
         with patch.object(policy, "_periodic_filler_is_safe", return_value=True):
             key = policy._periodic_game_save_key(board, "6")
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.next_step),
                          ("bookkeeping", "acting", "game.save.send"))
@@ -43,10 +43,10 @@ class BookkeepingDeclarationTest(unittest.TestCase):
         policy = HengbotPolicy()
         board = SimpleNamespace(protocol_version=2)
         self.assertIsNone(policy._skill_exp_request_key(board))
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "bookkeeping", observe(("skill-exp",), 8, "knowledge"))
         policy._record_execution_declaration(claim, None, "periodic:skill-exp")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.cause),
                          ("bookkeeping", "releasing",
@@ -65,10 +65,10 @@ class CurseEnchantDeclarationTest(unittest.TestCase):
             equipment=[cursed], inventory=[scroll],
         )
         key = policy._town_remove_curse_key(board)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "curse-enchant", observe(("curse",), 8, "equipment"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.next_step, declaration.arguments[0]),
                          ("curse-enchant", "acting", "curse.remove.send",
@@ -90,7 +90,7 @@ class RumorDeclarationTest(policy_shop_fixture._TownShopFixtureBase):
         set_completed_equipment_optimization(policy)
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "town:rumor-batch")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.next_step,
                           declaration.arguments),
                          ("rumor", "rumor.read-batch", (40,)))
@@ -105,10 +105,10 @@ class CrossTownDeclarationTest(unittest.TestCase):
               patch.object(policy, "_cross_town_unobtainable_categories",
                            return_value=())):
             key = policy._cross_town_shopping_key(board)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "cross-town", observe(("shopping",), 8, "shopping"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.cause),
                          ("cross-town", "releasing",
@@ -125,10 +125,10 @@ class IdentificationDeclarationTest(unittest.TestCase):
             floor_key=(0, 0, 0), town_flag=True, inventory=[target],
         )
         self.assertIsNone(policy._town_device_processing_key(board))
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "identification", observe(("device",), 8, "knowledge"))
         policy._record_execution_declaration(claim, None, "identify:device")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.next_step, declaration.arguments),
                          ("identification", "acting",
@@ -143,10 +143,10 @@ class DepartureDeclarationTest(unittest.TestCase):
         policy = HengbotPolicy()
         board = SimpleNamespace(player=SimpleNamespace(recalling=False))
         key = policy._dungeon_recall_confirmation_key(board)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "departure", observe(("floor",), 8, "return"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.cause),
                          ("departure", "releasing",
@@ -163,10 +163,10 @@ class FundraisingDeclarationTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         key = policy._leave_fundraising_floor(board, allow_recall=False)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "fundraising", observe(("floor",), 8, "fundraising"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.next_step, declaration.continuation),
                          ("fundraising", "acting", "fundraising.ascend.send",
@@ -184,10 +184,10 @@ class EquipmentTxnDeclarationTest(unittest.TestCase):
         with (patch.object(policy, "_defer_town_errand", return_value=False),
               patch.object(policy, "_abandon_blocked_equipment_transaction")):
             key = policy._equipment_transaction_town_owner_key(board)
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "equipment-txn", observe(("transaction",), 8, "equipment"))
         policy._record_execution_declaration(claim, key, policy.last_reason)
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.next_step),
                          ("equipment-txn", "acting",
@@ -195,7 +195,7 @@ class EquipmentTxnDeclarationTest(unittest.TestCase):
 
     def test_posted_action_wait_keeps_operation_identity(self):
         policy = HengbotPolicy()
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "equipment-txn", observe(("transaction",), 8, "equipment"))
         policy._offer_execution_awaiting(
             "5", producer="equipment-txn", work_id="equipment:town:pending:a",
@@ -204,7 +204,7 @@ class EquipmentTxnDeclarationTest(unittest.TestCase):
         )
         policy._record_execution_declaration(
             claim, "5", "equipment-transaction:await-confirmation")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.state, declaration.operation_ref,
                           declaration.expected_effect),
                          ("awaiting", "command:42",
@@ -219,10 +219,10 @@ class EquipmentOptDeclarationTest(unittest.TestCase):
             in_town=False, player=SimpleNamespace(class_id=PLAYER_CLASS_WARRIOR),
         )
         self.assertIsNone(policy._prepare_equipment_optimization(board))
-        claim = policy._claim_register.declare(
+        claim = policy._town_hold.claims.declare(
             "equipment-opt", observe(("loadout",), 8, "optimizer"))
         policy._record_execution_declaration(claim, None, "equipment:optimizer")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.state,
                           declaration.cause),
                          ("equipment-opt", "releasing",

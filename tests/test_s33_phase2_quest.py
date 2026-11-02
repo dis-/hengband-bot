@@ -20,9 +20,9 @@ def bounty_policy(snapshot, enforced):
     policy._home_knowledge_current = True
     policy._equipment_catalog.home_scan_complete = True
     office = Position(25, 71)  # recorded building_type 13
-    claim = policy._claim_register.declare('quest-request',
+    claim = policy._town_hold.claims.declare('quest-request',
         reach((office.y, office.x)), floor=snapshot.floor_key)
-    policy._claim_register.declare_execution(claim.claim_id,
+    policy._town_hold.claims.declare_execution(claim.claim_id,
         producer='quest-request', work_id='normal-step4-bounty', state='acting',
         next_step='bounty.resume', continuation='bounty.resume',
         expected_effect='bounty-removed', budget_ref='quest-request')

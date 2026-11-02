@@ -61,9 +61,9 @@ def scene(enforced, line=75):
     policy._home_full_retry_deposits = ((policy._item_signature(target), target.count, 9),)
     policy._store_visit = StoreVisit('equipment-transaction', 'equipment-work',
         STORE_HOME, StoreVisitPhase.OPERATING, opened_sequence=19)
-    claim = policy._claim_register.declare('equipment-txn',
+    claim = policy._town_hold.claims.declare('equipment-txn',
         observe((19, tuple(map(repr, session.plan.actions))), 8, source='transaction'))
-    policy._claim_register.declare_execution(claim.claim_id,
+    policy._town_hold.claims.declare_execution(claim.claim_id,
         producer='equipment-txn', work_id='equipment:town:approach-home',
         state='acting', next_step='equipment.town.approach-home',
         expected_effect='home-reached', continuation='equipment.next-action')

@@ -215,7 +215,7 @@ class _Run:
 
     @property
     def register(self) -> ClaimRegister:
-        return self.policy._claim_register
+        return self.policy._town_hold.claims
 
 
 def _board_with(board, *, turn, monsters):
@@ -648,7 +648,7 @@ class SwitchTest(unittest.TestCase):
         board = boards[2]
         policy = HengbotPolicy(monrace_knowledge=_Replay.knowledge())
         self.assertIs(policy._claim_bar_enforced, False)
-        policy._claim_register.set_bar(Bar(
+        policy._town_hold.claims.set_bar(Bar(
             owner=ClaimOwner.POSITIONING, goal=reach(CHOKE_CELL),
             kind=BAR_THREAT, since_turn=board.turn,
             last_perceived_turn=board.turn,
@@ -752,7 +752,7 @@ class ChokePlanTest(unittest.TestCase):
             closest_destination_distance=4,
         )
         if barred:
-            policy._claim_register.set_bar(Bar(
+            policy._town_hold.claims.set_bar(Bar(
                 owner=ClaimOwner.POSITIONING,
                 goal=reach((destination.y, destination.x)),
                 kind=BAR_THREAT, since_turn=board.turn,
@@ -1039,7 +1039,7 @@ class RestoredCheckpointTest(unittest.TestCase):
         _skill, boards = _dungeon_boards()
         policy = HengbotPolicy(monrace_knowledge=_Replay.knowledge())
         policy._claim_bar_enforced = True
-        policy._claim_register.set_bar(restored)
+        policy._town_hold.claims.set_bar(restored)
         for name in GATED:
             self.assertIs(policy._claim_bar_skips(boards[2], name), False)
 
@@ -1077,8 +1077,8 @@ class RestoredCheckpointTest(unittest.TestCase):
         restored = restore_checkpoint(HengbotPolicy, encoded)
         self.assertIs(restored.__dict__["_claim_bar_enforced"], False)
         self.assertIsNone(restored.__dict__["_decision_bar_skips"])
-        self.assertEqual(restored._claim_register.__dict__["_bars"], [])
-        self.assertEqual(restored._claim_register.__dict__["_ended"], [])
+        self.assertEqual(restored._town_hold.claims.__dict__["_bars"], [])
+        self.assertEqual(restored._town_hold.claims.__dict__["_ended"], [])
         key = restored.choose_key(snapshot)
         self.assertEqual(
             (key, restored.last_reason),
@@ -1092,8 +1092,8 @@ class RestoredCheckpointTest(unittest.TestCase):
         policy = HengbotPolicy(monrace_knowledge=_Replay.knowledge())
         policy.consume_skill_knowledge(skill)
         del policy.__dict__["_claim_bar_enforced"]
-        del policy._claim_register.__dict__["_bars"]
-        del policy._claim_register.__dict__["_ended"]
+        del policy._town_hold.claims.__dict__["_bars"]
+        del policy._town_hold.claims.__dict__["_ended"]
         self.assertIs(
             policy._claim_bar_skips(boards[0], "_choke_engagement_key"), False
         )
