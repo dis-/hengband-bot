@@ -22,7 +22,8 @@ from typing import Callable, Iterable, Literal
 from pathlib import Path
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.ammo_carry import (
-    ammo_carry_plan, damage_ammo_purchase, is_plain_store_ammo, power_ammo,
+    ammo_carry_plan, carried_average_damage, damage_ammo_purchase,
+    is_plain_store_ammo, power_ammo, with_bought,
 )
 from hengbot.latch_onset_capture import (
     CAPTURE_DECISIONS_AFTER_ONSET,
@@ -109,6 +110,7 @@ from hengbot.policy_types import (
     TownErrandPlan,
 )
 from hengbot.policy_constants import (
+    AMMO_CARRY_TARGET,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     EMERGENCY_RETURN_COUNT,
@@ -736,6 +738,7 @@ class QuestMixin(OpeningRouteMixin):
                 snapshot,
                 item,
                 require_carried_ammo=require_carried_ammo,
+                rounds=self._quest_launcher_rounds(force),
             )
             if snapshot is not None
             else self._launcher_average_damage(item)
@@ -750,14 +753,26 @@ class QuestMixin(OpeningRouteMixin):
         launcher: InventoryItem | StoreItem | None,
         *,
         require_carried_ammo: bool,
+        rounds: int = AMMO_CARRY_TARGET,
     ) -> float:
-        """Measure the shot the quest executor fires: the plan's power stack."""
+        """The shot average over the carried quest rounds (power stack first).
+
+        Owner 2026-11-03 「持つ99発の平均で25」: ``carried_average_damage``
+        over the ``rounds`` the force carries; one strong bolt is not enough.
+        """
         if launcher is None or launcher.sval not in LAUNCHER_PROPERTIES:
             return 0.0
-        ammo = power_ammo(snapshot, launcher)
-        if ammo is None and require_carried_ammo:
-            return 0.0
-        return launcher_average_damage(launcher, ammo)
+        average = carried_average_damage(snapshot, launcher, rounds)
+        if average is not None:
+            return average
+        return 0.0 if require_carried_ammo else launcher_average_damage(launcher)
+
+    @staticmethod
+    def _quest_launcher_rounds(force: dict) -> int:
+        """The launcher rounds the force carries (its launcher_ammo count)."""
+        throwing = force.get("throwing_items", {})
+        rounds = throwing.get("launcher_ammo") if isinstance(throwing, dict) else None
+        return int(rounds) if rounds else AMMO_CARRY_TARGET
 
     def _quest_launcher_ammo_from_item_or_force(
         self, item: InventoryItem | StoreItem | None, force: dict
@@ -869,6 +884,7 @@ class QuestMixin(OpeningRouteMixin):
                     snapshot,
                     launcher,
                     require_carried_ammo=True,
+                    rounds=self._quest_launcher_rounds(force),
                 )
                 status["launcher.average_damage"] = {
                     "measured": measured_damage,
@@ -1674,16 +1690,25 @@ class QuestMixin(OpeningRouteMixin):
         ):
             return None
         pack_full = len(snapshot.inventory) >= PACK_CAPACITY
+
+        def merge_slot(ware) -> str | None:
+            return next((pack.slot for pack in snapshot.inventory
+                         if self._store_item_stacks_with_inventory(pack, ware)), None)
+
+        def bought(ware):
+            # The quantity _purchase_quantity buys of a damage-ammo ware.
+            count = min(ware.count, snapshot.player.gold // max(1, ware.price),
+                        self._ammo_procurement_target(snapshot, ware))
+            return with_bought(snapshot, ware, max(0, count), merge_slot(ware))
+
         wares = [
             ware for ware in page.items
             if ware.price <= snapshot.player.gold
-            and (not pack_full or any(
-                self._store_item_stacks_with_inventory(pack, ware)
-                for pack in snapshot.inventory
-            ))
+            and (not pack_full or merge_slot(ware) is not None)
         ]
         return damage_ammo_purchase(
-            snapshot, launcher, wares, float(spec.get("min_average_damage", 0) or 0)
+            snapshot, launcher, wares, float(spec.get("min_average_damage", 0) or 0),
+            self._quest_launcher_rounds(force), bought,
         )
 
     def _unique_sale_tag(

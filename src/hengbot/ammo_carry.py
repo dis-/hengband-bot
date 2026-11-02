@@ -1,6 +1,7 @@
 """One shared carry plan for launcher ammunition."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from types import SimpleNamespace
 
 from hengbot.launcher_damage import launcher_average_damage
 
@@ -84,26 +85,69 @@ def power_ammo(snapshot, launcher):
     return next((item for item in snapshot.inventory if item.slot == slot), None)
 
 
-def damage_ammo_purchase(snapshot, launcher, wares, minimum: float):
-    """The ware whose shot reaches ``minimum`` while the carried best does not.
+def carried_average_damage(snapshot, launcher, rounds: int) -> float | None:
+    """Count-weighted shot average over the plan's carried rounds (<= ``rounds``).
+
+    Owner 2026-11-03 「持つ99発の平均で25」: the power and plain stacks the
+    plan keeps, best rounds first.  None when no compatible round is carried.
+    """
+    plan = ammo_carry_plan(snapshot, launcher, rounds)
+    stacks = {item.slot: item for item in snapshot.inventory}
+    kept = [(stacks[slot], count) for slot, count in plan.reservations if count > 0]
+    total = sum(count for _item, count in kept)
+    if total <= 0:
+        return None
+    return sum(
+        launcher_average_damage(launcher, item) * count for item, count in kept
+    ) / total
+
+
+# The item fields ammo_carry_plan and launcher_average_damage read.
+PLAN_FIELDS = ("tval", "sval", "damage_dice_num", "damage_dice_sides", "to_h", "to_d",
+               "known", "pseudo_feeling", "is_ego", "is_artifact")
+BOUGHT_SLOT = "~bought"
+
+
+def with_bought(snapshot, ware, count: int, merge_slot: str | None = None):
+    """The pack (all the plan reads) after buying ``count`` of ``ware``.
+
+    ``merge_slot``: the carried stack the game merges the ware into.
+    """
+    if merge_slot is not None:
+        inventory = [replace(item, count=item.count + count) if item.slot == merge_slot
+                     else item for item in snapshot.inventory]
+    else:
+        bought = SimpleNamespace(slot=BOUGHT_SLOT, count=count,
+                                 **{name: getattr(ware, name) for name in PLAN_FIELDS})
+        inventory = [*snapshot.inventory, bought]
+    return SimpleNamespace(inventory=inventory)
+
+
+def damage_ammo_purchase(snapshot, launcher, wares, minimum: float, rounds: int,
+                         bought):
+    """The ware whose purchase lifts ``carried_average_damage`` to ``minimum``.
 
     Quest force ``launcher.min_average_damage`` (owner 2026-11-02 「矢の購入で
-    条件を満たせるときは買う」).  Measured with the plan's ranking, so a
-    bought stack becomes the plan's power stack.  Store wares are known; an
-    unknown ware's enchantment is unread and never qualifies.
+    条件を満たせるときは買う」, 2026-11-03 「持つ99発の平均で25」).
+    ``bought(ware)`` is the pack after buying the affordable quantity of
+    ``ware``; the first ware in the plan's ranking whose pack reaches the
+    minimum is chosen, else None.  An unknown ware's enchantment is unread
+    and never qualifies.
     """
     if launcher is None or launcher.ammo_tval is None or minimum <= 0:
         return None
-    carried = power_ammo(snapshot, launcher)
-    if carried is not None and launcher_average_damage(launcher, carried) >= minimum:
+    current = carried_average_damage(snapshot, launcher, rounds)
+    if current is not None and current >= minimum:
         return None
-    qualifying = [
-        ware for ware in wares
-        if ware.tval == launcher.ammo_tval and ware.count > 0 and ware.known
-        and launcher_average_damage(launcher, ware) >= minimum
-    ]
-    return max(
-        qualifying,
+    ranked = sorted(
+        (ware for ware in wares
+         if ware.tval == launcher.ammo_tval and ware.count > 0 and ware.known),
         key=lambda ware: (launcher_average_damage(launcher, ware), ware.count),
-        default=None,
+        reverse=True,
+    )
+    return next(
+        (ware for ware in ranked
+         if (after := carried_average_damage(bought(ware), launcher, rounds)) is not None
+         and after >= minimum),
+        None,
     )
