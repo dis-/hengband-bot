@@ -2715,17 +2715,26 @@ class QuestMixin(OpeningRouteMixin):
                 self.last_reason = f"quest-strategy:q2-residual-{race_id}-clear"
                 return WAIT_KEY
 
+            # Record the visit for every placement of the race, not only the
+            # unconfirmed ones: standing on a placement always confirms it
+            # (the player's own grid holds no monster), so marking only the
+            # unconfirmed placements never records the visit to a dark
+            # placement cell. Once the player walks away the cell is
+            # unconfirmed again and its own goal is routed to forever.
+            for placement in placements:
+                if snapshot.player.position in navigator.observation_goals(
+                    placement, RANGED_MAX_DISTANCE
+                ):
+                    self._q2_phase_visited_goals.add(
+                        (snapshot.floor_key, -race_id, placement,
+                         snapshot.player.position)
+                    )
             goals: set[Position] = set()
             for placement in unconfirmed:
-                residual_race = -race_id
-                phase_prefix = (snapshot.floor_key, residual_race, placement)
+                phase_prefix = (snapshot.floor_key, -race_id, placement)
                 observation_goals = navigator.observation_goals(
                     placement, RANGED_MAX_DISTANCE
                 )
-                if snapshot.player.position in observation_goals:
-                    self._q2_phase_visited_goals.add(
-                        (*phase_prefix, snapshot.player.position)
-                    )
                 goals.update(
                     goal
                     for goal in observation_goals
