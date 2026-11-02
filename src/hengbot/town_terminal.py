@@ -1810,7 +1810,7 @@ NO_REFUSAL_REASONS = {
 TERMINALS: dict[str, TerminalDecl] = {
     **{name: TerminalDecl(delegated_command_intended_terminal, ENFORCE) for name in (
         "_cross_town_shopping_key", "_batch_sell_key", "_immobile_summoner_key",
-        "_ranged_attack_key", "_normal_loot_key", "_explore_step")},
+        "_ranged_attack_key")},
     "_finish_mining_floor": TerminalDecl(floor_exit_intended_terminal, ENFORCE),
     "_victory_loot_key": TerminalDecl(floor_exit_intended_terminal, ENFORCE),
     "_town_blocked_key": TerminalDecl(blocked_intended_terminal, ENFORCE),
