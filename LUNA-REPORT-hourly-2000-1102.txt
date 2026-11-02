@@ -1,0 +1,149 @@
+LUNA-REPORT hourly-2000-1102（n1-b life-295 の解呪の停止・n1-a life-464 の深さの能力の停止）
+
+ブランチ hourly-2000-1102（main ddd9d4258 の上）。push していない。
+証拠の写し: C:\hengband-backups\pdca\captures\hourly-2000-1102\<停止>\。サーバは読み取りだけ。
+サーバの incident-captures から写して足したもの（同じ停止の incident\ の下）:
+  n1-b: meta.json・policy-state.json・README.md・snapshots-current.jsonl.gz（~f の技能の行 turn 1228051 はここだけにある）
+  n1-a: meta.json・policy-state.json・snapshots-current.jsonl.gz（脱いだ前後の盤面 turn 5253074〜5253107 はここだけにある）
+どちらもビルド bot-ec1f68398（消耗品の表の取り込み ccef9bcc9 を含む）。
+
+
+1. n1-b life-295 town:blocked:survival:remove_curse_ready ×1（修正済み、コミット db4911c75）
+
+  場面: 戦士 Lv27、町。19:48:45 の装備の取引で氷の指輪 [+10] をはめ（wk）、全鑑定のあと 27206 で
+  自宅の解呪を読んでクロスボウの呪いを解き、27214 で 2 本目の解呪を指輪に読んだが効かず、27215 で
+  HEAVY_CURSE と刻んだ。以後は *解呪* が要る（_required_remove_curse_kind = star-remove-curse）。
+  自宅の一覧（turn 1230070〜1231601 のすべて）に *解呪*の巻物 (70,15) が 1 枚ある。
+
+  消耗品の表のせいか（依頼の問い）: 違う。
+    - 表の「*解呪*＝自宅に片付ける・購入しない」が止めたのは、呪いの品が無い時の任意の買い置き
+      （_star_remove_curse_reserve_purchase_needed）だけ。要求の段（curse:required、
+      required-star-remove-curse）は表を見ずに今どおり買いに行った: 27229 で寺院へ、27243 で闇市へ行き、
+      どちらの棚にも無かった（observe-and-leave、blocked_reason no-actionable-supplier）。
+    - *解呪* は自宅にあり、表の「自宅に片付ける」で預けたものでもない（記録の範囲では動いていない）。
+      要求がある時に持ち出す仕組み（_bind_home_star_remove_curse_withdrawal、home-star-remove-curse-use）は
+      表と関係なく残っている。持ち出せなかった理由は下の原因。
+
+  原因（自宅の持ち出しの持ち主 home-errand / home-visit）:
+    27244 で品切れの採掘（fundraise:supply-stockout-mining）が始まり、27247 で自宅の財宝感知と、その後ろに
+    シャベル (1d2) {+掘} を並べた。27248 で財宝感知を取り（「財宝感知の巻物(f)を取った。」、取ったことは
+    _home_pending_take_confirmed で確かめ済み）、店を出た。自宅の中の持ち出しの続き
+    （_home_atomic_withdraw_key）なら確かめ済みの品を外すが、外では誰も外さなかった。外の盤面で
+    「自宅にも手元にも無い品」を外す _retire_vanished_pending_withdrawals は、手元にある品を残す。
+    そのため _home_pending_item が財宝感知のまま残り:
+      - 自宅への行き先の終点が財宝感知の持ち出しになり、今の自宅の一覧に無いので毎回
+        reservation-unavailable で断られた（27251 の terminal_admission
+        ["home-withdraw", [財宝感知, [シャベル]]] refused reservation-unavailable）。シャベルは取れず、
+        採掘の準備も fundraising-no-digging-tool で断られた。
+      - 自宅の *解呪* を持ち出す _bind_home_star_remove_curse_withdrawal は、持ち出し待ちが残っている間は
+        何もしない（_home_pending_item / _home_pending_batch の条件）。
+    町の終わりの判定は採掘の組がすでに開いているので stop（town:blocked:survival:remove_curse_ready）。
+    departure_block.failed: remove_curse_ready・home_pending_item_clear・home_pending_batch_clear
+    （values はほかすべて true）。
+
+  直し: _retire_vanished_pending_withdrawals で、取ったことを確かめ済みの持ち出し待ちの品が今の自宅の
+    一覧に無ければ、終わった仕事として外す（延期や失敗の記録はしない）。自宅の中の同じ外し方と
+    1 つの関数（_release_confirmed_home_take）を使う。自宅に残りがある（一部だけ取った）時は外さず、
+    これまでどおり自宅の中の続きが扱う。町の終わりの判定は変えていない。
+  テスト: tests.test_confirmed_home_take_1102_recorded（抽出 tests/extract_confirmed_home_take_1102_fixture.py、
+    fixtures/confirmed-home-take-1102.json.gz）。記録の盤面（turn 1231613）・自宅の一覧（1231601）・技能の行
+    （1228051）で、持ち出し待ち（財宝感知、確かめ済み）とシャベルの並び、採掘の組を戻した方策が、
+    choose_key で持ち出し待ちを外し、シャベルを先頭に残したまま自宅へ向かう（shop:approach '1'）。
+    鍵は本番の executor を通して送る。
+  逆戻しの確認（1 回）: src の直しを外すと失敗（_home_pending_item が財宝感知のまま）、戻すと通る。
+  この後: シャベルを取れば持ち出し待ちが空になり、自宅の *解呪* の持ち出し（既存の仕組み）が動ける。
+    実機では未確認。
+
+
+2. n1-a life-464 town:blocked:survival:depth_abilities ×1（修正済み、コミット 0a1b967b7）
+
+  場面: 戦士 Lv41、町。帰還の行き先の深さは 23（オークの洞窟。23階の要求は free_action・resist_conf・
+  resist_fire、10880 の depth_safety）。足りない能力は free_action。
+    - 10883 まで右手に 西方国のダガー (1d4) (+5,+9) (+1) {+腕器耐;麻視/...}。known_flags に TR_FREE_ACT 46 が
+      あり、ほかの装備には 46 が無い（このダガーが唯一の耐麻痺）。
+    - 10885 equipment-transaction:takeoff 'ta' でダガーを外し（左手のハーゲンのスピアが両手持ちになった）、
+      10886 'do' で自宅に預けようとして「我が家にはもう置く場所がない。」（自宅は満杯、stock_num 240）。
+    - 10888 equipment-transaction:abandon-blocked。failed_transaction_item_ids にダガー。以後ダガーは
+      ザックに残り、depth_safety の has から free_action が消えたまま（10886〜10935）。
+    - 10935 町の終わり: departure_block.failed は equipment_departure_ready、出発の最低条件
+      （_visit_departure_minimum）の depth_abilities が欠けて town:blocked:survival:depth_abilities。
+
+  満たせる持ち主はいたか: いた。装備の取引（equipment-txn）が外した品は
+    _equipment_transaction_owned_items に入り、取引をやめる時（_abandon_blocked_equipment_transaction）に
+    着け直す（restoration）。耐性の薬を買う・自宅の別の装備に替えるは要らない（ダガーが手元にある）。
+
+  原因（policy_equipment._abandon_blocked_equipment_transaction）:
+    取引をやめる時、失敗した操作（ここではダガーの預け入れ）の品を _equipment_transaction_failed_items に
+    入れる。その直後の「着け直す品」の絞り込みが同じ失敗の記憶を見るので、預け入れに失敗したダガーは
+    着け直しからも外れた。預け入れの失敗は「自宅に置けない」だけで、「着けられない」ではない。
+    （預ける品とは別の品を戻す場合は、既存のテスト test_restoration_and_withdrawn_pack_record_survive_closure
+    のとおり着け直していた。同じ品を外して預ける場合だけ抜けていた。）
+
+  直し: 着け直しの絞り込みに使う失敗の記憶から、失敗した預け入れそのものの記憶だけを除く
+    （_equipment_restore_refusals）。それより前の失敗（着け直しの失敗 restore:… など）は今どおり断る。
+    ダガーは失敗の記憶に残るので、最適化がまた同じ預け入れを計画することはない。
+  テスト: tests.test_deposit_failure_restore_1102_recorded（抽出 tests/extract_deposit_failure_restore_1102_fixture.py、
+    fixtures/deposit-failure-restore-1102.json.gz）。記録の自宅の盤面（脱いだ後、預け入れを断られた画面）と
+    外の盤面（turn 5253090）で、10885〜10886 の取引（外す→預ける、預け入れを送った所）を戻すと、断られた
+    盤面で着け直しの取引が作られ、外の盤面で equipment-transaction:equip 'won'（ザックの o＝ダガーを着ける）を
+    選び、本番の executor で送られる。
+  逆戻しの確認（1 回）: src の直しを外すと失敗（着け直しの品が空）、戻すと通る。
+  town_work_manifest を --write で回した（zero unmapped、town_work_sites.json をこのコミットに含めた）。
+
+
+3. 確認したこと
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" は通る。
+  - 足したテスト 2 本だけを流した（どちらも OK）。既存のテストの期待値は変えていない。テストの壁は無い。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - git stash は使っていない。裏の処理は残していない。src/・tests/・scripts/ はコミットのほか変更なし。
+
+
+4. 同じ記録で見えた別の件（直していない）
+
+  - n1-b: 品切れの採掘（27244）は、寺院・闇市に *解呪* が無いのを見た時に始まったが、その時も自宅には
+    *解呪* があった。27212 で解呪を自宅の i 番目から取ると、_confirm_home_withdrawal_address が有効な
+    一覧の範囲を i までに縮め、すぐ後ろの *解呪* が範囲の外になった。_home_remove_curse_scroll と
+    供給の台帳（_compute_supply_ledger の curse の項）は範囲の中だけを見るので「自宅に無い」と判断し、
+    no-actionable-supplier → 品切れの採掘になった（27246 で一覧を読み直すまで）。範囲の外の品は
+    「場所が変わっただけで自宅にある」（_home_atomic_withdraw_key の注釈）ので、在るかどうかの判断は
+    範囲の外も見るべきに見える。町の終わりの採掘の判定（並行の town-end-purchase-only-1102 の範囲）に
+    関わるので、ここでは直さず報告だけにした。
+  - n1-b: 呪いの指輪は 27170 の装備の取引で、全鑑定の前にはめた（27177 で全鑑定）。重い呪いの品を
+    鑑定しきる前に着けることの是非は装備の家族の件。
+  - n1-a: 最適化が、満杯の自宅（stock_num 240）への預け入れを含む計画を作った（10883、4 つの操作）。
+    満杯を知ってから閉じる仕組み（_close_full_home_equipment_deposit）はあるが、今回は預け入れを
+    送ってから断られた。装備の家族の件。
+  - どちらの bot-stderr.log にも save archive failed（git add saves/BOT_PLAY が終了コード 128）と
+    town:blocked:work-contract:unmapped-producer が出ている（停止の後の再起動の分）。運転の環境と
+    並行の構造の件。
+
+
+5. 保守性
+
+  - 1: 確かめ済みの持ち出し待ちを外す 4 行が自宅の中の持ち出しに直書きされていたのを、
+    _release_confirmed_home_take にまとめ、外の盤面の新しい外し方と共用した。外の盤面の判断は
+    今の _retire_vanished_pending_withdrawals の中で、「自宅の一覧に無い」を left_home の 1 つの述語に
+    して、vanished（手元にも無い）と確かめ済みの外しの両方で使う。
+  - 2: 着け直しを断る失敗の記憶を _equipment_restore_refusals の 1 か所で決める（預け入れの失敗だけを
+    除く）。絞り込みの式は変えず、渡す集合だけを替えた。
+
+
+6. checks.json の案（編集していない）
+
+  {"id": "CONFIRMED-HOME-TAKE-RELEASED",
+   "defect": "自宅から取ったことを確かめ済みの財宝感知が外で持ち出し待ちに残り、自宅への終点が毎回 reservation-unavailable で断られ、後ろのシャベルと自宅の *解呪* を持ち出せず town:blocked:survival:remove_curse_ready で止まった（n1-b life-295 2026-11-02 19:49）",
+   "owner": "満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。（2026-11-02）・要求がある時は買う（2026-11-02）",
+   "tests": ["tests.test_confirmed_home_take_1102_recorded"]}
+  {"id": "DEPOSIT-FAILURE-RESTORES-TAKEOFF",
+   "defect": "唯一の耐麻痺のダガーを外して満杯の自宅に預けようとして断られ、取引をやめる時に着け直しも外れて、23階の出発に free_action が欠け town:blocked:survival:depth_abilities で止まった（n1-a life-464 2026-11-02 19:45）",
+   "owner": "生存処理を優先しなければキャラクタは死亡する。当然の結果。",
+   "tests": ["tests.test_deposit_failure_restore_1102_recorded"]}
+
+
+7. オーナーへの問い
+
+  - 消耗品の表で *解呪* は「自宅に片付ける・購入しない」なので、呪いの品が無い時の *解呪* の買い置き
+    （以前の「寺院の *解呪* の予備」）は止まっている。今回は自宅に 1 枚残っていたが、使えば補充されない。
+    重い呪いの品をはめた時に寺院・闇市に無いと、品切れの採掘を回して待つことになる。予備を 1 枚
+    持つことを「要求」とみなして買うか、表のまま（呪われてから買いに行く）にするか。
