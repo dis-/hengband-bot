@@ -1103,6 +1103,20 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "immobile_ranged_kill.py:key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "immobile_ranged_kill.py:plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "immobile_threat_memory.py:route_cells": {
     "classification": "data",
     "rows": [
