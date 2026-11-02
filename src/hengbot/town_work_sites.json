@@ -289,13 +289,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "consumable_policy.py:discarded": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "consumable_policy.py:discretionary_buy": {
     "classification": "data",
     "rows": [
