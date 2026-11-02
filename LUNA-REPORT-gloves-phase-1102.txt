@@ -1,0 +1,155 @@
+LUNA-REPORT gloves-phase-1102（2026-11-02、branch gloves-phase-1102、main 313c5f103 の上）
+
+コミット
+  d83a55b55 Count resist curse as a beneficial gear flag              （1. ドラゴン・グローブ）
+  f5cd2f5d5 Read only a teleport for the summoner hold teleport       （2. ショート・テレポート）
+
+
+1. ドラゴン・グローブ [4,+8] {r呪} を壊していた — 直した（d83a55b55）
+
+  記録: C:\hengband-backups\pdca\captures\hourly-0800-1102\
+        20261102-071240-town-blocked-survival-cure-critical-ready（n1-a life-464、戦士 Lv40、bot-e8f860713）
+    - 決定 2292 ESC home:junk-sweep-withdraw（家のページで、満杯の解消の掃除が手袋を選ぶ）
+    - 決定 2293 '5  pq' + ESC home-errand:atomic-withdraw:full-home-discard（取り出す）
+    - 決定 2294 '01km' home:junk-sweep:plain-gear（壊す。メッセージ「…{r呪}(m)を壊した」）
+
+  {r呪} の意味: 呪いではない。ゲームの自動刻みの耐性の欄の「呪」＝TR_RES_CURSE（呪いへの耐性、148）
+    （src/flavor/flag-inscriptions-table.cpp:75、耐性の表）。state の known_flags は [84,85,86,87,148]、
+    is_cursed=false。ドラゴン・グローブは必ず上位耐性を 1 つ得る
+    （apply-magic-gloves.cpp:34 dragon_resist → object-boost.cpp:240-258 high_resistances、RES_CURSE を含む）。
+    ゲームの値段も RES_CURSE に 7500 を足す（object-value-calc.cpp:330）。
+    装備中は別の [4,+11] {r時}（known_flags [84,85,86,87,143]）。
+
+  壊す候補になった理由:
+    - _junk_class（policy_helpers.py:367-369）の plain-gear 分類: _is_plain_gear（policy.py:14868、
+      鑑定済み・エゴでない防具）かつ _plain_gear_surplus（policy.py:15034）。
+    - _plain_gear_surplus は装備中の [4,+11] と _plain_gear_armour_dominated（policy.py:14898）で比べる。
+      この比較の旗の集合は _item_dominance_parts（warrior_loadout_search.py:105）の
+      BENEFICIAL_GEAR_FLAGS（warrior_loadout_search.py:47）に絞られる。
+    - その集合はゲームの上位耐性を 143（時）・144（水）まで全部持つのに、148（呪）だけが抜けていた。
+      そのため {r呪} の手袋は耐性が「無い」ことになり、AC が低い分だけ {r時} の手袋に負けると判定された。
+
+  直し: BENEFICIAL_GEAR_FLAGS に 148 を足す（ゲームの high_resistances と揃える。新しいしきい値は無い）。
+    - 防具の比較は「相手に無い耐性を持つ品は負けていない」になり、{r呪} の手袋は plain-gear でなくなる。
+    - 打撃武器の比較（R1 の「選んだ手に無い評価の旗があれば残す」）と装備の探索の枝刈りも同じ集合を使う。
+      評価の点数は変わらない（RES_CURSE を点数にする式は無い）。枝刈りで {r呪} の品が消されなくなるだけ。
+    - 満杯の家の解消は、ほかに本当のゴミが無ければ何も取り出さない（記録の盤面では
+      home:route-claim-unfulfilled）。
+
+  テスト: tests.test_gloves_phase_1102_recorded.DragonGlovesNotJunkRecordedTest（2 件）
+    - 抽出: tests/extract_gloves_phase_1102_fixture.py → tests/fixtures/gloves-phase-1102.json.gz
+      （state の行 63-79 と、決定 2287-2294 の記録の事実）。
+    - 新しい policy に公開の choose_key で流す。直しの前は記録と同じ鍵になることを確かめた
+      （2292 ESC home:junk-sweep-withdraw、2293 '5  pq'+ESC atomic-withdraw:full-home-discard）。
+    - 直した後: 手袋の _junk_class が None、満杯の解消の対象が手袋でない、2292 の盤面の理由が
+      junk-sweep-withdraw でない、2293 の盤面の鍵が取り出し（'5…'）でない。
+    - 本番の executor には流していない（直した後は手袋を取り出す鍵そのものが出ないため）。
+    - 宣言した組み立て: 能力の較正（記録に無い。test_junk_plain_gear_recorded と同じく盤面の top から作る）、
+      ~f の技能の記録、~9 の答えを待っている状態。
+    - 差し戻しの確認（1 回、warrior_loadout_search.py の hunk を戻す）: 失敗
+      （AssertionError: 'plain-gear' is not None）。戻して通る。
+    - 関係する既存のテスト tests.test_junk_plain_gear_recorded・tests.test_junk_home_sweep_recorded
+      （20 件）も期待値を変えずに通る。
+
+  B の残り: 「家から消えた手袋の引き出しの依頼が残り、家への道を塞いだ」方は、
+    summoner-hold-los-1102 の worktree の 5a924f9bb（Retire Home withdrawals of items no longer in Home
+    or carried）が扱っている。今回の直しで手袋を壊さなくなるので、その依頼の元もできない。
+
+
+2. ショート・テレポートはテレポートの代替にならない — 直した（f5cd2f5d5）
+
+  直し: 召喚の敵の待つ場所が撃たれていて、撃たれない別の待つ場所も無い時の summoner:hold-teleport
+    （summoner_wait.py _leave_shot_hold_point_key）は、_escape_scroll(snapshot, teleport_only=True) で
+    テレポートの巻物（_find_teleport_scroll、TELEPORT_SCROLL_SVALS の 9 テレポートと 10 テレポート・レベル）
+    だけを読む。ショート・テレポートしか無ければ None を返し、後ろの既存の段に任せる。
+    - _escape_scroll（policy.py:18021）に teleport_only のキーワードを足しただけ（読める条件の判定は 1 か所のまま）。
+    - ボットが自分のテレポートとして使うロッド・杖・魔道具術師の力は無い（me_powers の TELEPORT_AWAY は
+      敵を飛ばすもの）ので、対象は巻物だけ。
+
+  テスト: tests.test_summoner_hold_phase_1102_recorded.SummonerHoldPhaseOnlyRecordedTest
+          .test_phase_door_is_not_read_as_the_hold_teleport
+    - 記録の盤面 tests/fixtures/flee-into-rubble-20261019.jsonl.gz の行 0（test_flee_into_rubble_recorded
+      の盤面。テレポートがあれば、岩を掘るのを断られた後に ('rh', summoner:hold-teleport)）。
+    - 宣言した組み立て: 持っているテレポートの巻物（h、13 枚）をショート・テレポートの巻物に替える。
+    - 結果: 4 回 ('T8', summoner:hold-reposition) の後、summoner:hold-teleport は出ず、'rh' も出ない。
+    - 本番の executor には流していない（読む鍵が出ないことの確かめのため）。
+    - 差し戻しの確認（summoner_wait.py の hunk を戻す）: 失敗
+      （'summoner:hold-teleport' unexpectedly found …。最後の 2 回が hold-teleport でショート・テレポートを読む）。
+      戻して通る。※その前に src 全体を戻した 1 回は、テストの中の _escape_scroll(…, teleport_only=True)
+      が TypeError になっただけで、振る舞いの確かめにならなかった。
+    - tests.test_flee_into_rubble_recorded（4 件、テレポートありの 'rh'）も期待値を変えずに通る。
+
+  テレポートが要る所でショート・テレポートを数える・使う所の洗い出し:
+    テレポートの数・要求（変更不要。すでにテレポートだけ）:
+      - 物資の台帳 "teleport"（policy_supply.py:323 _count_teleport_scrolls → model.py:580
+        is_teleport_scroll、sval 9 だけ）、出発・帰還の要求（policy.py:1194 SUPPLY_THRESHOLDS、
+        policy.py:13250 _teleport_ready）、店の買い物の段 mandatory:teleport / tail:teleport
+        （policy_shop.py:2874、2925）。
+      - ランダムクエストのテレポートの予備 5 枚（random_quest_reserve.py:31 teleport_reserve_spent）。
+      - 繁殖のクエストの膠着のテレポート（breeder_quest.py:103 teleport_key、is_teleport_scroll だけ）。
+    変えた所:
+      - summoner:hold-teleport（summoner_wait.py:103）。
+    変えていない所（緊急の逃げ。テレポートが先、無ければショート・テレポート。理由も emergency:phase
+    などで、テレポートとは名乗らない）:
+      - policy.py:9724（emergency:teleport / emergency:phase）、10553・10577（status-threat:scroll）、
+        10638（flee:scroll）、10811（threat:scroll）、17897（emergency:teleport / phase）
+      - policy_combat.py:680（no-wait:escape-scroll）、2022（unseen-recall の emergency）、
+        2655（status-threat:scroll）、3035 _low_hp_escape_read（emergency:teleport / phase）
+      - policy_combat.py:2745・2993（撃たれて読めなくなる前に逃げる判定。読める逃げの巻物があるか）
+      - policy_quest.py:4744（瀕死で逃げの巻物が無い時にクエストの出口の鍵を外す）
+      - policy_supply.py:1808（wilderness:escape-scroll）、town_last_stand.py:38（町の最後の戦い）
+      - policy.py:17143 _deepest_floor_escape_kit_empty（逃げの段が全部無いか。ショート・テレポートも逃げの段）
+      - policy.py:19895 _warning_supplies_exhausted（ユーザーの決定で移動の物資にショート・テレポートを含める）
+      - policy_combat.py:1965（暗い時の回復の前に、移動の巻物を持っているか）
+      - policy_home.py:3213（ショート・テレポートは家に仕舞わない）
+    問い（6. の問い 1）: policy_combat.py:2362 の guardian:teleport-to-cover は名前がテレポートだが、
+      _escape_scroll でショート・テレポートも読む。
+
+
+3. 検査
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+  - 新しいテスト: test_gloves_phase_1102_recorded 2 件 OK、test_summoner_hold_phase_1102_recorded 1 件 OK。
+  - 関係する既存のテスト（期待値の変更なし）: test_junk_plain_gear_recorded・test_junk_home_sweep_recorded
+    20 件 OK、test_flee_into_rubble_recorded 4 件 OK。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - src に関数は足していない（_escape_scroll の引数だけ）ので、town_work_manifest は書き直していない。
+  - テストの壁はない。裏の処理は残していない。git stash は使っていない。
+
+
+4. 保守性
+
+  - 1. は既存の表（BENEFICIAL_GEAR_FLAGS）に 1 つ足しただけ。比較の式は増やしていない。防具・打撃武器・
+    装備の探索の 3 か所が同じ表を使うので、食い違いは起きない。表の注釈に出どころ（ゲームの
+    high_resistances）を書いた。
+  - 2. は読める条件の判定を持つ _escape_scroll に teleport_only を足した。新しい探し方の関数や
+    同じ条件の写しは作っていない。使うのは召喚の敵の待ちの持ち主 summoner_wait.py の 1 行だけ。
+
+
+5. checks.json の案（編集していない）
+
+  {"id": "PLAIN-GEAR-RES-CURSE-KEPT",
+   "defect": "2026-11-02 n1-a life-464 町 満杯の家の掃除がドラゴン・グローブ [4,+8] {r呪} を plain-gear として取り出して壊した（決定 2292-2294）",
+   "owner": "ドラゴングローブは破壊対象になるべきではない（2026-11-02）",
+   "tests": ["tests.test_gloves_phase_1102_recorded.DragonGlovesNotJunkRecordedTest"]}
+  {"id": "SUMMONER-HOLD-TELEPORT-ONLY",
+   "defect": "召喚の敵の待つ場所が撃たれ、別の場所も無い時の summoner:hold-teleport がショート・テレポートも読んでいた",
+   "owner": "ショートテレポートはテレポートの代替にならない（2026-11-02）",
+   "tests": ["tests.test_summoner_hold_phase_1102_recorded.SummonerHoldPhaseOnlyRecordedTest",
+             "tests.test_flee_into_rubble_recorded.FleeIntoRubbleRecordedTest"]}
+
+
+6. ユーザーへの問い・別の担当への申し送り
+
+  - 問い 1: guardian:teleport-to-cover（policy_combat.py:2362。召喚の敵が次のターンに召喚でき、
+    倒すべき守護者が見えている時の位置の取り直し）は、テレポートが無ければショート・テレポートを読む。
+    テレポートだけにすると、無い時はその下の帰還の巻物に落ちる（守護者のクエストから帰ることになる）。
+    振る舞いが変わるので変えていない。テレポートだけにするか。
+  - 問い 2: plain gear の比較の表には、ゲームでは有益なのに戦士の評価の式が読まない旗がほかにもある
+    （例: SEE_INVIS 78、REGEN 81、SLOW_DIGEST 80、WARNING 72、オーラ SH_FIRE/SH_ELEC/SH_COLD、
+    ESP_* 104-115、STEALTH 8）。今回は上位耐性の抜け（148）だけを直した。これらを持つ素の装備も
+    壊さないことにするか（鑑定済みのエゴでない品が持つことはまれ）。
+  - 申し送り（D31/D32、生存）: 2. のテストの盤面で、撃たれている待つ場所で岩を掘るのを断られ、
+    テレポートも無いと、後ろの段が inventory:destroy-worthless-junk（戦士の読めない魔法書を壊す）に
+    2 ターン使う。撃たれている時にゴミを壊す段が先に来るのは、生存優先の決まりに合わない可能性がある。
+    今回の範囲（テレポートの代替）の外なので直していない。
