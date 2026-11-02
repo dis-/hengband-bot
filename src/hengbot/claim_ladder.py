@@ -238,6 +238,10 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_paralyzer_prevention_key", "positioning",
             "threat:paralyzer-avoid", "paralyzer-guard:",
             marked=False),                                             # 6015
+    # The census-only immobile-summoner dispatcher's own step out of the
+    # summoner's line-of-fire zone (its exits rank at the exit rung below).
+    _decide("_immobile_summoner_key", "explore",
+            "explore:avoid-immobile-summoner", marked=False),
     _decide("_unseen_retreat_intercept_key", "positioning"),           # 6021
     _decide("_unseen_retreat_key", "escape", "unseen:"),               # 6026
     _decide("_detected_threat_preparation_key", "positioning",
@@ -354,6 +358,9 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_immobile_breeder_giveup_key", "explore", "explore:"),    # 7283
     _decide("_explore_step", "explore", "explore", "search", "probe",
             "seek-secret-wall", ordinary=True),                        # 7288
+    _decide("_immobile_summoner_exit_key", "combat",
+            "summoner:seek-downstairs", "summoner:seek-upstairs", "summoner:teleport-level",
+            "summoner:recall", "summoner:wait-recall"),
     _decide("_start_kill_quest_regeneration", "quest-request",
             "quest:regen:exhausted"),                                  # 7344
     # -- town: errands no _decide call site names; departure in town --------

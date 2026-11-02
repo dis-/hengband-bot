@@ -797,6 +797,28 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "immobile_threat_memory.py:route_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: immobile_threat_memory.observe clears the memory in town, so the ring is empty there.",
+    "evidence": "Returns only the frozenset of ring cells of this floor visit; never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "immobile_threat_memory.py:step_out_of": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon-only: called by step_out_key (ring) and CombatMixin._immobile_summoner_zone_key (line-of-fire zone).",
+    "evidence": "One step toward the nearest free cell outside the given cells (_nearest_goal_step), labelled with the caller's reason; None when none is reachable.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "input_executor.py:OperationExecutor._after_post": {
     "classification": "driver",
     "rows": [
@@ -3837,7 +3859,86 @@
       "loot-exploration"
     ],
     "context": "Dungeon-only immobile summoner handling; possible town context retained conservatively.",
-    "evidence": "Reviewed returns: existing safe loot/exploration routing with remembered LOS veto, stairs then teleport-level/recall, or ranged/approach/melee when retreat is impossible. Runs after emergency HP rules and before choke holds.",
+    "evidence": "Reviewed returns: memory and the line-of-fire zone veto for every owner; outside the zone None (the ordinary ladder plays, its descent included); inside it _immobile_summoner_zone_key; ranged/approach/melee when retreat is impossible. Runs after emergency HP rules and before choke holds.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._immobile_summoner_exits": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only immobile summoner handling; possible town context retained conservatively.",
+    "evidence": "Returns only the SummonerExits record (downstairs here, downstairs route, upstairs here, upstairs route, Teleport Level, Recall, recalling); never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._immobile_summoner_zone_key": {
+    "classification": "producer",
+    "rows": [
+      "survival",
+      "loot-exploration"
+    ],
+    "context": "Dungeon-only immobile summoner handling; possible town context retained conservatively.",
+    "evidence": "Reviewed returns: inside the summoner's line-of-fire zone only -- the latched return, melee/ranged at an adjacent attacker, a step out of the zone (step_out_of), else _immobile_summoner_exit_key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._immobile_summoner_exit_key": {
+    "classification": "producer",
+    "rows": [
+      "survival",
+      "loot-exploration"
+    ],
+    "context": "Dungeon-only immobile summoner handling; possible town context retained conservatively.",
+    "evidence": "Reviewed returns: while the zone is set, downstairs here, the route to a downstairs, upstairs here, the route to upstairs, Teleport Level, Recall, else the recall wait; None when no zone. Asked by _decide after exploration and by the zone owner.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._strategic_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only the visible hostiles not set aside (_strategic_subset); never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._strategic_subset": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only the hostiles not set aside by a floor-level breeder decision or an avoided immobile summoner (_avoided_immobile_summoner); never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._engagement_danger_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only the set of cells priced as engagement danger for routing; never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._strategic_adjacent_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only the strategic hostiles beside the player; never chooses a key.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

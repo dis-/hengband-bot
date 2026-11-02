@@ -10,6 +10,11 @@ from hengbot.policy_constants import ExplorationPathOutcome
 SUMMONER_WAIT_GAME_TURNS = 50
 HOLD_REPOSITION_REASON = "summoner:hold-reposition"
 HOLD_TELEPORT_REASON = "summoner:hold-teleport"
+HOLD_CHOKE_REASON = "summoner:hold-choke"
+# The same bounded hold awaiting a detected pack that holds no summoner
+# (``_detected_threat_preparation_key``).
+DETECTED_HOLD_CHOKE_REASON = "detected:hold-choke"
+HOLD_CHOKE_REASONS = frozenset({HOLD_CHOKE_REASON, DETECTED_HOLD_CHOKE_REASON})
 
 
 @dataclass
@@ -127,7 +132,9 @@ def hold_key(policy, snapshot, monsters, *, continuing=False):
         identity: state.started.get(identity, (snapshot.turn, m.distance))
         for identity, m in waiting.items()
     }
-    policy.last_reason = "summoner:hold-choke"
+    # Named for what it awaits: a hold without a summoner to await (a
+    # detected pack) is not a summoner hold.
+    policy.last_reason = HOLD_CHOKE_REASON if waiting else DETECTED_HOLD_CHOKE_REASON
     return "5"
 
 
@@ -150,7 +157,7 @@ def summoner_wait_decision(decide):
             key = decide(policy, snapshot)
             return key
         finally:
-            if key != "5" or policy.last_reason != "summoner:hold-choke":
+            if key != "5" or policy.last_reason not in HOLD_CHOKE_REASONS:
                 state.started.clear()
                 state.targets.clear()
                 state.holding = False

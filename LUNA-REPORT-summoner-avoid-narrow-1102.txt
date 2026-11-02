@@ -1,0 +1,218 @@
+LUNA-REPORT summoner-avoid-narrow-1102（2026-11-02、branch summoner-avoid-narrow-1102、main 6a90f7b4f から作り、main 9afd9203e を取り込み済み）
+
+コミット
+  ecab21c34 Let normal play continue outside an avoided immobile summoner's zone   （1. 持ち主を狭める ＋ 2. 帰還の待ち）
+  09c1bd15b Name the detected-pack choke hold and rank the avoid step at its owner （3. 名前と段の対応）
+  8e94c22c0 Merge branch 'main' into summoner-avoid-narrow-1102                  （main 9afd9203e、衝突なし）
+  c341b6eb8 Leave an avoided immobile summoner's floor by a downstairs first      （3b. 下り階段を先に、ユーザー決定）
+
+  2. の帰還の待ちは 1. の直しの結果として決まる（帰還の待ちだけを別に直す処理は無い）ので、
+  1. と同じコミットに入れ、テストを別に 2 件置いた。
+
+
+1. 動かない召喚の敵を避けている間、普段の判断が止まっていた — 直した（ecab21c34）
+
+  記録:
+    - 調べ（読み取りのみ）: C:\hengband-backups\pdca\captures\summoner-avoid-1102\
+      （n1c-life103-timeline.tsv, n1c-life099-timeline.tsv, episodes.txt, segs.txt）
+      n1-c life-103 は 49F で避ける間、遠隔の攻撃が 6.8% → 0.37%、12:40 と 13:29 に
+      explore:avoid-immobile-summoner のまま探索してオークの巣とユニークの戦いに入った。
+    - テストの盤面: life-103 の 12:40 / 13:29 の盤面は観戦サーバの上にしか無い（手元の捕獲は 07:02 まで）。
+      サーバには触れない決まりなので、手元にある同じ型の記録を使った:
+      C:\hengband-backups\pdca\captures\n1c-death-1102-0148\20261102-014821-player-death
+      （n1-c life-099、build dc64cf14a、迷宮12階 (4,12,0)、01:45:12-01:45:16）
+        決定 117-121  summoner:hold-choke '5'（ユニークの召喚の敵 race 1150 を (2,27) で待つ。50 ゲームターンで切れる）
+        決定 122-150  explore:avoid-immobile-summoner（その階の全部の決定。感知・遠隔の攻撃なし）
+        決定 142（turn 676217） '4' explore:avoid-immobile-summoner。透明イモムシの大群とワーグが見えている
+      プレイヤーはこの間ずっと召喚の敵の射線の外（(2,27) から距離 19、それ以後は視界の外）。
+
+  原因: _immobile_summoner_key（policy_combat.py）が、記憶した召喚の敵がその階にいる限り、
+    射線の外でも全部の決定を取っていた（隣の敵の打撃、範囲外の拾い物、自分の探索、上り階段、
+    テレポート・レベル、帰還、待ち）。その下の段（遠隔の攻撃、逃げ、見えない敵からの後退、感知した敵への
+    備え、隘路での戦い、探す、魔道具術師の力、鑑定、休む、箱、狩り、帰る判断、定期の保存）が全部消えた。
+    定期の処理も _periodic_filler_is_safe が explore:avoid-immobile-summoner を安全と見ないので止まった。
+
+  直し（承認済みの決まり「近づかずに避ける」に戻す。新しい振る舞い・しきい値は無い）:
+    - 射線の範囲（_immobile_summoner_avoid_cells）は今までどおり全部の持ち主の道の拒否に入れる。
+    - 持ち主が自分で動くのは、プレイヤーが範囲の中にいる時だけ（_immobile_summoner_zone_key）:
+      固定の帰還 → 隣で殴る敵 → 範囲の外へ 1 歩（範囲のマスを通ってよい。immobile_threat_memory.step_out_of
+      を輪の踏み出しと共用）→ 出られなければ今までの出口。
+    - 範囲の外では None を返し、普段の段がそのまま動く。範囲の外に探索が残っていない時だけ、
+      探索の段の直後の新しい段 _immobile_summoner_exit_key が今までの出口（上り階段・道・テレポート・
+      レベル・帰還・待ち）を同じ順で使う。
+    - このコミットでは出口を変えないため、持ち主が範囲を持っている間は下り階段を断った
+      （_descent_is_blocked の "immobile-summoner"）。この断りは 3b. のユーザー決定で外した。
+      50 ゲームターンの待ちの切れ目は変えていない。
+    - 避けている召喚の敵は戦略上の敵（_strategic_subset）から外す（_avoided_immobile_summoner）。
+      外さないと、範囲の外から普段の遠隔の段がその敵を撃ち始めた（2026-10-27 の記録の盤面で
+      'ft*t5' ranged:fire-target）。撃つのは承認されていない新しい振る舞いなので外した。
+      隣から殴ってくる時（生存優先）と、出口が閉じた階（今までどおり持ち主が戦う）では外さない。
+      summoner:ranged-kill は元から動かない召喚の敵を対象にしないので変わらない。
+
+  テスト: tests.test_summoner_avoid_narrow_1102_recorded.SummonerAvoidNarrowRecordedTest（3 件）
+    - 抽出: tests/extract_summoner_avoid_narrow_1102_fixture.py → tests/fixtures/summoner-avoid-narrow-1102.json.gz
+      （リングの世代 snapshots-20261102-014521-1341a3 には別の 10F の盤面が同じターン番号で混じるので、
+      階で絞った。extract_n1c_deaths_1101_fixtures.freeze に ring と keep の引数を足した）
+    - test_recorded_visit_plays_on_outside_the_summoner_zone: 着いた盤面（決定 99）から決定 142 まで
+      公開の choose_key で回す。決定 142 の盤面は ('fp4', 'ranged:fire')（大群を撃つ）で、本番の実行器を通す。
+      122 以後に explore:avoid-immobile-summoner と下りの理由が 1 つも無いこと、範囲が道の拒否に
+      残っていること、普段の explore があることを確かめる。
+    - 各盤面には記録の前の決定の完了（_completed_operation_owner）を付けた（DECLARED CONSTRUCTED。
+      ライブの運転と同じく、新しい階の感知を 1 回で済ませるため）。
+
+  revert-proof（1 回）: src の 7 ファイルを戻してテストを流し、戻した。
+    - 3 件とも失敗: 決定 142 は ('9', 'summoner:seek-upstairs')、範囲の外の帰還の待ちは
+      ('3', 'explore:avoid-immobile-summoner')、範囲の中の帰還の待ちは ('5', 'summoner:wait-recall')
+      （召喚の敵の射線の中で待つ。問題の症状そのもの）。直した後は 3 件とも通る。
+
+
+2. 帰還の待ちの間、召喚の敵の射線の中で待っていた — 直した（ecab21c34）
+
+  原因: 帰還を読んだ後（recalling）も同じ持ち主が全部の決定を取り、探索が残れば探索、無ければ
+    summoner:wait-recall で、範囲の中でもその場で待った。
+  直し: 1. の結果、範囲の外では普段の return:wait-recall（静かなら見える品を拾う、そうでなければ待つ）、
+    範囲の中では先に範囲の外へ出る。
+  テスト（DECLARED CONSTRUCTED: recalling を記録の盤面に立てた）:
+    - test_recall_countdown_waits_out_of_the_zone: life-099 の決定 129 の盤面 → ('5', 'return:wait-recall')、
+      本番の実行器を通す。
+    - test_recall_countdown_steps_out_of_the_zone_first: 2026-10-27 のガラスの壁の召喚の敵の記録
+      （tests/fixtures/glass-summoner-20261027.json.gz、待ちが切れた後、プレイヤーは範囲の中）
+      → ('3', 'explore:avoid-immobile-summoner')、本番の実行器を通す。
+
+
+3. 名前と段の対応 — 直した（09c1bd15b）
+
+  - 感知した群れ（召喚の敵がいない）の隘路の待ちが summoner:hold-choke と書かれていた
+    （_detected_threat_preparation_key → summoner_wait.hold_key）。hold_key が待つ召喚の敵がいない時は
+    detected:hold-choke にした。50 ターンの上限・待ちの時計は同じ（summoner_wait_decision は両方の名前で
+    時計を残す）。claim_goal_typing に ("detected:hold-choke", T, EFFECT)、cli の STATIONARY_EXEMPT_REASONS
+    に足した。town_arbiter は "detected:" の接頭辞で既に入る。
+  - explore:avoid-immobile-summoner が claim_ladder で _immobile_breeder_giveup_key（"explore:"）の段に
+    数えられていた。_immobile_summoner_key の印なしの段を足した（rung_of で _immobile_summoner_key、
+    出口の理由は _immobile_summoner_exit_key になる）。
+  - revert-proof: summoner_wait.py を戻すと test_q2_choke_loop_recorded（グレムリン）と
+    test_summoner_loot_choke_loop_recorded（オークの群れ）の名前の確認が失敗、戻して通る。
+
+
+3b. 下り階段を先に使う（ユーザー決定 2026-11-02「下り階段を先に使う」）— 実装した（c341b6eb8）
+
+  決定: 動かない召喚の敵を避けて階を出る時は、射線の範囲の外から行ける下り階段を先に、次に上り階段・
+    テレポート・レベル・帰還。避けている間も普段の階の決まりで出る（階を全部探索するまで待たない）。
+
+  記録: C:\hengband-backups\pdca\captures\viewing-incidents-20261102\n1-c\life-103\incident-captures\
+        20261102-134240-town-blocked-survival-inventory_weight_ready、リングの世代
+        snapshots-20261102-131600-b3bb3c（Angband 23F (3,23,0)）
+    - 13:09:33（turn 3693780）に (36,192) のクイルスルグ（race 342、NEVER_MOVE）を見た。それから
+      explore:avoid-immobile-summoner が 209 回（13:10:48 まで）階を探索し、(29,3) で帰還を読んで待った
+      （summoner:recall / summoner:wait-recall）。
+    - この捕獲の決定の末尾は 13:37 からなので、決定の行は調べの n1c-life103-timeline.tsv から取った
+      （decision_sequence はその行番号）。
+    - この階では下り階段がずっと見つかっていない（リングの全部の盤面で has_down_stairs なし）。
+
+  直し:
+    - 避けている間の下り階段の断り（_descent_is_blocked の "immobile-summoner"）を外した。普段の降りる段
+      （approach-descent / seek-downstairs / descend）がそのまま動くので、普段の決まりで出る。
+    - 範囲の中の下り階段は降りる先にしない（_is_descent_target）。道の拒否と同じく、範囲の外から行ける
+      下り階段だけになる。
+    - 持ち主の出口（SummonerExits）の順を、ここの下り階段（summoner:stairs-down '>'、HP は普段の降りる
+      条件 DESCEND_MIN_HP_RATIO）→ 下り階段への道（summoner:seek-downstairs）→ 上り階段 → テレポート・
+      レベル → 帰還 にした。範囲の中で出る 1 歩が無い時と、探索が尽きた時に使う。
+    - 理由の型・段・町の分類に summoner:seek-downstairs を足した（summoner:stairs-down は既存の
+      "summoner:stairs" の接頭辞に入る）。
+
+  テスト: tests.test_summoner_downstairs_1102_recorded.SummonerDownstairsRecordedTest（1 件）
+    - 抽出: tests/extract_summoner_downstairs_1102_fixture.py → tests/fixtures/summoner-downstairs-1102.json.gz
+      （避け始めから 31 枚、776KB）
+    - 記録の 31 枚を公開の choose_key で回す: 記録は全部 explore:avoid-immobile-summoner、直した後は
+      全部 explore（下り階段を探す普段の探索）。
+    - DECLARED RECONSTRUCTED: この階の着いた時（12:59:14）からの魔道具術師の力の使用（タイムラインの
+      71 行）を階の記憶に入れた（リングは 13:05 からで、入れないと新しい階の感知を繰り返す）。
+    - DECLARED CONSTRUCTED: 最初の盤面に下り階段を置く。範囲のただ 1 マス (35,191) だけなら降りる先に
+      しない（explore）。範囲の外の (36,169) もあれば普段の seek-downstairs がそちらへ向かう（'4'、
+      本番の実行器を通す）。
+    - revert-proof（1 回）: src を戻すと ('explore', None) != ('seek-downstairs', (36,169)) で失敗、戻して通る。
+    - 1. のテスト（life-099 12F）の期待値を直した: 下りの理由が無いこと → 普段の seek-downstairs が
+      あること（範囲の外の下り階段へ向かう）。
+
+
+4. 検査
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": 通る。
+  - 新しいテスト 3 件＋3b. の 1 件: 通る（revert-proof は上のとおり）。main 取り込み後も
+    test_summoner_avoid_narrow_1102_recorded・test_immobile_summoner_recorded・
+    test_summoner_downstairs_1102_recorded（38 件）が通る。
+  - 期待値を新しい振る舞いに直した既存のテスト（壁は作っていない）:
+    - tests/test_immobile_summoner_recorded.py（34 件、全部通る）
+      first/second capture と threat memory: (24,66) は射線の外なので ('4', 'explore')（範囲の拒否の確認は残す）。
+      glass の 3 件: 範囲の中なので先に ('3', 'explore:avoid-immobile-summoner')（以前は即 'rg' summoner:recall）。
+      cached pack wait: 待つのは召喚の敵のいない群れなので detected:hold-choke。
+    - tests/test_q2_choke_loop_recorded.py（3 件通る）、tests/test_summoner_loot_choke_loop_recorded.py、
+      tests/test_policy_combat.py の DetectedMonsterChannelTest: 感知した群れの待ちの名前を detected:hold-choke に。
+  - 期待値を直すべきか見るために関係するモジュールも流した。下の失敗は main（6a90f7b4f の src）でも
+    同じ内容で失敗する既存の失敗で、今回の変更によるものではない:
+    test_summoner_loot_choke_loop_recorded（解放後に inventory:destroy-worthless-junk）、
+    test_policy_combat の DetectedMonsterChannelTest 4 件（78 != 0、13 not greater than 490、['8','9']、
+    visible hostile）・CombatTest.test_attacks_friendly_in_town・EmergencyRecallEscapeTest 1 件、
+    test_policy_navigation の UnseenAttackerTest / TownTravelerCombatPriorityTest、
+    test_detected_pack_no_choke_recorded（KeyError (0, 0)）、test_loot_choke_oscillation_recorded 2 件、
+    test_n1b_279_death_recorded 1 件、test_pure_decision_telemetry 3 件、test_unaffordable_claim_tour_recorded 3 件、
+    test_experience_potion 6 件、test_ownership_s2b1_ladder 2 件（_mining_unbeatable_unique_abort_key の段が
+    梯子に無く順がずれる・look-ahead 3 != 2）。
+    test_experience_potion の x4 は main でも失敗するが、並ぶ番号の一覧が少し違う（長い記録の中の
+    ダンジョンの決定が変わったため。どちらも失敗のまま）。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - town_work_manifest: --write で zero unmapped（3b. の後も）。scripts/town_work_review.json に 9 項目を足し、
+    _immobile_summoner_key の evidence を直した（新しい関数 _immobile_summoner_exits / _zone_key /
+    _exit_key / step_out_of と、新しく候補に入った _strategic_subset など）。
+    town_terminal に _immobile_summoner_exit_key の段（combat、町の用事ではない）を登録した。
+  - 裏の処理は残していない。git stash は使っていない。push していない。
+
+
+5. 保守性
+
+  - 持ち主の中身を短い役割ごとに分けた: 出口を 1 か所で求める _immobile_summoner_exits（SummonerExits、
+    retreat_possible を持つ）、範囲の中の _immobile_summoner_zone_key、出口の _immobile_summoner_exit_key。
+    今まで 1 つの長い関数の中にあった出口の計算と順番が 1 か所になり、上の段（範囲の中）と下の段
+    （探索の後）が同じ関数を使う。
+  - 範囲から出る 1 歩は、輪から出る step_out_key と同じ step_out_of を使う（同じ探索の写しを作らない）。
+  - 待ちの名前は summoner_wait の定数（HOLD_CHOKE_REASON / DETECTED_HOLD_CHOKE_REASON / HOLD_CHOKE_REASONS）に
+    まとめ、文字列の比較を 1 か所にした。
+  - 避けている召喚の敵を外す判定は _avoided_immobile_summoner の 1 つで、既存の _strategic_subset の
+    除外の並びに入れた（同じ判定の写しは無い）。
+
+
+6. checks.json の案（編集していない）
+
+  {"id": "IMMOBILE-SUMMONER-AVOID-NARROW",
+   "defect": "2026-11-02 n1-c life-103 49F・life-099 12F 動かない召喚の敵を記憶している間、_immobile_summoner_key がその階の全部の決定を取り、遠隔の攻撃・逃げ・感知・休むなどが消え、探索で群れに入り、帰還の待ちを射線の中でした",
+   "owner": "動かない召喚の敵は近づかずに避ける（2026-10-27）／避ける動きの間、判断が通常と異なるように見える（2026-11-02）",
+   "tests": ["tests.test_summoner_avoid_narrow_1102_recorded.SummonerAvoidNarrowRecordedTest",
+             "tests.test_immobile_summoner_recorded.ImmobileSummonerRecordedTest"]}
+  {"id": "IMMOBILE-SUMMONER-DOWNSTAIRS-FIRST",
+   "defect": "2026-11-02 n1-c life-103 23F クイルスルグを避けて 209 回階を探索し帰還した（下り階段は断られ、出口は探索が尽きた後だけ）",
+   "owner": "下り階段を先に使う（2026-11-02）",
+   "tests": ["tests.test_summoner_downstairs_1102_recorded.SummonerDownstairsRecordedTest"]}
+  {"id": "DETECTED-HOLD-CHOKE-NAME",
+   "defect": "召喚の敵のいない感知した群れの隘路の待ちが summoner:hold-choke と記録されていた",
+   "owner": "（名前の直し。振る舞いは同じ）",
+   "tests": ["tests.test_summoner_loot_choke_loop_recorded.SummonerLootChokeLoopRecordedTest",
+             "tests.test_q2_choke_loop_recorded.Q2ChokeLoopRecordedTest"]}
+
+
+7. ユーザーへの問い・申し送り
+
+  - 問い 1（変えていない）: 避けている召喚の敵を、範囲の外から撃てる時に撃つか。今は戦略上の敵から外して
+    撃たない（今までの振る舞いのまま）。射線の外から撃てる場面は、ゲームの射線とボットの射線の判定が
+    食い違う時に起きる（2026-10-27 の記録の盤面）。
+  - 問い 2 は決定済み（「下り階段を先に使う」、3b. で実装）。50 ゲームターンの待ちの切れ目は変えていない。
+  - 解釈の確認: 「普段の階の決まりで出る」は、避けている間も普段の降りる段（下り階段が分かれば降りる）と
+    普段の探索（下り階段を探す）が動くこと、と読んだ。23F のように下り階段がどこにも無く、上り階段も
+    使えない階では、今までどおり探索が尽きてから帰還を読む。下り階段が見つからない時に探索せず
+    すぐ出口（上り階段・テレポート・レベル・帰還）を使う、という意味なら別の直しになる。
+  - 申し送り: life-103 の 49F 12:40 / 13:29 の盤面そのものは観戦サーバの上にしかなく、テストは手元の
+    life-099 の同じ型の記録で作った。12:40 の場面（オークの巣）を直接確かめるなら、その時刻の
+    スナップショットを手元に写す必要がある。
+  - 申し送り（D32、生存）: 範囲の中の盤面で別の敵が見えていると、持ち主より上の段の ranged:fire-target
+    が先に撃つ（構成した盤面で確認）。生存の段の順なので変えていない。
+  - 既存の失敗（main と同じ）は 4. の一覧のとおり。test_ownership_s2b1_ladder の段の順のずれは
+    _mining_unbeatable_unique_abort_key の段が CLAIM_LADDER に無いのが原因で、今回の家族の外。

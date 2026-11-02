@@ -577,6 +577,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
     *_rows(
         "positioning",
         ("detected:", R, WALK_TARGET),
+        ("detected:hold-choke", T, EFFECT),
         ("melee:choke", T, EFFECT),
         ("melee:choke-reposition", R, WALK_TARGET),
         ("summoner:hold-choke", T, EFFECT),
@@ -633,6 +634,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("summoner:ranged-kill", T, EFFECT),
         ("summoner:cornered-approach", R, WALK_TARGET),
         ("summoner:seek-upstairs", R, WALK_TARGET),
+        ("summoner:seek-downstairs", R, WALK_TARGET),
         ("summoner:teleport-level", O, FLOOR_CHANGE),
         ("summoner:recall", O, FLOOR_CHANGE),
         ("summoner:wait-recall", O, FLOOR_CHANGE),

@@ -10901,6 +10901,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "explore"
             self._declare_explore_goal()
             return self._town_producer_entry("_step_toward", lambda: self._step_toward(snapshot, step), family="explore")
+        # Exploration outside an avoided immobile summoner's zone is spent:
+        # leave by that owner's exits (its zone stays out of every route).
+        summoner_exit = self._town_producer_entry(
+            "_immobile_summoner_exit_key",
+            lambda: self._immobile_summoner_exit_key(snapshot))
+        if summoner_exit is not None:
+            return summoner_exit
 
         # The planner deliberately excludes the current tile as a destination.
         # When this tile is the floor's sole remaining frontier, probe through
@@ -17987,6 +17994,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ):
             return False
         if self._active_fixed_quest_id(snapshot) is not None or self._quest_floor_exit_locked(snapshot):
+            return False
+        # Owner 2026-11-02 「下り階段を先に使う」: a downstairs reachable outside
+        # an avoided immobile summoner's line of fire, never one inside it.
+        if grid.position in getattr(self, "_immobile_summoner_avoid_cells", ()):
             return False
         # Owner 2026-11-02: no stairs into a pending random quest floor before Q2.
         if snapshot.dungeon_level > 0 and random_quest_hold.crossing_held(

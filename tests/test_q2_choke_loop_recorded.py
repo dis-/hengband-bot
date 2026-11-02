@@ -71,6 +71,9 @@ GENERIC = ("detected:", "summoner:")
 REASON_84_ROWS = frozenset({1, 7, 8, 14, 15, 21, 22})
 REASON_84 = ("quest-strategy:q2-post-blue-nether-worm",
              "quest-strategy:q2-post-blue-upper-left-puddle")
+# summoner-avoid-narrow-1102: the hold awaiting the gremlins (no summoner
+# among them) is named ``detected:hold-choke``; the key is the recorded one.
+LIVE_HOLD, HOLD = "summoner:hold-choke", "detected:hold-choke"
 
 
 def _sha(path: Path) -> str:
@@ -142,7 +145,7 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
         if index in REASON_84_ROWS:
             self.assertEqual(reason, REASON_84[0], index)
             return key, REASON_84[1]
-        return key, reason
+        return key, HOLD if reason == LIVE_HOLD else reason
 
     # ------------------------------------------------------------ recorded
     def test_recorded_process_alternates_two_owners(self):
@@ -180,7 +183,7 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
             [row for index, row in enumerate(rows) if index not in hold_owned],
             [self._expected(index) for index in range(LAST + 1) if index not in hold_owned])
         self.assertEqual({index: rows[index] for index in hold_owned},
-                         {index: ("5", "summoner:hold-choke") for index in hold_owned})
+                         {index: ("5", HOLD) for index in hold_owned})
         self.assertEqual({self._live(index) for index in hold_owned},
                          {("8", "quest-strategy:q2-post-blue-nether-worm")})
         # The two converging breeders that drive the recorded retreat.

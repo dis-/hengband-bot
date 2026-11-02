@@ -51,12 +51,15 @@ class SummonerLootChokeLoopRecordedTest(unittest.TestCase):
 
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
             key = policy.choose_key(loot_board)
-        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "summoner:hold-choke"))
+        # The detected pack holds no summoner: the hold is named for it
+        # (summoner-avoid-narrow-1102; recorded as summoner:hold-choke).
+        self.assertEqual(self.records[0]["decision"]["reason"], "summoner:hold-choke")
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "detected:hold-choke"))
 
         still_held = replace(loot_board, turn=started + HOLD_TURNS)
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
             key = policy.choose_key(still_held)
-        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "summoner:hold-choke"))
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "detected:hold-choke"))
 
         released = replace(loot_board, turn=started + HOLD_TURNS + 1)
         with patch.object(policy, "_skill_exp_request_key", return_value=None):

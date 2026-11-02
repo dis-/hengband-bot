@@ -1745,6 +1745,7 @@ NO_REFUSAL_REASONS = {
     '_esp_threat_rest_key': 'tactical survival/combat: not a town errand; src/hengbot/policy_combat.py:1078',
     '_fruitless_disengage_key': 'tactical survival/combat: not a town errand; src/hengbot/policy.py:18237',
     '_immobile_breeder_giveup_key': 'tactical survival/combat: not a town errand; src/hengbot/policy.py:18916',
+    '_immobile_summoner_exit_key': 'tactical survival/combat: not a town errand; src/hengbot/policy_combat.py:471',
     '_item_destroying_breeder_leave_key': 'tactical survival/combat: not a town errand; src/hengbot/policy_combat.py:257',
     '_melee_swarm_combat_key': 'tactical survival/combat: not a town errand; src/hengbot/policy_combat.py:3276',
     '_paralyzer_prevention_key': 'tactical survival/combat: not a town errand; src/hengbot/policy_combat.py:2406',
@@ -2019,7 +2020,7 @@ def offered_steps(policy: Any) -> tuple:
 # no ``family=`` (formerly the claim ladder's rung table).
 RUNG_FAMILIES: dict[str, tuple[str, ...]] = {
     "combat": ("_direction_key#2", "_ranged_attack_key#1", "_ranged_attack_key#2",
-        "_summoner_ranged_kill_key"),
+        "_summoner_ranged_kill_key", "_immobile_summoner_exit_key"),
     "curse-enchant": ("_town_enchant_launcher_key", "_town_remove_curse_key"),
     "departure": ("_descent_step", "_hunt_step#2", "_normal_loot_key#1", "_return_to_town_key#1",
         "_return_to_town_key#2", "_return_to_town_key#3"),

@@ -117,8 +117,10 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         record, board = self._recorded(index)
         policy = self._policy(board)
         key = policy.choose_key(board)
-        self.assertEqual((str(key), policy.last_reason),
-                         ("4", "explore:avoid-immobile-summoner"))
+        # (24,66) is out of the summoner's line of fire: the ordinary explore
+        # walks on with the zone vetoed (owner 10-27 「近づかずに避ける」 is
+        # avoidance, summoner-avoid-narrow-1102).
+        self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
         self.assertNotIn(Position(24, 65), policy._engagement_avoid_cells)
         self.assertIn(Position(24, 70), policy._engagement_avoid_cells)
         after = self._post(policy, board, key, record["board"])
@@ -323,7 +325,7 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         hidden = replace(board, player=replace(board.player, position=Position(24, 65)),
                          grids=grids, visible_monsters=[], turn=after["turn"])
         key = policy.choose_key(hidden)
-        self.assertEqual(policy.last_reason, "explore:avoid-immobile-summoner")
+        self.assertEqual(policy.last_reason, "explore")
         self.assertIn(Position(24, 70), policy._engagement_avoid_cells)
         self.assertIn(source, policy._immobile_summoner_memory[1])
         # DECLARED CONSTRUCTED: a later lit observation certifies the death.
@@ -365,10 +367,13 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         policy = self._policy(board)
         self.assertIsNone(policy._monster_path_distance(board, monster.position))
         board, key = self._until_wait_ends(policy, board, record["board"])
-        self.assertEqual((str(key), policy.last_reason), ("rg", "summoner:recall"))
+        # (29,50) is in the summoner's line of fire: the owner steps out of
+        # it first (summoner-avoid-narrow-1102); its Recall is the exit once
+        # no step leaves the zone.
+        self.assertEqual((str(key), policy.last_reason),
+                         ("3", "explore:avoid-immobile-summoner"))
+        self.assertIn(board.player.position, policy._immobile_summoner_avoid_cells)
         self.assertIn(monster.position, policy._immobile_summoner_memory[1])
-        # No safe useful target or stairs exist on these observed boards.
-        # _post supplies a CONSTRUCTED scroll prompt / command response.
         self._post(policy, board, key, record["board"])
 
     def _until_wait_ends(self, policy, board, raw=None):
@@ -431,8 +436,9 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         policy = self._policy(board)
         for delta in (0, 10, 20, 30, 40, 50, 60):
             current = replace(board, turn=board.turn + delta)
+            # The hold awaits the pack, which holds no summoner.
             self.assertEqual((str(policy.choose_key(current)), policy.last_reason),
-                             ("5", "summoner:hold-choke"))
+                             ("5", "detected:hold-choke"))
             self.assertFalse(policy._summoner_never_approaches(current, far))
             self.assertEqual(policy._summoner_wait.started, {})
             self.assertEqual(policy._summoner_wait.refused, {})

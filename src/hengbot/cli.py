@@ -432,6 +432,7 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "quest-strategy:open-sequence-door",
         # Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).
         "summoner:hold-choke",
+        "detected:hold-choke",
         "quest-strategy:hold",
         # Exact policy-registered escape WAIT terminals. Each owns the existing
         # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as

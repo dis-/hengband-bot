@@ -1054,7 +1054,21 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "immobile_threat_memory.py:route_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "immobile_threat_memory.py:step_out_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "immobile_threat_memory.py:step_out_of": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -4575,6 +4589,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_combat.py:CombatMixin._has_line_of_fire": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_combat.py:CombatMixin._hunt_step": {
     "classification": "producer",
     "rows": [
@@ -4582,7 +4603,30 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_combat.py:CombatMixin._immobile_summoner_exit_key": {
+    "classification": "producer",
+    "rows": [
+      "survival",
+      "loot-exploration"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._immobile_summoner_exits": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_combat.py:CombatMixin._immobile_summoner_key": {
+    "classification": "producer",
+    "rows": [
+      "survival",
+      "loot-exploration"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._immobile_summoner_zone_key": {
     "classification": "producer",
     "rows": [
       "survival",
