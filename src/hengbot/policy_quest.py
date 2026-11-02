@@ -274,6 +274,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_REWARDED,
     QUEST_STATUS_TAKEN,
     REST_MACRO,
+    RETURN_STATIONARY_REASONS,
     SPEED_POTION_BONUS,
     TOWN_TELEPORT_COST,
     UNIQUE_COMBAT_MAX_ATTACKS,
@@ -4497,7 +4498,9 @@ class QuestMixin(OpeningRouteMixin):
                     self._note_return_start(None)
                     self._returning_to_town = True
                     key = self._return_to_town_key(snapshot, hostiles)
-                    if key is not None and self.last_reason != "return:wait-recall":
+                    # The return's bounded stationary holds keep their own
+                    # labels, which the cell guard exempts (n1-b life-293).
+                    if key is not None and self.last_reason not in RETURN_STATIONARY_REASONS:
                         self.last_reason = "fixedquest:claim:return"
                     return key
                 from hengbot import town_quest_reward

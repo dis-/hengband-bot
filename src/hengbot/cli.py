@@ -72,6 +72,7 @@ from hengbot.policy_constants import (
     LEAVE_STORE_KEY,
     POLICY_FINAL_STOP_REASONS,
     POLICY_FINAL_STOP_PREFIXES,
+    RETURN_STATIONARY_REASONS,
     TOWN_END_SURVIVAL_STOP_PREFIX,
     TOWN_END_UNMET_STOP_PREFIX,
     SKILL_KNOWLEDGE_MACRO,
@@ -376,8 +377,7 @@ STATIONARY_REASONS = frozenset(
         # candidate wall before moving to the next one.  The policy bounds that
         # work with _wall_search_counts; feeding these deliberate holds to the
         # 40-cell watchdog produces a false loop at five walls (5 * 8).
-        "return:search-upstairs",
-        "return:wait-recall",
+        *RETURN_STATIONARY_REASONS,
         "fundraise:wait-recall",
         # Clearing a physically occupied escape route attacks without changing
         # cells. Accuracy-aware combat projection bounds whether this is chosen.
