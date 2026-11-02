@@ -216,6 +216,16 @@ def applies(policy, snapshot) -> bool:
     return q1 is not None and q1.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
 
 
+def _displayed_staff_rows(policy, snapshot):
+    """The rows of the staff list on this board, else of the last one this
+    life displayed, else None."""
+    listed = getattr(snapshot, "magic_eater_power_list", None)
+    if isinstance(listed, dict) and listed.get("kind") == "staff":
+        return listed.get("rows", ())
+    remembered = (getattr(policy, "_me_device_lists", None) or {}).get("staff")
+    return remembered[1] if remembered is not None else None
+
+
 def read_powers(policy, snapshot) -> bool:
     """Whether the game's staff power list was read in this process.
 
@@ -224,13 +234,19 @@ def read_powers(policy, snapshot) -> bool:
     the absorbed Identify and Treasure staffs again (#47 n1-c life-054,
     owner 「2本目は買わない」).  The power list (cmd-magiceat.cpp, read by
     the turn-free browse ``b A``) is the game's own record: every sequence
-    power it lists is absorbed.
+    power it lists is absorbed.  The staff list any browse of this life
+    displayed (``me_device_attacks.observe_lists``, e.g. the periodic
+    refresh on a dungeon floor) is that record as well: n1-c life-112
+    (2026-11-03 00:05) browsed it on Yeek cave 9F, recalled, and in town
+    the sequence's own ``bA`` lost its boards to the Home scan, the dump
+    and the periodic wand/rod reads until power-list-unavailable stopped
+    the bot.
     """
     record = state(policy)
-    listed = getattr(snapshot, "magic_eater_power_list", None)
-    if isinstance(listed, dict) and listed.get("kind") == "staff":
+    rows = _displayed_staff_rows(policy, snapshot)
+    if rows is not None:
         names = {name: sval for sval, pair in POWER_NAMES.items() for name in pair}
-        for row in listed.get("rows", ()):
+        for row in rows:
             sval = names.get(row.get("name"))
             if sval is None:
                 continue

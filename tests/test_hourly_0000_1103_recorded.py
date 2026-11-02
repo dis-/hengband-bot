@@ -17,7 +17,9 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
+from hengbot import me_staff_sequence as sequence
 from tests import test_input_executor as executor_pins
+from tests.test_me_nokey_1031_recorded import PostedKey
 from test_hourly_0700_1102_recorded import RecordedTownPolicy
 
 
@@ -112,6 +114,62 @@ class OutsideEquipBeforeHomeReentryTest(RecordedTownPolicy, executor_pins.Produc
             snapshot=board, posting_contract=PostingContract())
         self.assertTrue(sent, port.last_result.stop_line)
         self.assertEqual("".join(game.accepted), key)
+
+
+class RememberedStaffListAfterRestartTest(RecordedTownPolicy, PostedKey):
+    """n1-c life-112 00:05:57 quest:blocked:me-staff.
+
+    The process restarted on Yeek cave 8F after the 00:04 loop-detected
+    stop, so the staff sequence's absorption record was empty.  On 9F the
+    periodic refresh browsed the staff list (decision 467 ``bA``); after the
+    recall the town board (turn 605456) went to the skill list, the Home
+    scan, the dump and the wand and rod browses (544-548) while the
+    sequence counted its own read attempts, and 549 stopped on
+    power-list-unavailable without the sequence reading the 9F list.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.case = _cases()["staff"]
+
+    def test_recorded_stop(self):
+        rows = {(row["decision_sequence"], row["key"]): row for row in self.case["decisions"]}
+        self.assertEqual(rows[(467, "bA")]["reason"], "periodic:magic-eater-powers")
+        self.assertEqual(rows[(467, "bA")]["floor"]["level"], 9)
+        self.assertEqual(rows[(549, "")]["reason"], "quest:blocked:me-staff")
+        stop = self.case["at_stop"]
+        self.assertEqual((stop["absorbed"], stop["failure"], stop["powers_read"]),
+                         ({}, "power-list-unavailable", False))
+
+    def test_the_staff_list_browsed_on_9f_is_the_absorption_record(self):
+        case = self.case
+        raw = case["board"]
+        policy = self.primed(raw, case["home"]["knowledge"]["items"], case["skill"])
+        # DECLARED RECONSTRUCTED: the 9F browse's displayed staff list (the
+        # executor's projection is not in state.jsonl): the staffs the
+        # record before the restart held, as cmd-magiceat.cpp lists them;
+        # and the three read attempts the visit had counted before the stop
+        # board (the stop record holds the fourth).
+        absorbed = {int(key.split(":")[1]): count
+                    for key, count in case["before_restart"]["absorbed"].items()
+                    if key.startswith("staff:")}
+        policy._me_device_lists = {"staff": (604668, tuple(
+            {"name": sequence.POWER_NAMES[sval][0], "current": count, "max": count,
+             "fail": 5, "success": 95} for sval, count in absorbed.items()))}
+        sequence.state(policy).attempts = {("read-powers", 0): 3}
+        board = self.board(policy, raw)
+        key = policy.choose_key(board)
+        # Recorded: '' quest:blocked:me-staff.  The HP 143/193 character
+        # rests in town instead.
+        self.assertEqual((key, policy.last_reason), ("R&\r", "town:recover"))
+        record = sequence.state(policy)
+        self.assertTrue(record.powers_read)
+        self.assertIsNone(record.failure)
+        self.assertEqual(record.absorbed,
+                         {f"staff:{sval}": count for sval, count in absorbed.items()})
+        # DECLARED CONSTRUCTED: cmd-move.cpp asks the rest count.
+        self.post(policy, raw, key, [executor_pins.prompt_screen(
+            "休憩 (0-9999, '*' で HP/MP全快, '&' で必要なだけ): &")])
 
 
 if __name__ == "__main__":
