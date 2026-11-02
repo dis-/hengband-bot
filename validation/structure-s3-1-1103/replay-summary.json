@@ -1,0 +1,9 @@
+{
+ "tools": "validation/structure-s2-cleanup-1102/{replay_hold.py,run_shards.py,compare_hold.py} unchanged; 6 shards per tree, both trees at once. run_shards.py must be given absolute out paths (replay_hold.py chdirs into the tree before opening its output); with a relative path its join step fails after shard 0, the shards still finish, and the rows were joined by hand from <tree>/<tree>.N.jsonl",
+ "modules": "replay-test-ids.txt: structure-s2-cleanup-1102's 266 modules + 43 recorded tests of 11-01..11-03 not in it + 5 checkpoint/observer tests (test_calibration_checkpoint, test_flight_recorder, test_identify_staff_live27_recorded, test_scavenge_stockout_recorded, test_cli) = 314",
+ "trees": {"main": "38c599427", "branch": "988422f93 (git archive of each)"},
+ "main":   {"tests": 3378, "failures": 251, "errors": 114, "skipped": 18, "expected_failures": 8},
+ "branch": {"tests": 3378, "failures": 251, "errors": 114, "skipped": 18, "expected_failures": 8},
+ "compared": {"tests": 1870, "decisions": 15462, "receipts": 46416, "hold_calls": 662542, "errand_deferred_rows": 3449, "outcome_rows": 381, "differing": 6},
+ "differing_detail": "all six are message text of tests failing or erroring identically on both sides: test_calibration_checkpoint x2 (the subtest id carries a random session id; same ERROR on both), test_n1c_ascend_loop_1102 and test_star_identify_departure (set order in the message), test_the_13_classified_rungs (set order), test_shadow_and_enforce_preserve_all_49 (truncated message 408 chars longer: the hidden tracebacks name .../replay/branch/... instead of .../replay/main/...)"
+}
