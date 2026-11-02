@@ -97,14 +97,16 @@ class TerminalDeclarationTest(unittest.TestCase):
         self.assertEqual(len(town_terminal.SHADOW_RUNGS), S1_SHADOW_CENSUS)
 
     def test_2b_rung_families_are_the_ladder_families(self):
-        # The declarations' rung -> family table agrees with the ladder that
-        # sits next to it in town_terminal (structure stage 2 B slice 4).
+        # An entry's family is its ladder rung's family: one table for the
+        # order and the families (town_hold.CLAIM_LADDER).
         for name, decl in TERMINALS.items():
             rung = town_hold.rung_named(name)
             self.assertEqual(decl.family, rung.family if rung is not None else "", name)
         self.assertEqual(set(owner_families()) | {"unregistered"},
                          {rung.family for rung in town_hold.CLAIM_LADDER})
         self.assertEqual(town_terminal.rung_family("_flee_step#1"), "survival")
+        # The immobile summoner's own step out of the zone (its ladder rung).
+        self.assertEqual(town_terminal.rung_family("_immobile_summoner_key"), "explore")
         self.assertEqual(town_terminal.rung_family("_flee_step#1", "home-visit"), "home-visit")
         self.assertEqual(town_terminal.rung_family("_flee_step#1", "no-such"), "unregistered")
         with self.assertRaises(ValueError):

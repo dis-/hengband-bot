@@ -43,7 +43,7 @@ from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER
 from hengbot.town_arbiter import UNREGISTERED_FAMILY, owner_families
-from hengbot.town_hold import claim_family_of
+from hengbot.town_hold import CLAIM_LADDER, claim_family_of
 # Checkpoints pickled before the hold moved to town_hold name its records
 # under this module (``hengbot.town_terminal.TownHold`` ...); they load as these.
 from hengbot.town_hold import (  # noqa: F401
@@ -723,8 +723,8 @@ class TerminalDecl(NamedTuple):
     mode: str
     no_refusal_reason: str = ""
     # The owner family the rung's entry admits under when its call site
-    # names none (``RUNG_FAMILIES``); "" for a rung whose every call site
-    # passes ``family=``.
+    # names none: its ladder rung's family (``_FAMILY_OF_RUNG``); "" for a
+    # rung the ladder does not name.
     family: str = ""
 
 
@@ -1865,53 +1865,13 @@ TERMINALS: dict[str, TerminalDecl] = {
 }
 
 
-# --- The rung -> family table of the entries (structure stage 2 B, step 1) ---
-# Owner 2026-10-28 「B: 場面の終点に一本化」: the family a rung's entry admits
-# under is part of its declaration.  The hold (claims, ladder, errand hold)
-# lives in ``town_hold``.
-
-# The family each town rung's entry admits under when its call site passes
-# no ``family=`` (formerly the claim ladder's rung table).
-RUNG_FAMILIES: dict[str, tuple[str, ...]] = {
-    "combat": ("_direction_key#2", "_ranged_attack_key#1", "_ranged_attack_key#2",
-        "_summoner_ranged_kill_key", "_immobile_summoner_exit_key"),
-    "curse-enchant": ("_town_enchant_launcher_key", "_town_remove_curse_key"),
-    "departure": ("_descent_step", "_hunt_step#2", "_normal_loot_key#1", "_return_to_town_key#1",
-        "_return_to_town_key#2", "_return_to_town_key#3"),
-    "detectors": ("_breakout_restore_weapon_key#1", "_breakout_restore_weapon_key#2",
-        "_dark_locomotion_key", "_explore_step#1", "_navigation_livelock_key"),
-    "equipment-txn": ("_equipment_transaction_town_key#1", "_equipment_transaction_town_key#2",
-        "_equipment_transaction_town_owner_key", "_heavy_curse_inscription_key",
-        "_home_catalogue_work_key", "_shopping_approach_key#1",
-        "_town_random_teleport_suppression_key", "_town_restore_weapon_key"),
-    "escape": ("_blocking_escape_melee_key", "_breeder_breakthrough_escape_key",
-        "_breeder_breakthrough_key", "_direction_key#1", "_emergency_item", "_flee_step#2",
-        "_fruitless_disengage_key", "_item_destroying_breeder_leave_key", "_unseen_retreat_key"),
-    "esp-threat": ("_esp_threat_hunt_key", "_esp_threat_rest_key"),
-    "explore": ("_explore_step#2", "_immobile_breeder_giveup_key"),
-    "floor-loot": ("_chest_processing_key#1", "_chest_processing_key#2", "_conquest_loot_key",
-        "_normal_loot_key#2", "_victory_loot_key"),
-    "fundraising": ("_fundraising_key#1", "_fundraising_key#2"),
-    "home-scan": ("_home_full_knowledge_key",),
-    "home-visit": ("_home_disposal_processing_key", "_home_full_relief_key", "_home_full_skip_key"),
-    "hunt": ("_hunt_step#1", "_hunt_step#3"),
-    "identification": ("_town_device_processing_key", "_town_equipped_identification_key"),
-    "positioning": ("_choke_engagement_key", "_detected_threat_preparation_key", "_flee_step#3",
-        "_flee_step#4", "_melee_swarm_combat_key", "_paralyzer_prevention_key",
-        "_unseen_retreat_intercept_key"),
-    "quest-request": ("_fixed_quest_key#1", "_fixed_quest_key#2",
-        "_kill_quest_floor_recovery_key", "_start_kill_quest_regeneration",
-        "_town_order_step4_key#1", "_town_order_step4_key#2"),
-    "quest-sweep": ("navigator.decide",),
-    "shop-sell": ("_overweight_surplus_sale_key",),
-    "store-router": ("_released_restock_store_key", "_shopping_approach_key#2",
-        "_town_space_deposit_key"),
-    "survival": ("_experience_potion_quaff_key", "_flee_step#1", "_mana_food_loot_key",
-        "_mana_food_survival_override_key", "_stat_gain_quaff_key", "_stat_restore_quaff_key",
-        "_survival_gate_key#1", "_survival_gate_key#2", "_town_kill_mob_key"),
-    "town-plan": ("_town_overflow_destroy_key",),
-}
-_FAMILY_OF_RUNG = {name: family for family, names in RUNG_FAMILIES.items() for name in names}
+# --- The family of each entry's rung (structure stage 2 B) -----------------
+# An entry whose call site passes no ``family=`` admits under the family of
+# the ladder rung of the same name (``town_hold.CLAIM_LADDER``: an entry is
+# named as its ladder rung, ``producer`` or ``producer#n``), so the order and
+# the families are one table.  "" for a rung the ladder does not name: every
+# call site of it passes ``family=``, or it only runs off town.
+_FAMILY_OF_RUNG = {rung.name: rung.family for rung in CLAIM_LADDER}
 TERMINALS = {name: decl._replace(family=_FAMILY_OF_RUNG.get(name, ""))
              for name, decl in TERMINALS.items()}
 
