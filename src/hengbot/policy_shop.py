@@ -6515,10 +6515,10 @@ class ShopMixin(InStoreMixin):
     def _star_remove_curse_reserve_purchase_needed(
         self, snapshot: Snapshot
     ) -> bool:
-        # The reserve is an optional buy (no cursed item reads it yet): the
-        # owner's table rules it (consumable_policy, 2026-11-02).
+        # No cursed item reads the reserve yet: the owner's named reserve
+        # (consumable_policy.RESERVES, 2026-11-02 21h) buys it over the table.
         return (
-            consumable_policy.discretionary_buy(
+            consumable_policy.reserve_buy(
                 (TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE))
             and not me_capability.replaced_by_absorbed(
                 self, snapshot, (TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE), me_capability.PURCHASE)

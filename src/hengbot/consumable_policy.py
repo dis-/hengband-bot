@@ -14,8 +14,11 @@ an unknown flavour keeps today's handling.
 
 Who acts on a row:
  * ``discretionary_buy``: the optional purchase owners (the Black Market
-   buy-outs, the Temple's *Remove Curse* reserve, the launcher enchant scrolls)
-   buy only a kind with ``buy``; the requirement rungs do not ask.
+   buy-outs, the launcher enchant scrolls) buy only a kind with ``buy``; the
+   requirement rungs do not ask.
+ * ``reserve_buy``: a named reserve (``RESERVES``) is a requirement over the
+   table: its owner buys the kind without ``buy`` (the Temple's *Remove
+   Curse* reserve, policy_shop._star_remove_curse_reserve_purchase_needed).
  * ``discarded``: policy_helpers._junk_class's ``table-discard`` class, so the
    existing junk paths (junk_destroy_now in the dungeon, the town junk rungs)
    destroy a carried one -- unless a requirement reserves it (the junk class's
@@ -71,6 +74,15 @@ USE_UNSUPPORTED = {
 }
 
 
+# Reserves the owner orders over the table's ``buy`` flag.  2026-11-02 21h
+# 「戦士では1枚取り置く。魔道具術師で解呪の杖を取り込み済なら買わない。」: one
+# *Remove Curse* kept at Home; an absorbed power that replaces the scroll
+# (me_capability.REPLACES) still waives it at the reserve's owner.
+RESERVES = {
+    (TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE): "star-remove-curse-reserve",
+}
+
+
 @dataclass(frozen=True)
 class Consumable:
     tval: int
@@ -110,6 +122,11 @@ def discretionary_buy(kind: tuple[int, int]) -> bool:
     """
     entry = consumables().get(kind)
     return entry is None or entry.buy
+
+
+def reserve_buy(kind: tuple[int, int]) -> bool:
+    """A reserve owner may buy this kind: a named reserve, or 「購入する」."""
+    return kind in RESERVES or discretionary_buy(kind)
 
 
 def discarded(item) -> bool:
