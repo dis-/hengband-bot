@@ -4248,12 +4248,19 @@ class CombatMixin:
     ) -> bool:
         """Whether a visible hostile can shoot the player standing on ``cell``.
 
-        This is the survival gate's "under fire" test (a line of fire and a
-        one-turn predicted damage above zero).  ``projectable`` adds the game's
-        own spell gate: a monster casts at the player only when projectable()
-        reaches them (mspell-lite.cpp:209-212 decide_lite_projection,
-        projection-path-calculator.cpp:262-272), ported as ``_may_project``.
+        This is the survival gate's "under fire" test: within the game's reach,
+        a line of fire and a one-turn predicted damage above zero.  Every
+        monster ranged attack (bolts, balls, breaths, arrows and direct spells)
+        is a spell of make_attack_spell, which never casts at a player whose
+        cdis exceeds get_max_range() = 18 (mspell-attack.cpp:320,
+        angband-system.cpp:45-48); its projection path also ends at that range
+        (projection-path-calculator.cpp:262-272).  ``projectable`` adds the
+        game's own path gate: a monster casts only when projectable() reaches
+        the player (mspell-lite.cpp:209-212 decide_lite_projection), ported as
+        ``_may_project``.
         """
+        if self._monster_cast_distance(monster.position, cell) > MONSTER_SPELL_MAX_RANGE:
+            return False
         reaches = self._has_line_of_fire(snapshot, monster.position, cell) or (
             projectable and self._may_project(snapshot, monster.position, cell)
         )
