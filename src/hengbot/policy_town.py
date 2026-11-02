@@ -20,6 +20,8 @@ from hengbot.town_terminal import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
     goal_typing as claim_goal_typing,
 )
+from hengbot.town_terminal import claim_family_of as town_claim_family_of
+from hengbot.town_terminal import errand_hold as town_errand_hold
 from hengbot.town_terminal import GOAL_REACH as CLAIM_GOAL_REACH
 
 # Round 4 (F4): the escape ledger key that keeps the up-stairs target beside
@@ -1728,9 +1730,9 @@ class TownMixin:
             self._town_blocked_reason = "overweight-home-unreachable"
             return self._town_blocked_key(snapshot)
         if self._defer_town_errand("store-router", "procurement-decision"):
-            if self._claim_family_of(self.last_reason) == "store-router":
+            if town_claim_family_of(self, self.last_reason) == "store-router":
                 return self._town_holder_wait_key(
-                    self._claim_errand_hold("store-router"), snapshot
+                    town_errand_hold(self, "store-router"), snapshot
                 )
             return None
         proposed_reason = self.last_reason or ""
@@ -2141,8 +2143,8 @@ class TownMixin:
         ):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
             self._declare_reach(step)
-            producer = self._claim_family_of(prior_reason)
-            if producer != self._claim_family_of(self.last_reason):
+            producer = town_claim_family_of(self, prior_reason)
+            if producer != town_claim_family_of(self, self.last_reason):
                 # A physical entrance step is the current work's envelope.
                 # It does not admit a new departure producer.
                 self.last_reason = prior_reason
@@ -5030,7 +5032,7 @@ class TownMixin:
     ) -> str | None:
         """Bound native travel by observed progress; otherwise use BFS walking."""
         route_kind = "entrance" if reason == "town:travel-entrance" else "store"
-        family = self._claim_family_of(reason)
+        family = town_claim_family_of(self, reason)
         work_id = f"route:{route_kind}:{goal.y},{goal.x}"
         def no_route(cause: str) -> None:
             self._offer_execution_no_step(

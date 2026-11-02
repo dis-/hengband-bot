@@ -1500,7 +1500,7 @@ def _commit_shop_page(policy: Any, board: Any, terminal: TerminalRef,
             and observation[0].page_top not in (None, 0)):
         policy._shop_observation = None
         policy.last_reason = "shop:one-shot-page-not-zero"
-    family = policy._claim_family_of(policy.last_reason)
+    family = claim_family_of(policy, policy.last_reason)
     if family not in {"shop-buy", "shop-sell", "store-router"}:
         family = "store-router"
     policy._offer_execution_no_step(
@@ -4039,7 +4039,7 @@ def claim_family_of(policy: Any, reason: str | None) -> str:
     if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
         return visit_exit_family(policy)
     if reason and reason.startswith("town:entrance-step-off:"):
-        return policy._claim_family_of(reason.split(":", 2)[2])
+        return claim_family_of(policy, reason.split(":", 2)[2])
     if reason and reason.startswith((
         "home:atomic-withdraw-target-unobserved",
         "home:atomic-withdraw-slot-unobserved",
@@ -4185,7 +4185,7 @@ def advance_hold(policy: Any, snapshot: Any, key: Any) -> None:
     )
     owner = (
         continuation_claim.owner if continuing_owner
-        else owner_of(policy._claim_family_of(reason))
+        else owner_of(claim_family_of(policy, reason))
     )
     if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
         family = visit_exit_family(policy)
@@ -4376,7 +4376,7 @@ def home_catalogue_sequence_enforced(policy: Any) -> bool:
 
 
 def home_catalogue_work_holder(policy: Any) -> Any:
-    holder = policy._claim_errand_hold("__none__", enforced=True)
+    holder = errand_hold(policy, "__none__", enforced=True)
     declaration = getattr(holder, "execution", None)
     if (declaration is not None
             and declaration.work_id == "equipment:acquire-home-catalog"
@@ -4395,16 +4395,16 @@ def home_hold_board(policy: Any) -> Any:
 
 
 def home_sequence_has_holder(policy: Any) -> bool:
-    if not policy._home_catalogue_sequence_enforced():
+    if not home_catalogue_sequence_enforced(policy):
         return False
     # A route that this board shows arrived (at the Home it reached) is
     # not a physical Home sequence; holding Home producers for it made
     # every routed Home pass leave unfulfilled (live 2026-10-02 06:16).
-    holder = policy._claim_errand_hold(
-        "__none__", enforced=True, arrival_board=policy._home_hold_board())
+    holder = errand_hold(
+        policy, "__none__", enforced=True, arrival_board=home_hold_board(policy))
     visit = getattr(policy, "_store_visit", None)
     return bool(holder is not None and (
-        policy._home_catalogue_work_holder() is not None
+        home_catalogue_work_holder(policy) is not None
         or (visit is not None and visit.store_type == STORE_HOME)
         or (holder.goal.source == STORE_OPERATION
             and str(STORE_HOME) in holder.goal.expectation)))
@@ -4509,7 +4509,7 @@ def claim_refresh_non_discardable(policy, owner) -> None:
         policy._declare_non_discardable(family)
     else:
         chain = getattr(policy, "_staged_prompt_chain", None)
-        if chain is not None and policy._claim_family_of(chain.get("owner")) == family:
+        if chain is not None and claim_family_of(policy, chain.get("owner")) == family:
             policy._declare_non_discardable(family)
 
 
@@ -4759,7 +4759,7 @@ def claim_goal(
     row = goal_typing(owner.value, reason)
     effect = terminal_goal(reason or "policy:none")
     chain = getattr(policy, "_staged_prompt_chain", None)
-    if chain is not None and policy._claim_family_of(chain.get("owner")) == owner.value:
+    if chain is not None and claim_family_of(policy, chain.get("owner")) == owner.value:
         staged = claim_operation_goal(
             policy, snapshot, owner, reason, STORE_OPERATION
         )
@@ -5497,7 +5497,7 @@ def claim_bar_for(policy, snapshot: Snapshot, claim, ending: str):
     # reason the key is computed for is the decision's own.
     reason = None if no_step else (
         policy.last_reason
-        if policy._claim_family_of(policy.last_reason) == claim.owner.value
+        if claim_family_of(policy, policy.last_reason) == claim.owner.value
         else None
     )
     return Bar(

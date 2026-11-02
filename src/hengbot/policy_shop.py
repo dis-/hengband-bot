@@ -13,6 +13,9 @@ from hengbot.town_terminal import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
     STORE_OPERATION as CLAIM_STORE_OPERATION,
 )
+from hengbot.town_terminal import claim_family_of as town_claim_family_of
+from hengbot.town_terminal import home_hold_board as town_home_hold_board
+from hengbot.town_terminal import home_sequence_has_holder as town_home_sequence_has_holder
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
@@ -3267,10 +3270,10 @@ class ShopMixin(InStoreMixin):
         store = snapshot.store
         if store is None or store.store_type == STORE_HOME:
             return None
-        enforced = self._home_sequence_has_holder()
+        enforced = town_home_sequence_has_holder(self)
         deferral = self._town_errand_deferral(
             "shop-buy", "purchase", snapshot, enforced=True,
-            arrival_board=self._home_hold_board() if enforced else None,
+            arrival_board=town_home_hold_board(self) if enforced else None,
         )
         if deferral is not None and enforced and not deferral["token_would_admit"]:
             return None
@@ -4026,7 +4029,7 @@ class ShopMixin(InStoreMixin):
 
     def _offer_store_sale_leave(self, snapshot):
         self._offer_execution(
-            LEAVE_STORE_KEY, producer=self._claim_family_of(self.last_reason),
+            LEAVE_STORE_KEY, producer=town_claim_family_of(self, self.last_reason),
             work_id=f"sale:leave:{snapshot.store.store_type if snapshot.store else None}",
             next_step="store.leave.send",
             arguments=(snapshot.store.store_type,) if snapshot.store else (),
@@ -4535,7 +4538,7 @@ class ShopMixin(InStoreMixin):
         key = self._shop_core(snapshot)
         if self.last_reason == "shop:purchase-deferred":
             return None
-        family = self._claim_family_of(self.last_reason)
+        family = town_claim_family_of(self, self.last_reason)
         request = getattr(self._home_errand, "request", None)
         if (key == LEAVE_STORE_KEY and self._home_errand.active
                 and request is not None):
@@ -5862,7 +5865,7 @@ class ShopMixin(InStoreMixin):
         # stamped with the family whose errand the router runs (rev 9.2 C).
         self._declare_reach(self._shopping_approach_goal, family=claim_family)
         goal = self._shopping_approach_goal
-        family = claim_family or self._claim_family_of(self.last_reason)
+        family = claim_family or town_claim_family_of(self, self.last_reason)
         if goal is not None and key not in {None, ""}:
             self._offer_execution(
                 key, producer=family,
@@ -5978,7 +5981,7 @@ class ShopMixin(InStoreMixin):
         cost; an interruption mid-route is re-issued as long as it made
         progress (see _town_travel_key)."""
         # Record the route named by travel_reason, regardless of last_reason.
-        writer_family = self._claim_family_of(travel_reason)
+        writer_family = town_claim_family_of(self, travel_reason)
         # Direct restock/Home relief routes use the ladder's terminal too.
         if (writer_family == "detectors"
                 or not self._town_gate_exempt(writer_family, travel_reason, snapshot)):
@@ -6228,7 +6231,7 @@ class ShopMixin(InStoreMixin):
         """Compose one transaction from the latest observed page, outside."""
         observation = self._shop_observation
         def offer_outcome(key: str | None, cause: str) -> None:
-            family = self._claim_family_of(self.last_reason)
+            family = town_claim_family_of(self, self.last_reason)
             if family not in {"shop-buy", "shop-sell", "store-router"}:
                 family = "store-router"
             store_type = observation[0].store_type if observation else None

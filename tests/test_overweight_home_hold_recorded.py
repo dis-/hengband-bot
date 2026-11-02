@@ -12,7 +12,7 @@ S3.3 switch off), frozen by tests/extract_overweight_home_hold_fixture.py:
   ``_home_rearm_key``, ``_open_home_deposit_key``) deferred to holder
   ``store-router`` claim 3, the Reach route to the Home entrance (45, 123)
   that this very board shows arrived (the claim closed ``reached`` at the
-  same decision's exit).  ``_home_sequence_has_holder`` (live23, cross-area
+  same decision's exit).  ``town_terminal.home_sequence_has_holder`` (live23, cross-area
   enforcement) counted any open errand during a Home visit as a holder; the
   early arrival completion that S3.3 ON runs before town producers ask
   (``choose_key``) does not run with S3.3 off.
@@ -21,7 +21,7 @@ S3.3 switch off), frozen by tests/extract_overweight_home_hold_fixture.py:
   until the loop detector stopped the bot.
 
 Fix 1: the cross-area Home hold reads the board's observed arrival (the same
-evidence ``_claim_exit_completion`` closes a cell Reach on) and does not
+evidence ``town_terminal.claim_exit_completion`` closes a cell Reach on) and does not
 count that finished route as a holder.  Fix 2 (review P1): a Home pass
 that left the overload without a failed deposit (deferred / never posted) is
 re-armed and routed Home again while Home's own pass/approach/visit bound

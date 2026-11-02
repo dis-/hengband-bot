@@ -9,6 +9,7 @@ from hengbot.town_terminal import (
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
+from hengbot.town_terminal import claim_family_of as town_claim_family_of
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy_constants import (
@@ -279,7 +280,7 @@ class NavigationMixin:
             snapshot, "stair-command", "turn", "floor", "position"
         )
         self._offer_execution(
-            key, producer=self._claim_family_of(self.last_reason),
+            key, producer=town_claim_family_of(self, self.last_reason),
             work_id=(f"stair:{direction}:{snapshot.floor_key}:"
                      f"{position.y},{position.x}"),
             next_step="stair.post",

@@ -3179,9 +3179,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # producer calls them on the board that uses its own target; the
     # declaration at the ``choose_key`` exit reads only the slot.
 
-    def _claim_family_of(self, reason: str | None) -> str:
-        return town_claim_family_of(self, reason)
-
     def _declare_goal(
         self, goal: Goal, family: str | None = None, note: str | None = None
     ) -> None:
@@ -3194,7 +3191,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         that family is the row's own owner.
         """
         self._decision_goal = (
-            family if family is not None else self._claim_family_of(self.last_reason),
+            family if family is not None else town_claim_family_of(self, self.last_reason),
             goal,
             note,
         )
@@ -3251,7 +3248,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             and slot[2] == CLAIM_TELEPORT_WALK_NOTE
         ):
             self._decision_goal = (
-                self._claim_family_of(self.last_reason), slot[1], None
+                town_claim_family_of(self, self.last_reason), slot[1], None
             )
 
     def _declare_expectation(self, goal: Goal, owner_name: str) -> None:
@@ -3261,15 +3258,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         producer posted under; a name the census does not know (``stair-
         command``, ``home-withdrawal:*``) falls back to the reason already set.
         """
-        family = self._claim_family_of(owner_name)
+        family = town_claim_family_of(self, owner_name)
         if family == UNREGISTERED_FAMILY:
-            family = self._claim_family_of(self.last_reason)
+            family = town_claim_family_of(self, self.last_reason)
         self._decision_expectation = (family, goal)
 
     def _declare_non_discardable(self, family: str | None = None) -> None:
         """Record that this producer's operation cannot be dropped mid-step."""
         self._decision_non_discardable = (
-            family if family is not None else self._claim_family_of(self.last_reason)
+            family if family is not None else town_claim_family_of(self, self.last_reason)
         )
 
     def _offer_execution(self, key: str | None, *, producer: str, work_id: str,
@@ -3497,7 +3494,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         self._decision_triggers = (
             family if family is not None
-            else self._claim_family_of(self.last_reason),
+            else town_claim_family_of(self, self.last_reason),
             tuple(sorted({
                 (int(monster.index), int(monster.race_id))
                 for monster in monsters
@@ -3545,11 +3542,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return True
         return False
 
-    def _claim_errand_hold(self, family: str, *, enforced: bool = False,
-                           arrival_board: Snapshot | None = None):
-        return town_errand_hold(self, family, enforced=enforced,
-                                arrival_board=arrival_board)
-
     def _town_errand_deferral(self, family, reason, snapshot=None,
                               *, work_identity=None, enforced=True,
                               arrival_board=None):
@@ -3565,8 +3557,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             "deferred_family": family, "deferred_reason": reason,
                             "token_would_admit": False, "token_work_identity": None,
                             "active_bar": True}
-        holder = self._claim_errand_hold(
-            family, enforced=enforced,
+        holder = town_errand_hold(
+            self, family, enforced=enforced,
             arrival_board=arrival_board if arrival_board is not None else snapshot)
         if holder is None:
             return None
@@ -3582,11 +3574,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         preserve_home_hold: bool = True,
     ) -> bool:
         """Apply the S3.3 hold to the requested town producer."""
-        enforced = preserve_home_hold and self._home_sequence_has_holder()
+        enforced = preserve_home_hold and town_home_sequence_has_holder(self)
         row = self._town_errand_deferral(
             family, reason, getattr(self, "_map_predicate_snapshot", None),
             work_identity=work_identity, enforced=True,
-            arrival_board=self._home_hold_board() if enforced else None)
+            arrival_board=town_home_hold_board(self) if enforced else None)
         if row is None:
             return False
         active_bar = row.pop("active_bar", False)
@@ -3663,7 +3655,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # the reactions to an unsatisfied departure.
             return call()
         session = self._equipment_transaction_session
-        holder = self._claim_errand_hold("__none__", enforced=True, arrival_board=board)
+        holder = town_errand_hold(self, "__none__", enforced=True, arrival_board=board)
         before = len(getattr(self, "_decision_errand_deferred", ()) or ())
         if (session is not None and not session.complete
                 and holder is not None and holder.owner.value == "equipment-txn"
@@ -3714,7 +3706,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (row["deferred_reason"] == f"entry:{rung_name}"
                     and row["deferred_family"] == family
                     and isinstance(key, str)
-                    and self._claim_family_of(self.last_reason) == family):
+                    and town_claim_family_of(self, self.last_reason) == family):
                 row["producer_key"] = key
         return key
 
@@ -3724,7 +3716,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         family = getattr(visit, "opened_for_family", None)
         if family in {"shop-buy", "shop-sell"}:
             return family
-        holder = self._claim_errand_hold("__none__")
+        holder = town_errand_hold(self, "__none__")
         if holder is not None and holder.owner.value in {"shop-buy", "shop-sell"}:
             return holder.owner.value
         return "shop-buy"
@@ -3875,7 +3867,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         snapshot, step, "shop:travel"
                     )
                     if (key not in {None, "", WAIT_KEY}
-                            and self._claim_family_of(self.last_reason)
+                            and town_claim_family_of(self, self.last_reason)
                             == "store-router"):
                         # This is the held route's step, even when a direct
                         # one-cell fallback did not write a fresh goal slot.
@@ -3997,7 +3989,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _offer_home_knowledge_request(self, *, producer: str) -> None:
         """A catalogue scan continues its registered work, without a handoff."""
-        holder = (self._home_catalogue_work_holder()
+        holder = (town_home_catalogue_work_holder(self)
                   if producer == "home-scan" else None)
         self._offer_execution(
             HOME_KNOWLEDGE_MACRO,
@@ -4011,18 +4003,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                           else "home.knowledge.observe"),
             budget_ref="home-knowledge-existing-epoch",
         )
-
-    def _home_catalogue_sequence_enforced(self) -> bool:
-        return town_home_catalogue_sequence_enforced(self)
-
-    def _home_catalogue_work_holder(self):
-        return town_home_catalogue_work_holder(self)
-
-    def _home_hold_board(self) -> Snapshot | None:
-        return town_home_hold_board(self)
-
-    def _home_sequence_has_holder(self) -> bool:
-        return town_home_sequence_has_holder(self)
 
     def _equipment_catalogue_only(self, snapshot: Snapshot) -> bool:
         """Whether a new equipment scan may replace the physical Home route."""
@@ -4060,7 +4040,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _home_catalogue_work_key(self, snapshot: Snapshot) -> str | None:
         """Start or advance catalogue work before a later Home errand."""
-        holder = self._home_catalogue_work_holder()
+        holder = town_home_catalogue_work_holder(self)
         if holder is None and snapshot.store is not None:
             return None
         if holder is None and not self._equipment_catalogue_only(snapshot):
@@ -4161,7 +4141,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if chain is not None and not staged_prompt_chain_matches(chain, key):
             self._release_claim_goal(
                 "staged-tail-dropped",
-                owners=(self._claim_family_of(chain["owner"]),),
+                owners=(town_claim_family_of(self, chain["owner"]),),
                 kinds=(CLAIM_GOAL_OBSERVE,),
                 sources=(CLAIM_OBSERVE_STORE_OPERATION,),
             )
@@ -4763,7 +4743,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         knowledge_exit_holder = town_standing_claim(self)
         knowledge_exit = getattr(knowledge_exit_holder, "execution", None)
         if (snapshot.store is None and snapshot.in_town
-                and (catalogue_holder := self._home_catalogue_work_holder()) is not None
+                and (catalogue_holder := town_home_catalogue_work_holder(self)) is not None
                 and catalogue_holder.execution.continuation == "home.catalogue.acquire"):
             # The posted partial-page exit owns its outside continuation, even
             # with S3.3 OFF. Dispatch it before entrance acquisition can replace
@@ -5686,7 +5666,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._offer_home_scan_leave()
             else:
                 self._offer_execution(
-                    key, producer=self._claim_family_of(self.last_reason),
+                    key, producer=town_claim_family_of(self, self.last_reason),
                     work_id="store:unexpected-context-exit",
                     next_step="store.leave.send",
                     arguments=(snapshot.store.store_type,),
@@ -5819,7 +5799,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self.last_reason = "home:leave-after-one-operation"
             key = LEAVE_STORE_KEY
             self._offer_execution(
-                key, producer=self._claim_family_of(self.last_reason),
+                key, producer=town_claim_family_of(self, self.last_reason),
                 work_id="home:leave-after-one-operation",
                 next_step="store.leave.send", arguments=(STORE_HOME,),
                 expected_effect="outside-store",
@@ -5871,7 +5851,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 lambda: self._atomic_shop_transaction_key(snapshot),
                 family=self._town_shop_entry_family())
             if key is not None:
-                visit.opened_producer_family = self._claim_family_of(self.last_reason)
+                visit.opened_producer_family = town_claim_family_of(self, self.last_reason)
             if key is None:
                 self._close_store_visit("one-shot-no-operation")
                 key = self._decide(snapshot)
@@ -6006,7 +5986,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     expected_effect="outside-store",
                     continuation="survival.mana-home.resume",
                 )
-            elif (self._home_catalogue_sequence_enforced()
+            elif (town_home_catalogue_sequence_enforced(self)
                     and (catalogue_key := self._home_catalogue_work_key(snapshot)) is not None):
                 key = catalogue_key
             elif (rearm := self._town_producer_entry(
@@ -6243,12 +6223,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 key = LEAVE_STORE_KEY
                 self._offer_execution(
-                    key, producer=self._claim_family_of(self.last_reason),
+                    key, producer=town_claim_family_of(self, self.last_reason),
                     work_id=self.last_reason,
                     next_step="store.leave.send", arguments=(STORE_HOME,),
                     expected_effect="outside-store",
                     continuation=("equipment.next-action"
-                        if self._claim_family_of(self.last_reason) == "equipment-txn"
+                        if town_claim_family_of(self, self.last_reason) == "equipment-txn"
                         and self._equipment_transaction_session is not None else None),
                 )
         else:
@@ -9757,7 +9737,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def _verified_destroy_dispatch_key(self, snapshot: Snapshot, finder, reason: str) -> str | None:
         """Destroy a selected item while detecting refused or stalled attempts."""
         if snapshot.in_town:
-            self._claim_errand_hold("identification")
+            town_errand_hold(self, "identification")
         transaction = self._equipment_transaction_session
         if (
             self._equipment_mutation.state == EquipmentMutationState.POSTED
@@ -11336,7 +11316,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._staged_prompt_chain = None
         if chain is None:
             return dict(result)
-        owner = self._claim_family_of(chain["owner"])
+        owner = town_claim_family_of(self, chain["owner"])
         if result.get("outcome") == "released":
             self._complete_observed_effect(
                 "staged-tail-posted", owners=(owner,),

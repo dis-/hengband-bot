@@ -2760,20 +2760,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy.py:HengbotPolicy._claim_errand_hold": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy.py:HengbotPolicy._claim_family_of": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy.py:HengbotPolicy._count_matching_ammo": {
     "classification": "data",
     "rows": [

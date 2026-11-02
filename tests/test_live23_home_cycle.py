@@ -173,7 +173,7 @@ class Live23HomeCycleTest(unittest.TestCase):
         waiting_policy._offer_home_knowledge_request(producer="home-scan")
         waiting_policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
         request_epoch = waiting_policy._home_knowledge_scan_epoch
-        self.assertIsNone(waiting_policy._home_catalogue_work_holder())
+        self.assertIsNone(town_terminal.home_catalogue_work_holder(waiting_policy))
 
         key = waiting_policy.choose_key(waiting_outside)
         self.assertEqual((key, waiting_policy.last_reason), (
@@ -250,7 +250,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                 self.assertIsNone(policy._home_catalogue_work_key(board))
                 self.assertEqual(policy.last_reason, reason)
                 self.assertFalse(policy._home_knowledge_scan_inflight)
-                self.assertIsNone(policy._home_catalogue_work_holder())
+                self.assertIsNone(town_terminal.home_catalogue_work_holder(policy))
 
     def test_digger_withdrawal_is_for_mining_departure_only(self):
         # The recorded board carries 19 of 23 stacks: the take would leave

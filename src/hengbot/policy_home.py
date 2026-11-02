@@ -8,6 +8,7 @@ from hengbot.item_reservation import (
 
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_terminal import end_execution_delegation as town_end_execution_delegation
+from hengbot.town_terminal import claim_family_of as town_claim_family_of
 from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_terminal import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
@@ -3309,7 +3310,7 @@ class HomeMixin:
         self, key: str | None, signature: tuple
     ) -> None:
         """The request owner names its recovery after an invalid Home address."""
-        family = self._claim_family_of(self.last_reason)
+        family = town_claim_family_of(self, self.last_reason)
         if family not in {"home-errand", "home-visit"}:
             return
         self._offer_execution(
@@ -3842,7 +3843,7 @@ class HomeMixin:
         )
         self._compose_home_operation(
             snapshot, key, operation_key,
-            producer_family=self._claim_family_of(reason),
+            producer_family=town_claim_family_of(self, reason),
         )
         self.last_reason = reason
         return key

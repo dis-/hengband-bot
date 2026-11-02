@@ -7,6 +7,7 @@ import gzip
 import json
 import unittest
 
+from hengbot import town_terminal
 from hengbot.model import (
     parse_snapshot, TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, STORE_HOME, StoreState,
 )
@@ -149,7 +150,7 @@ class HomeScanOwnerPriorityTest(QuestTravelFixtureMixin, unittest.TestCase):
         # DECLARED CONSTRUCTED: the catalogue's Home route is selected, as
         # in the oneshot substrate; no take or deposit is queued beside it.
         policy._shopping_approach_step(board(turn=102), STORE_HOME, requester="home-scan")
-        self.assertTrue(policy._home_sequence_has_holder())
+        self.assertTrue(town_terminal.home_sequence_has_holder(policy))
         epoch = policy._home_knowledge_scan_epoch
         key = policy.choose_key(board(turn=103))
         self.assertEqual((str(key), policy.last_reason),
@@ -172,7 +173,7 @@ class HomeScanOwnerPriorityTest(QuestTravelFixtureMixin, unittest.TestCase):
         key = policy.choose_key(board(turn=101))
         self.assertEqual(key, HOME_KNOWLEDGE_MACRO)
         policy.confirm_key_posted(key)
-        self.assertTrue(policy._home_sequence_has_holder())
+        self.assertTrue(town_terminal.home_sequence_has_holder(policy))
         epoch = policy._home_knowledge_scan_epoch
         for count in (1, 2):
             key = policy.choose_key(board(turn=101 + count))
