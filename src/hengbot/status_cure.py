@@ -81,6 +81,28 @@ def note_cure(policy, snapshot) -> None:
         setattr(policy, _PENDING, (snapshot.floor_key, snapshot.turn))
 
 
+def low_hp_heal(policy, snapshot, hostiles, *, observed_loss):
+    """Below the low-HP threshold, blind or confused: the heal-first potion.
+
+    Owner 2026-11-01 (D57): 「致命傷治癒はHP回復の効果に期待しない。HPが減ったら
+    体力回復かテレポート。」  A blind or confused player cannot read the
+    teleport, so the heal-vs-teleport rule's potion (_low_hp_heal_first_potion,
+    owner 2026-10-03) is drunk; every potion it chooses (Cure Serious,
+    Healing, *Healing*, Life -- quaff-effects.cpp) also clears blindness and
+    confusion (spells-status.cpp).  n1-c life-103 (2026-11-02 13:47,
+    城42階): blind at HP 97/512 beside 濃尾無双『岩本虎眼』
+    after a 291-HP round, it drank Cure Critical Wounds (6d8) with Healing
+    carried and died two boards later.  None above the threshold, when the
+    status does not block reading, or when no heal potion covers the
+    next-turn damage: the cheap cure stays first.
+    """
+    player = snapshot.player
+    if (not (player.blind or player.confused)
+            or player.hp >= policy._low_hp_walk_threshold(player.max_hp)):
+        return None
+    return policy._low_hp_heal_first_potion(snapshot, hostiles, observed_loss=observed_loss)
+
+
 def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None:
     """Quaff the status cure for the player's blindness (or any treated status)."""
     if not treats(policy, snapshot, blind_only=blind_only):

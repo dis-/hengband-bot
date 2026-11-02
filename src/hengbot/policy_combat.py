@@ -2316,7 +2316,9 @@ class CombatMixin:
                 return stairs
 
             if status_cure.treats(self, snapshot):
-                potion = self._find_status_cure_potion(snapshot)
+                potion = (status_cure.low_hp_heal(self, snapshot, hostiles,
+                                                  observed_loss=observed_loss)
+                          or self._find_status_cure_potion(snapshot))
                 if potion is not None:
                     self.last_reason = (
                         "emergency:cure-critical"

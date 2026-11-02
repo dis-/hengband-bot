@@ -11889,6 +11889,17 @@
     "evidence": "n1-b life-294 2026-11-02 13:14 (Yeek cave 1F): blind, in the dungeon, not hit this board, no physical hostile and a restable food state: REST_MACRO (R&, rests until is_fully_healthy which includes sight) under the caller's reason with the caller's producer, else None. Called only from FundraisingMixin._fundraising_key before the floor work (fundraise:wait-sight); a carried cure is quaffed upstream by status_cure_key; dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "status_cure.py:low_hp_heal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: low_hp_heal returns InventoryItem | None (owner 2026-11-01 D57 「HPが減ったら体力回復かテレポート」: blind or confused below the low-HP walk threshold, the heal-vs-teleport rule's _low_hp_heal_first_potion) used as input by _emergency_item's status-cure rung (n1-c life-103 2026-11-02), not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "status_cure.py:fight_through_key": {
     "classification": "producer",
     "rows": [
