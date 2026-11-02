@@ -14,7 +14,7 @@ import tests  # noqa: F401 -- isolate runtime files
 
 from hengbot.policy import HengbotPolicy
 from hengbot.town_arbiter import ClaimOwner
-from hengbot.town_terminal import observe_goal as observe
+from hengbot.town_hold import observe_goal as observe
 from hengbot.policy_fundraising import (
     FundraisingFacts, FundraisingPurpose, FundraisingPurposeRecord,
     FundraisingTransportChild,

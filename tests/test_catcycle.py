@@ -11,8 +11,8 @@ import unittest
 
 import tests  # noqa: F401 -- runtime file isolation
 from tests.hold_closings import recorded_closings
-from hengbot import town_terminal
-from hengbot.town_terminal import observe_goal as observe
+from hengbot import town_hold
+from hengbot.town_hold import observe_goal as observe
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy, HOME_KNOWLEDGE_MACRO
@@ -88,7 +88,7 @@ class CatcycleTest(unittest.TestCase):
                     key = policy.choose_key(boards[0])
                     self.assertEqual((key, policy.last_reason),
                                      ("", "equipment-transaction:catalogue-await-knowledge"))
-                    self.assertEqual(town_terminal.standing_claim(policy).owner.value, "equipment-txn")
+                    self.assertEqual(town_hold.standing_claim(policy).owner.value, "equipment-txn")
                     self.assertFalse(policy._home_knowledge_current)
 
     def test_in_home_catalogue_reply_adopts_before_next_home_work(self):
@@ -96,7 +96,7 @@ class CatcycleTest(unittest.TestCase):
         for restored in (False, True):
             policy, boards, reply = attach()
             key = policy._home_catalogue_work_key(boards[1])
-            town_terminal.advance_hold(policy, boards[1], key)
+            town_hold.advance_hold(policy, boards[1], key)
             policy.confirm_key_posted(key)
             holder_id = policy._town_hold.claims.current.claim_id
             if restored:
@@ -119,7 +119,7 @@ class CatcycleTest(unittest.TestCase):
         # Supplemental delayed-response seam, not a historical next-board claim.
         policy, boards, _ = attach()
         key = policy._home_catalogue_work_key(boards[1])
-        town_terminal.advance_hold(policy, boards[1], key)
+        town_hold.advance_hold(policy, boards[1], key)
         policy.confirm_key_posted(key)
         scan = policy.choose_key(boards[2])
         self.assertEqual(scan, "")

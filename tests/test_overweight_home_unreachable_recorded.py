@@ -94,7 +94,7 @@ its own first-hit board.
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.policy import staged_prompt_chain_matches
 import gzip
 import hashlib
@@ -278,7 +278,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 replay.append({
                     "key": str(key),
                     "reason": policy.last_reason,
-                    "goal": getattr(town_terminal.standing_claim(policy), "goal", None),
+                    "goal": getattr(town_hold.standing_claim(policy), "goal", None),
                     "passes": ledger.unsatisfied_passes[STORE_HOME],
                     "approach_fails": ledger.approach_fails[STORE_HOME],
                     "blocked": STORE_HOME in ledger.blocked_stores,
@@ -298,7 +298,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     ),
                     # S2b.2: the bars standing in the town hold.
                     "bars": [(bar.owner.value, bar.kind, bar.ending, bar.claim_id)
-                             for bar in town_terminal.hold_bars(policy)],
+                             for bar in town_hold.hold_bars(policy)],
                 })
                 if index == HOME_OBSERVATION_BOUNDARY:
                     # The new observation owner changes this key. Historical
@@ -340,7 +340,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 snapshot = cls._castle_destination(policy, snapshots[-1])
                 key = _choose_before_caster_fix(policy, snapshot, index)
                 decisions.append((str(key), policy.last_reason,
-                                  town_terminal.standing_claim(policy)))
+                                  town_hold.standing_claim(policy)))
                 policy.confirm_key_posted(key)
                 chain = policy.peek_staged_prompt_chain()
                 if chain is not None and staged_prompt_chain_matches(chain, key):

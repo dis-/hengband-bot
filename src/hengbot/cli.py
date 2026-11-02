@@ -41,7 +41,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.town_travel import is_travel_macro
-from hengbot.town_terminal import decision_reach, decision_rung, offer_buffer, standing_claim, town_hold
+from hengbot.town_hold import decision_reach, decision_rung, offer_buffer, standing_claim, town_hold
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
@@ -59,7 +59,7 @@ from hengbot.policy import (
     required_depth_gates,
     staged_prompt_chain_matches,
 )
-from hengbot.town_terminal import SURVIVAL_REASON_PREFIXES
+from hengbot.town_hold import SURVIVAL_REASON_PREFIXES
 from hengbot.policy_constants import (
     DIRECTION_DELTAS,
     CHARACTER_DUMP_MACRO,
@@ -1821,7 +1821,7 @@ _OBSERVER_COPIED_CONTAINERS = (dict, list, set, deque)
 # and an optimizer search run for telemetry both fills them and replaces the
 # evaluator when its context differs.
 _OBSERVER_COPIED_MEMO_OBJECTS = ("_warrior_evaluator_cache",)
-# The town hold (town_terminal.TownHold) copies itself for an observer: its
+# The town hold (town_hold.TownHold) copies itself for an observer: its
 # claim register rebinds its current claim (a frozen value) on every
 # transition, so one shallow copy isolates it, and its delegation list is
 # copied.  A producer's closing line (release / complete) that an evaluator

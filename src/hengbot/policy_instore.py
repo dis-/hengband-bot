@@ -21,7 +21,7 @@ Home (Phase 2) is not part of this module.
 
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
+from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 
 from collections import Counter
 from contextlib import contextmanager

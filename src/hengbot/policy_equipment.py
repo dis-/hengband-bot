@@ -5,8 +5,10 @@ from hengbot.item_reservation import item_available
 from hengbot.town_pack_budget import home_take_fits
 
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
-from hengbot.town_terminal import home_catalogue_sequence_enforced as town_home_catalogue_sequence_enforced
+from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
+from hengbot.town_hold import (
+    home_catalogue_sequence_enforced as town_home_catalogue_sequence_enforced,
+)
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import consumable_policy, mining_loadout
@@ -324,7 +326,7 @@ from hengbot.warrior_optimization import (
 from hengbot.launcher_damage import launcher_average_damage
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.warrior_equipment_evaluator import AC_REFERENCE, melee_hit_chance
-from hengbot.town_terminal import standing_claim
+from hengbot.town_hold import standing_claim
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,

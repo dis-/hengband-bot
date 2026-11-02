@@ -14,7 +14,7 @@ import unittest
 
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest, HomeVisitState
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
-from hengbot.town_terminal import ClaimState, ExecutionDeclaration, Goal, reach_goal as reach
+from hengbot.town_hold import ClaimState, ExecutionDeclaration, Goal, reach_goal as reach
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import parse_snapshot, TVAL_WAND, TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, STORE_HOME

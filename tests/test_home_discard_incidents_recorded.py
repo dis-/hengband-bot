@@ -13,13 +13,13 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.model import parse_snapshot, _parse_items, STORE_HOME
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitRequest, HomeVisitKind
-from hengbot.town_terminal import observe_goal as observe
+from hengbot.town_hold import observe_goal as observe
 import test_homefull3_recorded as homefull3
 
 FIXTURE = Path(__file__).parent / 'fixtures/home-discard-20261005.json.gz'
@@ -179,7 +179,7 @@ class DiscardIncidentsTest(unittest.TestCase):
             key = self.decide(p, inside)
             self.assertEqual(key, '\x1b', p.last_reason)
             self.assertFalse(p._home_knowledge_scan_inflight)
-            self.assertIn(town_terminal.standing_claim(p).owner.value, ('home-errand', 'home-scan'))
+            self.assertIn(town_hold.standing_claim(p).owner.value, ('home-errand', 'home-scan'))
             outside = replace(inside, store=None, turn=inside.turn + 1)
             key = self.decide(p, outside)
             self.assertTrue(key.startswith('~9'), (key, p.last_reason))

@@ -216,7 +216,7 @@ def _adopt_town_hold(state) -> None:
 
     Until stage 2 B slice 3 the policy kept the claim register in
     ``_claim_register`` and the executor delegations in
-    ``_execution_delegations``; both now live in ``town_terminal.TownHold``
+    ``_execution_delegations``; both now live in ``town_hold.TownHold``
     (``_town_hold``).  The objects move as they are, so the restored hold
     decides exactly as the restored register did.  Checkpoints pickled before
     the S1 claim register carry neither: a fresh register is the honest
@@ -227,8 +227,8 @@ def _adopt_town_hold(state) -> None:
         return
     # ``town_arbiter`` imports this module, and the register imports the
     # arbiter's families, so the import is local to break that cycle.
-    from hengbot.town_terminal import ClaimRegister
-    from hengbot.town_terminal import TownHold
+    from hengbot.town_hold import ClaimRegister
+    from hengbot.town_hold import TownHold
 
     register = state.pop("_claim_register", ClaimRegister())
     delegations = state.pop("_execution_delegations", None)

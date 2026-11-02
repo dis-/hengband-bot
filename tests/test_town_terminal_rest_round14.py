@@ -11,7 +11,7 @@ from hengbot.item_reservation import ReservationVerdict
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, TVAL_FOOD
 from hengbot.policy_constants import FOOD_MIN_SVAL, HEAVY_CURSE_TAG, WAIT_KEY
 from hengbot.policy_state import normalize_policy_state
-from hengbot.town_terminal import offer_buffer
+from hengbot.town_hold import offer_buffer
 from policy_fixtures import item
 import test_policy_town as town_fixtures
 from test_goldburn_shopping_constructed import board

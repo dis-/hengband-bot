@@ -18,7 +18,7 @@ import unittest
 
 from recorded_pack_budget import pre_pack_budget_replay
 import tests  # noqa: F401
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.model import parse_snapshot, _parse_items, StoreItem
 from hengbot.policy import HengbotPolicy
 from unittest.mock import patch
@@ -73,15 +73,15 @@ class HomeFullAwaitKnowledgeRecordedTest(unittest.TestCase):
             with self.subTest(enforced=enforced):
                 policy = self.policy_at(board, enforced)
                 self.assertEqual(self.decide(policy, board), HOME_KNOWLEDGE_MACRO)
-                self.assertEqual(town_terminal.standing_claim(policy).owner.value, "home-scan")
+                self.assertEqual(town_hold.standing_claim(policy).owner.value, "home-scan")
                 self.assertTrue(policy._home_knowledge_scan_inflight)
-                self.assertEqual(town_terminal.standing_claim(policy).execution.expected_effect,
+                self.assertEqual(town_hold.standing_claim(policy).execution.expected_effect,
                                  "catalogue-adopted")
                 # DECLARED CONSTRUCTED delayed response: keep the same store
                 # visible until the requested catalogue arrives.
                 waiting = replace(board, turn=board.turn + 1, messages=())
                 self.assertEqual(self.decide(policy, waiting), "5")
-                self.assertEqual(town_terminal.standing_claim(policy).owner.value, "home-scan")
+                self.assertEqual(town_hold.standing_claim(policy).owner.value, "home-scan")
                 self.assertTrue(policy._home_knowledge_scan_inflight)
                 # First divergence is the scan command: do not replay the later
                 # recorded ESC/router/detector boards against the changed key.
@@ -133,7 +133,7 @@ class HomeFullAwaitKnowledgeRecordedTest(unittest.TestCase):
                               {policy._item_signature(item) for item in fresh})
                 self.assertNotEqual(policy._home_errand.request.signature,
                                     policy._item_signature(sold))
-                self.assertNotIn("detectors", town_terminal.standing_claim(policy).owner.value)
+                self.assertNotIn("detectors", town_hold.standing_claim(policy).owner.value)
 
                 # DECLARED CONSTRUCTED arrival/withdrawal after divergence.
                 # Use the recorded Home location; the complete fresh catalogue

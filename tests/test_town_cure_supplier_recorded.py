@@ -109,7 +109,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import (
     DUNGEON_YEEK_CAVE,
@@ -257,8 +257,8 @@ class _RecordedProcess(unittest.TestCase):
                 hp=(board.player.hp, board.player.max_hp), food=board.player.food_state,
                 adverse_status=bool(board.player.poisoned or board.player.cut
                                     or board.player.confused or board.player.blind),
-                claim=town_terminal.standing_claim(policy),
-                rung=town_terminal.decision_rung(policy))
+                claim=town_hold.standing_claim(policy),
+                rung=town_hold.decision_rung(policy))
 
         for index in range(CHECKPOINT + 1):
             key, reason, board = cls._step(

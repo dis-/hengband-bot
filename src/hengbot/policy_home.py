@@ -7,10 +7,10 @@ from hengbot.item_reservation import (
 )
 
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot.town_terminal import end_execution_delegation as town_end_execution_delegation
-from hengbot.town_terminal import claim_family_of as town_claim_family_of
-from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
-from hengbot.town_terminal import terminal_goal as claim_terminal
+from hengbot.town_hold import end_execution_delegation as town_end_execution_delegation
+from hengbot.town_hold import claim_family_of as town_claim_family_of
+from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
+from hengbot.town_hold import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
@@ -31,7 +31,7 @@ from hengbot.store_sale import known_sale_value
 from hengbot.policy_supply import supply_ledger_observer_memo
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot.model import STORE_ARMOURY, STORE_TEMPLE, STORE_BLACK
-from hengbot.town_terminal import hold_claims, standing_claim
+from hengbot.town_hold import hold_claims, standing_claim
 import re
 import json
 from datetime import datetime, timezone

@@ -8,12 +8,12 @@ from dataclasses import replace
 from unittest.mock import patch
 
 import tests  # noqa: F401
-from hengbot import town_terminal
-from hengbot.town_terminal import reach_goal as reach
+from hengbot import town_hold
+from hengbot.town_hold import reach_goal as reach
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.town_travel import is_travel_macro
-from hengbot.town_terminal import offer_buffer, offered_steps
+from hengbot.town_hold import offer_buffer, offered_steps
 
 FIXTURE = Path(__file__).parent / "fixtures" / "live22-bounty"
 OFFICE = Position(25, 71)
@@ -40,7 +40,7 @@ def bounty_result(policy, board):
     policy._build_grid_index(board)
     key = policy._town_order_step4_key(board)
     key = policy._town_procurement_decision(board, key)
-    town_terminal.advance_hold(policy, board, key)
+    town_hold.advance_hold(policy, board, key)
     return key, policy.last_reason
 
 

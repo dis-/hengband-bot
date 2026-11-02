@@ -8916,6 +8916,90 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "town_hold.py:ClaimRegister._closed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:ClaimRegister.current": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:claim_durable_clearance": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:claim_family_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:claim_reach_arrival": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:close_claim.matches": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:errand_hold": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:hold_claims": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:owner_change": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:standing_claim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:town_hold": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_hold.py:visit_exit_family": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_last_stand.py:key": {
     "classification": "producer",
     "rows": [
@@ -9081,20 +9165,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "town_terminal.py:ClaimRegister._closed": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "town_terminal.py:ClaimRegister.current": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "town_terminal.py:_commit_curse_remove": {
     "classification": "adapter",
     "rows": [
@@ -9158,34 +9228,6 @@
     ],
     "delegation": "no independent success"
   },
-  "town_terminal.py:claim_durable_clearance": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "town_terminal.py:claim_family_of": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "town_terminal.py:claim_reach_arrival": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "town_terminal.py:close_claim.matches": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "town_terminal.py:commit_refusal": {
     "classification": "data",
     "rows": [
@@ -9206,13 +9248,6 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success"
-  },
-  "town_terminal.py:errand_hold": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "town_terminal.py:gather_equipment_command": {
     "classification": "data",
@@ -9263,13 +9298,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:hold_claims": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "town_terminal.py:home_withdraw_intended_terminal": {
     "classification": "data",
     "rows": [
@@ -9291,13 +9319,6 @@
       "home-deposit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "town_terminal.py:owner_change": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "town_terminal.py:plan_stop_admission": {
     "classification": "data",
@@ -9348,13 +9369,6 @@
     ],
     "delegation": "no independent success"
   },
-  "town_terminal.py:standing_claim": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "town_terminal.py:terminal_admission": {
     "classification": "data",
     "rows": [
@@ -9373,13 +9387,6 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_terminal.py:town_end_stop_reason": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "town_terminal.py:town_hold": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9434,13 +9441,6 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success"
-  },
-  "town_terminal.py:visit_exit_family": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "town_terminal.py:visit_intended_terminal": {
     "classification": "data",

@@ -20,7 +20,7 @@ import json
 from pathlib import Path
 import unittest
 
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.cli import _ExecutorInputPort, SendResult, _cell_loop_guard_applies
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -184,7 +184,7 @@ class FundraiseUpstairsDoorRecordedTest(harness.ProductionHarness):
         policy = self.policy(raw)
         key = self.post(policy, raw, case["following"])
         self.assertEqual(policy.last_reason, "fundraise:seek-upstairs-door")
-        self.assertEqual(list(town_terminal.standing_claim(policy).goal.cell), [11, 161])
+        self.assertEqual(list(town_hold.standing_claim(policy).goal.cell), [11, 161])
         board = policy._with_grid_memory(parse_snapshot(raw, {}))
         door, approach = policy._upstairs_door_route(board)
         self.assertEqual(door, DOOR)

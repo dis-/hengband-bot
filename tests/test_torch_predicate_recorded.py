@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import tests  # noqa: F401
-from hengbot.town_terminal import observe_goal as observe
+from hengbot.town_hold import observe_goal as observe
 from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from policy_fixtures import grid
