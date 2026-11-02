@@ -128,8 +128,12 @@ def drive_staff_boards(policy, last, absorbed=()):
 
 
 class PostedKey(harness.ProductionHarness):
-    def post(self, policy, raw, key):
-        """Send ``key`` through the production executor on ``raw``."""
+    def post(self, policy, raw, key, screens=()):
+        """Send ``key`` through the production executor on ``raw``.
+
+        ``screens`` are the inner prompts the command raises before the
+        following command screen (a Magic-Eater cast's type and power list).
+        """
         following = copy.deepcopy(raw)
         following["turn"] += 10
         following["messages"] = []
@@ -139,8 +143,8 @@ class PostedKey(harness.ProductionHarness):
         game.capacity = 256
         game.state = copy.deepcopy(raw)
         game.screen = command_screen(raw["turn"])
-        game.screens = [command_screen(following["turn"])]
-        game.states = [following]
+        game.screens = [*screens, command_screen(following["turn"])]
+        game.states = [copy.deepcopy(following) for _ in game.screens]
         _, _, executor = self.make(game)
         self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
         port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
