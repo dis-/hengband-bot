@@ -24,11 +24,13 @@ the recorded stop recurs on the recorded last boards.
 
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
+import copy
 import gzip
 import json
 import unittest
 from pathlib import Path
 
+from hengbot import identification_wait
 from hengbot.model import _parse_items
 from tests import test_input_executor as executor_pins
 from tests.test_me_nokey_1031_recorded import PostedKey
@@ -51,10 +53,13 @@ class IdentificationWaitDepartsTest(RecordedTownPolicy, PostedKey):
     def setUpClass(cls):
         cls.case = _case()
 
-    def drive(self):
-        """Decide every recorded row of the visit; keep the last two answers."""
+    def drive(self, until=None):
+        """Decide every recorded row of the visit (before ``until``); keep the
+        last two answers."""
         case, policy, answers, seen = self.case, None, {}, set()
         for raw in case["rows"]:
+            if until is not None and raw.get("turn", 0) >= until:
+                break
             if raw["type"] == "knowledge":
                 if policy is not None and raw["knowledge"]["category"] == "home":
                     policy.consume_home_knowledge(
@@ -94,8 +99,32 @@ class IdentificationWaitDepartsTest(RecordedTownPolicy, PostedKey):
         # Recorded: '5' town:blocked:unmet:home_candidate_resolved.
         self.assertEqual((key, reason), ("rda", "town:repetition-depart:recall"))
         self.assertIn((ARMOUR, 36, 8), policy._deferred_home_items)
+        # A *鑑定*の巻物 is carried, but the armour's take does not fit the
+        # pack reserve (19 items, 4 free): this visit cannot identify it
+        # (owner 2026-10-31 「空きに収まる分ずつ取り出して鑑定」).
+        self.assertTrue(any(item["name"] == "*鑑定*の巻物" for item in raw["inventory"]))
+        self.assertEqual(len(raw["inventory"]), 19)
         self.post(policy, raw, key,
                   (executor_pins.prompt_screen(READ_PROMPT), chooser_screen()))
+
+    def test_a_visit_that_can_take_and_identify_keeps_its_stop(self):
+        # Owner 2026-11-03: the release is for a visit that cannot identify.
+        # DECLARED CONSTRUCTED: the Home list after the armour's deposit (the
+        # ring holds only the visit's first one) and a board with one pack
+        # slot freed.
+        policy, _ = self.drive(until=STOP)
+        (stop,) = [row for row in self.case["rows"]
+                   if row["type"] == "player_turn" and row["turn"] == STOP]
+        (armour,) = [owned.item for owned in policy._equipment_catalog.items
+                     if owned.origin == "home" and owned.item.name == ARMOUR]
+        policy.consume_home_knowledge(
+            (*_parse_items(self.case["home"]["knowledge"]["items"], protocol=3), armour))
+        self.assertFalse(identification_wait.visit_can_identify(policy, self.board(policy, stop)))
+        roomy = copy.deepcopy(stop)
+        roomy["inventory"] = [item for item in roomy["inventory"]
+                              if item["name"] != "*鑑定*の巻物"][:17] + [
+            item for item in roomy["inventory"] if item["name"] == "*鑑定*の巻物"]
+        self.assertTrue(identification_wait.visit_can_identify(policy, self.board(policy, roomy)))
 
 
 if __name__ == "__main__":
