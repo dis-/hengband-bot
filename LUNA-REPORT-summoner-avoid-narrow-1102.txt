@@ -99,9 +99,9 @@ LUNA-REPORT summoner-avoid-narrow-1102（2026-11-02、branch summoner-avoid-narr
   決定: 動かない召喚の敵を避けて階を出る時は、射線の範囲の外から行ける下り階段を先に、次に上り階段・
     テレポート・レベル・帰還。避けている間も普段の階の決まりで出る（階を全部探索するまで待たない）。
 
-  記録: C:\hengband-backups\pdca\capturesiewing-incidents-20261102
-1-c\life-103\incident-captures        20261102-134240-town-blocked-survival-inventory_weight_ready、リングの世代
-        snapshots-20261102-131600-b3bb3c（迷宮ではなく Angband 23F (3,23,0)）
+  記録: C:\hengband-backups\pdca\captures\viewing-incidents-20261102\n1-c\life-103\incident-captures\
+        20261102-134240-town-blocked-survival-inventory_weight_ready、リングの世代
+        snapshots-20261102-131600-b3bb3c（Angband 23F (3,23,0)）
     - 13:09:33（turn 3693780）に (36,192) のクイルスルグ（race 342、NEVER_MOVE）を見た。それから
       explore:avoid-immobile-summoner が 209 回（13:10:48 まで）階を探索し、(29,3) で帰還を読んで待った
       （summoner:recall / summoner:wait-recall）。
