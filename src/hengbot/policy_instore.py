@@ -22,6 +22,7 @@ Home (Phase 2) is not part of this module.
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
+from hengbot.town_visit import town_visit
 
 from collections import Counter
 from contextlib import contextmanager
@@ -176,6 +177,10 @@ class InStoreMixin:
         branch, a Home request).  Every rebinding and the diagnostics dict
         are put back so the shadow cannot change a later decision.
         """
+        # The town visit's fields were policy attributes: their rebindings
+        # are put back the same way.
+        visit = town_visit(self)
+        visit_before = dict(visit.__dict__)
         before = dict(self.__dict__)
         diagnostics = dict(getattr(self, "_shop_selector_diagnostics", {}) or {})
         try:
@@ -187,6 +192,7 @@ class InStoreMixin:
             for name, value in before.items():
                 if self.__dict__.get(name, value) is not value or name not in self.__dict__:
                     self.__dict__[name] = value
+            visit.__dict__.update(visit_before)
             current = self.__dict__.get("_shop_selector_diagnostics")
             if isinstance(current, dict):
                 current.clear()

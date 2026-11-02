@@ -1820,7 +1820,11 @@ _OBSERVER_COPIED_CONTAINERS = (dict, list, set, deque)
 # memos of one combat context (warrior_optimization.WarriorEvaluatorCache),
 # and an optimizer search run for telemetry both fills them and replaces the
 # evaluator when its context differs.
-_OBSERVER_COPIED_MEMO_OBJECTS = ("_warrior_evaluator_cache",)
+#
+# The town visit (town_visit.TownVisit) holds former policy attributes, most
+# of them containers; copied the same way, each is the private copy it was
+# as a policy attribute.
+_OBSERVER_COPIED_MEMO_OBJECTS = ("_warrior_evaluator_cache", "_town_visit")
 # The town hold (town_hold.TownHold) copies itself for an observer: its
 # claim register rebinds its current claim (a frozen value) on every
 # transition, so one shallow copy isolates it, and its delegation list is
