@@ -8619,6 +8619,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # returned None. Preserve those latch releases and pending-disposal
                 # handoffs without letting the errand plan own this departure turn.
                 self._town_terminal_transitions(snapshot)
+                # A released identification wait hid every later need from
+                # the registry (_town_need_candidates returns at a live
+                # identification need): the needs it frees are this board's
+                # claims, not the town end's (n1-a life-468 07:26).
+                claims_active = self._town_claims_active(snapshot)
             if claims_active:
                 step = self._shopping_approach_step(
                     snapshot, router_plan_stop=True
@@ -11990,7 +11995,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def _defer_full_identification(self, signature: tuple[str, int, int]) -> None:
         """Defer unavailable *Identify* work without retaining its Home latch."""
-        self._defer_home_item(signature, "full-identification-unavailable")
+        self._defer_identification_candidate(signature, "full-identification-unavailable")
         self._release_identification_source_reservation(signature)
         self._unbuyable_full_identify_sigs.add(signature)
         self._identification_candidate = None
@@ -12935,10 +12940,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         pending = self._pending_inventory_item(snapshot)
         if pending is not None:
             signature = self._item_signature(pending)
-            self._defer_home_item(signature, "full-identify-source-unavailable")
+            self._defer_identification_candidate(signature, "full-identify-source-unavailable")
             self._unbuyable_full_identify_sigs.add(signature)
         elif self._identification_candidate is not None:
-            self._defer_home_item(
+            self._defer_identification_candidate(
                 self._identification_candidate, "identify-candidate-source-unavailable"
             )
             self._unbuyable_full_identify_sigs.add(
