@@ -315,12 +315,30 @@ class SupplyMixin:
             and not self._purchase_churn_rejected(store_type, item)
         )
 
-    def _supply_priced_out(self, snapshot: Snapshot, kind: str) -> bool:
-        """The ``kind`` shortage is a purchase gap: gold, not stock, is short.
+    def _visit_supplier_pages(self, snapshot: Snapshot) -> dict[int, object]:
+        """The supplier pages seen this town visit (and the open page).
 
-        Home holds none, and the supplier shelves seen this visit sell the
-        ware only above the carried gold (a stockout, an unseen shelf or a
-        refused class is not a purchase gap).
+        The observations are reset at every fresh town arrival, so a page
+        remembered from an earlier visit is not this visit's evidence.
+        """
+        town = self._effective_town_id(snapshot)
+        observations = getattr(self, "_town_supplier_stock_observations", {})
+        pages = {store_type: page
+                 for store_type, page in getattr(self, "_town_supplier_stock", {}).items()
+                 if (observed := observations.get(store_type)) is not None
+                 and observed[0] == town}
+        if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
+            pages[snapshot.store.store_type] = snapshot.store
+        return pages
+
+    def _supply_purchase_gap(self, snapshot: Snapshot, kind: str) -> bool:
+        """The ``kind`` shortage is a purchase gap the town end mines for.
+
+        Home holds none, and either the supplier shelves seen sell the ware
+        only above the carried gold, or (owner 2026-11-02 「品切れも採掘に回す」)
+        every supplier was visited this visit and none sells it within the
+        gold.  A supplier not yet visited this visit is the shopping's to
+        visit first, so it keeps the shortage out of the gaps.
         """
         status = self._supply_ledger(snapshot, self._planned_depth()).get(kind)
         if (status is None or status.count >= status.required_departure
@@ -332,15 +350,30 @@ class SupplyMixin:
         prices = [item.price for store_type in status.stores if store_type in pages
                   for item in pages[store_type].items
                   if self._supply_ware(snapshot, kind, store_type, item)]
-        return bool(prices) and min(prices) > snapshot.player.gold
+        if prices and min(prices) > snapshot.player.gold:
+            return True
+        visited = self._visit_supplier_pages(snapshot)
+        for store_type in status.stores:
+            page = visited.get(store_type)
+            if page is None and store_type not in self._town_store_attempted:
+                return False
+            if page is not None and any(
+                    self._supply_ware(snapshot, kind, store_type, item)
+                    and item.price <= snapshot.player.gold for item in page.items):
+                return False
+        return True
 
-    def _identify_staff_priced_out(self, snapshot: Snapshot) -> bool:
-        """The Identify staff shortage is a purchase gap (the shelves seen sell it above the gold)."""
+    def _identify_staff_purchase_gap(self, snapshot: Snapshot) -> bool:
+        """The Identify staff shortage is a purchase gap: the shelves seen sell
+        it above the gold, or every supplier this visit is out of a staff
+        that helps (``_identify_staff_unbuyable``, 「品切れも採掘に回す」)."""
         prices = [item.price for page in self._identify_staff_offer_pages(snapshot)
                   for item in page.items
                   if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY]
-        return (not self._identify_staff_ready(snapshot)
-                and bool(prices) and min(prices) > snapshot.player.gold)
+        if self._identify_staff_ready(snapshot):
+            return False
+        return ((bool(prices) and min(prices) > snapshot.player.gold)
+                or self._identify_staff_unbuyable(snapshot))
 
     def _compute_supply_ledger(
         self, snapshot: Snapshot, depth: int
@@ -810,21 +843,8 @@ class SupplyMixin:
 
     def _identify_staff_offer_pages(self, snapshot: Snapshot) -> list[object]:
         """Observed Identify-staff supplier pages of the current town."""
-        pages: dict[int, object] = {}
-        town = self._effective_town_id(snapshot)
-        observations = getattr(self, "_town_supplier_stock_observations", {})
-        for store_type, page in getattr(self, "_town_supplier_stock", {}).items():
-            if store_type not in {STORE_MAGIC, STORE_BLACK}:
-                continue
-            observed = observations.get(store_type)
-            if observed is None or observed[0] != town:
-                continue
-            pages[store_type] = page
-        if snapshot.store is not None and snapshot.store.store_type in {
-            STORE_MAGIC, STORE_BLACK,
-        }:
-            pages[snapshot.store.store_type] = snapshot.store
-        return list(pages.values())
+        return [page for store_type, page in self._visit_supplier_pages(snapshot).items()
+                if store_type in {STORE_MAGIC, STORE_BLACK}]
 
     def _identify_staff_store_offer_charges(self, snapshot: Snapshot) -> int:
         """Most per-staff charges of an affordable observed shelf staff (0: none)."""

@@ -6117,18 +6117,20 @@ class TownEnd(NamedTuple):
 
 
 def purchase_gaps(policy: Any, board: Any, unmet: tuple[str, ...]) -> tuple[str, ...]:
-    """The ``unmet`` leaves whose every short supply is priced above the gold."""
+    """The ``unmet`` leaves whose every short supply cannot be bought this
+    visit: priced above the gold, or out of stock at every supplier visited
+    (owner 2026-11-02 「品切れも採掘に回す」)."""
     ledger = policy._supply_ledger(board, policy._planned_depth())
 
-    def priced_out(name: str) -> bool:
+    def unbuyable(name: str) -> bool:
         if name == "identify_staff_ready":
-            return policy._identify_staff_priced_out(board)
+            return policy._identify_staff_purchase_gap(board)
         short = [kind for kind in {SUPPLY_LABEL_KINDS[label]
                                    for label in LEAF_SUPPLY_LABELS.get(name, ())}
                  if kind in ledger and ledger[kind].count < ledger[kind].required_departure]
-        return bool(short) and all(policy._supply_priced_out(board, kind) for kind in short)
+        return bool(short) and all(policy._supply_purchase_gap(board, kind) for kind in short)
 
-    return tuple(name for name in unmet if priced_out(name))
+    return tuple(name for name in unmet if unbuyable(name))
 
 
 def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:

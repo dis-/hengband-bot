@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 import unittest
 
+from hengbot import town_end_mining
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import (
     DUNGEON_YEEK_CAVE, STORE_ALCHEMIST, STORE_BLACK, STORE_MAGIC, STORE_TEMPLE,
@@ -111,7 +112,7 @@ class SupplyStockoutRecordedTest(unittest.TestCase):
         self.assertEqual((policy._fundraising_mode, policy._planned_mining_runs),
                          ('prepare', 1))
 
-    def test_three_completed_cycles_retry_stores_then_stop(self):
+    def test_three_completed_cycles_retry_stores_then_the_town_end_mines(self):
         policy, board = self.scene()
         for cycle in range(3):
             self.exhaust_suppliers(policy, board)
@@ -133,8 +134,11 @@ class SupplyStockoutRecordedTest(unittest.TestCase):
             policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
         self.exhaust_suppliers(policy, board)
         self.assertEqual(policy._town_special_key(board), '5')
-        self.assertEqual(policy.last_reason, 'town:blocked:departure-unsatisfiable')
-        self.assertIsNone(policy._fundraising_mode)
+        # Owner 2026-11-02 「品切れも採掘に回す」: with the stockout runs used up,
+        # the stockout is a purchase gap and the town end mines once more
+        # (it stopped under town:blocked:departure-unsatisfiable before).
+        self.assertEqual(policy.last_reason, town_end_mining.START_REASON)
+        self.assertEqual(policy._fundraising_mode, 'prepare')
 
     def test_another_failed_conjunct_keeps_existing_terminal(self):
         policy, board = self.scene()

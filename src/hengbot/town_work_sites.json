@@ -3143,6 +3143,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy.py:HengbotPolicy._identify_staff_unbuyable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._immediate_quest_targets": {
     "classification": "data",
     "rows": [
@@ -5927,6 +5934,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_instore.py:InStoreMixin._in_store_best_effort": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_instore.py:InStoreMixin._in_store_cached_shop": {
     "classification": "adapter",
     "rows": [
@@ -6032,6 +6046,13 @@
       "browse"
     ],
     "delegation": "supports selected child; no independent success"
+  },
+  "policy_instore.py:InStoreMixin._shelf_stop_tried": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_instore.py:_row_identity": {
     "classification": "data",
@@ -7378,7 +7399,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_supply.py:SupplyMixin._identify_staff_priced_out": {
+  "policy_supply.py:SupplyMixin._identify_staff_purchase_gap": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -7548,7 +7569,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_supply.py:SupplyMixin._supply_priced_out": {
+  "policy_supply.py:SupplyMixin._supply_purchase_gap": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -7598,6 +7619,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_supply.py:SupplyMixin._usable_remove_curse_scroll": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_supply.py:SupplyMixin._visit_supplier_pages": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9250,7 +9278,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:purchase_gaps.priced_out": {
+  "town_terminal.py:purchase_gaps.unbuyable": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

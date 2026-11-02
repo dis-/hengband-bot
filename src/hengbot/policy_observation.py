@@ -812,6 +812,12 @@ class ObservationMixin:
                 getattr(self, "_home_pending_quantities", {}).clear()
                 self._home_procurement_batch_active = False
                 self._town_unidentifiable_carried_sigs.clear()
+                # Shelves turn over while the character is away: a page from
+                # an earlier visit is no evidence for this one, so its
+                # supplier is visited again before a stockout is concluded
+                # (n1-c life-109 2026-11-02 21:11 stopped on the remembered
+                # Temple/Alchemist pages right after its mining run).
+                self._town_supplier_stock.clear()
                 self._town_supplier_stock_observations.clear()
                 self._deferred_device_items.clear()
                 self._retried_home_identification_items.clear()
