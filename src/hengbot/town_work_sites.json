@@ -9231,6 +9231,14 @@
     ],
     "delegation": "no independent success"
   },
+  "town_terminal.py:overweight_home_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "home-deposit"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "town_terminal.py:plan_stop_admission": {
     "classification": "data",
     "rows": [

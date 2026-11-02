@@ -12080,6 +12080,18 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "town_terminal.py:overweight_home_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "home-deposit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Answers inside town_end_key before the end verdict (a mining cycle cannot shed weight): an overweight board whose live weight-overload claim is Home's re-arms Home and returns the router's _shopping_approach_key (shop:travel) while Home's pass/approach bound remains; once the bound is used up or Home refused the re-arm it names town:blocked:overweight-home-unreachable through _town_blocked_key (owner 2026-09-03). Moved from the dead stuck:wander/novel: branches of _town_procurement_decision.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_town.py:TownMixin._mining_walk_in_return_key": {
     "classification": "producer",
     "rows": [
