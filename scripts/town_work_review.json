@@ -11785,6 +11785,17 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)"
   },
+  "unseen_strike.py:speed_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Below the low-HP threshold, after an unseen attacker's melee blow and with no heal answer left in the low-HP walk gate: the Speed dose of speed_dose.key (absorbed Speed staff cast or a carried Potion of Speed) while the speed field shows no haste, under unseen:quaff-speed, else None (owner 2026-11-03 「必要なら加速や体力回復など危険度に応じて物資を使用すること。」; n1-a life-466); dungeon survival only; no independent progress.",
+    "delegation": "selected child; no independent success"
+  },
   "unseen_strike.py:strike_cell": {
     "classification": "data",
     "rows": [

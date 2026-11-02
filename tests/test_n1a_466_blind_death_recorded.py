@@ -23,6 +23,18 @@ Owner rules: 「回復後即盲目になった場合は戦闘による状況打�
 strike keys go through the production executor port.
 DECLARED RECONSTRUCTED: the remembered terrain is the capture's death-time
 policy state.
+DECLARED CONSTRUCTED: the live bot never drank its Potion of Speed, so every
+recorded board after the replay's first dose is shown hasted (speed field
++10, yellow; player-speed.cpp acceleration), and the stair case adds a
+remembered up-stair on the cell the recorded emergency step went to.
+
+Owner 2026-11-03 (answer): 「治してもまた盲目なら覚えている敵を攻撃。階段が
+隣などとても近くにある場合を除き徒歩での逃走は絶対に間に合わない。また、
+必要なら加速や体力回復など危険度に応じて物資を使用すること。」  Below the
+low-HP threshold the first bitten board takes the carried Speed dose
+(unseen_strike.speed_key; no heal potion was left, Cure Critical Wounds is
+for the blindness), the hasted boards strike, and only a step onto an
+up-stair is still walked.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -32,6 +44,7 @@ import json
 import unittest
 from pathlib import Path
 
+from hengbot import unseen_strike
 from hengbot.model import Position
 from tests import test_n1c_deaths_1101_recorded as d57
 
@@ -44,8 +57,11 @@ BLINDED = 3189929        # 「ヴラスタに噛まれた。」「目が見え�
 REBLINDED = 3189946      # re-blinded right after the first cure
 CALM_STEP = 3190129      # no blow on the board: the walk home goes on
 WALK_BITES = (3190142, 3190148)            # bitten on the walk, cures spent
-EMERGENCY_BITES = (3190630, 3190642, 3191551)  # below the threshold
+SPEED_BITE = 3190630     # the first bite below the threshold
+EMERGENCY_BITES = (3190642, 3191551)       # hasted, below the threshold
 STRUCK = (REBLINDED,) + WALK_BITES + EMERGENCY_BITES
+HASTED = {"speed": 120, "speed_display": {"color": "yellow", "riding": False,
+                                          "text": "加速 (+10)", "value": 10}}
 
 
 def new_policy():
@@ -61,14 +77,18 @@ def new_policy():
 
 class BlindWalkBiterRecordedTest(d57.PostedDeathKey):
     def answers(self):
-        """Decide every board; the strike boards' keys go through the executor."""
-        policy, answers = new_policy(), {}
+        """Decide every board; the strike and dose boards' keys go through
+        the executor.  The boards after the first Speed dose are hasted."""
+        policy, answers, hasted = new_policy(), {}, False
         for raw in CASE["boards"]:
             raw = copy.deepcopy(raw)
+            if hasted:
+                raw["player"].update(copy.deepcopy(HASTED))
             key = d57.loops.decide(policy, raw)
             answers[raw["turn"]] = (key, policy.last_reason)
-            if raw["turn"] in STRUCK:
+            if raw["turn"] in (*STRUCK, SPEED_BITE):
                 self.post(policy, raw, key)
+            hasted = hasted or policy.last_reason == unseen_strike.SPEED_REASON
             policy.confirm_key_posted(key)
         return answers
 
@@ -91,9 +111,30 @@ class BlindWalkBiterRecordedTest(d57.PostedDeathKey):
         for turn in (REBLINDED,) + WALK_BITES:
             key, reason = answers[turn]
             self.assertEqual((key[:1], reason), ("+", "blind:fight-through"), turn)
+        speed = next(item["slot"] for item in CASE["boards"][-1]["inventory"]
+                     if item["name"].startswith("スピードの薬"))
+        self.assertEqual(answers[SPEED_BITE], ("q" + speed, unseen_strike.SPEED_REASON))
         for turn in EMERGENCY_BITES:
             key, reason = answers[turn]
             self.assertEqual((key[:1], reason), ("+", "no-wait:attack"), turn)
+
+    def test_step_onto_an_up_stair_still_escapes(self):
+        policy, raw = new_policy(), None
+        for board in CASE["boards"]:
+            board = copy.deepcopy(board)
+            if board["turn"] > SPEED_BITE:
+                board["player"].update(copy.deepcopy(HASTED))
+            if board["turn"] == EMERGENCY_BITES[0]:
+                raw = board
+                break
+            policy.confirm_key_posted(d57.loops.decide(policy, board))
+        recorded = d57.recorded(CASE)[raw["turn"]]
+        self.assertEqual(recorded, ("emergency:seek-upstairs", "9"))
+        here = raw["player"]["y"], raw["player"]["x"]
+        policy._remembered_upstairs.add(Position(here[0] - 1, here[1] + 1))
+        key = d57.loops.decide(policy, raw)
+        self.assertEqual((key, policy.last_reason), ("9", "emergency:seek-upstairs"))
+        self.post(policy, raw, key)
 
 
 if __name__ == "__main__":

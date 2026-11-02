@@ -8025,8 +8025,12 @@ class TownMixin:
         # unseen_strike).  n1-b life-299 (2026-11-03 01:26, オークの洞窟19階):
         # blind, its cures spent, it walked 26 cells to the known up-stair
         # bitten by a ヴラスタ on every step (HP 505 -> 252).
-        if (strike := unseen_strike.key(
-                self, snapshot, hostiles, unseen_strike.RETURN_REASON)) is not None:
+        # An up-stair one step away is the one walk that still escapes it
+        # (owner 2026-11-03 「階段が隣などとても近くにある場合を除き徒歩での
+        # 逃走は絶対に間に合わない。」).
+        if not unseen_strike.up_stair_beside(self, snapshot) and (
+                strike := unseen_strike.key(
+                    self, snapshot, hostiles, unseen_strike.RETURN_REASON)) is not None:
             return strike
 
         self._claim_target_capture = []
