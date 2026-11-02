@@ -484,6 +484,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:_within_half_melee": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:_without_player_inscription": {
     "classification": "data",
     "rows": [
@@ -4324,6 +4331,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._upstairs_by_distance": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._verified_destroy_dispatch_key": {
     "classification": "producer",
     "rows": [
@@ -4615,7 +4629,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_combat.py:CombatMixin._breeder_breakthrough_step.route": {
+  "policy_combat.py:CombatMixin._breeder_route_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._breeder_route_step.route": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
