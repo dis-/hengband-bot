@@ -2099,7 +2099,7 @@ class SupplyMixin:
         a normal floor).
         """
         route = self._nearest_goal_route(snapshot, predicate)
-        # Record-only (rev 9.3 R2): a claim site that asked for it receives
+        # For the town hold (rev 9.3 R2): a claim site that asked for it receives
         # the target this route chose, so it declares the far target rather
         # than the first step.  Only an armed capture is written, so a pure
         # caller's state is untouched.

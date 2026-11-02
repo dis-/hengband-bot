@@ -1139,9 +1139,9 @@ class TownArbiterMixin:
             ):
                 self._batch_sell_pending = None
         visit.close(outcome)
-        # S2a.1 (design rev 9 item 3): one record-only line covers all the
-        # ``_close_store_visit(`` call sites -- the visit's goal is released
-        # with the outcome as its label.  Nothing reads it back.
+        # S2a.1 (design rev 9 item 3): one line covers all the
+        # ``_close_store_visit(`` call sites -- the town hold releases the
+        # visit's goal with the outcome as its label.
         closed_hook = getattr(self, "_claim_store_visit_closed", None)
         if closed_hook is not None:
             closed_hook(visit, outcome, operation_posted=claim_operation_posted)

@@ -5614,7 +5614,7 @@ class QuestMixin(OpeningRouteMixin):
         context = getattr(self, "_decision_context", None)
         if context is None:
             # The same steps in the same order, each kept with the position it
-            # routes to (record-only, rev 9.3 R2), so the claim names that
+            # routes to (for the town hold, rev 9.3 R2), so the claim names that
             # position; ``min`` picks the same first minimal step.
             paired = min(
                 (

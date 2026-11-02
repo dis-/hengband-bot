@@ -25,7 +25,7 @@ from hengbot.town_hold import errand_hold as town_errand_hold
 from hengbot.town_hold import GOAL_REACH as CLAIM_GOAL_REACH
 
 # Round 4 (F4): the escape ledger key that keeps the up-stairs target beside
-# the cached ``return:upstairs-step`` (record-only; cleared with the ledger).
+# the cached ``return:upstairs-step`` (for the town hold; cleared with the ledger).
 CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
 _town_store_position_indices = WeakKeyDictionary()
 # The grids mapping and emitted window the retained town facts were last
@@ -5179,13 +5179,13 @@ class TownMixin:
                 cause="unbeatable-attacker-delegated",
             )
             return None
-        # Record-only (S2b.1b): the last-known cell this producer may be
+        # For the town hold (S2b.1b): the last-known cell this producer may be
         # walking to, before the loop below overwrites it.
         last_known = self._town_hunt_target
         for target in targets:
             self._town_hunt_target = target.position
             if player.position.distance_to(target.position) <= 1:
-                # S2b.1b round 2, record-only: acting on a monster in sight
+                # S2b.1b round 2, for the town hold: acting on a monster in sight
                 # again -- the friendly-fire attack here, or the ordinary
                 # adjacent melee this ``None`` hands to -- ends the walk to
                 # where one was last seen, as the approach below does.
@@ -5217,7 +5217,7 @@ class TownMixin:
                 lambda grid, target=target: grid.position.distance_to(target.position) <= 1,
             )
             if step is not None:
-                # S2b.1b, record-only: a monster in sight again ends the walk
+                # S2b.1b, for the town hold: a monster in sight again ends the walk
                 # to where one was last seen (its separate ``last-known``
                 # Reach claim, rev 9.3 R5).
                 self._release_claim_goal(
@@ -5242,7 +5242,7 @@ class TownMixin:
                     )
                 return key
         if self._town_hunt_target is not None:
-            # S2b.1b, record-only: this producer chases only what it sees.  A
+            # S2b.1b, for the town hold: this producer chases only what it sees.  A
             # chased monster still perceived by detection alone is not
             # ``target-lost`` at the exit, yet the chase of its identity ends
             # here; the walk below is the separate ``last-known`` claim.
@@ -8027,7 +8027,7 @@ class TownMixin:
             )
         finally:
             upstairs_step_target = self._take_claim_target()
-        # Round 4 (F4), record-only: ``read_once`` caches the step for the
+        # Round 4 (F4), for the town hold: ``read_once`` caches the step for the
         # decision, so a second read captures nothing; keep the target beside
         # the cached step in the same per-decision ledger.
         if upstairs_step_target is not None:

@@ -1867,9 +1867,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._descent_blocked = False
         self._descent_block_countdown = 0
         self._returning_to_town = False
-        # Rev 9.2 (S), record-only: the trigger the *running* return began
-        # with, set where a return starts and cleared where it ends.  Only the
-        # claim register's survival test reads it.
+        # Rev 9.2 (S): the trigger the *running* return began with, set where
+        # a return starts and cleared where it ends.  Only the town hold's
+        # survival test (``town_hold.is_survival``) reads it.
         self._survival_return_trigger: str | None = None
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
@@ -2428,7 +2428,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Book tvals of the character sheet's realms (unwanted_kinds).
         self._own_book_tvals: frozenset[int] | None = None
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
-        # #8 record-only explicit executor grants.  A reserved child binds to
+        # #8 explicit executor grants (town_hold).  A reserved child binds to
         # the parent's claim at the choose_key exit, before the next gate.
         self._equipment_atomic_withdraw_leave_count = 0
         # Physical equipment removed by the live optimizer transaction remains
@@ -2648,7 +2648,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         town_cancel_unbound_execution_delegations(self)
         # S2a.1 (design rev 9 item 2): the per-decision goal slot.  Only a
         # producer writes it, on the board whose key uses its target; the
-        # declaration at the exit reads nothing else.  Record-only.
+        # town hold's declaration at the exit reads nothing else.
         self._decision_goal = None
         self._decision_observed_execution_effects = ()
         self._decision_expectation = None
@@ -3203,7 +3203,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._declare_goal(claim_reach_place(place), family)
 
     def _take_claim_target(self) -> Position | None:
-        """Record-only (rev 9.3 R2): the target an armed path helper chose.
+        """For the town hold (rev 9.3 R2): the target an armed path helper chose.
 
         A claim site arms the capture (``self._claim_target_capture = []``)
         right before it calls the path helper whose first step it walks, and
@@ -3222,7 +3222,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         A teleport helper writes the walk to the teleport building under its
         own reason; the caller (a cross-town or quest errand) then sets the
         decision's reason.  The caller asked for that walk, so it re-stamps
-        the slot with its family.  Record-only.
+        the slot with its family.
         """
         slot = getattr(self, "_decision_goal", None)
         # Rev 9.3 (R7): only the slot the teleport helper itself wrote on this
@@ -3337,7 +3337,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _release_esp_threat_rest_hunt(self, label: str) -> None:
-        """Record-only (S2b.1b): the rest slot's WEAK / MEDIUM hunt ends.
+        """For the town hold (S2b.1b): the rest slot's WEAK / MEDIUM hunt ends.
 
         ``_esp_threat_rest_key`` recomputes that hunt on every board and keeps
         no plan, and it is asked only where the ordinary rest rule would rest
@@ -3409,7 +3409,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _release_town_travel_claim(self, label: str) -> None:
-        """Record-only: native travel toward ``_town_travel_state.goal`` ends."""
+        """For the town hold: native travel toward ``_town_travel_state.goal`` ends."""
         state = getattr(self, "_town_travel_state", None)
         self._release_claim_goal(
             label, getattr(state, "goal", None), owners=CLAIM_ENTRANCE_OWNERS
@@ -3466,7 +3466,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # -- S2b.1: the trigger monsters of a decision (design rev 10.1) ----------
 
     def _declare_triggers(self, monsters, family: str | None = None) -> None:
-        """Record-only (rev 10.1 item 9): the monsters this producer acted on.
+        """For the town hold (rev 10.1 item 9): the monsters this producer acted on.
 
         A producer of positioning, esp-threat or escape calls it with the
         selection it already made on this board -- the look-ahead pack it
@@ -4051,7 +4051,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     # -- rev 9.2 (S): the survival return trigger ----------------------------
 
     def _note_return_start(self, trigger: str | None) -> None:
-        """Record-only: a return starts here.
+        """For the town hold: a return starts here.
 
         Called just before ``_returning_to_town = True``.  Rev 9.3: the
         trigger is written only when no return is running yet; re-asserting
@@ -4062,7 +4062,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._survival_return_trigger = trigger
 
     def _note_return_end(self) -> None:
-        """Record-only: the return ended (``_returning_to_town = False``)."""
+        """For the town hold: the return ended (``_returning_to_town = False``)."""
         self._survival_return_trigger = None
 
     def _release_rewritten_prompt_chain(self, key) -> None:
@@ -7481,7 +7481,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ):
                 # Survival may always pre-empt a lower-priority owner.
                 self._escape_state.enter("emergency", self.last_reason)
-            # Record-only: the hostiles the emergency ladder weighed.
+            # For the town hold: the hostiles the emergency ladder weighed.
             self._declare_triggers(emergency_hostiles)
             return emergency
         if self._escape_state.owner == "emergency":
@@ -7709,7 +7709,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if breakthrough is not None:
             if self._choke_plan_active(snapshot):
                 self._release_choke_plan("breeder-breakthrough")
-            self._declare_triggers(strategic_hostiles)  # record-only
+            self._declare_triggers(strategic_hostiles)
             return breakthrough
 
         choke_plan = self._town_producer_entry("_choke_engagement_key", lambda: self._choke_engagement_key(
@@ -7742,7 +7742,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 snapshot, strategic_hostiles
             ))
         if disengage is not None:
-            self._declare_triggers(strategic_hostiles)  # record-only
+            self._declare_triggers(strategic_hostiles)
             return disengage
         if self._escape_state.owner == "disengage":
             self._escape_state.stable_decisions += 1
@@ -7897,7 +7897,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if self._should_flee(
             snapshot, strategic_hostiles, strategic_adjacent
         ):
-            # Record-only: every exit of this rung is escape, fleeing these.
+            # For the town hold: every exit of this rung is escape, fleeing these.
             self._declare_triggers(strategic_hostiles, family="escape")
             escape = self._town_producer_entry("_escape_by_stairs", lambda: self._escape_by_stairs(snapshot), family="survival")
             if escape is not None:
@@ -8000,7 +8000,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     if self._quest_exit_would_fail(snapshot)
                     else "summoner:stairs"
                 )
-                self._declare_triggers(corridor_threats)  # record-only
+                self._declare_triggers(corridor_threats)
                 return UP_STAIRS_KEY
             step = self._summoner_retreat_step(
                 snapshot, corridor_threats, strategic_hostiles
@@ -8115,7 +8115,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:reposition"
                 self._declare_reach(step)
-                self._declare_triggers(strategic_hostiles)  # record-only
+                self._declare_triggers(strategic_hostiles)
                 return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
@@ -8557,7 +8557,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if loot is not None:
                 return loot
         elif emergency_return_progressing:
-            # S2b.1b, record-only: the progressing emergency return shuts
+            # S2b.1b, for the town hold: the progressing emergency return shuts
             # ordinary loot out, so the committed loot walk (often suspended
             # by the emergency that set the flag) ends here.
             self._release_claim_goal(
@@ -8788,7 +8788,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             ))
             if esp_threat is not None:
                 return esp_threat
-            # S2b.1b, record-only: the slot passed without a hunt.
+            # S2b.1b, for the town hold: the slot passed without a hunt.
             assessment = self._esp_threat_assessment
             self._release_esp_threat_rest_hunt(
                 "esp-threat:rest-"
@@ -8812,7 +8812,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 return REST_MACRO
         else:
-            # S2b.1b, record-only: the rest gate is closed, so the rest slot's
+            # S2b.1b, for the town hold: the rest gate is closed, so the rest slot's
             # hunt is not asked for this board.
             self._release_esp_threat_rest_hunt("esp-threat:rest-gate-closed")
 
@@ -8931,7 +8931,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:avoid-engagement"
                 self._declare_reach(step)
-                self._declare_triggers(strategic_hostiles)  # record-only
+                self._declare_triggers(strategic_hostiles)
                 return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
 
         # 6. Head for a known downstairs / dungeon entrance: path straight there
@@ -14792,7 +14792,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         start = snapshot.player.position
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
-        # Record-only (rev 9.3 R2): see ``_nearest_goal_step``.
+        # For the town hold (rev 9.3 R2): see ``_nearest_goal_step``.
         capture = self.__dict__.get("_claim_target_capture")
         while queue:
             position, first_step = queue.popleft()
@@ -15769,7 +15769,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return
         if plan.start_breeder_count > 0:
             self._breeder_choke_attempt_ended_floor = plan.floor
-        # S2b.1b, record-only: the plan's reposition walk (``melee:choke-
+        # S2b.1b, for the town hold: the plan's reposition walk (``melee:choke-
         # reposition``, a Reach on ``plan.destination``) ends with the plan.
         self._release_claim_goal(
             f"choke-plan-released:{cause}",
@@ -16893,13 +16893,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._explore_goal_identity = None
 
     def _declare_explore_goal(self) -> None:
-        """Record-only: the explore producer's committed goal cell."""
+        """For the town hold: the explore producer's committed goal cell."""
         identity = self._explore_goal_identity
         if identity is not None:
             self._declare_reach(identity.position)
 
     def _release_explore_walk(self, label: str) -> None:
-        """Record-only (S2b.1b): the walk to the explore goal stops here.
+        """For the town hold (S2b.1b): the walk to the explore goal stops here.
 
         The oscillation branch of ``_decide`` stops walking because the walk
         circles, and probes or searches in place instead; the walk toward the

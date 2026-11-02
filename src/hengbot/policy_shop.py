@@ -5861,7 +5861,7 @@ class ShopMixin(InStoreMixin):
     def _stage_shopping_approach_key(
         self, snapshot: Snapshot, key: str | None, *, claim_family: str | None = None
     ) -> str | None:
-        # Record-only (S2a.1): the entrance this approach step heads for,
+        # For the town hold (S2a.1): the entrance this approach step heads for,
         # stamped with the family whose errand the router runs (rev 9.2 C).
         self._declare_reach(self._shopping_approach_goal, family=claim_family)
         goal = self._shopping_approach_goal
