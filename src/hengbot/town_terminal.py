@@ -37,7 +37,7 @@ from hengbot.policy_constants import (
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
-from hengbot import town_end_mining
+from hengbot import identification_wait, town_end_mining
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -2474,6 +2474,9 @@ def town_end_key(policy: Any, board: Any) -> str:
         # established safe step off the entrance comes before the end.
         return policy._town_entrance_step_off_key(board, TOWN_END_STEP_OFF)
     material = gather_town_end(policy, board)
+    if identification_wait.release(
+            policy, board, (*material.survival_unmet, *material.unmet)):
+        material = gather_town_end(policy, board)
     end = verdict_town_end(material)
     if end.kind != "stop" and holds_town(policy, board):
         # The town-map quest reward holds the town (leaving terminals are
