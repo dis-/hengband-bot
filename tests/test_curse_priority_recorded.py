@@ -188,7 +188,7 @@ class CursePriorityRecordedTest(unittest.TestCase):
         self.assertTrue(returning._fundraising_key(no_stairs, []).startswith('r'))
         self.assertEqual(returning.last_reason, 'fundraise:recall-stuck')
         self.assertTrue(OperationExecutor._is_recall_depth_confirm(
-            returning.last_reason, self.pins['recall-prompt']['data']['text']))
+            self.pins['recall-prompt']['data']['text']))
         next_key = policy._fundraising_key(board, [])
         self.assertIsNotNone(next_key)
         self.assertNotEqual(next_key, '>')

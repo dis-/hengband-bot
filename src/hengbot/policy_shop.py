@@ -5646,11 +5646,17 @@ class ShopMixin(InStoreMixin):
                 self._home_withdrawal_queued
                 and self._home_pending_item is not None
             )
+            and not equipment_home_route
         ):
             # Keep the staged post-Alchemist stop in the disposable plan, but
             # do not turn it into movement until its requester has filed the
-            # executor's exact withdrawal request. A later Home ammo take can
-            # own the same stop even while this plan projection is stale.
+            # executor's exact withdrawal request. A later Home ammo take, or
+            # an equipment session whose required context is Home, can own
+            # the same stop even while this plan projection is stale: after
+            # the identification withdrawal completed, the equipment owner
+            # keeps that plan (its stop is already Home) and was refused here
+            # as home-route-unavailable until home-route-repeat-terminal
+            # (n1-a life-460 x2 and life-464, n1-c life-103, 2026-11-01/02).
             return None
         if store_type == STORE_HOME:
             if not self._ensure_home_visit_request(snapshot):

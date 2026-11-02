@@ -2316,6 +2316,19 @@ def _write_decision(
         print(f"failed to write decision log: {exc}", file=sys.stderr)
 
 
+def _report_state_stream_rollover(policy) -> None:
+    """Tell the policy that unread JSONL replies may have been discarded.
+
+    bot-json-output.cpp write_snapshot truncates the file once it reaches
+    BOT_JSON_OUTPUT_MAX_BYTES before writing the next record, so a reply
+    written just before that rollover (a posted ``~9`` Home list) can vanish
+    unread (n1-a life-464 2026-11-02 06:10, no-key-exhausted).
+    """
+    observe = getattr(policy, "observe_state_stream_rollover", None)
+    if observe is not None:
+        observe()
+
+
 def _rewind_if_truncated(file, path: Path) -> bool:
     """Rewind a tail reader after the emitter rolls over its JSONL file."""
     try:
@@ -3772,7 +3785,8 @@ def _make_jsonl_barrier_drain(path: Path):
     """Return a production JSONL drain used only to bind barrier observations.
 
     It deliberately retains a torn final line for the next call.  The follow
-    loop remains responsible for delivering ordered observation effects.
+    loop remains responsible for delivering ordered observation effects,
+    including an observed emitter rollover (``take_rollover``).
     """
     try:
         offset = path.stat().st_size
@@ -3780,6 +3794,7 @@ def _make_jsonl_barrier_drain(path: Path):
         offset = 0
     pending = ""
     handed_records: list[Mapping[str, object]] = []
+    rolled_over = False
     # The newest board already written when this reader attached.  It is
     # never drained or handed to the follow loop (which primes from the same
     # row itself); the executor may bind only its store payload at its first
@@ -3799,12 +3814,12 @@ def _make_jsonl_barrier_drain(path: Path):
             store_record_at_attach = attach_board
 
     def drain():
-        nonlocal offset, pending
+        nonlocal offset, pending, rolled_over
         started = time.perf_counter()
         try:
             size = path.stat().st_size
             if size < offset:
-                offset, pending = 0, ""
+                offset, pending, rolled_over = 0, "", True
             with path.open("r", encoding="utf-8", errors="replace") as stream:
                 stream.seek(offset)
                 chunk = stream.read()
@@ -3829,7 +3844,13 @@ def _make_jsonl_barrier_drain(path: Path):
         handed_records.clear()
         return records
 
+    def take_rollover():
+        nonlocal rolled_over
+        observed, rolled_over = rolled_over, False
+        return observed
+
     drain.take_handed_records = take_handed_records
+    drain.take_rollover = take_rollover
     drain.consumed_offset = lambda: offset
     drain.store_record_at_attach = lambda: store_record_at_attach
     drain.last_timing = {"bytes": 0, "decode_ms": 0.0, "total_ms": 0.0}
@@ -4689,6 +4710,10 @@ def _run_follow(
                             policy, send, decoded_lines=response_records,
                             knowledge_ledger_path=knowledge_ledger_path,
                         )
+                        # After the handed replies: one that survived the
+                        # rollover has already settled its request.
+                        if getattr(executor.drain, "take_rollover", lambda: False)():
+                            _report_state_stream_rollover(policy)
                         consumed_offset = getattr(
                             executor.drain, "consumed_offset", lambda: file.tell()
                         )()
@@ -5442,6 +5467,7 @@ def _run_follow(
             # its size limit. Rewind after either shrink so the reader is not
             # stranded beyond the new EOF.
             if _rewind_if_truncated(file, args.state_file):
+                _report_state_stream_rollover(policy)
                 pending = ""
                 nudge_streak = 0
                 recovery_send_failed = False
