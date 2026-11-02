@@ -1,0 +1,87 @@
+LUNA-REPORT town-end-purchase-only-1102（町の終わりの採掘は買い物の問題だけ／自宅の一覧を先に読む）
+
+== 持ち主の決定 ==
+2026-11-02 20時台「購入に関する問題以外は採掘せずに名前を付けて停止を採用」
+
+== 証拠（B の不具合） ==
+写し: C:\hengband-backups\pdca\captures\town-end-purchase-only-1102\
+  decisions-949982.jsonl（bot-decisions.jsonl.4 の 7850〜7960 行）、snapshots-20261102-185240-f9e580.jsonl.gz、
+  town-end-mining.json、keep-running-events.jsonl
+- n1-c life-107（魔道具術師 Lv15）。所持金は 7,974（発注文の 58,174 ではない。盤面の player.gold と記録の shop_selector.gold が 7,974）。
+- 18:38:33 にボットが再起動し、ゲームはターン 949749 のセーブから（それまでの 956784 から巻き戻った）。最初の盤面は錬金術の店の入口の上。
+- 決定5 shop:travel（闇市へ）→ 決定6 shop:observe-and-leave（欲しい品なし）→ 決定7（ターン 949982、闇市の入口の上）:
+  departure_block.failed = [equipment_departure_ready, home_catalog_ready]、town_claims なし。
+  _town_special_key が departure-unsatisfiable を出し、force_visit_departure → 町の終わりの採掘（town_end_mining.start、
+  keep-running の cause=departure-unsatisfiable outcome=mining_cycle）。
+- 決定8 town:travel-entrance（fundraising=mine）→ 決定9 でやっと home:request-knowledge-scan（~9、ダンジョンの入口の上）。
+- 原因: 自宅の一覧を読む担当（policy._choose_key の外での ~9）は「店の入口の上では出さない」（入口での入力の持ち主を守る、
+  tests/HOME_KNOWLEDGE_SOURCE_AUDIT.md）。再起動後の盤面も決定7の盤面も店の入口の上だったので、一覧を読む担当は答えられず、
+  その盤面で出発の判断（departure-unsatisfiable）が訪問を閉じた。一覧は入口を離れた次の盤面で読まれたが、採掘はもう始まっていた。
+
+== 変えたこと ==
+B（commit 69873d0e9）: 自宅の一覧を出発の判断より先に読む
+- force_visit_departure（訪問を閉じる理由すべてが通る1か所）で、店の入口の上にいて自宅の一覧がまだ要る
+  （_home_catalogue_scan_owed: 走査が未完了か無効、要求中でない）なら、閉じずに入口から一歩離れる
+  （町の終わりと同じ town:entrance-step-off:town:end-step-off）。次の盤面で ~9 が一覧を読み、出発をもう一度判断する。
+- _home_catalogue_scan_owed は ~9 の要求の条件から切り出し、両方で使う（条件の重複なし）。
+
+A（commit 7aaa6472e）: 町の終わりの採掘は買い物の問題だけ
+- verdict_town_end: 満たせない条件がすべて「買い物の問題」の時だけ採掘を1サイクル。ほかの条件が1つでもあれば
+  採掘せずにその条件の名前で止まる（town:blocked:unmet:<名前>、最低条件なら town:blocked:survival:<項目>）。
+  買い物の問題と並んでいても、止まりの名前は買い物でない方。
+- 「買い物の問題」= 出発の項目（帰還・食料・油・テレポート・CCW・解呪、鑑定の杖）の足りない品が、自宅に無く、
+  この訪問で見た店の棚では所持金より高い値段でしか売られていない（policy_supply._supply_priced_out、
+  _identify_staff_priced_out、town_terminal.purchase_gaps）。品切れ・見ていない棚・買い戻し禁止の品は買い物の問題にしない。
+- 表の重複をなくした: 項目→品名（town_terminal.LEAF_SUPPLY_LABELS、品切れの採掘と共有）、品名→台帳の種類
+  （policy_constants.SUPPLY_LABEL_KINDS、procurement_requirements と共有）。棚の品の判定は _supply_ware にまとめた。
+- 訪問を閉じる強制出発（departure-unsatisfiable・3回の引退ほか）で採掘にならない時は、今までの後の手
+  （品切れの採掘・帰還先が無い時の資金稼ぎ）か、止まり（hard_stop、名前は今までの departure-unsatisfiable など）。
+
+== テスト ==
+新規: tests/test_town_end_purchase_only_1102_recorded.py（記録の盤面 949749/949973/949982、
+  fixtures/town-end-purchase-only-1102.json.gz、tests/extract_town_end_purchase_only_1102_fixture.py）
+- test_recorded_rows_mined_before_the_home_list（記録の決定5〜9）
+- test_restart_board_routes_as_recorded（再起動の盤面で記録と同じ shop:travel）
+- test_home_list_is_read_before_the_departure_judgement（B: 闇市の入口で採掘でなく一歩離れる→本番の executor→~9→条件が空）
+- test_non_purchase_condition_stops_by_name_without_mining（A: 一覧を読んだ後、自宅の候補待ち（DECLARED CONSTRUCTED）で
+  town:blocked:unmet:home_candidate_resolved、採掘なし）
+期待値を新しい動きに直した既存のテスト（壁は足していない）:
+- tests/test_town_defined_end_recorded.py（23:50 の盤面）: 記録どおり home_candidate_resolved だけ → 名前付きの止まり。
+  買い物の問題の盤面（DECLARED CONSTRUCTED: 帰還を1枚・所持金100、店で見た帰還の巻物は239）→ 採掘1サイクル。
+  両方ある時は買い物でない方で止まる。再起動と2サイクル目のテストは買い物の問題の盤面で行う。
+  採掘の後の12手の運転は外した（b86c927ff の main でも同じところで失敗していた。採掘の続きは
+  test_town_mining_dive_yield_1102_recorded が見ている）。
+- tests/test_keep_running_a0.py: A0 の記録の盤面5枚（home_catalog_ready だけ）→ 入口の上の1枚は一歩離れる（B）、
+  ほかは止まり（hard_stop）。1枠だけ空き → 止まり。HP1 の引退3回 → 止まり。品切れの採掘・能力不足の資金稼ぎは
+  町の終わりの採掘の前の形（fallback / hard_stop）に戻った。
+結果: 新規 4件 OK。test_town_defined_end_recorded 11件 OK。test_keep_running_a0 は
+  test_committed_visit_preempts_release_shopping_and_refused_entrance の1件だけ失敗（'R&\r' != '5'、main でも同じ、変更前から）。
+  test_town_mining_dive_yield_1102_recorded OK。
+変更を戻した確認（各1回）:
+- B: policy_town.py の変更を戻す → test_home_list_is_read_before_the_departure_judgement が失敗
+  （'town:entrance-step-off:town:end-mining-cycle' != 'town:entrance-step-off:town:end-step-off'）。
+- A: verdict_town_end の買い物以外で止まる3行を戻す → 3件失敗（判定が mine）。
+import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok。town_work_manifest.py --write → zero unmapped
+  （_supply_ware・_supply_priced_out・_identify_staff_priced_out・purchase_gaps.priced_out の審査を追加）。
+main（ddd9d4258）を取り込み済み、衝突なし。
+
+== checks.json に足す案（編集はしていない） ==
+  {"id": "town-end-purchase-only", "defect": "town-end-purchase-only-1102",
+   "owner": "2026-11-02 「購入に関する問題以外は採掘せずに名前を付けて停止を採用」",
+   "tests": ["tests.test_town_end_purchase_only_1102_recorded", "tests.test_town_defined_end_recorded",
+             "tests.test_keep_running_a0"]}
+
+== 保守性 ==
+- 買い物の問題の判定は2か所に分けた: 台帳と棚の読み（policy_supply の _supply_priced_out・_identify_staff_priced_out）と、
+  項目への当てはめ（town_terminal.purchase_gaps）。判定は verdict_town_end の1つ。
+- 重複していた表2つ（項目→品名、品名→種類）を名前付きの定数にし、既存の使い手と共有した。棚の品の述語を _supply_ware に切り出し
+  _supply_page_offers と共有した。
+- B は force_visit_departure の1か所の条件と、~9 の要求条件から切り出した _home_catalogue_scan_owed。
+- town_terminal は判定まわりだけ触った（構造の第2段の並行の作業と重なるのは verdict_town_end・gather_town_end の周辺）。
+
+== 持ち主への問い ==
+Q1: 品切れ（店に無い）は「購入に関する問題」に入りますか。今回は発注どおり「所持金が足りない」だけを買い物の問題にしました。
+    ただし訪問を閉じる強制出発では、前からある「品切れの採掘」（3回まで）が後の手として残っています。
+Q2: 訪問を閉じる強制出発（departure-unsatisfiable、3回の引退）で買い物以外の条件が残った時の止まりの名前は、今までどおり
+    town:blocked:departure-unsatisfiable などです。町の終わりと同じ town:blocked:unmet:<名前> に揃えますか。
+Q3: 見ていない店（未訪問）がある時は、その店の値段がわからないので買い物の問題にしていません。これでよいですか。

@@ -7289,16 +7289,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 for grid in (snapshot.grid_at(snapshot.player.position),)
                 if grid is not None
             )
-            and (
-                not self._equipment_catalog.home_scan_complete
-                or self._home_knowledge_invalidated
-            )
             # A Home observation permits ordinary first acquisition.  Once
             # optimization names incomplete contents as its blocker, however,
             # no Home existence, reachability, route, visit state, or other
             # outstanding equipment work may veto ``~9``.
-            and not self._home_knowledge_scan_requested
-            and self._home_knowledge_scan_epoch is None
+            and self._home_catalogue_scan_owed()
             and self._equipment_transaction_session is None
             and self._store_leave_inflight is None
             and self._store_entry_posted_owner is None

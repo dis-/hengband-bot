@@ -32,7 +32,7 @@ from hengbot.policy_constants import (
     MANA_FOOD_DEVICE_TARGET, OIL_TARGET,
     PACK_CAPACITY, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
-    SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
+    SUMMONER_CHOKE_NEIGHBORS, SUPPLY_LABEL_KINDS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
     TORCH_REFILL_FUEL, TORCH_THROW_TARGET, UP_STAIRS_KEY, USE_DEVICE_MIN,
     WAIT_KEY, HOME_KNOWLEDGE_MACRO,
     permitted_dive_depth, required_destruction_uses,
@@ -291,23 +291,56 @@ class SupplyMixin:
         (``_purchase_churn_rejected``) is no supplier: the purchase selector
         will not buy it however long the bot waits for restock (issue #68).
         """
+        return any(
+            self._supply_ware(snapshot, kind, store_type, item)
+            and (
+                store_type not in self._town_store_attempted
+                or item.price <= snapshot.player.gold
+            )
+            for item in page.items
+        )
+
+    def _supply_ware(self, snapshot: Snapshot, kind: str, store_type: int, item) -> bool:
+        """A ware of ``store_type`` that supplies ``kind`` at any price."""
         mana_food = (
             kind == "food"
             and snapshot.player.food_type == FOOD_TYPE_MANA
         )
-        return any(
+        return (
             (
                 is_mana_food_ware(self, snapshot, item) and item.pval > 0
                 if mana_food
                 else self._store_item_is_supply(item, kind)
             )
-            and (
-                store_type not in self._town_store_attempted
-                or item.price <= snapshot.player.gold
-            )
             and not self._purchase_churn_rejected(store_type, item)
-            for item in page.items
         )
+
+    def _supply_priced_out(self, snapshot: Snapshot, kind: str) -> bool:
+        """The ``kind`` shortage is a purchase gap: gold, not stock, is short.
+
+        Home holds none, and the supplier shelves seen this visit sell the
+        ware only above the carried gold (a stockout, an unseen shelf or a
+        refused class is not a purchase gap).
+        """
+        status = self._supply_ledger(snapshot, self._planned_depth()).get(kind)
+        if (status is None or status.count >= status.required_departure
+                or STORE_HOME in status.stores):
+            return False
+        pages = dict(getattr(self, "_town_supplier_stock", {}))
+        if snapshot.store is not None:
+            pages[snapshot.store.store_type] = snapshot.store
+        prices = [item.price for store_type in status.stores if store_type in pages
+                  for item in pages[store_type].items
+                  if self._supply_ware(snapshot, kind, store_type, item)]
+        return bool(prices) and min(prices) > snapshot.player.gold
+
+    def _identify_staff_priced_out(self, snapshot: Snapshot) -> bool:
+        """The Identify staff shortage is a purchase gap (the shelves seen sell it above the gold)."""
+        prices = [item.price for page in self._identify_staff_offer_pages(snapshot)
+                  for item in page.items
+                  if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY]
+        return (not self._identify_staff_ready(snapshot)
+                and bool(prices) and min(prices) > snapshot.player.gold)
 
     def _compute_supply_ledger(
         self, snapshot: Snapshot, depth: int
@@ -752,18 +785,8 @@ class SupplyMixin:
                     int(status["required"]),
                 )
 
-        supply_labels = {
-            "Word of Recall scrolls": "recall",
-            "Food rations": "food",
-            "Device charges for food": "food",
-            "Flasks of oil": "oil",
-            "Teleport scrolls": "teleport",
-            "Cure Critical Wounds potions": "cure",
-            "Remove Curse scrolls": "remove-curse",
-            "*Remove Curse* scrolls": "star-remove-curse",
-        }
         for requirement in requirements:
-            kind = supply_labels.get(str(requirement["item"]))
+            kind = SUPPLY_LABEL_KINDS.get(str(requirement["item"]))
             if kind is not None and not ledger[kind].obtainable:
                 requirement["blocked_reason"] = "no-actionable-supplier"
 

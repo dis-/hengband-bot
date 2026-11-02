@@ -6,9 +6,12 @@ never describe later captured boards as a continuation of that command.
 Owner 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の
 出発は拒否する。」: the forced visit departure leaves only when every
 departure condition holds; with one unmet it starts one mining cycle
-(town_end_mining).  The recorded boards fail home_catalog_ready alone, so
-they start the cycle; the departure mechanics are exercised on the same
-boards with Home's catalogue complete (DECLARED CONSTRUCTED, ``catalogued``).
+(town_end_mining).  Owner 2026-11-02 「購入に関する問題以外は採掘せずに
+名前を付けて停止を採用」: only a purchase gap starts that cycle; any other
+unmet condition stops.  The recorded boards fail home_catalog_ready alone, so
+they stop (the one on a store entrance first steps off to read the Home
+list); the departure mechanics are exercised on the same boards with Home's
+catalogue complete (DECLARED CONSTRUCTED, ``catalogued``).
 """
 import tests  # noqa: F401
 
@@ -25,7 +28,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from hengbot import cli, town_end_mining
+from hengbot import cli
 from hengbot.model import DUNGEON_YEEK_CAVE, Position, TVAL_POTION, SV_POTION_CURE_CRITICAL, TVAL_STAFF, SV_STAFF_IDENTIFY
 from hengbot.policy import HengbotPolicy, TR_NO_TELE
 from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, READ_KEY, WAIT_KEY
@@ -183,19 +186,26 @@ class DepartureTest(unittest.TestCase):
                         routes={}, effects=set(), admitted=set(), sequence=policy._decision_sequence)
                     key = cli._handle_owner_retirement(SimpleNamespace(owner_retired_log_only=True),
                         board, WAIT_KEY, policy)
-                    self.assertFalse(cli._policy_final_stop_required(policy))
                 else:
                     policy._town_blocked_reason = cause
                     key = policy._town_blocked_key(board)
-                # home_catalog_ready is unmet: no forced departure, one cycle.
-                self.assertEqual((key, policy.last_reason), (WAIT_KEY, town_end_mining.START_REASON))
-                self.assertIsNone(policy._town_blocked_reason)
-                self.assertEqual(policy._fundraising_mode, "prepare")
+                here = board.grid_at(board.player.position)
+                if here is not None and here.store_number >= 0:
+                    # The Home list (home_catalog_ready) is read before the
+                    # departure judgement: off the store entrance first.
+                    self.assertEqual(policy.last_reason, "town:entrance-step-off:town:end-step-off")
+                    self.assertIn(key, "12346789")
+                    self.assertFalse((Path(root) / "keep-running-events.jsonl").exists())
+                    continue
+                # home_catalog_ready is unmet and no purchase gap: no forced
+                # departure and no mining cycle, the visit stops.
+                self.assertEqual((key, policy.last_reason), (WAIT_KEY, decision["reason"]))
+                self.assertTrue(cli._policy_final_stop_required(policy))
+                self.assertIsNone(policy._fundraising_mode)
                 rows = self.records(root)
                 self.assertEqual(len(rows), 1)
                 self.assertEqual(rows[0]["cause"], cause)
-                self.assertEqual(rows[0]["outcome"], "mining_cycle")
-                self.assertEqual(rows[0]["closed_work"]["unmet"], ["home_catalog_ready"])
+                self.assertEqual(rows[0]["outcome"], "hard_stop")
                 self.assertEqual(rows[0]["minimum"]["failed"], [])
                 self.assertEqual(rows[0]["free_pack_slots"], PACK_CAPACITY - len(board.inventory))
 
@@ -231,15 +241,14 @@ class DepartureTest(unittest.TestCase):
                     policy.last_reason = "shop:approach"
                     policy._town_turn_arbiter.retire("store-router", ("unchanged",))
                     key = cli._handle_owner_retirement(args, board, "5", policy)
-                # Unsafe (HP 1, the hp_full leaf): no departure; the burst
-                # starts one mining cycle, whose own gates and the survival
-                # owners come first.
+                # Unsafe (HP 1, the hp_full leaf, no purchase gap): no
+                # departure and no mining cycle; the burst stops.
                 self.assertEqual(key, "rha" if safe else WAIT_KEY)
-                self.assertFalse(cli._policy_final_stop_required(policy))
-                self.assertEqual(self.records(root)[0]["outcome"], "forced_departure" if safe else "mining_cycle")
+                self.assertEqual(cli._policy_final_stop_required(policy), not safe)
+                self.assertEqual(self.records(root)[0]["outcome"], "forced_departure" if safe else "hard_stop")
                 self.assertEqual(len(self.records(root)), 1)
 
-    def test_one_slot_record_starts_the_mining_cycle(self):
+    def test_one_slot_record_stops_without_mining(self):
         policy, board, depth = ready_board()
         catalogued(policy)
         while len(board.inventory) < PACK_CAPACITY - 1:
@@ -251,13 +260,14 @@ class DepartureTest(unittest.TestCase):
         with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
             key = policy.force_visit_departure(board, "home-known-empty-withdrawal")
             # One free slot fails the ordinary five-slot reserve
-            # (free_pack_slots_ready): no walk-in departure, one mining cycle.
-            self.assertEqual((key, policy.last_reason), (WAIT_KEY, town_end_mining.START_REASON))
+            # (free_pack_slots_ready, no purchase gap): no walk-in departure
+            # and no mining cycle.
+            self.assertIsNone(key)
+            self.assertIsNone(policy._fundraising_mode)
             row = self.records(root)[0]
             self.assertEqual(row["free_pack_slots"], 1)
             self.assertEqual(row["closed_work_under_five"], ["home-known-empty-withdrawal"])
-            self.assertEqual((row["outcome"], row["entry_method"]), ("mining_cycle", "yeek-income"))
-            self.assertEqual(row["closed_work"]["unmet"], ["free_pack_slots_ready"])
+            self.assertEqual((row["outcome"], row["entry_method"]), ("hard_stop", "none"))
             self.assertEqual(len(self.records(root)), 1)
 
     def test_committed_visit_preempts_release_shopping_and_refused_entrance(self):
@@ -306,13 +316,14 @@ class DepartureTest(unittest.TestCase):
                         policy, "procurement_requirements", return_value=[{
                             "item": "Word of Recall scrolls", "blocked_reason": "no-actionable-supplier"}]):
                     key = policy._town_blocked_key(board)
-                    # The town end's mining cycle comes before the supply
-                    # stockout run and its three-run bound (no owner cap).
-                    self.assertEqual((key, policy.last_reason), (WAIT_KEY, town_end_mining.START_REASON))
-                    self.assertEqual(policy._fundraising_mode, "prepare")
-                    self.assertIsNone(policy._town_blocked_reason)
+                    # A stockout is no purchase gap: the town end's cycle does
+                    # not start; the existing stockout run and its three-run
+                    # bound remain.
+                    self.assertEqual(key, WAIT_KEY)
+                    self.assertEqual(policy._fundraising_mode, None if exhausted else "prepare")
+                    self.assertEqual(policy._town_blocked_reason, "departure-unsatisfiable" if exhausted else None)
                 row = self.records(root)[0]
-                self.assertEqual(row["outcome"], "mining_cycle")
+                self.assertEqual(row["outcome"], "hard_stop" if exhausted else "fallback")
                 self.assertIn("recall_departure_ready", row["minimum"]["failed"])
                 self.assertEqual(len(self.records(root)), 1)
 
@@ -325,8 +336,9 @@ class DepartureTest(unittest.TestCase):
         with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):
             self.assertEqual(policy.force_visit_departure(board, "equipment-departure-incomplete"), WAIT_KEY)
             self.assertEqual(policy._fundraising_mode, "prepare")
-            # The ability gap is an unmet condition: the mining cycle opens.
-            self.assertEqual(self.records(root)[0]["outcome"], "mining_cycle")
+            # The ability gap is no purchase gap: the existing no-safe-
+            # destination fundraising, not the town end's cycle.
+            self.assertEqual(self.records(root)[0]["outcome"], "fallback")
             self.assertIn("depth_abilities", self.records(root)[0]["minimum"]["failed"])
 
     def test_transfer_debt_cannot_fall_back_to_income(self):

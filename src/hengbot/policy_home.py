@@ -2089,6 +2089,13 @@ class HomeMixin:
         self._refresh_town_facts(snapshot)
         return bool(self._town_store_positions.get(STORE_HOME))
 
+    def _home_catalogue_scan_owed(self) -> bool:
+        """The complete Home list (``~9``) is still owed and not in flight."""
+        return ((not self._equipment_catalog.home_scan_complete
+                 or self._home_knowledge_invalidated)
+                and not self._home_knowledge_scan_requested
+                and self._home_knowledge_scan_epoch is None)
+
     def _home_available_for_probe(self, snapshot: Snapshot) -> bool:
         """Read Home availability without warming incremental town-fact state."""
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
