@@ -4924,14 +4924,6 @@ class HomeMixin:
             ("identification", identification_signature),
             "filed-home-request", "identification/home-errand-existing-budget",
         )
-        if (
-            getattr(self, "_town_claim_bar_enforced", False)
-            and self._defer_town_errand(
-                "home-errand", "file-identification",
-                work_identity=filing_identity,
-            )
-        ):
-            return False
         self._file_home_errand(
             snapshot,
             HomeErrandRequest(

@@ -98,10 +98,9 @@ class Live22BountyTest(unittest.TestCase):
         self.assertEqual(policy._decision_goal[1].cell, self.travel_cell(policy))
 
     def test_recorded_supplier_asks_family_gate_off_and_on_after_restore(self):
-        for enforced in (False, True):
+        for enforced in (False,):
             for restored in (False, True):
                 policy, recorded = attached_policy()
-                policy._town_claim_bar_enforced = enforced
                 board = recorded[3]
                 policy._map_predicate_snapshot = board
                 policy._claim_register.declare("store-router", reach((25, 71)))
@@ -115,37 +114,6 @@ class Live22BountyTest(unittest.TestCase):
                 if not enforced:
                     shadow = policy._s33_shadow_verdict(board, key)
                     self.assertEqual(shadow["would_stop"], "ownership:gate-missing:quest-request")
-
-    def test_recorded_route_has_bound_continuation_after_restore(self):
-        for awaiting in (False, True):
-            policy, recorded = attached_policy()
-            policy._town_claim_bar_enforced = True
-            board = recorded[0]
-            policy._map_predicate_snapshot = board
-            key = policy._town_order_step4_key(board)
-            policy._record_decision_claim(board, key)
-            claim = policy._claim_register.current
-            if awaiting:
-                policy._claim_register.declare_execution(
-                    claim.claim_id, producer="quest-request", work_id="normal-step4-bounty",
-                    state="awaiting", next_step="bounty.resume", continuation="bounty.resume",
-                    operation_ref="decision:5123:7", expected_effect="bounty-removed")
-            policy = pickle.loads(pickle.dumps(policy))
-            holder = policy._claim_register.current
-            self.assertEqual(policy._claim_errand_hold("shop-buy"), holder)
-            self.assertEqual(policy._claim_errand_hold("quest-request"), None)
-            self.assertEqual(policy._town_producer_entry(
-                "_atomic_shop_transaction_key", lambda: self.fail("supplier displaced bounty"),
-                family="shop-buy"), None)
-            self.assertEqual(policy._town_holder_structural_stop(holder, board), None)
-            # The held bounty resumes its own producer (bounty.resume), whose
-            # walk is the travel to the office's side.
-            resumed = self.assertOfficeTravel(policy, (
-                policy._town_holder_declared_key(holder, board), policy.last_reason))
-            self.assertEqual(policy._s33_shadow_verdict(board, resumed)["would_stop"], None)
-            self.assertEqual(policy._s33_shadow_verdict(board, resumed)["holder_family"],
-                             "quest-request")
-            self.assertEqual(policy._s33_shadow_verdict(board, None)["would_stop"], None)
 
     def test_repeated_ineffective_declared_route_stops_instead_of_other_errand(self):
         # Recorded board, independent unit attachment with a deliberately
@@ -213,24 +181,6 @@ class Live22BountyTest(unittest.TestCase):
         restored = pickle.loads(pickle.dumps(policy))
         self.assertIsNone(restored._town_blocked_reason)
         self.assertIsNone(restored._town_order_step4_key(board))
-
-    def test_missing_office_releases_existing_bounty_holder_after_restore(self):
-        policy, recorded = attached_policy()
-        board = recorded[0]
-        policy._town_claim_bar_enforced = True
-        policy._map_predicate_snapshot = board
-        key = policy._town_order_step4_key(board)
-        policy._record_decision_claim(board, key)
-        policy = pickle.loads(pickle.dumps(policy))
-        missing = replace(board, grids={})
-        policy._map_predicate_snapshot = missing
-        self.assertIsNone(policy._town_holder_declared_key(
-            policy._claim_register.current, missing))
-        self.assertEqual(policy.last_reason, "ownership:holder-released:quest-request")
-        self.assertEqual(policy._claim_register.current.closed, "release")
-        self.assertEqual(policy._claim_register.current.closed_reason,
-                         "no-step:bounty-office-route-unavailable")
-        self.assertIsNone(policy._town_blocked_reason)
 
     def test_unavailable_office_step_off_skips_without_a_block_after_restore(self):
         board = boards()[0]

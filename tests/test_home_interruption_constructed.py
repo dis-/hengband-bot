@@ -250,29 +250,6 @@ class HomeInterruptionTest(unittest.TestCase):
         self.assertFalse(receipt["productive"])
         self.assertIsNone(receipt["settled_owner"])
 
-    def test_await_entry_consumes_once_and_held_preview_uses_shared_receipt(self):
-        policy, _ = home_policy()
-        emit(policy, (45, 122), APPROACH, "6")
-        emit(policy, (45, 123), AWAIT, "5")
-        emit(policy, (45, 123), "equipment-transaction:withdraw", "pd1\r", store=StoreState(STORE_HOME))
-        self.assertTrue(policy._town_inn_accounting["receipt"]["productive"])
-        policy._decision_sequence += 1
-        board = replace(_board(0, (45, 123)), store=StoreState(STORE_HOME))
-        duplicate = policy._town_inn_route_receipt(board, "equipment-transaction:withdraw", "pd1\r", consume=True)
-        self.assertFalse(duplicate["productive"])
-        policy, _ = home_policy()
-        emit(policy, (45, 101), TRAVEL)
-        emit(policy, (45, 101), "melee", "9")
-        emit(policy, (45, 102), TRAVEL)
-        emit(policy, (45, 101), "melee", "9")
-        holder = policy._claim_register.declare("equipment-txn", reach((45, 123)), floor=(0, 0, 0))
-        with patch.object(policy, "_town_held_decision", return_value=holder):
-            selected, _, telemetry = emit(policy, (45, 102), TRAVEL)
-        self.assertEqual(str(selected), NATIVE)
-        self.assertFalse(telemetry["retired"])
-        self.assertFalse(telemetry["progress"])
-        self.assertTrue(policy._town_inn_accounting["receipt"]["rebaseline"])
-
     def test_changed_action_opens_a_new_finite_entry_child(self):
         policy, target = home_policy()
         emit(policy, (45, 122), APPROACH, "6")

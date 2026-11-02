@@ -1709,12 +1709,6 @@ class TownMixin:
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str | None:
         """Enforce composable progress at the one downstream town-result seam."""
-        holder = self._town_held_decision(key, snapshot)
-        if holder is not None:
-            # Direct callers must honor the same refusal as the public seam,
-            # before progress composition can mutate the visit or its offer.
-            self._town_refuse_rewrite("procurement", holder)
-            return key
         if (
             snapshot.store is None
             and self._equipment_home_full_refused_this_visit()
@@ -1734,11 +1728,6 @@ class TownMixin:
                     lambda: self._home_full_relief_key(snapshot), family="home-visit")
             self._town_blocked_reason = "overweight-home-unreachable"
             return self._town_blocked_key(snapshot)
-        if getattr(self, "_town_claim_bar_enforced", False):
-            holder = self._claim_errand_hold("store-router")
-            if (holder is not None
-                    and holder is getattr(self._claim_register, "current", None)):
-                self._claim_exit_completion(snapshot, holder, [])
         if self._defer_town_errand("store-router", "procurement-decision"):
             if self._claim_family_of(self.last_reason) == "store-router":
                 return self._town_holder_wait_key(
@@ -7586,9 +7575,9 @@ class TownMixin:
     ) -> str:
         """Declare ``key`` as a move of the inn leg to ``destination_town_id``.
 
-        Its continuation (town.teleport.resume) asks the leg again
-        (_town_holder_declared_key), so a held leg moves as the leg would:
-        the travel command where it serves, else the step.
+        Its continuation (town.teleport.resume) asks the leg again, so a
+        held leg moves as the leg would: the travel command where it serves,
+        else the step.
         """
         self._offer_execution(
             key, producer=producer,

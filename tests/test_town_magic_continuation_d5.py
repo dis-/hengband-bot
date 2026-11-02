@@ -204,7 +204,6 @@ class MagicContinuationTest(unittest.TestCase):
 
     def test_enforced_ownership_keeps_magic_ahead_of_projected_next_stop(self):
         policy, snapshot = self.scene()
-        policy._town_claim_bar_enforced = True
         self.assertEqual((policy.choose_key(snapshot), policy.last_reason),
                          ('\x1b', 'town-progress-invariant:continue-observed-shop'))
         visit = policy._store_visit
@@ -214,16 +213,6 @@ class MagicContinuationTest(unittest.TestCase):
                          ('\x1b`n&.', 'shop:travel'))
         self.assertIs(policy._store_visit, visit)
         self.assertIsNone(policy.decision_claim['violation'])
-
-    def test_genuine_posted_operation_context_violation_still_stops(self):
-        policy, snapshot = self.scene(verified=True)
-        policy._town_claim_bar_enforced = True
-        self.assertEqual(policy.choose_key(snapshot), 'pm1\r\r')
-        outside = replace(snapshot, store=None, turn=snapshot.turn + 1,
-                          player=replace(snapshot.player, position=Position(37, 91)))
-        self.assertIsNone(policy.choose_key(outside))
-        self.assertEqual(policy.last_reason, 'ownership:declaration-stale:shop-buy')
-        self.assertTrue(cli._policy_final_stop_required(policy))
 
     def test_prompt_owner_recovery_keeps_matching_staff_confirmation(self):
         policy, snapshot = self.scene(verified=True)

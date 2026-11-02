@@ -42,7 +42,6 @@ def scene(enforced, line=75):
     policy = HengbotPolicy()
     policy.prime(snapshot)
     policy.consume_skill_knowledge(DATA['states']['42'])
-    policy._town_claim_bar_enforced = enforced
     policy._crossarea_fundraising_enforced = True
     policy._in_store_ops_enabled = True
     policy.consume_home_knowledge(tuple(_parse_items(

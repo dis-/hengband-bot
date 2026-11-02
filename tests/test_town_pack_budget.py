@@ -69,7 +69,6 @@ class TownPackBudgetTest(executor_harness.ProductionHarness):
         for index, enforced in ((i, flag) for i in range(3) for flag in (False, True)):
             with self.subTest(capture=index, enforced=enforced):
                 policy, board, raw = self.attached(index)
-                policy._town_claim_bar_enforced = enforced
                 self.assertEqual(self.records[index]["decisions"][-1]["reason"],
                                  "town:blocked:overflow-no-legal-disposal")
                 self.assertEqual(len(board.inventory), 20)

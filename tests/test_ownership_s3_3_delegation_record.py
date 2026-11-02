@@ -48,7 +48,6 @@ class DelegationRecordTest(unittest.TestCase):
     def test_posted_entry_wait_keeps_route_child_until_observation(self):
         decisions = _Decisions()
         policy = decisions.policy
-        policy._town_claim_bar_enforced = True
         policy._decision_sequence += 1
         policy._store_visit = StoreVisit(
             owner="store-router", purpose="approach", store_type=STORE_HOME,
@@ -96,7 +95,6 @@ class DelegationRecordTest(unittest.TestCase):
         decisions = _Decisions()
         held = decisions.decide("home:atomic-deposit")
         policy = decisions.policy
-        policy._town_claim_bar_enforced = True
         policy._store_visit = StoreVisit(
             owner="home-one-shot", purpose="deposit", store_type=STORE_HOME,
             opened_sequence=1, operation_posted=True,
@@ -112,7 +110,6 @@ class DelegationRecordTest(unittest.TestCase):
         decisions = _Decisions()
         held = decisions.decide("home:atomic-deposit")
         policy = decisions.policy
-        policy._town_claim_bar_enforced = True
         policy._map_predicate_snapshot = decisions.board
         owner = policy._claim_errand_hold("__none__")
         self.assertEqual(owner.claim_id, held["claim_id"])
