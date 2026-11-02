@@ -852,6 +852,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "hunt_target.py:route_key": {
+    "classification": "producer",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon-only: hunt_target.observe clears the memory in town and target_race is None at dungeon level 0, so no cell is kept there.",
+    "evidence": "Owner 2026-11-02 「ランダムクエスト討伐対象やガーディアンを討伐するとき、対象が邪悪なら邪悪感知を用いて探す」: walks (_nearest_goal_step, else the nearest exploration frontier closer to it) to the cell a detection last showed the hunted RANDOM/KILL_LEVEL quest target or target-dungeon guardian on; None while a hostile is visible, the character was just hit, a town return runs, or nothing is reachable. Runs after _kill_quest_floor_recovery_key, before the town and exploration rungs.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "immobile_threat_memory.py:step_out_key": {
     "classification": "producer",
     "rows": [

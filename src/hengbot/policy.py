@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, random_quest_hold, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import consumable_policy, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import consumable_policy, hunt_target, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -9961,6 +9961,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         quest_floor_recovery = self._town_producer_entry("_kill_quest_floor_recovery_key", lambda: self._kill_quest_floor_recovery_key(snapshot))
         if quest_floor_recovery is not None:
             return quest_floor_recovery
+        # The hunted quest target or guardian a detection showed (hunt_target).
+        hunt_route = hunt_target.route_key(self, snapshot, physical_hostiles)
+        if hunt_route is not None:
+            return hunt_route
 
         home_disposal = self._town_producer_entry("_home_disposal_processing_key", lambda: self._home_disposal_processing_key(snapshot))
         if home_disposal is not None:
@@ -17393,9 +17397,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return "emergency-material-threat"
         return None
 
-    def _viable_target_guardian_visible(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
-    ) -> bool:
+    def _target_guardian_floor_id(self, snapshot: Snapshot) -> int | None:
+        """The final guardian's race when this is the target dungeon's final floor."""
         info = self._dungeon_knowledge.get(snapshot.floor_key[0])
         if (
             info is None
@@ -17403,9 +17406,19 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             or snapshot.dungeon_level != info.max_depth
             or info.guardian_id <= 0
         ):
+            return None
+        return info.guardian_id
+
+    def _viable_target_guardian_visible(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        guardian_id = self._target_guardian_floor_id(snapshot)
+        if guardian_id is None:
             return False
-        guardians = [m for m in hostiles if m.race_id == info.guardian_id]
-        return len(guardians) == 1 and self._guardian_fight_viable(snapshot, info)
+        guardians = [m for m in hostiles if m.race_id == guardian_id]
+        return len(guardians) == 1 and self._guardian_fight_viable(
+            snapshot, self._dungeon_knowledge[snapshot.floor_key[0]]
+        )
 
 
     def _aggregate_ranged_percentile(
