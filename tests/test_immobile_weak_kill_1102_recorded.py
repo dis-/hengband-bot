@@ -39,6 +39,8 @@ from hengbot.model import Position
 from hengbot.policy_constants import DIRECTION_KEYS
 from tests import test_me_nokey_1031_recorded as nokey
 from tests import test_me_staff_loops_1031_recorded as loops
+from tests.test_magic_eater_o3 import prompt
+from tests.test_me_device_attacks import power_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "immobile-weak-kill-20261102.json.gz"
@@ -50,6 +52,13 @@ SHOOTING_CELL = Position(8, 6)
 FIRST_SIGHT = 1801400  # (15,6): recorded ranged:fire-target fn*t5
 STEPS = {key: offset for offset, key in DIRECTION_KEYS.items()}
 ARROWS = 17
+# The floor's latest Detect Evil (turn 1763801) is 37,539 game turns old, so
+# the first board searches for the Labyrinth guardian again (hunt-redetect-1102,
+# 「1,000ゲームターン」).  DECLARED CONSTRUCTED: the cast's prompts
+# (cmd-magiceat.cpp) and its completion on the following recorded board.
+HUNT_SEARCH = "me-power:hunt-target-unseen:detect-evil"
+HUNT_SEARCH_SCREENS = (prompt("[A] 杖, [B] 魔法棒, [C] ロッド:"),
+                       power_screen("staff", [("p", "邪悪存在感知", 14, 14, 5)]))
 
 
 def recorded():
@@ -99,9 +108,17 @@ class ImmobileWeakKillRecordedTest(nokey.PostedKey):
         """Posted keys from FIRST_SIGHT; DECLARED CONSTRUCTED: each following
         board is the FIRST_SIGHT board with the player moved by the step."""
         index = [raw["turn"] for raw in boards].index(FIRST_SIGHT)
+        completed = None
         for raw in boards[:index]:
+            if completed is not None:
+                raw = dict(raw, _completed_operation_owner=completed)
             key = loops.decide(policy, raw)
-            self.post(policy, raw, key)
+            completed = None
+            if policy.last_reason == HUNT_SEARCH:
+                self.post(policy, raw, key, HUNT_SEARCH_SCREENS)
+                completed = HUNT_SEARCH
+            else:
+                self.post(policy, raw, key)
             policy.confirm_key_posted(key)
         raw = copy.deepcopy(boards[index])
         rows = []

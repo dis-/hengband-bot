@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.shop_purchase_dispatch import next_purchase_key
-from hengbot.equipment_route_handoff import equipment_route_key
+from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
@@ -6014,7 +6014,7 @@ class ShopMixin(InStoreMixin):
         if (
             writer_family != "survival"
             and self._equipment_transaction_owns_town_relocation(snapshot)
-            and self._shopping_approach_store_type != STORE_HOME
+            and refuses_route(self, self._shopping_approach_store_type)
             and self._home_full_relief is None
         ):
             # The owner refusing relocation must execute its own local work;
