@@ -2316,7 +2316,9 @@ class CombatMixin:
                 return stairs
 
             if status_cure.treats(self, snapshot):
-                potion = self._find_status_cure_potion(snapshot)
+                potion = (status_cure.low_hp_heal(self, snapshot, hostiles,
+                                                  observed_loss=observed_loss)
+                          or self._find_status_cure_potion(snapshot))
                 if potion is not None:
                     self.last_reason = (
                         "emergency:cure-critical"
@@ -2359,7 +2361,13 @@ class CombatMixin:
                         self.last_reason = "item:heal"
                         return reserved_item_command(self, snapshot, "quaff", potion)
                 if not player.blind and not player.confused:
-                    scroll = self._escape_scroll(snapshot)
+                    # The guardian reposition needs a real teleport: owner
+                    # 2026-11-02 「そもそもショートテレポートでは十分な距離が
+                    # 稼げないため代替にならない。」 Without one it falls through
+                    # to the rungs below unchanged.
+                    scroll = self._escape_scroll(
+                        snapshot, teleport_only=guardian_reposition
+                    )
                     if scroll is not None:
                         if guardian_reposition:
                             self.last_reason = "guardian:teleport-to-cover"

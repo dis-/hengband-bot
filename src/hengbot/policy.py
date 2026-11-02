@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import blind_strike, lamp_fuel, mining_loadout, random_quest_hold, town_pack_headroom
+from hengbot import blind_strike, lamp_fuel, mining_loadout, random_quest_hold, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
@@ -7989,10 +7989,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Bookkeeping is a separate, higher rung: save and dump may replace
         # the selected key under their safe-filler predicates. The result
         # detector excludes their family from town errand judgement.
+        selected = key
         key = self._periodic_game_save_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
         from hengbot.me_powers_refresh import periodic_magic_eater_powers_key
         key = periodic_magic_eater_powers_key(self, snapshot, key)
+        if key is not selected:
+            # The replaced key is never posted: what its owner waits for
+            # cannot arrive, so its expectation of this decision is withdrawn.
+            self._owner_expectations.withdraw_unposted(self._decision_sequence)
         if key is None:
             def fallback():
                 self.last_reason = (
@@ -9362,7 +9367,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             self._breakout_dig_floor is not None
             and (
                 snapshot.floor_key != self._breakout_dig_floor
-                or self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure") is None
+                or (
+                    self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure") is None
+                    and not walkout_dig.has_route(self, snapshot)
+                )
             )
         ):
             restore = self._town_producer_entry("_breakout_restore_weapon_key#1", lambda: self._breakout_restore_weapon_key(snapshot))
@@ -17118,15 +17126,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Return whether the current character can eat something in the pack."""
         return self._find_edible(snapshot) is not None
 
-    def _escape_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
+    def _escape_scroll(
+        self, snapshot: Snapshot, *, teleport_only: bool = False
+    ) -> InventoryItem | None:
         # Reading needs sight and a clear head (cmd-read.cpp: cmd_limit_blind,
         # cmd_limit_confused refuse the read without using a turn; D31 n1-a
         # life-418 re-posted the refused read until the stalled-command stop).
-        # A full teleport is preferred over a short phase.
+        # A full teleport is preferred over a short phase.  ``teleport_only``
+        # is for a rung that requires a teleport: owner 2026-11-02
+        # 「ショートテレポートはテレポートの代替にならない」.
         player = snapshot.player
         if player.blind or player.confused or not self._can_read_scrolls(snapshot):
             return None
-        return self._find_teleport_scroll(snapshot) or self._find_phase_scroll(snapshot)
+        teleport = self._find_teleport_scroll(snapshot)
+        if teleport is not None or teleport_only:
+            return teleport
+        return self._find_phase_scroll(snapshot)
 
 
     def _consumable_fight_target(

@@ -1,0 +1,120 @@
+LUNA-REPORT n1b-upstairs-1102（n1-b が 25 分で 3 キャラ入れ替わった件）
+
+ブランチ n1b-upstairs-1102（main 90e57f318 から）。push していない。
+証拠: C:\hengband-backups\pdca\captures\n1b-churn-1102\life-29{3,4}-incidents\、
+サーバの ~/hengbot-soak/n1-b/life-29{2,3,4}/（読むだけ）。
+
+
+1. 止まりの一覧と根
+
+  (A) life-294（戦士 Lv8、イークの洞窟 1 階、bot-e7f0e2ff6）loop-detected ×3 → 新キャラ
+      根: 盲目のまま採掘の資金稼ぎが地図の上の仕事を続けた。最近の取り込みによる退行ではない。
+      - 決定 1447（131436 の decision-tail.jsonl）: 移動先 (11,164) でトラップ
+        「黒いガスに包み込まれた！」（trap.cpp TrapType::BLIND、25〜74 ターン）で盲目。
+        致命傷治癒の薬は 0 本（procurement の Cure Critical 0/4）なので status_cure_key は何もしない。
+      - 決定 1454〜1470: 盲目のまま掘る道具を持ち替え、T7 で掘り終えた（「掘り終えた」）後も
+        T7 を 12 回。盲目だと地図が更新されず、もう床になったマスを掘ろうとして
+        cmd-tunnel.cpp の「そこは掘れない。」（ターンを使わない）→ 13:14:36 の
+        stalled-command の停止（cli.py STALLED_COMMAND_STATE_LIMIT）。
+      - 再起動後（131444 の 1441〜1451）: fundraise:upstairs-not-found の '5' のあと
+        probe/seek-upstairs で (11,164) のトラップにまた乗って再び盲目（1452
+        「ガス・トラップが作動…」）。以後 '5' を (11,164) で 40 回 → 13:14:44・13:14:52 の
+        「confined to [(11, 164)] over 40 decisions」（サーバの bot-stderr.log）。
+      - 「fundraise:upstairs-not-found ×20」は上り階段が無いからではない。131452 の
+        remembered-map.txt には '<' がある。盲目で地図が見えないので経路が取れなかっただけ。
+      - 承認済みの決まり「帰還も逃げ手段も無く上り階段が見つからない時は未踏を探索」とは
+        食い違っていない（盲目では探索できない）。town-end-mining-1102・
+        town-mining-dive-yield・shoot-immobile-sleeper・summoner-hold-los・junk-destroy-now
+        のどれも、この経路（policy_fundraising.py の _fundraising_key → 採掘／
+        _leave_fundraising_floor の末尾の WAIT）を変えていない。盲目の時の扱いが元から無かった。
+      直し: d8d55e84b「Rest out blindness before the fundraising floor work」
+      - status_cure.py に wait_for_sight_key を足した。盲目・ダンジョンの中・このターンに
+        殴られていない・見える敵がいない・休める満腹度、のときに REST_MACRO（R&）を返す。
+        R& は is_fully_healthy（盲目も含む、player-processor.cpp）まで休む。
+      - policy_fundraising.py の _fundraising_key の先頭（モードの確認の直後）で呼ぶ。
+        理由は fundraise:wait-sight（FUNDRAISING_WAIT_SIGHT_REASON）。
+      - 生存の処理（薬での治療、見えない敵への反撃、逃走）はこれより前の段で動く。
+        殴られた・敵が見える時は None を返し、今までどおり。
+
+  (B) life-293（戦士 Lv16、イークの洞窟 1 階、bot-1f15e98d1）loop-detected ×2 → 引退 13:07
+      根: クエスト 14 の報告に帰る道（1 階なので WALK_OUT_MAX_DEPTH 以内、帰還の巻物は
+      持っていて温存）で、帰還の持ち主が上り階段の隠し扉を壁で探す
+      return:search-upstairs（壁ごとに SEARCH_LIMIT 回、_wall_search_counts で上限あり、
+      cli の STATIONARY_REASONS で見張りから外してある）を出していたが、
+      policy_quest.py の固定クエストの報告（4498 行付近）がそれを return:wait-recall 以外
+      すべて fixedquest:claim:return に書き換えるため、見張りの例外から外れた。
+      130635 の decision-tail.jsonl 1596〜1632: (5,35)(5,36)(4,37)(3,38) で 's' 8 回と 1 歩を
+      繰り返し、40 決定で 4 マス → 停止。130659 も同じ。
+      退行ではない: 書き換えは 07-19（42af3bca8）、例外は 07-24（d6cd39751）から。
+      今まで帰還の巻物で帰ることが多く、1 階で歩いて上り階段を探す場面がまれだった。
+      直し: a18d0326b「Keep the return's wall-search label under the quest-claim return」
+      - policy_constants.py に RETURN_STATIONARY_REASONS（return:search-upstairs、
+        return:wait-recall）を 1 つ置き、cli の STATIONARY_REASONS はそれを展開、
+        クエストの報告はその集合に入る理由を書き換えない。
+
+  (C) life-292（Lv28、町、bot-1f15e98d1）12:51 owner-retired-burst ×3 → 引退
+      根は (A)(B) と別。town:kill-mob-friendly → town:recover → policy:none-wait '5' が続き、
+      間に town:end-mining-cycle が 1 回入って owner-retired-burst
+      （サーバの life-292/incident-captures/20261102-125123-town-blocked-owner-retired-burst
+      の meta.json の last_reasons、(47,70) で '5'）。町の止まり（D30 か town-end-mining の系統）
+      なのでここでは直していない。
+
+
+2. テスト
+
+  - tests/test_n1b_blind_mining_1102_recorded.py（2 件）
+    フィクスチャ tests/fixtures/n1b-blind-mining-1102.json.gz
+    （tests/extract_n1b_blind_mining_1102_fixture.py）。131436 の turn 144790 の盤面（掘れない）と
+    131452 の turn 145527 の盤面（'5' の待ち）を、その時の記憶の地形とモードで公開の choose_key に
+    通し、R& / fundraise:wait-sight になることと、休憩の問いを本番の executor
+    （_send_decision_key_with_prompt_chain）で送れることを確かめる。
+    戻しの確認: policy_fundraising.py の呼び出しを外すと 2 盤面とも失敗
+    （('4', 'fundraise:seek-upstairs') と ('5', 'fundraise:upstairs-not-found')）。戻して合格。
+  - tests/test_n1b_claim_return_search_1102_recorded.py（2 件）
+    フィクスチャ tests/fixtures/n1b-claim-return-search-1102.json.gz
+    （tests/extract_n1b_claim_return_search_1102_fixture.py）。130635 の turn 205579・205592 の盤面
+    （記録は 's' fixedquest:claim:return）を choose_key に通し、's' return:search-upstairs で
+    _cell_loop_guard_applies が False、本番の executor で 's' を送れることを確かめる。
+    DECLARED RECONSTRUCTED: 逃げの持ち主（return:seek-secret-wall）は policy-state.json の値。
+    戻しの確認: policy_quest.py の直しを外すと 2 盤面とも ('s', 'fixedquest:claim:return') で失敗。
+    戻して合格。
+  - 流したもの: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy"（合格）と
+    上の 2 ファイル（4 件合格）。checks.json・全体テスト・preflight・mutation_check・fast_tier は
+    流していない。期待値を書き換えた既存テストはない。テストの壁はない。
+  - town_work_manifest.py --write: status_cure.py:wait_for_sight_key の review を
+    scripts/town_work_review.json に足して zero unmapped（town_work_sites.json も更新）。
+    (B) の後も zero unmapped で差分なし。
+
+
+3. 保守性
+
+  - 盲目の扱いは盲目の治療の持ち主 status_cure.py に 1 つの短い関数で置いた
+    （治療 → 再盲目の反撃 → 治療できない時の休憩、が同じモジュールにそろう）。
+    資金稼ぎの側は 1 か所で呼ぶだけ。休憩のキーは既存の REST_MACRO。
+  - 帰還の見張り例外の理由を RETURN_STATIONARY_REASONS の 1 つの定数にまとめ、cli の
+    STATIONARY_REASONS とクエストの書き換えの両方がそれを使う。今まで cli とクエストの側で
+    別々に文字列を書いていたのが食い違いの元だった。
+
+
+4. checks.json の案（編集していない）
+
+  {"id": "BLIND-FUNDRAISING-REST",
+   "defect": "2026-11-02 n1-b life-294 イークの洞窟 1 階 採掘中にガスのトラップで盲目・治療薬なし。掘り終えたマスを掘り続け（そこは掘れない、ターンを使わず stalled-command）、再起動後はトラップに乗り直して '5' で待ち続け loop-detected ×3 で新キャラ",
+   "owner": "生存処理を優先しなければキャラクタは死亡する。当然の結果。（盲目で治療できない時は見えるまで休む）",
+   "tests": ["tests.test_n1b_blind_mining_1102_recorded.BlindMiningRecordedTest"]}
+
+  {"id": "QUEST-CLAIM-RETURN-WALL-SEARCH-LABEL",
+   "defect": "2026-11-02 n1-b life-293 イークの洞窟 1 階 クエスト報告の帰り道の壁の探索 return:search-upstairs を fixedquest:claim:return に書き換えて見張りの例外から外れ loop-detected ×2 で引退",
+   "owner": "帰還も逃げ手段も無く上り階段が見つからない時は未踏を探索（2026-10-16）",
+   "tests": ["tests.test_n1b_claim_return_search_1102_recorded.ClaimReturnWallSearchTest"]}
+
+
+5. オーナーへの問い
+
+  (1) 盲目で治療薬が無い時は「見えるまで休む（R&）」にした。これまでも同じ場面で '5' を
+      重ねて待っていたので新しい振る舞いではないつもりだが、休むのは資金稼ぎの持ち主の中だけ。
+      ほかの持ち主（通常の探索・帰還）の盲目も同じに揃えるかは決めていない。
+  (2) (B) では 1 階で歩いて帰る決まり（WALK_OUT_MAX_DEPTH）のため帰還の巻物を持ったまま
+      壁を探し続ける。見張りから外れた後は既存の上限（壁ごとの探索回数・stuck の
+      recall-escape）で終わる設計だが、上り階段が遠い時に長くかかる。今回は変えていない。
+  (3) (C) life-292 の町の owner-retired-burst（policy:none-wait の連続）は別の系統として残した。

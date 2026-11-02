@@ -468,6 +468,9 @@ class LoadoutMetrics:
     secondary_value: float = 0.0
     relevant_traits: frozenset[str] = frozenset()
     evaluation_complete: bool = True
+    # equipment_utility.utility_value: the telepathy / stealth bonus already
+    # folded into combat_margin, kept for the tie-breaks.
+    utility_value: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -1110,6 +1113,7 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
         and lm.combat_margin >= rm.combat_margin
         and lm.speed_bonus >= rm.speed_bonus
         and lm.secondary_value >= rm.secondary_value
+        and lm.utility_value >= rm.utility_value
         and left_traits.issuperset(right_traits)
     )
     strictly_better = (
@@ -1119,6 +1123,7 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
         or lm.combat_margin > rm.combat_margin
         or lm.speed_bonus > rm.speed_bonus
         or lm.secondary_value > rm.secondary_value
+        or lm.utility_value > rm.utility_value
         or left_traits > right_traits
     )
     return no_worse and strictly_better
@@ -1229,6 +1234,7 @@ def _prefer(
         cm.survival_turns == im.survival_turns
         and cm.speed_bonus == im.speed_bonus
         and cm.secondary_value == im.secondary_value
+        and cm.utility_value == im.utility_value
         and cm.relevant_traits == im.relevant_traits
     )
     if same_non_offense:
@@ -1261,6 +1267,8 @@ def _prefer(
             return cm.combat_margin > im.combat_margin
         if cm.secondary_value != im.secondary_value:
             return cm.secondary_value > im.secondary_value
+        if cm.utility_value != im.utility_value:
+            return cm.utility_value > im.utility_value
         if len(candidate.loadout.slots) != len(incumbent.loadout.slots):
             return len(candidate.loadout.slots) > len(incumbent.loadout.slots)
         candidate_is_current = candidate.loadout.item_ids == current_item_ids
@@ -1309,6 +1317,8 @@ def _prefer(
         return False
     if cm.secondary_value != im.secondary_value:
         return cm.secondary_value > im.secondary_value
+    if cm.utility_value != im.utility_value:
+        return cm.utility_value > im.utility_value
     if len(candidate.loadout.slots) != len(incumbent.loadout.slots):
         return len(candidate.loadout.slots) > len(incumbent.loadout.slots)
     candidate_is_current = candidate.loadout.item_ids == current_item_ids
@@ -1481,6 +1491,7 @@ def _stable_operational_best(
         key=lambda entry: (
             entry.metrics.ranged_dps,
             entry.metrics.secondary_value,
+            entry.metrics.utility_value,
             entry.metrics.speed_bonus,
             light_source_quality(entry.loadout),
             loadout_light_radius(entry.loadout),
