@@ -147,5 +147,42 @@ class ConfusedWaitLoopGuardTest(RecordedTownPolicy):
                                                   board.player.position))
 
 
+class FundraisingLootRouteThroughHostilesTest(RecordedTownPolicy):
+    """n1-c life-111 23:15:44 loop-detected at Yeek cave 1F.
+
+    The mining run walked to a floor item at (41,28): ``4`` from (49,37),
+    where nothing was in view, and ``6`` back from (49,36), where a sleeping
+    giant white louse at (43,30) came into view, until the loop detector
+    stopped the bot (decisions 5273-5301).  The grid index drops a visible
+    monster's cell from the walkable floor, and the fundraising loot route
+    did not keep it the way the ordinary loot route does.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.case = _cases()["loot"]
+
+    def test_loot_route_is_the_same_with_the_louse_in_view(self):
+        case = self.case
+        # DECLARED CONSTRUCTED: an empty Home list (dungeon decision; the
+        # capture's last Home row is in an older ring generation).
+        policy = self.primed(case["west"], [], case["skill"])
+        # DECLARED RECONSTRUCTED: the mining run the decisions record
+        # (fundraising.mode mine).
+        policy._fundraising_mode = "mine"
+        west = self.board(policy, case["west"])
+        key = policy.choose_key(west)
+        self.assertEqual((key, policy.last_reason), ("4", "fundraise:seek-loot"))
+        policy.confirm_key_posted(key)
+
+        east = self.board(policy, case["east"])
+        self.assertEqual([(m.position.y, m.position.x, m.asleep) for m in east.visible_monsters],
+                         [(43, 30, True)])
+        key = policy.choose_key(east)
+        # Recorded: '6' fundraise:seek-loot (away from the loot).
+        self.assertEqual((key, policy.last_reason), ("7", "fundraise:seek-loot"))
+        self.assertEqual((policy._loot_target.y, policy._loot_target.x), (41, 28))
+
+
 if __name__ == "__main__":
     unittest.main()
