@@ -16594,15 +16594,16 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _nearest_upstairs(self, snapshot: Snapshot) -> Position | None:
         """Nearest tile known to hold up-stairs, reachable by walking or not."""
+        return next(iter(self._upstairs_by_distance(snapshot)), None)
+
+    def _upstairs_by_distance(self, snapshot: Snapshot) -> list[Position]:
+        """Every tile known to hold up-stairs, nearest first (reachable or not)."""
         start = snapshot.player.position
-        stairs = [
-            grid.position
-            for grid in snapshot.grids.values()
-            if self._is_upstairs_target(grid) and grid.position != start
-        ]
-        if not stairs:
-            return None
-        return min(stairs, key=lambda p: (start.distance_to(p), p.y, p.x))
+        return sorted(
+            (grid.position for grid in snapshot.grids.values()
+             if self._is_upstairs_target(grid) and grid.position != start),
+            key=lambda p: (start.distance_to(p), p.y, p.x),
+        )
 
     def _nearest_remembered_floor(self, snapshot: Snapshot) -> Position | None:
         """Nearest remembered walkable tile other than where we stand — the target to
