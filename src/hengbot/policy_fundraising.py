@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import me_capability, mining_loadout
+from hengbot import me_capability, mining_loadout, status_cure
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
@@ -67,6 +67,8 @@ from hengbot.policy_constants import (
 )
 
 SCAVENGE_RUN_TURN_LIMIT = 10_000
+# A blind income run rests until it sees again (status_cure.wait_for_sight_key).
+FUNDRAISING_WAIT_SIGHT_REASON = "fundraise:wait-sight"
 # Owner decision 2026-10-15: after the 10,000-turn run, return to town promptly. A return that has
 # not found the up staircase this many game turns later reads Recall instead of wandering on
 # (Linux soak 2026-10-15 20:41-22:41: two hours of fundraise:seek-upstairs-wander on Yeek 1F).
@@ -1471,6 +1473,10 @@ class FundraisingMixin:
                 cause="fundraising-mode-inactive",
             )
             return None
+        if (sight := status_cure.wait_for_sight_key(
+                self, snapshot, FUNDRAISING_WAIT_SIGHT_REASON,
+                producer="fundraising")) is not None:
+            return sight
         if self._returning_to_town and snapshot.dungeon_level > 0:
             return self._leave_fundraising_floor(snapshot)
         if (self._fundraising_mode == "scavenge"
