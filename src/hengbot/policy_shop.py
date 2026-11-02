@@ -2918,6 +2918,7 @@ class ShopMixin(InStoreMixin):
                 for status in self._quest_carry_status(snapshot, force).values()
             )
             add(rung("quest:carry", "quest-carry", carry_live, lambda i: self._quest_carry_target_for_item(snapshot, i, force) is not None and (self._quest_carry_target_for_item(snapshot, i, force)[0] != "launcher_ammo" or self._ammo_purchase_preserves_plan(snapshot, i)) and self._quest_carry_target_for_item(snapshot, i, force)[1] < self._quest_carry_target_for_item(snapshot, i, force)[2]))
+            add(rung("quest:damage-ammo", "quest-carry", carry_live, lambda i: i == self._quest_damage_ammo_ware(snapshot, force, snapshot.store)))
             add(rung("quest:speed", "speed", lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED) < me_capability.force_count(self, snapshot, force, "speed_potions"), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED, current=lambda: self._exact_potion_count(snapshot, SV_POTION_SPEED), target=lambda: me_capability.force_count(self, snapshot, force, "speed_potions")))
             add(rung("quest:healing", "healing", lambda: self._strategy_heal_potion_count(snapshot, force) < int(force.get("heal_potions", 0)), lambda i: is_heal_potion_for(i, force), current=lambda: self._strategy_heal_potion_count(snapshot, force), target=lambda: int(force.get("heal_potions", 0))))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
@@ -3872,6 +3873,9 @@ class ShopMixin(InStoreMixin):
             or self._quest_strategy_for_errand_or_floor(snapshot)
         )
         quest_needed = 0
+        damage_ammo = strategy is not None and item == self._quest_damage_ammo_ware(
+            snapshot, strategy.required_force, snapshot.store
+        )
         if strategy is not None:
             target = self._quest_carry_target_for_item(
                 snapshot, item, strategy.required_force
@@ -3911,6 +3915,10 @@ class ShopMixin(InStoreMixin):
         elif item.is_treasure_detection_scroll:
             target = self._mining_detection_stock_target(snapshot)
             needed = target - self._count_treasure_detection_scrolls(snapshot)
+        elif damage_ammo:
+            # The bought stack becomes the plan's power stack, reserved
+            # before the plain stack: buy the whole carry target of it.
+            needed = self._ammo_procurement_target(snapshot, item)
         elif item.is_ammo:
             needed = self._ammo_procurement_target(snapshot, item) - self._count_matching_ammo(snapshot)
         elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
@@ -3949,7 +3957,8 @@ class ShopMixin(InStoreMixin):
             needed = 1
         needed = max(needed, quest_needed)
         launcher = self._equipped_launcher(snapshot)
-        if item.is_ammo and launcher is not None and item.tval == launcher.ammo_tval:
+        if (item.is_ammo and launcher is not None and item.tval == launcher.ammo_tval
+                and not damage_ammo):
             needed = min(needed, self._ammo_procurement_target(snapshot, item)
                          - self._count_matching_ammo(snapshot))
             if needed <= 0:

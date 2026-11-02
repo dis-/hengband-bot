@@ -76,3 +76,34 @@ def ammo_carry_plan(snapshot, launcher, target: int) -> AmmoCarryPlan:
         tuple(reservations),
         target,
     )
+
+
+def power_ammo(snapshot, launcher):
+    """The carried stack the plan ranks highest: the one a shot uses first."""
+    slot = ammo_carry_plan(snapshot, launcher, 1).power_slot
+    return next((item for item in snapshot.inventory if item.slot == slot), None)
+
+
+def damage_ammo_purchase(snapshot, launcher, wares, minimum: float):
+    """The ware whose shot reaches ``minimum`` while the carried best does not.
+
+    Quest force ``launcher.min_average_damage`` (owner 2026-11-02 「矢の購入で
+    条件を満たせるときは買う」).  Measured with the plan's ranking, so a
+    bought stack becomes the plan's power stack.  Store wares are known; an
+    unknown ware's enchantment is unread and never qualifies.
+    """
+    if launcher is None or launcher.ammo_tval is None or minimum <= 0:
+        return None
+    carried = power_ammo(snapshot, launcher)
+    if carried is not None and launcher_average_damage(launcher, carried) >= minimum:
+        return None
+    qualifying = [
+        ware for ware in wares
+        if ware.tval == launcher.ammo_tval and ware.count > 0 and ware.known
+        and launcher_average_damage(launcher, ware) >= minimum
+    ]
+    return max(
+        qualifying,
+        key=lambda ware: (launcher_average_damage(launcher, ware), ware.count),
+        default=None,
+    )

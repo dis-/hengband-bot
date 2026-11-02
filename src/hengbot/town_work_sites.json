@@ -20,7 +20,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ammo_carry.py:damage_ammo_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ammo_carry.py:is_plain_store_ammo": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ammo_carry.py:power_ammo": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -6554,6 +6568,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_quest.py:QuestMixin._quest_carry_target_for_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._quest_damage_ammo_ware": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

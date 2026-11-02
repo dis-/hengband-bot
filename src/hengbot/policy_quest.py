@@ -21,7 +21,9 @@ from enum import Enum
 from typing import Callable, Iterable, Literal
 from pathlib import Path
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
+from hengbot.ammo_carry import (
+    ammo_carry_plan, damage_ammo_purchase, is_plain_store_ammo, power_ammo,
+)
 from hengbot.latch_onset_capture import (
     CAPTURE_DECISIONS_AFTER_ONSET,
     assignment_provenance,
@@ -749,18 +751,10 @@ class QuestMixin(OpeningRouteMixin):
         *,
         require_carried_ammo: bool,
     ) -> float:
-        """Measure the shot the quest executor will fire from its first ammo stack."""
+        """Measure the shot the quest executor fires: the plan's power stack."""
         if launcher is None or launcher.sval not in LAUNCHER_PROPERTIES:
             return 0.0
-        ammo_tval, _energy, _multiplier = LAUNCHER_PROPERTIES[launcher.sval]
-        ammo = next(
-            (
-                candidate
-                for candidate in snapshot.inventory
-                if candidate.tval == ammo_tval and candidate.count > 0
-            ),
-            None,
-        )
+        ammo = power_ammo(snapshot, launcher)
         if ammo is None and require_carried_ammo:
             return 0.0
         return launcher_average_damage(launcher, ammo)
@@ -1011,6 +1005,13 @@ class QuestMixin(OpeningRouteMixin):
             page = snapshot.store
         if page is None:
             return False
+        if (
+            name == "launcher.average_damage"
+            and self._quest_damage_ammo_ware(
+                snapshot, strategy.required_force, page
+            ) is not None
+        ):
+            return True
         expected_target = (
             "launcher" if name.startswith("launcher") else name.partition(".")[2]
         )
@@ -1631,6 +1632,9 @@ class QuestMixin(OpeningRouteMixin):
                         item.letter,
                     ),
                 )
+        damage_ammo = self._quest_damage_ammo_ware(snapshot, force, store)
+        if damage_ammo is not None:
+            return damage_ammo
         for item in store.items:
             if item.price > snapshot.player.gold:
                 continue
@@ -1652,6 +1656,35 @@ class QuestMixin(OpeningRouteMixin):
             if current < required:
                 return item
         return None
+
+    def _quest_damage_ammo_ware(
+        self, snapshot: Snapshot, force: dict, page: StoreState | None
+    ) -> StoreItem | None:
+        """The affordable ``page`` ammo that closes ``launcher.average_damage``.
+
+        It must fit the pack: a free slot or a carried stack it merges into.
+        """
+        launcher = self._equipped_launcher(snapshot)
+        spec = force.get("launcher")
+        if (
+            page is None
+            or not isinstance(spec, dict)
+            or launcher is None
+            or launcher.ammo_tval != self._quest_launcher_ammo(snapshot, force)
+        ):
+            return None
+        pack_full = len(snapshot.inventory) >= PACK_CAPACITY
+        wares = [
+            ware for ware in page.items
+            if ware.price <= snapshot.player.gold
+            and (not pack_full or any(
+                self._store_item_stacks_with_inventory(pack, ware)
+                for pack in snapshot.inventory
+            ))
+        ]
+        return damage_ammo_purchase(
+            snapshot, launcher, wares, float(spec.get("min_average_damage", 0) or 0)
+        )
 
     def _unique_sale_tag(
         self, snapshot: Snapshot, intended: InventoryItem
@@ -1820,7 +1853,8 @@ class QuestMixin(OpeningRouteMixin):
         launcher = self._equipped_launcher(snapshot)
         if launcher is None or launcher.ammo_tval != ammo_tval:
             return None
-        return self._first_item(snapshot, lambda item: item.tval == ammo_tval)
+        # The stack _quest_launcher_average_damage measured fires first.
+        return power_ammo(snapshot, launcher)
 
     @claims(ClaimOwner.QUEST_SWEEP)
     def _q2_ranged_core_key(
