@@ -1,0 +1,88 @@
+LUNA-REPORT mapping-retry-1102（周辺感知の失敗後の再使用）
+
+■ 依頼
+オーナーの報告「一度周辺感知に失敗したらその階では二度と使わないように見える。指定は5回までのリトライ」。
+決まり（オーナー 10-31「最大5回まで同じ場所で試す」）は me_powers.FAILURES_PER_PLACE = 5。
+
+■ 結論
+今の main（ec1f68398、n1-c が動かしている版と同じ）では再現しなかった。失敗した周辺感知は、
+同じ場所で続けて唱え直され、どの階でも成功するまで唱え直している。コードの直しはしていない。
+回帰を防ぐため、記録した盤面のテストを1本足した（失敗→再使用→成功、5回の上限）。
+
+■ 調べたもの（サーバは読むだけ）
+- n1-c life-102・103・106・107 の bot-decisions.jsonl（ローテート分を含む。11-02 03時〜19時14分）。
+  動いていた版は bot-ec1f68398。
+- 手元の n1-c の記録（11-01〜11-02：life-077・083〜086・092・096・098・100〜106 など）。
+- 調べるのに使ったスクリプトと写した記録: C:\hengband-backups\pdca\captures\mapping-retry-1102\
+  scan_fail.py / scan_floor.py / scan_floor_local.py / scan_delta.py / scan_msgs.py / window.py / snapgrid.py / pull_episode.py
+
+■ 数え方と結果
+1) 次の判断の messages に「呪文をうまく唱えられなかった」が出た me-power の詠唱（life-107）:
+   map-area 85回失敗 → 83回はすぐ次の判断で同じ mAj を唱え直した。残りの2回は敵が見えた
+   （次の判断が ranged:fire-target。生存優先の規則どおり）で、戦いの後に唱え直している。
+   life-106: map-area 53回失敗、53回すぐに唱え直し。life-102: 6/6、life-103: 1/1。
+   他の行も同じ仕組みで、detect-traps 62/63、detect-evil 21/21、lite-area 53/56（残りは敵が見えた時）。
+2) 階ごとに周辺感知の結果を並べた（F=失敗、s=それ以外）。life-102〜107 と手元の記録の
+   すべての訪問で、最後の詠唱が F の階は無かった（手元の1件は記録の終わりで切れたもの）。
+   例: FFFs、sFFFss、FsFsFFsFFssssFFFs。失敗の後は必ず唱え直して成功している。
+3) 唱え直しが本当に効いているか: 唱え直しの後、覚えているマスの数は多くの場合数百〜2000増えた
+   （scan_delta.py。例 life-107 の .5 の決定 73: +976、954: +1094）。
+4) 3回続いた例（life-107、鉄獄5F、(61,76)、ゲームの盤面でも確認）:
+   決定 5521 mAj → 「呪文をうまく唱えられなかった！」→ 5522 mAj → 「… <x2>」→ 5523 mAj →
+   メッセージなし（周辺感知の成功はメッセージを出さない。cmd-magiceat.cpp の失敗だけが
+   msg_print する）→ 5524 explore。ゲームのスナップショット（snapshots-20261102-183811）でも
+   942971 のメッセージは空。
+
+■ 見えている振る舞いの理由（推定）
+周辺感知の成功は何もメッセージを出さず、失敗だけ「呪文をうまく唱えられなかった！」が出る。
+同じ失敗が続くとゲームは1行にまとめて「<x2>」と数を増やすだけなので、観戦の画面では
+「失敗が1回出て、その後は使っていない」ように見える。実際は 0.15 秒ほどの間に唱え直して成功している。
+
+■ コードの確認（依頼の仮説ごと）
+- 失敗が「使った」に数えられる: 数えていない。observe() は受領の refusal が "failed" で
+  始まる時は failed[(使った力, 引き金, 場所)] を増やすだけで、uses には足さない。
+- new-floor の引き金: uses_of が空の間ずっと成り立つので、失敗しても次の判断で再び成り立つ。
+  場所を動いても（failed は場所ごと）引き金は残る。
+- stairs-needed-and-unknown の 30 マス: uses（成功だけ）から測るので、失敗は数えない。
+- 失敗の見分け: me_device_attacks_input.advance_device が画面の行の FAILURES を読んで
+  business_outcome = "failed:magic-eater" にする。記録の失敗はすべて見分けられていた。
+- 同じ仕組みの行: me_powers の全行（detect-evil・detect-all・detect-traps・map-area・
+  detect-doors-stairs・lite-area・disarm-trap 3行・teleport-away 2行）が同じ observe/_usable を通る。
+  強力発動（me_powerful_activation）は ATTEMPTS_PER_TARGET = FAILURES_PER_PLACE で同じ上限。
+
+■ 足したテスト
+tests.test_me_mapping_retry_1102_recorded（2件）
+- test_recorded_failures_are_cast_again_until_the_mapping_succeeds:
+  記録の盤面 942940 で mAj → 失敗 → 942948 で再び mAj → 失敗 → 942960 で再び mAj → 成功 →
+  942971 では map-area を唱えない（uses の map-area は1回だけ）。1歩動いた記録の盤面 942984 でも
+  失敗の後の new-floor の mAj が出る（subTest）。
+- test_five_failures_at_the_recorded_place_then_the_next_power:
+  同じ場所で5回失敗したら6回目は唱えない。
+フィクスチャ: tests/fixtures/me-mapping-retry-1102.json.gz（tests/extract_me_mapping_retry_1102_fixture.py）。
+作ったもの（DECLARED CONSTRUCTED）: 取り込んだ杖の一覧（各5回）、先に唱えた邪悪感知・トラップ感知の使用（記録の 5519・5520）、
+ゲームの応答画面、5回の場合の盤面の繰り返し。
+
+■ 検査
+- PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+- 足したテスト: 2件 OK（約10秒）。
+- 直しの取り消しによる確認: 直しが無いので、仮説の不具合（失敗を使ったものとして uses に足す）を
+  observe() に1行入れて流した → 3件失敗（両方のテストと subTest）。元に戻して src に差分なし。
+
+■ 保守性
+src の変更なし。テストは既存の stage2 と mapping-1101 の手順（cast・assertPower・choose・post）を使い回し、
+新しい述語や定数は作っていない。
+
+■ checks.json の案
+{
+  "id": "ME-MAPPING-RETRY-1102",
+  "owner": "2026-11-02 一度周辺感知に失敗したらその階では二度と使わないように見える。指定は5回までのリトライ（調べた結果は唱え直していた・回帰のテストだけ）",
+  "tests": [
+    "tests.test_me_mapping_retry_1102_recorded",
+    "tests.test_me_stage2_powers"
+  ]
+}
+
+■ オーナーへの問い
+- 観戦の画面で「失敗の後に唱え直して成功した」ことが見えないのが誤解のもとと思われる。
+  観戦ページに me-power の唱え直し（例「周辺感知（2回目）」）を出すかは、新しい振る舞いなので決めてもらう必要がある。
+- もし別の場面（時刻・階）で「唱え直さなかった」のを見たなら、その時刻を教えてほしい（今ある記録には無い）。
