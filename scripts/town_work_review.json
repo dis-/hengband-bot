@@ -54,7 +54,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:owner_change": {
+  "town_hold.py:owner_change": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -65,7 +65,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:ClaimRegister._closed": {
+  "town_hold.py:ClaimRegister._closed": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -76,7 +76,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:ClaimRegister.current": {
+  "town_hold.py:ClaimRegister.current": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1822,7 +1822,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:claim_durable_clearance": {
+  "town_hold.py:claim_durable_clearance": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1833,7 +1833,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:claim_reach_arrival": {
+  "town_hold.py:claim_reach_arrival": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3385,7 +3385,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "town_terminal.py:visit_exit_family": {
+  "town_hold.py:visit_exit_family": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -8443,7 +8443,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:hold_claims": {
+  "town_hold.py:hold_claims": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -8454,7 +8454,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:standing_claim": {
+  "town_hold.py:standing_claim": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -8465,7 +8465,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:town_hold": {
+  "town_hold.py:town_hold": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9854,7 +9854,7 @@
     "observer": "terminal refusal confirmation",
     "delegation": "no independent success"
   },
-  "town_terminal.py:claim_family_of": {
+  "town_hold.py:claim_family_of": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9865,7 +9865,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:errand_hold": {
+  "town_hold.py:errand_hold": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

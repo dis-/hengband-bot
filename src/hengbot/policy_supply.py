@@ -39,7 +39,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_types import SupplyStatus, TownMapRoute
 from hengbot.quest_strategies import StrategyProfile
-from hengbot.town_terminal import standing_claim
+from hengbot.town_hold import standing_claim
 
 
 # Decision-row telemetry (cli._capture_decision_facts) evaluates the supply

@@ -4,7 +4,7 @@ from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, status_cure, summoner_wait, town_end_mining
 import json
 
-from hengbot.town_terminal import (
+from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,

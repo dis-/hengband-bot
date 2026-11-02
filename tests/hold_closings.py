@@ -12,7 +12,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from unittest.mock import patch
 
-from hengbot.town_terminal import CLOSING_EVENTS, ClaimRegister
+from hengbot.town_hold import CLOSING_EVENTS, ClaimRegister
 
 
 @contextmanager

@@ -13,7 +13,7 @@ from pathlib import Path
 from dataclasses import replace
 import unittest
 import tests
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.model import parse_snapshot, _parse_items, InventoryItem, STORE_HOME, TVAL_BOTTLE, TVAL_POTION
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.policy import HengbotPolicy
@@ -21,7 +21,7 @@ from unittest.mock import patch
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.home_errand import HomeErrandRequest
-from hengbot.town_terminal import observe_goal as observe
+from hengbot.town_hold import observe_goal as observe
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 import test_home_full_relief_recorded as full_relief
 
@@ -80,7 +80,7 @@ class RecordedHomeFull3Test(unittest.TestCase):
             key = p.choose_key(after)
             self.assertIn('home:atomic-deposit-await-confirmation', p.last_reason)
             self.assertEqual(p._home_atomic_deposit_pending[3], 1)
-            self.assertEqual(town_terminal.standing_claim(p).owner.value, 'home-visit')
+            self.assertEqual(town_hold.standing_claim(p).owner.value, 'home-visit')
             self.assertFalse(p._store_visit.operation_effect_observed)
 
     @_RECORDED_HOME_JUNK_AS_STOCK
@@ -98,7 +98,7 @@ class RecordedHomeFull3Test(unittest.TestCase):
             key = p.choose_key(outside)
             self.assertTrue(key.startswith('5p'), (key, p.last_reason, p.home_route_refusal_state()))
             self.assertEqual(p._shopping_approach_store_type, STORE_HOME)
-            self.assertEqual(town_terminal.standing_claim(p).owner.value, 'home-errand')
+            self.assertEqual(town_hold.standing_claim(p).owner.value, 'home-errand')
             self.assertIsNotNone(p._home_atomic_withdraw_pending)
 
     def test_C_stale_catalogue_has_owner_declared_request_and_wait(self):
@@ -123,12 +123,12 @@ class RecordedHomeFull3Test(unittest.TestCase):
             p._town_hold.claims.declare('home-errand', observe(('home-request',), 8, source='store-operation'), floor=b.floor_key)
             key = p.choose_key(b)
             self.assertTrue(key.startswith('~9'), (key, p.last_reason))
-            self.assertEqual(town_terminal.standing_claim(p).owner.value, 'home-errand')
+            self.assertEqual(town_hold.standing_claim(p).owner.value, 'home-errand')
             p.confirm_key_posted(key)
             delayed = replace(b, turn=b.turn + 1)
             key = p.choose_key(delayed)
             self.assertEqual(key, '5')
-            self.assertEqual(town_terminal.standing_claim(p).owner.value, 'home-errand')
+            self.assertEqual(town_hold.standing_claim(p).owner.value, 'home-errand')
 
 
 class ConstructedDiscardTest(unittest.TestCase):
@@ -240,7 +240,7 @@ class ConstructedDiscardTest(unittest.TestCase):
             self.assertEqual(key[-1], 's')
             self.assertIn(key[0], 'ru')
             identify_command, source_slot = key[:2]
-            self.assertEqual(town_terminal.standing_claim(p).owner.value, 'identification')
+            self.assertEqual(town_hold.standing_claim(p).owner.value, 'identification')
             self.assertIsNone(p._home_atomic_deposit_pending)
             identified = replace(taken, name='Sleep potion', sval=SV_POTION_SLEEP,
                                  aware=True, known=True, fully_known=True)

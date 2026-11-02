@@ -7,17 +7,17 @@ from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
 
-from hengbot.town_terminal import (
+from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
     STORE_OPERATION as CLAIM_STORE_OPERATION,
 )
-from hengbot.town_terminal import claim_family_of as town_claim_family_of
-from hengbot.town_terminal import home_hold_board as town_home_hold_board
-from hengbot.town_terminal import home_sequence_has_holder as town_home_sequence_has_holder
+from hengbot.town_hold import claim_family_of as town_claim_family_of
+from hengbot.town_hold import home_hold_board as town_home_hold_board
+from hengbot.town_hold import home_sequence_has_holder as town_home_sequence_has_holder
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
+from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
@@ -40,7 +40,7 @@ from hengbot.policy_instore import InStoreMixin
 from hengbot import approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
-from hengbot.town_terminal import hold_claims, offered_steps
+from hengbot.town_hold import hold_claims, offered_steps
 from hengbot.purchase_rungs import (
     PurchaseContext,
     PurchaseMatch,

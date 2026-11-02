@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 from tests import test_item_reservation as fixture
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.item_reservation import reservation_shadow, reserved_item_command
 
 
@@ -10,7 +10,7 @@ class DecisionReturnBoundaryTest(unittest.TestCase):
 
     def assert_boundary(self, policy, board, expected):
         events = []
-        advance = town_terminal.advance_hold
+        advance = town_hold.advance_hold
         def write(policy_, snapshot, key):
             events.append(('record', key))
             self.exit_shadow = reservation_shadow(policy_)

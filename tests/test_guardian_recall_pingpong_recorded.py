@@ -80,7 +80,7 @@ from tempfile import TemporaryDirectory
 from dataclasses import replace
 from unittest.mock import patch
 
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import EMPTY_DIVE_LIMIT, POLICY_FINAL_STOP_REASONS
@@ -135,7 +135,7 @@ VALVE = 258  # the decision whose observation lands the third bounce in town
 
 def _bar_record(policy):
     """S2b.2: the bars standing in the town hold after a decision."""
-    return town_terminal.hold_bars(policy)
+    return town_hold.hold_bars(policy)
 # Named change for the r3 terminal pin: every other candidate's recall
 # landing moved onto its own guardian floor (Forest max 32, Mountain max 50,
 # Castle max 65), none of whose guardians the recorded kit can beat.

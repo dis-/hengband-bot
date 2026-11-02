@@ -92,7 +92,7 @@ whose landing is a guardian floor the current kit cannot pass
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.policy import staged_prompt_chain_matches
 import copy
 import base64
@@ -270,7 +270,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
 
     @staticmethod
     def _decide(policy, snapshot, *, live_gate=True):
-        suspended_before = {claim.claim_id for claim in town_terminal.suspended_claims(policy)}
+        suspended_before = {claim.claim_id for claim in town_hold.suspended_claims(policy)}
         if live_gate:
             # DECLARED WALL (live replay): see the module docstring.
             with patch.object(
@@ -281,7 +281,7 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
         else:
             key = policy.choose_key(snapshot)
         telemetry = policy._town_turn_arbiter.telemetry or {}
-        claim = town_terminal.standing_claim(policy)
+        claim = town_hold.standing_claim(policy)
         decided = {
             "key": str(key),
             "reason": policy.last_reason,
@@ -294,15 +294,15 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
             "claim_id": getattr(claim, "claim_id", None),
             "claim_state": getattr(getattr(claim, "state", None), "value", None),
             "claim_distance": (
-                town_terminal.claim_goal_distance(policy, snapshot, claim.goal)
+                town_hold.claim_goal_distance(policy, snapshot, claim.goal)
                 if claim is not None else None
             ),
             "claim": claim,
-            "rung": town_terminal.decision_rung(policy),
+            "rung": town_hold.decision_rung(policy),
             # S2b.1: a preempted claim resumed under its own id on this row
             "claim_resumed": getattr(claim, "claim_id", None) in suspended_before,
             # S2b.2: the bars standing in the town hold
-            "bars": town_terminal.hold_bars(policy),
+            "bars": town_hold.hold_bars(policy),
         }
         policy.confirm_key_posted(key)
         chain = policy.peek_staged_prompt_chain()

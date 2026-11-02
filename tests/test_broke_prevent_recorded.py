@@ -39,7 +39,7 @@ from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.quest_knowledge import load_quest_knowledge, find_quest_definitions
 from hengbot.quest_strategies import load_quest_strategies
-from hengbot.town_terminal import offer_buffer
+from hengbot.town_hold import offer_buffer
 
 FIXTURE = Path(__file__).parent / "fixtures/broke-prevent-20261026.json.gz"
 GAME = Path("C:/hengband")

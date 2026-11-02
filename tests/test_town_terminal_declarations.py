@@ -23,6 +23,7 @@ import unittest
 from pathlib import Path
 
 from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.town_arbiter import owner_families
@@ -99,10 +100,10 @@ class TerminalDeclarationTest(unittest.TestCase):
         # The declarations' rung -> family table agrees with the ladder that
         # sits next to it in town_terminal (structure stage 2 B slice 4).
         for name, decl in TERMINALS.items():
-            rung = town_terminal.rung_named(name)
+            rung = town_hold.rung_named(name)
             self.assertEqual(decl.family, rung.family if rung is not None else "", name)
         self.assertEqual(set(owner_families()) | {"unregistered"},
-                         {rung.family for rung in town_terminal.CLAIM_LADDER})
+                         {rung.family for rung in town_hold.CLAIM_LADDER})
         self.assertEqual(town_terminal.rung_family("_flee_step#1"), "survival")
         self.assertEqual(town_terminal.rung_family("_flee_step#1", "home-visit"), "home-visit")
         self.assertEqual(town_terminal.rung_family("_flee_step#1", "no-such"), "unregistered")

@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hengbot import cli
-from hengbot.town_terminal import reach_goal as reach
+from hengbot.town_hold import reach_goal as reach
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession, observe_equipment_transactions

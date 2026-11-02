@@ -55,7 +55,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from tests.hold_closings import requester_families
-from hengbot import town_terminal
+from hengbot import town_hold
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -187,7 +187,7 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
 
     @staticmethod
     def _execution(policy):
-        execution = getattr(town_terminal.standing_claim(policy), "execution", None)
+        execution = getattr(town_hold.standing_claim(policy), "execution", None)
         if execution is None:
             return None, None
         arguments = execution.arguments

@@ -15,7 +15,7 @@ from hengbot.model import (
 )
 from hengbot.item_reservation import reservation_verdict
 from hengbot.policy import HengbotPolicy, WAIT_KEY
-from hengbot.town_terminal import offered_steps
+from hengbot.town_hold import offered_steps
 from policy_fixtures import grid, item, player
 
 

@@ -377,9 +377,6 @@ from hengbot.policy_constants import (
 )
 from hengbot.town_terminal import (
     NOT_APPLICABLE,
-    # Old checkpoints pickled the delegation records as hengbot.policy's.
-    ExecutionDelegation,
-    TownHold,
     commit_refusal,
     gather_quest_work,
     may_take_board,
@@ -387,13 +384,18 @@ from hengbot.town_terminal import (
     terminal_admission,
     town_end_key,
     verdict_quest_work,
+    rung_family as town_rung_family,
+)
+from hengbot.town_hold import (
+    # Old checkpoints pickled the delegation records as hengbot.policy's.
+    ExecutionDelegation,
+    TownHold,
     claim_family_of as town_claim_family_of,
     errand_hold as town_errand_hold,
     home_catalogue_sequence_enforced as town_home_catalogue_sequence_enforced,
     home_catalogue_work_holder as town_home_catalogue_work_holder,
     home_hold_board as town_home_hold_board,
     home_sequence_has_holder as town_home_sequence_has_holder,
-    rung_family as town_rung_family,
     advance_hold as town_advance_hold,
     hold_claims as town_hold_claims,
     hold_delegations as town_hold_delegations,
@@ -3155,10 +3157,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._town_progress_note_command(key)
         return key
 
-    # -- The producers' side of the town hold (town_terminal) ---------------
+    # -- The producers' side of the town hold (town_hold) -------------------
     #
     # A producer names its goal in the per-decision slots or closes the goal
-    # it drops; ``town_terminal.advance_hold`` reads the slots at the
+    # it drops; ``town_hold.advance_hold`` reads the slots at the
     # ``choose_key`` exit and moves the hold, which later decisions read (the
     # errand hold, the bars, the delegation tokens).  Nothing here returns a
     # value a producer reads.

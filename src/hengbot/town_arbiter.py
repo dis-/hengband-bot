@@ -795,7 +795,7 @@ def reason_owner_family(reason: str) -> str:
 
     This is the **census** answer (``ownership_family``) -- who owns the
     producer -- because that is what every reader of this function wants: the
-    town hold's claims (``town_terminal.claim_family_of``) and the ownership
+    town hold's claims (``town_hold.claim_family_of``) and the ownership
     lint.
     The arbitration answer, which decides budgets and retirement inside town,
     is ``reason_arbitration_family`` below and is unchanged by S2a.
@@ -826,7 +826,7 @@ def owner_families() -> tuple[str, ...]:
 
 
 # --- The owner families as an enum (formerly claim_register) ---------------
-# A claim (``town_terminal``) and a producer's ``@claims`` marker name one of
+# A claim (``town_hold``) and a producer's ``@claims`` marker name one of
 # the families above, so no family is invented and none can drift away from
 # the registrations.
 
@@ -963,7 +963,9 @@ class TownArbiterMixin:
         if visit is not None:
             # A route is its own top-level owner.  The plan stop's later
             # buy/sell is a separate sequential operation, not a route child.
-            from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
+            from hengbot.town_hold import (
+                open_execution_delegation as town_open_execution_delegation,
+            )
             town_open_execution_delegation(
                 self, "store-router", "store-router",
                 ("route", visit.opened_sequence, store_type),
@@ -1237,7 +1239,7 @@ class TownArbiterMixin:
         # it in the per-decision slot, with the family it belongs to (rev 9.2
         # C); nothing selects on it.  The register imports this module's
         # families, so its import is local.
-        from hengbot.town_terminal import observe_goal as claim_observe
+        from hengbot.town_hold import observe_goal as claim_observe
 
         declare = getattr(self, "_declare_expectation", None)
         if declare is not None:
