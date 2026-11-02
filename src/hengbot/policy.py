@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, random_quest_hold, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import consumable_policy, hunt_target, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import consumable_policy, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -9293,6 +9293,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return paralyzer_prevention
 
         if not snapshot.in_town:
+            # Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」:
+            # before any never-moving monster is avoided.
+            immobile_kill = immobile_ranged_kill.key(self, snapshot)
+            if immobile_kill is not None:
+                return immobile_kill
             immobile_summoner = self._town_producer_entry(
                 "_immobile_summoner_key",
                 lambda: self._immobile_summoner_key(snapshot, physical_hostiles),
@@ -18461,7 +18466,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     ) -> bool:
         if monster.distance > HUNT_RANGE:
             return False
-        return self._material_melee_damage(snapshot, monster)
+        # A weak never-moving monster is fought, not retreated from (owner
+        # 2026-11-02, immobile_threat_memory.fought_normally).
+        return (self._material_melee_damage(snapshot, monster)
+                and not immobile_threat_memory.fought_normally(self, snapshot, monster))
 
     def _stuck_escape_permitted(
         self, snapshot: Snapshot, forgetting_maze: bool,
@@ -18528,11 +18536,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         step back, until its own vetoed cells boxed it in).  Empty while
         the player is inside an area: the retreat owns that board.  A
         never-moving monster whose ring already leaves the routes is passed
-        around by the ring alone (immobile_threat_memory)."""
+        around by the ring alone, and one no avoidance applies to is fought
+        (immobile_threat_memory)."""
         player = snapshot.player.position
         cells: set[Position] = set()
         for monster in self._strategic_hostiles(snapshot):
             if (immobile_threat_memory.ringed(self, monster)
+                    or immobile_threat_memory.fought_normally(self, snapshot, monster)
                     or not self._material_melee_damage(snapshot, monster)):
                 continue
             if player.distance_to(monster.position) <= HUNT_RANGE:

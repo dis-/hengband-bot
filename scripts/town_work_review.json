@@ -863,6 +863,28 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "immobile_ranged_kill.py:key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: returns None in town, and immobile_threat_memory.observe clears the remembered never-moving monsters there.",
+    "evidence": "Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」: for the nearest remembered never-moving monster still kept away (a stat-drain or lethal ring, an immobile summoner) with a safe ranged kill (plan), steps toward the shooting cell (immobile-threat:approach-to-shoot) or fires through _ranged_attack_key; None otherwise. Runs after the emergency ladder and paralyzer prevention, before _immobile_summoner_key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "immobile_ranged_kill.py:plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: None in town.",
+    "evidence": "Returns a KillPlan (target, first step or None) or None: the summoner three-shot rule, ammunition, a projectable shooting cell and the contact prediction over walk plus shots below HP; never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "immobile_threat_memory.py:step_out_key": {
     "classification": "producer",
     "rows": [

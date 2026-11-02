@@ -17,6 +17,12 @@ CONSTRUCTED on the first recorded board: a downstairs at (35,191), the one
 cell of the zone, is not a descent target; with a second downstairs at
 (36,169), outside the zone, the ordinary descent walks to that one.
 
+Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」
+(immobile-weak-kill-1102): with its 99 bolts the player kills the 48-HP
+quylthulg within the three-shot rule, so the first recorded board now walks
+to a cell that shoots it (immobile_ranged_kill).  The avoidance boards below
+are DECLARED CONSTRUCTED without the bolts, where it is still avoided.
+
 Every decision is the public ``choose_key`` on the recorded boards in turn
 order.  DECLARED RECONSTRUCTED: the Magic-Eater power uses of this floor
 visit before the ring begins (``floor_powers``, the timeline's rows from the
@@ -64,11 +70,16 @@ def floor_memory():
     return memory
 
 
-def decision_boards():
+BOLTS = 18
+
+
+def decision_boards(*, bolts=False):
     rows = {row["turn"]: row for row in CASE["decisions"]}
     previous = None
     for raw in sorted(CASE["boards"], key=lambda board: board["turn"]):
         raw = copy.deepcopy(raw)
+        if not bolts:  # DECLARED CONSTRUCTED: no safe ranged kill (module docstring)
+            raw["inventory"] = [item for item in raw["inventory"] if item.get("tval") != BOLTS]
         if previous is not None:
             raw["_completed_operation_sequence"] = previous["decision_sequence"]
             raw["_completed_operation_owner"] = previous["reason"]
@@ -90,6 +101,14 @@ def with_downstairs(board, *cells):
 
 
 class SummonerDownstairsRecordedTest(d57.PostedDeathKey):
+
+    def test_recorded_board_shoots_the_killable_summoner(self):
+        raw, _recorded = next(decision_boards(bolts=True))
+        policy = new_policy()
+        key = d57.loops.decide(policy, raw)
+        self.assertEqual(policy.last_reason, "immobile-threat:approach-to-shoot")
+        self.assertEqual(policy._immobile_summoner_memory[1], {})
+        self.post(policy, raw, key)
 
     def test_recorded_avoidance_leaves_by_the_floor_rules(self):
         self.assertEqual({row["reason"] for row in CASE["decisions"]}, {AVOID})

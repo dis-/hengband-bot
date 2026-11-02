@@ -253,12 +253,26 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
                          ("f" + ammo.slot + "6", "ranged:fire"))
 
-    def test_constructed_avoid_even_a_three_shot_finish(self):
+    def test_constructed_three_shot_finish_is_shot_not_avoided(self):
+        # Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」
+        # (immobile-weak-kill-1102): the summoner dies within the three-shot
+        # rule, so it is shot instead of avoided (was summoner:recall).
         _record, recorded = self._recorded(0)
         ammo = next(i for i in recorded.inventory if i.tval == 18)
         board = replace(self._corridor(inventory=[ammo, fixtures.item("r", 70, 11)]),
                         equipment=recorded.equipment)
         board = replace(board, visible_monsters=[replace(board.visible_monsters[0], hp=1)])
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("f" + ammo.slot + "6", "ranged:fire"))
+        self.assertEqual(policy._immobile_summoner_avoid_cells, set())
+
+    def test_constructed_summoner_beyond_three_shots_is_still_avoided(self):
+        # Not a safe ranged kill (1600 HP): avoided as before.
+        _record, recorded = self._recorded(0)
+        ammo = next(i for i in recorded.inventory if i.tval == 18)
+        board = replace(self._corridor(inventory=[ammo, fixtures.item("r", 70, 11)]),
+                        equipment=recorded.equipment)
         policy = self._policy(board)
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
                          ("rr", "summoner:recall"))
