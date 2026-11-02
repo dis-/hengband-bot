@@ -1379,6 +1379,26 @@ def _dangerous_field_pool(
     return [entry for entry in pool if entry.metrics.combat_margin == max_margin]
 
 
+def _within_half_melee(
+    entries: list[EvaluatedLoadout], reference_melee: float,
+) -> list[EvaluatedLoadout]:
+    """The loadouts keeping at least half of ``reference_melee`` (the half-melee limit).
+
+    A zero reference limits nothing.  The depth-band descent applies the limit
+    to every set of a band against the unconstrained best melee, so whether a
+    band is accepted does not depend on which of its sets the operational
+    selector prefers from the worn loadout (n1-c life-105 2026-11-02: a resist
+    body armour below half melee refused band 20 only while the pike was worn,
+    and the pike and the war hammer were swapped forever).
+    """
+    if reference_melee <= 0:
+        return list(entries)
+    return [
+        entry for entry in entries
+        if entry.metrics.expected_dps * 2 >= reference_melee
+    ]
+
+
 def _stable_operational_best(
     evaluated: Iterable[EvaluatedLoadout],
     current_item_ids: frozenset[str],
@@ -1436,9 +1456,9 @@ def _stable_operational_best(
     # Apply the existing half-melee limit within the already requirement-valid
     # field before survival can reward optional resistance coverage. Otherwise
     # a low-DPS tank becomes both the winner and its own melee_free baseline.
-    max_melee = max(entry.metrics.expected_dps for entry in pool)
-    if max_melee > 0:
-        pool = [entry for entry in pool if entry.metrics.expected_dps * 2 >= max_melee]
+    pool = _within_half_melee(
+        pool, max(entry.metrics.expected_dps for entry in pool)
+    )
 
     # Survival-sufficiency gate.  Loadouts that survive at least
     # SUFFICIENT_SURVIVAL_TURNS are all treated as adequately safe, so the DPS
@@ -1655,6 +1675,7 @@ def optimize_loadout(
             evaluated_count -= count
             invalid += count
     evaluated = list(evaluated_by_tier.get(fill_tier, {}).values())
+    operational_pool = evaluated
     chosen_depth = None
     band_decisions: list[BandDecision] = []
     chosen_decision = None
@@ -1678,8 +1699,21 @@ def optimize_loadout(
                     require_light=require_light,
                 )
             ]
+            if not satisfying:
+                band_decisions.append(BandDecision(
+                    band, False, None, melee_free, "no-set", None,
+                ))
+                continue
+            within_melee_limit = _within_half_melee(satisfying, melee_free)
+            if not within_melee_limit:
+                melee = max(entry.metrics.expected_dps for entry in satisfying)
+                band_decisions.append(BandDecision(
+                    band, True, melee, melee_free, "melee-ratio",
+                    melee / melee_free,
+                ))
+                continue
             band_best = _stable_operational_best(
-                satisfying, current_item_ids, launcher_damage,
+                within_melee_limit, current_item_ids, launcher_damage,
                 usable_launcher_ids,
             )
             if band_best is None:
@@ -1689,16 +1723,12 @@ def optimize_loadout(
                 continue
             melee = band_best.metrics.expected_dps
             ratio = None if melee_free == 0 else melee / melee_free
-            if melee_free != 0 and melee * 2 < melee_free:
-                band_decisions.append(BandDecision(
-                    band, True, melee, melee_free, "melee-ratio", ratio,
-                ))
-                continue
             chosen_decision = BandDecision(
                 band, True, melee, melee_free, None, ratio,
             )
             band_decisions.append(chosen_decision)
             evaluated = satisfying
+            operational_pool = within_melee_limit
             chosen_depth = band
             break
     frontier: list[EvaluatedLoadout] = []
@@ -1723,7 +1753,7 @@ def optimize_loadout(
         # storage/disposal; using it here would discard the current loadout for a
         # mathematically positive but operationally insignificant 0.5% gain.
         best = _stable_operational_best(
-            evaluated, current_item_ids, launcher_damage, usable_launcher_ids
+            operational_pool, current_item_ids, launcher_damage, usable_launcher_ids
         )
         if depth is not None and best is not None:
             chosen_depth = divable_depth(

@@ -3295,9 +3295,7 @@ class ShopMixin(InStoreMixin):
                 matches = rung.match(PurchaseContext(snapshot), item)
                 if matches is None or self._purchase_churn_rejected(
                     store.store_type, item
-                ) or me_capability.replaced_by_absorbed(
-                    self, snapshot, item, me_capability.PURCHASE
-                ):
+                ) or self._absorbed_power_refuses_purchase(snapshot, item):
                     continue
                 quantity = self._purchase_quantity(snapshot, item)
                 if quantity < 1 or quantity > item.count:
@@ -3330,6 +3328,22 @@ class ShopMixin(InStoreMixin):
                     match, item, store.store_type, PurchaseContext(snapshot), quantity
                 )
         return None
+
+    def _absorbed_power_refuses_purchase(self, snapshot: Snapshot, item) -> bool:
+        """Class 16: no purchase path, nor the ordinary order, takes this shelf row.
+
+        The pure departure-blocking preflight predicts what ``_shop`` buys on
+        this page, so it refuses every row the ordinary order refuses
+        (me_capability.REPLACES uses PURCHASE, ORDER and CANDIDATE).  With only
+        PURCHASE it required a second Identify staff that the staff sequence
+        alone buys (「2本目は買わない」), and the entry ended on
+        shop-required-operation-uncomposable (n1-c life-106, 2026-11-02).
+        """
+        return any(
+            me_capability.replaced_by_absorbed(self, snapshot, item, use)
+            for use in (me_capability.PURCHASE, me_capability.ORDER,
+                        me_capability.CANDIDATE)
+        )
 
     def _legacy_next_purchase_unreserved(
         self, snapshot: Snapshot, *, excluded_classes=frozenset(),

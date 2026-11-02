@@ -1,0 +1,179 @@
+LUNA-REPORT hourly-1600-1102（n1-c life-105 の引退、life-106 の店の停止と 1 階のループ）
+
+ブランチ hourly-1600-1102（main 9afd9203e から作成）。push していない。
+証拠の写し: C:\hengband-backups\pdca\captures\hourly-1600-1102\
+  （3 つの capture、サーバの incident-captures から meta・policy-state・remembered-map・
+   snapshots-current・decision-tail の末尾、life-105 の character-calibration.json と skill_exp の行、
+   life-106 の最初に残っている skill_exp の行。サーバは読み取りだけ）。
+3 つの停止はすべて bot-9afd9203e。3 つとも別の原因なので、根ごとに 1 コミットにした。
+
+
+1. n1-c life-105 Lv23: 町で loop-detected ×2 → 引退（修正済み 93e749770）
+
+  何が起きたか: 15:35:10（livelock-exhausted の後の navigation exhausted）と 15:38:17（town-residence が
+  1500 回の判断で階が変わらない）に止まった。2 回とも町の自宅で、(防衛者)パイクと
+  ☆ウォー・ハンマー『カンニング』を交互に持ち替えていた（引き出す→外す→構える→預ける、を繰り返す）。
+  キャラの終わりは死亡ではなく引退: life-105/retired に
+  {"rule": "same-stop-twice-in-30-min", "detail": "loop-detected"}（15:41:18）。15:41:26 に life-106 が始まった。
+
+  原因: 深さの帯を下りながら選ぶ処理（equipment_optimizer.py の帯の降下、band_descent）で、
+  帯を受け入れるかの「近接の半分」の確認を、その帯で選ばれた 1 組にだけ当てていた。
+  選ばれる 1 組は今の装備から近い組（_stable_operational_best、今の装備を優先）なので、
+  何を装備しているかで答えが変わった。
+    - ハンマーを装備中: 帯 20 の 1 組はパイク＋今の紙甲。近接 21.03 / 最大 41.38 = 0.508 → 帯 20 を受け入れ、
+      パイクに替える（決定 1411、'5pI'）。
+    - パイクを装備中: 帯 20 の 1 組はパイク＋自宅の全耐性の強化鎖かたびら（命中 -2、毒耐性が増える）。
+      20.17 / 41.38 = 0.487 → 帯 20 を断り、帯 19 でハンマーに替える（決定 1419、'5pJ'）。
+      パイク＋紙甲（21.03）は帯 20 の中にあるのに、それが選ばれなかったので帯ごと断っていた。
+  証拠: bot-decisions.jsonl の 1411 と 1419 の band_descent、サーバの loadout-report.jsonl の末尾
+  （パイク＋鎖かたびら 20.167、命中 6）。録画の盤面に元の方針を当てると、どちらの盤面からも
+  「装備していない方の武器」を引き出す計画になる（記録どおり）。
+
+  直し: 帯の中のすべての組に、今ある「近接の半分」の決まり（最大の近接の半分以上）を先に当て、
+  残った組の中から選ぶ。残る組が無い時だけ帯を断る。新しい規則・閾値は無い（同じ「半分」の決まり）。
+  _stable_operational_best の中でも同じ決まりを使っていたので、1 つの関数 _within_half_melee にまとめた。
+  直した後は、ハンマーを装備中ならパイクに 1 回替え、パイクを装備中なら替えない（耐火の指輪を足すだけ）。
+
+  テスト: tests.test_pike_hammer_swap_1102_recorded（3 件）
+    - test_recorded_withdrawals_flip_band_20: 記録の固定（直す前も後も通る）
+    - test_worn_pike_stays_and_the_hammer_is_not_withdrawn: 欠陥の検査
+    - test_control_worn_hammer_still_takes_the_band_20_pike: 対照（帯 20 のパイクは今まで通り選ぶ）
+    盤面（自宅の中、預けた直後）を公開の choose_key に通し、自宅を出るキーを本番の executor で送る。
+    宣言した復元: ~f の技能の一覧は、同じキャラが停止の turn 1485835 に読み直した行。
+    元に戻した確認（1 回）: src を戻すと test_worn_pike... が失敗
+    （計画が [HAMMER, PIKE, HAMMER, PIKE] の入れ替え）。戻して合格。
+  抽出: tests/extract_pike_hammer_swap_1102_fixture.py → tests/fixtures/pike-hammer-swap-1102.json.gz
+  期待値を確かめた既存のテスト: tests.test_equipment_optimizer の
+    test_depth_descent_retries_the_immediately_shallower_band（帯の降下の単体テスト。直した後も合格、変更なし）。
+
+
+2. n1-c life-106 Lv8: 町 15:49:31 town:blocked:shop-required-operation-uncomposable（修正済み 4c68daa57）
+
+  何が起きたか: 魔法の店（店 5）に入り、杖の順番（me_staff_sequence）が 1 段目の杖を買った
+  （鑑定の杖 13 回分 'pl'、財宝感知の杖 14 回分 'pp'）。続けて謎の魔法棒・解呪の杖を買い、
+  2 つ売った（銘を刻んで売る）。8 回の操作（STORE_STUCK_LIMIT）を使い切った後のページで、
+  出発を止める買い物の事前確認（_departure_blocking_page_operation）が、鑑定の杖（15 回分、行 j）を
+  「まだ必要」と言い、停止した（cause entry-budget）。
+
+  原因: 2 つの判定の食い違い。
+    - 事前確認（policy_shop.py の _departure_blocking_page_purchase_pure）は、計画深度 19 で
+      鑑定の杖の回数が 13 < 20 なので行 j を必要とした。魔道具術師の除外は PURCHASE の用途だけ聞いていた。
+    - 実際に買う _shop（ふつうの買い順）は、Q1 の後は杖の順番だけがこの杖を買う
+      （me_capability.REPLACES の ORDER と CANDIDATE の行、オーナー「2本目は買わない」）ので、行 j を
+      買わない（決定 3534〜3537 の shop_selector は observed-page-nothing-wanted）。
+    買わない物を「必要」と言い続けたので、予算を使い切ったところで止まった。
+  証拠: bot-decisions.jsonl 3529〜3538（3538 の required-page-continuation: row j, 鑑定の杖 (15回分),
+  cause entry-budget）。録画の盤面に元の方針を当てると、同じ停止になる（行 j、entry-budget）。
+
+  直し: 事前確認でも、ふつうの買い順が断る行（PURCHASE・ORDER・CANDIDATE の 3 つの用途）を断る。
+  1 つの関数 _absorbed_power_refuses_purchase（policy_shop.py）にした。魔道具術師以外は何も変わらない
+  （me_capability の行はすべて職業 16 の条件付き）。鑑定の必要は、買った鑑定の杖を取り込めば
+  me_capability の NEED の行で満たされる（新しい振る舞いではない）。
+
+  テスト: tests.test_me_second_identify_staff_1102_recorded（2 件）
+    - test_recorded_entry_ends_on_the_second_identify_staff: 記録の固定
+    - test_entry_at_its_budget_leaves_without_the_second_staff: 欠陥の検査。自宅のページ → 外 →
+      店の 2 枚で録画どおり（'\x1b`n&.' shop:travel、'pl\r'、'pp\r'）、止まったページで
+      ('\x1b', 'shop:in-store-done') になり、本番の executor で店を出るキーを送る。
+    宣言した復元: 杖の順番の記録は停止時の policy-state、~f は life の state.jsonl に残る最初の行
+    （turn 1310445、二刀流・盾の経験 0。減らないので Lv8 でも 0）でレベルだけ盤面に合わせた、
+    計画深度は記録の 19、店の中の操作の数は記録の 8（新しいプロセスは録画の最初の 2 つの買い物を
+    同じに出すが、残り 6 つの持ち主の状態が取り込みに無い）。店を出た後の盤面は作った物。
+    元に戻した確認（1 回）: src を戻すと ('\x1b', 'town:blocked:shop-required-operation-uncomposable')
+    で失敗。戻して合格。
+  抽出: tests/extract_me_second_identify_staff_1102_fixture.py
+    → tests/fixtures/me-second-identify-staff-1102.json.gz
+
+
+3. n1-c life-106 Lv12: ダンジョン（イークの洞窟 1 階）16:18:58 loop-detected（修正済み 137933349）
+
+  何が起きたか: 採掘の資金稼ぎの途中で、白イモムシの大群（弱い増える敵）が増え、階に「抜け出す」の印
+  （_breeder_breakthrough_floor）が付いた。(4,35)〜(6,34) の 6 マスを 40 回の判断のあいだ行き来した。
+  交互に答えた持ち主は 2 つ:
+    - 隣でイモムシが噛む盤面: 生存処理の先取り（survival_preemption.preempts）が資金稼ぎの出口
+      （_finish_mining_floor）を断り、抜け出しの出口（policy_combat.py の _breeder_breakthrough_escape_key）が
+      breeder-breakthrough:seek-frontier で西へ（決定 14061, 14063 の '4'）。
+    - 隣にいない盤面: fundraise:seek-upstairs で東へ（決定 14062 の '6'）。
+
+  原因: 2 つの出口が違う上り階段を目指していた。覚えている上り階段は (27,17)（距離で近い、覚えている地形では
+  つながっていない）と (56,27)（つながっている）。
+    - 資金稼ぎの出口（_nearest_goal_step）は歩いて届く (56,27) へ向かった。
+    - 抜け出しの出口（_breeder_breakthrough_step）は距離で一番近い (27,17) だけを試し、道が無いので
+      未踏の端（frontier）へ、つまり逆向きに歩いた。
+  証拠: bot-decisions.jsonl 14007〜14065、停止時の policy-state の terrain（upstairs [[27,17],[56,27]]）。
+  録画の盤面に元の方針を当てると、イモムシが隣にいる盤面は seek-frontier になる。
+
+  直し: 抜け出しの出口は、覚えている上り階段を近い順に試し、覚えている地形の道が届く最初の階段へ向かう
+  （_upstairs_by_distance を policy.py に足し、_nearest_upstairs はその先頭を返すだけにした。
+  道を探す部分は _breeder_route_step に分けた）。新しい規則は無い（「上り階段へ道を探す」を届く階段に当てた）。
+  直した後は、隣にイモムシがいる盤面も (56,27) へ向かい、道の上の敵は今まで通り clear-escape-path で殴る。
+
+  テスト: tests.test_breeder_reachable_upstairs_1102_recorded（3 件）
+    - test_recorded_exits_alternate: 記録の固定
+    - test_biting_worm_board_walks_to_the_reachable_stairs: 欠陥の検査（記録の 2 枚の盤面で
+      理由が breeder-breakthrough:seek-upstairs／clear-escape-path、歩く先が (56,27) への道の 1 歩、
+      キーを本番の executor で送る）
+    - test_control_fundraising_exit_walks_the_same_way: 対照（資金稼ぎの出口は今まで通り東）
+    宣言した復元: 覚えている地形・印・資金稼ぎの状態は停止時（turn 1007980）の policy-state。各盤面は
+    新しい方針で決める（取り込みに生きていたプロセスの frontier の記憶が無いので、直す前の新しい方針の
+    1 歩は記録の '4' と違うが、答えた出口は理由で分かる）。
+    元に戻した確認（1 回）: src を戻すと 2 枚とも 'breeder-breakthrough:seek-frontier' で失敗。戻して合格。
+  抽出: tests/extract_breeder_reachable_upstairs_1102_fixture.py
+    → tests/fixtures/breeder-reachable-upstairs-1102.json.gz
+  town_work: _breeder_route_step の review を scripts/town_work_review.json に足し（data、同じ書式）、
+  中の route は town_work_rekey.py で付け替えた。town_work_manifest.py --write は zero unmapped。
+
+  残る心配（直していない）: 資金稼ぎの出口にも、行き来を見つけると「一番訪れていない隣のマス」へ 1 歩
+  ずらす処理がある（policy_fundraising.py の oscillation_cells）。記録の 14064・14065 の '4' はこれ。
+  2 つの出口が同じ階段を向くようになったので行き来は起きにくいはずだが、実機で確かめていない。
+
+
+4. 確認
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": 合格（3 つのコミットそれぞれの後）
+  - 追加した 3 つの録画テスト（計 8 件）: 合格。元に戻した確認は各 1 回（上記）。
+  - 既存のテストで流したのは tests.test_equipment_optimizer の帯の降下の 1 件だけ（変更なし、合格）。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - scripts/town_work_manifest.py --write: zero unmapped（3 回とも）。
+  - テストの壁は無い。git stash は使っていない。裏の処理は残していない
+    （サーバで最初に動かした tar の読み取りが切れずに残ったので、自分の PID を指定して止めた）。
+
+  checks.json に足す案（checks.json は編集していない）:
+  {"id": "HOURLY-1600-1102", "owner": "2026-11-02 n1-c life-105/106 の停止（帯の降下の近接の半分・2本目は買わない・届く上り階段）",
+   "tests": ["tests.test_pike_hammer_swap_1102_recorded",
+             "tests.test_me_second_identify_staff_1102_recorded",
+             "tests.test_breeder_reachable_upstairs_1102_recorded"]}
+
+  注意: この 3 つのテストは tests ディレクトリも PYTHONPATH に入れて流す
+  （PYTHONPATH="src;.;tests"。tests.test_esp_threat_rest_recorded が recorded_junk_scope を素の名前で読むため。
+  前からある決まり）。
+
+
+5. 保守性
+
+  - 1: 「近接の半分」の決まりを _within_half_melee の 1 か所にし、帯の降下と運用の選び方の両方で使う
+    （前は 2 か所に同じ式があった）。帯の受け入れは「残る組があるか」だけで決まり、選び方とは分かれた。
+  - 2: 魔道具術師の除外の聞き方を _absorbed_power_refuses_purchase の 1 か所にした。共通の判断のコードに
+    職業・杖の種類の特別扱いは足していない（me_capability の表がそのまま答える）。
+  - 3: 上り階段を近い順に並べる処理を _upstairs_by_distance にまとめ、_nearest_upstairs はその先頭を返す。
+    抜け出しの道探しは _breeder_route_step（1 つの目標への道）に分けた。
+  - 関係ない整理はしていない。me_staff_sequence.py（D35 の担当）は触っていない。
+
+
+6. 並行の担当との関係
+
+  - summoner-avoid-narrow-1102・consumable-policy-1102・structure-s2-3-1102 のどれとも重ならない
+    （召喚の敵、薬・巻物の表、町の請求の状態の移動はどれも関係しなかった）。
+
+
+7. オーナーへの問い
+
+  - 2 について: 鑑定の必要（計画深度 10 以上で 20 回分）は、取り込む前の魔道具術師にも出る。
+    今回の直しで 2 本目は事前確認でも買わなくなったが、出発の判定（_departure_blocking_town_needs）は
+    取り込みまで「鑑定の杖が足りない」と数え続ける。杖の順番が 1 本目を取り込むまでの間に出発しようとすると、
+    出発の判定で止まる可能性がある（今回の記録には出ていない）。取り込み待ちの杖を必要の数に入れるかどうかは
+    オーナーの判断が要る。
+  - 3 について: 「抜け出す」の印が付いた階で、隣で噛む弱い増える敵がいる時、抜け出しの出口は
+    （道を塞いでいなければ）殴らずに歩き続ける（増える敵以外の敵が隣にいる時だけ戦いに譲る）。
+    生存処理を優先するなら、噛まれている間は殴ってから歩くべきかどうか、オーナーの判断が要る
+    （今回は道が届く階段を向くようにしただけで、この順番は変えていない）。

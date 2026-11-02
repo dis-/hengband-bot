@@ -4090,11 +4090,25 @@ class CombatMixin:
     def _breeder_breakthrough_step(
         self, snapshot: Snapshot
     ) -> Position | None:
-        """Route upstairs on remembered terrain, preferring no retreat."""
+        """Route upstairs on remembered terrain, preferring no retreat.
+
+        The nearest remembered up-stairs that the route reaches, nearest by
+        distance first: a nearer one that remembered terrain does not connect
+        is no exit.  Asking only the nearest sent the walk to a frontier away
+        from the reachable stairs the fundraising exit walked to, and the two
+        alternated beside the swarm (n1-c life-106, Yeek cave 1F, 2026-11-02).
+        """
         start = snapshot.player.position
-        goal = self._nearest_upstairs(snapshot)
-        if goal is None:
-            return None
+        for goal in self._upstairs_by_distance(snapshot):
+            step = self._breeder_route_step(snapshot, start, goal)
+            if step is not None:
+                return step
+        return None
+
+    def _breeder_route_step(
+        self, snapshot: Snapshot, start: Position, goal: Position
+    ) -> Position | None:
+        """First step of a remembered-terrain route to ``goal``, preferring no retreat."""
 
         def route(monotone: bool) -> Position | None:
             seen = {start}
