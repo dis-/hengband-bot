@@ -2598,6 +2598,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._borders_unexplored": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._bound_escape_wait": {
     "classification": "producer",
     "rows": [
@@ -3253,6 +3260,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._is_frontier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._is_processable_chest": {
     "classification": "data",
     "rows": [
@@ -3652,6 +3666,13 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy.py:HengbotPolicy._passage_hides_ground": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._pending_disposal": {
     "classification": "data",
@@ -5191,6 +5212,21 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_fundraising.py:FundraisingMixin._dig_route_first_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_fundraising.py:FundraisingMixin._dig_step_key": {
+    "classification": "adapter",
+    "rows": [
+      "fundraising",
+      "departure"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_fundraising.py:FundraisingMixin._dig_to_known_downstairs_key": {
     "classification": "producer",
@@ -9423,6 +9459,34 @@
     "classification": "producer",
     "rows": [
       "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "walkout_dig.py:_frontier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "walkout_dig.py:_plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "walkout_dig.py:diggable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "walkout_dig.py:key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
