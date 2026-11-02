@@ -187,6 +187,14 @@ class DepartureTest(unittest.TestCase):
                 else:
                     policy._town_blocked_reason = cause
                     key = policy._town_blocked_key(board)
+                here = board.grid_at(board.player.position)
+                if here is not None and here.store_number >= 0:
+                    # The Home list (home_catalog_ready) is read before the
+                    # departure judgement: off the store entrance first.
+                    self.assertEqual(policy.last_reason, "town:entrance-step-off:town:end-step-off")
+                    self.assertIn(key, "12346789")
+                    self.assertFalse((Path(root) / "keep-running-events.jsonl").exists())
+                    continue
                 # home_catalog_ready is unmet: no forced departure, one cycle.
                 self.assertEqual((key, policy.last_reason), (WAIT_KEY, town_end_mining.START_REASON))
                 self.assertIsNone(policy._town_blocked_reason)
