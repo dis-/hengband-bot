@@ -633,10 +633,7 @@ class CombatMixin:
             return key
 
         under_fire = self._took_damage or any(
-            self._has_line_of_fire(
-                snapshot, monster.position, snapshot.player.position
-            )
-            and self._predicted_damage(snapshot, [monster], turns=1) > 0
+            self._fire_reaches(snapshot, monster, snapshot.player.position)
             for monster in hostiles
         )
         if not under_fire:
@@ -4245,6 +4242,23 @@ class CombatMixin:
             for monster in visible_monsters
             if monster.hostile and not monster.asleep
         }
+    def _fire_reaches(
+        self, snapshot: Snapshot, monster: MonsterState, cell: Position,
+        *, projectable: bool = False,
+    ) -> bool:
+        """Whether a visible hostile can shoot the player standing on ``cell``.
+
+        This is the survival gate's "under fire" test (a line of fire and a
+        one-turn predicted damage above zero).  ``projectable`` adds the game's
+        own spell gate: a monster casts at the player only when projectable()
+        reaches them (mspell-lite.cpp:209-212 decide_lite_projection,
+        projection-path-calculator.cpp:262-272), ported as ``_may_project``.
+        """
+        reaches = self._has_line_of_fire(snapshot, monster.position, cell) or (
+            projectable and self._may_project(snapshot, monster.position, cell)
+        )
+        return reaches and self._predicted_damage(snapshot, [monster], turns=1) > 0
+
     @staticmethod
     def _has_line_of_fire(snapshot: Snapshot, origin: Position, target: Position) -> bool:
         y0, x0 = origin.y, origin.x

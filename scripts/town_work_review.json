@@ -10369,6 +10369,17 @@
     "observer": "ordinary batch sale observation",
     "delegation": "no independent success"
   },
+  "summoner_wait.py:_leave_shot_hold_point_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Existing dungeon choke wait and stationary summoner avoidance.",
+    "evidence": "dungeon-only: owner 2026-11-02 「撃たれる場所は待つポイントとして不適当なので撃たれない場所で待つ。無理ならテレポート。」 a hold point a visible hostile can shoot (_fire_reaches) is vetoed for the floor visit; steps toward another out-of-fire choke (_validated_choke_route) or reads the existing escape scroll (_escape_scroll / _read_key).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
   "summoner_wait.py:hold_key": {
     "classification": "action",
     "rows": [

@@ -10211,7 +10211,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         "flee", "no-wait:flee", "status-threat:retreat", "threat:reposition",
         "threat:avoid-engagement", "threat:paralyzer-avoid", "summoner:retreat",
         "combat:disengage-step", "melee:choke-reposition",
-        "emergency:seek-upstairs", "emergency:clear-escape-path",
+        "summoner:hold-reposition", "emergency:seek-upstairs", "emergency:clear-escape-path",
         "unseen-recall:move",
     })
 
@@ -11453,7 +11453,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     self._detected_threat_hold_position = player.position
                 if snapshot.turn - hold[1] > DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
                     return None
-            return hold_key(self, snapshot, summoners)
+            hold = hold_key(self, snapshot, summoners)
+            if hold is not None:
+                return hold
 
         # A material threat that cannot be attacked from the current square
         # must not fall through to descent or exploration.  Live on Orc cave
@@ -19186,9 +19188,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return None
 
     def _validated_choke_route(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
+        self, snapshot: Snapshot, hostiles: list[MonsterState],
+        admit: Callable[[Position], bool] | None = None,
     ) -> tuple[Position, Position] | None:
-        """Return a first step and an observed terrain-only openness-2 goal."""
+        """Return a first step and an observed terrain-only openness-2 goal.
+
+        ``admit`` narrows the goals (the summoner hold keeps out of fire)."""
         origin = snapshot.player.position
         origin_distance = min(
             origin.distance_to(monster.position) for monster in hostiles
@@ -19211,6 +19216,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                         for monster in hostiles
                     )
                     >= origin_distance
+                    and (admit is None or admit(position))
                 ):
                     candidates.append(
                         (
