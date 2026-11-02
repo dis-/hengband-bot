@@ -272,13 +272,27 @@ class Live23HomeCycleTest(unittest.TestCase):
             self.assertEqual(shadow["would_stop"], "ownership:gate-missing:home-visit")
 
     def test_digger_withdrawal_is_for_mining_departure_only(self):
-        for enforced, crossarea in ((False, True), (True, False), (False, False)):
+        # The recorded board carries 19 of 23 stacks: the take would leave
+        # fewer than the town's free slots, so the composer refuses it and
+        # no purpose binds it (D30 town pack budget, d63159672).
+        for crossarea in (True, False):
             for mode in (None, "prepare", "mine", "scavenge"):
-                policy, boards = attachment(enforced, crossarea)
+                policy, boards = attachment(crossarea=crossarea)
                 policy._fundraising_mode = mode  # supplemental departure-purpose cases
                 policy = pickle.loads(pickle.dumps(policy))
-                key = policy._queue_standing_home_digger(boards[1])
-                if mode is None and (enforced or crossarea):
+                self.assertEqual(len(boards[1].inventory), 19)
+                self.assertIsNone(policy._queue_standing_home_digger(boards[1]))
+                self.assertIsNone(policy._home_pending_item)
+        # DECLARED CONSTRUCTED: the same board without its last two stacks,
+        # so the pack budget admits the take and the purpose decides.
+        for crossarea in (True, False):
+            for mode in (None, "prepare", "mine", "scavenge"):
+                policy, boards = attachment(crossarea=crossarea)
+                room = replace(boards[1], inventory=boards[1].inventory[:-2])
+                policy._fundraising_mode = mode
+                policy = pickle.loads(pickle.dumps(policy))
+                key = policy._queue_standing_home_digger(room)
+                if mode is None and crossarea:
                     self.assertIsNone(key)
                     self.assertIsNone(policy._home_pending_item)
                 else:
