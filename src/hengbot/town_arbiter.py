@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from collections import Counter
 from typing import Callable, Mapping
 
 from hengbot.latch_onset_capture import assignment_provenance
-from hengbot.emit_ownership import in_flight_clause
 from hengbot.model import Position, Snapshot, STORE_HOME
 from hengbot.policy_constants import (
     CALIBRATION_HOME_VISIT_LIMIT,
@@ -29,6 +29,7 @@ from hengbot.policy_types import (
     OwnerProgressCore,
     StoreVisit,
     StoreVisitPhase,
+    in_flight_clause,
 )
 
 
@@ -42,8 +43,8 @@ RECALL_ACTIVATION_MAX_GAME_TURNS = (
     RECALL_ACTIVATION_MAX_PLAYER_TURNS * HENGBAND_TURNS_PER_TICK
 )
 # The family ``owner_for_reason`` answers for a reason no registration claims.
-# It is a real owner name in every reader (stop_shape.CATCH_ALL_FAMILIES, the
-# decision row's ``arbiter.owner``), so the claim register enumerates it too.
+# It is a real owner name in every reader (the decision row's
+# ``arbiter.owner``), so the owner enum (``ClaimOwner``) enumerates it too.
 UNREGISTERED_FAMILY = "unregistered"
 
 RECALL_WAIT_REASONS = frozenset({
@@ -794,7 +795,8 @@ def reason_owner_family(reason: str) -> str:
 
     This is the **census** answer (``ownership_family``) -- who owns the
     producer -- because that is what every reader of this function wants: the
-    claim ledger, ``stop_shape.producer_identity`` and the ownership lint.
+    town hold's claims (``town_terminal.claim_family_of``) and the ownership
+    lint.
     The arbitration answer, which decides budgets and retirement inside town,
     is ``reason_arbitration_family`` below and is unchanged by S2a.
     """
@@ -823,20 +825,73 @@ def owner_families() -> tuple[str, ...]:
     return tuple(_new_town_turn_arbiter().registry)
 
 
-def owner_family_budgets() -> dict[str, int]:
-    """Each **arbitrating** family's own budget, by name.
+# --- The owner families as an enum (formerly claim_register) ---------------
+# A claim (``town_terminal``) and a producer's ``@claims`` marker name one of
+# the families above, so no family is invented and none can drift away from
+# the registrations.
 
-    These are the budgets the registrations already carry (each one derived
-    from an existing policy constant); nothing new is introduced here.
-    ``UNREGISTERED_FAMILY`` has no registration and therefore no budget, and
-    neither does a census-only family: nothing arbitrates it before S2b, so
-    claiming a budget for it would be an invented number.
+CLAIM_OWNER_ATTRIBUTE = "__hengbot_claim_owner__"
+
+# Family name -> enum member name, without ``str.upper``: no composer in this
+# package may uppercase anything (a pack label selector is case-sensitive and
+# ``tests/test_policy.py`` forbids the call outright), and a table says exactly
+# which characters change.
+_MEMBER_NAME = str.maketrans(
+    "abcdefghijklmnopqrstuvwxyz-", "ABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+)
+
+
+class _ClaimOwnerBase(str, Enum):
+    @classmethod
+    def _missing_(cls, value):
+        # The strip calibration family was retired with its phases.  Old
+        # checkpoints still unpickle; the checkpoint upgrade drops the claim.
+        if value == "calibration":
+            from hengbot.retired_values import retired_member
+            return retired_member(cls, value, "RETIRED_CALIBRATION")
+        return None
+
+
+ClaimOwner = Enum(
+    "ClaimOwner",
+    [
+        (name.translate(_MEMBER_NAME), name)
+        for name in (*owner_families(), UNREGISTERED_FAMILY)
+    ],
+    module=__name__,
+    type=_ClaimOwnerBase,
+    qualname="ClaimOwner",
+)
+ClaimOwner.__doc__ = "An owner family that exists today."
+
+
+def owner_of(family: str | ClaimOwner | None) -> ClaimOwner:
+    """The owner enum for an arbiter family name; unregistered when unknown."""
+    if isinstance(family, ClaimOwner):
+        return family
+    try:
+        return ClaimOwner(family)
+    except ValueError:
+        return ClaimOwner(UNREGISTERED_FAMILY)
+
+
+def claims(owner: str | ClaimOwner, *, census_only: bool = False):
+    """Mark a producer as belonging to one owner family.
+
+    Records the owner on the function and returns the *same* function object
+    (no bytecode change, no runtime cost).  ``_offer_execution`` reads it to
+    name the producer entry of an offer; the lints read the decorator
+    lexically.  Composite dispatchers may declare census ownership without
+    an operational ladder rung: their selected children retain their own entry.
     """
-    return {
-        name: entry.budget
-        for name, entry in _new_town_turn_arbiter().registry.items()
-        if entry.budget is not None
-    }
+    declared = owner_of(owner)
+
+    def mark(producer):
+        attribute = "__hengbot_census_owner__" if census_only else CLAIM_OWNER_ATTRIBUTE
+        setattr(producer, attribute, declared)
+        return producer
+
+    return mark
 
 
 class TownArbiterMixin:
@@ -908,8 +963,9 @@ class TownArbiterMixin:
         if visit is not None:
             # A route is its own top-level owner.  The plan stop's later
             # buy/sell is a separate sequential operation, not a route child.
-            self._open_execution_delegation(
-                "store-router", "store-router",
+            from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
+            town_open_execution_delegation(
+                self, "store-router", "store-router",
                 ("route", visit.opened_sequence, store_type),
                 ("trip", requester, visit.purpose, store_type),
                 "arrived-or-entered", "town-travel-progress-budget",
@@ -1181,7 +1237,7 @@ class TownArbiterMixin:
         # it in the per-decision slot, with the family it belongs to (rev 9.2
         # C); nothing selects on it.  The register imports this module's
         # families, so its import is local.
-        from hengbot.claim_register import observe as claim_observe
+        from hengbot.town_terminal import observe_goal as claim_observe
 
         declare = getattr(self, "_declare_expectation", None)
         if declare is not None:

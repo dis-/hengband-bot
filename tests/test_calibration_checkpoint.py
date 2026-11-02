@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from hengbot import town_terminal
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_calibration import LegacyCalibrationDebtError, refuse_legacy_calibration_debt
@@ -40,7 +41,8 @@ class CalibrationCheckpointTest(unittest.TestCase):
         # Old checkpoints and recordings keep deciding: a retired value
         # unpickles to a pseudo-member that no live member equals, and the
         # shared upgrade drops it.  Nothing raises while restoring.
-        from hengbot.claim_register import Claim, ClaimOwner, Goal
+        from hengbot.town_arbiter import ClaimOwner
+        from hengbot.town_terminal import Claim, Goal
         from hengbot.home_visit import HomeVisitKind, HomeVisitRequest, HomeVisitState
         from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
         from hengbot.retired_values import is_retired
@@ -60,6 +62,8 @@ class CalibrationCheckpointTest(unittest.TestCase):
         register = policy._town_hold.claims
         register._claim = Claim(claim_id=7, owner=family, goal=Goal(kind="Observe"))
         register._ended.append(Claim(claim_id=6, owner=family, goal=Goal(kind="Observe")))
+        # A checkpoint from before structure stage 2 B slice 4 also carried
+        # the decision claim row; the restore adopts it into the hold.
         policy.decision_claim = register._claim
         policy._calibration_phase = "restore-equip"
         policy._calibration_stripped_unrestored = True
@@ -73,7 +77,8 @@ class CalibrationCheckpointTest(unittest.TestCase):
         self.assertIsNone(restored._home_visit.previous_completed_delta)
         self.assertIsNone(restored._town_hold.claims._claim)
         self.assertEqual(restored._town_hold.claims._ended, [])
-        self.assertIsNone(restored.decision_claim)
+        self.assertNotIn("decision_claim", vars(restored))
+        self.assertIsNone(restored._town_hold.last_reason)
         self.assertIsNone(restored._home_atomic_withdraw_pending)
         for name in ("_calibration_phase", "_calibration_stripped_unrestored",
                      "_calibration_restore_signatures"):
@@ -165,7 +170,8 @@ class RestoredCalibrationBoundaryTest(unittest.TestCase):
                 policy._calibration_stripped_unrestored = True
                 if marker == "target":
                     policy._calibration_session_target = session.target_loadout_id
-                policy._open_execution_delegation(
+                town_terminal.open_execution_delegation(
+                    policy,
                     "calibration", "equipment-txn", ("session", "strip"),
                     ("calibration", "strip"), "observed-takeoffs", "budget")
                 restored = restore_checkpoint(HengbotPolicy, checkpoint(policy))

@@ -13,7 +13,9 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
-from hengbot.claim_register import observe, reach
+from tests.hold_closings import recorded_closings
+from hengbot import town_terminal
+from hengbot.town_terminal import observe_goal as observe, reach_goal as reach
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.equipment_optimizer import equipment_move_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
@@ -103,12 +105,12 @@ class Shadow3Test(unittest.TestCase):
                 knowledge = DATA['knowledge']['8826362:state-upto-1740.jsonl.gz:794']['knowledge']
                 policy.consume_home_knowledge(tuple(_parse_items(knowledge['items'], protocol=3)))
                 declare_row(policy, 2444)
-                key = policy.choose_key(snapshot)
+                with recorded_closings() as closings:
+                    key = policy.choose_key(snapshot)
                 self.clean(policy, snapshot, key)
-                self.assertIsNotNone(policy.decision_claim['closed_claim'])
-                self.assertEqual(policy.decision_claim['closed_claim']['closed'], 'complete')
-                self.assertEqual(policy.decision_claim['closed_claim']['closed_reason'],
-                    'random-teleport-suppressed')
+                self.assertTrue(closings)
+                self.assertEqual(closings[-1].closed, 'complete')
+                self.assertEqual(closings[-1].closed_reason, 'random-teleport-suppressed')
                 self.assertFalse(any(c and c.is_open and c.execution and
                     c.execution.work_id == 'suppress-random-teleport'
                     for c in (policy._town_hold.claims.current, *policy._town_hold.claims.suspended)))
@@ -154,7 +156,7 @@ class Shadow3Test(unittest.TestCase):
                 # boundary must leave, with no second sale or empty-key wait.
                 key = policy.choose_key(before)
                 self.assertEqual(key, '\x1b')
-                self.assertEqual(policy.decision_claim['owner'], 'shop-sell')
+                self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'shop-sell')
                 self.assertEqual(policy._town_hold.claims.current.execution.producer, 'shop-sell')
                 self.clean(policy, before, key)
 
@@ -198,11 +200,11 @@ class Shadow3Test(unittest.TestCase):
                 # This control already passes on main: completed sessions
                 # must close before the next Home requester can take over.
                 policy._home_knowledge_invalidated = True
-                key = policy.choose_key(after)
+                with recorded_closings() as closings:
+                    key = policy.choose_key(after)
                 self.assertTrue(session.complete)
                 self.clean(policy, after, key)
-                closed = policy.decision_claim['closed_claim']
-                self.assertEqual(closed['closed_reason'], 'equipment-transaction-complete')
+                self.assertEqual(closings[-1].closed_reason, 'equipment-transaction-complete')
 
     def test_suspended_restoration_public_scan_board(self):
         snapshot = board(2255)
@@ -217,7 +219,7 @@ class Shadow3Test(unittest.TestCase):
                 if enforced:
                     self.assertEqual(policy.last_reason, 'town:restore-combat-weapon')
                     self.assertEqual(key, row(3782)['key'])
-                    self.assertEqual(policy.decision_claim['owner'], 'equipment-txn')
+                    self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'equipment-txn')
 
 
 if __name__ == '__main__':

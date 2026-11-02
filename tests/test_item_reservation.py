@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import patch
 from dataclasses import replace
 import tests  # noqa: F401
+from hengbot import town_terminal
 from hengbot.model import parse_snapshot, StoreState, STORE_WEAPON
 from hengbot.policy import HengbotPolicy
 from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
@@ -21,6 +22,24 @@ from hengbot.item_reservation import (
     item_reserved_by_other, item_available, reservation_decision, reservation_shadow,
     reserved_item_command,
 )
+
+
+def choose_key_with_exit_shadow(policy, board):
+    """``choose_key`` plus the reservation shadow at its exit (the hold advance).
+
+    The decision row that carried ``item_reservation_shadow`` is gone
+    (structure stage 2 B slice 4); the shadow is read where the row read it.
+    """
+    seen = {}
+    advance = town_terminal.advance_hold
+
+    def advance_with_shadow(policy_, snapshot, key):
+        seen['shadow'] = reservation_shadow(policy_)
+        return advance(policy_, snapshot, key)
+
+    with patch('hengbot.policy.town_advance_hold', advance_with_shadow):
+        key = policy.choose_key(board)
+    return key, seen.get('shadow', [])
 
 
 class ItemReservationTest(unittest.TestCase):
@@ -144,13 +163,12 @@ class ItemReservationTest(unittest.TestCase):
                 return '5'
             with patch.object(policy, '_skill_exp_request_key', return_value=None), \
                     patch.object(policy, '_choose_key_with_latch_capture', side_effect=producer):
-                key = policy.choose_key(board)
+                key, shadow = choose_key_with_exit_shadow(policy, board)
             self.assertIsNotNone(key)
             self.assertFalse(policy.last_reason.startswith('ownership:item-reserved:'))
-            self.assertEqual(policy.decision_claim['item_reservation_shadow'][0]['selector_skip'],
+            self.assertEqual(shadow[0]['selector_skip'],
                 'ownership:item-reserved:weight-deposit:equipment-txn')
-            self.assertFalse(any(row.get('would_stop') for row in
-                                 policy.decision_claim['item_reservation_shadow']))
+            self.assertFalse(any(row.get('would_stop') for row in shadow))
 
     def test_off_predicate_exception_is_shadow_and_historical_fallback(self):
         policy, board, target = self.scene()

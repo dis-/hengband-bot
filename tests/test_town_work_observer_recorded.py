@@ -37,7 +37,7 @@ from hengbot import town_work
 from hengbot.latch_onset_capture import restore_checkpoint
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
-from ownership_on_corpus import FIXTURES, MANIFEST, enable_live_switches, read_json, read_rows
+from town_work_corpus import FIXTURES, MANIFEST, enable_live_switches, read_json, read_rows
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_me_town_stops_recorded as me
 from test_town_work_contract import board as constructed_board

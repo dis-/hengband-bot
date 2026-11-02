@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import tests  # noqa: F401 -- isolate runtime files
 from hengbot.model import Position, STORE_HOME, parse_snapshot
 from hengbot.equipment_optimizer import equipment_identity
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, TownErrandPlan
 from test_execution_declaration import short_route_board

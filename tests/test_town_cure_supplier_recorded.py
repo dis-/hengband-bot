@@ -109,6 +109,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from hengbot import town_terminal
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import (
     DUNGEON_YEEK_CAVE,
@@ -256,7 +257,8 @@ class _RecordedProcess(unittest.TestCase):
                 hp=(board.player.hp, board.player.max_hp), food=board.player.food_state,
                 adverse_status=bool(board.player.poisoned or board.player.cut
                                     or board.player.confused or board.player.blind),
-                claim=copy.deepcopy(policy.decision_claim))
+                claim=town_terminal.standing_claim(policy),
+                rung=town_terminal.decision_rung(policy))
 
         for index in range(CHECKPOINT + 1):
             key, reason, board = cls._step(
@@ -393,19 +395,19 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
                          ("~9\x1b", "home-errand:request-knowledge:identification"))
         boundary = dict(self.home_knowledge_boundary)
         claim = boundary.pop("claim")
+        rung = boundary.pop("rung")
         self.assertEqual(boundary, dict(
             turn=6453654, needs_knowledge=True, purpose="identification",
             knowledge_current=False, deposit_pending=False, withdraw_pending=False,
             physical_hostiles=False, hp=(731, 731), food="normal", adverse_status=False))
-        self.assertEqual((claim["owner"], claim["goal"]["kind"], claim["goal"]["source"]),
+        self.assertEqual((claim.owner.value, claim.goal.kind, claim.goal.source),
                          ("home-errand", "Observe", "knowledge"))
-        self.assertEqual(claim["rung"], "_home_errand_knowledge_key")
-        execution = claim["execution"]
-        self.assertEqual((execution["producer"], execution["next_step"],
-                          execution["expected_effect"], execution["continuation"]),
+        self.assertEqual(rung, "_home_errand_knowledge_key")
+        execution = claim.execution
+        self.assertEqual((execution.producer, execution.next_step,
+                          execution.expected_effect, execution.continuation),
                          ("home-errand", "home.knowledge.request",
                           "catalogue-adopted", "home.knowledge.observe"))
-        self.assertIsNone(claim["violation"])
 
     def test_recorded_stay_ends_without_an_owner(self):
         self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS[STORE_ALCHEMIST], "%")

@@ -14,16 +14,26 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
-from hengbot.claim_register import observe
-from hengbot.emit_ownership import in_flight_clause
+from hengbot import town_terminal
+from hengbot.town_terminal import observe_goal as observe
+from hengbot.policy_types import in_flight_clause
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest
-from hengbot.model import parse_snapshot, STORE_HOME, Position
+from hengbot.model import parse_snapshot, STORE_HOME, Position, Snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
-from policy_fixtures import grid
-from test_s33_batch_admission import corridor
+from policy_fixtures import grid, player
 from equipment_session_pins import captured_session
+
+
+def corridor():
+    """A town corridor board (formerly test_s33_batch_admission's)."""
+    return Snapshot(
+        player=player(10, 10),
+        grids={Position(10, x): grid(10, x) for x in range(9, 16)},
+        visible_monsters=[], detected_monsters=[], turn=100,
+        floor_key=(0, 0, 0), town_flag=True, town_id=0,
+    )
 
 FIXTURE = Path(__file__).parent / "fixtures/home-route-release-20261003.json.gz"
 
@@ -103,7 +113,6 @@ class HomeRouteReleaseTest(unittest.TestCase):
             key = policy.choose_key(board)
             self.assertEqual(key, "5")
             self.assertEqual(policy.last_reason, "home:atomic-deposit-await-confirmation")
-            self.assertIsNone(policy.decision_claim["violation"])
             self.assertEqual(policy._home_atomic_deposit_pending[3], count)
             self.assertEqual(in_flight_clause(old_visit),
                              "operation-released-effect-not-observed")

@@ -4,12 +4,13 @@ from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
 from hengbot import dark_recall, immobile_threat_memory, mapped_area, me_powers, unseen_strike
-from hengbot.claim_goal_typing import (
+from hengbot.town_terminal import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_terminal import claim_family_of as town_claim_family_of
+from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.policy_constants import (
     BARREN_FLOOR_SKIP_THRESHOLD,
@@ -279,7 +280,7 @@ class NavigationMixin:
             snapshot, "stair-command", "turn", "floor", "position"
         )
         self._offer_execution(
-            key, producer=self._claim_family_of(self.last_reason),
+            key, producer=town_claim_family_of(self, self.last_reason),
             work_id=(f"stair:{direction}:{snapshot.floor_key}:"
                      f"{position.y},{position.x}"),
             next_step="stair.post",

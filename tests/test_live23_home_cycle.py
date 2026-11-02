@@ -10,11 +10,12 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
 import tests  # noqa: F401 -- protect live runtime files
+from hengbot import town_terminal
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_HOME, Position, parse_snapshot
 from hengbot.cli import _dispatch_response_lines
 from hengbot.policy import HengbotPolicy
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 
 FIXTURE = Path(__file__).parent / "fixtures/live23-home-cycle"
@@ -112,7 +113,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                     key = policy.choose_key(boards[0])
                     self.assertEqual((key, policy.last_reason), (
                         "", "equipment-transaction:catalogue-await-knowledge"))
-                    self.assertEqual(policy.decision_claim["claim_id"], holder_id)
+                    self.assertEqual(town_terminal.standing_claim(policy).claim_id, holder_id)
                     self.assertTrue(policy._home_knowledge_scan_inflight)
                     # The old page/entry response belonged to a posted Home
                     # walk. Its adoption controls remain independently
@@ -172,7 +173,7 @@ class Live23HomeCycleTest(unittest.TestCase):
         waiting_policy._offer_home_knowledge_request(producer="home-scan")
         waiting_policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
         request_epoch = waiting_policy._home_knowledge_scan_epoch
-        self.assertIsNone(waiting_policy._home_catalogue_work_holder())
+        self.assertIsNone(town_terminal.home_catalogue_work_holder(waiting_policy))
 
         key = waiting_policy.choose_key(waiting_outside)
         self.assertEqual((key, waiting_policy.last_reason), (
@@ -249,7 +250,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                 self.assertIsNone(policy._home_catalogue_work_key(board))
                 self.assertEqual(policy.last_reason, reason)
                 self.assertFalse(policy._home_knowledge_scan_inflight)
-                self.assertIsNone(policy._home_catalogue_work_holder())
+                self.assertIsNone(town_terminal.home_catalogue_work_holder(policy))
 
     def test_digger_withdrawal_is_for_mining_departure_only(self):
         # The recorded board carries 19 of 23 stacks: the take would leave
@@ -320,10 +321,9 @@ class Live23HomeCycleTest(unittest.TestCase):
                         self.assertEqual((key, policy.last_reason), (
                             HOME_KNOWLEDGE_MACRO,
                             "equipment-transaction:catalogue-request-knowledge"))
-                        self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+                        self.assertEqual(town_terminal.standing_claim(policy).owner.value, "equipment-txn")
                         holder_id = policy._town_hold.claims.current.claim_id
-                        self.assertEqual(policy.decision_claim["claim_id"], holder_id)
-                        self.assertIsNone(policy.decision_claim["violation"])
+                        self.assertEqual(town_terminal.standing_claim(policy).claim_id, holder_id)
                         self.assertEqual(policy._town_hold.claims.current.execution.work_id,
                                          "equipment:acquire-home-catalog")
                         self.assertEqual(policy._town_hold.claims.current.execution.continuation,
@@ -356,7 +356,7 @@ class Live23HomeCycleTest(unittest.TestCase):
             self.assertEqual(policy.last_reason,
                              "equipment-transaction:catalogue-request-knowledge")
             self.assertFalse(policy._home_knowledge_current)
-            policy._record_decision_claim(partial, HOME_KNOWLEDGE_MACRO)
+            town_terminal.advance_hold(policy, partial, HOME_KNOWLEDGE_MACRO)
             self.assertEqual(policy._town_hold.claims.current.claim_id, holder.claim_id)
             policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
             policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))

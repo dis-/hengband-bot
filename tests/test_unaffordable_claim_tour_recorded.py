@@ -148,125 +148,6 @@ def _recorded_reserve_wall():
         HengbotPolicy, "_full_departure_resupply_reserve",
         _recorded_shortage_reserve,
     )
-# S2a.1 closure pins (list indices 0-4266): the Observe completions by the
-# confirmation site that recorded them, and how selected owners' Reach /
-# Observe claims ended (ownership_metrics.gate_numbers, item (c)).
-S2A1_OBSERVE_COMPLETE_LABELS = {
-    "purchase-observed": 18,
-    # R4: two deposits belong to their equipment transaction's continuing
-    # claim, so the Home-visit completion label falls from eight to six.
-    "home-deposit-observed": 6,
-    "sale-observed": 3,
-    "home-withdraw-observed": 3,
-    # stairs and recall: Observe(floor change), completed on the floor key
-    "floor-changed": 10,
-    # S3a R2: narrowing the home: catch-all makes the three non-operation
-    # Home keys Terminal, so they no longer open generic Observe claims.
-    # Ruling (c') gives knowledge requests their own Observe source. The
-    # suspended requests now complete when the Home catalogue becomes current,
-    # adding three completions to main's eight on this replay.
-    "home-knowledge-current": 11,
-    "entered-store": 5,
-    # R5: the completion recorder now closes the two sessions attributed to
-    # calibration (tour 3018 and 3032), rather than leaving their claims open.
-    "equipment-transaction-complete": 7,
-    # The live sender commits each posted prompt tail; the replay now does so.
-    "staged-tail-posted": 19,
-}
-# Rev 9.3 (R2): Reach claims completed on the very next row (1355 before the
-# round; the shelter walk now declares the store, not its first step), and
-# the reasons whose walks rev 9.3 moved to their far target.
-# S3.0: equipment-transaction Home approaches continue the session's
-# Observe claim, and entry/recall continuations close on their own evidence.
-# R4: row 2648's entrance-step-off:equipment-transaction:home-route-unavailable
-# keeps the standing transaction Observe claim; base counted its one-step Reach
-# as complete on the next row. The other 1,347 rows are identical.
-# ddebaf64: the catalogue claim at 2657 is Observe, completed on adoption,
-# rather than Reach completed at entry. Accepted by Claude live26 RULING,
-# 2026-10-01 09:10; the 2658 owner change remains forbidden.
-S2A1_NEXT_ROW_COMPLETE = 1346
-S2A1_FAR_TARGET_REASONS = frozenset({
-    "return:seek-upstairs", "livelock:seek-upstairs",
-    "combat:disengage-seek-upstairs", "fundraise:seek-upstairs",
-    "mana-food:seek-device", "survival:seek-exit", "town:seek-shelter",
-    "stuck:seek-stairs", "fixedquest:seek-exit", "fixedquest:reward-approach",
-    "quest-strategy:approach-final-target", "town:rumor",
-    "esp-threat:hunt-strong", "emergency:seek-upstairs", "chest:approach",
-    "paralyzer-guard:approach-range", "seek-secret-wall",
-    "return:seek-secret-wall", "bounty:approach",
-    "town:morivant-full-identify:library", "fundraise:sweep-explore",
-})
-# Re-pinned by rev 9.2 (owner-stamped slots, the read-only satisfaction test,
-# every Reach reason site writing its slot); round 1 read 18 / 8,1,7 / 67,3 /
-# 10,1 and no equipment-txn completion. S3.0 records one Home or equipment
-# operation across its step keys, completes five finished equipment sessions,
-# and keeps recall step-offs under the floor-change claim.
-S2A1_ENDINGS = {
-    "shop-buy/Observe": {"complete": 18, "open-at-end": 1},
-    # R3: the three Home deposits keep their claim through the leave key;
-    # their outside boards never confirm an inventory effect, so visit close
-    # expires them as completed-unobserved instead of abandoning them.
-    # R4: transaction-composed Home operations keep equipment ownership;
-    # completed equipment claims also continue across their Home effects.
-    # R6: three calibration restore deposits at 2998-3003 now record the
-    # calibration operation family, so they leave Home visit's completions.
-    "home-visit/Observe": {"complete": 2, "release": 0,
-                           "expired": 3, "abandoned": 0},
-    # live26 (2026-10-01, Claude ruling): the Home catalogue claim at 2657 is
-    # an Observe that now completes on the adopted catalogue (ddebaf64,
-    # 8c7bbd71) instead of being displaced by a home-scan at 2658.
-    "equipment-txn/Observe": {"complete": 7, "abandoned": 0},
-    # Round 4 (F2): one-step walks (chest step-offs; avoid-engagement and
-    # paralyzer-avoid steps) are counted apart; the totals are unchanged
-    # (floor-loot 70 complete, positioning 15 complete).
-    # S2b.1 (design rev 10.1 items 5 and 7): the three walks combat took
-    # over are now suspended, resumed under their own ids and completed, and
-    # (c) counts one final ending per id -- 68 complete, none abandoned.
-    "floor-loot/Reach": {"complete": 68, "abandoned": 0},
-    "floor-loot/Reach:one-step": {"complete": 2},
-    "positioning/Reach": {"complete": 10, "release": 1},
-    "positioning/Reach:one-step": {"complete": 5},
-    "departure/Reach": {"complete": 2},
-    # R4 wrapper attribution records these step-offs under the inner owner.
-    "departure/Reach:one-step": {"complete": 0},
-}
-# R4 (USER DECISION 2026-10-01: the strip calibration is replaced by the
-# equipped C-sheet read).  The S2a.1 and S3 measurements end before list
-# index 2999 (decision 2996), the first strip-calibration decision: the base
-# code armed the strip deposit phase on that Home trip, and 3000-3050 are the
-# deposit-all, takeoffs, naked capture, re-equip and supply restores.  The
-# three full-lifetime tables above are the base (3e153bc1) values, kept for
-# the record; the tables below are the same measurements before the strip.
-# Every claim row before 2999 equals the base row except the declared rework
-# divergence DUMP_REQUEST: the stale frozen calibration turns that safe
-# ``explore`` step into the equipped dump request ``periodic:character-dump``,
-# which removes the one explore Reach the base completed on the next row.
-STRIP_START = 2999
-DUMP_REQUEST = 2810  # decision 2808
-S2A1_OBSERVE_COMPLETE_LABELS_BEFORE_STRIP = {
-    "purchase-observed": 8,
-    "sale-observed": 3,
-    "floor-changed": 8,
-    "home-knowledge-current": 5,
-    "entered-store": 5,
-    "equipment-transaction-complete": 3,
-    "staged-tail-posted": 15,
-}
-S2A1_NEXT_ROW_COMPLETE_BEFORE_STRIP = 980  # base prefix 981 (DUMP_REQUEST)
-S2A1_ENDINGS_BEFORE_STRIP = {
-    "shop-buy/Observe": {"complete": 8, "open-at-end": 0},
-    "home-visit/Observe": {"complete": 0, "release": 0,
-                           "expired": 3, "abandoned": 0},
-    "equipment-txn/Observe": {"complete": 4, "abandoned": 0},
-    "floor-loot/Reach": {"complete": 37, "abandoned": 0},
-    "floor-loot/Reach:one-step": {"complete": 2},
-    "positioning/Reach": {"complete": 7, "release": 0},
-    "positioning/Reach:one-step": {"complete": 0},
-    "departure/Reach": {"complete": 2},
-    "departure/Reach:one-step": {"complete": 0},
-}
-
-
 def _live_like_policy(directory: Path) -> tuple[HengbotPolicy, dict]:
     monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
     town_maps = {}
@@ -318,20 +199,6 @@ def _recorded_process_capture(policy: HengbotPolicy, snapshot) -> None:
     _capture_decision_facts_unchecked(policy.with_known_skill_exp(snapshot), policy)
 
 
-def _claim_row(policy: HengbotPolicy, snapshot, key, index: int) -> dict:
-    """The claim ledger row of one replayed decision (S2a.1 closure pins)."""
-    claim = dict(policy.decision_claim or {})
-    claim.update(
-        kind="claim",
-        session="tour",
-        reason=policy.last_reason,
-        key=None if key is None else str(key),
-        position={"y": snapshot.player.position.y, "x": snapshot.player.position.x},
-        index=index,
-    )
-    return claim
-
-
 def _independent_copy(policy: HengbotPolicy) -> HengbotPolicy:
     """Deep copy whose cached NeedSpec closures are rebuilt on the copy.
 
@@ -345,53 +212,7 @@ def _independent_copy(policy: HengbotPolicy) -> HengbotPolicy:
 
 class UnaffordableClaimTourRecordedTest(unittest.TestCase):
     replay = None
-    claim_rows = None
 
-    def test_s3_new_code_replay_names_remaining_violations(self):
-        self._replay()
-        # R4 boundary (see STRIP_START): the base strip session's Home trip.
-        strip = self.claim_rows[STRIP_START]
-        self.assertEqual(
-            (strip["decision_sequence"], strip["key"], strip["reason"]),
-            (2996, "\x1b`n(.", "shop:travel"),
-        )
-        dump = self.claim_rows[DUMP_REQUEST]
-        self.assertEqual(
-            (dump["decision_sequence"], dump["key"], dump["reason"]),
-            (2808, "Cf\ry\x1b\x1b", "periodic:character-dump"),
-        )
-        actual = [
-            (row["decision_sequence"], v["kind"], v["from"], v["to"])
-            for row in self.claim_rows[:STRIP_START]
-            if isinstance(v := row.get("violation"), dict)
-            and v.get("scope") == "S3"
-        ]
-        # Base 7df0fb0d had 11 owner changes; base 3e153bc1 named four over
-        # the whole lifetime: 2701 (store-router -> home-scan), the strip
-        # session's 3035 retarget and 3037 contention, and 3052 after it.
-        # R4: only the one before the strip boundary is measured here.
-        self.assertEqual(actual, [
-            (2701, "owner-change", "store-router", "home-scan"),
-        ])
-
-    @classmethod
-    def setUpClass(cls):
-        assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == FIXTURE_SHA256
-        boundaries_path = FIXTURE.with_suffix(".boundaries.json")
-        assert hashlib.sha256(boundaries_path.read_bytes()).hexdigest() == (
-            BOUNDARIES_SHA256
-        )
-        assert hashlib.sha256(CALIBRATION.read_bytes()).hexdigest() == (
-            CALIBRATION_SHA256
-        )
-        cls.boundaries = json.loads(boundaries_path.read_text(encoding="utf-8"))
-        with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
-            cls.lines = list(stream)
-        assert len(cls.lines) == sum(cls.boundaries["input_rows"])
-
-    # The ratio rule's choice on this board (Home trip for 殺戮の野太刀) is
-    # pinned in tests/test_margin_ratio_tour_divergence_recorded.py.
-    @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
     def test_s0_replay_stops_at_first_changed_equipment_choice(self):
         """Recorded boards are authoritative only until the first changed key."""
         with TemporaryDirectory() as raw_directory:
@@ -445,8 +266,6 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
             directory = Path(raw_directory)
             policy, monrace = _live_like_policy(directory)
             decisions = {}
-            claim_rows = []
-            cls.claim_rows = claim_rows
             cursor = 0
             snapshot = None
             for index in range(AFTER_PURCHASES + 1):
@@ -514,7 +333,6 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
                     key = policy.choose_key(snapshot)
                 key = policy.validate_read_key(snapshot, key)
                 decisions[index] = (str(key), policy.last_reason)
-                claim_rows.append(_claim_row(policy, snapshot, key, index))
                 # S2a.1: the claim register is kept out of the unscoped
                 # capture, as the live driver's observer scope now does; no
                 # decision reads the register, so the recorded decisions
@@ -693,103 +511,6 @@ class UnaffordableClaimTourRecordedTest(unittest.TestCase):
         self.assertIn("teleport_ready", poor["departure_block_failed"])
         self.assertNotEqual(poor["decision"][1], "town:character-dump")
         self.assertFalse(poor["decision"][1].startswith("town:recall-to-"))
-
-    def test_s2a1_observe_goals_complete_on_their_confirmed_effect(self):
-        """S2a.1 (design rev 9.1 item 3, acceptance ii) on this lifetime.
-
-        It is the one recorded lifetime in the fixtures with confirmed store
-        effects of every kind: purchases, sales, Home deposits and Home
-        withdrawals, besides the dungeon's loot and choke walks.  Each
-        confirmed effect completes the store owner's ``Observe`` claim at its
-        own confirmation site; the loot and choke ``Reach`` claims complete on
-        arrival or are released where their producer drops them.  The pins
-        of the same design item on the two captures it names are in
-        tests/test_ownership_s2a1_closure.py.
-        """
-        from hengbot.ownership_metrics import gate_numbers
-
-        self._replay()
-        self.assertEqual(len(self.claim_rows), AFTER_PURCHASES)
-        # R4 (see STRIP_START): measure before the first strip decision.
-        rows = self.claim_rows[:STRIP_START]
-        self.assertEqual(rows[DUMP_REQUEST]["reason"], "periodic:character-dump")
-        labels: dict[str, int] = {}
-        for row in rows:
-            closed = row.get("closed_claim") or {}
-            if (
-                closed.get("goal_kind") == "Observe"
-                and closed.get("closed") == "complete"
-            ):
-                label = closed["closed_reason"]
-                labels[label] = labels.get(label, 0) + 1
-        self.assertEqual(labels, S2A1_OBSERVE_COMPLETE_LABELS_BEFORE_STRIP)
-        # S3.0/S3.1: adding a newly stripped item changes the per-key post,
-        # but the session's plan and claim identity remain fixed.
-        self.assertEqual(
-            [row["violation"] for row in rows
-             if isinstance(row.get("violation"), dict)
-             and row["violation"].get("kind") == "retarget"
-             and row["violation"].get("from") == "equipment-txn"],
-            [],
-        )
-        # R3: batch inscription is a precursor, not a store operation; its
-        # three false shop-sell retargets disappear as well.
-        self.assertEqual(
-            {
-                owner: sum(
-                    isinstance(row.get("violation"), dict)
-                    and row["violation"].get("kind") == "retarget"
-                    and row["violation"].get("from") == owner
-                    for row in rows
-                )
-                for owner in ("shop-buy", "shop-sell")
-            },
-            {"shop-buy": 0, "shop-sell": 0},
-        )
-        # Rev 9.3 (R2): Reach claims that completed on the very next row.
-        # Explore's own goal test, loot one cell away and native travel
-        # (many cells per key) genuinely arrive next row; the walks rev 9.3
-        # names now declare their far target, so of them only a chest one
-        # step away completes next row, and the shelter walk no longer does.
-        next_row: dict[str, int] = {}
-        index = 0
-        while index < len(rows):
-            end = index
-            while (
-                end + 1 < len(rows)
-                and rows[end + 1]["claim_id"] == rows[index]["claim_id"]
-            ):
-                end += 1
-            following = rows[end + 1] if end + 1 < len(rows) else {}
-            closed = following.get("closed_claim") or {}
-            if (
-                rows[index]["goal"]["kind"] == "Reach"
-                and end == index
-                and closed.get("claim_id") == rows[index]["claim_id"]
-                and closed.get("closed") == "complete"
-            ):
-                reason = rows[index]["reason"]
-                next_row[reason] = next_row.get(reason, 0) + 1
-            index = end + 1
-        self.assertEqual(sum(next_row.values()), S2A1_NEXT_ROW_COMPLETE_BEFORE_STRIP)
-        self.assertEqual(
-            {
-                reason: count for reason, count in next_row.items()
-                if reason in S2A1_FAR_TARGET_REASONS
-            },
-            {"chest:approach": 1},
-        )
-        endings = gate_numbers(rows)["endings"]
-        self.assertEqual(
-            {
-                name: {
-                    ending: endings.get(name, {}).get(ending, 0)
-                    for ending in counts
-                }
-                for name, counts in S2A1_ENDINGS_BEFORE_STRIP.items()
-            },
-            S2A1_ENDINGS_BEFORE_STRIP,
-        )
 
 
 if __name__ == "__main__":

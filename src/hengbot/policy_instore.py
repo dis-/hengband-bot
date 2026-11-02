@@ -21,6 +21,7 @@ Home (Phase 2) is not part of this module.
 
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
+from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
 
 from collections import Counter
 from contextlib import contextmanager
@@ -668,8 +669,8 @@ class InStoreMixin:
         visit.claim_operation_identity = (store.store_type, visit.opened_sequence, key)
         visit.posted_sequence = self._decision_sequence
         visit.posted_turn = snapshot.turn
-        self._open_execution_delegation(
-            family, family,
+        town_open_execution_delegation(
+            self, family, family,
             ("shop-operation", visit.opened_sequence, store.store_type, key),
             ("plan-stop-operation", store.store_type,
              tuple(sorted(getattr(visit, "requester_families", ())))),

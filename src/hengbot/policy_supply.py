@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
 
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_BLACK, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
     SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH,

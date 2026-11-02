@@ -6,13 +6,12 @@ from collections import deque
 import json
 from pathlib import Path
 
-from hengbot.claim_goal_typing import (
+from hengbot.town_terminal import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
-    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
 )
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot import me_powers
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
@@ -276,7 +275,7 @@ class IdentificationMixin:
                     self._chest_preopen_objects = None
                     return None
                 self.last_reason = "chest:step-off"
-                self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(neighbors[0])
                 return self._step_toward(snapshot, neighbors[0])
             if distance > 1:
                 self._claim_target_capture = []

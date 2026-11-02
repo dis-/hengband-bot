@@ -23,7 +23,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import copy
 from pathlib import Path
 
-from hengbot.emit_ownership import movement_destination
+from hengbot.cli import _movement_destination as movement_destination
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import QUEST_STATUS_TAKEN, STORE_HOME
 import tests.test_input_executor as executor_harness

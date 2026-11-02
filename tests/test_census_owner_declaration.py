@@ -4,7 +4,7 @@ import tests  # noqa: F401 -- isolate runtime paths
 import ast
 import unittest
 
-from hengbot.claim_register import CLAIM_OWNER_ATTRIBUTE, ClaimOwner, claims
+from hengbot.town_arbiter import CLAIM_OWNER_ATTRIBUTE, ClaimOwner, claims
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.town_arbiter import _new_town_turn_arbiter
 import item_sink_lint

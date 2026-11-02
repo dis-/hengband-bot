@@ -54,7 +54,7 @@ else:
         result = original(cls, policy, index, prepare=before, **kwargs)
         if result[:2] != (cls.recorded[index]["key"], cls.recorded[index]["reason"]):
             evidence[str(index)] = dict(before=captured, live=cls.recorded[index],
-                                        current=list(result[:2]), claim=policy.decision_claim)
+                                        current=list(result[:2]))
         return result
     Cure._step = classmethod(inspect)
     Cure.setUpClass()

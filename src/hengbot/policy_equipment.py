@@ -4,7 +4,9 @@ from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import item_available
 from hengbot.town_pack_budget import home_take_fits
 
-from hengbot.claim_register import ClaimOwner, claims
+from hengbot.town_arbiter import ClaimOwner, claims
+from hengbot.town_terminal import open_execution_delegation as town_open_execution_delegation
+from hengbot.town_terminal import home_catalogue_sequence_enforced as town_home_catalogue_sequence_enforced
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import consumable_policy, mining_loadout
@@ -651,7 +653,7 @@ class EquipmentMixin:
     @claims(ClaimOwner.HOME_VISIT)
     def _queue_standing_home_digger(self, snapshot: Snapshot) -> str | None:
         """Bind Home stock for a mining departure's two-digger carry target."""
-        if (self._home_catalogue_sequence_enforced()
+        if (town_home_catalogue_sequence_enforced(self)
                 and self._fundraising_mode not in {"prepare", "mine", "scavenge"}):
             return None
         if self._defer_town_errand("home-visit", "queue-digging-tool-withdraw"):
@@ -3732,8 +3734,8 @@ class EquipmentMixin:
             filing_identity = (
                 "filed", signature, 1, "home-page", "combat-weapon"
             )
-            self._open_execution_delegation(
-                "equipment-txn", "home-errand", filing_identity,
+            town_open_execution_delegation(
+                self, "equipment-txn", "home-errand", filing_identity,
                 ("combat-weapon", signature), "filed-home-request",
                 "equipment/home-errand-existing-budget",
             )

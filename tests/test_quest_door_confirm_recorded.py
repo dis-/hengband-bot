@@ -33,7 +33,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hengbot.claim_register import GOAL_REACH as CLAIM_GOAL_REACH
+from hengbot.town_terminal import GOAL_REACH as CLAIM_GOAL_REACH
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import LIVELOCK_LIMIT, HengbotPolicy
 from hengbot.policy_constants import WAIT_KEY

@@ -10,7 +10,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "validation" / "suitefix2"
-MODULES = ["test_ownership_s2b1_ladder", "test_town_approach_retired_recorded",
+MODULES = ["test_town_approach_retired_recorded",
            "test_town_cure_supplier_recorded"]
 
 revision = sys.argv[1]

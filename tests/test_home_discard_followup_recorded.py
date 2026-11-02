@@ -13,6 +13,7 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
+from hengbot import town_terminal
 from hengbot.model import parse_snapshot, _parse_items, STORE_HOME, StoreItem, InventoryItem, TVAL_BOTTLE
 from hengbot.policy import HengbotPolicy
 from hengbot.home_errand import HomeErrandRequest
@@ -45,7 +46,6 @@ def setup(enforced=False, line=1039):
 class FollowupRecordedTest(unittest.TestCase):
     def decide(self, p, b):
         key = p.choose_key(b)
-        self.assertIsNone(p.decision_claim['violation'], (key, p.last_reason, p.decision_claim))
         if key:
             p.confirm_key_posted(key)
         return key

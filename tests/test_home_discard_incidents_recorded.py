@@ -13,12 +13,13 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
+from hengbot import town_terminal
 from hengbot.model import parse_snapshot, _parse_items, STORE_HOME
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitRequest, HomeVisitKind
-from hengbot.claim_register import observe
+from hengbot.town_terminal import observe_goal as observe
 import test_homefull3_recorded as homefull3
 
 FIXTURE = Path(__file__).parent / 'fixtures/home-discard-20261005.json.gz'
@@ -50,7 +51,6 @@ def catalogue(stamp):
 class DiscardIncidentsTest(unittest.TestCase):
     def decide(self, p, b):
         key = p.choose_key(b)
-        self.assertIsNone(p.decision_claim['violation'], (p.last_reason, p.decision_claim))
         if key:
             p.confirm_key_posted(key)
         return key
@@ -179,7 +179,7 @@ class DiscardIncidentsTest(unittest.TestCase):
             key = self.decide(p, inside)
             self.assertEqual(key, '\x1b', p.last_reason)
             self.assertFalse(p._home_knowledge_scan_inflight)
-            self.assertIn(p.decision_claim['owner'], ('home-errand', 'home-scan'))
+            self.assertIn(town_terminal.standing_claim(p).owner.value, ('home-errand', 'home-scan'))
             outside = replace(inside, store=None, turn=inside.turn + 1)
             key = self.decide(p, outside)
             self.assertTrue(key.startswith('~9'), (key, p.last_reason))

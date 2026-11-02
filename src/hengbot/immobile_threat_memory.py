@@ -58,7 +58,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from hengbot.claim_goal_typing import GOAL_NOTE_ONE_STEP
 from hengbot.model import MonsterState, Position
 from hengbot.monrace_knowledge import SUMMON_ABILITIES
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, ExplorationPathOutcome
@@ -222,7 +221,7 @@ def step_out_of(policy, snapshot, cells, reason: str) -> str | None:
     if step is None:
         return None
     policy.last_reason = reason
-    policy._declare_reach(step, note=GOAL_NOTE_ONE_STEP)
+    policy._declare_reach(step)
     return policy._step_toward(snapshot, step)
 
 

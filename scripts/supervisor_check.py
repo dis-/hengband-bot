@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Progress invariants for the supervision fronts: bot, measurement, review.
+"""Progress invariants for the supervision fronts: bot, review.
 
 Reads only artifacts the bot and git already produce - no front may depend on
 an agent self-reporting, because self-reporting makes the operator the
@@ -28,13 +28,12 @@ if str(_SCRIPTS) not in sys.path:
 
 from supervise import identified_alive  # noqa: E402  (scripts/ is not a package)
 
-FRONTS = ("bot", "measurement", "review")
+FRONTS = ("bot", "review")
 DEFAULT_BOT_IDENTITY = "hengbot"
-# The decision log advances every few seconds; ownership metrics emit a
-# decision-progress row a minute.  The unpushed-commit window is the review
-# round's own budget.
+# The decision log advances every few seconds.  The unpushed-commit window is
+# the review round's own budget.  (The measurement front read the ownership
+# metrics ledger, retired with it in structure stage 2 B slice 4.)
 BOT_IDLE_SECONDS = 120
-MEASUREMENT_IDLE_SECONDS = 180
 REVIEW_UNPUSHED_SECONDS = 60 * 60
 TAIL_BYTES = 512 * 1024
 # Windows PowerShell's `-Encoding utf8` prepends this to every artifact it
@@ -204,50 +203,6 @@ def bot_front(root: Path, now: datetime, alive: bool,
     return False, f"{identity_evidence}, {decision_note}, no maintenance.hold"
 
 
-def measurement_front(root: Path, now: datetime, bot_alive: bool) -> tuple[bool, str]:
-    """The decision COUNT must advance, not merely a row must exist.
-
-    Row presence alone repeats the bot front; the count delta is the only
-    measurement-specific fact.
-    """
-    path = root / "jsonlog" / "ownership-metrics.jsonl"
-    rows = tail_rows(path, 200)
-    if not bot_alive:
-        return True, "no live bot session to measure"
-    session = None
-    for row in reversed(rows):
-        if row.get("kind") == "session-start":
-            session = row.get("session")
-            break
-    ended = any(row.get("kind") == "session-end" and row.get("session") == session
-                for row in rows)
-    if session is None:
-        return False, f"no session-start row in {path.name}"
-    if ended:
-        return False, f"session {session} ended while the bot process still runs"
-    progress = [row for row in rows
-                if row.get("kind") == "decision-progress" and row.get("session") == session]
-    if not progress:
-        return False, f"no decision-progress row for session {session}"
-    latest = progress[-1]
-    latest_time = parse_time(latest.get("time"))
-    age = (now - latest_time).total_seconds() if latest_time else None
-    if age is None or age > MEASUREMENT_IDLE_SECONDS:
-        shown = format_age(age) if age is not None else "unknown"
-        return False, (f"latest decision-progress for {session} is {shown} old "
-                       f"(> {MEASUREMENT_IDLE_SECONDS}s)")
-    count = latest.get("decisions")
-    if len(progress) < 2:
-        return True, f"first decision-progress for {session}: decisions={count}"
-    previous = progress[-2]
-    delta = (count or 0) - (previous.get("decisions") or 0)
-    if delta <= 0:
-        return False, (f"decision count stuck at {count} between "
-                       f"{previous.get('time')} and {latest.get('time')}")
-    return True, (f"decisions {previous.get('decisions')} -> {count} (+{delta}) "
-                  f"in the last {format_age(age)}")
-
-
 def review_front(root: Path, now: datetime) -> tuple[bool, str]:
     count_text = git_output(root, "rev-list", "--count", "origin/main..main")
     if count_text is None:
@@ -274,11 +229,9 @@ def review_front(root: Path, now: datetime) -> tuple[bool, str]:
 def check(root: Path, now: datetime, identity: str) -> dict:
     alive, identity_evidence = identified_alive(read_pid(root / "jsonlog" / "bot.pid"), identity)
     bot_ok, bot_evidence = bot_front(root, now, alive, identity_evidence)
-    measurement_ok, measurement_evidence = measurement_front(root, now, alive)
     review_ok, review_evidence = review_front(root, now)
     fronts = {
         "bot": {"ok": bot_ok, "evidence": bot_evidence},
-        "measurement": {"ok": measurement_ok, "evidence": measurement_evidence},
         "review": {"ok": review_ok, "evidence": review_evidence},
     }
     return {

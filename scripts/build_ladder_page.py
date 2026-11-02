@@ -2,7 +2,7 @@
 
 The page shows the rungs of ``CLAIM_LADDER`` in the order ``_decide``
 consults them, each annotated with how often the live bot actually decided
-there.  Everything is derived: the ladder from ``claim_ladder.py``, the
+there.  Everything is derived: the ladder from ``town_terminal.py``, the
 source anchors from the policy modules, the counts from the decision logs.
 
     python scripts/build_ladder_page.py [--log-glob GLOB ...] [--out PATH]
@@ -27,7 +27,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
 sys.path.insert(0, SRC)
 
-from hengbot import claim_ladder as cl  # noqa: E402
+from hengbot import town_terminal as cl  # noqa: E402
 
 DEFAULT_LOGS = (
     "jsonlog/bot-decisions.jsonl",
@@ -150,9 +150,9 @@ def callsite_notes(producers):
 
 def ladder_groups():
     """rung producer -> the section heading comment it sits under."""
-    path = os.path.join(SRC, "hengbot", "claim_ladder.py")
+    path = os.path.join(SRC, "hengbot", "town_terminal.py")
     text = open(path, encoding="utf-8").read()
-    body = text.split("_RUNGS", 1)[-1]
+    body = text.split("_RUNGS: tuple[Rung", 1)[-1].split("\n)\n", 1)[0]
     heading = ""
     groups = {}
     for line in body.splitlines():
@@ -264,8 +264,9 @@ def collect_logs(patterns, windows):
                     live = [w for w in windows if w.holds(moment)]
                     if not live:
                         continue
-                    claim = row.get("claim") or {}
-                    rung = claim.get("rung")
+                    # The decision's rung (rows before structure stage 2 B
+                    # slice 4 carry it in their claim row).
+                    rung = row.get("rung") or (row.get("claim") or {}).get("rung")
                     if not rung:
                         for window in live:
                             window.unrunged += 1

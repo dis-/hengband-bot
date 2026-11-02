@@ -145,7 +145,7 @@ def inventory(source):
             origins.setdefault(site, []).extend(tags)
     # The ladder uses literal method/rung names. Include all resolved methods,
     # independently of census reachability or whether they have a decorator.
-    for rung in lint.ladder_producers(source.get('claim_ladder.py', '')):
+    for rung in lint.ladder_producers(source.get('town_terminal.py', '')):
         for site in names.get(str(rung).split('#')[0], ()):
             selected.add(site)
             origins.setdefault(site, []).append('ladder')
@@ -225,7 +225,7 @@ def generate(source, reviewed, registry_review=None):
     # Top-level ladder registrations are not function bodies. Capture each
     # occurrence (including synthetic town-errand and fallback dispatchers).
     ladder_sites = []
-    for node in ast.walk(ast.parse(source.get('claim_ladder.py', ''))):
+    for node in ast.walk(ast.parse(source.get('town_terminal.py', ''))):
         if (isinstance(node, ast.Call) and lint.name(node.func) in {'_decide','_rewrite','_town','_fallback'}
                 and node.args and isinstance(node.args[0], ast.Constant)):
             producer = node.args[0].value
@@ -236,7 +236,7 @@ def generate(source, reviewed, registry_review=None):
                 resolved = ['policy.py:HengbotPolicy._choose_key']
             if not resolved:
                 raise ValueError(f'unmapped ladder callback {producer}')
-            ladder_sites.append(dict(caller='claim_ladder.py:_RUNGS', line=node.lineno,
+            ladder_sites.append(dict(caller='town_terminal.py:_RUNGS', line=node.lineno,
                                      callee=producer, targets=resolved,
                                      rows=sorted({r for t in resolved for r in reviewed[t]['rows']}),
                                      expression=ast.unparse(node),

@@ -16,6 +16,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import tests  # noqa: F401
+from hengbot import town_terminal
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from s33_phase2_fixtures import town_map
@@ -70,7 +71,7 @@ class BountyCashoutRecordedTest(unittest.TestCase):
                 key = policy.choose_key(snapshot)
                 self.assertEqual(key, "7cy\x1b")
                 self.assertEqual(policy.last_reason, "bounty:cashout")
-                self.assertEqual(policy.decision_claim["owner"], "quest-request")
+                self.assertEqual(town_terminal.standing_claim(policy).owner.value, "quest-request")
 
     def test_recorded_approach_boards_unchanged(self):
         for line, key in ((4613, "1"), (4621, "7")):
