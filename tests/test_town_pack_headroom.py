@@ -37,6 +37,16 @@ class TownPackHeadroomTest(harness.ProductionHarness):
         self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
                          "abe02da62290becae19a1b8c24a516f1b1563f21783af6947a124056e9068671")
         record = json.loads(gzip.decompress(FIXTURE.read_bytes()))
+        # DECLARED CONSTRUCTED: the recorded 透明物体感知の薬 (b) and 噂の巻物
+        # (l) are 「捨てる」 in the owner's 2026-11-02 consumable table, so the
+        # junk path would destroy them first; they become the carry kinds
+        # 耐冷の薬 (75/31) and ヒーローの薬 (75/32), so the surplus this test
+        # shelves or sells keeps its recorded shape.
+        for item in record["board"]["inventory"]:
+            if item["slot"] == "b":
+                item.update(sval=31, name="耐冷の薬")
+            elif item["slot"] == "l":
+                item.update(tval=75, sval=32, name="ヒーローの薬")
         temporary = TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         policy = _policy(Path(temporary.name), {})

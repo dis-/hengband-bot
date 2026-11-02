@@ -53,6 +53,7 @@ import hengbot.policy as policy_module
 
 import hengbot.equipment_mutation as equipment_mutation_module
 
+from hengbot import consumable_policy
 from hengbot.home_errand import HomeErrandRequest
 
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
@@ -1624,7 +1625,9 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertEqual(pol._fundraising_mode, "mine")
         self.assertTrue(pol._town_restock_suppressed)
 
-    def test_alchemist_buys_low_value_potions(self):
+    def test_alchemist_no_longer_buys_table_discard_potions(self):
+        # Owner 2026-11-02 consumable table: Boldness (28) and Cure Light
+        # Wounds (34) are 「捨てる」 junk, destroyed and never sold.
         for sval in (28, 34):
             with self.subTest(sval=sval):
                 snap = Snapshot(
@@ -1636,10 +1639,14 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
                 )
                 policy = HengbotPolicy()
 
-                self.assertEqual(_public_shop_inner(self, policy, snap), "{a@0\r")
-                self.assertEqual(policy.last_reason, "shop:batch-inscribe")
+                self.assertEqual(policy._junk_class(snap, snap.inventory[0]), "table-discard")
+                self.assertIsNone(policy._find_low_level_sale(snap))
+                self.assertEqual(_public_shop_inner(self, policy, snap), "R300\r")
+                self.assertIsNone(policy._batch_sell_pending)
 
-    def test_alchemist_refuses_sleep_and_buys_detect_invisible(self):
+    def test_alchemist_refuses_sleep_and_no_longer_buys_detect_invisible(self):
+        # Sleep has no sale value; the Detect Invisible scroll is 「捨てる」 in
+        # the owner's 2026-11-02 consumable table (junk, never sold).
         for tval, sval in ((TVAL_POTION, 11), (TVAL_SCROLL, 30)):
             with self.subTest(tval=tval, sval=sval):
                 snap = Snapshot(
@@ -1653,13 +1660,10 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
 
                 if tval == TVAL_POTION:
                     self.assertFalse(policy._store_accepts_sale(STORE_ALCHEMIST, snap.inventory[0]))
-                    self.assertIsNone(policy._find_low_level_sale(snap))
-                    # No admitted sale remains; ordinary empty-shop restocking runs.
-                    self.assertEqual(_public_shop_inner(self, policy, snap), "R300\r")
-                    self.assertIsNone(policy._batch_sell_pending)
-                else:
-                    self.assertEqual(_public_shop_inner(self, policy, snap), "{a@0\r")
-                    self.assertEqual(policy.last_reason, "shop:batch-inscribe")
+                self.assertIsNone(policy._find_low_level_sale(snap))
+                # No admitted sale remains; ordinary empty-shop restocking runs.
+                self.assertEqual(_public_shop_inner(self, policy, snap), "R300\r")
+                self.assertIsNone(policy._batch_sell_pending)
 
     def test_depth_two_requirements_are_reported(self):
         snap = Snapshot(
@@ -10652,8 +10656,14 @@ class RemoveCurseTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._home_star_remove_curse_count = 0
+        # Owner 2026-11-02: the consumable table has no 「購入する」 on *解呪*,
+        # so the reserve (an optional buy) is not bought.
+        with patch.object(policy, "_recall_departure_shortage", return_value=False):
+            self.assertIsNone(policy._affordable_star_remove_curse(temple))
+        # The reserve mechanics below run for a table that buys it.
         with (
             patch.object(policy, "_recall_departure_shortage", return_value=False),
+            patch.object(consumable_policy, "discretionary_buy", return_value=True),
         ):
             self.assertIs(policy._affordable_star_remove_curse(temple), ware)
             with (
@@ -10690,10 +10700,13 @@ class RemoveCurseTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._home_star_remove_curse_count = 0
+        # A consumable table that buys the reserve (the owner's 2026-11-02
+        # table does not; test_surplus_star_scroll_is_bought_once_and_deposited_at_home).
         with (
             patch.object(policy, "_recall_departure_shortage", return_value=False),
             patch.object(policy, "_next_purchase", return_value=ware),
             patch.object(policy, "_purchase_quantity", return_value=1),
+            patch.object(consumable_policy, "discretionary_buy", return_value=True),
         ):
             first = policy._shop(temple)
             second = policy._shop(temple)
@@ -14806,7 +14819,10 @@ class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
             "missing": 1,
         })
         self.assertFalse(policy.last_reason.startswith(("stuck:", "town:blocked:")))
-        self.assertTrue(policy.last_reason.startswith("shop:"), (key, policy.last_reason))
+        # Owner 2026-11-02 consumable table: the restore potions d and e are
+        # 「拾って自宅に片付ける」, so the Home entrance board first shelves them
+        # (home:atomic-deposit) before the recall procurement.
+        self.assertEqual((str(key), policy.last_reason), ("5", "home:atomic-deposit"))
 
     def test_p3_recorded_optional_errand_precedes_ready_departure(self):
         policy = self._policy_at_departure()
@@ -14871,9 +14887,14 @@ class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
             if row["item"] == "Word of Recall scrolls"
         )
         self.assertEqual((requirement["current"], requirement["target"]), (10, 11))
+        # Owner 2026-11-02 consumable table: the first decision shelves the
+        # restore potions (「拾って自宅に片付ける」); the recorded rows after it
+        # answer the recorded keys, not that deposit.
+        self.assertEqual(observations[0], ("5", "home:atomic-deposit"))
         self.assertTrue(
             any(
-                reason.startswith(("shop:", "town:wait-restock:", "town:recall-stockout-mining"))
+                reason.startswith(("shop:", "home:atomic-deposit", "town:wait-restock:",
+                                   "town:recall-stockout-mining"))
                 for _key, reason in observations
             ),
             observations,
@@ -14981,9 +15002,10 @@ class TownPriorityStage3Round2RecordedTest(unittest.TestCase):
         key = policy.choose_key(rows[103])
 
         self.assertFalse(rows[103].player.recalling)
-        self.assertEqual(
-            (key, policy.last_reason), (WAIT_KEY, "shop:travel:await-entry")
-        )
+        # Owner 2026-11-02 consumable table: the restore potions d and e are
+        # 「拾って自宅に片付ける」, so the Home entrance board first shelves them
+        # (home:atomic-deposit) before the recall procurement.
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, "home:atomic-deposit"))
         self.assertIsNotNone(policy._store_visit)
 
 
@@ -15157,7 +15179,9 @@ class TownKillMobAlternationRecordedTest(unittest.TestCase):
         key = policy.choose_key(self.rows[0])
 
         self.assertFalse(self.rows[0].visible_monsters)
-        self.assertEqual((str(key), policy.last_reason), ("5", "shop:travel:await-entry"))
+        # Owner 2026-11-02 consumable table: the carried Restore Charisma (d)
+        # is 「拾って自宅に片付ける」, so the errand starts with that deposit.
+        self.assertEqual((str(key), policy.last_reason), ("5", "home:atomic-deposit"))
 
 
 class TownSeekLootSupplyAlternationRecordedTest(unittest.TestCase):

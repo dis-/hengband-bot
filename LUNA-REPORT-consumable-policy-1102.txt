@@ -1,0 +1,98 @@
+LUNA-REPORT consumable-policy-1102（薬・巻物116品の表でボットの扱いを決める）
+
+■ オーナーの決定（そのまま）
+- 表: C:\hengband-backups\consumable-policy\consumable-policy-20261102.json（薬62品・巻物54品。購入する／拾って持ち歩く／拾って自宅に片付ける／拾って使う（飲む・読む）／捨てる）。
+- 食い違いの答え: 「要求がある時は買う」。表の「購入する」はふだんの（任意の）買い足しの決まり。クエストの required_force、採掘の要求（財宝感知）、出発の最低条件（鑑定、ショート・テレポート、テレポート、帰還、致命傷の治癒）、能力値が下がった時の復活、呪われた時の解呪は、印が無くても今どおり買う。
+
+■ コミット（main 9afd9203e を取り込み済み、push していない）
+  10096f491 表とモジュールを足す
+  725ce08f2 ゴミ・自宅・使う・任意の買い物を表で決める
+  de374c95e 自宅の種類を売らない・鑑定済みの捨てる種類を売らない・*鑑定*を待つ品がある間は*鑑定*を持つ
+  258dd05ad 既存のテストの期待する値を表の振る舞いへ（と壁 tests/recorded_consumable_policy.py）
+  e2af31b30 記録の盤面のテスト
+  823bda701 main の取り込み、89e5b33fa 古い町の仕事のレビュー1件を消す（manifest は zero unmapped）
+
+■ 作り（保守性）
+- 表は src/hengbot/consumable_policy.json（オーナーの原本と同じ内容。末尾に改行を1つ足しただけ。pyproject.toml の package-data に登録）。
+- 判断は src/hengbot/consumable_policy.py の1か所（魔道具術師の me_device_policy.py と同じ作り）。各担当は表に聞くだけ。
+  - row(item): 鑑定済みの種類（item.aware）だけを表で引く。未鑑定の銘柄は今までどおり。
+  - discretionary_buy(kind): 任意の買い物が買ってよいか（「購入する」）。表に無い種類（杖・食料・装備など）は表の対象外。
+  - discarded(item): 「捨てる」。shelved_at_home(item): 「拾って自宅に片付ける」で「拾って持ち歩く」でないもの。
+  - quaffed_on_sight / read_on_sight: 「拾って使う」のうち、このモジュールか既存の担当がその場で使えるもの。
+  - carry_required(policy, snapshot, item): 自宅に置く種類でも、要求が持ち物から読むものは持ち歩く（呪われている時の解呪・*解呪*、*鑑定*を待つ品がある時の*鑑定*、能力値・経験値が下がっている時の復活の薬）。
+  - use_now_key: 「拾って使う」巻物を、ゴミを壊すのと同じ安全な時（junk_destroy_now.safe：町でない・店でない・見える敵がいない・殴られていない・盲目などでない・逃げていない）に読む。読めなかった（数が減らない）巻物はその階では読み直さない。
+  - USE_OWNED_ELSEWHERE / USE_UNSUPPORTED: 「使う」のうち別の担当が使うもの（経験の薬＝_experience_potion_quaff_key、武器命中・ダメージ強化＝弓への強化 _town_enchant_launcher_key）と、まだ使えないもの（下の問い）を表で名前付きにした。
+- junk_destroy_now._safe を safe に名前を変えて共有した（同じ安全の判定を2か所に書かない）。
+- policy_constants の DISPOSABLE_POTION_SVALS / DISPOSABLE_SCROLL_SVALS（手で書いた捨てる種類）を消し、表の「捨てる」に置き換えた。
+
+■ 表で振る舞いが変わる場所（すべて）
+1. ゴミ（捨てる）: policy_helpers._junk_class に class "table-discard" を足した。今あるゴミの道（ダンジョンでは junk_destroy_now の安全な時の破壊、町のゴミの段、帰還前の破壊、自宅が満杯の時の自宅のゴミの掃除 home:junk-sweep）が、持っている・自宅にある「捨てる」の薬・巻物を壊す。
+   要求が守るもの（retention の予約、購入の段が今買う品、鑑定の流れ）は _junk_class の今ある門で残る。
+2. 満杯の時に壊す種類（policy_helpers._is_disposable_item）: 表の「捨てる」。耐冷の薬と光の巻物は「持ち歩く」なので、満杯でも壊さなくなった（以前は壊した・売った）。
+3. 低い階の売り物（policy_shop._find_low_level_sale）: 鑑定済みの薬・巻物は売らない（「捨てる」は壊す）。未鑑定の銘柄と呪われたエゴは今までどおり。軽傷の治癒などを売って得ていた少しのお金は無くなる。
+   （はじめ「捨てる」を売り物にもしたが、透明物体感知の薬を売りに錬金術の店へ行く寄り道が増えたのでやめた。）
+4. 自宅に片付ける（policy_home._home_deposit_candidate）: 「自宅」で「持ち歩く」でない種類は、余り（_retention_surplus > 0）で、carry_required でなければ自宅に預ける。今ある自宅の預け入れの道（home:atomic-deposit、まとめて預ける）を使う。自宅に預ける品があると、町で自宅へ行く（今ある「預ける物がある時は自宅へ」の道）。
+   能力値の復活の薬は、以前は満杯に近い時だけ預けた（pack_space_restore_potion）が、表のとおりいつも預ける。
+5. 自宅に片付ける種類は売らない（policy_town._town_organization_sale_store）: 解呪の巻物などが「預け先の候補」になると、整理の売り（organization-sale）に回って売られていた（記録 n1-b rod-overflow の盤面で解呪の巻物に売りの印 {e@0}）。表の自宅の種類は売り先を返さない。
+6. 使う（巻物）: policy._decide の junk_destroy_now の直後に consumable_policy.use_now_key。今は *獲得*・獲得の巻物だけが対象（理由 consumable:read-on-sight）。
+7. 使う（薬）: policy._stat_gain_quaff_key の対象を表から取る（腕力〜魅力・増強。今までの STAT_GAIN_POTION_SVALS と同じ）。経験の薬は今ある担当（経験値の復活が先）のまま。
+8. 任意の買い物（discretionary_buy）:
+   - 闇市の買い切り（_black_market_optional_purchase）: スピード・体力回復は「購入する」なので変わらない（表を通すようにしただけ）。
+   - *解呪*の予備（_star_remove_curse_reserve_purchase_needed、段 curse:star-reserve）: *解呪*に「購入する」が無いので、呪われていない時の予備の1本は買わなくなった（下の食い違い1）。呪いが外せない品がある時（_has_unremovable_curse_target）は今どおり買う。
+   - 弓の強化の巻物（_launcher_enchant_purchase）: 武器命中・ダメージ強化は「購入する」なので変わらない。
+   要求の段（mining:treasure-detection、mandatory:*、identify:*、restore:<stat>、experience:restore-life-levels、quest:*、curse:required / curse:normal、tail:*）は表に聞かない。財宝感知（「購入する」なし）は採掘の時に今どおり買う（テストで確認）。
+9. 拾う: 床は種類（tval）しか見えない（盤面の object_tvals）ので、拾う前に「捨てる」を見分けられない。今までどおり拾い、拾った後に 1 で壊す。「持ち歩く・自宅・使う」はもともと拾う。
+
+■ 今の決まりとの食い違い（表を優先した。直すなら決めてほしい）
+1. *解呪*の予備（2026-07 のオーナー指示「余裕があれば自宅に1本」、e5e35b331）: 表に「購入する」が無いので買わなくなった。呪われた時は今どおり買う。予備を残すなら *解呪* に「購入する」を付ければ戻る（コードは残してある）。
+2. テレポート・レベルの巻物: 表は「自宅」。今まで緊急の逃げ（_find_teleport_scroll は sv 9 と 10）に使えたが、持ち歩かなくなる。
+3. 耐冷の薬・光の巻物: 以前の利用者の指示で「いつも捨てる・売る」だったが、表は「持ち歩く」。表に合わせて捨てない。
+4. 財宝感知の巻物（表は「持ち歩く」）: 今ある「採掘していない時は自宅に置く」（mining_gear_off_duty）は変えていない。耐性・ヒーローなどの「持ち歩く」薬も、何度潜っても使わなければ自宅に置く今の決まり（idle_dead_weight）は変えていない。「持ち歩く」をこれらより優先するかは問い。
+5. 軽傷・重傷の治癒など: 今まで回復に使えたが、表のとおり拾ったら壊す。クエストの要求（heal_potion_kind）は致命傷の治癒・体力回復だけなので守る物は無い。
+
+■ 検査（記録の盤面 → 公開の choose_key）
+新しいテスト: tests/test_consumable_policy_recorded.py（4件）。盤面は tests/fixtures/consumable-policy-20261102.jsonl.gz（tests/extract_consumable_policy_1102_fixture.py が観戦ボットの記録から写す）。
+  - test_discard_kinds_are_destroyed_on_the_safe_dungeon_decision: n1-c life-103 の鉄獄8階（敵なし、帰還待ち）。赤外線視力の薬（b）と魔法の地図の巻物（i）が table-discard で、'01kb'（inventory:destroy-worthless-junk）。記録のボットは '5'（帰還待ち）で持ったままだった。
+  - test_use_scroll_is_read_and_use_potion_drunk: 同じ盤面の b を *獲得*の巻物にすると 'rb'（consumable:read-on-sight）、腕力の薬にすると 'qb'（stat-gain:quaff）。（作った部分: b と i の品）
+  - test_home_kinds_are_deposited_on_the_home_visit: n1-a life-464 の辺境の地の自宅（~9 の一覧つき）で 'dkdide\x1b'（home:atomic-deposit）。解呪の巻物（k）・テレポート・レベル（i）・啓蒙の薬（e）を預け、ヒーローの薬（b、持ち歩く）は預けない。記録のボットは何も預けず自宅を出た。（作った部分: 記録のボットが出した ~9 の要求が届いている状態）
+  - test_requirement_buys_a_kind_without_the_buy_flag: n1-a life-435 の錬金術の店で、採掘中（記録の判断ログの fundraising.mode "mine"）、財宝感知の巻物（「購入する」なし）を _next_purchase が選び、段は mining:treasure-detection。
+  確認: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" は通る。scripts/town_work_manifest.py --write は zero unmapped（consumable_policy.py の7つを scripts/town_work_review.json に足した）。
+
+■ 戻して確かめた結果（1回）
+  配線のコミット 725ce08f2 と de374c95e の src の差分（policy*.py の8ファイル）を作業ツリーで戻し、consumable_policy.py・json は残して流した。
+  - test_discard_kinds_are_destroyed_on_the_safe_dungeon_decision: None != 'table-discard'（壊さない）
+  - test_home_kinds_are_deposited_on_the_home_visit: 'dbda' != 'dkdide'（表の自宅の品を預けない）
+  - test_use_scroll_is_read_and_use_potion_drunk: '5' != 'rb'（読まずに帰還待ち）
+  - test_requirement_buys_a_kind_without_the_buy_flag: 戻しても通る（要求の買い物が変わらないことの確認）
+  元に戻して4件とも合格。
+
+■ 既存のテストで期待する値を変えたもの（表の振る舞いへ）
+  関係しそうな既存のテスト（47ファイル）を、変更の前（main のコピー）と後で流し比べ、後だけ落ちるものを直した。
+  - test_policy_helpers: 捨てる種類は寝る薬・聖唱歌、耐冷は捨てない。軽傷の治癒・聖唱歌は売らない（未鑑定は売る）。売りの印の2件は未鑑定の薬で。
+  - test_policy_equipment: 満杯の時の壊し3件の理由が inventory:destroy-worthless-junk に。
+  - test_policy_town: *解呪*の予備は買わない（仕組みの2件は「買う表」を patch して確かめる）、記録の自宅の入口で表の自宅の品を先に預ける（p2・p4・p4 unarmed・p5、kill-mob の p4）、錬金術の店は軽傷の治癒・勇気・透明物体感知の巻物を買わない（名前を変えた2件）。
+  - test_policy_home: 重さで預けるまとめに光の巻物の先まで入る（'dwdhdg2dd'）、低い階の薬は売らずゴミ。
+  - test_junk_scope_recorded / test_home_junk_bones_recorded / test_lantern_lost_recorded / test_junk_town_weight_recorded: 記録のリンゴジュース・減毒の薬が先に壊れる。各クラスの主題のために、その枠を耐火の薬に替える・抜く（作った部分として明記）。壁のテストは前の判断が自宅への移動になった。
+  - test_town_pack_headroom: 記録の透明物体感知の薬（b）と噂の巻物（l）を持ち歩く種類（耐冷・ヒーロー）に替えた（作った部分として明記）。
+  - test_town_overflow_recorded: 能力値の復活の薬は余裕があってもいつも預ける（名前を test_restore_potions_are_shelved_without_pack_pressure に変えた）。
+  - test_me_powerful_activation / test_curse_priority_recorded: *解呪*の予備は買わない。
+  - test_shop_one_shot: 売る薬を未鑑定に。test_recall_stockout_surplus_pins: 光の巻物を壊さなくなったので、壊しが預けより先という順の確認を外し、未結の預けが無いことを確かめる。
+  参考: 変更の前から落ちているテストが同じ47ファイルに約110件ある（例: test_lantern_lost の返り道の補給、test_experience_potion の x3・x4・x5・x7・t2、test_policy_home の HomeOneOperationPerEntryTest）。この直しの前の main でも落ちるので触っていない。
+
+■ 壁（declared wall）
+  tests/recorded_consumable_policy.py に pre_consumable_table_rule / pre_consumable_table_replay を足した。表の前の「捨てる」の種類（DISPOSABLE の11種）・ゴミの class・自宅に置く判定だけを元に戻す。
+  使ったのは、主題が薬・巻物ではなく、記録の後の行が記録のキーに答える再生テストだけ（理由はそれぞれのテストに書いた）:
+  - test_no_safe_destination_recorded の5件、test_no_safe_destination_gold_recorded.test_board_facts（記録の続きの行が、先に入った自宅への移動に答えない）
+  - test_s33_batch_admission.test_live_off_crossarea_home_holder_allows_recorded_disposal（主題の壊す品が耐冷の薬で、表では持ち歩く）
+  - test_home_loops_0446_recorded.test_each_observed_destroy_is_credited_progress（自宅の捨てる薬・巻物も掃除するが、この訪問の作り物の自宅と店がそれを表せない）
+  - test_policy_equipment の r5 の2件（主題は外での装備。表の自宅の品で先に自宅へ入る）
+
+■ checks.json に足す案（checks.json は編集していない）
+{"id": "CONSUMABLE-POLICY-1102", "owner": "2026-11-02 薬・巻物116品の表（購入する・拾って持ち歩く・拾って自宅に片付ける・拾って使う・捨てる）と「要求がある時は買う」", "tests": ["tests.test_consumable_policy_recorded"]}
+
+■ オーナーへの問い（直していない）
+1. 自己分析の薬・*啓蒙*の薬（「使う」）: 飲むと自分の情報の画面（player-info/self-info.cpp self_knowledge、[何かキーを押すとゲームに戻ります]）が出る。この画面に答える仕組みがまだ無いので飲んでいない（今までどおり持つ）。画面に答える処理を足して飲んでよいか。
+2. 防具強化・*防具強化*・*武器強化*（「使う」）と、弓が無い時の武器命中・ダメージ強化: 強化する品を選ぶ決まりが無い（今あるのは装備した弓への強化だけ）。何に読むか（例: 体の鎧・手の武器）を決めてほしい。
+3. 「購入する」の種類でボットが今は買わないもの（耐性の薬・魔力復活の薬・守りのルーン・*破壊*の余り）: 新しく買う決まり（何本まで・いつ）を足すか。今回は「買わないものを買わない」だけにした。
+4. 上の食い違い 1〜4（*解呪*の予備、テレポート・レベル、財宝感知の自宅置き、使わない「持ち歩く」薬の自宅置き）。
+5. 自宅に置く種類があると、町で自宅へ行く回数が増える（帰るたびに預ける）。これでよいか。

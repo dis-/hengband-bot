@@ -93,6 +93,15 @@ class HomeJunkBonesRecordedTest(unittest.TestCase):
 
     def test_return_start_destroys_carried_remains_first(self):
         policy, board = self._dungeon()
+        # Owner 2026-11-02 consumable table: the recorded リンゴジュースの薬
+        # (slot b) is 「捨てる」 and goes first, then the remains.
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
+        self.assertTrue(key.endswith("kb"), key)
+        policy, board = self._dungeon()
+        # DECLARED CONSTRUCTED: the pack after that destroy.
+        board = replace(board, inventory=type(board.inventory)(
+            item for item in board.inventory if item.slot != "b"))
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
         self.assertTrue(key.endswith("kq"), key)
@@ -102,8 +111,10 @@ class HomeJunkBonesRecordedTest(unittest.TestCase):
         board = replace(board, inventory=type(board.inventory)(
             replace(item, is_bounty=True) if item.tval in {1, 3, 10} else item
             for item in board.inventory))
-        policy.choose_key(board)
-        self.assertNotEqual(policy.last_reason, "inventory:destroy-worthless-junk")
+        key = policy.choose_key(board)
+        # Only the recorded Apple Juice (b, table-discard) may go.
+        if policy.last_reason == "inventory:destroy-worthless-junk":
+            self.assertTrue(key.endswith("kb"), key)
 
     def test_floor_skeleton_pile_is_not_sought_or_picked_up(self):
         policy, board = self._dungeon()

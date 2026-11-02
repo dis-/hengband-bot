@@ -248,6 +248,7 @@ from hengbot.policy import (
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
+from recorded_consumable_policy import pre_consumable_table_replay
 try:
     from trajectory_harness import drive_trajectory
 except ModuleNotFoundError:
@@ -534,7 +535,9 @@ class OverflowDisposalTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(snap), "01ka")
-        self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
+        # Owner 2026-11-02: the table marks it 「捨てる」, so the junk path
+        # (consumable_policy, junk class table-discard) destroys it first.
+        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
 
     def test_full_pack_destroys_cure_light_wounds(self):
         inventory = [item("a", TVAL_POTION, 34, name="Cure Light Wounds")]
@@ -552,7 +555,9 @@ class OverflowDisposalTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(snap), "01ka")
-        self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
+        # Owner 2026-11-02: the table marks it 「捨てる」, so the junk path
+        # (consumable_policy, junk class table-discard) destroys it first.
+        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
 
     # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
     @pre_junk_scope_replay
@@ -660,7 +665,9 @@ class OverflowDisposalTest(unittest.TestCase):
 
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), "03ka")
-        self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
+        # Owner 2026-11-02: the table marks it 「捨てる」, so the junk path
+        # (consumable_policy, junk class table-discard) destroys it first.
+        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
 
     # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
     @pre_junk_scope_replay
@@ -6051,6 +6058,10 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         key = policy.choose_key(outside)
         return key, policy.last_reason, policy
 
+    # declared wall: the subject is the outside equip; the owner's 2026-11-02
+    # table sends the board's テレポート・レベル (g) and 解呪 (k) scrolls to
+    # the Home first.
+    @pre_consumable_table_replay
     def test_captured_r5_board_wields_outside_instead_of_waiting_at_home(self):
         # On 6ccc8a04 this decision is the live one,
         # `5 / equipment-transaction:travel-home:await-entry`.
@@ -6059,6 +6070,10 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
         self.assertEqual((key, reason), ("wqy", "equipment-transaction:equip"))
         self.assertIsNotNone(policy._equipment_transaction_session)
 
+    # declared wall: the subject is the outside equip; the owner's 2026-11-02
+    # table sends the board's テレポート・レベル (g) and 解呪 (k) scrolls to
+    # the Home first.
+    @pre_consumable_table_replay
     def test_captured_r5_raw_board_does_not_return_to_home(self):
         # The raw board still owes another owner's work (the *Identify* of
         # pack item p); that runs first and is not a Home entry either.

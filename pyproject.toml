@@ -12,4 +12,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-hengbot = ["me_device_policy.json", "store_sale_knowledge.json", "town_work_sites.json"]
+hengbot = ["consumable_policy.json", "me_device_policy.json", "store_sale_knowledge.json", "town_work_sites.json"]

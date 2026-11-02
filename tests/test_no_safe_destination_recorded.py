@@ -79,6 +79,7 @@ from test_esp_threat_rest_recorded import _policy
 import test_town_blackmarket_stall_recorded as stall
 from test_town_blackmarket_stall_recorded import CALIBRATION, FIRST_NO_OWNER
 from identify_staff_cap_walls import pre_four_staff_cap_rule
+from recorded_consumable_policy import pre_consumable_table_replay
 
 CASTLE = 12
 RECORDED_GOLD = 12522
@@ -128,6 +129,7 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
         raise AssertionError("unreachable")
 
     @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
+    @pre_consumable_table_replay  # declared wall: recorded rows answer the pre-table keys
     def test_board_facts(self):
         _key, _reason, policy, board = self._decide_board_4()
         self.assertEqual(board.player.gold, RECORDED_GOLD)
@@ -146,6 +148,7 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
 
     # ------------------------------------------------------------ item 9
     @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
+    @pre_consumable_table_replay  # declared wall: recorded rows answer the pre-table keys
     def test_unsafe_target_at_the_gold_target_enters_fundraising_like_angband(self):
         # Gold at the fundraising target.  OWNER DECISION 2026-10-19
         # (AskUserQuestion answer, verbatim: 「金額に関係なく資金稼ぎ
@@ -196,10 +199,12 @@ class NoSafeDestinationRecordedTest(unittest.TestCase):
         self.assertNotEqual(WAIT_KEY, again)
 
     @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
+    @pre_consumable_table_replay  # declared wall: recorded rows answer the pre-table keys
     def test_no_safe_angband_landing_enters_fundraising(self):
         self._assert_fundraising_entered(None)
 
     @pre_four_staff_cap_rule()  # declared wall: recorded five-staff cap
+    @pre_consumable_table_replay  # declared wall: recorded rows answer the pre-table keys
     def test_no_safe_alternate_landing_enters_fundraising(self):
         self._assert_fundraising_entered(CASTLE)
 
@@ -211,6 +216,7 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
     _replay = stall.TownBlackMarketStallRecordedTest._replay
     _live = stall.TownBlackMarketStallRecordedTest._live
 
+    @pre_consumable_table_replay  # declared wall: recorded rows answer the pre-table keys
     def test_fewest_charges_staff_above_the_cap_goes_to_the_magic_shop(self):
         first_changed = 2
         seen = {}

@@ -24,9 +24,9 @@ from hengbot.model import (
 )
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.item_reservation import decision_memo
+from hengbot import consumable_policy
 from hengbot.policy_constants import (
-    DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, ExplorationPathOutcome,
-    FOOD_TYPE_MANA, HEAVY_CURSE_TAG, PLAYER_CLASS_BERSERKER, SPEED_ENERGY_90,
+    ExplorationPathOutcome, FOOD_TYPE_MANA, HEAVY_CURSE_TAG, PLAYER_CLASS_BERSERKER, SPEED_ENERGY_90,
     WAIT_KEY,
 )
 from hengbot.policy_supply import supply_ledger_observer_memo
@@ -251,8 +251,8 @@ class PolicyHelpersMixin:
             # occupying a pack slot forever. WATER/OIL/BLOOD retain the normal
             # food fallback intentionally.
             (food_type == FOOD_TYPE_MANA and item.tval == TVAL_FOOD)
-            or (item.is_potion and item.aware and item.sval in DISPOSABLE_POTION_SVALS)
-            or (item.is_scroll and item.aware and item.sval in DISPOSABLE_SCROLL_SVALS)
+            # The owner's table (consumable_policy): 「捨てる」 potions and scrolls.
+            or consumable_policy.discarded(item)
             # A brass lantern already lights radius 2, so a Rod of Light is dead
             # weight — shed it like any other junk device.
             or (item.tval == TVAL_ROD and item.sval == SV_ROD_LITE and item.aware)
@@ -306,7 +306,9 @@ class PolicyHelpersMixin:
         for aware kinds only, tval always.  Third and fourth realm books are
         always carried home and sold (owner 2026-10-20), never junk.  Owner
         2026-11-02 adds the unwanted kinds (``unwanted_kinds``: figurines,
-        statues, capture balls, other realms' first and second books).
+        statues, capture balls, other realms' first and second books) and
+        the potions and scrolls its consumable table discards
+        (``consumable_policy``).
 
         Without a board only the item's own classes apply (remains, cursed,
         harmful-consumable); a board adds the retention / ownership gates and
@@ -354,6 +356,11 @@ class PolicyHelpersMixin:
         # books of other realms are never kept (unwanted_kinds).
         elif is_unwanted_kind(item, self.__dict__.get("_own_book_tvals")):
             junk = "unwanted-kind"
+        # Owner 2026-11-02: the potions and scrolls the owner's table marks
+        # 「捨てる」 (consumable_policy); a requirement keeps its reservation
+        # through the gates below.
+        elif consumable_policy.discarded(item):
+            junk = "table-discard"
         # Supervisor Q7: only the launcher worn now counts; with none worn
         # every ammunition stays, and a quest reservation keeps its stack.
         elif (item.is_ammo

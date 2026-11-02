@@ -4602,22 +4602,18 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
         self.assertEqual(book_policy.last_reason, "shop:batch-inscribe")
 
         potion_policy = HengbotPolicy()
-        # Sleep has base cost 0 and the store will not buy it; use a
-        # disposable low-level potion with a positive base cost.
+        # The owner's 2026-11-02 consumable table makes the identified
+        # low-level potions (Cure Light Wounds, sval 34) 「捨てる」 junk: they
+        # are destroyed, no longer low-level sale stock.
         potion = item(
-            "d", TVAL_POTION, SV_POTION_RESIST_COLD,
-            name="Potion of Resist Cold", known=True, aware=True,
+            "d", TVAL_POTION, 34,
+            name="Potion of Cure Light Wounds", known=True, aware=True,
         )
         potion_snapshot = self._store_snapshot([potion], STORE_ALCHEMIST)
         potion_policy.prime(potion_snapshot)
         potion_policy._equipment_optimization_preparation = self._preparation(known=False)
-        self.assertEqual(
-            _public_shop_inner(self, potion_policy, potion_snapshot),
-            "{d@0\r",
-        )
-        self.assertEqual(
-            potion_policy.last_reason, "shop:batch-inscribe"
-        )
+        self.assertIsNone(potion_policy._find_low_level_sale(potion_snapshot))
+        self.assertEqual(potion_policy._junk_class(potion_snapshot, potion), "table-discard")
 
     def test_calibration_states_and_missing_result_are_unknown_and_can_exit(self):
         policy = HengbotPolicy()
@@ -5397,7 +5393,10 @@ class RecordedHomeCatalogueShortageOwnerTest(unittest.TestCase):
 
         deposit_key = policy.choose_key(parse_snapshot(page))
 
-        self.assertEqual(deposit_key, "dw\x1b")
+        # Owner 2026-11-02 consumable table: the Light scroll (d) is a carry
+        # kind, no longer low-level sale stock, so the weight deposit batch
+        # goes on past the ring w to the rods h, g and that scroll.
+        self.assertEqual(deposit_key, "dwdhdg2\rdd\x1b")
         self.assertEqual(policy.last_reason, "home:weight-overload-deposit")
         self.assertIsNone(policy._home_pending_item)
 

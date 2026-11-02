@@ -7,7 +7,7 @@ from hengbot.town_pack_budget import home_take_fits
 from hengbot.claim_register import ClaimOwner, claims
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import mining_loadout
+from hengbot import consumable_policy, mining_loadout
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -177,8 +177,6 @@ from hengbot.policy_constants import (
     FOOD_TYPE_MANA,
     HEAVY_CURSE_TAG,
     LOW_VALUE_POTION_SVALS,
-    DISPOSABLE_POTION_SVALS,
-    DISPOSABLE_SCROLL_SVALS,
     FULL_IDENTIFY_DISMISS_SUFFIX,
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_DETECTION_BASE_PRICE,
@@ -3917,7 +3915,9 @@ class EquipmentMixin:
             if item.is_scroll and item.aware
         }
         for sval in self._launcher_enchant_needed_svals(snapshot):
-            if sval in carried_svals:
+            # An optional buy: the owner's table rules it (consumable_policy).
+            if (sval in carried_svals
+                    or not consumable_policy.discretionary_buy((TVAL_SCROLL, sval))):
                 continue
             scroll = next(
                 (

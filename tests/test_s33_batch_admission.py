@@ -17,6 +17,7 @@ from hengbot.claim_register import reach
 from hengbot.model import Position, Snapshot
 from hengbot.policy import HengbotPolicy
 from policy_fixtures import grid, player
+from recorded_consumable_policy import pre_consumable_table_replay
 
 
 FIXTURE = Path(__file__).parent / "fixtures/s33-batch-seams-20261003.json.gz"
@@ -73,6 +74,9 @@ class AdmissionTest(unittest.TestCase):
         self.assertIn("ownership:gate-missing:home-errand", kinds)
         self.assertTrue(any(pin["board"] is not None for pin in pins))
 
+    # declared wall: the recorded 耐冷の薬 (b) is the disposal subject; the
+    # owner's 2026-11-02 table makes it a carry kind (no longer disposable).
+    @pre_consumable_table_replay
     def test_live_off_crossarea_home_holder_allows_recorded_disposal(self):
         from hengbot.model import parse_snapshot, STORE_HOME
         pins = json.loads(gzip.decompress(FIXTURE.read_bytes()))

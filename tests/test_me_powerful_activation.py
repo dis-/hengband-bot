@@ -24,6 +24,7 @@ import tests  # noqa: F401 -- isolate live runtime files
 import copy
 from unittest import mock
 
+from hengbot import consumable_policy
 from hengbot import me_capability
 from hengbot import me_powerful_activation as powerful
 from hengbot import me_staff_sequence
@@ -245,8 +246,15 @@ class MagicEaterPowerfulActivationTest(executor_harness.ProductionHarness):
                 # DECLARED CONSTRUCTED: none at Home and recall scrolls in hand,
                 # the reserve's other conditions.
                 policy._home_star_remove_curse_count = 0
+                # The owner's 2026-11-02 consumable table has no 「購入する」 on
+                # *解呪*, so the optional reserve is never bought; with a table
+                # that buys it, only the absorbed power stops it.
                 with mock.patch.object(policy, "_recall_departure_shortage", return_value=False):
-                    self.assertEqual(policy._star_remove_curse_reserve_purchase_needed(board), bought)
+                    self.assertFalse(policy._star_remove_curse_reserve_purchase_needed(board))
+                    with mock.patch.object(consumable_policy, "discretionary_buy",
+                                           return_value=True):
+                        self.assertEqual(
+                            policy._star_remove_curse_reserve_purchase_needed(board), bought)
 
     def test_the_store_never_offers_a_replaced_scroll(self):
         # The store's candidate list drops the replaced scroll even for a

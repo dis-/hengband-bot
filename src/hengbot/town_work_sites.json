@@ -275,6 +275,55 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "consumable_policy.py:_used_here": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "consumable_policy.py:consumables": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "consumable_policy.py:discretionary_buy": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "consumable_policy.py:quaffed_on_sight": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "consumable_policy.py:row": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "consumable_policy.py:shelved_at_home": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "consumable_policy.py:use_now_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "destruction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "control_client.py:ControlClient.post_keys": {
     "classification": "driver",
     "rows": [

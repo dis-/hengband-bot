@@ -42,6 +42,7 @@ from hengbot import cli
 from hengbot.model import TVAL_CAPTURE, parse_snapshot
 from hengbot.policy_constants import STORE_HOME
 import tests.test_unid_deposit_recorded as recorded
+from recorded_consumable_policy import pre_consumable_table_replay
 
 
 FIXTURES = Path(__file__).with_name("fixtures")
@@ -278,6 +279,10 @@ class JunkSweepRecordedTest(BurstVisitRecordedTest):
                  if item["tval"] == TVAL_CAPTURE]
         self.assertEqual(len(balls), 3)
 
+    # declared wall: the subject is the capture-ball sweep; under the owner's
+    # 2026-11-02 table the Home's 「捨てる」 potions and scrolls are swept too,
+    # which this visit interpreter (Home pages, shop pages) does not model.
+    @pre_consumable_table_replay
     def test_each_observed_destroy_is_credited_progress(self):
         policy, raw = self.boundary()
         # DECLARED RECONSTRUCTED from decision 3426 (town:recall-stockout-

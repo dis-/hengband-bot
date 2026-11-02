@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, random_quest_hold, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import consumable_policy, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -285,8 +285,6 @@ from hengbot.policy_constants import (
     INN_BUILDING_TYPE,
     INSCRIBE_KEY,
     LOW_VALUE_POTION_SVALS,
-    DISPOSABLE_POTION_SVALS,
-    DISPOSABLE_SCROLL_SVALS,
     FULL_IDENTIFY_DISMISS_SUFFIX,
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_DETECTION_BASE_PRICE,
@@ -9959,6 +9957,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         junk_now = junk_destroy_now.destroy_now_key(self, snapshot)
         if junk_now is not None:
             return junk_now
+        # A 「拾って使う」 scroll of the owner's table is read at the same safe
+        # point (consumable_policy, owner 2026-11-02).
+        use_now = consumable_policy.use_now_key(self, snapshot)
+        if use_now is not None:
+            return use_now
 
         quest_floor_recovery = self._town_producer_entry("_kill_quest_floor_recovery_key", lambda: self._kill_quest_floor_recovery_key(snapshot))
         if quest_floor_recovery is not None:
@@ -13883,12 +13886,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         player = snapshot.player
         if hostiles or player.confused or player.blind:
             return None
+        # The owner's table names the potions (consumable_policy 「拾って使う」).
         potion = next(
-            (
-                it
-                for it in snapshot.inventory
-                if it.is_potion and it.aware and it.sval in STAT_GAIN_POTION_SVALS
-            ),
+            (it for it in snapshot.inventory
+             if consumable_policy.quaffed_on_sight(it)),
             None,
         )
         if potion is not None:

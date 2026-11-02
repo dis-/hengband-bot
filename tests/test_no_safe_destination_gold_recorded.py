@@ -64,6 +64,7 @@ from hengbot.policy_state import normalize_policy_state
 from policy_fixtures import grid, item, player
 import policy_shop_fixture as shop_fixture
 from test_esp_threat_rest_recorded import EDIT, _policy
+from recorded_consumable_policy import pre_consumable_table_replay
 
 FIXTURE = Path(__file__).parent / "fixtures/no-safe-dest-gold-20261019.json.gz"
 SHA256 = "acb1c9616ca25eba0e74ff685ab8bd1692d92087504dd9d4311998a3665f8b4d"
@@ -139,6 +140,7 @@ class NoSafeDestinationGoldRecordedTest(unittest.TestCase):
         decision = self.pin["decisions"][index]
         return decision["key"], decision["reason"]
 
+    @pre_consumable_table_replay  # declared wall: recorded rows answer the pre-table keys
     def test_board_facts(self):
         self.assertEqual(self._live(6), BLOCKED)
         keys, policy, boards = self._replay(FIRST_CHANGED - 1)
