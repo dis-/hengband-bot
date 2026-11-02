@@ -50,6 +50,9 @@
   "purchase:quest:carry": [
     "quest-buy"
   ],
+  "purchase:quest:damage-ammo": [
+    "quest-buy"
+  ],
   "purchase:quest:speed": [
     "quest-buy"
   ],

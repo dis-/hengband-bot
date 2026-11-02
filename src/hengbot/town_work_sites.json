@@ -20,7 +20,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ammo_carry.py:damage_ammo_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ammo_carry.py:is_plain_store_ammo": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ammo_carry.py:power_ammo": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -6560,6 +6574,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_quest.py:QuestMixin._quest_damage_ammo_ware": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._quest_damage_ammo_ware.merge_slot": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_quest.py:QuestMixin._quest_equipment_entry_allowed": {
     "classification": "producer",
     "rows": [
@@ -6603,6 +6631,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_quest.py:QuestMixin._quest_launcher_meets_force": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._quest_launcher_rounds": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
