@@ -89,6 +89,21 @@ def hit_in_melee(policy, snapshot) -> bool:
     )
 
 
+def _open_neighbour(policy, snapshot, cell) -> bool:
+    """A passable, non-door neighbour: the board's cell, or, where the board
+    shows none, the floor the player remembers from its sighted boards (the
+    walk home routes over the same memory).
+
+    n1-a life-466 (2026-11-03 02:31, オークの洞窟14階): blind, bitten by a
+    ヴラスタ on almost every step, the board drew only the walls beside it, so
+    no neighbour was free to strike and the walk home went on to the death.
+    """
+    grid = snapshot.grid_at(cell)
+    if grid is None:
+        return (cell.y, cell.x) in policy._remembered_floor_t
+    return grid.passable and not grid.is_door
+
+
 def strike_cell(policy, snapshot, hostiles) -> Position | None:
     """The random free neighbour struck after an unseen melee hit, else None."""
     if not hit_in_melee(policy, snapshot):
@@ -102,9 +117,7 @@ def strike_cell(policy, snapshot, hostiles) -> Position | None:
     )
     candidates = [
         cell for cell in cells
-        if (grid := snapshot.grid_at(cell)) is not None
-        and grid.passable
-        and not grid.is_door
+        if _open_neighbour(policy, snapshot, cell)
         and not any(m.position == cell for m in hostiles)
     ]
     if not candidates:

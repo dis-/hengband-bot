@@ -9519,6 +9519,13 @@
     ],
     "delegation": "none"
   },
+  "unseen_strike.py:_open_neighbour": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "unseen_strike.py:key": {
     "classification": "producer",
     "rows": [

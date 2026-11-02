@@ -7014,9 +7014,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         adjacent = [
             m for m in hostiles if m.position.distance_to(player.position) <= 1
         ]
+        # An unseen attacker's melee blow on this board is an adjacent attacker
+        # the step cannot be checked against: it is struck back below (追加決定2,
+        # unseen_strike).  n1-a life-466 (2026-11-03 02:31, オークの洞窟14階):
+        # blind, the emergency walk to the up-stair went on bitten by a ヴラスタ
+        # on almost every step (HP 274 -> 23).
         if (
             key in DIRECTION_KEYS.values()
             and self.last_reason in self.LOW_HP_CHECKED_STEP_REASONS
+            and not unseen_strike.hit_in_melee(self, snapshot)
             and len([
                 m for m in hostiles if m.position.distance_to(target) <= 1
             ]) <= len(adjacent)
