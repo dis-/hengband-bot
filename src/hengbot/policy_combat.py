@@ -243,7 +243,7 @@ ITEM_DESTROYING_BREEDER_LEAVE_THRESHOLD = 4
 ITEM_DESTROYING_BREEDER_STAIR_DISTANCE = 5
 ITEM_DESTROYING_MELEE_EFFECTS = frozenset({"ACID", "COLD", "ELEC", "FIRE"})
 SV_SCROLL_TELEPORT_LEVEL = 10
-from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
+from hengbot.policy import DESCEND_MIN_HP_RATIO, ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
     MONSTER_SPELL_MAX_RANGE, NAV_ESCAPE_STEP_LIMIT, OPEN_KEY,
@@ -258,8 +258,12 @@ IMMOBILE_SUMMONER_AVOID_REASON = "explore:avoid-immobile-summoner"
 
 @dataclass(frozen=True)
 class SummonerExits:
-    """The immobile-summoner owner's floor exits on one board."""
+    """The immobile-summoner owner's floor exits on one board, in its order
+    (owner 2026-11-02 「下り階段を先に使う」: a downstairs, then upstairs,
+    Teleport Level, Recall)."""
 
+    on_downstairs: bool
+    down_route: object
     on_stairs: bool
     route: object
     teleport_level: object
@@ -268,7 +272,8 @@ class SummonerExits:
 
     @property
     def retreat_possible(self) -> bool:
-        return bool(self.on_stairs or self.route is not None
+        return bool(self.on_downstairs or self.down_route is not None
+                    or self.on_stairs or self.route is not None
                     or self.teleport_level is not None
                     or self.recall is not None or self.recalling)
 
@@ -409,14 +414,22 @@ class CombatMixin:
         """The floor exits the immobile-summoner owner uses, in its order.
 
         The existing stair routing and scroll order. An inaccessible stair
-        behind the summoner is not an available retreat through safe terrain."""
+        behind the summoner is not an available retreat through safe terrain
+        (the zone is vetoed for every route).  A downstairs is one the ordinary
+        descent would take (``_is_descent_target``, ``_descent_is_blocked``)."""
         locked = self._floor_navigation_exit_locked(snapshot)
         here = snapshot.grid_at(snapshot.player.position)
         can_read = (
             not locked and not snapshot.player.blind
             and not snapshot.player.confused and self._can_read_scrolls(snapshot)
         )
+        descend = not locked and not self._descent_is_blocked(snapshot)
         return SummonerExits(
+            on_downstairs=(descend and here is not None and self._is_descent_target(snapshot, here)
+                           and snapshot.player.hp_ratio >= DESCEND_MIN_HP_RATIO),
+            down_route=(self._nearest_goal_route(
+                snapshot, lambda grid: self._is_descent_target(snapshot, grid))
+                if descend else None),
             on_stairs=not locked and here is not None and self._is_upstairs_target(here),
             route=(self._nearest_goal_route(snapshot, self._is_upstairs_target)
                    if not locked else None),
@@ -473,11 +486,19 @@ class CombatMixin:
 
         ``_decide`` asks this once exploration outside the zone is spent, and
         the zone owner asks it when no step leaves the zone; until then every
-        other owner plays on (descent stays refused, ``_descent_is_blocked``).
+        other owner plays on, the ordinary descent included (owner 2026-11-02:
+        leave by the normal floor rules, not after exploring the whole floor).
         """
         if not getattr(self, "_immobile_summoner_avoid_cells", set()):
             return None
         exits = self._immobile_summoner_exits(snapshot)
+        if exits.on_downstairs:
+            self.last_reason = "summoner:stairs-down"
+            return DOWN_STAIRS_KEY
+        if exits.down_route is not None:
+            self.last_reason = "summoner:seek-downstairs"
+            self._declare_reach(exits.down_route.target)
+            return self._step_toward(snapshot, exits.down_route.first_step)
         if exits.on_stairs:
             self._defer_descent(snapshot)
             self.last_reason = "summoner:stairs"

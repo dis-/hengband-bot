@@ -13,9 +13,10 @@ tests/extract_summoner_avoid_narrow_1102_fixture.py): n1-c life-099 on
 owner took every decision of the visit as ``explore:avoid-immobile-summoner``
 (122-150): no detection, no ranged fire, and at turn 676217 (decision 142)
 it walked '4' with a worm mass and a warg in view.  The player stood out of
-the summoner's line of fire throughout.  Now the zone stays a routing veto
-and descent stays refused, but every other owner plays: the 676217 board
-fires at the worm mass.
+the summoner's line of fire throughout.  Now the zone stays a routing veto,
+but every other owner plays: the 676217 board fires at the worm mass, and the
+ordinary descent walks to a downstairs outside the zone (owner 2026-11-02
+「下り階段を先に使う」).
 
 The recall countdown (DECLARED CONSTRUCTED ``recalling`` on recorded
 boards): out of the zone the ordinary ``return:wait-recall`` waits; inside
@@ -52,7 +53,6 @@ AVOID = "explore:avoid-immobile-summoner"
 SUMMONER, SUMMONER_CELL = 1150, Position(2, 46)
 LAST_HOLD_TURN, FIRST_AVOID_TURN = 675997, 676006  # decisions 121 / 122
 FIRE_TURN, RECALL_TURN = 676217, 676068  # decisions 142 / 129
-DESCENT = frozenset({"approach-descent", "seek-downstairs", "descend"})
 GLASS = FIXTURES / "glass-summoner-20261027.json.gz"
 GLASS_SHA256 = "59c9c108d76f2279e7c4f2e854abb3f32206c846dccfe2181450ec04f49f9abb"
 
@@ -101,8 +101,8 @@ class SummonerAvoidNarrowRecordedTest(d57.PostedDeathKey):
         zone = policy._immobile_summoner_avoid_cells
         self.assertTrue(zone and zone <= policy._engagement_avoid_cells)
         visit = [row for row in rows if row[0] >= FIRST_AVOID_TURN]
-        self.assertEqual([row for row in visit if row[3] == AVOID or row[3] in DESCENT], [])
-        self.assertIn("explore", {row[3] for row in visit})
+        self.assertEqual([row for row in visit if row[3] == AVOID], [])
+        self.assertIn("seek-downstairs", {row[3] for row in visit})
 
     def test_recall_countdown_waits_out_of_the_zone(self):
         def recalling(raw):

@@ -167,7 +167,7 @@ class TownTurnArbiter:
             classification("esp-threat", ("esp-threat:hunt-", "melee:esp-threat-hunt"), "telepathic contact resolved"),
             classification("escape", ("emergency:", "flee", "combat:disengage", "combat:fruitless", "unseen:", "unseen-recall:", "breeder-breakthrough:", "breeder-item-damage:", "guardian:teleport-to-cover", "summoner:retreat", "summoner:stairs", "summoner:hold-teleport", "threat:scroll", "threat:wait"), "EscapeState rung released"),
             classification("combat", ("melee", "ranged:", "summoner:ranged-kill",
-                           "summoner:cornered-approach", "summoner:seek-upstairs",
+                           "summoner:cornered-approach", "summoner:seek-upstairs", "summoner:seek-downstairs",
                            "summoner:teleport-level", "summoner:recall", "summoner:wait-recall",
                            "unique:quaff-"), "hostile hit points or count delta"),
             classification("hunt", ("hunt",), "distance to the chosen hostile"),

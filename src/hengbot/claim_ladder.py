@@ -359,7 +359,7 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_explore_step", "explore", "explore", "search", "probe",
             "seek-secret-wall", ordinary=True),                        # 7288
     _decide("_immobile_summoner_exit_key", "combat",
-            "summoner:seek-upstairs", "summoner:teleport-level",
+            "summoner:seek-downstairs", "summoner:seek-upstairs", "summoner:teleport-level",
             "summoner:recall", "summoner:wait-recall"),
     _decide("_start_kill_quest_regeneration", "quest-request",
             "quest:regen:exhausted"),                                  # 7344
