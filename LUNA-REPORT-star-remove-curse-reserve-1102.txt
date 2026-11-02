@@ -1,0 +1,72 @@
+LUNA-REPORT star-remove-curse-reserve-1102（*解呪*の取り置きを表より先の「取り置き」の要求として戻す）
+
+■ オーナーの決定（そのまま）
+「戦士では1枚取り置く。魔道具術師で解呪の杖を取り込み済なら買わない。」（2026-11-02 21時台）
+
+■ 何がどうなっていたか
+consumable-policy-1102 で、*解呪*の予備（2026-07 の e5e35b331「余裕があれば自宅に1本」）が
+表の「購入する」に聞くようになり（_star_remove_curse_reserve_purchase_needed が
+consumable_policy.discretionary_buy を見る）、表の *解呪* に「購入する」が無いため買わなくなっていた。
+呪われた時に買う要求（curse:required / _has_unremovable_curse_target）は今までどおり買っていた。
+
+■ どう直したか（コミット 5521d71fa、main 9548e37f4 の上、push していない）
+- src/hengbot/consumable_policy.py に RESERVES（名前付きの取り置き。今は
+  (70, 15) *解呪*の巻物 → "star-remove-curse-reserve" の1行）と reserve_buy(kind) を足した。
+  reserve_buy は「名前付きの取り置き、または『購入する』」。オーナーの JSON の印は変えていない。
+- policy_shop._star_remove_curse_reserve_purchase_needed が discretionary_buy の代わりに reserve_buy を聞く。
+  ほかの条件（所持金 FUNDRAISING_GOLD_TARGET 以上・帰還の不足なし・自宅にも持ち物にも無い・
+  預け入れ待ちでない）は 07 のまま。
+- 魔道具術師: 今ある me_capability の REPLACES の行（解呪の杖 → *解呪*の巻物、強力発動で使う）と
+  replaced_by_absorbed(..., PURCHASE) をそのまま使う。職業の特別扱いは足していない。
+  取り込んでいない間は戦士と同じく取り置きを買い、取り込んだら買わない。
+- 置き場所: 07 の作りのまま自宅に預ける（買うと _star_remove_curse_reserve_deposit_pending が立ち、
+  自宅で預ける）。表の *解呪* も「拾って自宅に片付ける」なので食い違いはない。
+- 売る店は神殿だけ（src/store/articles-on-sale.cpp の神殿の表に SV_SCROLL_STAR_REMOVE_CURSE。
+  錬金術の店・闇市の通常の表には無い）なので、今の神殿だけの判定のまま。
+
+■ 保守性
+- 「表より先に買う取り置き」を consumable_policy の1か所（RESERVES の表と reserve_buy）に置いた。
+  取り置きが増えたら表に1行足すだけで、各担当は reserve_buy に聞く。
+- 予備を買う判定は今ある1つの述語（_star_remove_curse_reserve_purchase_needed）のまま、
+  魔道具術師の扱いは今ある me_capability の表に任せた（重複した判定・職業の条件を書いていない）。
+- town_work_manifest.py --write: zero unmapped（reserve_buy は町の仕事の候補ではなく、レビューの追加は不要だった）。
+
+■ 検査
+- PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": 通る。
+- 新しいテスト tests/test_star_remove_curse_reserve_recorded.py（3件）。盤面は
+  tests/fixtures/star-remove-curse-reserve-20261102.json.gz（tests/extract_star_remove_curse_reserve_1102_fixture.py が写す）。
+  - test_recorded_shelves: 記録の神殿の棚に *解呪*（戦士 o、魔道具術師 p）、持ち物に無い、職業 0 と 16、
+    戦士の自宅の頁は全部（11品）で *解呪* が無い、表の *解呪* は「購入する」なし。
+  - test_warrior_buys_the_one_scroll_reserve: n1-a life-440（戦士、所持金 15688）の記録の神殿の頁から、
+    公開の choose_key と本番の executor（test_lv7_town_stop_recorded.post）で進め、
+    'po\r\x1b'（shop:one-shot-buy）で *解呪* を1枚買い、預け入れ待ちが立つ。
+    記録のボット（表の前の版）も同じ頁で 'po\r' で買い、自宅に預けていた（state 81 行目、'dg\x1b'）。
+  - test_magic_eater_buys_it_only_until_the_staff_is_absorbed: n1-c life-092（魔道具術師）の記録の神殿の頁で、
+    解呪の杖を取り込んでいなければ取り置きを買う（_affordable_star_remove_curse が p）、
+    取り込み済なら買わない（None）。
+  作った部分（テストに明記）: 戦士の自宅の目録＝記録の自宅の頁（記録に ~9 の一覧が無いため）、
+  技能の知識を読んだ状態、エンジンの返事（test_me_town_stops_recorded.reply）、
+  魔道具術師の所持金 15000・自宅に無い・帰還の不足なし（_recall_departure_shortage を patch）・取り込みの記録。
+- 期待する値を戻した既存のテスト（consumable-policy-1102 で「買わない」にしていたもの）:
+  test_curse_priority_recorded.test_recorded_home_has_normal_scroll_and_owns_cure_before_shopping
+  （_affordable_star_remove_curse が棚の品を返す。_next_purchase は今どおり None）、
+  test_me_powerful_activation.test_star_remove_curse_is_never_bought_once_absorbed（取り込みで決まる）、
+  test_policy_town.RemoveCurseTest.test_surplus_star_scroll_is_bought_once_and_deposited_at_home と
+  test_star_remove_curse_reserve_buy_waits_for_inventory_delta（discretionary_buy の patch を外した）。
+  新しいテストと合わせて 7 件合格。壁は無い。
+
+■ 戻して確かめた結果（1回）
+policy_shop.py の差分だけを戻して流した: test_warrior_buys_the_one_scroll_reserve が
+[] != [('*解呪*の巻物', 1)]（買わない）、test_magic_eater_buys_it_only_until_the_staff_is_absorbed の
+absorbed=False が False != True で落ちた（absorbed=True は今までどおり通る）。元に戻して3件とも合格。
+
+■ checks.json に足す案（checks.json は編集していない）
+{"id": "STAR-REMOVE-CURSE-RESERVE-1102", "owner": "2026-11-02 21時「戦士では1枚取り置く。魔道具術師で解呪の杖を取り込み済なら買わない。」（表の購入の印より先の取り置き）", "tests": ["tests.test_star_remove_curse_reserve_recorded"]}
+
+■ 気づいたこと（直していない）
+- 記録の戦士の盤面のうち n1-a life-445（所持金 18685）は、持ち物の空き（_store_purchase_fits_pack）で
+  取り置きを買えない。持ち物の空きの決まりのままで、この発注の範囲外。
+- 魔道具術師の記録の盤面（n1-c life-092）は帰還の巻物が足りない状態で、その間は取り置きを買わない（07 の条件どおり）。
+
+■ オーナーへの問い
+なし。
