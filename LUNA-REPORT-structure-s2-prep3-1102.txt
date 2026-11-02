@@ -1,0 +1,208 @@
+LUNA-REPORT structure-s2-prep3-1102（構造の直し 第2段B の3本目の準備: main で赤いテストの仕分けと3本目の計画）
+
+== 前提 ==
+- 持ち主の決定: 2026-10-28 「B: 場面の終点に一本化」。2026-11-02 「街に関する構造整理は優先度を上げて。半端になるのが一番良くない」。
+- 土台: main 1f15e98d1（2本目 structure-s2-2-1102 の取り込み後）。src は変えていない（テストだけ）。
+- テストは PYTHONPATH="src;tests;scripts" で流した。
+
+== 最初に分かったこと（1本目の報告の訂正） ==
+- 「test_ownership_* の6本が test_ownership_claims.py の 69 行目の AttributeError で読み込めない」は誤り。
+  69 行目は `import ownership_claim_lint`（scripts/ にある）で、PYTHONPATH="src;tests" だと ModuleNotFoundError になる。
+  scripts を足せば6本とも読み込める（落ちるテストは下の表のとおり）。AttributeError（'NoneType' の .state）は
+  test_declarations_r4 の 106 行目の別の失敗。
+- 2本目（flag の削除）は、ON（_town_claim_bar_enforced = True）でだけ通っていたテストのうち一部を、
+  消さずに flag の代入の行だけ消して残した。それらが新しく赤になった（下の「2本目の残り」）。
+  比べた: 2本目の前の main 46348f994 と後の 1f15e98d1 で同じモジュールを流した。
+    test_ownership_s3a_record 0 → 9、test_ownership_s3_3_delegation_record 0 → 3、test_declarations_r11 1 → 7、
+    test_ownership_s2a_classification 13 → 14、test_s33_phase2_quest は enforced=True の subTest が3件増えた。
+
+== テストごとの判定 ==
+(a) 直した（live の振る舞いを守るテスト、期待値が古かった）
+1. test_town_terminal_declarations.test_4_codes_and_table_agree → 緑（b6d69c35a）
+   原因: town_terminal の verdict_* を全部「拒否の判定」として読み、verdict_town_end（町の終わり方、11-02 の決定）が返す
+   TownEnd の種類 "depart" を拒否の名前として調べていた。直し: Admission を返す verdict だけを読み、それ以外が
+   verdict_town_end だけであることも固定した。宣言の検査そのものは同じ強さで残る。
+2. test_overweight_home_hold_recorded.test_recall_reservation_inside_home_matches_departure_board → 緑（46c07b9f4）
+   原因: STOP の盤面の帰還の巻物の取り置きを、その盤面の判断の「後」に読んでいた。町の終わりの採掘（459902860）以降、
+   その判断で採掘の回が開き、取り置きが 10 → 9 になる（判断の前は 10、確かめた）。テストが比べたいのは
+   自宅の盤面と出発の盤面の取り置きなので、両方とも判断の前に読むようにした（値は記録どおり 10 と 10）。
+   なお 9 になるのは下の「本当の回帰」の後の状態なので、回帰を直せば判断の後でも 10 に戻るはず。
+3. test_live23_home_cycle.test_digger_withdrawal_is_for_mining_departure_only → 緑（9ed38bb99）
+   原因: 記録の盤面は荷物 19/23 枠。D30 の直し（d63159672、町の荷物の枠の予算）以降、採掘道具の取り出しは
+   home_take_fits で断られ、どの目的でも None になる（承認済みの動き）。さらに enforced の脚は flag が無くなり意味が無い。
+   直し: 記録の盤面では全部断られることを固定し、目的（採掘の出発の時だけ取り出す）の固定は、最後の2つの束を除いた
+   宣言済みの作った盤面（DECLARED CONSTRUCTED）で残した。二分探索で d63159672 の取り込み 40d9ab965 が最初に落ちる版と確かめた。
+
+(本当の回帰・報告だけ、直していない)
+4. test_overweight_home_hold_recorded.test_unposted_home_deposit_routes_home_again
+   test_overweight_home_hold_recorded.test_exhausted_home_bound_ends_in_the_named_overweight_stop
+   → 赤のまま。live の振る舞いの回帰。
+   - 症状: 重さ超過（1752/1750）で自宅の回数が残っている STOP の盤面で、今は自宅へ戻らず ('5', 'town:end-mining-cycle')
+     （重さ超過のまま採掘の回を始める）。回数を使い切った時も名前付きの止まり overweight-home-unreachable
+     （ユーザー 2026-09-03「預けられないなら止まる」）にならず town:end-mining-cycle。
+   - 最初に落ちた版: town-defined-end の取り込み f334cbd12（090f3847e「End a town visit no owner answers by departure
+     or a named stop」）。その直前の 7187fb862 では両方緑。その時は ('\x1b`n(.', 'shop:travel') で自宅へ戻っていた。
+     その後 b769a853f（town-end-mining 459902860）で「生存の止まり」から「採掘の回」に変わった。
+   - 根: 自宅へ戻す処理（10-02 の Fix 2）と名前付きの止まりは policy_town._town_procurement_decision の
+     overweight_home_pending（policy_town.py 1886〜1946 行）にあり、提案の理由が "stuck:wander" か "novel:" の時だけ動く。
+     090f3847e で町の最後の手段（_town_idle_key、policy.py 11875 行）が stuck:wander を出さず town_end_key に行くように
+     なったので、この分岐は町では二度と動かない（src に "novel:" を出す所も無い。確かめた）。
+     つまり「担当が答えない時だけ終わり方」なのに、自宅の担当（重さの再武装）は答えられたのに、その答えが歩き回りの
+     書き換えとして作られていたので消えた。
+   - 直す場所の案（決定が要るので実装していない）: town_terminal.town_end_key の順の中、店回りの進め（1.）の隣に
+     「重さ超過で自宅の回数が残っていれば自宅へ戻す・使い切ったら overweight-home-unreachable」を置く。
+     _town_procurement_decision の死んだ2つの分岐（overweight_home_pending と liveness の no-actionable-claim-owner）は
+     その時に消す。系統は D30/D34（overweight-home-unreachable）か town-end の担当。
+   - 3本目への影響: この2本は自宅の hold の安全網の一部だが、hold の判定の前（町の終わり方）で別れるので、3本目の中立の
+     証明には使えない。証明は HOME の盤面（0..3）の再生と routed_home_arrival で行う（下の計画）。
+
+(b) 3本目（または4本目）で消すテストとして載せる（記録・影・委譲・ON 専用の仕組みだけを試す）
+※まだ消していない。
+5. test_declarations_r4（7本、1件 error）: 全部 _record_execution_declaration と claim_register.declare で
+   execution の宣言を試す。落ちる test_unresolved_direction_releases_route は key=None の時に offer が文字列 "None" で
+   出て宣言に結び付かない（記録だけ）。モジュールごと消す。
+6. test_s33_batch_context.test_outside_takeoff_runs_through_choose_key（2 subTest）: ON 専用の固定。
+   証拠: 78deea2ac（緑だった版）で flag を False にすると town:remove-curse / town:restore-combat-weapon になり
+   takeoff にならない。OFF（live）では一度もこの盤面で takeoff を出していない。2本目で flag の行だけ消されて残った。
+   モジュールの他の7本も claim_register.declare と _s33_shadow_verdict を前提にするので、モジュールごと3本目で消す。
+7. test_ownership_claims（2件）、test_ownership_s2a1_closure（6件）、test_ownership_s2a_classification（14件）、
+   test_ownership_s2b1_ladder（2件）、test_ownership_s2b2_bar（4件+1 error）: 記録の帳簿・暗黙の受け渡しの数・census・
+   rung の表・bar の帳簿・lint の除外表を固定するもの。2本目の前から赤（s2a_classification の +1 は消えた
+   _enforce_town_claim_result の除外の行が古くなったもの）。4本目（モジュールごと消す時）で消す。
+8. 2本目の残り（ON 専用、flag の代入の行だけ消されて赤になった）:
+   test_ownership_s3a_record の9件（test_town_hold_is_one_predicate_and_restores_with_switch_off、
+   test_town_producer_entries_defer_without_starting_sessions、test_town_holder_resumes_after_survival_before_another_errand、
+   test_active_route_replaces_empty_entry_wrapper、test_suspended_route_replaces_empty_entry_wrapper、
+   test_committed_store_walk_survives_plan_retirement_until_arrival、test_downstream_router_result_yields_to_awaiting_knowledge、
+   test_periodic_bookkeeping_waits_for_open_town_claim_when_on、test_store_exit_wait_keeps_pending_transaction_on）。
+   9件とも 46348f994 の版で `_town_claim_bar_enforced = True` を代入していた（確かめた）。
+   test_ownership_s3_3_delegation_record の3件、test_declarations_r11 の7件も同じ（flag の参照 3・6 か所）。
+   3本目の最初に消す（2本目で消すべきだったもの）。
+9. test_s33_phase2_quest.test_recorded_detours_keep_bounty_ownership（6 subTest）: decision_claim の owner と
+   _s33_shadow_verdict を固定する影のテスト。OFF の脚は 2本目の前から赤（今は inventory:destroy-worthless-junk の
+   '01ks'、cdfb12335 では店への移動。78deea2ac では緑）。鍵の期待値が後の承認済みの動き（町での即時の処分など）で
+   古くなった。賞金首への道の固定が要るならクエストの系統のテストで持つべきで、ここでは3本目で消す。
+10. test_declarations_r14.test_overweight_home_tail_keeps_its_operation_at_3715: OFF と S3.3 ON の最初の分かれ目を
+   測るもの（ON との比較）。今は再生が記録に無い最適化の入力に当たって止まる。3本目で消す。
+11. test_declarations_r3b.test_friendly_attack_declares_exact_monster（error、2本目の前から）: claim の goal の
+   宣言を試すテストの中の replace() の誤用。3本目で消す。
+
+(範囲外・触っていない)
+12. test_item_sink_lint の4件: 品の行き先の lint の pin（policy_combat._breeder_breakthrough_key、
+   policy_town._town_procurement_decision・_town_special_key）が他の直しで古くなった。claims の decorator の
+   入口の検査なので4本目（claims の decorator を消す時）に関わる。pin の更新はその直しの持ち主の仕事。
+
+== 3本目の計画 ==
+大事な事実: 「記録だけ」と書かれた claim の仕組みは、実際には live のキーに効く状態を持っている。
+_record_decision_claim（policy.py 4268 行）が毎回の判断の終わりに policy._claim_register を進め、その結果を
+errand_hold などが次の判断で読む。だから3本目は「消す」の前に「状態の持ち主を town_terminal に移す」を
+振る舞いを変えずに行い、本当に誰も読まない物だけを消す。
+
+[A] live のキーに効く状態（移す。値も更新の順も変えない）
+ A1. 立っている請求（ClaimRegister.current）。live で読む欄: owner.value、claim_id、is_open／closed／closed_reason、
+     state、goal.kind／goal.cell／goal.source／goal.expectation、execution（producer、work_id、state、next_step、
+     arguments、expected_effect、continuation、budget_ref、operation_ref）、non_discardable、budget。
+ A2. 中断された請求の列（ClaimRegister.suspended）: closed、state、owner、goal.kind／goal.source、floor。
+     errand_hold(enforced=True) が読む（crossarea の自宅の hold、live）。
+ A3. bar（ClaimRegister.bars）: kind、ending、owner と _claim_bar_after。_town_errand_deferral（policy.py 5630）が
+     enforced=True で常に読み、_defer_town_errand の active_bar になる（crossarea の自宅の窓で live）。
+ A4. 委譲の記録 _execution_delegations: _recorded_execution_token（policy.py 5879）の token_would_admit
+     （deferred_now を決める、live）、policy.py 5972・6604。
+ A5. offer の buffer（_decision_offer_buffer / _execution_offers_for）: town_terminal.claim_family_of（1941〜）と
+     _town_procurement_decision の admitted_commands（policy_town.py 1755 付近）が読む。
+ A6. decision_claim の claim_id・goal.kind・distance: cli._advance_town_blocked_iteration（cli.py 916〜925、町の
+     止まりの数え上げの fuse。Reach の距離が縮むと進んだと見なす）と policy.py 4318（seek-shelter の解放）。
+ A7. 順位（claim_ladder.rung_of の rank）: _claim_owner_transition（policy.py 4989）で上の順位が請求を中断する（suspend）
+     ので A2 に効く。3本目では表をそのまま使い、4本目で town_terminal.RUNG_FAMILIES の隣へ移す。
+
+ 読む所（file:line、main 1f15e98d1）:
+   town_terminal.py 1966・1988（claim_family_of）、2020・2034（errand_hold）、2054（home_catalogue_work_holder）、
+   2078（home_sequence_has_holder）
+   policy.py 3918〜3921（_claim_goal）、4318、5635（_town_errand_deferral）、5663（_defer_town_errand）、
+   5698（_town_plan_defers）、5756（_town_producer_entry の equipment-txn の行）、5869、5886（_recorded_execution_token）、
+   6128〜6312（_town_holder_wait_key）、6324・6387（catalogue）、7368〜7379（_choose_key の catalogue の出口）、
+   8080（_choose_key の装備の取引）、11347（_decide の scan_wait）、12343
+   policy_equipment.py 2080（_equipment_home_outcome）、2180（_close_full_home_equipment_deposit）
+   policy_home.py 780（_home_full_relief_key）、1509（_file_home_errand）
+   policy_navigation.py 241（_suppress_pending_stair_command）
+   policy_supply.py 1602（_mana_food_survival_override_key）
+   policy_town.py 4344（_build_town_errand_plan）、7367（_outpost_fare_recovery_key）
+   policy_shop.py 3272（_home_sequence_has_holder）
+   cli.py 557（_observe_owner_retired_progress: owner-retired-burst の進みの数え上げ、live）、916（fuse）、
+   1837（観察用の浅いコピー）
+   policy_state.py 44・363・400（チェックポイントの復元と較正の取り除き）
+ 書く所:
+   policy.py 1949（__init__）、3476〜3548（_record_execution_declaration: declare_execution）、
+   3606〜3653（_claim_close: complete/expire/release/close_suspended）、3672〜3690（_release_esp_threat_rest_hunt）、
+   3718（_complete_equipment_transaction_claim）、4100（_claim_exit_completion）、
+   4268〜4870（_record_decision_claim: suspend 4449、release 4457、resume 4531、declare 4549、
+   retire/await_observation/keep_active 4563〜4567）、4872〜4953（_claim_suspended_exit）、
+   4989（_claim_owner_transition）、5075〜5109（_claim_resolve_suspended）、5376（_claim_set_bars）、
+   5577〜5611（_observe_execution_delegations）、6141・6302・6304（_town_holder_wait_key）、
+   8086（_choose_key）、8145（fundraising の set_bar）、13759（confirm_key_posted）、13967（refuse_key_posting）
+   policy_shop.py 1730〜1740（_observe_cross_town_shopping_arrival）、policy_town.py 5635〜5654
+   （_observe_town_equipment_work）、7365（_outpost_fare_recovery_key の release）
+
+ 3本目の手順（1回で1つ、各コミットで再生の違い 0 を確かめる）
+   3-1. ON 専用の残り（上の 8. と 6.）と、影・宣言だけのテスト（5.・9.・10.・11.）を消す。src は変えない。
+   3-2. 誰も読まない物を消す [B]:
+        _s33_shadow_verdict（policy.py 6477）とそれだけが使う _town_final_declaration_stop・_town_unrestored_stop、
+        decision_claim の s33_shadow・terminal_admission・declaration_mismatch・claim_verdict_conflict の欄と
+        _claim_last_completed_home（4482〜4525）、_decision_gate_final_count・_decision_rewrite_refused・
+        _decision_no_step_release・_decision_cancelled_home_reservation（2738〜2741、4828〜4842、6313、6725）。
+        注意: decision_claim は判断の記録の行（cli._write_decision、cli.py 2243）にも載るが、そこは記録だけ。
+        cli.py 916 の fuse が読む claim_id・goal・distance は残す。
+        emit_ownership / ownership_metrics（cli.py 84・96・4041・4276・4863・5215）は出力だけか、movement_destination
+        （emit_ownership から import）が live かを先に確かめる。live なら movement_destination だけ移す。
+   3-3. 状態の持ち主を移す: policy._claim_register と _execution_delegations と offer の buffer を、town_terminal が作り
+        持つ1つの物（例 town_terminal.TownHold、中身は今の ClaimRegister をそのまま使う）にまとめ、上の「書く所」は
+        town_terminal の関数（例 hold_declare / hold_close / hold_suspend）を通して書く。読む所は town_terminal の
+        読み取り関数（standing_errand、suspended_errands、active_bars、delegation_token）を呼ぶ。
+        policy_state のチェックポイント復元で古い "_claim_register" を新しい場所へ移す（復元のテスト
+        test_ownership_claims の S1-2 相当は4本目まで残すか、ここで移し替える）。
+        _record_decision_claim は「状態を進める部分」（town_terminal へ）と「行を作る部分」（記録、4本目で消す）に分ける。
+   3-4（4本目）: claim_register の Claim/Goal の型を town_terminal の小さな型に置き換え、claim_ladder の rank を
+        RUNG_FAMILIES の隣へ、claim_goal_typing の KNOWLEDGE/STORE_OPERATION/Reach/Observe を town_terminal へ。
+        claim_register・claim_goal_typing・emit_ownership・ownership_metrics・claim_ladder と 7. のテストを消す。
+
+ 中立の証明（crossarea ON の自宅の窓）
+   - 1本目・2本目と同じ再生（validation/manifest-tax-1101/replay_choose_key.py と compare_replays.py、
+     flag の shim は validation/structure-s2-2-1102/replay_flag_off.py）で、293 モジュールの choose_key の
+     キー・last_reason・town_work の受領を main と枝で比べ、違い 0。
+   - 比べる物を足す: decision_claim の claim_id・goal.kind・distance（fuse の入力）、_decision_errand_deferred の
+     各行（holder_family・deferred_family・token_would_admit）と _defer_town_errand の戻り値、errand_hold の答え
+     （claim_id と owner）。これらはキーが同じでも hold の中身が変わると次の判断で効くため。
+   - 自宅の窓を直接固定する記録のテスト（crossarea を ON にする 82 ファイルのうち自宅を通るもの）:
+     test_overweight_home_hold_recorded（HOME までの4盤面の再生、routed_home_arrival は decision_claim の
+     closed_claim と _claim_register.current を読むので 3-3 で読み取り関数に向け直す）、test_live23_home_cycle、
+     test_home_scan_owner_priority、test_homeexit_recorded、test_homefull3_recorded、
+     test_home_junk_bones_recorded、test_home_leave_suppressed_recorded、test_unid_deposit_recorded、
+     test_equipment_homefull_step15a、test_oneshot_preempt_recorded、test_oneshot_inflight_recorded、
+     test_fundraise_kit_home_recorded、test_junk_town_weight_recorded、
+     tests/town_s2_exit_replay.py、tests/replay_slow_home.py。自宅の hold を crossarea なしで試す test_live37_home_scan・
+     test_home_route_release_recorded も合わせて流す。3-3 の前と後で全部同じ結果（今の赤は同じ赤のまま）。
+   - 注意: 上の 4.（重さの回帰）は町の終わり方の前で別れるので、3本目の前に直すなら直した後の main を土台にする。
+
+== 確かめたこと ==
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok。
+- 直した3本: tests.test_town_terminal_declarations（8本 OK）、
+  tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_recall_reservation_inside_home_matches_departure_board（OK）、
+  tests.test_live23_home_cycle（9本 OK）。直す前は3本とも落ちていた（直す前の失敗の内容は上のとおり）。
+- 二分探索は main の版を scratchpad に git archive で書き出して流した（worktree の外、後始末済み）。
+- 壁は足していない。test_live23 の作った盤面は DECLARED CONSTRUCTED と書いた（元のテストも補助の場合と書いていた）。
+
+== コミット ==
+- b6d69c35a Scan only the refusal verdicts for declared refusal codes
+- 46c07b9f4 Read the Home recall retention on the arriving board
+- 9ed38bb99 Pin the digger take under the town pack budget
+- （この報告）
+
+== 保守性 ==
+- src は変えていない。テストの直しは、宣言の検査の範囲を型（Admission）で決めるようにした・測る時点を判断の前に
+  揃えた・承認済みの D30 の動きに合わせた、の3つで、どれも特定の盤面の例外を足していない。
+
+== 持ち主への問い ==
+Q1: 重さ超過で自宅の回数が残っている時に自宅へ戻す処理（10-02）と、使い切った時の名前付きの止まり
+    overweight-home-unreachable（09-03）が、町の決まった終わり方（11-02）の後は動かず、重さ超過のまま採掘の回を
+    始めています。町の終わり方の順の中に「重さ超過なら自宅へ戻す・回数が尽きたら名前付きで止める」を入れて
+    直してよいですか（自宅の担当が答えられる場面なので、終わり方より先に答えさせる形）。
