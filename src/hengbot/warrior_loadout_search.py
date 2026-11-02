@@ -52,6 +52,11 @@ BENEFICIAL_GEAR_FLAGS = frozenset(
         48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
         69, 70, 76, 79, 84,  # anti-magic, mana reduction, levitation, telepathy
         143, 144, 145, 157, 163,
+        # TR_RES_CURSE, one of the game's high resistances (object-boost.cpp
+        # high_resistances, the Dragon armour roll).  Without it a Dragon
+        # Gloves {r呪} looked dominated by a worn {r時} pair and was
+        # destroyed as plain gear (owner 2026-11-02).
+        148,
     }
 ) | frozenset(flag for flag, *_ in (*SLAYS, *BRANDS))
 
