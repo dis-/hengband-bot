@@ -14456,6 +14456,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Whether both local, ordered Identify-staff suppliers are exhausted."""
         if getattr(self, "_identify_staff_mining_plan", False):
             return False
+        return self._identify_staff_unbuyable(snapshot)
+
+    def _identify_staff_unbuyable(self, snapshot: Snapshot) -> bool:
+        """Whether Home and every supplier tried this visit hold no staff that helps."""
         if (
             not self._home_knowledge_current
             and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="identify-staff")
