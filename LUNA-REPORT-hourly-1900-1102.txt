@@ -1,0 +1,122 @@
+LUNA-REPORT hourly-1900-1102（n1-a life-464 のオークの洞窟 23階の探索の停止）
+
+ブランチ hourly-1900-1102（main ec1f68398 から作成）。push していない。
+証拠の写し: C:\hengband-backups\pdca\captures\hourly-1900-1102\20261102-191834-stall-floor-dwell-explore\
+（bot-decisions.jsonl.gz・state.jsonl.gz・control-at-stop.json.gz・bot-stderr.log。サーバは読み取りだけ。
+サーバの jsonlog の bot-decisions.jsonl.1 から階の移り変わりと地図の数を読んだ。この .1 は 19:45 に
+回されて今はサーバに無い）。
+
+
+1. stall:floor-dwell:explore ×1（修正済み、コミット 37414d7d4）
+
+  件数・ビルド: 1 件（2026-11-02 19:18:34）、bot-ec1f68398（今日の回避の迂回・動かない召喚の敵の範囲の
+  絞り込み・歩いて出る時の掘削・消耗品の表を含む最新）。n1-a life-464、戦士 Lv41、HP 922/922、
+  オークの洞窟 23階（このダンジョンの maxDepth＝最深階、下り階段は無い）。光の半径 3。
+
+  場面: 町で鉄獄（帰還の深さ 50）が危ないため town:unsafe-recall-fallback → town:recall-to-alt-dungeon で
+  オークの洞窟 23階へ。1 つ目の 23階は 18:39〜19:16 の 37 分、決定 約 8,800 回、踏んだマス 6,024
+  （記録の地図の数: 探索済み 9,686、未踏の境界 12）。その後 summoner:seek-upstairs で 22階へ上がり（19:16:34）、
+  7 秒で下り階段から新しい 23階へ（19:16:41）。停止はその 2 分後。
+  見張り（linux_soak.py）は 60 秒ごとに state の floor の辞書と Lv を比べ、30 分変わらなければ止める。
+  22階の 7 秒は見本の間に落ち、新しい 23階は辞書（深さ・雰囲気 9・大きさ）が前と同じなので、
+  見張りには「18:48（1 つ目の階の雰囲気が 9 になった時）から同じ階」に見えた。
+
+  記録の 311 決定（決定 10598〜10908）はすべて explore。目標はほとんど隣のマスで、暗い洞窟の床を
+  1 行ずつ往復して全部のマスを踏んでいる（例: (17,83)→(17,93)、(18,92)→(18,84)、(19,84)→…）。
+  敵は見えていない（visible_hostiles 0）。
+
+  原因（policy_navigation._plan_explore_path_pass の「一度も踏んでいない床を訪ねる」目標）:
+    この目標は、思い出した床のうち踏んだ回数 0 のマスすべてに訪問を求めていた。オーナーの決定
+    2026-10-23（#101）「自分の明かりで一度照らして見た床は探索済みとする」で、明かりの中で見た床は
+    _marked_t（探索済み）に入るようになったが、この訪問の目標だけは探索済みの床にも訪問を求め続けていた
+    （floor-dwell-b の報告が、当時 4 本のテストが壊れるので残した部分）。光の半径 3 の暗い洞窟では、
+    明かりで見た床は全部この目標になり、マスを 1 つずつ踏んで回る。最後の 5 分（19:11〜19:16）は未踏の
+    境界が 12〜13 のまま、遠くの踏んでいない床（(18,16)、(49,38)、(8,83) など）へ歩くだけだった。
+  証拠: 記録の 53 枚の盤面を今のポリシーに当てると、記録の目標 52 件のうち 43 件が隣のマス、
+    42 件が「明かりの中で見た・踏んでいない・境界でない」床（探索済みの床）。元のコードでは
+    再生したポリシーも最初の盤面から探索済みの床 (26,86) を VISIT の目標に選ぶ。
+
+  今日の取り込みが原因か: どれも原因ではない。
+    - 迂回（e013c255e、_engagement_danger_cells）: 敵がいないので効いていない。
+    - 動かない召喚の敵の範囲（ecab21c34・c341b6eb8）: 1 つ目の階を去る理由（summoner:seek-upstairs）で、
+      止まりの原因ではない。22階からすぐ 23階へ下りたので、見張りが階の替わりを見落とす結果には関わった。
+    - 歩いて出る時の掘削（12b79e743）・消耗品の表（10096f491 ほか）: この場面に出てこない。
+    根は 10-23 から残っていた訪問の目標で、最深階の広い暗い洞窟（CAVE、198×66）で表に出た。
+
+  直し（コミット 37414d7d4、src/hengbot/policy_navigation.py の 2 か所）:
+    - _plan_explore_path_pass: 探索済みの床（_marked_t）には訪問を求めない。明かりの外で見ただけの床
+      （明るい部屋を遠くから見た床など）は今までどおり訪ねる。その先の未知のマスは境界（frontier）として
+      今までどおり行く。
+    - _explore_goal_is_complete: 決めた訪問の目標が、行く途中で明かりの中に入って探索済みになったら完了。
+    新しい振る舞い・定数・閾値はない（#101 の決定を訪問の目標にも当てるだけ）。
+
+  テスト: tests.test_explore_lit_floor_sweep_1102_recorded.ExploreLitFloorSweepRecordedTest（2 件）
+    - test_recorded_boards_swept_the_lit_floor_cell_by_cell: 記録の決定がすべて explore で、目標 52 件の
+      うち 43 件が隣のマスであることを固定。
+    - test_explore_goals_skip_floor_seen_in_the_own_light: 記録の 53 枚を公開の choose_key に通し、
+      出たキーを本番の executor（test_me_nokey_1031_recorded.PostedKey）で送る。毎回 explore で、
+      再生したポリシーの目標が探索済みの床にならないこと、記録の目標のうち 42 件が探索済みの床だった
+      ことを確かめる。
+    元に戻した確認（1 回）: src の直しを戻すと、2 件目が最初の盤面（turn 5161652、VISIT (26,86)）で失敗。
+    戻して 2 件とも合格。
+  抽出: tests/extract_explore_lit_floor_sweep_1102_fixture.py
+        → tests/fixtures/explore-lit-floor-sweep-20261102.json.gz（750 KB、記録の 53 枚そのまま）
+
+  期待値を直した既存のテスト（tests/test_policy_navigation.py の 3 件）:
+    ExplorationTest.test_steps_onto_lit_but_unvisited_floor_before_finishing_exploration、
+    ProbeTest.test_escapes_a_searched_pocket_by_least_visited_route、
+    TrapSealedFloorRegressionTest.test_longer_safe_route_to_new_coverage_wins_over_short_trap_route。
+    合成の盤面の grid() は既定で全部のマスに marked=True を付けるが、実際の盤面では床に mark は付かない
+    （model._decode_grid_map は TUNNEL の地形だけ mark にする）。この 3 件が「まだ見ていない・明かりの外で
+    見た床」として使うマスだけ marked=False にした（実際の盤面と同じ書き方）。テストの主題・期待する
+    キーと理由は変えていない。壁（古い規則を戻す差し替え）は足していない。
+
+
+2. 確認
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": 成功。
+  - 新しいテスト 2 件: 合格。期待値を直した 3 件と、10-23 の #101 で壊れたと報告された
+    ResistanceDepthGateTest.test_stair_refusal_explores_across_consecutive_decisions: 合格。
+  - 参考（直したファイルの中の確認）: test_policy_navigation 全体（129 件）は直しの前後とも同じ 18 件が
+    失敗（UnseenAttackerTest 15・TownTravelerCombatPriorityTest 3、main ec1f68398 のままでも同じ）。
+    直しで増えた失敗はない。test_floor_dwell_seen_floor_recorded の 2 件と
+    test_detected_pack_no_choke_recorded の 1 件も main のままで失敗している
+    （inventory:destroy-worthless-junk が先に出る。消耗品の表の取り込みの後と見られる。調べていない）。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - src に関数は足していないので town_work_manifest は回していない（町の仕事の producer も変えていない）。
+  - 裏の処理は残していない。git stash は使っていない。
+
+
+3. 同じ記録で見えた別の件（直していない）
+
+  - 見張りの見落とし（サーバの linux_soak.py、ボットの外）: 階の辞書と Lv を 60 秒ごとに見るだけなので、
+    60 秒より短く別の階へ行って同じ深さの新しい階へ戻ると、階が替わったことが見えない。今回の
+    停止は、ボットが新しい階に来て 2 分の時に起きた。state の turn の階の替わり（例えば floor の辞書が
+    変わった回数）を数えれば見落とさない。運転の仕組みの件なので触っていない。
+  - bot-stderr.log に save archive failed（git add saves/BOT_PLAY が終了コード 128）が繰り返し出ている。
+    運転の環境の件。
+  - 最深階（下り階段が無い）の代替のダンジョンで、ボットは階を全部探索してから階段で階を替える。
+    今回の直しで 1 つの階にかかる時間は短くなるが、最深階で何をするか（どれだけいるか）自体は変えていない。
+
+
+4. 保守性
+
+  - 直しは探索の目標を選ぶ 1 か所（_plan_explore_path_pass）と、その目標の完了の判定 1 か所だけ。
+    「探索済み」の判定は既存の _marked_t（#101 の規則・魔法の地図の範囲を含む）をそのまま使い、
+    新しい集合・定数・特別扱いは足していない。訪問を求める条件と完了の条件が同じ _marked_t を読むので、
+    食い違わない。
+  - 合成のテストの盤面を実際の盤面の書き方（床に mark なし）に合わせ、なぜ marked=False かを各テストに
+    1 行で書いた。
+
+
+5. checks.json の案（編集していない）
+
+  {"id": "EXPLORE-LIT-FLOOR-NO-VISIT",
+   "defect": "最深階の暗い洞窟で、自分の明かりで見て探索済みの床にも訪問を求め、1 マスずつ踏んで回り stall:floor-dwell:explore で止まった（n1-a life-464 2026-11-02 19:18、オークの洞窟 23階、1 つの階に 37 分）",
+   "owner": "自分の明かりで一度照らして見た床は探索済みとする（2026-10-23 #101）",
+   "tests": ["tests.test_explore_lit_floor_sweep_1102_recorded"]}
+
+
+6. オーナーへの問い
+
+  なし（見張りの見落としは運転の仕組みの件として 3 に書いた）。
