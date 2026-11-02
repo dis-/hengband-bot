@@ -12,6 +12,13 @@ C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-a/life-466/:
       town:recall-to-yeek-cave ``rgb``) and the next board (677231, decision
       13 town:cancel-wrong-recall-destination ``rg``).
 
+and from .../hourly-2300-1102/n1-b/life-297/:
+
+  captures/20261102-224947-loop-detected/state.jsonl.gz
+      the loop-detected board (turn 400979, 15F, confused:wait);
+  incident-captures/20261102-224945-loop-detected/snapshots/snapshots-current.jsonl.gz
+      its skill row and Home list.
+
 Only this extraction tool reads the captures; the committed test reads the
 fixture.
 """
@@ -30,6 +37,7 @@ LIFE = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-a/life-466")
 STOP = LIFE / "captures" / "20261102-231848-town-blocked-departure-unsatisfiable"
 RECALL = (LIFE / "incident-captures"
           / "20261102-231856-posting-contract-recall-already-active")
+N1B = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-b/life-297")
 OUTPUT = Path(__file__).with_name("fixtures") / "hourly-2300-1102.json.gz"
 
 
@@ -50,12 +58,17 @@ def knowledge(rows, category):
 def main():
     stop = rows_of(STOP / "state.jsonl.gz")
     recall = ring_rows(RECALL / "snapshots" / "snapshots-current.jsonl.gz")
+    confused = rows_of(N1B / "captures" / "20261102-224947-loop-detected" / "state.jsonl.gz")
+    confused_ring = ring_rows(N1B / "incident-captures" / "20261102-224945-loop-detected"
+                              / "snapshots" / "snapshots-current.jsonl.gz")
     write(OUTPUT, dict(
         source="state.jsonl.gz of the n1-a life-466 hourly-2300-1102 captures",
         identify=dict(stop=board(stop, 676638), home=knowledge(stop, "home"),
                       skill=knowledge(stop, "skill_exp")),
         recall=dict(read=board(recall, 677221), next=board(recall, 677231),
-                    skill=knowledge(recall, "skill_exp"))))
+                    skill=knowledge(recall, "skill_exp")),
+        confused=dict(stop=board(confused, 400979), home=knowledge(confused_ring, "home"),
+                      skill=knowledge(confused_ring, "skill_exp"))))
 
 
 if __name__ == "__main__":

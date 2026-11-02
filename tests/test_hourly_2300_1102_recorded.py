@@ -13,7 +13,9 @@ import json
 import unittest
 from pathlib import Path
 
-from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot.cli import (
+    PostingContract, _ExecutorInputPort, _cell_loop_guard_applies, _send_new_decision_key,
+)
 from tests import test_input_executor as executor_pins
 from test_hourly_0700_1102_recorded import RecordedTownPolicy
 
@@ -118,6 +120,31 @@ class QuestDungeonTargetAcrossBoardsTest(RecordedTownPolicy, executor_pins.Produ
             snapshot=board, posting_contract=PostingContract())
         self.assertTrue(sent, port.last_result.stop_line)
         self.assertEqual(game.accepted, ["1"])
+
+
+class ConfusedWaitLoopGuardTest(RecordedTownPolicy):
+    """n1-b life-297 22:49:45 loop-detected at 15F.
+
+    A demon's claw confused the character (decision 544) after its last Cure
+    Critical Wounds potion; with no hostile in view it rode the confusion out
+    with ``5`` confused:wait.  The game counts the timer down by one each
+    player turn (magic-effects-timeout-reducer.cpp), but the CLI cell guard
+    counted every wait and stopped the bot at decision 713.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.case = _cases()["confused"]
+
+    def test_recorded_confused_wait_does_not_feed_the_cell_guard(self):
+        case = self.case
+        policy = self.primed(case["stop"], case["home"]["knowledge"]["items"], case["skill"])
+        board = self.board(policy, case["stop"])
+        self.assertTrue(board.player.confused)
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("5", "confused:wait"))
+        self.assertFalse(_cell_loop_guard_applies(board, policy.last_reason,
+                                                  board.player.position))
 
 
 if __name__ == "__main__":
