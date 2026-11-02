@@ -53,7 +53,6 @@ import hengbot.policy as policy_module
 
 import hengbot.equipment_mutation as equipment_mutation_module
 
-from hengbot import consumable_policy
 from hengbot.home_errand import HomeErrandRequest
 
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
@@ -10656,15 +10655,8 @@ class RemoveCurseTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._home_star_remove_curse_count = 0
-        # Owner 2026-11-02: the consumable table has no 「購入する」 on *解呪*,
-        # so the reserve (an optional buy) is not bought.
+        # Owner 2026-11-02 21h: a warrior keeps one (consumable_policy.RESERVES).
         with patch.object(policy, "_recall_departure_shortage", return_value=False):
-            self.assertIsNone(policy._affordable_star_remove_curse(temple))
-        # The reserve mechanics below run for a table that buys it.
-        with (
-            patch.object(policy, "_recall_departure_shortage", return_value=False),
-            patch.object(consumable_policy, "discretionary_buy", return_value=True),
-        ):
             self.assertIs(policy._affordable_star_remove_curse(temple), ware)
             with (
                 patch.object(policy, "_next_purchase", return_value=ware),
@@ -10700,13 +10692,10 @@ class RemoveCurseTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         policy._home_star_remove_curse_count = 0
-        # A consumable table that buys the reserve (the owner's 2026-11-02
-        # table does not; test_surplus_star_scroll_is_bought_once_and_deposited_at_home).
         with (
             patch.object(policy, "_recall_departure_shortage", return_value=False),
             patch.object(policy, "_next_purchase", return_value=ware),
             patch.object(policy, "_purchase_quantity", return_value=1),
-            patch.object(consumable_policy, "discretionary_buy", return_value=True),
         ):
             first = policy._shop(temple)
             second = policy._shop(temple)
