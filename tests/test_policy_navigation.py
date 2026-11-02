@@ -1551,8 +1551,11 @@ class ExplorationTest(unittest.TestCase):
             for x in range(9, 14)
         }
         grids[Position(10, 10)] = grid(10, 10)
-        grids[Position(10, 11)] = grid(10, 11)
-        grids[Position(10, 12)] = grid(10, 12)
+        # Lit floor shown away from the player's own light: a live board
+        # never marks floor (model._decode_grid_map), so it is not explored
+        # (#101) and stays owed a visit (hourly-1900-1102).
+        grids[Position(10, 11)] = grid(10, 11, marked=False)
+        grids[Position(10, 12)] = grid(10, 12, marked=False)
         snap = Snapshot(
             player(10, 10), grids, [], floor_key=(2, 4, 0), width=30, height=30
         )
@@ -1823,8 +1826,13 @@ class TrapSealedFloorRegressionTest(unittest.TestCase):
             self.assertEqual(policy._floor_trap_disarm_attempts[(8, 12)], 1)
 
     def test_longer_safe_route_to_new_coverage_wins_over_short_trap_route(self):
+        # The two corridor ends are floor shown away from the player's own
+        # light (unmarked, as on a live board): new coverage, not explored
+        # floor (#101, hourly-1900-1102).
         grids = {
-            Position(10, x): grid(10, x, trap=(x == 11))
+            Position(10, x): grid(
+                10, x, trap=(x == 11), marked=x not in (7, 12)
+            )
             for x in range(7, 13)
         }
         for y in (9, 11):
@@ -2110,7 +2118,13 @@ class ProbeTest(unittest.TestCase):
             Position(11, 152),
             Position(12, 152),
         }
-        grids = {pos: grid(pos.y, pos.x) for pos in floors}
+        # The never-visited end of the older corridor is floor shown away
+        # from the player's own light (unmarked, as on a live board), so it
+        # is not explored floor (#101, hourly-1900-1102).
+        grids = {
+            pos: grid(pos.y, pos.x, marked=pos != Position(12, 152))
+            for pos in floors
+        }
         for pos in floors:
             for dy in (-1, 0, 1):
                 for dx in (-1, 0, 1):
