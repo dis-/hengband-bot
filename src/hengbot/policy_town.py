@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import me_capability, town_pack_headroom
 from hengbot import town_end_mining, town_travel
-from hengbot import unseen_strike
+from hengbot import unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -8120,6 +8120,10 @@ class TownMixin:
             # remembered movement graph for one decision. Once that hands the
             # exit search to the wall owner, keep consuming its existing search
             # budgets instead of letting a single clear redraw reverse course.
+            # A carried digger digs toward the way up instead of searching
+            # (owner 2026-11-02, walkout_dig).
+            if upstairs_step is None and (dig := walkout_dig.key(self, snapshot)) is not None:
+                return dig
             if (
                 not self._is_forgetting_maze(snapshot)
                 and not player.blind
@@ -8259,7 +8263,11 @@ class TownMixin:
         # hidden behind a secret door. This cannot use the ordinary secret-wall
         # sweep below: the return owner exits earlier, and that sweep is disabled
         # whenever any down-stair is known. Search likely wall exits after all
-        # reachable floor/frontier exploration is exhausted.
+        # reachable floor/frontier exploration is exhausted; a carried digger
+        # digs toward the way up instead (owner 2026-11-02, walkout_dig).
+        dig = walkout_dig.key(self, snapshot)
+        if dig is not None:
+            return dig
         if (
             not self._is_forgetting_maze(snapshot)
             and not player.blind

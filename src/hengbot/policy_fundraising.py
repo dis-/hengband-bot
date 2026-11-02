@@ -3,6 +3,7 @@ from hengbot import me_capability, mining_loadout, status_cure
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from hengbot.claim_goal_typing import (
@@ -24,6 +25,7 @@ from hengbot.model import (
     TVAL_STAFF,
     TVAL_WAND,
     TVAL_FOOD,
+    GridState,
     InventoryItem,
     MonsterState,
     Position,
@@ -1020,7 +1022,12 @@ class FundraisingMixin:
             expected_effect="door-opened",
         )
 
-    def _tunnel_step_toward(self, snapshot: Snapshot, target: Position) -> str | None:
+    def _tunnel_step_toward(
+        self,
+        snapshot: Snapshot,
+        target: Position,
+        diggable: Callable[[GridState], bool] = lambda grid: grid.can_dig,
+    ) -> str | None:
         """Tunnel one step toward ``target`` through an adjacent diggable wall/vein.
 
         A miner reaches a walled-off vein by digging, not by relocating — so when
@@ -1043,7 +1050,7 @@ class FundraisingMixin:
             cell = snapshot.grids.get(Position(pos.y + cy, pos.x + cx))
             if (
                 cell is not None
-                and cell.can_dig
+                and diggable(cell)
                 and cell.position not in self._mining_unmarkable_grids
             ):
                 return self._mining_tunnel_key(snapshot, cell.position)
@@ -1108,18 +1115,54 @@ class FundraisingMixin:
 
     def _dig_to_known_downstairs_key(self, snapshot: Snapshot) -> str | None:
         """Route toward a known descent, allowing only known diggable terrain."""
-        origin = snapshot.player.position
         targets = set(self._remembered_downstairs)
         targets.update(
             grid.position for grid in snapshot.grids.values() if grid.has_down_stairs
         )
+        # Match the mining tunneller's terrain authority: this breakout digs
+        # only cells the emitter marks can_dig (rubble and treasure veins).
+        def can_dig(grid: GridState) -> bool:
+            return grid.can_dig
+
+        first = self._dig_route_first_step(snapshot, targets, can_dig)
+        return None if first is None else self._dig_step_key(snapshot, first, can_dig)
+
+    def _dig_step_key(
+        self,
+        snapshot: Snapshot,
+        first: Position,
+        diggable: Callable[[GridState], bool],
+    ) -> str | None:
+        """Tunnel into the adjacent dig-route step ``first``, or walk onto it."""
+        first_grid = snapshot.grids.get(first)
+        if first_grid is not None and diggable(first_grid):
+            return self._tunnel_step_toward(snapshot, first, diggable)
+        return self._step_toward(snapshot, first)
+
+    def _dig_route_first_step(
+        self,
+        snapshot: Snapshot,
+        targets: set[Position],
+        diggable: Callable[[GridState], bool],
+        *,
+        walking_wins: bool = True,
+    ) -> Position | None:
+        """First step of the shortest known route to a target through floor
+        and ``diggable`` cells.
+
+        With ``walking_wins`` it is None when a walking route reaches a
+        target, so the dig is solely for targets whose known approach needs
+        at least one cell tunnelled.  Pure (no offer, no bump count), so a
+        caller may ask whether a dig route still exists.
+        """
+        origin = snapshot.player.position
+        targets = set(targets)
         targets.discard(origin)
         if not targets:
             return None
-
-        # Walking always wins.  This breakout is solely for stairs whose known
-        # approach requires at least one vein to be tunnelled.
-        if self._nearest_goal_step(snapshot, lambda grid: grid.position in targets):
+        if walking_wins and self._nearest_goal_step(
+            snapshot, lambda grid: grid.position in targets
+        ):
             return None
 
         seen = {origin}
@@ -1127,11 +1170,7 @@ class FundraisingMixin:
         while queue:
             position, first = queue.popleft()
             if position in targets and position != origin:
-                assert first is not None
-                first_grid = snapshot.grids.get(first)
-                if first_grid is not None and first_grid.can_dig:
-                    return self._tunnel_step_toward(snapshot, first)
-                return self._step_toward(snapshot, first)
+                return first
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
                 if (
@@ -1148,9 +1187,9 @@ class FundraisingMixin:
                 if grid is None or not grid.known or grid.has_monster:
                     continue
                 walkable = neighbor in self._walkable_neighbors(snapshot, position)
-                # Match the mining tunneller's terrain authority.  Digging is
-                # permitted diagonally when the emitter marks that tile can_dig.
-                if not walkable and not grid.can_dig:
+                # Digging is permitted diagonally (do_cmd_tunnel takes any
+                # of the eight directions).
+                if not walkable and not diggable(grid):
                     continue
                 seen.add(neighbor)
                 queue.append((neighbor, neighbor if first is None else first))

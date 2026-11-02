@@ -25,6 +25,7 @@ from hengbot.equipment_optimizer import (
     slot_for,
     worn_light_radius,
 )
+from hengbot.equipment_utility import UTILITY_FLAGS
 from hengbot.warrior_defense_evaluator import PROTECTOR_TVALS, TR_SPEED
 from hengbot.warrior_equipment_evaluator import warrior_melee_signature
 
@@ -58,7 +59,11 @@ BENEFICIAL_GEAR_FLAGS = frozenset(
         # destroyed as plain gear (owner 2026-11-02).
         148,
     }
-) | frozenset(flag for flag, *_ in (*SLAYS, *BRANDS))
+) | frozenset(flag for flag, *_ in (*SLAYS, *BRANDS)) | (
+    # Stealth and the ESP kinds (owner 2026-11-02, equipment_utility): an
+    # item adding them is not dominated by one without them.
+    UTILITY_FLAGS
+)
 
 # Flags outside this set are not read by the composite Warrior evaluator or by
 # its depth requirements.  Keeping the raw known_flags set in cache and

@@ -1,0 +1,107 @@
+LUNA-REPORT walkout-dig-1102（歩いて階を出る時、掘る道具があれば壁を調べずに掘って進む）
+
+ブランチ walkout-dig-1102（main 6a90f7b4f から）。push していない。
+直しのコミット: 12b79e743「Dig toward the way up instead of searching walls when walking out」
+証拠: n1-b life-293（戦士 Lv16、イークの洞窟 1 階、2026-11-02 13:06）。
+C:\hengband-backups\pdca\captures\n1b-churn-1102\life-293-incidents\20261102-130635-loop-detected ほか。
+LUNA-REPORT-n1b-upstairs-1102.txt の (B) のとおり、クエスト 14 の報告に歩いて帰る途中で
+return:search-upstairs（壁の 's'）を繰り返していた。持ち物にシャベル（r）とつるはし（s）があった。
+
+オーナーの決定（2026-11-02、「掘って進む」）:
+  採掘道具があれば、覚えている上り階段へ掘って進む。上り階段を知らなければ、一番近い未踏の
+  場所の方へ壁を掘る。採掘道具が無い時だけ今どおり壁を調べる。
+
+
+1. 何を変えたか
+
+  - 掘る経路の探し方を 1 か所にした（policy_fundraising.py）。
+    _dig_to_known_downstairs_key の中にあった幅優先の探索を _dig_route_first_step（純粋。
+    最初の 1 歩の位置を返す。walking_wins=True なら歩いて行ける時は None）と
+    _dig_step_key（その 1 歩を掘るか歩くか）に分けた。掘れる地形は引数で渡す。
+    下り階段への breakout はこれまでどおり can_dig（瓦礫・財宝の鉱脈）だけを掘る。振る舞いは同じ。
+  - 新しいモジュール walkout_dig.py。帰還の持ち主 _return_to_town_key の壁を調べる 2 か所
+    （return:seek-secret-wall の持ち主の段と、探索が尽きた後の最後の段）の直前で key を呼ぶ。
+    条件: 帰還中・ダンジョンの中・盲目でも混乱でもない・忘却の迷路でない・
+    _nav_exhausted でない・掘る道具を持っている。
+    - 上り階段を覚えている（_is_upstairs_target、歩く経路と同じ判定）→ 歩いて行けない時だけ
+      そこへ掘る（return:dig-to-upstairs）。
+    - 知らない → 一番近い未踏の場所へ、床と掘れるマスを通って進む（return:dig-to-frontier）。
+      未踏の判定は探索の持ち主のもの（床は _is_frontier、壁は _borders_unexplored）を使う。
+      床だけで行ける所は歩く（walking_wins=False）。
+    - 掘れる地形はゲームの規則（src/action/tunnel-execution.cpp の do_cmd_tunnel_aux:
+      TUNNEL が無ければ掘るものが無い 34 行、PERMANENT は掘れない 71〜76 行、
+      CAN_DIG の瓦礫とほかの TUNNEL の壁＝花崗岩・溶岩・石英の鉱脈は掘れる 77〜112 行）。
+      永久壁は掘らない。
+    - 最初の 1 歩が掘るマスで、掘る道具を手に持っていなければ、breakout と同じ
+      _wield_digging_tool_key で持ち替える（return:wield-digging-tool、_breakout_dig_floor を立てる）。
+    - 武器に戻すのは breakout と同じ _breakout_restore_weapon_key。戻すかどうかの判定
+      （policy.py の _decide、10262 行付近）に walkout_dig.has_route を足した。
+      掘る仕事が残っている間は戻さない（戻すとすぐ持ち替えに戻って往復するため）。
+      隣から殴られている時（survival_preemption.preempts）は has_route が False になり武器に戻る。
+  - 掘る道具が無い、または掘る経路が無い時は None を返し、壁の探索が今までどおり動く。
+  - 繰り返し掘っても進まない時は、今の航法の台帳（_nav_exhausted、帰還の持ち主より上の
+    _navigation_livelock_key）で終わる。新しい上限は足していない。
+  - 生存の処理は帰還の持ち主より前の段のまま（_return_to_town_key#3 は survival_preemption の
+    対象）。
+  - return:dig-to-upstairs / return:dig-to-frontier を RETURN_STATIONARY_REASONS に足した。
+    1 マスを掘るのに何決定もかかるので、cli の見張りの例外と、クエストの報告の書き換え
+    （fixedquest:claim:return）の例外の両方に入る。
+
+
+2. テスト
+
+  - 既存の tests/test_n1b_claim_return_search_1102_recorded.py の期待値を新しい振る舞いに
+    書き換えた（壁は作っていない）。フィクスチャは同じ n1b-claim-return-search-1102.json.gz。
+    - test_recorded_rows_searched_under_the_claim_label: 記録の場面の固定（そのまま）。
+    - test_digger_tunnels_toward_the_unexplored_instead_of_searching: 記録の 2 盤面
+      （turn 205579・205592、シャベルとつるはしを所持）を公開の choose_key に通すと
+      'ta'（剣を外す）、_breakout_dig_floor が立つ。本番の executor（_send_new_decision_key）で送る。
+      続けて外した後の盤面 → 'wr'（シャベルを持つ）、持った後の盤面 → 'T8'
+      （return:dig-to-frontier、見張りの例外）を executor で送る。
+      DECLARED CONSTRUCTED: 外した後・持った後の盤面（test_barehand_mining_recorded の
+      taken_off / wielded）。
+    - test_without_a_digger_the_return_searches_the_walls: 記録の盤面から掘る道具 2 本を
+      除いた盤面（DECLARED CONSTRUCTED）→ 's' return:search-upstairs、executor で送る（前と同じ）。
+  - 戻しの確認（1 回）: src の変更を全部外すと掘る方の 2 盤面が ('s', 'return:search-upstairs')
+    で失敗、掘る道具なしの方は合格。戻して 3 件合格。
+  - 流したもの: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy"（合格）と
+    上のファイル（3 件合格）。checks.json・全体テスト・preflight・mutation_check・fast_tier は
+    流していない。
+  - town_work_manifest.py --write: _dig_route_first_step・_dig_step_key・walkout_dig.diggable・
+    walkout_dig.key と、新しく候補になった _is_frontier の review を
+    scripts/town_work_review.json に足して zero unmapped（town_work_sites.json も更新）。
+
+
+3. 保守性
+
+  - 掘る経路の探索は 1 か所（_dig_route_first_step）で、下り階段の breakout と歩いて出る時の
+    掘りの両方が使う。掘れる地形は引数なので、条件を写さずに済む。
+    経路を求めるだけの関数は副作用が無いので、武器に戻すかどうかの判定から呼んでも
+    壁の印付けの回数（_mining_mark_bumps）を二重に数えない。
+  - 歩いて出る時の掘りの判断は walkout_dig.py に集めた（対象の選び方、掘れる地形、
+    持ち替え、武器に戻す判定）。帰還の持ち主の側は 2 か所で呼ぶだけ。
+  - 未踏の判定・上り階段の判定・持ち替え・武器に戻す処理は既存の関数をそのまま使った。
+  - 理由の文字列は policy_constants の定数にし、RETURN_STATIONARY_REASONS から参照する。
+
+
+4. checks.json の案（編集していない）
+
+  {"id": "WALKOUT-DIG-INSTEAD-OF-WALL-SEARCH",
+   "defect": "2026-11-02 n1-b life-293 イークの洞窟 1 階 クエスト 14 の報告に歩いて帰る道で、シャベルとつるはしを持っているのに上り階段の隠し扉を壁で探し続け（return:search-upstairs）loop-detected ×2 で引退",
+   "owner": "採掘道具があれば、覚えている上り階段へ掘って進む。上り階段を知らなければ、一番近い未踏の場所の方へ壁を掘る。採掘道具が無い時だけ今どおり壁を調べる。（2026-11-02「掘って進む」）",
+   "tests": ["tests.test_n1b_claim_return_search_1102_recorded.ClaimReturnWallSearchTest"]}
+
+
+5. オーナーへの問い
+
+  (1) 上り階段を知らない時の「一番近い未踏の場所」は、探索の持ち主と同じ未踏の判定で、
+      未踏の岩に接している壁も含む。部屋のすぐ外の岩を掘り進むことがある（記録の盤面でも
+      最初の 1 歩は北の壁 (2,38) を掘る）。進み続けて何も見つからない場合の終わりは
+      今の航法の台帳だけで、掘ったマスごとに新しいマスが見えるので長く続くこともありうる。
+      上限を足すかは決めていない（新しいしきい値になるため入れていない）。
+  (2) 掘る経路の途中の床を歩く間も、掘る道具を持ったままにしている（武器に戻すのは
+      掘る仕事が無くなった時・階が変わった時・隣から殴られている時）。
+  (3) 帰還の持ち主が揺れ（_is_oscillating）の時に出す壁の探索（return:probe の後）は
+      変えていない。そこは揺れの抜け出しなので今回の 2 か所とは別にした。
+  (4) 下り階段への breakout（breakout:dig-to-stairs）は今までどおり瓦礫と財宝の鉱脈だけを掘る。
+      花崗岩なども掘るように揃えるかは決めていない。

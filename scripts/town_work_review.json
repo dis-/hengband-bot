@@ -3561,6 +3561,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._viable_target_guardian_visible": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _viable_target_guardian_visible returns bool used as input/observation, not an independently selected game action; dungeon-only: it decides the guardian reposition (guardian:teleport-to-cover), which reads only a real teleport (_escape_scroll teleport_only, owner 2026-11-02 「そもそもショートテレポートでは十分な距離が稼げないため代替にならない。」)",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._victory_loot_key": {
     "classification": "producer",
     "rows": [
@@ -6005,6 +6016,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_quest.py:QuestMixin._duel_fight_viable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _duel_fight_viable returns bool used as input/observation, not an independently selected game action; dungeon-only: it decides the guardian reposition (guardian:teleport-to-cover), which reads only a real teleport (_escape_scroll teleport_only, owner 2026-11-02 「そもそもショートテレポートでは十分な距離が稼げないため代替にならない。」)",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_quest.py:QuestMixin._fixed_quest_building_candidate": {
     "classification": "data",
     "rows": [
@@ -6155,6 +6177,17 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _fixed_quest_target returns int | None used as input/observation, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._guardian_fight_viable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _guardian_fight_viable returns bool used as input/observation, not an independently selected game action; dungeon-only: it decides the guardian reposition (guardian:teleport-to-cover), which reads only a real teleport (_escape_scroll teleport_only, owner 2026-11-02 「そもそもショートテレポートでは十分な距離が稼げないため代替にならない。」)",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -11990,6 +12023,17 @@
     "evidence": "n1-b life-294 2026-11-02 13:14 (Yeek cave 1F): blind, in the dungeon, not hit this board, no physical hostile and a restable food state: REST_MACRO (R&, rests until is_fully_healthy which includes sight) under the caller's reason with the caller's producer, else None. Called only from FundraisingMixin._fundraising_key before the floor work (fundraise:wait-sight); a carried cure is quaffed upstream by status_cure_key; dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "status_cure.py:low_hp_heal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: low_hp_heal returns InventoryItem | None (owner 2026-11-01 D57 「HPが減ったら体力回復かテレポート」: blind or confused below the low-HP walk threshold, the heal-vs-teleport rule's _low_hp_heal_first_potion) used as input by _emergency_item's status-cure rung (n1-c life-103 2026-11-02), not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "status_cure.py:fight_through_key": {
     "classification": "producer",
     "rows": [
@@ -12292,5 +12336,61 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._is_frontier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: _is_frontier returns bool (the explore owner's frontier test, also read by walkout_dig._frontier for the walk-out dig targets), not an independently selected game action",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_fundraising.py:FundraisingMixin._dig_route_first_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: _dig_route_first_step returns the first Position of the shortest known floor/diggable route to a target (or None; with walking_wins None when a walking route exists); no offer or bump count. Read by _dig_to_known_downstairs_key and walkout_dig (key/has_route); dungeon only",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_fundraising.py:FundraisingMixin._dig_step_key": {
+    "classification": "adapter",
+    "rows": [
+      "fundraising",
+      "departure"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Adapter split out of _dig_to_known_downstairs_key (walkout-dig-1102): tunnels into the adjacent dig-route step through _tunnel_step_toward/_mining_tunnel_key, else _step_toward onto it. Callers: _dig_to_known_downstairs_key (breakout:dig-to-stairs) and walkout_dig.key (return:dig-to-*); dungeon only. Selected child inherits work; no independent effect credit.",
+    "delegation": "selected child; no independent success"
+  },
+  "walkout_dig.py:diggable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: diggable returns bool, the game's tunnel rule (src/action/tunnel-execution.cpp do_cmd_tunnel_aux: TUNNEL and not PERMANENT), not an independently selected game action",
+    "delegation": "selected child; no independent success"
+  },
+  "walkout_dig.py:key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "walkout-dig-1102, owner 2026-11-02 「掘って進む」 (n1-b life-293 Yeek cave 1F quest-14 claim walk-out searched walls): called only from PolicyTownMixin._return_to_town_key at its two wall-search sites (the return:seek-secret-wall owner block and the final search) when no walking route to an up staircase exists. With a carried digger, not blind/confused/forgetting maze/nav-exhausted, while returning in the dungeon: _wield_digging_tool_key (return:wield-digging-tool, sets _breakout_dig_floor) before a tunnel step, else _dig_step_key toward a remembered up staircase (return:dig-to-upstairs) or the nearest unexplored area (return:dig-to-frontier); else None and the wall search runs as before. The weapon is restored by _breakout_restore_weapon_key once walkout_dig.has_route is false. Dungeon only; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
