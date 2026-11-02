@@ -308,7 +308,10 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
     def test_recall_reservation_inside_home_matches_departure_board(self):
         seen = {}
 
-        def inspect(index, policy, board):
+        # The retention is read on the board as it arrives, before this
+        # board's own decision: the pin compares the Home board with the
+        # departure board, not with whatever that decision then opens.
+        def measure(index, policy, board):
             if index in (HOME, STOP):
                 recall = next(item for item in board.inventory if item.is_recall_scroll)
                 seen[index] = (
@@ -318,8 +321,8 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                     policy._retention_reservation(board, recall),
                 )
 
-        self._independent_scene(HOME, inspect=inspect)
-        self._independent_scene(STOP, inspect=inspect)
+        self._independent_scene(HOME, prepare=measure)
+        self._independent_scene(STOP, prepare=measure)
         # Inside Home before the safe-landing switch; outside after it.
         self.assertEqual(seen, {HOME: (True, 10, 10), STOP: (False, 10, 10)})
 
