@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 import unittest
 
+from tests.hold_closings import recorded_closings
 from hengbot.claim_register import ClaimOwner, reach
 from hengbot.model import Position, parse_snapshot
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
@@ -126,11 +127,12 @@ class Q34ChurnRecordedTest(executor_harness.ProductionHarness):
                 positions = []
                 for index in range(3):
                     before = copy.deepcopy(raw)
-                    key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+                    with recorded_closings() as closings:
+                        key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
                     if index == 0:
-                        closed = policy.decision_claim["closed_claim"]
-                        self.assertEqual(closed["closed"], "release")
-                        self.assertEqual(closed["closed_reason"], "chest-deferred-quest-incomplete")
+                        closed = closings[-1]
+                        self.assertEqual(closed.closed, "release")
+                        self.assertEqual(closed.closed_reason, "chest-deferred-quest-incomplete")
                         self.assertIsNone(policy._chest_position)
                         self.assertEqual(policy._chest_phase_counts, {})
                         self.assertIsNone(policy._chest_preopen_objects)

@@ -18,8 +18,6 @@ from hengbot.town_terminal import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
-    GOAL_NOTE_LAST_KNOWN as CLAIM_GOAL_NOTE_LAST_KNOWN,
-    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
     goal_typing as claim_goal_typing,
 )
 from hengbot.town_terminal import GOAL_REACH as CLAIM_GOAL_REACH
@@ -2142,14 +2140,13 @@ class TownMixin:
             or prior_reason == "equipment-transaction:abandon-blocked"
         ):
             self.last_reason = f"town:entrance-step-off:{prior_reason or 'wait'}"
-            self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+            self._declare_reach(step)
             producer = self._claim_family_of(prior_reason)
             if producer != self._claim_family_of(self.last_reason):
                 # A physical entrance step is the current work's envelope.
                 # It does not admit a new departure producer.
                 self.last_reason = prior_reason
-                self._declare_reach(step, family=producer,
-                                    note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(step, family=producer)
             if key is not None:
                 self._offer_execution(
                     key, producer=producer,
@@ -4275,46 +4272,6 @@ class TownMixin:
                 )
                 for store_type in dict.fromkeys(stops)
             }
-        if previous is not None:
-            old_stop = (previous.stops[previous.index]
-                        if previous.index < len(previous.stops) else None)
-            new_stop = plan.stops[0] if plan is not None else None
-            old_categories = tuple(sorted(previous.need_categories.items()))
-            new_categories = (
-                tuple(sorted(plan.need_categories.items())) if plan is not None else ()
-            )
-            old_next = (previous.stops[previous.index + 1]
-                        if previous.index + 1 < len(previous.stops) else None)
-            new_next = (plan.stops[1]
-                        if plan is not None and len(plan.stops) > 1 else None)
-            if old_stop != new_stop or old_next != new_next:
-                self._decision_plan_change_evidence = {
-                    "previous_stops": tuple(previous.stops),
-                    "previous_index": previous.index,
-                    "new_stops": tuple(stops),
-                    "previous_stop": old_stop,
-                    "new_stop": new_stop,
-                    "previous_next_stop": old_next,
-                    "new_next_stop": new_next,
-                    "previous_categories": old_categories,
-                    "new_categories": new_categories,
-                }
-            held = standing_claim(self)
-            visit = getattr(self, "_store_visit", None)
-            current_stop = (
-                previous.stops[previous.index]
-                if previous.index < len(previous.stops)
-                else getattr(visit, "store_type", None)
-            )
-            if (
-                held is not None and held.is_open
-                and held.owner.value in CLAIM_TOWN_ERRAND_FAMILIES
-                and current_stop is not None
-                and (plan is None or plan.stops[0] != current_stop)
-            ):
-                self._decision_plan_rebuild_deferred = (
-                    getattr(self, "_decision_plan_rebuild_deferred", 0) + 1
-                )
         if plan is not None and previous is not None:
             # The route is a replaceable ordering projection, but completion
             # and blocking are visit facts.  Preserve them when changing the
@@ -5346,9 +5303,7 @@ class TownMixin:
             )
             if step is not None:
                 self.last_reason = "town:kill-mob-approach"
-                self._declare_reach(
-                    self._town_hunt_target, note=CLAIM_GOAL_NOTE_LAST_KNOWN
-                )
+                self._declare_reach(self._town_hunt_target)
                 key = self._step_toward(snapshot, step)
                 if key is not None:
                     self._offer_execution(
@@ -6867,7 +6822,7 @@ class TownMixin:
                     )
                     if neighbors:
                         self.last_reason = "town:wait-recall-step-off"
-                        self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
+                        self._declare_reach(neighbors[0])
                         key = self._step_toward(snapshot, neighbors[0])
                         if key is not None:
                             self._offer_execution(

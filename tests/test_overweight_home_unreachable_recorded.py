@@ -94,6 +94,7 @@ its own first-hit board.
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot import town_terminal
 from hengbot.policy import staged_prompt_chain_matches
 import gzip
 import hashlib
@@ -277,7 +278,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 replay.append({
                     "key": str(key),
                     "reason": policy.last_reason,
-                    "claim": dict(policy.decision_claim or {}),
+                    "goal": getattr(town_terminal.standing_claim(policy), "goal", None),
                     "passes": ledger.unsatisfied_passes[STORE_HOME],
                     "approach_fails": ledger.approach_fails[STORE_HOME],
                     "blocked": STORE_HOME in ledger.blocked_stores,
@@ -295,14 +296,9 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                     "overweight": (
                         snapshot.in_town and policy._inventory_overweight(snapshot)
                     ),
-                    # S2b.2: the bar table's record (record-only, switch off)
-                    **{
-                        name: (policy.decision_claim or {}).get(name)
-                        for name in (
-                            "would_bar", "bars_set", "bars_lifted",
-                            "bar_skipped",
-                        )
-                    },
+                    # S2b.2: the bars standing in the town hold.
+                    "bars": [(bar.owner.value, bar.kind, bar.ending, bar.claim_id)
+                             for bar in town_terminal.hold_bars(policy)],
                 })
                 if index == HOME_OBSERVATION_BOUNDARY:
                     # The new observation owner changes this key. Historical
@@ -344,7 +340,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
                 snapshot = cls._castle_destination(policy, snapshots[-1])
                 key = _choose_before_caster_fix(policy, snapshot, index)
                 decisions.append((str(key), policy.last_reason,
-                                  dict(policy.decision_claim or {})))
+                                  town_terminal.standing_claim(policy)))
                 policy.confirm_key_posted(key)
                 chain = policy.peek_staged_prompt_chain()
                 if chain is not None and staged_prompt_chain_matches(chain, key):
@@ -370,7 +366,7 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             ("1", "seek-loot"),
         )
         self.assertEqual(replay[2636][:2], ("4", "seek-loot"))
-        self.assertEqual(replay[2636][2]["goal"]["cell"], [4, 99])
+        self.assertEqual(replay[2636][2].goal.cell, (4, 99))
 
     # ------------------------------------------------------------ recorded
     def test_recorded_home_passes_outlived_observed_home_effects(self):
@@ -481,52 +477,23 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             ("Cf\ry\x1b\x1b", "periodic:character-dump"),
         )
         self.assertTrue(self.recorded[VISIT_START]["outstanding_equipment_work"])
-        # Indices 6 and 3724; base counted the same two over the whole
-        # process (the later rows are strip-window rows).
-        self.assertEqual(
-            sum(bool(row["claim"].get("scan-during-pending-atomic"))
-                for row in replay),
-            2,
-        )
-        # Indices 16 and 3724.  Base counted five over the whole process; the
-        # other three (3770, 3776, 3777) are strip restore-window rows.
-        self.assertEqual(
-            sum(bool(row["claim"].get("visit_owner_mismatch"))
-                for row in replay),
-            2,
-        )
 
-    def test_s2b2_the_bar_table_records_the_hunts_it_would_bar(self):
-        # S2b.2 (record-only, switch off; the decisions are pinned above).
-        # Seven hunts lost their monster (``target-lost``) and were barred
-        # until it is unseen for the 50-turn clock; four of those bars lifted
-        # inside the window, and three later hunts of a still-barred monster
-        # are recorded as would-bars.  Nothing was skipped.
+    def test_s2b2_the_bar_table_bars_the_lost_hunts(self):
+        # S2b.2 (the decisions are pinned above).  Seven hunts lost their
+        # monster (``target-lost``) and were barred until it is unseen for
+        # the 50-turn clock; four of those bars lifted inside the window.
         replay = self._replay()
-        bars_set = [
-            (entry["owner"], entry["kind"], entry["ending"])
-            for row in replay for entry in (row["bars_set"] or ())
-        ]
+        standing, barred, lifted = set(), [], []
+        for row in replay:
+            now = set(row["bars"])
+            barred.extend(sorted(now - standing))
+            lifted.extend(sorted(standing - now))
+            standing = now
         self.assertEqual(
-            bars_set, [("hunt", "threat", "release:target-lost")] * 7
+            [(owner, kind, ending) for owner, kind, ending, _claim in barred],
+            [("hunt", "threat", "release:target-lost")] * 7,
         )
-        self.assertEqual(
-            [entry["owner"] for row in replay
-             for entry in (row["bars_lifted"] or ())],
-            ["hunt"] * 4,
-        )
-        would = [row for row in replay if row["would_bar"] is not None]
-        self.assertEqual(len(would), 3)
-        for row in would:
-            self.assertEqual(row["would_bar"]["owner"], "hunt")
-            self.assertTrue(row["reason"].startswith("hunt"), row["reason"])
-            self.assertEqual(
-                row["would_bar"]["goal"]["monster"],
-                row["would_bar"]["triggers"][0],
-            )
-        self.assertEqual(
-            [row for row in replay if row["bar_skipped"] is not None], []
-        )
+        self.assertEqual([owner for owner, *_ in lifted], ["hunt"] * 4)
 
 class HomeSuccessResetsTheVisitBoundTest(unittest.TestCase):
     """H2 (class): observed Home effects, not visits, decide the bound.

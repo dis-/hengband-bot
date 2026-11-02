@@ -8990,13 +8990,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:ExecutionDelegation.as_dict": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "town_terminal.py:_commit_curse_remove": {
     "classification": "adapter",
     "rows": [
@@ -9068,20 +9061,6 @@
     "delegation": "selected child; no independent success"
   },
   "town_terminal.py:claim_family_of": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "town_terminal.py:claim_goal": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "town_terminal.py:claim_operation_goal": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9179,13 +9158,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:goal_typing": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "town_terminal.py:hold_claims": {
     "classification": "data",
     "rows": [
@@ -9207,13 +9179,6 @@
     ],
     "delegation": "no independent success"
   },
-  "town_terminal.py:observe_goal": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "town_terminal.py:overweight_home_key": {
     "classification": "producer",
     "rows": [
@@ -9229,21 +9194,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "town_terminal.py:pair_scope": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "town_terminal.py:plan_stop_admission": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "town_terminal.py:reach_goal": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9291,13 +9242,6 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success"
-  },
-  "town_terminal.py:terminal_goal": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "town_terminal.py:town_end_key": {
     "classification": "producer",

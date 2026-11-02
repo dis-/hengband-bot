@@ -55,7 +55,6 @@ from hengbot.town_arbiter import (
     UNREGISTERED_FAMILY,
     ClaimOwner,
     owner_families,
-    owner_family_budgets,
     owner_of,
     reason_owner_family,
 )
@@ -1913,13 +1912,6 @@ GOAL_REACH = "Reach"
 GOAL_OBSERVE = "Observe"
 GOAL_TERMINAL = "Terminal"
 
-_FAMILY_BUDGETS = owner_family_budgets()
-
-
-def owner_budget(owner: ClaimOwner) -> int | None:
-    """The registered budget of an owner family, or ``None`` if it has none."""
-    return _FAMILY_BUDGETS.get(owner.value)
-
 
 @dataclass(frozen=True)
 class Goal:
@@ -2023,20 +2015,6 @@ class ExecutionDeclaration:
     cause: str | None = None
     producer_entry: str | None = None
 
-    def as_dict(self) -> dict:
-        return {
-            "claim_id": self.claim_id, "work_id": self.work_id,
-            "revision": self.revision, "producer": self.producer,
-            "state": self.state, "next_step": self.next_step,
-            "arguments": list(self.arguments),
-            "operation_ref": self.operation_ref,
-            "expected_effect": self.expected_effect,
-            "continuation": self.continuation,
-            "budget_ref": self.budget_ref, "evidence": self.evidence,
-            "cause": self.cause,
-            "producer_entry": self.producer_entry,
-        }
-
 
 @dataclass(frozen=True)
 class Claim:
@@ -2081,7 +2059,6 @@ class Claim:
     claim_id: int
     owner: ClaimOwner
     goal: Goal
-    budget: int | None = None
     state: ClaimState = ClaimState.ACTIVE
     non_discardable: bool = False
     closed: str | None = None
@@ -2100,33 +2077,6 @@ class Claim:
     last_perceived_turn: int | None = None
     # A pre-declaration checkpoint reads this class default after unpickling.
     execution: ExecutionDeclaration | None = None
-
-    def as_dict(self, *, distance: int | None = None) -> dict:
-        """The row form: plain JSON types only."""
-        return {
-            "claim_id": self.claim_id,
-            "owner": self.owner.value,
-            "goal": self.goal.as_dict(),
-            "state": self.state.value,
-            "closed": self.closed,
-            "closed_reason": self.closed_reason,
-            "budget": self.budget,
-            "non_discardable": self.non_discardable,
-            "distance": distance,
-            "execution": self.execution.as_dict() if self.execution else None,
-        }
-
-    def closing_dict(self) -> dict:
-        """What the row after a closing records about the claim it closed."""
-        return {
-            "claim_id": self.claim_id,
-            "owner": self.owner.value,
-            "goal_kind": self.goal.kind,
-            "state": self.state.value,
-            "closed": self.closed,
-            "closed_reason": self.closed_reason,
-            "execution": self.execution.as_dict() if self.execution else None,
-        }
 
     @property
     def is_open(self) -> bool:
@@ -2178,21 +2128,6 @@ class Bar:
     rung: str | None = None
     reason: str | None = None
 
-    def as_dict(self) -> dict:
-        """The row form: plain JSON types only (``clearance`` stays out)."""
-        return {
-            "owner": self.owner.value,
-            "goal": self.goal.as_dict(),
-            "kind": self.kind,
-            "rung": self.rung,
-            "since_turn": self.since_turn,
-            "since_sequence": self.since_sequence,
-            "triggers": [list(pair) for pair in self.triggers],
-            "last_perceived_turn": self.last_perceived_turn,
-            "claim_id": self.claim_id,
-            "ending": self.ending,
-        }
-
 
 _UNREAD = object()
 
@@ -2243,30 +2178,20 @@ def bar_after_board(
 
 
 class ClaimRegister:
-    """The policy's own claim register: one current claim and one counter.
+    """The town hold's claim register: one current claim and one counter.
 
-    S2a.1: a closing call (``complete``, ``release``, ``suspend``) made while
-    a decision is being produced -- a producer's arrival branch, a goal it
-    drops, a confirmed store effect -- is kept in ``_closing`` until the
-    declaration point takes it (``take_closing``) and writes it into the row
-    as ``closed_claim``: the claim that closed belongs to the *previous* row,
-    which is already written.  A register pickled before S2a.1 has no
-    ``_closing`` attribute; every reader goes through ``getattr``.
+    A register pickled before a field below existed has no attribute for
+    it; every reader goes through ``getattr``.
     """
 
     def __init__(self) -> None:
         self._next_id = 1
         self._claim: Claim | None = None
-        self._closing: Claim | None = None
         # S2b.1 (design rev 10.1 item 5): the claims a preemption suspended,
-        # the most recent last, and the suspended claims that closed since the
-        # last declaration.  A register pickled before S2b.1 has neither; every
-        # reader goes through ``getattr``.
+        # the most recent last.
         self._suspended: list[Claim] = []
-        self._suspended_closings: list[dict] = []
         # S2b.2: the bar table, and the claims that ended since the last
-        # declaration (every one of them, where ``_closing`` keeps the last).
-        # A register pickled before S2b.2 has neither; readers use
+        # declaration (``claim_set_bars`` bars them).  Readers use
         # ``getattr``.  Both lists are rebound, never mutated in place, so the
         # telemetry observer's shallow copy of the register stays isolated.
         self._bars: list[Bar] = []
@@ -2401,7 +2326,6 @@ class ClaimRegister:
             claim_id=self.allocate(),
             owner=declared_owner,
             goal=goal,
-            budget=owner_budget(declared_owner),
             state=ClaimState.ACTIVE,
             non_discardable=non_discardable,
             opened_sequence=opened_sequence,
@@ -2474,14 +2398,10 @@ class ClaimRegister:
             return self._claim
         return None
 
-    def close_suspended(
-        self, claim_id: int, closed: str, label: str | None = None, **recorded
-    ) -> dict | None:
+    def close_suspended(self, claim_id: int, closed: str, label: str | None = None) -> None:
         """A suspended claim ends while suspended (item 6, rules i-iii).
 
-        ``closed`` is ``complete`` or ``release``.  The closing is kept for the
-        declaration point (``take_suspended_closings``), together with anything
-        the caller recorded about it (a displacement's violation).
+        ``closed`` is ``complete`` or ``release``.
         """
         stack = list(self.suspended)
         for position, claim in enumerate(stack):
@@ -2493,12 +2413,7 @@ class ClaimRegister:
                 replace(claim, closed=closed, closed_reason=label), closed, label
             )
             self._note_ended(ended)
-            record = {**ended.closing_dict(), **recorded}
-            closings = list(getattr(self, "_suspended_closings", None) or ())
-            closings.append(record)
-            self._suspended_closings = closings
-            return record
-        return None
+            return
 
     def stamp_suspended_floor(
         self, claim_id: int, floor: tuple[int, ...]
@@ -2515,12 +2430,6 @@ class ClaimRegister:
                 stack[position] = replace(claim, floor=tuple(floor))
                 self._suspended = stack
                 return
-
-    def take_suspended_closings(self) -> list[dict]:
-        """The suspended claims that closed since the last declaration, once."""
-        closings = list(getattr(self, "_suspended_closings", None) or ())
-        self._suspended_closings = []
-        return closings
 
     # -- transitions -----------------------------------------------------
 
@@ -2548,7 +2457,6 @@ class ClaimRegister:
             replace(claim, state=state, closed=closed, closed_reason=label),
             closed, label,
         )
-        self._closing = self._claim
         return self._claim
 
     def suspend(
@@ -2633,19 +2541,6 @@ class ClaimRegister:
         """The bar table (design 3.2 / 3.3), oldest first."""
         return tuple(getattr(self, "_bars", None) or ())
 
-    def barring(self, owner: str | ClaimOwner, goal: Goal) -> Bar | None:
-        """The bar standing on this owner and goal, if any.
-
-        The match is the owner and the goal; the trigger set only decides
-        when the bar lifts (design 3.2: "not the trigger set growing or
-        shrinking").
-        """
-        declared = owner_of(owner)
-        for bar in self.bars:
-            if bar.owner == declared and bar.goal == goal:
-                return bar
-        return None
-
     def set_bar(self, bar: Bar) -> Bar:
         """Record a bar; a bar already standing on its owner and goal keeps
         its start and takes the union of the two trigger sets and the later
@@ -2673,12 +2568,6 @@ class ClaimRegister:
     def replace_bars(self, bars) -> None:
         """The table after a board's lift pass (rebound, never mutated)."""
         self._bars = list(bars)
-
-    def take_closing(self) -> Claim | None:
-        """The claim a closing call ended since the last declaration, once."""
-        closing = getattr(self, "_closing", None)
-        self._closing = None
-        return closing
 
     def _closed(self) -> str | None:
         claim = self._claim
@@ -3329,16 +3218,8 @@ HOME_EFFECT_SOURCES = (
     "home-withdrawal:",
 )
 
-# Why a Reach row declared Terminal (rev 9.2 C and D).
-GOAL_NOTE_NO_SLOT = "no-slot"
-GOAL_NOTE_OWNER_MISMATCH = "owner-mismatch"
-# Rev 9.3: a walk to where a lost chase target was last seen.
-GOAL_NOTE_LAST_KNOWN = "last-known"
-# Round 4 (F2): a genuinely one-step walk (a flee step, a least-visited step,
-# a step-off) under a reason that can also name a far target; the gate's (c)
-# counts these apart.
-GOAL_NOTE_ONE_STEP = "one-step"
-# Internal: the slot ``_town_teleport_key`` wrote, which its caller may adopt.
+# The note ``_town_teleport_key`` writes into the goal slot, which its caller
+# may adopt (``_adopt_decision_goal``).
 TELEPORT_WALK_NOTE = "teleport-walk"
 
 _GOAL_ROWS_BY_FAMILY: dict[str, tuple[GoalTypingRow, ...]] = {}
@@ -3428,17 +3309,6 @@ class ExecutionDelegation:
     ending: str | None = None
     execution: object = None
 
-    def as_dict(self) -> dict[str, object]:
-        row = {name: getattr(self, name) for name in (
-            "parent_claim_id", "parent_family", "delegate_family",
-            "work_identity", "purpose_identity", "opening_decision",
-            "expected_effect", "budget_reference", "lifecycle", "ending",
-        )}
-        row["execution"] = (
-            self.execution.as_dict() if self.execution is not None else None
-        )
-        return row
-
 
 @dataclass
 class DecisionOffers:
@@ -3472,7 +3342,18 @@ class TownHold:
     offers belong to one decision and to this process: they are never pickled
     or deep-copied (a restored or copied policy starts without offers), and a
     telemetry observer copy shares them, as the decision it observes does.
+
+    ``last_reason``, ``last_reach`` and ``last_rung`` are what the latest
+    ``advance_hold`` saw (all None when the register is off): the decision's
+    reason (the next decision's seek-shelter release reads it), the Reach
+    progress of its claim, ``(claim_id, distance)`` (the driver's town fuse),
+    and the rung it ranked at (the decision log).  A hold pickled before
+    slice 4 reads the class defaults until ``policy_state`` adopts them.
     """
+
+    last_reason: str | None = None
+    last_reach: tuple[int, int] | None = None
+    last_rung: str | None = None
 
     def __init__(self, claims: ClaimRegister | None = None,
                  delegations: list | None = None) -> None:
@@ -3496,15 +3377,28 @@ class TownHold:
     def observer_copy(self) -> "TownHold":
         """A copy a telemetry observer may write: the register is copied
         shallowly (it rebinds its current claim on every transition), the
-        delegation list is a new list, the offers are shared."""
+        delegation list is a new list, the offers are shared and the latest
+        decision's record is the same."""
         duplicate = TownHold(copy(self.claims) if self.claims is not None else None,
                              list(self.delegations))
         duplicate._offers = self._offers
+        duplicate.last_reason, duplicate.last_reach, duplicate.last_rung = (
+            self.last_reason, self.last_reach, self.last_rung)
         return duplicate
 
 
 def town_hold(policy: Any) -> TownHold | None:
     return getattr(policy, "_town_hold", None)
+
+
+def decision_reach(policy: Any) -> tuple[int, int] | None:
+    """The latest decision's Reach progress, ``(claim_id, distance)``, or None."""
+    return getattr(town_hold(policy), "last_reach", None)
+
+
+def decision_rung(policy: Any) -> str | None:
+    """The rung the latest decision ranked at (for the decision log)."""
+    return getattr(town_hold(policy), "last_rung", None)
 
 
 def hold_claims(policy: Any) -> ClaimRegister | None:
@@ -4195,31 +4089,7 @@ def claim_family_of(policy: Any, reason: str | None) -> str:
 
 
 
-class HoldStep(NamedTuple):
-    """What advancing the hold found on a decision's exit, for its record row."""
-
-    reason: str
-    owner: Any
-    goal_missing: bool
-    goal_note: Any
-    survival: bool
-    rung: Any
-    # The standing claim the owner transition met, and this decision's claim
-    # before (``claim``) and after (``declared``) its execution declaration.
-    standing: Any
-    claim: Any
-    declared: Any
-    violation: Any
-    closed: dict | None
-    resumed: Any
-    suspended_closed: list
-    would_bar: Any
-    would_skip: Any
-    bars_set: list
-    bars_lifted: list
-
-
-def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
+def advance_hold(policy: Any, snapshot: Any, key: Any) -> None:
     """Advance the town hold on the ``choose_key`` exit (the state step).
 
     Closes the claim this board ends (a producer's own closing, the exit's
@@ -4229,8 +4099,9 @@ def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
     goal, binds and retires the executor delegations and declares the
     execution the producer offered.  Later decisions read all of it (the
     errand hold, the bars, the delegation tokens), so it runs on every
-    decision.  Returns None when the claim recording is switched off.
-    The decision's record row is ``policy._write_decision_claim_row``.
+    decision.  It also keeps what the next decision and the driver read
+    (``TownHold.last_reason`` / ``last_reach`` / ``last_rung``); all three
+    are None when the claim recording is switched off.
     """
     registry = getattr(policy, "_owner_expectations", None)
     pops = (
@@ -4238,11 +4109,15 @@ def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
         if registry is not None and hasattr(registry, "drain_pops")
         else []
     )
+    hold = town_hold(policy)
     register = hold_claims(policy)
     if register is None:
-        return None
+        if hold is not None:
+            hold.last_reason = hold.last_reach = hold.last_rung = None
+        return
+    previous_reason = hold.last_reason
     # S2b.2: the bars this board lifts (a pure function of the board).
-    bars_lifted = claim_bar_lift(policy, snapshot, register)
+    claim_bar_lift(policy, snapshot, register)
     reason = policy.last_reason or ""
     standing = register.current
     claim_exit_completion(policy, snapshot, standing, pops)
@@ -4250,8 +4125,7 @@ def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
     if (
         standing is not None and standing.is_open
         and standing.goal.kind == GOAL_REACH
-        and (getattr(policy, "decision_claim", None) or {}).get("reason")
-            == "town:seek-shelter"
+        and previous_reason == "town:seek-shelter"
         and not getattr(policy, "_took_damage", False)
     ):
         policy._release_claim_goal(
@@ -4330,8 +4204,8 @@ def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
     ) and not reason.endswith(":await-entry")
     rung = rung_of(owner, reason, non_discardable=non_discardable)
     standing = register.current
-    goal, goal_missing, goal_note = (
-        (continuation_claim.goal, False, None)
+    goal = (
+        continuation_claim.goal
         if continuing_owner
         else claim_goal(policy, snapshot, key, owner, reason, standing)
     )
@@ -4369,7 +4243,7 @@ def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
             sources=(STORE_OPERATION,),
         )
         standing = register.current
-    action, label, violation = claim_owner_transition(
+    action, label, dropped = claim_owner_transition(
         policy, register, standing, owner, goal, rung, survival, non_discardable,
         snapshot=snapshot,
     )
@@ -4388,15 +4262,12 @@ def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
     if action is not None:
         # S2a.1's order: the goal is read after the holder closed, exactly
         # as it was when survival was the only preemptor.
-        goal, goal_missing, goal_note = claim_goal(
+        goal = claim_goal(
             policy, snapshot, key, owner, reason, register.current
         )
     resumed = claim_resolve_suspended(
         policy, register, owner, goal, rung, survival, non_discardable
     )
-    finished = register.take_closing()
-    closed = finished.closing_dict() if finished is not None else None
-    suspended_closed = register.take_suspended_closings()
     if resumed is not None:
         # The resumed claim keeps its own rank unless this decision's rung
         # is strictly higher, so it still outranks nothing it sat under.
@@ -4438,32 +4309,25 @@ def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
         claim = register.await_observation()
     else:
         claim = register.keep_active()
-    transition_violation = violation
     # The store visit records which claim operates it (``claim_family_of``
     # reads ``claim_owner``).
     visit = getattr(policy, "_store_visit", None)
     if visit is not None and claim.is_open and claim.owner.value in TOWN_OWNER_FAMILIES:
         visit.claim_id = claim.claim_id
         visit.claim_owner = claim.owner.value
-    # S2b.2 (record-only while the switch is off): the bar this decision's
-    # owner and goal would meet -- read before this row's own endings are
-    # barred, as the ladder would have read the table while deciding.
-    would_bar = claim_would_bar(policy, register, claim, survival)
-    would_skip = claim_would_skip(register, rung, survival)
-    bars_set = claim_set_bars(
-        policy, snapshot, register,
-        dropped=standing if transition_violation is not None else None,
-    )
+    claim_set_bars(policy, snapshot, register, dropped=standing if dropped else None)
     bind_execution_delegations(policy, claim)
     observe_execution_delegations(policy)
     record_execution_declaration(policy, claim, key, reason)
-    return HoldStep(
-        reason=reason, owner=owner, goal_missing=goal_missing, goal_note=goal_note,
-        survival=survival, rung=rung, standing=standing, claim=claim,
-        declared=register.current, violation=violation, closed=closed,
-        resumed=resumed, suspended_closed=suspended_closed, would_bar=would_bar,
-        would_skip=would_skip, bars_set=bars_set, bars_lifted=bars_lifted,
+    declared = register.current
+    distance = claim_goal_distance(policy, snapshot, declared.goal)
+    hold.last_reason = reason
+    hold.last_reach = (
+        (declared.claim_id, distance)
+        if declared.goal.kind == GOAL_REACH and isinstance(distance, int)
+        else None
     )
+    hold.last_rung = rung.name
 
 
 def errand_hold(policy: Any, family: str, *, enforced: bool = False,
@@ -4820,8 +4684,8 @@ def claim_operation_goal(policy, snapshot, owner, reason, content):
 
 def claim_goal(
     policy, snapshot: Snapshot, key, owner: ClaimOwner, reason: str, standing
-) -> tuple[Goal, bool, str | None]:
-    """This decision's goal from the slot, whether it is missing, and why.
+) -> Goal:
+    """This decision's goal from the slot.
 
     Design rev 9 item 2 and rev 9.2 (C).  The kind comes from the
     checked-in typing table (``goal_typing``); the content comes
@@ -4830,7 +4694,7 @@ def claim_goal(
 
     * ``Reach``: the slot's goal (a cell, a monster, or a place) when its
       family is this owner; otherwise the decision declares ``Terminal``
-      and records ``goal_missing`` with ``no-slot`` or ``owner-mismatch``.
+      (no slot, or a slot of another owner).
     * ``Observe``: a floor change is always the table's own content; any
       other ``Observe`` takes the expectation posted on this board by
       this owner (another owner's is not used: ``owner-mismatch``), else
@@ -4851,17 +4715,17 @@ def claim_goal(
                      or (standing.goal.source == STORE_ENTRY
                          and standing.execution is not None
                          and standing.execution.expected_effect == "home-catalog-available"))):
-            return standing.goal, False, None
+            return standing.goal
         return observe_goal(
             (STORE_HOME, "knowledge", policy._town_visit_epoch),
             STORE_STUCK_LIMIT, source=KNOWLEDGE,
-        ), False, None
+        )
     if (
         standing is not None and standing.is_open and (standing.owner == owner) and (reason == 'store:entry-await-observation' and standing.goal.source in {STORE_OPERATION, 'transaction'} or (reason == 'home:scan-incomplete-open-page' and standing.goal.source == KNOWLEDGE) or (reason == 'shop:one-shot-in-flight' and standing.goal.source == STORE_OPERATION))
     ):
         # Neither a lagged store entry nor an incomplete Home page ends
         # the operation or knowledge observation it is waiting for.
-        return standing.goal, False, None
+        return standing.goal
     if (reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}
             and standing is not None and standing.is_open
             and standing.owner == owner
@@ -4869,7 +4733,7 @@ def claim_goal(
             and standing.goal.source == STORE_OPERATION
             and not getattr(getattr(policy, "_store_visit", None),
                             "operation_effect_observed", False)):
-        return standing.goal, False, None
+        return standing.goal
     visit = getattr(policy, "_store_visit", None)
     completed_transaction = (
         reason == "home:leave-after-one-operation"
@@ -4888,14 +4752,14 @@ def claim_goal(
         if (
             standing is not None and standing.is_open and (standing.owner == owner) and (standing.goal.kind == GOAL_OBSERVE) and (standing.goal.source in {STORE_OPERATION, 'transaction'})
         ):
-            return standing.goal, False, None
-        return terminal_goal(reason), False, None
+            return standing.goal
+        return terminal_goal(reason)
     if owner.value in {'equipment-txn'} and reason.startswith(('home:atomic-', 'home:deposit', 'home:withdraw-', 'home:weight-overload-deposit', 'home:morivant-temporary-deposit', 'home:morivant-retry-temporary-deposit', 'home:leave-', 'home:store-context-exit', 'equipment-transaction:await-confirmation', 'equipment-transaction:home-route-unavailable')):
         if (standing is not None and standing.is_open and (standing.owner == owner) and (standing.goal.source in {'transaction'})):
-            return standing.goal, False, None
+            return standing.goal
         operation = claim_operation_goal(policy, snapshot, owner, reason, "transaction")
         if operation is not None:
-            return operation, False, None
+            return operation
     row = goal_typing(owner.value, reason)
     effect = terminal_goal(reason or "policy:none")
     chain = getattr(policy, "_staged_prompt_chain", None)
@@ -4904,7 +4768,7 @@ def claim_goal(
             policy, snapshot, owner, reason, STORE_OPERATION
         )
         if staged is not None:
-            return staged, False, None
+            return staged
     if row is None or row.kind == GOAL_TERMINAL:
         if owner.value == "home-visit" and reason.startswith((
             "home:leave-", "home:store-context-exit",
@@ -4913,22 +4777,22 @@ def claim_goal(
                 policy, snapshot, owner, reason, STORE_OPERATION
             )
             if operation is not None:
-                return operation, False, None
+                return operation
         if (
             standing is not None and standing.is_open
             and standing.owner == owner
             and standing.goal.source == FLOOR_CHANGE
             and reason.startswith("town:wait-recall")
         ):
-            return standing.goal, False, None
-        return effect, False, None
+            return standing.goal
+        return effect
     if (
         standing is not None and standing.is_open
         and standing.owner == owner
         and standing.goal.source == FLOOR_CHANGE
         and reason.startswith("town:wait-recall")
     ):
-        return standing.goal, False, None
+        return standing.goal
     # A route to the next transaction step is still the same open
     # session. The separately ruled await-entry wait keeps its own
     # store-entry goal once the entrance command has been posted.
@@ -4939,7 +4803,7 @@ def claim_goal(
             policy, snapshot, owner, reason, "transaction"
         )
         if operation is not None:
-            return operation, False, None
+            return operation
     if row.kind == GOAL_REACH:
         slot = getattr(policy, "_decision_goal", None)
         if not (
@@ -4948,13 +4812,10 @@ def claim_goal(
             and isinstance(slot[1], Goal)
             and slot[1].kind == GOAL_REACH
         ):
-            return effect, True, GOAL_NOTE_NO_SLOT
+            return effect
         if slot[0] != owner.value:
-            return effect, True, GOAL_NOTE_OWNER_MISMATCH
-        note = slot[2] if len(slot) == 3 else None
-        return slot[1], False, (
-            note if note != TELEPORT_WALK_NOTE else None
-        )
+            return effect
+        return slot[1]
     within = OBSERVE_WITHIN.get(row.content, OWNER_EXPECTATION_MAX_TURNS)
     if row.content == STORE_ENTRY:
         visit = getattr(policy, "_store_visit", None)
@@ -4964,26 +4825,19 @@ def claim_goal(
             and (snapshot.player.position.y, snapshot.player.position.x)
                 != (visit.goal.y, visit.goal.x)
         ):
-            return reach_goal((visit.goal.y, visit.goal.x)), False, None
+            return reach_goal((visit.goal.y, visit.goal.x))
         target = getattr(policy, "_store_entry_wait_owner", None)
         if target is None and visit is not None:
             target = visit.store_type
         return observe_goal(
             (STORE_ENTRY, target), within,
             source=STORE_ENTRY,
-        ), False, None
-    if row.content == FLOOR_CHANGE:
-        return (
-            observe_goal(
-                FLOOR_EXPECTATION, within, source=FLOOR_CHANGE
-            ),
-            False,
-            None,
         )
+    if row.content == FLOOR_CHANGE:
+        return observe_goal(FLOOR_EXPECTATION, within, source=FLOOR_CHANGE)
     operation = claim_operation_goal(policy, snapshot, owner, reason, row.content)
     if operation is not None:
-        return operation, False, None
-    note = None
+        return operation
     posted = getattr(policy, "_decision_expectation", None)
     if (
         isinstance(posted, tuple)
@@ -4992,8 +4846,7 @@ def claim_goal(
         and posted[1].kind == GOAL_OBSERVE
     ):
         if posted[0] == owner.value:
-            return posted[1], False, None
-        note = GOAL_NOTE_OWNER_MISMATCH
+            return posted[1]
     if (
         standing is not None
         and standing.is_open
@@ -5001,8 +4854,8 @@ def claim_goal(
         and standing.goal.kind == GOAL_OBSERVE
         and standing.goal.source != FLOOR_CHANGE
     ):
-        return standing.goal, False, note
-    return observe_goal((row.content,), within, source=row.content), False, note
+        return standing.goal
+    return observe_goal((row.content,), within, source=row.content)
 
 
 def claim_owner_retired(policy, owner) -> bool:
@@ -5321,8 +5174,10 @@ def claim_owner_transition(
 ):
     """How this decision treats the claim the previous one declared.
 
-    Returns ``(action, label, violation)``.  Only a held claim that is
-    still open with a Reach or Observe goal matters:
+    Returns ``(action, label, dropped)``: ``dropped`` is True when this
+    decision drops the held claim without closing it (a violation of the
+    ladder; ``claim_set_bars`` bars it).  Only a held claim that is still
+    open with a Reach or Observe goal matters:
 
     * an owner change to a strictly higher rung (rev 10 item 2) is a
       preemption -- the caller suspends the holder (``survival-preemption``
@@ -5339,7 +5194,7 @@ def claim_owner_transition(
       (rev 10.1 item 6). A town survival decision suspends an S3 holder;
       adjacent melee also suspends a pending town monster chase.
 
-    Nothing stops: the row records it.
+    Nothing stops.
     """
     if (
         standing is None
@@ -5368,7 +5223,6 @@ def claim_owner_transition(
     )
     if standing.owner == owner:
         verdict = SURVIVAL_DISPLACED if survival else VIOLATION
-        kind = "retarget"
     else:
         verdict = owner_change(
             held_rank=held.rank,
@@ -5378,7 +5232,6 @@ def claim_owner_transition(
             new_rank=rung.rank,
             new_survival=survival,
         )
-        kind = "owner-change"
     if verdict == PREEMPTION:
         return PREEMPTION, (
             "survival-preemption"
@@ -5387,30 +5240,7 @@ def claim_owner_transition(
         ), None
     if verdict == SURVIVAL_DISPLACED:
         return SURVIVAL_DISPLACED, SURVIVAL_DISPLACED, None
-    plan_changed = bool(getattr(policy, "_decision_plan_change_evidence", None))
-    from hengbot.plan_handoff import is_plan_handoff
-    if kind == "owner-change" and is_plan_handoff(
-        holder_family=standing.owner.value,
-        next_family=owner.value,
-        holder_kind=standing.goal.kind,
-        holder_non_discardable=standing.non_discardable,
-        same_rank=held.rank == rung.rank,
-        plan_changed=plan_changed,
-    ):
-        kind = "plan-handoff"
-    if (kind == 'owner-change' and standing.non_discardable and non_discardable and (standing.owner.value in {'equipment-txn', 'home-visit', 'home-errand'}) and (owner.value in {'equipment-txn', 'home-visit', 'home-errand'})):
-        kind = "transaction-contention"
-    return None, None, {
-        "kind": kind,
-        "from": standing.owner.value,
-        "to": owner.value,
-        "claim_id": standing.claim_id,
-        "goal": standing.goal.as_dict(),
-        "from_rank": held.rank,
-        "to_rank": rung.rank,
-        "scope": pair_scope(held, rung),
-        "survival": bool(standing.survival or survival),
-    }
+    return None, None, True
 
 
 def claim_resolve_suspended(
@@ -5468,22 +5298,7 @@ def claim_resolve_suspended(
                 top.claim_id, "release", SURVIVAL_DISPLACED
             )
             continue
-        register.close_suspended(
-            top.claim_id,
-            "release",
-            "resume-displaced",
-            violation={
-                "kind": "displaced",
-                "from": top.owner.value,
-                "to": owner.value,
-                "claim_id": top.claim_id,
-                "goal": top.goal.as_dict(),
-                "from_rank": held.rank,
-                "to_rank": rung.rank,
-                "scope": pair_scope(held, rung),
-                "survival": bool(top.survival or survival),
-            },
-        )
+        register.close_suspended(top.claim_id, "release", "resume-displaced")
     return None
 
 
@@ -5597,35 +5412,23 @@ def claim_bar_after(
     )
 
 
-def claim_bar_lift(policy, snapshot: Snapshot, register) -> list[dict]:
+def claim_bar_lift(policy, snapshot: Snapshot, register) -> None:
     """Design 3.2 / 3.3: the lift pass of this board.
 
     A threat-triggered bar lifts once ``DETECTED_THREAT_HOLD_MAX_GAME_TURNS``
     game turns (the existing 50-turn clock of the detected-threat choke
     release) have passed with none of its trigger monsters perceived; an
     errand bar lifts when the durable part of its owner's retirement
-    clearance key differs from the one recorded when it was set.  Returns
-    the lifted bars as row entries.
+    clearance key differs from the one recorded when it was set.
     """
     bars = register.bars
     if not bars:
-        return []
+        return
     perceived = claim_perceived_pairs(snapshot)
-    kept = []
-    lifted = []
-    for bar in bars:
-        after = claim_bar_after(policy, snapshot, bar, perceived)
-        if after is None:
-            lifted.append({
-                **bar.as_dict(),
-                "lifted_turn": snapshot.turn,
-                "lifted_sequence": policy._decision_sequence,
-            })
-        else:
-            kept.append(after)
-    if lifted or kept != list(bars):
+    kept = [after for after in (claim_bar_after(policy, snapshot, bar, perceived) for bar in bars)
+            if after is not None]
+    if kept != list(bars):
         register.replace_bars(kept)
-    return lifted
 
 
 def claim_bar_for(policy, snapshot: Snapshot, claim, ending: str):
@@ -5712,66 +5515,20 @@ def claim_bar_for(policy, snapshot: Snapshot, claim, ending: str):
 
 
 def claim_set_bars(policy, snapshot: Snapshot, register, *, dropped=None):
-    """Bar the claims that ended on this decision; returns row entries.
+    """Bar the claims that ended on this decision.
 
     ``register.take_ended`` gives every claim a closing call ended since
     the last declaration (a producer's release, the exit's expiry, a
     retirement, a suspended claim displaced or released); ``dropped`` is
-    the held claim this row's violation left without a closing.
+    the held claim this decision dropped without a closing.
     """
     ended = [(claim, claim.closed) for claim in register.take_ended()]
     if dropped is not None:
         ended.append((dropped, "abandoned"))
-    entries = []
     for claim, ending in ended:
         bar = claim_bar_for(policy, snapshot, claim, ending)
-        if bar is None:
-            continue
-        register.set_bar(bar)
-        entries.append(bar.as_dict())
-    return entries
-
-
-def claim_would_bar(policy, register, claim, survival):
-    """Design 3.2 / 3.3 at the exit: the bar this decision would meet.
-
-    The decided owner and goal matched against the table as the ladder
-    would have read it; survival is never barred.  Recorded on the row;
-    with the switch off it changes nothing.
-    """
-    if survival or claim is None:
-        return None
-    bar = register.barring(claim.owner, claim.goal)
-    if bar is None:
-        return None
-    return {
-        "owner": bar.owner.value,
-        "goal": bar.goal.as_dict(),
-        "bar_since_turn": bar.since_turn,
-        "triggers": [list(pair) for pair in bar.triggers],
-    }
-
-
-def claim_would_skip(register, rung, survival):
-    """Round 2: the skip the switch would have made on this decision.
-
-    The switch decides before a rung runs, so it can only know the rung,
-    not the goal the rung would choose: a gated rung
-    (``claim_ladder.BAR_GATED_RUNGS``) is skipped while a bar that a claim
-    of that rung earned stands.  Recorded when the decided rung is one of
-    them, beside ``would_bar``'s exact owner-and-goal match.
-    """
-    if survival or rung.name not in BAR_GATED_RUNGS:
-        return None
-    for bar in register.bars:
-        if bar.rung == rung.name:
-            return {
-                "rung": rung.name,
-                "owner": bar.owner.value,
-                "goal": bar.goal.as_dict(),
-                "bar_since_turn": bar.since_turn,
-            }
-    return None
+        if bar is not None:
+            register.set_bar(bar)
 
 
 def open_execution_delegation(

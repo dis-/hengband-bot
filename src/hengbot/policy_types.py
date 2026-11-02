@@ -70,21 +70,13 @@ class QuestTravelDeclaration:
 
 
 class DecisionCandidate(str):
-    """A string-compatible immutable decision carrying unforgeable provenance.
-
-    ``claim_id`` is the ownership contract's declaration token (design 5.4):
-    it is carried here rather than in a second ``str`` subclass, because route
-    authorization is decided by ``isinstance(key, DecisionCandidate)`` and five
-    test files pin ``route_declaration`` on exactly this type.  It is plain
-    data (an integer id or ``None``), so it survives pickling with the rest.
-    """
+    """A string-compatible immutable decision carrying unforgeable provenance."""
 
     __slots__ = (
         "reason",
         "identity",
         "decision_identity",
         "route_declaration",
-        "claim_id",
     )
 
     def __new__(
@@ -95,7 +87,6 @@ class DecisionCandidate(str):
         decision_identity: object,
         route_declaration: QuestTravelDeclaration | None = None,
         identity: object | None = None,
-        claim_id: int | None = None,
     ) -> "DecisionCandidate":
         value = str.__new__(cls, key)
         candidate_identity = object() if identity is None else identity
@@ -103,7 +94,6 @@ class DecisionCandidate(str):
         value.identity = candidate_identity
         value.decision_identity = decision_identity
         value.route_declaration = route_declaration
-        value.claim_id = claim_id
         return value
 
     def __reduce__(self):
@@ -115,7 +105,6 @@ class DecisionCandidate(str):
                 self.decision_identity,
                 self.route_declaration,
                 self.identity,
-                self.claim_id,
             ),
         )
 
@@ -128,10 +117,11 @@ def _restore_decision_candidate(
     identity: object,
     claim_id: int | None = None,
 ) -> DecisionCandidate:
-    """Rebuild a candidate, including from a checkpoint pickled before S1.
+    """Rebuild a candidate.
 
-    Those payloads carry five arguments and no ``claim_id``; the default keeps
-    them loadable, and the restored candidate simply carries no declaration.
+    A candidate pickled between the S1 claim register and structure stage 2 B
+    slice 4 also carries the retired declaration token ``claim_id``; it is
+    accepted and dropped.
     """
     return DecisionCandidate(
         key,
@@ -139,7 +129,6 @@ def _restore_decision_candidate(
         decision_identity=decision_identity,
         route_declaration=route_declaration,
         identity=identity,
-        claim_id=claim_id,
     )
 
 

@@ -61,6 +61,8 @@ class CalibrationCheckpointTest(unittest.TestCase):
         register = policy._town_hold.claims
         register._claim = Claim(claim_id=7, owner=family, goal=Goal(kind="Observe"))
         register._ended.append(Claim(claim_id=6, owner=family, goal=Goal(kind="Observe")))
+        # A checkpoint from before structure stage 2 B slice 4 also carried
+        # the decision claim row; the restore adopts it into the hold.
         policy.decision_claim = register._claim
         policy._calibration_phase = "restore-equip"
         policy._calibration_stripped_unrestored = True
@@ -74,7 +76,8 @@ class CalibrationCheckpointTest(unittest.TestCase):
         self.assertIsNone(restored._home_visit.previous_completed_delta)
         self.assertIsNone(restored._town_hold.claims._claim)
         self.assertEqual(restored._town_hold.claims._ended, [])
-        self.assertIsNone(restored.decision_claim)
+        self.assertNotIn("decision_claim", vars(restored))
+        self.assertIsNone(restored._town_hold.last_reason)
         self.assertIsNone(restored._home_atomic_withdraw_pending)
         for name in ("_calibration_phase", "_calibration_stripped_unrestored",
                      "_calibration_restore_signatures"):

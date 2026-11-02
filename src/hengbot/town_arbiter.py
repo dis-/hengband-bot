@@ -824,22 +824,6 @@ def owner_families() -> tuple[str, ...]:
     return tuple(_new_town_turn_arbiter().registry)
 
 
-def owner_family_budgets() -> dict[str, int]:
-    """Each **arbitrating** family's own budget, by name.
-
-    These are the budgets the registrations already carry (each one derived
-    from an existing policy constant); nothing new is introduced here.
-    ``UNREGISTERED_FAMILY`` has no registration and therefore no budget, and
-    neither does a census-only family: nothing arbitrates it before S2b, so
-    claiming a budget for it would be an invented number.
-    """
-    return {
-        name: entry.budget
-        for name, entry in _new_town_turn_arbiter().registry.items()
-        if entry.budget is not None
-    }
-
-
 # --- The owner families as an enum (formerly claim_register) ---------------
 # A claim (``town_terminal``) and a producer's ``@claims`` marker name one of
 # the families above, so no family is invented and none can drift away from

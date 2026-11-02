@@ -264,8 +264,9 @@ def collect_logs(patterns, windows):
                     live = [w for w in windows if w.holds(moment)]
                     if not live:
                         continue
-                    claim = row.get("claim") or {}
-                    rung = claim.get("rung")
+                    # The decision's rung (rows before structure stage 2 B
+                    # slice 4 carry it in their claim row).
+                    rung = row.get("rung") or (row.get("claim") or {}).get("rung")
                     if not rung:
                         for window in live:
                             window.unrunged += 1

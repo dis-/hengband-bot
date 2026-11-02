@@ -153,7 +153,7 @@ def bypass(policy, snapshot, item):
 def choose_key(self, snapshot):
     if bypass:
         return "d" + snapshot.inventory[0].slot
-    self._record_decision_claim(snapshot, key)
+    town_advance_hold(self, snapshot, key)
     return key
 '''
         findings = analyze_source(source, 'policy.py', names=set(), check_exit=True)
@@ -164,7 +164,7 @@ def choose_key(self, snapshot):
 def choose_key(self, snapshot):
     if stop:
         return None
-    self._record_decision_claim(snapshot, key)
+    town_advance_hold(self, snapshot, key)
     return key
 """
         self.assertTrue(analyze_source(source, 'policy.py', names=set()))
@@ -172,7 +172,7 @@ def choose_key(self, snapshot):
     def test_returned_key_must_be_the_recorded_final_key(self):
         source = """
 def choose_key(self, snapshot):
-    self._record_decision_claim(snapshot, other)
+    town_advance_hold(self, snapshot, other)
     return key
 """
         self.assertTrue(analyze_source(source, 'policy.py', names=set()))
@@ -181,14 +181,14 @@ def choose_key(self, snapshot):
         # f7131f80e: the town cycle detector reads the final key after the record.
         exit_source = """
 def choose_key(self, snapshot):
-    self._record_decision_claim(snapshot, key)
+    town_advance_hold(self, snapshot, key)
     self._town_progress_note_command(key)
     return key
 """
         self.assertEqual(analyze_source(exit_source, 'policy.py', names=set()), [])
         for tail in ('    key = self._town_progress_note_command(key)\n',
                      '    self._town_progress_note_command(key := other)\n',
-                     '    self._record_decision_claim(snapshot, other)\n'):
+                     '    town_advance_hold(self, snapshot, other)\n'):
             with self.subTest(tail=tail):
                 mutant = exit_source.replace('    self._town_progress_note_command(key)\n', tail)
                 self.assertTrue(analyze_source(mutant, 'policy.py', names=set()))

@@ -73,11 +73,11 @@ class ExecutionDeclarationTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
         key = policy.choose_key(board)
-        declaration = policy.decision_claim["execution"]
+        declaration = town_terminal.standing_claim(policy).execution
         self.assertEqual((key, policy.last_reason),
                          ("\x1b", "home:scan-complete-from-open-page"))
-        self.assertEqual((declaration["producer"], declaration["next_step"],
-                          declaration["expected_effect"]),
+        self.assertEqual((declaration.producer, declaration.next_step,
+                          declaration.expected_effect),
                          ("home-scan", "store.leave.send", "outside-store"))
 
     def test_direct_home_page_deposit_declares_exact_item_and_count(self):
@@ -282,8 +282,7 @@ class ExecutionDeclarationTest(unittest.TestCase):
             expected_effect="arrive:31,150", continuation="route.resume",
         )
         self.assertEqual(second.revision, 2)
-        self.assertEqual(restored.current.as_dict()["execution"]["state"],
-                         "awaiting")
+        self.assertEqual(restored.current.execution.state, "awaiting")
         self.assertIsNone(restored.declare_execution(
             claim.claim_id + 1, work_id="wrong", producer="store-router",
             state="acting", next_step="route.resume"))
@@ -294,7 +293,6 @@ class ExecutionDeclarationTest(unittest.TestCase):
         del claim.__dict__["execution"]
         restored = pickle.loads(pickle.dumps(register))
         self.assertIsNone(restored.current.execution)
-        self.assertIsNone(restored.current.as_dict()["execution"])
 
     def test_1154_short_entrance_route_has_resume_step(self):
         # Recorded 223/224: #140 Reach(31,150), stopped five cells short.

@@ -54,6 +54,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from tests.hold_closings import requester_families
+from hengbot import town_terminal
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -185,9 +187,11 @@ class OneShotPreemptRecordedTest(unittest.TestCase):
 
     @staticmethod
     def _execution(policy):
-        execution = (policy.decision_claim or {}).get("execution") or {}
-        arguments = execution.get("arguments")
-        return (execution.get("next_step"),
+        execution = getattr(town_terminal.standing_claim(policy), "execution", None)
+        if execution is None:
+            return None, None
+        arguments = execution.arguments
+        return (execution.next_step,
                 list(arguments) if arguments is not None else None)
 
     # D4: historical keys remain frozen; current index 3 requests outside,
@@ -343,8 +347,7 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
             key = original(policy, board)
             seen["keys"].append(key)
             if len(seen["keys"]) == first_changed + 1:
-                seen["requesters"] = (policy.decision_claim or {}).get(
-                    "requester_families")
+                seen["requesters"] = requester_families(policy)
             return key
 
         with patch.object(HengbotPolicy, "choose_key", choose_key):

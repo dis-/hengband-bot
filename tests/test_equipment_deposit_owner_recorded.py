@@ -14,6 +14,7 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
+from hengbot import town_terminal
 from hengbot.claim_register import observe
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
@@ -129,8 +130,7 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 key = policy.choose_key(board)
                 self.assertEqual(key, 'dp')
                 self.assertEqual(policy.last_reason, 'equipment-transaction:deposit')
-                self.assertEqual(policy.decision_claim['owner'], 'equipment-txn')
-                self.assertIsNone(policy.decision_claim['violation'])
+                self.assertEqual(town_terminal.standing_claim(policy).owner.value, 'equipment-txn')
                 policy.confirm_key_posted(key)
                 self.assertIsNotNone(pending.pending_action)
                 # This recorded effect follows the identical dp command. Stop at
@@ -227,6 +227,5 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 declared(policy, pending)
                 key = policy.choose_key(board)
                 self.assertTrue(policy.last_reason.endswith('equipment-transaction:confirmation-stall-bound'))
-                self.assertIsNone(policy.decision_claim['violation'])
                 self.assertIsNone(policy._equipment_transaction_session)
                 self.assertIsNone(policy._town_hold.claims.current.execution.continuation)

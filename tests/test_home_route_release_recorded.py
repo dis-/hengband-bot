@@ -14,6 +14,7 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401
+from hengbot import town_terminal
 from hengbot.claim_register import observe
 from hengbot.emit_ownership import in_flight_clause
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest
@@ -103,7 +104,6 @@ class HomeRouteReleaseTest(unittest.TestCase):
             key = policy.choose_key(board)
             self.assertEqual(key, "5")
             self.assertEqual(policy.last_reason, "home:atomic-deposit-await-confirmation")
-            self.assertIsNone(policy.decision_claim["violation"])
             self.assertEqual(policy._home_atomic_deposit_pending[3], count)
             self.assertEqual(in_flight_clause(old_visit),
                              "operation-released-effect-not-observed")

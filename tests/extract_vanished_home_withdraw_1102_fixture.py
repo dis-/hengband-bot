@@ -49,7 +49,9 @@ def main() -> None:
         if row.get("decision_sequence") in (2293, 2294, 2295, 2301, 2302):
             fact = {key: row.get(key) for key in FACTS}
             if row["decision_sequence"] == 2302:
-                fact["terminal_admission"] = row["claim"]["terminal_admission"]
+                # Rows before structure stage 2 B slice 4 carry it in the claim row.
+                fact["terminal_admission"] = (row.get("terminal_admission")
+                                              or row["claim"]["terminal_admission"])
             decisions.append(fact)
     case = dict(
         sources={name: hashlib.sha256((CAPTURE / name).read_bytes()).hexdigest()

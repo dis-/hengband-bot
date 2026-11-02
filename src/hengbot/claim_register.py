@@ -32,7 +32,6 @@ from hengbot.town_terminal import (  # noqa: F401
     Goal,
     bar_after_board,
     observe_goal as observe,
-    owner_budget,
     reach_goal as reach,
     reach_monster_goal as reach_monster,
     reach_place_goal as reach_place,

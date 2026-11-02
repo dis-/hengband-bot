@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
-from hengbot.item_reservation import reservation_decision, reservation_shadow, item_available
+from hengbot.item_reservation import reservation_decision, item_available
 from hengbot.item_reservation import (
     claim_candidate_memo, decision_memo, decision_caches_enabled,
 )
@@ -395,14 +395,12 @@ from hengbot.town_terminal import (
     home_sequence_has_holder as town_home_sequence_has_holder,
     rung_family as town_rung_family,
     advance_hold as town_advance_hold,
-    hold_bars as town_hold_bars,
     hold_claims as town_hold_claims,
     hold_delegations as town_hold_delegations,
     offer_buffer as town_offer_buffer,
     offered_steps as town_offered_steps,
     open_offers as town_open_offers,
     standing_claim as town_standing_claim,
-    suspended_claims as town_suspended_claims,
     take_offers as town_take_offers,
     BAR_ERRAND as CLAIM_BAR_ERRAND,
     Bar as ClaimBar,
@@ -419,7 +417,6 @@ from hengbot.town_terminal import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     STORE_OPERATION_OWNERS as CLAIM_STORE_OPERATION_OWNERS,
     TELEPORT_WALK_NOTE as CLAIM_TELEPORT_WALK_NOTE,
-    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
     HOME_EFFECT_OWNERS as CLAIM_HOME_EFFECT_OWNERS,
     HOME_EFFECT_SOURCES as CLAIM_HOME_EFFECT_SOURCES,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
@@ -427,14 +424,12 @@ from hengbot.town_terminal import (
     MONSTER_CHASE_OWNERS as CLAIM_MONSTER_CHASE_OWNERS,
     is_survival as claim_is_survival,
     rung_of as claim_rung_of,
-    TOWN_OWNER_FAMILIES as CLAIM_S3_FAMILIES,
     CLAIM_ANY_CELL,
     cancel_unbound_execution_delegations as town_cancel_unbound_execution_delegations,
     claim_bar_after as town_claim_bar_after,
     claim_bar_for as town_claim_bar_for,
     claim_errand_clearance as town_claim_errand_clearance,
     claim_exit_completion as town_claim_exit_completion,
-    claim_goal_distance as town_claim_goal_distance,
     close_claim as town_close_claim,
     visit_exit_family as town_visit_exit_family,
 )
@@ -1890,7 +1885,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # goal it declared.  Setting it to None disables recording entirely,
         # which is how the neutrality pin replays the same boards without it.
         self._town_hold = TownHold.fresh()
-        self.decision_claim: dict | None = None
         # S2b.2 (design 3.2 / 3.3): the switch that lets the bar table change
         # a decision.  OFF is the default and the only shipped setting: the
         # table is kept and every decision records what it *would* bar
@@ -2665,9 +2659,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_observed_execution_effects = ()
         self._decision_expectation = None
         self._decision_non_discardable = None
-        self._decision_displaced_producer = None
-        self._decision_plan_rebuild_deferred = 0
-        self._decision_plan_change_evidence = None
         # S2b.1 (rev 10.1 item 9): the trigger monsters a producer declares.
         self._decision_triggers = None
         # S2b.2: the rungs the bar skipped on this decision (switch on only).
@@ -3171,7 +3162,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                     self._post_fundraising_transport(snapshot, "depart")
         self._release_observed_store_exit(snapshot)
-        self._record_decision_claim(snapshot, key)
+        town_advance_hold(self, snapshot, key)
         self._town_progress_note_command(key)
         return key
 
@@ -3213,10 +3204,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     ) -> None:
         """The producer names the cell this decision walks toward.
 
-        ``note`` travels to the row's ``goal_note``: ``last-known`` for a walk
-        to where a lost chase target was last seen (rev 9.3), and the
-        internal ``teleport-walk`` marker of ``_town_teleport_key`` that
-        ``_adopt_decision_goal`` requires.
+        ``note`` is the internal ``teleport-walk`` marker of
+        ``_town_teleport_key`` that ``_adopt_decision_goal`` requires.
         """
         if isinstance(cell, Position):
             self._declare_goal(claim_reach((cell.y, cell.x)), family, note)
@@ -3490,302 +3479,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             label, owners=CLAIM_ENTRANCE_OWNERS,
             kinds=(CLAIM_GOAL_OBSERVE,), sources=(CLAIM_OBSERVE_STORE_ENTRY,),
         )
-
-    def _record_decision_claim(self, snapshot: Snapshot, key) -> None:
-        """Advance the town hold on this decision, then record its claim row.
-
-        The hold's state step is ``town_terminal.advance_hold``; the row is
-        ``_write_decision_claim_row``.
-
-        The declaration point of design section 4.  It runs on the decided
-        board at the ``choose_key`` exit, so the claim, its goal and the
-        measured distance to that goal reach the decision row as plain data
-        (like ``decision_attribution``).  It deliberately does *not* run in
-        the telemetry capture: that is an observer scope whose work is
-        discarded (design 5.4), so a claim computed there would never be the
-        claim the decision was made under.
-
-        S2a.1 (design rev 9.1/9.2): before declaring, the previous decision's
-        claim is closed if this board ends it -- a closing a producer already
-        recorded during this decision, the exit's own completion or expiry
-        test, or the survival preemption (``suspend``, survival only).  The
-        row carries the closed claim as ``closed_claim``, because the row that
-        owned it is already written.
-
-        S2b.1 (design rev 10.1): the decision's rung and rank come from
-        ``claim_ladder.rung_of``; a strictly higher rung preempts (suspends)
-        the held Reach/Observe claim as survival does, anything else that
-        drops it is a violation recorded on the row; the suspended stack is
-        resolved (resume under the same id, nest, displace, release) and the
-        trigger monsters of item 9 are recorded.  Still record-only.
-
-        S2b.2 (design 3.2 / 3.3): the board's lift pass runs first; the
-        decision's owner and goal are then matched against the bar table
-        (``would_bar``), and the claims that ended on this decision without
-        their goal are barred (``bars_set``).  With ``_claim_bar_enforced``
-        off -- the default and the only shipped setting -- that is all.
-        """
-        step = town_advance_hold(self, snapshot, key)
-        if step is None:
-            self.decision_claim = None
-            return
-        self._write_decision_claim_row(snapshot, key, step)
-
-    def _write_decision_claim_row(self, snapshot: Snapshot, key, step) -> None:
-        """The decision's claim row (record only; the hold already moved)."""
-        reason, owner, standing = step.reason, step.owner, step.standing
-        survival, rung, violation = step.survival, step.rung, step.violation
-        claim = step.claim
-        # A filed Home request keeps its purpose until the errand ends.  The
-        # purpose record is independent of a claim transition violation.
-        filed = getattr(getattr(self, "_home_errand", None), "request", None)
-        purpose_duplicates = []
-        purpose_identity = None
-        if reason in {
-            "town:restore-combat-weapon", "town:replace-no-teleport-weapon"
-        }:
-            purpose_identity = ("equipment-slot", "main_hand")
-        elif isinstance(key, str) and len(key) >= 2 and (
-            (filed is not None and filed.purpose in {
-                "identification", "identification-catalog"
-            }
-             and reason.startswith(("identify:", "identification:")))
-            or (filed is not None and filed.purpose == "experience-potion"
-                and reason == "experience:quaff")
-        ):
-            # Identify macros are command + source slot + target slot, often
-            # followed by a prompt-dismissal suffix.  Quaff is command + item
-            # slot.  Unknown shapes have no provable target and stay untyped.
-            selected_slot = (
-                key[1] if reason == "experience:quaff" and key.startswith("q")
-                else key[2] if reason.startswith(("identify:", "identification:"))
-                and key[0] in "uzr" and len(key) >= 3
-                else None
-            )
-            selected = [item for item in snapshot.inventory
-                        if item.slot == selected_slot]
-            if len(selected) == 1:
-                purpose_identity = ("item", self._item_signature(selected[0]))
-        filed_identity = None
-        if filed is not None:
-            filed_identity = (
-                ("equipment-slot", "main_hand")
-                if filed.purpose == "combat-weapon"
-                else ("item", filed.signature)
-            )
-        if (
-            getattr(self._home_errand, "active", False)
-            and filed_identity is not None
-            and purpose_identity == filed_identity
-            and owner.value != "home-errand"
-            and (standing is None or not standing.is_open or standing.owner != owner)
-        ):
-            duplicate = {
-                "kind": "purpose-duplicate", "scope": "S3",
-                "from": "home-errand", "to": owner.value,
-                "purpose": [filed.purpose, purpose_identity[1]],
-                "holders": [
-                    {"family": "home-errand", "key": "filed:" + filed.purpose,
-                     "request_identity": list(filed.signature)},
-                    {"family": owner.value, "key": reason,
-                     "claim_id": claim.claim_id},
-                ],
-            }
-            purpose_duplicates.append(duplicate)
-            if violation is None:
-                violation = duplicate
-        visit = getattr(self, "_store_visit", None)
-        visit_owner_mismatch = None
-        visit_owner_structure = None
-        visit_requester = None
-        leave_confirmation_interruption = None
-        if visit is not None and claim.is_open and claim.owner.value in CLAIM_S3_FAMILIES:
-            visit_requester = getattr(visit, "opened_for_family", None)
-            if (
-                getattr(self, "_store_leave_inflight", None) is not None
-                and self._store_leave_inflight[0] != self._decision_sequence
-                and claim.goal.kind == CLAIM_GOAL_OBSERVE
-                and claim.goal.source in {
-                    CLAIM_OBSERVE_STORE_OPERATION, CLAIM_OBSERVE_KNOWLEDGE,
-                }
-                and visit_requester is not None
-                and visit_requester != claim.owner.value
-                and reason != "shop:await-leave-confirmation"
-                and not reason.startswith("ownership:holder-")
-                and not reason.startswith("home:leave-")
-                and reason != "home:store-context-exit"
-            ):
-                leave_confirmation_interruption = {
-                    "kind": "leave-confirmation-interruption", "scope": "S3",
-                    "from": visit_requester, "to": claim.owner.value,
-                    "claim_id": claim.claim_id,
-                }
-                if violation is None:
-                    violation = leave_confirmation_interruption
-            aliases = {
-                "shop-handler": visit.opened_producer_family,
-                "shop-one-shot": visit.opened_producer_family,
-                "home-one-shot": "home-visit",
-                "equipment-transaction": (
-                    'equipment-txn'
-                ),
-            }
-            alias = aliases.get(visit.owner, visit.owner)
-            if alias == "town-errand":
-                alias = visit.opened_producer_family
-            requester_missing = (
-                alias == "store-router"
-                and getattr(visit, "opened_for_family", None) is None
-            )
-            router_for_operation = (
-                alias == "store-router"
-                and claim.owner.value == getattr(visit, "opened_for_family", None)
-            )
-            if router_for_operation:
-                visit_owner_structure = (
-                    "router-plan-stop"
-                    if getattr(visit, "request_structure", None) == "router-plan-stop"
-                    else "router-opens-family-operates"
-                )
-            if requester_missing:
-                visit_owner_structure = "requester-missing"
-            if (
-                alias != claim.owner.value
-                and not router_for_operation
-                and not requester_missing
-            ):
-                visit_owner_mismatch = {
-                    "visit_owner": alias, "claim_owner": claim.owner.value,
-                    "claim_id": claim.claim_id,
-                }
-        claim = step.declared
-        closed, goal_missing, goal_note = step.closed, step.goal_missing, step.goal_note
-        resumed, suspended_closed = step.resumed, step.suspended_closed
-        would_bar, would_skip = step.would_bar, step.would_skip
-        bars_set, bars_lifted = step.bars_set, step.bars_lifted
-        self.decision_claim = {
-            **({"item_reservation_shadow": reservation_shadow(self)}
-               if reservation_shadow(self) else {}),
-            **claim.as_dict(distance=town_claim_goal_distance(self, snapshot, claim.goal)),
-            "decision_sequence": self._decision_sequence,
-            "reason": reason,
-            "fundraising_purpose": (
-                {
-                    "register_kind": "separate-purpose-ledger",
-                    "id": purpose_record.purpose.identity,
-                    "mode": purpose_record.purpose.mode,
-                    "first_run_food_waiver": (
-                        purpose_record.purpose.first_run_food_waiver
-                    ),
-                    "status": purpose_record.status,
-                    "failure": purpose_record.failure,
-                    "child": (
-                        None if purpose_record.child is None else {
-                            "direction": purpose_record.child.direction,
-                            "state": purpose_record.child.state,
-                            "posted_sequence": (
-                                purpose_record.child.posted_sequence
-                            ),
-                        }
-                    ),
-                }
-                if (getattr(self, "_crossarea_fundraising_enforced", False)
-                    and (purpose_record := getattr(
-                        self, "_fundraising_purpose_record", None
-                    )) is not None)
-                else None
-            ),
-            "closed_claim": closed,
-            "goal_missing": goal_missing,
-            "goal_note": goal_note,
-            "survival": survival,
-            # S2b.1 (design rev 10.1), record-only.
-            "rank": rung.rank,
-            "rung": rung.name,
-            "violation": violation,
-            "purpose_duplicates": purpose_duplicates,
-            "visit_owner_mismatch": visit_owner_mismatch,
-            "visit_owner_structure": visit_owner_structure,
-            "visit_requester": visit_requester,
-            "visit_operator": claim.owner.value if visit is not None else None,
-            "barrier_provenance": (
-                town_visit_exit_family(self)
-                if reason in {"shop:await-leave-confirmation",
-                              "shop:await-leave-generation"} else None
-            ),
-            "leave_confirmation_interruption": leave_confirmation_interruption,
-            "leave_confirmation_pending": (
-                getattr(self, "_store_leave_inflight", None) is not None
-            ),
-            "requester_missing": visit_owner_structure == "requester-missing",
-            "scan-during-pending-atomic": bool(
-                (owner.value == "home-scan" or (
-                    owner.value == "home-errand"
-                    and reason.startswith("home-errand:request-knowledge")
-                ))
-                and (
-                    getattr(self, "_home_atomic_withdraw_pending", None) is not None
-                    or getattr(self, "_home_atomic_deposit_pending", None) is not None
-                )
-            ),
-            "plan_rebuild_deferred": getattr(
-                self, "_decision_plan_rebuild_deferred", 0
-            ),
-            "plan_change_evidence": getattr(
-                self, "_decision_plan_change_evidence", None
-            ),
-            "displaced_non_discardable_producer": getattr(
-                self, "_decision_displaced_producer", None
-            ),
-            "resumed": (
-                None
-                if resumed is None
-                else {
-                    "claim_id": claim.claim_id,
-                    "owner": claim.owner.value,
-                    "goal_kind": claim.goal.kind,
-                    "suspended_decisions": claim.suspended_decisions,
-                    "suspended_turns": claim.suspended_turns,
-                }
-            ),
-            "suspended_closed": suspended_closed or None,
-            "suspended_depth": len(town_suspended_claims(self)),
-            "trigger_monsters": (
-                [list(pair) for pair in claim.trigger_monsters]
-                if claim.trigger_monsters
-                else None
-            ),
-            "last_perceived_turn": claim.last_perceived_turn,
-            # S2b.2 (design 3.2 / 3.3), record-only while the switch is off.
-            "would_bar": would_bar,
-            "would_skip": would_skip,
-            "bars_set": bars_set or None,
-            "bars_lifted": bars_lifted or None,
-            "bars_active": len(town_hold_bars(self)),
-            "bar_skipped": list(getattr(self, "_decision_bar_skips", None) or ())
-            or None,
-            "errand_deferred": list(
-                getattr(self, "_decision_errand_deferred", None) or ()
-            ) or None,
-            "requester_families": sorted(
-                getattr(getattr(self, "_store_visit", None),
-                        "requester_families", ())
-            ),
-            "execution_delegations": [
-                record.as_dict() for record in town_hold_delegations(self)
-                if record.lifecycle in {"reserved", "open"}
-                and record.parent_claim_id == claim.claim_id
-            ] or None,
-        }
-        admissions = getattr(self, "_decision_terminal_admissions", None)
-        if admissions:
-            self.decision_claim["terminal_admission"] = list(admissions)
-        if isinstance(key, DecisionCandidate):
-            # Design 5.4: the declaration token travels on the candidate that
-            # already carries the decision's provenance, rather than on a
-            # second str subclass.  Nothing reads it before S2's port-side
-            # check, so writing it cannot change this decision.
-            key.claim_id = claim.claim_id
 
     # -- S2b.1: the ladder, preemption and violations (design rev 10.1) -------
     #
@@ -4466,11 +4159,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         chain = self._staged_prompt_chain
         if chain is not None and not staged_prompt_chain_matches(chain, key):
-            producer = getattr(self, "_decision_non_discardable", None)
-            if producer is not None:
-                self._decision_displaced_producer = {
-                    "family": producer, "key": chain.get("key"),
-                }
             self._release_claim_goal(
                 "staged-tail-dropped",
                 owners=(self._claim_family_of(chain["owner"]),),
@@ -8286,7 +7974,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "status-threat:retreat"
-                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(step)
                 return self._town_producer_entry("_step_toward:survival", lambda: self._step_toward(snapshot, step), family="survival")
             if not player.blind and not player.confused:
                 scroll = self._escape_scroll(snapshot)
@@ -8520,7 +8208,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_engagement_avoid_cells((snapshot.player.position,))
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:reposition"
-                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(step)
                 self._declare_triggers(strategic_hostiles)  # record-only
                 return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
             scroll = self._escape_scroll(snapshot)
@@ -8597,7 +8285,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 )
                 if neighbors:
                     self.last_reason = "town:wait-recall-step-off"
-                    self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
+                    self._declare_reach(neighbors[0])
                     key = self._town_producer_entry("_step_toward:departure", lambda: self._step_toward(snapshot, neighbors[0]), family="departure")
                     if key is not None:
                         self._offer_execution(
@@ -9332,7 +9020,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 self._claim_engagement_avoid_cells((snapshot.player.position,))
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:avoid-engagement"
-                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(step)
                 self._declare_triggers(strategic_hostiles)  # record-only
                 return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
 
@@ -15003,7 +14691,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             if neighbors:
                 self.last_reason = "bounty:step-off"
-                self._declare_reach(neighbors[0], note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(neighbors[0])
                 return offer(self._step_toward(snapshot, neighbors[0]))
             self._offer_execution_no_step(
                 producer="quest-request", work_id="normal-step4-bounty",

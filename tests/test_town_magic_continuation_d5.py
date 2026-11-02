@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 import unittest
 
+from hengbot import town_terminal
 from hengbot import cli
 from hengbot.model import (
     Snapshot, StoreState, Position, STORE_MAGIC, STORE_ALCHEMIST,
@@ -212,7 +213,6 @@ class MagicContinuationTest(unittest.TestCase):
         self.assertEqual((policy.choose_key(outside), policy.last_reason),
                          ('\x1b`n&.', 'shop:travel'))
         self.assertIs(policy._store_visit, visit)
-        self.assertIsNone(policy.decision_claim['violation'])
 
     def test_prompt_owner_recovery_keeps_matching_staff_confirmation(self):
         policy, snapshot = self.scene(verified=True)

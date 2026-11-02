@@ -1581,11 +1581,7 @@ class ShopMixin(InStoreMixin):
                 if need.category in blocking
             ]
         if refreshed_needs:
-            prior_change_evidence = getattr(
-                self, "_decision_plan_change_evidence", None
-            )
             refreshed_plan = self._build_town_errand_plan(snapshot, refreshed_needs)
-            self._decision_plan_change_evidence = prior_change_evidence
             if refreshed_plan is not None:
                 exhausted_stores = (
                     (

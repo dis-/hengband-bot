@@ -108,10 +108,11 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
         streak, durable, peak = 0, None, 0
         for row in rows:
             policy.last_reason = row["reason"]
-            policy.decision_claim = {
-                "claim_id": row["claim_id"], "distance": row["distance"],
-                "goal": {"kind": row["goal_kind"]},
-            }
+            # The town hold's Reach progress of the recorded row.
+            policy._town_hold = SimpleNamespace(last_reach=(
+                (row["claim_id"], row["distance"])
+                if row["goal_kind"] == "Reach" and isinstance(row["distance"], int)
+                else None))
             streak, durable = _advance_town_blocked_iteration(
                 policy, snapshot, streak, durable, key=row["key"])
             peak = max(peak, streak)

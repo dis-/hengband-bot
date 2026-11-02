@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
-from hengbot.town_terminal import GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.monster_ranged_evaluator import (
@@ -2529,7 +2528,7 @@ class CombatMixin:
                     self._is_oscillating() and flee_step in set(self._recent)
                 ):
                     self.last_reason = "emergency:seek-upstairs"
-                    self._declare_reach(flee_step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+                    self._declare_reach(flee_step)
                     return self._step_toward(snapshot, flee_step)
                 adjacent = [
                     monster for monster in hostiles if monster.distance <= 1
@@ -2762,7 +2761,7 @@ class CombatMixin:
             return None
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:paralyzer-avoid"
-        self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+        self._declare_reach(step)
         self._declare_triggers(adjacent)
         return self._step_toward(
             snapshot, step, allow_paralyzer_ring_escape=True

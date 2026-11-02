@@ -41,7 +41,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.town_travel import is_travel_macro
-from hengbot.town_terminal import offer_buffer, standing_claim, town_hold
+from hengbot.town_terminal import decision_reach, decision_rung, offer_buffer, standing_claim, town_hold
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
@@ -914,14 +914,8 @@ def _advance_town_blocked_iteration(
     )
     previous_reason = getattr(policy, "_town_fuse_previous_reason", None)
     policy._town_fuse_previous_reason = policy.last_reason
-    claim = getattr(policy, "decision_claim", None) or {}
-    goal = claim.get("goal") or {}
-    reach = (
-        (claim.get("claim_id"), claim["distance"])
-        if goal.get("kind") == "Reach"
-        and isinstance(claim.get("distance"), int)
-        else None
-    )
+    # The town hold's Reach progress of this decision: (claim_id, distance).
+    reach = decision_reach(policy)
     previous_reach = getattr(policy, "_town_fuse_previous_reach", None)
     policy._town_fuse_previous_reach = reach
     streak = _advance_town_blocked_streak(
@@ -1281,7 +1275,8 @@ def _decision_record(
     home_atomic_withdraw: dict | None = None,
     home_candidate_waiting: bool | None = None,
     identification_need: str | None = None,
-    claim: dict | None = None,
+    rung: str | None = None,
+    terminal_admission: list | None = None,
     town_idle_d0: dict | None = None,
 ) -> dict:
     player = snapshot.player
@@ -1308,9 +1303,11 @@ def _decision_record(
         "key": key,
         "home_candidate_waiting": home_candidate_waiting,
         "identification_need": identification_need,
-        # The ownership contract's S1 attribution, written by ``choose_key``
-        # as plain data.  Absent on a row no ``choose_key`` produced.
-        **({"claim": claim} if claim else {}),
+        # The rung the town hold ranked this decision at, and the town
+        # terminal admissions it refused (town_terminal).  Absent on a row no
+        # ``choose_key`` produced.
+        **({"rung": rung} if rung else {}),
+        **({"terminal_admission": terminal_admission} if terminal_admission else {}),
         **(
             {"home_atomic_withdraw": home_atomic_withdraw}
             if home_atomic_withdraw
@@ -2236,13 +2233,13 @@ def _write_decision(
                         else None
                     ),
                     (
-                        claim
+                        decision_rung(policy)
                         if policy is not None
-                        and isinstance(
-                            claim := getattr(policy, "decision_claim", None), dict
-                        )
-                        and claim.get("decision_sequence")
-                        == getattr(policy, "_decision_sequence", None)
+                        else None
+                    ),
+                    (
+                        list(getattr(policy, "_decision_terminal_admissions", None) or ())
+                        if policy is not None
                         else None
                     ),
                 )

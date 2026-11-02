@@ -10,7 +10,6 @@ from hengbot.town_terminal import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
-    GOAL_NOTE_ONE_STEP as CLAIM_GOAL_NOTE_ONE_STEP,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.model import (
@@ -779,7 +778,7 @@ class FundraisingMixin:
             step = self._least_visited_neighbor(snapshot)
             if step is not None and step not in oscillation_cells:
                 self.last_reason = "fundraise:seek-upstairs"
-                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(step)
                 return self._fundraising_return_route_key(
                     self._step_toward(snapshot, step),
                     step="fundraising.seek-upstairs",
@@ -871,7 +870,7 @@ class FundraisingMixin:
                 not oscillation_cells or step not in oscillation_cells
             ):
                 self.last_reason = "fundraise:seek-upstairs-wander"
-                self._declare_reach(step, note=CLAIM_GOAL_NOTE_ONE_STEP)
+                self._declare_reach(step)
                 return self._fundraising_return_route_key(
                     self._step_toward(snapshot, step),
                     step="fundraising.wander-for-upstairs",

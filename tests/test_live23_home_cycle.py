@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
 import tests  # noqa: F401 -- protect live runtime files
+from hengbot import town_terminal
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_HOME, Position, parse_snapshot
 from hengbot.cli import _dispatch_response_lines
 from hengbot.policy import HengbotPolicy
@@ -112,7 +113,7 @@ class Live23HomeCycleTest(unittest.TestCase):
                     key = policy.choose_key(boards[0])
                     self.assertEqual((key, policy.last_reason), (
                         "", "equipment-transaction:catalogue-await-knowledge"))
-                    self.assertEqual(policy.decision_claim["claim_id"], holder_id)
+                    self.assertEqual(town_terminal.standing_claim(policy).claim_id, holder_id)
                     self.assertTrue(policy._home_knowledge_scan_inflight)
                     # The old page/entry response belonged to a posted Home
                     # walk. Its adoption controls remain independently
@@ -320,10 +321,9 @@ class Live23HomeCycleTest(unittest.TestCase):
                         self.assertEqual((key, policy.last_reason), (
                             HOME_KNOWLEDGE_MACRO,
                             "equipment-transaction:catalogue-request-knowledge"))
-                        self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
+                        self.assertEqual(town_terminal.standing_claim(policy).owner.value, "equipment-txn")
                         holder_id = policy._town_hold.claims.current.claim_id
-                        self.assertEqual(policy.decision_claim["claim_id"], holder_id)
-                        self.assertIsNone(policy.decision_claim["violation"])
+                        self.assertEqual(town_terminal.standing_claim(policy).claim_id, holder_id)
                         self.assertEqual(policy._town_hold.claims.current.execution.work_id,
                                          "equipment:acquire-home-catalog")
                         self.assertEqual(policy._town_hold.claims.current.execution.continuation,
@@ -356,7 +356,7 @@ class Live23HomeCycleTest(unittest.TestCase):
             self.assertEqual(policy.last_reason,
                              "equipment-transaction:catalogue-request-knowledge")
             self.assertFalse(policy._home_knowledge_current)
-            policy._record_decision_claim(partial, HOME_KNOWLEDGE_MACRO)
+            town_terminal.advance_hold(policy, partial, HOME_KNOWLEDGE_MACRO)
             self.assertEqual(policy._town_hold.claims.current.claim_id, holder.claim_id)
             policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
             policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))

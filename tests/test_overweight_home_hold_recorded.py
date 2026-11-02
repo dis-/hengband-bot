@@ -63,6 +63,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from tests.hold_closings import recorded_closings, requester_families
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
@@ -207,7 +208,10 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
         seen = {}
 
         def inspect(index, policy, board):
+            # The claims closed since the previous decision (the former
+            # decision row's ``closed_claim``).
             if index != HOME:
+                closings_since.clear()
                 return
             seen["weight"] = (policy._inventory_weight(board),
                               policy._inventory_weight_limit(board))
@@ -218,11 +222,12 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
                 board, for_retention=True)
             seen["candidates"] = [item.slot for item in
                                   policy._weight_deposit_candidates(board)]
-            seen["closed"] = (policy.decision_claim or {}).get("closed_claim")
+            seen["closed"] = closings_since[-1] if closings_since else None
             seen["board"] = board
             seen["policy"] = policy
 
-        rows = self._replay(HOME, inspect=inspect)
+        with recorded_closings() as closings_since:
+            rows = self._replay(HOME, inspect=inspect)
         for index in range(HOME):
             self.assertEqual(rows[index], self._live(index), index)
         # First changed key versus live (ESC route-claim-unfulfilled): stop here.
@@ -248,8 +253,8 @@ class OverweightHomeHoldRecordedTest(unittest.TestCase):
         self.assertEqual(policy._total_identify_staff_charges(remaining), 31)
         self.assertTrue(policy._identify_staff_ready(remaining))
         # The arrived route still closes on its own evidence.
-        self.assertEqual((seen["closed"]["claim_id"], seen["closed"]["owner"],
-                          seen["closed"]["closed_reason"]),
+        self.assertEqual((seen["closed"].claim_id, seen["closed"].owner.value,
+                          seen["closed"].closed_reason),
                          (3, "store-router", "reached"))
 
     def test_pre_fix_checkpoint_retains_the_historical_arrived_open_route(self):
@@ -363,8 +368,7 @@ class IdentifyStaffCapDivergenceTest(unittest.TestCase):
             key = original(policy, board)
             seen["keys"].append(key)
             if len(seen["keys"]) == 1:
-                seen["requesters"] = (policy.decision_claim or {}).get(
-                    "requester_families")
+                seen["requesters"] = requester_families(policy)
             return key
 
         with patch.object(HengbotPolicy, "choose_key", choose_key):
