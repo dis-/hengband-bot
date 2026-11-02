@@ -46,9 +46,6 @@ class CaptureAdmissionReplayTest(unittest.TestCase):
         key = policy.choose_key(board)
         self.assertEqual(key, "rhm")
         self.assertEqual(policy.last_reason, "identify:normal")
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
 
 
 if __name__ == "__main__":

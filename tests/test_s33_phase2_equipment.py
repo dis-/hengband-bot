@@ -41,9 +41,6 @@ class EquipmentReleaseTest(unittest.TestCase):
         declaration = policy._claim_register.current.execution
         self.assertEqual(declaration.next_step, 'equipment.confirmation-stall-stop')
         self.assertIsNone(declaration.continuation)
-        self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
-        self.assertIsNone(policy.decision_claim['declaration_mismatch'])
-        self.assertIsNone(policy.decision_claim['claim_verdict_conflict'])
 
 
 if __name__ == '__main__':

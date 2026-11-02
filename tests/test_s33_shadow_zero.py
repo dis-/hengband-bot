@@ -11,7 +11,6 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
-import pickle
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -107,86 +106,7 @@ class ShadowZeroTest(unittest.TestCase):
                 self.assertEqual([r['count'] for r in rows], [2, 2, 2])
                 self.assertFalse(any(r.get('would_stop') for r in rows))
                 self.assertEqual(policy.last_reason, 'periodic:game-save')
-                self.assertEqual(policy._enforce_town_claim_result(board, '\x13'), '\x13')
             decide(policy, board)
-
-    def test_suppressed_foreign_emission_remains_visible_in_off_shadow(self):
-        from test_item_reservation import ItemReservationTest
-        policy, board, target = ItemReservationTest().scene(False)
-        @reservation_decision
-        def decide(policy, board):
-            verdict = reservation_verdict(policy, board, target, 'foreign', 'deposit')
-            key = checked_item_command(policy, 'deposit', target, verdict)
-            self.assertIsNone(key)
-            self.assertEqual(policy._s33_shadow_verdict(board, key)['would_stop'],
-                             'ownership:item-reserved:deposit:equipment-txn')
-        decide(policy, board)
-
-    def test_refused_wait_envelope_requires_exact_holder_family_key_and_target(self):
-        row = DATA['rows'][76]
-        policy = HengbotPolicy()
-        board = constructed_board(row)
-        prior = DATA['prior']['77']['row']
-        holder = attach_claim(policy, prior['claim'])
-        policy._decision_errand_deferred = row['claim']['errand_deferred']
-        declaration = row['claim']['execution']
-        key, reason = row['key'], row['reason']
-        self.assertFalse(policy._town_refused_output_entry(board, key, reason, 'idle', holder))
-        policy._offer_execution(key, producer='idle', work_id=declaration['work_id'],
-            next_step=declaration['next_step'], arguments=tuples(declaration['arguments']),
-            expected_effect=declaration['expected_effect'])
-        before = pickle.dumps(policy)
-        self.assertTrue(policy._town_refused_output_entry(board, key, reason, 'idle', holder))
-        self.assertFalse(policy._town_refused_output_entry(None, key, reason, 'idle', holder))
-        self.assertEqual(pickle.dumps(policy), before)
-        self.assertFalse(policy._town_refused_output_entry(board, key, reason, 'departure', holder))
-        self.assertFalse(policy._town_refused_output_entry(board, '9', reason, 'idle', holder))
-        displaced = replace(holder, claim_id=holder.claim_id + 1)
-        self.assertFalse(policy._town_refused_output_entry(board, key, reason, 'idle', displaced))
-        moved = replace(board, player=replace(board.player, position=Position(1, 1)))
-        self.assertFalse(policy._town_refused_output_entry(moved, key, reason, 'idle', holder))
-
-    def test_posted_entry_route_wait_rejects_changed_binding(self):
-        row = DATA['rows'][0]
-        policy = HengbotPolicy()
-        policy._decision_sequence = row['store_visit']['posted_sequence']
-        policy.last_reason = row['reason']
-        attach_visit(policy, row)
-        holder = attach_claim(policy, row['claim'])
-        policy._store_entry_wait_key = holder.execution.operation_ref.split(':', 2)[2]
-        policy._store_entry_wait_owner = policy._store_entry_posted_owner = row['store_visit']['store_type']
-        self.assertTrue(policy._town_posted_route_entry_wait(holder))
-        before = pickle.dumps(policy)
-        self.assertFalse(policy._town_posted_route_entry_wait(replace(holder,
-            execution=replace(holder.execution, operation_ref='decision:562:7'))))
-        self.assertFalse(policy._town_posted_route_entry_wait(replace(holder,
-            goal=replace(holder.goal, cell=(1, 1)))))
-        self.assertEqual(pickle.dumps(policy), before)
-        policy._store_visit.phase = StoreVisitPhase.APPROACHING
-        self.assertFalse(policy._town_posted_route_entry_wait(holder))
-
-    def test_home_exit_transition_preserves_goal_identity_and_pending_effect(self):
-        row = DATA['rows'][13]
-        policy = HengbotPolicy()
-        board = constructed_board(row)
-        session = attach_session(policy, row)
-        holder = attach_claim(policy, row['claim'])
-        holder = replace(holder, execution=replace(holder.execution,
-            work_id='equipment:town:approach-home', next_step='equipment.town.approach-home',
-            arguments=(), expected_effect='home-reached'))
-        policy.last_reason = row['reason']
-        declaration = row['claim']['execution']
-        policy._offer_execution(row['key'], producer='equipment-txn',
-            work_id=declaration['work_id'], next_step=declaration['next_step'],
-            arguments=tuples(declaration['arguments']), expected_effect=declaration['expected_effect'],
-            continuation=declaration['continuation'])
-        self.assertIsNone(policy._town_final_declaration_stop(board, row['key'], holder))
-        changed_goal = replace(holder, goal=replace(holder.goal, expectation=('other session',)))
-        self.assertEqual(policy._town_final_declaration_stop(board, row['key'], changed_goal),
-                         'ownership:declaration-stale:equipment-txn')
-        session._dispatched = session.current_action  # CONSTRUCTED pending operation.
-        self.assertEqual(policy._town_final_declaration_stop(board, row['key'], holder),
-                         'ownership:declaration-stale:equipment-txn')
 
     def test_direct_descent_is_gated_before_departure_mutations(self):
         # CONSTRUCTED stair board at the captured row-25 position.
@@ -208,8 +128,6 @@ class ShadowZeroTest(unittest.TestCase):
             self.assertEqual(key, None if enforced else '>')
             self.assertTrue(any(r['deferred_reason'] == 'entry:direct-descent'
                                 for r in policy._decision_errand_deferred))
-            if not enforced:
-                self.assertIsNone(policy._s33_shadow_verdict(board, key)['would_stop'])
             self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
 
     def test_sale_refusal_declares_its_registered_exit_owner(self):

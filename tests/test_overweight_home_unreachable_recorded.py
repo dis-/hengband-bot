@@ -481,11 +481,6 @@ class OverweightHomeUnreachableRecordedTest(unittest.TestCase):
             ("Cf\ry\x1b\x1b", "periodic:character-dump"),
         )
         self.assertTrue(self.recorded[VISIT_START]["outstanding_equipment_work"])
-        self.assertEqual(
-            [index for index, row in enumerate(replay)
-             if row["claim"].get("claim_verdict_conflict")],
-            [],
-        )
         # Indices 6 and 3724; base counted the same two over the whole
         # process (the later rows are strip-window rows).
         self.assertEqual(

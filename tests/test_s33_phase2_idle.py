@@ -36,8 +36,6 @@ class IdleFallbackTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['producer_key'], key)
         self.assertFalse(rows[0]['token_would_admit'])
-        self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
-        self.assertIsNone(policy.decision_claim['claim_verdict_conflict'])
 
 
 if __name__ == '__main__':

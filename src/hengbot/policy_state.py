@@ -14,6 +14,17 @@ _RETAINED_CALIBRATION_NAMES = frozenset({
 })
 
 
+# Record-only claim diagnostics deleted in stage 2 B slice 3 (the S3.3 shadow
+# verdict, the declaration mismatch, the completed-Home verdict conflict and
+# the unread per-decision gate counters).  Older checkpoints still carry them.
+_RETIRED_CLAIM_RECORD_NAMES = (
+    "_claim_last_completed_home", "_claim_active_operation_identity",
+    "_decision_declaration_mismatch", "_decision_home_approach_fails_before",
+    "_decision_gate_final_count", "_decision_rewrite_refused",
+    "_decision_no_step_release", "_decision_cancelled_home_reservation",
+)
+
+
 def retire_strip_calibration_state(restored) -> None:
     """Drop every retired strip-calibration fact from an old checkpoint.
 
@@ -181,6 +192,8 @@ def normalize_policy_state(restored, *, restart=False):
     once from the persisted calibration file (``cli``), never here.
     """
     current_ledger = restored.__dict__.get("_town_visit_ledger")
+    for name in _RETIRED_CLAIM_RECORD_NAMES:
+        restored.__dict__.pop(name, None)
     restored.__dict__.setdefault("_visit_departure_committed", None)
     restored.__dict__.setdefault("_visit_departure_recorded", set())
     # A scavenge run's 10,000-turn clock begins on its first Yeek Cave 1F

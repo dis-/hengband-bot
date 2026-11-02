@@ -393,10 +393,6 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                                        and live["key"] == "dm\r" and row["reason"] == live["reason"])
                 if not equivalent_quantity and (row["key"], row["reason"]) != (live["key"], live["reason"]):
                     first = index
-                    cls.first_diagnostics = dict(
-                        would_stop=policy._s33_shadow_verdict(snapshot, row["key"])["would_stop"],
-                        declaration_mismatch=row["claim"].get("declaration_mismatch"),
-                        claim_verdict_conflict=row["claim"].get("claim_verdict_conflict"))
                     break  # No old effect board follows a changed key.
             assert first == HOME_KNOWLEDGE_FIRST_CHANGED, first
 
@@ -480,8 +476,6 @@ class TownApproachRetiredRecordedTest(unittest.TestCase):
                          ("home-errand", "home.knowledge.request",
                           "catalogue-adopted", "home.knowledge.observe"))
         self.assertIsNone(claim["violation"])
-        self.assertEqual(self.first_diagnostics, dict(
-            would_stop=None, declaration_mismatch=None, claim_verdict_conflict=None))
 
     # ------------------------------------------------------------ recorded
     def test_recorded_walk_closes_its_claimed_distance_and_is_retired(self):

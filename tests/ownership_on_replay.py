@@ -7,7 +7,6 @@ independent; never splice their states into a continuous trajectory.
 """
 
 from dataclasses import dataclass, field
-from unittest.mock import patch
 
 
 @dataclass
@@ -16,12 +15,11 @@ class ReplayResult:
     rows_replayed: int = 0
     matched_rows: int = 0
     town_rows: int = 0
-    shadow_rows: int = 0
     first_divergence: dict | None = None
     violations: list = field(default_factory=list)
 
 
-def ownership_violations(policy, key, shadow=None):
+def ownership_violations(policy, key):
     """Include the divergent decision, even when enforcement suppressed its key."""
     reason = policy.last_reason or ""
     violations = []
@@ -29,46 +27,7 @@ def ownership_violations(policy, key, shadow=None):
         violations.append({"kind": "ownership-terminal", "reason": reason})
     if "item-reserved" in reason:
         violations.append({"kind": "item-reserved", "reason": reason})
-    claim = policy.decision_claim or {}
-    shadow = shadow if shadow is not None else claim.get("s33_shadow") or {}
-    if shadow.get("would_stop"):
-        violations.append({"kind": "s33_shadow", "would_stop": shadow["would_stop"]})
     return violations
-
-
-def choose_with_on_shadow(policy, board):
-    """Observe S3.3 at its production recording seam without turning ON off.
-
-    Production omits the OFF-only s33_shadow field in ON mode. The seam calls
-    _claim_suspended_exit, clears the Home observation marker, then judges the
-    shadow before consuming offers or declaring the winner. Wrap those two
-    recording methods to insert that same pure observer at that exact point.
-    The marker assignment is the immediately following production assignment;
-    no producer, gate, declaration, recorded board or command is replaced.
-    """
-    if not hasattr(policy, "_record_decision_claim"):
-        return policy.choose_key(board), (policy.decision_claim or {}).get("s33_shadow")
-    original_record = policy._record_decision_claim
-    original_suspended = policy._claim_suspended_exit
-    observation = {"shadow": None}
-    active = {}
-
-    def record(snapshot, key):
-        active["key"] = key
-        try:
-            return original_record(snapshot, key)
-        finally:
-            active.clear()
-
-    def suspended(snapshot, register):
-        original_suspended(snapshot, register)
-        if active and (snapshot.in_town or snapshot.store is not None):
-            policy._claim_home_knowledge_observed = False
-            observation["shadow"] = policy._s33_shadow_verdict(snapshot, active["key"])
-
-    with patch.object(policy, "_record_decision_claim", record), patch.object(policy, "_claim_suspended_exit", suspended):
-        key = policy.choose_key(board)
-    return key, observation["shadow"]
 
 
 def replay_window(name, policy, decisions):
@@ -83,14 +42,13 @@ def replay_window(name, policy, decisions):
     result = ReplayResult(name)
     for recorded, board_supplier in decisions:
         board = board_supplier()
-        key, shadow = choose_with_on_shadow(policy, board)
+        key = policy.choose_key(board)
         result.rows_replayed += 1
         result.town_rows += bool(board.in_town)
-        result.shadow_rows += shadow is not None
         row = recorded["row"]
         result.violations.extend(
             {"row": row, **violation}
-            for violation in ownership_violations(policy, key, shadow)
+            for violation in ownership_violations(policy, key)
         )
         if (key, policy.last_reason) != (recorded["key"], recorded["reason"]):
             result.first_divergence = {

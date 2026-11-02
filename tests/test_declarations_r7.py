@@ -188,7 +188,6 @@ class EquipmentTransactionRows(unittest.TestCase):
                          ("5", "equipment-txn"))
         policy._record_decision_claim(board, key)
         self.assertEqual(policy.decision_claim["execution"]["state"], "acting")
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
         self.assertIsNone(getattr(policy, "_execution_pending_post", None))
 
     def test_town_1904_leave_uses_visit_owner_without_operation_family(self):
@@ -203,7 +202,6 @@ class EquipmentTransactionRows(unittest.TestCase):
         self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
         self.assertEqual(policy.decision_claim["execution"]["producer"],
                          "equipment-txn")
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
 
     def test_town_1907_pending_action_has_owner_matched_offer(self):
         policy = HengbotPolicy()

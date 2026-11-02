@@ -74,9 +74,6 @@ class ReconciliationTest(unittest.TestCase):
         self.assertTrue(key.startswith("w"), repr(key))
         self.assertEqual(policy.last_reason, "equipment-transaction:equip")
         self.assertFalse(session.blockers)
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
 
     def test_one_copy_cannot_complete_two_targets(self):
         gear = target()
@@ -102,12 +99,9 @@ class ReconciliationTest(unittest.TestCase):
         policy._home_knowledge_current = True
         policy._equipment_catalog.home_scan_complete = True
         key = policy.choose_key(board)
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
         self.assertTrue(session.complete)
         self.assertIsNone(policy._equipment_transaction_session)
         self.assertFalse(policy._equipment_transaction_owned_items)
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
 
     def test_partial_home_page_cannot_prove_missing(self):
         gear = target()
@@ -118,10 +112,7 @@ class ReconciliationTest(unittest.TestCase):
         key = policy.choose_key(board)
         self.assertEqual(key, " ")
         self.assertEqual(policy.last_reason, "equipment-transaction:seek-home-page")
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
         self.assertFalse(session.blockers)
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
 
     def test_complete_empty_home_proves_missing(self):
         gear = target()
@@ -132,9 +123,6 @@ class ReconciliationTest(unittest.TestCase):
         key = policy.choose_key(board)
         self.assertTrue(any(b.startswith("withdraw-item-missing:") for b in session.blockers))
         self.assertEqual(key, "\x1b")
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
 
     def test_old_checkpoint_normalizes_new_observation_state(self):
         policy = HengbotPolicy()
@@ -163,7 +151,6 @@ class ReconciliationTest(unittest.TestCase):
             else:
                 self.assertTrue(any(b.startswith("withdraw-item-missing:") for b in session.blockers))
                 self.assertEqual(key, "\x1b")
-                self.assertIsNone(policy.decision_claim["declaration_mismatch"])
         self.assertTrue(policy._equipment_catalog.home_scan_complete)
 
     def test_equipping_a_split_stack_confirms_by_physical_identity(self):
@@ -241,9 +228,6 @@ class ReconciliationTest(unittest.TestCase):
             self.assertTrue(policy._current_worn_loadout_confirmed(board, preparation))
             policy._char_dump_done_this_visit = True
             key = policy.choose_key(board)
-            self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-            self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
-            self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
 
     def test_optional_failure_cannot_depart_with_debt_or_missing_depth_ability(self):
         with TemporaryDirectory() as directory:

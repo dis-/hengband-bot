@@ -45,8 +45,6 @@ class DeclarationR14Test(unittest.TestCase):
                     self.assertEqual(policy.last_reason,
                                      'town-progress-invariant:defect:'
                                      'store:entry-await-observation=>store:entry-await-observation')
-                    if enforced:
-                        self.assertEqual(policy._decision_gate_final_count, 0)
 
 
 if __name__ == "__main__":

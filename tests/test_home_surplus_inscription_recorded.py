@@ -70,7 +70,6 @@ class HomeSurplusInscriptionRecordedTest(unittest.TestCase):
                 self.assertEqual(policy._in_store_entry_ledger['pending']['kind'], 'sell')
                 self.assertEqual(policy._store_visit.operation_key, key)
                 self.assertEqual(policy._claim_register.current.execution.producer, 'shop-sell')
-                self.assertIsNone(policy._s33_shadow_verdict(after, key)['would_stop'])
 
 if __name__ == '__main__':
     unittest.main()

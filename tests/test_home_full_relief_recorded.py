@@ -78,10 +78,7 @@ class HomeFullReliefTest(unittest.TestCase):
     def decide(self, policy, board, **changes):
         board = replace(board, turn=board.turn + 1, **changes)
         key = policy.choose_key(board)
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
         self.assertIsNone(policy.decision_claim["violation"])
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
         if key:
             policy.confirm_key_posted(key)
         return board, key

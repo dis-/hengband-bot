@@ -11,7 +11,7 @@ from unittest.mock import patch
 from dataclasses import replace
 
 from hengbot.claim_register import (
-    ClaimRegister, declaration_mismatch, observe, reach,
+    ClaimRegister, observe, reach,
 )
 from hengbot.cli import _declaration_requires_no_send
 from hengbot.home_errand import HomeErrandRequest
@@ -323,12 +323,6 @@ class ExecutionDeclarationTest(unittest.TestCase):
                          "acting")
         self.assertEqual(policy._claim_register.current.execution.next_step,
                          "route.resume")
-        mismatch = declaration_mismatch(
-            policy._claim_register.current, "silent",
-            "ownership:holder-silent:store-router")
-        self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"],
-                          mismatch["declared"]["next_step"]),
-                         ("silent", "acting", "route.resume"))
 
     def test_store_router_short_entrance_walk_declares_final_direction(self):
         board = short_route_board()
@@ -391,12 +385,6 @@ class ExecutionDeclarationTest(unittest.TestCase):
         closed = policy._claim_register.complete("home-withdraw-observed")
         self.assertEqual((closed.execution.state, closed.execution.evidence),
                          ("done", "home-withdraw-observed"))
-        mismatch = declaration_mismatch(
-            closed, "awaiting", "equipment-transaction:atomic-deposit")
-        self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"],
-                          mismatch["declared"]["evidence"]),
-                         ("awaiting", "done", "home-withdraw-observed"))
-
 
     def test_2134_rejected_stair_has_no_fabricated_post(self):
         # Recorded 1712: empty stair wait after a rejected descent candidate.
@@ -418,15 +406,7 @@ class ExecutionDeclarationTest(unittest.TestCase):
         self.assertEqual((declaration.state, declaration.next_step,
                           declaration.operation_ref),
                          ("acting", "stair.post", None))
-        self.assertEqual(policy._decision_declaration_mismatch["inferred"],
-                         "unposted-await")
         self.assertIsNone(getattr(policy, "_execution_pending_post", None))
-        mismatch = declaration_mismatch(
-            policy._claim_register.current, "unposted-await",
-            "stair:await-observation")
-        self.assertEqual((mismatch["inferred"], mismatch["declared"]["state"],
-                          mismatch["declared"]["operation_ref"]),
-                         ("unposted-await", "acting", None))
 
 
 if __name__ == "__main__":

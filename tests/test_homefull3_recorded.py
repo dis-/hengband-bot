@@ -56,9 +56,7 @@ _RECORDED_HOME_JUNK_AS_STOCK = patch.object(
 
 class RecordedHomeFull3Test(unittest.TestCase):
     def assert_owner(self, p, b, key):
-        for name in ('declaration_mismatch', 'claim_verdict_conflict', 'violation'):
-            self.assertIsNone(p.decision_claim[name], (name, p.decision_claim))
-        self.assertIsNone(p._s33_shadow_verdict(b, key)['would_stop'])
+        self.assertIsNone(p.decision_claim['violation'], p.decision_claim)
 
     def test_A_released_partial_deposit_keeps_home_owner_with_detected_townspeople(self):
         before, after = board(ROWS[4263]), board(ROWS[4272])

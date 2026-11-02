@@ -68,7 +68,6 @@ def declare_row(policy, line, *, awaiting=True):
 
 class Shadow3Test(unittest.TestCase):
     def clean(self, policy, snapshot, key):
-        self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
         self.assertFalse((policy.last_reason or '').startswith('ownership:declaration-'))
 
     def test_loot_downstream_respects_registered_route(self):
@@ -204,21 +203,6 @@ class Shadow3Test(unittest.TestCase):
                 self.clean(policy, after, key)
                 closed = policy.decision_claim['closed_claim']
                 self.assertEqual(closed['closed_reason'], 'equipment-transaction-complete')
-
-    def test_unobserved_suppression_is_a_visible_stop(self):
-        snapshot = board(798)
-        for enforced in (False, True):
-            with self.subTest(enforced=enforced):
-                policy = attached(snapshot, enforced)
-                declare_row(policy, 2444)
-                claim = policy._claim_register.current
-                e = claim.execution
-                policy._claim_register.declare_execution(claim.claim_id,
-                    producer=e.producer, work_id=e.work_id, state='awaiting',
-                    arguments=e.arguments, operation_ref=e.operation_ref,
-                    expected_effect=e.expected_effect, continuation='equipment.suppression.observe')
-                self.assertEqual(policy._town_holder_structural_stop(
-                    policy._claim_register.current, snapshot), 'ownership:declaration-stale:equipment-txn')
 
     def test_suspended_restoration_public_scan_board(self):
         snapshot = board(2255)

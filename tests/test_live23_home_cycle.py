@@ -251,26 +251,6 @@ class Live23HomeCycleTest(unittest.TestCase):
                 self.assertFalse(policy._home_knowledge_scan_inflight)
                 self.assertIsNone(policy._home_catalogue_work_holder())
 
-    def test_historical_competing_actor_names_registered_holder_in_shadow(self):
-        for restored in (False, True):
-            policy, boards = attachment()
-            key = policy.choose_key(boards[0])
-            self.assertEqual((key, policy.last_reason), (
-                HOME_KNOWLEDGE_MACRO,
-                "equipment-transaction:catalogue-request-knowledge"))
-            holder_id = policy._claim_register.current.claim_id
-            policy.confirm_key_posted(key)
-            if restored:
-                policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-            # Independent shadow adjudication of the captured bad producer
-            # result; do not call corrected producers or fabricate a next board.
-            policy.last_reason = "home:queue-digging-tool-withdraw"
-            policy._record_decision_claim(boards[1], "\x1b")
-            shadow = policy.decision_claim["s33_shadow"]
-            self.assertEqual(shadow["holder_family"], "equipment-txn")
-            self.assertEqual(shadow["holder_claim_id"], holder_id)
-            self.assertEqual(shadow["would_stop"], "ownership:gate-missing:home-visit")
-
     def test_digger_withdrawal_is_for_mining_departure_only(self):
         # The recorded board carries 19 of 23 stacks: the take would leave
         # fewer than the town's free slots, so the composer refuses it and
@@ -355,24 +335,10 @@ class Live23HomeCycleTest(unittest.TestCase):
                         break
 
     def test_restored_legacy_entry_declaration_still_requires_catalogue_evidence(self):
-        policy, boards = attachment()
         with gzip.open(FIXTURE / "decisions.jsonl.gz", "rt", encoding="utf8") as source:
             recorded = next(map(json.loads, source))["claim"]
         goal = recorded["goal"]
-        holder = policy._claim_register.declare("equipment-txn", observe(
-            goal["expectation"], goal["within"], goal["source"]))
         execution = recorded["execution"]
-        policy._claim_register.declare_execution(
-            holder.claim_id, producer=execution["producer"], work_id=execution["work_id"],
-            state=execution["state"], next_step=execution["next_step"],
-            expected_effect=execution["expected_effect"], continuation=execution["continuation"])
-        policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-        policy.last_reason = "home:queue-digging-tool-withdraw"
-        policy._record_decision_claim(boards[1], "\x1b")
-        shadow = policy.decision_claim["s33_shadow"]
-        self.assertEqual(shadow["holder_claim_id"], holder.claim_id)
-        self.assertEqual(shadow["holder_family"], "equipment-txn")
-        self.assertEqual(shadow["would_stop"], "ownership:gate-missing:home-visit")
         # Independent partial-page attachment explains the withdraw ON row-3
         # divergence. Never feed this other incident as the effect of live23's 5.
         partial = parse_snapshot(json.loads(
@@ -395,8 +361,6 @@ class Live23HomeCycleTest(unittest.TestCase):
             policy.confirm_key_posted(HOME_KNOWLEDGE_MACRO)
             policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
             self.assertTrue(policy._home_knowledge_scan_inflight)
-            self.assertIsNone(policy._town_holder_structural_stop(policy._claim_register.current, partial))
-
 
 
 if __name__ == "__main__":

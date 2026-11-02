@@ -111,9 +111,6 @@ class Live22BountyTest(unittest.TestCase):
                 deferred = policy._decision_errand_deferred[-1]
                 self.assertEqual(deferred["deferred_family"], "quest-request")
                 self.assertEqual(deferred["holder_family"], "store-router")
-                if not enforced:
-                    shadow = policy._s33_shadow_verdict(board, key)
-                    self.assertEqual(shadow["would_stop"], "ownership:gate-missing:quest-request")
 
     def test_repeated_ineffective_declared_route_stops_instead_of_other_errand(self):
         # Recorded board, independent unit attachment with a deliberately

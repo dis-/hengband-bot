@@ -97,8 +97,6 @@ class HomeExitRecordedTest(unittest.TestCase):
                     self.assertEqual(policy.last_reason, 'equipment-transaction:seek-home-page')
                     self.assertEqual(policy.decision_claim['owner'], 'equipment-txn')
                     self.assertIsNone(policy.decision_claim['violation'])
-                    self.assertIsNone(policy.decision_claim['declaration_mismatch'])
-                    self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
                     self.assertEqual(policy._home_full_retry_deposits, retry)
                     self.assertIsNone(session.pending_action)
                     policy.confirm_key_posted(key)
@@ -112,7 +110,6 @@ class HomeExitRecordedTest(unittest.TestCase):
                     self.assertEqual(policy.last_reason, 'equipment-transaction:withdraw')
                     self.assertEqual(policy.decision_claim['owner'], 'equipment-txn')
                     self.assertIsNone(policy.decision_claim['violation'])
-                    self.assertIsNone(policy._s33_shadow_verdict(target_page, key)['would_stop'])
                     policy.confirm_key_posted(key)
                     self.assertEqual(session.pending_action.kind, 'withdraw')
 

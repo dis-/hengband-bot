@@ -54,11 +54,6 @@ class AdmissionTest(unittest.TestCase):
             return "\x1b"
         self.assertEqual(policy._town_producer_entry(
             "constructed-bounty", bounty, family="quest-request"), "\x1b")
-        shadow = policy._s33_shadow_verdict(board, "\x1b")
-        self.assertIsNone(shadow["would_stop"])
-        # An unrelated output cannot borrow the gated entry's provenance.
-        self.assertEqual(policy._s33_shadow_verdict(board, "8")["would_stop"],
-                         "ownership:gate-missing:quest-request")
 
     def test_teleport_admission_precedes_route_mutation(self):
         board = corridor()

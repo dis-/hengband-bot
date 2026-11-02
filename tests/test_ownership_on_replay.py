@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from ownership_on_corpus import FIXTURES, MANIFEST, read_json, run_window, sha256
-from ownership_on_replay import choose_with_on_shadow, replay_window
+from ownership_on_replay import replay_window
 
 
 class OwnershipOnReplayTest(unittest.TestCase):
@@ -43,7 +43,6 @@ class OwnershipOnReplayTest(unittest.TestCase):
         if destination:
             Path(destination).write_text(json.dumps(results, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         self.assertGreater(sum(row["town_rows"] for row in results), 0)
-        self.assertGreater(sum(row["shadow_rows"] for row in results), 0)
 
     def test_first_divergence_never_delivers_the_next_board(self):
         policy = SimpleNamespace(last_reason="shop:new", decision_claim={}, choose_key=lambda board: "6")
@@ -56,14 +55,13 @@ class OwnershipOnReplayTest(unittest.TestCase):
         self.assertEqual(result.matched_rows, 0)
         self.assertEqual(result.first_divergence["row"], 10)
 
-    def test_divergent_terminal_and_shadow_still_fail_the_guard(self):
+    def test_divergent_terminal_still_fails_the_guard(self):
         policy = SimpleNamespace(last_reason="ownership:item-reserved:test",
-                                 decision_claim={"s33_shadow": {"would_stop": "ownership:declaration-missing:test"}},
-                                 choose_key=lambda board: None)
+                                 decision_claim={}, choose_key=lambda board: None)
         result = replay_window("violation-control", policy, [
             ({"row": 7, "key": "5", "reason": "home:deposit"}, lambda: SimpleNamespace(in_town=True))])
         self.assertEqual({row["kind"] for row in result.violations},
-                         {"ownership-terminal", "item-reserved", "s33_shadow"})
+                         {"ownership-terminal", "item-reserved"})
         self.assertTrue(all(row["row"] == 7 for row in result.violations))
         self.assertEqual(result.rows_replayed, 1)
 
@@ -76,33 +74,6 @@ class OwnershipOnReplayTest(unittest.TestCase):
             ({"row": 2, "key": "5", "reason": "shop:later"}, forbidden)])
         self.assertEqual(result.first_divergence["row"], 1)
         self.assertEqual(result.rows_replayed, 1)
-
-    def test_shadow_is_observed_before_declaration_with_enforcement_on(self):
-        observed = []
-        case = self
-        class SeamPolicy:
-            _claim_home_knowledge_observed = True
-            decision_claim = {}
-            last_reason = "shop:test"
-            def _claim_suspended_exit(self, board, register):
-                observed.append("completion")
-            def _s33_shadow_verdict(self, board, key):
-                case.assertFalse(self._claim_home_knowledge_observed)
-                observed.append("shadow")
-                return {"would_stop": "ownership:declaration-missing:test"}
-            def _record_decision_claim(self, board, key):
-                self._claim_suspended_exit(board, None)
-                self._claim_home_knowledge_observed = False
-                observed.append("declaration")
-            def choose_key(self, board):
-                self._record_decision_claim(board, "5")
-                return "5"
-        policy = SeamPolicy()
-        key, shadow = choose_with_on_shadow(policy, SimpleNamespace(in_town=True, store=None))
-        self.assertEqual(key, "5")
-        self.assertEqual(shadow["would_stop"], "ownership:declaration-missing:test")
-        self.assertEqual(observed, ["completion", "shadow", "declaration"])
-
 
 if __name__ == "__main__":
     unittest.main()

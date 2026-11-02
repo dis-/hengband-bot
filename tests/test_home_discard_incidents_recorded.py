@@ -50,9 +50,7 @@ def catalogue(stamp):
 class DiscardIncidentsTest(unittest.TestCase):
     def decide(self, p, b):
         key = p.choose_key(b)
-        for field in ('declaration_mismatch', 'claim_verdict_conflict', 'violation'):
-            self.assertIsNone(p.decision_claim[field], (field, p.last_reason, p.decision_claim))
-        self.assertIsNone(p._s33_shadow_verdict(b, key)['would_stop'])
+        self.assertIsNone(p.decision_claim['violation'], (p.last_reason, p.decision_claim))
         if key:
             p.confirm_key_posted(key)
         return key
