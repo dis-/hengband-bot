@@ -18018,15 +18018,22 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Return whether the current character can eat something in the pack."""
         return self._find_edible(snapshot) is not None
 
-    def _escape_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
+    def _escape_scroll(
+        self, snapshot: Snapshot, *, teleport_only: bool = False
+    ) -> InventoryItem | None:
         # Reading needs sight and a clear head (cmd-read.cpp: cmd_limit_blind,
         # cmd_limit_confused refuse the read without using a turn; D31 n1-a
         # life-418 re-posted the refused read until the stalled-command stop).
-        # A full teleport is preferred over a short phase.
+        # A full teleport is preferred over a short phase.  ``teleport_only``
+        # is for a rung that requires a teleport: owner 2026-11-02
+        # 「ショートテレポートはテレポートの代替にならない」.
         player = snapshot.player
         if player.blind or player.confused or not self._can_read_scrolls(snapshot):
             return None
-        return self._find_teleport_scroll(snapshot) or self._find_phase_scroll(snapshot)
+        teleport = self._find_teleport_scroll(snapshot)
+        if teleport is not None or teleport_only:
+            return teleport
+        return self._find_phase_scroll(snapshot)
 
 
     def _consumable_fight_target(

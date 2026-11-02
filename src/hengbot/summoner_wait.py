@@ -83,7 +83,8 @@ def _leave_shot_hold_point_key(policy, snapshot, monsters):
     無理ならテレポート。」  The point stays vetoed for routing for this floor
     visit (the engagement avoid set is cleared only on a floor change), so
     exploration cannot walk back into it.  Steps toward another choke out of
-    fire, else reads the escape owner's scroll, else None.
+    fire, else reads a teleport (owner 2026-11-02 「ショートテレポートは
+    テレポートの代替にならない」: never Phase Door), else None.
     """
     here = snapshot.player.position
     policy._claim_engagement_avoid_cells((here,))
@@ -100,7 +101,7 @@ def _leave_shot_hold_point_key(policy, snapshot, monsters):
         policy._declare_reach(destination)
         policy._declare_triggers(monsters)
         return policy._step_toward(snapshot, step)
-    scroll = policy._escape_scroll(snapshot)
+    scroll = policy._escape_scroll(snapshot, teleport_only=True)
     if scroll is not None:
         policy.last_reason = HOLD_TELEPORT_REASON
         return policy._read_key(snapshot, scroll)
