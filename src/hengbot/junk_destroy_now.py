@@ -15,7 +15,7 @@ rungs (store visits own the pack there).
 from __future__ import annotations
 
 
-def _safe(policy, snapshot) -> bool:
+def safe(policy, snapshot) -> bool:
     """No visible hostile, not just hit, no store, no impairment, no flight."""
     player = snapshot.player
     return not (
@@ -31,6 +31,6 @@ def _safe(policy, snapshot) -> bool:
 
 def destroy_now_key(policy, snapshot) -> str | None:
     """The verified destroy of one carried junk stack when it is safe, or None."""
-    if not _safe(policy, snapshot):
+    if not safe(policy, snapshot):
         return None
     return policy._worthless_junk_destroy_key(snapshot)
