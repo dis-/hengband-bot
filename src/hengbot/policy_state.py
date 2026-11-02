@@ -5,6 +5,7 @@ from dataclasses import replace
 from copy import deepcopy
 from hengbot.policy_types import OwnerProgressCore
 from hengbot.retired_values import is_retired
+from hengbot.town_visit import adopt_legacy_attributes as adopt_town_visit_attributes
 
 # Strip-calibration attributes retained by the equipped C-sheet observation.
 _RETAINED_CALIBRATION_NAMES = frozenset({
@@ -248,6 +249,9 @@ def normalize_policy_state(restored, *, restart=False):
     """
     _adopt_town_hold(restored.__dict__)
     _adopt_decision_claim(restored.__dict__)
+    # Structure stage 3-1: the per-visit attributes live in the town visit
+    # (a name an old checkpoint lacks keeps the field's default).
+    adopt_town_visit_attributes(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     for name in _RETIRED_CLAIM_RECORD_NAMES:
         restored.__dict__.pop(name, None)
@@ -312,7 +316,6 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_map_predicate_snapshot", None)
     restored.__dict__.setdefault("_equipment_transaction_posted_catalog_update", None)
     restored.__dict__.setdefault("_equipment_transaction_home_pages", None)
-    restored.__dict__.setdefault("_equipment_optional_failure_departure", None)
     restored.__dict__.setdefault("_equipment_optional_failure_pending", None)
     from hengbot.runtime_paths import runtime_path
     restored.__dict__.setdefault("_home_store_block_owner", None)
@@ -331,7 +334,6 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_prepared", None)
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     restored.__dict__.setdefault("_q2_blue_recovery_perceived", set())
-    restored.__dict__.setdefault("_town_unidentifiable_carried_sigs", set())
     restored.__dict__.setdefault("_town_visit_purchase_quantities", {})
     restored.__dict__.setdefault("_town_visit_sale_identify_charges", None)
     restored.__dict__.setdefault("_crossarea_fundraising_enforced", False)

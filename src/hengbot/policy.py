@@ -386,6 +386,7 @@ from hengbot.town_terminal import (
     verdict_quest_work,
     rung_family as town_rung_family,
 )
+from hengbot.town_visit import TownVisit, TownVisitAttributes
 from hengbot.town_hold import (
     # Old checkpoints pickled the delegation records as hengbot.policy's.
     ExecutionDelegation,
@@ -1233,7 +1234,7 @@ from .policy_town import TownMixin, _town_fact_views
 from .policy_observation import ObservationMixin
 
 
-class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, HomeMixin, EquipmentMixin, QuestMixin, PolicyHelpersMixin, CombatMixin, NavigationMixin, SupplyMixin, FundraisingMixin, IdentificationMixin, CalibrationMixin):
+class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, HomeMixin, EquipmentMixin, QuestMixin, PolicyHelpersMixin, CombatMixin, NavigationMixin, SupplyMixin, FundraisingMixin, IdentificationMixin, CalibrationMixin):
     """Goal-seeking policy: survive, gain levels, and keep descending.
 
     Every decision resolves to a single, side-effect-safe key (a movement
@@ -1639,12 +1640,9 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             maxlen=TOWN_CYCLE_WINDOW
         )
         self._town_progress_last_fingerprint: tuple[object, ...] | None = None
-        self._town_supplier_stock: dict[int, StoreState] = {}
-        # Provenance for general-store shelf snapshots.  Shelf contents are kept
-        # in the long-standing mapping above for its existing consumers, while
-        # decisions that require negative stock evidence must prove that the
-        # page was observed during this town visit and in this town.
-        self._town_supplier_stock_observations: dict[int, tuple[int, int]] = {}
+        # The town visit owns its per-arrival state (structure stage 3-1); the
+        # former attribute names forward to it (town_visit.TownVisitAttributes).
+        self._town_visit = TownVisit()
         # A stair command is verified by the following snapshot. Hengband rejects
         # a stair key without spending a turn, which gives stronger evidence than
         # ordinary navigation stalls that remembered terrain is a phantom.
@@ -1807,9 +1805,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._took_damage = False
         self._took_curse_damage = False
         self._took_trap_or_terrain_damage = False
-        # Set once we visit the General Store but cannot buy a lantern (can't
-        # afford it / not stocked), so we stop walking back to it forever.
-        self._shopping_abandoned = False
         # (item letter, gold) of the last buy we tried, and how many times we have
         # re-tried it unchanged — to bail out of a purchase that never registers.
         self._last_buy_sig: tuple[str, int] | None = None
@@ -2088,9 +2083,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # reveal those towns, so keep the intended destination latched until the
         # exported progress confirms that the service can actually select it.
         self._town_travel_rumor_pending: int | None = None
-        # store_type -> the game turn it was latched at (see STORE_RETRY_TURNS),
-        # except that Home's terminal claim verdict retains its named reason.
-        self._town_store_attempted: dict[int, int | str] = {}
         self._home_claim_uncomposable_signature: tuple[object, ...] | None = None
         self._home_latch_active: dict[str, object] | None = None
         self._home_latch_history: list[dict[str, object]] = []
@@ -2113,13 +2105,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._launcher_enchant_watch: tuple[int, tuple[str, int, int], int] | None = None
         self._last_sell_sig: tuple | None = None
         self._store_sell_stuck_count = 0
-        # Item signature, last observed count, and consecutive attempts. Unlike
-        # _last_sell_sig, this survives turn changes and store exit/re-entry so
-        # an unanswered prompt cannot evade rejection by advancing the turn.
-        self._store_sell_attempt: tuple[tuple[str, int, int], int, int] | None = None
-        # Every store sale is a tag-bound transaction.  The pending record
-        # spans inscription observation, sale, and post-sale verification.
-        self._batch_sell_pending: dict[str, object] | None = None
         # Explicit Home-capacity failures may stop deposits for one town visit.
         # Input-level rejection is tracked separately per item below.
         # Exhausted input retries mean only that deposits should be abandoned
@@ -2138,12 +2123,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # is an upgrade, not a sell-then-rebuy of the same item.
         self._town_visit_sale_identify_charges: int | None = None
         self.town_visit_report: str | None = None
-        # A6a: Home remains the preferred source for the two-tool mining kit.
-        # The count remains useful as terminal-failure evidence, but no longer
-        # authorizes buying around stock that Home still records.
-        self._digger_home_withdraw_failures = 0
-        self._digger_fallback_bought_this_visit = False
-        self._home_procurement_withdraw_failure: dict[str, object] | None = None
         # Prices are learned only from shelves actually shown by the emitter.
         # Values are (unit price, units supplied); no guessed/default shopping
         # price is permitted for the cross-town funds gate.
@@ -2162,10 +2141,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # (device use stalls), plus a watch on the last attempt to detect that
         # the pack's unknown count did not change afterwards.
         self._unidentifiable_sigs: set[tuple[str, int, int]] = set()
-        # Carried equipment whose identification sources were exhausted is
-        # skipped only for the current town visit.  Unlike the dungeon-facing
-        # failure set above, this must survive every in-town observation.
-        self._town_unidentifiable_carried_sigs: set[tuple[str, int, int]] = set()
         # Full-*Identify* scrolls may not exist in a game. Remember equipment
         # proven unobtainable across town visits, but retry it if a source later
         # appears in the pack.
@@ -2179,15 +2154,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # identify never lands is deferred instead of looped on.
         self._device_identify_watch: tuple[tuple[str, int, int], int] | None = None
         self._device_identify_fail_streak = 0
-        # Rejections are only authoritative for the current town visit.  A full
-        # store can reject an otherwise sellable item, so retry it after the next
-        # dungeon trip instead of blacklisting it for the whole bot session.
-        self._unsellable_items: set[tuple[str, int, int]] = set()
-        # Store types that refused a sale this town visit because they are FULL
-        # (no room), not because of the item type. While a store is latched here
-        # the bot must stop routing spare weapons to it and stop pulling more from
-        # Home to sell there — otherwise it churns futile trips to the full store.
-        self._store_sale_refused: set[int] = set()
         self._town_blocked_reason: str | None = None
         self._cross_decision_latches["_town_blocked_reason"] = CrossDecisionLatch(
             "town-router",
@@ -2261,10 +2227,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_random_teleport_withdrawal: tuple[str, int, int] | None = None
         self._home_pending_slot: str | None = None
         self._home_pending_quantity: int | None = None
-        self._home_pending_quantities: dict[tuple[str, int, int], int] = {}
-        self._home_procurement_batch_active = False
         self._home_pending_batch: list[tuple[str, int, int]] = []
-        self._deferred_home_item_sites: dict[tuple[str, int, int], str] = {}
         self._home_batch_review_items: set[tuple[str, int, int]] = set()
         self._home_active_from_batch = False
         # One Home take is bound to a fresh-entry macro.  The pending record is
@@ -2306,7 +2269,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._home_identify_staff_sold_this_magic_visit = False
         self._home_withdrawal_queued = False
         self._home_digger_withdraw_pending = False
-        self._home_candidate_waiting = False
         self._identification_need: str | None = None
         self._identification_candidate: tuple[str, int, int] | None = None
         # An identification errand owns the next source acquired for it.  Keep
@@ -2321,11 +2283,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ) = None
         self.read_telemetry: dict[str, object] = {}
         self._device_identification_candidate: tuple[str, int, int] | None = None
-        self._deferred_device_items: set[tuple[str, int, int]] = set()
         self._processed_home_items: set[tuple[str, int, int]] = set()
-        self._deferred_home_items: set[tuple[str, int, int]] = set()
-        self._retried_deferred_home_items: set[tuple[str, int, int]] = set()
-        self._retried_home_identification_items: set[tuple[str, int, int]] = set()
         # ``~9`` is authoritative content knowledge, but its order is not a
         # shelf address.  Keep addresses separately from observed Home pages.
         self._home_knowledge_items: tuple[InventoryItem, ...] = ()
@@ -2478,7 +2436,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         ] | None = None
         self._equipment_transaction_posted_catalog_update = None
         self._equipment_transaction_home_pages = None
-        self._equipment_optional_failure_departure = None
         self._equipment_optional_failure_pending = None
         # Item ids readmitted to the optimizer view because a quarantine held
         # every owned source of a mandatory depth gate (strictly diagnostic).
@@ -2506,12 +2463,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # context so a latched town stop closes that UI before it waits.
         self._last_snapshot_was_store = False
         self._last_snapshot_store_type: int | None = None
-        # Full-pack disposal verification: signatures of items the game would not
-        # destroy (so we stop re-selecting them and forever looping), plus a watch
-        # on the last attempt to detect that the pack did not change afterwards.
-        self._undestroyable_sigs: set[tuple[str, int, int]] = set()
-        self._destroy_watch: tuple[tuple[str, int, int], int, int] | None = None
-        self._destroy_fail_streak = 0
         self.last_reason = ""
         self.prompt_owner_handoff: str | None = None
         self._policy_state_version = 5

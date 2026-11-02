@@ -786,45 +786,15 @@ class ObservationMixin:
             self._returning_to_town = False
             self._note_return_end()
             if snapshot.floor_key != self._floor_key:
-                # A fresh town visit retries the store: an earlier give-up (e.g.
-                # an unaffordable lantern) must not block buying the rations this
-                # return trip is for. The in-store bail-outs re-bound any retry.
-                # Destruction failures are likewise scoped to one expedition;
-                # preserving the watch during the visit lets unchanged attempts
-                # reach their retry limit instead of being resent forever.
-                self._undestroyable_sigs.clear()
-                self._destroy_watch = None
-                # Keep the posted abnormal departure visible on the landing
-                # board; retire its diagnostic at the next fresh town visit.
-                self._equipment_optional_failure_departure = None
-                self._destroy_fail_streak = 0
-                self._shopping_abandoned = False
-                self._town_store_attempted.clear()
-                self._digger_home_withdraw_failures = 0
-                self._digger_fallback_bought_this_visit = False
-                self._home_procurement_withdraw_failure = None
-                self._unsellable_items.clear()
-                self._store_sale_refused.clear()
-                self._store_sell_attempt = None
-                self._batch_sell_pending = None
-                self._home_candidate_waiting = (
-                    self._home_identification_candidate_pending(snapshot)
+                # A fresh town visit: the visit forgets the previous one
+                # (town_visit.TownVisit says what and why).  The arrival's
+                # Home identification latch is read first, against the
+                # previous visit's deferred Home items, as it always was.
+                self._town_visit.begin(
+                    home_candidate_waiting=(
+                        self._home_identification_candidate_pending(snapshot)
+                    )
                 )
-                self._deferred_home_items.clear()
-                self._retried_deferred_home_items.clear()
-                getattr(self, "_deferred_home_item_sites", {}).clear()
-                getattr(self, "_home_pending_quantities", {}).clear()
-                self._home_procurement_batch_active = False
-                self._town_unidentifiable_carried_sigs.clear()
-                # Shelves turn over while the character is away: a page from
-                # an earlier visit is no evidence for this one, so its
-                # supplier is visited again before a stockout is concluded
-                # (n1-c life-109 2026-11-02 21:11 stopped on the remembered
-                # Temple/Alchemist pages right after its mining run).
-                self._town_supplier_stock.clear()
-                self._town_supplier_stock_observations.clear()
-                self._deferred_device_items.clear()
-                self._retried_home_identification_items.clear()
 
             if (
                 not self._home_candidate_waiting
