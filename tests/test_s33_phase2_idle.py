@@ -24,7 +24,7 @@ class IdleFallbackTest(unittest.TestCase):
         policy._equipment_catalog.home_scan_complete = True
         policy._crossarea_fundraising_enforced = True
         goal = pin(10562)['row']['claim']['goal']
-        policy._claim_register.declare('home-errand',
+        policy._town_hold.claims.declare('home-errand',
             observe(tuple(goal['expectation']), goal['within'], source=goal['source']),
             floor=snapshot.floor_key)
         # TEST_FAKERY_LINT_ALLOW: public-path-replaced: DECLARED CONSTRUCTED missing B checkpoint; only the ladder None sentinel is supplied, with real fallback admission, claim exit and shadow validation.
@@ -36,8 +36,6 @@ class IdleFallbackTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['producer_key'], key)
         self.assertFalse(rows[0]['token_would_admit'])
-        self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
-        self.assertIsNone(policy.decision_claim['claim_verdict_conflict'])
 
 
 if __name__ == '__main__':

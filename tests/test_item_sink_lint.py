@@ -164,7 +164,6 @@ def choose_key(self, snapshot):
 def choose_key(self, snapshot):
     if stop:
         return None
-    key = self._enforce_town_claim_result(snapshot, key)
     self._record_decision_claim(snapshot, key)
     return key
 """
@@ -173,17 +172,7 @@ def choose_key(self, snapshot):
     def test_returned_key_must_be_the_recorded_final_key(self):
         source = """
 def choose_key(self, snapshot):
-    key = self._enforce_town_claim_result(snapshot, key)
     self._record_decision_claim(snapshot, other)
-    return key
-"""
-        self.assertTrue(analyze_source(source, 'policy.py', names=set()))
-
-    def test_enforcement_result_cannot_be_discarded_at_exit(self):
-        source = """
-def choose_key(self, snapshot):
-    discarded = self._enforce_town_claim_result(snapshot, key)
-    self._record_decision_claim(snapshot, key)
     return key
 """
         self.assertTrue(analyze_source(source, 'policy.py', names=set()))
@@ -192,7 +181,6 @@ def choose_key(self, snapshot):
         # f7131f80e: the town cycle detector reads the final key after the record.
         exit_source = """
 def choose_key(self, snapshot):
-    key = self._enforce_town_claim_result(snapshot, key)
     self._record_decision_claim(snapshot, key)
     self._town_progress_note_command(key)
     return key

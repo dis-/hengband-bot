@@ -50,18 +50,18 @@ def session(line):
 
 
 def declared(policy, pending, *, awaiting=False):
-    claim = policy._claim_register.declare('equipment-txn',
+    claim = policy._town_hold.claims.declare('equipment-txn',
         observe((repr(pending.plan.actions),), 8, source='transaction'),
         non_discardable=True)
     action = pending.pending_action or pending.current_action
-    policy._claim_register.declare_execution(claim.claim_id,
+    policy._town_hold.claims.declare_execution(claim.claim_id,
         producer='equipment-txn', work_id=f'equipment:{pending.target_loadout_id}:{pending.index}',
         state='awaiting' if awaiting else 'acting',
         next_step=None if awaiting else 'equipment.next-action',
         arguments=(action.kind, action.target_slot, action.item_identity),
         operation_ref='decision:12:dl' if awaiting else None,
         expected_effect='equipment-action-confirmed', continuation='equipment.next-action')
-    return policy._claim_register.current
+    return policy._town_hold.claims.current
 
 
 class DepositOwnerRecordedTest(unittest.TestCase):
@@ -131,8 +131,6 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 self.assertEqual(policy.last_reason, 'equipment-transaction:deposit')
                 self.assertEqual(policy.decision_claim['owner'], 'equipment-txn')
                 self.assertIsNone(policy.decision_claim['violation'])
-                if not enforced:
-                    self.assertIsNone(policy.decision_claim['s33_shadow']['would_stop'])
                 policy.confirm_key_posted(key)
                 self.assertIsNotNone(pending.pending_action)
                 # This recorded effect follows the identical dp command. Stop at
@@ -159,8 +157,6 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 policy._home_scan_item_count = 239  # Constructed catalogue count.
                 policy.choose_key(after)
                 self.assertEqual(pending.index, 1)
-                holder = policy._claim_register.current
-                self.assertIsNone(policy._town_holder_structural_stop(holder, after))
 
     def test_refused_deposit_exit_preserves_the_owner_continuation(self):
         for enforced in (False, True):
@@ -182,11 +178,9 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 declared(policy, pending, awaiting=True)
                 key = policy.choose_key(after)
                 self.assertEqual(key, '\x1b')
-                self.assertEqual(policy._claim_register.current.execution.continuation,
+                self.assertEqual(policy._town_hold.claims.current.execution.continuation,
                                  'equipment.next-action')
                 policy.confirm_key_posted(key)
-                self.assertIsNone(policy._town_holder_structural_stop(
-                    policy._claim_register.current, outside))
                 self.assertIsNotNone(pending.pending_action)
 
     def test_successful_deposit_exit_keeps_the_next_item_goal_registered(self):
@@ -211,13 +205,10 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 key = policy.choose_key(after)
                 self.assertEqual(key, 'dm' if enforced else '\x1b')
                 self.assertEqual(pending.index, 1)
-                self.assertEqual(policy._claim_register.current.execution.continuation,
+                self.assertEqual(policy._town_hold.claims.current.execution.continuation,
                                  'equipment.next-action')
                 policy.confirm_key_posted(key)
                 outside = replace(after, store=None, turn=after.turn + 5)
-                self.assertIsNone(policy._town_holder_structural_stop(
-                    policy._claim_register.current, outside))
-                self.assertIsNone(policy._s33_shadow_verdict(outside, None)['would_stop'])
 
     def test_stall_termination_releases_old_goal_before_final_validation(self):
         for enforced in (False, True):
@@ -236,9 +227,6 @@ class DepositOwnerRecordedTest(unittest.TestCase):
                 declared(policy, pending)
                 key = policy.choose_key(board)
                 self.assertTrue(policy.last_reason.endswith('equipment-transaction:confirmation-stall-bound'))
-                if not enforced:
-                    self.assertIsNone(policy.decision_claim['s33_shadow']['would_stop'])
-                self.assertIsNone(policy._s33_shadow_verdict(board, key)['would_stop'])
                 self.assertIsNone(policy.decision_claim['violation'])
                 self.assertIsNone(policy._equipment_transaction_session)
-                self.assertIsNone(policy._claim_register.current.execution.continuation)
+                self.assertIsNone(policy._town_hold.claims.current.execution.continuation)

@@ -41,7 +41,7 @@ class HeldInnTravelRecordedTest(nokey.PostedKey):
 
     def test_inn_travel_declares_the_legs_own_resume(self):
         key = self.travel()
-        execution = self.policy._claim_register.current.execution
+        execution = self.policy._town_hold.claims.current.execution
         # Unfixed: route.resume ('store', (42, 93)).
         self.assertEqual((execution.next_step, execution.continuation, execution.arguments),
                          ("town.teleport.resume", "town.teleport.resume", (OUTPOST, REASON)))

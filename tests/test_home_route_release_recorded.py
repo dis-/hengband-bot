@@ -23,7 +23,7 @@ from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from policy_fixtures import grid
 from test_s33_batch_admission import corridor
-from test_s33_batch_context import captured_session
+from equipment_session_pins import captured_session
 
 FIXTURE = Path(__file__).parent / "fixtures/home-route-release-20261003.json.gz"
 
@@ -58,10 +58,10 @@ def reconstructed(pin, enforced):
                "weight-overload", entries[0][0], quantity=28))
     visit.begin_approach(2)
     policy._prepare_home_visit_operation("put", entries[0][0], ("captured-pack",))
-    claim = policy._claim_register.declare("home-visit",
+    claim = policy._town_hold.claims.declare("home-visit",
         observe((STORE_HOME, 2, key), STORE_STUCK_LIMIT, source="store-operation"),
         floor=after.floor_key)
-    policy._claim_register.declare_execution(claim.claim_id, producer="home-visit",
+    policy._town_hold.claims.declare_execution(claim.claim_id, producer="home-visit",
         work_id=f"home-operation:2:{key}", state="acting",
         next_step="home.operation.send", expected_effect="home-inventory-effect",
         continuation="home.operation.observe", budget_ref="home-operation-existing-budget")
@@ -103,10 +103,7 @@ class HomeRouteReleaseTest(unittest.TestCase):
             key = policy.choose_key(board)
             self.assertEqual(key, "5")
             self.assertEqual(policy.last_reason, "home:atomic-deposit-await-confirmation")
-            self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-            self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
             self.assertIsNone(policy.decision_claim["violation"])
-            self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
             self.assertEqual(policy._home_atomic_deposit_pending[3], count)
             self.assertEqual(in_flight_clause(old_visit),
                              "operation-released-effect-not-observed")
@@ -115,8 +112,6 @@ class HomeRouteReleaseTest(unittest.TestCase):
         self.assertFalse(session.blockers)
         self.assertEqual(policy.last_reason, "equipment-transaction:travel-home")
         self.assertIsNone(policy._home_atomic_deposit_pending)
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
         self.assertEqual(old_visit.outcome, "home-deposit-unobserved")
         self.assertIsNone(in_flight_clause(old_visit))
         self.assertFalse(old_visit.operation_effect_observed)

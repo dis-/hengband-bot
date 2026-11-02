@@ -37,8 +37,8 @@ def route_policy(board, *, family="store-router", enforced=True):
     policy._home_knowledge_current = True
     policy._equipment_catalog.home_scan_complete = True
     cell = (10, 14)
-    claim = policy._claim_register.declare(family, reach(cell), floor=board.floor_key)
-    policy._claim_register.declare_execution(
+    claim = policy._town_hold.claims.declare(family, reach(cell), floor=board.floor_key)
+    policy._town_hold.claims.declare_execution(
         claim.claim_id, work_id="route:constructed", producer=family,
         state="acting", next_step="route.resume", arguments=("store", cell),
         expected_effect="arrive", continuation="route.resume", budget_ref="town-travel")
@@ -54,11 +54,6 @@ class AdmissionTest(unittest.TestCase):
             return "\x1b"
         self.assertEqual(policy._town_producer_entry(
             "constructed-bounty", bounty, family="quest-request"), "\x1b")
-        shadow = policy._s33_shadow_verdict(board, "\x1b")
-        self.assertIsNone(shadow["would_stop"])
-        # An unrelated output cannot borrow the gated entry's provenance.
-        self.assertEqual(policy._s33_shadow_verdict(board, "8")["would_stop"],
-                         "ownership:gate-missing:quest-request")
 
     def test_teleport_admission_precedes_route_mutation(self):
         board = corridor()

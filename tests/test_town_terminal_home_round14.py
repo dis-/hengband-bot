@@ -14,6 +14,7 @@ from hengbot.policy_constants import LEAVE_STORE_KEY
 from hengbot.policy_state import normalize_policy_state
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.item_reservation import ITEM_RESERVATION_SOURCES
+from hengbot.town_terminal import offer_buffer
 from policy_fixtures import grid, item
 import test_policy_home as home_fixtures
 from test_goldburn_shopping_constructed import board
@@ -54,7 +55,7 @@ class HomeAdmissionTest(unittest.TestCase):
                 self.assertEqual(row["live"], [])
                 self.assertEqual(row["mode"], mode)
                 self.assertIsNone(policy._home_atomic_withdraw_pending)
-                outcomes.append((policy.last_reason, repr(policy._decision_offer_buffer())))
+                outcomes.append((policy.last_reason, repr(offer_buffer(policy))))
             self.assertEqual(outcomes[0], outcomes[1])
 
     def test_home_entrance_admits_the_actual_dispatch(self):
@@ -123,7 +124,7 @@ class HomeAdmissionTest(unittest.TestCase):
                 row, = policy._decision_terminal_admissions
                 self.assertEqual(row["codes"], ["sale-item-unavailable" if missing else "sale-not-accepted"])
                 outcomes.append((key, policy.last_reason, policy._last_sell_sig,
-                                 policy._store_sell_stuck_count, repr(policy._decision_offer_buffer())))
+                                 policy._store_sell_stuck_count, repr(offer_buffer(policy))))
             self.assertEqual(outcomes[0], outcomes[1])
 
     def test_sale_context_is_restored_on_exception_and_old_checkpoints_default_it(self):
@@ -194,7 +195,7 @@ class HomeAdmissionTest(unittest.TestCase):
             self.assertEqual(row["rung"], "_store_sell_key")
             self.assertEqual(row["codes"], ["sale-not-accepted"])
             outcomes.append((key, policy.last_reason, policy._unsellable_items,
-                             policy._home_full_relief, repr(policy._decision_offer_buffer())))
+                             policy._home_full_relief, repr(offer_buffer(policy))))
         self.assertEqual(outcomes[0], outcomes[1])
 
     def test_dispatch_cannot_bypass_the_final_take_verdict(self):

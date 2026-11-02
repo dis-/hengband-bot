@@ -405,8 +405,7 @@ class TownCureSupplierRecordedTest(_RecordedProcess):
                           execution["expected_effect"], execution["continuation"]),
                          ("home-errand", "home.knowledge.request",
                           "catalogue-adopted", "home.knowledge.observe"))
-        for field in ("violation", "declaration_mismatch", "claim_verdict_conflict"):
-            self.assertIsNone(claim[field], field)
+        self.assertIsNone(claim["violation"])
 
     def test_recorded_stay_ends_without_an_owner(self):
         self.assertEqual(TOWN_TRAVEL_STORE_SYMBOLS[STORE_ALCHEMIST], "%")

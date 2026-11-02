@@ -56,10 +56,8 @@ class HomeSurplusSaleScreenRecordedTest(unittest.TestCase):
                          ('\x1b', 'shop:unsellable-home-full-surplus-sale-refused'))
         self.assertIsNone(policy._batch_sell_pending)
         self.assertEqual(policy.decision_claim['owner'], 'shop-sell')
-        self.assertEqual(policy._claim_register.current.execution.producer, 'shop-sell')
-        for name in ('declaration_mismatch', 'claim_verdict_conflict', 'violation'):
-            self.assertIsNone(policy.decision_claim[name])
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)['would_stop'])
+        self.assertEqual(policy._town_hold.claims.current.execution.producer, 'shop-sell')
+        self.assertIsNone(policy.decision_claim['violation'])
         self.assertNotIn(STORE_ARMOURY, policy._store_sale_refused)
 
     def test_A_recorded_failure_and_reconstructed_owned_refusal(self):
@@ -152,7 +150,6 @@ class HomeSurplusSaleScreenRecordedTest(unittest.TestCase):
                 self.assertEqual((key, policy.last_reason), (expected, 'shop:in-store-sell'))
                 self.assertEqual(policy._in_store_entry_ledger['pending']['kind'], 'sell')
                 self.assertEqual(policy._store_visit.operation_key, key)
-                self.assertIsNone(policy._s33_shadow_verdict(current, key)['would_stop'])
 
     def test_inscription_merge_recomposes_quantity_from_the_observed_stack(self):
         board = self.board()
@@ -184,7 +181,6 @@ class HomeSurplusSaleScreenRecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ('d03\ry', 'shop:in-store-sell'))
         entry = policy._batch_sell_pending['entries'][0]
         self.assertEqual((entry['count'], entry['quantity']), (3, 3))
-        self.assertIsNone(policy._s33_shadow_verdict(after, key)['would_stop'])
 
 
 class SaleZeroValueRecordedTest(unittest.TestCase):

@@ -119,7 +119,7 @@ class Q34ChurnRecordedTest(executor_harness.ProductionHarness):
                 policy._chest_phase_counts = {"search": 1}
                 policy._chest_preopen_objects = {Position(3, 14): (1, 0)}
                 policy._chest_collecting = True
-                policy._claim_register.declare(
+                policy._town_hold.claims.declare(
                     ClaimOwner.FLOOR_LOOT, reach((4, 14)),
                     floor=(0, 5, 34), rank=48, rung="_chest_processing_key#1",
                 )

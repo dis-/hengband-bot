@@ -1,0 +1,169 @@
+LUNA-REPORT structure-s2-3-1102（構造の直し 第2段B の3本目: 影・宣言のテストと読まれない記録を消し、町の hold の状態を town_terminal に移す）
+
+== 前提 ==
+- 持ち主の決定: 2026-10-28 「B: 場面の終点に一本化」。2026-11-02 「街に関する構造整理は優先度を上げて。半端になるのが一番良くない」。
+- 計画: .worktrees/structure-s2-prep3-1102/LUNA-REPORT-structure-s2-prep3-1102.txt の 3-1・3-2・3-3。
+- 土台: main 313c5f103。手順ごとに1コミット。最後に main を2回取り込んだ（9afd9203e、1329dfdac）。
+
+== 3-1 テストを消す（src は変えていない） ==
+コミット 211f99664 Delete the claim tests that only pin enforced, shadow or declaration records
+- モジュールごと消した: test_ownership_s3a_record（9件とも flag を立てていたもの）、test_ownership_s3_3_delegation_record、
+  test_declarations_r11、test_declarations_r4、test_s33_batch_context。
+- メソッドを消した: test_s33_phase2_quest.test_recorded_detours_keep_bounty_ownership（影と ON の脚。OFF の脚も古い期待値で赤）、
+  test_declarations_r14.test_overweight_home_tail_keeps_its_operation_at_3715（ON との最初の分かれ目を測るもの）、
+  test_declarations_r3b.TownMobDeclarationTest（友好的な敵への攻撃の宣言だけを試すもの）。
+- test_s33_batch_context が持っていた captured_session（記録の装備の取引の再構成）は、使う3本
+  （test_home_full_relief_recorded・test_home_route_release_recorded・test_junk_town_weight_recorded）のために
+  tests/equipment_session_pins.py へ移した。tests/run_shadow3_validation.py と scripts/validate_homefull3.py の一覧から
+  消したモジュールを除いた。
+- 消したテストのモジュールを読み込むテストが無いこと、変えた6モジュール（35 テスト）が通ることを確かめた。
+
+== 3-2 誰も読まない物を消す ==
+コミット 63d3a137e Delete the record-only S3.3 shadow verdict and the unread claim records
+src（policy.py −648 行など。src と scripts で +17/−1,016 行）
+- _s33_shadow_verdict と、それだけが呼んでいた _town_final_declaration_stop・_town_unrestored_stop・
+  _town_holder_structural_stop・_town_declaration_binding_stop・_town_refused_output_entry・_home_tail_leave_ready・
+  _town_plan_defers・_town_offered_route_entry_wait・_town_posted_route_entry_wait・_town_at_store_entrance
+  （呼び出しが無くなったものを繰り返し探して消した。最後に新しく孤立した関数 0）。
+- _enforce_town_claim_result（2本目の後は必ず受け取ったキーをそのまま返すだけだった。最後に数えていた
+  _decision_gate_final_count も読む所が無い）と、その結果の "ownership:gate-missing:" で止める分岐（その理由を出す所が
+  src に無くなった）を消した。
+- decision_claim の欄 s33_shadow・declaration_mismatch・claim_verdict_conflict、cli の判断の行の s33_shadow、
+  claim_register.declaration_mismatch、自宅の完了の食い違いの状態 _claim_last_completed_home・
+  _claim_active_operation_identity（後者は自分を書き換えるためにしか読まれていなかった）、
+  _decision_gate_final_count・_decision_rewrite_refused・_decision_no_step_release・_decision_cancelled_home_reservation・
+  _decision_home_approach_fails_before・_decision_declaration_mismatch。
+  古いチェックポイントが持っているこれらの属性は復元の時に落とす（policy_state._RETIRED_CLAIM_RECORD_NAMES）。
+- 消さなかったもの: decision_claim["terminal_admission"]。計画では [B] に入れていたが、これは town_terminal 自身の
+  拒否の記録（_decision_terminal_admissions）で、test_town_terminal_commit_pins と 11-02 の止まりの抽出
+  （extract_vanished_home_withdraw_1102_fixture）が読む。持ち主（town_terminal）の記録なので残し、4本目で
+  decision_claim から判断の行へ移す。
+- emit_ownership: movement_destination（cli 2985・5354）と in_flight_clause（town_arbiter）は live で使われている。
+  emit_ownership_verdict の行（town_emit_ownership）は stop_shape が読む。どちらも 3本目では触らず、4本目で
+  movement_destination と in_flight_clause を移してから emit_ownership を消す。
+scripts
+- town_work_review.json: 消した4関数の review を今の書式のまま行ごと削除。town_work_manifest.py --write → zero unmapped。
+- item_sink_lint.py: choose_key の出口の検査から「_enforce_town_claim_result を通すこと」を外した（記録の呼び出しが
+  最後のキーを受けることは今までどおり検査する）。item_intent_baseline.json から消えた2つの属性の行を削除。
+  lint の結果は main と同じ（今の赤の5件は前から）。
+tests（影だけを試すものを消し、消した欄の None の確認を外した）
+- 消したモジュール: test_s33_shadow。
+- 消したメソッド: test_s33_shadow_zero の4本（影・消した判定だけを試すもの）、test_live37_home_scan の2本、
+  test_live23_home_cycle.test_historical_competing_actor_names_registered_holder_in_shadow、
+  test_shadow3_recorded.test_unobserved_suppression_is_a_visible_stop、
+  test_ownership_claims.test_two_town_runs_with_the_register_have_the_same_shadow、
+  test_ownership_on_replay.test_shadow_is_observed_before_declaration_with_enforcement_on、
+  test_item_sink_lint.test_enforcement_result_cannot_be_discarded_at_exit。
+- 名前を変えた: test_decision_return_boundary の2本（enforcement の語を除いた。記録が最後に1回だけであることは同じ）。
+- 期待値の行を外した: 記録の自宅のテスト約20本の assertIsNone(_s33_shadow_verdict(...)) と
+  decision_claim の declaration_mismatch・claim_verdict_conflict の確認、_town_holder_structural_stop の確認。
+  tests/ownership_on_replay.py（town_work の契約テストも使う再生の道具）は影の観察をやめ、終わりの止まりの検査だけ残した。
+- 記録の固定物（fixtures の行に残る s33_shadow など、過去のログの値）を読む確認はそのまま。
+
+== 3-3 町の hold の状態を town_terminal の1つの物に移す ==
+コミット c12b176ca Move the town hold's live claim state into town_terminal
+- town_terminal.TownHold（policy._town_hold）: claims（今までの ClaimRegister をそのまま。立っている請求 A1・中断の列 A2・
+  bar A3）、delegations（ExecutionDelegation の列 A4）、この判断の offer（A5、DecisionOffers）。
+  ExecutionDelegation と DecisionOffers の型も town_terminal へ移した（policy は古いチェックポイントのために
+  ExecutionDelegation の名前を import して持つ）。
+- offer は判断ごと・プロセスごとの物なので pickle も deepcopy もしない（復元・複製した policy は offer 無しで始まる。
+  今までの WeakKeyDictionary と同じ）。cli の観察用の範囲（_PolicyObserverScope）は TownHold.observer_copy で、
+  register を浅く写し、delegations を新しい列にし、offer は共有する（今までと同じ隔離）。
+- 読み書きは town_terminal の関数を通す: hold_claims（書く所はここから register の遷移を呼ぶ）、standing_claim、
+  suspended_claims、hold_bars、hold_delegations、offer_buffer、open_offers、take_offers、offered_steps。
+  policy の _decision_offer_buffer・_execution_offers_for・_delegation_records は消した。
+  policy._claim_register と policy._execution_delegations を読む所・書く所は src に残っていない
+  （policy・policy_equipment・policy_home・policy_navigation・policy_shop・policy_supply・policy_town・cli・town_terminal・
+  scripts/first_divergence_s3_3）。
+- _record_decision_claim を2つに分けた: 状態を進める部分 town_terminal.advance_hold（請求の閉じ・中断・再開・宣言、
+  bar、委譲の結び付けと終わり、実行の宣言、店の訪問への claim の記録。HoldStep を返す）と、行を作る部分
+  policy._write_decision_claim_row（目的の重複・訪問の持ち主の食い違いなどの診断と decision_claim の辞書。4本目で消す）。
+  書く順は変えていない。行の診断は状態を書かない読み取りだけなので、advance_hold の後に回した（間の書き込みが
+  読む値を変えないことを確かめた）。
+- チェックポイント: policy_state._adopt_town_hold が古い "_claim_register" と "_execution_delegations" をそのまま
+  TownHold に移す（S1 より前の物は新しい register。今までの既定値と同じ）。毎回の判断で呼ばれ、新しい状態ならすぐ戻る。
+  ON の旧形式のチェックポイントを読むテスト（test_ownership_s2a1_closure・test_ownership_s2b1_ladder・
+  test_ownership_s2b2_bar の state["_claim_register"] = ...）はこの経路で通る。
+- A6（cli の fuse が読む decision_claim の claim_id・goal・distance）と A7（claim_ladder.rung_of の rank）は
+  今までどおり（4本目で移す）。
+- テスト: 59 ファイルの policy._claim_register を policy._town_hold.claims に、_execution_delegations を
+  _town_hold.delegations に、_decision_offer_buffer() / _execution_offers_for() を town_terminal の offer_buffer /
+  offered_steps に機械的に置き換えた（期待値は変えていない）。
+- town_work_review.json に新しい読み取り関数3つ（hold_claims・standing_claim・town_hold、data）を今の書式で追加。
+  manifest → zero unmapped。
+
+== 振る舞いが変わらないことの証拠 ==
+道具: validation/structure-s2-3-1102/replay_hold.py（manifest-tax-1101/replay_choose_key.py に、cli の fuse が読む
+decision_claim の claim_id・owner・goal の種類・distance、_decision_errand_deferred の行、前の判断からの
+_defer_town_errand の戻り値と errand hold の答え（holder の claim_id と owner）を足したもの。--claim-row で
+decision_claim の行全体も比べる）、run_shards.py（並列）、compare_hold.py（比べる）。木は worktree の中に書き出した
+（後始末済み）。
+- 3-1: src を変えていないので choose_key の結果は同じ（3-2 の比較の中で確かめた）。
+- 3-2: main 313c5f103（main のテスト）と 63d3a137e（枝のテスト）で 293 モジュールを再生。比べた判断 13,724 件、
+  town_work の受領 46,774 件、hold と defer の呼び出し 572,559 件（消した影・出口の検査の中の呼び出しは両方から除いた）、
+  errand_deferred の行 3,621 件。違いは 6 件で、どれも src の違いではない:
+  - test_declarations_r3b.RumorDeclarationTest の4件: 並列の組み分けが違うため、同じプロセスで前に走った別のテストの
+    状態が残っていた。このモジュールだけを両方の src で流すと違い 0。
+  - 2件（test_town_terminal_home_round14 と test_town_terminal_no_refusal_round11 の最後の判断の後の呼び出し）:
+    集合を回す順（文字列のハッシュがプロセスごとに違う）だけが違い、呼び出しの多重集合は同じ。
+  - test_declarations_r14 の残った1本は main では読み込みで落ちていた（消したテストが scripts の import を必要とした）。
+    main の src と枝のテストで流すと違い 0。
+  validation/structure-s2-3-1102/replay-summary.json。
+- 3-3: 63d3a137e と c12b176ca を同じ 287 モジュール・同じ 6 組で再生し、decision_claim の行全体も比べた（--claim-row）。
+  3,029 テスト（落ちる数 136・error 26 も同じ）、判断 13,732 件、受領 46,799 件、hold と defer の呼び出し 572,831 件、
+  errand_deferred の行 3,625 件で違い 0。
+- 自宅の窓の記録のテスト（計画の一覧。test_overweight_home_hold_recorded・test_live23_home_cycle・
+  test_home_scan_owner_priority・test_homeexit_recorded・test_homefull3_recorded・test_home_junk_bones_recorded・
+  test_home_leave_suppressed_recorded・test_unid_deposit_recorded・test_equipment_homefull_step15a・
+  test_oneshot_preempt_recorded・test_oneshot_inflight_recorded・test_fundraise_kit_home_recorded・
+  test_junk_town_weight_recorded・test_live37_home_scan・test_home_route_release_recorded。town_s2_exit_replay と
+  replay_slow_home はこれらが使う補助）: 3-3 の前と後で 15 モジュール・102 件（subTest を含む）の結果が全部同じ。
+  赤は前から同じ9件（test_overweight_home_hold_recorded の2件は準備の報告の重さの回帰で、main の
+  overweight-town-end の直しの後は別。test_home_leave_suppressed_recorded 2件・test_oneshot_preempt_recorded 4件・
+  test_home_junk_bones_recorded 1件は前から）。
+- import: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → ok（各手順と取り込みの後）。
+
+== main の取り込み ==
+- 9afd9203e（overweight-town-end の overweight_home_key と town_end_key の呼び出し、policy_town の死んだ2つの分岐の削除を
+  含む）を取り込んだ（1e4e63c03）。衝突なし。overweight_home_key の呼び出しは残っている。town_work_sites.json は作り直した。
+  main 9afd9203e（main のテスト）と取り込み後の枝で 295 モジュール（上の 287 と main の新しい記録のテスト8本）を再生し、
+  判断 13,798 件・受領 46,879 件・hold と defer の呼び出し 577,471 件で違い 0（3本目で消したテストは除いた）。
+- 1329dfdac（hourly-1600-1102）も取り込んだ（9a553f5eb）。衝突なし。そこで増えた3本の記録のテストと自宅のテスト3本を
+  main と枝で再生し違い 0（判断 83 件）。
+- どちらの後も import ok、town_work_manifest → zero unmapped、src に _claim_register・_execution_delegations を読む所なし。
+
+== 保守性 ==
+- 3本で消した行: テスト約 3,300 行（3-1 −2,628、3-2 −378）、src と scripts で約 1,000 行（3-2）。3-3 は移動が主で
+  town_terminal +453・policy −418（_record_decision_claim の状態の部分と offer・委譲の型が town_terminal へ）。
+- 今まで3か所に分かれていた hold の状態（policy の _claim_register、_execution_delegations、モジュールの
+  WeakKeyDictionary の offer）が town_terminal.TownHold の1つになり、ほかのモジュールは town_terminal の
+  関数だけで読む。「記録だけ」と書かれていたが live のキーに効いていた状態の持ち主がはっきりした。
+- choose_key の出口は「状態を進める（town_terminal）→ 行を書く（記録）」の2つになり、4本目で行の部分だけを消せる。
+- 影の判定（ON ならどう止まるか）の約 500 行の網が無くなり、町の判断の経路で ON/OFF を比べる仕組みはもう無い。
+
+== 4本目に残すもの ==
+- claim_register の Claim/Goal/ClaimRegister を town_terminal の小さな型に置き換える（TownHold.claims の中身）。
+- claim_ladder の rank（A7）を RUNG_FAMILIES の隣へ、claim_goal_typing の KNOWLEDGE/STORE_OPERATION/Reach/Observe を
+  town_terminal へ。
+- 行の部分 policy._write_decision_claim_row と decision_claim の記録の欄を消す。A6（cli の fuse が読む claim_id・goal・
+  distance）と seek-shelter の解放（前の decision_claim の reason を読む）は town_terminal の値に向け直してから。
+  terminal_admission は判断の行へ移す。
+- emit_ownership（movement_destination と in_flight_clause を先に移す）・ownership_metrics・claim_ladder・
+  claim_goal_typing・claim_register と、テスト test_ownership_*・test_s33_*・test_declarations_r*・
+  tests/ownership_on_*.py・tests/extract_ownership_on_replay.py を消す。_claim_bar_enforced（S2b.2 の bar の flag）も。
+- policy の委譲の寿命の関数（_open/_end/_bind/_cancel/_observe_execution_delegations）、_claim_exit_completion・
+  _claim_suspended_exit・_claim_owner_transition・_claim_resolve_suspended・_claim_set_bars などの部品は
+  advance_hold から呼ばれるが policy に残っている。型を置き換える時に town_terminal へ移す。
+- policy_town._town_procurement_decision の liveness_candidate の塊（stuck:wander / novel: の時の
+  no-actionable-claim-owner の止まりと _mining_walk_in_return_key）: 町では stuck:wander を出す所が無く死んでいるが、
+  請求の仕組みではなく町の procurement の claim（_town_claim_categories）を読むので3本目では消していない。
+  町の終わり方の担当の直しで消すか、4本目で一緒に見る。
+- scripts/first_divergence_s3_3.py・measure_s3_3_on.py は消えた flag を立てる ON の測定の道具で、もう意味が無い。
+
+== 危険と注意 ==
+- 古いチェックポイントは _adopt_town_hold で読める。新しいチェックポイントを古い版の bot で読むことはできない
+  （_town_hold を知らない）。運用は新しい版で続きから運転するだけなので問題ないはず。
+- 決定の行（decision_claim）から s33_shadow・declaration_mismatch・claim_verdict_conflict の欄、判断の行から
+  s33_shadow が消える。読む道具は scripts の古い報告の道具（s33_shadow_report・ownership_metrics_report・
+  s3_live_report）だけで、無い欄は数えないだけ。
+- 持ち主への問いはない。

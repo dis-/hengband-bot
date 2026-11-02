@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import tests  # noqa: F401 -- keep runtime files isolated as in fixture tests
 
 from hengbot.policy import HengbotPolicy
+from hengbot.town_terminal import hold_claims, hold_delegations
 from measure_s3_prereq import CASES
 from test_ownership_s3_3_first_divergence import EXPECTED_FIRST, trajectory_defect
 
@@ -75,7 +76,7 @@ def _identity(value):
 
 
 def _state(policy):
-    register = getattr(policy, "_claim_register", None)
+    register = hold_claims(policy)
     parent = getattr(register, "current", None)
     session = getattr(policy, "_equipment_transaction_session", None)
     visit = getattr(policy, "_store_visit", None)
@@ -107,7 +108,7 @@ def _state(policy):
             "released": visit.operation_released,
         },
         "delegates": [getattr(record, "as_dict", lambda: record)()
-                      for record in getattr(policy, "_execution_delegations", ())],
+                      for record in hold_delegations(policy)],
     }
 
 

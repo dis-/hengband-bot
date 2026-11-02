@@ -15,10 +15,10 @@ from policy_fixtures import grid, item, player
 
 
 def bind(policy, family, key):
-    claim = policy._claim_register.declare(
+    claim = policy._town_hold.claims.declare(
         family, observe(("r5",), 8, "town"))
     policy._record_execution_declaration(claim, key, policy.last_reason)
-    return policy._claim_register.current.execution
+    return policy._town_hold.claims.current.execution
 
 
 def town_board(*, store=None, entrance=False):
@@ -123,7 +123,7 @@ class DeclarationReturnTest(unittest.TestCase):
                         player=replace(initial.player, two_weapon_skill=None,
                                        shield_skill=None))
         self.assertEqual(policy.choose_key(board), "~f\x1b")
-        declaration = policy._claim_register.current.execution
+        declaration = policy._town_hold.claims.current.execution
         self.assertEqual((declaration.producer, declaration.next_step),
                          ("bookkeeping", "knowledge.skill-exp.request"))
 

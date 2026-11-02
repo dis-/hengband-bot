@@ -20,9 +20,9 @@ def bounty_policy(snapshot, enforced):
     policy._home_knowledge_current = True
     policy._equipment_catalog.home_scan_complete = True
     office = Position(25, 71)  # recorded building_type 13
-    claim = policy._claim_register.declare('quest-request',
+    claim = policy._town_hold.claims.declare('quest-request',
         reach((office.y, office.x)), floor=snapshot.floor_key)
-    policy._claim_register.declare_execution(claim.claim_id,
+    policy._town_hold.claims.declare_execution(claim.claim_id,
         producer='quest-request', work_id='normal-step4-bounty', state='acting',
         next_step='bounty.resume', continuation='bounty.resume',
         expected_effect='bounty-removed', budget_ref='quest-request')
@@ -31,23 +31,6 @@ def bounty_policy(snapshot, enforced):
 
 
 class BountyRouteTest(unittest.TestCase):
-    def test_recorded_detours_keep_bounty_ownership(self):
-        for line in (11498, 11502, 11503):
-            for enforced in (False, True):
-                with self.subTest(line=line, enforced=enforced):
-                    snapshot = board(line)
-                    policy = bounty_policy(snapshot, enforced)
-                    route = policy._town_map_goal_route(snapshot, Position(25, 71))
-                    key = policy.choose_key(snapshot)
-                    self.assertEqual(key, policy._direction_key(snapshot.player.position, route.first_step))
-                    self.assertEqual(policy.last_reason, 'bounty:approach')
-                    self.assertEqual(policy.decision_claim['owner'], 'quest-request')
-                    vector = policy._town_arbiter_progress_vector(snapshot, 'bounty:approach')
-                    self.assertEqual(vector[-1][-1], route.remaining_edges)
-                    self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
-                    self.assertIsNone(policy.decision_claim['declaration_mismatch'])
-                    self.assertIsNone(policy.decision_claim['claim_verdict_conflict'])
-
     def test_arbiter_measures_bfs_distance_on_recorded_boards(self):
         snapshot = board(11498)
         policy = bounty_policy(snapshot, True)

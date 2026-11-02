@@ -600,7 +600,7 @@ class ShopOneShotTest(unittest.TestCase):
         # and records the awaiting declaration for this exact posted operation.
         policy.confirm_key_posted("pa\r\x1b")
         self.assertTrue(policy._store_visit.operation_released)
-        self.assertEqual(policy._claim_register.current.execution.state, "awaiting")
+        self.assertEqual(policy._town_hold.claims.current.execution.state, "awaiting")
         identity = policy._store_visit.claim_operation_identity
         key = policy.choose_key(replace(inside, turn=inside.turn + 3))
         self.assertEqual((key, policy.last_reason),

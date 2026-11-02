@@ -780,10 +780,10 @@ class ClosingPathsTest(unittest.TestCase):
                 # The recorded process ran the capture unscoped (see the
                 # tour module); only the claim register is kept out of it,
                 # as the live driver's observer scope now does.
-                register = policy._claim_register
-                policy._claim_register = copy.copy(register)
+                register = policy._town_hold.claims
+                policy._town_hold.claims = copy.copy(register)
                 tour._recorded_process_capture(policy, snapshot)
-                policy._claim_register = register
+                policy._town_hold.claims = register
                 policy.confirm_key_posted(key)
         return rows
 
@@ -995,7 +995,7 @@ def _dungeon_board(index):
 
 def _standing(policy, owner, goal, board, **fields):
     """Put one declared claim in the register, as the previous row left it."""
-    register = policy._claim_register
+    register = policy._town_hold.claims
     register.declare(
         owner, goal, floor=board.floor_key,
         opened_sequence=fields.get("opened_sequence", policy._decision_sequence),
@@ -1156,7 +1156,7 @@ class ObserveClosingTest(unittest.TestCase):
         board = _dungeon_board(1)
         floor_goal = observe(("floor",), 350, source=FLOOR_CHANGE)
         policy = _fresh_policy(board)
-        policy._claim_register.declare(
+        policy._town_hold.claims.declare(
             ClaimOwner.DEPARTURE, floor_goal, floor=(0, 0, 0),
             opened_turn=board.turn,
         )
@@ -1202,7 +1202,7 @@ class ClosingOwnershipTest(unittest.TestCase):
                     owners=(ClaimOwner.SHOP_BUY,),
                     sources=("store-operation",),
                 )
-                self.assertEqual(policy._claim_register.current.closed, closed)
+                self.assertEqual(policy._town_hold.claims.current.closed, closed)
 
     def test_a_source_mismatch_closes_nothing(self):
         board = _town_board()
@@ -1213,7 +1213,7 @@ class ClosingOwnershipTest(unittest.TestCase):
             "purchase-observed", owners=(ClaimOwner.SHOP_BUY,),
             sources=("store-operation",),
         )
-        self.assertIsNone(policy._claim_register.current.closed)
+        self.assertIsNone(policy._town_hold.claims.current.closed)
 
     def test_a_release_names_its_owners(self):
         board = _town_board()
@@ -1227,7 +1227,7 @@ class ClosingOwnershipTest(unittest.TestCase):
                     "loot-deferred", cell,
                     owners=("floor-loot", "fundraising", "departure"),
                 )
-                self.assertEqual(policy._claim_register.current.closed, closed)
+                self.assertEqual(policy._town_hold.claims.current.closed, closed)
 
     def test_every_closing_call_names_its_owners(self):
         missing = []
@@ -1406,7 +1406,7 @@ class ReadOnlySatisfactionTest(unittest.TestCase):
         arbiter._snapshot_recalling = True
         arbiter._recall_wait_started_turn = 7
         before = pickle.dumps(arbiter.__dict__)
-        policy._claim_exit_completion(board, policy._claim_register.current, [])
+        policy._claim_exit_completion(board, policy._town_hold.claims.current, [])
         return before, pickle.dumps(arbiter.__dict__)
 
     def test_the_arbiter_is_byte_identical_around_the_exit_test(self):
@@ -1549,7 +1549,7 @@ class HomeEffectSourceTest(unittest.TestCase):
                     "home-withdraw-observed",
                     owners=HOME_EFFECT_OWNERS, sources=HOME_EFFECT_SOURCES,
                 )
-                self.assertEqual(policy._claim_register.current.closed, closed)
+                self.assertEqual(policy._town_hold.claims.current.closed, closed)
 
 
 class TeleportAdoptionTest(unittest.TestCase):
@@ -1845,7 +1845,7 @@ class SurvivalConstantTest(unittest.TestCase):
         self.assertEqual(callers, [("policy.py", "_record_decision_claim")])
 
     def _standing_reach(self, policy, board):
-        register = policy._claim_register
+        register = policy._town_hold.claims
         register.declare(
             ClaimOwner.FLOOR_LOOT, reach((1, 1)), floor=board.floor_key
         )
@@ -1946,7 +1946,7 @@ class RestoredCheckpointTest(unittest.TestCase):
         )
         for name in self.NEW_POLICY_ATTRIBUTES:
             self.assertIsNone(restored.__dict__[name])
-        self.assertIsNone(restored._claim_register.__dict__["_closing"])
+        self.assertIsNone(restored._town_hold.claims.__dict__["_closing"])
         if restored._owner_expectations is not None:
             self.assertEqual(restored._owner_expectations.__dict__["_pops"], [])
         self.assertEqual(

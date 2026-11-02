@@ -41,6 +41,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.town_travel import is_travel_macro
+from hengbot.town_terminal import offer_buffer, standing_claim, town_hold
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
@@ -533,9 +534,8 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
         if (candidate is not None and candidate.operation_effect_observed
                 and candidate.posted_sequence is not None):
             tokens.add(("store-effect", candidate.store_type, candidate.posted_sequence))
-    buffer_method = getattr(policy, "_decision_offer_buffer", None)
-    if buffer_method is not None:
-        completed = (*buffer_method().no_steps,
+    if town_hold(policy) is not None:
+        completed = (*offer_buffer(policy).no_steps,
                      *getattr(policy, "_decision_observed_execution_effects", ()))
         for producer, work_id, evidence, _, status in completed:
             if status == "done" and evidence and work_id in state["admitted"]:
@@ -554,7 +554,7 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
         minimum_before = inn_receipt["minimum_before"]
         minimum_after = inn_receipt["minimum_after"]
     if record is not None:
-        claim = getattr(getattr(policy, "_claim_register", None), "current", None)
+        claim = standing_claim(policy)
         execution = getattr(claim, "execution", None)
         # The work this decision sends ("acting") or observes ("awaiting"):
         # ClaimRegister.declare_execution has no "ready"/"posted" state, so
@@ -1310,8 +1310,6 @@ def _decision_record(
         # The ownership contract's S1 attribution, written by ``choose_key``
         # as plain data.  Absent on a row no ``choose_key`` produced.
         **({"claim": claim} if claim else {}),
-        **({"s33_shadow": claim["s33_shadow"]}
-           if claim and "s33_shadow" in claim else {}),
         **(
             {"home_atomic_withdraw": home_atomic_withdraw}
             if home_atomic_withdraw
@@ -1829,12 +1827,12 @@ _OBSERVER_COPIED_CONTAINERS = (dict, list, set, deque)
 # and an optimizer search run for telemetry both fills them and replaces the
 # evaluator when its context differs.
 _OBSERVER_COPIED_MEMO_OBJECTS = ("_warrior_evaluator_cache",)
-# S2a.1: the claim register rebinds its current claim (a frozen value) on
-# every transition, so one shallow copy isolates it.  A producer's closing
-# line (release / complete, record-only) that an evaluator reaches during the
-# capture must not close the claim the next decision reads; no decision reads
-# the register, so copying it cannot change one.
-_OBSERVER_SHALLOW_COPIED_OBJECTS = ("_claim_register",)
+# The town hold (town_terminal.TownHold) copies itself for an observer: its
+# claim register rebinds its current claim (a frozen value) on every
+# transition, so one shallow copy isolates it, and its delegation list is
+# copied.  A producer's closing line (release / complete) that an evaluator
+# reaches during the capture must not close the claim the next decision reads.
+_OBSERVER_SELF_COPIED_OBJECTS = ("_town_hold",)
 _OBSERVER_MEMO_OBJECT_DEPTH = 2
 # A producer reached by a telemetry evaluator must not leave a disposal audit
 # row or advance the persisted visit ledger. Keep these sidecars with the
@@ -1900,8 +1898,8 @@ class _PolicyObserverScope:
                 state[name] = _observer_container_copy(value)
             elif name in _OBSERVER_COPIED_MEMO_OBJECTS and value is not None:
                 state[name] = _observer_memo_object_copy(value)
-            elif name in _OBSERVER_SHALLOW_COPIED_OBJECTS and value is not None:
-                state[name] = copy.copy(value)
+            elif name in _OBSERVER_SELF_COPIED_OBJECTS and value is not None:
+                state[name] = value.observer_copy()
         self._sidecars = {}
         for attribute in _OBSERVER_ROLLBACK_SIDECARS:
             path = getattr(self._policy, attribute, None)

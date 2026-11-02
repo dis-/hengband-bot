@@ -11,6 +11,7 @@ from hengbot.item_reservation import ReservationVerdict
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, TVAL_FOOD
 from hengbot.policy_constants import FOOD_MIN_SVAL, HEAVY_CURSE_TAG, WAIT_KEY
 from hengbot.policy_state import normalize_policy_state
+from hengbot.town_terminal import offer_buffer
 from policy_fixtures import item
 import test_policy_town as town_fixtures
 from test_goldburn_shopping_constructed import board
@@ -54,7 +55,7 @@ class RemainingTownAdmissionTest(unittest.TestCase):
                 self.assertEqual(row["rung"], "_town_restore_weapon_key")
                 self.assertEqual(row["codes"], ["item-command-reserved"])
                 outcomes.append((key, policy.last_reason, repr(policy._equipment_mutation_result),
-                                 repr(policy._decision_offer_buffer())))
+                                 repr(offer_buffer(policy))))
             self.assertEqual(outcomes[0], outcomes[1])
 
     def test_unreserved_wield_keeps_the_real_mutation_key(self):
@@ -95,7 +96,7 @@ class RemainingTownAdmissionTest(unittest.TestCase):
                 row, = policy._decision_terminal_admissions
                 self.assertEqual(row["codes"], ["item-command-reserved"])
                 outcomes.append((key, policy.last_reason, policy._heavy_curse_inscription_pending,
-                                 policy._heavy_cursed_items, repr(policy._decision_offer_buffer())))
+                                 policy._heavy_cursed_items, repr(offer_buffer(policy))))
             self.assertEqual(outcomes[0], outcomes[1])
 
     def test_blocked_recall_is_admitted_before_sanction_and_read(self):

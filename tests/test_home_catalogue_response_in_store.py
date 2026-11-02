@@ -31,12 +31,12 @@ class HomeCatalogueResponseInStoreTest(unittest.TestCase):
                          (7, 239, 52, 52))
 
         policy = HengbotPolicy()
-        holder = policy._claim_register.declare(
+        holder = policy._town_hold.claims.declare(
             "equipment-txn",
             observe((str(page.turn), str(page.store.store_type), "knowledge"),
                     8, "knowledge"),
         )
-        policy._claim_register.declare_execution(
+        policy._town_hold.claims.declare_execution(
             holder.claim_id, producer="equipment-txn",
             work_id="equipment:acquire-home-catalog", state="acting",
             next_step="home.catalogue.acquire",

@@ -25,22 +25,6 @@ from pathlib import Path
 from weakref import WeakKeyDictionary
 
 
-@dataclass
-class _DecisionOffers:
-    """Transient producer proposals, consumed only by the claim exit."""
-
-    steps: list = field(default_factory=list)
-    no_steps: list = field(default_factory=list)
-    waits: list = field(default_factory=list)
-    admitted_commands: dict = field(default_factory=dict)
-    sequence: int = 0
-
-    def next_sequence(self) -> int:
-        self.sequence += 1
-        return self.sequence
-
-
-_decision_offers: WeakKeyDictionary = WeakKeyDictionary()
 _map_offer_cache: WeakKeyDictionary = WeakKeyDictionary()
 
 
@@ -51,33 +35,6 @@ def _fixed_quest_offers_from_grids(grids):
         if grid.building_special
     )
 
-
-@dataclass
-class ExecutionDelegation:
-    """Recorded, explicitly opened executor work; never inferred at a hold."""
-
-    parent_claim_id: int | None
-    parent_family: str
-    delegate_family: str
-    work_identity: tuple
-    purpose_identity: tuple
-    opening_decision: int
-    expected_effect: str
-    budget_reference: str
-    lifecycle: str = "reserved"
-    ending: str | None = None
-    execution: object = None
-
-    def as_dict(self) -> dict[str, object]:
-        row = {name: getattr(self, name) for name in (
-            "parent_claim_id", "parent_family", "delegate_family",
-            "work_identity", "purpose_identity", "opening_decision",
-            "expected_effect", "budget_reference", "lifecycle", "ending",
-        )}
-        row["execution"] = (
-            self.execution.as_dict() if self.execution is not None else None
-        )
-        return row
 
 from hengbot.latch_onset_capture import (
     CAPTURE_DECISIONS_AFTER_ONSET,
@@ -163,7 +120,6 @@ from hengbot.claim_register import (
     ClaimScope,
     Goal,
     bar_after_board as claim_bar_after_board,
-    declaration_mismatch as claim_declaration_mismatch,
     claims,
     observe as claim_observe,
     owner_of as claim_owner_of,
@@ -480,6 +436,9 @@ from hengbot.policy_constants import (
 )
 from hengbot.town_terminal import (
     NOT_APPLICABLE,
+    # Old checkpoints pickled the delegation records as hengbot.policy's.
+    ExecutionDelegation,
+    TownHold,
     commit_refusal,
     gather_quest_work,
     may_take_board,
@@ -494,6 +453,16 @@ from hengbot.town_terminal import (
     home_hold_board as town_home_hold_board,
     home_sequence_has_holder as town_home_sequence_has_holder,
     rung_family as town_rung_family,
+    advance_hold as town_advance_hold,
+    hold_bars as town_hold_bars,
+    hold_claims as town_hold_claims,
+    hold_delegations as town_hold_delegations,
+    offer_buffer as town_offer_buffer,
+    offered_steps as town_offered_steps,
+    open_offers as town_open_offers,
+    standing_claim as town_standing_claim,
+    suspended_claims as town_suspended_claims,
+    take_offers as town_take_offers,
 )
 from hengbot.town_arbiter import (
     UNREGISTERED_FAMILY,
@@ -1946,7 +1915,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # S1 attribution: the register records who owns each decision and the
         # goal it declared.  Setting it to None disables recording entirely,
         # which is how the neutrality pin replays the same boards without it.
-        self._claim_register = ClaimRegister()
+        self._town_hold = TownHold.fresh()
         self.decision_claim: dict | None = None
         # S2b.2 (design 3.2 / 3.3): the switch that lets the bar table change
         # a decision.  OFF is the default and the only shipped setting: the
@@ -2498,7 +2467,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._equipment_transaction_session: EquipmentTransactionSession | None = None
         # #8 record-only explicit executor grants.  A reserved child binds to
         # the parent's claim at the choose_key exit, before the next gate.
-        self._execution_delegations: list[ExecutionDelegation] = []
         self._equipment_atomic_withdraw_leave_count = 0
         # Physical equipment removed by the live optimizer transaction remains
         # owned by that transaction until it is observed worn again.  This is
@@ -2726,19 +2694,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         self._decision_displaced_producer = None
         self._decision_plan_rebuild_deferred = 0
         self._decision_plan_change_evidence = None
-        self._decision_home_approach_fails_before = (
-            self._town_visit_ledger.approach_fails[STORE_HOME]
-        )
         # S2b.1 (rev 10.1 item 9): the trigger monsters a producer declares.
         self._decision_triggers = None
         # S2b.2: the rungs the bar skipped on this decision (switch on only).
         self._decision_bar_skips = None
         self._decision_errand_deferred = []
         self._decision_terminal_admissions = []
-        self._decision_gate_final_count = 0
-        self._decision_rewrite_refused = []
-        self._decision_no_step_release = False
-        self._decision_cancelled_home_reservation = None
         self._observe_home_atomic_deposit_outside(snapshot)
         self._observe_home_full_identification(snapshot)
         # Round 4 (F3): an armed path-target capture never outlives the
@@ -2879,7 +2840,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                           else self._choose_key_with_latch_capture(snapshot))
                 # A power aimed from inside a walk keeps its own reason (me_powers).
                 self.last_reason = me_powers.decision_reason(self, chosen) or self.last_reason
-                return self._enforce_town_claim_result(snapshot, chosen)
+                return chosen
 
             key = choose_ladder()
             # The producers below commit the store visit to the key they return:
@@ -2923,10 +2884,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "gold",
                 )
             key = self._refuse_no_progress_cycle(snapshot, key)
-            key = self._enforce_town_claim_result(snapshot, key)
-            if (self.last_reason or "").startswith("ownership:gate-missing:"):
-                key = None
-                break
             procurement_key = self._town_procurement_decision(snapshot, key)
             if procurement_key is not None:
                 key = procurement_key
@@ -3240,7 +3197,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
                     self._post_fundraising_transport(snapshot, "depart")
         self._release_observed_store_exit(snapshot)
-        key = self._enforce_town_claim_result(snapshot, key)
         self._record_decision_claim(snapshot, key)
         self._town_progress_note_command(key)
         return key
@@ -3253,11 +3209,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
     def claim(self, owner, goal: Goal, *, non_discardable: bool = False):
         """``with self.claim(owner, goal):`` -- the marker of design 5.1.
 
-        With recording switched off (``_claim_register is None``) the scope
+        With recording switched off (the hold's ``claims`` is None) the scope
         still works and declares into a register nobody reads, so disabling
         the recording cannot change what a producer does.
         """
-        register = getattr(self, "_claim_register", None)
+        register = town_hold_claims(self)
         return ClaimScope(
             register if register is not None else ClaimRegister(),
             owner,
@@ -3391,7 +3347,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Producer's plain-data step; the exit accepts only its final key."""
         from hengbot.town_work import observe_offer
         observe_offer(self, key, work_id)
-        buffer = self._decision_offer_buffer()
+        buffer = town_offer_buffer(self)
         # Keep the producer's board entry for diagnostics and checkpoint
         # compatibility. The normal ladder calls the producer on each board.
         entry = None
@@ -3415,28 +3371,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             post_on_emit, buffer.next_sequence(), entry,
         ))
 
-    def _decision_offer_buffer(self) -> _DecisionOffers:
-        buffer = _decision_offers.get(self)
-        if buffer is None:
-            buffer = _DecisionOffers()
-            _decision_offers[self] = buffer
-        return buffer
-
-    def _execution_offers_for(self) -> tuple:
-        buffer = _decision_offers.get(self)
-        return tuple(buffer.steps) if buffer is not None else ()
-
     def _offer_execution_no_step(self, *, producer: str, cause: str,
                                  work_id: str) -> None:
         """A producer explicitly reports that it has no command to issue."""
-        buffer = self._decision_offer_buffer()
+        buffer = town_offer_buffer(self)
         buffer.no_steps.append((producer, work_id, cause,
                                 buffer.next_sequence(), "releasing"))
 
     def _offer_execution_done(self, *, producer: str, evidence: str,
                               work_id: str) -> None:
         """A producer reports observed completion without emitting a key."""
-        buffer = self._decision_offer_buffer()
+        buffer = town_offer_buffer(self)
         receipt = (producer, work_id, evidence, buffer.next_sequence(), "done")
         buffer.no_steps.append(receipt)
         # Final claim declaration consumes the offer buffer. Observed effects
@@ -3455,7 +3400,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """A producer names an already accepted operation it is observing."""
         from hengbot.town_work import observe_offer
         observe_offer(self, key, work_id)
-        buffer = self._decision_offer_buffer()
+        buffer = town_offer_buffer(self)
         buffer.waits.append((
             key, producer, work_id, operation_ref, expected_effect,
             continuation, buffer.next_sequence(),
@@ -3473,8 +3418,8 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         )
 
     def _record_execution_declaration(self, claim, key, reason: str) -> None:
-        register = self._claim_register
-        buffer = _decision_offers.pop(self, None)
+        register = town_hold_claims(self)
+        buffer = town_take_offers(self)
         offers = buffer.steps if buffer is not None else ()
         no_steps = buffer.no_steps if buffer is not None else ()
         waits = buffer.waits if buffer is not None else ()
@@ -3540,19 +3485,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             # The driver alone can turn an emitted command into a posted wait.
             if state == "acting" and post_on_emit and key not in (None, ""):
                 self._execution_pending_post = (claim.claim_id, key, work_id)
-        claim = register.current
-        inferred = (
-            "silent" if reason.startswith("ownership:holder-silent:")
-            else "unposted-await" if reason == "stair:await-observation"
-                and (register.current.execution is None
-                     or register.current.execution.operation_ref is None)
-            else "awaiting" if claim.state == ClaimState.AWAITING
-            else "done" if claim.state == ClaimState.COMPLETE
-            else "acting"
-        )
-        self._decision_declaration_mismatch = (
-            claim_declaration_mismatch(claim, inferred, reason) if claim.owner.value in {'store-router', 'home-visit', 'equipment-txn', 'departure', 'fundraising'} else None
-        )
 
     def _claim_refresh_non_discardable(self, owner) -> None:
         """Refresh the producer's per-decision slot from its live obligation."""
@@ -3603,7 +3535,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         found another owner's claim standing and closed nothing, so the
         suspended claim was later displaced and counted as a violation.
         """
-        register = getattr(self, "_claim_register", None)
+        register = town_hold_claims(self)
         if register is None:
             return
         names = {getattr(owner, "value", owner) for owner in owners}
@@ -3669,7 +3601,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         opened at that rung is closed; the committed STRONG hunt ends through
         its own rung.
         """
-        register = getattr(self, "_claim_register", None)
+        register = town_hold_claims(self)
         if register is None:
             return
         rung = claim_rung_of(ClaimOwner.ESP_THREAT, "esp-threat:hunt-weak").name
@@ -3715,7 +3647,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _complete_equipment_transaction_claim(self) -> None:
         """End the session under the family used for its recorded claim."""
-        register = getattr(self, "_claim_register", None)
+        register = town_hold_claims(self)
         session = getattr(self, "_equipment_transaction_session", None)
         opened_sequence = getattr(session, "opened_sequence", None)
         claims = (() if register is None else (
@@ -3886,7 +3818,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # scan steps. Opening the page alone cannot discharge that work.
         if any(offer[0] == key and offer[1] == owner.value
                and offer[5] == "home-catalog-available"
-               for offer in self._execution_offers_for()):
+               for offer in town_offered_steps(self)):
             if (standing is not None and standing.is_open
                     and standing.owner == owner
                     and (standing.goal.source == CLAIM_OBSERVE_KNOWLEDGE
@@ -3915,10 +3847,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         visit = getattr(self, "_store_visit", None)
         completed_transaction = (
             reason == "home:leave-after-one-operation"
-            and getattr(self, "_claim_register", None) is not None
-            and self._claim_register.current is not None
-            and self._claim_register.current.closed == "complete"
-            and self._claim_register.current.closed_reason == "equipment-transaction-complete"
+            and town_hold_claims(self) is not None
+            and town_standing_claim(self) is not None
+            and town_standing_claim(self).closed == "complete"
+            and town_standing_claim(self).closed_reason == "equipment-transaction-complete"
         )
         if (
             reason in {"shop:leave", "shop:store-context-exit",
@@ -4266,7 +4198,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return None
 
     def _record_decision_claim(self, snapshot: Snapshot, key) -> None:
-        """Attribute this decision to a claim and record it for the row.
+        """Advance the town hold on this decision, then record its claim row.
+
+        The hold's state step is ``town_terminal.advance_hold``; the row is
+        ``_write_decision_claim_row``.
 
         The declaration point of design section 4.  It runs on the decided
         board at the ``choose_key`` exit, so the claim, its goal and the
@@ -4296,276 +4231,17 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         their goal are barred (``bars_set``).  With ``_claim_bar_enforced``
         off -- the default and the only shipped setting -- that is all.
         """
-        registry = getattr(self, "_owner_expectations", None)
-        pops = (
-            registry.drain_pops()
-            if registry is not None and hasattr(registry, "drain_pops")
-            else []
-        )
-        register = getattr(self, "_claim_register", None)
-        if register is None:
+        step = town_advance_hold(self, snapshot, key)
+        if step is None:
             self.decision_claim = None
             return
-        # S2b.2: the bars this board lifts (a pure function of the board).
-        bars_lifted = self._claim_bar_lift(snapshot, register)
-        reason = self.last_reason or ""
-        standing = register.current
-        self._claim_exit_completion(snapshot, standing, pops)
-        standing = register.current
-        if (
-            standing is not None and standing.is_open
-            and standing.goal.kind == CLAIM_GOAL_REACH
-            and (getattr(self, "decision_claim", None) or {}).get("reason")
-                == "town:seek-shelter"
-            and not getattr(self, "_took_damage", False)
-        ):
-            self._release_claim_goal(
-                "seek-shelter-trigger-gone", owners=(standing.owner,),
-                kinds=(CLAIM_GOAL_REACH,),
-            )
-        # S2b.1 (rev 10.1 item 6, rules i-ii): the suspended claims this board
-        # ends -- a floor change, or a goal the board shows met.
-        self._claim_suspended_exit(snapshot, register)
-        self._claim_home_knowledge_observed = False
-        # Judge the holder after the recording seam's existing observed
-        # completions, but before it consumes offers or declares this winner.
-        shadow = (self._s33_shadow_verdict(snapshot, key)
-                  if (snapshot.in_town or snapshot.store is not None)
-                  else None)
-        # Rev 9.2 (S): the danger trigger of *this* return, recorded where the
-        # return began -- never ``_last_return_trigger``, which outlives it.
-        survival = claim_is_survival(
-            reason, getattr(self, "_survival_return_trigger", None)
-        ) or reason == "town:kill-mob" or (
-            snapshot.in_town and reason == "melee"
-            and any(
-                not monster.pet
-                and snapshot.player.position.distance_to(monster.position) <= 1
-                for monster in snapshot.visible_monsters
-            )
-        )
-        # S2a: the claim records the **census** family -- who owns the
-        # producer -- not the arbitration bucket its reason spends in town.
-        # A posted combat-weapon Home withdrawal can pass through the generic
-        # Home confirmation and one-shot wait exits.  Their reason strings
-        # name the wrapper, while the still-open operation belongs to the
-        # filed Home errand.  Keep its recorded claim through both waits.
-        standing = register.current
-        continuing_home_errand = (
-            reason in {
-                "home:atomic-withdraw-await-confirmation",
-                "shop:one-shot-in-flight",
-            }
-            and standing is not None and standing.is_open
-            and standing.owner.value == "home-errand"
-            and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION
-            and getattr(self, "_home_atomic_withdraw_pending", None) is not None
-        )
-        suspended_holder = next((claim for claim in reversed(register.suspended)
-                                 if claim.closed is None
-                                 and claim.state.value == "suspended"
-                                 and reason.endswith(f":{claim.owner.value}")), None)
-        continuing_holder_wait = (
-            reason.startswith(("ownership:holder-silent:",
-                               "ownership:holder-await:",
-                               "ownership:declaration-"))
-            and ((standing is not None and standing.is_open
-                  and reason.endswith(f":{standing.owner.value}"))
-                 or suspended_holder is not None)
-        )
-        continuing_owner = (
-            continuing_home_errand or continuing_holder_wait
-        )
-        continuation_claim = (
-            suspended_holder
-            if continuing_holder_wait and suspended_holder is not None
-            and (standing is None or not standing.is_open
-                 or not reason.endswith(f":{standing.owner.value}"))
-            else standing
-        )
-        owner = (
-            continuation_claim.owner if continuing_owner
-            else claim_owner_of(self._claim_family_of(reason))
-        )
-        if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
-            family = self._visit_exit_family()
-            if family != "barrier-provenance-missing":
-                owner = claim_owner_of(family)
-        self._claim_refresh_non_discardable(owner)
-        # S2b.1 (rev 10.1 items 1-2): the rung and rank of this decision.
-        non_discardable = (
-            continuation_claim.non_discardable
-            if continuing_owner
-            else getattr(self, "_decision_non_discardable", None) == owner.value
-        ) and not reason.endswith(":await-entry")
-        rung = claim_rung_of(owner, reason, non_discardable=non_discardable)
-        standing = register.current
-        goal, goal_missing, goal_note = (
-            (continuation_claim.goal, False, None)
-            if continuing_owner
-            else self._claim_goal(snapshot, key, owner, reason, standing)
-        )
-        if (
-            standing is not None and standing.is_open
-            and standing.owner == owner
-            and reason.startswith("equipment-transaction:stale-identity-invalidated:")
-        ):
-            self._release_claim_goal('transaction-identity-stale', owners=(owner,), kinds=(CLAIM_GOAL_OBSERVE,), sources=('transaction',))
-            standing = register.current
-        if (
-            standing is not None and standing.is_open
-            and standing.owner == owner
-            and standing.goal.source == CLAIM_OBSERVE_STORE_ENTRY
-            and goal.kind == CLAIM_GOAL_TERMINAL
-        ):
-            self._release_claim_goal(
-                f"entry-abandoned:{reason}", owners=(owner,),
-                kinds=(CLAIM_GOAL_OBSERVE,),
-                sources=(CLAIM_OBSERVE_STORE_ENTRY,),
-            )
-            standing = register.current
-        if (
-            standing is not None and standing.is_open
-            and standing.owner == owner
-            and standing.goal.source == CLAIM_OBSERVE_STORE_OPERATION
-            and goal.kind == CLAIM_GOAL_OBSERVE
-            and standing.goal != goal
-            and getattr(self, "_home_atomic_withdraw_pending", None) is None
-            and getattr(self, "_home_atomic_deposit_pending", None) is None
-        ):
-            self._release_claim_goal(
-                "operation-identity-stale", owners=(owner,),
-                kinds=(CLAIM_GOAL_OBSERVE,),
-                sources=(CLAIM_OBSERVE_STORE_OPERATION,),
-            )
-            standing = register.current
-        action, label, violation = self._claim_owner_transition(
-            register, standing, owner, goal, rung, survival, non_discardable,
-            snapshot=snapshot,
-        )
-        if action == CLAIM_PREEMPTION:
-            # Design 3.2 / rev 10 item 2: a strictly higher rung suspends the
-            # holder with its goal intact.  The one caller of ``suspend``.
-            register.suspend(
-                label, sequence=self._decision_sequence, turn=snapshot.turn
-            )
-            # Round 3: a holder restored with no floor takes this board's.
-            register.stamp_suspended_floor(standing.claim_id, snapshot.floor_key)
-        elif action == CLAIM_SURVIVAL_DISPLACED:
-            # Survival that does not outrank the holder replaces it: released,
-            # exempt, not a violation (round 2, F1/F2).
-            register.release(label)
-        if action is not None:
-            # S2a.1's order: the goal is read after the holder closed, exactly
-            # as it was when survival was the only preemptor.
-            goal, goal_missing, goal_note = self._claim_goal(
-                snapshot, key, owner, reason, register.current
-            )
-        resumed = self._claim_resolve_suspended(
-            register, owner, goal, rung, survival, non_discardable
-        )
-        finished = register.take_closing()
-        closed = finished.closing_dict() if finished is not None else None
-        home_visit = getattr(self, "_home_visit", None)
-        active_operation = getattr(self, "_claim_active_operation_identity", None)
-        completed_operation = (
-            active_operation[1]
-            if finished is not None
-            and isinstance(active_operation, tuple)
-            and len(active_operation) == 2
-            and active_operation[0] == finished.claim_id
-            else None
-        )
-        if (
-            finished is not None and finished.closed == CLAIM_CLOSED_BY_COMPLETE and (finished.goal.kind == CLAIM_GOAL_OBSERVE) and (finished.owner.value in {'home-visit', 'home-errand', 'equipment-txn'})
-        ):
-            self._claim_last_completed_home = (
-                finished, getattr(home_visit, "visit_id", None),
-                completed_operation,
-            )
-        verdict = None
-        report = getattr(home_visit, "report", None)
-        if "target-unobserved" in reason:
-            verdict = "target-unobserved"
-        elif report is not None and getattr(report, "outcome", None) == "unfulfilled":
-            verdict = "unfulfilled"
-        elif self._town_visit_ledger.approach_fails[STORE_HOME] > getattr(
-            self, "_decision_home_approach_fails_before",
-            self._town_visit_ledger.approach_fails[STORE_HOME],
-        ):
-            verdict = "approach_fails"
-        recent = getattr(self, "_claim_last_completed_home", None)
-        if recent is not None and recent[1] != getattr(home_visit, "visit_id", None):
-            recent = None
-        operation = getattr(home_visit, "operation", None)
-        operation_generation = getattr(home_visit, "operation_generation", None)
-        if operation is None and home_visit is not None:
-            reports = getattr(home_visit, "operation_reports", ())
-            if reports and reports[-1].visit_id == home_visit.visit_id:
-                operation = (reports[-1].action, reports[-1].identity)
-                operation_generation = reports[-1].posted_generation
-        operation_identity = (
-            (operation, operation_generation) if operation is not None else None
-        )
-        same_operation = (
-            recent is not None and len(recent) > 2
-            and recent[2] is not None and recent[2] == operation_identity
-        )
-        completed = next((candidate for candidate in (finished if same_operation else None, standing if same_operation else None, recent[0] if same_operation else None) if candidate is not None and candidate.closed == CLAIM_CLOSED_BY_COMPLETE and (candidate.goal.kind == CLAIM_GOAL_OBSERVE) and (candidate.owner.value in {'home-visit', 'home-errand', 'equipment-txn'})), None)
-        claim_verdict_conflict = (
-            {
-                "claim_id": completed.claim_id,
-                "claim_ending": completed.closed,
-                "verdict": verdict,
-                "attempts_used": getattr(home_visit, "attempts_used", None),
-            }
-            if completed is not None and verdict is not None else None
-        )
-        if claim_verdict_conflict is not None:
-            self._claim_last_completed_home = None
-        suspended_closed = register.take_suspended_closings()
-        if resumed is not None:
-            # The resumed claim keeps its own rank unless this decision's rung
-            # is strictly higher, so it still outranks nothing it sat under.
-            outranks = resumed.rank is None or rung.rank < resumed.rank
-            claim = register.resume(
-                resumed.claim_id,
-                sequence=self._decision_sequence,
-                turn=snapshot.turn,
-                rank=rung.rank if outranks else resumed.rank,
-                rung=rung.name if outranks else resumed.rung,
-                perceived_turn=self._claim_trigger_perceived(
-                    snapshot, resumed.trigger_monsters
-                ),
-            )
-        else:
-            current = register.current
-            continuing = register.continues(owner, goal, non_discardable)
-            triggers = (
-                current.trigger_monsters
-                if continuing and current is not None
-                else self._claim_trigger_monsters(owner, goal)
-            )
-            register.declare(
-                owner,
-                goal,
-                non_discardable=non_discardable,
-                opened_sequence=self._decision_sequence,
-                floor=snapshot.floor_key,
-                survival=survival,
-                opened_turn=snapshot.turn,
-                rank=rung.rank,
-                rung=rung.name,
-                trigger_monsters=triggers,
-                perceived_turn=self._claim_trigger_perceived(snapshot, triggers),
-            )
-        if self._claim_owner_retired(owner):
-            claim = register.retire()
-        elif key is None or key == "":
-            claim = register.await_observation()
-        else:
-            claim = register.keep_active()
-        transition_violation = violation
+        self._write_decision_claim_row(snapshot, key, step)
+
+    def _write_decision_claim_row(self, snapshot: Snapshot, key, step) -> None:
+        """The decision's claim row (record only; the hold already moved)."""
+        reason, owner, standing = step.reason, step.owner, step.standing
+        survival, rung, violation = step.survival, step.rung, step.violation
+        claim = step.claim
         # A filed Home request keeps its purpose until the errand ends.  The
         # purpose record is independent of a claim transition violation.
         filed = getattr(getattr(self, "_home_errand", None), "request", None)
@@ -4624,20 +4300,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             purpose_duplicates.append(duplicate)
             if violation is None:
                 violation = duplicate
-        if claim.is_open and claim.owner.value in {'home-visit', 'home-errand', 'equipment-txn'}:
-            operation = getattr(home_visit, "operation", None)
-            identity = (
-                (operation, getattr(home_visit, "operation_generation", None))
-                if operation is not None else None
-            )
-            previous_identity = getattr(self, "_claim_active_operation_identity", None)
-            if (
-                not isinstance(previous_identity, tuple)
-                or len(previous_identity) != 2
-                or previous_identity[0] != claim.claim_id
-                or (previous_identity[1] is None and identity is not None)
-            ):
-                self._claim_active_operation_identity = (claim.claim_id, identity)
         visit = getattr(self, "_store_visit", None)
         visit_owner_mismatch = None
         visit_owner_structure = None
@@ -4666,8 +4328,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 }
                 if violation is None:
                     violation = leave_confirmation_interruption
-            visit.claim_id = claim.claim_id
-            visit.claim_owner = claim.owner.value
             aliases = {
                 "shop-handler": visit.opened_producer_family,
                 "shop-one-shot": visit.opened_producer_family,
@@ -4704,22 +4364,11 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     "visit_owner": alias, "claim_owner": claim.owner.value,
                     "claim_id": claim.claim_id,
                 }
-        # S2b.2 (record-only while the switch is off): the bar this decision's
-        # owner and goal would meet -- read before this row's own endings are
-        # barred, as the ladder would have read the table while deciding.
-        would_bar = self._claim_would_bar(register, claim, survival)
-        would_skip = self._claim_would_skip(register, rung, survival)
-        bars_set = self._claim_set_bars(
-            snapshot, register,
-            dropped=standing if transition_violation is not None else None,
-        )
-        self._bind_execution_delegations(claim)
-        self._observe_execution_delegations()
-        self._record_execution_declaration(claim, key, reason)
-        claim = register.current
-        closed_declaration_mismatch = (
-            claim_declaration_mismatch(finished, 'awaiting', reason) if finished is not None and finished.execution is not None and (finished.execution.state == 'done') and (claim.claim_id == finished.claim_id or claim.execution is None) and (finished.owner.value in {'home-visit', 'equipment-txn'}) and (visit is not None) and visit.operation_posted and (not visit.operation_released) else None
-        )
+        claim = step.declared
+        closed, goal_missing, goal_note = step.closed, step.goal_missing, step.goal_note
+        resumed, suspended_closed = step.resumed, step.suspended_closed
+        would_bar, would_skip = step.would_bar, step.would_skip
+        bars_set, bars_lifted = step.bars_set, step.bars_lifted
         self.decision_claim = {
             **({"item_reservation_shadow": reservation_shadow(self)}
                if reservation_shadow(self) else {}),
@@ -4775,7 +4424,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 getattr(self, "_store_leave_inflight", None) is not None
             ),
             "requester_missing": visit_owner_structure == "requester-missing",
-            "claim_verdict_conflict": claim_verdict_conflict,
             "scan-during-pending-atomic": bool(
                 (owner.value == "home-scan" or (
                     owner.value == "home-errand"
@@ -4807,7 +4455,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 }
             ),
             "suspended_closed": suspended_closed or None,
-            "suspended_depth": len(register.suspended),
+            "suspended_depth": len(town_suspended_claims(self)),
             "trigger_monsters": (
                 [list(pair) for pair in claim.trigger_monsters]
                 if claim.trigger_monsters
@@ -4819,44 +4467,25 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             "would_skip": would_skip,
             "bars_set": bars_set or None,
             "bars_lifted": bars_lifted or None,
-            "bars_active": len(register.bars),
+            "bars_active": len(town_hold_bars(self)),
             "bar_skipped": list(getattr(self, "_decision_bar_skips", None) or ())
             or None,
             "errand_deferred": list(
                 getattr(self, "_decision_errand_deferred", None) or ()
-            ) or None,
-            "gate_final_count": getattr(self, "_decision_gate_final_count", 0),
-            "rewrite_refused": list(
-                getattr(self, "_decision_rewrite_refused", ())
             ) or None,
             "requester_families": sorted(
                 getattr(getattr(self, "_store_visit", None),
                         "requester_families", ())
             ),
             "execution_delegations": [
-                record.as_dict() for record in self._delegation_records()
+                record.as_dict() for record in town_hold_delegations(self)
                 if record.lifecycle in {"reserved", "open"}
                 and record.parent_claim_id == claim.claim_id
             ] or None,
-            "cancelled_home_reservation": getattr(
-                self, "_decision_cancelled_home_reservation", None
-            ),
-            "declaration_mismatch": getattr(
-                self, "_decision_declaration_mismatch", None
-            ) or closed_declaration_mismatch,
         }
         admissions = getattr(self, "_decision_terminal_admissions", None)
         if admissions:
             self.decision_claim["terminal_admission"] = list(admissions)
-        if shadow is not None:
-            if shadow["holder_family"] is None:
-                shadow["holder_family"] = claim.owner.value
-                shadow["holder_claim_id"] = claim.claim_id
-                shadow["declaration_state"] = (
-                    claim.execution.state if claim.execution is not None else None)
-                shadow["declaration_gap"] = claim.execution is None
-            shadow["mismatch"] = self.decision_claim["declaration_mismatch"]
-            self.decision_claim["s33_shadow"] = shadow
         if isinstance(key, DecisionCandidate):
             # Design 5.4: the declaration token travels on the candidate that
             # already carries the decision's provenance, rather than on a
@@ -5446,7 +5075,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """
         if not getattr(self, "_claim_bar_enforced", False):
             return False
-        register = getattr(self, "_claim_register", None)
+        register = town_hold_claims(self)
         if register is None:
             return False
         for bar in register.bars:
@@ -5469,13 +5098,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         return town_errand_hold(self, family, enforced=enforced,
                                 arrival_board=arrival_board)
 
-    def _delegation_records(self) -> list[ExecutionDelegation]:
-        records = getattr(self, "_execution_delegations", None)
-        if records is None:
-            records = []
-            self._execution_delegations = records
-        return records
-
     def _open_execution_delegation(
         self, parent_family: str, delegate_family: str,
         work_identity: tuple, purpose_identity: tuple,
@@ -5484,7 +5106,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Reserve a named child before invoking its executor (record-only)."""
         work_identity = tuple(work_identity)
         purpose_identity = tuple(purpose_identity)
-        for record in self._delegation_records():
+        for record in town_hold_delegations(self):
             if (record.lifecycle in {"reserved", "open"}
                     and record.parent_family == parent_family
                     and record.delegate_family == delegate_family
@@ -5496,14 +5118,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             purpose_identity, self._decision_sequence, expected_effect,
             budget_reference, "reserved",
         )
-        self._delegation_records().append(record)
+        town_hold_delegations(self).append(record)
         return record
 
     def _end_execution_delegation(
         self, delegate_family: str, work_identity: tuple,
         *, completed: bool, cause: str,
     ) -> None:
-        for record in self._delegation_records():
+        for record in town_hold_delegations(self):
             if (record.lifecycle in {"reserved", "open"}
                     and record.delegate_family == delegate_family
                     and record.work_identity == tuple(work_identity)):
@@ -5512,7 +5134,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _bind_execution_delegations(self, claim) -> None:
         """Bind same-decision reservations or cancel an unmatched opening."""
-        for record in self._delegation_records():
+        for record in town_hold_delegations(self):
             if (record.lifecycle != "reserved"
                     or record.opening_decision != self._decision_sequence):
                 continue
@@ -5536,7 +5158,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
 
     def _cancel_unbound_execution_delegations(self) -> None:
         """End reservations left behind by a decision without a claim exit."""
-        for record in self._delegation_records():
+        for record in town_hold_delegations(self):
             if record.lifecycle == "reserved":
                 record.lifecycle = "released"
                 record.ending = "exit-not-reached"
@@ -5545,7 +5167,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         """Retire children only when their named source resolves."""
         session = self._equipment_transaction_session
         visit = self._store_visit
-        for record in self._delegation_records():
+        for record in town_hold_delegations(self):
             if record.lifecycle != "open":
                 continue
             work = record.work_identity
@@ -5574,7 +5196,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     record.ending = "home-operation-ended-unobserved"
             elif work[:1] == ("route",):
                 if visit is not None and visit.opened_sequence == work[1]:
-                    parent = getattr(self._claim_register, "current", None)
+                    parent = town_standing_claim(self)
                     arrived_claim = (
                         parent is not None
                         and parent.claim_id == record.parent_claim_id
@@ -5607,7 +5229,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     ) else "released"
                     record.ending = f"filed-request:{self._home_errand.state.value}"
             if record.lifecycle == "open" and record.parent_claim_id is not None:
-                register = self._claim_register
+                register = town_hold_claims(self)
                 live = [register.current, *register.suspended]
                 if not any(
                     claim is not None and claim.claim_id == record.parent_claim_id
@@ -5615,7 +5237,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 ):
                     record.lifecycle = "released"
                     record.ending = "parent-claim-ended"
-        for record in self._delegation_records():
+        for record in town_hold_delegations(self):
             declaration = getattr(record, "execution", None)
             if declaration is None or record.lifecycle == "open":
                 continue
@@ -5632,7 +5254,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                               *, work_identity=None, enforced=True,
                               arrival_board=None):
         """Pure entry admission verdict; recording belongs to the caller."""
-        register = getattr(self, "_claim_register", None)
+        register = town_hold_claims(self)
         if enforced and snapshot is not None and register is not None:
             for bar in register.bars:
                 if (bar.kind == CLAIM_BAR_ERRAND
@@ -5690,18 +5312,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                        f"deferred:{reason}:holder:{row['holder_claim_id']}"),
             )
         return deferred_now
-
-    def _town_plan_defers(self, family):
-        """Pure plan-order entry predicate shared with the shadow census."""
-        if (family not in CLAIM_TOWN_ERRAND_FAMILIES | {
-                "departure", "fundraising", "explore"}
-                or self._claim_errand_hold("__none__", enforced=True) is not None):
-            return False
-        plan = getattr(self, "_town_errand_plan", None)
-        if plan is None or plan.index >= len(plan.stops):
-            return False
-        next_families = tuple(plan.requester_families.get(plan.stops[plan.index], ()))
-        return (family not in next_families and family != 'store-router')
 
     def _town_gate_exempt(self, family: str, reason: str = "",
                           snapshot: Snapshot | None = None) -> bool:
@@ -5793,10 +5403,10 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 and len(key) > 1 and not key.startswith("\x1b`n")
                 and key not in {RESTOCK_WAIT_MACRO, "\x1b\x1b"}
                 and any(offer[0] == key and offer[8] == "acting"
-                        for offer in self._execution_offers_for())):
+                        for offer in town_offered_steps(self))):
             # Bind ADMIT to this producer's actual composite operation. A later
             # fingerprint may judge its route, but cannot substitute an errand.
-            self._decision_offer_buffer().admitted_commands[key] = self.last_reason
+            town_offer_buffer(self).admitted_commands[key] = self.last_reason
         # OFF runs the same admission probe, then runs the historical producer.
         # Bind a refused entry to that producer's actual result. A later output
         # of the same family cannot borrow this evidence.
@@ -5807,58 +5417,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     and self._claim_family_of(self.last_reason) == family):
                 row["producer_key"] = key
         return key
-
-    def _town_offered_route_entry_wait(self, key, snapshot=None) -> bool:
-        """The arrived route's Observe is bound to its actual entry receipt."""
-        visit = getattr(self, "_store_visit", None)
-        buffer = _decision_offers.get(self)
-        position = snapshot.player.position if snapshot is not None else None
-        return bool(key == "" and visit is not None
-                    and not visit.operation_posted
-                    and visit.posted_sequence is not None
-                    and visit.phase == StoreVisitPhase.ENTERING
-                    and self._store_entry_posted_owner == visit.store_type
-                    and self._store_entry_wait_owner == visit.store_type
-                    and self._store_entry_wait_key and buffer is not None
-                    and (snapshot is None
-                         or self._town_at_store_entrance(snapshot, visit))
-                    and any(wait[0] == key and wait[1] == "store-router"
-                            and wait[3] == f"decision:{visit.posted_sequence}:{self._store_entry_wait_key}"
-                            and wait[4] == "store-page-open" for wait in buffer.waits))
-
-    @staticmethod
-    def _town_at_store_entrance(snapshot, visit) -> bool:
-        position = snapshot.player.position
-        if (visit.goal is not None
-                and (position.y, position.x) == (visit.goal.y, visit.goal.x)):
-            return True
-        standing = snapshot.grid_at(position)
-        return bool(standing is not None
-                    and standing.store_number == visit.store_type)
-
-    def _town_posted_route_entry_wait(self, route) -> bool:
-        """An entry post can still belong to its Reach route, before a sale/buy."""
-        declaration = getattr(route, "execution", None)
-        visit = self._store_visit
-        return bool(
-            route is not None and declaration is not None and visit is not None
-            and route.owner.value == declaration.producer == "store-router"
-            and declaration.claim_id == route.claim_id
-            and route.goal.kind == CLAIM_GOAL_REACH
-            and isinstance(route.goal.cell, tuple) and len(route.goal.cell) == 2
-            and declaration.state == "awaiting"
-            and declaration.continuation == "route.resume"
-            and declaration.arguments == ("store", route.goal.cell)
-            and declaration.expected_effect == f"arrive:{route.goal.cell[0]},{route.goal.cell[1]}"
-            and visit.phase == StoreVisitPhase.ENTERING
-            and (visit.goal is None or (visit.goal.y, visit.goal.x) == route.goal.cell)
-            and visit.posted_sequence is not None
-            and self._store_entry_wait_key
-            and declaration.operation_ref == f"decision:{visit.posted_sequence}:{self._store_entry_wait_key}"
-            and self._store_entry_posted_owner == visit.store_type
-            and self._store_entry_wait_owner == visit.store_type
-            and not visit.operation_posted
-        )
 
     def _town_shop_entry_family(self) -> str:
         """The shop family authorized by the current visit or its holder."""
@@ -5876,14 +5434,14 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         *, work_identity: tuple | None = None,
     ):
         """Find the live, identity-matching grant for this executor."""
-        for record in getattr(self, "_execution_delegations", ()) or ():
+        for record in town_hold_delegations(self):
             bound = (record.lifecycle == "open"
                      and record.parent_claim_id == holder.claim_id)
             reserved_for_holder = (
                 record.lifecycle == "reserved"
                 and record.opening_decision == self._decision_sequence
                 and record.parent_claim_id is None
-                and holder is getattr(self._claim_register, "current", None)
+                and holder is town_standing_claim(self)
             )
             if (not (bound or reserved_for_holder)
                     or record.parent_family != holder.owner.value
@@ -5944,187 +5502,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     return record
         return None
 
-    def _home_tail_leave_ready(self, holder, snapshot):
-        """Pure identity predicate for the posted Home tail."""
-        if holder is None:
-            return False
-        family = holder.owner.value
-        visit = self._store_visit
-        return bool(family == "home-visit"
-                and snapshot.store is None
-                and visit is not None
-                and visit.store_type == STORE_HOME
-                and visit.phase == StoreVisitPhase.LEAVING
-                and visit.operation_posted
-                and visit.operation_released
-                and not visit.operation_effect_observed
-                and visit.claim_id == holder.claim_id
-                and visit.claim_operation_identity is not None
-                and getattr(self._home_visit, "state", None)
-                == HomeVisitState.EXIT_PENDING
-                and any(
-                    record.lifecycle == "open"
-                    and record.parent_claim_id == holder.claim_id
-                    and record.parent_family == family
-                    and record.delegate_family == "home-tail"
-                    and record.work_identity == (
-                        "staged-tail", *visit.claim_operation_identity)
-                    for record in getattr(self, "_execution_delegations", ()) or ()
-                ))
-
-    @staticmethod
-    def _town_declaration_binding_stop(holder):
-        """Check identity and terminal state without dispatching a producer."""
-        family = holder.owner.value
-        declaration = getattr(holder, "execution", None)
-        if (declaration is None or declaration.claim_id != holder.claim_id
-                or declaration.producer != family):
-            return f"ownership:declaration-missing:{family}"
-        if declaration.state in {"done", "releasing"} and (
-                declaration.operation_ref is not None or (
-                    declaration.state == "releasing" and holder.non_discardable)):
-            return f"ownership:declaration-stale:{family}"
-        if declaration.state == "awaiting" and (
-                not declaration.operation_ref
-                or not declaration.operation_ref.startswith("decision:")):
-            # Confirmed entry has no purchase operation reference yet.
-            if (declaration.operation_ref is None
-                    and family in {"shop-buy", "shop-sell"}
-                    and declaration.continuation == "shop.one-shot.send"
-                    and declaration.expected_effect == "store-page-open"):
-                return None
-            return f"ownership:declaration-stale:{family}"
-        return None
-
-    def _town_holder_structural_stop(self, holder, snapshot):
-        """Pure dispatch validity; successful branches still run once in ON."""
-        stop = self._town_declaration_binding_stop(holder)
-        if stop is not None:
-            return stop
-        family = holder.owner.value
-        declaration = holder.execution
-        if declaration.state in {"done", "releasing"}:
-            return None
-        step = declaration.next_step
-        if (declaration.expected_effect == "home-catalog-available"
-                and declaration.work_id == "equipment:acquire-home-catalog"
-                and (step == "home.approach-for-equipment-catalog"
-                     or declaration.continuation == "home.catalogue.acquire")):
-            return None
-        if declaration.state == "awaiting":
-            continuation = declaration.continuation
-            if continuation == "equipment.suppression.observe":
-                if (family == "equipment-txn"
-                        and declaration.work_id == "suppress-random-teleport"
-                        and len(declaration.arguments) == 1
-                        and any(self._suppression_target_matches(item, declaration.arguments[0])
-                                and "." in item.inscription
-                                for item in (*snapshot.inventory, *snapshot.equipment))):
-                    return None
-                return f"ownership:declaration-stale:{family}"
-            if continuation == "equipment.restore-observe":
-                if family != "equipment-txn" or len(declaration.arguments) != 2:
-                    return f"ownership:declaration-stale:{family}"
-                slot, identity = declaration.arguments
-                equipped = next((item for item in snapshot.equipment
-                                 if item.slot == slot), None)
-                if declaration.expected_effect == "digger-removed":
-                    observed = (equipped is None and any(
-                        equipment_identity(item) == identity
-                        for item in snapshot.inventory))
-                else:
-                    observed = (equipped is not None
-                                and equipment_identity(equipped) == identity)
-                if not observed:
-                    return f"ownership:declaration-stale:{family}"
-                return None
-            if (family in {"shop-buy", "shop-sell"}
-                    and continuation == "shop.one-shot.send"):
-                visit = self._store_visit
-                if (visit is None
-                        or declaration.arguments != (visit.store_type, visit.operation_key)
-                        or declaration.work_id != (
-                            f"shop-operation:{visit.opened_sequence}:"
-                            f"{visit.store_type}:{visit.operation_key}")
-                        or (snapshot.store is not None
-                            and snapshot.store.store_type != visit.store_type)):
-                    return f"ownership:declaration-stale:{family}"
-                return None
-            if continuation == "equipment.next-action":
-                session = self._equipment_transaction_session
-                if session is None:
-                    return f"ownership:declaration-stale:{family}"
-                if session.pending_action is not None:
-                    return None
-                step = "equipment.next-action"
-                declaration = replace(declaration, arguments=())
-            elif continuation == "route.resume":
-                step = "route.resume"
-            elif family == "quest-request" and continuation == "bounty.resume":
-                step = "bounty.resume"
-            elif continuation == "town.teleport.resume":
-                step = "town.teleport.resume"
-            elif continuation in {"home.knowledge.observe", "store.entry.observe",
-                                  "home.operation.observe", "shop.one-shot.dispatch"}:
-                return None
-            elif continuation == "departure.step-off-entrance":
-                if (len(declaration.arguments) == 2 and snapshot.store is None
-                        and snapshot.player.position == Position(*declaration.arguments)):
-                    return None
-                return f"ownership:declaration-stale:{family}"
-            else:
-                return f"ownership:declaration-stale:{family}"
-        elif declaration.state != "acting" or not step:
-            return f"ownership:declaration-stale:{family}"
-        if step == "route.resume":
-            if len(declaration.arguments) != 2:
-                return f"ownership:declaration-stale:{family}"
-            route_kind, cell = declaration.arguments
-            if route_kind not in {"entrance", "store"}:
-                return f"ownership:declaration-stale:{family}"
-            if not isinstance(cell, (tuple, list)) or len(cell) != 2:
-                return f"ownership:declaration-stale:{family}"
-            goal = Position(*cell)
-            if (holder.goal.kind != CLAIM_GOAL_REACH
-                    or holder.goal.cell != tuple(cell)):
-                return f"ownership:declaration-stale:{family}"
-        elif step == "town.teleport.resume":
-            if (len(declaration.arguments) != 2
-                    or not isinstance(declaration.arguments[0], int)):
-                return f"ownership:declaration-stale:{family}"
-        elif step == "bounty.resume":
-            if (family != "quest-request"
-                    or declaration.work_id != "normal-step4-bounty"):
-                return f"ownership:declaration-stale:{family}"
-        elif step == "equipment.next-action":
-            session = self._equipment_transaction_session
-            if session is None or session.current_action is None:
-                return f"ownership:declaration-stale:{family}"
-            args = declaration.arguments
-            if args:
-                action = session.current_action
-                if args[0] in {"strip", "restore", "deposit"} and len(args) == 1:
-                    return f"ownership:declaration-stale:{family}"
-                elif (args[0] != action.kind
-                      or args[-1] != action.item_identity
-                      or (len(args) == 3
-                          and args[1] != action.target_slot)):
-                    return f"ownership:declaration-stale:{family}"
-        elif step == "stair.post":
-            if len(declaration.arguments) != 3:
-                return f"ownership:declaration-stale:{family}"
-            direction, floor, cell = declaration.arguments
-            if (floor != snapshot.floor_key
-                    or tuple(cell) != (snapshot.player.position.y,
-                                       snapshot.player.position.x)
-                    or direction not in {"<", ">"}
-                    or snapshot.store is not None):
-                return f"ownership:declaration-stale:{family}"
-        elif step in {"home.knowledge.observe", "equipment.action.observe",
-                      "home.operation.observe", "store.entry.observe"}:
-            return f"ownership:declaration-stale:{family}"
-        return None
-
     def _town_holder_wait_key(self, holder, snapshot: Snapshot) -> str | None:
         """Advance the named holder, release an exhausted one, or stop."""
         declaration = holder.execution
@@ -6137,15 +5514,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             if (previous is not None and previous.state == "awaiting"
                     and previous.continuation == "route.resume"
                     and snapshot.player.position != goal
-                    and holder is getattr(self._claim_register, "current", None)):
-                self._claim_register.declare_execution(
+                    and holder is town_standing_claim(self)):
+                town_hold_claims(self).declare_execution(
                     holder.claim_id, work_id=previous.work_id,
                     producer=previous.producer, state="acting",
                     next_step="route.resume", arguments=previous.arguments,
                     expected_effect=previous.expected_effect,
                     continuation="route.resume", budget_ref=previous.budget_ref,
                 )
-                holder = self._claim_register.current
+                holder = town_standing_claim(self)
             store_type = (
                 self._shopping_approach_store_type
                 if self._shopping_approach_goal == goal else None
@@ -6277,7 +5654,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             return WAIT_KEY
         if (holder.goal.source == CLAIM_OBSERVE_KNOWLEDGE
                 and self._home_knowledge_scan_requested):
-            if holder is getattr(self._claim_register, "current", None):
+            if holder is town_standing_claim(self):
                 self.last_reason = "home:scan-await-observation"
                 self._offer_execution(
                     WAIT_KEY, producer="home-scan",
@@ -6292,12 +5669,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             knowledge_unresolved = True
         else:
             knowledge_unresolved = False
-        children = [record for record in self._delegation_records()
+        children = [record for record in town_hold_delegations(self)
                     if record.lifecycle == "open"
                     and record.parent_claim_id == holder.claim_id]
         unresolved = (route_unresolved or knowledge_unresolved or holder.non_discardable or bool(children) or (holder.owner.value in {'equipment-txn'} and False) or (visit is not None and visit.operation_posted and (not visit.operation_effect_observed) and (not visit.operation_released)) or (self._home_atomic_withdraw_pending is not None))
         if not unresolved:
-            register = self._claim_register
+            register = town_hold_claims(self)
             if holder is register.current:
                 ended = register.release("no-step:unposted")
             else:
@@ -6310,7 +5687,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 bar = self._claim_bar_for(snapshot, ended, ended.closed)
                 if bar is not None:
                     register.set_bar(bar)
-            self._decision_no_step_release = True
             self.last_reason = f"ownership:holder-released:{holder.owner.value}"
             return None
         return self._silent_holder_stop(holder.owner.value)
@@ -6448,282 +5824,6 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
             next_step="home.catalogue.acquire", expected_effect="home-catalog-available",
             continuation="home.catalogue.acquire", budget_ref="home-knowledge-existing-epoch",
         )
-        return key
-
-    def _town_refused_output_entry(self, snapshot, key, reason, family, holder):
-        """Bind a refused OFF producer through its declared entrance envelope."""
-        buffer = _decision_offers.get(self)
-        offers = () if buffer is None else buffer.steps
-        step_off = bool(
-            snapshot is not None and snapshot.store is None
-            and reason.startswith("town:entrance-step-off:")
-            and any(offer[0] == key and offer[1] == family
-                    and offer[2] == "town:entrance-step-off"
-                    and offer[3] == "departure.step-off-entrance"
-                    and len(offer[4]) == 2
-                    and DIRECTION_KEYS.get((offer[4][0] - snapshot.player.position.y,
-                                            offer[4][1] - snapshot.player.position.x)) == key
-                    and offer[5] == "entrance-cell-cleared"
-                    for offer in offers))
-        return any(
-            (row.get("producer_key") == key
-             or (step_off and row.get("producer_key") == WAIT_KEY))
-            and row.get("holder_claim_id") == holder.claim_id
-            and row.get("holder_family") == holder.owner.value
-            and row.get("deferred_family") == family
-            and row.get("token_would_admit") is False
-            for row in getattr(self, "_decision_errand_deferred", ()) or ())
-
-    def _s33_shadow_verdict(self, snapshot, key):
-        """Resolve ON admission for the decided OFF board, without dispatch."""
-        reason = self.last_reason or ""
-        family = self._claim_family_of(reason)
-        holder = self._claim_errand_hold("__none__", enforced=True,
-                                         arrival_board=snapshot)
-        declaration = getattr(holder, "execution", None)
-        skipped = set()
-        # Census the families the ON entry helper would refuse on this board.
-        # Do not call any producer or create a delegation/offer buffer here.
-        for entry_family in sorted(CLAIM_TOWN_ERRAND_FAMILIES | {
-                "departure", "fundraising", "explore"}):
-            if self._town_gate_exempt(entry_family):
-                continue
-            row = self._town_errand_deferral(
-                entry_family, "entry:shadow", snapshot)
-            if ((row is not None and not row["token_would_admit"])
-                    or self._town_plan_defers(entry_family)):
-                skipped.add(entry_family)
-        stop = None
-        if key is not None:
-            stop = self._town_unrestored_stop(snapshot, holder, target_only=True)
-            if stop is None:
-                stop = (self._town_unrestored_stop(snapshot, holder)
-                        or self._town_final_declaration_stop(snapshot, key, holder))
-                if (stop is None and not reason.startswith((
-                        "ownership:holder-", "ownership:declaration-"))
-                        and not self._town_gate_exempt(family, reason, snapshot)):
-                    foreign = self._claim_errand_hold(family, enforced=True,
-                                                     arrival_board=snapshot)
-                    if (foreign is not None and self._recorded_execution_token(
-                            foreign, family, f"final:{reason}") is None):
-                        entry_refused = self._town_refused_output_entry(
-                            snapshot, key, reason, family, foreign)
-                        # A gated OFF output is not an ON gate escape. Keep
-                        # genuine final-only outputs visible, and still verify
-                        # that the holder has a valid registered continuation.
-                        stop = (self._town_holder_structural_stop(foreign, snapshot)
-                                if entry_refused else f"ownership:gate-missing:{family}")
-        elif holder is not None and not self._home_tail_leave_ready(holder, snapshot):
-            stop = self._town_holder_structural_stop(holder, snapshot)
-            if (stop is None and declaration.state == 'acting' and (declaration.next_step not in {'route.resume', 'bounty.resume', 'equipment.next-action', 'stair.post'})):
-                buffer = _decision_offers.get(self)
-                no_steps = () if buffer is None else buffer.no_steps
-                if not any(entry[0] == holder.owner.value
-                           and entry[1] == declaration.work_id for entry in no_steps):
-                    stop = f"ownership:holder-silent:{holder.owner.value}"
-        if reason.startswith(("ownership:declaration-", "ownership:holder-silent:",
-                              "ownership:gate-missing:")):
-            stop = reason
-        if key is None:
-            # A denied command can suppress its key before the final result.
-            # Its emission verdict still takes precedence in OFF shadow.
-            stop = self._town_final_declaration_stop(snapshot, key, holder) or stop
-        return {"would_stop": stop, "would_skip_families": sorted(skipped),
-                "holder_family": holder.owner.value if holder is not None else None,
-                "holder_claim_id": holder.claim_id if holder is not None else None,
-                "declaration_state": declaration.state if declaration else None,
-                "declaration_gap": holder is not None and declaration is None,
-                "mismatch": None}
-
-    def _town_unrestored_stop(self, snapshot, holder, *, target_only=False):
-        """Pure restoration-debt check in the ON precedence order."""
-        if target_only or (holder is not None and False):
-            return None
-        return None
-
-    def _town_final_declaration_stop(self, snapshot, key, route):
-        """Pure validity checks shared by enforcement and OFF shadow."""
-        reserved = next((row["would_stop"] for row in reservation_shadow(self)
-                         if row.get("would_stop")), None)
-        if reserved is not None:
-            return reserved
-        reason = self.last_reason or ""
-        family = self._claim_family_of(reason)
-        if key == "" and reason == "shop:one-shot-in-flight":
-            visit = self._store_visit
-            declaration = getattr(route, "execution", None)
-            identity = getattr(visit, "claim_operation_identity", None)
-            if not (
-                route is not None and declaration is not None
-                and visit is not None and identity is not None
-                and visit.operation_posted and not visit.operation_effect_observed
-                and visit.posted_sequence is not None
-                and identity == (visit.store_type, visit.opened_sequence,
-                                 visit.operation_key)
-                and route.owner.value == visit.operation_producer_family
-                and route.goal.source == CLAIM_OBSERVE_STORE_OPERATION
-                and route.goal.expectation == tuple(sorted(map(str, identity)))
-                and declaration.claim_id == route.claim_id
-                and declaration.producer == route.owner.value
-                and declaration.state == "awaiting"
-                and (
-                    (declaration.operation_ref is None
-                     and declaration.expected_effect == "store-page-open"
-                     and declaration.continuation == "shop.one-shot.send"
-                     and visit.composed_key
-                     and self._town_holder_structural_stop(route, snapshot) is None)
-                    or (declaration.operation_ref
-                        and declaration.operation_ref in {
-                            f"decision:{visit.posted_sequence}:{posted_key}"
-                            for posted_key in (visit.operation_key, visit.composed_key)
-                            if posted_key
-                        })
-                )
-                and declaration.expected_effect
-                and (snapshot.store is None
-                     or snapshot.store.store_type == visit.store_type)
-            ):
-                return f"ownership:declaration-stale:{family}"
-            return None
-        if (route is not None and route.owner.value == family
-                and key is not None
-                and not reason.startswith("ownership:")
-                and (declaration := getattr(route, "execution", None)) is not None
-                and declaration.state == "acting"):
-            buffer = _decision_offers.get(self)
-            offers = () if buffer is None else buffer.steps
-            own = tuple(offer for offer in offers
-                        if offer[0] == key and offer[1] == family)
-            delegated = any(
-                record.lifecycle == "open"
-                and record.parent_claim_id == route.claim_id
-                and record.delegate_family == family
-                and getattr(record, "execution", None) is not None
-                and record.execution.work_id == declaration.work_id
-                and record.work_identity[-1:] == (key,)
-                for record in getattr(self, "_execution_delegations", ()) or ()
-            )
-            if own and not delegated and not any(
-                offer[2] == declaration.work_id
-                and offer[3] in {declaration.next_step,
-                                 declaration.continuation}
-                and offer[4] == declaration.arguments
-                for offer in own
-            ):
-                catalogue_request = (
-                    family == "equipment-txn"
-                    and declaration.work_id == "equipment:acquire-home-catalog"
-                    and declaration.next_step == "home.approach-for-equipment-catalog"
-                    and declaration.continuation is None
-                    and key == HOME_KNOWLEDGE_MACRO
-                    and reason == "equipment-transaction:catalogue-request-knowledge"
-                    and any(
-                        offer[2] == "equipment:acquire-home-catalog"
-                        and offer[3] == "home.catalogue.acquire"
-                        and offer[4] == ()
-                        and offer[5] == "home-catalog-available"
-                        for offer in own
-                    )
-                )
-                if catalogue_request:
-                    return None
-                session = self._equipment_transaction_session
-                action = session.current_action if session is not None else None
-                if (family == "equipment-txn" and session is not None
-                        and session.executable and action is not None
-                        and ((session.prepared_action == action
-                              and self._equipment_transaction_prepared_key == key)
-                             or (key == " " and action.kind == "withdraw"
-                                 and session.required_context == "home"
-                                 and snapshot.store is not None
-                                 and snapshot.store.store_type == STORE_HOME
-                                 and any(offer[5] == "home-page-changed" for offer in own)))
-                        and declaration.continuation == "equipment.next-action"
-                        and any(
-                            offer[2] == f"equipment:{session.target_loadout_id}:{session.index}"
-                            and offer[3] == "equipment.next-action"
-                            and offer[4] == (action.kind, action.target_slot, action.item_identity)
-                            for offer in own)):
-                    # The same physical session moved from its leave/travel
-                    # envelope to the next prepared action. This is an exact
-                    # observed session transition, not foreign admission.
-                    return None
-                if (family == "equipment-txn" and session is not None
-                        and session.current_action is not None
-                        and session.pending_action is None
-                        and route.goal.source == "transaction"
-                        and str(tuple(map(repr, session.plan.actions))) in route.goal.expectation
-                        and snapshot.store is not None
-                        and snapshot.store.store_type == STORE_HOME
-                        and declaration.continuation == "equipment.next-action"
-                        and any(offer[2] == "home:store-context-exit"
-                                and offer[3] == "store.leave.send"
-                                and offer[4] == (STORE_HOME,)
-                                and offer[5] == "outside-store"
-                                and offer[6] == "equipment.next-action"
-                                for offer in own)):
-                    # Arrival at Home changes this same session's travel step
-                    # into its declared exit; recording consumes the new offer.
-                    return None
-                return f"ownership:declaration-stale:{family}"
-        visit = getattr(self, "_store_visit", None)
-        if reason == "store:entry-await-observation" and key == "":
-            at_entrance = bool(
-                visit is not None
-                    and (snapshot is None
-                         or self._town_at_store_entrance(snapshot, visit))
-            )
-            if snapshot.store is None and self._town_posted_route_entry_wait(route):
-                return None
-            # Arrival can complete the Reach before the exit binds its new
-            # Observe. Accept only the producer's wait for this exact posted
-            # entrance receipt; the exit then records that same declaration.
-            if (snapshot.store is None and at_entrance
-                    and self._town_offered_route_entry_wait(key, snapshot)):
-                return None
-            # Check the entry declaration first.  An entry can be armed before
-            # its store operation exists; the final emit seam rejects an
-            # unbound empty wait if procurement cannot replace it.
-            declaration = getattr(route, "execution", None)
-            visit = getattr(self, "_store_visit", None)
-            if (route is not None and declaration is not None
-                    and declaration.claim_id == route.claim_id
-                    and declaration.state == "awaiting"
-                    and declaration.operation_ref
-                    and declaration.expected_effect == "store-page-open"
-                    and visit is not None
-                    and route.goal.source == CLAIM_OBSERVE_STORE_ENTRY
-                    and str(visit.store_type) in route.goal.expectation
-                    and visit.posted_sequence is not None
-                    and declaration.operation_ref.startswith(
-                        f"decision:{visit.posted_sequence}:")
-                    and self._store_entry_posted_owner == visit.store_type):
-                return None
-            return "ownership:declaration-missing:" + (
-                route.owner.value if route is not None else "store-router")
-        return None
-
-    def _enforce_town_claim_result(self, snapshot: Snapshot, key):
-        """Detect a producer that escaped the town entry gate."""
-        if not (snapshot.in_town or snapshot.store is not None):
-            return key
-        if key is None:
-            return key
-        reason = self.last_reason or ""
-        family = self._claim_family_of(reason)
-        if reason.startswith(("ownership:holder-", "ownership:declaration-")):
-            return key
-        if self._town_gate_exempt(family, reason, snapshot):
-            return key
-        holder = self._claim_errand_hold(family)
-        if holder is None:
-            return key
-        if self._recorded_execution_token(
-            holder, family, f"final:{reason}"
-        ) is not None:
-            return key
-        self._decision_gate_final_count = (
-            getattr(self, "_decision_gate_final_count", 0) + 1)
         return key
 
     # -- rev 9.2 (S): the survival return trigger ----------------------------
@@ -7312,7 +6412,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     )
 
     def _choose_key(self, snapshot: Snapshot) -> str | None:
-        _decision_offers.pop(self, None)
+        town_take_offers(self)
         self._execution_pending_post = None
         self._staged_shop_approach = None
         self._read_binding = None
@@ -7365,7 +6465,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                 continuation="recall.observe-arrival",
             )
             return LEAVE_STORE_KEY
-        knowledge_exit_holder = getattr(self._claim_register, "current", None)
+        knowledge_exit_holder = town_standing_claim(self)
         knowledge_exit = getattr(knowledge_exit_holder, "execution", None)
         if (snapshot.store is None and snapshot.in_town
                 and (catalogue_holder := self._home_catalogue_work_holder()) is not None
@@ -8077,13 +7177,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                             reconciled.move_identity or reconciled.item_identity)
                 reconciled_index = session.index
             if (advanced or reconciled_any) and not session.complete:
-                held = self._claim_register.current
+                held = town_standing_claim(self)
                 declaration = getattr(held, "execution", None)
                 if (held is not None and held.owner.value == "equipment-txn"
                         and declaration is not None
                         and declaration.continuation == "equipment.next-action"):
                     action = session.current_action
-                    self._claim_register.declare_execution(
+                    town_hold_claims(self).declare_execution(
                         held.claim_id, producer="equipment-txn",
                         work_id=f"equipment:{session.target_loadout_id}:{session.index}",
                         state="acting", next_step="equipment.next-action",
@@ -8142,7 +7242,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         if not self._observe_fundraising_transport(snapshot):
             purpose_record = self._fundraising_purpose_record
             if purpose_record is not None:
-                self._claim_register.set_bar(ClaimBar(
+                town_hold_claims(self).set_bar(ClaimBar(
                     owner=ClaimOwner.FUNDRAISING,
                     goal=claim_observe(
                         ("fundraising-purpose",
@@ -11354,7 +10454,7 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
                     snapshot, router_plan_stop=True
                 )
                 if step is not None:
-                    holder = self._claim_register.current
+                    holder = town_standing_claim(self)
                     scan_wait = bool(
                         self._shopping_approach_store_type == STORE_HOME
                         and holder is not None and holder.is_open
@@ -13761,12 +12861,12 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         pending_execution = getattr(self, "_execution_pending_post", None)
         self._execution_pending_post = None
         if pending_execution is not None and pending_execution[1] == key:
-            claim = getattr(self._claim_register, "current", None)
+            claim = town_standing_claim(self)
             if (claim is not None and claim.claim_id == pending_execution[0]
                     and claim.execution is not None
                     and claim.execution.work_id == pending_execution[2]):
                 declaration = claim.execution
-                self._claim_register.declare_execution(
+                town_hold_claims(self).declare_execution(
                     claim.claim_id, work_id=declaration.work_id,
                     producer=declaration.producer, state="awaiting",
                     arguments=declaration.arguments,
@@ -13968,13 +13068,13 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         pending_execution = getattr(self, "_execution_pending_post", None)
         self._execution_pending_post = None
         if pending_execution is not None and pending_execution[1] == key:
-            claim = getattr(self._claim_register, "current", None)
+            claim = town_standing_claim(self)
             if (claim is not None and claim.claim_id == pending_execution[0]
                     and claim.execution is not None
                     and claim.execution.work_id == pending_execution[2]
                     and claim.execution.state == "acting"):
                 declaration = claim.execution
-                self._claim_register.declare_execution(
+                town_hold_claims(self).declare_execution(
                     claim.claim_id, work_id=declaration.work_id,
                     producer=declaration.producer, state="acting",
                     next_step="transport.resolve-refusal",

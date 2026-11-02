@@ -74,10 +74,10 @@ class PreLightRadiusWallTest(unittest.TestCase):
                     [str(key), policy.last_reason],
                     replay.boundaries["recorded"][index],
                 )
-                register = policy._claim_register
-                policy._claim_register = copy.copy(register)
+                register = policy._town_hold.claims
+                policy._town_hold.claims = copy.copy(register)
                 tour._recorded_process_capture(policy, snapshot)
-                policy._claim_register = register
+                policy._town_hold.claims = register
                 policy.confirm_key_posted(key)
             optimize = warrior_optimization.optimize_loadout
             unwalled = optimize(*args, **kwargs)

@@ -1423,13 +1423,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "item_reservation.py:reservation_shadow": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "item_reservation.py:reservation_verdict": {
     "classification": "data",
     "rows": [
@@ -2570,13 +2563,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy.py:ExecutionDelegation.as_dict": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy.py:HengbotPolicy._active_dungeon_target": {
     "classification": "data",
     "rows": [
@@ -3020,46 +3006,6 @@
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy.py:HengbotPolicy._enforce_town_claim_result": {
-    "classification": "adapter",
-    "rows": [
-      "supply-buy",
-      "mining-buy",
-      "quest-buy",
-      "optional-buy",
-      "sale",
-      "sale-address",
-      "browse",
-      "store-approach",
-      "store-exit",
-      "home-catalogue",
-      "home-deposit",
-      "home-withdraw",
-      "home-executor",
-      "home-relief",
-      "home-disposal",
-      "destruction",
-      "identification",
-      "device",
-      "remove-curse",
-      "enchant",
-      "equipment-optimization",
-      "equipment-transaction",
-      "equipment-inscription",
-      "stat-recovery",
-      "rumor",
-      "restock",
-      "fundraising",
-      "survival",
-      "quest-service",
-      "departure",
-      "cross-town",
-      "plan-routing",
-      "loot-exploration",
-      "bookkeeping"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -4046,126 +3992,6 @@
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy.py:HengbotPolicy._town_declaration_binding_stop": {
-    "classification": "adapter",
-    "rows": [
-      "supply-buy",
-      "mining-buy",
-      "quest-buy",
-      "optional-buy",
-      "sale",
-      "sale-address",
-      "browse",
-      "store-approach",
-      "store-exit",
-      "home-catalogue",
-      "home-deposit",
-      "home-withdraw",
-      "home-executor",
-      "home-relief",
-      "home-disposal",
-      "destruction",
-      "identification",
-      "device",
-      "remove-curse",
-      "enchant",
-      "equipment-optimization",
-      "equipment-transaction",
-      "equipment-inscription",
-      "stat-recovery",
-      "rumor",
-      "restock",
-      "fundraising",
-      "survival",
-      "quest-service",
-      "departure",
-      "cross-town",
-      "plan-routing",
-      "loot-exploration",
-      "bookkeeping"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy.py:HengbotPolicy._town_final_declaration_stop": {
-    "classification": "adapter",
-    "rows": [
-      "supply-buy",
-      "mining-buy",
-      "quest-buy",
-      "optional-buy",
-      "sale",
-      "sale-address",
-      "browse",
-      "store-approach",
-      "store-exit",
-      "home-catalogue",
-      "home-deposit",
-      "home-withdraw",
-      "home-executor",
-      "home-relief",
-      "home-disposal",
-      "destruction",
-      "identification",
-      "device",
-      "remove-curse",
-      "enchant",
-      "equipment-optimization",
-      "equipment-transaction",
-      "equipment-inscription",
-      "stat-recovery",
-      "rumor",
-      "restock",
-      "fundraising",
-      "survival",
-      "quest-service",
-      "departure",
-      "cross-town",
-      "plan-routing",
-      "loot-exploration",
-      "bookkeeping"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy.py:HengbotPolicy._town_holder_structural_stop": {
-    "classification": "adapter",
-    "rows": [
-      "supply-buy",
-      "mining-buy",
-      "quest-buy",
-      "optional-buy",
-      "sale",
-      "sale-address",
-      "browse",
-      "store-approach",
-      "store-exit",
-      "home-catalogue",
-      "home-deposit",
-      "home-withdraw",
-      "home-executor",
-      "home-relief",
-      "home-disposal",
-      "destruction",
-      "identification",
-      "device",
-      "remove-curse",
-      "enchant",
-      "equipment-optimization",
-      "equipment-transaction",
-      "equipment-inscription",
-      "stat-recovery",
-      "rumor",
-      "restock",
-      "fundraising",
-      "survival",
-      "quest-service",
-      "departure",
-      "cross-town",
-      "plan-routing",
-      "loot-exploration",
-      "bookkeeping"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -9169,6 +8995,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "town_terminal.py:ExecutionDelegation.as_dict": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_terminal.py:_commit_curse_remove": {
     "classification": "adapter",
     "rows": [
@@ -9316,6 +9149,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_terminal.py:hold_claims": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_terminal.py:home_withdraw_intended_terminal": {
     "classification": "data",
     "rows": [
@@ -9373,6 +9213,13 @@
     ],
     "delegation": "no independent success"
   },
+  "town_terminal.py:standing_claim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_terminal.py:terminal_admission": {
     "classification": "data",
     "rows": [
@@ -9391,6 +9238,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_terminal.py:town_end_stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:town_hold": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

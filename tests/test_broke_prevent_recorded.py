@@ -39,6 +39,7 @@ from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.quest_knowledge import load_quest_knowledge, find_quest_definitions
 from hengbot.quest_strategies import load_quest_strategies
+from hengbot.town_terminal import offer_buffer
 
 FIXTURE = Path(__file__).parent / "fixtures/broke-prevent-20261026.json.gz"
 GAME = Path("C:/hengband")
@@ -433,7 +434,7 @@ class BrokePreventRecordedTest(executor_harness.ProductionHarness):
         p._cross_town_shopping.tried_towns[:] = [0,2,3]
         board = parse_snapshot(raw,self.monrace)
         self.assertIsNone(p._cross_town_shopping_key(board))
-        self.assertEqual(p._decision_offer_buffer().no_steps[-1][2],
+        self.assertEqual(offer_buffer(p).no_steps[-1][2],
                          "candidate-towns-exhausted")
         for _ in range(3):
             key,reason,_ = self.decide(p,raw)

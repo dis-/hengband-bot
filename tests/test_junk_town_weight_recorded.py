@@ -59,7 +59,7 @@ from hengbot.equipment_mutation import EquipmentMutationState
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_STUCK_LIMIT
-from test_s33_batch_context import captured_session
+from equipment_session_pins import captured_session
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "junk-town-weight-20261020.jsonl.gz"

@@ -14,6 +14,17 @@ _RETAINED_CALIBRATION_NAMES = frozenset({
 })
 
 
+# Record-only claim diagnostics deleted in stage 2 B slice 3 (the S3.3 shadow
+# verdict, the declaration mismatch, the completed-Home verdict conflict and
+# the unread per-decision gate counters).  Older checkpoints still carry them.
+_RETIRED_CLAIM_RECORD_NAMES = (
+    "_claim_last_completed_home", "_claim_active_operation_identity",
+    "_decision_declaration_mismatch", "_decision_home_approach_fails_before",
+    "_decision_gate_final_count", "_decision_rewrite_refused",
+    "_decision_no_step_release", "_decision_cancelled_home_reservation",
+)
+
+
 def retire_strip_calibration_state(restored) -> None:
     """Drop every retired strip-calibration fact from an old checkpoint.
 
@@ -41,7 +52,7 @@ def retire_strip_calibration_state(restored) -> None:
     visit = state.get("_home_visit")
     if visit is not None:
         _retire_home_visit_kind(visit)
-    register = state.get("_claim_register")
+    register = getattr(state.get("_town_hold"), "claims", None)
     if register is not None:
         _retire_claim_family(register)
     claim = state.get("decision_claim")
@@ -86,7 +97,7 @@ def _cancel_calibration_transaction(state) -> None:
     state["_equipment_transaction_prepared_catalog_update"] = None
     state["_equipment_transaction_restoring"] = False
     state["_equipment_transaction_restore_remainder"] = ()
-    delegations = state.get("_execution_delegations")
+    delegations = getattr(state.get("_town_hold"), "delegations", None)
     if isinstance(delegations, list):
         delegations[:] = [
             record for record in delegations
@@ -169,6 +180,30 @@ def _restore_terminal_admission_ledger(ledger) -> None:
     ledger.__dict__.setdefault("terminal_server_vectors", {})
 
 
+def _adopt_town_hold(state) -> None:
+    """Move a checkpoint's claim register and delegations into the town hold.
+
+    Until stage 2 B slice 3 the policy kept the claim register in
+    ``_claim_register`` and the executor delegations in
+    ``_execution_delegations``; both now live in ``town_terminal.TownHold``
+    (``_town_hold``).  The objects move as they are, so the restored hold
+    decides exactly as the restored register did.  Checkpoints pickled before
+    the S1 claim register carry neither: a fresh register is the honest
+    value (the restored policy has declared nothing yet, and its first
+    decision opens claim 1 exactly as a fresh process would).
+    """
+    if "_town_hold" in state and "_claim_register" not in state:
+        return
+    # ``town_arbiter`` imports this module, and the register imports the
+    # arbiter's families, so the import is local to break that cycle.
+    from hengbot.claim_register import ClaimRegister
+    from hengbot.town_terminal import TownHold
+
+    register = state.pop("_claim_register", ClaimRegister())
+    delegations = state.pop("_execution_delegations", None)
+    state.setdefault("_town_hold", TownHold(register, delegations))
+
+
 def normalize_policy_state(restored, *, restart=False):
     """Upgrade ``restored`` in place to the current policy state version.
 
@@ -180,7 +215,10 @@ def normalize_policy_state(restored, *, restart=False):
     calibration phase.  Physical strip debt is a startup question answered
     once from the persisted calibration file (``cli``), never here.
     """
+    _adopt_town_hold(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
+    for name in _RETIRED_CLAIM_RECORD_NAMES:
+        restored.__dict__.pop(name, None)
     restored.__dict__.setdefault("_visit_departure_committed", None)
     restored.__dict__.setdefault("_visit_departure_recorded", set())
     # A scavenge run's 10,000-turn clock begins on its first Yeek Cave 1F
@@ -352,15 +390,6 @@ def normalize_policy_state(restored, *, restart=False):
                 permanent_values=(*town_block.permanent_values, permanent),
             )
             latches["_town_blocked_reason"] = town_block
-    # Checkpoints pickled before the S1 claim register carry neither the
-    # register nor the recorded claim.  A fresh register is the honest value:
-    # the restored policy has declared nothing yet, and its first decision
-    # opens claim 1 exactly as a fresh process would.
-    # ``town_arbiter`` imports this module, and the register imports the
-    # arbiter's families, so the import is local to break that cycle.
-    from hengbot.claim_register import ClaimRegister
-
-    restored.__dict__.setdefault("_claim_register", ClaimRegister())
     restored.__dict__.setdefault("decision_claim", None)
     # S2a.1: the per-decision goal slots (reset at every ``choose_key`` entry
     # anyway), the register's pending closing, and the expectation
@@ -397,7 +426,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_survival_return_trigger", None)
     # Round 4 (F3): a capture is per call; none is ever restored.
     restored.__dict__.pop("_claim_target_capture", None)
-    register = restored.__dict__.get("_claim_register")
+    register = restored._town_hold.claims
     if register is not None:
         register.__dict__.setdefault("_closing", None)
         # S2b.1 (design rev 10.1 item 5): a checkpoint pickled before the

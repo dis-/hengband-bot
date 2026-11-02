@@ -66,7 +66,7 @@ class HomeCatalogueTakeSequenceTest(unittest.TestCase):
         # alone re-entered '5'/shop:travel:await-entry at historical seq4.
         self.assertEqual((key, policy.last_reason),
                          (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
-        self.assertEqual(policy._claim_register.current.owner.value, "home-scan")
+        self.assertEqual(policy._town_hold.claims.current.owner.value, "home-scan")
         policy.confirm_key_posted(key)
         self.assertEqual(policy.choose_key(board(turn=104)), "")
         self.assertEqual(policy.last_reason, "home:scan-await-observation")
@@ -86,7 +86,7 @@ class HomeCatalogueTakeSequenceTest(unittest.TestCase):
         key = policy.choose_key(board(turn=102))
         self.assertEqual((key, policy.last_reason),
                          (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
-        self.assertEqual(policy._claim_register.current.owner.value, "home-scan")
+        self.assertEqual(policy._town_hold.claims.current.owner.value, "home-scan")
         policy.confirm_key_posted(key)
         for turn in (103, 104):
             self.assertEqual(policy.choose_key(board(turn=turn)), "")
@@ -210,12 +210,12 @@ class HomeCatalogueTakeSequenceTest(unittest.TestCase):
         key = policy.choose_key(board(turn=102))
         self.assertEqual((key, policy.last_reason),
                          (HOME_KNOWLEDGE_MACRO, policy._home_errand.reason("request-knowledge")))
-        self.assertEqual(policy._claim_register.current.owner.value, "home-errand")
+        self.assertEqual(policy._town_hold.claims.current.owner.value, "home-errand")
         policy.confirm_key_posted(key)
         key = policy.choose_key(board(turn=103))
         self.assertEqual((key, policy.last_reason),
                          ("", policy._home_errand.reason("await-fresh-knowledge")))
-        self.assertEqual(policy._claim_register.current.owner.value, "home-errand")
+        self.assertEqual(policy._town_hold.claims.current.owner.value, "home-errand")
 
     def test_errand_lost_request_records_its_optional_outcome_once(self):
         policy = self.policy()

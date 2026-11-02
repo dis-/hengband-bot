@@ -30,14 +30,14 @@ def attachment(label):
     prior, scan = rows(label, "decisions")
     policy = HengbotPolicy()
     policy._decision_sequence = scan["decision_sequence"]
-    policy._claim_register._next_id = prior["claim"]["claim_id"]
-    claim = policy._claim_register.declare(
+    policy._town_hold.claims._next_id = prior["claim"]["claim_id"]
+    claim = policy._town_hold.claims.declare(
         "store-router", reach(tuple(prior["claim"]["goal"]["cell"])),
         opened_sequence=prior["decision_sequence"],
         floor=tuple(prior["floor"][key] for key in ("dungeon_id", "level", "quest_id")))
     declaration = prior["claim"]["execution"]
     # The recorded prior key was posted. Shadow names its awaiting holder.
-    policy._claim_register.declare_execution(
+    policy._town_hold.claims.declare_execution(
         claim.claim_id, producer=declaration["producer"], work_id=declaration["work_id"],
         state="awaiting", arguments=("store", tuple(declaration["arguments"][1])),
         operation_ref=f"decision:{prior['decision_sequence']}:{prior['key']}",
@@ -84,7 +84,6 @@ class Live37HomeScanTest(unittest.TestCase):
                         self.assertIsNone(policy.decision_claim["violation"])
                     else:
                         self.assertEqual((key, policy.last_reason), (scan["key"], scan["reason"]))
-                        self.assertIsNone(policy.decision_claim["s33_shadow"]["would_stop"])
                     # The next historical board followed ~9. Do not consume it
                     # as evidence of the ON key 3 succeeding or failing.
 
@@ -105,28 +104,6 @@ class Live37HomeScanTest(unittest.TestCase):
             self.assertEqual(policy._store_visit.store_type, 4)
             self.assertEqual(policy._store_visit.purpose, "shopping")
             self.assertEqual(policy._store_visit.phase.value, "entering")
-
-    def test_ungated_or_unrelated_entry_cannot_hide_foreign_output(self):
-        for label in ("first", "second"):
-            for entry in (None, ("home-scan", "other-entry"), ("rumor", "outside-scan")):
-                policy, board, scan = attachment(label)
-                if entry is not None:
-                    policy._defer_town_errand(entry[0], entry[1])
-                policy.last_reason = scan["reason"]
-                self.assertEqual(policy._s33_shadow_verdict(board, scan["key"])["would_stop"],
-                                 "ownership:gate-missing:home-scan")
-
-    def test_matching_gate_does_not_hide_invalid_holder(self):
-        policy, board, scan = attachment("second")
-        policy._defer_town_errand("home-scan", "outside-scan")
-        policy.last_reason = scan["reason"]
-        policy._claim_register.declare_execution(
-            policy._claim_register.current.claim_id, producer="store-router",
-            work_id="route:store:37,91", state="awaiting", arguments=(),
-            continuation="route.resume")
-        self.assertEqual(policy._s33_shadow_verdict(board, scan["key"])["would_stop"],
-                         "ownership:declaration-stale:store-router")
-
 
 if __name__ == "__main__":
     unittest.main()

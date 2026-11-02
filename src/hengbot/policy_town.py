@@ -71,6 +71,7 @@ from hengbot.policy_types import (
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.town_terminal import gather_store_buy, verdict_store_buy, plan_stop_admission
+from hengbot.town_terminal import hold_claims, offer_buffer, offered_steps, standing_claim
 from dataclasses import dataclass, replace
 import json
 import os
@@ -1368,7 +1369,7 @@ class TownMixin:
             return True
         if town_travel.is_travel_macro(key) and any(
                 offer[0] == key and str(offer[2]).startswith("route:") and offer[8] == "acting"
-                for offer in self._execution_offers_for()):
+                for offer in offered_steps(self)):
             # A cell route, bounded by _town_travel_key's progress record.
             return True
         if key in {DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO}:
@@ -1735,7 +1736,7 @@ class TownMixin:
                 )
             return None
         proposed_reason = self.last_reason or ""
-        if self._decision_offer_buffer().admitted_commands.get(key) == proposed_reason:
+        if offer_buffer(self).admitted_commands.get(key) == proposed_reason:
             if (
                 key in {"~9\x1b\x1b", HOME_KNOWLEDGE_MACRO}
                 and self._town_result_makes_progress(
@@ -1751,7 +1752,7 @@ class TownMixin:
                 and any(offer[0] == key and offer[1] == "home-scan"
                         and offer[3] == "home.knowledge.observe"
                         and offer[5] == "catalogue-adopted"
-                        for offer in self._execution_offers_for())):
+                        for offer in offered_steps(self))):
             # A declared posted census has its own finite observation bound.
             # Counterfactual travel cannot settle it or replace its await.
             return key
@@ -4298,7 +4299,7 @@ class TownMixin:
                     "previous_categories": old_categories,
                     "new_categories": new_categories,
                 }
-            held = getattr(getattr(self, "_claim_register", None), "current", None)
+            held = standing_claim(self)
             visit = getattr(self, "_store_visit", None)
             current_stop = (
                 previous.stops[previous.index]
@@ -5589,7 +5590,7 @@ class TownMixin:
 
     def _observe_town_equipment_work(self, snapshot: Snapshot) -> None:
         """The inscription owner closes only its named item's observed effect."""
-        register = self._claim_register
+        register = hold_claims(self)
         if register is None:
             return
         for claim in (register.current, *register.suspended):
@@ -7319,9 +7320,9 @@ class TownMixin:
             # resume in the middle of the emergency return after a sale.
             self._cross_town_shopping = None
             self._telmora_q2_errand = False
-            self._claim_register.release("outpost-fare-recovery")
+            hold_claims(self).release("outpost-fare-recovery")
         if snapshot.store is None:
-            holder = self._claim_register.current
+            holder = standing_claim(self)
             execution = getattr(holder, "execution", None)
             if (holder is not None and holder.owner == ClaimOwner.SHOP_SELL
                     and execution is not None

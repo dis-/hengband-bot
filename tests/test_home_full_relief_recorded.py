@@ -24,7 +24,7 @@ from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.policy import HengbotPolicy
 from policy_fixtures import grid
 from test_home_route_release_recorded import reconstructed
-from test_s33_batch_context import captured_session
+from equipment_session_pins import captured_session
 from recorded_junk_scope import pre_junk_scope_replay
 
 FIXTURE = Path(__file__).parent / "fixtures/home-route-release-20261003.json.gz"
@@ -78,10 +78,7 @@ class HomeFullReliefTest(unittest.TestCase):
     def decide(self, policy, board, **changes):
         board = replace(board, turn=board.turn + 1, **changes)
         key = policy.choose_key(board)
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
         self.assertIsNone(policy.decision_claim["violation"])
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
         if key:
             policy.confirm_key_posted(key)
         return board, key

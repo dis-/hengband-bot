@@ -37,18 +37,15 @@ class CaptureAdmissionReplayTest(unittest.TestCase):
         target = next(item for item in selected if item.slot == "m")
         signature = policy._item_signature(target)
         policy._home_pending_item = signature
-        claim = policy._claim_register.declare("identification",
+        claim = policy._town_hold.claims.declare("identification",
             observe(("constructed-duplicate-identification",), 8, source="item"), floor=board.floor_key)
-        policy._claim_register.declare_execution(claim.claim_id, producer="identification",
+        policy._town_hold.claims.declare_execution(claim.claim_id, producer="identification",
             work_id=f"identify:home-item:{signature}", state="acting",
             next_step="identification.use-carried-source", arguments=(signature, False),
             expected_effect="carried-item-identified")
         key = policy.choose_key(board)
         self.assertEqual(key, "rhm")
         self.assertEqual(policy.last_reason, "identify:normal")
-        self.assertIsNone(policy._s33_shadow_verdict(board, key)["would_stop"])
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
 
 
 if __name__ == "__main__":

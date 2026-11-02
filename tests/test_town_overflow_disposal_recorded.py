@@ -15,6 +15,7 @@ from hengbot.model import (
 )
 from hengbot.item_reservation import reservation_verdict
 from hengbot.policy import HengbotPolicy, WAIT_KEY
+from hengbot.town_terminal import offered_steps
 from policy_fixtures import grid, item, player
 
 
@@ -62,7 +63,7 @@ class TownOverflowDisposalRecordedTest(unittest.TestCase):
         )
         # The normal verified-disposal execution offer records every emitted
         # destruction's identity, count, and expected inventory effect.
-        offer, = policy._execution_offers_for()
+        offer, = offered_steps(policy)
         self.assertEqual(offer[0], key)
         self.assertEqual(offer[1], "identification")
         self.assertEqual(

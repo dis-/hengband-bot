@@ -53,11 +53,11 @@ def attached(snapshot, enforced):
 def declare_row(policy, line, *, awaiting=True):
     c = row(line)['claim']
     g = c['goal']
-    claim = policy._claim_register.declare(c['owner'], observe(
+    claim = policy._town_hold.claims.declare(c['owner'], observe(
         g['expectation'], g['within'], g['source']))
     e = c['execution']
     args = tuple(tuple(v) if isinstance(v, list) else v for v in e['arguments'])
-    policy._claim_register.declare_execution(claim.claim_id,
+    policy._town_hold.claims.declare_execution(claim.claim_id,
         producer=e['producer'], work_id=e['work_id'],
         state='awaiting' if awaiting else 'acting',
         next_step=None if awaiting else e['next_step'], arguments=args,
@@ -68,7 +68,6 @@ def declare_row(policy, line, *, awaiting=True):
 
 class Shadow3Test(unittest.TestCase):
     def clean(self, policy, snapshot, key):
-        self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
         self.assertFalse((policy.last_reason or '').startswith('ownership:declaration-'))
 
     def test_loot_downstream_respects_registered_route(self):
@@ -81,8 +80,8 @@ class Shadow3Test(unittest.TestCase):
                 policy._known_loot.add(recorded_loot.GOLD)
                 policy._loot_target = recorded_loot.GOLD
                 policy._shopping_approach_store_type = 4
-                claim = policy._claim_register.declare('store-router', reach((32, 90)))
-                policy._claim_register.declare_execution(claim.claim_id,
+                claim = policy._town_hold.claims.declare('store-router', reach((32, 90)))
+                policy._town_hold.claims.declare_execution(claim.claim_id,
                     producer='store-router', work_id='route:store:32,90', state='acting',
                     next_step='route.resume', arguments=('store', (32, 90)),
                     expected_effect='arrive:32,90', continuation='route.resume')
@@ -112,7 +111,7 @@ class Shadow3Test(unittest.TestCase):
                     'random-teleport-suppressed')
                 self.assertFalse(any(c and c.is_open and c.execution and
                     c.execution.work_id == 'suppress-random-teleport'
-                    for c in (policy._claim_register.current, *policy._claim_register.suspended)))
+                    for c in (policy._town_hold.claims.current, *policy._town_hold.claims.suspended)))
 
     def test_full_home_direct_sale_is_bound_and_observed_on_store_page(self):
         before, after = board(2243), board(2244)
@@ -127,8 +126,8 @@ class Shadow3Test(unittest.TestCase):
                     StoreVisitPhase.OPERATING, opened_sequence=1326)
                 key = policy.choose_key(before)
                 self.assertEqual(key, row(3772)['key'])
-                self.assertIsNotNone(policy._claim_register.current.execution)
-                self.assertEqual(policy._claim_register.current.execution.producer, 'shop-sell')
+                self.assertIsNotNone(policy._town_hold.claims.current.execution)
+                self.assertEqual(policy._town_hold.claims.current.execution.producer, 'shop-sell')
                 self.assertTrue(policy._store_visit.operation_posted)
                 policy.confirm_key_posted(key)
                 key = policy.choose_key(after)
@@ -156,7 +155,7 @@ class Shadow3Test(unittest.TestCase):
                 key = policy.choose_key(before)
                 self.assertEqual(key, '\x1b')
                 self.assertEqual(policy.decision_claim['owner'], 'shop-sell')
-                self.assertEqual(policy._claim_register.current.execution.producer, 'shop-sell')
+                self.assertEqual(policy._town_hold.claims.current.execution.producer, 'shop-sell')
                 self.clean(policy, before, key)
 
     def test_scan_gate_sees_suspended_restoration(self):
@@ -165,8 +164,8 @@ class Shadow3Test(unittest.TestCase):
             with self.subTest(enforced=enforced):
                 policy = attached(snapshot, enforced)
                 declare_row(policy, 3778)
-                policy._claim_register.suspend('constructed-recovery', turn=snapshot.turn)
-                policy._claim_register.declare('survival', reach((38, 106)))
+                policy._town_hold.claims.suspend('constructed-recovery', turn=snapshot.turn)
+                policy._town_hold.claims.declare('survival', reach((38, 106)))
                 policy._begin_map_predicate_cache(snapshot)
                 policy._decision_errand_deferred = []
                 refused = policy._defer_town_errand('home-scan', 'outside-scan')
@@ -190,9 +189,9 @@ class Shadow3Test(unittest.TestCase):
                 session.opened_sequence = 1
                 self.assertTrue(session.dispatch(action, observe_equipment_transactions(before)))
                 policy._equipment_transaction_session = session
-                claim = policy._claim_register.declare('equipment-txn',
+                claim = policy._town_hold.claims.declare('equipment-txn',
                     observe((repr(session.plan.actions), '1'), 8, 'transaction'))
-                policy._claim_register.declare_execution(claim.claim_id,
+                policy._town_hold.claims.declare_execution(claim.claim_id,
                     producer='equipment-txn', work_id=f'equipment:{session.target_loadout_id}:0',
                     state='awaiting', operation_ref='decision:1:d'+target.slot,
                     expected_effect='equipment-action-confirmed', continuation='equipment.next-action')
@@ -205,29 +204,14 @@ class Shadow3Test(unittest.TestCase):
                 closed = policy.decision_claim['closed_claim']
                 self.assertEqual(closed['closed_reason'], 'equipment-transaction-complete')
 
-    def test_unobserved_suppression_is_a_visible_stop(self):
-        snapshot = board(798)
-        for enforced in (False, True):
-            with self.subTest(enforced=enforced):
-                policy = attached(snapshot, enforced)
-                declare_row(policy, 2444)
-                claim = policy._claim_register.current
-                e = claim.execution
-                policy._claim_register.declare_execution(claim.claim_id,
-                    producer=e.producer, work_id=e.work_id, state='awaiting',
-                    arguments=e.arguments, operation_ref=e.operation_ref,
-                    expected_effect=e.expected_effect, continuation='equipment.suppression.observe')
-                self.assertEqual(policy._town_holder_structural_stop(
-                    policy._claim_register.current, snapshot), 'ownership:declaration-stale:equipment-txn')
-
     def test_suspended_restoration_public_scan_board(self):
         snapshot = board(2255)
         for enforced in (False,):
             with self.subTest(enforced=enforced):
                 policy = attached(snapshot, enforced)
                 declare_row(policy, 3778)
-                policy._claim_register.suspend('constructed-recovery', turn=snapshot.turn)
-                policy._claim_register.declare('survival', reach((38, 106)))
+                policy._town_hold.claims.suspend('constructed-recovery', turn=snapshot.turn)
+                policy._town_hold.claims.declare('survival', reach((38, 106)))
                 key = policy.choose_key(snapshot)
                 self.clean(policy, snapshot, key)
                 if enforced:

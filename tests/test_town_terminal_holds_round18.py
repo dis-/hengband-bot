@@ -17,7 +17,6 @@ class RefusalHoldTest(unittest.TestCase):
         snap = board()
         policy = policy_on(snap)
         policy._town_errand_plan = TownErrandPlan([7])
-        self.assertTrue(policy._town_plan_defers("departure"))
         calls = []
 
         def reaction():

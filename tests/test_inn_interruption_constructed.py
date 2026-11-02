@@ -244,9 +244,9 @@ class InnInterruptionTest(unittest.TestCase):
 
     def test_cli_cannot_replace_the_shared_receipt_with_a_goal_only_minimum(self):
         policy = policy_for(1)
-        holder = policy._claim_register.declare("quest-request", reach((28, 56)),
+        holder = policy._town_hold.claims.declare("quest-request", reach((28, 56)),
                                                  floor=(0, 0, 0))
-        policy._claim_register.declare_execution(
+        policy._town_hold.claims.declare_execution(
             holder.claim_id, work_id="teleport:0", producer="quest-request", state="awaiting")
         # Independent driver seam: real admitted execution, with only the
         # emitted work-record lookup supplied at the CLI boundary.

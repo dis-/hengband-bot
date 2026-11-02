@@ -59,7 +59,7 @@ class CrossareaLive2Test(unittest.TestCase):
             "equipment-transaction", "equipment-work", STORE_HOME,
             phase=StoreVisitPhase.OPERATING, opened_sequence=3,
         )
-        policy._claim_register.declare(
+        policy._town_hold.claims.declare(
             "equipment-txn", observe(("transaction",), 8,
                                      source="transaction"),
             floor=self.before.floor_key,

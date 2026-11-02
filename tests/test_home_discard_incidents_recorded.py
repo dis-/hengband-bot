@@ -50,9 +50,7 @@ def catalogue(stamp):
 class DiscardIncidentsTest(unittest.TestCase):
     def decide(self, p, b):
         key = p.choose_key(b)
-        for field in ('declaration_mismatch', 'claim_verdict_conflict', 'violation'):
-            self.assertIsNone(p.decision_claim[field], (field, p.last_reason, p.decision_claim))
-        self.assertIsNone(p._s33_shadow_verdict(b, key)['would_stop'])
+        self.assertIsNone(p.decision_claim['violation'], (p.last_reason, p.decision_claim))
         if key:
             p.confirm_key_posted(key)
         return key
@@ -98,7 +96,7 @@ class DiscardIncidentsTest(unittest.TestCase):
             p._home_full_relief.update(sale=(sig, STORE_HOME, 0), withdrawn=True,
                 mode='identify', identifying=(target.tval, target.count,
                 frozenset(p._item_signature(i) for i in before.inventory), False, False))
-            p._claim_register.declare('identification', observe(('identified',), 8,
+            p._town_hold.claims.declare('identification', observe(('identified',), 8,
                 source='store-operation'), floor=before.floor_key)
             key = self.decide(p, after)
             self.assertIsNone(p._home_full_relief)
@@ -153,7 +151,7 @@ class DiscardIncidentsTest(unittest.TestCase):
             p._home_full_relief.update(sale=(sig, STORE_HOME, 0), withdrawn=True,
                 mode='identify', identifying=(target.tval, target.count,
                 frozenset(p._item_signature(i) for i in before.inventory), False, False))
-            p._claim_register.declare('identification', observe(('identified',), 8,
+            p._town_hold.claims.declare('identification', observe(('identified',), 8,
                 source='store-operation'), floor=before.floor_key)
             unchanged = replace(before, turn=before.turn + 1)
             key = self.decide(p, unchanged)
@@ -207,7 +205,7 @@ class DiscardIncidentsTest(unittest.TestCase):
                 identification_counts={(source.tval, source.sval): sum(
                     i.count for i in b.inventory if i.known
                     and (i.tval, i.sval) == (source.tval, source.sval))})
-            p._claim_register.declare('identification', observe(('identified',), 8,
+            p._town_hold.claims.declare('identification', observe(('identified',), 8,
                 source='store-operation'), floor=b.floor_key)
             after = replace(b, turn=b.turn + 1, inventory=tuple(
                 replace(i, name='Identify staff (7 charges)', charges=i.charges - 1)

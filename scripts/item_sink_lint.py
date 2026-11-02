@@ -297,19 +297,14 @@ def analyze_source(source, filename='mutant.py', *, names=None, adapters=None,
             body = _exit_statements(node)
             if len(non_none) != 1:
                 findings.append(f'line {node.lineno}: choose_key must have exactly one non-None return site')
-            elif (len(returns) != 1 or len(body) < 3
+            elif (len(returns) != 1 or len(body) < 2
                   or not isinstance(body[-1], ast.Return)
                   or not isinstance(body[-2], ast.Expr)
                   or not isinstance(body[-2].value, ast.Call)
                   or _name(body[-2].value.func) != '_record_decision_claim'
                   or not body[-2].value.args
-                  or ast.dump(body[-2].value.args[-1]) != ast.dump(non_none[0].value)
-                  or not isinstance(body[-3], ast.Assign)
-                  or len(body[-3].targets) != 1
-                  or ast.unparse(body[-3].targets[0]) != ast.unparse(non_none[0].value)
-                  or not isinstance(body[-3].value, ast.Call)
-                  or _name(body[-3].value.func) != '_enforce_town_claim_result'):
-                findings.append(f'line {node.lineno}: choose_key exit must enforce and record its final decision claim')
+                  or ast.dump(body[-2].value.args[-1]) != ast.dump(non_none[0].value)):
+                findings.append(f'line {node.lineno}: choose_key exit must record its final decision claim')
     return sorted(set(findings))
 
 

@@ -26,6 +26,7 @@ from hengbot.store_sale import known_sale_value
 from hengbot.policy_supply import supply_ledger_observer_memo
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot.model import STORE_ARMOURY, STORE_TEMPLE, STORE_BLACK
+from hengbot.town_terminal import hold_claims, standing_claim
 import re
 import json
 from datetime import datetime, timezone
@@ -777,7 +778,7 @@ class HomeMixin:
                 self._home_full_retry_deposits = None
                 self._begin_home_full_relief(snapshot, retry)
                 return self._home_full_relief_key(snapshot)
-            holder = self._claim_register.current
+            holder = standing_claim(self)
             if (not self._home_knowledge_current
                     and not (self._equipment_transaction_session is not None
                              and holder is not None and holder.is_open
@@ -1506,7 +1507,7 @@ class HomeMixin:
         knowledge_current: bool,
     ) -> bool:
         """File migrated Home work and register its observation expectation."""
-        register = getattr(self, "_claim_register", None)
+        register = hold_claims(self)
         standing = getattr(register, "current", None)
         requester = (
             "equipment-txn" if request.purpose == "combat-weapon"

@@ -16,14 +16,15 @@ from hengbot.home_errand import HomeErrandRequest
 from test_policy import (Snapshot, StoreState, STORE_HOME, TVAL_LITE,
                          SV_LITE_LANTERN, grid, item, player)
 from hengbot.policy_constants import CHARACTER_DUMP_MACRO, REST_MACRO
+from hengbot.town_terminal import offered_steps
 from policy_fixtures import set_completed_equipment_optimization
 
 
 def bind(policy, family, key):
-    claim = policy._claim_register.declare(
+    claim = policy._town_hold.claims.declare(
         family, observe(("r7-producer",), 8, "store-operation"))
     policy._record_execution_declaration(claim, key, policy.last_reason)
-    return policy._claim_register.current.execution
+    return policy._town_hold.claims.current.execution
 
 
 def town_board(*, hurt=False):
@@ -85,7 +86,7 @@ class AtomicHomeRows(unittest.TestCase):
         key = policy._open_home_deposit_key(board)
         self.assertEqual((key, policy.last_reason),
                          ("dr1\r\x1b", "home:atomic-deposit"))
-        self.assertEqual(policy._execution_offers_for()[-1][:2],
+        self.assertEqual(offered_steps(policy)[-1][:2],
                          (key, "home-visit"))
         declaration = bind(policy, "home-visit", key)
         self.assertEqual((declaration.state, declaration.next_step),
@@ -165,7 +166,7 @@ class EquipmentTransactionRows(unittest.TestCase):
         key = policy._equipment_home_outcome(
             "5", label="deposit-stale-worn", effect="transaction-replanned")
         self.assertEqual(key, "5")
-        self.assertEqual(policy._execution_offers_for()[-1][:2],
+        self.assertEqual(offered_steps(policy)[-1][:2],
                          ("\r", "equipment-txn"))
         declaration = bind(policy, "equipment-txn", "\r")
         self.assertEqual((declaration.state, declaration.next_step),
@@ -178,17 +179,16 @@ class EquipmentTransactionRows(unittest.TestCase):
             executable=True, pending_action=object(),
             posted_command_id="posted-1907", target_loadout_id="town-1907",
             unconfirmed_observations=0)
-        policy._claim_register.declare(
+        policy._town_hold.claims.declare(
             "equipment-txn", observe(("transaction",), 8, "transaction"))
         board = town_board()
         key = policy._equipment_transaction_town_key(board)
         self.assertEqual((key, policy.last_reason),
                          ("5", "equipment-transaction:await-confirmation"))
-        self.assertEqual(policy._execution_offers_for()[-1][:2],
+        self.assertEqual(offered_steps(policy)[-1][:2],
                          ("5", "equipment-txn"))
         policy._record_decision_claim(board, key)
         self.assertEqual(policy.decision_claim["execution"]["state"], "acting")
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
         self.assertIsNone(getattr(policy, "_execution_pending_post", None))
 
     def test_town_1904_leave_uses_visit_owner_without_operation_family(self):
@@ -203,11 +203,10 @@ class EquipmentTransactionRows(unittest.TestCase):
         self.assertEqual(policy.decision_claim["owner"], "equipment-txn")
         self.assertEqual(policy.decision_claim["execution"]["producer"],
                          "equipment-txn")
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
 
     def test_town_1907_pending_action_has_owner_matched_offer(self):
         policy = HengbotPolicy()
-        holder = policy._claim_register.declare(
+        holder = policy._town_hold.claims.declare(
             "equipment-txn", observe(("transaction",), 8, "transaction"))
         policy._equipment_transaction_session = SimpleNamespace(
             pending_action=object(), complete=False,

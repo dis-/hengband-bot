@@ -13,6 +13,7 @@ from policy_fixtures import grid
 from policy_fixtures import item
 from hengbot.model import TVAL_SCROLL, SV_SCROLL_IDENTIFY
 from hengbot.policy_constants import LEAVE_STORE_KEY
+from hengbot.town_terminal import offer_buffer
 from test_goldburn_shopping_constructed import board
 from test_town_terminal_departure import policy_on
 
@@ -48,7 +49,7 @@ class ShopPageAdmissionTest(unittest.TestCase):
                 self.assertEqual(row["live"], [])
                 self.assertEqual(row["closed"], "terminal-refused-unserved:page-not-composable")
                 # Compare the actual no-step settlement, including its writer.
-                offers = policy._decision_offer_buffer()
+                offers = offer_buffer(policy)
                 outcomes.append((policy.last_reason, policy._shop_observation, repr(offers)))
             self.assertEqual(outcomes[0], outcomes[1])
         self.assertEqual(tt.TERMINALS[RUNG].mode, tt.ENFORCE)
@@ -148,7 +149,7 @@ class StoreOperationAdmissionTest(unittest.TestCase):
                 self.assertEqual(row["codes"], ["sale-item-unavailable" if missing else "sale-not-accepted"])
                 outcomes.append((key, policy.last_reason, policy._unsellable_items,
                                  policy._last_sell_sig, policy._store_sell_stuck_count,
-                                 repr(policy._decision_offer_buffer())))
+                                 repr(offer_buffer(policy))))
             self.assertEqual(outcomes[0], outcomes[1])
 
     def test_admitted_sale_keeps_the_real_body_and_its_operation(self):

@@ -1,0 +1,84 @@
+{
+ "tools": "validation/structure-s2-3-1102/replay_hold.py (manifest-tax-1101/replay_choose_key.py plus the hold's inputs: decision_claim claim_id/owner/goal kind/distance, _decision_errand_deferred rows, every _defer_town_errand result and _claim_errand_hold answer with its four nearest callers; --claim-row adds the whole decision_claim row), run_shards.py, compare_hold.py; each tree exported inside the worktree",
+ "step_3_2": {
+  "trees": {
+   "main": "313c5f103 (main's tests, 293 modules of structure-s2-2-1102/replay-test-ids.txt)",
+   "branch": "63d3a137e (branch tests, 287 modules: replay-test-ids.txt here)"
+  },
+  "tests_run": {
+   "main": 3060,
+   "branch": 3029
+  },
+  "decisions": {
+   "main": 13724,
+   "branch": 13728
+  },
+  "receipts": 46774,
+  "hold_and_defer_calls": 572559,
+  "errand_deferred_rows": 3621,
+  "left_out": "deleted tests; calls whose callers include the deleted _s33_shadow_verdict, _enforce_town_claim_result or _town_plan_defers",
+  "differing": 6,
+  "differing_detail": "4 rows of test_declarations_r3b.RumorDeclarationTest: state left by another test of a different shard (the two lists shard differently); that module alone gives 0 differences on both src trees. 2 'end' rows (test_town_terminal_home_round14, test_town_terminal_no_refusal_round11): only the order of a set walk differs (per-process string hashing), the call multisets are equal. test_declarations_r14's remaining test failed to import on main (its deleted sibling needed scripts/); main's src with the branch tests gives 0 differences."
+ },
+ "step_3_3": {
+  "trees": {
+   "before": "63d3a137e",
+   "after": "c12b176ca"
+  },
+  "test_ids": "replay-test-ids.txt (287 modules), same 6 shards on both sides, --claim-row",
+  "tests_run": {
+   "before": 3029,
+   "after": 3029
+  },
+  "failures_errors": {
+   "before": [
+    136,
+    26
+   ],
+   "after": [
+    136,
+    26
+   ]
+  },
+  "decisions": 13732,
+  "receipts": 46799,
+  "hold_and_defer_calls": 572831,
+  "errand_deferred_rows": 3625,
+  "differing": 0
+ },
+ "merge_main_9afd9203e": {
+  "trees": {
+   "main": "9afd9203e (main's tests)",
+   "branch": "1e4e63c03 (slice 3 + that main)"
+  },
+  "test_ids": "replay-test-ids.txt plus main's 8 new recorded modules (295)",
+  "tests_run": {
+   "main": 3054,
+   "branch": 3043
+  },
+  "decisions": 13798,
+  "receipts": 46879,
+  "hold_and_defer_calls": 577471,
+  "errand_deferred_rows": 3654,
+  "differing": 0,
+  "left_out": "tests deleted in slice 3; test_declarations_r14 (fails to import on main, see step_3_2)"
+ },
+ "merge_main_1329dfdac": {
+  "trees": {
+   "main": "1329dfdac",
+   "branch": "9a553f5eb"
+  },
+  "test_ids": "the 3 recorded modules main added since 9afd9203e plus test_overweight_home_hold_recorded, test_live23_home_cycle, test_home_scan_owner_priority",
+  "decisions": 83,
+  "receipts": 316,
+  "hold_and_defer_calls": 4708,
+  "differing": 0
+ },
+ "home_window_outcomes": {
+  "modules": 15,
+  "tests_and_subtests": 102,
+  "same_before_and_after_3_3": true,
+  "red_on_both": 9,
+  "tool": "test_outcomes.py"
+ }
+}

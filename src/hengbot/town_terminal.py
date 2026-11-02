@@ -9,15 +9,18 @@ the commit that only the terminal's own call site performs.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from copy import copy
+from dataclasses import dataclass, field, replace
 import re
 from typing import Any, Callable, NamedTuple
 
 from hengbot.claim_goal_typing import (
     KNOWLEDGE as OBSERVE_KNOWLEDGE,
+    STORE_ENTRY as OBSERVE_STORE_ENTRY,
     STORE_OPERATION as OBSERVE_STORE_OPERATION,
+    is_survival,
 )
-from hengbot.claim_register import GOAL_OBSERVE, GOAL_REACH
+from hengbot.claim_register import GOAL_OBSERVE, GOAL_REACH, GOAL_TERMINAL, ClaimRegister, owner_of
 from hengbot.policy_constants import (
     EQUIPMENT_SLOT_KEY,
     HOME_KNOWLEDGE_MACRO,
@@ -1852,8 +1855,165 @@ TERMINALS: dict[str, TerminalDecl] = {
 # Owner 2026-10-28 「B: 場面の終点に一本化」: town_terminal is the one "who
 # acts" authority.  The three claim parts that still steer live keys moved
 # here: the rung -> family table, the census family of a reason, and the
-# town errand / cross-area Home hold.  The hold still reads the open claims
-# in ``policy._claim_register`` until a later slice replaces that state.
+# town errand / cross-area Home hold.  Slice 3 moved the state the hold reads
+# here as well (``TownHold`` below).
+
+
+# --- The town hold's state (structure stage 2 B, slice 3) -------------------
+# Everything of the former claim recording that a later decision still reads:
+# the standing claim, the suspended stack and the bars (the claim register),
+# the executor delegations, and the current decision's producer offers.  The
+# policy keeps one ``TownHold`` in ``_town_hold``; every other module reaches
+# it through the functions below and never through policy attributes.
+
+@dataclass
+class ExecutionDelegation:
+    """Recorded, explicitly opened executor work; never inferred at a hold."""
+
+    parent_claim_id: int | None
+    parent_family: str
+    delegate_family: str
+    work_identity: tuple
+    purpose_identity: tuple
+    opening_decision: int
+    expected_effect: str
+    budget_reference: str
+    lifecycle: str = "reserved"
+    ending: str | None = None
+    execution: object = None
+
+    def as_dict(self) -> dict[str, object]:
+        row = {name: getattr(self, name) for name in (
+            "parent_claim_id", "parent_family", "delegate_family",
+            "work_identity", "purpose_identity", "opening_decision",
+            "expected_effect", "budget_reference", "lifecycle", "ending",
+        )}
+        row["execution"] = (
+            self.execution.as_dict() if self.execution is not None else None
+        )
+        return row
+
+
+@dataclass
+class DecisionOffers:
+    """Transient producer proposals, consumed only by the claim exit."""
+
+    steps: list = field(default_factory=list)
+    no_steps: list = field(default_factory=list)
+    waits: list = field(default_factory=list)
+    admitted_commands: dict = field(default_factory=dict)
+    sequence: int = 0
+
+    def next_sequence(self) -> int:
+        self.sequence += 1
+        return self.sequence
+
+
+class _OfferSlot:
+    """The current decision's offers; shared by a hold and its observer copy."""
+
+    __slots__ = ("buffer",)
+
+    def __init__(self) -> None:
+        self.buffer: DecisionOffers | None = None
+
+
+class TownHold:
+    """The town hold's live state.
+
+    ``claims`` is the claim register (``None`` only when a caller switched
+    the recording off).  ``delegations`` are the executor delegations.  The
+    offers belong to one decision and to this process: they are never pickled
+    or deep-copied (a restored or copied policy starts without offers), and a
+    telemetry observer copy shares them, as the decision it observes does.
+    """
+
+    def __init__(self, claims: ClaimRegister | None = None,
+                 delegations: list | None = None) -> None:
+        self.claims = claims
+        self.delegations = delegations if delegations is not None else []
+        self._offers = _OfferSlot()
+
+    @classmethod
+    def fresh(cls) -> "TownHold":
+        return cls(ClaimRegister())
+
+    def __getstate__(self) -> dict:
+        state = dict(self.__dict__)
+        del state["_offers"]
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+        self._offers = _OfferSlot()
+
+    def observer_copy(self) -> "TownHold":
+        """A copy a telemetry observer may write: the register is copied
+        shallowly (it rebinds its current claim on every transition), the
+        delegation list is a new list, the offers are shared."""
+        duplicate = TownHold(copy(self.claims) if self.claims is not None else None,
+                             list(self.delegations))
+        duplicate._offers = self._offers
+        return duplicate
+
+
+def town_hold(policy: Any) -> TownHold | None:
+    return getattr(policy, "_town_hold", None)
+
+
+def hold_claims(policy: Any) -> ClaimRegister | None:
+    """The claim register of the town hold: the one place claims change."""
+    return getattr(town_hold(policy), "claims", None)
+
+
+def standing_claim(policy: Any):
+    """The standing (current) claim, open or just closed, or None."""
+    return getattr(hold_claims(policy), "current", None)
+
+
+def suspended_claims(policy: Any) -> tuple:
+    register = hold_claims(policy)
+    return register.suspended if register is not None else ()
+
+
+def hold_bars(policy: Any) -> tuple:
+    register = hold_claims(policy)
+    return register.bars if register is not None else ()
+
+
+def hold_delegations(policy: Any) -> list:
+    """The executor delegation records (an empty list without a hold)."""
+    hold = town_hold(policy)
+    return hold.delegations if hold is not None else []
+
+
+def offer_buffer(policy: Any) -> DecisionOffers:
+    """This decision's offer buffer, opened on first use."""
+    slot = policy._town_hold._offers
+    if slot.buffer is None:
+        slot.buffer = DecisionOffers()
+    return slot.buffer
+
+
+def open_offers(policy: Any) -> DecisionOffers | None:
+    """This decision's offer buffer if a producer opened one, else None."""
+    hold = town_hold(policy)
+    return hold._offers.buffer if hold is not None else None
+
+
+def take_offers(policy: Any) -> DecisionOffers | None:
+    """Close this decision's offer buffer and return it (None if unopened)."""
+    hold = town_hold(policy)
+    if hold is None:
+        return None
+    buffer, hold._offers.buffer = hold._offers.buffer, None
+    return buffer
+
+
+def offered_steps(policy: Any) -> tuple:
+    """The step offers producers made on this decision, in order."""
+    buffer = open_offers(policy)
+    return tuple(buffer.steps) if buffer is not None else ()
 
 # The family each town rung's entry admits under when its call site passes
 # no ``family=`` (formerly the claim ladder's rung table).
@@ -1943,13 +2103,13 @@ def claim_family_of(policy: Any, reason: str | None) -> str:
         # A sale's no-effect exit is still that seller's operation. The
         # acting owner declares it; the generic reason cannot turn it into
         # a competing buyer while the sale observation is outstanding.
-        for offer in reversed(policy._execution_offers_for()):
+        for offer in reversed(offered_steps(policy)):
             if offer[0] == LEAVE_STORE_KEY and offer[2] == "shop:in-store-leave":
                 return offer[1]
     if reason == "home:request-knowledge-scan":
         # The scan can be a step of registered equipment catalogue work,
         # rather than a new errand. Require the producer's explicit offer.
-        for offer in reversed(policy._execution_offers_for()):
+        for offer in reversed(offered_steps(policy)):
             if (offer[2] == "equipment:acquire-home-catalog"
                     and offer[5] == "home-catalog-available"
                     and offer[0] == HOME_KNOWLEDGE_MACRO):
@@ -1963,7 +2123,7 @@ def claim_family_of(policy: Any, reason: str | None) -> str:
         "home:atomic-withdraw-slot-unobserved",
         "home:atomic-withdraw-address-invalid",
     )):
-        previous = getattr(getattr(policy, "_claim_register", None), "current", None)
+        previous = standing_claim(policy)
         if (previous is not None and previous.owner.value in {'equipment-txn'}):
             return previous.owner.value
     visit = getattr(policy, "_store_visit", None)
@@ -1985,7 +2145,7 @@ def claim_family_of(policy: Any, reason: str | None) -> str:
         )
     if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (visit is not None) and (getattr(visit, 'claim_operation_identity', None) is not None) and (visit.claim_owner in {'home-visit', 'equipment-txn'})):
         return visit.claim_owner
-    current = getattr(getattr(policy, "_claim_register", None), "current", None)
+    current = standing_claim(policy)
     if (reason and reason.startswith(('home:leave-', 'home:store-context-exit')) and (current is not None) and current.is_open and (current.owner.value in {'equipment-txn'}) and (current.goal.source in {'transaction'})):
         return current.owner.value
     composing_family = getattr(visit, "operation_producer_family", None)
@@ -1999,6 +2159,281 @@ def claim_family_of(policy: Any, reason: str | None) -> str:
     if arbiter is not None:
         return arbiter.ownership_family(reason or "")
     return reason_owner_family(reason or "")
+
+
+
+
+class HoldStep(NamedTuple):
+    """What advancing the hold found on a decision's exit, for its record row."""
+
+    reason: str
+    owner: Any
+    goal_missing: bool
+    goal_note: Any
+    survival: bool
+    rung: Any
+    # The standing claim the owner transition met, and this decision's claim
+    # before (``claim``) and after (``declared``) its execution declaration.
+    standing: Any
+    claim: Any
+    declared: Any
+    violation: Any
+    closed: dict | None
+    resumed: Any
+    suspended_closed: list
+    would_bar: Any
+    would_skip: Any
+    bars_set: list
+    bars_lifted: list
+
+
+def advance_hold(policy: Any, snapshot: Any, key: Any) -> HoldStep | None:
+    """Advance the town hold on the ``choose_key`` exit (the state step).
+
+    Closes the claim this board ends (a producer's own closing, the exit's
+    completion or expiry test, a preemption or a survival displacement),
+    ends the suspended claims the board ends, resumes or declares this
+    decision's claim, sets the bars of the claims that ended without their
+    goal, binds and retires the executor delegations and declares the
+    execution the producer offered.  Later decisions read all of it (the
+    errand hold, the bars, the delegation tokens), so it runs on every
+    decision.  Returns None when the claim recording is switched off.
+    The decision's record row is ``policy._write_decision_claim_row``.
+    """
+    from hengbot.claim_ladder import PREEMPTION, S3_FAMILIES, SURVIVAL_DISPLACED, rung_of
+
+    registry = getattr(policy, "_owner_expectations", None)
+    pops = (
+        registry.drain_pops()
+        if registry is not None and hasattr(registry, "drain_pops")
+        else []
+    )
+    register = hold_claims(policy)
+    if register is None:
+        return None
+    # S2b.2: the bars this board lifts (a pure function of the board).
+    bars_lifted = policy._claim_bar_lift(snapshot, register)
+    reason = policy.last_reason or ""
+    standing = register.current
+    policy._claim_exit_completion(snapshot, standing, pops)
+    standing = register.current
+    if (
+        standing is not None and standing.is_open
+        and standing.goal.kind == GOAL_REACH
+        and (getattr(policy, "decision_claim", None) or {}).get("reason")
+            == "town:seek-shelter"
+        and not getattr(policy, "_took_damage", False)
+    ):
+        policy._release_claim_goal(
+            "seek-shelter-trigger-gone", owners=(standing.owner,),
+            kinds=(GOAL_REACH,),
+        )
+    # S2b.1 (rev 10.1 item 6, rules i-ii): the suspended claims this board
+    # ends -- a floor change, or a goal the board shows met.
+    policy._claim_suspended_exit(snapshot, register)
+    policy._claim_home_knowledge_observed = False
+    # Rev 9.2 (S): the danger trigger of *this* return, recorded where the
+    # return began -- never ``_last_return_trigger``, which outlives it.
+    survival = is_survival(
+        reason, getattr(policy, "_survival_return_trigger", None)
+    ) or reason == "town:kill-mob" or (
+        snapshot.in_town and reason == "melee"
+        and any(
+            not monster.pet
+            and snapshot.player.position.distance_to(monster.position) <= 1
+            for monster in snapshot.visible_monsters
+        )
+    )
+    # S2a: the claim records the **census** family -- who owns the
+    # producer -- not the arbitration bucket its reason spends in town.
+    # A posted combat-weapon Home withdrawal can pass through the generic
+    # Home confirmation and one-shot wait exits.  Their reason strings
+    # name the wrapper, while the still-open operation belongs to the
+    # filed Home errand.  Keep its recorded claim through both waits.
+    standing = register.current
+    continuing_home_errand = (
+        reason in {
+            "home:atomic-withdraw-await-confirmation",
+            "shop:one-shot-in-flight",
+        }
+        and standing is not None and standing.is_open
+        and standing.owner.value == "home-errand"
+        and standing.goal.source == OBSERVE_STORE_OPERATION
+        and getattr(policy, "_home_atomic_withdraw_pending", None) is not None
+    )
+    suspended_holder = next((claim for claim in reversed(register.suspended)
+                             if claim.closed is None
+                             and claim.state.value == "suspended"
+                             and reason.endswith(f":{claim.owner.value}")), None)
+    continuing_holder_wait = (
+        reason.startswith(("ownership:holder-silent:",
+                           "ownership:holder-await:",
+                           "ownership:declaration-"))
+        and ((standing is not None and standing.is_open
+              and reason.endswith(f":{standing.owner.value}"))
+             or suspended_holder is not None)
+    )
+    continuing_owner = (
+        continuing_home_errand or continuing_holder_wait
+    )
+    continuation_claim = (
+        suspended_holder
+        if continuing_holder_wait and suspended_holder is not None
+        and (standing is None or not standing.is_open
+             or not reason.endswith(f":{standing.owner.value}"))
+        else standing
+    )
+    owner = (
+        continuation_claim.owner if continuing_owner
+        else owner_of(policy._claim_family_of(reason))
+    )
+    if reason in {"shop:await-leave-confirmation", "shop:await-leave-generation"}:
+        family = policy._visit_exit_family()
+        if family != "barrier-provenance-missing":
+            owner = owner_of(family)
+    policy._claim_refresh_non_discardable(owner)
+    # S2b.1 (rev 10.1 items 1-2): the rung and rank of this decision.
+    non_discardable = (
+        continuation_claim.non_discardable
+        if continuing_owner
+        else getattr(policy, "_decision_non_discardable", None) == owner.value
+    ) and not reason.endswith(":await-entry")
+    rung = rung_of(owner, reason, non_discardable=non_discardable)
+    standing = register.current
+    goal, goal_missing, goal_note = (
+        (continuation_claim.goal, False, None)
+        if continuing_owner
+        else policy._claim_goal(snapshot, key, owner, reason, standing)
+    )
+    if (
+        standing is not None and standing.is_open
+        and standing.owner == owner
+        and reason.startswith("equipment-transaction:stale-identity-invalidated:")
+    ):
+        policy._release_claim_goal('transaction-identity-stale', owners=(owner,), kinds=(GOAL_OBSERVE,), sources=('transaction',))
+        standing = register.current
+    if (
+        standing is not None and standing.is_open
+        and standing.owner == owner
+        and standing.goal.source == OBSERVE_STORE_ENTRY
+        and goal.kind == GOAL_TERMINAL
+    ):
+        policy._release_claim_goal(
+            f"entry-abandoned:{reason}", owners=(owner,),
+            kinds=(GOAL_OBSERVE,),
+            sources=(OBSERVE_STORE_ENTRY,),
+        )
+        standing = register.current
+    if (
+        standing is not None and standing.is_open
+        and standing.owner == owner
+        and standing.goal.source == OBSERVE_STORE_OPERATION
+        and goal.kind == GOAL_OBSERVE
+        and standing.goal != goal
+        and getattr(policy, "_home_atomic_withdraw_pending", None) is None
+        and getattr(policy, "_home_atomic_deposit_pending", None) is None
+    ):
+        policy._release_claim_goal(
+            "operation-identity-stale", owners=(owner,),
+            kinds=(GOAL_OBSERVE,),
+            sources=(OBSERVE_STORE_OPERATION,),
+        )
+        standing = register.current
+    action, label, violation = policy._claim_owner_transition(
+        register, standing, owner, goal, rung, survival, non_discardable,
+        snapshot=snapshot,
+    )
+    if action == PREEMPTION:
+        # Design 3.2 / rev 10 item 2: a strictly higher rung suspends the
+        # holder with its goal intact.  The one caller of ``suspend``.
+        register.suspend(
+            label, sequence=policy._decision_sequence, turn=snapshot.turn
+        )
+        # Round 3: a holder restored with no floor takes this board's.
+        register.stamp_suspended_floor(standing.claim_id, snapshot.floor_key)
+    elif action == SURVIVAL_DISPLACED:
+        # Survival that does not outrank the holder replaces it: released,
+        # exempt, not a violation (round 2, F1/F2).
+        register.release(label)
+    if action is not None:
+        # S2a.1's order: the goal is read after the holder closed, exactly
+        # as it was when survival was the only preemptor.
+        goal, goal_missing, goal_note = policy._claim_goal(
+            snapshot, key, owner, reason, register.current
+        )
+    resumed = policy._claim_resolve_suspended(
+        register, owner, goal, rung, survival, non_discardable
+    )
+    finished = register.take_closing()
+    closed = finished.closing_dict() if finished is not None else None
+    suspended_closed = register.take_suspended_closings()
+    if resumed is not None:
+        # The resumed claim keeps its own rank unless this decision's rung
+        # is strictly higher, so it still outranks nothing it sat under.
+        outranks = resumed.rank is None or rung.rank < resumed.rank
+        claim = register.resume(
+            resumed.claim_id,
+            sequence=policy._decision_sequence,
+            turn=snapshot.turn,
+            rank=rung.rank if outranks else resumed.rank,
+            rung=rung.name if outranks else resumed.rung,
+            perceived_turn=policy._claim_trigger_perceived(
+                snapshot, resumed.trigger_monsters
+            ),
+        )
+    else:
+        current = register.current
+        continuing = register.continues(owner, goal, non_discardable)
+        triggers = (
+            current.trigger_monsters
+            if continuing and current is not None
+            else policy._claim_trigger_monsters(owner, goal)
+        )
+        register.declare(
+            owner,
+            goal,
+            non_discardable=non_discardable,
+            opened_sequence=policy._decision_sequence,
+            floor=snapshot.floor_key,
+            survival=survival,
+            opened_turn=snapshot.turn,
+            rank=rung.rank,
+            rung=rung.name,
+            trigger_monsters=triggers,
+            perceived_turn=policy._claim_trigger_perceived(snapshot, triggers),
+        )
+    if policy._claim_owner_retired(owner):
+        claim = register.retire()
+    elif key is None or key == "":
+        claim = register.await_observation()
+    else:
+        claim = register.keep_active()
+    transition_violation = violation
+    # The store visit records which claim operates it (``claim_family_of``
+    # reads ``claim_owner``).
+    visit = getattr(policy, "_store_visit", None)
+    if visit is not None and claim.is_open and claim.owner.value in S3_FAMILIES:
+        visit.claim_id = claim.claim_id
+        visit.claim_owner = claim.owner.value
+    # S2b.2 (record-only while the switch is off): the bar this decision's
+    # owner and goal would meet -- read before this row's own endings are
+    # barred, as the ladder would have read the table while deciding.
+    would_bar = policy._claim_would_bar(register, claim, survival)
+    would_skip = policy._claim_would_skip(register, rung, survival)
+    bars_set = policy._claim_set_bars(
+        snapshot, register,
+        dropped=standing if transition_violation is not None else None,
+    )
+    policy._bind_execution_delegations(claim)
+    policy._observe_execution_delegations()
+    policy._record_execution_declaration(claim, key, reason)
+    return HoldStep(
+        reason=reason, owner=owner, goal_missing=goal_missing, goal_note=goal_note,
+        survival=survival, rung=rung, standing=standing, claim=claim,
+        declared=register.current, violation=violation, closed=closed,
+        resumed=resumed, suspended_closed=suspended_closed, would_bar=would_bar,
+        would_skip=would_skip, bars_set=bars_set, bars_lifted=bars_lifted,
+    )
 
 
 def errand_hold(policy: Any, family: str, *, enforced: bool = False,
@@ -2017,7 +2452,7 @@ def errand_hold(policy: Any, family: str, *, enforced: bool = False,
     def town_errand(claim):
         return claim.owner.value in _ERRAND_HOLD_FAMILIES
 
-    register = getattr(policy, "_claim_register", None)
+    register = hold_claims(policy)
     standing = getattr(register, "current", None)
     if (
         standing is not None

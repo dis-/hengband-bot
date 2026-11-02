@@ -36,6 +36,7 @@ from hengbot.policy_instore import InStoreMixin
 from hengbot import approach_walk, me_capability, me_device_policy, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
+from hengbot.town_terminal import hold_claims, offered_steps
 from hengbot.purchase_rungs import (
     PurchaseContext,
     PurchaseMatch,
@@ -1727,7 +1728,7 @@ class ShopMixin(InStoreMixin):
             expedition.tried_towns.append(current)
         expedition.target_town_id = None
         # The transport child is finished; local shop owners may now execute.
-        register = self._claim_register
+        register = hold_claims(self)
         for claim in (register.current, *register.suspended):
             execution = getattr(claim, "execution", None)
             if (claim is not None and claim.closed is None
@@ -4552,7 +4553,7 @@ class ShopMixin(InStoreMixin):
             )
         if family in {"shop-buy", "shop-sell", "home-visit", "home-errand"} and not any(
             offer[0] == key and offer[1] == family
-            for offer in self._execution_offers_for()
+            for offer in offered_steps(self)
         ):
             store_type = getattr(snapshot.store, "store_type", None)
             work_id = f"store-page:{store_type}:{self._decision_sequence}:{self.last_reason}"

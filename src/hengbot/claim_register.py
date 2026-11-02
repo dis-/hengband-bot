@@ -30,9 +30,10 @@ What a claim is
 
 Plain data only (design 5.4).  A goal holds a ``(y, x)`` tuple, never a
 ``Position``; a claim holds no ``DecisionCandidate`` and no snapshot.  The
-register lives in the policy's ``__dict__``, so it is pickled into every
-checkpoint: it keeps the current claim and a counter, never a history, and
-the history lives in the ledger file instead.
+register lives in the town hold (``town_terminal.TownHold``, the policy's
+``_town_hold``), so it is pickled into every checkpoint: it keeps the current
+claim and a counter, never a history, and the history lives in the ledger
+file instead.
 
 ``closed`` and the five states
 ------------------------------
@@ -403,20 +404,6 @@ class Claim:
             ClaimState.COMPLETE,
             ClaimState.RETIRED,
         )
-
-
-def declaration_mismatch(claim: Claim, inferred: str,
-                         reason: str) -> dict | None:
-    """Record a disagreement without changing either execution authority."""
-    declared = claim.execution
-    if declared is not None and declared.state == inferred:
-        return None
-    return {
-        "claim_id": claim.claim_id,
-        "inferred": inferred,
-        "declared": declared.as_dict() if declared is not None else None,
-        "reason": reason,
-    }
 
 
 # -- S2b.2: the bar table (design 3.2, 3.3, 5.4.1) ---------------------------
