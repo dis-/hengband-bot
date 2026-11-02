@@ -23,7 +23,7 @@ from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from policy_fixtures import grid
 from test_s33_batch_admission import corridor
-from test_s33_batch_context import captured_session
+from equipment_session_pins import captured_session
 
 FIXTURE = Path(__file__).parent / "fixtures/home-route-release-20261003.json.gz"
 

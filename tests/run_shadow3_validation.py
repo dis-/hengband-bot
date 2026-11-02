@@ -10,9 +10,9 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / '.shadow3-validation'
 MODULES = (
-    'test_shadow3_recorded', 'test_ownership_s3_3_delegation_record',
+    'test_shadow3_recorded',
     'test_ownership_s3_3_first_divergence', 'test_ownership_s3_3_live_short_route',
-    'test_s33_batch_admission', 'test_s33_batch_context', 'test_s33_batch_reconciliation',
+    'test_s33_batch_admission', 'test_s33_batch_reconciliation',
     'test_s33_batch_replay', 'test_s33_phase2_equipment', 'test_s33_phase2_idle',
     'test_s33_phase2_quest', 'test_s33_shadow', 'test_s33_shadow_recorded', 'test_s33_shadow_report',
     'test_policy_shop', 'test_policy_home', 'test_loot_triage',

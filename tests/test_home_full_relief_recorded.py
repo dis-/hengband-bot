@@ -24,7 +24,7 @@ from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.policy import HengbotPolicy
 from policy_fixtures import grid
 from test_home_route_release_recorded import reconstructed
-from test_s33_batch_context import captured_session
+from equipment_session_pins import captured_session
 from recorded_junk_scope import pre_junk_scope_replay
 
 FIXTURE = Path(__file__).parent / "fixtures/home-route-release-20261003.json.gz"
