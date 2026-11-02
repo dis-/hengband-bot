@@ -46,8 +46,7 @@ def refusal_result(snap, *, enforce, exhausted):
     if exhausted:
         policy._town_store_attempted[STORE_ALCHEMIST] = snap.turn
     decl = town_terminal.TERMINALS[RUNG]
-    modes = {RUNG: town_terminal.TerminalDecl(
-        decl.intended_terminal, town_terminal.ENFORCE if enforce else town_terminal.SHADOW)}
+    modes = {RUNG: decl._replace(mode=town_terminal.ENFORCE if enforce else town_terminal.SHADOW)}
     offers, no_steps = [], []
 
     def producer():

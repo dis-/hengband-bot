@@ -1114,23 +1114,18 @@ class OperationExecutor:
         return feature.startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
 
     @staticmethod
-    def _is_recall_depth_confirm(owner: str, feature: str) -> bool:
+    def _is_recall_depth_confirm(feature: str) -> bool:
         from hengbot.policy import RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
 
-        # Every dungeon-side Word of Recall reader: the question follows the
-        # read on any floor shallower than the saved depth, whichever rung
-        # read it (breeder-breakthrough:recall stopped unowned on c4-a
-        # 2026-10-16 20:40).
-        return owner in {"return:recall", "stuck:recall-escape",
-                         "fundraise:recall", "fundraise:recall-stuck",
-                         "breeder-breakthrough:recall",
-                         "breeder-item-damage:recall",
-                         "livelock:recall-escape", "combat:disengage-recall",
-                         "emergency:recall",
-                         "emergency:recall-quest-fail",
-                         "fixedquest:claim:return"} and feature.startswith(
-            RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
-        )
+        # spells-world.cpp recall_player is the only source of this question:
+        # a Word of Recall activation underground, on a floor shallower than
+        # the saved depth, with no recall active.  Whichever operation caused
+        # that activation, the same refusal keeps the deepest floor and never
+        # changes the trip, so the question is answered for every owner.  An
+        # owner list fell behind each new dungeon-side reader
+        # (breeder-breakthrough:recall 2026-10-16, fixedquest:claim:return
+        # 2026-10-26, esp-threat:leave-recall n1-c life-103 2026-11-02 06:49).
+        return feature.startswith(RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES)
 
     def _finish_board(self, state, screen_value, match, *, bootstrap: bool = False):
         started = time.perf_counter()
@@ -1604,9 +1599,7 @@ class OperationExecutor:
             return self._post_and_barrier("n", deadline, role="answer")
         if (
             match.kind is ScreenKind.CONFIRM
-            and self._is_recall_depth_confirm(
-                self.active.owner, match.feature
-            )
+            and self._is_recall_depth_confirm(match.feature)
         ):
             return self._post_and_barrier("n", deadline, role="answer")
         if match.kind is ScreenKind.DUNGEON_CHOICE and self.active.keys[:1] == "r" \

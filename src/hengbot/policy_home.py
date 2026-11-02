@@ -1836,6 +1836,18 @@ class HomeMixin:
         self._home_knowledge_scan_epoch = None
         self._home_knowledge_scan_inflight = False
 
+    def observe_state_stream_rollover(self) -> None:
+        """Settle requests whose reply the emitter's rollover may have dropped.
+
+        A posted ``~9`` (or ``~f``) whose reply was truncated away is never
+        answered: the Home await posts no command, so no further board comes
+        and the bot stops on no-key-exhausted.  Settling it lets the owner
+        request it again on the next board, as before the first request.
+        """
+        if self._home_knowledge_scan_inflight:
+            self.settle_home_knowledge_request()
+        self._skill_exp_request_inflight = False
+
     def consume_home_knowledge(self, items: tuple[InventoryItem, ...]) -> bool:
         """Consume and settle the complete Home list returned by ``~9``."""
         self._adopt_home_catalogue(items)
