@@ -4949,6 +4949,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._equipment_restore_refusals": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._equipment_slot_candidate_counts": {
     "classification": "data",
     "rows": [
