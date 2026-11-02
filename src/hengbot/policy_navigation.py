@@ -1044,6 +1044,12 @@ class NavigationMixin:
                 # across that boundary only hides the entrance and hands town
                 # to stuck:wander after the mining kit is ready.
                 return False
+        if getattr(self, "_immobile_summoner_avoid_cells", None):
+            # An avoided immobile summoner's floor is left by that owner's
+            # own exits (``_immobile_summoner_exit_key``), as before its
+            # other owners were given their turns back.
+            self._descent_refusal_reason = "immobile-summoner"
+            return True
         if not self._descent_blocked:
             return False
         if self._descent_block_countdown <= 0:

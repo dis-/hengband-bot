@@ -3,6 +3,7 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
 from hengbot import attack_expectation, blind_strike, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_threat_memory, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
+from dataclasses import dataclass
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
@@ -252,6 +253,26 @@ from hengbot.policy_constants import (
 )
 
 
+IMMOBILE_SUMMONER_AVOID_REASON = "explore:avoid-immobile-summoner"
+
+
+@dataclass(frozen=True)
+class SummonerExits:
+    """The immobile-summoner owner's floor exits on one board."""
+
+    on_stairs: bool
+    route: object
+    teleport_level: object
+    recall: object
+    recalling: bool
+
+    @property
+    def retreat_possible(self) -> bool:
+        return bool(self.on_stairs or self.route is not None
+                    or self.teleport_level is not None
+                    or self.recall is not None or self.recalling)
+
+
 class CombatMixin:
     def _sleeper_beyond_ranged_reach(self, monster: MonsterState, distance: int) -> bool:
         """A sleeper too far to shoot: approach it quietly (the hunt path) instead.
@@ -286,6 +307,10 @@ class CombatMixin:
         This runs after emergency HP handling and before all choke waits.
         Remember the threat after breaking sight so exploration cannot walk
         straight back into it. Confirmed empty cells and floor changes retire it.
+        The cells in its line of fire are a routing veto for every owner; this
+        owner itself acts only inside them (``_immobile_summoner_zone_key``),
+        and leaves the floor once nothing outside is left to explore
+        (``_immobile_summoner_exit_key``).
         """
         remembered_floor, remembered = getattr(
             self, "_immobile_summoner_memory", (None, {})
@@ -334,29 +359,7 @@ class CombatMixin:
         self._immobile_summoner_avoid_cells = cells
         self._refresh_warning_avoidance(snapshot, added_cells=cells)
 
-        # Use the existing stair routing and scroll order. An inaccessible stair
-        # behind the summoner is not an available retreat through safe terrain.
-        locked = self._floor_navigation_exit_locked(snapshot)
-        here = snapshot.grid_at(snapshot.player.position)
-        on_stairs = not locked and here is not None and self._is_upstairs_target(here)
-        route = (
-            self._nearest_goal_route(snapshot, self._is_upstairs_target)
-            if not locked else None
-        )
-        can_read = (
-            not locked and not snapshot.player.blind
-            and not snapshot.player.confused and self._can_read_scrolls(snapshot)
-        )
-        teleport_level = self._first_item(
-            snapshot, lambda item: item.is_scroll and item.aware
-            and item.sval == SV_SCROLL_TELEPORT_LEVEL,
-        ) if can_read else None
-        recall = self._find_recall_scroll(snapshot) if can_read else None
-        retreat_possible = bool(
-            on_stairs or route is not None or teleport_level is not None
-            or recall is not None or snapshot.player.recalling
-        )
-        if not retreat_possible:
+        if not self._immobile_summoner_exits(snapshot).retreat_possible:
             self._refresh_warning_avoidance(snapshot, released_cells=cells)
             self._immobile_summoner_avoid_cells = set()
             targets = [m for m in perceived if self._summoner_never_approaches(snapshot, m)]
@@ -391,6 +394,48 @@ class CombatMixin:
 
         if return_yield.breeder_walkout_owns(self, snapshot):
             return None  # the breakthrough owner leaves the floor (D46)
+        if snapshot.player.position not in cells:
+            # Owner 2026-10-27 「近づかずに避ける」 is avoidance, not a
+            # suspended floor: outside the line-of-fire zone every other
+            # owner keeps its turn (ranged fire, flight, choke fights, loot,
+            # rest, the return and its recall wait), and the zone stays a
+            # routing veto for all of them.  Once nothing outside it is left
+            # to explore, ``_immobile_summoner_exit_key`` leaves the floor
+            # (n1-c life-103: the whole floor visit was taken here).
+            return None
+        return self._immobile_summoner_zone_key(snapshot, hostiles, cells)
+
+    def _immobile_summoner_exits(self, snapshot: Snapshot) -> SummonerExits:
+        """The floor exits the immobile-summoner owner uses, in its order.
+
+        The existing stair routing and scroll order. An inaccessible stair
+        behind the summoner is not an available retreat through safe terrain."""
+        locked = self._floor_navigation_exit_locked(snapshot)
+        here = snapshot.grid_at(snapshot.player.position)
+        can_read = (
+            not locked and not snapshot.player.blind
+            and not snapshot.player.confused and self._can_read_scrolls(snapshot)
+        )
+        return SummonerExits(
+            on_stairs=not locked and here is not None and self._is_upstairs_target(here),
+            route=(self._nearest_goal_route(snapshot, self._is_upstairs_target)
+                   if not locked else None),
+            teleport_level=self._first_item(
+                snapshot, lambda item: item.is_scroll and item.aware
+                and item.sval == SV_SCROLL_TELEPORT_LEVEL,
+            ) if can_read else None,
+            recall=self._find_recall_scroll(snapshot) if can_read else None,
+            recalling=snapshot.player.recalling,
+        )
+
+    def _immobile_summoner_zone_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState], cells: set[Position]
+    ) -> str | None:
+        """Inside the summoner's line-of-fire zone: step out of it.
+
+        The latched return and an adjacent attacker keep their priority; the
+        step may cross the zone's own cells (the veto stays for every other
+        walk).  With no way out, the owner's floor exits."""
         # This owner must never wait for an immobile trigger to walk to a choke.
         self._detected_threat_hold = None
         self._detected_threat_hold_position = None
@@ -412,34 +457,41 @@ class CombatMixin:
             return self._step_toward(snapshot, self._weakest(adjacent).position)
         if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
             return ranged  # fear and NO_MELEE refuse melee only
-        if snapshot.player.position not in cells:
-            loot = self._town_producer_entry(
-                "_normal_loot_key",
-                lambda: self._normal_loot_key(snapshot, other_hostiles),
-            )
-            if loot is not None:
-                return loot
-        step = self._town_producer_entry(
-            "_explore_step", lambda: self._explore_step(snapshot)
-        )
+        self._refresh_warning_avoidance(snapshot, released_cells=cells)
+        try:
+            step = immobile_threat_memory.step_out_of(
+                self, snapshot, cells, IMMOBILE_SUMMONER_AVOID_REASON)
+        finally:
+            self._refresh_warning_avoidance(snapshot, added_cells=cells)
         if step is not None:
-            self.last_reason = "explore:avoid-immobile-summoner"
-            self._declare_explore_goal()
-            return self._step_toward(snapshot, step)
-        if on_stairs:
+            return step
+        return self._immobile_summoner_exit_key(snapshot)
+
+    @claims(ClaimOwner.COMBAT)
+    def _immobile_summoner_exit_key(self, snapshot: Snapshot) -> str | None:
+        """Leave the floor while an immobile summoner is avoided on it.
+
+        ``_decide`` asks this once exploration outside the zone is spent, and
+        the zone owner asks it when no step leaves the zone; until then every
+        other owner plays on (descent stays refused, ``_descent_is_blocked``).
+        """
+        if not getattr(self, "_immobile_summoner_avoid_cells", set()):
+            return None
+        exits = self._immobile_summoner_exits(snapshot)
+        if exits.on_stairs:
             self._defer_descent(snapshot)
             self.last_reason = "summoner:stairs"
             return UP_STAIRS_KEY
-        if route is not None:
+        if exits.route is not None:
             self.last_reason = "summoner:seek-upstairs"
-            self._declare_reach(route.target)
-            return self._step_toward(snapshot, route.first_step)
-        if teleport_level is not None and not snapshot.player.recalling:
+            self._declare_reach(exits.route.target)
+            return self._step_toward(snapshot, exits.route.first_step)
+        if exits.teleport_level is not None and not exits.recalling:
             self.last_reason = "summoner:teleport-level"
-            return reserved_item_command(self, snapshot, "read", teleport_level)
-        if recall is not None and not snapshot.player.recalling:
+            return reserved_item_command(self, snapshot, "read", exits.teleport_level)
+        if exits.recall is not None and not exits.recalling:
             self.last_reason = "summoner:recall"
-            return self._read_dungeon_recall_scroll_key(snapshot, recall)
+            return self._read_dungeon_recall_scroll_key(snapshot, exits.recall)
         self.last_reason = "summoner:wait-recall"
         return WAIT_KEY
 
@@ -846,8 +898,23 @@ class CombatMixin:
                         self, snapshot, monster
                     )
                 )
+                and not self._avoided_immobile_summoner(snapshot, monster)
             )
         ]
+
+    def _avoided_immobile_summoner(self, snapshot: Snapshot, monster: MonsterState) -> bool:
+        """A never-approaching summoner the immobile-summoner owner avoids.
+
+        No other owner targets, hunts or weighs it while the floor can be
+        left (owner 2026-10-27 「近づかずに避ける」); on a floor whose exit is
+        locked that owner fights it, and one striking from beside the player
+        is fought (survival first)."""
+        return (
+            monster.can_summon
+            and self._summoner_never_approaches(snapshot, monster)
+            and not self._floor_navigation_exit_locked(snapshot)
+            and not survival_preemption.strikes_from_adjacent(self, snapshot, monster)
+        )
 
     # ------------------------------------------------- detected-threat rest
     # User-confirmed specification 2026-09-21/22 (topic esp-threat-rest,

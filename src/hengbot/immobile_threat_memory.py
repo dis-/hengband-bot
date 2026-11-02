@@ -158,12 +158,21 @@ def step_out_key(policy, snapshot) -> str | None:
     cells = route_cells(policy)
     if snapshot.player.position not in cells:
         return None
+    return step_out_of(policy, snapshot, cells, STEP_OUT_REASON)
+
+
+def step_out_of(policy, snapshot, cells, reason: str) -> str | None:
+    """The step toward the nearest free cell outside ``cells``, labelled ``reason``.
+
+    None when the current routing reaches no such cell.  Shared by the ring
+    above and the immobile summoner's line-of-fire zone
+    (``CombatMixin._immobile_summoner_key``)."""
     step = policy._nearest_goal_step(
         snapshot, lambda grid: grid.passable and not grid.has_monster
         and grid.position not in cells)
     if step is None:
         return None
-    policy.last_reason = STEP_OUT_REASON
+    policy.last_reason = reason
     policy._declare_reach(step, note=GOAL_NOTE_ONE_STEP)
     return policy._step_toward(snapshot, step)
 

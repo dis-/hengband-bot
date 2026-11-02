@@ -47,12 +47,15 @@ CASES = {
 }
 
 
-def freeze(name: str, capture: str, spans, races, root: Path = ROOT) -> Path:
+def freeze(name: str, capture: str, spans, races, root: Path = ROOT,
+           ring: str = "snapshots-current.jsonl.gz", keep=lambda row: True) -> Path:
+    """``ring`` names the ring generation; ``keep`` admits a player board
+    (a generation may interleave the boards of another floor)."""
     incident = root / capture
-    rows = ring_rows(incident / "snapshots" / "snapshots-current.jsonl.gz")
+    rows = ring_rows(incident / "snapshots" / ring)
     boards, turns, start = [], set(), None
     for index, row in enumerate(rows):
-        if (row["type"] == "player_turn" and row["turn"] not in turns
+        if (row["type"] == "player_turn" and row["turn"] not in turns and keep(row)
                 and any(first <= row["turn"] <= last for first, last in spans)):
             start = index if start is None else start
             turns.add(row["turn"])
