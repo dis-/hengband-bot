@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isinf
+from math import isfinite, isinf
 
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_encounters import melee_multiplier
 from hengbot.equipment_optimizer import Loadout, LoadoutMetrics, SLOT_BOW
+from hengbot.equipment_utility import utility_value
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, STORE_AMMO_AVERAGE_DAMAGE
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -357,6 +358,13 @@ def _combine_warrior_results(
         combat_margin = float("inf")
     else:
         combat_margin = survival_turns / kill_turns
+    # Owner 2026-11-02 (equipment_utility): telepathy highly, stealth somewhat,
+    # as a relative bonus on the ratio.
+    utility = utility_value(
+        (item for _, item in loadout.slots), inputs.defense.intrinsic_flags
+    )
+    if isfinite(combat_margin):
+        combat_margin *= 1.0 + utility
     complete = defense.melee_complete and ranged.ranged_complete
     secondary_value = secondary_risk_value(defense, ranged)
     ranged_offense_dps = warrior_ranged_offense_dps(loadout, inputs.combat)
@@ -367,6 +375,7 @@ def _combine_warrior_results(
         combat_margin=combat_margin,
         speed_bonus=_speed_bonus(loadout),
         secondary_value=secondary_value,
+        utility_value=utility,
         evaluation_complete=complete,
     )
     return WarriorLoadoutResult(metrics, melee, defense, ranged, ranged_offense_dps)
