@@ -3717,14 +3717,6 @@ class EquipmentMixin:
                 ("combat-weapon", signature), "filed-home-request",
                 "equipment/home-errand-existing-budget",
             )
-            if (
-                getattr(self, "_town_claim_bar_enforced", False)
-                and self._defer_town_errand(
-                    "home-errand", "file-combat-weapon",
-                    work_identity=filing_identity,
-                )
-            ):
-                return None
             self._file_home_errand(
                 snapshot,
                 HomeErrandRequest(signature, 1, "home-page", "combat-weapon"),

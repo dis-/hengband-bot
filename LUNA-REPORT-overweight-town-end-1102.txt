@@ -1,0 +1,34 @@
+LUNA-REPORT overweight-town-end-1102（重量超過の町の終わり方の退行の直し）
+
+■ 症状
+tests/test_overweight_home_hold_recorded の2件が town-defined-end（f334cbd12 / 090f3847e、b769a853f town-end-mining）の取り込み以降に赤い。
+- test_unposted_home_deposit_routes_home_again: 重量超過（1752/1750）で自宅の回数が残っているのに ('5', 'town:end-mining-cycle') を返し、自宅へ向かわない（期待 ('\x1b`n(.', 'shop:travel')）。
+- test_exhausted_home_bound_ends_in_the_named_overweight_stop（counter=unsatisfied_passes）: 自宅の回数を使い切ったのに名前付きの停止 town:blocked:overweight-home-unreachable にならず ('5', 'town:end-mining-cycle')。
+
+■ 原因
+自宅の再武装と名前付きの停止は policy_town._town_procurement_decision の overweight_home_pending の2つの分岐にあり、提案された理由が "stuck:wander" か "novel:" の時だけ動いていた。町では _town_idle_key がそのまま town_terminal.town_end_key へ行くようになり、"novel:" を出す箇所も無いため、両方の分岐が死んでいた。town_end_key は条件未達を「採掘を1サイクル」にするが、採掘で重量超過は直らない。
+
+■ 直し（承認済みの振る舞いに戻すだけ・新しい判断なし）
+- town_terminal.overweight_home_key を新設し、town_end_key の中で「進捗のある調達の一歩」の直後・採掘の歩き戻りと終わりの判定の前に答えさせる。
+  - 重量超過・自宅の weight-overload の請求が生きている・自宅は一度行った・自宅の回数が残る → 自宅を再武装して shop:travel。
+  - 自宅に行ったのに再武装を断られた、または自宅の回数を使い切った → town:blocked:overweight-home-unreachable（ユーザー決定 2026-09-03）を _town_blocked_key で出す（売れる余剰があれば既存の _town_blocked_key が売却に回す）。
+- _town_procurement_decision の死んだ2分岐（overweight_home_pending）を削除。
+- scripts/town_work_review.json に town_terminal.py:overweight_home_key の項目を足し、town_work_manifest.py --write は zero unmapped。
+
+■ 確認
+- PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+- tests.test_overweight_home_hold_recorded（全件）: 直し後すべて合格。
+- tests.test_town_defined_end_recorded: TownDefinedEndHomeLoopTest.test_no_owner_starts_one_mining_cycle_instead_of_dropping だけ赤い。直す前（main 313c5f103）でも同じ失敗（<stuck-prompt> owner=home:atomic-withdraw ... unowned item-source、SendResult.TERMINAL）で、この直しとは無関係（D30 の自宅の取り出しの系統と思われる）。他は合格。
+- 戻しの確認（1回）: src の差分を外すと、対象の2件が上記の症状どおりに赤くなり（unsatisfied_passes の小テストで失敗）、戻すと緑。
+- 新しい壁なし。既存の壁（pre_four_staff_cap_rule、shelf_wall_on_replay）はそのまま。
+
+■ checks.json の項目の案
+{"id": "overweight-town-end-1102", "cmd": "python -m unittest tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_unposted_home_deposit_routes_home_again tests.test_overweight_home_hold_recorded.OverweightHomeHoldRecordedTest.test_exhausted_home_bound_ends_in_the_named_overweight_stop", "env": {"PYTHONPATH": "src;tests"}, "defect": "重量超過で自宅の回数が残るのに採掘サイクルへ行く・使い切っても名前付きの停止にならない"}
+
+■ 保守性
+- 重量超過の自宅の扱いは town_terminal.overweight_home_key の1か所（町の終わり方の唯一の入口 town_end_key の中）に置いた。条件は既存の述語（_inventory_overweight、_town_claims_active、_overweight_home_bound_exhausted）をそのまま使い、新しいしきい値は無い。
+- どこからも届かなくなっていた分岐を _town_procurement_decision から消し、同じ判断が2か所に残らないようにした。
+- 構造の第3段（town_terminal）との衝突を避けるため、town_end_key への追加は3行だけ。
+
+■ 未決の問い
+なし。（参考: _town_procurement_decision の liveness_candidate の分岐も町では "stuck:wander" が来なくなったため実質死んでいるが、今回の範囲外なので残した。）

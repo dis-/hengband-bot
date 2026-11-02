@@ -29,7 +29,6 @@ def attachment(enforced=False, crossarea=True):
     boards = [replace(board, player=replace(board.player,
               two_weapon_skill=skills[1], shield_skill=skills[3])) for board in boards]
     policy = HengbotPolicy()
-    policy._town_claim_bar_enforced = enforced
     policy._crossarea_fundraising_enforced = crossarea
     policy.prime(boards[0])
     prior = parse_snapshot(json.loads(
@@ -273,13 +272,27 @@ class Live23HomeCycleTest(unittest.TestCase):
             self.assertEqual(shadow["would_stop"], "ownership:gate-missing:home-visit")
 
     def test_digger_withdrawal_is_for_mining_departure_only(self):
-        for enforced, crossarea in ((False, True), (True, False), (False, False)):
+        # The recorded board carries 19 of 23 stacks: the take would leave
+        # fewer than the town's free slots, so the composer refuses it and
+        # no purpose binds it (D30 town pack budget, d63159672).
+        for crossarea in (True, False):
             for mode in (None, "prepare", "mine", "scavenge"):
-                policy, boards = attachment(enforced, crossarea)
+                policy, boards = attachment(crossarea=crossarea)
                 policy._fundraising_mode = mode  # supplemental departure-purpose cases
                 policy = pickle.loads(pickle.dumps(policy))
-                key = policy._queue_standing_home_digger(boards[1])
-                if mode is None and (enforced or crossarea):
+                self.assertEqual(len(boards[1].inventory), 19)
+                self.assertIsNone(policy._queue_standing_home_digger(boards[1]))
+                self.assertIsNone(policy._home_pending_item)
+        # DECLARED CONSTRUCTED: the same board without its last two stacks,
+        # so the pack budget admits the take and the purpose decides.
+        for crossarea in (True, False):
+            for mode in (None, "prepare", "mine", "scavenge"):
+                policy, boards = attachment(crossarea=crossarea)
+                room = replace(boards[1], inventory=boards[1].inventory[:-2])
+                policy._fundraising_mode = mode
+                policy = pickle.loads(pickle.dumps(policy))
+                key = policy._queue_standing_home_digger(room)
+                if mode is None and crossarea:
                     self.assertIsNone(key)
                     self.assertIsNone(policy._home_pending_item)
                 else:
@@ -298,22 +311,6 @@ class Live23HomeCycleTest(unittest.TestCase):
             self.assertIsNone(policy._queue_standing_home_digger(boards[1]))
             self.assertIsNone(policy._home_pending_item)
             self.assertEqual(policy._decision_errand_deferred[-1]["holder_family"], "equipment-txn")
-
-    def test_earlier_home_operation_defers_catalogue_before_producer_mutation(self):
-        # Supplemental registration-order case uses the incident's real Home
-        # operation shape; it is not presented as a sequential live replay.
-        for enforced, crossarea in ((False, True), (True, False)):
-            policy, boards = attachment(enforced, crossarea)
-            holder = policy._claim_register.declare(
-                "home-visit", observe((7, 1970, "ds\x1b"), 8, "store-operation"),
-                non_discardable=True)
-            policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
-            policy._map_predicate_snapshot = boards[0]
-            self.assertIsNone(policy._town_producer_entry(
-                "_equipment_transaction_town_key",
-                lambda: self.fail("later equipment producer ran"), family="equipment-txn"))
-            self.assertEqual(policy._claim_register.current.claim_id, holder.claim_id)
-            self.assertIsNone(policy._equipment_transaction_session)
 
     def test_recorded_off_scan_continues_registered_catalogue(self):
         # The unchanged entry/scan actions and their recorded knowledge response.

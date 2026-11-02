@@ -20,7 +20,6 @@ GATE = ("policy_navigation.py", "_step_toward")
 
 # Counts are per composing call, not per return/offer of the same key.
 MOVEMENT_BYPASSES = {
-    ("policy.py", "_town_holder_declared_key"): (1, "Declared town route checks confirms only; offers a bare step."),
     ("policy.py", "_town_holder_wait_key"): (2, "Entrance/store resume fallbacks check confirms only; offer bare steps."),
     ("policy.py", "_break_livelock"): (1, "Breakout selection and confirm check precede a bare replacement key."),
     ("policy_fundraising.py", "_mining_tunnel_key"): (1, "Unmarked non-enterable wall receives a bare mark-bump key."),

@@ -163,9 +163,9 @@ class TownTurnArbiter:
             # arbitrating family and before ``misc`` -- so they can only claim
             # reasons that fall through to ``misc`` or ``unregistered`` today.
             # Each is named after what it owns, not after where it runs.
-            classification("positioning", ("detected:", "melee:choke", "summoner:hold-choke", "threat:reposition", "threat:avoid-engagement", "threat:paralyzer-avoid", "paralyzer-guard:"), "distance to the chosen stand-off cell"),
+            classification("positioning", ("detected:", "melee:choke", "summoner:hold-choke", "summoner:hold-reposition", "threat:reposition", "threat:avoid-engagement", "threat:paralyzer-avoid", "paralyzer-guard:"), "distance to the chosen stand-off cell"),
             classification("esp-threat", ("esp-threat:hunt-", "melee:esp-threat-hunt"), "telepathic contact resolved"),
-            classification("escape", ("emergency:", "flee", "combat:disengage", "combat:fruitless", "unseen:", "unseen-recall:", "breeder-breakthrough:", "breeder-item-damage:", "guardian:teleport-to-cover", "summoner:retreat", "summoner:stairs", "threat:scroll", "threat:wait"), "EscapeState rung released"),
+            classification("escape", ("emergency:", "flee", "combat:disengage", "combat:fruitless", "unseen:", "unseen-recall:", "breeder-breakthrough:", "breeder-item-damage:", "guardian:teleport-to-cover", "summoner:retreat", "summoner:stairs", "summoner:hold-teleport", "threat:scroll", "threat:wait"), "EscapeState rung released"),
             classification("combat", ("melee", "ranged:", "summoner:ranged-kill",
                            "summoner:cornered-approach", "summoner:seek-upstairs",
                            "summoner:teleport-level", "summoner:recall", "summoner:wait-recall",

@@ -25,12 +25,16 @@ are still treated.
 from hengbot import blind_strike
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_POTION_CURE_CRITICAL
+from hengbot.policy_constants import REST_MACRO
 
 
 SIGHT_RESTORED = frozenset({"やっと目が見えるようになった。", "You can see again."})
 _PENDING = "_blind_cure_turn"         # (floor, turn) of the last blindness cure
 _LATCH = "_blind_cure_futile_floor"   # floor whose current blindness is not cured
 FIGHT_THROUGH_REASON = "blind:fight-through"
+# Food states in which a long rest does not starve the player (the rest gate
+# of the survival ladder uses the same three).
+_REST_FOOD_STATES = frozenset({"normal", "full", "gorged"})
 
 
 def observe(policy, snapshot) -> None:
@@ -77,6 +81,28 @@ def note_cure(policy, snapshot) -> None:
         setattr(policy, _PENDING, (snapshot.floor_key, snapshot.turn))
 
 
+def low_hp_heal(policy, snapshot, hostiles, *, observed_loss):
+    """Below the low-HP threshold, blind or confused: the heal-first potion.
+
+    Owner 2026-11-01 (D57): 「致命傷治癒はHP回復の効果に期待しない。HPが減ったら
+    体力回復かテレポート。」  A blind or confused player cannot read the
+    teleport, so the heal-vs-teleport rule's potion (_low_hp_heal_first_potion,
+    owner 2026-10-03) is drunk; every potion it chooses (Cure Serious,
+    Healing, *Healing*, Life -- quaff-effects.cpp) also clears blindness and
+    confusion (spells-status.cpp).  n1-c life-103 (2026-11-02 13:47,
+    城42階): blind at HP 97/512 beside 濃尾無双『岩本虎眼』
+    after a 291-HP round, it drank Cure Critical Wounds (6d8) with Healing
+    carried and died two boards later.  None above the threshold, when the
+    status does not block reading, or when no heal potion covers the
+    next-turn damage: the cheap cure stays first.
+    """
+    player = snapshot.player
+    if (not (player.blind or player.confused)
+            or player.hp >= policy._low_hp_walk_threshold(player.max_hp)):
+        return None
+    return policy._low_hp_heal_first_potion(snapshot, hostiles, observed_loss=observed_loss)
+
+
 def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None:
     """Quaff the status cure for the player's blindness (or any treated status)."""
     if not treats(policy, snapshot, blind_only=blind_only):
@@ -93,3 +119,32 @@ def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None
     if key is not None:
         note_cure(policy, snapshot)
     return key
+
+
+def wait_for_sight_key(policy, snapshot, reason: str, *, producer: str) -> str | None:
+    """Rest out a blindness no carried cure treats before acting on the map.
+
+    n1-b life-294 (2026-11-02 13:14, Yeek cave 1F): a gas trap blinded the
+    mining warrior (trap.cpp TrapType::BLIND, 25-74 turns) with no Cure
+    Critical Wounds carried.  A blind player's map is not updated, so the
+    floor work went on against the board from before the blindness: it dug
+    a vein it had already dug (cmd-tunnel.cpp 「そこは掘れない。」, no turn
+    spent, a stalled command), stepped back onto the trap (blinded again),
+    and waited with '5' at one cell until the cell guard stopped it.
+    ``R&`` rests until ``is_fully_healthy`` (player-processor.cpp), which
+    includes sight.  The survival rungs run before this (a carried cure is
+    quaffed, an unseen attacker is struck); when something hits or is in
+    sight, or the player is too hungry to rest, nothing is returned.
+    """
+    player = snapshot.player
+    if (not player.blind or snapshot.dungeon_level < 1
+            or getattr(policy, "_took_damage", False)
+            or policy._physical_hostiles(snapshot)
+            or player.food_state not in _REST_FOOD_STATES):
+        return None
+    policy.last_reason = reason
+    policy._offer_execution(
+        REST_MACRO, producer=producer, work_id=reason,
+        next_step="player.rest", expected_effect="sight-restored",
+    )
+    return REST_MACRO

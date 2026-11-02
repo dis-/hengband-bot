@@ -41,7 +41,6 @@ def session_for(gear, *, copies=1):
 def attached(board, session):
     policy = HengbotPolicy()
     policy.prime(board)
-    policy._town_claim_bar_enforced = True
     policy._equipment_transaction_session = session
     session.opened_sequence = 1
     # Use the production session goal: its opening sequence/action plan is
@@ -240,7 +239,6 @@ class ReconciliationTest(unittest.TestCase):
             self.assertEqual(policy.equipment_optimization_state()["optional_failure_departure"]["reason"],
                              "optional-optimization-failure-confirmed-loadout")
             self.assertTrue(policy._current_worn_loadout_confirmed(board, preparation))
-            policy._town_claim_bar_enforced = True
             policy._char_dump_done_this_visit = True
             key = policy.choose_key(board)
             self.assertIsNone(policy.decision_claim["declaration_mismatch"])

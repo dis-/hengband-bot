@@ -385,6 +385,20 @@ class OwnerExpectationRegistry:
         if self._pending.pop(owner, None) is not None:
             self._record_pop(owner, EXPECTATION_POP_RELEASED)
 
+    def withdraw_unposted(self, decision_sequence: int) -> None:
+        """Release the expectations posted by a decision whose key was replaced.
+
+        A later rung (bookkeeping's save or dump) may replace the producer's
+        key after the producer posted what it waits for; that key never
+        reaches the game, so the board cannot change for it and the owner
+        would yield on an unchanged board (n1-c life-104 2026-11-02 13:49:
+        fixedquest:request:approach under periodic:game-save, then
+        quest:blocked:opening-route).
+        """
+        for owner, pending in tuple(self._pending.items()):
+            if pending.progress_core.decision_sequence == decision_sequence:
+                self.release(owner)
+
 @dataclass(frozen=True)
 class TownNeed:
     store_type: int

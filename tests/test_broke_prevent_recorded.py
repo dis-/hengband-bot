@@ -303,7 +303,6 @@ class BrokePreventRecordedTest(executor_harness.ProductionHarness):
                 original_recall = copy.deepcopy(next(i for i in raw["inventory"]
                                                      if (i["tval"],i["sval"]) == (70,11)))
                 p = self.policy(raw)
-                p._town_claim_bar_enforced = enforced
                 key, reason, _ = self.decide(p, raw)
                 self.assertEqual(reason, "shop:outpost-fare-sale-approach")
                 self.assertTrue(key)

@@ -67,7 +67,6 @@ class ManaHomeRecordedTest(unittest.TestCase):
             for enforced in (False, True):
                 with self.subTest(row=row, enforced=enforced):
                     policy, board, device, old = self.wall(row)
-                    policy._town_claim_bar_enforced = enforced
                     # CONSTRUCTED registered deposit route with its original
                     # rank. It must be suspended with its id and goal intact.
                     held = policy._claim_register.declare('home-visit', reach((45, 125)))
@@ -203,7 +202,6 @@ class ManaHomeRecordedTest(unittest.TestCase):
         raw = next(x['raw'] for x in self.data['decisions'] if x['row'] == 8934)
         held = attach_claim(policy, raw['claim'])
         attach_visit(policy, raw)
-        policy._town_claim_bar_enforced = True
         policy._decision_sequence = 2534
         # CONSTRUCTED current emitter declaration for already-sent input.
         policy._claim_register._claim = replace(held, execution=replace(

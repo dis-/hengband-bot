@@ -2001,7 +2001,7 @@ def claim_family_of(policy: Any, reason: str | None) -> str:
     return reason_owner_family(reason or "")
 
 
-def errand_hold(policy: Any, family: str, *, enforced: bool | None = None,
+def errand_hold(policy: Any, family: str, *, enforced: bool = False,
                 arrival_board: Any = None) -> Any:
     """Return the open town errand that owns a different producer's turn.
 
@@ -2030,8 +2030,6 @@ def errand_hold(policy: Any, family: str, *, enforced: bool | None = None,
                  is not None)
     ):
         return standing
-    if enforced is None:
-        enforced = getattr(policy, "_town_claim_bar_enforced", False)
     if enforced and register is not None:
         for claim in reversed(register.suspended):
             if (claim.closed is None
@@ -2048,9 +2046,8 @@ def errand_hold(policy: Any, family: str, *, enforced: bool | None = None,
 
 
 def home_catalogue_sequence_enforced(policy: Any) -> bool:
-    """Protect physical Home work under cross-area or S3.3 enforcement."""
-    return bool(getattr(policy, "_crossarea_fundraising_enforced", False)
-                or getattr(policy, "_town_claim_bar_enforced", False))
+    """Protect physical Home work under cross-area enforcement."""
+    return bool(getattr(policy, "_crossarea_fundraising_enforced", False))
 
 
 def home_catalogue_work_holder(policy: Any) -> Any:
@@ -2069,8 +2066,6 @@ def home_hold_board(policy: Any) -> Any:
     S3.3 ON already closed that arrival before the producers ask, so ON
     passes no board and keeps its own verdicts unchanged.
     """
-    if getattr(policy, "_town_claim_bar_enforced", False):
-        return None
     return getattr(policy, "_map_predicate_snapshot", None)
 
 
@@ -2467,7 +2462,7 @@ def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
     refused terminal yields while a server progresses, and closes for the
     visit after TOWN_TRAVEL_STALL_LIMIT yields without progress, or at once
     when no server is live.  Closing never stops the bot.  SHADOW rungs only
-    record.  Independent of --enforce-town-claims.
+    record.
     """
     if ((family in EXEMPT_FAMILIES and family != "detectors")
             or board is None or terminal is None):
@@ -2571,12 +2566,47 @@ def town_end_stop_reason(material: TownEndMaterial, end: TownEnd) -> str:
     return f"unmet:{end.conditions[0]}"
 
 
+def overweight_home_key(policy: Any, board: Any) -> str | None:
+    """Home's own answer for a carried overload, before the town end.
+
+    A mining cycle cannot shed weight, so the end's "start one mining cycle"
+    never applies to an overload that Home claims.  A Home pass that ended
+    without the deposit (deferred or never posted) routes Home again while
+    Home's pass/approach bound remains; once that bound is used up (or Home
+    refused the re-arm) the visit stops under the named
+    overweight-home-unreachable (owner 2026-09-03: a deposit that really
+    fails is a stop).
+    """
+    if (getattr(policy, "_town_liveness_claim_retired", False)
+            or not policy._inventory_overweight(board)
+            or not policy._town_claims_active(board)
+            or "weight-overload" not in policy._town_claim_categories):
+        return None
+    attempted = STORE_HOME in policy._town_store_attempted
+    if attempted and not policy._overweight_home_bound_exhausted():
+        # Each unfulfilled pass is charged to Home's bound; the router's own
+        # approach step files and begins the Home visit request.
+        policy._rearm_town_store_for_new_work(STORE_HOME)
+        if (STORE_HOME not in policy._town_store_attempted
+                and (step := policy._shopping_approach_step(
+                    board, router_plan_stop=True)) is not None
+                and (key := policy._shopping_approach_key(
+                    board, step, "shop:travel")) is not None):
+            policy._record_shop_selector_diagnostics(board, key)
+            return key
+    if attempted or policy._overweight_home_bound_exhausted():
+        policy._town_blocked_reason = "overweight-home-unreachable"
+        return policy._town_blocked_key(board)
+    return None
+
+
 def town_end_key(policy: Any, board: Any) -> str:
     """End a town visit that no owner can continue (the only town fallback).
 
     The store router's composed procurement progress that makes progress
     (the step the progress seam used to substitute for a wander, judged by
-    the same predicate) and the mining walk-in's own
+    the same predicate), Home's answer for a carried overload
+    (``overweight_home_key``) and the mining walk-in's own
     departure (a town without its entrance) still answer first.  A board
     with every condition met leaves through the established forced visit
     departure, which reads the recall or walks in exactly as the departure
@@ -2589,6 +2619,9 @@ def town_end_key(policy: Any, board: Any) -> str:
             board, progress[0], reason=progress[1]):
         key, policy.last_reason = progress
         return key
+    overweight = overweight_home_key(policy, board)
+    if overweight is not None:
+        return overweight
     walk_in = policy._mining_walk_in_return_key(board)
     if walk_in is not None:
         return walk_in

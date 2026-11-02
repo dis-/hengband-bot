@@ -45,7 +45,6 @@ class HomeSurplusInscriptionRecordedTest(unittest.TestCase):
             with self.subTest(enforced=enforced):
                 policy = HengbotPolicy()
                 policy.prime(before)
-                policy._town_claim_bar_enforced = enforced
                 policy._in_store_ops_enabled = True
                 policy.observe_store_screen(True)
                 target = next(i for i in before.inventory if i.slot == 'c')

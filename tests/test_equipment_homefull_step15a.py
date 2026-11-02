@@ -235,7 +235,6 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         policy._character_dump_path = self.directory / 'dump.txt'
         policy._confirmed_loadout_path = self.directory / 'confirmed.json'
         policy._in_store_ops_enabled = True
-        policy._town_claim_bar_enforced = True
         policy._crossarea_fundraising_enforced = True
         return policy
 
@@ -275,7 +274,6 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
         rows = capture['bot-state-fixed']['rows']
         decisions = capture['bot-decisions']['rows']
         policy = self.policy()
-        policy._town_claim_bar_enforced = False  # recorded CLI mode
         policy.request_game_save()
         policy.request_character_dump()
         policy.prime(parse_snapshot(rows[indices[0]], self.monrace))

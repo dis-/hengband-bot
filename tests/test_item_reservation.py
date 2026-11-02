@@ -38,7 +38,6 @@ class ItemReservationTest(unittest.TestCase):
         board = parse_snapshot(raw)
         policy = HengbotPolicy()
         policy.prime(board)
-        policy._town_claim_bar_enforced = enforced
         target = next(item for item in board.inventory if item.slot == slot)
         action = EquipmentTransaction('home_prepare', 'deposit',
             'pack:' + equipment_identity(target) + ':0', None,
@@ -161,15 +160,6 @@ class ItemReservationTest(unittest.TestCase):
                 self.assertTrue(item_available(policy, board, target, 'home-visit', 'deposit'))
             self.assertEqual(reservation_shadow(policy)[0]['error'], 'RuntimeError')
         decide(policy, board)
-
-    def test_on_predicate_exception_filters_then_emission_stops(self):
-        policy, board, target = self.scene(True)
-        policy.last_reason = 'equipment-transaction:travel-home'
-        with patch('hengbot.item_reservation.item_reserved_by_other', side_effect=RuntimeError('pin')):
-            self.assertFalse(item_available(policy, board, target, 'home-visit', 'deposit'))
-            self.assertEqual(policy.last_reason, 'equipment-transaction:travel-home')
-            self.assertIsNone(reserved_item_command(policy, board, 'deposit', target))
-        self.assertEqual(policy.last_reason, 'ownership:item-reserved:deposit:predicate-error')
 
     def test_view_built_once_and_does_not_add_policy_attributes(self):
         policy, board, target = self.scene()

@@ -35,7 +35,6 @@ def corridor():
 def route_policy(board, *, family="store-router", enforced=True):
     policy = HengbotPolicy()
     policy.prime(board)
-    policy._town_claim_bar_enforced = enforced
     policy._home_knowledge_current = True
     policy._equipment_catalog.home_scan_complete = True
     cell = (10, 14)
@@ -48,24 +47,6 @@ def route_policy(board, *, family="store-router", enforced=True):
 
 
 class AdmissionTest(unittest.TestCase):
-    def test_foreign_entries_cannot_mutate_the_route(self):
-        board = corridor()
-        policy = route_policy(board)
-        held = policy._claim_register.current.claim_id
-        self.assertEqual(policy.choose_key(board), "6")
-        self.assertEqual(policy.last_reason, "shop:approach")
-        mutations = []
-        for family in ("quest-request", "town-plan", "idle", "home-errand",
-                       "home-visit", "floor-loot", "curse-enchant", "identification"):
-            with self.subTest(family=family):
-                self.assertIsNone(policy._town_producer_entry(
-                    "constructed-foreign", lambda: mutations.append(family), family=family))
-        self.assertEqual(mutations, [])
-        self.assertEqual(policy._claim_register.current.claim_id, held)
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
-        self.assertIsNone(policy._s33_shadow_verdict(board, "6")["would_stop"])
-
     def test_off_probe_is_bound_to_the_actual_foreign_output(self):
         board = corridor()
         policy = route_policy(board, enforced=False)
@@ -80,15 +61,6 @@ class AdmissionTest(unittest.TestCase):
         self.assertEqual(policy._s33_shadow_verdict(board, "8")["would_stop"],
                          "ownership:gate-missing:quest-request")
 
-    def test_quest_route_holds_foreign_idle(self):
-        board = corridor()
-        policy = route_policy(board, family="quest-request")
-        held = policy._claim_errand_hold("idle")
-        self.assertIsNotNone(held)
-        self.assertIsNone(policy._town_producer_entry(
-            "idle-fallback", lambda: policy._town_idle_key(board), family="idle"))
-        self.assertTrue(held.is_open)
-
     def test_teleport_admission_precedes_route_mutation(self):
         board = corridor()
         policy = route_policy(board)
@@ -97,41 +69,6 @@ class AdmissionTest(unittest.TestCase):
             board, 1, producer="quest-request", reason="fixedquest:q2-teleport"))
         self.assertEqual(policy._decision_goal, before)
         self.assertIsNone(policy.town_teleport_refusal)
-
-    def test_quest_teleport_continues_through_choose_key(self):
-        board = corridor()
-        inn = Position(10, 14)
-        board = replace(board, grids={**board.grids, inn: grid(10, 14, building_type=0)})
-        policy = route_policy(board, family="quest-request")
-        claim = policy._claim_register.current
-        policy._claim_register.declare_execution(
-            claim.claim_id, work_id="teleport:1", producer="quest-request",
-            state="awaiting", arguments=(1, "fixedquest:q2-teleport"),
-            operation_ref="decision:1:6", expected_effect="town:1",
-            continuation="town.teleport.resume", budget_ref="town-travel")
-        key = policy.choose_key(board)
-        self.assertEqual(key, "6")
-        self.assertEqual(policy.last_reason, "fixedquest:q2-teleport")
-        self.assertEqual(policy.decision_claim["claim_id"], claim.claim_id)
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
-
-    def test_real_identification_and_full_pack_disposal_are_gated_before_mutation(self):
-        from hengbot.model import parse_snapshot
-        pins = json.loads(gzip.decompress(FIXTURE.read_bytes()))
-        pin = next(pin for pin in pins if "170231" in pin["source"] and pin["line"] == 232)
-        recorded = parse_snapshot(pin["board"])
-        board = replace(corridor(), inventory=recorded.inventory, equipment=recorded.equipment)
-        for method in ("_town_item_processing_key", "_full_pack_destroy_key"):
-            with self.subTest(method=method):
-                policy = route_policy(board, family="equipment-txn")
-                before = (policy._home_pending_item, policy._identification_need,
-                          policy._destroy_watch)
-                self.assertIsNone(getattr(policy, method)(board))
-                self.assertEqual((policy._home_pending_item, policy._identification_need,
-                                  policy._destroy_watch), before)
-                self.assertTrue(any(row["deferred_family"] == "identification"
-                                    for row in policy._decision_errand_deferred))
 
     def test_capture_pairings_remain_identifiable(self):
         pins = json.loads(gzip.decompress(FIXTURE.read_bytes()))
@@ -166,20 +103,6 @@ class AdmissionTest(unittest.TestCase):
                 self.assertEqual(row["producer_key"], "01kb")
                 # A pre-existing entry still honors the cross-area Home hold.
                 self.assertTrue(policy._defer_town_errand("identification", "equipped-identification"))
-
-    def test_deferred_approved_home_disposal_retains_pending_work(self):
-        from hengbot.model import parse_snapshot
-        pins = json.loads(gzip.decompress(FIXTURE.read_bytes()))
-        pin = next(p for p in pins if "170231" in p["source"] and p["line"] == 232)
-        recorded = parse_snapshot(pin["board"])
-        board = replace(corridor(), inventory=recorded.inventory, equipment=recorded.equipment)
-        policy = route_policy(board, family="equipment-txn")
-        policy._map_predicate_snapshot = board
-        target = next(it for it in board.inventory if it.slot == "b")
-        pending = (policy._item_signature(target), "destroy")
-        policy._home_disposal_pending = pending
-        self.assertIsNone(policy._home_disposal_processing_key(board))
-        self.assertEqual(policy._home_disposal_pending, pending)
 
 
 if __name__ == "__main__":

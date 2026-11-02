@@ -633,10 +633,7 @@ class CombatMixin:
             return key
 
         under_fire = self._took_damage or any(
-            self._has_line_of_fire(
-                snapshot, monster.position, snapshot.player.position
-            )
-            and self._predicted_damage(snapshot, [monster], turns=1) > 0
+            self._fire_reaches(snapshot, monster, snapshot.player.position)
             for monster in hostiles
         )
         if not under_fire:
@@ -2319,7 +2316,9 @@ class CombatMixin:
                 return stairs
 
             if status_cure.treats(self, snapshot):
-                potion = self._find_status_cure_potion(snapshot)
+                potion = (status_cure.low_hp_heal(self, snapshot, hostiles,
+                                                  observed_loss=observed_loss)
+                          or self._find_status_cure_potion(snapshot))
                 if potion is not None:
                     self.last_reason = (
                         "emergency:cure-critical"
@@ -2362,7 +2361,13 @@ class CombatMixin:
                         self.last_reason = "item:heal"
                         return reserved_item_command(self, snapshot, "quaff", potion)
                 if not player.blind and not player.confused:
-                    scroll = self._escape_scroll(snapshot)
+                    # The guardian reposition needs a real teleport: owner
+                    # 2026-11-02 「そもそもショートテレポートでは十分な距離が
+                    # 稼げないため代替にならない。」 Without one it falls through
+                    # to the rungs below unchanged.
+                    scroll = self._escape_scroll(
+                        snapshot, teleport_only=guardian_reposition
+                    )
                     if scroll is not None:
                         if guardian_reposition:
                             self.last_reason = "guardian:teleport-to-cover"
@@ -4245,6 +4250,30 @@ class CombatMixin:
             for monster in visible_monsters
             if monster.hostile and not monster.asleep
         }
+    def _fire_reaches(
+        self, snapshot: Snapshot, monster: MonsterState, cell: Position,
+        *, projectable: bool = False,
+    ) -> bool:
+        """Whether a visible hostile can shoot the player standing on ``cell``.
+
+        This is the survival gate's "under fire" test: within the game's reach,
+        a line of fire and a one-turn predicted damage above zero.  Every
+        monster ranged attack (bolts, balls, breaths, arrows and direct spells)
+        is a spell of make_attack_spell, which never casts at a player whose
+        cdis exceeds get_max_range() = 18 (mspell-attack.cpp:320,
+        angband-system.cpp:45-48); its projection path also ends at that range
+        (projection-path-calculator.cpp:262-272).  ``projectable`` adds the
+        game's own path gate: a monster casts only when projectable() reaches
+        the player (mspell-lite.cpp:209-212 decide_lite_projection), ported as
+        ``_may_project``.
+        """
+        if self._monster_cast_distance(monster.position, cell) > MONSTER_SPELL_MAX_RANGE:
+            return False
+        reaches = self._has_line_of_fire(snapshot, monster.position, cell) or (
+            projectable and self._may_project(snapshot, monster.position, cell)
+        )
+        return reaches and self._predicted_damage(snapshot, [monster], turns=1) > 0
+
     @staticmethod
     def _has_line_of_fire(snapshot: Snapshot, origin: Position, target: Position) -> bool:
         y0, x0 = origin.y, origin.x

@@ -593,6 +593,19 @@ FIXED_QUEST_REWARD_POSITIONS = {
 
 REST_MACRO = "R&\r"
 
+# The walking return's bounded stationary holds: the wall search for a hidden
+# up staircase (bounded per wall by _wall_search_counts) and the Word of Recall
+# countdown, and the walk-out dig (walkout_dig; one cell is tunnelled over
+# several decisions, ended by the navigation ledger).  The CLI cell guard
+# exempts them, so an owner that relabels the return (fixedquest:claim:return)
+# keeps these labels.
+RETURN_DIG_UPSTAIRS_REASON = "return:dig-to-upstairs"
+RETURN_DIG_FRONTIER_REASON = "return:dig-to-frontier"
+RETURN_STATIONARY_REASONS = frozenset({
+    "return:search-upstairs", "return:wait-recall",
+    RETURN_DIG_UPSTAIRS_REASON, RETURN_DIG_FRONTIER_REASON,
+})
+
 AIM_WAND_KEY = "a"
 
 EQUIPMENT_SLOT_KEY = {

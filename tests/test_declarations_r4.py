@@ -76,20 +76,6 @@ class FiledHomeErrandGapTest(unittest.TestCase):
                          ("acting", "home.knowledge.request"))
 
 
-class DeferredHomeScanGapTest(unittest.TestCase):
-    def test_deferred_scan_names_holder_on_none(self):
-        policy = HengbotPolicy()
-        policy._town_claim_bar_enforced = True
-        holder = SimpleNamespace(owner=SimpleNamespace(value="home-visit"),
-                                 claim_id=42)
-        with (patch.object(policy, "_claim_errand_hold", return_value=holder),
-              patch.object(policy, "_recorded_execution_token", return_value=None)):
-            self.assertTrue(policy._defer_town_errand("home-scan", "outside-scan"))
-        declaration = bind(policy, "home-scan", None)
-        self.assertEqual((declaration.state, declaration.cause),
-                         ("releasing", "deferred:outside-scan:holder:42"))
-
-
 class AtomicShopGapTest(unittest.TestCase):
     def test_uncomposable_probe_does_not_bind_to_later_key(self):
         policy = HengbotPolicy()

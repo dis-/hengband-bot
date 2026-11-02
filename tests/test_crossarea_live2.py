@@ -51,7 +51,6 @@ class CrossareaLive2Test(unittest.TestCase):
                                  target_slot="body", item_identity=identity),
         )
         policy = HengbotPolicy()
-        policy._town_claim_bar_enforced = True
         policy._prepare_equipment_optimization = Mock()
         policy._equipment_transaction_session = EquipmentTransactionSession(
             EquipmentTransactionPlan(actions, (), 6), physical_context="home"
@@ -66,40 +65,6 @@ class CrossareaLive2Test(unittest.TestCase):
             floor=self.before.floor_key,
         )
         return policy
-
-    def test_recorded_withdraw_effect_dispatches_equip_on_next_board(self):
-        policy = self._policy()
-        key = policy._equipment_transaction_home_key(self.before)
-        self.assertEqual((key, policy.last_reason),
-                         ("ph", "equipment-transaction:withdraw"))
-        policy._home_entry_operation_posted = True
-        self.assertTrue(policy.confirm_key_posted(key))
-        self.assertEqual(policy._store_visit.operation_key, "ph")
-        equip = policy._choose_key(self.after)
-        session = policy._equipment_transaction_session
-        self.assertEqual(session.index, 1)
-        self.assertTrue(policy._store_visit.operation_effect_observed)
-        self.assertTrue(policy._store_visit.operation_released)
-        self.assertIsNotNone(equip)
-        self.assertEqual(policy.last_reason, "equipment-transaction:equip")
-        self.assertEqual(equip, "wd")
-        self.assertTrue(policy.confirm_key_posted(equip))
-        self.assertEqual(policy._equipment_transaction_session.pending_action.kind,
-                         "equip")
-        self.assertEqual(policy._store_visit.operation_key, "wd")
-
-    def test_unobserved_store_action_keeps_atomic_wait(self):
-        policy = self._policy()
-        key = policy._equipment_transaction_home_key(self.before)
-        policy._home_entry_operation_posted = True
-        self.assertTrue(policy.confirm_key_posted(key))
-        result = policy._choose_key(self.before)
-        self.assertIsNotNone(policy._equipment_transaction_session.pending_action)
-        self.assertFalse(policy._store_visit.operation_effect_observed)
-        # The S3.3 town fixture pins this open operation's atomic wait.
-        self.assertEqual(result, "\r")
-        self.assertEqual(policy.last_reason,
-                         "equipment-transaction:atomic-deposit")
 
     def test_withdraw_effect_does_not_finish_another_visit_operation(self):
         policy = self._policy()

@@ -25,7 +25,6 @@ class AdmittedCompositeAndRefusalTest(recorded.executor_harness.ProductionHarnes
 
     def test_a1_admitted_operation_survives_downstream_nonprogress(self):
         policy, board, raw = self.cashout()
-        policy._town_claim_bar_enforced = False
         # Fault only the downstream judgment; the bounty-specific positive
         # recognition must not mask missing general ADMIT protection.
         progress_judgment = policy._town_result_makes_progress

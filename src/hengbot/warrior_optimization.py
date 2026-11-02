@@ -753,9 +753,10 @@ def prepare_warrior_optimization(
     # Source-separated characteristics enrich the intrinsic flag set with
     # what the abilities booleans cannot express.  Consumed today by the
     # defense model: TR_IM_* (zero elemental damage), TR_VUL_* (+1/3 damage),
-    # TR_SUST_* (drain exposure) and TR_RES_TIME; every other recorded flag
-    # (slays, brands, ESP, ...) has no evaluator consumer yet and is
-    # deliberately carried without invented scoring.
+    # TR_SUST_* (drain exposure) and TR_RES_TIME; telepathy and the ESP kinds
+    # by equipment_utility (an intrinsic one levels every loadout); every
+    # other recorded flag (slays, brands, ...) has no evaluator consumer yet
+    # and is deliberately carried without invented scoring.
     intrinsic_flags = (
         _intrinsic_flags(intrinsic_abilities) | calibration.intrinsic_tr_flags
     )

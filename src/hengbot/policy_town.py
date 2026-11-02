@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import consumable_policy, me_capability, town_pack_headroom
 from hengbot import town_end_mining, town_travel
-from hengbot import unseen_strike
+from hengbot import unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -1709,12 +1709,6 @@ class TownMixin:
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str | None:
         """Enforce composable progress at the one downstream town-result seam."""
-        holder = self._town_held_decision(key, snapshot)
-        if holder is not None:
-            # Direct callers must honor the same refusal as the public seam,
-            # before progress composition can mutate the visit or its offer.
-            self._town_refuse_rewrite("procurement", holder)
-            return key
         if (
             snapshot.store is None
             and self._equipment_home_full_refused_this_visit()
@@ -1734,11 +1728,6 @@ class TownMixin:
                     lambda: self._home_full_relief_key(snapshot), family="home-visit")
             self._town_blocked_reason = "overweight-home-unreachable"
             return self._town_blocked_key(snapshot)
-        if getattr(self, "_town_claim_bar_enforced", False):
-            holder = self._claim_errand_hold("store-router")
-            if (holder is not None
-                    and holder is getattr(self._claim_register, "current", None)):
-                self._claim_exit_completion(snapshot, holder, [])
         if self._defer_town_errand("store-router", "procurement-decision"):
             if self._claim_family_of(self.last_reason) == "store-router":
                 return self._town_holder_wait_key(
@@ -1894,38 +1883,6 @@ class TownMixin:
             # commands. Procurement resumes only on an observed outside board.
             return key
         progress = self._town_procurement_progress_key(snapshot)
-        overweight_home_pending = (
-            progress is None
-            and enforce
-            and movement_key
-            and claims_active
-            and (proposed_reason == "stuck:wander"
-                 or proposed_reason.startswith("novel:"))
-            and not getattr(self, "_town_liveness_claim_retired", False)
-            and "weight-overload"
-            in (getattr(self, "_town_claim_categories", ()) or ())
-            and self._inventory_overweight(snapshot)
-        )
-        if (
-            overweight_home_pending
-            and STORE_HOME in self._town_store_attempted
-            and not self._overweight_home_bound_exhausted()
-        ):
-            # The Home pass ended without a failed deposit (deferred or never
-            # posted) and Home's own pass/approach bound remains: route Home
-            # again.  Each unfulfilled pass is charged to that bound.
-            self._rearm_town_store_for_new_work(STORE_HOME)
-            # The router's own required stop; _shopping_approach_step files
-            # and begins the Home visit request (the authorized approach).
-            if (
-                STORE_HOME not in self._town_store_attempted
-                and (step := self._shopping_approach_step(
-                    snapshot, router_plan_stop=True)) is not None
-                and (rearmed := self._shopping_approach_key(
-                    snapshot, step, "shop:travel")) is not None
-            ):
-                self._record_shop_selector_diagnostics(snapshot, rearmed)
-                return rearmed
         if progress is None:
             liveness_candidate = (
                 proposed_reason == "stuck:wander"
@@ -1939,17 +1896,6 @@ class TownMixin:
                     if getattr(self, "_town_liveness_claim_retired", False)
                     else "no-actionable-claim-owner"
                 )
-                if overweight_home_pending and (
-                    STORE_HOME in self._town_store_attempted
-                    or self._overweight_home_bound_exhausted()
-                ):
-                    # User 2026-09-03: a deposit that really fails is a stop.
-                    # Home is the overload's only supplier and its bound is
-                    # exhausted (or it refused a re-arm), with a deposit
-                    # candidate still carried: name that stop instead of
-                    # waiting/probing unowned.
-                    self._town_blocked_reason = "overweight-home-unreachable"
-                    blocked_reason = self._town_blocked_reason
                 self.last_reason = f"town:blocked:{blocked_reason}"
                 self._town_liveness_invariant_defect = {
                     "marker": "TOWN_LIVENESS_INVARIANT_DEFECT",
@@ -7588,9 +7534,9 @@ class TownMixin:
     ) -> str:
         """Declare ``key`` as a move of the inn leg to ``destination_town_id``.
 
-        Its continuation (town.teleport.resume) asks the leg again
-        (_town_holder_declared_key), so a held leg moves as the leg would:
-        the travel command where it serves, else the step.
+        Its continuation (town.teleport.resume) asks the leg again, so a
+        held leg moves as the leg would: the travel command where it serves,
+        else the step.
         """
         self._offer_execution(
             key, producer=producer,
@@ -8176,6 +8122,10 @@ class TownMixin:
             # remembered movement graph for one decision. Once that hands the
             # exit search to the wall owner, keep consuming its existing search
             # budgets instead of letting a single clear redraw reverse course.
+            # A carried digger digs toward the way up instead of searching
+            # (owner 2026-11-02, walkout_dig).
+            if upstairs_step is None and (dig := walkout_dig.key(self, snapshot)) is not None:
+                return dig
             if (
                 not self._is_forgetting_maze(snapshot)
                 and not player.blind
@@ -8315,7 +8265,11 @@ class TownMixin:
         # hidden behind a secret door. This cannot use the ordinary secret-wall
         # sweep below: the return owner exits earlier, and that sweep is disabled
         # whenever any down-stair is known. Search likely wall exits after all
-        # reachable floor/frontier exploration is exhausted.
+        # reachable floor/frontier exploration is exhausted; a carried digger
+        # digs toward the way up instead (owner 2026-11-02, walkout_dig).
+        dig = walkout_dig.key(self, snapshot)
+        if dig is not None:
+            return dig
         if (
             not self._is_forgetting_maze(snapshot)
             and not player.blind

@@ -1,0 +1,137 @@
+LUNA-REPORT hourly-1400-1102（n1-c life-103 の死亡、life-104 の opening-route 停止）
+
+ブランチ hourly-1400-1102（main 6a90f7b4f から作成、最後に main 3d2ac8b7d を取り込み済み）。push していない。
+証拠の写し: C:\hengband-backups\pdca\captures\hourly-1400-1102\life-103, life-104
+（サーバは読み取りだけ。life-103 は死亡の incident capture・exit-no-marker の capture・死亡ダンプ・playrecord、
+life-104 は全 capture・incident の meta/decision-tail/policy-state・bot-decisions.jsonl）。
+
+
+1. n1-c life-104: quest:blocked:opening-route ×3 → 引退（修正済み）
+
+  件数・ビルド: quest:blocked:opening-route 3 件（13:49:10, 13:49:20, 13:49:27）、bot-59230b90d。
+
+  Lv7 の説明: 13:47:28 に作成、Q34 を 13:47:38〜13:48:24 で攻略した（松明の投擲・扉・宝箱・掃討）。
+  クエストの経験値で 2 分後に Lv7 になった。ヘッドレスでは 1 手が数十ミリ秒なので、壁時計の 2 分でも
+  ゲームでは 7,500 ターン以上進んでいる（turn 75001 → 82548）。異常ではない。
+
+  原因: 帳簿係（定期のセーブ・ダンプ）が選ばれたキーを置き換えたとき、置き換えられた持ち主の
+  「待っている変化」（owner expectation）が残っていた。
+    - 各セッションの始めに CLI がダンプとセーブを要求する（cli._request_due_dump、最初の期限は起動時）。
+    - 決定 1: opening route の _opening_q1_town_key → _fixed_quest_key → _fixed_quest_building_key が
+      fixedquest:request:approach の 1 歩 '8' を作り、_post_owner_expectation で「位置が変わる」を
+      登録した。そのキーを _periodic_game_save_key が \x13 に置き換えた（policy.py の帳簿の段）。
+    - 決定 2: 盤面は同じ（セーブは時間を使わない）。_owner_may_select が False（位置が変わっていない）
+      → _fixed_quest_key が None → _opening_q1_stop("quest-request-unavailable")。この "" も
+      ダンプが置き換え、失敗の印 _opening_q1_failure だけが残った。
+    - 決定 3: 印により quest:blocked:opening-route。
+  証拠: life-104/jsonlog/bot-decisions.jsonl 787〜791（skill-exp、game-save、character-dump、停止。
+  fixedquest_readiness.opening_route_failure = "quest-request-unavailable"、readiness は ready）。
+  1 回目の停止（784〜786）も同じ並び。録画の盤面に新しいポリシーを当てると、セーブ・ダンプの
+  要求を入れたときだけ録画と同じ 4 手が出る（要求を入れなければ '8' に進む）。
+
+  直し（コミット da11d1974）: 帳簿の段（セーブ・ダンプ・魔道具術師の魔力一覧の更新）がキーを
+  置き換えたら、その決定で登録された expectation を取り下げる
+  （OwnerExpectationRegistry.withdraw_unposted、policy_types.py）。置き換えられたキーはゲームへ
+  送られないので、その変化は来ない。新しい振る舞いではない（送ったキーの結果を待つ仕組みを、
+  送らなかったキーに当てない）。
+  テスト: tests.test_opening_expectation_recorded.OpeningExpectationRecordedTest
+    録画の盤面で、セーブ・ダンプの 2 手が録画どおり出て、次が停止ではなく '8'
+    fixedquest:request:approach になり、その 1 歩を本番の executor が送る。
+    元に戻した確認（1 回）: src の直しを戻すと ('quest:blocked:opening-route', '') で失敗、戻して合格。
+  抽出: tests/extract_opening_expectation_1102_fixture.py → tests/fixtures/opening-expectation-1102.json.gz
+
+  同じ life の別の停止（直していない・別の系統）:
+  town:blocked:owner-retired-burst（13:49:00、決定 691〜761）。Q1 の購入のため店 4 へ向かう
+  shop:approach が 70 手のあいだ '5'（その場で待つ）と breakout を繰り返した。決定 692 以降、
+  自宅への預け入れの装備の取引（equipment_transaction の context "home"、phase home_prepare、
+  deposit）が残っていて、_shopping_approach_key が _equipment_transaction_owns_town_relocation で
+  equipment_route_key に渡し、そこは required_context == "home" の取引を扱わず WAIT_KEY を返す
+  （work_id route-refused:4、cause equipment-transaction-owns-relocation）。自宅の処理は opening route
+  が先に盤面を取るので走らない。再起動で取引が消え、2 回目のセッションでは購入が進んだ。
+  D30（町の自宅の往復・town:blocked）の系統と考え、ここでは直していない。
+
+
+2. n1-c life-103（魔道具術師 Lv36）の死亡（修正済み）
+
+  13:47:14、城 42 階、bot-59230b90d。死因: シャドウ・デーモンの地獄の矢（死亡ダンプの「死ぬ直前の
+  メッセージ」）。最大 HP 512。
+
+  最後の流れ（decision-tail、決定 1869〜1917）:
+    - 1869〜1871: 帰還で 42 階に着いた直後に HP 512 → 120、テレポート、回復薬 2 本、黒衣の修行僧を倒す。
+    - 1885〜1895: HP 約 350 のまま拾い物。
+    - 1896〜1904: me-power:before-rest:detect-all:powerful と approach-descent を 4 回交互に繰り返し、
+      毎回「大いなる畏怖に包まれた点『P』の顔を見てしまった！」で HP 358 → 299。
+      点『P』（id 1276、ELDRITCH_HORROR、TELE_AWAY、速さ 30）は感知で見えるたびに正気度の攻撃になる。
+    - 1906〜1908: 休息で HP 512。
+    - 1911: 点『P』にテレポートさせられ、ガーゴイル 3 体の横へ。射撃と近接で 2 体を倒す。
+    - 1915: HP 388、盲目（見えない 濃尾無双『岩本虎眼』に斬られた）。item:cure-critical（妥当）。
+    - 1916: HP 97/512、盲目、1 ターンで 291 の被害。持ち物: 致命傷の治癒の薬 9、体力回復の薬 1、
+      テレポートの巻物 14、帰還 10。選んだのは emergency:cure-critical（'qa'、6d8 ≒ 27 回復）。
+    - 1917: HP 45、見えるようになった（隣に虎眼・アーチ=ヴァイル・ガーゴイル）。emergency:teleport。
+      テレポートは成功したが、着いた先で点『P』に胞子・テレポートさせられ、シャドウ・デーモンの
+      地獄の矢で死亡。
+
+  誤った判断: 1916 の致命傷の治癒の薬。
+  経路: policy_combat._emergency_item の「_emergency_escape_pending」の中の status_cure.treats の段。
+  _find_status_cure_potion は「安い順（致命傷の治癒が先、体力回復は品切れの時だけ）」で、HP を見ない。
+  この段が、その下の「低 HP では回復を先に」（_low_hp_heal_first_potion、オーナー 10-03）より先に
+  返していた。
+  既存のオーナーの決まりに反する明確な不具合と判断した:
+    オーナー 2026-11-01（D57）「致命傷治癒はHP回復の効果に期待しない。HPが減ったら体力回復かテレポート。」
+    盲目では巻物が読めないので、残るのは体力回復。体力回復（300）なら HP 約 397 で次の 1 手を
+    受け、見えるようになってテレポートを読めた見込みが高い（実際の次の手の被害は 79）。
+  直し（コミット 6d3f3ef1c）: 低 HP（_low_hp_walk_threshold 未満）で盲目か混乱の時、状態の治療の段は
+  heal-vs-teleport の決まりの薬（_low_hp_heal_first_potion）を飲む。その薬（治療・体力回復・
+  *体力回復*・生命）はどれも盲目と混乱も治す（spells-status.cpp）。閾値以上、切り傷だけ、または
+  次の手の被害を賄える回復薬が無い時は今までどおり安い治療薬。新しい関数は
+  status_cure.low_hp_heal（状態の治療を 1 つのモジュールにまとめたまま）。
+  テスト: tests.test_n1c_death_103_1102_recorded.BlindLowHpHealRecordedTest
+    録画の 4 盤面（3831825〜3831848）は録画どおりの答え（melee、ranged:fire、item:cure-critical）、
+    3831859 は ('qb', 'emergency:cure-status-healing') で、本番の executor が「どの薬を飲みますか?」に答える。
+    元に戻した確認（1 回）: 直しを戻すと ('qa', 'emergency:cure-critical') で失敗、戻して合格。
+  抽出: tests/extract_n1c_death_103_1102_fixture.py → tests/fixtures/death-n1c-103-1102.json.gz
+
+  召喚の敵を避ける持ち主との関係: この階の前の訪問では explore:avoid-immobile-summoner が多かった
+  （決定 1546〜1710 で約 100 手、summoner:recall も 1 回）が、死亡に至る最後の訪問（1869 以降）には
+  出ていない。死亡はその持ち主と関係しない。summoner-avoid-narrow-1102 とは重ならない。
+
+  直していない、関係する点（オーナーへの問い・別の担当へ）:
+    a. 休息前の全感知の繰り返し（1896〜1904）。休息の前に全感知（強力発動）を使い、感知した敵のために
+       休まず 1 歩進み、次の盤面でまた休息前の全感知、を 4 回繰り返した。感知のたびに点『P』の顔を見て
+       HP を約 15〜20 失った（ロッドの回数も使った）。11-01 の「邪悪感知の時に全感知のロッドが
+       使えれば代わりに・安全なら強力発動」の実装の範囲で、休めなかった後に同じ感知を繰り返さない
+       決まりが要るかどうかはオーナーの判断が要る。
+    b. 城 42 階は 1 時間に 4 回入り、毎回すぐ危険になった（着いてすぐ HP 512 → 120 など）。帰還先の
+       選び方（over_extension）を変えるかどうかはオーナーの判断が要る。
+
+
+3. 確認
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy"（合格、main 取り込み後も合格）
+  - 追加した 2 つの録画テスト（合格、main 取り込み後も合格）。元に戻した確認は各 1 回（上記）。
+  - scripts/town_work_manifest.py --write: zero unmapped（status_cure.py:low_hp_heal の review を
+    scripts/town_work_review.json に追加、data として）。
+  - checks.json・全体テスト・preflight・mutation_check・fast_tier は流していない。
+  - 注意: 盲目かつ低 HP で状態の治療を飲む盤面を固定しているほかのテストがあれば、致命傷の治癒から
+    回復薬に変わる可能性がある。決まりどおり流していないので、落ちたら新しい振る舞いに期待値を合わせる。
+  - テストの壁はない。裏の処理は残していない。git stash は使っていない。
+
+
+4. 保守性
+
+  - 1. は OwnerExpectationRegistry に「この決定で登録したものを取り下げる」1 つの操作を足し、帳簿の段の
+    1 か所から呼ぶ。セーブ・ダンプ・魔力一覧の更新の 3 つの置き換えに個別の対処を書いていない。
+  - 2. は状態の治療の判断を status_cure.py に置き、既存の _low_hp_heal_first_potion と
+    _low_hp_walk_threshold を使う。閾値・薬の種類の写しは作っていない。
+
+
+5. checks.json の案（編集していない）
+
+  {"id": "OWNER-EXPECTATION-REPLACED-KEY-WITHDRAWN",
+   "defect": "帳簿の段（定期のセーブ・ダンプ）が置き換えたキーの owner expectation が残り、変わらない盤面で持ち主が譲り続けて opening route が quest:blocked:opening-route で止まった（n1-c life-104 2026-11-02 13:49）",
+   "owner": "Q34→採掘キット→Q1 の固定ルート（2026-10-26）",
+   "tests": ["tests.test_opening_expectation_recorded.OpeningExpectationRecordedTest"]}
+  {"id": "BLIND-LOW-HP-STATUS-CURE-HEALS",
+   "defect": "盲目で HP 97/512 の時、緊急の状態の治療が体力回復を持ったまま致命傷の治癒の薬を飲んだ（n1-c life-103 2026-11-02 13:47 城42階の死亡）",
+   "owner": "致命傷治癒はHP回復の効果に期待しない。HPが減ったら体力回復かテレポート。（2026-11-01）",
+   "tests": ["tests.test_n1c_death_103_1102_recorded.BlindLowHpHealRecordedTest"]}

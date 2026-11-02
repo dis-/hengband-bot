@@ -41,7 +41,6 @@ def policy_at(snapshot, enforced=False):
     p = HengbotPolicy()
     p.prime(snapshot)
     p.consume_skill_knowledge(ROWS[4260])
-    p._town_claim_bar_enforced = enforced
     p._crossarea_fundraising_enforced = True
     p._in_store_ops_enabled = True
     return p

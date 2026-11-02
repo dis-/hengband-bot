@@ -4,9 +4,12 @@ from dataclasses import dataclass, field
 from functools import wraps
 
 from hengbot.model import Position
+from hengbot.policy_constants import ExplorationPathOutcome
 
 
 SUMMONER_WAIT_GAME_TURNS = 50
+HOLD_REPOSITION_REASON = "summoner:hold-reposition"
+HOLD_TELEPORT_REASON = "summoner:hold-teleport"
 
 
 @dataclass
@@ -64,8 +67,54 @@ def wait_state(policy, snapshot):
     return state
 
 
+def _shot_at(policy, snapshot, cell):
+    """A visible hostile reaches ``cell`` by the survival gate's fire test
+    or by the game's projectable() spell gate."""
+    return policy._took_damage and cell == snapshot.player.position or any(
+        policy._fire_reaches(snapshot, monster, cell, projectable=True)
+        for monster in policy._physical_hostiles(snapshot)
+    )
+
+
+def _leave_shot_hold_point_key(policy, snapshot, monsters):
+    """Leave a hold point that is shot at (owner 2026-11-02).
+
+    「撃たれる場所は待つポイントとして不適当なので撃たれない場所で待つ。
+    無理ならテレポート。」  The point stays vetoed for routing for this floor
+    visit (the engagement avoid set is cleared only on a floor change), so
+    exploration cannot walk back into it.  Steps toward another choke out of
+    fire, else reads a teleport (owner 2026-11-02 「ショートテレポートは
+    テレポートの代替にならない」: never Phase Door), else None.
+    """
+    here = snapshot.player.position
+    policy._claim_engagement_avoid_cells((here,))
+    if here in policy._explore_path:
+        policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+    route = policy._validated_choke_route(
+        snapshot, monsters,
+        admit=lambda cell: cell not in policy._engagement_avoid_cells
+        and not _shot_at(policy, snapshot, cell),
+    ) if monsters else None
+    if route is not None:
+        destination, step = route
+        policy.last_reason = HOLD_REPOSITION_REASON
+        policy._declare_reach(destination)
+        policy._declare_triggers(monsters)
+        return policy._step_toward(snapshot, step)
+    scroll = policy._escape_scroll(snapshot, teleport_only=True)
+    if scroll is not None:
+        policy.last_reason = HOLD_TELEPORT_REASON
+        return policy._read_key(snapshot, scroll)
+    return None
+
+
 def hold_key(policy, snapshot, monsters, *, continuing=False):
-    """Start clocks only for the summoners this selected wait is awaiting."""
+    """Start clocks only for the summoners this selected wait is awaiting.
+
+    Returns None when the point is shot at and neither another hold point
+    nor a teleport is available; the caller's later rungs own the turn."""
+    if _shot_at(policy, snapshot, snapshot.player.position):
+        return _leave_shot_hold_point_key(policy, snapshot, monsters)
     state = wait_state(policy, snapshot)
     waiting = {
         (m.index, m.race_id): m for m in monsters
