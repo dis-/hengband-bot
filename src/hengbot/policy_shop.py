@@ -14,7 +14,7 @@ from hengbot.claim_goal_typing import (
     STORE_OPERATION as CLAIM_STORE_OPERATION,
 )
 from hengbot.claim_register import ClaimOwner, claims
-from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, DISPOSABLE_POTION_SVALS, DISPOSABLE_SCROLL_SVALS, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
+from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
@@ -33,7 +33,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
-from hengbot import approach_walk, me_capability, me_device_policy, me_staff_sequence
+from hengbot import approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.purchase_rungs import (
@@ -991,8 +991,7 @@ class ShopMixin(InStoreMixin):
                     and (it.is_potion or it.is_scroll)
                     and not it.aware
                 )
-                or (it.is_potion and it.aware and it.sval in DISPOSABLE_POTION_SVALS)
-                or (it.is_scroll and it.aware and it.sval in DISPOSABLE_SCROLL_SVALS)
+                or consumable_policy.discarded(it)
                 or (it.known and it.is_ego and it.is_cursed and not it.is_artifact)
             )
             and not (
@@ -2759,6 +2758,8 @@ class ShopMixin(InStoreMixin):
             )
             and item.count > 0
             and snapshot.player.gold - item.price >= reserve
+            # The owner's table rules optional buys (consumable_policy).
+            and consumable_policy.discretionary_buy((item.tval, item.sval))
             and not me_capability.replaced_by_absorbed(
                 self, snapshot, item, me_capability.PURCHASE)
         ]
@@ -6502,8 +6503,12 @@ class ShopMixin(InStoreMixin):
     def _star_remove_curse_reserve_purchase_needed(
         self, snapshot: Snapshot
     ) -> bool:
+        # The reserve is an optional buy (no cursed item reads it yet): the
+        # owner's table rules it (consumable_policy, 2026-11-02).
         return (
-            not me_capability.replaced_by_absorbed(
+            consumable_policy.discretionary_buy(
+                (TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE))
+            and not me_capability.replaced_by_absorbed(
                 self, snapshot, (TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE), me_capability.PURCHASE)
             and snapshot.player.gold >= FUNDRAISING_GOLD_TARGET
             and not self._recall_departure_shortage(snapshot)

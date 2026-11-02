@@ -11,6 +11,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot import consumable_policy
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -3126,8 +3127,17 @@ class HomeMixin:
             )
             and self._entire_stack_is_surplus(snapshot, item)
         )
+        # Owner 2026-11-02: a 「拾って自宅に片付ける」 potion or scroll is
+        # shelved, unless a requirement reads it from the pack
+        # (consumable_policy).
+        table_shelved = (
+            snapshot is not None
+            and consumable_policy.shelved_at_home(item)
+            and not consumable_policy.carry_required(self, snapshot, item)
+        )
         return (
             spare_equipment
+            or table_shelved
             or protected_unknown_consumable
             or mining_gear_off_duty
             or idle_dead_weight

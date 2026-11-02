@@ -534,7 +534,9 @@ class OverflowDisposalTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(snap), "01ka")
-        self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
+        # Owner 2026-11-02: the table marks it 「捨てる」, so the junk path
+        # (consumable_policy, junk class table-discard) destroys it first.
+        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
 
     def test_full_pack_destroys_cure_light_wounds(self):
         inventory = [item("a", TVAL_POTION, 34, name="Cure Light Wounds")]
@@ -552,7 +554,9 @@ class OverflowDisposalTest(unittest.TestCase):
         policy = HengbotPolicy()
 
         self.assertEqual(policy.choose_key(snap), "01ka")
-        self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
+        # Owner 2026-11-02: the table marks it 「捨てる」, so the junk path
+        # (consumable_policy, junk class table-discard) destroys it first.
+        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
 
     # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
     @pre_junk_scope_replay
@@ -660,7 +664,9 @@ class OverflowDisposalTest(unittest.TestCase):
 
         policy = HengbotPolicy()
         self.assertEqual(policy.choose_key(snap), "03ka")
-        self.assertEqual(policy.last_reason, "inventory:destroy-disposable-item")
+        # Owner 2026-11-02: the table marks it 「捨てる」, so the junk path
+        # (consumable_policy, junk class table-discard) destroys it first.
+        self.assertEqual(policy.last_reason, "inventory:destroy-worthless-junk")
 
     # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
     @pre_junk_scope_replay
