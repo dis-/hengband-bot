@@ -1,0 +1,52 @@
+LUNA-REPORT hunt-redetect-1102（追う対象を一定時間ごとに感知し直す）
+
+オーナーの答え（2026-11-02、hunt-detect-evil-1102 の質問2）
+  「一定の時間ごとに使い直す」、間隔「1,000ゲームターン」
+
+コミット（main a44688ca2 から、hunt-detect-evil-1102 の f3ca64022 を含む）
+  f684e4757 Search for the hunted target again after 1,000 game turns
+
+■ 直したこと
+  - src/hengbot/me_powers.py の引き金 "hunt-target-unseen" に、もう1つの撃ち直しの条件を足した。
+    その種族を感知できた前の使用（邪悪な対象なら邪悪感知と全感知、そうでなければ全感知だけ）のうち
+    最新のものから 1,000 ゲームターン以上たっていれば、近くでも撃ち直す。
+    今までの「前の使用すべてから感知の半径以上離れたら」はそのまま残し、どちらかで撃つ。
+  - 1,000 は名前付きの定数 HUNT_REDETECT_GAME_TURNS として引き金のすぐ上に置き、オーナーの言葉を添えた。
+  - 共通の決まり（敵が見えている時・殴られた直後は撃たない、同じ場所で5回失敗したら諦める）は変えていない。
+
+■ テスト
+  新規 tests/test_hunt_redetect_1102_recorded.py（2件、合格）
+    記録: n1-c life-098 鉄獄12階 クエスト43（対象 鬼殺隊の『先輩』、EVIL）の stuck:wander の盤面。
+    最新の邪悪感知は (16,17) で turn 1173086 に休む前に使ったもの。
+    - turn 1174094（1,008 ゲームターン後、8マス先）と turn 1176550（3,464 後、7マス先、
+      記録の判断 8091 は search）→ mAp（me-power:hunt-target-unseen:detect-evil）、m A p の順に受理。
+    - turn 1174079（993 後、7マス先）→ 撃たない。
+    宣言した作り物: 送ったキーへのゲームの返事だけ（盤面と使用歴は記録のまま）。
+  既存 tests/test_hunt_detect_1102_recorded.py の期待値を1件、新しい動きに合わせて直した
+    （壁にはせず期待値を正しい動きへ）: turn 1171515 の盤面は、最新の邪悪感知が 7,176 ゲームターン前なので
+    撃つ（以前は「半径の内なので撃たない」を固定していた。半径の決まりは 993 の件と既存の 44/45 マスの件で残る）。
+  fixture: tests/fixtures/hunt-detect-1102.json.gz に3つの盤面を足した（抽出は
+    tests/extract_hunt_detect_1102_fixture.py の CASES に追加）。
+  revert-proof（1回）: me_powers.py を戻すと、新しいテストの撃つ件（定数が無いので最初の確かめで止まる）と
+    既存の 1171515 の件が失敗し、993 の件と残りの7件は合格。戻して合格を確認。
+  確認: import の確認、この2つのテストモジュール（9件）、town_work_manifest.py --write（zero unmapped、
+    新しい関数は無い）。
+
+■ checks.json に足す案
+  {
+   "id": "HUNT-REDETECT-INTERVAL",
+   "owner": "2026-11-02「一定の時間ごとに使い直す」「1,000ゲームターン」",
+   "tests": [
+    "tests.test_hunt_redetect_1102_recorded",
+    "tests.test_hunt_detect_1102_recorded"
+   ]
+  }
+  （HUNT-DETECT-TARGET の項目を既に入れていれば、こちらは新しいテストだけでよい）
+
+■ 保守性
+  - 条件は既存の引き金の述語の中に足しただけで、別の引き金や特例は作っていない。間隔は名前付きの定数1つ。
+  - 新しいテストは hunt-detect のテストの補助関数をモジュール経由で使い回し、同じ盤面の読み込みや
+    キーの返事を二重に書いていない。
+
+■ オーナーへの質問
+  なし。

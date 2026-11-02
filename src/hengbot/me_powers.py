@@ -449,11 +449,18 @@ def _cast_radius(ctx, use) -> int:
     return radius * 3 // 2 if use.reason.endswith(POWERFUL_SUFFIX) else radius
 
 
+# Owner 2026-11-02 「一定の時間ごとに使い直す」, 「1,000ゲームターン」: the hunted
+# target moves, so the search is also cast again this long after the latest
+# use that could have revealed it, wherever the player stands.
+HUNT_REDETECT_GAME_TURNS = 1000
+
+
 def _hunt_target_unseen(ctx, power):
     """The hunted random-quest target or guardian is shown nowhere, this row's
     effect reveals its race, and every earlier use that would have revealed it
     is at least its radius away (again only after moving the detection radius,
-    as the mapping row; owner 2026-11-02, hunt_target)."""
+    as the mapping row) or the latest of them is HUNT_REDETECT_GAME_TURNS old
+    (owner 2026-11-02, hunt_target)."""
     policy = ctx.policy
     race = hunt_target.unseen_race(policy, ctx.snapshot)
     if race is None:
@@ -461,8 +468,11 @@ def _hunt_target_unseen(ctx, power):
     flags = hunt_target.race_flags(policy, race)
     if not hunt_target.REVEALS[power.effect](flags):
         return False
-    return all(ctx.distance(use.position) >= _cast_radius(ctx, use) for use in ctx.memory.uses
-               if (reveals := hunt_target.REVEALS.get(BY_KEY[use.used].effect)) and reveals(flags))
+    revealing = [use for use in ctx.memory.uses
+                 if (reveals := hunt_target.REVEALS.get(BY_KEY[use.used].effect)) and reveals(flags)]
+    if not revealing or ctx.snapshot.turn - max(use.turn for use in revealing) >= HUNT_REDETECT_GAME_TURNS:
+        return True
+    return all(ctx.distance(use.position) >= _cast_radius(ctx, use) for use in revealing)
 
 
 def _unbeatable_in_range(ctx, power):

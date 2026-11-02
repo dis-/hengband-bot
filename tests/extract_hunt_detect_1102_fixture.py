@@ -31,6 +31,15 @@ CASES = {
                    2408201, range(12580, 12590), 1329),
     "senior-12f": (ROOT / "life-098/incident-captures/20261101-200240-livelock-exhausted",
                    1171515, range(0), 1164),
+    # hunt-redetect-1102: the stuck:wander boards near the before-rest Detect
+    # Evil at (16,17), turn 1173086: 993 and 1008 game turns later, and turn
+    # 1176550 (decision 8091, recorded ``search``).
+    "senior-12f-993": (ROOT / "life-098/incident-captures/20261101-200240-livelock-exhausted",
+                       1174079, range(0), 1164),
+    "senior-12f-1008": (ROOT / "life-098/incident-captures/20261101-200240-livelock-exhausted",
+                        1174094, range(0), 1164),
+    "senior-12f-search": (ROOT / "life-098/incident-captures/20261101-200240-livelock-exhausted",
+                          1176550, range(8091, 8092), 1164),
 }
 ROW_FIELDS = ("decision_sequence", "turn", "reason", "key", "position")
 

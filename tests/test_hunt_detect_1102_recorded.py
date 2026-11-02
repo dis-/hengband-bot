@@ -182,16 +182,20 @@ class HuntDetectRecordedTest(harness.ProductionHarness):
 
     # -- EVIL target: Detect Evil ----------------------------------------------
 
-    def test_recorded_senior_board_keeps_the_spacing_rule(self):
+    def test_recorded_senior_board_searches_again_after_the_interval(self):
         case = self.case("senior-12f")
         raw = case["board"]
         self.assertEqual((raw["player"]["level"], raw["player"]["hp"], raw["floor"]["quest_id"]),
                          (21, 223, 43))
         self.assertIn("EVIL", self.races[1164].flags)
-        # As recorded: Detect Evil cast at (16,97), 12 cells away: no search.
+        # As recorded: Detect Evil cast at (16,97), 12 cells away, but the
+        # latest Detect Evil (turn 1164339) is 7176 game turns old: searched
+        # again (hunt-redetect-1102, 「1,000ゲームターン」).
+        latest = max(use["turn"] for use in case["uses"] if use["used"] == ["staff", 15])
+        self.assertEqual(raw["turn"] - latest, 7176)
         policy, raw = self.policy("senior-12f")
-        self.choose(policy, raw)
-        self.assertNotIn("hunt-target-unseen", policy.last_reason)
+        self.assertEqual(self.choose(policy, raw), DETECT_EVIL_KEY)
+        self.assertEqual(policy.last_reason, "me-power:hunt-target-unseen:detect-evil")
 
     def test_evil_target_out_of_detect_evil_range_casts_detect_evil(self):
         policy, raw = self.policy("senior-12f", keep=lambda use: use["position"] != [16, 97])
