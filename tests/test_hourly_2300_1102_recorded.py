@@ -184,5 +184,41 @@ class FundraisingLootRouteThroughHostilesTest(RecordedTownPolicy):
         self.assertEqual((policy._loot_target.y, policy._loot_target.x), (41, 28))
 
 
+class UnaimedImmobileSummonerTest(RecordedTownPolicy):
+    """n1-c life-110 22:44:12 loop-detected at Orc cave 22F.
+
+    A クイルスルグ (race 342, NEVER_MOVE, INVISIBLE, S_MONSTER) was in view
+    at (37,141) beside two other hostiles (1036087-1036105), so the
+    immobile-summoner owner kept its line-of-fire zone.  With nothing else
+    in view the safe ranged kill walked ``7`` to the shooting cell (42,141),
+    where the summoner was not in view (nothing to aim at), so the zone owner
+    stepped ``3`` out of the zone, and back, until the loop detector stopped
+    the bot (decisions 39-51); the same loop stopped it again and the life
+    retired.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.case = _cases()["summoner"]
+
+    def test_unaimed_summoner_is_not_walked_back_to(self):
+        case = self.case
+        boards = case["boards"]
+        # DECLARED CONSTRUCTED: an empty Home list (dungeon decisions).
+        policy = self.primed(boards[0], [], case["skill"])
+        for raw in boards[:-1]:
+            board = self.board(policy, raw)
+            key = policy.choose_key(board)
+            policy.confirm_key_posted(key)
+        # On the shooting cell with the summoner out of view: step out.
+        self.assertEqual((board.player.position.y, board.player.position.x), (42, 141))
+        self.assertEqual((key, policy.last_reason), ("3", "explore:avoid-immobile-summoner"))
+        board = self.board(policy, boards[-1])
+        key = policy.choose_key(board)
+        # Recorded: '7' immobile-threat:approach-to-shoot (back to (42,141)).
+        self.assertNotEqual(policy.last_reason, "immobile-threat:approach-to-shoot")
+        self.assertEqual((key, policy.last_reason), ("6", "seek-loot"))
+
+
 if __name__ == "__main__":
     unittest.main()

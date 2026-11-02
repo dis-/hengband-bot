@@ -84,6 +84,9 @@ class FloorVisit:
     floor: tuple
     monsters: dict[Position, MonsterState] = field(default_factory=dict)
     cells: frozenset[Position] = frozenset()
+    # Remembered monsters not in view from a reached shooting cell
+    # (immobile_ranged_kill), until perceived again.
+    unaimed: set[Position] = field(default_factory=set)
 
 
 def never_moves(policy, monster: MonsterState) -> bool:
@@ -166,6 +169,7 @@ def observe(policy, snapshot) -> None:
                  for monster in policy._perceived_hostiles(snapshot)
                  if never_moves(policy, monster)}
     visit.monsters.update(perceived)
+    visit.unaimed.difference_update(perceived)
     for position, monster in list(visit.monsters.items()):
         if position not in perceived and policy._player_can_see_empty_cell(
                 snapshot, position, race_id=monster.race_id):
@@ -183,6 +187,19 @@ def remembered(policy) -> tuple[MonsterState, ...]:
     """Every never-moving monster this floor visit remembers (avoided or not)."""
     visit = getattr(policy, MEMORY, None)
     return () if visit is None else tuple(visit.monsters.values())
+
+
+def mark_unaimed(policy, position: Position) -> None:
+    """The monster at ``position`` was not in view from a reached shooting cell."""
+    visit = getattr(policy, MEMORY, None)
+    if visit is not None:
+        visit.unaimed.add(position)
+
+
+def unaimed(policy, position: Position) -> bool:
+    """Not in view from a reached shooting cell, and not perceived since."""
+    visit = getattr(policy, MEMORY, None)
+    return visit is not None and position in visit.unaimed
 
 
 def route_cells(policy) -> frozenset[Position]:

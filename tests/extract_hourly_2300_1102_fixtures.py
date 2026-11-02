@@ -45,6 +45,8 @@ RECALL = (LIFE / "incident-captures"
           / "20261102-231856-posting-contract-recall-already-active")
 N1B = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-b/life-297")
 N1C = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-c/life-111")
+N1C110 = Path("C:/hengband-backups/pdca/captures/hourly-2300-1102/n1-c/life-110")
+SUMMONER_TURNS = (1036087, 1036098, 1036105, 1036117, 1036559, 1036566)
 OUTPUT = Path(__file__).with_name("fixtures") / "hourly-2300-1102.json.gz"
 
 
@@ -70,6 +72,8 @@ def main():
                               / "snapshots" / "snapshots-current.jsonl.gz")
     loot = ring_rows(N1C / "incident-captures" / "20261102-231544-loop-detected"
                      / "snapshots" / "snapshots-current.jsonl.gz")
+    summoner = ring_rows(N1C110 / "incident-captures" / "20261102-224412-loop-detected"
+                         / "snapshots" / "snapshots-current.jsonl.gz")
     write(OUTPUT, dict(
         source="state.jsonl.gz of the n1-a life-466 hourly-2300-1102 captures",
         identify=dict(stop=board(stop, 676638), home=knowledge(stop, "home"),
@@ -79,7 +83,9 @@ def main():
         confused=dict(stop=board(confused, 400979), home=knowledge(confused_ring, "home"),
                       skill=knowledge(confused_ring, "skill_exp")),
         loot=dict(west=board(loot, 593549), east=board(loot, 593556),
-                  skill=knowledge(loot, "skill_exp"))))
+                  skill=knowledge(loot, "skill_exp")),
+        summoner=dict(boards=[board(summoner, turn) for turn in SUMMONER_TURNS],
+                      skill=knowledge(summoner, "skill_exp"))))
 
 
 if __name__ == "__main__":
