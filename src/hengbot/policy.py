@@ -8889,10 +8889,15 @@ class HengbotPolicy(ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, Ho
         # Bookkeeping is a separate, higher rung: save and dump may replace
         # the selected key under their safe-filler predicates. The result
         # detector excludes their family from town errand judgement.
+        selected = key
         key = self._periodic_game_save_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
         from hengbot.me_powers_refresh import periodic_magic_eater_powers_key
         key = periodic_magic_eater_powers_key(self, snapshot, key)
+        if key is not selected:
+            # The replaced key is never posted: what its owner waits for
+            # cannot arrive, so its expectation of this decision is withdrawn.
+            self._owner_expectations.withdraw_unposted(self._decision_sequence)
         if key is None:
             def fallback():
                 self.last_reason = (
