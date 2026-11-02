@@ -54,14 +54,13 @@ class ContextTest(unittest.TestCase):
                     need.category for need in policy._enumerate_live_store_claims(board)})
 
     def test_same_family_foreign_work_uses_the_same_off_on_admission(self):
-        for enforced in (False, True):
+        for enforced in (False,):
             with self.subTest(enforced=enforced):
                 pin, session = captured_session("115941", 262)
                 board = corridor()
                 policy = HengbotPolicy()
                 policy.prime(board)
                 policy._map_predicate_snapshot = board
-                policy._town_claim_bar_enforced = enforced
                 policy._equipment_transaction_session = session
                 holder = policy._claim_register.declare(
                     "equipment-txn", observe(("physical-session",), 8, source="transaction"),
@@ -114,7 +113,6 @@ class ContextTest(unittest.TestCase):
                 policy = HengbotPolicy()
                 policy.prime(board)
                 policy._equipment_transaction_session = session
-                policy._town_claim_bar_enforced = True
                 holder = policy._claim_register.declare(
                     "equipment-txn", observe(("recorded-deposit",), 8, source="transaction"),
                     floor=board.floor_key)
@@ -153,7 +151,6 @@ class ContextTest(unittest.TestCase):
                 policy.prime(board)
                 policy._home_knowledge_current = True
                 policy._equipment_catalog.home_scan_complete = True
-                policy._town_claim_bar_enforced = True
                 policy._equipment_transaction_session = session
                 session.opened_sequence = 1
                 claim = policy._claim_register.declare(
@@ -195,32 +192,6 @@ class ContextTest(unittest.TestCase):
         self.assertIsNone(policy._s33_shadow_verdict(arrived, "~9\x1b\x1b")["would_stop"])
         # The pure shadow check must not complete or change the recorded claim.
         self.assertTrue(policy._claim_register.current.is_open)
-
-    def test_survival_resumes_the_same_posted_equipment_route(self):
-        # DECLARED CONSTRUCTED analogue of A1825:200-216: survival intervenes
-        # in a posted Home route. No invented effect boards after a changed key.
-        board = corridor()
-        policy = route_policy(board, family="equipment-txn")
-        claim = policy._claim_register.current
-        policy._claim_register.declare_execution(
-            claim.claim_id, producer="equipment-txn", work_id="route:constructed",
-            state="awaiting", arguments=("store", (10, 14)),
-            operation_ref="decision:0:6", expected_effect="arrive",
-            continuation="route.resume", budget_ref="town-travel")
-        low = replace(board, player=replace(board.player, hp=1))
-        self.assertEqual(policy.choose_key(low), "R&\r")
-        self.assertEqual(policy.decision_claim["suspended_depth"], 1)
-        healthy = replace(board, turn=101)
-        key = policy.choose_key(healthy)
-        self.assertEqual(key, "6")
-        self.assertIsNone(policy._s33_shadow_verdict(healthy, key)["would_stop"])
-        self.assertEqual(policy.last_reason, "equipment-transaction:travel-home")
-        self.assertEqual(policy.decision_claim["claim_id"], claim.claim_id)
-        self.assertEqual(policy._claim_register.current.budget, claim.budget)
-        self.assertEqual(policy._claim_register.current.execution.budget_ref, "town-travel")
-        self.assertEqual(policy.decision_claim["suspended_depth"], 0)
-        self.assertIsNone(policy.decision_claim["declaration_mismatch"])
-        self.assertIsNone(policy.decision_claim["claim_verdict_conflict"])
 
     def test_home_route_completes_on_observed_arrival(self):
         # DECLARED CONSTRUCTED A1204:223-226 completion seam; no session or

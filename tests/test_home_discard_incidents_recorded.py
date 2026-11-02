@@ -37,7 +37,6 @@ def policy_at(board, enforced):
     skill = next(e['row'] for e in PINS['220530']['states']
                  if e['row'].get('knowledge', {}).get('category') == 'skill_exp')
     p.consume_skill_knowledge(skill)
-    p._town_claim_bar_enforced = enforced
     p._in_store_ops_enabled = True
     return p
 

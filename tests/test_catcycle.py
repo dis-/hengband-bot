@@ -28,7 +28,6 @@ def attach(enforced=False, crossarea=True):
     raw = rows("state")
     boards = [parse_snapshot(row, {}) for row in raw[:3]]
     policy = HengbotPolicy()
-    policy._town_claim_bar_enforced = enforced
     policy._crossarea_fundraising_enforced = crossarea
     policy.prime(boards[0])
     policy.consume_skill_knowledge(raw[3])

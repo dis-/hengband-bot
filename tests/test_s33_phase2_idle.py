@@ -39,20 +39,6 @@ class IdleFallbackTest(unittest.TestCase):
         self.assertIsNone(policy._s33_shadow_verdict(snapshot, key)['would_stop'])
         self.assertIsNone(policy.decision_claim['claim_verdict_conflict'])
 
-    def test_on_does_not_emit_foreign_fallback(self):
-        snapshot = corridor()
-        policy = HengbotPolicy()
-        policy.prime(snapshot)
-        policy._town_claim_bar_enforced = True
-        policy._crossarea_fundraising_enforced = True
-        goal = pin(10562)['row']['claim']['goal']
-        policy._claim_register.declare('home-errand',
-            observe(tuple(goal['expectation']), goal['within'], source=goal['source']),
-            floor=snapshot.floor_key)
-        # TEST_FAKERY_LINT_ALLOW: public-path-replaced: DECLARED CONSTRUCTED missing B checkpoint; only the ladder None sentinel is supplied to exercise final fallback refusal through choose_key.
-        with patch.object(policy, '_decide', return_value=None):
-            self.assertIsNone(policy.choose_key(snapshot))
-
 
 if __name__ == '__main__':
     unittest.main()

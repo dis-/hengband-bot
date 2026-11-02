@@ -113,7 +113,6 @@ class GoldburnShoppingConstructedTest(unittest.TestCase):
         )
         policy._observe_cross_town_shopping_arrival(snap)
         self.assertEqual(register.current.closed, "complete")
-        policy._town_claim_bar_enforced = True
         self.assertFalse(policy._defer_town_errand("store-router", "procurement-decision"))
 
     def test_finished_q2_return_also_yields(self):

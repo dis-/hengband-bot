@@ -33,7 +33,6 @@ class DisposalAdmissionTest(unittest.TestCase):
             outcomes = []
             for mode in (tt.SHADOW, tt.ENFORCE):
                 policy, snap, target = target_board()
-                policy._town_claim_bar_enforced = enforced
                 with patch.dict(tt.TERMINALS, {"verified-disposal":
                         tt.TERMINALS["verified-disposal"]._replace(mode=mode)}), \
                         patch("hengbot.item_reservation.item_reserved_by_other",

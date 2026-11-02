@@ -3670,10 +3670,6 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--once", action="store_true")
     parser.add_argument(
-        "--enforce-town-claims", action="store_true",
-        help="enforce S3.3 town claim ownership (default: off)",
-    )
-    parser.add_argument(
         "--enforce-crossarea-fundraising", action="store_true",
         help="use the shared cross-area fundraising verdict and purpose (default: off)",
     )
@@ -4015,7 +4011,6 @@ def main(argv: list[str] | None = None) -> int:
             sys.argv if argv is None else argv,
             input_delays=input_delays,
             prompt_japanese=prompt_japanese,
-            enforce_town_claims=args.enforce_town_claims,
             enforce_crossarea_fundraising=args.enforce_crossarea_fundraising,
             in_store_shop_ops=args.in_store_shop_ops,
         )
@@ -4150,10 +4145,8 @@ def main(argv: list[str] | None = None) -> int:
         exploration_ledger_path=runtime_path(EXPLORATION_LEDGER_PATH.name),
         baseitem_costs=baseitem_costs,
     )
-    policy._town_claim_bar_enforced = args.enforce_town_claims
     policy._crossarea_fundraising_enforced = args.enforce_crossarea_fundraising
-    print(f"hengbot startup enforce_town_claims={args.enforce_town_claims}"
-          f" enforce_crossarea_fundraising={args.enforce_crossarea_fundraising}",
+    print(f"hengbot startup enforce_crossarea_fundraising={args.enforce_crossarea_fundraising}",
           file=sys.stderr, flush=True)
     _configure_in_store_shop_ops(policy, args)
     policy._prompt_gated_posting = shadow_client is not None

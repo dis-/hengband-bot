@@ -376,7 +376,6 @@ def normalize_policy_state(restored, *, restart=False):
     # off, as it is in every checkpoint this change can meet.
     restored.__dict__.setdefault("_decision_bar_skips", None)
     restored.__dict__.setdefault("_claim_bar_enforced", False)
-    restored.__dict__.setdefault("_town_claim_bar_enforced", False)
     # In-store shop operations (SOL-DESIGN-store-reentry-20261003 3.2):
     # captures before the switch existed held no in-store entry, breaker,
     # shelf evidence or shadow state; off/empty is what they behaved as.

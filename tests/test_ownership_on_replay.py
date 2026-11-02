@@ -81,14 +81,12 @@ class OwnershipOnReplayTest(unittest.TestCase):
         observed = []
         case = self
         class SeamPolicy:
-            _town_claim_bar_enforced = True
             _claim_home_knowledge_observed = True
             decision_claim = {}
             last_reason = "shop:test"
             def _claim_suspended_exit(self, board, register):
                 observed.append("completion")
             def _s33_shadow_verdict(self, board, key):
-                case.assertTrue(self._town_claim_bar_enforced)
                 case.assertFalse(self._claim_home_knowledge_observed)
                 observed.append("shadow")
                 return {"would_stop": "ownership:declaration-missing:test"}
@@ -104,7 +102,6 @@ class OwnershipOnReplayTest(unittest.TestCase):
         self.assertEqual(key, "5")
         self.assertEqual(shadow["would_stop"], "ownership:declaration-missing:test")
         self.assertEqual(observed, ["completion", "shadow", "declaration"])
-        self.assertTrue(policy._town_claim_bar_enforced)
 
 
 if __name__ == "__main__":

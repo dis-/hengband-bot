@@ -33,7 +33,6 @@ def setup(enforced=False, line=1039):
     p.consume_home_knowledge(tuple(_parse_items(ROWS[1038]['knowledge']['items'], protocol=3)))
     p._refresh_carried_equipment_catalog(b)
     p._equipment_optimization_last_depth = 49  # captured decision 8507
-    p._town_claim_bar_enforced = enforced
     p._in_store_ops_enabled = True
     p._home_page_size = ROWS[1012]['store']['page_size']  # captured 52-letter Home pages
     deposit = next(i for i in b.inventory if i.slot == 'r')

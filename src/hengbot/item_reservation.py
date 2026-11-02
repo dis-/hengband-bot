@@ -248,8 +248,6 @@ def _selector_skip(policy, verdict):
 def _emission_denied(policy, verdict):
     """A foreign verdict is terminal only at the command serialization seam."""
     _shadow(policy, {"would_stop": verdict.reason, "ambiguous": verdict.ambiguous})
-    if getattr(policy, "_town_claim_bar_enforced", False):
-        policy.last_reason = verdict.reason
 
 
 def _row_key(snapshot, item):
@@ -403,10 +401,6 @@ def reservation_verdict(policy, snapshot, item, owner, sink):
                     else None)
         return ReservationVerdict(sink, quantity=quantity, item_id=id(item))
     except Exception as error:
-        if getattr(policy, "_town_claim_bar_enforced", False):
-            denied = ReservationVerdict(sink, "predicate-error")
-            _selector_skip(policy, denied)
-            return denied
         _shadow(policy, {"error": type(error).__name__, "sink": sink})
         return ReservationVerdict(sink, item_id=id(item))
 
@@ -474,7 +468,7 @@ def checked_item_command(policy, kind, item, verdict: ReservationVerdict):
         return item_command(kind, item, verdict)
     except Exception as error:
         sink = kind if kind == "overweight-surplus" else kind.split('-')[0]
-        if sink == 'overweight-surplus' or getattr(policy, '_town_claim_bar_enforced', False):
+        if sink == 'overweight-surplus':
             reason = f'ownership:item-reserved:{sink}:serializer-error'
             policy.last_reason = reason
             _shadow(policy, {'would_stop': reason, 'error': type(error).__name__})

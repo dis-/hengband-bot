@@ -2001,7 +2001,7 @@ def claim_family_of(policy: Any, reason: str | None) -> str:
     return reason_owner_family(reason or "")
 
 
-def errand_hold(policy: Any, family: str, *, enforced: bool | None = None,
+def errand_hold(policy: Any, family: str, *, enforced: bool = False,
                 arrival_board: Any = None) -> Any:
     """Return the open town errand that owns a different producer's turn.
 
@@ -2030,8 +2030,6 @@ def errand_hold(policy: Any, family: str, *, enforced: bool | None = None,
                  is not None)
     ):
         return standing
-    if enforced is None:
-        enforced = getattr(policy, "_town_claim_bar_enforced", False)
     if enforced and register is not None:
         for claim in reversed(register.suspended):
             if (claim.closed is None
@@ -2048,9 +2046,8 @@ def errand_hold(policy: Any, family: str, *, enforced: bool | None = None,
 
 
 def home_catalogue_sequence_enforced(policy: Any) -> bool:
-    """Protect physical Home work under cross-area or S3.3 enforcement."""
-    return bool(getattr(policy, "_crossarea_fundraising_enforced", False)
-                or getattr(policy, "_town_claim_bar_enforced", False))
+    """Protect physical Home work under cross-area enforcement."""
+    return bool(getattr(policy, "_crossarea_fundraising_enforced", False))
 
 
 def home_catalogue_work_holder(policy: Any) -> Any:
@@ -2069,8 +2066,6 @@ def home_hold_board(policy: Any) -> Any:
     S3.3 ON already closed that arrival before the producers ask, so ON
     passes no board and keeps its own verdicts unchanged.
     """
-    if getattr(policy, "_town_claim_bar_enforced", False):
-        return None
     return getattr(policy, "_map_predicate_snapshot", None)
 
 
@@ -2467,7 +2462,7 @@ def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
     refused terminal yields while a server progresses, and closes for the
     visit after TOWN_TRAVEL_STALL_LIMIT yields without progress, or at once
     when no server is live.  Closing never stops the bot.  SHADOW rungs only
-    record.  Independent of --enforce-town-claims.
+    record.
     """
     if ((family in EXEMPT_FAMILIES and family != "detectors")
             or board is None or terminal is None):

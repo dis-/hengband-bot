@@ -30,7 +30,6 @@ class DeclarationR14Test(unittest.TestCase):
             for restored in (False, True):
                 with self.subTest(enforced=enforced, restored=restored):
                     policy = restore_checkpoint(HengbotPolicy, data['checkpoint'])
-                    policy._town_claim_bar_enforced = enforced
                     policy.confirm_key_posted(data['key'])
                     if restored:
                         policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))
