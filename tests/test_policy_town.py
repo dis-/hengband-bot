@@ -8333,6 +8333,8 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             equipment=[superior, self._lantern()],
         )
         policy = HengbotPolicy()
+        # The refusal belongs to this visit: the arrival board comes first.
+        policy.prime(snap)
         policy._pending_disposal_slot = "a"
         policy._pending_disposal_item = policy._item_signature(inferior)
         policy._disposal_store_attempts.add(STORE_ARMOURY)

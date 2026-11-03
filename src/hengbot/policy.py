@@ -2438,9 +2438,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._equipment_optimization_last_depth: int | None = None
         self._pending_disposal_slot: str | None = None
         self._pending_disposal_item: tuple[str, int, int] | None = None
-        self._disposal_store_attempts: set[int] = set()
         self._destroy_pending = False
-        self._destroy_attempts = 0
         # The emitter can interleave a store-loop snapshot with a main-loop
         # town snapshot at the same door tile. Retain one decision of store
         # context so a latched town stop closes that UI before it waits.

@@ -165,6 +165,48 @@ class TownOrderOperationEndsWithVisitTest(ArrivalCase):
         self.assertNotIn("bounty-removed", {effect[2] for effect in reported})
 
 
+class DominatedDisposalAttemptsEndWithVisitTest(ArrivalCase):
+    """Items 9-10: the attempts of a dominated item's disposal.
+
+    The target itself lives on: a disposal is not bound to a visit, only its
+    attempts are.  The weapon goes to the Weapon Smith ("#") again.
+    """
+
+    def spare_weapon(self, rows):
+        spare = next(item for item in board_of(rows[0])["inventory"] if item["slot"] == "t")
+        return (spare["name"], spare["tval"], spare["sval"])
+
+    def assert_shelves_are_tried_again(self, policy, steps):
+        target = policy._pending_disposal_item
+        for _recorded, supply in steps[:1]:
+            policy.confirm_key_posted(policy.choose_key(supply()))
+        self.assertEqual(policy._destroy_attempts, 0)
+        self.assertEqual(policy._disposal_store_attempts, set())
+        board = steps[1][1]()
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n#.", "shop:travel"))
+        self.assertEqual(policy._pending_disposal_item, target)
+        return key, board
+
+    def test_spent_destroy_budget_of_the_last_visit_blocks_nothing_here(self):
+        # Kept: row 1 town:blocked:dominated-item-destroy-failed.
+        policy, rows, steps = self.arrive(RESET / "n1a-1232")
+        policy._pending_disposal_item = self.spare_weapon(rows)
+        policy._destroy_pending = True
+        policy._destroy_attempts = STORE_STUCK_LIMIT
+        self.assert_shelves_are_tried_again(policy, steps)
+
+    def test_stores_tried_last_visit_are_tried_again(self):
+        # Kept: the tried stores sent the weapon straight to destruction, whose
+        # protection refused it and dropped the disposal (row 1 walked to the
+        # Magic shop instead).
+        policy, rows, steps = self.arrive(RESET / "n1a-1232")
+        policy._pending_disposal_item = self.spare_weapon(rows)
+        policy._disposal_store_attempts.update({1, 2})
+        key, _board = self.assert_shelves_are_tried_again(policy, steps)
+        self.post(policy, rows[1], key)
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()

@@ -143,6 +143,12 @@ class TownVisit:
     # "removed" that this visit never held.
     town_order_operation: str | None = None
     town_order_expected_observation: str | None = None
+    # A dominated item's disposal keeps its target across the trip (the
+    # policy's _pending_disposal_item), but the attempts are this visit's: the
+    # stores that refused it restock while the character is away, and the
+    # destroy budget is the same per-visit retry as destroy_fail_streak.
+    destroy_attempts: int = 0
+    disposal_store_attempts: set[int] = field(default_factory=set)
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:
         """Start a new visit: forget every fact of the previous one.
@@ -226,6 +232,8 @@ LEGACY_NAMES = {
     "_store_sell_stuck_count": "store_sell_stuck_count",
     "_town_order_operation": "town_order_operation",
     "_town_order_expected_observation": "town_order_expected_observation",
+    "_destroy_attempts": "destroy_attempts",
+    "_disposal_store_attempts": "disposal_store_attempts",
 }
 
 
