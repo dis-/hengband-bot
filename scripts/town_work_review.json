@@ -12611,5 +12611,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Dungeon only: a latched emergency return with no awake hostile in view reads Recall through once_quest_recall.read_key before any shot or blow.",
     "delegation": "selected child; no independent success"
+  },
+  "retreat_enclosure.py:teleport_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon idle fallback only; never reached in town.",
+    "evidence": "dungeon-only: owner 2026-11-04 「一旦テレポートで離脱を試みる。同じフロアで二度同じ形で動けなくなったら帰還。」 reads Teleportation once per floor when a retreat veto holds the player's only steps; returns the read key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
   }
 }

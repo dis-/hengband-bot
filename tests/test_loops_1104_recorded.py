@@ -14,6 +14,7 @@ from pathlib import Path
 
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import Position, parse_snapshot
+from hengbot.policy_state import normalize_policy_state
 from tests import test_input_executor as executor_pins
 from tests.test_dungeon_stops_1103_recorded import RecordedBoards
 
@@ -102,32 +103,68 @@ class RetreatVetoesEncloseTheMazePlayer(ItemCommandBoards):
     """n1-a life-476 02:51 (Labyrinth 15F, D15), n1-b life-307 03:18 (18F, D18).
 
     The floor's retreat vetoes (threat:avoid-engagement, summoner:retreat) held
-    every way out of a corridor pocket after the threats had died.  An unconquered
-    forgetting maze refuses the idle fallback's Recall, so it waited with '5' at
-    one cell until the loop guard stopped the bot.
+    every way out of a corridor pocket after the threats had died, and it waited
+    with '5' at one cell until the loop guard stopped the bot.  Owner 2026-11-04:
+    「一旦テレポートで離脱を試みる。同じフロアで二度同じ形で動けなくなったら帰還。」
     """
 
-    def assert_recall_leaves(self, name: str):
-        case = fixture(name)
+    def enclosed(self, case: dict):
         policy = self.fresh_policy(case["boards"][0], case["terrain"])
         # SEEDS: the stop's floor-long vetoes and written-off frontiers.
         policy._claim_engagement_avoid_cells(Position(*cell) for cell in case["avoid"])
         policy._probed_frontiers.update(Position(*cell) for cell in case["probed"])
-        raw = case["boards"][-1]
         # The removed breakout wander (0d46d60d2) never had this step either:
         # the least-visited neighbour refuses the same vetoes.
-        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        snapshot = parse_snapshot(copy.deepcopy(case["boards"][-1]), policy._monrace_knowledge)
         self.assertIsNone(policy._least_visited_neighbor(snapshot))
-        key = self.decide(policy, raw)
+        return policy
+
+    def assert_teleport_then_recall(self, name: str):
+        case = fixture(name)
+        policy = self.enclosed(case)
+        first, second = case["boards"][-2:]
+        vetoes = set(policy._engagement_owned_avoid_cells)
+        key = self.decide(policy, first)
+        self.assertEqual(policy.last_reason, "stuck:enclosed-teleport")
+        self.post_item_command(policy, first, key, "どの巻物を読みますか? ")
+        # The same game turn decided again is still the first enclosure.
+        self.assertEqual(self.decide(policy, first), key)
+        self.assertEqual(policy.last_reason, "stuck:enclosed-teleport")
+        self.assertTrue(vetoes <= policy._engagement_owned_avoid_cells)
+        # A restart keeps the floor's count.
+        normalize_policy_state(policy, restart=True)
+        self.assertIsNotNone(policy._enclosure_teleport_read)
+        recall = self.decide(policy, second)
         self.assertEqual(policy.last_reason, "stuck:recall-escape")
-        self.assertEqual(key[0], "r")
-        self.post_item_command(policy, raw, key, "どの巻物を読みますか? ")
+        self.assertNotEqual(recall, key)
+        self.post_item_command(policy, second, recall, "どの巻物を読みますか? ")
 
     def test_d15(self):
-        self.assert_recall_leaves("enclosed-d15.json.xz")
+        self.assert_teleport_then_recall("enclosed-d15.json.xz")
 
     def test_d18(self):
-        self.assert_recall_leaves("enclosed-d18.json.xz")
+        self.assert_teleport_then_recall("enclosed-d18.json.xz")
+
+    def test_unanswered_hostile_in_view_still_takes_the_teleport(self):
+        """No rung answered this board (recorded: 'wait', melee on the next board),
+        so the enclosure owns it: a hostile in view does not hold the read back."""
+        case = fixture("enclosed-d18.json.xz")
+        raw = case["hostile_in_view"]
+        self.assertTrue(raw["visible_monsters"])
+        policy = self.enclosed(case)
+        self.decide(policy, raw)
+        self.assertEqual(policy.last_reason, "stuck:enclosed-teleport")
+
+    def test_no_teleportation_reads_recall(self):
+        case = fixture("enclosed-d15.json.xz")
+        policy = self.enclosed(case)
+        raw = copy.deepcopy(case["boards"][-1])
+        kept = [item for item in raw["inventory"] if "テレポートの巻物" not in item["name"]]
+        self.assertLess(len(kept), len(raw["inventory"]))
+        raw["inventory"] = kept
+        # Without Teleportation the ordinary return reads the Recall first.
+        key = self.decide(policy, raw)
+        self.assertEqual((key[0], policy.last_reason), ("r", "return:recall"))
 
 
 if __name__ == "__main__":

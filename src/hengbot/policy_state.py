@@ -382,6 +382,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_recent_since_teleport", None)
     restored.__dict__.setdefault("_summoner_counter_targets", frozenset())
     restored.__dict__.setdefault("_strong_fight_speed_floor", None)
+    restored.__dict__.setdefault("_enclosure_teleport_read", None)
     restored.__dict__.setdefault("_unexplained_damage_streak_loss", 0)
     # (floor, loss, deadline turn); a carry without its deadline is dropped.
     carry = restored.__dict__.setdefault("_blind_cure_escape_carry", None)
