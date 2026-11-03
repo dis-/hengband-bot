@@ -95,7 +95,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Callable
 
-from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.me_device_attacks import observe_lists
 from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
@@ -548,7 +548,8 @@ def _gate(policy, snapshot) -> bool:
         and getattr(snapshot, "protocol_version", PROTOCOL_LEGACY) >= PROTOCOL_SCREEN_PARITY
         and not snapshot.in_town and not snapshot.on_open_wilderness
         and snapshot.dungeon_level > 0 and snapshot.store is None
-        and not (player.blind or player.confused or player.hallucinated or player.paralyzed)
+        and not (player.blind or player.confused or player.hallucinated or player.paralyzed
+                 or power_command_refused(player))
     )
 
 

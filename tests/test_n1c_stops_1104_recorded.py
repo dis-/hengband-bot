@@ -14,6 +14,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from hengbot import me_staff_sequence
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import decisions, journal, restore
@@ -119,6 +120,21 @@ class DungeonStops(RecordedTownPolicy):
     @classmethod
     def setUpClass(cls):
         cls.case = _boards()
+
+    def test_no_absorbed_power_is_asked_for_while_berserk(self):
+        """life-125 06:47:49: 「激怒の発作」 gave berserk; ``mAi`` was refused at
+        command input (「狂戦士化していて頭が回らない！」) and the bot stopped."""
+        case = self.case["berserk"]
+        # DECLARED CONSTRUCTED: an empty Home list; the sequence's absorption
+        # record is read from the stop's checkpoint.
+        policy = self.primed(case["stop"], [], case["skill"])
+        me_staff_sequence.state(policy).absorbed.update(case["absorbed"])
+        board = self.board(policy, case["stop"])
+        self.assertIn("berserk", board.player.status_bar)
+        key = policy.choose_key(board)
+        # Recorded: ('mAi', 'me-power:dark-room:lite-area').
+        self.assertFalse(key.startswith("m"), key)
+        self.assertFalse(policy.last_reason.startswith("me-power:"), policy.last_reason)
 
     def test_a_kept_away_monster_is_not_walked_back_to_past_another_hostile(self):
         """life-125 07:18:17: the walk to shoot reached (3,65), a sleeping ゾンビ・イーク

@@ -43,7 +43,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from hengbot import me_capability, me_powers
-from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import (
     SV_STAFF_IDENTIFY, SV_STAFF_REMOVE_CURSE, item_requires_full_identification,
 )
@@ -181,7 +181,7 @@ def _safe(policy, snapshot) -> bool:
             and not policy._physical_adjacent_hostiles(snapshot)
             and not getattr(policy, "_took_damage", False)
             and not (player.blind or player.confused or player.hallucinated
-                     or player.paralyzed))
+                     or player.paralyzed or power_command_refused(player)))
 
 
 def _rest_key(policy, snapshot, hostiles) -> str | None:

@@ -49,7 +49,7 @@ breath_shape).  The blast is over-approximated: walls that block it
 from dataclasses import dataclass
 from typing import Callable
 
-from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import Position, game_distance
 from hengbot.policy_constants import DIRECTION_KEYS
 
@@ -261,7 +261,8 @@ def can_use_powers(snapshot) -> bool:
     """A class-16 character able to aim and tell its targets apart."""
     player = snapshot.player
     return (player.class_id == PLAYER_CLASS_MAGIC_EATER
-            and not (player.blind or player.confused or player.hallucinated))
+            and not (player.blind or player.confused or player.hallucinated
+                     or power_command_refused(player)))
 
 
 def usable_powers(policy):
