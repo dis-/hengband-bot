@@ -230,7 +230,7 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     from hengbot.equipment_optimizer import (OwnedEquipmentCatalog, current_loadout,
                                             equipment_identity, ABILITY_FLAG,
                                             average_feeling_trusted,
-                                            average_light_without_modifiers)
+                                            average_without_modifiers)
     from hengbot.protocol import skill_exp_known
     from hengbot.warrior_defense_evaluator import WarriorDefenseInputs, loadout_armor_class
     from hengbot.warrior_loadout_evaluator import constitution_hp_bonus
@@ -330,11 +330,11 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
         if any(marks.get(item.slot) not in ({"+", "*"} if item.is_cursed else {"."})
                for item in snapshot.equipment if item.is_equipment):
             raise CharacterSheetUnavailable("curse-mark-mismatch")
-    # A worn {average} light is read as the zero modifiers it has; every
-    # other unidentified worn item hides its modifiers (#47 n1-c life-077).
+    # A worn {average} item is read as having no modifiers; every other
+    # unidentified worn item hides them (#47 n1-c life-077, owner 2026-11-04).
     average_trusted = average_feeling_trusted(mutations)
     if any(item.is_equipment and not item.known
-           and not average_light_without_modifiers(item, average_trusted)
+           and not average_without_modifiers(item, average_trusted)
            for item in snapshot.equipment):
         raise CharacterSheetUnavailable("equipment-stat-modifiers-unknown")
     catalog = OwnedEquipmentCatalog()
