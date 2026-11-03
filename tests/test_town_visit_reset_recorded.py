@@ -207,6 +207,43 @@ class DominatedDisposalAttemptsEndWithVisitTest(ArrivalCase):
         self.post(policy, rows[1], key)
 
 
+class HomeDisposalEndsWithVisitTest(ArrivalCase):
+    """Item 11: the approved Home disposal in progress."""
+
+    def queued(self, policy, rows, decision):
+        ware = next(item for item in board_of(rows[2])["store"]["items"] if item["letter"] == "a")
+        signature = (ware["name"], ware["tval"], ware["sval"])
+        policy._home_disposal_pending = (signature, decision)
+        policy._home_pending_item = signature
+        policy._home_withdrawal_queued = True
+        return signature
+
+    def test_unfinished_destroy_of_the_last_visit_holds_no_home_take(self):
+        # The state _home_disposal_home_key leaves when the trip interrupts it.
+        # Kept: on row 3 the take is still queued (shop:approach back to Home
+        # for a disposal nobody decided this visit).  The next pass plans it.
+        policy, rows, steps = self.arrive(RESET / "n1a-1232")
+        self.queued(policy, rows, "destroy")
+        self.walk_on(policy, rows, steps)
+        self.assertIsNone(policy._home_disposal_pending)
+        self.assertIsNone(policy._home_pending_item)
+        self.assertFalse(policy._home_withdrawal_queued)
+
+    def test_recorded_visit_decides_as_if_no_disposal_was_left(self):
+        policy, rows, steps = self.arrive(RESET / "n1a-1232")
+        self.queued(policy, rows, "destroy")
+        self.assert_decides_as_recorded(policy, rows, steps)
+
+    def test_unfinished_sale_takes_its_identify_request_with_it(self):
+        # The sale filed its request (_home_disposal_processing_key); with the
+        # sale gone nothing owns it, and a latched request fails departure.
+        policy, rows, steps = self.arrive(RESET / "n1a-1232")
+        self.queued(policy, rows, "sell")
+        policy._identification_need = "normal"
+        policy.choose_key(steps[0][1]())
+        self.assertIsNone(policy._identification_need)
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()

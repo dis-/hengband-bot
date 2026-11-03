@@ -149,6 +149,11 @@ class TownVisit:
     # destroy budget is the same per-visit retry as destroy_fail_streak.
     destroy_attempts: int = 0
     disposal_store_attempts: set[int] = field(default_factory=set)
+    # The approved Home disposal in progress (identity, "sell" or "destroy").
+    # An unfinished one is planned again from the shelf by the next Home pass;
+    # kept, an absent "destroy" stood in for that pass for good.  What it holds
+    # ends with it (_end_visit_home_disposal).
+    home_disposal_pending: tuple[Signature, str] | None = None
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:
         """Start a new visit: forget every fact of the previous one.
@@ -234,6 +239,7 @@ LEGACY_NAMES = {
     "_town_order_expected_observation": "town_order_expected_observation",
     "_destroy_attempts": "destroy_attempts",
     "_disposal_store_attempts": "disposal_store_attempts",
+    "_home_disposal_pending": "home_disposal_pending",
 }
 
 

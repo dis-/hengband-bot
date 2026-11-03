@@ -1351,7 +1351,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_disposal_pass = False
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
         self._home_disposal_candidates: dict[tuple[str, int, int], HomeDisposalCandidate] = {}
-        self._home_disposal_pending: tuple[tuple[str, int, int], str] | None = None
         self._home_capacity_observation = None
         self._home_full_relief = None
         self._home_full_refused = False

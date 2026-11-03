@@ -4822,6 +4822,28 @@ class HomeMixin:
             snapshot, lambda item: (item.tval, item.sval) == signature[1:]
         )
 
+    def _end_visit_home_disposal(self) -> None:
+        """Release what the Home disposal holds when a new visit ends it.
+
+        The queued Home take and the identify request it filed have no owner
+        once it is gone (``TownVisit.begin`` ends it).  The next Home pass plans
+        the disposal again from the shelf; an item already withdrawn is ordinary
+        carried stock until then.
+        """
+        pending = self._home_disposal_pending
+        if pending is None:
+            return
+        if self._home_pending_item == pending[0]:
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_withdrawal_queued = bool(self._home_pending_batch)
+        if (pending[1] == "sell"
+                and self._home_pending_item is None
+                and self._identification_candidate is None
+                and self._device_identification_candidate is None):
+            self._identification_need = None
+
     @claims(ClaimOwner.HOME_VISIT)
     def _home_disposal_home_key(self, snapshot: Snapshot) -> str | None:
         store = snapshot.store

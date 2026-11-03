@@ -219,7 +219,7 @@ class InStoreMixin:
                 completed_disposal_successor = (
                     self._departure_blocking_page_purchase(snapshot)
                 )
-            if getattr(self, "_home_disposal_pending", None) is not None:
+            if self._home_disposal_pending is not None:
                 return {"op": "disposal", "would_key": None}
             ledger = getattr(self, "_in_store_entry_ledger", None)
             if ledger is not None and ledger.get("ops", 0) > 0:
@@ -993,7 +993,7 @@ class InStoreMixin:
             if snapshot.player.hungry and self._find_edible(snapshot) is None:
                 return False
             if (getattr(self, "_pending_disposal_item", None) is not None
-                    or getattr(self, "_home_disposal_pending", None) is not None):
+                    or self._home_disposal_pending is not None):
                 return False
             pending = self._batch_sell_pending
             if pending is not None and pending.get("store_type") == page.store_type:
