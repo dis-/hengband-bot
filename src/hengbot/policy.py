@@ -2364,9 +2364,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._confirmed_loadout_loaded = False
         self._equipment_optimizer_input_key: str | None = None
         self._equipment_optimizer_knowledge_key: str | None = None
-        # Ordinary town-order operations retain their observation identity.
-        self._town_order_operation: str | None = None
-        self._town_order_expected_observation: str | None = None
         # Refreshed by the existing periodic character observation.
         self._mutation_signature: tuple[int, ...] | None = None
         # Book tvals of the character sheet's realms (unwanted_kinds).

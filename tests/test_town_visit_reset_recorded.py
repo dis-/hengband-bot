@@ -134,6 +134,37 @@ class InStoreWatchesEndWithVisitTest(ArrivalCase):
         self.assert_decides_as_recorded(policy, rows, steps)
 
 
+class TownOrderOperationEndsWithVisitTest(ArrivalCase):
+    """Item 8: the town order's operation."""
+
+    def test_recorded_arrival_forgets_the_last_visits_operation(self):
+        policy, rows, steps = self.arrive(RESET / "n1a-1232")
+        self.assertEqual(policy._town_order_operation, "normal-step5-required-supplies")
+        self.assertEqual(policy._town_order_expected_observation, "departure-supplies-ready")
+        self.assertEqual(rows[0]["reason"], "town:recover")
+        key = policy.choose_key(steps[0][1]())
+        self.assertEqual((key, policy.last_reason), (rows[0]["key"], rows[0]["reason"]))
+        # Row 0 reaches no order step, so nothing bound the operation again.
+        self.assertIsNone(policy._town_order_operation)
+        self.assertIsNone(policy._town_order_expected_observation)
+
+    def test_step4_of_the_last_visit_reports_no_bounty_removed_here(self):
+        # The pack holds no bounty.  Kept, the step of the last visit reported
+        # "bounty-removed" to this visit's decision for work it never did.
+        policy, rows, steps = self.arrive(RESET / "n1b-1158")
+        policy._town_order_operation = "normal-step4-bounty"
+        policy._town_order_expected_observation = "bounty-removed"
+        reported = []
+        for index, (recorded, supply) in enumerate(steps):
+            key = policy.choose_key(supply())
+            self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+            reported.extend(getattr(policy, "_decision_observed_execution_effects", ()))
+            if index == 0:
+                self.post(policy, rows[0], key)
+            policy.confirm_key_posted(key)
+        self.assertNotIn("bounty-removed", {effect[2] for effect in reported})
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()

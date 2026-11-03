@@ -137,6 +137,12 @@ class TownVisit:
     # The last sale or Home deposit attempted and its unchanged repeats.
     last_sell_sig: tuple | None = None
     store_sell_stuck_count: int = 0
+    # The town order's posted operation and the observation it awaits.  Every
+    # step derives it from the current pack and supplies when it runs, so a
+    # step of the last visit is not this visit's: it cannot report a bounty
+    # "removed" that this visit never held.
+    town_order_operation: str | None = None
+    town_order_expected_observation: str | None = None
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:
         """Start a new visit: forget every fact of the previous one.
@@ -218,6 +224,8 @@ LEGACY_NAMES = {
     "_store_buy_no_progress_count": "store_buy_no_progress_count",
     "_last_sell_sig": "last_sell_sig",
     "_store_sell_stuck_count": "store_sell_stuck_count",
+    "_town_order_operation": "town_order_operation",
+    "_town_order_expected_observation": "town_order_expected_observation",
 }
 
 
