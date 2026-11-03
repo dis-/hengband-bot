@@ -106,25 +106,10 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
             for line in (screen or {}).get("lines", ())):
         return key, continuations
     continuations = _split_page_switches(continuations)
-    from hengbot.magic_eater_input import compile_magic_eater
-    magic_plan = compile_magic_eater(key, owner)
-    if magic_plan is not None:
-        prefix, steps = magic_plan
-        return prefix, [*steps, *continuations]
-    from hengbot.me_device_attacks_input import compile_device
-    device_plan = compile_device(key, owner)
-    if device_plan is not None:
-        prefix, steps = device_plan
-        return prefix, [*steps, *continuations]
-    from hengbot.me_powerful_activation_input import compile_powerful
-    powerful_plan = compile_powerful(key, owner)
-    if powerful_plan is not None:
-        prefix, steps = powerful_plan
-        return prefix, [*steps, *continuations]
-    from hengbot.me_powers_refresh_input import compile_refresh
-    refresh_plan = compile_refresh(key, owner)
-    if refresh_plan is not None:
-        prefix, steps = refresh_plan
+    from hengbot.me_menu_uses import compile_menu_key
+    menu_plan = compile_menu_key(key, owner)
+    if menu_plan is not None:
+        prefix, steps = menu_plan
         return prefix, [*steps, *continuations]
     if owner == "shop:one-shot-buy":
         continuations = [
