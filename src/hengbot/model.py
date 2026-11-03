@@ -734,6 +734,11 @@ class StoreItem:
         return self.tval in (TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD)
 
 
+# Feelings that say the item is cursed or broken (pseudo_value_check_heavy and
+# _light in simple-perception.cpp).
+BAD_PSEUDO_FEELINGS = frozenset({"broken", "terrible", "worthless", "cursed"})
+
+
 def item_requires_full_identification(item: InventoryItem | StoreItem) -> bool:
     """Return whether normal identification can leave combat traits hidden."""
     return (
