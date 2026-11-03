@@ -163,7 +163,16 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
         Detection are on the Home shelf, and Home was latched by the pass that
         took the identification candidate.  An open mining set makes the
         town end stop, so its kit is routed first.
+
+        DECLARED: reading the carried *Identify* on the taken candidate during
+        the mining preparation is off here (n1-a life-476 2026-11-04,
+        tests.test_town_stops_1104_recorded pins it); it answers row 33, and
+        this pin is about the town end's route.
         """
+        patcher = mock.patch("hengbot.policy.identification_ready_in_pack",
+                             lambda _policy, _board: False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         policy, recorded, steps = self.replay("kit-at-home", 39)
         board = steps[39][1]()
         key = policy.choose_key(board)

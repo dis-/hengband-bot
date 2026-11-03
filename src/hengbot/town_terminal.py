@@ -375,6 +375,13 @@ def carried_identification_target(policy: Any, board: Any) -> Any:
                  and policy._identification_flow_candidate(item)), None)
 
 
+def identification_ready_in_pack(policy: Any, board: Any) -> bool:
+    """Whether a carried source can identify the free carried target now."""
+    target = carried_identification_target(policy, board)
+    return target is not None and policy._carried_identification_source(
+        board, full=target.known) is not None
+
+
 @dataclass(frozen=True)
 class CarriedIdentifyMaterial:
     source_held: bool

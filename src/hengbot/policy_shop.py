@@ -2409,13 +2409,12 @@ class ShopMixin(InStoreMixin):
             getattr(self, "_shop_selection_commits", False)
         )
         store = snapshot.store
+        # _purchase_churn_rejected reads the ledger's class latch and its
+        # exceptions; latched here without them, the mining kit's rebuy stayed
+        # refused (n1-b life-306 2026-11-04 00:32: 財宝感知 latched before the
+        # mining set opened, the Alchemist skipped on its shelf evidence).
         rejected_rows = self._purchase_churn_rows(snapshot)
-        exclusions = {
-            (tval, sval) for store_id, tval, sval in getattr(
-                self._town_visit_ledger, "purchase_churn_class_exclusions", set()
-            ) if store is not None and store_id == store.store_type
-        }
-        exclusions.update((item.tval, item.sval) for item in rejected_rows)
+        exclusions = {(item.tval, item.sval) for item in rejected_rows}
         if exclusions:
             attempted = set()
             while True:
@@ -5250,9 +5249,12 @@ class ShopMixin(InStoreMixin):
 
         batch_key = self._batch_sell_key(snapshot)
         if batch_key is not None:
-            # A sale that cannot bind its inscription has no operation to
-            # finish. Let the purchase owner use this already observed shelf.
-            if self.last_reason == "shop:sale-inscription-unavailable-leave":
+            # A sale that cannot bind its inscription, or whose inscribed item
+            # another owner reserved on the next page (n1-a life-476 2026-11-04
+            # 02:30: an equipment plan took the tagged ring), has no operation
+            # to finish. Let the purchase owner use this already observed shelf.
+            if (self.last_reason == "shop:sale-inscription-unavailable-leave"
+                    or (batch_key == "" and self._batch_sell_pending is None)):
                 purchase = next_purchase_key(self, snapshot)
                 if purchase is not None or self.last_reason == "shop:purchase-deferred":
                     return purchase

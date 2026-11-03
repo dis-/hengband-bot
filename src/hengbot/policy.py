@@ -112,6 +112,7 @@ from hengbot.town_arbiter import (
     claims,
 )
 from hengbot.policy_types import (
+    in_flight_clause,
     EXPECTATION_POP_SATISFIED,
     OWNER_EXPECTATION_MAX_TURNS,
     DecisionCandidate,
@@ -377,6 +378,7 @@ from hengbot.policy_constants import (
     WIN_QUEST_IDS,
 )
 from hengbot.town_terminal import (
+    identification_ready_in_pack,
     NOT_APPLICABLE,
     commit_refusal,
     gather_quest_work,
@@ -4390,6 +4392,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                         operation_completed=True,
                     )
             else:
+                # The take is judged: nothing is in flight any more.  Left
+                # open, the visit refused every other store's acquire until
+                # its stuck limit, and the town end stopped first (n1-a
+                # life-475 2026-11-04 01:53: three Teleport Away wands merged
+                # into the carried one, whose name changed with its charges;
+                # the Magic Shop's Identify staff stayed on its shelf).
+                if (
+                    self._store_visit is not None
+                    and self._store_visit.store_type == STORE_HOME
+                    and in_flight_clause(self._store_visit)
+                    == "operation-released-effect-not-observed"
+                ):
+                    self._close_store_visit("home-take-unobserved")
                 if self._home_random_teleport_withdrawal == signature:
                     self._home_random_teleport_withdrawal = None
                 retry_digger = (
@@ -8447,18 +8462,24 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
         # Identification shares the mining budget: secure detection and a tool
         # first, retaining pending identification requests for afterwards.
-        if not (
+        # A carried source reading a carried target spends none of it (owner
+        # 10-31 「鑑定の手段がある時に…取り出して鑑定」): n1-a life-476 2026-11-04
+        # 03:08 took five weapons out for its three *Identify* scrolls with a
+        # mining set open, none was read, and the pack and the weight stopped
+        # the visit under town:blocked:survival:recall_departure_ready.
+        mining_holds_identification = (
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and not self._fundraising_supplies_ready(snapshot)
-        ):
+        )
+        if not mining_holds_identification:
             equipped_identification = self._town_producer_entry("_town_equipped_identification_key", lambda: self._town_equipped_identification_key(snapshot, macro=True))
             if equipped_identification is not None:
                 return equipped_identification
-
+        if not mining_holds_identification or identification_ready_in_pack(self, snapshot):
             item_processing = self._town_item_processing_key(snapshot)
             if item_processing is not None:
                 return item_processing
-
+        if not mining_holds_identification:
             device_processing = self._town_producer_entry("_town_device_processing_key", lambda: self._town_device_processing_key(snapshot))
             if device_processing is not None:
                 return device_processing

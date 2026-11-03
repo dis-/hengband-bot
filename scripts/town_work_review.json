@@ -9199,6 +9199,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy_instore.py:InStoreMixin._unfinished_required_page_operation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure query over the page's required operation and the ordinary order's pure selection; emits no key and owns no progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "none"
+  },
   "policy_instore.py:InStoreMixin._in_store_required_operation_stop": {
     "classification": "adapter",
     "rows": [

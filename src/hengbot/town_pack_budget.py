@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 from hengbot.policy_constants import MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY
-from hengbot.model import STORE_HOME, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, TVAL_CAPTURE, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
+from hengbot.model import STORE_HOME, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, TVAL_CAPTURE, TVAL_GOLD, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
 
 
 _ROOM_ASSUMED = ContextVar("town_pack_room_assumed", default=False)
@@ -87,17 +87,22 @@ def below_floor(snapshot) -> bool:
             and PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
+def pile_slots(grid) -> int:
+    """Pack slots a walk over ``grid`` can fill: gold goes to the purse."""
+    return max(0, grid.object_count - sum(tval == TVAL_GOLD for tval in grid.object_tvals))
+
+
 def floor_step_fits(snapshot, position) -> bool:
     if not getattr(snapshot, "in_town", False) or position in _EXPLICIT_PICKUP_CELLS.get():
         return True
     grid = snapshot.grids.get(position)
-    return grid is None or permits(snapshot, grid.object_count)
+    return grid is None or permits(snapshot, pile_slots(grid))
 
 
 def native_travel_fits(snapshot) -> bool:
     # Native travel can traverse several pickup tiles before the next board.
     return (not getattr(snapshot, "in_town", False)
-            or permits(snapshot, sum(grid.object_count for grid in snapshot.grids.values())))
+            or permits(snapshot, sum(pile_slots(grid) for grid in snapshot.grids.values())))
 
 
 def incoming_slots(snapshot, item, quantity: int) -> int:
