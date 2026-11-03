@@ -2879,6 +2879,59 @@ class TownMixin:
             ):
                 add(STORE_BLACK, "identify-staff")
 
+        def add_ledger_shortages() -> None:
+            """File each departure shortage of the supply ledger on the
+            stores that supply it."""
+            supply_categories = {
+                "recall": "recall", "food": "food", "oil": "oil",
+                "teleport": "teleport", "cure": "cure-critical",
+                "remove-curse": "remove-curse", "star-remove-curse": "star-remove-curse",
+            }
+            ledger = self._supply_ledger(snapshot, self._planned_depth())
+            for status in self._ledger_departure_shortages(ledger):
+                if status.kind in {"remove-curse", "star-remove-curse"}:
+                    continue  # Already filed before the fundraising-only return.
+                for store_type in status.stores:
+                    # A shelf observed in this town visit (the open page, or a
+                    # remembered one younger than the restock turnover) answers
+                    # whether this store supplies the shortage with the supply
+                    # ledger's own predicate (``_supply_page_offers``: a matching
+                    # ware -- a charged device for a MANA eater's food -- either
+                    # within gold or on a store not yet attempted).  Without it
+                    # the shortage stayed on a store the bot had just left with
+                    # none of the ware while it was "not attempted" (it had
+                    # bought something else there), so the router walked back to
+                    # the empty shelf and the arbiter retired it before it
+                    # reached the stocked supplier (live 2026-10-03 12:04:21:
+                    # Alchemist without 致命傷の治療の薬 ahead of the Temple's 18).
+                    # Without a page of this visit the earlier rule stands (the
+                    # ledger itself also reads older pages, without freshness).
+                    # A multi-page shelf is judged by the page that was observed.
+                    observed = self._shortage_supplier_visit_page(
+                        snapshot, store_type
+                    )
+                    if observed is not None:
+                        supplies = self._supply_page_offers(
+                            snapshot, status.kind, store_type, observed
+                        )
+                    else:
+                        remembered = self._town_supplier_stock.get(store_type)
+                        supplies = (
+                            store_type not in self._town_store_attempted
+                            or bool(
+                                remembered is not None
+                                and any(
+                                    item.price <= snapshot.player.gold
+                                    and self._store_item_is_supply(
+                                        item, status.kind
+                                    )
+                                    for item in remembered.items
+                                )
+                            )
+                        )
+                    if store_type == STORE_HOME or supplies:
+                        add(store_type, supply_categories[status.kind])
+
         curse_kind = self._required_remove_curse_kind(snapshot)
         if curse_kind is not None and self._usable_remove_curse_scroll(snapshot) is None:
             if self._home_remove_curse_scroll(snapshot) is not None:
@@ -3265,7 +3318,15 @@ class TownMixin:
                     and STORE_GENERAL not in self._town_store_attempted
                 ):
                     add(STORE_GENERAL, "throwing-torches")
-            if self._fundraising_identify_staff_only_block(snapshot):
+            if mandatory_supplies_ready:
+                # Owner 2026-11-03 「道具の後に足りない分を買う」: once the kit
+                # is secured, the remaining gold buys the departure-survival
+                # shortfall (Cure Critical, identify-staff charges, ...).  n1-b
+                # life-302 09:48 stopped on cure_critical_ready with 13,903
+                # gold because the mining set filed only its kit.
+                add_ledger_shortages()
+                add_identify_staff_suppliers()
+            elif self._fundraising_identify_staff_only_block(snapshot):
                 # A deep planned departure blocked only on identify charges
                 # needs its supplier route before fundraising can proceed.
                 add_identify_staff_suppliers()
@@ -3340,55 +3401,7 @@ class TownMixin:
             # the Home departure latch.
             add(STORE_ALCHEMIST, "identification-source", "before-withdrawal")
 
-        supply_categories = {
-            "recall": "recall", "food": "food", "oil": "oil",
-            "teleport": "teleport", "cure": "cure-critical",
-            "remove-curse": "remove-curse", "star-remove-curse": "star-remove-curse",
-        }
-        ledger = self._supply_ledger(snapshot, self._planned_depth())
-        for status in self._ledger_departure_shortages(ledger):
-            if status.kind in {"remove-curse", "star-remove-curse"}:
-                continue  # Already filed before the fundraising-only return.
-            for store_type in status.stores:
-                # A shelf observed in this town visit (the open page, or a
-                # remembered one younger than the restock turnover) answers
-                # whether this store supplies the shortage with the supply
-                # ledger's own predicate (``_supply_page_offers``: a matching
-                # ware -- a charged device for a MANA eater's food -- either
-                # within gold or on a store not yet attempted).  Without it
-                # the shortage stayed on a store the bot had just left with
-                # none of the ware while it was "not attempted" (it had
-                # bought something else there), so the router walked back to
-                # the empty shelf and the arbiter retired it before it
-                # reached the stocked supplier (live 2026-10-03 12:04:21:
-                # Alchemist without 致命傷の治療の薬 ahead of the Temple's 18).
-                # Without a page of this visit the earlier rule stands (the
-                # ledger itself also reads older pages, without freshness).
-                # A multi-page shelf is judged by the page that was observed.
-                observed = self._shortage_supplier_visit_page(
-                    snapshot, store_type
-                )
-                if observed is not None:
-                    supplies = self._supply_page_offers(
-                        snapshot, status.kind, store_type, observed
-                    )
-                else:
-                    remembered = self._town_supplier_stock.get(store_type)
-                    supplies = (
-                        store_type not in self._town_store_attempted
-                        or bool(
-                            remembered is not None
-                            and any(
-                                item.price <= snapshot.player.gold
-                                and self._store_item_is_supply(
-                                    item, status.kind
-                                )
-                                for item in remembered.items
-                            )
-                        )
-                    )
-                if store_type == STORE_HOME or supplies:
-                    add(store_type, supply_categories[status.kind])
+        add_ledger_shortages()
         if self._identification_need is not None:
             # Identification remains primary, while the supply ledger retains
             # its independent departure claims.

@@ -1617,7 +1617,8 @@ class HomeMixin:
 
     def _retire_vanished_pending_withdrawals(self, snapshot: Snapshot) -> None:
         """Retire Home withdrawals of items neither in Home nor carried, and
-        the pending one whose confirmed take emptied it from Home.
+        the pending ones whose take emptied them from Home (confirmed, or
+        carried now).
 
         The Home withdrawal verdict refuses a request whose item a current
         Home list lacks (town_terminal.verdict_home_withdraw).  A pending
@@ -1643,6 +1644,7 @@ class HomeMixin:
         def vanished(signature):
             return signature not in carried and left_home(signature)
 
+        held_before = (self._home_pending_item, tuple(self._home_pending_batch))
         taken = getattr(self, "_home_pending_take_confirmed", None)
         if taken == self._home_pending_item and left_home(taken):
             # Its own take was confirmed (policy observation) and the current
@@ -1652,16 +1654,46 @@ class HomeMixin:
             # reservation-unavailable on every board and the queued shovel and
             # the *Remove Curse* withdrawal behind it never ran.
             self._release_confirmed_home_take()
+        elif self._home_pending_item in carried and left_home(self._home_pending_item):
+            # Carried and gone from the current Home list: the take completed
+            # though no confirmation was recorded for it.  n1-a life-469
+            # 2026-11-03 09:02: the atomic withdraw took all nine スピードの薬,
+            # the pending withdrawal of one stayed, every Home leg was refused
+            # as reservation-unavailable and the visit stopped under
+            # town:blocked:unmet:home_candidate_resolved.
+            self._release_confirmed_home_take()
+        for signature in [s for s in self._home_pending_batch
+                          if s in carried and left_home(s)]:
+            self._home_pending_batch.remove(signature)
+            self._home_pending_quantities.pop(signature, None)
         if vanished(self._home_pending_item):
             self._defer_unobserved_home_withdrawal(self._home_pending_item)
         if self._home_pending_item is None:
             for signature in [s for s in self._home_pending_batch if vanished(s)]:
                 self._defer_unobserved_home_withdrawal(signature)
+        if (held_before != (None, ()) and self._home_pending_item is None
+                and not self._home_pending_batch):
+            # This retired the last withdrawal: the queued Home identity ends
+            # with it, as the refused home-withdraw terminal ends it
+            # (town_terminal._commit_home_withdraw).
+            self._home_withdrawal_queued = False
+            self._home_active_from_batch = False
         visit = getattr(self, "_home_visit", None)
         request = visit.request if visit is not None else None
-        if (request is not None and request.kind == HomeVisitKind.WITHDRAW
-                and vanished(request.address or request.item_identity)
-                and visit.report_unoperated("reservation-unavailable")):
+        if request is None or request.kind != HomeVisitKind.WITHDRAW:
+            return
+        identity = request.address or request.item_identity
+        if vanished(identity) and visit.report_unoperated("reservation-unavailable"):
+            report = visit.consume_report()
+            self._pending_home_visit_report = (
+                f"home-visit:{report.request.requester}:{report.outcome}")
+        elif (identity in self._deferred_home_items
+              and visit.report_unoperated("superseded-before-operation")):
+            # A deferred withdrawal does not own the Home leg: n1-b life-302
+            # 2026-11-03 09:48 kept the deferred 守りの毛皮のクローク request,
+            # the Home pass composed nothing (shop:observed-operation-
+            # uncomposable) and the kit's stored Treasure Detection was never
+            # taken.
             report = visit.consume_report()
             self._pending_home_visit_report = (
                 f"home-visit:{report.request.requester}:{report.outcome}")
