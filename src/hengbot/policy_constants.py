@@ -609,6 +609,9 @@ FIXED_QUEST_REWARD_POSITIONS = {
 }
 
 REST_MACRO = "R&\r"
+# Rest interrupted by each poison or cut tick on a held ONCE quest floor
+# (once_quest_recall): it holds one cell, and ends with the effect or the player.
+ONCE_QUEST_TICK_REST_REASON = "once-quest:recover"
 
 # The walking return's bounded stationary holds: the wall search for a hidden
 # up staircase (bounded per wall by _wall_search_counts) and the Word of Recall
@@ -941,7 +944,7 @@ STUCK_FAMILY_REASONS = frozenset(
 
 STUCK_NEUTRAL_REASONS = frozenset(
     {
-        "rest", "refill-light", "wield-light", "eat", "item:eat",
+        "rest", ONCE_QUEST_TICK_REST_REASON, "refill-light", "wield-light", "eat", "item:eat",
         # The breeder breakthrough's walk out (to a remembered up-stairs, else
         # a frontier) is the exit a stalled kill-quest floor's released lock
         # allows (_quest_floor_exit_locked: streak >= STUCK_ESCAPE_LIMIT).

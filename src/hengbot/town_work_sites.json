@@ -2684,6 +2684,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "once_quest_recall.py:tick_rest_before_navigator": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "once_quest_recall.py:tick_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy.py:HengbotPolicy._active_dungeon_target": {
     "classification": "data",
     "rows": [

@@ -19,12 +19,18 @@ gate this hold.  A quest without an approved strategy keeps its reads.
 Owner 2026-11-03, every fixed ONCE quest with a line: 「敵が見えず、攻撃も受けていない間は
 帰還を読まず、薬か休憩で回復します。敵が現れたら線より下の時の今の判断に戻ります。見えない敵に
 殴られている時は敵がいるものとして扱います。」  ``quest-strategy:abort`` yields to the same hold.
+
+Owner 2026-11-03, later: 「HP に関係なく、敵が見えず攻撃も受けていない間は帰還を読まず回復します。
+敵がいて巻物も無い時は、今までどおり帰還を読みます。」; 「休んで治らない範疇ならどのみち助からない。
+敵がいないなら毒切り傷でも休む。」  A poison or cut tick (player-damage.cpp:308 disturbs the
+rest, hp-mp-processor.cpp:410-415 regenerates nothing until it ends) is no threat on a
+quiet floor: the low-HP walk gate rests through it and spends no scroll.
 """
 
 from __future__ import annotations
 
 from hengbot import breeder_quest
-from hengbot.policy_constants import STUCK_ESCAPE_LIMIT
+from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON, REST_MACRO, STUCK_ESCAPE_LIMIT
 
 
 def _deliberate_leave(policy, snapshot) -> bool:
@@ -53,9 +59,13 @@ def _hit_by_unseen(policy, snapshot) -> bool:
     )
 
 
+def _quiet(policy, snapshot) -> bool:
+    return not (_enemy_about(snapshot) or _hit_by_unseen(policy, snapshot))
+
+
 def held(policy, snapshot) -> bool:
-    """The ONCE quest floor keeps us: above the strategy's HP line with an escape
-    left, or below it with no enemy about (the walk gate then drinks or rests)."""
+    """The ONCE quest floor keeps us: at any HP with no enemy about (the walk gate then
+    drinks or rests), or above the strategy's HP line with an escape left."""
     quest_id = policy._active_fixed_quest_id(snapshot)
     if quest_id is None or not policy._fixed_quest_is_once(quest_id):
         return False
@@ -63,9 +73,44 @@ def held(policy, snapshot) -> bool:
     hold_line = None if profile is None else profile.abort_conditions.get("hp_ratio")
     if hold_line is None or _deliberate_leave(policy, snapshot):
         return False
-    if snapshot.player.hp_ratio > float(hold_line):
-        return policy._escape_scroll(snapshot) is not None
-    return not (_enemy_about(snapshot) or _hit_by_unseen(policy, snapshot))
+    return _quiet(policy, snapshot) or (
+        snapshot.player.hp_ratio > float(hold_line)
+        and policy._escape_scroll(snapshot) is not None
+    )
+
+
+def tick_is_no_threat(policy, snapshot) -> bool:
+    """Poison or a cut on a held, quiet floor: its damage asks for no escape."""
+    player = snapshot.player
+    return (player.poisoned or player.cut) and _quiet(policy, snapshot) and held(policy, snapshot)
+
+
+def _can_rest(snapshot) -> bool:
+    player = snapshot.player
+    return not player.confused and player.food_state in {"normal", "full", "gorged"}
+
+
+def tick_rest_key(policy, snapshot) -> str | None:
+    """Rest through the tick, under the reason the stop guards know as bounded by it."""
+    if not (tick_is_no_threat(policy, snapshot) and _can_rest(snapshot)):
+        return None
+    policy.last_reason = ONCE_QUEST_TICK_REST_REASON
+    return REST_MACRO
+
+
+def tick_rest_before_navigator(policy, snapshot) -> str | None:
+    """The low-HP rest with no potion to drink, before the navigator is asked.
+
+    A step the walk gate turns into a rest stays in the Q2 phases' route memory as a
+    blocked step: 15 rested ticks on one cell ended in quest:blocked and a WAIT, which
+    no-wait read as a teleport.  With a potion the walk gate below still drinks.
+    """
+    if (
+        not policy._low_hp_walk_gate_active(snapshot)[1]
+        or policy._find_heal_potion(snapshot, expected_damage=1) is not None
+    ):
+        return None
+    return tick_rest_key(policy, snapshot)
 
 
 def read_key(policy, snapshot, reason: str = "emergency:recall") -> str | None:

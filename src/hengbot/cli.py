@@ -47,6 +47,7 @@ from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
+from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
     EXTENDED_STUCK_WINDOW,
@@ -436,6 +437,7 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "summoner:hold-choke",
         "detected:hold-choke",
         "quest-strategy:hold",
+        ONCE_QUEST_TICK_REST_REASON,
         # Exact policy-registered escape WAIT terminals. Each owns the existing
         # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as
         # livelock:exhausted; no other escape reason bypasses the outer guard.
