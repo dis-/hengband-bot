@@ -293,6 +293,8 @@ SV_SCROLL_HOLY_CHANT = 34
 SV_SCROLL_STAR_DESTRUCTION = 41
 SV_POTION_CURE_CRITICAL = 36
 SV_POTION_HEALING = 37
+SV_POTION_STAR_HEALING = 38
+SV_POTION_LIFE = 39
 SV_POTION_RESIST_COLD = 31
 # Restore-stat potions (sv-potion-types.h), sold by the Alchemist. Each undoes the
 # drain on one ability; the character screen shows which stat is drained.

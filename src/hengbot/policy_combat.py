@@ -2204,11 +2204,7 @@ class CombatMixin:
             and not self._took_trap_or_terrain_damage
             and not snapshot.in_town
         )
-        unseen_caster_hit = attributable_loss and any(
-            self._is_unseen_attack_message(message)
-            and self._is_unseen_spell_message(message)
-            for message in snapshot.messages
-        )
+        unseen_caster_hit = attributable_loss and unseen_strike.hit_by_spell(self, snapshot)
         # (1) An unseen spell/breath/curse that drew HP while visible hostiles
         # engage us: the caster cannot be meleed or bounded, so it is a lethal
         # candidate once the hit is material (10% of max HP, the unseen-recall
@@ -2411,9 +2407,11 @@ class CombatMixin:
                 return stairs
 
             if status_cure.treats(self, snapshot):
+                if (speed := status_cure.speed_first_key(self, snapshot)) is not None:
+                    return speed  # the cure, and the escape it owes, on the next board
                 potion = (status_cure.low_hp_heal(self, snapshot, hostiles,
                                                   observed_loss=observed_loss)
-                          or self._find_status_cure_potion(snapshot))
+                          or status_cure.cure_potion(self, snapshot))
                 if potion is not None:
                     self.last_reason = (
                         "emergency:cure-critical"

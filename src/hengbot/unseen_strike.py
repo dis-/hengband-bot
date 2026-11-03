@@ -72,13 +72,25 @@ DARK_REASON = "unseen:strike-dark"
 SPEED_REASON = "unseen:quaff-speed"
 
 
+def _took_attack_damage(policy) -> bool:
+    return (
+        getattr(policy, "_took_damage", False)
+        and not getattr(policy, "_took_curse_damage", False)
+        and not getattr(policy, "_took_trap_or_terrain_damage", False)
+    )
+
+
+def hit_by_spell(policy, snapshot) -> bool:
+    """This board's damage came with a spell of an unseen caster."""
+    return _took_attack_damage(policy) and any(
+        policy._is_unseen_attack_message(m) and policy._is_unseen_spell_message(m)
+        for m in snapshot.messages
+    )
+
+
 def hit_in_melee(policy, snapshot) -> bool:
     """This board's damage came from a melee blow of an unseen attacker."""
-    if (
-        not getattr(policy, "_took_damage", False)
-        or getattr(policy, "_took_curse_damage", False)
-        or getattr(policy, "_took_trap_or_terrain_damage", False)
-    ):
+    if not _took_attack_damage(policy):
         return False
     messages = [re.sub(r" <x[1-9]\d*>$", "", m) for m in snapshot.messages]
     # Blind, every attacker is hidden, so a later blow's bare text counts too
@@ -151,7 +163,17 @@ def speed_key(policy, snapshot) -> str | None:
     speed_dose) while the speed field shows no haste, before the strike
     (owner 2026-11-03 「必要なら加速や体力回復など危険度に応じて物資を使用
     すること。」).  None otherwise."""
-    if not hit_in_melee(policy, snapshot) or policy._player_hasted(snapshot):
+    return _speed_dose_key(policy, snapshot) if hit_in_melee(policy, snapshot) else None
+
+
+def spell_speed_key(policy, snapshot) -> str | None:
+    """The same dose after an unseen caster's spell (status_cure asks it for a
+    heavy hit that blinded the player).  None otherwise."""
+    return _speed_dose_key(policy, snapshot) if hit_by_spell(policy, snapshot) else None
+
+
+def _speed_dose_key(policy, snapshot) -> str | None:
+    if policy._player_hasted(snapshot):
         return None
     return speed_dose.key(policy, snapshot, SPEED_REASON)
 

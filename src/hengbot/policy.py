@@ -16349,6 +16349,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             fragment in message
             for fragment in (
                 "呪文を唱え",
+                "呪文を念じた",  # the storms (mspell-ball.cpp:95-116; n1-a life-474)
                 "ブレスを吐いた",
                 "を放った",
                 "つぶやいた",
