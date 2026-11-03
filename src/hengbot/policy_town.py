@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import consumable_policy, me_capability, town_pack_headroom
-from hengbot import town_end_mining, town_travel
+from hengbot import home_pass_charge, town_end_mining, town_travel
 from hengbot import unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 
@@ -4386,7 +4386,7 @@ class TownMixin:
                 self._town_need_evaluation_snapshot = previous_snapshot
                 self._town_need_evaluation_candidates = previous_candidates
         goal_satisfied = goal_satisfied and registry_satisfied
-        for category in owned_categories:
+        for category in home_pass_charge.charged(self, store_type, tuple(owned_categories)):
             self._town_visit_ledger.need_attempts[category] = (
                 self._town_visit_ledger.need_attempts.get(category, 0) + 1
             )
