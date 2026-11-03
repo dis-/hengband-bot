@@ -83,5 +83,37 @@ class BlindStrikeAtAnEmptyCell(ItemCommandBoards):
     AIR_AND_BLOW_TURN = 376286
 
 
+class RetreatVetoesEncloseTheMazePlayer(ItemCommandBoards):
+    """n1-a life-476 02:51 (Labyrinth 15F, D15), n1-b life-307 03:18 (18F, D18).
+
+    The floor's retreat vetoes (threat:avoid-engagement, summoner:retreat) held
+    every way out of a corridor pocket after the threats had died.  An unconquered
+    forgetting maze refuses the idle fallback's Recall, so it waited with '5' at
+    one cell until the loop guard stopped the bot.
+    """
+
+    def assert_recall_leaves(self, name: str):
+        case = fixture(name)
+        policy = self.fresh_policy(case["boards"][0], case["terrain"])
+        # SEEDS: the stop's floor-long vetoes and written-off frontiers.
+        policy._claim_engagement_avoid_cells(Position(*cell) for cell in case["avoid"])
+        policy._probed_frontiers.update(Position(*cell) for cell in case["probed"])
+        raw = case["boards"][-1]
+        # The removed breakout wander (0d46d60d2) never had this step either:
+        # the least-visited neighbour refuses the same vetoes.
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertIsNone(policy._least_visited_neighbor(snapshot))
+        key = self.decide(policy, raw)
+        self.assertEqual(policy.last_reason, "stuck:recall-escape")
+        self.assertEqual(key[0], "r")
+        self.post_item_command(policy, raw, key, "どの巻物を読みますか? ")
+
+    def test_d15(self):
+        self.assert_recall_leaves("enclosed-d15.json.xz")
+
+    def test_d18(self):
+        self.assert_recall_leaves("enclosed-d18.json.xz")
+
+
 if __name__ == "__main__":
     unittest.main()

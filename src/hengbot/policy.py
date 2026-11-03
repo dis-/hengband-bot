@@ -9169,13 +9169,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # floor the wait below cannot build the stuck counter, so a stale
         # engagement avoidance ring can otherwise trap the bot at this exact
         # point forever.  Use the same guarded Recall escape as the ordinary
-        # stuck-floor path when no safe step remains.
+        # stuck-floor path when no safe step remains.  An unconquered forgetting
+        # maze keeps its guardian objective against a stuck count, but its one-wide
+        # corridors are what a retreat's veto seals: with the only steps vetoed,
+        # the wait lasted until the loop guard (n1-a life-476, n1-b life-307).
         forgetting_maze = self._is_forgetting_maze(snapshot)
         completed_forgetting_maze = self._is_completed_forgetting_maze(snapshot)
         if (
             not snapshot.in_town
             and snapshot.floor_key[2] == 0
-            and (not forgetting_maze or completed_forgetting_maze)
+            and (
+                not forgetting_maze
+                or completed_forgetting_maze
+                or self._retreat_vetoes_enclose_player(snapshot)
+            )
             and not snapshot.player.recalling
             and not snapshot.player.blind
             and not snapshot.player.confused
