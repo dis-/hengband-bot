@@ -137,6 +137,36 @@ class GivenUpDoorOnTheCommittedDescentRoute(RecordedBoards):
         self.post(retry, at_door[0][0], key, at_door[1][0])
 
 
+class UnseenAreaDoesNotWriteOffTheFrontier(RecordedBoards):
+    """n1-b life-306, 2026-11-03 23:04 (breakout:least-visited back and forth).
+
+    In the Labyrinth at 12F an unseen attacker's half plane cut the corridor
+    while the oscillation asked for the global frontier: its route search
+    found no way through the temporary area and marked the maze's open
+    corridor end (6, 11) as probed for the floor.  Later exploration had
+    nothing left, and the player wandered the pocket beyond a corridor trap
+    until the loop guard.  This whole floor replays decision for decision on
+    91357d2d0 from a fresh policy.
+    """
+
+    def test_open_corridor_end_survives_and_is_walked_to(self):
+        case = fixture("maze-frontier.json.xz")
+        self.assertIn([6, 11], case["probed"])
+        self.assertEqual(case["rows"][-1]["reason"], "breakout:least-visited")
+        policy = self.fresh_policy(case["boards"][0])
+        recorded = {row["turn"]: row for row in case["rows"]}
+        key = None
+        for raw in case["boards"]:
+            key = self.decide(policy, raw)
+            row = recorded[raw["turn"]]
+            if row["decision_sequence"] < 25258:
+                self.assertEqual((key, policy.last_reason), (row["key"], row["reason"]))
+        self.assertNotIn(Position(6, 11), policy._probed_frontiers)
+        # The stop board: exploration still owns the floor.
+        self.assertEqual((key, policy.last_reason), ("1", "explore"))
+        self.post(policy, case["boards"][-2], key, case["boards"][-1])
+
+
 
 
 if __name__ == "__main__":
