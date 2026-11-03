@@ -79,6 +79,9 @@ LEAVE_STORE_KEY = "\x1b"
 PACK_CAPACITY = 23
 FOOD_TYPE_RATION = 0
 FOOD_TYPE_MANA = 4
+# Food states at which starvation outranks a one-shot quest's exit lock
+# (the starvation gate leaves by the exit stairs).
+STARVING_FOOD_STATES = frozenset({"weak", "fainting"})
 HEAVY_CURSE_TAG = "HEAVY_CURSE"
 UP_STAIRS_KEY = "<"
 DOWN_STAIRS_KEY = ">"
