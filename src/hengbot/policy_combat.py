@@ -2375,12 +2375,21 @@ class CombatMixin:
             or self._active_kill_quest_id(snapshot) is not None
             else HEAL_HP_RATIO
         )
+        # Owner 2026-11-04 「命に関わる扱いにする」: hallucination hides every race,
+        # so ``predicted`` is 0 whatever stands there (n1-c life-123: fired at HP
+        # 49/487 beside a hostile with 12 Teleport scrolls).
+        hidden_threat_lethal = (
+            player.hallucinated
+            and player.hp < self._low_hp_walk_threshold(player.max_hp)
+            and return_yield.awake_hostile_in_view(self, snapshot)
+        )
         lethal = (
             unseen_lethal
             or (
                 (
                     unseen_caster_in_combat
                     or observed_loss_lethal
+                    or hidden_threat_lethal
                     or (
                         carried_escape
                         and bool(hostiles or snapshot.visible_monsters)

@@ -57,7 +57,7 @@ def latched_return_key(policy, snapshot) -> str | None:
     return key
 
 
-def _awake_hostile_in_view(policy, snapshot) -> bool:
+def awake_hostile_in_view(policy, snapshot) -> bool:
     """An awake hostile on the board can attack the player from where it stands."""
     here = snapshot.player.position
     return any(
@@ -77,7 +77,7 @@ def quiet_recall_due(policy, snapshot) -> bool:
         and policy._escape_state.owner in {None, "return"}
         and latched_return_owns(policy, snapshot)
         and policy._find_recall_scroll(snapshot) is not None
-        and not _awake_hostile_in_view(policy, snapshot)
+        and not awake_hostile_in_view(policy, snapshot)
     )
 
 
