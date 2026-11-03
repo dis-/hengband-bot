@@ -14310,6 +14310,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _active_kill_quest_id(self, snapshot: Snapshot) -> int | None:
         """Return an incomplete runtime kill quest occupying the current floor."""
         dungeon_id, level, floor_quest_id = snapshot.floor_key
+        for quest, quest_dungeon, quest_level in self._incomplete_kill_quests(snapshot):
+            if (
+                floor_quest_id == quest.id
+                or (
+                    quest_dungeon is not None
+                    and dungeon_id == quest_dungeon
+                    and level == quest_level
+                )
+            ):
+                return quest.id
+        return None
+
+    def _incomplete_kill_quests(self, snapshot: Snapshot):
+        """Yield each taken, incomplete kill quest with its dungeon and level."""
         for quest in snapshot.quests.values():
             info = self._quest_knowledge.get(quest.id)
             quest_type = info.type if info is not None else quest.type
@@ -14331,17 +14345,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     or target is None
                     or quest.cur_num < target
                 )
-                and (
-                    floor_quest_id == quest.id
-                    or (
-                        quest_dungeon is not None
-                        and dungeon_id == quest_dungeon
-                        and level == quest_level
-                    )
-                )
             ):
-                return quest.id
-        return None
+                yield quest, quest_dungeon, quest_level
 
     def _active_quest_id(self, snapshot: Snapshot) -> int | None:
         """Return any active fixed, kill, or random quest on this floor."""
