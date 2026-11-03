@@ -765,6 +765,25 @@ class IdentificationMixin:
         self._identification_need = None
         self._release_stale_home_candidate_waiting(snapshot)
 
+    def _end_visit_identification_requests(self) -> None:
+        """Release the identify request of the candidates a new visit ends.
+
+        The candidates end with their visit (``TownVisit.begin``).  The
+        request they hold (the need and the source reserved for them) has no
+        owner left once they are gone; a latched request whose candidate is
+        gone failed departure for good (n1-a life-466 2026-11-02 23:18, the
+        robe destroyed on the trip).  A pending Home item owns its own
+        request, as in ``_release_vanished_identification_candidate``.
+        """
+        ended = [signature for signature in (
+            self._identification_candidate, self._device_identification_candidate)
+            if signature is not None]
+        if not ended or self._home_pending_item is not None:
+            return
+        for signature in ended:
+            self._release_identification_source_reservation(signature)
+        self._identification_need = None
+
     def _full_identification_purchase_wanted(self) -> bool:
         """Retry excluded full-identify candidates on any observed stocked shop."""
         return self._identification_need == "full" or any(

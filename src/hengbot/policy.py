@@ -2192,10 +2192,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The income floor a mining run was ended on by a ruled-out unique
         # (_mining_unbeatable_unique_abort_key); that run is not counted.
         self._mining_abort_floor: tuple[int, int, int] | None = None
-        self._identify_staff_mining_plan = False
-        # Marks the one-run D1 recall-stockout time-pass (not a funding set):
-        # the gold set-end leaves it running while the stockout persists.
-        self._recall_stockout_mining_plan = False
+        # The two stockout mining plans live in the town visit (slice 3-2).
         # Marks a set opened because no recall landing is safe: the gold
         # set-end leaves it running and the run count ends it.
         self._no_safe_destination_set = False
@@ -2270,7 +2267,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_withdrawal_queued = False
         self._home_digger_withdraw_pending = False
         self._identification_need: str | None = None
-        self._identification_candidate: tuple[str, int, int] | None = None
+        # The identification candidates live in the town visit (slice 3-2).
         # An identification errand owns the next source acquired for it.  Keep
         # the acquisition baseline so a pre-existing source remains unreserved
         # and a newly enlarged stack reserves only one unit.
@@ -2282,7 +2279,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             tuple[int, int, str, str, dict[str, object] | None] | None
         ) = None
         self.read_telemetry: dict[str, object] = {}
-        self._device_identification_candidate: tuple[str, int, int] | None = None
         self._processed_home_items: set[tuple[str, int, int]] = set()
         # ``~9`` is authoritative content knowledge, but its order is not a
         # shelf address.  Keep addresses separately from observed Home pages.

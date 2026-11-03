@@ -8049,6 +8049,9 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             town_flag=True,
         )
         policy = HengbotPolicy()
+        # The candidate is bound in this town visit (a candidate of an
+        # earlier visit ends at the arrival, structure stage 3-2).
+        policy.prime(replace(snap, store=None))
         policy._identification_candidate = policy._item_signature(light)
         policy._identification_need = "normal"
 
