@@ -6958,10 +6958,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not any(m.speed >= player.speed for m in adjacent)
         ):
             return key
+        tick_only = once_quest_recall.tick_is_no_threat(self, snapshot)
         if low:
             threatened = bool(hostiles) or bool(
                 [m for m in snapshot.detected_monsters if m.hostile]
-            ) or getattr(self, "_took_damage", False)
+            ) or (getattr(self, "_took_damage", False) and not tick_only)
             # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): with an enemy
             # about, heal first only with a potion whose heal is at least the
             # next turn's predicted damage; otherwise teleport/recall first.
@@ -7002,12 +7003,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
         if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
             return ranged  # fear and NO_MELEE refuse melee only
-        if low:
+        if low and not tick_only:
             answer = (unseen_strike.speed_key(self, snapshot)
                       or blind_strike.emergency_key(self, snapshot)
                       or self._low_hp_no_kit_hit_key(snapshot, hostiles))
             if answer is not None:
                 return answer
+        tick_rest = once_quest_recall.tick_rest_key(self, snapshot)
+        if tick_rest is not None:
+            return tick_rest
         if (
             not hostiles
             and not getattr(self, "_took_damage", False)
@@ -7578,6 +7582,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                         self._nav_ledger.release("loot", self._loot_target)
                         self._loot_target = None
                     return chest
+            tick_rest = once_quest_recall.tick_rest_before_navigator(self, snapshot)
+            if tick_rest is not None:
+                return tick_rest
             return self._town_producer_entry("navigator.decide", lambda: navigator.decide(
                 self, snapshot, strategic_hostiles, strategic_adjacent
             ))
