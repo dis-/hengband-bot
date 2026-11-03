@@ -76,6 +76,38 @@ class TownStops(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason), ("9", "quest:enter:approach"))
         self.assert_posts(policy, recorded[-1], board, key)
 
+    def test_the_staff_sequence_waits_for_a_pending_inscription(self):
+        """life-127 07:36:26: the Magic Shop page leaves for the worn light's
+        random-teleport inscription; the sequence stepped off and back in
+        (7, 3, ESC) until no-progress:buy.
+
+        The checkpoint replays only with the recorded keys acknowledged, the
+        calibration file being the live process's.  DECLARED CONSTRUCTED: the
+        optimizer's selection of the worn light (the live blocker
+        pending-random-teleport-suppression).
+        """
+        policy, recorded, steps = self.load("staff-inscription")
+        for entry, supply in steps[:13]:
+            policy.choose_key(supply())
+            if entry["key"]:
+                policy.confirm_key_posted(entry["key"])
+        light = next(owned.id for owned in policy._equipment_catalog.items
+                     if owned.origin == "equipped" and owned.equipped_slot == "light")
+        policy._equipment_preparation_selected_ids = lambda _preparation: frozenset({light})
+        key = policy.choose_key(steps[13][1]())
+        self.assertEqual((key, policy.last_reason), ("\x1b", "shop:observe-and-leave"))
+        policy.confirm_key_posted(key)
+        key = policy.choose_key(steps[14][1]())
+        # Recorded: ('7', 'shop:approach').
+        self.assertEqual((key, policy.last_reason), ("wja", "town:restore-combat-weapon"))
+        policy.confirm_key_posted(key)
+        board = steps[15][1]()
+        key = policy.choose_key(board)
+        # Recorded: ('3', 'shop:approach').
+        self.assertEqual((key, policy.last_reason),
+                         ("{/g.\r", "equipment:suppress-equipped-random-teleport"))
+        self.assert_posts(policy, recorded[15], board, key)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5494,6 +5494,21 @@ class TownMixin:
             None,
         )
 
+    def _random_teleport_inscription_comes_first(self, snapshot: Snapshot) -> bool:
+        """A pending random-teleport inscription answers before an earlier
+        rung walks.
+
+        A store page leaves for that inscription before anything else
+        (_shop_core), so a rung that walks back into the store repeats the
+        leave and neither is ever done: the pack pass (n1-a life-474 2026-11-03
+        21:30, Magic Shop x4, owner-retired-burst) and the Magic-Eater staff
+        sequence (n1-c life-127 2026-11-04 07:36, no-progress:buy twice).
+        """
+        if snapshot.store is not None:
+            return False
+        target = self._random_teleport_suppression_target(snapshot)
+        return target is not None and target[1][0] == "key"
+
     @claims(ClaimOwner.EQUIPMENT_TXN)
     def _town_random_teleport_suppression_key(
         self, snapshot: Snapshot

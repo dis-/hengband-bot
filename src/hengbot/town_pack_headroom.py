@@ -67,26 +67,12 @@ def acquisition_waits(policy, snapshot):
         or policy._find_worthless_junk(snapshot) is not None))
 
 
-def _inscription_comes_first(policy, snapshot):
-    """A pending random-teleport inscription answers before this pass walks.
-
-    A store page leaves for that inscription before anything else
-    (_shop_core); this early rung then walked back into the store to sell, so
-    neither was ever done (n1-a life-474 2026-11-03 21:30, Magic Shop x4,
-    owner-retired-burst).
-    """
-    if snapshot.store is not None:
-        return False
-    target = policy._random_teleport_suppression_target(snapshot)
-    return target is not None and target[1][0] == "key"
-
-
 def key(policy, snapshot):
     """Use beneficial supplies, preserve surplus, sell, then destroy junk."""
     from hengbot.town_pack_budget import below_floor
     if not eligible(policy, snapshot):
         return None
-    if _inscription_comes_first(policy, snapshot):
+    if policy._random_teleport_inscription_comes_first(snapshot):
         return None
     if policy._home_knowledge_scan_inflight:
         # Optional work can continue beside a census, but an actual overflow

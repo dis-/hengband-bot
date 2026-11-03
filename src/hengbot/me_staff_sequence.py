@@ -880,7 +880,8 @@ def town_key(policy, snapshot, hostiles) -> str | None:
             record.reached_runs += 1
         record.fundraise_target = None
         record.target_reached = False
-    if policy._physical_adjacent_hostiles(snapshot):
+    if (policy._physical_adjacent_hostiles(snapshot)
+            or policy._random_teleport_inscription_comes_first(snapshot)):
         return None
     key = _phase_key(policy, snapshot, phase, stage)
     if key is None:
