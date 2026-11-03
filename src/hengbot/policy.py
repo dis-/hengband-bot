@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import blind_strike, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, town_pack_headroom, walkout_dig
+from hengbot import blind_strike, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import consumable_policy, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
@@ -7405,7 +7405,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if esp_threat_hunt is not None:
             return esp_threat_hunt
-        summoner_ranged = self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
+        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
             snapshot, emergency_hostiles
         ))
         if summoner_ranged is not None:
@@ -7426,6 +7426,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # The emergency ladder is exempt from sibling hysteresis: the
             # established post-teleport handoff must happen immediately.
             self._escape_state.release()
+        quiet_recall = return_yield.quiet_recall_key(self, snapshot)
+        if quiet_recall is not None:
+            return quiet_recall
         # Class 16 sends an unbeatable hostile in range away (me_powers THREAT)
         # only once the emergency ladder above has declined: survival first.
         threat_power = me_powers.threat_key(self, snapshot)
