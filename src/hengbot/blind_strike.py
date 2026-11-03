@@ -19,17 +19,26 @@ walk gate's; #47 D57, n1-c life-084 迷宮14階): blinded by a 充血アイ's ga
 with its Cure Critical Wounds spent, it was bitten by the unseen ジャイアント・
 サラマンダー and the lethal-emergency ladder, finding no visible neighbour,
 waited four turns (HP 61 -> 0) beside the two attackers it had last seen.
+
+The memory is only as good as the game's answer to the strike.  n1-b life-307
+(2026-11-04 02:14, Yeek cave 13F): the remembered cell emptied after its monster
+died, and 「何もない空中を攻撃した。」 (cmd-others.cpp exe_alter) came back on
+strike after strike at it while unseen attackers on another side took HP 355 ->
+231, until the loop guard stopped the bot.  A strike that met nothing retires
+its cell; the unseen_strike and cure answers behind this memory then apply.
 """
 
 from hengbot.policy_constants import ALTER_KEY, WAIT_KEY
 
 _MEMORY = "_blind_strike_memory"
 EMERGENCY_REASON = "emergency:blind-strike"
+_EMPTY_AIR = frozenset({"何もない空中を攻撃した。", "You attack the empty air."})
 
 
 def observe(policy, snapshot) -> None:
     """Remember the adjacent hostiles of every board the player can see."""
     if snapshot.player.blind:
+        _forget_empty_cell(policy, snapshot)
         return  # keep the last sighted board
     adjacent = [
         monster for monster in snapshot.visible_monsters
@@ -42,6 +51,17 @@ def observe(policy, snapshot) -> None:
             monster.position for monster in adjacent if monster is not weakest
         ]
     setattr(policy, _MEMORY, (snapshot.floor_key, tuple(cells)))
+
+
+def _forget_empty_cell(policy, snapshot) -> None:
+    """The strike this board answers met empty air: its cell (the first one
+    remembered, as ``strike_key`` chose it) holds no attacker any more."""
+    if not any(message.split(" <x")[0] in _EMPTY_AIR for message in snapshot.messages):
+        return
+    cells = remembered_cells(policy, snapshot)
+    if cells:
+        floor, remembered = getattr(policy, _MEMORY)
+        setattr(policy, _MEMORY, (floor, tuple(cell for cell in remembered if cell != cells[0])))
 
 
 def remembered_cells(policy, snapshot) -> list:
