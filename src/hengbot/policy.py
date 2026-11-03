@@ -7996,9 +7996,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if ranged is not None:
                 return ranged
             self.last_reason = "melee"
+            # A town fight is survival (owner 2026-10-31) and _town_kill_mob_key
+            # delegates the adjacent one to this rung: an errand hold must not
+            # refuse it, or the WAIT it leaves spends the escape kit and walks
+            # away from a monster the hunt walks back to (n1-c life-123).
             return self._town_producer_entry("_direction_key#2", lambda: self._direction_key(
                 player.position, self._weakest(combat_adjacent).position
-            ))
+            ), family="survival")
         if (ranged := me_ranged_first.melee_refused_key(self, snapshot, combat_adjacent)) is not None:
             return ranged  # NO_MELEE refuses melee only (fear flees above)
 
