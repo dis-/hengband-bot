@@ -5,21 +5,18 @@ cmd-magiceat.cpp ``select_magic_eater(only_browse=true)``: the kind question
 menu), the browse prompt and its list, ESC back to command input.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import re
 
-from hengbot.input_executor import Continuation, ScreenKind
-from hengbot.input_context import read_input_view
-from hengbot.magic_eater_input import (
-    LIST_CHOICE_KINDS, TYPE_PROMPTS, _wand_menu_answer, kind_menu_wait, observed_power_list,
-)
-from hengbot.me_powers_refresh import BROWSE_REASONS, KIND_LETTER, KINDS
+from hengbot.input_executor import Continuation
+from hengbot.me_menu import ESC, LIST_CHOICE_KINDS, NOT_ABSORBED, MagicEaterMenu, observed_power_list
+from hengbot.me_powers_refresh import BROWSE_REASONS, KIND_LETTER
 
 
 BROWSE_PROMPTS = ("('*'で一覧, ESCで中断) どの魔力を見ますか？",
                   "(*=List, ESC=exit) Browse which power?")
 BROWSE_MENU_PROMPTS = ("どの種類の魔法を見ますか？", "Which type of magic do you browse?")
-NOT_ABSORBED = ("その種類の魔法は覚えていない！", "You don't have that type of magic!")
+_UNOWNED = "unowned Magic-Eater browse prompt"
 
 
 @dataclass(frozen=True)
@@ -39,50 +36,40 @@ def compile_refresh(key, owner):
     return "b", [BrowseStep(frozenset(), "", kind=kind)]
 
 
-def _browse_answer(step, reading, lines, operation):
-    prompt = reading.prompt.rstrip()
-    row0 = lines[0].strip() if lines else ""
-    if step.stage == "kind":
-        if reading.kind == "command_char" and prompt in TYPE_PROMPTS:
-            return KIND_LETTER[step.kind], "list"
-        if kind_menu_wait(reading, row0, BROWSE_MENU_PROMPTS):
-            answer = _wand_menu_answer(lines, KINDS.index(step.kind))
-            return answer, "list" if answer == "\r" else "kind"
-    elif reading.kind in LIST_CHOICE_KINDS and prompt in BROWSE_PROMPTS:
-        listed = observed_power_list(lines, step.kind)
+class BrowseMenu(MagicEaterMenu):
+    step_type = BrowseStep
+    compile = staticmethod(compile_refresh)
+    terminal_name = "magic-eater-browse"
+    stall_limit = 6
+    stall_text = "Magic-Eater browse made no progress"
+    watches_failures = False
+    kind_menu_prompts = BROWSE_MENU_PROMPTS
+    kind_refused = _UNOWNED
+    after_kind = "list"
+
+    def _list_stage(self, step, seen, operation):
+        if seen.reading.kind not in LIST_CHOICE_KINDS or seen.prompt not in BROWSE_PROMPTS:
+            raise ValueError(_UNOWNED)
+        listed = observed_power_list(seen.lines, step.kind)
         if listed is not None:
             operation.magic_eater_power_list = listed
-            return "\x1b", "done"
+            return ESC, "done"
         if step.stage == "list" and step.attempts == 0:
             # always_show_list off: '*' shows the list under the same prompt.
             return "*", "list"
-        return "\x1b", "done"
-    raise ValueError("unowned Magic-Eater browse prompt")
+        return ESC, "done"
 
+    stages = {"kind": MagicEaterMenu.kind_stage, "list": _list_stage, "done": _list_stage}
 
-def advance_refresh(executor, screen, match, deadline, outcome):
-    operation = executor.active
-    if not operation.continuations or not isinstance(operation.continuations[0], BrowseStep):
-        return None
-    step = operation.continuations[0]
-    if match.kind in {ScreenKind.MORE, ScreenKind.LEVEL_UP_STAT}:
-        return None
-    reading, lines = read_input_view(screen)
-    if match.kind is ScreenKind.COMMAND:
-        if any(text in line for text in NOT_ABSORBED for line in lines):
-            # The game's own answer for a kind with nothing absorbed.
-            operation.magic_eater_power_list = {"kind": step.kind, "rows": []}
+    def command_ends(self, step, seen, operation):
+        if any(text in line for text in NOT_ABSORBED for line in seen.lines):
+            self.nothing_absorbed(step, operation)
         elif step.stage != "done":
             operation.business_outcome = "failed:magic-eater-browse"
-        operation.continuations.pop(0)
-        return None
-    try:
-        if step.attempts >= 6:
-            raise ValueError("Magic-Eater browse made no progress")
-        answer, stage = _browse_answer(step, reading, lines, operation)
-    except ValueError as error:
-        return executor._terminal(operation, "magic-eater-browse", str(error), match, outcome)
-    executor._bound_screen_value = screen
-    operation.continuations[0] = replace(
-        step, stage=stage, attempts=step.attempts + 1 if stage == step.stage else 0)
-    return executor._post_and_barrier(answer, deadline, role="answer")
+        return True
+
+    def closes_refused_prompt(self, step, seen, operation):
+        return False
+
+
+BROWSE_USE = BrowseMenu()

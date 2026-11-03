@@ -1748,46 +1748,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "magic_eater_input.py:advance_magic_eater": {
-    "classification": "driver",
-    "rows": [
-      "supply-buy",
-      "mining-buy",
-      "quest-buy",
-      "optional-buy",
-      "sale",
-      "sale-address",
-      "browse",
-      "store-approach",
-      "store-exit",
-      "home-catalogue",
-      "home-deposit",
-      "home-withdraw",
-      "home-executor",
-      "home-relief",
-      "home-disposal",
-      "destruction",
-      "identification",
-      "device",
-      "remove-curse",
-      "enchant",
-      "equipment-optimization",
-      "equipment-transaction",
-      "equipment-inscription",
-      "stat-recovery",
-      "rumor",
-      "restock",
-      "fundraising",
-      "survival",
-      "quest-service",
-      "departure",
-      "cross-town",
-      "plan-routing",
-      "loot-exploration",
-      "bookkeeping"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "mapped_area.py:current": {
     "classification": "data",
     "rows": [
@@ -1893,7 +1853,42 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "me_device_attacks_input.py:advance_device": {
+  "me_device_policy.py:Device.kind": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:absorb_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:device": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:devices": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:purchase_wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_menu.py:MagicEaterMenu._post_answer": {
     "classification": "driver",
     "rows": [
       "supply-buy",
@@ -1930,41 +1925,6 @@
       "plan-routing",
       "loot-exploration",
       "bookkeeping"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_device_policy.py:Device.kind": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_device_policy.py:absorb_candidate": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_device_policy.py:device": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_device_policy.py:devices": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_device_policy.py:purchase_wanted": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -2018,46 +1978,6 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "me_powerful_activation_input.py:advance_powerful": {
-    "classification": "driver",
-    "rows": [
-      "supply-buy",
-      "mining-buy",
-      "quest-buy",
-      "optional-buy",
-      "sale",
-      "sale-address",
-      "browse",
-      "store-approach",
-      "store-exit",
-      "home-catalogue",
-      "home-deposit",
-      "home-withdraw",
-      "home-executor",
-      "home-relief",
-      "home-disposal",
-      "destruction",
-      "identification",
-      "device",
-      "remove-curse",
-      "enchant",
-      "equipment-optimization",
-      "equipment-transaction",
-      "equipment-inscription",
-      "stat-recovery",
-      "rumor",
-      "restock",
-      "fundraising",
-      "survival",
-      "quest-service",
-      "departure",
-      "cross-town",
-      "plan-routing",
-      "loot-exploration",
-      "bookkeeping"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "me_powers.py:Context.aim": {
     "classification": "data",
@@ -2142,46 +2062,6 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "me_powers_refresh_input.py:advance_refresh": {
-    "classification": "driver",
-    "rows": [
-      "supply-buy",
-      "mining-buy",
-      "quest-buy",
-      "optional-buy",
-      "sale",
-      "sale-address",
-      "browse",
-      "store-approach",
-      "store-exit",
-      "home-catalogue",
-      "home-deposit",
-      "home-withdraw",
-      "home-executor",
-      "home-relief",
-      "home-disposal",
-      "destruction",
-      "identification",
-      "device",
-      "remove-curse",
-      "enchant",
-      "equipment-optimization",
-      "equipment-transaction",
-      "equipment-inscription",
-      "stat-recovery",
-      "rumor",
-      "restock",
-      "fundraising",
-      "survival",
-      "quest-service",
-      "departure",
-      "cross-town",
-      "plan-routing",
-      "loot-exploration",
-      "bookkeeping"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "me_q1_torch.py:attack_key": {
     "classification": "dungeon-only",

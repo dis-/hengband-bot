@@ -1404,22 +1404,10 @@ class OperationExecutor:
         self.state = ExecutorState.CONTINUATION
         if match.kind is ScreenKind.DEATH:
             return self._death(self.active, match)
-        from hengbot.magic_eater_input import advance_magic_eater
-        magic_result = advance_magic_eater(self, screen_value, match, deadline, outcome)
-        if magic_result is not None:
-            return magic_result
-        from hengbot.me_device_attacks_input import advance_device
-        device_result = advance_device(self, screen_value, match, deadline, outcome)
-        if device_result is not None:
-            return device_result
-        from hengbot.me_powerful_activation_input import advance_powerful
-        powerful_result = advance_powerful(self, screen_value, match, deadline, outcome)
-        if powerful_result is not None:
-            return powerful_result
-        from hengbot.me_powers_refresh_input import advance_refresh
-        refresh_result = advance_refresh(self, screen_value, match, deadline, outcome)
-        if refresh_result is not None:
-            return refresh_result
+        from hengbot.me_menu_uses import advance_menus
+        menu_result = advance_menus(self, screen_value, match, deadline, outcome)
+        if menu_result is not None:
+            return menu_result
         if match.kind is ScreenKind.MORE:
             return self._post_and_barrier(" ", deadline, role="auxiliary-request")
         if match.kind is ScreenKind.LEVEL_UP_STAT:

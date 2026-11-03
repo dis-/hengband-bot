@@ -14,7 +14,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
-from hengbot.magic_eater_input import MagicEaterStep, _answer, observed_power_list
+from hengbot.magic_eater_input import ABSORBED_USE, MagicEaterStep
+from hengbot.me_menu import observed_power_list, see
 from hengbot.model import parse_snapshot
 from hengbot.spectator import SpectatorWriter
 from tests import test_spectator as replay
@@ -110,7 +111,7 @@ class PowerListParseTest(unittest.TestCase):
     def test_executor_answer_keeps_the_displayed_list(self):
         operation = SimpleNamespace(observation={})
         step = MagicEaterStep(frozenset(), "6", stage="power")
-        self.assertEqual(_answer(step, wand_list_screen(), operation), ("p", "aim"))
+        self.assertEqual(ABSORBED_USE.answer(step, see(wand_list_screen()), operation), ("p", "aim"))
         self.assertEqual(operation.magic_eater_wand_charges, 9)
         self.assertEqual(operation.magic_eater_power_list, WAND_LIST)
 
