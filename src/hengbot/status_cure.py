@@ -26,11 +26,28 @@ fight and the cure stays as before.  n1-b life-299 (2026-11-03 01:26,
 blinded it before any sighted board showed it, so nothing was remembered;
 seven Cure Critical Wounds went on the blindness, each re-blinded by the
 next bite.  Confusion and cuts are still treated.
+
+A heavy loss while blind (owner 2026-11-04): 「スピードの薬を先に飲む。加えて、
+体力が減っているand盲目の状態では致命傷の治癒より体力回復の薬を優先して使用
+する。」  n1-a life-474 (2026-11-03 21:39, 鉄獄49階): 何か's darkness storm
+took HP 774 -> 505 and blinded it; it drank Cure Critical Wounds with three
+Potions of Speed carried and the next two spells killed it.  An unseen caster's
+heavy hit takes the Speed dose first (``speed_first_key``; a hasted player goes
+straight to the cure), and a heavy total loss cures with the potion that also
+restores HP (``cure_potion``).  Cure Critical Wounds is still no HP recovery:
+this only reorders the blindness cures.  Below the low-HP threshold a carried
+HP recovery potion goes before the Speed dose (owner 2026-11-04 「低い時は体力
+回復が先」).
 """
 
 from hengbot import blind_strike, unseen_strike
 from hengbot.item_reservation import reserved_item_command
-from hengbot.model import SV_POTION_CURE_CRITICAL
+from hengbot.model import (
+    SV_POTION_CURE_CRITICAL,
+    SV_POTION_HEALING,
+    SV_POTION_LIFE,
+    SV_POTION_STAR_HEALING,
+)
 from hengbot.policy_constants import REST_MACRO
 
 
@@ -41,6 +58,12 @@ FIGHT_THROUGH_REASON = "blind:fight-through"
 # Food states in which a long rest does not starve the player (the rest gate
 # of the survival ladder uses the same three).
 _REST_FOOD_STATES = frozenset({"normal", "full", "gorged"})
+# A loss of at least 1/3 of max HP is heavy (the one line of owner 2026-11-04).
+_HEAVY_LOSS_DIVISOR = 3
+# Cheapest first.  Every one clears blindness: Healing and *Healing* are
+# cure_critical_wounds(300 / 1200), Life is life_stream (quaff-effects.cpp:128-133,
+# spells-status.cpp:289 and 397).
+_HP_RECOVERY_CURES = (SV_POTION_HEALING, SV_POTION_STAR_HEALING, SV_POTION_LIFE)
 
 
 def observe(policy, snapshot) -> None:
@@ -115,11 +138,49 @@ def low_hp_heal(policy, snapshot, hostiles, *, observed_loss):
     return policy._low_hp_heal_first_potion(snapshot, hostiles, observed_loss=observed_loss)
 
 
+def _heavy_loss(loss: int, max_hp: int) -> bool:
+    return loss * _HEAVY_LOSS_DIVISOR >= max_hp
+
+
+def _hp_recovery_cure(policy, snapshot):
+    """The cheapest carried potion that restores HP and clears blindness."""
+    for sval in _HP_RECOVERY_CURES:
+        if (potion := policy._find_exact_potion(snapshot, sval)) is not None:
+            return potion
+    return None
+
+
+def speed_first_key(policy, snapshot) -> str | None:
+    """Blind from an unseen caster's heavy hit, not hasted: the Speed dose
+    before the cure (the next decision cures).  None otherwise, and below the
+    low-HP threshold with an HP recovery potion carried: that potion is first."""
+    player = snapshot.player
+    if (not player.blind
+            or not _heavy_loss(policy._attributable_observed_loss(snapshot), player.max_hp)
+            or (player.hp < policy._low_hp_walk_threshold(player.max_hp)
+                and _hp_recovery_cure(policy, snapshot) is not None)):
+        return None
+    return unseen_strike.spell_speed_key(policy, snapshot)
+
+
+def cure_potion(policy, snapshot):
+    """The potion for the treated status: blind and heavily hurt, the cheapest
+    carried HP recovery potion; otherwise the cheap cure first."""
+    player = snapshot.player
+    if player.blind and _heavy_loss(player.max_hp - player.hp, player.max_hp):
+        if (potion := _hp_recovery_cure(policy, snapshot)) is not None:
+            return potion
+    return policy._find_status_cure_potion(snapshot)
+
+
 def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None:
-    """Quaff the status cure for the player's blindness (or any treated status)."""
+    """Quaff the status cure for the player's blindness (or any treated status),
+    after the Speed dose a heavy unseen spell asks for."""
     if not treats(policy, snapshot, blind_only=blind_only):
         return None
-    potion = policy._find_status_cure_potion(snapshot)
+    if (speed := speed_first_key(policy, snapshot)) is not None:
+        return speed
+    potion = cure_potion(policy, snapshot)
     if potion is None:
         return None
     policy.last_reason = (

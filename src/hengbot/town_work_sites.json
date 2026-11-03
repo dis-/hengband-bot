@@ -8891,6 +8891,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "status_cure.py:_hp_recovery_cure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:cure_potion": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "status_cure.py:fight_through_key": {
     "classification": "producer",
     "rows": [
@@ -8902,6 +8916,13 @@
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:speed_first_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -9672,6 +9693,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "unseen_strike.py:_speed_dose_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "unseen_strike.py:key": {
     "classification": "producer",
     "rows": [
@@ -9680,6 +9708,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "unseen_strike.py:speed_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "unseen_strike.py:spell_speed_key": {
     "classification": "producer",
     "rows": [
       "survival"
