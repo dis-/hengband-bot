@@ -12,6 +12,11 @@ began in ``prime`` at start-up), this records, under
   (``latch_onset_capture.checkpoint_bytes``; ``restore_checkpoint_bytes``);
 * ``board.json`` - the state line that board was decided on;
 * ``arrival.json`` - turn, floor, the decision sequence before the arrival;
+* ``sidecars/`` and ``sidecars.json`` - the files the policy reads and writes
+  beside the pickle (``runtime_files``: the runtime-path attributes, the
+  exploration ledger, the Home disposal repository files, the character
+  dump), as they stood at the arrival, so a replay reads what the live
+  policy read;
 * ``journal.jsonl.gz`` - one row per decision of the visit, the arrival
   included: the response lines the CLI delivered to the policy since the
   previous decision (``inputs``), the CLI timer latches and store-screen
@@ -47,6 +52,7 @@ from pathlib import Path
 from typing import Any
 
 from hengbot.flight_recorder import jsonable
+from hengbot.runtime_paths import POLICY_RUNTIME_PATH_ATTRIBUTES
 from hengbot.latch_onset_capture import checkpoint_bytes
 from hengbot.town_visit import is_fresh_visit
 
@@ -59,6 +65,10 @@ ARRIVAL_FILE = "arrival.json"
 JOURNAL_FILE = "journal.jsonl.gz"
 TRUNCATED_FILE = "journal-truncated.json"
 DECISIONS_FILE = "decisions.jsonl"
+SIDECAR_DIRECTORY = "sidecars"
+SIDECAR_MANIFEST = "sidecars.json"
+# A larger runtime file (an append-only report log) is listed, not copied.
+SIDECAR_LIMIT_BYTES = 8 * 1024**2
 # The latches the CLI's wall-clock timers set on the policy between decisions
 # (cli._request_due_dump, cli._request_due_me_powers_refresh).
 CLI_LATCHES = (
@@ -71,6 +81,67 @@ CLI_LATCHES = (
 # server at 37 of 39 GB), so the cap bounds each capture as well.
 JOURNAL_LIMIT_BYTES = 16 * 1024**2
 _DECISION_SEQUENCE = re.compile(rb'"decision_sequence":\s*(\d+)')
+
+
+def runtime_files(policy) -> dict[str, Path]:
+    """Every file the policy reads or writes beside its pickle, by role.
+
+    The roles name where the path lives on the policy, so the same table
+    finds the live file at the arrival and the (isolated) restored location
+    in a replay.
+    """
+    state = vars(policy)
+    files = {name: state.get(name) for name in POLICY_RUNTIME_PATH_ATTRIBUTES}
+    files["_character_dump_path"] = state.get("_character_dump_path")
+    ledger = state.get("_exploration_ledger")
+    files["_exploration_ledger.path"] = getattr(ledger, "path", None)
+    home = state.get("_home_disposal")
+    for name in ("history_path", "decisions_path", "queue_path", "events_path"):
+        files[f"_home_disposal.{name}"] = getattr(home, name, None)
+    return {role: Path(path) for role, path in files.items() if path is not None}
+
+
+def _copy_runtime_files(policy, directory: Path) -> None:
+    """Copy the policy's runtime files into ``directory`` (``runtime_files``)."""
+    target = directory / SIDECAR_DIRECTORY
+    target.mkdir()
+    manifest = {}
+    for role, path in runtime_files(policy).items():
+        if not path.is_file():
+            manifest[role] = {"name": path.name, "copied": False, "reason": "absent"}
+            continue
+        size = path.stat().st_size
+        if size > SIDECAR_LIMIT_BYTES:
+            manifest[role] = {"name": path.name, "copied": False, "bytes": size,
+                              "reason": "over-limit"}
+            continue
+        shutil.copyfile(path, target / role)
+        manifest[role] = {"name": path.name, "copied": True, "bytes": size}
+    (directory / SIDECAR_MANIFEST).write_text(
+        json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+
+def restore_runtime_files(policy, visit: Path, roots: tuple[Path, ...]) -> dict:
+    """Write a visit's runtime files where the restored ``policy`` reads them.
+
+    Only destinations under ``roots`` (the isolated runtime directories) are
+    written: a restored path that still names a live location is skipped.
+    """
+    manifest_path = visit / SIDECAR_MANIFEST
+    if not manifest_path.is_file():
+        return {}
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    destinations = runtime_files(policy)
+    resolved_roots = tuple(root.resolve() for root in roots)
+    for role, entry in manifest.items():
+        destination = destinations.get(role)
+        if (not entry.get("copied") or destination is None
+                or not any(destination.resolve().is_relative_to(root)
+                           for root in resolved_roots)):
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(visit / SIDECAR_DIRECTORY / role, destination)
+    return manifest
 
 
 def _warn(operation: str, exc: Exception) -> None:
@@ -180,6 +251,7 @@ class TownArrivalRecorder:
             }
             (temporary / ARRIVAL_FILE).write_text(
                 json.dumps(arrival, ensure_ascii=False), encoding="utf-8")
+            _copy_runtime_files(policy, temporary)
             temporary.rename(visit)
             self.visit = visit
             self._journal_closed = False

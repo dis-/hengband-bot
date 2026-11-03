@@ -27,8 +27,9 @@ from hengbot.flight_recorder import FlightRecorder
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot import town_arrival_checkpoint
 from hengbot.town_arrival_checkpoint import (
-    DIRECTORY, JOURNAL_FILE, KEEP_VISITS, TRUNCATED_FILE, TownArrivalRecorder,
-    copy_latest_into, visits,
+    DIRECTORY, JOURNAL_FILE, KEEP_VISITS, SIDECAR_DIRECTORY, SIDECAR_MANIFEST,
+    TRUNCATED_FILE, TownArrivalRecorder, copy_latest_into, restore_runtime_files,
+    runtime_files, visits,
 )
 from replay_town_arrival import replay
 from town_work_corpus import MANIFEST, monraces, new_policy, read_json
@@ -103,8 +104,9 @@ class TownArrivalCheckpointTest(unittest.TestCase):
             self.assertEqual([path.name.rpartition("-turn")[2] for path in kept],
                              ["3", "4", "5"])
             for visit in kept:
-                self.assertEqual(sorted(p.name for p in visit.iterdir()), [
-                    "arrival.json", "board.json", JOURNAL_FILE, "policy.pkl"])
+                self.assertEqual(sorted(p.name for p in visit.iterdir()), sorted([
+                    "arrival.json", "board.json", JOURNAL_FILE, "policy.pkl",
+                    SIDECAR_DIRECTORY, SIDECAR_MANIFEST]))
 
     def test_capped_journal_stops_and_a_final_journal_is_linked(self):
         """2026-11-03: 11-57 MB captures; a capped or final journal is shared."""
@@ -135,6 +137,30 @@ class TownArrivalCheckpointTest(unittest.TestCase):
                              growing=recorder.growing_visit())
             self.assertTrue(os.path.samefile(capture / DIRECTORY / JOURNAL_FILE,
                                              visit / JOURNAL_FILE))
+
+    def test_runtime_files_are_saved_at_arrival_and_restored(self):
+        """2026-11-03: replays drifted on runtime files the pickle lacks."""
+        with TemporaryDirectory() as raw:
+            root = Path(raw)
+            live = root / "live" / "jsonlog"
+            live.mkdir(parents=True)
+            (live / "character-calibration.json").write_text('{"depth": 1}', encoding="utf-8")
+            policy = SimpleNamespace(
+                _floor_key=(1, 5, 0), _decision_sequence=0, last_reason="town:wait",
+                _character_calibration_path=live / "character-calibration.json",
+                _town_end_mining_path=live / "town-end-mining.json")
+            recorder = TownArrivalRecorder(root / DIRECTORY)
+            board = SimpleNamespace(in_town=True, floor_key=(0, 0, 1), turn=1)
+            recorder.before_decision(policy, board, '{"turn":1}', None)
+            manifest = json.loads((recorder.visit / SIDECAR_MANIFEST).read_text(encoding="utf-8"))
+            self.assertTrue(manifest["_character_calibration_path"]["copied"])
+            self.assertFalse(manifest["_town_end_mining_path"]["copied"])
+            isolated = root / "isolated"
+            policy._character_calibration_path = isolated / "character-calibration.json"
+            policy._town_end_mining_path = root / "live-elsewhere" / "town-end-mining.json"
+            restore_runtime_files(policy, recorder.visit, (isolated,))
+            self.assertEqual(runtime_files(policy)["_character_calibration_path"].read_text(
+                encoding="utf-8"), '{"depth": 1}')
 
     def test_incident_capture_holds_the_arrival_checkpoint_and_visit_rows(self):
         visit = self.capture / DIRECTORY
