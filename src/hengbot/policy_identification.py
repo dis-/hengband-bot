@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.town_pack_budget import incoming_slots, permits
+from hengbot.town_pack_budget import floor_step_fits, incoming_slots, permits
 
 from collections import deque
 import json
@@ -1350,6 +1350,13 @@ class IdentificationMixin:
         candidates -= self._deferred_loot
         candidates -= getattr(self, "_unseen_deferred_loot", set())
         candidates -= self._engagement_avoid_cells
+        # A pile the town's slot budget refuses to step on is no target: the
+        # walk came back to it each time it left the light, away from the shop
+        # route (n1-c life-123 2026-11-04 04:33, owner-retired-burst).
+        refused_piles = {position for position in candidates
+                         if not floor_step_fits(snapshot, position)}
+        self._deferred_loot.update(refused_piles)
+        candidates -= refused_piles
         candidates = {
             position
             for position in candidates

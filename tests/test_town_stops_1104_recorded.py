@@ -166,6 +166,39 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNotNone(item)
         self.assertTrue(item.is_treasure_detection_scroll)
 
+    def test_gold_pile_is_walked_and_a_refused_pile_is_no_target(self):
+        """n1-c life-123 04:33, owner-retired-burst.
+
+        seek-loot '3' and shop:approach '7' alternated beside a gold pile: the
+        floor-step budget counted its one object at the pack's reserve floor.
+
+        DECLARED: the rows up to the board are posted as this replay decides
+        them (the Magic-Eater's arrival dump and destroy rows do not match the
+        recorded ones); only the board's own decision is pinned.
+        """
+        policy, recorded, steps = self.load("gold-pile")
+        with mock.patch.object(HengbotPolicy, "_periodic_character_dump_key",
+                               lambda _self, _snapshot, key: key):
+            for _row, supply in steps[:50]:
+                key = policy.choose_key(supply())
+                if key:
+                    policy.confirm_key_posted(key)
+                    chain = policy.peek_staged_prompt_chain()
+                    if chain is not None and staged_prompt_chain_matches(chain, key):
+                        policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
+            board = steps[50][1]()
+            cell = Position(36, 108)
+            self.assertEqual(board.grid_at(cell).object_tvals, (127,))
+            key = policy.choose_key(board)
+        self.assertEqual(recorded[50]["reason"], "shop:approach")
+        self.assertEqual((key, policy.last_reason), ("3", "seek-loot"))
+        # The same board with a pack item on that cell: no step, and no target.
+        grids = dict(board.grids)
+        grids[cell] = replace(grids[cell], object_tvals=(23,))
+        policy._deferred_loot.discard(cell)
+        self.assertNotIn(cell, policy._loot_candidates(replace(board, grids=grids)))
+        self.assertIn(cell, policy._deferred_loot)
+
 
 if __name__ == "__main__":
     unittest.main()
