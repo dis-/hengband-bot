@@ -199,6 +199,21 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertNotIn(cell, policy._loot_candidates(replace(board, grids=grids)))
         self.assertIn(cell, policy._deferred_loot)
 
+    def test_pack_source_reads_the_taken_item_during_mining_preparation(self):
+        """n1-a life-476 03:08, town:blocked:survival:recall_departure_ready,
+        then town:blocked:overweight-retained-only.
+
+        failed: recall_departure_ready, inventory_weight_ready.  Five weapons
+        taken out for three carried *Identify* scrolls; the open mining set's
+        hold on identification kept them unread until the pack and the weight
+        stopped the visit.
+        """
+        policy, recorded, steps = self.replay("pack-identify", 44)
+        self.assertEqual(recorded[44]["reason"], "shop:approach")
+        key = policy.choose_key(steps[44][1]())
+        self.assertEqual(policy.last_reason, "identify:full")
+        self.assertTrue(key.startswith("r"), repr(key))
+
 
 if __name__ == "__main__":
     unittest.main()
