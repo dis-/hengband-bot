@@ -4077,12 +4077,31 @@ class HomeMixin:
         ):
             # Finish the already-routed store stop before filing a Home take.
             return
+        here = snapshot.grid_at(snapshot.player.position)
         if (
-            not snapshot.in_town or self._required_remove_curse_kind(snapshot) is None or self._usable_remove_curse_scroll(snapshot) is not None or self._recall_departure_shortage(snapshot) or (self._home_pending_item is not None) or self._home_pending_batch or self._home_errand.active or (not self._home_knowledge_current) or any((item.is_equipment and self._identification_flow_candidate(item) and (self._item_signature(item) not in self._deferred_home_items) and (self._item_signature(item) not in self._unidentifiable_sigs) and (self._item_signature(item) not in self._town_unidentifiable_carried_sigs) for item in (*snapshot.inventory, *snapshot.equipment)))
+            # The board right after a store page is still on its entrance,
+            # where no town owner composes (town_terminal.town_end_key): the
+            # step off comes first.
+            (snapshot.store is None and self._last_snapshot_was_store
+             and here is not None and here.is_store)
+            or not snapshot.in_town or self._required_remove_curse_kind(snapshot) is None or self._usable_remove_curse_scroll(snapshot) is not None or self._recall_departure_shortage(snapshot) or (self._home_pending_item is not None) or self._home_pending_batch or self._home_errand.active or (not self._home_knowledge_current)
         ):
             return
+        # Owner 2026-11-03 「先に解呪する」: a worn curse is removed first and
+        # identification waits.  This binder used to wait for every carried or
+        # worn identification candidate, the cursed item itself included: n1-a
+        # life-472 11:49 and n1-b life-302 12:03 (the cursed weapon waiting
+        # for *Identify*) never fetched the Home *Remove Curse* and stopped
+        # under town:blocked:survival:remove_curse_ready.
         reserve = self._home_remove_curse_scroll(snapshot)
         if reserve is None:
+            return
+        # Home is entered again for it, within its pass bound.
+        self._rearm_town_store_for_new_work(STORE_HOME)
+        if not home_take_fits(snapshot, reserve, 1):
+            # The scroll is read at once, so it may use one reserve slot
+            # (town_pack_budget.used_at_once); nothing is sold or shelved
+            # for it, and a pack fuller than that waits.
             return
         signature = self._item_signature(reserve)
         self._home_pending_item = signature

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 from hengbot.policy_constants import MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY
-from hengbot.model import STORE_HOME, TVAL_CAPTURE, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
+from hengbot.model import STORE_HOME, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, TVAL_CAPTURE, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
 
 
 _ROOM_ASSUMED = ContextVar("town_pack_room_assumed", default=False)
@@ -51,10 +51,24 @@ def explicit_pickup_cells(cells):
         _EXPLICIT_PICKUP_CELLS.reset(token)
 
 
-def permits(snapshot, slots: int) -> bool:
+# Home takes that are used at once, so one slot of the reserve may hold
+# them (owner 2026-11-03 「取り置きを使ってよい」: the *Remove Curse* read on
+# the next board; nothing is sold or shelved to make room for it).
+USED_AT_ONCE_TAKES = frozenset({
+    (TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE),
+    (TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE),
+})
+
+
+def used_at_once(item) -> bool:
+    """Whether a Home take of ``item`` is used at once (``USED_AT_ONCE_TAKES``)."""
+    return (item.tval, item.sval) in USED_AT_ONCE_TAKES
+
+
+def permits(snapshot, slots: int, *, reserve_used: int = 0) -> bool:
     return (not getattr(snapshot, "in_town", False) or slots <= 0
             or PACK_CAPACITY - len(snapshot.inventory) - slots
-            >= MIN_TERMINAL_FREE_PACK_SLOTS)
+            >= MIN_TERMINAL_FREE_PACK_SLOTS - reserve_used)
 
 
 def home_take_fits(snapshot, item, quantity: int) -> bool:
@@ -63,7 +77,8 @@ def home_take_fits(snapshot, item, quantity: int) -> bool:
     Owners that bind or hand off a Home withdrawal ask the same question, so a
     take the composer will refuse is never left pending across a Home exit.
     """
-    return permits(snapshot, incoming_slots(snapshot, item, quantity))
+    return permits(snapshot, incoming_slots(snapshot, item, quantity),
+                   reserve_used=int(used_at_once(item)))
 
 
 def below_floor(snapshot) -> bool:
