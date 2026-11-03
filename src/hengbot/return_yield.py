@@ -85,7 +85,7 @@ def quiet_recall_key(policy, snapshot) -> str | None:
     """The Recall read of ``quiet_recall_due``; the one emergency read keeps its holds."""
     if not quiet_recall_due(policy, snapshot):
         return None
-    return once_quest_recall.read_key(policy, snapshot)
+    return once_quest_recall.read_key(policy, snapshot, "return:recall")
 
 
 def breeder_walkout_owns(policy, snapshot) -> bool:

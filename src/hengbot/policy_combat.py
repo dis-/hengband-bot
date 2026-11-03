@@ -775,6 +775,8 @@ class CombatMixin:
         # An unseen attacker's blow is answered in place, not by a walk.
         if (strike := unseen_strike.key(self, snapshot, hostiles)) is not None:
             return strike
+        if (supply := status_cure.blind_missile_supply_key(self, snapshot, hostiles)) is not None:
+            return supply
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "no-wait:least-visited"

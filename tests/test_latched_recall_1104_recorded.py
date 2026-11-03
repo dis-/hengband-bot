@@ -59,7 +59,7 @@ class LatchedRecallRecordedTest(d57.PostedDeathKey):
     def test_sleepers_in_view_read_the_recall_first(self):
         policy, raw = latched_policy(), landing()
         key = d57.loops.decide(policy, copy.deepcopy(raw))
-        self.assertEqual((key, policy.last_reason), (RECALL_KEY, "emergency:recall"))
+        self.assertEqual((key, policy.last_reason), (RECALL_KEY, "return:recall"))
         self.post(policy, raw, key)
 
     def test_awake_hostile_in_view_keeps_todays_answer(self):
