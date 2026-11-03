@@ -1679,7 +1679,18 @@ class CombatMixin:
         if self._ranged_target_macro_failures >= RANGED_TARGET_FAILURE_LIMIT:
             return None
 
-        aim = self._offset_fire_aim(snapshot, victim)
+        # The `*t` below accepts the game's nearest target, which is not a victim
+        # named past a nearer hostile (the summoner rule's): such a shot aims at
+        # the victim's own cell, or is not taken when another body stands on the
+        # bolt path.  n1-a life-475 (2026-11-04 02:25, 城49階): 25 boards of
+        # summoner:ranged-kill shot the ghouls and ants beside the player and
+        # never the <ナーグル>の疫病人間 they named.
+        named_past_nearer = self._hostile_nearer_than(snapshot, victim)
+        aim = self._offset_fire_aim(
+            snapshot, victim, allow_direct_cursor=named_past_nearer
+        )
+        if aim is None and named_past_nearer:
+            return None
         if aim is not None:
             keys = self._cursor_delta_keys(player.position, aim)
             self._ranged_target_signatures[victim.index] = victim.hp
@@ -1726,6 +1737,16 @@ class CombatMixin:
         # No leading ESC: at 00:31:55 its same-turn pre-action snapshot was
         # consumed as the post-action observation.
         return reserved_item_command(self, snapshot, "fire", ammo, suffix='*t5\x1b')
+    def _hostile_nearer_than(self, snapshot: Snapshot, victim: MonsterState) -> bool:
+        """Whether a visible hostile sorts before ``victim`` in the game's target list."""
+        here = snapshot.player.position
+        rank = self._target_cursor_sort_key(here, victim)
+        return any(
+            monster.hostile and monster.index != victim.index
+            and self._target_cursor_sort_key(here, monster) < rank
+            for monster in snapshot.visible_monsters
+        )
+
     def _offset_fire_aim(
         self,
         snapshot: Snapshot,
@@ -2549,6 +2570,8 @@ class CombatMixin:
                     )
                 if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
                     return ranged  # fear and NO_MELEE refuse melee only
+                if (speed := unseen_strike.low_hp_speed_key(self, snapshot)) is not None:
+                    return speed  # owner 2026-11-03: Speed before the strike
                 if (strike := blind_strike.emergency_key(self, snapshot)) is not None:
                     return strike  # blind: the attacker last seen beside us
                 if (strike := unseen_strike.key(self, snapshot, hostiles,

@@ -9377,17 +9377,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ]
         if not candidates:
             return None
-        _shots, target = min(
-            candidates, key=lambda pair: (pair[0], pair[1].distance)
-        )
         # Direct damage that can kill before the three-shot finish retains the
         # ordinary emergency escape priority.
         if self._predicted_damage(snapshot, hostiles, turns=3) >= snapshot.player.hp:
             return None
-        ranged = self._ranged_attack_key(snapshot, [target], [])
-        if ranged is not None:
-            self.last_reason = "summoner:ranged-kill"
-        return ranged
+        # The quickest kill with a clear shot: a body on another's bolt path
+        # takes the arrow instead (_ranged_attack_key refuses that shot).
+        for _shots, target in sorted(
+            candidates, key=lambda pair: (pair[0], pair[1].distance)
+        ):
+            ranged = self._ranged_attack_key(snapshot, [target], [])
+            if ranged is not None:
+                self.last_reason = "summoner:ranged-kill"
+                return ranged
+        return None
 
     def _count_throwing_torches(self, snapshot: Snapshot) -> int:
         # ``is_equipment`` describes a wearable kind, not its current location.

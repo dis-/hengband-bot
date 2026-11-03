@@ -4556,6 +4556,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_combat.py:CombatMixin._hostile_nearer_than": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_combat.py:CombatMixin._hunt_step": {
     "classification": "producer",
     "rows": [
@@ -8771,6 +8778,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "status_cure.py:_blinding_blow": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "status_cure.py:_hp_recovery_cure": {
     "classification": "data",
     "rows": [
@@ -9586,6 +9600,20 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "unseen_strike.py:low_hp_speed_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "unseen_strike.py:message_text": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "unseen_strike.py:speed_key": {
     "classification": "producer",

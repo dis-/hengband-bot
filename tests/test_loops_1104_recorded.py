@@ -72,10 +72,25 @@ class BlindStrikeAtAnEmptyCell(ItemCommandBoards):
                 self.assertEqual((key, policy.last_reason), ("qb", "item:cure-critical"))
                 self.post_item_command(policy, raw, key, "どの薬を飲みますか? ")
             elif raw["turn"] == self.AIR_AND_BLOW_TURN:
-                # An unseen blow on an empty-air board: the random free
-                # neighbour of owner 2026-10-03, not the retired cell.
+                # Another attacker's punch: the ヴラスタ's bite that re-blinded
+                # the player ended at turn 376137, so the latch has let go.
                 self.assertTrue(air)
-                self.assertEqual((key, policy.last_reason), ("+1", "blind:fight-through"))
+                self.assertEqual((key, policy.last_reason), ("qb", "item:cure-critical"))
+                return
+        self.fail("the recorded boards ended early")
+
+    def test_without_a_cure_the_blow_strikes_a_free_neighbour(self):
+        # DECLARED CONSTRUCTED: the Cure Critical Wounds taken out after the first
+        # cure.  The random free neighbour of owner 2026-10-03, not the retired cell.
+        case = fixture("blind-air.json.xz")
+        policy = self.fresh_policy(case["boards"][0])
+        for raw in case["boards"]:
+            if raw["turn"] > 376129:
+                raw["inventory"] = [item for item in raw["inventory"]
+                                    if item["name"] != "致命傷の治癒の薬"]
+            key = self.decide(policy, raw)
+            if raw["turn"] == self.AIR_AND_BLOW_TURN:
+                self.assertEqual((key, policy.last_reason), ("+1", "unseen:strike-return"))
                 return
         self.fail("the recorded boards ended early")
 

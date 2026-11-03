@@ -27,6 +27,13 @@ blinded it before any sighted board showed it, so nothing was remembered;
 seven Cure Critical Wounds went on the blindness, each re-blinded by the
 next bite.  Confusion and cuts are still treated.
 
+The latch holds while the blow that re-blinded the player keeps landing.
+n1-b life-306 (2026-11-04 01:54, 鉄獄19階): the ヴラスタ that re-blinded it died
+on the third blind board; no bite landed again, yet the latch kept nine Cure
+Critical Wounds and fifteen Teleport scrolls shut for 35 blind strikes, most at
+empty air, from HP 378 to death under 赤オクタロック's crush and shots.  On a board
+without that blow the cure is drunk as before; a new re-blinding latches again.
+
 A heavy loss while blind (owner 2026-11-04): 「スピードの薬を先に飲む。加えて、
 体力が減っているand盲目の状態では致命傷の治癒より体力回復の薬を優先して使用
 する。」  n1-a life-474 (2026-11-03 21:39, 鉄獄49階): 何か's darkness storm
@@ -52,8 +59,10 @@ from hengbot.policy_constants import REST_MACRO
 
 
 SIGHT_RESTORED = frozenset({"やっと目が見えるようになった。", "You can see again."})
+BLINDED = "目が見えなくなってしまった！"   # status/bad-status-setter.cpp set_blindness
 _PENDING = "_blind_cure_turn"         # (floor, turn) of the last blindness cure
 _LATCH = "_blind_cure_futile_floor"   # floor whose current blindness is not cured
+_LATCH_BLOW = "_blind_cure_futile_blow"  # the blow text that re-blinded it, if named
 FIGHT_THROUGH_REASON = "blind:fight-through"
 # Food states in which a long rest does not starve the player (the rest gate
 # of the survival ladder uses the same three).
@@ -78,14 +87,33 @@ def observe(policy, snapshot) -> None:
     if (pending[0] == snapshot.floor_key and player.blind
             and any(message in SIGHT_RESTORED for message in snapshot.messages)):
         setattr(policy, _LATCH, snapshot.floor_key)
+        setattr(policy, _LATCH_BLOW, _blinding_blow(snapshot.messages))
+
+
+def _blinding_blow(messages) -> str | None:
+    """The blow text printed right before the blindness set in, else None."""
+    for previous, message in zip(messages, messages[1:]):
+        if message == BLINDED:
+            return next((act for act in unseen_strike.JA_BLOW_ACTS
+                         if previous.endswith(act)), None)
+    return None
+
+
+def _blinder_still_hitting(policy, snapshot) -> bool:
+    """The re-blinding blow landed on this board (always, when none was named)."""
+    blow = getattr(policy, _LATCH_BLOW, None)
+    return blow is None or any(
+        unseen_strike.message_text(message).endswith(blow) for message in snapshot.messages)
 
 
 def cure_futile(policy, snapshot) -> bool:
     """Whether this blindness came back right after a cure and its attacker
-    can be fought instead (no cure for it): one remembered beside the player,
-    or an unseen one whose melee blow landed on this board and a free
-    neighbour to strike it in."""
+    can be fought instead (no cure for it): the blow that re-blinded the player
+    still lands, and that attacker is remembered beside the player, or an
+    unseen one whose melee blow landed on this board has a free neighbour to
+    strike it in."""
     return (getattr(policy, _LATCH, None) == snapshot.floor_key
+            and _blinder_still_hitting(policy, snapshot)
             and (bool(blind_strike.remembered_cells(policy, snapshot))
                  or unseen_strike.strike_cell(policy, snapshot,
                                               policy._physical_hostiles(snapshot)) is not None))

@@ -61,6 +61,7 @@ CASE_084, CASE_085 = _load("084"), _load("085")
 LAMP_FULL_TURN = 1336706
 DARK_TURN, JELLY_WAIT_TURN = 1445339, 1445625
 JELLY, BLOODSHOT_EYE = 1273, 129
+SPEED_POTION = "スピードの薬"
 LIGHT_MESSAGES = frozenset({"明かりが暗くなってしまった。", "明かりが消えてしまった！"})
 # The game's prompts of the two-key commands these drives post.
 PROMPTS = {"q": "どの薬を飲みますか? ", "+": "方向 (ESCで中断)?", "w": "どれを装備しますか? "}
@@ -197,10 +198,19 @@ class BlindEmergencyStrikeRecordedTest(PostedDeathKey):
                               if (item["tval"], item["sval"]) == (75, 36)], raw["turn"])
 
     def test_blind_emergency_strikes_the_remembered_attacker(self):
-        rows = self.drive(new_policy(CASE_084), boards(CASE_084, 1287920, 1288008))
-        answers = {raw["turn"]: (key, reason) for raw, key, reason in rows}
+        # DECLARED CONSTRUCTED: the Potions of Speed taken out of the pack; with
+        # them the first answer is the dose (owner 2026-11-03, the test below).
+        rows = boards(CASE_084, 1287920, 1288008)
+        for raw in rows:
+            raw["inventory"] = [item for item in raw["inventory"] if item["name"] != SPEED_POTION]
+        answers = {raw["turn"]: (key, reason)
+                   for raw, key, reason in self.drive(new_policy(CASE_084), rows)}
         for turn in (1287976, 1287988, 1287997, 1288008):
             self.assertEqual(answers[turn], ("+6", "emergency:blind-strike"), turn)
+
+    def test_blind_emergency_takes_the_carried_speed_before_the_strike(self):
+        rows = self.drive(new_policy(CASE_084), boards(CASE_084, 1287920, 1287976))
+        self.assertEqual(rows[-1][2], "unseen:quaff-speed")
 
     def test_control_nothing_remembered_invents_no_cell(self):
         # DECLARED CONSTRUCTED: the drive starts blind, so no attacker was seen.
