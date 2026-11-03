@@ -1149,13 +1149,7 @@ class EquipmentMixin:
                     self._equipment_transaction_failed_items, item
                 )
                 or self._retention_reservation(snapshot, item.item) > 0
-                or (
-                    item.item.is_digging_tool
-                    and (
-                        self._fundraising_mode in {"prepare", "mine", "scavenge"}
-                        or not self._is_surplus_digging_tool(snapshot, item.item)
-                    )
-                )
+                or self._digging_tool_stays_carried(snapshot, item.item)
                 or (
                     self._equipped_weapon_high_grade(snapshot)
                     and self._weapon_is_inferior(item.item)
