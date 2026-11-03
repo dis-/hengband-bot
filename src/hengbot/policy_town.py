@@ -5450,18 +5450,8 @@ class TownMixin:
         )
         return key
 
-    @claims(ClaimOwner.EQUIPMENT_TXN)
-    def _town_random_teleport_suppression_key(
-        self, snapshot: Snapshot
-    ) -> str | None:
-        """Suppress visible or still-hidden random teleport before equipping."""
-        if not snapshot.in_town:
-            self._offer_execution_no_step(
-                producer="equipment-txn", work_id="suppress-random-teleport",
-                cause="outside-town",
-            )
-            return None
-
+    def _random_teleport_suppression_target(self, snapshot: Snapshot):
+        """The first (owned, action) a suppression producer can emit, or None."""
         # choose_key normally performs this synchronization before dispatch,
         # but keeping the action self-contained ensures its catalog predicate
         # is evaluated against this exact observation.
@@ -5481,10 +5471,24 @@ class TownMixin:
             for owned in pending
             if owned.origin == origin
         )
-        actionable = next(
+        return next(
             ((owned, action) for owned, action in targets if action is not None),
             None,
         )
+
+    @claims(ClaimOwner.EQUIPMENT_TXN)
+    def _town_random_teleport_suppression_key(
+        self, snapshot: Snapshot
+    ) -> str | None:
+        """Suppress visible or still-hidden random teleport before equipping."""
+        if not snapshot.in_town:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="suppress-random-teleport",
+                cause="outside-town",
+            )
+            return None
+
+        actionable = self._random_teleport_suppression_target(snapshot)
         if actionable is not None:
             owned, (action_kind, action_value) = actionable
             if action_kind == "key":

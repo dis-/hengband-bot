@@ -153,6 +153,33 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
             policy.confirm_key_posted(key)
         self.assert_posts(policy, recorded[-1], board, key)
 
+    def test_pack_pass_does_not_walk_back_past_a_pending_inscription(self):
+        """n1-a 21:30, owner-retired-burst after the Magic Shop page left for
+        the inscription and the pack pass stepped off and back in to sell (x4).
+
+        The checkpoint replays only with the recorded keys acknowledged: rows 0
+        and 5 depend on the periodic dump's timer and the optimizer calibration
+        it refreshes.  DECLARED CONSTRUCTED: the optimizer's selection of the
+        carried boots (the live blocker pending-random-teleport-suppression).
+        """
+        policy, _recorded, steps = self.load("inscription-first")
+        for entry, supply in steps[:8]:
+            policy.choose_key(supply())
+            if entry["key"]:
+                policy.confirm_key_posted(entry["key"])
+        boots = next(owned.id for owned in policy._equipment_catalog.items
+                     if owned.origin == "pack" and "ドラゴン・ブーツ" in owned.item.name)
+        policy._equipment_preparation_selected_ids = lambda _preparation: frozenset({boots})
+        key = policy.choose_key(steps[8][1]())
+        self.assertEqual((key, policy.last_reason),
+                         ("\x1b", "town-progress-invariant:continue-observed-shop"))
+        policy.confirm_key_posted(key)
+        board = steps[9][1]()
+        key = policy.choose_key(board)
+        # Recorded: ("7", "equipment:leave-store-to-suppress-random-teleport").
+        self.assertEqual(policy.last_reason, "identify:full")
+        self.assertTrue(key.startswith("r"), key)
+
 
 if __name__ == "__main__":
     unittest.main()
