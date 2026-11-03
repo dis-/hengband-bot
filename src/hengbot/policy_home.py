@@ -4099,9 +4099,9 @@ class HomeMixin:
         # Home is entered again for it, within its pass bound.
         self._rearm_town_store_for_new_work(STORE_HOME)
         if not home_take_fits(snapshot, reserve, 1):
-            # Shelve unneeded stacks first (owner 2026-10-31 「自宅にいるなら
-            # 先に不要物を仕舞う」); the take is bound once it fits.
-            make_room_for_home_take(self, snapshot)
+            # The scroll is read at once, so it may use one reserve slot
+            # (town_pack_budget.used_at_once); nothing is sold or shelved
+            # for it, and a pack fuller than that waits.
             return
         signature = self._item_signature(reserve)
         self._home_pending_item = signature
