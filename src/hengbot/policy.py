@@ -2267,7 +2267,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_withdrawal_queued = False
         self._home_digger_withdraw_pending = False
         self._identification_need: str | None = None
-        self._identification_candidate: tuple[str, int, int] | None = None
+        # The identification candidates live in the town visit (slice 3-2).
         # An identification errand owns the next source acquired for it.  Keep
         # the acquisition baseline so a pre-existing source remains unreserved
         # and a newly enlarged stack reserves only one unit.
@@ -2279,7 +2279,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             tuple[int, int, str, str, dict[str, object] | None] | None
         ) = None
         self.read_telemetry: dict[str, object] = {}
-        self._device_identification_candidate: tuple[str, int, int] | None = None
         self._processed_home_items: set[tuple[str, int, int]] = set()
         # ``~9`` is authoritative content knowledge, but its order is not a
         # shelf address.  Keep addresses separately from observed Home pages.

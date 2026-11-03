@@ -16,11 +16,13 @@ does not change which state survives an arrival: several fields are also
 written or cleared elsewhere, as before.
 
 Slice 3-2 (owner 2026-11-03 「3つから始める」) moves in state that outlived
-its visit: the two stockout mining plans live through the run their visit
-started and end on the return.
+its visit: the two stockout mining plans and the identification candidates.
+The plans live through the run their visit started and end on the return;
+the candidates end with the visit that bound them.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING, dataclass, field, fields
 from typing import TYPE_CHECKING, Any
 
@@ -115,26 +117,35 @@ class TownVisit:
     # being installed.
     identify_staff_mining_plan: bool = False
     recall_stockout_mining_plan: bool = False
+    # The carried item bound to the identification flow, and the device bound
+    # to it: each is bound by a town producer that derives it from the
+    # current pack, so a candidate from an earlier visit is not this visit's
+    # (da4d84b48: a candidate destroyed on the trip kept its request latched).
+    identification_candidate: Signature | None = None
+    device_identification_candidate: Signature | None = None
 
-    def begin(self, *, home_candidate_waiting: bool,
+    def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:
         """Start a new visit: forget every fact of the previous one.
 
-        ``home_candidate_waiting`` is the arrival's Home identification
-        latch, which the caller evaluates before the reset (as the former
-        reset did: against the previous visit's deferred Home items and
-        carried unidentifiable signatures).
+        ``home_candidate_waiting`` evaluates the arrival's Home identification
+        latch.  It reads the previous visit's deferred Home items and carried
+        unidentifiable signatures, as the former reset did, but not its
+        identification candidates: they end first.
         ``run_made_again``: the arrival is the return of a run that is made
         again (a run ended by a ruled-out unique, owner 2026-10-31), so the
         stockout plan of that run stays with it.
         """
         plans = (self.identify_staff_mining_plan, self.recall_stockout_mining_plan)
+        self.identification_candidate = None
+        self.device_identification_candidate = None
+        waiting = home_candidate_waiting()
         for spec in fields(self):
             if spec.default_factory is not MISSING:
                 getattr(self, spec.name).clear()
             else:
                 setattr(self, spec.name, spec.default)
-        self.home_candidate_waiting = home_candidate_waiting
+        self.home_candidate_waiting = waiting
         if run_made_again:
             self.identify_staff_mining_plan, self.recall_stockout_mining_plan = plans
 
@@ -180,6 +191,8 @@ LEGACY_NAMES = {
     "_retried_home_identification_items": "retried_home_identification_items",
     "_identify_staff_mining_plan": "identify_staff_mining_plan",
     "_recall_stockout_mining_plan": "recall_stockout_mining_plan",
+    "_identification_candidate": "identification_candidate",
+    "_device_identification_candidate": "device_identification_candidate",
 }
 
 

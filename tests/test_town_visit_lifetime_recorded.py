@@ -1,10 +1,12 @@
 """Structure stage 3-2: state that ends with its town visit (recorded boards).
 
-Owner 2026-11-03 「3つから始める」: the two stockout mining plans move into
-the town visit (town_visit.TownVisit), so the fresh-visit reset (the first
-town board after a floor change) ends them.  A stockout plan is set in town
-and read on its run, so it lives through the trip out and ends on the
-return; the next visit's shelves decide whether another run is due.
+Owner 2026-11-03 「3つから始める」: the two stockout mining plans and the
+identification candidates move into the town visit (town_visit.TownVisit),
+so the fresh-visit reset (the first town board after a floor change) ends
+them.  A stockout plan is set in town and read on its run, so it lives
+through the trip out and ends on the return; the next visit's shelves
+decide whether another run is due.  An identification candidate ends with
+the visit that bound it, together with the request it holds.
 
 Each class arrives in town on a recorded board after a recorded or
 reconstructed trip; the arrival is the board's observation (``prime``, the
@@ -19,6 +21,8 @@ from unittest.mock import patch
 
 from hengbot.model import DUNGEON_YEEK_CAVE, parse_snapshot
 # Modules, not classes: a test class bound here would run again in this module.
+import tests.test_hourly_0700_1102_recorded as town_harness
+import tests.test_hourly_2300_1102_recorded as hourly_2300
 import tests.test_idstaff_stockout_run_recorded as idstaff_run
 import tests.test_input_executor as executor_harness
 import tests.test_recall_churn_stockout_recorded as recall_churn
@@ -135,6 +139,49 @@ class RecallStockoutPlanEndsWithVisitTest(recall_churn.RecallChurnStockoutRecord
     test_supply_stockout_owner_keeps_its_three_round_stop = None
     test_mining_return_ends_the_churn_scope_so_the_retry_buys = None
     test_control_an_offered_recall_without_churn_is_still_bought = None
+
+
+class IdentificationCandidateEndsWithVisitTest(town_harness.RecordedTownPolicy,
+                                               executor_harness.ProductionHarness):
+    """n1-a life-466 (2026-11-02 23:18): the identification candidate.
+
+    In town (decision 5129) the town-item owner bound the unknown robe as
+    the identification candidate and requested a normal Identify source; on
+    the next trip (5137) the game destroyed the robe.  DECLARED
+    RECONSTRUCTED: those latches (need normal, candidate the robe, Home
+    candidate waiting) on the trip's last board (constructed: the stop
+    board's character on 5F of the Yeek cave).  The arrival on the recorded
+    stop board ends the candidate with its request, before any departure
+    gate, so no departure leaf waits for the robe.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.case = hourly_2300._cases()["identify"]
+
+    def test_arrival_ends_the_last_visits_candidate_and_its_request(self):
+        case = self.case
+        stop = case["stop"]
+        policy = self.primed(on_floor(stop, DUNGEON_YEEK_CAVE, 5),
+                             case["home"]["knowledge"]["items"], case["skill"])
+        robe = ("ローブ [2]", 36, 2)
+        policy._identification_need = "normal"
+        policy._identification_candidate = robe
+        policy._home_candidate_waiting = True
+
+        board = self.board(policy, stop)
+        policy.prime(board)
+        self.assertIsNone(policy._identification_candidate)
+        self.assertIsNone(policy._identification_need)
+        self.assertFalse(policy._home_candidate_waiting)
+        key = policy.choose_key(board)
+        # Recorded: '5' town:blocked:departure-unsatisfiable.  No departure
+        # leaf waits for the robe; the new visit shops first (the store
+        # latches ended with the last visit as well).
+        self.assertEqual(policy._departure_block_state(board)["failed"], [])
+        self.assertEqual((key, policy.last_reason), ("\x1b`n#.", "shop:travel"))
+        self.assertIsNone(policy._identification_need)
+        post_unchanged(self, policy, stop, key)
 
 
 if __name__ == "__main__":
