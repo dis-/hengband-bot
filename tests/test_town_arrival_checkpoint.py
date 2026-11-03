@@ -16,6 +16,7 @@ import tests  # noqa: F401  -- live runtime-file isolation
 
 import gzip
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -24,8 +25,10 @@ import unittest
 from hengbot.cli import _consume_response_sequence, _write_decision
 from hengbot.flight_recorder import FlightRecorder
 from hengbot.policy import staged_prompt_chain_matches
+from hengbot import town_arrival_checkpoint
 from hengbot.town_arrival_checkpoint import (
-    DIRECTORY, JOURNAL_FILE, KEEP_VISITS, TownArrivalRecorder, visits,
+    DIRECTORY, JOURNAL_FILE, KEEP_VISITS, TRUNCATED_FILE, TownArrivalRecorder,
+    copy_latest_into, visits,
 )
 from replay_town_arrival import replay
 from town_work_corpus import MANIFEST, monraces, new_policy, read_json
@@ -102,6 +105,36 @@ class TownArrivalCheckpointTest(unittest.TestCase):
             for visit in kept:
                 self.assertEqual(sorted(p.name for p in visit.iterdir()), [
                     "arrival.json", "board.json", JOURNAL_FILE, "policy.pkl"])
+
+    def test_capped_journal_stops_and_a_final_journal_is_linked(self):
+        """2026-11-03: 11-57 MB captures; a capped or final journal is shared."""
+        with TemporaryDirectory() as raw:
+            recorder = TownArrivalRecorder(Path(raw) / DIRECTORY)
+            policy = SimpleNamespace(_floor_key=(1, 5, 0), _decision_sequence=7,
+                                     last_reason="town:wait")
+            board = SimpleNamespace(in_town=True, floor_key=(0, 0, 1), turn=1)
+            original = town_arrival_checkpoint.JOURNAL_LIMIT_BYTES
+            town_arrival_checkpoint.JOURNAL_LIMIT_BYTES = 1
+            try:
+                for _ in range(3):
+                    recorder.before_decision(policy, board, '{"turn":1}', None)
+                    recorder.decided(policy, "5")
+                    policy._floor_key = board.floor_key  # the same visit goes on
+                    policy._decision_sequence += 1
+            finally:
+                town_arrival_checkpoint.JOURNAL_LIMIT_BYTES = original
+            visit = recorder.visit
+            with gzip.open(visit / JOURNAL_FILE, "rt", encoding="utf-8") as stream:
+                self.assertEqual(len(stream.readlines()), 1)  # the prefix stays
+            self.assertEqual(json.loads((visit / TRUNCATED_FILE).read_text(
+                encoding="utf-8"))["first_unjournalled_decision_sequence"], 8)
+            self.assertIsNone(recorder.growing_visit())
+            capture = Path(raw) / "capture"
+            capture.mkdir()
+            copy_latest_into(recorder.root, capture, b"",
+                             growing=recorder.growing_visit())
+            self.assertTrue(os.path.samefile(capture / DIRECTORY / JOURNAL_FILE,
+                                             visit / JOURNAL_FILE))
 
     def test_incident_capture_holds_the_arrival_checkpoint_and_visit_rows(self):
         visit = self.capture / DIRECTORY

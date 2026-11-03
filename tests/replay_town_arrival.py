@@ -12,6 +12,10 @@ the first difference and acknowledges each matching key as posted).
 
     PYTHONPATH="src;tests;." python tests/replay_town_arrival.py <incident-capture-dir>
 
+A journal that reached its cap stopped there (``journal-truncated.json``):
+its rows still replay, and ``journal_truncated`` names the first decision
+left out, so the stop itself is not among the replayed rows.
+
 Not journalled: a key the executor refused and re-chose on the same board
 (cli refuse_key_posting), and the CLI's own key rewrites (validate_read_key,
 owner retirement) - compare the decision-log rows for those.
@@ -28,7 +32,9 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
-from hengbot.town_arrival_checkpoint import DIRECTORY, JOURNAL_FILE, POLICY_FILE
+from hengbot.town_arrival_checkpoint import (
+    DIRECTORY, JOURNAL_FILE, POLICY_FILE, TRUNCATED_FILE,
+)
 from town_work_corpus import replay_window
 
 
@@ -59,12 +65,20 @@ def decisions(policy, visit: Path, scratch: Path):
         yield {"row": index, "key": entry["key"], "reason": entry["reason"]}, supply
 
 
+def truncation(visit: Path) -> dict | None:
+    """Where a journal that reached its cap stopped, or None."""
+    path = visit / TRUNCATED_FILE
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+
 def replay(capture: Path):
     """Restore the capture's arrival policy and replay its visit."""
     visit = capture / DIRECTORY
     with TemporaryDirectory(prefix="town-arrival-replay-") as raw:
         policy = restore(visit)
-        return replay_window(capture.name, policy, decisions(policy, visit, Path(raw)))
+        result = replay_window(capture.name, policy, decisions(policy, visit, Path(raw)))
+    result.journal_truncated = truncation(visit)
+    return result
 
 
 def main() -> None:

@@ -4438,6 +4438,8 @@ def _run_follow(
 
     def incident_stop(kind: str, snapshot) -> int:
         finish_pending_batch()
+        # The run ends here: the capture may share the visit's final journal.
+        recorder.town_arrival.close_journal()
         _freeze_incident_safely(
             recorder,
             kind, policy, snapshot, args.decision_log, list(recent_reasons)

@@ -19,6 +19,7 @@ from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
 
 from hengbot.model import (
+    BAD_PSEUDO_FEELINGS,
     SV_BOW_LIGHT_XBOW,
     SV_BOW_SHORT,
     SV_BOW_SLING,
@@ -160,9 +161,7 @@ _INSCRIPTION_BLOCK = re.compile(r"\{[^{}]*\.[^{}]*\}")
 # pseudo-ID feeling is swapped 1 time in 13 (simple-perception.cpp
 # sense_inventory_aux), so {average} may hide a cursed item.
 MUTATION_BAD_LUCK = 92
-# Feelings that say the item is cursed or broken (pseudo_value_check_heavy and
-# _light in simple-perception.cpp); such an item is never worn unidentified.
-BAD_PSEUDO_FEELINGS = frozenset({"broken", "terrible", "worthless", "cursed"})
+# BAD_PSEUDO_FEELINGS (model): such an item is never worn unidentified.
 # The bot's own in-game inscription on equipment it picked up on the Q34 floor
 # (owner 2026-10-31: 「Q34で拾った品を覚える必要があるなら銘を刻むこと」).
 Q34_ITEM_TAG = "Q34"

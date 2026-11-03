@@ -32,7 +32,8 @@ from hengbot.policy_constants import (
     MANA_FOOD_DEVICE_TARGET, OIL_TARGET,
     PACK_CAPACITY, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
-    SUMMONER_CHOKE_NEIGHBORS, SUPPLY_LABEL_KINDS, SUPPLY_STORES, TELEPORT_REQUIRED_DEPTH,
+    STARVING_FOOD_STATES, SUMMONER_CHOKE_NEIGHBORS, SUPPLY_LABEL_KINDS, SUPPLY_STORES,
+    TELEPORT_REQUIRED_DEPTH,
     TORCH_REFILL_FUEL, TORCH_THROW_TARGET, UP_STAIRS_KEY, USE_DEVICE_MIN,
     WAIT_KEY, HOME_KNOWLEDGE_MACRO,
     permitted_dive_depth, required_destruction_uses,
@@ -1559,10 +1560,11 @@ class SupplyMixin:
         if key is not None:
             return key
         # A quest exit lock refused the ordinary return. While merely "hungry"
-        # the quest may still be finished first, but weak-or-worse means
-        # starvation (paralysis death with full HP) is now closer than any
-        # kill count: leave via the exit stairs and take the visible loss.
-        if player.food_state not in {"weak", "fainting"}:
+        # the quest may still be finished first (_starvation_lets_quest_finish),
+        # but weak-or-worse means starvation (paralysis death with full HP) is
+        # now closer than any kill count: leave via the exit stairs and take
+        # the visible loss.
+        if player.food_state not in STARVING_FOOD_STATES:
             return None
         here = snapshot.grid_at(player.position)
         exit_reason = (
@@ -1584,6 +1586,19 @@ class SupplyMixin:
             self._declare_reach(step_target)
             return self._step_toward(snapshot, step)
         return None
+
+    def _starvation_lets_quest_finish(self, snapshot: Snapshot) -> bool:
+        """Nothing edible, yet a one-shot quest that locks the exit is finished first.
+
+        The starvation gate's rule (``_survival_gate_key``): while merely
+        hungry the quest owner keeps the floor; weak-or-worse leaves by the
+        exit stairs.  n1-a life-471 (2026-11-03 11:14, Q2 final patrol): the
+        mana eater turned hungry with no charge, the gate deferred to the
+        quest, and the mana override stopped the bot instead (three restarts,
+        new character) under town:blocked:survival-mana-no-charges.
+        """
+        return (snapshot.player.food_state not in STARVING_FOOD_STATES
+                and self._return_exit_locked(snapshot))
 
     def _mana_food_survival_override_key(self, snapshot: Snapshot) -> str | None:
         """Hungry MANA-food absorption, survival return and town acquisition.
@@ -1626,6 +1641,8 @@ class SupplyMixin:
                 key = self._survival_gate_key(snapshot, hostiles)
             if key is not None and self.last_reason != "return:wait":
                 return key
+            if key is None and self._starvation_lets_quest_finish(snapshot):
+                return None
             self.last_reason = "town:blocked:survival-mana-no-charges"
             return WAIT_KEY
 

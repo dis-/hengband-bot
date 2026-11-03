@@ -20,9 +20,18 @@ began in ``prime`` at start-up), this records, under
   ``decision_sequence``).  The decision log's sequence is no row identity:
   a decision answered before ``_choose_key`` keeps the previous one.
 
+The journal is a prefix from the arrival on: a replay restores the arrival
+checkpoint and applies every row's inputs in order, so dropping its oldest
+rows would leave nothing to start from.  At ``JOURNAL_LIMIT_BYTES`` the
+journal therefore stops, and ``journal-truncated.json`` records where (the
+replay reports it: the rows kept still replay, the stop is past them).
+
 Only the newest ``KEEP_VISITS`` visits are kept.  An incident capture copies
 the newest visit and the decision-log rows from its arrival on
-(``copy_latest_into``); ``tests/replay_town_arrival.py`` replays them.
+(``copy_latest_into``); ``tests/replay_town_arrival.py`` replays them.  The
+journal is hard-linked like the checkpoint once it no longer grows (the visit
+ended, the journal stopped at its cap, or the run is ending at this capture),
+and copied only while the visit may still append to it.
 """
 
 from __future__ import annotations
@@ -48,6 +57,7 @@ POLICY_FILE = "policy.pkl"
 BOARD_FILE = "board.json"
 ARRIVAL_FILE = "arrival.json"
 JOURNAL_FILE = "journal.jsonl.gz"
+TRUNCATED_FILE = "journal-truncated.json"
 DECISIONS_FILE = "decisions.jsonl"
 # The latches the CLI's wall-clock timers set on the policy between decisions
 # (cli._request_due_dump, cli._request_due_me_powers_refresh).
@@ -56,9 +66,10 @@ CLI_LATCHES = (
     "_periodic_save_requested",
     "_me_power_refresh_pending",
 )
-# A visit's journal stops growing past this size (a looping visit is stopped
-# long before; the cap only bounds a pathological one).
-JOURNAL_LIMIT_BYTES = 64 * 1024**2
+# A visit's journal stops growing past this size.  Every incident capture of
+# the visit carries the journal (2026-11-03: 11-57 MB captures, the viewing
+# server at 37 of 39 GB), so the cap bounds each capture as well.
+JOURNAL_LIMIT_BYTES = 16 * 1024**2
 _DECISION_SEQUENCE = re.compile(rb'"decision_sequence":\s*(\d+)')
 
 
@@ -81,12 +92,22 @@ class TownArrivalRecorder:
         self._inputs: list[str] = []
         self._pending: dict[str, Any] | None = None
         self._first_board = True
+        # The open visit's journal stopped (its cap, or the run is ending).
+        self._journal_closed = False
         self.last_write_ms: float | None = None
 
     def take_write_ms(self) -> float | None:
         """The last arrival write's duration, once (the decision's timing)."""
         value, self.last_write_ms = self.last_write_ms, None
         return value
+
+    def growing_visit(self) -> Path | None:
+        """The visit whose journal may still be appended to, or None."""
+        return None if self._journal_closed else self.visit
+
+    def close_journal(self) -> None:
+        """The run ends: the open visit's journal is final."""
+        self._journal_closed = True
 
     def note_inputs(self, lines: list[str]) -> None:
         """Response lines the CLI delivers to the policy (an open visit only)."""
@@ -117,11 +138,12 @@ class TownArrivalRecorder:
     def decided(self, policy, key) -> None:
         """Journal what ``choose_key`` just returned on the pending board."""
         row, self._pending = self._pending, None
-        if row is None or self.visit is None:
+        if row is None or self.visit is None or self._journal_closed:
             return
         journal = self.visit / JOURNAL_FILE
         try:
             if journal.exists() and journal.stat().st_size >= JOURNAL_LIMIT_BYTES:
+                self._truncate(policy)
                 return
             row = {**row, "key": key, "reason": policy.last_reason,
                    "decision_sequence": policy._decision_sequence}
@@ -129,6 +151,14 @@ class TownArrivalRecorder:
                 file.write(json.dumps(row, ensure_ascii=False) + "\n")
         except OSError as exc:
             _warn("append the visit journal", exc)
+
+    def _truncate(self, policy) -> None:
+        """Stop the journal at its cap and record the first decision left out."""
+        self._journal_closed = True
+        record = {"limit_bytes": JOURNAL_LIMIT_BYTES,
+                  "first_unjournalled_decision_sequence": policy._decision_sequence}
+        (self.visit / TRUNCATED_FILE).write_text(
+            json.dumps(record, ensure_ascii=False), encoding="utf-8")
 
     def _begin(self, policy, snapshot, line: str) -> None:
         started = time.perf_counter()
@@ -152,6 +182,7 @@ class TownArrivalRecorder:
                 json.dumps(arrival, ensure_ascii=False), encoding="utf-8")
             temporary.rename(visit)
             self.visit = visit
+            self._journal_closed = False
         except Exception as exc:  # a diagnostic never stops the bot (e.g. an unpicklable field)
             _warn("write the arrival checkpoint", exc)
             shutil.rmtree(temporary, ignore_errors=True)
@@ -173,22 +204,26 @@ def visits(root: Path) -> list[Path]:
     )
 
 
-def copy_latest_into(root: Path, capture: Path, decision_tail: bytes) -> str | None:
+def copy_latest_into(root: Path, capture: Path, decision_tail: bytes,
+                     growing: Path | None = None) -> str | None:
     """Copy the newest visit and its decision rows into an incident capture.
 
     Returns the copied visit's name, or None when no visit was recorded.
     ``decision_tail`` is the capture's decision tail; its rows from the
-    arrival's decision on become ``decisions.jsonl``.
+    arrival's decision on become ``decisions.jsonl``.  ``growing`` is the
+    visit whose journal may still grow (``TownArrivalRecorder.growing_visit``).
     """
     found = visits(root)
     if not found:
         return None
     source = found[-1]
     target = capture / DIRECTORY
+    still_growing = growing is not None and source == growing
     def link_or_copy(origin: str, destination: str) -> None:
-        # The checkpoint files never change after the arrival: share them.
-        # The journal still grows while the visit goes on: copy it.
-        if Path(origin).name != JOURNAL_FILE:
+        # The checkpoint files never change after the arrival, nor does a
+        # journal that stopped growing: share them.  A journal the visit
+        # still appends to is copied (a link would grow with it).
+        if not (still_growing and Path(origin).name == JOURNAL_FILE):
             try:
                 os.link(origin, destination)
                 return

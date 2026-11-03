@@ -5,7 +5,7 @@ object/object-value.cpp:object_value_real; lib/edit/BaseitemDefinitions.jsonc.
 The zero base kinds are enumerated from definitions, not a potion blacklist.
 Unaware flavors use get_baseitem_price's positive guesses, never hidden sval.
 """
-from hengbot.model import InventoryItem
+from hengbot.model import BAD_PSEUDO_FEELINGS, InventoryItem
 from functools import lru_cache
 import json
 from pathlib import Path
@@ -163,6 +163,13 @@ def _visible_sale_value(item: InventoryItem, base_cost: int | None) -> int:
     if base_cost is None and base is not None and item.aware:
         base_cost = base["cost"]
     if (item.known or item.pseudo_feeling) and (item.is_broken or item.is_cursed):
+        return 0
+    if not item.known and item.pseudo_feeling in BAD_PSEUDO_FEELINGS:
+        # calc_price: a sensed unknown item that is broken or cursed is worth
+        # 0, and the feeling says it is (store_will_buy then leaves it off the
+        # sale menu).  n1-c life-116 (2026-11-03 11:57): the Magic shop sale
+        # of an unaware 鋼鉄の指輪 {無価値} answered @0 to a menu without it
+        # and stopped as stuck-prompt:shop:one-shot-sell.
         return 0
     if not item.known and not item.aware:
         if item.tval == 8:

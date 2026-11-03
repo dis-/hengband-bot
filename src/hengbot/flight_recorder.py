@@ -565,7 +565,9 @@ class FlightRecorder:
                 render_remembered_map(policy, snapshot), encoding="utf-8"
             )
             from hengbot.town_arrival_checkpoint import copy_latest_into
-            town_arrival = copy_latest_into(self.town_arrival.root, temporary, tail)
+            town_arrival = copy_latest_into(
+                self.town_arrival.root, temporary, tail,
+                growing=self.town_arrival.growing_visit())
             meta = {
                 "kind": kind,
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
