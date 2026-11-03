@@ -21,7 +21,7 @@ died, carrying the absorbed Magic Missile and sixteen spare lit torches.
 
 from __future__ import annotations
 
-from hengbot import me_ranged_first
+from hengbot import combat_answer
 
 
 def target(policy, snapshot, hostiles):
@@ -50,8 +50,4 @@ def key(policy, snapshot, hostiles, reason: str) -> str | None:
     monster = target(policy, snapshot, hostiles)
     if monster is None:
         return None
-    ranged = me_ranged_first.attack_key(policy, snapshot, monster)
-    if ranged is not None:
-        return ranged
-    policy.last_reason = reason
-    return policy._direction_key(snapshot.player.position, monster.position)
+    return combat_answer.strike_key(policy, snapshot, monster, reason)

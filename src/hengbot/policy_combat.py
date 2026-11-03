@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, me_ranged_first, once_quest_recall, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -379,15 +379,12 @@ class CombatMixin:
             )
             if ranged is not None:
                 return ranged
-            if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
-                return ranged  # fear and NO_MELEE refuse melee only
+            answer = combat_answer.adjacent_attack(
+                self, snapshot, adjacent, "melee",
+                blow=lambda weakest: self._step_toward(snapshot, weakest.position))
+            if answer is not None:
+                return answer.key
             if not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-                if adjacent:
-                    ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
-                    if ranged is not None:
-                        return ranged
-                    self.last_reason = "melee"
-                    return self._step_toward(snapshot, self._weakest(adjacent).position)
                 target = min(targets, key=lambda monster: monster.distance)
                 step = self._nearest_goal_step(
                     snapshot, lambda grid: grid.position.distance_to(target.position) <= 1
@@ -465,17 +462,11 @@ class CombatMixin:
             return return_yield.latched_return_key(self, snapshot)
         other_hostiles = [m for m in hostiles if not self._summoner_never_approaches(snapshot, m)]
         adjacent = [m for m in other_hostiles if m.distance <= 1]
-        if (
-            adjacent and not snapshot.player.afraid
-            and self._can_fight_in_dungeon(snapshot.floor_key[0])
-        ):
-            ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
-            if ranged is not None:
-                return ranged
-            self.last_reason = "melee"
-            return self._step_toward(snapshot, self._weakest(adjacent).position)
-        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
-            return ranged  # fear and NO_MELEE refuse melee only
+        answer = combat_answer.adjacent_attack(
+            self, snapshot, adjacent, "melee",
+            blow=lambda weakest: self._step_toward(snapshot, weakest.position))
+        if answer is not None:
+            return answer.key
         self._refresh_warning_avoidance(snapshot, released_cells=cells)
         try:
             step = immobile_threat_memory.step_out_of(
@@ -2568,26 +2559,19 @@ class CombatMixin:
                 adjacent = [
                     monster for monster in hostiles if monster.distance <= 1
                 ]
-                if adjacent and not player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-                    # No stair, relocation, recall, or open retreat cell remains.
-                    # Waiting donates every turn to the surrounding monsters;
-                    # attack the weakest adjacent blocker to create an exit.
-                    ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
-                    if ranged is not None:
-                        return ranged
-                    self.last_reason = "emergency:cornered-attack"
-                    return self._direction_key(
-                        player.position, self._weakest(adjacent).position
-                    )
-                if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
-                    return ranged  # fear and NO_MELEE refuse melee only
-                if (speed := unseen_strike.low_hp_speed_key(self, snapshot)) is not None:
-                    return speed  # owner 2026-11-03: Speed before the strike
-                if (strike := blind_strike.emergency_key(self, snapshot)) is not None:
-                    return strike  # blind: the attacker last seen beside us
-                if (strike := unseen_strike.key(self, snapshot, hostiles,
-                                                unseen_strike.EMERGENCY_REASON)) is not None:
-                    return strike  # an unseen attacker hit us in melee
+                # No stair, relocation, recall, or open retreat cell remains.
+                # Waiting donates every turn to the surrounding monsters;
+                # attack the weakest adjacent blocker to create an exit.
+                answer = combat_answer.adjacent_attack(self, snapshot, adjacent, "emergency:cornered-attack")
+                if answer is not None:
+                    return answer.key
+                # Owner 2026-11-03: Speed before the strike; the rung's last
+                # answer is the strike at an unseen attacker that hit in melee.
+                strike = combat_answer.unseen_attacker_key(
+                    self, snapshot, unseen_strike.low_hp_speed_key,
+                    lambda: unseen_strike.key(self, snapshot, hostiles, unseen_strike.EMERGENCY_REASON))
+                if strike is not None:
+                    return strike
                 self.last_reason = "emergency:wait"
                 return WAIT_KEY
 
@@ -3808,16 +3792,8 @@ class CombatMixin:
                 self._inherit_choke_outcome_budget(
                     snapshot, self._choke_engagement_plan
                 )
-            if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-                ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
-                if ranged is not None:
-                    return ranged
-                self.last_reason = "melee:choke"
-                return self._direction_key(
-                    snapshot.player.position, self._weakest(adjacent).position
-                )
-            if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
-                return ranged  # fear and NO_MELEE refuse melee only
+            if (answer := combat_answer.adjacent_attack(self, snapshot, adjacent, "melee:choke")) is not None:
+                return answer.key
             self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
@@ -4009,16 +3985,8 @@ class CombatMixin:
             )
             if restore is not None:
                 return restore
-        if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-            ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
-            if ranged is not None:
-                return ranged
-            self.last_reason = "melee:choke"
-            return self._direction_key(
-                snapshot.player.position, self._weakest(adjacent).position
-            )
-        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
-            return ranged  # fear and NO_MELEE refuse melee only
+        if (answer := combat_answer.adjacent_attack(self, snapshot, adjacent, "melee:choke")) is not None:
+            return answer.key
         self.last_reason = "melee:choke-hold"
         return WAIT_KEY
     @claims(ClaimOwner.ESCAPE)

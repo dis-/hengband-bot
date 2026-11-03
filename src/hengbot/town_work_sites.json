@@ -261,6 +261,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "combat_answer.py:adjacent_attack": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "combat_answer.py:direct_blow": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "combat_answer.py:strike_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "combat_answer.py:unseen_attacker_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "consumable_policy.py:_used_here": {
     "classification": "data",
     "rows": [
