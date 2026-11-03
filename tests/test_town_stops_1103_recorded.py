@@ -141,6 +141,18 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
                          {STORE_HOME: ("fundraising-kit",)})
         self.assert_posts(policy, recorded[39], board, key)
 
+    def test_recall_countdown_is_not_charged_as_a_defect(self):
+        """n1-a 21:36, owner-retired-burst after `town-progress-invariant:defect:
+        town:wait-recall=>town:wait-recall`: the read scroll reopened the recall
+        shortage and the seam ran its counterfactual on the accepted recall."""
+        policy, recorded, steps = self.replay("recall-countdown", 29)
+        for row in range(29, len(steps)):
+            board = steps[row][1]()
+            key = policy.choose_key(board)
+            self.assertEqual((key, policy.last_reason), ("5", "town:wait-recall"), row)
+            policy.confirm_key_posted(key)
+        self.assert_posts(policy, recorded[-1], board, key)
+
 
 if __name__ == "__main__":
     unittest.main()

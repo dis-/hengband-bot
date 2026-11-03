@@ -79,6 +79,8 @@ import time
 from hengbot import __version__
 from hengbot.runtime_paths import runtime_path
 
+# The accepted recall's surface decisions (town_hold registers both).
+RECALL_COUNTDOWN_REASONS = frozenset({"town:wait-recall", "town:wait-recall-step-off"})
 VISIT_CLOSABLE_REASONS = frozenset({
     "departure-unsatisfiable", "no-actionable-claim-owner",
     "overweight-retained-only",
@@ -1777,6 +1779,14 @@ class TownMixin:
                 return committed_loot
         self._town_begin_progress_decision(snapshot)
         if self._preserve_unavailable_quest_candidate(key):
+            return key
+        if (snapshot.store is None and snapshot.player.recalling
+                and proposed_reason in RECALL_COUNTDOWN_REASONS):
+            # The accepted recall owns the surface until it lands (_decide's
+            # own rule).  The read scroll reopened the recall shortage, the
+            # counterfactual below composed its supplier route and relabelled
+            # the wait a defect, and three retirements stopped the visit
+            # (n1-a life-474 2026-11-03 21:36, owner-retired-burst).
             return key
         if snapshot.store is not None and proposed_reason in {
             "store:entry-await-observation",
