@@ -111,6 +111,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "breeder_quest.py:abandon_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "breeder_quest.py:response": {
     "classification": "data",
     "rows": [

@@ -12149,6 +12149,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "breeder_quest.py:abandon_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "On a latched kill-all or tower quest floor that holds no active recall (owner 2026-11-02 \u300c\u5168\u6ec5\u8981\u6c42\u306e\u30af\u30a8\u30b9\u30c8\u306f\u9054\u6210\u3067\u304d\u306a\u3044\u306e\u3067\u653e\u68c4\u3002\u300d): delegates to _breeder_breakthrough_key for the approved quest's navigator, which returns above that rung; else None; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "breeder_quest.py:response": {
     "classification": "data",
     "rows": [

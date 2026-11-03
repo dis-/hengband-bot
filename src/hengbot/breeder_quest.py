@@ -74,6 +74,18 @@ def abandons_floor(policy, snapshot) -> bool:
     return response(policy, snapshot) == ABANDON
 
 
+def abandon_key(policy, snapshot, hostiles) -> str | None:
+    """The leave of an abandoned floor, for the owner that holds the whole floor.
+
+    An approved quest's navigator returns above the breakthrough rung, so the
+    latched floor must be left from there.  With the recall active the leave
+    is decided and None gives the board back: the floor's own attack logic
+    keeps fighting until the recall takes the player away."""
+    if not abandons_floor(policy, snapshot) or snapshot.player.recalling:
+        return None
+    return policy._breeder_breakthrough_key(snapshot, hostiles)
+
+
 def _pursuing(policy, snapshot) -> bool:
     # A released exit lock (teleport reserve, light, panic ...) leaves the
     # floor through the breakthrough's recall instead.

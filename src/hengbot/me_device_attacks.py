@@ -77,6 +77,7 @@ class Power:
     shape: str               # bolt, bolt-or-beam, beam, ball, breath, sight
     damage: Callable[[int], float]  # average damage at player level
     beam_percent: int = 0    # fire_bolt_or_beam's beam chance
+    group_only: bool = False  # weaker than every one-target answer: breeder_area_attack alone uses it
 
     @property
     def aimed(self) -> bool:
@@ -92,8 +93,8 @@ def _dice(number, sides):
     return number * (sides + 1) / 2
 
 
-def _power(kind, sval, ja, en, level, element, shape, damage, beam=0):
-    return Power(kind, sval, (ja, en), level, element, shape, damage, beam)
+def _power(kind, sval, ja, en, level, element, shape, damage, beam=0, group_only=False):
+    return Power(kind, sval, (ja, en), level, element, shape, damage, beam, group_only)
 
 
 # Dragon's Breath: rand_choice of five (damage, element) pairs.
@@ -124,7 +125,9 @@ POWERS = {(power.kind, power.sval): power for power in (
            lambda lev: 0),  # per-element average in _expected
     _power("wand", 29, "ロケット", "Rockets", 75, "ROCKET", "ball", lambda lev: 250 + 3 * lev),
     _power("wand", 30, "衝撃", "Striking", 65, "METEOR", "bolt", lambda lev: _dice(15 + lev // 3, 13)),
-    # cmd-zaprod.cpp rod_effect.
+    # cmd-zaprod.cpp rod_effect.  Pesticide: dispel_monsters(4) is a project_all_los
+    # of DISP_ALL (spells-sight.cpp:173; BaseitemKey::is_aiming_rod has no row for it).
+    _power("rod", 12, "害虫駆除", "Pesticide", 3, "DISP_ALL", "sight", lambda lev: 4, group_only=True),
     _power("rod", 15, "光", "Light", 10, "LITE_WEAK", "beam", lambda lev: _dice(6, 8)),
     _power("rod", 18, "衰弱", "Hypodynamia", 75, "HYPODYNAMIA", "bolt", lambda lev: 70 + 3 * lev // 2),
     _power("rod", 20, "アシッド・ボルト", "Acid Bolts", 40, "ACID", "bolt-or-beam",
@@ -275,7 +278,7 @@ def _candidates(policy, snapshot, target, direction):
     level = snapshot.player.level
     bystander = sight_hits_bystander(snapshot)
     for power, success in usable_powers(policy):
-        if power.shape == "sight" and bystander:
+        if power.group_only or (power.shape == "sight" and bystander):
             continue
         if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
             continue
