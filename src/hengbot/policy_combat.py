@@ -2570,6 +2570,8 @@ class CombatMixin:
                     )
                 if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
                     return ranged  # fear and NO_MELEE refuse melee only
+                if (speed := unseen_strike.low_hp_speed_key(self, snapshot)) is not None:
+                    return speed  # owner 2026-11-03: Speed before the strike
                 if (strike := blind_strike.emergency_key(self, snapshot)) is not None:
                     return strike  # blind: the attacker last seen beside us
                 if (strike := unseen_strike.key(self, snapshot, hostiles,

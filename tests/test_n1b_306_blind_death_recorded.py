@@ -15,6 +15,9 @@ Owner rules: 「回復後即盲目になった場合は戦闘による状況打�
 必要なら加速や体力回復など危険度に応じて物資を使用すること。」 (2026-11-03).
 Curing blindness with Cure Critical Wounds is fine; it is no HP recovery.
 
+DECLARED CONSTRUCTED: SpeedBeforeStrikeRecordedTest takes the Cure Critical
+Wounds out of the boards after the first cure, so the lethal ladder reaches its
+last answers on the recorded crush boards (what a biter still biting would do).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -33,7 +36,7 @@ with gzip.open(FIXTURE, "rt", encoding="utf-8") as _stream:
     CASE = json.load(_stream)
 
 CURE, REBLINDED, BITTEN, BITES_ENDED = 4876662, 4876673, 4876687, 4876693
-BELOW_THRESHOLD = 4876897   # HP 216; the threshold is 229
+ABOVE_THRESHOLD, BELOW_THRESHOLD = 4876827, 4876897   # HP 302 and 216; the threshold is 229
 CURE_CRITICAL = "致命傷の治癒の薬"
 
 
@@ -90,6 +93,20 @@ class LatchOutlivesTheBlinderRecordedTest(d57.PostedDeathKey):
         for turn in (REBLINDED, BITTEN):
             self.assertEqual(answers[turn], ("+9", "blind:fight-through"), turn)
         self.assertEqual(answers[BITES_ENDED], ("qd", "item:cure-critical"))
+
+
+class SpeedBeforeStrikeRecordedTest(d57.PostedDeathKey):
+    def test_lethal_ladder_takes_the_speed_dose_below_the_low_hp_threshold(self):
+        policy, answers = new_policy(), {}
+        for raw in boards(cures=False):
+            key = d57.loops.decide(policy, raw)
+            answers[raw["turn"]] = (key, policy.last_reason)
+            if raw["turn"] == BELOW_THRESHOLD:
+                self.post(policy, raw, key)
+                break
+            policy.confirm_key_posted(key)
+        self.assertEqual(answers[ABOVE_THRESHOLD], ("+9", "emergency:blind-strike"))
+        self.assertEqual(answers[BELOW_THRESHOLD], ("qc", "unseen:quaff-speed"))
 
 
 if __name__ == "__main__":
