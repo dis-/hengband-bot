@@ -5005,6 +5005,21 @@ class TownMixin:
         "目が見えない！" when blind or ``no_lite()``: the own grid is unseen."""
         return not self._own_grid_visible(snapshot)
 
+    @staticmethod
+    def _native_travel_refused_beside_monster(snapshot: Snapshot) -> bool:
+        """Whether a visible neighbour can refuse the travel's first step.
+
+        travel-execution.cpp ``decide_travel_step_dir`` returns no direction
+        ("道筋が見つかりません！") for a visible monster in the three to five
+        grids ahead, and the refusal takes no game turn, so the monster never
+        moves: n1-c life-122 2026-11-03, a friendly sparrow below the player
+        and the same travel seven times on one turn until
+        quest:blocked:me-staff.  One walked step takes a turn.
+        """
+        position = snapshot.player.position
+        return any(position.distance_to(monster.position) <= 1
+                   for monster in snapshot.visible_monsters)
+
     def _town_travel_key(
         self, snapshot: Snapshot, goal: Position, macro: str, reason: str
     ) -> str | None:
@@ -5029,6 +5044,9 @@ class TownMixin:
         if self._native_travel_sightless(snapshot):
             # The refused macro produces no new board, so walk instead.
             no_route("own-grid-unseen")
+            return None
+        if self._native_travel_refused_beside_monster(snapshot):
+            no_route("visible-monster-adjacent")
             return None
         position = snapshot.player.position
         distance = position.distance_to(goal)
