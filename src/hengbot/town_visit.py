@@ -123,7 +123,20 @@ class TownVisit:
     # (da4d84b48: a candidate destroyed on the trip kept its request latched).
     identification_candidate: Signature | None = None
     device_identification_candidate: Signature | None = None
-
+    # The in-store no-progress watches.  A watch counts unchanged attempts of
+    # one transaction in a store; the next visit is another attempt with its
+    # own budget, so an earlier visit's count cannot leave it early.
+    # (item letter, gold) of the last buy tried and how many times it was
+    # retried unchanged: a purchase that never registers.
+    last_buy_sig: tuple[str, int] | None = None
+    store_stuck_count: int = 0
+    # Same target and shortage after a registered, money-spending buy is a
+    # distinct defect from a transport failure at unchanged gold.
+    last_buy_progress_sig: tuple[str, int, int] | None = None
+    store_buy_no_progress_count: int = 0
+    # The last sale or Home deposit attempted and its unchanged repeats.
+    last_sell_sig: tuple | None = None
+    store_sell_stuck_count: int = 0
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:
         """Start a new visit: forget every fact of the previous one.
@@ -199,6 +212,12 @@ LEGACY_NAMES = {
     "_recall_stockout_mining_plan": "recall_stockout_mining_plan",
     "_identification_candidate": "identification_candidate",
     "_device_identification_candidate": "device_identification_candidate",
+    "_last_buy_sig": "last_buy_sig",
+    "_store_stuck_count": "store_stuck_count",
+    "_last_buy_progress_sig": "last_buy_progress_sig",
+    "_store_buy_no_progress_count": "store_buy_no_progress_count",
+    "_last_sell_sig": "last_sell_sig",
+    "_store_sell_stuck_count": "store_sell_stuck_count",
 }
 
 

@@ -1,0 +1,139 @@
+"""Structure stage 3-2's rest: more state that ends with its town visit.
+
+Owner 2026-11-03 「町の第3段 3-2 の残り」: the in-store watches, the town
+order's operation, the dominated-disposal attempts, the Home disposal and the
+Home procurement probe become town_visit.TownVisit fields, so the fresh-visit
+reset ends them.
+
+Recorded: the viewing bots' town-arrival checkpoints and visit journals
+(tests/extract_town_visit_reset_fixture.py).  A restored checkpoint is the
+policy just before the arrival's first decision, so the arrival here is the
+production one: the recorded board through the public ``choose_key``.
+
+Only n1a-1232's stale watches and operation are what the live bot held.  The
+live logs show no arrival with a counter above zero, a step-4 operation, a
+disposal or a probe, so those are DECLARED RECONSTRUCTED on the restored
+checkpoint, before the arrival, in the shape their producers leave them.  The
+recorded visit then decides as it did live; each case kept instead (before
+slice 3-2) diverges on the row named in its test.  DECLARED WALL: the capture
+holds no Home history file, so each policy's Home history is relocated to the
+test's directory.
+"""
+import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+
+import copy
+import gzip
+import json
+import lzma
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from hengbot.model import parse_snapshot
+from hengbot.policy_constants import STORE_STUCK_LIMIT
+from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
+from replay_town_arrival import decisions, journal, restore
+# Modules, not classes: a test class bound here would run again in this module.
+import tests.test_idstaff_stockout_run_recorded as idstaff_run
+from tests import test_input_executor as executor_pins
+from town_work_corpus import replay_window
+
+
+FIXTURES = Path(__file__).with_name("fixtures")
+RESET = FIXTURES / "town-visit-reset-20261103"
+# One attempt short of the limit: the next unchanged attempt ends the store.
+ONE_SHORT = STORE_STUCK_LIMIT - 1
+
+
+def board_of(row):
+    return json.loads(row["line"] or row["inputs"][-1])
+
+
+class ArrivalCase(executor_pins.ProductionHarness):
+    def arrive(self, fixture):
+        """The restored arrival: (policy, its journal rows, board suppliers)."""
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        visit = Path(directory.name) / "town-arrival"
+        visit.mkdir()
+        (visit / POLICY_FILE).write_bytes(
+            lzma.decompress((fixture / "policy.pkl.xz").read_bytes()))
+        (visit / JOURNAL_FILE).write_bytes(gzip.compress(
+            lzma.decompress((fixture / "journal.jsonl.xz").read_bytes())))
+        scratch = Path(directory.name) / "scratch"
+        scratch.mkdir()
+        policy = restore(visit, scratch)
+        policy._home_disposal.relocate(scratch)  # The declared wall.
+        rows = journal(visit)
+        return policy, rows, list(decisions(policy, visit, scratch))
+
+    def assert_decides_as_recorded(self, policy, rows, steps):
+        result = replay_window("arrival", policy, iter(steps))
+        self.assertIsNone(result.first_divergence)
+        self.assertEqual(result.matched_rows, len(rows))
+
+    def post(self, policy, row, key):
+        """A walk's key through the production executor."""
+        idstaff_run.IdstaffStockoutRunRecordedTest.post_dungeon_key(
+            self, policy, board_of(row), key)
+
+    def walk_on(self, policy, rows, steps):
+        """Rows 0-1 of n1-a 12:32 (recover, then the walk Home): as recorded,
+        and the walk goes through the production executor."""
+        self.assertEqual(rows[1]["reason"], "shop:travel")
+        for index in (0, 1):
+            key = policy.choose_key(steps[index][1]())
+            self.assertEqual((key, policy.last_reason),
+                             (rows[index]["key"], rows[index]["reason"]))
+            policy.confirm_key_posted(key)
+        self.post(policy, rows[1], key)
+
+
+class InStoreWatchesEndWithVisitTest(ArrivalCase):
+    """Items 6-7: the purchase and sale no-progress watches."""
+
+    def test_recorded_arrival_forgets_the_last_visits_watches(self):
+        # n1-a 12:32: the checkpoint holds the previous visit's last attempts.
+        policy, rows, steps = self.arrive(RESET / "n1a-1232")
+        self.assertEqual(policy._last_buy_sig, ("j", 9129))
+        self.assertEqual(policy._last_buy_progress_sig, ("j", 2, 9129))
+        self.assertEqual(policy._last_sell_sig[0], "b")
+        self.walk_on(policy, rows, steps)
+        self.assertIsNone(policy._last_buy_sig)
+        self.assertIsNone(policy._last_buy_progress_sig)
+        self.assertIsNone(policy._last_sell_sig)
+
+    def test_unchanged_buy_watch_of_the_last_visit_does_not_end_this_store(self):
+        # n1-b 11:58 row 1 buys letter m at 13111 gold.  Kept, the watch made
+        # this first attempt the limit's and the store was left unbought
+        # (row 1: ESC, town-progress-invariant:continue-observed-shop).
+        policy, rows, steps = self.arrive(RESET / "n1b-1158")
+        policy._last_buy_sig = ("m", 13111)
+        policy._store_stuck_count = ONE_SHORT
+        self.assertEqual(rows[1]["key"], "pm2\r\r")
+        self.assert_decides_as_recorded(policy, rows, steps)
+
+    def test_buy_progress_watch_of_the_last_visit_does_not_end_this_store(self):
+        # The same row: a registered buy of the same target and shortage last
+        # visit.  Kept: the store was left unbought in the same way.
+        policy, rows, steps = self.arrive(RESET / "n1b-1158")
+        policy._last_buy_progress_sig = ("m", 2, 13999)
+        policy._store_buy_no_progress_count = ONE_SHORT
+        self.assert_decides_as_recorded(policy, rows, steps)
+
+    def test_deposit_watch_of_the_last_visit_does_not_reject_this_deposit(self):
+        # n1-a 12:05 rows 3-4 deposit letter i.  Kept, the watch rejected it:
+        # row 3 went on to periodic:game-save instead of the deposit.
+        policy, rows, steps = self.arrive(RESET / "n1a-1205")
+        carried = next(item for item in board_of(rows[3])["inventory"] if item["slot"] == "i")
+        policy._last_sell_sig = (
+            "i", (carried["name"], carried["tval"], carried["sval"]),
+            carried["count"], carried.get("charges", 0),
+            len(board_of(rows[3])["inventory"]), board_of(rows[3])["player"]["gold"])
+        policy._store_sell_stuck_count = ONE_SHORT
+        self.assertEqual(rows[4]["reason"], "home:atomic-deposit")
+        self.assert_decides_as_recorded(policy, rows, steps)
+
+
+if __name__ == "__main__":
+    import unittest
+    unittest.main()
