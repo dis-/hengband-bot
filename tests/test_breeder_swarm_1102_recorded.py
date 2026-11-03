@@ -20,9 +20,9 @@ n1-c life-098 (Magic-Eater, Lv31, 412 max HP) on 鉄獄24階, random quest 41
     なら逃走を選択する。」: the first bug came into view at turn 2199675; the
     recorded build latched the floor eight actions later (state-2 ``search``
     at 2199751, the five-kill growth switch).  Now the floor is latched when
-    20 player actions (boards whose game turn advanced) have not brought the
-    breeder count below the count at engagement (breeder_stalemate), and the
-    window survives a restart.
+    20 player actions (boards whose game turn advanced) end with no fewer
+    breeders than the window began with (breeder_stalemate), and the window
+    survives a restart.
 
 Fixture: tests/fixtures/breeder-swarm-20261102.json.gz
 (tests/extract_breeder_swarm_1102_fixture.py).  Every decision is the public
