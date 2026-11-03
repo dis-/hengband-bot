@@ -20,12 +20,15 @@ carried-wand case: no absorbed list, and the pack's two Wands of Wonder
 (slot k) made known Wands of Stinking Cloud with 5 charges.  For the
 non-breeder case: race 246's knowledge without MULTIPLY.  The replies to the
 posted keys are constructed from the game's prompts (cmd-magiceat.cpp,
-get_aim_dir).
+get_aim_dir, and target_set's monster and free modes with their key guides,
+target-setter.cpp:221 and :470, and published cursor).
 
-West, the Lightning Ball stops on the bug at (38, 60) and its radius-2 blast
-(cmd-zaprod.cpp:51, range-calc.cpp ball_shape) catches five bugs: 0.85 x 5 x
-4 = 17, against 4 for any one-target answer (a bolt, a shot or melee on a
-4-HP bug).
+Aimed west by direction, the Lightning Ball stops on the bug at (38, 60) and
+its radius-2 blast (cmd-zaprod.cpp:51, range-calc.cpp ball_shape) catches
+five bugs: 0.85 x 5 x 4 = 17, against 4 for any one-target answer (a bolt, a
+shot or melee on a 4-HP bug).  Owner 2026-11-03 「群れの中心を狙う」: a grid
+target drops PROJECT_STOP (spells-launcher.cpp:33-36), so the ball flies over
+the bugs to (38, 57) and catches eleven: 0.85 x 11 x 4 = 37.4.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -46,7 +49,10 @@ BOARD_TURN = 2200923
 RECORDED = ("ranged:fire", "fn4")
 ROD_ROWS = (("u", "アシッド・ボルト", 10), ("v", "サンダー・ボルト", 10),
             ("x", "アイス・ボルト", 10), ("z", "サンダー・ボール", 15))
-LIGHTNING_BALL_WEST = "mCz4"     # rod sval 25 is I2A(25) 'z'; the room is west
+SWARM_CENTRE = (38, 57)
+LIGHTNING_BALL_CENTRE = "mCz@38,57"
+TARGET_GUIDE = "q止 t決 p自 o現 +次 -前"        # target-setter.cpp:221 (monster mode)
+FREE_GUIDE = "q止 t決 p自 m近 +次 -前"          # target-setter.cpp:470 (free mode)
 WONDER_SLOT = "k"
 
 
@@ -78,12 +84,42 @@ class BreederAreaAttackRecordedTest(nokey.PostedKey):
         self.assertEqual(len(bugs_in_view(raw)), 22)
         self.assertIn("MULTIPLY", CASE["monraces"][str(swarm.SOFTWARE_BUG)]["flags"])
 
-    def test_absorbed_lightning_ball_hits_the_most_bugs(self):
+    def test_absorbed_lightning_ball_bursts_on_the_swarm_centre(self):
         raw = with_rods(recorded_board())
         policy, key = self.decide(raw)
-        self.assertEqual((key, policy.last_reason), (LIGHTNING_BALL_WEST, DEVICE_REASON))
-        game = self.post_power(policy, raw, key)
-        self.assertEqual(game.accepted, ["m", "C", "z", "4"])
+        self.assertEqual((key, policy.last_reason), (LIGHTNING_BALL_CENTRE, DEVICE_REASON))
+        scores = self.ball_scores(policy, raw)
+        self.assertAlmostEqual(scores["4"], 0.85 * 5 * 4)
+        self.assertAlmostEqual(scores[SWARM_CENTRE], 0.85 * 11 * 4)
+        self.assertGreater(scores[SWARM_CENTRE], max(
+            score for aim, score in scores.items() if isinstance(aim, str)))
+        game = self.post_power(policy, raw, key, self.target_walk(raw))
+        self.assertEqual(game.accepted, ["m", "C", "z", "*", "p", *"444444", "t"])
+
+    def ball_scores(self, policy, raw):
+        """The Lightning Ball's group score per direction key and per burst grid."""
+        snapshot = swarm.board(policy, raw)
+        means = breeder_area_attack._means(policy, snapshot)
+        ball = next(each for each in means if each.power.names[1] == "Lightning Balls")
+        blocks = breeder_area_attack._blocker(snapshot)
+        scores = {direction: breeder_area_attack._group_score(policy, snapshot, ball, offset, blocks)
+                  for offset, direction in breeder_area_attack.DIRECTION_KEYS.items()}
+        for grid in breeder_area_attack._burst_grids(snapshot, 2, blocks):
+            scores[(grid.y, grid.x)] = breeder_area_attack._group_score(
+                policy, snapshot, ball, grid, blocks)
+        return scores
+
+    def target_walk(self, raw):
+        """target_set's prompts: the nearest bug, 'p' to the player, the walk west."""
+        def target(free, y, x):
+            guide = FREE_GUIDE if free else TARGET_GUIDE
+            screen = prompt(f"ソフトウェア・バグ(無傷)を見ている [r思 {guide}]", "target",
+                            look=False, free=free, can_target=True, y=y, x=x)
+            return screen
+        player = (raw["player"]["y"], raw["player"]["x"])
+        walk = [target(False, 38, 60), target(True, *player)]
+        walk += [target(True, 38, x) for x in range(player[1] - 1, SWARM_CENTRE[1] - 1, -1)]
+        return walk
 
     def test_carried_ball_wand_is_chosen_the_same_way(self):
         raw = recorded_board()
@@ -105,7 +141,7 @@ class BreederAreaAttackRecordedTest(nokey.PostedKey):
         self.assertEqual((policy.last_reason, key), RECORDED)
         self.post(policy, raw, key)
 
-    def post_power(self, policy, raw, key):
+    def post_power(self, policy, raw, key, aim_screens=()):
         """The absorbed rod through the executor's prompts (cmd-magiceat.cpp)."""
         game = nokey.FaithfulHookGame()
         game.state = copy.deepcopy(raw)
@@ -114,6 +150,7 @@ class BreederAreaAttackRecordedTest(nokey.PostedKey):
             prompt("[A] 杖, [B] 魔法棒, [C] ロッド:"),
             power_screen("rod", [(letter, name, 0, 1, fail) for letter, name, fail in ROD_ROWS]),
             prompt("方向?", "direction", can_choose_target=True),
+            *aim_screens,
             nokey.command_screen(raw["turn"] + 10)]
         following = dict(copy.deepcopy(raw), turn=raw["turn"] + 10)
         game.states = [copy.deepcopy(following) for _ in game.screens]

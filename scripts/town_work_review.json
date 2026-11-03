@@ -12460,7 +12460,7 @@
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "Owner 2026-11-01 「増殖モンスター相手のときは敵の群れ全体に与えるダメージ量で攻撃を選択して」: only when the engaged hostiles include a breeder (can_multiply), the area or sight attack (absorbed power via me_device_attacks.device_key under DEVICE_REASON, or a carried wand/rod/staff/Dispel Undead scroll via _use) with the largest expected damage over every visible hostile it would hit, when that beats every one-target answer (any means, melee, a shot); None otherwise, so the caller's order runs unchanged. In town an option catching a friendly the character could not defeat once angered is dropped (_town_friendly_unbeatable, owner 2026-10-31). Called only from _ranged_attack_key and me_ranged_first.attack_key; no independent progress.",
+    "evidence": "Owner 2026-11-01 「増殖モンスター相手のときは敵の群れ全体に与えるダメージ量で攻撃を選択して」: only when the engaged hostiles include a breeder (can_multiply), the area or sight attack (absorbed power via me_device_attacks.device_key under DEVICE_REASON, or a carried wand/rod/staff/Dispel Undead scroll via _use) with the largest expected damage over every visible hostile it would hit, when that beats every one-target answer (any means, melee, a shot); None otherwise, so the caller's order runs unchanged. In town an option catching a friendly the character could not defeat once angered is dropped (_town_friendly_unbeatable, owner 2026-10-31). Called only from _ranged_attack_key and me_ranged_first.attack_key; no independent progress. An absorbed ball or breath may burst on a chosen grid (device_target_key, owner 2026-11-03 「群れの中心を狙う」).",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "breeder_area_attack.py:_use": {
@@ -12473,5 +12473,27 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "reserved_item_command for a carried attack wand/rod/staff or a Scroll of Dispel Undead (wand/rod: with the aim direction) under ranged:breeder-area:<kind>; None when the reservation refuses; called only by breeder_area_attack.key's senders.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_device_attacks.py:device_target_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The absorbed ball or breath key m + A/B/C + I2A(sval) + @y,x under DEVICE_REASON (a grid target drops PROJECT_STOP, spells-launcher.cpp:33-36/:60-63; owner 2026-11-03 「群れの中心を狙う」); the executor answers get_aim_dir with '*' and walks the target cursor from its published position (me_device_attacks_input._target_answer); called only by breeder_area_attack's target senders; no independent progress."
+  },
+  "breeder_area_attack.py:_options": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Scoring generator for breeder_area_attack.key: (group score, prompts, means, key sender) per direction aim and, for an absorbed ball or breath, per burst grid; the senders are device_key / device_target_key / _use, called only by key after the baseline comparison; no independent progress."
   }
 }

@@ -90,6 +90,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "breeder_area_attack.py:_options": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "breeder_area_attack.py:_use": {
     "classification": "producer",
     "rows": [
@@ -1819,6 +1826,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_device_attacks.py:device_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_device_attacks.py:device_target_key": {
     "classification": "producer",
     "rows": [
       "survival"
