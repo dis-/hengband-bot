@@ -5,7 +5,7 @@ bot-2d4b7645d / bot-b044fd30f).  Each case keeps a capture's town-arrival
 checkpoint (policy.pkl), the character calibration beside it and the journal
 rows up to the stop's decision, recompressed with xz.
 
-    python tests/extract_town_stops_1104_fixtures.py <captures/stops-1104-morning>
+    python tests/extract_town_stops_1104_fixtures.py <captures/stops-1104-morning> [case ...]
 """
 import gzip
 import lzma
@@ -24,6 +24,8 @@ CASES = {
     "gold-pile": ("n1-c/life-123", "20261104-043315-town-blocked-owner-retired-burst", 51),
     "pack-identify": ("n1-a/life-476", "20261104-030834-town-blocked-survival-recall_departure_ready", 45),
     "worn-average": ("n1-b/life-307", "20261104-033207-town-blocked-pack-full-no-room", 35),
+    # From the capture set beside it (bots bot-6925e7e43 / bot-a50ef8fcc).
+    "ability-gap": ("../stops-1104-0750/n1-a/life-476", "20261104-072412-town-blocked-survival-depth_abilities", 12),
 }
 CALIBRATION = "_character_calibration_path"
 DUMP = "_character_dump_path"
@@ -51,6 +53,8 @@ def main() -> None:
     root = Path(sys.argv[1])
     preset = 9 | lzma.PRESET_EXTREME
     for name, (life, capture, rows) in CASES.items():
+        if len(sys.argv) > 2 and name not in sys.argv[2:]:
+            continue
         visit = root / life / "incident-captures" / capture / "town-arrival"
         target = FIXTURES / name
         target.mkdir(parents=True, exist_ok=True)
