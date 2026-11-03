@@ -82,6 +82,12 @@ C_WARMUP = 6036445
 C_BOARD = 6036459
 B_ONLY = 6036472
 UNSEEN_CAST = "何かがあなたを指さして恐ろしげに呪文を唱えた！"
+# The blind board 06036428 (HP 310/731) recorded Cure Critical Wounds ('qb').
+# Owner 2026-11-01 (D57) 「致命傷治癒はHP回復の効果に期待しない」 and 2026-11-04
+# 「体力が減っているand盲目の状態では致命傷の治癒より体力回復の薬を優先」: it
+# now drinks the Healing potion.  The boards after it stay the recorded ones
+# (DECLARED COUNTERFACTUAL: the recorded game drank the cheaper cure).
+B_CURE_KEY = ("qc", "emergency:cure-status-healing")
 
 
 def _sha(path: Path) -> str:
@@ -169,6 +175,12 @@ class _Replay(unittest.TestCase):
         hostiles = self.policy._strategic_hostiles(board)
         return self.policy._low_hp_next_turn_damage(board, hostiles)
 
+    def _cure_sets_the_carry(self):
+        _board, key, reason = self._decide(B_WARMUP)
+        self.assertEqual((key, reason), self._live(B_WARMUP))
+        _board, key, reason = self._decide(B_CURE)
+        self.assertEqual((key, reason), B_CURE_KEY)
+
     def assertLethalLadder(self):
         self.assertTrue(self.policy._emergency_escape_pending)
         self.assertEqual(self.policy._last_return_trigger, "emergency-lethal-swarm")
@@ -225,9 +237,7 @@ class LethalUnseenCasterRecordedTest(_Replay):
         self.assertTeleportRead(board, key, reason)
 
     def test_b_cured_board_owes_the_escape_and_heals_first(self):
-        for turn in (B_WARMUP, B_CURE):
-            _board, key, reason = self._decide(turn)
-            self.assertEqual((key, reason), self._live(turn), turn)
+        self._cure_sets_the_carry()
         carry = self.policy._blind_cure_escape_carry
         self.assertEqual(carry[1], 290)
         board, key, reason = self._decide(B_CURED)
@@ -290,11 +300,6 @@ class ObservedLossAndCarryGatesConstructedTest(_Replay):
         # (USER DECISION 2026-10-03 06:0x).
         self.assertLethalLadder()
         self.assertHealFirst(board, key, reason, next_turn=113, observed=113)
-
-    def _cure_sets_the_carry(self):
-        for turn in (B_WARMUP, B_CURE):
-            _board, key, reason = self._decide(turn)
-            self.assertEqual((key, reason), self._live(turn), turn)
 
     def test_carry_without_hostiles_in_view_does_not_teleport(self):
         self._cure_sets_the_carry()
