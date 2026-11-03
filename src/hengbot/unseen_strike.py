@@ -88,11 +88,16 @@ def hit_by_spell(policy, snapshot) -> bool:
     )
 
 
+def message_text(message: str) -> str:
+    """The message without the game's repeat counter."""
+    return re.sub(r" <x[1-9]\d*>$", "", message)
+
+
 def hit_in_melee(policy, snapshot) -> bool:
     """This board's damage came from a melee blow of an unseen attacker."""
     if not _took_attack_damage(policy):
         return False
-    messages = [re.sub(r" <x[1-9]\d*>$", "", m) for m in snapshot.messages]
+    messages = [message_text(m) for m in snapshot.messages]
     # Blind, every attacker is hidden, so a later blow's bare text counts too
     # (n1-b life-299: blind boards whose only blow text is 「噛まれた。」).
     blind = snapshot.player.blind
@@ -164,6 +169,16 @@ def speed_key(policy, snapshot) -> str | None:
     (owner 2026-11-03 「必要なら加速や体力回復など危険度に応じて物資を使用
     すること。」).  None otherwise."""
     return _speed_dose_key(policy, snapshot) if hit_in_melee(policy, snapshot) else None
+
+
+def low_hp_speed_key(policy, snapshot) -> str | None:
+    """``speed_key`` for a survival ladder that also answers above the low-HP
+    threshold (the lethal ladder's blind strike, n1-b life-306: four Potions of
+    Speed untouched from HP 216 to death)."""
+    player = snapshot.player
+    if player.hp >= policy._low_hp_walk_threshold(player.max_hp):
+        return None
+    return speed_key(policy, snapshot)
 
 
 def spell_speed_key(policy, snapshot) -> str | None:
