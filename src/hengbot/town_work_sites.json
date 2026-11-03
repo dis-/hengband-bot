@@ -5349,6 +5349,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_helpers.py:PolicyHelpersMixin._digging_tool_stays_carried": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_helpers.py:PolicyHelpersMixin._first_item": {
     "classification": "data",
     "rows": [

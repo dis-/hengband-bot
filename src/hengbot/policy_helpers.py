@@ -12,6 +12,7 @@ from hengbot.town_hold import (
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import Loadout
+from hengbot.equipment_optimizer import equipment_identity
 from hengbot.model import (
     DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE,
     GridState, InventoryItem, MonsterState, Position, Snapshot, StoreItem,
@@ -110,7 +111,22 @@ class PolicyHelpersMixin:
                 if slot == "light" and slot in displaced_slots
             ),
         )
-        return self._home_visit_retention(projected)[1]
+        return self._home_visit_retention(projected)[1] | frozenset(
+            equipment_identity(item) for item in projected.inventory
+            if self._digging_tool_stays_carried(projected, item))
+
+    def _digging_tool_stays_carried(self, snapshot: Snapshot, item: InventoryItem) -> bool:
+        """A digger no Home deposit may take: the plans ask what Home refuses.
+
+        The Home executor refuses to shelve a retained tool
+        (equipment-transaction:retain-digging-tool).  n1-c life-121 2026-11-03:
+        the Magic-Eater came back wearing its two Shovels, each plan took them
+        off to deposit them, Home refused, the abandonment put them back on,
+        until quest:blocked:me-staff.
+        """
+        return item.is_digging_tool and (
+            self._fundraising_mode in {"prepare", "mine", "scavenge"}
+            or not self._is_surplus_digging_tool(snapshot, item))
     @claims(ClaimOwner.DETECTORS)
     def _refuse_no_progress_cycle(self, snapshot: Snapshot, key: str) -> str:
         """Refuse a repeated transition after an equivalent-state cycle.

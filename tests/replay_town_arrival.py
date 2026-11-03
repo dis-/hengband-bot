@@ -34,8 +34,9 @@ from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.runtime_paths import configured_home_history_dir, configured_runtime_dir
 from hengbot.town_arrival_checkpoint import (
-    DIRECTORY, JOURNAL_FILE, POLICY_FILE, TRUNCATED_FILE, restore_runtime_files,
+    DIRECTORY, JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, TRUNCATED_FILE, restore_runtime_files,
 )
+from hengbot.warrior_optimization import load_character_calibration
 from town_work_corpus import replay_window
 
 
@@ -60,6 +61,21 @@ def restore(visit: Path, scratch: Path | None = None) -> HengbotPolicy:
                       if root is not None)
         restore_runtime_files(policy, visit, roots)
     return policy
+
+
+def adopt_calibration(policy, recorded: Path, scratch: Path) -> None:
+    """Read the character calibration recorded at the arrival.
+
+    It lives only in its runtime file, under the live bot's path and tied to
+    the live process's session id; without it the equipment optimizer answers
+    calibration-required and every transaction's replay diverges.
+    """
+    policy._character_calibration_path = scratch / recorded.name
+    policy._character_calibration_path.write_bytes(recorded.read_bytes())
+    policy._calibration_session_id = load_character_calibration(
+        policy._character_calibration_path).session_id
+    policy._character_calibration = None
+    policy._character_calibration_loaded = False
 
 
 def decisions(policy, visit: Path, scratch: Path):
@@ -91,6 +107,9 @@ def replay(capture: Path):
     visit = capture / DIRECTORY
     with TemporaryDirectory(prefix="town-arrival-replay-") as raw:
         policy = restore(visit, Path(raw))
+        calibration = visit / SIDECAR_DIRECTORY / "_character_calibration_path"
+        if calibration.is_file():
+            adopt_calibration(policy, calibration, Path(raw))
         result = replay_window(capture.name, policy, decisions(policy, visit, Path(raw)))
     result.journal_truncated = truncation(visit)
     return result

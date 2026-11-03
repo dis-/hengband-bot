@@ -71,6 +71,7 @@ from hengbot.equipment_optimizer import (
     random_teleport_is_suppressed,
     slot_for,
 )
+from hengbot.equipment_route_handoff import release_suspended_home_route
 from hengbot.equipment_transaction_session import (
     EquipmentTransactionObservation,
     EquipmentTransactionSession,
@@ -7164,7 +7165,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and self._equipment_transaction_owned_items
             and not self._opening_q34_active(snapshot)
         ):
-            return self._town_producer_entry("_equipment_transaction_town_owner_key", lambda: self._equipment_transaction_town_owner_key(snapshot)) or WAIT_KEY
+            release_suspended_home_route(self)
+            key = self._town_producer_entry("_equipment_transaction_town_owner_key", lambda: self._equipment_transaction_town_owner_key(snapshot))
+            if key is None:
+                self.last_reason = "equipment-transaction:deferred-wait"
+                return WAIT_KEY
+            return key
 
         if snapshot.in_town and self._equipment_transaction_route_terminal is not None:
             self.last_reason = self._equipment_transaction_route_terminal

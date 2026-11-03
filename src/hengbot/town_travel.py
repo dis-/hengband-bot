@@ -17,7 +17,9 @@ disclosed goal, a seen own grid, the ``TOWN_TRAVEL_MIN_DISTANCE`` walk near the
 goal, and the progress bound that re-issues an interrupted route --
 travel-execution.cpp stops beside a visible monster -- and hands a stalled goal
 back to walking).  A visible town monster is the global town hunt's
-(``_town_kill_mob_key``, ahead of every errand), as for the store route.  Every caller keeps its
+(``_town_kill_mob_key``, ahead of every errand), as for the store route; beside
+any other visible monster (a friendly) the board walks, the game refusing the
+travel without a turn passing.  Every caller keeps its
 own single step as the fallback and for the last step into the building,
 which carries the building's command tail.
 
