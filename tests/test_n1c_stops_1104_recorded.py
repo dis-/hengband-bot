@@ -17,11 +17,17 @@ import unittest
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import decisions, journal, restore
+from test_hourly_0700_1102_recorded import RecordedTownPolicy
 from tests import test_input_executor as executor_pins
 from town_work_corpus import replay_window
 
 
 FIXTURES = Path(__file__).with_name("fixtures") / "n1c-stops-1104"
+
+
+def _boards():
+    with gzip.open(FIXTURES / "boards.json.gz", "rt", encoding="utf-8") as stream:
+        return json.load(stream)
 
 
 class TownStops(executor_pins.ProductionHarness):
@@ -107,6 +113,31 @@ class TownStops(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason),
                          ("{/g.\r", "equipment:suppress-equipped-random-teleport"))
         self.assert_posts(policy, recorded[15], board, key)
+
+
+class DungeonStops(RecordedTownPolicy):
+    @classmethod
+    def setUpClass(cls):
+        cls.case = _boards()
+
+    def test_a_kept_away_monster_is_not_walked_back_to_past_another_hostile(self):
+        """life-125 07:18:17: the walk to shoot reached (3,65), a sleeping ゾンビ・イーク
+        came into view and the board went to seek-loot, whose step out of view
+        started the walk again."""
+        case = self.case["loop"]
+        boards = case["boards"]
+        # DECLARED CONSTRUCTED: an empty Home list.
+        policy = self.primed(boards[0], [], case["skill"])
+        for raw, expected in zip(boards, (("7", "seek-loot"),
+                                          ("3", "immobile-threat:approach-to-shoot"),
+                                          ("7", "seek-loot"))):
+            key = policy.choose_key(self.board(policy, raw))
+            self.assertEqual((key, policy.last_reason), expected)
+            policy.confirm_key_posted(key)
+        key = policy.choose_key(self.board(policy, boards[3]))
+        # Recorded: ('3', 'immobile-threat:approach-to-shoot').
+        self.assertNotEqual(policy.last_reason, "immobile-threat:approach-to-shoot")
+        self.assertNotEqual(key, "3")
 
 
 if __name__ == "__main__":

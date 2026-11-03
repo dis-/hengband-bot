@@ -87,6 +87,8 @@ class FloorVisit:
     # Remembered monsters not in view from a reached shooting cell
     # (immobile_ranged_kill), until perceived again.
     unaimed: set[Position] = field(default_factory=set)
+    walking_to: Position | None = None
+    walk_yielded: set[Position] = field(default_factory=set)
 
 
 def never_moves(policy, monster: MonsterState) -> bool:
@@ -200,6 +202,36 @@ def unaimed(policy, position: Position) -> bool:
     """Not in view from a reached shooting cell, and not perceived since."""
     visit = getattr(policy, MEMORY, None)
     return visit is not None and position in visit.unaimed
+
+
+def begin_walk(policy, position: Position) -> None:
+    """This decision steps toward a cell to shoot the monster at ``position``."""
+    visit = getattr(policy, MEMORY, None)
+    if visit is not None:
+        visit.walking_to = position
+
+
+def end_walk(policy) -> Position | None:
+    """The target the previous decision walked toward, if any."""
+    visit = getattr(policy, MEMORY, None)
+    if visit is None:
+        return None
+    walked, visit.walking_to = visit.walking_to, None
+    return walked
+
+
+def yield_walk(policy, position: Position) -> None:
+    """Another hostile came into view on the walk to shoot the monster at ``position``."""
+    visit = getattr(policy, MEMORY, None)
+    if visit is not None:
+        visit.walk_yielded.add(position)
+
+
+def walk_yielded(policy, position: Position) -> bool:
+    """This floor visit no longer walks to shoot it (it may still be shot from where
+    the player stands, and it stays avoided)."""
+    visit = getattr(policy, MEMORY, None)
+    return visit is not None and position in visit.walk_yielded
 
 
 def route_cells(policy) -> frozenset[Position]:
