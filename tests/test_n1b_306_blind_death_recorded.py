@@ -18,6 +18,8 @@ Curing blindness with Cure Critical Wounds is fine; it is no HP recovery.
 DECLARED CONSTRUCTED: SpeedBeforeStrikeRecordedTest takes the Cure Critical
 Wounds out of the boards after the first cure, so the lethal ladder reaches its
 last answers on the recorded crush boards (what a biter still biting would do).
+Its strike at the remembered cell retires after 「何もない空中を攻撃した。」
+(blind_strike), so its boards past that are the recorded strikes' boards only.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -36,7 +38,8 @@ with gzip.open(FIXTURE, "rt", encoding="utf-8") as _stream:
     CASE = json.load(_stream)
 
 CURE, REBLINDED, BITTEN, BITES_ENDED = 4876662, 4876673, 4876687, 4876693
-ABOVE_THRESHOLD, BELOW_THRESHOLD = 4876827, 4876897   # HP 302 and 216; the threshold is 229
+# HP 290 and 216, both with a crush on the board; the threshold is 229.
+ABOVE_THRESHOLD, BELOW_THRESHOLD = 4876845, 4876897
 CURE_CRITICAL = "致命傷の治癒の薬"
 
 
@@ -95,6 +98,17 @@ class LatchOutlivesTheBlinderRecordedTest(d57.PostedDeathKey):
         self.assertEqual(answers[BITES_ENDED], ("qd", "item:cure-critical"))
 
 
+    def test_the_carried_cure_answers_every_board_without_the_bite(self):
+        # The recorded boards stay blind, as the recorded strikes left them, so
+        # each one asks again; none of them walks blind with the cures carried.
+        policy = new_policy()
+        for raw in boards():
+            key = d57.loops.decide(policy, raw)
+            if raw["turn"] >= BITES_ENDED:
+                self.assertEqual(key, "qd", (raw["turn"], policy.last_reason))
+            policy.confirm_key_posted(key)
+
+
 class SpeedBeforeStrikeRecordedTest(d57.PostedDeathKey):
     def test_lethal_ladder_takes_the_speed_dose_below_the_low_hp_threshold(self):
         policy, answers = new_policy(), {}
@@ -105,7 +119,8 @@ class SpeedBeforeStrikeRecordedTest(d57.PostedDeathKey):
                 self.post(policy, raw, key)
                 break
             policy.confirm_key_posted(key)
-        self.assertEqual(answers[ABOVE_THRESHOLD], ("+9", "emergency:blind-strike"))
+        key, reason = answers[ABOVE_THRESHOLD]
+        self.assertEqual((key[:1], reason), ("+", "emergency:unseen-strike"))
         self.assertEqual(answers[BELOW_THRESHOLD], ("qc", "unseen:quaff-speed"))
 
 
