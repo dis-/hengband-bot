@@ -6341,6 +6341,16 @@ class TownMixin:
             return RESTOCK_WAIT_MACRO
         return None
 
+    def _mining_set_runs_done(self) -> bool:
+        """The open mining set has made its planned runs (the run-count end)."""
+        return (
+            (self._fundraising_mode == "mine"
+             or (self._fundraising_mode == "scavenge"
+                 and (getattr(self, "_supply_stockout_gold_target", None) is not None
+                      or getattr(self, "_no_safe_destination_set", False))))
+            and self._mining_runs_completed >= self._effective_mining_run_target()
+        )
+
     def _end_mining_set(self) -> None:
         """End the open mining set after its planned runs (the run-count end)."""
         self._no_safe_destination_set = False
@@ -6446,16 +6456,6 @@ class TownMixin:
             if not self._destination_depth_allowed(snapshot, destination_depth):
                 self._town_blocked_reason = self.last_reason
                 return self._town_blocked_key(snapshot)
-
-        if (
-            (self._fundraising_mode == "mine"
-             or (self._fundraising_mode == "scavenge"
-                 and (getattr(self, "_supply_stockout_gold_target", None) is not None
-                      or getattr(self, "_no_safe_destination_set", False))))
-            and self._mining_runs_completed >= self._effective_mining_run_target()
-        ):
-            self._end_mining_set()
-            return None
 
         # A resumed bot does not retain the in-memory partial batch selected
         # after shop stock ran out. Reconstruct it from supplies already carried

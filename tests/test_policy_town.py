@@ -3064,7 +3064,9 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._planned_mining_runs = 3
         policy._mining_runs_completed = 3
 
-        self.assertIsNone(policy._town_special_key(snap))
+        # The run-count end is observed on the board, before any owner.
+        policy._observe(snap)
+        self.assertIsNone(policy._fundraising_mode)
         self.assertIsNone(policy._planned_mining_runs)
         self.assertEqual(
             policy._mining_detection_scroll_target(snap), MINING_RUNS_PER_SET
