@@ -108,6 +108,35 @@ class TownAdjacentMeleeUnderErrandHold(RecordedBoards):
 
 
 
+class GivenUpDoorOnTheCommittedDescentRoute(RecordedBoards):
+    """n1-c life-123, 2026-11-03 22:07 (approach-descent 'o4' repeated).
+
+    The committed descent route ran through a locked door.  DOOR_OPEN_LIMIT
+    gave the door up after three picks, but the committed path's step test
+    (_is_step_open) still read a closed door as open, unlike rubble, so the
+    route kept picking it ("鍵をはずせなかった。") until the loop guard.
+    Fresh policy, stop's remembered terrain (DECLARED RECONSTRUCTED).
+    """
+
+    def test_door_is_given_up_after_its_limit(self):
+        case = fixture("descent-door.json.xz")
+        self.assertEqual(
+            {(row["key"], row["reason"]) for row in case["rows"][4:]},
+            {("o4", "approach-descent")})
+        policy = self.fresh_policy(case["boards"][0], case["terrain"])
+        at_door = [(raw, row) for raw, row in zip(case["boards"], case["rows"])
+                   if (row["position"]["y"], row["position"]["x"]) == (30, 90)]
+        keys = [self.decide(policy, raw) for raw, _row in at_door[:4]]
+        self.assertEqual(keys[:3], ["o4", "o4", "o4"])
+        self.assertIn((30, 89), policy._blocked_doors)
+        self.assertNotEqual(keys[3], "o4")
+        self.assertFalse(policy._nav_ledger.descent_path
+                         and policy._nav_ledger.descent_path[0] == Position(30, 89))
+        retry = self.fresh_policy(case["boards"][0], case["terrain"])
+        key = self.decide(retry, at_door[0][0])
+        self.post(retry, at_door[0][0], key, at_door[1][0])
+
+
 
 
 if __name__ == "__main__":

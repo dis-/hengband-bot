@@ -17011,7 +17011,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if not allow_damaging and self._is_avoidable_hazard_grid(grid):
             return False
         if grid.is_door:
-            return grid.passable or grid.is_closed_door
+            # A door given up after DOOR_OPEN_LIMIT picks is a wall, for a route
+            # committed before it was given up too (n1-c life-123 picked one 30
+            # times on the committed descent route).
+            return grid.passable or (
+                grid.is_closed_door
+                and (grid.position.y, grid.position.x) not in self._blocked_doors
+            )
         # Rubble is only tunnelled from an orthogonally adjacent tile.
         if grid.is_rubble:
             return (pos.y == start.y or pos.x == start.x) and (
