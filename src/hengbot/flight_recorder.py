@@ -401,6 +401,8 @@ class FlightRecorder:
         self.snapshot_dir = root / "snapshots"
         self.checkpoint_dir = root / "checkpoints"
         self.snapshot_path = self.snapshot_dir / "snapshots-current.jsonl.gz"
+        from hengbot.town_arrival_checkpoint import DIRECTORY, TownArrivalRecorder
+        self.town_arrival = TownArrivalRecorder(root / DIRECTORY)
         self.decisions = 0
         self.last_floor = None
         self._snapshot_bytes_since_prune = 0
@@ -415,6 +417,8 @@ class FlightRecorder:
     def record_snapshot_lines(self, lines: list[str]) -> None:
         if not lines:
             return
+        # Every recorded batch is delivered to the policy next.
+        self.town_arrival.note_inputs(lines)
         try:
             self.snapshot_dir.mkdir(parents=True, exist_ok=True)
             rotated = False
@@ -448,6 +452,16 @@ class FlightRecorder:
                 self._snapshot_bytes_since_prune = 0
         except OSError as exc:
             _warn("record snapshots", exc)
+
+    def before_decision(
+        self, policy, snapshot, line: str, store_screen_verified=None,
+    ) -> None:
+        """The board ``line`` is about to be decided (town-arrival checkpoint)."""
+        self.town_arrival.before_decision(policy, snapshot, line, store_screen_verified)
+
+    def decided(self, policy, key) -> None:
+        """``choose_key`` returned ``key`` on that board."""
+        self.town_arrival.decided(policy, key)
 
     def after_decision(self, policy, snapshot) -> None:
         self.decisions += 1
@@ -550,6 +564,8 @@ class FlightRecorder:
             (temporary / "remembered-map.txt").write_text(
                 render_remembered_map(policy, snapshot), encoding="utf-8"
             )
+            from hengbot.town_arrival_checkpoint import copy_latest_into
+            town_arrival = copy_latest_into(self.town_arrival.root, temporary, tail)
             meta = {
                 "kind": kind,
                 "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -557,6 +573,9 @@ class FlightRecorder:
                 "floor": jsonable(snapshot.floor_key),
                 "position": jsonable(snapshot.player.position),
                 "last_reasons": reasons[-20:],
+                # The newest town-arrival checkpoint copied to town-arrival/
+                # (tests/replay_town_arrival.py replays it), or None.
+                "town_arrival": town_arrival,
             }
             (temporary / "meta.json").write_text(
                 json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"

@@ -155,6 +155,12 @@ class TownVisit:
         self.__dict__.update(state)
 
 
+def is_fresh_visit(policy: Any, snapshot: Any) -> bool:
+    """The board begins a new town visit (``TownVisit.begin`` runs on it):
+    a town board on a floor other than the one the policy last observed."""
+    return snapshot.in_town and snapshot.floor_key != policy._floor_key
+
+
 def _defaults() -> dict:
     return {
         spec.name: (spec.default_factory() if spec.default_factory is not MISSING

@@ -14,6 +14,7 @@ from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCR
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
 from hengbot.policy_types import TownVisitLedger
+from hengbot.town_visit import is_fresh_visit
 from hengbot.warrior_optimization import character_intrinsic_flags
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.unwanted_kinds import own_book_tvals
@@ -785,7 +786,7 @@ class ObservationMixin:
         if snapshot.in_town:
             self._returning_to_town = False
             self._note_return_end()
-            if snapshot.floor_key != self._floor_key:
+            if is_fresh_visit(self, snapshot):
                 # A fresh town visit: the visit forgets the previous one
                 # (town_visit.TownVisit says what and why).  The arrival's
                 # Home identification latch is read against the previous
