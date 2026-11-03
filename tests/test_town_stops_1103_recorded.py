@@ -13,10 +13,12 @@ import lzma
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
 
 from hengbot import identification_wait, town_terminal
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
+from hengbot.policy import HengbotPolicy
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import decisions, journal, restore
 from tests import test_input_executor as executor_pins
@@ -85,7 +87,27 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
         shelf.  The kit purchase yielded to the slot recovery (row 40) and the
         outside composition latched the Alchemist as "shop-observed-complete",
         so after the deposit nothing returned to it.
+
+        DECLARED: the walk beside a visible monster (n1-c life-122) and the
+        adjacent town melee under an errand hold (n1-c life-123) are off here.
+        The recorded route travelled past a monster at row 2 and waited beside
+        one at row 8, and this pin is about the latch, not those steps.
         """
+        patcher = mock.patch.object(
+            HengbotPolicy, "_native_travel_refused_beside_monster",
+            staticmethod(lambda _snapshot: False), create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        recorded_entry = HengbotPolicy._town_producer_entry
+
+        def entry_as_recorded(policy, name, *args, **kwargs):
+            if name == "_direction_key#2":
+                kwargs.pop("family", None)
+            return recorded_entry(policy, name, *args, **kwargs)
+
+        patcher = mock.patch.object(HengbotPolicy, "_town_producer_entry", entry_as_recorded)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         policy, recorded, steps = self.replay("kit-purchase-yield", 44)
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
         board = steps[44][1]()
