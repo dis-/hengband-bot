@@ -1856,13 +1856,6 @@ class NavigationMixin:
             and len(set(recent[-EXTENDED_STUCK_WINDOW:])) <= 6
         )
 
-    def _retreat_vetoes_enclose_player(self, snapshot: Snapshot) -> bool:
-        """Whether a floor-long retreat veto holds a step the player could take."""
-        return any(
-            cell in self._engagement_owned_avoid_cells
-            for cell in self._walkable_neighbors(snapshot, snapshot.player.position)
-        )
-
     def _undersearched_walls(self, position: Position) -> list[tuple[int, int]]:
         if self._search_counts[(position.y, position.x)] >= SEARCH_LIMIT:
             return []

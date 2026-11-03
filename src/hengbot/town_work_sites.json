@@ -8689,6 +8689,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "retreat_enclosure.py:teleport_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
   "return_yield.py:latched_return_key": {
     "classification": "adapter",
     "rows": [

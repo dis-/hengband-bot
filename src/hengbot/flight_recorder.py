@@ -162,6 +162,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_detected_threat_hold",
         "_detected_threat_route",
         "_engagement_avoid_cells",
+        "_enclosure_teleport_read",
         "_paralyzer_avoid_cells",
         "_remembered_paralyzers",
         "_loot_defer_blocker",

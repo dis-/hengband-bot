@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import blind_strike, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, return_yield, town_pack_headroom, walkout_dig
+from hengbot import blind_strike, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import consumable_policy, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
@@ -1910,6 +1910,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Floor of the strong-fight run whose start was handled (a Speed
         # potion quaffed, or haste already shown); None between runs.
         self._strong_fight_speed_floor: tuple[int, int, int] | None = None
+        # (floor, turn) of the Teleportation read out of a retreat enclosure.
+        self._enclosure_teleport_read: tuple[tuple[int, int, int], int] | None = None
         # Floor of an unseen hit not yet seen by the unseen-attacker retreat
         # (read with getattr: restored checkpoints predate it).
         self._unseen_hit_pending_floor: tuple[int, int, int] | None = None
@@ -9175,7 +9177,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # stuck-floor path when no safe step remains.  An unconquered forgetting
         # maze keeps its guardian objective against a stuck count, but its one-wide
         # corridors are what a retreat's veto seals: with the only steps vetoed,
-        # the wait lasted until the loop guard (n1-a life-476, n1-b life-307).
+        # the wait lasted until the loop guard (retreat_enclosure).
         forgetting_maze = self._is_forgetting_maze(snapshot)
         completed_forgetting_maze = self._is_completed_forgetting_maze(snapshot)
         if (
@@ -9184,12 +9186,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and (
                 not forgetting_maze
                 or completed_forgetting_maze
-                or self._retreat_vetoes_enclose_player(snapshot)
+                or retreat_enclosure.encloses(self, snapshot)
             )
             and not snapshot.player.recalling
             and not snapshot.player.blind
             and not snapshot.player.confused
         ):
+            teleport = retreat_enclosure.teleport_key(self, snapshot)
+            if teleport is not None:
+                self._stuck_escape_streak = 0
+                return teleport
             recall = self._find_recall_scroll(snapshot)
             if recall is not None and self._can_read_scrolls(snapshot):
                 self._stuck_escape_streak = 0

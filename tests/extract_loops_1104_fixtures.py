@@ -29,6 +29,8 @@ OUTPUT = Path(__file__).with_name("fixtures") / "loops-1104"
 TERRAIN = ("known_t", "marked_t", "floor_t", "wall_t", "door_t", "rubble_t",
            "upstairs", "downstairs")
 PRESET = 9 | lzma.PRESET_EXTREME
+# D18: the recorded idle wait with a hostile in view (decision row 1623).
+HOSTILE_IN_VIEW_TURN = 1024166
 
 
 def write(name: str, data: object) -> None:
@@ -46,8 +48,11 @@ def main() -> None:
     write("blind-air.json.xz", {"boards": [row for row in boards(BLIND) if row["turn"] >= 376117]})
     for name, capture in ENCLOSED.items():
         captured = json.loads((capture / "policy-state.json").read_text(encoding="utf-8"))
+        rows = boards(capture)
         write(name, {
-            "boards": boards(capture)[-12:],
+            "boards": rows[-12:],
+            "hostile_in_view": next(
+                (row for row in rows if row["turn"] == HOSTILE_IN_VIEW_TURN), None),
             "terrain": {key: captured["terrain"][key] for key in TERRAIN},
             "avoid": captured["state"]["_engagement_avoid_cells"],
             "probed": captured["state"]["_probed_frontiers"],
