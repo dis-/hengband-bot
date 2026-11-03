@@ -12,7 +12,7 @@ from hengbot.town_hold import claim_family_of as town_claim_family_of
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_hold import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import home_pass_charge
+from hengbot import home_identification, home_pass_charge
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
@@ -3955,21 +3955,9 @@ class HomeMixin:
     def _home_catalog_identification_source(
         self, snapshot: Snapshot, item
     ) -> tuple[str, InventoryItem] | None:
-        """The carried source that identifies one catalogued Home item now.
-
-        The single test of the catalogued take (the binder below) and of the
-        Home catalogue claim (``_has_actionable_incomplete_home_item``): a
-        known item that needs *Identify* takes a full-tier source.
-        """
-        full = bool(
-            item.known
-            and item_requires_full_identification(item)
-            and not item.fully_known
-        )
-        return self._find_identification_source(
-            snapshot, full=full, reliable_only=True,
-            reservation_target=self._item_signature(item),
-        )
+        """The carried source that identifies one catalogued Home item now
+        (``home_identification.source``, the Home catalogue claim's test)."""
+        return home_identification.source(self, snapshot, item)
 
     def _bind_catalogued_home_identification_withdrawal(
         self, snapshot: Snapshot
@@ -3995,6 +3983,7 @@ class HomeMixin:
             and snapshot.in_town
             and permits(snapshot, 1)
         )
+        home_identification.release_stale_take(self, snapshot)
         if (
             not (self._home_candidate_waiting or deposited_identification)
             or self._home_errand.active
@@ -4009,18 +3998,14 @@ class HomeMixin:
             }
             if self._home_knowledge_current else set()
         )
-        for owned in self._equipment_catalog.items:
-            if owned.origin != "home" or not owned.identification_incomplete:
-                continue
-            signature = self._item_signature(owned.item)
-            if signature not in observed or signature in self._deferred_home_items:
-                continue
-            if self._home_catalog_identification_source(snapshot, owned.item) is None:
-                continue
+        # One rule (home_identification) for this binder, the release of a
+        # stale take above and the town end's identification wait.
+        for item in home_identification.candidates(self, snapshot):
             self._file_home_errand(
                 snapshot,
                 HomeErrandRequest(
-                    signature, 1, "home-catalog", "identification-catalog"
+                    self._item_signature(item), 1, "home-catalog",
+                    home_identification.CATALOGUE_PURPOSE,
                 ),
                 knowledge_current=self._home_knowledge_current,
             )

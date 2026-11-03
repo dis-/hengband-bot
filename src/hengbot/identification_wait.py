@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from hengbot.town_pack_budget import home_take_fits
+from hengbot import home_identification
 
 # The departure leaves an identification wait holds.
 WAIT_LEAVES = frozenset({
@@ -49,15 +49,7 @@ def visit_can_identify(policy: Any, board: Any) -> bool:
         if policy._find_identification_source(
                 board, full=policy._identification_need == "full") is not None:
             return True
-    observed = {policy._item_signature(item) for item in
-                policy._home_knowledge_items[:policy._home_knowledge_valid_before]}
-    return any(
-        owned.origin == "home" and owned.identification_incomplete
-        and policy._item_signature(owned.item) in observed
-        and policy._item_signature(owned.item) not in policy._deferred_home_items
-        and policy._home_catalog_identification_source(board, owned.item) is not None
-        and home_take_fits(board, owned.item, 1)
-        for owned in policy._equipment_catalog.items)
+    return bool(home_identification.candidates(policy, board))
 
 
 def release(policy: Any, board: Any, unmet) -> bool:

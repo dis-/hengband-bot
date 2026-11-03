@@ -115,6 +115,14 @@ class HomeErrandExecutor:
             self.request = None
             self.before_count = None
 
+    def cancel_unposted(self) -> None:
+        """Withdraw a request no take was posted for (its work is gone)."""
+        if self.state in {HomeErrandState.PENDING, HomeErrandState.NEED_KNOWLEDGE,
+                          HomeErrandState.COMPOSABLE}:
+            self.state = HomeErrandState.IDLE
+            self.request = None
+            self.before_count = None
+
     def reason(self, action: str) -> str:
         if self.state == HomeErrandState.STOPPED and self.stopped_fact:
             return f"home-errand:stopped:{self.stopped_fact}"

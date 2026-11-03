@@ -37,7 +37,7 @@ from hengbot.policy_constants import (
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
-from hengbot import identification_wait, town_end_mining
+from hengbot import home_identification, identification_wait, town_end_mining
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -2478,6 +2478,11 @@ def town_end_key(policy: Any, board: Any) -> str:
         # the town owners do not compose (Home batches, approaches).  The
         # established safe step off the entrance comes before the end.
         return policy._town_entrance_step_off_key(board, TOWN_END_STEP_OFF)
+    take = home_identification.filed_take_route_key(policy, board)
+    if take is not None:
+        # Owner 2026-10-31: a visit that can identify a Home candidate takes
+        # it out and identifies it.
+        return take
     material = gather_town_end(policy, board)
     if identification_wait.release(
             policy, board, (*material.survival_unmet, *material.unmet)):

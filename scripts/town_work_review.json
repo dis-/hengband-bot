@@ -12517,5 +12517,42 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Scoring generator for breeder_area_attack.key: (group score, prompts, means, key sender) per direction aim and, for an absorbed ball or breath, per burst grid; the senders are device_key / device_target_key / _use, called only by key after the baseline comparison; no independent progress."
+  },
+  "home_errand.py:HomeErrandExecutor.cancel_unposted": {
+    "classification": "data",
+    "rows": [
+      "home-executor",
+      "home-deposit",
+      "home-withdraw",
+      "home-catalogue"
+    ],
+    "context": "Observed/state/selector helper for mapped work children; no independent keyboard emission.",
+    "evidence": "AST returns and predicates plus all callers in generated manifest; withdraws an unposted request (PENDING/NEED_KNOWLEDGE/COMPOSABLE) to IDLE for home_identification.release_stale_take; state result, not independently successful work.",
+    "admission": "parent _town_producer_entry / town_work.validate_emit",
+    "observer": "legacy/shadow-v1; no new effect credit",
+    "delegation": "supports selected child; no independent success"
+  },
+  "home_identification.py:source": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the reliable carried identification source for one catalogued Home item (moved from HomeMixin._home_catalog_identification_source, which delegates here); the one source rule of home_identification.doable used by the catalogue binder, the stale-take release and identification_wait.visit_can_identify.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "home_identification.py:filed_take_route_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "home-withdraw"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Answers inside town_end_key before the end verdict: a filed, unposted identification-catalog Home take that home_identification.candidates says this visit can do, with Home already tried, re-arms Home (_rearm_town_store_for_new_work, within the Home pass bound) and returns the router's _shopping_approach_key (shop:travel); with the bound used up it returns None and the end's named stop stands (owner 2026-10-31 identification take; n1-a life-472 2026-11-03 12:05).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
