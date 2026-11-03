@@ -8696,6 +8696,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "return_yield.py:quiet_recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "shop_purchase_dispatch.py:next_purchase_key": {
     "classification": "operation",
     "rows": [

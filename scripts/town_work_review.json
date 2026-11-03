@@ -12600,5 +12600,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "return_yield.py:quiet_recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Dungeon only: a latched emergency return with no awake hostile in view reads Recall through once_quest_recall.read_key before any shot or blow.",
+    "delegation": "selected child; no independent success"
   }
 }
