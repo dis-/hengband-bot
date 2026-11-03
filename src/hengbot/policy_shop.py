@@ -5250,9 +5250,12 @@ class ShopMixin(InStoreMixin):
 
         batch_key = self._batch_sell_key(snapshot)
         if batch_key is not None:
-            # A sale that cannot bind its inscription has no operation to
-            # finish. Let the purchase owner use this already observed shelf.
-            if self.last_reason == "shop:sale-inscription-unavailable-leave":
+            # A sale that cannot bind its inscription, or whose inscribed item
+            # another owner reserved on the next page (n1-a life-476 2026-11-04
+            # 02:30: an equipment plan took the tagged ring), has no operation
+            # to finish. Let the purchase owner use this already observed shelf.
+            if (self.last_reason == "shop:sale-inscription-unavailable-leave"
+                    or (batch_key == "" and self._batch_sell_pending is None)):
                 purchase = next_purchase_key(self, snapshot)
                 if purchase is not None or self.last_reason == "shop:purchase-deferred":
                     return purchase

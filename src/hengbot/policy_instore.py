@@ -481,7 +481,7 @@ class InStoreMixin:
                     )
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         if ledger["ops"] >= STORE_STUCK_LIMIT:
-            required = self._departure_blocking_page_operation(snapshot)
+            required = self._unfinished_required_page_operation(snapshot)
             if required is not None:
                 return self._in_store_required_operation_stop(
                     snapshot, "entry-budget", required,
@@ -498,7 +498,7 @@ class InStoreMixin:
             "ops": ledger["ops"], "preconditions": conditions,
         })
         if not all(conditions.values()):
-            required = self._departure_blocking_page_operation(snapshot)
+            required = self._unfinished_required_page_operation(snapshot)
             if required is not None:
                 return self._in_store_required_operation_stop(
                     snapshot, "selection-emission-mismatch", required,
@@ -506,13 +506,29 @@ class InStoreMixin:
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         key = self._in_store_emit(snapshot, selection, first=False)
         if key is None:
-            required = self._departure_blocking_page_operation(snapshot)
+            required = self._unfinished_required_page_operation(snapshot)
             if required is not None:
                 return self._in_store_required_operation_stop(
                     snapshot, "selection-emission-mismatch", required,
                 )
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         return key
+
+    def _unfinished_required_page_operation(self, snapshot: Snapshot) -> dict | None:
+        """The page's required operation an entry that cannot go on leaves undone.
+
+        The preflight predicts a departure's blocker; the ordinary order may
+        rank another purchase first, but a purchase it does not want at all is
+        no unfinished work of this entry (the third such stop: n1-b life-276
+        2026-10-31, n1-c life-106 2026-11-02, n1-a life-476 2026-11-04 02:30, an
+        Identify staff the open mining set's order does not buy).  The entry
+        leaves and the visit's owners take it from the outside.
+        """
+        required = self._departure_blocking_page_operation(snapshot)
+        if required is None or required["op"] != "buy":
+            return required
+        with self._in_store_pure_scope():
+            return required if self._next_purchase(snapshot) is not None else None
 
     def _in_store_required_operation_stop(self, snapshot: Snapshot, cause: str,
                                           operation: dict) -> str:

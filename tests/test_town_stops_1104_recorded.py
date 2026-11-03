@@ -117,6 +117,19 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason), (TRAVEL_HOME, "shop:travel"))
         self.assert_posts(policy, recorded[1], board, key)
 
+    def test_entry_leaves_a_blocker_the_open_mining_order_does_not_buy(self):
+        """n1-a life-476 02:30, town:blocked:shop-required-operation-uncomposable.
+
+        The tagged ring's sale lost its item to an equipment plan, and the
+        preflight still required the Identify staff the open mining set's
+        ordinary order does not buy (cause selection-emission-mismatch).
+        """
+        policy, recorded, steps = self.replay("reserved-ring", 8)
+        self.assertEqual(recorded[8]["reason"], "town:blocked:shop-required-operation-uncomposable")
+        key = policy.choose_key(steps[8][1]())
+        self.assertEqual((key, policy.last_reason), ("\x1b", "shop:in-store-done"))
+        self.assertIsNone(policy._town_blocked_reason)
+
 
 if __name__ == "__main__":
     unittest.main()

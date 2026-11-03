@@ -6084,6 +6084,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_instore.py:InStoreMixin._unfinished_required_page_operation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "none"
+  },
   "policy_instore.py:_row_identity": {
     "classification": "data",
     "rows": [
@@ -7062,6 +7069,20 @@
       "store-exit"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_shop.py:ShopMixin._purchase_churn_rejected": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._purchase_churn_rows": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_shop.py:ShopMixin._purchase_diagnostic_category": {
     "classification": "data",
