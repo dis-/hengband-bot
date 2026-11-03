@@ -9014,10 +9014,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self.last_reason = "breakout:seek-frontier"
                 self._declare_explore_goal()
                 return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
-            # No reachable unexplored floor or frontier remains. Only now use a
-            # local least-visited step to keep moving while secret-wall searches
-            # are exhausted elsewhere.  Town has no such step: no owner
-            # answered, so the visit takes its declared end (owner 2026-11-02).
+            # No reachable unexplored floor or frontier remains: the ladder
+            # below owns the floor (secret walls, known stairs, the wander), and
+            # the stuck streak reaches its escape.  A local wander here hid all
+            # of that while the two-square confinement kept this branch alive
+            # until the loop guard stopped the bot (n1-a life-474).  Town has no
+            # wander: no owner answered, so the visit takes its declared end
+            # (owner 2026-11-02).
             if snapshot.in_town:
                 return town_end_key(self, snapshot)
             # The engagement retreats' own vetoes (and the areas they guard)
@@ -9030,10 +9033,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 escape = self._stuck_escape_key(snapshot)
                 if escape is not None:
                     return escape
-            step = self._least_visited_neighbor(snapshot)
-            if step is not None:
-                self.last_reason = "breakout:least-visited"
-                return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
 
         # Search a corridor dead-end before ordinary exploration routes us away.
         # This is opportunistic only: never detour toward a remote dead-end.

@@ -167,6 +167,44 @@ class UnseenAreaDoesNotWriteOffTheFrontier(RecordedBoards):
         self.post(policy, case["boards"][-2], key, case["boards"][-1])
 
 
+class ConfinedWalkReachesTheStuckEscape(RecordedBoards):
+    """n1-a life-474, 2026-11-03 21:13 (breakout:least-visited back and forth).
+
+    Orc cave 23F, explored out, no down stairs known.  The oscillation branch
+    answered a two-square nook with a local least-visited step ahead of the
+    ladder that owns such a floor (secret walls, known stairs), and the
+    forced nav:break-oscillation step reset the stuck streak at 42 of
+    STUCK_ESCAPE_LIMIT 60, so the loop guard (40 confined decisions) stopped
+    the bot first.  Stop's terrain, probed frontiers and visit counts
+    (DECLARED RECONSTRUCTED); the streak starts at the 8 recorded searches.
+    On the recorded boards the ladder now walks to the known up stairs.
+    """
+
+    def test_no_local_wander_and_the_known_stairs_are_walked_to(self):
+        case = fixture("cave-stuck.json.xz")
+        self.assertEqual(case["searches_before"], ["search"] * 8)
+        self.assertIn("nav:break-oscillation", {row["reason"] for row in case["rows"]})
+        policy = self.fresh_policy(case["boards"][0], case["terrain"])
+        policy._probed_frontiers.update(Position(*cell) for cell in case["probed"])
+        for row in case["visits"]:
+            policy._visit_counts[Position(*row["key"])] = row["count"]
+        # The live floor had open_frontiers 0 (decision log map_memory): its
+        # two remembered doors no longer counted.
+        policy._blocked_doors.update(tuple(cell) for cell in case["terrain"]["door_t"])
+        policy._stuck_escape_streak = len(case["searches_before"])
+        reasons, keys, streaks = [], [], []
+        for raw in case["boards"]:
+            keys.append(self.decide(policy, raw))
+            reasons.append(policy.last_reason)
+            streaks.append(policy._stuck_escape_streak)
+        self.assertNotIn("breakout:least-visited", reasons)
+        # The floor's own exit: the known up stairs at (60, 132), to the west.
+        walk = reasons.index("stuck:seek-stairs")
+        self.assertEqual(keys[walk], "4")
+        # The forced step does not restart the count.
+        forced = reasons.index("nav:break-oscillation")
+        self.assertGreaterEqual(streaks[forced + 1], streaks[forced])
+        self.post(policy, case["boards"][walk], keys[walk], case["boards"][walk + 1])
 
 
 if __name__ == "__main__":

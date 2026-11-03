@@ -952,6 +952,10 @@ STUCK_NEUTRAL_REASONS = frozenset(
         # moved one step per 61 decisions (#47 D60, n1-c life-098).
         "breeder-breakthrough:seek-upstairs",
         "breeder-breakthrough:seek-frontier",
+        # One step the oscillation breaker forces out of a confined walk is no
+        # progress on the floor: resetting here restarted the count at 42 of 60
+        # and the loop guard stopped the bot first (n1-a life-474).
+        "nav:break-oscillation",
     }
 )
 
