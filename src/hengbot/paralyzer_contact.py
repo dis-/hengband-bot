@@ -43,3 +43,25 @@ def in_contact(policy, snapshot, monster) -> bool:
         snapshot.player.speed
     )
     return actions >= path
+
+
+def follows_walk(policy, snapshot, monster) -> bool:
+    """Whether a walking retreat cannot leave ``monster`` behind: awake, it
+    moves and gains at least one action per player step.
+
+    n1-a life-470 (イークの洞穴13階, 2026-11-03 09:50): without Free Action
+    the Lv15 warrior walked away (``status-threat:retreat``) from an awake
+    ゲイザー (race 218, speed +0, GAZE:PARALYZE, HOLD) two cells away carrying
+    14 Teleportation scrolls; the gazer kept pace, the player was paralyzed
+    and the yeeks around it killed it from HP 234/310.  Owner 2026-11-03
+    「階段が隣などとても近くにある場合を除き徒歩での逃走は絶対に間に合わ
+    ない。」  A stationary monster (Floating Eye) or a slower one is still
+    walked away from."""
+    if monster.asleep:
+        return False
+    knowledge = policy._monrace_knowledge.get(monster.race_id)
+    if knowledge is not None and "NEVER_MOVE" in knowledge.flags:
+        return False
+    return policy._speed_energy(monster.speed) >= policy._speed_energy(
+        snapshot.player.speed
+    )
