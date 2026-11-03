@@ -15,6 +15,12 @@ DECLARED CONSTRUCTED, on the recorded board: the speed field shown hasted
 (+10, yellow; the board after the dose), a Potion of Healing added to the pack
 (the character carried none), the board after the dose (no new message), and
 HP 600 for a hit below the 1/3 line.
+
+Owner 2026-11-04 (answer): 「低い時は体力回復が先」.  Below the low-HP threshold
+a carried Healing goes before the Speed dose.  LowHpHealingFirstRecordedTest
+plays the recorded blind board at HP 310/731 (threshold 431) of
+tests/test_lethal_unseen_caster_recorded.py, which carried both potions.
+DECLARED CONSTRUCTED there: the same board with the Healing stack removed.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -25,6 +31,7 @@ import unittest
 from pathlib import Path
 
 from hengbot import unseen_strike
+from tests import test_lethal_unseen_caster_recorded as lethal
 from tests import test_n1c_deaths_1101_recorded as d57
 
 
@@ -113,6 +120,33 @@ class BlindSpeedFirstRecordedTest(d57.PostedDeathKey):
         raw = with_healing(storm_board())
         raw["player"]["hp"] = 600
         self.assertEqual(self.decide(raw)[0], CURE_KEY)
+
+
+class LowHpHealingFirstRecordedTest(lethal._Replay):
+    def decide_blind_board(self, line=None):
+        self._decide(lethal.B_WARMUP)
+        return self._decide(lethal.B_CURE, line)
+
+    def test_below_the_threshold_healing_goes_first(self):
+        board, key, reason = self.decide_blind_board()
+        player = board.player
+        self.assertTrue(player.blind)
+        self.assertEqual((player.hp, player.max_hp), (310, 731))
+        self.assertEqual(self.policy._low_hp_walk_threshold(player.max_hp), 431)
+        healing = next(item for item in board.inventory
+                       if item.is_potion and item.sval == 37)
+        self.assertEqual(key, "q" + healing.slot, reason)
+
+    def test_below_the_threshold_without_healing_speed_goes_first(self):
+        raw = json.loads(self.boards[lethal.B_CURE])
+        inventory = [row for row in raw["inventory"]
+                     if not (row.get("tval") == 75 and row.get("sval") == 37)]
+        self.assertEqual(len(inventory), len(raw["inventory"]) - 1)
+        board, key, reason = self.decide_blind_board(
+            self._constructed(lethal.B_CURE, inventory=inventory))
+        speed = next(item for item in board.inventory
+                     if item.is_potion and item.sval == 29)
+        self.assertEqual((key, reason), ("q" + speed.slot, unseen_strike.SPEED_REASON))
 
 
 if __name__ == "__main__":

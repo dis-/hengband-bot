@@ -12688,5 +12688,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "While the speed field shows no haste: speed_dose.key under unseen:quaff-speed, else None; the one dose of speed_key and spell_speed_key (owner 2026-11-04 「スピードの薬を先に飲む。加えて、体力が減っているand盲目の状態では致命傷の治癒より体力回復の薬を優先して使用する。」; n1-a life-474); dungeon survival only; no independent progress.",
     "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:_hp_recovery_cure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cheapest carried Healing, *Healing* or Life (owner 2026-11-04 「低い時は体力回復が先」; n1-a life-474).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

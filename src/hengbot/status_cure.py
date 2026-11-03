@@ -35,7 +35,9 @@ Potions of Speed carried and the next two spells killed it.  An unseen caster's
 heavy hit takes the Speed dose first (``speed_first_key``; a hasted player goes
 straight to the cure), and a heavy total loss cures with the potion that also
 restores HP (``cure_potion``).  Cure Critical Wounds is still no HP recovery:
-this only reorders the blindness cures.
+this only reorders the blindness cures.  Below the low-HP threshold a carried
+HP recovery potion goes before the Speed dose (owner 2026-11-04 「低い時は体力
+回復が先」).
 """
 
 from hengbot import blind_strike, unseen_strike
@@ -140,12 +142,23 @@ def _heavy_loss(loss: int, max_hp: int) -> bool:
     return loss * _HEAVY_LOSS_DIVISOR >= max_hp
 
 
+def _hp_recovery_cure(policy, snapshot):
+    """The cheapest carried potion that restores HP and clears blindness."""
+    for sval in _HP_RECOVERY_CURES:
+        if (potion := policy._find_exact_potion(snapshot, sval)) is not None:
+            return potion
+    return None
+
+
 def speed_first_key(policy, snapshot) -> str | None:
     """Blind from an unseen caster's heavy hit, not hasted: the Speed dose
-    before the cure (the next decision cures).  None otherwise."""
+    before the cure (the next decision cures).  None otherwise, and below the
+    low-HP threshold with an HP recovery potion carried: that potion is first."""
     player = snapshot.player
     if (not player.blind
-            or not _heavy_loss(policy._attributable_observed_loss(snapshot), player.max_hp)):
+            or not _heavy_loss(policy._attributable_observed_loss(snapshot), player.max_hp)
+            or (player.hp < policy._low_hp_walk_threshold(player.max_hp)
+                and _hp_recovery_cure(policy, snapshot) is not None)):
         return None
     return unseen_strike.spell_speed_key(policy, snapshot)
 
@@ -155,9 +168,8 @@ def cure_potion(policy, snapshot):
     carried HP recovery potion; otherwise the cheap cure first."""
     player = snapshot.player
     if player.blind and _heavy_loss(player.max_hp - player.hp, player.max_hp):
-        for sval in _HP_RECOVERY_CURES:
-            if (potion := policy._find_exact_potion(snapshot, sval)) is not None:
-                return potion
+        if (potion := _hp_recovery_cure(policy, snapshot)) is not None:
+            return potion
     return policy._find_status_cure_potion(snapshot)
 
 
