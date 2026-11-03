@@ -95,6 +95,28 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason), (TRAVEL_MAGIC, "shop:travel"))
         self.assert_posts(policy, recorded[15], board, key)
 
+    def test_home_requests_of_carried_items_end_with_the_home_list(self):
+        """n1-a life-476 02:51, town:blocked:survival:identify_staff_ready.
+
+        failed: identify_staff_ready; town plan Home, Magic Shop, Weapon Smiths,
+        Black Market.  The withdrawals of the diggers the last visit took stayed
+        queued, and each board's Home stop was their refused terminal
+        (reservation-unavailable).
+
+        DECLARED: the arrival checkpoint holds the character dump request the
+        recorded first row did not answer; the dump is off for that row.
+        """
+        policy, recorded, steps = self.load("stale-requests")
+        with mock.patch.object(HengbotPolicy, "_periodic_character_dump_key",
+                               lambda _self, _snapshot, key: key):
+            result = replay_window("stale-requests", policy, iter(steps[:1]))
+            self.assertIsNone(result.first_divergence)
+            board = steps[1][1]()
+            key = policy.choose_key(board)
+        self.assertEqual(recorded[1]["reason"], "town:blocked:survival:identify_staff_ready")
+        self.assertEqual((key, policy.last_reason), (TRAVEL_HOME, "shop:travel"))
+        self.assert_posts(policy, recorded[1], board, key)
+
 
 if __name__ == "__main__":
     unittest.main()

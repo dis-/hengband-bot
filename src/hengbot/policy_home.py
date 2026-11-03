@@ -1674,21 +1674,44 @@ class HomeMixin:
             self._home_withdrawal_queued = False
             self._home_active_from_batch = False
         visit = getattr(self, "_home_visit", None)
-        request = visit.request if visit is not None else None
-        if request is None or request.kind != HomeVisitKind.WITHDRAW:
-            return
-        identity = request.address or request.item_identity
-        if vanished(identity) and visit.report_unoperated("reservation-unavailable"):
-            report = visit.consume_report()
-            self._pending_home_visit_report = (
-                f"home-visit:{report.request.requester}:{report.outcome}")
-        elif (identity in self._deferred_home_items
-              and visit.report_unoperated("superseded-before-operation")):
-            # A deferred withdrawal does not own the Home leg: n1-b life-302
-            # 2026-11-03 09:48 kept the deferred 守りの毛皮のクローク request,
-            # the Home pass composed nothing (shop:observed-operation-
-            # uncomposable) and the kit's stored Treasure Detection was never
-            # taken.
+        # Each report files the next queued request, which may be as stale.
+        while visit is not None and visit.request is not None:
+            if visit.report is not None:
+                # The last visit's finished take only waits to be consumed
+                # (_ensure_home_visit_request), which would file a stale
+                # request behind it as the next Home leg.
+                following = visit.queued[0] if visit.queued else None
+                if following is None or following.kind != HomeVisitKind.WITHDRAW or not left_home(
+                        following.address or following.item_identity):
+                    return
+                report = visit.consume_report()
+                self._pending_home_visit_report = (
+                    f"home-visit:{report.request.requester}:{report.outcome}")
+                continue
+            request = visit.request
+            if request.kind != HomeVisitKind.WITHDRAW:
+                return
+            identity = request.address or request.item_identity
+            if left_home(identity):
+                # Carried or not, the current Home list no longer holds it, so
+                # the request has nothing to take: the same rule as the pending
+                # take above.  n1-a life-476 2026-11-04 02:51: the mining set's
+                # detection and diggers came along on the last visit, their
+                # requests stayed, the route's Home stop was refused on every
+                # board and the visit stopped under
+                # town:blocked:survival:identify_staff_ready.
+                outcome = "reservation-unavailable"
+            elif identity in self._deferred_home_items:
+                # A deferred withdrawal does not own the Home leg: n1-b life-302
+                # 2026-11-03 09:48 kept the deferred 守りの毛皮のクローク request,
+                # the Home pass composed nothing (shop:observed-operation-
+                # uncomposable) and the kit's stored Treasure Detection was never
+                # taken.
+                outcome = "superseded-before-operation"
+            else:
+                return
+            if not visit.report_unoperated(outcome):
+                return
             report = visit.consume_report()
             self._pending_home_visit_report = (
                 f"home-visit:{report.request.requester}:{report.outcome}")
