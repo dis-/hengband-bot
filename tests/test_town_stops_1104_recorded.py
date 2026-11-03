@@ -17,7 +17,7 @@ import unittest
 from unittest import mock
 
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
-from hengbot.model import Position, STORE_ALCHEMIST
+from hengbot.model import Position, STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
@@ -213,6 +213,66 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         key = policy.choose_key(steps[44][1]())
         self.assertEqual(policy.last_reason, "identify:full")
         self.assertTrue(key.startswith("r"), repr(key))
+
+    def publish_recorded_dump(self, policy, edit=None):
+        """The life's last C response and dump, published on their own board.
+
+        DECLARED CONSTRUCTED: the ring keeps no CLI sequence, so one is given,
+        and the response is read as its own board (turn 1086963, before this
+        visit; the final board's lantern fuel no longer matches the dump).
+        """
+        fixture = FIXTURES / "worn-average"
+        response = json.loads(lzma.decompress((fixture / "character.json.xz").read_bytes()))
+        response["sequence"] = 1
+        if edit is not None:
+            edit(response)
+        policy._character_dump_path.write_bytes(
+            lzma.decompress((fixture / "dump.txt.xz").read_bytes()))
+        board = parse_snapshot(
+            {name: value for name, value in {**response, "type": "player_turn"}.items()
+             if name != "character"}, policy._monrace_knowledge)
+        policy._publish_character_dump(
+            {"started_ns": 0, "baseline": None, "sequence": None},
+            response["character"], response, board)
+
+    def test_worn_average_item_keeps_the_calibration_and_the_weapons_are_shelved(self):
+        """n1-b life-307 03:32, town:blocked:pack-full-no-room.
+
+        Owner 2026-11-04 「修正なしとして使う」: the Q34 {average} cloak is read as
+        having no modifiers.  The sheet is accepted, the optimizer plans at the
+        open Home page, and the board of the stop deposits the five carried
+        weapons first instead of stopping.
+
+        DECLARED: the published dump (publish_recorded_dump) replaces the
+        calibration the recorded visit never had; rows 33 and 34 follow it.
+        """
+        policy, recorded, steps = self.replay("worn-average", 33)
+        self.assertEqual(recorded[34]["reason"], "town:blocked:pack-full-no-room")
+        self.publish_recorded_dump(policy)
+        self.assertIsNone(policy._calibration_unavailable_reason)
+        self.assertIsNotNone(policy._character_calibration)
+        key = policy.choose_key(steps[33][1]())
+        self.assertEqual((key, policy.last_reason),
+                         ("\x1b", "equipment-transaction:home-catalog-acquired"))
+        policy.confirm_key_posted(key)
+        actions = policy._equipment_transaction_session.plan.actions
+        self.assertEqual([action.kind for action in actions[:5]], ["deposit"] * 5)
+        board = steps[34][1]()
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("5", "equipment-transaction:atomic-deposit"))
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assert_posts(policy, recorded[34], board, key)
+
+    def test_control_worn_item_without_average_still_refuses_the_calibration(self):
+        def unsensed(response):
+            cloak = next(item for item in response["equipment"] if item.get("slot") == "outer")
+            cloak.pop("pseudo_feeling")
+
+        policy, _recorded, _steps = self.replay("worn-average", 33)
+        self.publish_recorded_dump(policy, unsensed)
+        self.assertIsNone(policy._character_calibration)
+        self.assertEqual(policy._calibration_unavailable_reason,
+                         "equipment-stat-modifiers-unknown")
 
 
 if __name__ == "__main__":

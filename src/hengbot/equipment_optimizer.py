@@ -181,6 +181,17 @@ def average_feeling_trusted(mutation_signature: Iterable[int] | None) -> bool:
             and MUTATION_BAD_LUCK not in tuple(mutation_signature))
 
 
+def average_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
+    """An unidentified item sensed {average}, read as having no modifier.
+
+    Owner 2026-11-04 「修正なしとして使う」 for the C screen's worn gear, under
+    the trust rule of average_feeling_trusted(): n1-b life-307 wore a Q34
+    {average} cloak for its whole life and the sheet refused every C screen,
+    so no optimizer compared its five carried weapons (pack-full-no-room).
+    """
+    return trusted and not item.known and item.pseudo_feeling == "average"
+
+
 def average_light_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
     """An unidentified light sensed {average} has no stat, AC or hit modifier.
 
@@ -194,8 +205,7 @@ def average_light_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
     unidentified (「並なら付けて良い」), so the C screen can read its zero
     modifiers instead of refusing the calibration.
     """
-    return (trusted and not item.known and item.tval == TVAL_LITE
-            and item.pseudo_feeling == "average")
+    return item.tval == TVAL_LITE and average_without_modifiers(item, trusted)
 
 
 def q34_item_tagged(item: EquipmentItem) -> bool:
