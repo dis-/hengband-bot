@@ -389,6 +389,7 @@ from hengbot.town_terminal import (
     verdict_quest_work,
     rung_family as town_rung_family,
 )
+from hengbot.town_end_mining import release_home_for_kit
 from hengbot.town_visit import TownVisit, TownVisitAttributes
 from hengbot.town_hold import (
     # Old checkpoints pickled the delegation records as hengbot.policy's.
@@ -13087,6 +13088,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         self._retire_town_errand_plan_for_rebuild()
+        release_home_for_kit(self, snapshot)
         return True
 
     def _try_normal_expedition_after_detection_stockout(

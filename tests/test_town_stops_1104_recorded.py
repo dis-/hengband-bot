@@ -7,8 +7,10 @@ the fixed decision is posted through the production executor port.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
+from contextlib import redirect_stdout
 from dataclasses import replace
 import gzip
+import io
 import json
 import lzma
 from pathlib import Path
@@ -165,6 +167,43 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
             item = policy._next_purchase(board)
         self.assertIsNotNone(item)
         self.assertTrue(item.is_treasure_detection_scroll)
+
+    def test_ability_gap_opens_the_no_safe_destination_set(self):
+        """n1-a life-476 07:24, town:blocked:survival:depth_abilities, Lv26 retired.
+
+        failed: depth_abilities (resist_fire, Angband 20F); gold 144025.  The
+        Black Market shelved 火炎の指輪 {r火} at 30145, but no owner buys ability
+        gear (owner 2026-10-03).  Owner 2026-10-19: fundraise whatever the gold.
+        """
+        policy, recorded, steps = self.replay("ability-gap", 11)
+        self.assertEqual(recorded[11]["reason"], "town:blocked:survival:depth_abilities")
+        board = steps[11][1]()
+        self.assertEqual(board.player.gold, 144025)
+        self.assertEqual(policy._missing_required_abilities(board, 20), frozenset({"resist_fire"}))
+        with redirect_stdout(io.StringIO()):
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("5", "fundraising:no-safe-destination"))
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.assertTrue(policy._no_safe_destination_set)
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assert_posts(policy, recorded[11], board, key)
+
+    def test_opened_set_releases_a_spent_home_bound_for_its_kit(self):
+        """n1-a life-476 07:23 (06:50 too), owner-retired-burst.
+
+        procurement: Treasure Detection 0/5, on Home's shelf.  The visit's
+        earlier work had spent Home's passes, so the kit claim was hidden, the
+        destination gate became the blocked reason and the visit waited.
+        """
+        policy, recorded, steps = self.replay("home-kit-bound", 24)
+        self.assertEqual(recorded[23]["reason"].split(":")[0], "fundraising")
+        self.assertEqual(recorded[24]["reason"], "fundraise:fallback-exhausted-plan")
+        board = steps[24][1]()
+        with redirect_stdout(io.StringIO()):
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), (TRAVEL_HOME, "shop:travel"))
+        self.assertEqual(policy._town_visit_ledger.blocked_stores, set())
+        self.assert_posts(policy, recorded[24], board, key)
 
     def test_gold_pile_is_walked_and_a_refused_pile_is_no_target(self):
         """n1-c life-123 04:33, owner-retired-burst.

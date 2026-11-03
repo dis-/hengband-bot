@@ -2413,6 +2413,19 @@ def town_end_stop_reason(material: TownEndMaterial, end: TownEnd) -> str:
     return f"unmet:{first}"
 
 
+def _ability_gap_answered_by_fundraising(material: TownEndMaterial, end: TownEnd) -> bool:
+    """Whether only the landing's abilities stop a visit that can still leave.
+
+    Owner 2026-10-19 「金額に関係なく資金稼ぎ」: the forced departure's
+    no-safe-destination set answers them; a gate gold cannot answer (it refuses
+    *Destruction* and speed) still stops by name.  n1-a life-476 2026-11-04
+    07:22-07:24, resist_fire with 144025 gold: this stop came first and the set
+    never opened.
+    """
+    return (end.kind == "stop" and end.conditions == ("depth_abilities",)
+            and material.mining_startable and not material.mining_set_open)
+
+
 def overweight_home_key(policy: Any, board: Any) -> str | None:
     """Home's own answer for a carried overload, before the town end.
 
@@ -2496,7 +2509,8 @@ def town_end_key(policy: Any, board: Any) -> str:
         # refused, QUEST_REWARD_FIRST) and none of its servers answered.
         policy._town_blocked_reason = QUEST_REWARD_FIRST
         return policy._town_blocked_key(board)
-    if end.kind != "stop" or policy._visit_departure_committed:
+    if (end.kind != "stop" or policy._visit_departure_committed
+            or _ability_gap_answered_by_fundraising(material, end)):
         # The forced visit departure departs or starts the mining cycle by
         # the same verdict (one place for every visit-closing cause).
         key = policy.force_visit_departure(board, TOWN_END_CAUSE)
