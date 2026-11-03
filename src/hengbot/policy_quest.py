@@ -6,7 +6,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, quest_opening_away, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
+from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_opening_away, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -3158,7 +3158,11 @@ class QuestMixin(OpeningRouteMixin):
             self._door_t.discard(tuple(raw_position))
 
         abort_ratio = self._quest_abort_hp_ratio(profile)
-        if abort_ratio is not None and snapshot.player.hp_ratio <= abort_ratio:
+        if (
+            abort_ratio is not None
+            and snapshot.player.hp_ratio <= abort_ratio
+            and not once_quest_recall.held(self, snapshot)
+        ):
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.has_up_stairs:
                 self.last_reason = "quest-strategy:abort"
