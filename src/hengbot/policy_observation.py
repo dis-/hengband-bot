@@ -788,12 +788,15 @@ class ObservationMixin:
             if snapshot.floor_key != self._floor_key:
                 # A fresh town visit: the visit forgets the previous one
                 # (town_visit.TownVisit says what and why).  The arrival's
-                # Home identification latch is read first, against the
-                # previous visit's deferred Home items, as it always was.
+                # Home identification latch is read against the previous
+                # visit's deferred Home items, as it always was, after its
+                # identification candidates ended with their request.
+                self._end_visit_identification_requests()
                 self._town_visit.begin(
                     home_candidate_waiting=(
-                        self._home_identification_candidate_pending(snapshot)
-                    )
+                        lambda: self._home_identification_candidate_pending(snapshot)
+                    ),
+                    run_made_again=returned_from_fundraising and aborted_run,
                 )
 
             if (

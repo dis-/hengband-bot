@@ -249,8 +249,9 @@ def normalize_policy_state(restored, *, restart=False):
     """
     _adopt_town_hold(restored.__dict__)
     _adopt_decision_claim(restored.__dict__)
-    # Structure stage 3-1: the per-visit attributes live in the town visit
-    # (a name an old checkpoint lacks keeps the field's default).
+    # Structure stage 3: the per-visit attributes live in the town visit
+    # (a name an old checkpoint lacks keeps the field's default; the stockout
+    # plans' False is their former set-end behavior).
     adopt_town_visit_attributes(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     for name in _RETIRED_CLAIM_RECORD_NAMES:
@@ -341,14 +342,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_fundraising_purpose_record", None)
     restored.__dict__.setdefault("_fundraising_runs_started", None)
     restored.__dict__.setdefault("_fundraising_affordable_food_seen", False)
-    # Fundraising set-end now runs on every town decision.  Older captures
-    # predate the identify-staff mining-plan flag; False preserves their
-    # former terminal-transition behavior.
-    restored.__dict__.setdefault("_identify_staff_mining_plan", False)
     restored.__dict__.setdefault("_scavenge_without_digger", False)
-    # Older captures predate the recall-stockout time-pass flag; False keeps
-    # their former set-end behavior (no stockout exemption).
-    restored.__dict__.setdefault("_recall_stockout_mining_plan", False)
     restored.__dict__.setdefault("_supply_stockout_cycles", 0)
     restored.__dict__.setdefault("_mining_abort_floor", None)
     restored.__dict__.setdefault("_supply_stockout_gold_target", None)

@@ -14,9 +14,15 @@ thin forwarding properties (``TownVisitAttributes``) so callers and tests read
 and write the same names; ``LEGACY_NAMES`` maps them to the fields.  Slice 3-1
 does not change which state survives an arrival: several fields are also
 written or cleared elsewhere, as before.
+
+Slice 3-2 (owner 2026-11-03 「3つから始める」) moves in state that outlived
+its visit: the two stockout mining plans and the identification candidates.
+The plans live through the run their visit started and end on the return;
+the candidates end with the visit that bound them.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING, dataclass, field, fields
 from typing import TYPE_CHECKING, Any
 
@@ -99,21 +105,49 @@ class TownVisit:
     # Home errand purposes filed since the last Home pass report
     # (home_pass_charge): the work that pass attempted.
     home_pass_errand_purposes: set[str] = field(default_factory=set)
+    # The stockout time-pass plans ("one Yeek Cave 1F mining run, then retry
+    # the suppliers"): the Identify staff's (_identify_staff_stockout_key)
+    # and Word of Recall's (_recall_restock_key and
+    # _start_unobtainable_recall_stockout_mining).  A plan is set in town and
+    # read on the run (policy_fundraising._restock_time_pass_run), so it
+    # lives through the trip out; the return is a new visit, whose shelves
+    # decide again whether another run is due.  Before slice 3-2 a set ended
+    # without clearing it (the conquest supersession, the poverty exit) left
+    # the plan to later visits, where it kept the next stockout run from
+    # being installed.
+    identify_staff_mining_plan: bool = False
+    recall_stockout_mining_plan: bool = False
+    # The carried item bound to the identification flow, and the device bound
+    # to it: each is bound by a town producer that derives it from the
+    # current pack, so a candidate from an earlier visit is not this visit's
+    # (da4d84b48: a candidate destroyed on the trip kept its request latched).
+    identification_candidate: Signature | None = None
+    device_identification_candidate: Signature | None = None
 
-    def begin(self, *, home_candidate_waiting: bool) -> None:
+    def begin(self, *, home_candidate_waiting: Callable[[], bool],
+              run_made_again: bool = False) -> None:
         """Start a new visit: forget every fact of the previous one.
 
-        ``home_candidate_waiting`` is the arrival's Home identification
-        latch, which the caller evaluates before the reset (as the former
-        reset did: against the previous visit's deferred Home items and
-        carried unidentifiable signatures).
+        ``home_candidate_waiting`` evaluates the arrival's Home identification
+        latch.  It reads the previous visit's deferred Home items and carried
+        unidentifiable signatures, as the former reset did, but not its
+        identification candidates: they end first.
+        ``run_made_again``: the arrival is the return of a run that is made
+        again (a run ended by a ruled-out unique, owner 2026-10-31), so the
+        stockout plan of that run stays with it.
         """
+        plans = (self.identify_staff_mining_plan, self.recall_stockout_mining_plan)
+        self.identification_candidate = None
+        self.device_identification_candidate = None
+        waiting = home_candidate_waiting()
         for spec in fields(self):
             if spec.default_factory is not MISSING:
                 getattr(self, spec.name).clear()
             else:
                 setattr(self, spec.name, spec.default)
-        self.home_candidate_waiting = home_candidate_waiting
+        self.home_candidate_waiting = waiting
+        if run_made_again:
+            self.identify_staff_mining_plan, self.recall_stockout_mining_plan = plans
 
     def __setstate__(self, state: dict) -> None:
         # A visit pickled before a field existed holds that field's default.
@@ -155,6 +189,10 @@ LEGACY_NAMES = {
     "_town_supplier_stock_observations": "supplier_stock_observations",
     "_deferred_device_items": "deferred_device_items",
     "_retried_home_identification_items": "retried_home_identification_items",
+    "_identify_staff_mining_plan": "identify_staff_mining_plan",
+    "_recall_stockout_mining_plan": "recall_stockout_mining_plan",
+    "_identification_candidate": "identification_candidate",
+    "_device_identification_candidate": "device_identification_candidate",
 }
 
 
@@ -171,7 +209,7 @@ def _forward(name: str) -> property:
     return property(
         lambda policy: getattr(town_visit(policy), name),
         lambda policy, value: setattr(town_visit(policy), name, value),
-        doc=f"TownVisit.{name} (structure stage 3-1).",
+        doc=f"TownVisit.{name} (structure stage 3).",
     )
 
 
