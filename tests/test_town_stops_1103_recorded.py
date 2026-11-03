@@ -108,6 +108,23 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
         key = policy.choose_key(steps[0][1]())
         self.assertEqual((key, policy.last_reason), ("R300\r", "town:wait-restock:temple"))
 
+    def test_identification_wait_does_not_count_a_staff_below_its_rate(self):
+        """n1-b 21:33, town:blocked:unmet:home_candidate_resolved.
+
+        failed: recall_departure_ready, home_candidate_resolved,
+        identification_need_clear, departure_identification_need_clear; two
+        Identify staffs at a 71% device skill (the rule is 80%) refused by
+        identify-carried as no-identification-source, while the town end's
+        wait counted them as a source.  Both answers now come from one rule.
+        """
+        policy, _recorded, steps = self.load("temple-loop")
+        board = steps[0][1]()
+        policy.choose_key(board)
+        self.assertLess(policy._identify_staff_success_rate(board), 0.8)
+        self.assertEqual(policy._identification_candidate, ("ムチ (1d6)", 21, 2))
+        self.assertFalse(town_terminal.gather_identify_carried(policy, board).source_held)
+        self.assertFalse(identification_wait.visit_can_identify(policy, board))
+
 
 if __name__ == "__main__":
     unittest.main()

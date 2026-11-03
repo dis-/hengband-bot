@@ -29,7 +29,6 @@ from hengbot.policy_constants import (
     QUEST_STATUS_REWARDED,
     QUEST_STATUS_TAKEN,
     QUEST_STATUS_UNTAKEN,
-    STAFF_IDENTIFY_MIN_SUCCESS,
     SUPPLY_LABEL_KINDS,
     TOWN_TELEPORT_COST,
     TOWN_TRAVEL_STALL_LIMIT,
@@ -389,10 +388,7 @@ def gather_identify_carried(policy: Any, board: Any) -> CarriedIdentifyMaterial:
     target = carried_identification_target(policy, board)
     full = bool(target is not None and target.known)
     return CarriedIdentifyMaterial(
-        source_held=policy._find_identification_source(
-            board, full=full, reliable_only=(
-                policy._identify_staff_success_rate(board) < STAFF_IDENTIFY_MIN_SUCCESS
-            )) is not None,
+        source_held=policy._carried_identification_source(board, full=full) is not None,
         full_exhausted=full and STORE_ALCHEMIST in policy._town_store_attempted,
     )
 
@@ -424,10 +420,7 @@ def gather_home_full_identify(policy: Any, board: Any) -> IdentifyMaterial:
     """Read the same source tier as _carried_identify_command, no watch writes."""
     target = home_full_identification_target(policy, board)
     return IdentifyMaterial(source_held=target is not None and (
-        policy._find_identification_source(
-            board, full=target.known, reliable_only=(
-                policy._identify_staff_success_rate(board) < STAFF_IDENTIFY_MIN_SUCCESS
-            )) is not None))
+        policy._carried_identification_source(board, full=target.known) is not None))
 
 
 def home_withdraw_target(policy: Any, board: Any) -> Any:

@@ -19,6 +19,11 @@ named stop: that is an owner's defect, not a wait (owner 2026-11-03).
 n1-b life-300 (2026-11-03 01:56 and 02:23, the Outpost): the Home armour
 waiting for *Identify* held the visit after every stop of the plan was done,
 and the visit stopped under town:blocked:unmet:home_candidate_resolved.
+
+n1-b life-306 (2026-11-03 21:33): the same stop with a carried whip and two
+Identify staffs of a 71% device skill.  The staff is no source below
+STAFF_IDENTIFY_MIN_SUCCESS (identify-carried refused no-identification-source),
+but this wait counted it, so the wait was held for a command never composed.
 """
 
 from __future__ import annotations
@@ -46,7 +51,7 @@ def visit_can_identify(policy: Any, board: Any) -> bool:
     candidate = policy._identification_candidate
     if candidate is not None and policy._identification_need is not None and any(
             policy._item_signature(item) == candidate for item in board.inventory):
-        if policy._find_identification_source(
+        if policy._carried_identification_source(
                 board, full=policy._identification_need == "full") is not None:
             return True
     return bool(home_identification.candidates(policy, board))

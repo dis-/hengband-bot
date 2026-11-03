@@ -5905,6 +5905,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_identification.py:IdentificationMixin._carried_identification_source": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_identification.py:IdentificationMixin._carried_identify_command": {
     "classification": "producer",
     "rows": [
