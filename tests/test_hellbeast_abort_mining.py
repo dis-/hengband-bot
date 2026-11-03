@@ -169,7 +169,11 @@ class HellbeastAbortMiningTest(harness.ProductionHarness):
                 policy.consume_skill_knowledge(skill)
                 policy.consume_home_knowledge(_parse_items(home["knowledge"]["items"], protocol=3))
                 self.decide(policy, copy.deepcopy(self.town))
-                self.assertEqual(policy._mining_runs_completed, 0 if aborted else 1)
+                # A counted run makes the set's one planned run, so the set
+                # ends on the arrival board (its run count goes with it); an
+                # aborted run keeps the set open for the run made again.
+                self.assertEqual(policy._mining_runs_completed, 0)
+                self.assertEqual(policy._fundraising_mode is None, not aborted)
                 self.assertEqual(policy._supply_stockout_cycles, cycles + (0 if aborted else 1))
                 self.assertIsNone(getattr(policy, "_mining_abort_floor", None))
 

@@ -125,10 +125,12 @@ class SupplyStockoutRecordedTest(unittest.TestCase):
             board = replace(board, turn=board.turn + 2)
             policy._observe(board)
             self.assertEqual(policy._supply_stockout_cycles, cycle + 1)
-            self.assertEqual(policy._mining_runs_completed, 1)
+            # The run made the stockout set's one run: the set ends on the
+            # arrival board's observation, before any owner decides on it.
+            self.assertEqual(policy._mining_runs_completed, 0)
             self.assertFalse(policy._town_store_attempted)
-            policy._town_special_key(board)
             self.assertIsNone(policy._fundraising_mode)
+            policy._town_special_key(board)
             self.assertIsNone(policy._supply_stockout_gold_target)
             # Counter survives restoration and the fresh-town reset.
             policy = restore_checkpoint(HengbotPolicy, checkpoint(policy))

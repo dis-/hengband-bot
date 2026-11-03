@@ -783,6 +783,20 @@ class ObservationMixin:
             self._equipment_optimization_signature = None
             self._equipment_optimization_preparation = None
 
+        if snapshot.in_town and snapshot.player.class_id >= 0 and self._mining_set_runs_done():
+            # The set's run-count end is a fact of the board, so it ends
+            # before any owner decides on it.  Ended inside the town special
+            # key, the owners that ran earlier in the same decision (the
+            # departure supplier, the town claims) planned under the still
+            # open set, where the shop selector wants no Cure Critical Wounds:
+            # the Temple stop was skipped on that plan, and the town end that
+            # ran after the set closed saw the Temple neither visited nor
+            # skipped -- no purchase gap, no mining cycle -- and stopped
+            # (n1-c life-117/118, 2026-11-03 14:22/14:34,
+            # town:blocked:survival:cure_critical_ready, the Temple selling it
+            # at 125-167 gold with 1295 carried).
+            self._end_mining_set()
+
         if snapshot.in_town:
             self._returning_to_town = False
             self._note_return_end()
