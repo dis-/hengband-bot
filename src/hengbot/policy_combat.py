@@ -408,6 +408,11 @@ class CombatMixin:
             # routing veto for all of them.  Once nothing outside it is left
             # to explore, ``_immobile_summoner_exit_key`` leaves the floor
             # (n1-c life-103: the whole floor visit was taken here).
+            # The latched return still goes first, even beside a hostile
+            # (owner 10-31 「隣に敵がいても譲る」): the generic melee rung
+            # would take that board ahead of the return rung.
+            if return_yield.latched_return_owns(self, snapshot):
+                return return_yield.latched_return_key(self, snapshot)
             return None
         return self._immobile_summoner_zone_key(snapshot, hostiles, cells)
 
