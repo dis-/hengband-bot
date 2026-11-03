@@ -32,8 +32,9 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
+from hengbot.runtime_paths import configured_home_history_dir, configured_runtime_dir
 from hengbot.town_arrival_checkpoint import (
-    DIRECTORY, JOURNAL_FILE, POLICY_FILE, TRUNCATED_FILE,
+    DIRECTORY, JOURNAL_FILE, POLICY_FILE, TRUNCATED_FILE, restore_runtime_files,
 )
 from town_work_corpus import replay_window
 
@@ -43,8 +44,22 @@ def journal(visit: Path) -> list[dict]:
         return [json.loads(line) for line in stream if line.strip()]
 
 
-def restore(visit: Path) -> HengbotPolicy:
-    return restore_checkpoint_bytes(HengbotPolicy, (visit / POLICY_FILE).read_bytes())
+def restore(visit: Path, scratch: Path | None = None) -> HengbotPolicy:
+    """The arrival policy, reading the runtime files it read at the arrival.
+
+    With ``scratch``, the character dump (not a runtime-directory file) is
+    re-pointed there, and every captured runtime file is written to the
+    restored policy's isolated locations.
+    """
+    policy = restore_checkpoint_bytes(HengbotPolicy, (visit / POLICY_FILE).read_bytes())
+    if scratch is not None:
+        if policy._character_dump_path is not None:
+            policy._character_dump_path = scratch / Path(policy._character_dump_path).name
+        roots = tuple(root for root in (configured_runtime_dir(),
+                                        configured_home_history_dir(), scratch)
+                      if root is not None)
+        restore_runtime_files(policy, visit, roots)
+    return policy
 
 
 def decisions(policy, visit: Path, scratch: Path):
@@ -75,7 +90,7 @@ def replay(capture: Path):
     """Restore the capture's arrival policy and replay its visit."""
     visit = capture / DIRECTORY
     with TemporaryDirectory(prefix="town-arrival-replay-") as raw:
-        policy = restore(visit)
+        policy = restore(visit, Path(raw))
         result = replay_window(capture.name, policy, decisions(policy, visit, Path(raw)))
     result.journal_truncated = truncation(visit)
     return result

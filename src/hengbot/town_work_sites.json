@@ -787,6 +787,16 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "home_errand.py:HomeErrandExecutor.cancel_unposted": {
+    "classification": "data",
+    "rows": [
+      "home-executor",
+      "home-deposit",
+      "home-withdraw",
+      "home-catalogue"
+    ],
+    "delegation": "supports selected child; no independent success"
+  },
   "home_errand.py:HomeErrandExecutor.file": {
     "classification": "data",
     "rows": [
@@ -868,6 +878,21 @@
     "delegation": "supports selected child; no independent success"
   },
   "home_errand.py:HomeErrandExecutor.reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "home_identification.py:filed_take_route_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "home-withdraw"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "home_identification.py:source": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
