@@ -4556,6 +4556,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_combat.py:CombatMixin._hostile_nearer_than": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_combat.py:CombatMixin._hunt_step": {
     "classification": "producer",
     "rows": [
