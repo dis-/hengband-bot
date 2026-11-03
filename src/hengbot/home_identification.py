@@ -99,6 +99,12 @@ def filed_take_route_key(policy: Any, board: Any) -> str | None:
             or not any(policy._item_signature(item) == request.signature
                        for item in candidates(policy, board))):
         return None
+    return rearmed_home_route_key(policy, board)
+
+
+def rearmed_home_route_key(policy: Any, board: Any) -> str | None:
+    """Re-arm a tried Home within its pass bound and route there, or None."""
+    from hengbot.model import STORE_HOME
     policy._rearm_town_store_for_new_work(STORE_HOME)
     if STORE_HOME in policy._town_store_attempted:
         return None

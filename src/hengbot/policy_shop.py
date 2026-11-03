@@ -5371,7 +5371,10 @@ class ShopMixin(InStoreMixin):
         self._last_sell_sig = None
         self._store_stuck_count = 0
         self._store_sell_stuck_count = 0
-        self._set_town_store_attempted(store.store_type, snapshot.turn, "shop-observed-complete")
+        # A purchase that only yields to the slot recovery is still owed on
+        # this shelf: the latch would end the store for the visit.
+        if not acquisition_waits(self, snapshot):
+            self._set_town_store_attempted(store.store_type, snapshot.turn, "shop-observed-complete")
         if store.store_type == STORE_ALCHEMIST and self._find_low_level_sale(snapshot) is None:
             self._sell_scavenged_consumables = False
             if self._fundraising_mode == "scavenge" and snapshot.in_town:

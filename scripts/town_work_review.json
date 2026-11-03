@@ -12609,5 +12609,40 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "home_identification.py:rearmed_home_route_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "home-withdraw"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The shared route of the town end's Home answers: re-arms a tried Home (_rearm_town_store_for_new_work, within the Home pass bound) and returns the router's approach key, or None; it composes no Home operation of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_end_mining.py:home_kit_route_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Answers inside town_end_key before the end verdict: an open mining set whose kit is not secured and whose missing pieces the Home catalogue holds, with Home already tried, re-arms Home once per observable state and returns the router's approach key; the Home page's own shortage owner composes the take.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_identification.py:IdentificationMixin._carried_identification_source": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the carried-source rule (_find_identification_source with the staff's success-rate tier) used as input/observation, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

@@ -1009,6 +1009,23 @@ class IdentificationMixin:
             return READ_KEY, scroll
         return None
 
+    def _carried_identification_source(
+        self, snapshot: Snapshot, *, full: bool,
+        reservation_target: tuple[str, int, int] | None = None,
+    ) -> tuple[str, InventoryItem] | None:
+        """The carried source that may identify a non-worn carried item.
+
+        A staff whose modelled rate misses STAFF_IDENTIFY_MIN_SUCCESS is no
+        source: its command is never composed, so nothing else may wait for it.
+        """
+        return self._find_identification_source(
+            snapshot, full=full,
+            reliable_only=(
+                self._identify_staff_success_rate(snapshot) < STAFF_IDENTIFY_MIN_SUCCESS
+            ),
+            reservation_target=reservation_target,
+        )
+
     @staticmethod
     def _identification_source_units(item: InventoryItem) -> int:
         if item.tval == TVAL_STAFF:
@@ -1176,14 +1193,8 @@ class IdentificationMixin:
         absorbed = self._absorbed_identify_key(snapshot, target, full=full)
         if absorbed is not None:
             return absorbed
-        reliable_only = (
-            self._identify_staff_success_rate(snapshot) < STAFF_IDENTIFY_MIN_SUCCESS
-        )
-        source = self._find_identification_source(
-            snapshot,
-            full=full,
-            reliable_only=reliable_only,
-            reservation_target=reservation_target,
+        source = self._carried_identification_source(
+            snapshot, full=full, reservation_target=reservation_target,
         )
         if source is None:
             return None

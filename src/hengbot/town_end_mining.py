@@ -31,7 +31,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from hengbot.model import DUNGEON_YEEK_CAVE
+from hengbot.home_identification import rearmed_home_route_key
+from hengbot.model import DUNGEON_YEEK_CAVE, STORE_HOME
 from hengbot.policy_constants import WAIT_KEY
 
 MINING_MODES = frozenset({"prepare", "mine", "scavenge"})
@@ -83,6 +84,32 @@ def closed_in_town(policy: Any) -> bool:
     return (record is not None and record.stage == STAGE_TOWN
             and record.visit_epoch == policy._town_visit_epoch
             and not mining_set_open(policy))
+
+
+def home_kit_route_key(policy: Any, board: Any) -> str | None:
+    """Route a tried Home for the kit an open mining set can still take there.
+
+    Owner 2026-11-01 「採掘の要求品が優先」: the set's kit comes before the town
+    end judges anything.  n1-b life-306 (2026-11-03 21:33, 22:11): a Home pass
+    that took an identification candidate latched Home as tried with the
+    digger and the detection on its shelf (and no room for them until the
+    candidate was sold).  No owner answered, the open set made the verdict a
+    stop, and the visit stopped under town:blocked:survival:cure_critical_ready.
+    Each state of the visit re-arms Home once, so a take that still cannot be
+    made ends in that named stop.
+    """
+    if (not mining_set_open(policy)
+            or STORE_HOME not in policy._town_store_attempted
+            or policy._fundraising_kit_secured(board)
+            or not policy._has_withdrawable_digging_tool(board)
+            or not policy._has_withdrawable_treasure_detection(board)):
+        return None
+    signature = ("home-mining-kit", policy._town_observable_effect_state(board))
+    rearmed = policy._town_visit_ledger.rearmed_work_signatures
+    if signature in rearmed:
+        return None
+    rearmed.add(signature)
+    return rearmed_home_route_key(policy, board)
 
 
 def start(policy: Any, board: Any, unmet: tuple[str, ...]) -> str:

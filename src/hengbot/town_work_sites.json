@@ -899,6 +899,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "home_identification.py:rearmed_home_route_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "home-withdraw"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "home_identification.py:source": {
     "classification": "data",
     "rows": [
@@ -5912,6 +5920,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_identification.py:IdentificationMixin._carried_identification_source": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_identification.py:IdentificationMixin._carried_identify_command": {
     "classification": "producer",
     "rows": [
@@ -9022,6 +9037,14 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "town_end_mining.py:home_kit_route_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_end_mining.py:mining_set_open": {
     "classification": "data",
