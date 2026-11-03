@@ -95,6 +95,19 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
                          {STORE_ALCHEMIST: ("fundraising-detection",)})
         self.assert_posts(policy, recorded[44], board, key)
 
+    def test_recall_stockout_does_not_walk_back_to_the_supplier_it_has_tried(self):
+        """n1-b 21:33: the 16 Temple visits before that stop.
+
+        The Temple sold its 2 recall scrolls last visit and the Alchemist's
+        page proves it has none, so the need registry skips both; the recall
+        branch read only the attempted latch and walked into the Temple until
+        the cycle break closed every store.  Now the arrival's first board
+        takes the restock wait.
+        """
+        policy, _recorded, steps = self.load("temple-loop")
+        key = policy.choose_key(steps[0][1]())
+        self.assertEqual((key, policy.last_reason), ("R300\r", "town:wait-restock:temple"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8702,7 +8702,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             recall_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
             if (
                 not all(
-                    store in self._town_store_attempted
+                    self._shelf_stop_tried(snapshot, store, "recall")
                     for store in recall_stores
                 )
                 and getattr(self._town_map, "store_position", None) is not None
