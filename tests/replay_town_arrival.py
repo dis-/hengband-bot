@@ -1,0 +1,78 @@
+"""Replay a town stop from an incident capture's town-arrival checkpoint.
+
+An incident capture written since 2026-11-03 holds ``town-arrival/``
+(hengbot.town_arrival_checkpoint): the policy pickled just before the first
+decision of the town visit, the visit's journal (per decision: the response
+lines delivered since the previous decision, the CLI timer latches, the
+store-screen verification, the board, and what choose_key returned) and the
+decision-log rows from the arrival on.  ``replay`` restores the policy and
+decides every journalled board through the public ``choose_key``, comparing
+key and reason with the journal (town_work_corpus.replay_window: it stops at
+the first difference and acknowledges each matching key as posted).
+
+    PYTHONPATH="src;tests;." python tests/replay_town_arrival.py <incident-capture-dir>
+
+Not journalled: a key the executor refused and re-chose on the same board
+(cli refuse_key_posting), and the CLI's own key rewrites (validate_read_key,
+owner retirement) - compare the decision-log rows for those.
+"""
+import tests  # noqa: F401  -- isolate runtime files before policy imports
+
+import argparse
+import gzip
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from hengbot.cli import _consume_response_sequence
+from hengbot.latch_onset_capture import restore_checkpoint_bytes
+from hengbot.model import parse_snapshot
+from hengbot.policy import HengbotPolicy
+from hengbot.town_arrival_checkpoint import DIRECTORY, JOURNAL_FILE, POLICY_FILE
+from town_work_corpus import replay_window
+
+
+def journal(visit: Path) -> list[dict]:
+    with gzip.open(visit / JOURNAL_FILE, "rt", encoding="utf-8") as stream:
+        return [json.loads(line) for line in stream if line.strip()]
+
+
+def restore(visit: Path) -> HengbotPolicy:
+    return restore_checkpoint_bytes(HengbotPolicy, (visit / POLICY_FILE).read_bytes())
+
+
+def decisions(policy, visit: Path, scratch: Path):
+    """(recorded decision, board supplier) pairs for ``replay_window``."""
+    for index, entry in enumerate(journal(visit)):
+        def supply(entry=entry):
+            inputs = [line + "\n" for line in entry["inputs"]]
+            _consume_response_sequence(
+                inputs, policy, lambda _key: True, policy._monrace_knowledge,
+                parse_snapshots=False,
+                knowledge_ledger_path=scratch / "knowledge.jsonl",
+            )
+            line = entry["line"] if entry["line"] is not None else entry["inputs"][-1]
+            for name, value in entry["cli_latches"].items():
+                setattr(policy, name, tuple(value) if isinstance(value, list) else value)
+            policy.observe_store_screen(entry["store_screen_verified"])
+            return parse_snapshot(json.loads(line), policy._monrace_knowledge)
+        yield {"row": index, "key": entry["key"], "reason": entry["reason"]}, supply
+
+
+def replay(capture: Path):
+    """Restore the capture's arrival policy and replay its visit."""
+    visit = capture / DIRECTORY
+    with TemporaryDirectory(prefix="town-arrival-replay-") as raw:
+        policy = restore(visit)
+        return replay_window(capture.name, policy, decisions(policy, visit, Path(raw)))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("capture", type=Path, help="incident-captures/<stamp>-<kind>")
+    result = replay(parser.parse_args().capture)
+    print(json.dumps(result.__dict__, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

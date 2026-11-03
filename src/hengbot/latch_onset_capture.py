@@ -76,20 +76,29 @@ _CAPTURE_STATE_NAMES = frozenset(
 )
 
 
-def checkpoint(policy: Any) -> str:
-    """Return an exact, restorable pre-decision policy checkpoint."""
+def checkpoint_bytes(policy: Any) -> bytes:
+    """Return an exact, restorable pre-decision policy checkpoint (pickle)."""
     state = {
         name: value
         for name, value in vars(policy).items()
         if name not in _CAPTURE_STATE_NAMES
     }
-    return base64.b64encode(pickle.dumps(state, protocol=5)).decode("ascii")
+    return pickle.dumps(state, protocol=5)
+
+
+def checkpoint(policy: Any) -> str:
+    """``checkpoint_bytes`` in base64, for JSON records."""
+    return base64.b64encode(checkpoint_bytes(policy)).decode("ascii")
 
 
 def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     """Restore a capture checkpoint without running policy initialization."""
+    return restore_checkpoint_bytes(policy_type, base64.b64decode(encoded))
+
+
+def restore_checkpoint_bytes(policy_type: type, payload: bytes) -> Any:
+    """Restore a ``checkpoint_bytes`` pickle without policy initialization."""
     restored = policy_type.__new__(policy_type)
-    payload = base64.b64decode(encoded)
     try:
         state = pickle.loads(payload)
     except ModuleNotFoundError as error:

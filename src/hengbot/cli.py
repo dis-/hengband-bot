@@ -4670,9 +4670,12 @@ def _run_follow(
                     take_handed = getattr(executor.drain, "take_handed_records", None)
                     if take_handed is not None:
                         response_records = take_handed()
+                        response_lines = [
+                            json.dumps(row, ensure_ascii=False) + "\n"
+                            for row in response_records]
+                        recorder.town_arrival.note_inputs(response_lines)
                         _dispatch_response_lines(
-                            [json.dumps(row, ensure_ascii=False) + "\n"
-                             for row in response_records],
+                            response_lines,
                             policy, send, decoded_lines=response_records,
                             knowledge_ledger_path=knowledge_ledger_path,
                         )
@@ -4805,7 +4808,13 @@ def _run_follow(
                     phase_started_at = time.perf_counter()
                     visit_before = copy.copy(policy._store_visit)
                     policy.observe_store_screen(store_screen_verified)
+                    recorder.before_decision(
+                        policy, snapshot, snapshot_line, store_screen_verified)
+                    arrival_ms = recorder.town_arrival.take_write_ms()
+                    if arrival_ms is not None:
+                        decision_timing["town_arrival_ms"] = arrival_ms
                     chosen_key = slow_decisions.choose_key(policy, snapshot)
+                    recorder.decided(policy, chosen_key)
                     _record_atomic_home_page(
                         policy, snapshot, observed_store=last_observed_home_page,
                         path=knowledge_ledger_path,

@@ -1593,6 +1593,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "latch_onset_capture.py:checkpoint_bytes": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "latch_onset_capture.py:decision_record": {
     "classification": "data",
     "rows": [
@@ -1601,6 +1608,13 @@
     "delegation": "selected child; no independent success"
   },
   "latch_onset_capture.py:restore_checkpoint": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "latch_onset_capture.py:restore_checkpoint_bytes": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
