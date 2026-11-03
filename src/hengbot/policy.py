@@ -112,6 +112,7 @@ from hengbot.town_arbiter import (
     claims,
 )
 from hengbot.policy_types import (
+    in_flight_clause,
     EXPECTATION_POP_SATISFIED,
     OWNER_EXPECTATION_MAX_TURNS,
     DecisionCandidate,
@@ -4388,6 +4389,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                         operation_completed=True,
                     )
             else:
+                # The take is judged: nothing is in flight any more.  Left
+                # open, the visit refused every other store's acquire until
+                # its stuck limit, and the town end stopped first (n1-a
+                # life-475 2026-11-04 01:53: three Teleport Away wands merged
+                # into the carried one, whose name changed with its charges;
+                # the Magic Shop's Identify staff stayed on its shelf).
+                if (
+                    self._store_visit is not None
+                    and self._store_visit.store_type == STORE_HOME
+                    and in_flight_clause(self._store_visit)
+                    == "operation-released-effect-not-observed"
+                ):
+                    self._close_store_visit("home-take-unobserved")
                 if self._home_random_teleport_withdrawal == signature:
                     self._home_random_teleport_withdrawal = None
                 retry_digger = (
