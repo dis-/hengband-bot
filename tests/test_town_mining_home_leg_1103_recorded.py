@@ -87,6 +87,23 @@ class TownMiningHomeLegRecordedTest(d57.PostedDeathKey):
         self.assertEqual(d57.recorded(CASE_469)[773711][0],
                          "town:blocked:unmet:home_candidate_resolved")
 
+    def test_mining_set_buys_the_survival_shortfall_after_the_kit(self):
+        case = with_detection(CASE_302)
+        policy = mining_policy(case)
+        boards = [copy.deepcopy(raw) for raw in case["boards"][:2]]
+        policy.confirm_key_posted(d57.loops.decide(policy, boards[0]))
+        key = d57.loops.decide(policy, boards[1])
+        self.assertTrue(policy._fundraising_kit_secured(
+            parse_snapshot(copy.deepcopy(boards[1]), policy._monrace_knowledge)))
+        plan = policy._town_errand_plan
+        categories = {category for values in plan.need_categories.values()
+                      for category in values}
+        self.assertTrue({"cure-critical", "identify-staff"} <= categories, plan.need_categories)
+        self.assertTrue({STORE_TEMPLE, STORE_ALCHEMIST, STORE_MAGIC} & set(plan.stops), plan.stops)
+        self.assertEqual(policy.last_reason, "shop:travel")
+        self.assertNotEqual(plan.stops[plan.index], STORE_HOME)
+        self.post(policy, boards[1], key)
+
     def test_deferred_withdraw_request_does_not_own_the_home_leg(self):
         case = dict(CASE_302, boards=CASE_302["boards"][3:])
         policy = mining_policy(case)
