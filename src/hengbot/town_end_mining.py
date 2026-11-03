@@ -44,6 +44,7 @@ STAGE_RUN = "run"
 STAGE_RETURNED = "returned"
 STAGE_DEPARTED = "departed"
 OPEN_STAGES = frozenset({STAGE_TOWN, STAGE_RUN})
+HOME_KIT_BOUND_RELEASE = ("home-mining-kit-bound-release",)
 
 
 @dataclass(frozen=True)
@@ -112,6 +113,27 @@ def home_kit_route_key(policy: Any, board: Any) -> str | None:
     return rearmed_home_route_key(policy, board)
 
 
+def release_home_for_kit(policy: Any, board: Any) -> None:
+    """A set opened with its kit on Home's shelf is new work for Home.
+
+    n1-a life-476 (2026-11-04 06:50, 07:23): the visit's earlier work had spent
+    Home's pass bound when the no-safe-destination set opened.  Home held the
+    detection scrolls, but its block hid the kit claim from every town owner,
+    the destination gate became the blocked reason and the visit waited until
+    owner-retired-burst.  The bound is released once a visit, so a take that
+    still fails ends in the named stop.
+    """
+    if (policy._fundraising_kit_secured(board)
+            or not policy._has_withdrawable_digging_tool(board)
+            or not policy._has_withdrawable_treasure_detection(board)):
+        return
+    rearmed = policy._town_visit_ledger.rearmed_work_signatures
+    if HOME_KIT_BOUND_RELEASE in rearmed:
+        return
+    rearmed.add(HOME_KIT_BOUND_RELEASE)
+    policy._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
+
+
 def start(policy: Any, board: Any, unmet: tuple[str, ...]) -> str:
     """Open one mining cycle for ``unmet`` through the fundraising owners."""
     previous = cycle(policy)
@@ -121,6 +143,7 @@ def start(policy: Any, board: Any, unmet: tuple[str, ...]) -> str:
         started_turn=board.turn, stage=STAGE_TOWN,
         visit_epoch=policy._town_visit_epoch))
     policy._open_one_mining_run()
+    release_home_for_kit(policy, board)
     policy.last_reason = START_REASON
     policy._offer_execution(
         WAIT_KEY, producer="fundraising", work_id="fundraise:town-end-mining",

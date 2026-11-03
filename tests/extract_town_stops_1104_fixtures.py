@@ -26,6 +26,7 @@ CASES = {
     "worn-average": ("n1-b/life-307", "20261104-033207-town-blocked-pack-full-no-room", 35),
     # From the capture set beside it (bots bot-6925e7e43 / bot-a50ef8fcc).
     "ability-gap": ("../stops-1104-0750/n1-a/life-476", "20261104-072412-town-blocked-survival-depth_abilities", 12),
+    "home-kit-bound": ("../stops-1104-0750/n1-a/life-476", "20261104-072335-town-blocked-owner-retired-burst", 25),
 }
 CALIBRATION = "_character_calibration_path"
 DUMP = "_character_dump_path"

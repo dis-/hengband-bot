@@ -188,6 +188,23 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._town_blocked_reason)
         self.assert_posts(policy, recorded[11], board, key)
 
+    def test_opened_set_releases_a_spent_home_bound_for_its_kit(self):
+        """n1-a life-476 07:23 (06:50 too), owner-retired-burst.
+
+        procurement: Treasure Detection 0/5, on Home's shelf.  The visit's
+        earlier work had spent Home's passes, so the kit claim was hidden, the
+        destination gate became the blocked reason and the visit waited.
+        """
+        policy, recorded, steps = self.replay("home-kit-bound", 24)
+        self.assertEqual(recorded[23]["reason"].split(":")[0], "fundraising")
+        self.assertEqual(recorded[24]["reason"], "fundraise:fallback-exhausted-plan")
+        board = steps[24][1]()
+        with redirect_stdout(io.StringIO()):
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), (TRAVEL_HOME, "shop:travel"))
+        self.assertEqual(policy._town_visit_ledger.blocked_stores, set())
+        self.assert_posts(policy, recorded[24], board, key)
+
     def test_gold_pile_is_walked_and_a_refused_pile_is_no_target(self):
         """n1-c life-123 04:33, owner-retired-burst.
 
