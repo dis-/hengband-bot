@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import blind_strike, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import consumable_policy, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import consumable_policy, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -7000,17 +7000,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     "emergency:teleport" if scroll.is_teleport_scroll
                     else "emergency:phase",
                 )
-            if (
-                not player.recalling
-                and self._emergency_recall_leaves_danger(snapshot)
-                and not self._quest_floor_exit_locked(snapshot)
-                and self._can_read_scrolls(snapshot)
-            ):
-                recall = self._find_recall_scroll(snapshot)
-                if recall is not None:
-                    return self._issue_emergency_consumable(
-                        snapshot, recall, "emergency:recall"
-                    )
+            recall_read = once_quest_recall.read_key(self, snapshot)
+            if recall_read is not None:
+                return recall_read
             # No escape: the heal that loses to the next turn still beats a walk.
             potion = self._find_heal_potion(snapshot, expected_damage=1)
             if potion is not None:

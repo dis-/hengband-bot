@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, me_ranged_first, once_quest_recall, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -2482,22 +2482,14 @@ class CombatMixin:
                     # starts the countdown home; subsequent turns flee to
                     # survive it. (Teleport relocates on-floor; recall leaves
                     # the floor entirely, so it is the escape of last resort.)
-                    if (
-                        not player.recalling
-                        and self._emergency_recall_leaves_danger(snapshot)
-                        and not self._quest_floor_exit_locked(snapshot)
-                        and self._can_read_scrolls(snapshot)
-                    ):
-                        recall = self._find_recall_scroll(snapshot)
-                        if recall is not None:
-                            self.last_reason = (
-                                "emergency:recall-quest-fail"
-                                if self._quest_exit_would_fail(snapshot)
-                                else "emergency:recall"
-                            )
-                            return self._issue_emergency_consumable(
-                                snapshot, recall, self.last_reason
-                            )
+                    recall_read = once_quest_recall.read_key(
+                        self, snapshot,
+                        "emergency:recall-quest-fail"
+                        if self._quest_exit_would_fail(snapshot)
+                        else "emergency:recall",
+                    )
+                    if recall_read is not None:
+                        return recall_read
                 if player.hp_ratio < heal_ratio:
                     expected = self._predicted_damage(
                         snapshot, hostiles, turns=1, expected=True
@@ -3139,18 +3131,7 @@ class CombatMixin:
                     "emergency:teleport" if scroll.is_teleport_scroll
                     else "emergency:phase",
                 )
-        if (
-            not player.recalling
-            and self._emergency_recall_leaves_danger(snapshot)
-            and not self._quest_floor_exit_locked(snapshot)
-            and self._can_read_scrolls(snapshot)
-        ):
-            recall = self._find_recall_scroll(snapshot)
-            if recall is not None:
-                return self._issue_emergency_consumable(
-                    snapshot, recall, "emergency:recall"
-                )
-        return None
+        return once_quest_recall.read_key(self, snapshot)
     def threat_prediction(
         self,
         snapshot: Snapshot,
