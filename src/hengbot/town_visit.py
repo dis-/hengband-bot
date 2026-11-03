@@ -96,6 +96,9 @@ class TownVisit:
     )
     deferred_device_items: set[Signature] = field(default_factory=set)
     retried_home_identification_items: set[Signature] = field(default_factory=set)
+    # Home errand purposes filed since the last Home pass report
+    # (home_pass_charge): the work that pass attempted.
+    home_pass_errand_purposes: set[str] = field(default_factory=set)
 
     def begin(self, *, home_candidate_waiting: bool) -> None:
         """Start a new visit: forget every fact of the previous one.

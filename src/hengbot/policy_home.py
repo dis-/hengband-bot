@@ -12,6 +12,7 @@ from hengbot.town_hold import claim_family_of as town_claim_family_of
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_hold import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
+from hengbot import home_pass_charge
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
@@ -1558,6 +1559,7 @@ class HomeMixin:
             request, knowledge_current=knowledge_current
         )
         if filed:
+            home_pass_charge.note_filed(self, request.purpose)
             self._offer_execution(
                 None, producer="home-errand",
                 work_id=f"home-request:{filing_identity}",
