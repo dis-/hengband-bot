@@ -15,7 +15,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import identification_wait, town_terminal
+from hengbot import identification_wait, random_quest_reserve, town_terminal
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy import HengbotPolicy
@@ -125,7 +125,16 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
         branch read only the attempted latch and walked into the Temple until
         the cycle break closed every store.  Now the arrival's first board
         takes the restock wait.
+
+        DECLARED: the Q14 teleport reserve at departure is off here.  On this
+        board it sends the character for its fifth scroll first
+        (tests.test_recall_bounce_q14_recorded pins that), and this pin is about
+        the recall branch.
         """
+        patcher = mock.patch.object(random_quest_reserve, "departure_requirement",
+                                    lambda _policy, _snapshot: 0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         policy, _recorded, steps = self.load("temple-loop")
         key = policy.choose_key(steps[0][1]())
         self.assertEqual((key, policy.last_reason), ("R300\r", "town:wait-restock:temple"))

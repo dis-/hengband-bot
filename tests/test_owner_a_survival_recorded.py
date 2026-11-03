@@ -42,7 +42,6 @@ from pathlib import Path
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import WAIT_KEY
 from tests import test_input_executor as executor_pins
 from tests.test_dungeon_1031_recorded import (
     QUAFF_PROMPT, READ_PROMPT, RecordedHarness, decide,
@@ -129,14 +128,17 @@ class BlindWithoutCureTest(SurvivalHarness):
         self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(DIRECTION_PROMPT)],
                                    self.later(raw)), ["+", "6"])
 
-    def test_control_nothing_remembered_stays(self):
+    def test_nothing_remembered_strikes_a_free_neighbour_after_a_blow(self):
         policy, raw = self.replay(("blind",), 1713414)
-        raw, _board = self.without_cure(policy, raw)
+        raw, board = self.without_cure(policy, raw)
         policy._blind_strike_memory = None  # DECLARED CONSTRUCTED: never saw it
-        # The player stays; at HP 250/703 the low-HP walk gate relabels the
-        # same WAIT (emergency:wait).
-        self.assertEqual(decide(policy, raw), WAIT_KEY)
-        self.assertIn(policy.last_reason, {"unseen-recall:blind-stay", "emergency:wait"})
+        # Owner 2026-10-03 「近接で敵の方向が分からなければランダムな方向に攻撃。」 and
+        # 2026-11-03 「徒歩での逃走は絶対に間に合わない」: this board's blows
+        # (「何かにひっかかれた。」) answer with a strike on a neighbour of the
+        # remembered floor, seeded by the turn.  Hasted, recalling, no potion.
+        self.assertEqual(board.player.speed, 115)
+        self.assertEqual(decide(policy, raw), "+3")
+        self.assertEqual(policy.last_reason, "no-wait:attack")
 
     def test_control_cure_carried_is_quaffed_first(self):
         policy, raw = self.replay(("blind",), 1713414)

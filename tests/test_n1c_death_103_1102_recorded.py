@@ -12,6 +12,12 @@ with Healing (300) carried; HP 45 on the next board, Teleport, death.  Owner
 テレポート。」  The blind player cannot read the Teleport, so that board
 drinks Healing (the heal-vs-teleport rule's potion), and the key goes
 through the production executor.  The earlier boards answer as recorded.
+
+The board's blindness came back right after the cure, under an unseen blow
+(「やっと目が見えるようになった。」, then 「何かに斬られた。」), so since 2026-11-03 (owner:
+「治してもまた盲目なら覚えている敵を攻撃」) status_cure holds no cure for it and
+the survival ladder's heal rung drinks the same Healing (item:heal), below
+the low-HP threshold as status_cure's docstring says.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -29,7 +35,7 @@ with gzip.open(FIXTURE, "rt", encoding="utf-8") as _stream:
     CASE = json.load(_stream)
 
 LOW_HP_BLIND_TURN = 3831859
-QUAFF_HEALING = ("qb", "emergency:cure-status-healing")
+QUAFF_HEALING = ("qb", "item:heal")
 
 
 class BlindLowHpHealRecordedTest(d57.PostedDeathKey):
