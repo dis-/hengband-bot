@@ -40,6 +40,8 @@ from town_work_corpus import replay_window
 
 FIXTURES = Path(__file__).with_name("fixtures")
 RESET = FIXTURES / "town-visit-reset-20261103"
+# The arrival of tests/test_curse_first_recorded.py.
+CURSE_FIRST = FIXTURES / "curse-first-20261103"
 # One attempt short of the limit: the next unchanged attempt ends the store.
 ONE_SHORT = STORE_STUCK_LIMIT - 1
 
@@ -256,6 +258,30 @@ class HomeProcurementProbeEndsWithVisitTest(ArrivalCase):
         self.assertEqual(rows[2]["reason"], "home:queue-catalogue-shortage")
         self.assert_decides_as_recorded(policy, rows, steps)
         self.assertIsNotNone(policy._home_pending_item)
+
+
+class ArrivalLatchTest(ArrivalCase):
+    """Item 5: the Home latch read against the previous visit's deferrals.
+
+    Not a defect: ``TownVisit.begin`` evaluates the latch before it clears the
+    deferred sets, but the same board evaluates it again after them
+    (policy_observation, the re-arm below the reset), so the latch a decision
+    reads is the one the new visit's empty sets give.
+    """
+
+    def test_deferrals_of_the_last_visit_do_not_hold_the_latch_down(self):
+        policy, rows, _steps = self.arrive(CURSE_FIRST)
+        board = parse_snapshot(copy.deepcopy(board_of(rows[1])), policy._monrace_knowledge)
+        candidates = {policy._item_signature(item)
+                      for item in (*board.inventory, *board.equipment)
+                      if item.is_equipment and policy._identification_flow_candidate(item)}
+        self.assertTrue(candidates)
+        self.assertTrue(policy._home_knowledge_current)
+        policy._deferred_home_items.update(candidates)
+        policy._town_unidentifiable_carried_sigs.update(candidates)
+        policy.prime(board)
+        self.assertEqual(policy._deferred_home_items, set())
+        self.assertTrue(policy._home_candidate_waiting)
 
 
 if __name__ == "__main__":
