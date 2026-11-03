@@ -130,6 +130,23 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason), ("\x1b", "shop:in-store-done"))
         self.assertIsNone(policy._town_blocked_reason)
 
+    def test_no_owner_left_reaches_the_town_end_and_its_release(self):
+        """n1-a life-476 04:36, departure-unsatisfiable.
+
+        failed: home_candidate_resolved, identification_need_clear,
+        departure_identification_need_clear; the fallback of _town_special_key
+        stopped before the town end could release a wait this visit cannot
+        finish (no candidate, no source for one).
+        """
+        policy, recorded, steps = self.replay("identification-wait", 19)
+        self.assertEqual(recorded[19]["reason"], "town:blocked:departure-unsatisfiable")
+        board = steps[19][1]()
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("7", "town:entrance-step-off:town:end-step-off"))
+        self.assertEqual(policy._visit_departure_recorded, set())
+        self.assert_posts(policy, recorded[19], board, key)
+
 
 if __name__ == "__main__":
     unittest.main()

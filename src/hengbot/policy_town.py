@@ -70,7 +70,7 @@ from hengbot.policy_types import (
 )
 from collections import deque
 from hengbot.equipment_optimizer import equipment_identity
-from hengbot.town_terminal import gather_store_buy, verdict_store_buy, plan_stop_admission
+from hengbot.town_terminal import gather_store_buy, plan_stop_admission, town_end_key, verdict_store_buy
 from hengbot.town_hold import hold_claims, offer_buffer, offered_steps, standing_claim
 from dataclasses import dataclass, replace
 import json
@@ -7064,8 +7064,11 @@ class TownMixin:
                         return WAIT_KEY
                     self._town_blocked_reason = "guardian-bounce-no-alternate"
                     return self._town_blocked_key(snapshot)
-                self._town_blocked_reason = "departure-unsatisfiable"
-                return self._town_blocked_key(snapshot)
+                # No owner is left: the one town fallback ends the visit (owner
+                # 2026-11-02 「決まった終わり方だけにする」).  Stopping here
+                # first kept its release of an identification wait from running
+                # (n1-a life-476 2026-11-04 04:36, 06:12, n1-c life-123 04:15).
+                return town_end_key(self, snapshot)
         # Destination safety is a departure assertion, not an errand-router
         # precondition.  Run it only after every town owner above has had the
         # opportunity to act; otherwise an unsafe deep recall can starve a live
