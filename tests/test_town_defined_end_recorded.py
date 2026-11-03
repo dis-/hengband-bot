@@ -14,6 +14,12 @@ retirement burst) keep their existing names.
 Owner 2026-11-02 「購入に関する問題以外は採掘せずに名前を付けて停止を採用」:
 the mining cycle is only for purchase gaps (a supply the seen shelves sell
 above the carried gold); any other unmet condition stops by its name.
+Owner 2026-09-13 「鑑定待ちでも止めない」, 2026-11-03 (鑑定できない訪問なら今の
+装備で出発): an identification wait this visit cannot finish is no such
+condition (identification_wait); it is released first, and every other
+condition still decides.  The recorded latch is that wait (the visit's ledger
+counted nine identification-withdrawal attempts), so the named stop is pinned
+with a Home transfer in flight, which the release leaves to its owner.
 
 Recorded boards (fixtures: tests/extract_town_defined_end_1102_fixtures.py):
 
@@ -179,13 +185,43 @@ class TownDefinedEndHomeLoopTest(TownWanderRecordedTest):
         recall["count"] = 1
         return policy, raw
 
-    def test_non_purchase_condition_stops_by_name_without_mining(self):
+    @staticmethod
+    def transfer_in_flight(policy):
+        """DECLARED CONSTRUCTED: a Home transfer no release may take away."""
+        policy._home_pending_item = policy._item_signature(policy._home_knowledge_items[0])
+
+    def test_identification_wait_the_visit_cannot_finish_departs(self):
         policy, raw = self.unanswered_board()
         board = self.board(policy, raw)
-        # Owner 2026-11-02 「購入に関する問題以外は採掘せずに名前を付けて停止」:
-        # the recorded unmet Home candidate is no purchase gap.
+        # Nothing but the wait is unmet, and no survival condition.
+        material = gather_town_end(policy, board)
+        self.assertEqual((material.survival_unmet, material.unmet),
+                         ((), ("home_candidate_resolved",)))
+        key = town_end_key(policy, board)
+        self.assertEqual(policy.last_reason, "town:repetition-depart:recall")
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertTrue(key.startswith("r" + recall.slot), key)
+        self.assertFalse(policy._home_candidate_waiting)
+        self.assertEqual(verdict_town_end(gather_town_end(policy, board)), ("depart", ()))
+
+    def test_purchase_gap_beside_an_identification_wait_mines_and_never_departs(self):
+        policy, raw = self.purchase_gap_board()
+        policy._home_candidate_waiting = True
+        board = self.board(policy, raw)
+        key = town_end_key(policy, board)
+        # 「条件未達の出発は拒否する」: the wait goes, the unmet Recall stays.
+        self.assertEqual((key, policy.last_reason), ("5", town_end_mining.START_REASON))
+        self.assertIsNone(policy._visit_departure_committed)
+        self.assertEqual(policy._town_end_mining_cycle.unmet, ("recall_departure_ready",))
+
+    def test_non_purchase_condition_stops_by_name_without_mining(self):
+        policy, raw = self.unanswered_board()
+        self.transfer_in_flight(policy)
+        board = self.board(policy, raw)
+        # Owner 2026-11-02 「購入に関する問題以外は採掘せずに名前を付けて停止」.
         end = verdict_town_end(gather_town_end(policy, board))
-        self.assertEqual(end, ("stop", ("home_candidate_resolved",)))
+        self.assertEqual((end.kind, end.conditions[0]), ("stop", "home_candidate_resolved"))
+        self.assertIn("home_pending_item_clear", end.conditions)
         events = runtime_path("keep-running-events.jsonl")
         before = events.read_text(encoding="utf-8") if events.exists() else ""
         town_end_key(policy, board)
@@ -218,9 +254,11 @@ class TownDefinedEndHomeLoopTest(TownWanderRecordedTest):
     def test_purchase_gap_beside_a_defect_stops_on_the_defect(self):
         policy, raw = self.purchase_gap_board()
         policy._home_candidate_waiting = True
+        self.transfer_in_flight(policy)
         board = self.board(policy, raw)
         end = verdict_town_end(gather_town_end(policy, board))
-        self.assertEqual(end, ("stop", ("home_candidate_resolved",)))
+        self.assertEqual((end.kind, end.conditions[0]), ("stop", "home_candidate_resolved"))
+        self.assertIn("home_pending_item_clear", end.conditions)
         town_end_key(policy, board)
         self.assertEqual(policy.last_reason, "town:blocked:unmet:home_candidate_resolved")
         self.assertIsNone(policy._fundraising_mode)
