@@ -2476,6 +2476,9 @@ def town_end_key(policy: Any, board: Any) -> str:
         # Owner 2026-10-31: a visit that can identify a Home candidate takes
         # it out and identifies it.
         return take
+    kit = town_end_mining.home_kit_route_key(policy, board)
+    if kit is not None:
+        return kit
     material = gather_town_end(policy, board)
     if identification_wait.release(
             policy, board, (*material.survival_unmet, *material.unmet)):

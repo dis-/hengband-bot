@@ -125,6 +125,22 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
         self.assertFalse(town_terminal.gather_identify_carried(policy, board).source_held)
         self.assertFalse(identification_wait.visit_can_identify(policy, board))
 
+    def test_town_end_routes_home_for_the_kit_of_an_open_mining_set(self):
+        """n1-b 22:11, town:blocked:survival:cure_critical_ready.
+
+        failed: cure_critical_ready (8 of 10); the shovel and the Treasure
+        Detection are on the Home shelf, and Home was latched by the pass that
+        took the identification candidate.  An open mining set makes the
+        town end stop, so its kit is routed first.
+        """
+        policy, recorded, steps = self.replay("kit-at-home", 39)
+        board = steps[39][1]()
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), (TRAVEL_HOME, "shop:travel"))
+        self.assertEqual(policy._town_errand_plan.need_categories,
+                         {STORE_HOME: ("fundraising-kit",)})
+        self.assert_posts(policy, recorded[39], board, key)
+
 
 if __name__ == "__main__":
     unittest.main()
