@@ -792,6 +792,7 @@ class ObservationMixin:
                 # Home identification latch is read against the previous
                 # visit's deferred Home items, as it always was, after its
                 # identification candidates ended with their request.
+                self._end_visit_home_disposal()
                 self._end_visit_identification_requests()
                 self._town_visit.begin(
                     home_candidate_waiting=(

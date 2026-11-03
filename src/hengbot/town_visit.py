@@ -18,7 +18,10 @@ written or cleared elsewhere, as before.
 Slice 3-2 (owner 2026-11-03 「3つから始める」) moves in state that outlived
 its visit: the two stockout mining plans and the identification candidates.
 The plans live through the run their visit started and end on the return;
-the candidates end with the visit that bound them.
+the candidates end with the visit that bound them.  Slice 3-2's rest (owner
+2026-11-03 「町の第3段 3-2 の残り」) moves in the in-store watches, the town
+order's operation, the dominated-disposal attempts, the Home disposal and the
+Home procurement probe.
 """
 from __future__ import annotations
 
@@ -123,6 +126,42 @@ class TownVisit:
     # (da4d84b48: a candidate destroyed on the trip kept its request latched).
     identification_candidate: Signature | None = None
     device_identification_candidate: Signature | None = None
+    # The in-store no-progress watches.  A watch counts unchanged attempts of
+    # one transaction in a store; the next visit is another attempt with its
+    # own budget, so an earlier visit's count cannot leave it early.
+    # (item letter, gold) of the last buy tried and how many times it was
+    # retried unchanged: a purchase that never registers.
+    last_buy_sig: tuple[str, int] | None = None
+    store_stuck_count: int = 0
+    # Same target and shortage after a registered, money-spending buy is a
+    # distinct defect from a transport failure at unchanged gold.
+    last_buy_progress_sig: tuple[str, int, int] | None = None
+    store_buy_no_progress_count: int = 0
+    # The last sale or Home deposit attempted and its unchanged repeats.
+    last_sell_sig: tuple | None = None
+    store_sell_stuck_count: int = 0
+    # The town order's posted operation and the observation it awaits.  Every
+    # step derives it from the current pack and supplies when it runs, so a
+    # step of the last visit is not this visit's: it cannot report a bounty
+    # "removed" that this visit never held.
+    town_order_operation: str | None = None
+    town_order_expected_observation: str | None = None
+    # A dominated item's disposal keeps its target across the trip (the
+    # policy's _pending_disposal_item), but the attempts are this visit's: the
+    # stores that refused it restock while the character is away, and the
+    # destroy budget is the same per-visit retry as destroy_fail_streak.
+    destroy_attempts: int = 0
+    disposal_store_attempts: set[int] = field(default_factory=set)
+    # The approved Home disposal in progress (identity, "sell" or "destroy").
+    # An unfinished one is planned again from the shelf by the next Home pass;
+    # kept, an absent "destroy" stood in for that pass for good.  What it holds
+    # ends with it (_end_visit_home_disposal).
+    home_disposal_pending: tuple[Signature, str] | None = None
+    # A purchase is legal only after the current Home catalogue has been
+    # evaluated for the same item class.  This latch names the class whose
+    # scan/withdrawal owns routing before an ordinary store may compose p; the
+    # purchase gate binds it again on the page that wants the class.
+    home_procurement_probe: tuple[int, int] | None = None
 
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:
@@ -199,6 +238,18 @@ LEGACY_NAMES = {
     "_recall_stockout_mining_plan": "recall_stockout_mining_plan",
     "_identification_candidate": "identification_candidate",
     "_device_identification_candidate": "device_identification_candidate",
+    "_last_buy_sig": "last_buy_sig",
+    "_store_stuck_count": "store_stuck_count",
+    "_last_buy_progress_sig": "last_buy_progress_sig",
+    "_store_buy_no_progress_count": "store_buy_no_progress_count",
+    "_last_sell_sig": "last_sell_sig",
+    "_store_sell_stuck_count": "store_sell_stuck_count",
+    "_town_order_operation": "town_order_operation",
+    "_town_order_expected_observation": "town_order_expected_observation",
+    "_destroy_attempts": "destroy_attempts",
+    "_disposal_store_attempts": "disposal_store_attempts",
+    "_home_disposal_pending": "home_disposal_pending",
+    "_home_procurement_probe": "home_procurement_probe",
 }
 
 

@@ -1,0 +1,20 @@
+{
+ "town_arrival_replay": {
+  "tool": "tests/replay_town_arrival.py over every distinct town-arrival capture under pdca/captures (10 arrivals, 1051 journal rows); WALL: HomeDisposalState._save_history off (one process, no history sidecar in the older captures)",
+  "trees": {"main": "e99eaacc8", "branch": "fedd969de, a rewritten pre-fixup state of this branch (see notes)"},
+  "result": "per capture: rows replayed, rows matched, first divergence identical on both trees; 301 rows matched on each, the replay stops at the first divergence from the older live build as it does on main"
+ },
+ "hold_replay": {
+  "tools": "validation/structure-s2-cleanup-1102/{replay_hold.py,run_shards.py,compare_hold.py} unchanged, 6 shards per tree, compare with --common-tests",
+  "modules": "validation/structure-s3-1-1103/replay-test-ids.txt (314)",
+  "main":   {"tests": 3378, "failures": 271, "errors": 39, "skipped": 18},
+  "branch": {"tests": 3377, "failures": 271, "errors": 39, "skipped": 18},
+  "compared": {"tests": 1826, "decisions": 15500, "receipts": 46225, "hold_calls": 661707, "deferred_rows": 3432, "outcome_rows": 327, "differing": 4},
+  "only_main": "test_policy_home ... test_restored_policy_without_procurement_probe_declines_new_owner (deleted: its missing attribute cannot occur)",
+  "differing_detail": {
+   "test_policy_shop test_zero_need_deferred_oil_bypasses_both_home_gates_truthfully, decision 3": "the one decision difference (R300 town:wait-restock:temple / 5 shop:travel:await-entry): the test bound the probe on a policy that had seen no board, so its first board was an arrival that ended the probe. Test artifact, fixed in the test (the policy starts on the floor, and it now asserts the failure was recorded).",
+   "test_star_identify_departure ..., test_the_13_classified_rungs ..., test_shadow_and_enforce_preserve_all_49 ...": "message text of tests failing identically on both sides (set order; a path inside a hidden traceback)"
+  }
+ },
+ "notes": "Both replays ran before two later fixups: _end_visit_home_disposal releases the identify request for a sale only, and the test fix above. Neither replay reaches them with a left disposal (no recorded or tested arrival holds one outside tests/test_town_visit_reset_recorded.py)."
+}

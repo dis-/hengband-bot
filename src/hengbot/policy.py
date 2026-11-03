@@ -1351,7 +1351,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_disposal_pass = False
         self._home_disposal_seen_pages: set[tuple[tuple[str, str, int, int], ...]] = set()
         self._home_disposal_candidates: dict[tuple[str, int, int], HomeDisposalCandidate] = {}
-        self._home_disposal_pending: tuple[tuple[str, int, int], str] | None = None
         self._home_capacity_observation = None
         self._home_full_relief = None
         self._home_full_refused = False
@@ -1805,10 +1804,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._took_damage = False
         self._took_curse_damage = False
         self._took_trap_or_terrain_damage = False
-        # (item letter, gold) of the last buy we tried, and how many times we have
-        # re-tried it unchanged — to bail out of a purchase that never registers.
-        self._last_buy_sig: tuple[str, int] | None = None
-        self._store_stuck_count = 0
         # A store redraw can repeat the exact pre-purchase state after Hengband
         # has accepted the command.  Do not issue another buy until inventory or
         # gold confirms the first one, or a bounded wait proves it was rejected.
@@ -1855,10 +1850,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_atomic_deposit_pending: tuple[
             tuple[tuple[tuple[str, int, int], int, int], ...], None, int, int
         ] | None = None
-        # Same target and shortage after a registered, money-spending buy is a
-        # distinct defect from a transport failure at unchanged gold.
-        self._last_buy_progress_sig: tuple[str, int, int] | None = None
-        self._store_buy_no_progress_count = 0
         self._descent_blocked = False
         self._descent_block_countdown = 0
         self._returning_to_town = False
@@ -2103,8 +2094,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._heavy_curse_inscription_pending: tuple[str, int, int] | None = None
         self._launcher_enchant_attempted: set[int] = set()
         self._launcher_enchant_watch: tuple[int, tuple[str, int, int], int] | None = None
-        self._last_sell_sig: tuple | None = None
-        self._store_sell_stuck_count = 0
         # Explicit Home-capacity failures may stop deposits for one town visit.
         # Input-level rejection is tracked separately per item below.
         # Exhausted input retries mean only that deposits should be abandoned
@@ -2285,10 +2274,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_knowledge_items: tuple[InventoryItem, ...] = ()
         self._home_knowledge_valid_before = 0
         self._home_knowledge_current = False
-        # A purchase is legal only after the current Home catalogue has been
-        # evaluated for the same item class.  This latch names the class whose
-        # scan/withdrawal owns routing before an ordinary store may compose p.
-        self._home_procurement_probe: tuple[int, int] | None = None
         self._home_procurement_fallthrough: str | None = None
         self._home_procurement_fallthrough_equivalence: str | None = None
         self._mana_survival_device_price: int | None = None
@@ -2374,9 +2359,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._confirmed_loadout_loaded = False
         self._equipment_optimizer_input_key: str | None = None
         self._equipment_optimizer_knowledge_key: str | None = None
-        # Ordinary town-order operations retain their observation identity.
-        self._town_order_operation: str | None = None
-        self._town_order_expected_observation: str | None = None
         # Refreshed by the existing periodic character observation.
         self._mutation_signature: tuple[int, ...] | None = None
         # Book tvals of the character sheet's realms (unwanted_kinds).
@@ -2451,9 +2433,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._equipment_optimization_last_depth: int | None = None
         self._pending_disposal_slot: str | None = None
         self._pending_disposal_item: tuple[str, int, int] | None = None
-        self._disposal_store_attempts: set[int] = set()
         self._destroy_pending = False
-        self._destroy_attempts = 0
         # The emitter can interleave a store-loop snapshot with a main-loop
         # town snapshot at the same door tile. Retain one decision of store
         # context so a latched town stop closes that UI before it waits.

@@ -363,8 +363,6 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_home_latch_history", [])
     restored.__dict__.setdefault("_home_gate_telemetry", {})
     restored.__dict__.setdefault("_town_visit_epoch", None)
-    restored.__dict__.setdefault("_town_order_operation", None)
-    restored.__dict__.setdefault("_town_order_expected_observation", None)
     restored.__dict__.setdefault("_home_observed_addresses", {})
     # Older captures predate the read/cancel class bound; False is "no recall
     # cancelled as unready this visit", what a fresh visit starts with.
