@@ -1,0 +1,81 @@
+"""The n1-c stops of 2026-11-04 on the viewing bots (stops-1104-0750).
+
+Recorded: tests/extract_n1c_stops_1104_fixtures.py.  Town stops replay from
+their arrival checkpoints through the public chooser; the dungeon stops decide
+on their recorded boards.  Facts the capture keeps outside the board are marked
+DECLARED CONSTRUCTED.
+"""
+import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+
+import gzip
+import json
+import lzma
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+
+from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
+from replay_town_arrival import decisions, journal, restore
+from tests import test_input_executor as executor_pins
+from town_work_corpus import replay_window
+
+
+FIXTURES = Path(__file__).with_name("fixtures") / "n1c-stops-1104"
+
+
+class TownStops(executor_pins.ProductionHarness):
+    def setUp(self):
+        super().setUp()
+        scratch = TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.scratch = Path(scratch.name)
+
+    def load(self, stop):
+        visit = self.scratch / stop / "town-arrival"
+        visit.mkdir(parents=True)
+        (visit / POLICY_FILE).write_bytes(
+            lzma.decompress((FIXTURES / stop / "policy.pkl.xz").read_bytes()))
+        (visit / JOURNAL_FILE).write_bytes(gzip.compress(
+            lzma.decompress((FIXTURES / stop / "journal.jsonl.xz").read_bytes())))
+        runtime = self.scratch / stop / "runtime"
+        runtime.mkdir()
+        policy = restore(visit, runtime)
+        Path(policy._home_disposal.history_path).unlink(missing_ok=True)
+        return policy, journal(visit), list(decisions(policy, visit, runtime))
+
+    def assert_posts(self, policy, row, board, key):
+        """The production executor posts ``key`` on the recorded board."""
+        raw_board = json.loads(row["line"] or row["inputs"][-1])
+        game = executor_pins.FaithfulHookGame()
+        game.state = raw_board
+        game.screen = executor_pins.command_screen(raw_board["turn"])
+        # DECLARED CONSTRUCTED: the next board after the command.
+        game.screens = [executor_pins.command_screen(raw_board["turn"] + 10)]
+        game.states = [dict(raw_board, turn=raw_board["turn"] + 10)]
+        _game, _client, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        sent, _line = _send_new_decision_key(
+            port, "recorded-board", key, None, set(), in_store=False,
+            decision={"sequence": policy._decision_sequence, "reason": policy.last_reason},
+            posting_contract=PostingContract(),
+        )
+        self.assertTrue(sent)
+
+    def test_a_town_fight_is_not_the_opening_routes_standstill(self):
+        """life-127 07:31:30: six shots and a rest on one cell killing a mercenary,
+        then no-progress:quest on the walk to Q1's entrance."""
+        policy, recorded, steps = self.load("opening-fight")
+        result = replay_window("opening-fight", policy, iter(steps[:-1]))
+        self.assertIsNone(result.first_divergence)
+        board = steps[-1][1]()
+        key = policy.choose_key(board)
+        # Recorded: ('', 'quest:blocked:opening-route').
+        self.assertIsNone(getattr(policy, "_opening_q1_failure", None))
+        self.assertEqual((key, policy.last_reason), ("9", "quest:enter:approach"))
+        self.assert_posts(policy, recorded[-1], board, key)
+
+
+if __name__ == "__main__":
+    unittest.main()
