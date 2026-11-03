@@ -12611,5 +12611,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Dungeon only: a latched emergency return with no awake hostile in view reads Recall through once_quest_recall.read_key before any shot or blow.",
     "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:blind_missile_supply_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Blind with no cure and only an unseen missile or spell hit, before the no-wait walk: the low-HP heal or Speed dose the existing rules give for this loss; delegates to them.",
+    "delegation": "selected child; no independent success"
   }
 }

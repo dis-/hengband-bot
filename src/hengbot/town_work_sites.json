@@ -8799,6 +8799,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "status_cure.py:blind_missile_supply_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "status_cure.py:cure_potion": {
     "classification": "data",
     "rows": [

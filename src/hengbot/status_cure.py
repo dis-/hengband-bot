@@ -201,6 +201,28 @@ def cure_potion(policy, snapshot):
     return policy._find_status_cure_potion(snapshot)
 
 
+def blind_missile_supply_key(policy, snapshot, hostiles) -> str | None:
+    """Blind with no cure, hit only by an unseen missile or spell, about to walk.
+
+    Owner 2026-11-04: 「ダメージ量で判断し、通常加速や体力回復を使用する場面で使用。
+    脅威度が低ければ歩いて離れる。」  The rules that normally spend these supplies judge
+    the loss: the low-HP heal, the heavy spell's dose and the strong fight's dose.
+    None lets the walk go on.  A melee blow is answered by unseen_strike instead.
+    """
+    if (not snapshot.player.blind or cure_potion(policy, snapshot) is not None
+            or unseen_strike.hit_in_melee(policy, snapshot)):
+        return None
+    loss = policy._attributable_observed_loss(snapshot)
+    if loss <= 0:
+        return None
+    potion = low_hp_heal(policy, snapshot, hostiles, observed_loss=loss)
+    if potion is not None:
+        policy.last_reason = "item:heal"
+        return reserved_item_command(policy, snapshot, "quaff", potion)
+    return speed_first_key(policy, snapshot) or policy._strong_fight_speed_key(
+        snapshot, hostiles, loss)
+
+
 def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None:
     """Quaff the status cure for the player's blindness (or any treated status),
     after the Speed dose a heavy unseen spell asks for."""
