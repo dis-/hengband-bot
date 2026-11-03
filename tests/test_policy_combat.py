@@ -2587,13 +2587,13 @@ class CombatTest(unittest.TestCase):
         policy._update_combat_outcome(grown)
         self.assertEqual(policy._breeder_breakthrough_floor, grown.floor_key)
 
-        reduced = HengbotPolicy()
-        reduced._update_combat_outcome(observed(100, 3))
+        regrown = HengbotPolicy()
+        regrown._update_combat_outcome(observed(100, 3))
         for action in range(1, FLEE_AFTER_PLAYER_ACTIONS + 1):
-            # Below the engagement count once: a new 20-action window.
+            # Below the window's start once, back at the end: no reduction.
             count = 2 if action == 10 else 3
-            reduced._update_combat_outcome(observed(100 + 10 * action, count))
-        self.assertIsNone(reduced._breeder_breakthrough_floor)
+            regrown._update_combat_outcome(observed(100 + 10 * action, count))
+        self.assertEqual(regrown._breeder_breakthrough_floor, grown.floor_key)
 
     def test_breeder_stalemate_timeout_ends_mining_through_floor_exit(self):
         base = self._small_breeder_group_snapshot(ranged=False)
@@ -2629,7 +2629,7 @@ class CombatTest(unittest.TestCase):
                 self.assertEqual(policy.choose_key(timed_out), "FINISH")
             finish.assert_called_once_with(timed_out)
 
-    def test_breeder_progress_resets_stalemate_clock(self):
+    def test_breeder_counts_inside_a_window_do_not_latch(self):
         base = self._small_breeder_group_snapshot(ranged=False)
 
         def observed(turn, count):
