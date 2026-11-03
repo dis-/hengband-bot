@@ -39,6 +39,14 @@ Shapes, from the source (a direction key aims at the player's position plus
   projectable from it (range-calc.cpp ball_shape / is_prevent_blast).
 - breath: range-calc.cpp breath_shape, ported in ``_breath_cells``; a breath
   with an empty path is a ball (effect-processor.cpp ``breath && !path_n``).
+- a targeted burst (owner 2026-11-03 「群れの中心を狙う」): an absorbed ball
+  or breath may instead burst on any floor grid within its radius of a
+  visible hostile that the projection reaches -- a grid target drops
+  PROJECT_STOP (spells-launcher.cpp:33-36, :60-63), so the ray flies over the
+  monsters on the way and stops at the grid (projection-path-calculator.cpp
+  :79) or before a wall.  The executor walks the target cursor there
+  (me_device_attacks_input); carried devices keep the direction aim (their
+  item command has no prompt-answering executor step).
 - sight: every visible hostile projectable from the player
   (spells-sight.cpp project_all_los); not used while a pet or a peaceful
   monster is in view (me_device_attacks.sight_hits_bystander).
@@ -56,7 +64,8 @@ one (attack_expectation.melee) or a shot at a distant one
 (``_estimated_ranged_damage_per_shot``; its hit chance is left out, so the
 baseline is optimistic and a tie keeps today's choice).  Otherwise None keeps
 the caller's single-target order unchanged, as does every fight without a
-breeder.  Ties among area options prefer a rod (it recharges), then the lower
+breeder.  Among equal scores, fewer prompts come first (a direction before a
+cursor walk; a nearer burst grid), then a rod (it recharges), then the lower
 base level.  In town an area option that would catch a friendly the
 character could not defeat once angered is dropped (owner 2026-10-31
 「敵対させたあと勝てるかで判断。勝てるなら巻き込んで良い。」,
@@ -94,6 +103,7 @@ class Means:
     power: me_device_attacks.Power
     success: float
     send: Callable[[str], str | None]   # direction key ('' when unaimed) -> key
+    send_target: Callable[[Position], str | None] | None = None   # burst grid -> key
 
 
 def _blocker(snapshot):
@@ -122,6 +132,17 @@ def _ray(snapshot, offset, blocks, *, stop: bool) -> list[Position]:
         if stop and pos in occupied:
             break
     return cells
+
+
+def _grid_ray(snapshot, grid, blocks) -> list[Position] | None:
+    """The grids a projection aimed at ``grid`` crosses, else None when it
+    cannot reach it (no PROJECT_STOP: it flies over monsters to the grid)."""
+    cells = []
+    for pos in projection_path(snapshot.player.position, grid, MAX_RANGE, blocks):
+        if blocks(pos):
+            break
+        cells.append(pos)
+    return cells if cells and cells[-1] == grid else None
 
 
 def _ball_cells(centre, radius, blocks, cells):
@@ -158,8 +179,11 @@ def _breath_cells(source, path, radius, blocks, cells):
     return hit
 
 
-def _hits(snapshot, power, offset, blocks) -> dict:
-    """{grid: r} of the visible monsters' grids one use of ``power`` would reach."""
+def _hits(snapshot, power, aim, blocks) -> dict:
+    """{grid: r} of the visible monsters' grids one use of ``power`` would reach.
+
+    ``aim`` is a direction offset, or a target grid (a ball or breath)."""
+    offset = aim
     cells = [monster.position for monster in snapshot.visible_monsters]
     origin = snapshot.player.position
     if power.shape == "sight":
@@ -167,7 +191,10 @@ def _hits(snapshot, power, offset, blocks) -> dict:
     if power.shape == "beam":
         ray = set(_ray(snapshot, offset, blocks, stop=False))
         return {pos: 0 for pos in cells if pos in ray}
-    ray = _ray(snapshot, offset, blocks, stop=True)
+    if isinstance(aim, Position):
+        ray = _grid_ray(snapshot, aim, blocks) or []
+    else:
+        ray = _ray(snapshot, offset, blocks, stop=True)
     if power.shape == "bolt":
         return {ray[-1]: 0} if ray and ray[-1] in cells else {}
     radius = me_device_attacks.AREA_RADIUS[power.shape]
@@ -182,8 +209,8 @@ def _damage(policy, snapshot, power, monster, r) -> float:
     return min((base + r) / (r + 1), max(monster.hp, 0))
 
 
-def _group_score(policy, snapshot, means, offset, blocks) -> float | None:
-    """Expected group damage of ``means`` aimed along ``offset``; None when barred."""
+def _group_score(policy, snapshot, means, aim, blocks) -> float | None:
+    """Expected group damage of ``means`` at ``aim`` (``_hits``); None when barred."""
     if means.power.shape == "bolt-or-beam":
         beam = means.power.beam_percent / 100
         parts = ((beam, replace(means.power, shape="beam", beam_percent=100)),
@@ -193,7 +220,7 @@ def _group_score(policy, snapshot, means, offset, blocks) -> float | None:
     by_cell = {monster.position: monster for monster in snapshot.visible_monsters}
     total = 0.0
     for weight, power in parts:
-        for pos, r in _hits(snapshot, power, offset, blocks).items():
+        for pos, r in _hits(snapshot, power, aim, blocks).items():
             monster = by_cell[pos]
             if not monster.hostile:
                 if snapshot.in_town and policy._town_friendly_unbeatable(snapshot, monster):
@@ -238,7 +265,8 @@ def _means(policy, snapshot) -> list[Means]:
     means = []
     if me_device_attacks.can_use_powers(snapshot):
         means += [Means(power, success,
-                        lambda direction, power=power: me_device_attacks.device_key(policy, power, direction))
+                        lambda direction, power=power: me_device_attacks.device_key(policy, power, direction),
+                        lambda grid, power=power: me_device_attacks.device_target_key(policy, power, grid))
                   for power, success in me_device_attacks.usable_powers(policy)]
     means += _carried(policy, snapshot)
     if me_device_attacks.sight_hits_bystander(snapshot):
@@ -263,15 +291,49 @@ def _one_target_best(policy, snapshot, means, hostiles) -> float:
     return best
 
 
+def _burst_grids(snapshot, radius, blocks):
+    """Floor grids a targeted burst reaches with a visible hostile in its radius."""
+    origin = snapshot.player.position
+    grids = set()
+    for monster in snapshot.visible_monsters:
+        if not monster.hostile:
+            continue
+        centre = monster.position
+        for y in range(centre.y - radius, centre.y + radius + 1):
+            for x in range(centre.x - radius, centre.x + radius + 1):
+                grid = Position(y, x)
+                if (grid != origin and game_distance(centre, grid) <= radius
+                        and not blocks(grid)):
+                    grids.add(grid)
+    return [grid for grid in sorted(grids) if _grid_ray(snapshot, grid, blocks)]
+
+
+def _target_prompts(snapshot, grid) -> int:
+    """'*', 'p', one cursor step per grid (diagonals included) and 't'."""
+    origin = snapshot.player.position
+    return 3 + max(abs(grid.y - origin.y), abs(grid.x - origin.x))
+
+
 def _options(policy, snapshot, means):
-    """(group score, means, direction key) of every usable aim."""
+    """(group score, prompts, means, key sender) of every usable aim.
+
+    Owner 2026-11-03 「群れの中心を狙う」: a ball or breath with a target
+    sender is also scored on every burst grid (``_burst_grids``)."""
     blocks = _blocker(snapshot)
     for each in means:
         aims = ((None, ""),) if not each.power.aimed else DIRECTION_KEYS.items()
         for offset, direction in aims:
             score = _group_score(policy, snapshot, each, offset, blocks)
             if score:
-                yield score, each, direction
+                yield score, int(each.power.aimed), each, lambda e=each, d=direction: e.send(d)
+        if each.send_target is None or each.power.shape not in me_device_attacks.TARGETABLE_SHAPES:
+            continue
+        radius = me_device_attacks.AREA_RADIUS[each.power.shape]
+        for grid in _burst_grids(snapshot, radius, blocks):
+            score = _group_score(policy, snapshot, each, grid, blocks)
+            if score:
+                yield (score, _target_prompts(snapshot, grid), each,
+                       lambda e=each, g=grid: e.send_target(g))
 
 
 def engaged(engaged_hostiles) -> bool:
@@ -289,12 +351,13 @@ def key(policy, snapshot, engaged_hostiles) -> str | None:
         return None
     hostiles = [monster for monster in snapshot.visible_monsters if monster.hostile]
     baseline = _one_target_best(policy, snapshot, means, hostiles)
+    # Ties: fewer prompts (a direction before a cursor walk), a rod, the lower level.
     ranked = sorted(_options(policy, snapshot, means),
-                    key=lambda option: (-option[0], option[1].power.kind != "rod",
-                                        option[1].power.level))
-    for score, each, direction in ranked:
+                    key=lambda option: (-option[0], option[1], option[2].power.kind != "rod",
+                                        option[2].power.level))
+    for score, _prompts, _each, send in ranked:
         if score <= baseline:
             return None
-        if (sent := each.send(direction)) is not None:
+        if (sent := send()) is not None:
             return sent
     return None

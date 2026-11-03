@@ -61,6 +61,9 @@ MISSILE = ("wand", 15)
 # : 2`` (cmd-zapwand.cpp:57, cmd-zaprod.cpp:51); breaths fire_breath(..., 3)
 # (cmd-zapwand.cpp:263-289).
 AREA_RADIUS = {"ball": 2, "breath": 3}
+# fire_ball / fire_breath clear PROJECT_STOP for a target (spells-launcher.cpp
+# :33-36, :60-63); a bolt or beam is not aimed at a grid here.
+TARGETABLE_SHAPES = frozenset({"ball", "breath"})
 _OFFSET_BY_KEY = {key: offset for offset, key in DIRECTION_KEYS.items()}
 
 
@@ -310,6 +313,19 @@ def device_key(policy, power, direction) -> str:
     """``m`` + kind + power (+ direction): the power's key (``DEVICE_REASON``)."""
     policy.last_reason = DEVICE_REASON
     return "m" + KIND_LETTER[power.kind] + power.letter + (direction if power.aimed else "")
+
+
+def device_target_key(policy, power, grid) -> str:
+    """``m`` + kind + power + ``@y,x``: a ball or breath burst on ``grid``.
+
+    The executor answers get_aim_dir with ``*`` and moves the target cursor
+    to ``grid`` in the free mode (me_device_attacks_input); a grid target
+    drops PROJECT_STOP (spells-launcher.cpp:33-36, :60-63), so the projection
+    flies over monsters to the grid (projection-path-calculator.cpp:79)."""
+    if power.shape not in TARGETABLE_SHAPES:
+        raise ValueError("only a ball or a breath bursts on a target grid")
+    policy.last_reason = DEVICE_REASON
+    return "m" + KIND_LETTER[power.kind] + power.letter + f"@{grid.y},{grid.x}"
 
 
 def strongest(policy, snapshot, target, direction):

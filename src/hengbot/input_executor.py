@@ -398,10 +398,11 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
         if line.strip() in character_footers:
             return ScreenMatch(ScreenKind.CHARACTER, line.strip(), y,
                                _cell_width(line) - _cell_width(line.lstrip()))
-    # target/target-setter.cpp:196-198,434; target-describer.cpp:183,226.
+    # target/target-setter.cpp:196-198,434; target-describer.cpp:183,226;
+    # the free mode's guide, target-setter.cpp:470.
     if any(template in row0 for template in (
-            "q,t,p,o,+,-,<dir>", "q,p,o,+,-,<dir>",
-            "q止 t決 p自 o現 +次 -前", "q止 p自 o現 +次 -前",
+            "q,t,p,o,+,-,<dir>", "q,p,o,+,-,<dir>", "q,t,p,m,+,-,<dir>",
+            "q止 t決 p自 o現 +次 -前", "q止 p自 o現 +次 -前", "q止 t決 p自 m近 +次 -前",
             "[q止 p自 o現 +次 -前 g移]")):
         return ScreenMatch(ScreenKind.LOOK, row0, 0, 0)
 

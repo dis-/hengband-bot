@@ -3,8 +3,14 @@
 cmd-magiceat.cpp ``do_cmd_magic_eater``: the kind question (``[A] 杖,
 [B] 魔法棒, [C] ロッド:`` or the use_menu 「どの種類の魔法を使いますか？」 menu),
 the power prompt and its list, then get_aim_dir for a wand or an aimed rod
-(a staff power has no direction).  Each answer is gated on its own observed
-prompt.  The list under the power prompt is recorded on the board
+(a staff power has no direction).  A ball or breath burst on a grid
+(``m`` + kind + power + ``@y,x``, me_device_attacks.device_target_key)
+answers get_aim_dir with ``*`` (target-getter.cpp:89-97 target_set), then
+each target prompt from its published cursor: ``p`` leaves the monster mode
+for the free mode at the player (target-setter.cpp:322-329), a direction key
+moves the cursor one grid (:523-530, decide_change_panel :534) and ``t`` at the
+grid makes it the target (:482-487); get_aim_dir then fires at it.  Each
+answer is gated on its own observed prompt.  The list under the power prompt is recorded on the board
 (``magic_eater_power_list``); an empty or still-charging power closes the
 prompt with ESC (``select_magic_eater`` returns nullopt and the energy is
 reset), so a stale remembered row costs no game time.  The utility powers
@@ -22,7 +28,8 @@ from hengbot.magic_eater_input import (
     EMPTY, FAILURES, MENU_PROMPTS, TYPE_PROMPTS, _owns_power_prompt, _wand_menu_answer,
     aim_never_asked, kind_menu_wait, observed_power_list,
 )
-from hengbot.me_device_attacks import DEVICE_REASON, POWERS
+from hengbot.me_device_attacks import DEVICE_REASON, POWERS, TARGETABLE_SHAPES
+from hengbot.policy_constants import DIRECTION_KEYS
 from hengbot import me_absorbed_substitutes, me_powers
 from hengbot.me_powerful_activation import RACIAL_KEY
 
@@ -37,9 +44,11 @@ class DeviceStep(Continuation):
     sval: int = 15
     stage: str = "kind"
     attempts: int = 0
+    goal: tuple[int, int] | None = None   # the burst grid (y, x) of a targeted ball
 
 
-_KEY = re.compile(r"m(?P<kind>[ABC])(?P<letter>[a-z0-9])(?P<direction>[1-9]?)")
+_KEY = re.compile(r"m(?P<kind>[ABC])(?P<letter>[a-z0-9])"
+                  r"(?:(?P<direction>[1-9])|@(?P<y>\d+),(?P<x>\d+))?")
 
 
 def _table(owner):
@@ -69,9 +78,12 @@ def compile_device(key, owner):
         raise ValueError("invalid Magic-Eater device attack")
     kind, sval = me_powers.kind_of(match["kind"]), me_powers.decode_letter(match["letter"])
     power = table.get((kind, sval))
-    if power is None or power.aimed != bool(match["direction"]):
+    goal = (int(match["y"]), int(match["x"])) if match["y"] is not None else None
+    if power is None or power.aimed != bool(match["direction"] or goal):
         raise ValueError("invalid Magic-Eater device attack")
-    return "m", [DeviceStep(frozenset(), match["direction"], kind=kind, sval=sval)]
+    if goal is not None and getattr(power, "shape", None) not in TARGETABLE_SHAPES:
+        raise ValueError("only a ball or a breath bursts on a target grid")
+    return "m", [DeviceStep(frozenset(), match["direction"] or "", kind=kind, sval=sval, goal=goal)]
 
 
 def _row(lines, power):
@@ -125,8 +137,28 @@ def _answer(step, reading, lines, operation):
     if step.stage == "aim":
         if reading.kind != "direction" or reading.details.get("can_choose_target") is not True:
             raise ValueError("unowned Magic-Eater aim prompt")
+        if step.goal is not None:
+            return "*", "target"
         return step.keys, "done"
+    if step.stage == "target":
+        return _target_answer(step, reading)
     raise ValueError("unexpected prompt after Magic-Eater device answer")
+
+
+def _target_answer(step, reading):
+    """One key of the cursor walk to the burst grid, from the published cursor."""
+    details = reading.details
+    if reading.kind != "target" or details.get("look") is not False:
+        raise ValueError("unowned Magic-Eater target prompt")
+    if details.get("free") is not True:
+        return "p", "target"
+    cursor = (details.get("y"), details.get("x"))
+    if not all(isinstance(value, int) for value in cursor):
+        raise ValueError("target cursor not published")
+    if cursor == step.goal:
+        return "t", "done"
+    dy, dx = (step.goal[0] - cursor[0], step.goal[1] - cursor[1])
+    return DIRECTION_KEYS[((dy > 0) - (dy < 0), (dx > 0) - (dx < 0))], "target"
 
 
 def advance_device(executor, screen, match, deadline, outcome):
@@ -144,7 +176,7 @@ def advance_device(executor, screen, match, deadline, outcome):
         operation.continuations[0] = step
     if match.kind in {ScreenKind.MORE, ScreenKind.LEVEL_UP_STAT}:
         return None
-    if aim_never_asked(step, match):
+    if aim_never_asked(step, match) or (match.kind is ScreenKind.COMMAND and step.stage == "target"):
         operation.business_outcome = "failed:magic-eater"
         step = replace(step, stage="done")
     if match.kind is ScreenKind.COMMAND and step.stage == "done":
