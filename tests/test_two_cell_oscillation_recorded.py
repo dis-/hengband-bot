@@ -191,7 +191,9 @@ class LeastVisitedDeadEndRecordedTest(unittest.TestCase):
             policy._visit_counts[DEAD_END], policy._visit_counts[Position(32, 15)]
         )
         key = policy.choose_key(board)
-        self.assertEqual(policy.last_reason, "breakout:least-visited")
+        # The ladder below the oscillation branch owns an explored-out floor
+        # (n1-a life-474, tests/test_dungeon_stops_1103_recorded.py).
+        self.assertEqual(policy.last_reason, "seek-secret-wall")
         self.assertNotEqual(key, self.recorded[A_BREAKOUT]["key"])
         self.assertEqual(key, "2")  # on to (32,15), away from the dead end
 

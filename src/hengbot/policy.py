@@ -7996,9 +7996,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if ranged is not None:
                 return ranged
             self.last_reason = "melee"
+            # A town fight is survival (owner 2026-10-31) and _town_kill_mob_key
+            # delegates the adjacent one to this rung: an errand hold must not
+            # refuse it, or the WAIT it leaves spends the escape kit and walks
+            # away from a monster the hunt walks back to (n1-c life-123).
             return self._town_producer_entry("_direction_key#2", lambda: self._direction_key(
                 player.position, self._weakest(combat_adjacent).position
-            ))
+            ), family="survival")
         if (ranged := me_ranged_first.melee_refused_key(self, snapshot, combat_adjacent)) is not None:
             return ranged  # NO_MELEE refuses melee only (fear flees above)
 
@@ -9010,10 +9014,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self.last_reason = "breakout:seek-frontier"
                 self._declare_explore_goal()
                 return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
-            # No reachable unexplored floor or frontier remains. Only now use a
-            # local least-visited step to keep moving while secret-wall searches
-            # are exhausted elsewhere.  Town has no such step: no owner
-            # answered, so the visit takes its declared end (owner 2026-11-02).
+            # No reachable unexplored floor or frontier remains: the ladder
+            # below owns the floor (secret walls, known stairs, the wander), and
+            # the stuck streak reaches its escape.  A local wander here hid all
+            # of that while the two-square confinement kept this branch alive
+            # until the loop guard stopped the bot (n1-a life-474).  Town has no
+            # wander: no owner answered, so the visit takes its declared end
+            # (owner 2026-11-02).
             if snapshot.in_town:
                 return town_end_key(self, snapshot)
             # The engagement retreats' own vetoes (and the areas they guard)
@@ -9026,10 +9033,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 escape = self._stuck_escape_key(snapshot)
                 if escape is not None:
                     return escape
-            step = self._least_visited_neighbor(snapshot)
-            if step is not None:
-                self.last_reason = "breakout:least-visited"
-                return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
 
         # Search a corridor dead-end before ordinary exploration routes us away.
         # This is opportunistic only: never detour toward a remote dead-end.
@@ -17007,7 +17010,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if not allow_damaging and self._is_avoidable_hazard_grid(grid):
             return False
         if grid.is_door:
-            return grid.passable or grid.is_closed_door
+            # A door given up after DOOR_OPEN_LIMIT picks is a wall, for a route
+            # committed before it was given up too (n1-c life-123 picked one 30
+            # times on the committed descent route).
+            return grid.passable or (
+                grid.is_closed_door
+                and (grid.position.y, grid.position.x) not in self._blocked_doors
+            )
         # Rubble is only tunnelled from an orthogonally adjacent tile.
         if grid.is_rubble:
             return (pos.y == start.y or pos.x == start.x) and (

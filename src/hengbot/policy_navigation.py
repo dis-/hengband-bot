@@ -1695,23 +1695,56 @@ class NavigationMixin:
     
         goal = max(candidates, key=frontier_score)
         start = snapshot.player.position
+        # A corridor trap is crossed when nothing else leads there, as
+        # _plan_explore_path does.
+        unseen_veto = False
+        for allow_damaging in (None, True):
+            parent, vetoed = self._global_frontier_search(
+                snapshot, start, goal, allow_damaging)
+            unseen_veto = unseen_veto or vetoed
+            if goal in parent:
+                break
+        else:
+            # The area of a continuing unseen attack lifts when the attack
+            # ends: a route it cuts is no proof.  Writing the goal off here
+            # left a maze's one open corridor unexplored for the rest of the
+            # floor (n1-b life-306).
+            if not unseen_veto:
+                self._probed_frontiers.add(goal)
+            return []
+        path: list[Position] = []
+        node: Position | None = goal
+        while node is not None and node != start:
+            path.append(node)
+            node = parent[node]
+        path.reverse()
+        return path
+
+    def _global_frontier_search(
+        self,
+        snapshot: Snapshot,
+        start: Position,
+        goal: Position,
+        allow_damaging: bool | None,
+    ) -> tuple[dict[Position, Position | None], bool]:
+        """BFS toward ``goal``: (parents, whether an unseen attack area cut it)."""
         digger = self._equipped_digging_tool(snapshot) is not None
         queue: deque[Position] = deque([start])
         parent: dict[Position, Position | None] = {start: None}
+        unseen_veto = False
         while queue:
             position = queue.popleft()
             if position == goal:
                 break
+            walkable_here = self._walkable_neighbors(
+                snapshot, position, allow_damaging=allow_damaging
+            )
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
-                if (
-                    neighbor in parent
-                    or neighbor in self._engagement_avoid_cells
-                    or self._in_unseen_attack_area(snapshot, neighbor)
-                ):
+                if neighbor in parent or neighbor in self._engagement_avoid_cells:
                     continue
                 grid = snapshot.grids.get(neighbor)
-                walkable = neighbor in self._walkable_neighbors(snapshot, position)
+                walkable = neighbor in walkable_here
                 diggable = (
                     digger
                     and grid is not None
@@ -1722,18 +1755,12 @@ class NavigationMixin:
                 )
                 if not walkable and not diggable:
                     continue
+                if self._in_unseen_attack_area(snapshot, neighbor):
+                    unseen_veto = True
+                    continue
                 parent[neighbor] = position
                 queue.append(neighbor)
-        if goal not in parent:
-            self._probed_frontiers.add(goal)
-            return []
-        path: list[Position] = []
-        node: Position | None = goal
-        while node is not None and node != start:
-            path.append(node)
-            node = parent[node]
-        path.reverse()
-        return path
+        return parent, unseen_veto
 
     def _plan_explore_path_pass(
         self,
