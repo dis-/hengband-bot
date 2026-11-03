@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, me_ranged_first, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -1594,6 +1594,9 @@ class CombatMixin:
             self._ranged_target_attempts.pop(index, None)
         if not hostiles:
             return None
+        # Owner 2026-11-01: against breeders, the group's damage decides.
+        if (group := breeder_area_attack.key(self, snapshot, hostiles)) is not None:
+            return group
         if adjacent:
             return self._adjacent_ranged_key(snapshot, adjacent)
         player = snapshot.player

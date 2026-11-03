@@ -164,6 +164,9 @@ def _element_multiplier(element, flags, race_known=True):
         return 1.0 if "HURT_LITE" in flags else 0.0
     if element == "DISP_EVIL":
         return 1.0 if "EVIL" in flags else 0.0
+    if element == "DISP_UNDEAD":
+        # effect-monster-evil.cpp effect_monster_disp_undead.
+        return 1.0 if "UNDEAD" in flags else 0.0
     if element == "HYPODYNAMIA":
         # MonraceDefinition::has_living_flag; an unknown race is not proven living.
         living = race_known and not flags & {"DEMON", "UNDEAD", "NONLIVING"}
@@ -238,30 +241,48 @@ def _available(power, row):
     return isinstance(row.get("current"), int) and row["current"] > 0
 
 
-def _candidates(policy, snapshot, target, direction):
-    flags = None
-    knowledge = policy._monrace_knowledge.get(target.race_id)
-    if knowledge is not None:
-        flags = knowledge.flags
-    level = snapshot.player.level
-    bystander = any(not monster.hostile for monster in snapshot.visible_monsters)
+def sight_hits_bystander(snapshot) -> bool:
+    """project_all_los would also hit a visible pet or peaceful monster."""
+    return any(not monster.hostile for monster in snapshot.visible_monsters)
+
+
+def race_flags(policy, monster):
+    """The race flags the bot models for ``monster``, else None (unknown race)."""
+    return getattr(policy._monrace_knowledge.get(monster.race_id), "flags", None)
+
+
+def can_use_powers(snapshot) -> bool:
+    """A class-16 character able to aim and tell its targets apart."""
+    player = snapshot.player
+    return (player.class_id == PLAYER_CLASS_MAGIC_EATER
+            and not (player.blind or player.confused or player.hallucinated))
+
+
+def usable_powers(policy):
+    """(power, success) of every absorbed attack power whose last displayed row had a charge."""
     for kind, (_, rows) in getattr(policy, "_me_device_lists", {}).items():
         for row in rows:
             power = _BY_NAME.get((kind, row.get("name")))
-            if power is None or not _available(power, row):
-                continue
-            if power.shape == "sight" and bystander:
-                continue  # project_all_los would also hit a pet or a peaceful monster
-            if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
-                continue
-            success = max(0, min(100, int(row.get("success", 0)))) / 100
-            damage = min(expected_damage(power, level, flags), max(target.hp, 0))
-            yield success * damage, power
+            if power is not None and _available(power, row):
+                yield power, max(0, min(100, int(row.get("success", 0)))) / 100
+
+
+def _candidates(policy, snapshot, target, direction):
+    flags = race_flags(policy, target)
+    level = snapshot.player.level
+    bystander = sight_hits_bystander(snapshot)
+    for power, success in usable_powers(policy):
+        if power.shape == "sight" and bystander:
+            continue
+        if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
+            continue
+        damage = min(expected_damage(power, level, flags), max(target.hp, 0))
+        yield success * damage, power
 
 
 def optimistic_score(policy, snapshot, power, target):
     """``power``'s score at an optimistic 100% success (no displayed row)."""
-    flags = getattr(policy._monrace_knowledge.get(target.race_id), "flags", None)
+    flags = race_flags(policy, target)
     damage = expected_damage(power, snapshot.player.level, flags)
     return min(damage, max(target.hp, 0))
 
@@ -273,9 +294,7 @@ def missile_score(policy, snapshot, target):
 
 def scored(policy, snapshot, target, direction) -> list:
     """(score, power) of every usable absorbed attack power, best first."""
-    player = snapshot.player
-    if (player.class_id != PLAYER_CLASS_MAGIC_EATER
-            or player.blind or player.confused or player.hallucinated):
+    if not can_use_powers(snapshot):
         return []
     return sorted(_candidates(policy, snapshot, target, direction),
                   key=lambda pair: (-pair[0], pair[1].kind != "rod", pair[1].level))
