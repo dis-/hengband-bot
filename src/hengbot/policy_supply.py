@@ -1889,15 +1889,20 @@ class SupplyMixin:
                 + (position.x - origin.x) * reverse_dx
             )
 
+        # A cell the weapon warning already refused is walked as WAIT -> no
+        # key (Angband 30F 2026-10-20 04:01:22/34), and a cell another owner
+        # vetoes (the shared avoid set: an immobile summoner's line of fire,
+        # a paralyzer ring) is the one that owner just stepped out of
+        # (n1-a life-469 鉄獄26/30階 2026-11-03: explore:avoid-immobile-summoner
+        # and this walk alternated until the loop detector).  The same
+        # avoidance explore and loot apply.
+        refused = self._warning_refused_cells | self._engagement_avoid_cells
         first_steps = sorted(
             (
                 neighbor
                 for neighbor in self._walkable_neighbors(snapshot, origin)
                 if projection(neighbor) > 0
-                # A cell the weapon warning already refused is walked as
-                # WAIT -> no key (Angband 30F 2026-10-20 04:01:22/34):
-                # the same avoidance explore and loot apply.
-                and neighbor not in self._warning_refused_cells
+                and neighbor not in refused
             ),
             key=lambda position: (
                 -projection(position),
@@ -1919,7 +1924,7 @@ class SupplyMixin:
                 if (
                     neighbor in seen
                     or projection(neighbor) <= 0
-                    or neighbor in self._warning_refused_cells
+                    or neighbor in refused
                 ):
                     continue
                 seen.add(neighbor)

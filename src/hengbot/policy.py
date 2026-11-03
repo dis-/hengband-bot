@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import blind_strike, lamp_fuel, mining_loadout, random_quest_hold, town_pack_headroom, walkout_dig
+from hengbot import blind_strike, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import consumable_policy, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
@@ -7810,8 +7810,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return escape
             # Once a confusion/paralysis attacker is adjacent, taking a normal
             # retreat step donates the disabling blow.  Relocate before it lands.
+            # A walk cannot outpace a mover at least as fast either
+            # (paralyzer_contact.follows_walk).
             if (
-                any(monster.distance <= 1 for monster in status_threats)
+                any(
+                    monster.distance <= 1
+                    or paralyzer_contact.follows_walk(self, snapshot, monster)
+                    for monster in status_threats
+                )
                 and not player.blind
                 and not player.confused
             ):
