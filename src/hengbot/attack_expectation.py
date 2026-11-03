@@ -31,7 +31,8 @@ having no flags and the reference armour):
   absorbed power's damage (me_device_attacks) times the use chance, chance =
   skill_dev - item level (above 50 halved), failing when chance < USE_DEVICE
   (raised to USE_DEVICE once in USE_DEVICE - chance + 1) or randint1(chance)
-  < USE_DEVICE.
+  < USE_DEVICE.  A carried staff uses the same check (use-execution.cpp:59-74);
+  a carried rod has its own (``rod_use_success``).
 """
 
 from __future__ import annotations
@@ -142,6 +143,19 @@ def device_use_success(skill_dev: int, item_level: int) -> float:
     if chance < USE_DEVICE_MIN:
         return (USE_DEVICE_MIN - 2) / USE_DEVICE_MIN / (USE_DEVICE_MIN - chance + 1)
     return (chance - 2) / chance
+
+
+def rod_use_success(skill_dev: int, item_level: int) -> float:
+    """zaprod-execution.cpp:66-94's chance that a carried rod works (not confused)."""
+    chance, fail = skill_dev, item_level + 5
+    if chance > fail:
+        fail -= (chance - fail) * 2
+    else:
+        chance -= (fail - chance) * 2
+    fail, chance = max(fail, USE_DEVICE_MIN), max(chance, USE_DEVICE_MIN)
+    if chance > fail:
+        return (2 * chance - fail) / (2 * chance)   # randint0(chance * 2) >= fail
+    return chance / (2 * fail)                      # randint0(fail * 2) < chance
 
 
 def carried_wand(policy, snapshot, target, wand) -> float:

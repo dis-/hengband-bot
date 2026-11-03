@@ -90,6 +90,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "breeder_area_attack.py:_use": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "breeder_area_attack.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "breeder_quest.py:response": {
     "classification": "data",
     "rows": [

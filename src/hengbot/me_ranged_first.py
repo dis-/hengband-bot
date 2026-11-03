@@ -14,7 +14,8 @@ pack, a spare lit torch, then the caller's melee.  Town fights use the same
 order (owner 2026-10-31 「近接以外の攻撃手段も街で使う」).  Only the generic
 combat rungs call this; apart from the absorbed attack powers, quest floors
 keep their reviewed strategies (me_q1_torch, q34 missiles) and every other
-class keeps melee.
+class keeps melee -- except against breeders, where every class first weighs
+its area attacks by the damage to the whole group (breeder_area_attack).
 
 Beside the target the same candidates and melee are weighed instead (owner
 2026-11-01, #47 D57: 「見込みの大きい方を使う」): the one with the larger
@@ -29,7 +30,7 @@ the Lv18 Magic-Eater fired 3d6 missiles at an AC 1 jelly its two hands would
 have hit for about four times as much).
 """
 
-from hengbot import attack_expectation, me_device_attacks
+from hengbot import attack_expectation, breeder_area_attack, me_device_attacks
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -209,7 +210,14 @@ def best_expected(policy, snapshot, target) -> float:
 
 
 def attack_key(policy, snapshot, target) -> str | None:
-    """The ranged answer to ``target`` (adjacent or ray-aligned), else None."""
+    """The ranged answer to ``target`` (adjacent or ray-aligned), else None.
+
+    Every class: when ``target`` or a hostile beside the player breeds, an
+    area attack that out-damages every one-target answer over the group comes
+    first (breeder_area_attack, owner 2026-11-01)."""
+    beside = [monster for monster in snapshot.visible_monsters if monster.distance <= 1]
+    if (group := breeder_area_attack.key(policy, snapshot, [target, *beside])) is not None:
+        return group
     origin, cell = snapshot.player.position, target.position
     direction = _aim(snapshot, target)
     if origin.distance_to(cell) <= 1:
