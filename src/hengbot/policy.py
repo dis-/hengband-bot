@@ -2192,10 +2192,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The income floor a mining run was ended on by a ruled-out unique
         # (_mining_unbeatable_unique_abort_key); that run is not counted.
         self._mining_abort_floor: tuple[int, int, int] | None = None
-        self._identify_staff_mining_plan = False
-        # Marks the one-run D1 recall-stockout time-pass (not a funding set):
-        # the gold set-end leaves it running while the stockout persists.
-        self._recall_stockout_mining_plan = False
+        # The two stockout mining plans live in the town visit (slice 3-2).
         # Marks a set opened because no recall landing is safe: the gold
         # set-end leaves it running and the run count ends it.
         self._no_safe_destination_set = False

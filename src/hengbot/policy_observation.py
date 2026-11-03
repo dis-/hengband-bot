@@ -793,7 +793,8 @@ class ObservationMixin:
                 self._town_visit.begin(
                     home_candidate_waiting=(
                         self._home_identification_candidate_pending(snapshot)
-                    )
+                    ),
+                    run_made_again=returned_from_fundraising and aborted_run,
                 )
 
             if (
