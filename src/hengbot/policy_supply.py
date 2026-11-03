@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import goal_route, lamp_fuel, me_capability, unseen_strike, wilderness_exit
+from hengbot import goal_route, lamp_fuel, me_capability, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -482,6 +482,11 @@ class SupplyMixin:
                 )
                 required_departure = self._supply_threshold(
                     kind, "departure", threshold_depth
+                )
+            if kind == "teleport":
+                required_departure = max(
+                    required_departure,
+                    random_quest_reserve.departure_requirement(self, snapshot),
                 )
             if kind == "oil" and self._owns_usable_permanent_light(snapshot):
                 # Permanent lights consume no fuel. Oil therefore stops being
