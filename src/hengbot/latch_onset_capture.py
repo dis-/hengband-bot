@@ -7,6 +7,7 @@ from collections import Counter, deque
 import inspect
 import io
 import json
+import os
 import pathlib
 import pickle
 from dataclasses import replace
@@ -96,27 +97,36 @@ def restore_checkpoint(policy_type: type, encoded: str) -> Any:
     return restore_checkpoint_bytes(policy_type, base64.b64decode(encoded))
 
 
+_PATH_CLASSES = frozenset({
+    "Path", "WindowsPath", "PosixPath", "PurePath", "PureWindowsPath",
+    "PurePosixPath",
+})
+# The concrete path class of the other OS cannot be instantiated here.
+_FOREIGN_CONCRETE_PATH = "PosixPath" if os.name == "nt" else "WindowsPath"
+
+
+class _PortablePathUnpickler(pickle.Unpickler):
+    """Load a checkpoint written by another Python version or OS.
+
+    Python 3.13 pickles path classes from ``pathlib._local`` (older runtimes
+    keep them in ``pathlib``); the viewing bots run on Linux, so their
+    checkpoints hold ``PosixPath``, which Windows cannot instantiate.  Such a
+    path becomes this OS's ``Path`` (``isolate_restored_runtime_paths``
+    redirects the runtime ones).
+    """
+
+    def find_class(self, module, name):
+        if module in {"pathlib", "pathlib._local"} and name in _PATH_CLASSES:
+            if name == _FOREIGN_CONCRETE_PATH:
+                return pathlib.Path
+            return getattr(pathlib, name)
+        return super().find_class(module, name)
+
+
 def restore_checkpoint_bytes(policy_type: type, payload: bytes) -> Any:
     """Restore a ``checkpoint_bytes`` pickle without policy initialization."""
     restored = policy_type.__new__(policy_type)
-    try:
-        state = pickle.loads(payload)
-    except ModuleNotFoundError as error:
-        if error.name != "pathlib._local":
-            raise
-
-        class _LegacyPathUnpickler(pickle.Unpickler):
-            def find_class(self, module, name):
-                if module == "pathlib._local" and name in {
-                    "WindowsPath", "PosixPath", "PureWindowsPath",
-                    "PurePosixPath",
-                }:
-                    return getattr(pathlib, name)
-                return super().find_class(module, name)
-
-        # Checkpoints emitted by newer Python use pathlib._local. The
-        # portable runtime keeps the same path classes in pathlib itself.
-        state = _LegacyPathUnpickler(io.BytesIO(payload)).load()
+    state = _PortablePathUnpickler(io.BytesIO(payload)).load()
     restored.__dict__.update(state)
     restored._latch_capture_path = None
     restored._latch_capture_previous = None
