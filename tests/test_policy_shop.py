@@ -4668,9 +4668,12 @@ class TownErrandPlanTest(unittest.TestCase):
             self._snapshot(),
             inventory=[item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=7500)],
         )
+        # This visit's probe: its first board is not a new arrival.
+        policy._floor_key = lantern_snapshot.floor_key
         policy, outside = self._consume_failed_procurement_withdrawal(
             policy, lantern_snapshot, oil, policy._procurement_class(oil)
         )
+        self.assertIsNotNone(policy._home_procurement_withdraw_failure)
         policy.consume_home_knowledge((oil,))
         permanent = replace(
             outside,

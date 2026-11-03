@@ -2274,10 +2274,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_knowledge_items: tuple[InventoryItem, ...] = ()
         self._home_knowledge_valid_before = 0
         self._home_knowledge_current = False
-        # A purchase is legal only after the current Home catalogue has been
-        # evaluated for the same item class.  This latch names the class whose
-        # scan/withdrawal owns routing before an ordinary store may compose p.
-        self._home_procurement_probe: tuple[int, int] | None = None
         self._home_procurement_fallthrough: str | None = None
         self._home_procurement_fallthrough_equivalence: str | None = None
         self._mana_survival_device_price: int | None = None

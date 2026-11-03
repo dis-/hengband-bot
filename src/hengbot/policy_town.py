@@ -3108,7 +3108,7 @@ class TownMixin:
             and self._find_home_deposit(snapshot) is not None
         ):
             add(STORE_HOME, "deposit", "home-first")
-        procurement_probe = getattr(self, "_home_procurement_probe", None)
+        procurement_probe = self._home_procurement_probe
         if procurement_probe is not None and (
             (
                 procurement_probe[0] == TVAL_FOOD

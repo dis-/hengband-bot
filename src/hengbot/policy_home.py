@@ -3854,7 +3854,7 @@ class HomeMixin:
         )
         self._declare_non_discardable("survival" if survival else "home-visit")
         self._home_atomic_withdraw_move_identity = move_identity
-        procurement_probe = getattr(self, "_home_procurement_probe", None)
+        procurement_probe = self._home_procurement_probe
         self._home_atomic_withdraw_procurement_class = (
             procurement_probe
             if (
@@ -5593,7 +5593,7 @@ class HomeMixin:
             else None
         )
         if (
-            getattr(self, "_home_procurement_probe", ()) is not None
+            self._home_procurement_probe is not None
             or not self._home_knowledge_current
             or (
                 not departure_blocking_only

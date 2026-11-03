@@ -18,7 +18,10 @@ written or cleared elsewhere, as before.
 Slice 3-2 (owner 2026-11-03 「3つから始める」) moves in state that outlived
 its visit: the two stockout mining plans and the identification candidates.
 The plans live through the run their visit started and end on the return;
-the candidates end with the visit that bound them.
+the candidates end with the visit that bound them.  Slice 3-2's rest (owner
+2026-11-03 「町の第3段 3-2 の残り」) moves in the in-store watches, the town
+order's operation, the dominated-disposal attempts, the Home disposal and the
+Home procurement probe.
 """
 from __future__ import annotations
 
@@ -154,6 +157,12 @@ class TownVisit:
     # kept, an absent "destroy" stood in for that pass for good.  What it holds
     # ends with it (_end_visit_home_disposal).
     home_disposal_pending: tuple[Signature, str] | None = None
+    # A purchase is legal only after the current Home catalogue has been
+    # evaluated for the same item class.  This latch names the class whose
+    # scan/withdrawal owns routing before an ordinary store may compose p; the
+    # purchase gate binds it again on the page that wants the class.
+    home_procurement_probe: tuple[int, int] | None = None
+
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:
         """Start a new visit: forget every fact of the previous one.
@@ -240,6 +249,7 @@ LEGACY_NAMES = {
     "_destroy_attempts": "destroy_attempts",
     "_disposal_store_attempts": "disposal_store_attempts",
     "_home_disposal_pending": "home_disposal_pending",
+    "_home_procurement_probe": "home_procurement_probe",
 }
 
 

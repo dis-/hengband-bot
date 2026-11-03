@@ -244,6 +244,20 @@ class HomeDisposalEndsWithVisitTest(ArrivalCase):
         self.assertIsNone(policy._identification_need)
 
 
+class HomeProcurementProbeEndsWithVisitTest(ArrivalCase):
+    """Item 12: the Home absence probe of a purchase."""
+
+    def test_probe_of_the_last_visit_does_not_decline_this_visits_owner(self):
+        # n1-b 12:03 row 2 binds the catalogue shortage at Home.  Kept, the
+        # stale probe read as a probe in flight and declined the new owner:
+        # home:identify-staff-reserve-unavailable, the take never queued.
+        policy, rows, steps = self.arrive(RESET / "n1b-1203")
+        policy._home_procurement_probe = (75, 61)
+        self.assertEqual(rows[2]["reason"], "home:queue-catalogue-shortage")
+        self.assert_decides_as_recorded(policy, rows, steps)
+        self.assertIsNotNone(policy._home_pending_item)
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()
