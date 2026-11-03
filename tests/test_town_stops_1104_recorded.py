@@ -147,6 +147,25 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(policy._visit_departure_recorded, set())
         self.assert_posts(policy, recorded[19], board, key)
 
+    def test_mining_kit_rebuys_the_detection_a_churn_latch_names(self):
+        """n1-b life-306 00:32, owner-retired-burst (depth-gate then fundraising).
+
+        DECLARED CONSTRUCTED: on the recorded Alchemist page the latch and the
+        open mining set are written, as the visit reached them later: the sold
+        Treasure Detection latched (4, 70, 26) before the mining set opened.
+        The later recorded rows no longer replay since the stale Home requests
+        end (test_home_requests_of_carried_items_end_with_the_home_list).
+        """
+        policy, _recorded, steps = self.load("kit-latch")
+        board = steps[27][1]()
+        policy._town_visit_ledger.purchase_churn_class_exclusions.add((STORE_ALCHEMIST, 70, 26))
+        policy._town_visit_sale_signatures.add((70, 26))
+        policy._fundraising_mode = "prepare"
+        with policy._in_store_pure_scope():
+            item = policy._next_purchase(board)
+        self.assertIsNotNone(item)
+        self.assertTrue(item.is_treasure_detection_scroll)
+
 
 if __name__ == "__main__":
     unittest.main()
