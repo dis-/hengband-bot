@@ -3157,11 +3157,8 @@ class QuestMixin(OpeningRouteMixin):
         ):
             self._door_t.discard(tuple(raw_position))
 
-        abort = profile.abort_conditions
-        if (
-            bool(abort.get("allowed", False))
-            and snapshot.player.hp_ratio <= float(abort.get("hp_ratio", 0))
-        ):
+        abort_ratio = self._quest_abort_hp_ratio(profile)
+        if abort_ratio is not None and snapshot.player.hp_ratio <= abort_ratio:
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.has_up_stairs:
                 self.last_reason = "quest-strategy:abort"
@@ -4813,10 +4810,7 @@ class QuestMixin(OpeningRouteMixin):
         # Starvation kills through paralysis with HP untouched, so the panic
         # release above never sees it coming. Weak-or-worse with nothing edible
         # is the same "worse than losing the quest" call.
-        if (
-            snapshot.player.food_state in {"weak", "fainting"}
-            and self._find_edible(snapshot) is None
-        ):
+        if self._starving_with_nothing_edible(snapshot):
             return False
         # Owner 2026-11-01: a runtime RANDOM quest floor is left once the
         # teleport reserve is drawn down (random_quest_reserve).
@@ -4835,6 +4829,13 @@ class QuestMixin(OpeningRouteMixin):
         ):
             return False
         return True
+
+    def _starving_with_nothing_edible(self, snapshot: Snapshot) -> bool:
+        """Weak or worse from hunger with no food: the floor can no longer keep us."""
+        return (
+            snapshot.player.food_state in {"weak", "fainting"}
+            and self._find_edible(snapshot) is None
+        )
 
     def _runtime_random_quest(self, snapshot: Snapshot, quest_id: int) -> bool:
         """The quest is RANDOM by static knowledge, else by its runtime type."""
@@ -5016,6 +5017,12 @@ class QuestMixin(OpeningRouteMixin):
         info = self._quest_knowledge.get(quest_id)
         level = info.level if info is not None else quest.level
         return level, quest_id
+
+    @staticmethod
+    def _quest_abort_hp_ratio(profile) -> float | None:
+        """The approved strategy's withdrawal HP line, None when it allows none."""
+        abort = profile.abort_conditions
+        return float(abort.get("hp_ratio", 0)) if abort.get("allowed", False) else None
 
     def _fixed_quest_is_once(self, quest_id: int) -> bool:
         info = self._quest_knowledge.get(quest_id)
@@ -6216,11 +6223,8 @@ class QuestMixin(OpeningRouteMixin):
         """
         if profile is None or profile.quest_id != 31 or not hostiles:
             return False
-        abort = profile.abort_conditions
-        if (
-            bool(abort.get("allowed", False))
-            and snapshot.player.hp_ratio <= float(abort.get("hp_ratio", 0))
-        ):
+        abort_ratio = self._quest_abort_hp_ratio(profile)
+        if abort_ratio is not None and snapshot.player.hp_ratio <= abort_ratio:
             return False
         controlled_races = self._quest_never_move_races(profile)
         if not controlled_races or any(

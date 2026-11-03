@@ -12160,6 +12160,17 @@
     "observer": "Existing breeder breakthrough observations.",
     "delegation": "No independent success; _breeder_breakthrough_key selects the command."
   },
+  "once_quest_recall.py:read_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon floors only: _emergency_recall_leaves_danger refuses the surface, town included.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The one emergency Word of Recall read, moved from _emergency_item, _low_hp_escape_read and _low_hp_walk_gate; on a ONCE quest floor above the approved abort line with an escape left it returns None (owner 2026-11-03); no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "breeder_quest.py:teleport_key": {
     "classification": "producer",
     "rows": [
