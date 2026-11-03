@@ -915,6 +915,9 @@ class CombatMixin:
                 and not (
                     self._breeder_breakthrough_floor == snapshot.floor_key
                     and self._is_weak_breeder(snapshot, monster)
+                    # A floor being abandoned offers no walk past them: until
+                    # the leave happens its quest logic still fights them.
+                    and not breeder_quest.abandons_floor(self, snapshot)
                     # Survival first: a weak breeder biting us is fought.
                     and not survival_preemption.strikes_from_adjacent(
                         self, snapshot, monster

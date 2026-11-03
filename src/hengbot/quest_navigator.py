@@ -8,6 +8,7 @@ from enum import Enum
 import re
 from typing import Any
 
+from hengbot import breeder_quest
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, Snapshot, TVAL_CHEST, TVAL_GOLD
@@ -251,6 +252,10 @@ class QuestFloorNavigator:
 
     def decide(self, owner: Any, snapshot: Snapshot, hostiles: list[Any], adjacent: list[Any]) -> str:
         self.reset_for_floor(snapshot.floor_key)
+        # Owner 2026-11-02 「全滅要求のクエストは達成できないので放棄。」
+        abandon = breeder_quest.abandon_key(owner, snapshot, hostiles)
+        if abandon is not None:
+            return abandon
         quest = snapshot.quests.get(self.quest_id)
         completed = quest is not None and quest.status == 2
 
