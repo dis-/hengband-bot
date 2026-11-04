@@ -11,11 +11,13 @@ import copy
 import gzip
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _cell_loop_guard_applies, _send_new_decision_key,
 )
+from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
 from tests import test_input_executor as executor_pins
 from test_hourly_0700_1102_recorded import RecordedTownPolicy
 
@@ -45,7 +47,7 @@ class VanishedIdentificationCandidateTest(RecordedTownPolicy):
     def setUpClass(cls):
         cls.case = _cases()["identify"]
 
-    def test_vanished_candidate_releases_the_identify_request(self):
+    def stop_board(self):
         case = self.case
         policy = self.primed(case["stop"], case["home"]["knowledge"]["items"], case["skill"])
         board = self.board(policy, case["stop"])
@@ -60,6 +62,22 @@ class VanishedIdentificationCandidateTest(RecordedTownPolicy):
         policy._identification_candidate = robe
         policy._home_candidate_waiting = True
 
+        return policy, board
+
+    def test_the_stop_board_first_buys_the_teleport_reserve(self):
+        # adfa541b0a (owner 2026-11-01 「014 だけ広げる」, n1-b life-306): a departure for
+        # quest 14's dungeon asks for the five scrolls its floor keeps; this pack has 4.
+        policy, board = self.stop_board()
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n%.", "shop:travel"))
+        self.assertIn("teleport_ready", policy._departure_block_state(board)["failed"])
+
+    def test_vanished_candidate_releases_the_identify_request(self):
+        policy, board = self.stop_board()
+        # DECLARED CONSTRUCTED: the reserve already bought, the fifth scroll.
+        board = replace(board, inventory=[
+            replace(item, count=RANDOM_QUEST_TELEPORT_RESERVE) if item.is_teleport_scroll else item
+            for item in board.inventory])
         key = policy.choose_key(board)
         # Recorded: '5' town:blocked:departure-unsatisfiable.  Departure is
         # ready: the pre-recall character dump runs.
