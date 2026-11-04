@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest_find_exit, quest_no_teleport, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -702,7 +702,7 @@ class CombatMixin:
         )
         if sanctioned and not self._took_damage:
             return key
-        if quest_find_exit.holds_choke(self, snapshot):
+        if quest_find_exit.holds_choke(self, snapshot) or quest_room_sweep.holds(self, snapshot):
             return key
 
         under_fire = self._took_damage or any(

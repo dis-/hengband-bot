@@ -81,6 +81,13 @@ class QuestFloorNavigator:
     exit_cleared_placements = frozenset()
     exit_clear_turns = 0
     exit_clearing_done = False
+    # The room sweep of a KILL_ALL plan (quest_room_sweep): same rule.
+    sweep_stage = 0
+    sweep_round = 0
+    sweep_meet_turns = 0
+    sweep_enemy_turns = 0
+    sweep_heal_next = False
+    sweep_gone = frozenset()
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -113,6 +120,12 @@ class QuestFloorNavigator:
         self.exit_cleared_placements = frozenset()
         self.exit_clear_turns = 0
         self.exit_clearing_done = False
+        self.sweep_stage = 0
+        self.sweep_round = 0
+        self.sweep_meet_turns = 0
+        self.sweep_enemy_turns = 0
+        self.sweep_heal_next = False
+        self.sweep_gone = frozenset()
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
         """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.

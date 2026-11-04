@@ -1,0 +1,722 @@
+"""Quest 25 『幽霊屋敷』: a constructed playthrough through the public ``choose_key``.
+
+Owner 2026-11-04: 「強敵複数と同時に対峙する想定は重すぎる。1対1で戦える想定で数値を出して。」;
+「テレポートで立て直すだけ」; 手のドルジは「最後に回して戻って撃つ」; 「魔道具術師は有効な攻撃魔法道具も
+考慮に入れて良い」; 「経験値復活の薬と腕力復活の薬を2本ずつ持参」.
+
+DECLARED CONSTRUCTED: no character has played this quest.  The boards are the recorded n1-c
+Q31 board of tests/fixtures/once-quest-recall-20261103.json.gz with its floor, grid map, quest
+row, position, HP, monsters and carried potions and scrolls replaced: the grid map from the
+real lib/edit/quests/025_HauntedHouse.jsonc (every cell known), the monsters with the races and
+cells of that map.  Monster data is the real MonraceDefinitions.  Approval is switched on
+here: the file keeps ``approved`` false until the owner has checked it.
+"""
+import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+
+import copy
+import gzip
+import json
+import unittest
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
+
+from hengbot import consumable_policy, once_quest_recall, quest_exposure, quest_force_rows, quest_ranged_force
+from hengbot.model import (
+    STORE_ALCHEMIST, STORE_TEMPLE,
+    SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_POTION_RESTORE_EXP, SV_POTION_RESTORE_STR, SV_POTION_SPEED,
+    TVAL_POTION, TVAL_SCROLL, TVAL_WAND, parse_snapshot, _GRID_TERRAIN_NAMES,
+)
+from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, load_monrace_knowledge
+from hengbot.policy import ConservativePolicy
+from hengbot.policy_constants import EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, WAIT_KEY
+from hengbot.quest_find_exit import HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON
+from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
+from hengbot.quest_room_sweep import (
+    APPROACH_REASON, NOTHING_LEFT_REASON, OPEN_REASON, RESTORE_REASON, TELEPORT_REASON, WALK_REASON,
+)
+from hengbot.quest_strategies import load_quest_strategies
+from tests.test_q14_heal_ccw_recorded import town_maps
+
+ROOT = Path(__file__).parents[1]
+GAME = Path("C:/hengband/lib/edit")
+with gzip.open(ROOT / "tests" / "fixtures" / "once-quest-recall-20261103.json.gz", "rt",
+               encoding="utf-8") as _stream:
+    _CASE = json.load(_stream)
+BASE = _CASE["boards"][0]
+QUEST = json.loads(_strip_jsonc((GAME / "quests" / "025_HauntedHouse.jsonc").read_text(encoding="utf-8")))
+BASE_LEGEND = json.loads(_strip_jsonc((GAME / "QuestPreferences.jsonc").read_text(encoding="utf-8")))["legend"]
+TERRAINS = {row["key"]: row for row in json.loads(_strip_jsonc(
+    (GAME / "TerrainDefinitions.jsonc").read_text(encoding="utf-8")))["terrains"]}
+RACES = load_monrace_knowledge(find_monrace_definitions(ROOT, None) or GAME / "MonraceDefinitions.jsonc")
+QUESTS = load_quest_knowledge(find_quest_definitions(ROOT) or GAME / "quests")
+FILE_STRATEGIES = load_quest_strategies(ROOT / "strategy" / "quests")
+STRATEGIES = {**FILE_STRATEGIES, 25: replace(FILE_STRATEGIES[25], approved=True)}
+PLAN = STRATEGIES[25].engagement_plan["room_sweep"]
+EXECUTABLE_WITH_25 = frozenset({*EXECUTABLE_QUEST_STRATEGY_IDS, 25})
+START = (13, 1)
+TYRANNOSAUR, DREADMASTER, VAMPIRE, DRUJ, TOME, HOUND, IPSISSIMUS, SHADOW, SPECTRE, SKELETAL_T, QUYL, STAIR, MASS = (
+    705, 690, 623, 748, 557, 739, 571, 665, 508, 466, 480, 439, 202)
+SV_PHASE, SV_TELEPORT, SV_RECALL = 8, 9, 11
+FULL_HP = 800
+DIRECTION = {(-1, -1): "7", (-1, 0): "8", (-1, 1): "9", (0, -1): "4", (0, 1): "6",
+             (1, -1): "1", (1, 0): "2", (1, 1): "3"}
+LAST_STOP = len(PLAN["stands"])
+
+
+def _terrain_key(glyph: str) -> str:
+    entry = QUEST["legend"].get(glyph) or BASE_LEGEND[glyph]
+    return entry["terrain"]
+
+
+def _palette_row(terrain_key: str) -> list[int]:
+    row = TERRAINS[terrain_key]
+    flags = {flag.lower() for flag in row["flags"]}
+    if "DOOR" in terrain_key:  # the emitter's own bit: a terrain tag, not a flag
+        flags.add("door")
+    bits = sum(1 << index for index, name in enumerate(_GRID_TERRAIN_NAMES) if name in flags)
+    return [row["id"], 2, bits, 1]
+
+
+def _grid_map() -> dict:
+    keys = sorted({_terrain_key(glyph) for line in QUEST["map"] for glyph in line} | {"OPEN_DOOR"})
+    return {
+        "cells": [], "found_item_ids": [], "found_item_names": [], "found_items": [],
+        "h": len(QUEST["map"]), "w": len(QUEST["map"][0]),
+        "palette": [_palette_row(key) for key in keys],
+        "runs": [[y, x, 1, keys.index(_terrain_key(glyph))]
+                 for y, line in enumerate(QUEST["map"]) for x, glyph in enumerate(line)],
+        "unsafe_rows": [],
+    }
+
+
+def open_door(raw, cell):
+    index = raw["grid_map"]["palette"].index(_palette_row("OPEN_DOOR"))
+    for run in raw["grid_map"]["runs"]:
+        if (run[0], run[1]) == cell:
+            run[3] = index
+
+
+def monster(race, y, x, *, index=None, asleep=False):
+    return {"asleep": asleep, "confused": False, "fast": False, "fearful": False,
+            "friendly": False, "health": "unhurt", "index": index or race, "invulnerable": False,
+            "level": RACES[race].level, "name": f"race{race}", "pet": False, "race_id": race,
+            "slow": False, "stunned": False, "x": x, "y": y}
+
+
+def _stack(tval, sval, count):
+    row = next(item for item in BASE["inventory"] if item["tval"] == tval)
+    return dict(copy.deepcopy(row), sval=sval, count=count, name=f"item{tval}-{sval}")
+
+
+def board(position=START, *, hp=FULL_HP, monsters=(), healing=5, speed=3, teleports=15, recall=3, ccw=0,
+          recalling=False, max_hp=FULL_HP, status=1):
+    """DECLARED CONSTRUCTED, see the module note."""
+    raw = copy.deepcopy(BASE)
+    raw["floor"].update(quest_id=25, level=1, height=len(QUEST["map"]), width=len(QUEST["map"][0]))
+    raw["grid_map"] = _grid_map()
+    raw["progress"]["quests"] = [
+        {"fixed": True, "id": 25, "level": 48, "name": "haunted house", "status": status, "type": 6},
+        *[row for row in raw["progress"]["quests"] if row["id"] not in {25, 31}],
+    ]
+    raw["player"].update(y=position[0], x=position[1], hp=hp, max_hp=max_hp, recalling=recalling)
+    kept = [item for item in raw["inventory"] if item["tval"] not in {TVAL_POTION, TVAL_SCROLL}]
+    raw["inventory"] = kept + [
+        _stack(tval, sval, count) for tval, sval, count in (
+            (TVAL_POTION, SV_POTION_HEALING, healing), (TVAL_POTION, SV_POTION_SPEED, speed),
+            (TVAL_POTION, SV_POTION_CURE_CRITICAL, ccw),
+            (TVAL_SCROLL, SV_TELEPORT, teleports), (TVAL_SCROLL, SV_RECALL, recall)) if count]
+    raw["visible_monsters"] = [dict(row) for row in monsters]
+    raw["detected_monsters"] = []
+    raw["messages"] = []
+    return raw
+
+
+def new_policy(primed=None):
+    policy = ConservativePolicy(monrace_knowledge=RACES, quest_knowledge=QUESTS, quest_strategies=STRATEGIES)
+    first = copy.deepcopy(primed or BASE)
+    policy.prime(parse_snapshot(first, policy._monrace_knowledge))
+    policy.consume_skill_knowledge(dict(
+        copy.deepcopy(_CASE["skill"]), turn=first["turn"],
+        player=dict(_CASE["skill"]["player"], level=first["player"]["level"])))
+    return policy
+
+
+def choose(policy, raw):
+    raw["turn"] += 10
+    return str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+
+
+def decide(raw, *, stage=None):
+    policy = new_policy(raw)
+    if stage is not None:
+        _set_stage(policy, raw, stage)
+    return choose(policy, raw), policy.last_reason, policy
+
+
+def _set_stage(policy, raw, stage):
+    from hengbot.quest_room_sweep import _navigator
+    snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+    _navigator(policy, snapshot, 25).sweep_stage = stage
+
+
+def step_key(start, goal):
+    return DIRECTION[(goal[0] - start[0], goal[1] - start[1])]
+
+
+def navigator_of(policy):
+    return policy._quest_navigators[25]
+
+
+class Q25MapFactsTest(unittest.TestCase):
+    TERRAIN = QUESTS[25].battlefield.terrain
+
+    def test_the_roster_stands_where_the_plan_says(self):
+        placed = {cell: race for cell, race in QUESTS[25].battlefield.monster_placements}
+        self.assertEqual(
+            {(9, 19): TYRANNOSAUR, (12, 24): DREADMASTER, (13, 15): VAMPIRE, (11, 18): DRUJ, (9, 8): TOME,
+             (7, 4): HOUND, (7, 17): IPSISSIMUS, (8, 17): IPSISSIMUS, (9, 17): IPSISSIMUS, (13, 4): SPECTRE,
+             (13, 8): SPECTRE, (2, 5): SKELETAL_T, (9, 9): QUYL, (9, 13): QUYL, (13, 29): STAIR, (1, 11): MASS,
+             (1, 14): MASS, **{(y, x): SHADOW for y in (11, 12, 13) for x in (10, 11, 12)}}, placed)
+        self.assertEqual(QUESTS[25].level, 48)
+        self.assertEqual(QUESTS[25].battlefield.player_start, START)
+
+    def test_wall_passers_have_only_doors_and_the_one_granite_and_the_hound_comes_by_it(self):
+        self.assertNotIn("CAN_PASS", TERRAINS["PERMANENT"]["flags"])
+        self.assertIn("CAN_PASS", TERRAINS["GRANITE"]["flags"])
+        self.assertIn("CAN_PASS", TERRAINS["CLOSED_DOOR"]["flags"])
+        self.assertEqual(QUEST["map"][9][3], "#")
+        self.assertEqual(self.TERRAIN[(10, 2)], "floor")
+        granite = [(y, x) for y, line in enumerate(QUEST["map"]) for x, glyph in enumerate(line) if glyph == "#"]
+        self.assertEqual(granite, [(9, 3)])
+
+    def test_the_draft_choke_is_gone(self):
+        text = (ROOT / "strategy" / "quests" / "QUEST_25.jsonc").read_text(encoding="utf-8")
+        self.assertNotIn("[8,1]", text)
+        self.assertIsNone(STRATEGIES[25].engagement_plan["hold_position"])
+        self.assertFalse(FILE_STRATEGIES[25].approved)
+
+    def test_every_stop_is_walkable_and_every_target_door_is_a_door(self):
+        for stop in PLAN["stands"]:
+            self.assertEqual(self.TERRAIN[tuple(stop["cell"])], "floor", stop)
+        for stop in PLAN["last_targets"]:
+            self.assertEqual(self.TERRAIN[tuple(stop["door"])], "door", stop)
+            self.assertEqual(self.TERRAIN[tuple(stop["stand"])], "floor", stop)
+
+    def test_the_hall_stands_reach_their_targets_within_a_radius_2_light(self):
+        for stand, targets in (((7, 8), ((9, 8), (9, 9))), ((8, 15), ((7, 17), (8, 17), (9, 17), (9, 13)))):
+            self.assertIn({"cell": list(stand)}, PLAN["stands"])
+            for target in targets:
+                self.assertLessEqual(quest_exposure.game_distance(stand, target), 2)
+                self.assertTrue(quest_exposure.projectable(self.TERRAIN, stand, target))
+
+    def test_no_dry_cell_has_the_players_line_to_a_quyl_without_its_line_back(self):
+        """So the quyls cannot be shot out of their line on this map."""
+        for quyl in ((9, 9), (9, 13)):
+            cells = [cell for cell, kind in self.TERRAIN.items() if kind == "floor"
+                     and 0 < quest_exposure.game_distance(cell, quyl) <= quest_exposure.MAX_SPELL_RANGE]
+            self.assertEqual([cell for cell in cells if quest_exposure.projectable(self.TERRAIN, cell, quyl)
+                              and not quest_exposure.projectable(self.TERRAIN, quyl, cell)], [])
+
+
+class Q25WalkTest(unittest.TestCase):
+    def test_opening_steps_off_the_stair_and_meets_what_comes(self):
+        key, reason, _ = decide(board())
+        self.assertEqual((key, reason), (step_key(START, (13, 2)), WALK_REASON))
+        key, reason, _ = decide(board((13, 2)))
+        self.assertEqual((key, reason), (WAIT_KEY, HOLD_REASON))
+
+    def test_a_quiet_floor_is_walked_stop_by_stop_with_doors_opened_and_the_last_two_last(self):
+        raw = board()
+        policy = new_policy(raw)
+        position, visited, opened = START, [], []
+        for _ in range(500):
+            raw["player"].update(y=position[0], x=position[1])
+            key = choose(policy, raw)
+            if policy.last_reason == HOLD_REASON:
+                continue
+            if key.startswith("o") or policy.last_reason == OPEN_REASON:
+                delta = next(offset for offset, value in DIRECTION.items() if key.endswith(value))
+                cell = (position[0] + delta[0], position[1] + delta[1])
+                opened.append(cell)
+                open_door(raw, cell)
+                continue
+            if policy.last_reason == NOTHING_LEFT_REASON or navigator_of(policy).sweep_round:
+                break
+            self.assertEqual(policy.last_reason, WALK_REASON, position)
+            delta = next(offset for offset, value in DIRECTION.items() if value == key)
+            position = (position[0] + delta[0], position[1] + delta[1])
+            visited.append(position)
+        self.assertEqual(navigator_of(policy).sweep_round, 1, opened)
+        order = [visited.index(tuple(stop["cell"])) for stop in PLAN["stands"]]
+        self.assertEqual(order, sorted(order))
+        self.assertEqual(opened[-2:], [(13, 28), (11, 19)])
+        self.assertNotIn((11, 19), visited)
+        self.assertNotIn((13, 1), visited)  # never back on the stair
+
+    def test_the_walk_avoids_deep_water(self):
+        key, reason, _ = decide(board((6, 7)), stage=3)  # to [7,8]
+        self.assertEqual(reason, WALK_REASON)
+        self.assertEqual(key, step_key((6, 7), (7, 8)))
+        key, reason, _ = decide(board((7, 8)), stage=5)  # to [9,6], round the water
+        self.assertEqual(reason, WALK_REASON)
+        self.assertEqual(key, step_key((7, 8), (7, 7)))
+
+    def test_rounds_end_by_name(self):
+        raw = board((13, 2))
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 0)
+        navigator_of(policy).sweep_round = PLAN["max_rounds"]
+        key = choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, NOTHING_LEFT_REASON))
+
+    def test_a_completed_quest_is_no_longer_this_plans(self):
+        _, reason, _ = decide(board((13, 2), status=2))
+        self.assertNotIn(reason, {HOLD_REASON, WALK_REASON})
+
+    def test_file_as_it_stands_unapproved_does_not_run_the_plan(self):
+        raw = board((13, 2))
+        policy = ConservativePolicy(monrace_knowledge=RACES, quest_knowledge=QUESTS, quest_strategies=FILE_STRATEGIES)
+        policy.prime(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        choose(policy, raw)
+        self.assertNotIn(policy.last_reason, {HOLD_REASON, WALK_REASON})
+
+
+class Q25DrujLastTest(unittest.TestCase):
+    STAND, DOOR, CELL = (11, 20), (11, 19), (11, 18)
+    STAGE = LAST_STOP + 1
+
+    def test_the_stand_is_walked_to_and_the_door_opened_only_at_its_stage(self):
+        key, reason, _ = decide(board(self.STAND), stage=self.STAGE)
+        self.assertEqual((key, reason), ("o" + step_key(self.STAND, self.DOOR), OPEN_REASON))
+
+    def test_control_before_its_stage_the_door_stays_shut(self):
+        key, reason, _ = decide(board(self.STAND), stage=0)
+        self.assertEqual(reason, WALK_REASON)
+        self.assertFalse(key.startswith("o"))
+
+    def test_with_the_door_open_it_is_shot(self):
+        raw = board(self.STAND, speed=0, monsters=[monster(DRUJ, *self.CELL)])
+        open_door(raw, self.DOOR)
+        key, reason, _ = decide(raw, stage=self.STAGE)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertTrue(key.endswith(step_key(self.STAND, self.DOOR)), key)
+
+    def test_something_else_in_view_goes_first(self):
+        raw = board(self.STAND, speed=0, monsters=[monster(DRUJ, *self.CELL), monster(SPECTRE, 11, 23)])
+        open_door(raw, self.DOOR)
+        key, reason, _ = decide(raw, stage=self.STAGE)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertTrue(key.endswith("6"), key)  # east, at the spectre
+
+    def test_teleported_away_it_walks_back_every_time_with_no_limit(self):
+        raw = board((2, 25), speed=0)
+        open_door(raw, self.DOOR)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, self.STAGE)
+        for attempt in range(60):  # far past any attempt count; a landing differs each time
+            raw["player"].update(y=1 + attempt % 3, x=20 + attempt % 10)
+            choose(policy, raw)
+            self.assertEqual(policy.last_reason, WALK_REASON)
+            self.assertEqual(navigator_of(policy).sweep_stage, self.STAGE)
+            # thrown back to the stand and away again
+            raw["player"].update(y=self.STAND[0], x=self.STAND[1])
+            raw["visible_monsters"] = [monster(DRUJ, *self.CELL)]
+            choose(policy, raw)
+            self.assertTrue(policy.last_reason.startswith("ranged:"), policy.last_reason)
+            raw["visible_monsters"] = []
+        self.assertEqual(navigator_of(policy).sweep_stage, self.STAGE)
+
+    def test_gone_from_its_cell_the_round_ends(self):
+        raw = board(self.STAND)
+        open_door(raw, self.DOOR)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, self.STAGE)
+        choose(policy, raw)
+        self.assertEqual(navigator_of(policy).sweep_round, 1)
+        self.assertEqual(navigator_of(policy).sweep_stage, 0)
+
+
+class Q25TargetOrderTest(unittest.TestCase):
+    def test_a_quyl_in_view_is_shot_before_the_tome(self):
+        raw = board((7, 9), monsters=[monster(TOME, 9, 7), monster(QUYL, 9, 9)])
+        key, reason, _ = decide(raw)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertTrue(key.endswith("2"), key)  # south at the quyl; the tome is on the diagonal
+
+    def test_control_with_no_quyl_the_tome_is_shot(self):
+        raw = board((7, 9), monsters=[monster(TOME, 9, 7)])
+        key, reason, _ = decide(raw)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertTrue(key.endswith("1"), key)
+
+    def test_the_summoner_is_shot_before_a_nearer_spectre(self):
+        raw = board((8, 14), speed=0, monsters=[monster(IPSISSIMUS, 8, 17), monster(SPECTRE, 8, 12)])
+        key, reason, _ = decide(raw)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertTrue(key.endswith("6"), key)
+
+    def test_the_tome_goes_before_a_nearer_spectre_too(self):
+        raw = board((6, 8), speed=0, monsters=[monster(TOME, 9, 8), monster(SPECTRE, 6, 6)])
+        key, reason, _ = decide(raw)
+        self.assertTrue(key.endswith("2"), (key, reason))
+
+    def test_a_coming_enemy_beside_the_player_is_struck(self):
+        raw = board((8, 15), monsters=[monster(SPECTRE, 8, 14), monster(IPSISSIMUS, 8, 17)])
+        key, reason, _ = decide(raw)
+        self.assertEqual((key, reason), (step_key((8, 15), (8, 14)), MELEE_REASON))
+
+    def test_an_immobile_target_with_no_shot_is_walked_up_to_through_the_water(self):
+        raw = board((7, 9), monsters=[monster(TOME, 9, 8)])
+        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in {16, 17, 18}]
+        key, reason, _ = decide(raw)
+        self.assertEqual(reason, APPROACH_REASON)
+
+
+class Q25EmergencyTest(unittest.TestCase):
+    def test_below_the_line_teleport_and_no_recall(self):
+        raw = board((8, 19), hp=300, monsters=[monster(TYRANNOSAUR, 8, 20)])
+        key, reason, _ = decide(raw)
+        self.assertEqual(reason, TELEPORT_REASON)
+        self.assertTrue(key.startswith("r"))
+        self.assertNotEqual(reason, RECALL_REASON)
+
+    def test_an_enemy_still_on_the_player_after_the_teleport_gets_the_potion(self):
+        raw = board((8, 19), hp=300, monsters=[monster(TYRANNOSAUR, 8, 20)])
+        policy = new_policy(raw)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, TELEPORT_REASON)
+        raw["player"].update(y=2, x=25)
+        raw["visible_monsters"] = [monster(SPECTRE, 2, 26)]
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, HEAL_REASON)
+
+    def test_no_recall_at_any_hp_while_five_scrolls_remain(self):
+        for hp in (10, 300, 500):
+            raw = board((8, 19), hp=hp, teleports=5, monsters=[monster(TYRANNOSAUR, 8, 20)])
+            _, reason, policy = decide(raw)
+            self.assertNotEqual(reason, RECALL_REASON)
+            snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+            self.assertTrue(once_quest_recall.held(policy, snapshot))
+
+    def test_below_five_scrolls_with_an_enemy_recall_at_any_hp(self):
+        key, reason, _ = decide(board((8, 19), hp=FULL_HP, teleports=4, speed=0, monsters=[monster(TYRANNOSAUR, 8, 20)]))
+        self.assertEqual(reason, RECALL_REASON)
+        self.assertTrue(key.startswith("r"))
+
+    def test_below_five_scrolls_with_no_enemy_no_recall(self):
+        raw = board((8, 19), hp=FULL_HP, teleports=4)
+        _, reason, policy = decide(raw)
+        self.assertNotEqual(reason, RECALL_REASON)
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertTrue(once_quest_recall.held(policy, snapshot))
+
+    def test_recall_read_the_fight_goes_on_with_scrolls_and_potions(self):
+        raw = board((8, 19), hp=300, teleports=4, recalling=True, monsters=[monster(TYRANNOSAUR, 8, 20)])
+        _, reason, _ = decide(raw)
+        self.assertEqual(reason, TELEPORT_REASON)
+
+    def test_cure_critical_is_no_hp_recovery(self):
+        raw = board((8, 19), hp=300, healing=0, speed=0, teleports=0, recall=0, ccw=9,
+                    monsters=[monster(TYRANNOSAUR, 8, 20)])
+        key, reason, _ = decide(raw)
+        self.assertEqual((key, reason), (step_key((8, 19), (8, 20)), MELEE_REASON))
+
+    def test_healing_above_the_line_below_the_plans_threshold(self):
+        raw = board((8, 19), hp=500, speed=0, monsters=[monster(TYRANNOSAUR, 8, 20)])
+        _, reason, _ = decide(raw)
+        self.assertEqual(reason, HEAL_REASON)
+
+    def test_the_stair_underfoot_is_never_taken(self):
+        for hp in (100, 300, FULL_HP):
+            raw = board(START, hp=hp, monsters=[monster(TYRANNOSAUR, 13, 2)])
+            key, _, _ = decide(raw)
+            self.assertNotIn("<", key)
+        key, _, _ = decide(board(START, hp=100, teleports=0, recall=0, healing=0,
+                                 monsters=[monster(TYRANNOSAUR, 13, 2)]))
+        self.assertNotIn("<", key)
+
+    def test_a_heavy_fight_takes_the_speed_potion(self):
+        _, reason, _ = decide(board((8, 19), monsters=[monster(TYRANNOSAUR, 8, 20)]))
+        self.assertEqual(reason, "quest-strategy:quaff-speed")
+
+    def test_quiet_rests_at_any_hp(self):
+        key, reason, _ = decide(board((8, 19), hp=100))
+        self.assertEqual((key, reason), (REST_MACRO, "rest"))
+
+    def test_quiet_and_drained_the_carried_potions_are_drunk(self):
+        raw = board((8, 19))
+        raw["inventory"] += [_stack(TVAL_POTION, SV_POTION_RESTORE_EXP, 2), _stack(TVAL_POTION, SV_POTION_RESTORE_STR, 2)]
+        raw["player"]["exp_drained"] = True
+        _, reason, _ = decide(raw)
+        self.assertEqual(reason, RESTORE_REASON)
+
+
+class Q25LineTest(unittest.TestCase):
+    def test_a_quyls_line_is_a_cell_the_rule_knows_and_the_walk_takes_the_fewest(self):
+        lines = quest_exposure.exposure_map(QUESTS[25].battlefield.terrain, [(9, 9), (9, 13)]).pull
+        self.assertIn((7, 8), lines)
+        self.assertIn((5, 4), lines)
+        self.assertNotIn((5, 3), lines)  # the hall's mouth, out of both
+        self.assertNotIn((12, 6), lines)  # a closed door shuts them out of the south rooms
+
+    def test_no_wait_in_a_casters_line_it_walks_on(self):
+        # A coming enemy in view with no shot: the ammunition is gone.
+        raw = board((7, 8), speed=0, monsters=[monster(VAMPIRE, 7, 12)])
+        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in {16, 17, 18}]
+        _, reason, _ = decide(raw, stage=3)
+        self.assertEqual(reason, WALK_REASON)
+
+    def test_control_out_of_every_line_it_waits_for_what_comes(self):
+        raw = board((12, 6), speed=0, monsters=[monster(VAMPIRE, 12, 8)])
+        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in {16, 17, 18}]
+        key, reason, _ = decide(raw, stage=6)
+        self.assertEqual((key, reason), (WAIT_KEY, HOLD_REASON))
+
+    def test_hurt_and_quiet_in_a_line_it_walks_out_before_resting(self):
+        key, reason, _ = decide(board((5, 4), hp=300))
+        self.assertEqual((key, reason), (step_key((5, 4), (5, 3)), WALK_REASON))
+        key, reason, _ = decide(board((5, 3), hp=300))
+        self.assertEqual((key, reason), (REST_MACRO, "rest"))
+
+
+class Q25TownTest(unittest.TestCase):
+    """Giver and carries on the recorded Outpost board of tests/fixtures/q14-lv8-1102.json.gz.
+    DECLARED CONSTRUCTED: its quest rows (every earlier quest finished) and the giver cell."""
+
+    @staticmethod
+    def town_board():
+        with gzip.open(ROOT / "tests" / "fixtures" / "q14-lv8-1102.json.gz", "rt", encoding="utf-8") as stream:
+            raw = json.load(stream)["board"]
+        raw["progress"]["quests"] = [
+            *[{"fixed": True, "id": quest_id, "level": QUESTS[quest_id].level, "name": "q", "status": 4,
+               "type": QUESTS[quest_id].type} for quest_id in (1, 2, 14, 18, 22, 31, 34)],
+            {"fixed": True, "id": 25, "level": 48, "name": "haunted house", "status": 0, "type": 6},
+        ]
+        for cell in raw["grid_map"]["cells"]:
+            if cell.get("p") == 14:
+                cell["p"] = 25
+        return raw
+
+    def policy_and_snapshot(self):
+        maps = town_maps()
+        policy = ConservativePolicy(town_map=maps[0], town_maps=maps, monrace_knowledge=RACES,
+                                    quest_knowledge=QUESTS, quest_strategies=STRATEGIES)
+        raw = self.town_board()
+        raw["player"].update(max_hp=900, hp=900)
+        bolts = next(item for item in BASE["inventory"] if item["tval"] == 18)
+        raw["inventory"].append(dict(copy.deepcopy(bolts), count=5, name="bolts (68/shot 181/turn)"))
+        bow = next(item for item in BASE["equipment"] if item["slot"] == "bow")
+        raw["equipment"] = [item for item in raw["equipment"] if item["slot"] != "bow"] + [copy.deepcopy(bow)]
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        policy.prime(snapshot)
+        return policy, snapshot
+
+    def test_ready_is_requested_only_once_the_quest_is_listed_executable(self):
+        policy, snapshot = self.policy_and_snapshot()
+        self.assertEqual(policy._fixed_quest_head(snapshot).id, 25)
+        with patch.object(ConservativePolicy, "_fixed_quest_ready", return_value=True), \
+                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True):
+            self.assertIsNone(policy._fixed_quest_key(snapshot, []))
+        policy, snapshot = self.policy_and_snapshot()
+        with patch.object(ConservativePolicy, "_fixed_quest_ready", return_value=True), \
+                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True), \
+                patch("hengbot.policy_quest.EXECUTABLE_QUEST_STRATEGY_IDS", EXECUTABLE_WITH_25):
+            policy._fixed_quest_key(snapshot, [])
+        self.assertTrue(policy.last_reason.startswith("fixedquest:request"), policy.last_reason)
+
+    def test_the_kit_is_bought_from_the_stores_that_sell_it_and_stays_in_the_pack(self):
+        policy, snapshot = self.policy_and_snapshot()
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=250.0):
+            force = policy._carry_procurement_strategy(snapshot).required_force
+            status = policy._quest_carry_status(snapshot, force)
+            self.assertEqual((force["heal_potions"], force["speed_potions"]), (5, 3))
+            self.assertEqual(status["required_potions.restore_str"]["required"], 2)
+            self.assertEqual(status["required_scrolls.teleport"]["required"], 5)
+            self.assertEqual(policy._quest_carry_suppliers("required_potions.restore_exp"), (STORE_TEMPLE,))
+            self.assertEqual(policy._quest_carry_suppliers("required_potions.restore_str"), (STORE_ALCHEMIST,))
+            potion = parse_snapshot(copy.deepcopy(board()), policy._monrace_knowledge).inventory[0]
+            restore = replace(potion, tval=TVAL_POTION, sval=SV_POTION_RESTORE_STR)
+            self.assertTrue(consumable_policy.carry_required(policy, snapshot, restore))
+
+    def test_a_character_short_of_every_row_keeps_nothing_for_it(self):
+        policy, snapshot = self.policy_and_snapshot()
+        force = policy._strategy_force_for_snapshot(snapshot, STRATEGIES[25])
+        self.assertEqual((force["heal_potions"], force["required_potions"]), (0, {}))
+
+
+class _ReadyLight:
+    one_shot_quest_entry_ready = True
+    one_shot_quest_entry_reject_reason = "light"
+    releases_one_shot_quest = False
+    worn = None
+
+
+class Q25AcceptanceTest(unittest.TestCase):
+    """The owner's two conditions.  DECLARED CONSTRUCTED: the measured damage is pinned
+    and the abilities are the recorded row with the ones this plan and level 48 ask set; the
+    ammunition's display is written on the recorded stack's name."""
+
+    ABILITIES = ("see_invisible", "free_action", "resist_conf", "resist_blind", "resist_neth", "resist_pois",
+                 "resist_fire", "resist_cold", "resist_elec", "resist_acid", "resist_chaos")
+
+    def town(self, *, max_hp, healing=5, speed=3, resists=True, unhasted_speed=110, shot=68, turn=181, ammo=40,
+             teleports=5, restores=2, class_id=None):
+        raw = board(max_hp=max_hp, hp=max_hp, healing=healing, speed=speed, teleports=teleports)
+        raw["floor"].update(quest_id=0, level=0, in_town=True)
+        raw["progress"]["quests"][0]["status"] = 0
+        raw["player"]["speed"] = unhasted_speed
+        if class_id is not None:
+            raw["player"]["class_id"] = class_id
+        sources = raw["player"]["ability_sources"]
+        for name in self.ABILITIES:
+            sources.setdefault(name, {})["equipment"] = resists
+        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] != 18]
+        bolts = next(item for item in BASE["inventory"] if item["tval"] == 18)
+        raw["inventory"].append(dict(copy.deepcopy(bolts), count=ammo, name=f"bolts ({shot}/shot {turn}/turn)"))
+        if restores:
+            raw["inventory"] += [_stack(TVAL_POTION, SV_POTION_RESTORE_EXP, restores),
+                                 _stack(TVAL_POTION, SV_POTION_RESTORE_STR, restores)]
+        return raw
+
+    def verdict(self, raw, damage, *, lists=None):
+        policy = new_policy()
+        if lists is not None:
+            policy._me_device_lists = lists
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=damage), \
+                patch.object(ConservativePolicy, "_main_hand_dps", return_value=damage), \
+                patch.object(ConservativePolicy, "_inventory_overweight", return_value=False), \
+                patch.object(ConservativePolicy, "_temporary_status_clear", return_value=True), \
+                patch.object(ConservativePolicy, "_combat_weapon_ready", return_value=True), \
+                patch.object(ConservativePolicy, "_light_judgment", return_value=_ReadyLight()):
+            ready = policy._evaluate_fixed_quest_readiness(snapshot, 25, require_target_town=False)
+            force = policy._strategy_force_for_snapshot(snapshot, STRATEGIES[25])
+        return ready, policy._fixed_quest_readiness, force
+
+    def test_condition_1(self):
+        ready, telemetry, force = self.verdict(self.town(max_hp=850), 200)
+        self.assertTrue(ready, telemetry)
+        self.assertEqual((force["min_hp"], force["speed_potions"], force["heal_potions"]), (850, 3, 5))
+        self.assertFalse(force.get("always_hasted"))
+
+    def test_condition_2_by_potions_and_by_gear(self):
+        ready, telemetry, force = self.verdict(self.town(max_hp=500, speed=8, turn=120), 100)
+        self.assertTrue(ready, telemetry)
+        self.assertEqual((force["min_hp"], force["speed_potions"], force["heal_potions"]), (500, 8, 5))
+        self.assertTrue(force["always_hasted"])
+        ready, telemetry, force = self.verdict(self.town(max_hp=500, speed=0, unhasted_speed=120, turn=120), 100)
+        self.assertTrue(ready, telemetry)
+        self.assertEqual(force["speed_potions"], 0)
+
+    def test_condition_2_by_absorbed_speed_needs_eight_charges(self):
+        for charges, accepted in ((8, True), (7, False)):
+            with patch("hengbot.me_capability.replaced_by_absorbed", return_value=True), \
+                    patch("hengbot.me_capability.charges", return_value=charges), \
+                    patch("hengbot.speed_dose.available", return_value=True):
+                ready, telemetry, force = self.verdict(self.town(max_hp=500, speed=0, turn=120), 100)
+            self.assertEqual(ready, accepted, telemetry)
+            self.assertEqual(bool(force.get(quest_force_rows.ABSORBED_SHORT)), not accepted)
+
+    def test_the_turn_figure_picks_the_row(self):
+        """A /turn under condition 1's 180 leaves only condition 2, with its eight potions."""
+        ready, telemetry, force = self.verdict(self.town(max_hp=900, speed=3, turn=121), 250)
+        self.assertFalse(ready)
+        self.assertEqual(force["speed_potions"], 8)
+        self.assertIn("speed_potions", telemetry["strategy_force"]["failed"])
+
+    def test_controls_refuse(self):
+        for raw, damage, failed in (
+            (self.town(max_hp=849), 200, "speed_potions"),  # row 2's HP holds, its eight potions do not
+            (self.town(max_hp=850), 199, "speed_potions"),
+            (self.town(max_hp=499, speed=8), 200, "hp"),
+            (self.town(max_hp=850, speed=8), 99, "dps"),
+            (self.town(max_hp=850, healing=4), 200, "heal_potions"),
+            (self.town(max_hp=850, resists=False), 200, "resists"),
+            (self.town(max_hp=850, shot=64), 200, "hp"),   # no qualifying stack: no row
+            (self.town(max_hp=850, turn=119), 200, "hp"),
+            (self.town(max_hp=850, ammo=39), 200, "throwing_items.launcher_ammo"),
+            (self.town(max_hp=850, teleports=4), 200, "required_scrolls.teleport"),
+            (self.town(max_hp=850, restores=1), 200, "required_potions.restore_exp"),
+        ):
+            ready, telemetry, _ = self.verdict(raw, damage)
+            self.assertFalse(ready, failed)
+            self.assertEqual(telemetry["reason"], "strategy-force", telemetry)
+
+    def test_no_row_buys_nothing(self):
+        _, _, force = self.verdict(self.town(max_hp=300, healing=0, speed=0), 40)
+        self.assertEqual((force["heal_potions"], force["speed_potions"], force["throwing_items"],
+                          force["required_potions"]), (0, 0, {}, {}))
+
+    def test_depth_abilities_and_recall_are_asked(self):
+        raw = self.town(max_hp=850)
+        raw["player"]["ability_sources"]["resist_chaos"]["equipment"] = False
+        ready, telemetry, _ = self.verdict(raw, 200)
+        self.assertFalse(ready)
+        self.assertEqual(telemetry["reason"], "depth-abilities")
+        raw = self.town(max_hp=850)
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if not (item["tval"] == TVAL_SCROLL and item["sval"] == SV_RECALL)]
+        ready, telemetry, _ = self.verdict(raw, 200)
+        self.assertFalse(ready)
+        self.assertEqual(telemetry["reason"], "no-recall")
+
+
+class Q25DeviceScoreTest(Q25AcceptanceTest):
+    """Class 16 counts absorbed and carried attack devices; every other class does not."""
+
+    @staticmethod
+    def _power():
+        from hengbot import me_device_attacks
+        return next(power for power in me_device_attacks.POWERS.values()
+                    if power.kind == "wand" and power.damage(45) >= 200 and not power.group_only)
+
+    def lists(self, success=90, current=40):
+        power = self._power()
+        return {"wand": (0, [{"name": power.names[0], "current": current, "max": current, "success": success}])}
+
+    def raw(self, class_id=16, **kwargs):
+        raw = self.town(max_hp=850, shot=10, turn=10, ammo=0, class_id=class_id, **kwargs)
+        raw["player"]["level"] = 45
+        return raw
+
+    def test_absorbed_power_meets_the_ranged_requirement(self):
+        ready, telemetry, force = self.verdict(self.raw(), 200, lists=self.lists())
+        self.assertTrue(ready, telemetry)
+        self.assertEqual(force["throwing_items"]["launcher_ammo"], 0)
+        self.assertEqual(telemetry["strategy_force"]["ranged"]["shots"]["device"], 40)
+
+    def test_charges_short_of_forty_are_made_up_with_ammunition(self):
+        raw = self.town(max_hp=850, shot=68, turn=10, ammo=25, class_id=16)
+        raw["player"]["level"] = 45
+        ready, telemetry, force = self.verdict(raw, 200, lists=self.lists(current=15))
+        self.assertTrue(ready, telemetry)
+        self.assertEqual(force["throwing_items"]["launcher_ammo"], 25)
+
+    def test_control_too_few_charges_or_too_low_a_rate_refuses(self):
+        ready, telemetry, _ = self.verdict(self.raw(), 200, lists=self.lists(current=39))
+        self.assertFalse(ready, telemetry)
+        ready, telemetry, _ = self.verdict(self.raw(), 200, lists=self.lists(success=5))
+        self.assertFalse(ready, telemetry)
+
+    def test_control_another_class_counts_no_device(self):
+        ready, telemetry, _ = self.verdict(self.raw(class_id=0), 200, lists=self.lists())
+        self.assertFalse(ready, telemetry)
+
+    def test_a_carried_wand_counts_for_the_class_with_its_use_chance(self):
+        from hengbot import me_device_attacks
+        power = self._power()
+        raw = self.raw()
+        raw["inventory"].append(dict(
+            copy.deepcopy(next(item for item in BASE["inventory"] if item["tval"] == TVAL_WAND)),
+            sval=power.sval, charges=40, count=1, name="wand (40)"))
+        policy = new_policy()
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        found = quest_ranged_force.score(policy, snapshot, STRATEGIES[25].required_force["ranged"])
+        self.assertGreaterEqual(found.turn, 65)
+        self.assertLess(found.turn, me_device_attacks.expected_damage(power, 45, RACES[IPSISSIMUS].flags) + 1)
+        self.assertEqual(found.device_shots, 40)
+
+
+if __name__ == "__main__":
+    unittest.main()

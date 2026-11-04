@@ -7,7 +7,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_find_exit, quest_opening_away, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
+from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_find_exit, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -3062,7 +3062,7 @@ class QuestMixin(OpeningRouteMixin):
         if absorb is not None:
             return absorb
 
-        walked = quest_find_exit.walk_key(self, snapshot)
+        walked = quest_find_exit.walk_key(self, snapshot) or quest_room_sweep.walk_key(self, snapshot)
         if walked is not None:
             return walked
 
