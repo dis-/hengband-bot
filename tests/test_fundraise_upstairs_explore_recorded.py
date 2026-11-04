@@ -66,7 +66,7 @@ class FundraiseUpstairsExploreReplayTests(unittest.TestCase):
 
         key = policy._leave_fundraising_floor(no_escape)
 
-        self.assertEqual(key, "9")
+        self.assertEqual(key, "2")  # floor in the own light is not owed (37414d7d41, #101)
         self.assertEqual(policy.last_reason, "fundraise:seek-upstairs-explore")
 
     def test_carried_recall_still_precedes_frontier_exploration(self):

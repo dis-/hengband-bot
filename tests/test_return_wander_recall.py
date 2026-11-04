@@ -40,6 +40,11 @@ def replay_captured_wander(record, snapshot=None):
     for position in snapshot.grids:
         policy._search_counts[(position.y, position.x)] = SEARCH_LIMIT
         policy._wall_search_counts[(position.y, position.x)] = SEARCH_LIMIT
+    # Without a digger: one tunnels first (11-02, tests.test_n1b_claim_return_search_1102_recorded).
+    snapshot = replace(
+        snapshot,
+        inventory=type(snapshot.inventory)(i for i in snapshot.inventory if not i.is_digging_tool),
+        equipment=type(snapshot.equipment)(i for i in snapshot.equipment if not i.is_digging_tool))
     with (
         patch.object(policy, "_skill_exp_request_key", return_value=None),
         patch.object(policy, "_explore_step", return_value=None),

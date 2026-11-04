@@ -24,6 +24,7 @@ controls the light radius / a fuelled pack torch.
 from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
+from hengbot.model import DUNGEON_YEEK_CAVE
 from recorded_junk_scope import choose_past_junk_key
 import gzip
 import hashlib
@@ -135,7 +136,8 @@ class DarkBacktrackLoopRecordedTest(unittest.TestCase):
     def test_control_own_light_keeps_the_shallow_walk_out(self):
         board = self._board(0)
         # DECLARED CONSTRUCTED: the character lights radius 1.
-        board = replace(board, light_radius=1)
+        # A dungeon entered from a town: Angband's floors read Recall (38cbfd6633).
+        board = replace(board, light_radius=1, floor_key=(DUNGEON_YEEK_CAVE, 2, 0))
         self._latch_walk_out()
         self.assertEqual(self._decide(board), ("4", "return:explore"))
 
@@ -152,6 +154,7 @@ class DarkBacktrackLoopRecordedTest(unittest.TestCase):
             board, inventory=type(board.inventory)((*board.inventory, torch))
         )
         self.assertIs(self.policy._darkness_torch(board), torch)
+        board = replace(board, floor_key=(DUNGEON_YEEK_CAVE, 2, 0))  # as above
         self._latch_walk_out()
         self.assertEqual(self._decide(board), ("4", "return:explore"))
 

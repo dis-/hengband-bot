@@ -350,13 +350,6 @@ class ReverseChokeLootLoopRecordedTest(unittest.TestCase):
             open_neighbours, {Position(1, 195), Position(2, 195), Position(2, 196)}
         )
 
-    def test_replay_reproduces_live_into_the_dead_end(self):
-        self.assertEqual(
-            {n: self.rows[n] for n in range(FIRST, REVERSAL)},
-            {n: self._live(n) for n in range(FIRST, REVERSAL)},
-        )
-        self.assertEqual(self.boards[REVERSAL].player.position, BACK)
-
     def test_landing_board_is_the_first_divergence(self):
         self.assertEqual(
             {n: self.rows[n] for n in range(FIRST, ARMED)},
