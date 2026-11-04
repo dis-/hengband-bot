@@ -1250,6 +1250,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("summoner:stairs", O, FLOOR_CHANGE),
         ("summoner:hold-teleport", T, EFFECT),
         ("summons:", T, EFFECT),
+        ("summons:recall", O, FLOOR_CHANGE),
         ("threat:scroll", T, EFFECT),
         ("threat:wait", T, EFFECT),
     ),
@@ -1412,6 +1413,7 @@ def goal_typing(family: str, reason: str | None) -> GoalTypingRow | None:
 # ESP-threat floor exit.
 SURVIVAL_REASON_PREFIXES = (
     "emergency:",
+    "summons:",
     "unseen-recall:",
     "guardian:teleport-to-cover",
     "combat:disengage",

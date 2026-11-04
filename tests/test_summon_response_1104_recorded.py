@@ -10,6 +10,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import copy
 import gzip
 import json
+import pickle
 import unittest
 from pathlib import Path
 
@@ -23,15 +24,18 @@ FIXTURE = Path(__file__).with_name("fixtures") / "summon-response-n1a-475-1104.j
 with gzip.open(FIXTURE, "rt", encoding="utf-8") as _stream:
     CASE = json.load(_stream)
 
-WORSHIPPER_SPAN = (2033705, 2033737)
+# Starts at its second cast, so the third is the second of the span (no Recall yet).
+WORSHIPPER_SPAN = (2033715, 2033737)
 LAST_FIGHT_SPAN = (2038849, 2039200)
 WORSHIPPER = "悪魔崇拝者"
-# 悪魔崇拝者 casts for the third time in view, its summoned monster beside the player.
+# 悪魔崇拝者 casts again in view, its summoned monster beside the player.
 CASTER_PAST_THE_ADJACENT = 2033730
 # <ナーグル>の疫病人間 casts behind the bodies around the player.
 CASTER_BEHIND_BODIES = 2038996
 UNSEEN_DEMONS_SPAN = (2027761, 2027800)
 SECOND_UNSEEN_CAST = 2027775
+THIRD_SUMMON = 2038996
+RECORDED_EMERGENCY = 2039175
 BOOK_MESSAGE = "Lv1 自然の魔法書[野性の召喚]を自動破壊します。"
 
 
@@ -39,9 +43,13 @@ def boards_of(span):
     return [copy.deepcopy(raw) for raw in CASE["boards"] if span[0] <= raw["turn"] <= span[1]]
 
 
-def replay(span, *, until, change=None, between=None):
-    """The policy and answer on the board of ``until``; ``change`` edits that board."""
+def replay(span, *, until, change=None, every=None):
+    """The policy and answer on the board of ``until``; ``change`` edits that board,
+    ``every`` each board of the span."""
     boards = boards_of(span)
+    if every is not None:
+        for raw in boards:
+            every(raw)
     policy = d57.loops.new_policy(dict(CASE, boards=boards), CASE["skill"], monraces=CASE["monraces"])
     for raw in boards:
         if raw["turn"] == until and change is not None:
@@ -192,10 +200,12 @@ class LeaveTest(d57.PostedDeathKey):
     def test_no_teleport_floor_keeps_its_fight(self):
         # DECLARED CONSTRUCTED: the floor's strategy forbids the scroll (quest_no_teleport);
         # the fixed quest floor of Q18 also refuses *Destruction*.
-        def change(raw):
+        def every(raw):
             raw["floor"]["quest_id"] = 18
-        policy, raw, key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST, change=change)
+        policy, raw, key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST, every=every)
+        self.assertEqual(summon_response._memory(policy).unseen_run, 2)
         self.assertNotEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
+        self.assertNotEqual(key[:1], "r", policy.last_reason)
 
     def test_life_threat_ladder_answers_first(self):
         # DECLARED CONSTRUCTED: the recorded board at a tenth of its HP.
@@ -208,6 +218,88 @@ class LeaveTest(d57.PostedDeathKey):
     def test_blind_sound_counts_as_unseen(self):
         self.assertFalse(summon_response.summons_of("多くのものが間近に現れた音がする。")[0].seen)
         self.assertFalse(summon_response.summons_of("You hear many things appear nearby.")[0].seen)
+
+
+class RecallTest(d57.PostedDeathKey):
+    def test_the_third_summon_of_the_floor_reads_recall(self):
+        # 『ウートガルザ・ロキ』 2038858, unseen 2038943, a plague man 2038996: HP 705/970.
+        policy, raw, key = replay(LAST_FIGHT_SPAN, until=THIRD_SUMMON)
+        self.assertEqual(summon_response._memory(policy).summons, 3)
+        self.assertEqual(policy.last_reason, summon_response.RECALL_REASON)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(key, policy._read_key(board, policy._find_recall_scroll(board)))
+        self.assertTrue(policy._returning_to_town)
+        self.post(policy, raw, key)
+
+    def test_two_summons_read_no_recall(self):
+        policy, _raw, _key = replay(LAST_FIGHT_SPAN, until=THIRD_SUMMON - 8)
+        self.assertEqual(summon_response._memory(policy).summons, 2)
+        self.assertNotEqual(policy.last_reason, summon_response.RECALL_REASON)
+
+    def test_life_threat_ladder_answers_first(self):
+        # Recorded emergency teleport with the count long past three.
+        policy, _raw, key = replay(LAST_FIGHT_SPAN, until=RECORDED_EMERGENCY)
+        self.assertGreaterEqual(summon_response._memory(policy).summons, 3)
+        self.assertEqual((policy.last_reason, key[0]), ("emergency:teleport", "r"))
+
+    def test_a_once_quest_floor_reads_no_recall(self):
+        # DECLARED CONSTRUCTED: the recorded fight on the floor of Q25 (ONCE).
+        def every(raw):
+            raw["floor"]["quest_id"] = 25
+        policy, raw, key = replay(LAST_FIGHT_SPAN, until=THIRD_SUMMON, every=every)
+        self.assertEqual(summon_response._memory(policy).summons, 3)
+        self.assertNotEqual(policy.last_reason, summon_response.RECALL_REASON, key)
+        self.assertFalse(policy._last_return_trigger == summon_response.RETURN_TRIGGER)
+
+    def test_a_held_exit_lock_keeps_the_floor(self):
+        # DECLARED CONSTRUCTED: a kill quest's lock (random_quest_reserve) holds the floor.
+        boards = boards_of(LAST_FIGHT_SPAN)
+        policy = d57.loops.new_policy(dict(CASE, boards=boards), CASE["skill"], monraces=CASE["monraces"])
+        policy._quest_floor_exit_locked = lambda snapshot: True
+        for raw in boards:
+            key = d57.loops.decide(policy, raw)
+            if raw["turn"] == THIRD_SUMMON:
+                self.assertNotEqual(policy.last_reason, summon_response.RECALL_REASON, key)
+                return
+            policy.confirm_key_posted(key)
+
+    def test_an_active_recall_is_not_read_again(self):
+        # DECLARED CONSTRUCTED: the recorded board with the countdown running.
+        def change(raw):
+            raw["player"]["recalling"] = True
+        policy, _raw, key = replay(LAST_FIGHT_SPAN, until=THIRD_SUMMON, change=change)
+        self.assertNotEqual(policy.last_reason, summon_response.RECALL_REASON, key)
+
+    def test_the_book_message_is_not_counted(self):
+        # DECLARED CONSTRUCTED: the auto-destroy line of n1-c life-130 on each recorded board.
+        def every(raw):
+            raw["messages"] = [message for message in raw["messages"]
+                               if not summon_response.summons_of(message)] + [BOOK_MESSAGE]
+        policy, _raw, _key = replay(LAST_FIGHT_SPAN, until=THIRD_SUMMON, every=every)
+        self.assertEqual(summon_response._memory(policy).summons, 0)
+        self.assertNotEqual(policy.last_reason, summon_response.RECALL_REASON)
+
+    def test_a_restored_checkpoint_has_no_memory_attribute(self):
+        # DECLARED CONSTRUCTED: pickled checkpoints predate the attribute.
+        boards = boards_of(LAST_FIGHT_SPAN)
+        policy = d57.loops.new_policy(dict(CASE, boards=boards), CASE["skill"], monraces=CASE["monraces"])
+        policy.__dict__.pop(summon_response.MEMORY, None)
+        d57.loops.decide(policy, boards[0])
+        self.assertIn(summon_response.MEMORY, policy.__dict__)
+        pickle.loads(pickle.dumps(summon_response._memory(policy)))
+
+    def test_a_new_floor_starts_the_count_again(self):
+        # DECLARED CONSTRUCTED: the board after the third summon one level deeper.
+        boards = boards_of(LAST_FIGHT_SPAN)
+        policy = d57.loops.new_policy(dict(CASE, boards=boards), CASE["skill"], monraces=CASE["monraces"])
+        for raw in boards:
+            if raw["turn"] > THIRD_SUMMON:
+                raw["floor"]["level"] += 1
+                raw["messages"] = []
+                d57.loops.decide(policy, raw)
+                self.assertEqual(summon_response._memory(policy).summons, 0)
+                return
+            policy.confirm_key_posted(d57.loops.decide(policy, raw))
 
 
 if __name__ == "__main__":

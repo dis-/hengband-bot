@@ -3,6 +3,7 @@
 Owner 2026-11-04 (summon-response-decision-20261104), 「案のとおり3つとも」:
  1. 「召喚した本人が見えて狙えるなら、隣に増援がいても先に撃つ。」 (``caster_shot_key``)
  2. 「姿の見えない敵の召喚が2回続いたら今いる場所から離れる。」 (``leave_key``)
+ 3. 「同じ階で召喚が3回あったら帰還を読む。一度きりのクエストの階は除く。」 (``recall_key``)
 
 The rungs stand after the survival ladder (policy._choose_key): what threatens the
 player's life answers first.
@@ -30,6 +31,13 @@ forbids the scroll keeps its fight (quest_no_teleport).  The spot left stays out
 routes (the hold point's own veto) and the run ends once the player is away or the
 flash has gone off, so a choke hold elsewhere needs two new casts to be left again.
 
+Rule 3 reads through once_quest_recall.read_key, so every exit lock keeps its floor: a
+kill quest's lock (a runtime RANDOM quest and Q14 until the 11-01 teleport reserve is
+drawn down, random_quest_reserve) still holds such a floor and the read waits for the
+lock's own release.  The read latches the return under a survival trigger, so the return
+owner then waits and fights as for any emergency return; *Destruction* does not undo it.
+Read before a shot and before leaving: its countdown runs whatever happens next.
+
 Pickled checkpoints have no ``MEMORY`` attribute: it is created on first use.
 """
 
@@ -39,7 +47,7 @@ import re
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
-from hengbot import destruction_use, me_ranged_first, return_yield
+from hengbot import destruction_use, me_ranged_first, once_quest_recall, return_yield
 from hengbot.model import Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, ExplorationPathOutcome
 
@@ -47,6 +55,11 @@ from hengbot.policy_constants import RANGED_MAX_DISTANCE, ExplorationPathOutcome
 MEMORY = "_summon_response_memory"
 CASTER_SHOT_REASON = "summoner:ranged-kill:named-caster"
 LEAVE_REASON = "summons:leave-teleport"
+RECALL_REASON = "summons:recall"
+# The prefix makes it a survival return (town_hold.is_survival_return_trigger).
+RETURN_TRIGGER = "emergency-summons"
+# Owner 2026-11-04: 「3回」.
+SUMMONS_TO_RECALL = 3
 # Owner 2026-11-04: 「2回」.
 UNSEEN_CASTS_TO_LEAVE = 2
 # From the logs (module docstring): how far apart two unseen casts still run on.
@@ -131,6 +144,7 @@ class Memory:
     floor: tuple | None = None
     board: tuple | None = None        # the last board read: a redraw is not read twice
     casters: set[str] = field(default_factory=set)  # plain names seen casting on this visit
+    summons: int = 0                  # every cast of this visit, seen or not
     decisions: int = 0                # decisions of this visit
     unseen_run: int = 0               # unseen casts in a row (module docstring)
     last_unseen: tuple[int, Position] | None = None  # the decision and cell of the last
@@ -178,6 +192,7 @@ def _run_ended(memory: Memory, snapshot) -> bool:
 
 
 def _count(memory: Memory, summon: Summon, here: Position) -> None:
+    memory.summons += 1
     if summon.seen:
         memory.casters.add(_plain_name(summon.caster))
     else:
@@ -256,11 +271,45 @@ def leave_key(policy, snapshot) -> str | None:
     return policy._read_key(snapshot, scroll)
 
 
+# -- 3. too many on one floor ---------------------------------------------------
+
+def _once_floor(policy, snapshot) -> bool:
+    """A fixed quest's floor with the ONCE flag: leaving it fails the quest for good."""
+    quest_id = snapshot.floor_key[2]
+    if not quest_id or (quest_id in snapshot.quests
+                        and policy._runtime_random_quest(snapshot, quest_id)):
+        return False
+    return policy._fixed_quest_is_once(quest_id)
+
+
+def recall_due(policy, snapshot) -> bool:
+    """The floor visit's casts reached the count and a Recall can be read for it."""
+    return (_memory(policy).summons >= SUMMONS_TO_RECALL
+            and snapshot.dungeon_level >= 1
+            and not snapshot.player.recalling
+            and not _once_floor(policy, snapshot)
+            and not policy._quest_floor_exit_locked(snapshot)
+            and policy._find_recall_scroll(snapshot) is not None)
+
+
+def recall_key(policy, snapshot) -> str | None:
+    """Read Word of Recall, the one emergency read, and latch the return."""
+    if not recall_due(policy, snapshot):
+        return None
+    read = once_quest_recall.read_key(policy, snapshot, RECALL_REASON)
+    if read is not None:
+        policy._note_return_start(RETURN_TRIGGER)
+        policy._returning_to_town = True
+        policy._last_return_trigger = RETURN_TRIGGER
+    return read
+
+
 def key(policy, snapshot) -> str | None:
     """The owner's answer to the summons on this visit, else None."""
-    return leave_key(policy, snapshot) or caster_shot_key(policy, snapshot)
+    return (recall_key(policy, snapshot) or leave_key(policy, snapshot)
+            or caster_shot_key(policy, snapshot))
 
 
 def action_due(policy, snapshot) -> bool:
     """A rule outranks the older three-shot summoner rung above the emergency ladder."""
-    return leave_due(policy, snapshot)
+    return recall_due(policy, snapshot) or leave_due(policy, snapshot)

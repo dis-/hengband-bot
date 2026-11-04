@@ -13463,5 +13463,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-04 rule 2: two unseen casts within the window on one spot, an awake hostile in view: destruction_use.key, else a Scroll of Teleportation through _escape_scroll (quest_no_teleport answers None there); None otherwise."
+  },
+  "summon_response.py:recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-04 rule 3: the third summon of a floor visit reads Word of Recall through once_quest_recall.read_key (exit locks and holds kept) and latches the return with a survival trigger; not on a ONCE quest floor."
   }
 }

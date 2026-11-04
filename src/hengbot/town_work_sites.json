@@ -9507,6 +9507,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "summon_response.py:recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "summoner_wait.py:_leave_shot_hold_point_key": {
     "classification": "action",
     "rows": [
