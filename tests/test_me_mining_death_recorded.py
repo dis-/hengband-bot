@@ -28,6 +28,7 @@ import gzip
 import json
 from pathlib import Path
 import unittest
+from dataclasses import replace
 from unittest import mock
 
 from hengbot import survival_preemption
@@ -43,6 +44,9 @@ from tests.test_magic_eater_o3 import powers, prompt
 
 FIXTURE = Path(__file__).parent / "fixtures" / "me-mining-death-20261030.json.gz"
 WARRIOR = 1
+# Mice and insects multiply here: the attack is chosen by its damage to the group
+# (owner 2026-11-01 「群れ全体に与えるダメージ量で攻撃を選択して」), for every class.
+GROUP_DAMAGE_REASON = "ranged:breeder-area:wand"
 YEEK_FLOOR = (2, 1, 0)
 
 
@@ -68,9 +72,13 @@ class MagicEaterMiningDeathRecordedTest(harness.ProductionHarness):
     def recorded(self, life, turn):
         return self.data["cases"][life]["decisions"][str(turn)]
 
-    def policy(self, life, raw, *, breakthrough=False):
+    def policy(self, life, raw, *, breakthrough=False, breeders=True):
         case = self.data["cases"][life]
-        policy = HengbotPolicy(monrace_knowledge=dict(self.races))
+        # DECLARED CONSTRUCTED (breeders=False): no race multiplies, so the
+        # group-damage answer (owner 2026-11-01, 3f03bdf484) stays out of the way.
+        races = self.races if breeders else {
+            key: replace(race, can_multiply=False) for key, race in self.races.items()}
+        policy = HengbotPolicy(monrace_knowledge=dict(races))
         policy.prime(parse_snapshot(raw, policy._monrace_knowledge))
         terrain = case["terrain"]
         for name in ("known", "marked", "floor", "wall", "door", "rubble"):
@@ -152,7 +160,7 @@ class MagicEaterMiningDeathRecordedTest(harness.ProductionHarness):
                            ("life-008", 805349), ("life-011", 186766)):
             with self.subTest(life=life, turn=turn):
                 raw = self.raw(life, turn)
-                policy = self.policy(life, raw)
+                policy = self.policy(life, raw, breeders=False)
                 key = self.choose(policy, raw)
                 self.assertEqual(policy.last_reason, MISSILE_REASON)
                 self.assertTrue(key.startswith("mBp"), key)
@@ -169,7 +177,7 @@ class MagicEaterMiningDeathRecordedTest(harness.ProductionHarness):
                 # DECLARED CONSTRUCTED (module docstring): no lit torch.
                 raw["inventory"] = [item for item in raw["inventory"]
                                     if (item.get("tval"), item.get("sval")) != (39, 0)]
-                policy = self.policy(life, raw)
+                policy = self.policy(life, raw, breeders=False)
                 key = self.choose(policy, raw)
                 self.assertEqual(policy.last_reason, WAND_REASON)
                 self.assertEqual(key[:2], "a" + slot)
@@ -194,10 +202,23 @@ class MagicEaterMiningDeathRecordedTest(harness.ProductionHarness):
         for life, turn in (("life-011", 187358), ("life-009", 219660), ("life-011", 186766)):
             with self.subTest(life=life, turn=turn):
                 raw = self.raw(life, turn, class_id=WARRIOR)
-                policy = self.policy(life, raw)
+                policy = self.policy(life, raw, breeders=False)
                 key = self.choose(policy, raw)
                 row = self.recorded(life, turn)
                 self.assertEqual((key, policy.last_reason), (row["key"], row["reason"]))
+
+    def test_breeder_boards_choose_the_carried_wand_by_group_damage(self):
+        for life, turn in (("life-011", 187358), ("life-009", 219724), ("life-011", 186766)):
+            for class_id in (None, WARRIOR):
+                with self.subTest(life=life, turn=turn, class_id=class_id):
+                    raw = self.raw(life, turn, class_id=class_id)
+                    policy = self.policy(life, raw)
+                    key = self.choose(policy, raw)
+                    self.assertEqual(policy.last_reason, GROUP_DAMAGE_REASON)
+                    self.assertEqual(key[0], "a", key)
+                    self.assertIn(key[-1], self.adjacent_direction(policy, raw, life))
+                    game, _ = self.post(policy, raw, key, [])
+                    self.assertEqual("".join(game.accepted), key)
 
     def test_life016_latch_reproduces_the_recorded_return(self):
         # With the survival gate disabled the breakthrough latch alone yields
