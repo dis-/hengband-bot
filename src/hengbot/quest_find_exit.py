@@ -35,6 +35,15 @@ known, the walk goes on at once.  An enemy that does not come does not freeze th
 is shot from the choke when it stands in the way, otherwise passed.  A sleeper stays asleep
 unless it is in the way or beside the next choke.
 
+``find_exit.dig_cells`` are veins the walk opens.  Owner 2026-11-04 「簡単に掘れるので道具が
+なくても必ず掘る。」.  Game: exe_tunnel (tunnel-execution.cpp:53) on a vein without CAN_DIG
+succeeds when skill_dig > power + randint0(40 * power), power 10 for magma on water, one
+player turn a try and the T command repeats itself (always_repeat); a skill of 10 or less never
+succeeds, so ``dig_attempt_limit`` bounds the commands and the walk falls back to the undug
+route.  No tool, no weapon swap.  An enemy that comes is answered first, at a choke; the
+dig resumes after.  Route planning counts the cell as open; what a caster reaches now is
+derived from the cells really opened, since a hole opens lines of fire too.
+
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
 quiet board stays with them (food, light, the unseen) and reaches ``walk_key`` through
@@ -46,7 +55,7 @@ from __future__ import annotations
 from hengbot import combat_answer, once_quest_recall, quest_exposure, speed_dose, status_cure
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
-from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, WAIT_KEY
+from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, TUNNEL_KEY, WAIT_KEY
 from hengbot.quest_navigator import QuestFloorNavigator
 
 MELEE_REASON = "quest-strategy:melee"
@@ -54,11 +63,12 @@ HOLD_REASON = "quest-strategy:hold"
 TO_CHOKE_REASON = "quest-strategy:exit-to-choke"
 WALK_REASON = "quest-strategy:exit-walk"
 STEP_ON_EXIT_REASON = "quest-strategy:exit-step"
+DIG_REASON = "quest-strategy:exit-dig"
 RECALL_REASON = "emergency:recall-quest-fail"
 HEAL_REASON = "quest-strategy:heal"
 CURE_REASON = "quest-strategy:cure"
 SPEED_REASON = "quest-strategy:quaff-speed"
-_PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON})
+_PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON})
 STARVING = frozenset({"weak", "fainting"})
 # Going round a monster on the way costs at most this many steps, else it is fought.
 SIDESTEP_LIMIT = 2
@@ -93,22 +103,52 @@ def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
     navigator.allow_deep_water = True  # hp-mp-processor.cpp:210 drowns only the overweight
     navigator.allow_diagonal = True
     navigator.reset_for_floor(snapshot.floor_key)
+    plan = _plan(policy, snapshot)
+    if plan is not None:
+        _observe_digs(snapshot, navigator, plan)
     return navigator
 
 
-_EXPOSURES: dict[tuple[int, tuple[int, ...]], quest_exposure.Exposure] = {}
+_EXPOSURES: dict[tuple, quest_exposure.Exposure] = {}
+_TERRAINS: dict[tuple, dict] = {}
+
+
+def _opened_terrain(navigator, opened: frozenset) -> dict:
+    """The quest map with these vein cells opened: DESTROYED leaves deep water."""
+    key = (navigator.quest_id, opened)
+    if key not in _TERRAINS:
+        _TERRAINS[key] = {**navigator.battlefield.terrain, **{cell: "deep_water" for cell in opened}}
+    return _TERRAINS[key]
+
+
+def _exposure_with(navigator, plan, opened: frozenset) -> quest_exposure.Exposure:
+    """The cells the plan's casters reach with these cells open, derived once."""
+    races = tuple(plan.get("exposure_races", ()))
+    key = (navigator.quest_id, races, opened)
+    if key not in _EXPOSURES:
+        _EXPOSURES[key] = quest_exposure.exposure_map(
+            _opened_terrain(navigator, opened),
+            [cell for cell, race in navigator.battlefield.monster_placements if race in races])
+    return _EXPOSURES[key]
 
 
 def _exposure(navigator, plan) -> quest_exposure.Exposure:
-    """The cells the plan's casters reach, derived once from the quest map."""
-    races = tuple(plan.get("exposure_races", ()))
-    key = (navigator.quest_id, races)
-    if key not in _EXPOSURES:
-        battlefield = navigator.battlefield
-        _EXPOSURES[key] = quest_exposure.exposure_map(
-            battlefield.terrain,
-            [cell for cell, race in battlefield.monster_placements if race in races])
-    return _EXPOSURES[key]
+    """What the casters reach on the floor as it is now."""
+    return _exposure_with(navigator, plan, navigator.exit_dug)
+
+
+def _planned_open(navigator, plan) -> frozenset:
+    """The cells the route counts as open: dug, or still to be dug."""
+    wanted = frozenset(tuple(cell) for cell in plan.get("dig_cells", ()))
+    return (wanted - navigator.exit_abandoned_digs) | navigator.exit_dug
+
+
+def _observe_digs(snapshot, navigator, plan) -> None:
+    """A planned vein the board shows open.  Other digs on the floor are not planned."""
+    for raw in plan.get("dig_cells", ()):
+        grid = snapshot.grid_at(Position(*raw))
+        if grid is not None and grid.known and grid.passable:
+            navigator.exit_dug = navigator.exit_dug | {tuple(raw)}
 
 
 def _cell(position: Position) -> tuple[int, int]:
@@ -337,7 +377,7 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
         if held is not None:
             return held
         chokes = _chokes(navigator, plan)
-    path = _least_exposed(navigator, plan, position, chokes, board.occupied)
+    path = _least_exposed(navigator, plan, position, chokes, board.occupied, as_it_is=True)
     if len(path) < 2:
         return None
     policy.last_reason = TO_CHOKE_REASON
@@ -345,16 +385,33 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     return policy._step_toward(snapshot, path[1])
 
 
-def _least_exposed(navigator, plan, start: Position, goals, blocked=()) -> list[Position]:
+def _least_exposed(navigator, plan, start: Position, goals, blocked=(), *,
+                   as_it_is: bool = False) -> list[Position]:
+    """The least exposed walk over the planned floor, or (``as_it_is``) the present one."""
+    opened = navigator.exit_dug if as_it_is else _planned_open(navigator, plan)
     path = quest_exposure.least_exposed_path(
-        navigator.battlefield.terrain, _exposure(navigator, plan), _cell(start),
+        _opened_terrain(navigator, opened), _exposure_with(navigator, plan, opened), _cell(start),
         {_cell(goal) for goal in goals}, frozenset(_cell(cell) for cell in blocked))
     return [Position(*cell) for cell in path]
 
 
 def _exposed_count(navigator, plan, path: list[Position]) -> int:
-    exposure = _exposure(navigator, plan)
+    exposure = _exposure_with(navigator, plan, _planned_open(navigator, plan))
     return sum(exposure.exposed(_cell(cell)) for cell in path)
+
+
+def _dig(policy, snapshot, navigator, plan, board, profile, cell: Position) -> str | None:
+    """The T command at a planned vein beside the player; a coming enemy is answered first."""
+    if board.mobile_awake or board.adjacent_mobile or board.hit_by_unseen:
+        return _fight(policy, snapshot, profile, navigator, plan, board)
+    attempts = dict(navigator.exit_dig_attempts)
+    attempts[_cell(cell)] = attempts.get(_cell(cell), 0) + 1
+    navigator.exit_dig_attempts = attempts
+    if attempts[_cell(cell)] > int(plan["dig_attempt_limit"]):
+        navigator.exit_abandoned_digs = navigator.exit_abandoned_digs | {_cell(cell)}
+        return _advance(policy, snapshot, navigator, plan, board)
+    policy.last_reason = DIG_REASON
+    return TUNNEL_KEY + policy._direction_key(snapshot.player.position, cell)
 
 
 def _advance(policy, snapshot, navigator, plan, board) -> str | None:
@@ -379,6 +436,9 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
             policy.last_reason = HOLD_REASON
             return WAIT_KEY
         return combat_answer.strike_key(policy, snapshot, blocker, MELEE_REASON)
+    if _cell(step) in _planned_open(navigator, plan) - navigator.exit_dug:
+        profile = policy.approved_quest_strategy(navigator.quest_id)
+        return _dig(policy, snapshot, navigator, plan, board, profile, step)
     policy.last_reason = WALK_REASON
     policy._declare_reach(exit_cell)
     return policy._step_toward(snapshot, step)

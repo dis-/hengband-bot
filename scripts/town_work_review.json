@@ -13078,14 +13078,6 @@
     "delegation": "selected child; no independent success",
     "evidence": "The unexposed choke cells of the plan; emits no key."
   },
-  "quest_find_exit.py:_exposure": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "evidence": "The derived exposure map, cached; emits no key."
-  },
   "quest_find_exit.py:_least_exposed": {
     "classification": "data",
     "rows": [
@@ -13115,5 +13107,32 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The shot from a choke at what stands in the way; no independent progress."
+  },
+  "quest_find_exit.py:_dig": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The T command at a planned vein beside the player, enemies first; no independent progress."
+  },
+  "quest_find_exit.py:_exposure_with": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The derived exposure map of a dug state, cached; emits no key."
+  },
+  "quest_find_exit.py:_opened_terrain": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The quest map with opened veins, cached; emits no key."
   }
 }

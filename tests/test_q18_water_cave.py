@@ -29,7 +29,7 @@ from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, lo
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, WAIT_KEY
 from hengbot.quest_find_exit import (
-    HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
+    DIG_REASON, HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
     TO_CHOKE_REASON, WALK_REASON,
 )
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
@@ -90,6 +90,17 @@ def monster(race, y, x, *, index=None, asleep=False):
             "friendly": False, "health": "unhurt", "index": index or race, "invulnerable": False,
             "level": RACES[race].level, "name": f"race{race}", "pet": False, "race_id": race,
             "slow": False, "stunned": False, "x": x, "y": y}
+
+
+def open_cell(raw, cell):
+    """The vein as the game leaves it: DESTROYED is DEEP_WATER."""
+    grid_map = raw["grid_map"]
+    if _palette_row("DEEP_WATER") not in grid_map["palette"]:
+        grid_map["palette"].append(_palette_row("DEEP_WATER"))
+    index = grid_map["palette"].index(_palette_row("DEEP_WATER"))
+    for run in grid_map["runs"]:
+        if (run[0], run[1]) == cell:
+            run[3] = index
 
 
 def potion(sval, count):
@@ -183,6 +194,11 @@ LEAST_EXPOSED_ROUTE = [
     (1, 14), (1, 15), (1, 16), (1, 17), (2, 18), (1, 19), (2, 20), (3, 20), (4, 21), (4, 22), (5, 23),
     (5, 24), (6, 25), (5, 26), (4, 26), (3, 25), (2, 26), (1, 25), (1, 24), (1, 23), (1, 22)]
 EXPOSED_ON_ROUTE = [(2, 6), (2, 7), (1, 16), (1, 17), (2, 18), (5, 24), (6, 25), (5, 26), (4, 26)]
+DUG_ROUTE = [
+    (1, 2), (1, 3), (1, 4), (1, 5), (2, 6), (1, 7), (1, 8), (1, 9), (1, 10), (2, 11), (1, 12), (2, 13),
+    (1, 14), (1, 15), (1, 16), (1, 17), (2, 18), (1, 19), (2, 20), (3, 20), (4, 21), (4, 22), (5, 23),
+    (5, 24), (5, 25), (4, 26), (3, 25), (2, 26), (1, 25), (1, 24), (1, 23), (1, 22)]
+EXPOSED_ON_DUG_ROUTE = [(2, 6), (1, 16), (1, 17), (2, 18), (5, 24), (5, 25), (4, 26)]
 # Every cell a shriek was recorded on, 2026-11-04 18:40-18:45 (n1-a 47, n1-b 76).
 RECORDED_SHRIEK_CELLS = {(4, 13): 47, (9, 21): 31, (15, 9): 17, (10, 21): 12, (14, 7): 11,
                          (4, 18): 2, (15, 8): 2, (11, 22): 1}
@@ -307,6 +323,49 @@ class Q18RecordedBoardsTest(unittest.TestCase):
         self.assertTrue(key.startswith("r"))
 
 
+class Q18DigTest(unittest.TestCase):
+    """Owner 2026-11-04 「簡単に掘れるので道具がなくても必ず掘る。」.  DECLARED CONSTRUCTED boards."""
+
+    def test_both_digs_with_no_tool(self):
+        raw = board((2, 6))
+        self.assertFalse(any(item.get("tval") == 20 for item in raw["equipment"]))
+        self.assertEqual(decide(raw)[:2], ("T" + step_key((2, 6), (1, 7)), DIG_REASON))
+        self.assertEqual(decide(board((5, 24)))[:2], ("T" + step_key((5, 24), (5, 25)), DIG_REASON))
+
+    def test_a_dug_cell_is_walked(self):
+        for start, cell in (((2, 6), (1, 7)), ((5, 24), (5, 25))):
+            raw = board(start)
+            open_cell(raw, cell)
+            self.assertEqual(decide(raw)[:2], (step_key(start, cell), WALK_REASON))
+
+    def test_the_exposure_is_of_the_floor_as_dug(self):
+        terrain = QUESTS[18].battlefield.terrain
+        sirens = [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN]
+        dug = {**terrain, (1, 7): "deep_water", (5, 25): "deep_water"}
+        exposure = quest_exposure.exposure_map(dug, sirens)
+        route = quest_exposure.least_exposed_path(dug, exposure, ENTRANCE, {EXIT})
+        self.assertEqual(route, DUG_ROUTE)
+        self.assertEqual([cell for cell in route if exposure.exposed(cell)], EXPOSED_ON_DUG_ROUTE)
+        for cell in STRATEGIES[18].engagement_plan["find_exit"]["choke_cells"]:
+            self.assertFalse(exposure.exposed(tuple(cell)), cell)
+
+    def test_a_coming_enemy_is_answered_at_the_choke_first(self):
+        coming = board((2, 6), monsters=[monster(SHARK, 6, 6)], speed=0, ammo=False)
+        self.assertEqual(decide(coming)[:2], (step_key((2, 6), (1, 5)), TO_CHOKE_REASON))
+
+    def test_the_bound_falls_back_to_the_undug_route(self):
+        raw = board((2, 6))
+        policy = new_policy(raw)
+        limit = STRATEGIES[18].engagement_plan["find_exit"]["dig_attempt_limit"]
+        rows = []
+        for _ in range(limit + 1):
+            raw["turn"] += 10
+            key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+            rows.append((key, policy.last_reason))
+        self.assertEqual(rows[:limit], [("T" + step_key((2, 6), (1, 7)), DIG_REASON)] * limit)
+        self.assertEqual(rows[limit], (step_key((2, 6), (2, 7)), WALK_REASON))
+
+
 class Q18ClearBeforeAdvancingTest(unittest.TestCase):
     """Owner 2026-11-04 「隘路で敵を十分倒してから先に進むことを明記する」."""
 
@@ -382,22 +441,30 @@ class Q18PlaythroughTest(unittest.TestCase):
         key, reason, _ = decide(board())
         self.assertEqual((key, reason), (step_key(ENTRANCE, (1, 3)), WALK_REASON))
 
-    def test_a_quiet_floor_is_walked_from_the_entrance_to_the_exit(self):
+    def test_a_quiet_floor_is_walked_and_dug_from_the_entrance_to_the_exit(self):
         raw = board()
         policy = new_policy(raw)
-        position, route = ENTRANCE, [ENTRANCE]
-        for _ in range(40):
+        position, route, digs = ENTRANCE, [ENTRANCE], []
+        for _ in range(45):
             raw["player"].update(y=position[0], x=position[1])
             raw["turn"] += 10
             key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+            if key.startswith("T"):
+                self.assertEqual(policy.last_reason, DIG_REASON)
+                delta = next(offset for offset, value in DIRECTION.items() if value == key[1:])
+                cell = (position[0] + delta[0], position[1] + delta[1])
+                digs.append((position, cell))
+                open_cell(raw, cell)
+                continue
             self.assertIn(policy.last_reason, {WALK_REASON, STEP_ON_EXIT_REASON}, route)
             delta = next(offset for offset, value in DIRECTION.items() if value == key)
             position = (position[0] + delta[0], position[1] + delta[1])
             route.append(position)
             if position == EXIT:
                 break
-        self.assertEqual(route[-1], EXIT)
-        self.assertEqual(route, LEAST_EXPOSED_ROUTE)
+        self.assertEqual(digs, [((2, 6), (1, 7)), ((5, 24), (5, 25))])
+        self.assertEqual(route, DUG_ROUTE)
+        self.assertEqual(len(route) - 1, 31)
 
     def test_sealed_kraken_is_nothing_to_this_floor(self):
         key, reason, _ = decide(board(monsters=[monster(KRAKEN, 19, 15)]))

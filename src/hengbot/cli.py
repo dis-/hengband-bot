@@ -439,6 +439,8 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "summoner:hold-choke",
         "detected:hold-choke",
         "quest-strategy:hold",
+        # Bounded by the plan's dig_attempt_limit (quest_find_exit).
+        "quest-strategy:exit-dig",
         ONCE_QUEST_TICK_REST_REASON,
         # Exact policy-registered escape WAIT terminals. Each owns the existing
         # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as
