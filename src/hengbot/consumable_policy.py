@@ -176,6 +176,8 @@ def carry_required(policy, snapshot, item) -> bool:
                 or any(other.known and not other.fully_known
                        and item_requires_full_identification(other)
                        for other in (*snapshot.inventory, *snapshot.equipment)))
+    if policy.quest_potion_carried_for_strategy(snapshot, item):
+        return True
     if item.tval == TVAL_POTION and item.sval == SV_POTION_RESTORE_EXP:
         return bool(snapshot.player.exp_drained)
     if item.tval == TVAL_POTION:

@@ -154,6 +154,7 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
             "lit_torch", "shot", "arrow", "bolt", "launcher_ammo",
         },
         "required_scrolls": {"light", "teleport"},
+        "required_potions": {"restore_exp", "restore_str"},
         "utility_tools": {"wall_breach"},
     }
     if force.get("heal_potion_kind", "healing") not in HEAL_POTION_KIND_SVALS:

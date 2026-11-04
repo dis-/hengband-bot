@@ -13,15 +13,15 @@ and ``speed_potions``, and may name
 
 ``resolve`` answers with one force for this character, so acceptance, purchase, the
 town route and the fight all read the same counts through
-``_strategy_force_for_snapshot``.  A row counts when the character's maximum HP and
-measured damage meet its floors; of those, the one that asks for the fewest Speed
-potions.  With no such row the floors of the first row refuse the quest and no potion
+``_strategy_force_for_snapshot``.  A row counts when the character's maximum HP,
+measured damage and (where the force names one) ranged damage per turn meet its floors
+(quest_ranged_force); of those, the one that asks for the fewest Speed potions.  With no such row the floors of the first row refuse the quest and no potion
 is asked for: a character that cannot take the quest yet spends nothing on it.
 """
 
 from __future__ import annotations
 
-from hengbot import me_capability
+from hengbot import me_capability, quest_ranged_force
 
 ALTERNATIVES = "force_alternatives"
 ROW_FIELDS = ("min_hp", "min_expected_dps", "heal_potions", "speed_potions")
@@ -32,6 +32,8 @@ _WAITING_FOR_CHARGES = 1 << 16
 _SPEED_POTION = me_capability.FORCE_KINDS["speed_potions"]
 _NORMAL_SPEED = 110
 _POTION_SPEED_BONUS = 10
+# A character no row serves buys nothing for the quest (only QUEST_25 names these).
+_NO_KIT = {"throwing_items": {}, "required_potions": {}}
 
 
 def _unhasted_speed(policy, snapshot) -> int:
@@ -64,11 +66,12 @@ def resolve(policy, snapshot, force: dict) -> dict:
     capable = [
         (_speed_cost(policy, snapshot, row), index) for index, row in enumerate(rows)
         if max_hp >= int(row["min_hp"]) and damage >= float(row["min_expected_dps"])
+        and quest_ranged_force.turn_met(policy, snapshot, force, row)
     ]
     if not capable:
-        return {**force, "heal_potions": 0, "speed_potions": 0}
+        return {**force, "heal_potions": 0, "speed_potions": 0, **_NO_KIT}
     cost, index = min(capable)
-    resolved = {**force, **rows[index]}
+    resolved = quest_ranged_force.settle_ammo(policy, snapshot, {**force, **rows[index]})
     if cost == _WAITING_FOR_CHARGES:
         resolved[ABSORBED_SHORT] = True
     else:

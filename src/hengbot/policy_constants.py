@@ -14,6 +14,8 @@ from hengbot.model import (
     STORE_WEAPON,
     SPELLBOOK_TVALS,
     SV_POTION_RESIST_COLD,
+    SV_POTION_RESTORE_EXP,
+    SV_POTION_RESTORE_STR,
     SV_POTION_SLEEP,
     SV_SCROLL_BLESSING,
     SV_SCROLL_DETECT_DOOR,
@@ -664,6 +666,12 @@ QUEST_AMMO_TVALS = {
 QUEST_SCROLL_SVALS = {
     "light": SV_SCROLL_LIGHT,
     "teleport": SV_SCROLL_TELEPORT,
+}
+
+# required_force.required_potions names (QUEST_25: 「経験値復活の薬と腕力復活の薬を2本ずつ持参」).
+QUEST_POTION_SVALS = {
+    "restore_exp": SV_POTION_RESTORE_EXP,
+    "restore_str": SV_POTION_RESTORE_STR,
 }
 
 Q2_BREEDER_RACES = frozenset({86, 153, 202, 252, 213})
