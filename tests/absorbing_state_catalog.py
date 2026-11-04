@@ -1226,7 +1226,7 @@ def _exhausted_equipment_home_route():
     policy.choose_key(snap)
     policy._town_errand_plan = None
     policy._equipment_optimization_preparation = SimpleNamespace(
-        blockers=("optimization-timeout",), result=None,
+        blockers=("no-valid-loadout",), result=None,
     )
     for store_type in (
         policy_module.STORE_GENERAL,

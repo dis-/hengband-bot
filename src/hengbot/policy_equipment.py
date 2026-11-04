@@ -307,6 +307,7 @@ from hengbot.warrior_optimization import (
     ConfirmedLoadoutRecord,
     WarriorEvaluatorCache,
     WarriorOptimizationPreparation,
+    blocker_leaves_no_target,
     calibrate_character_constants,
     character_intrinsic_flags,
     confirmed_loadout_record,
@@ -2930,8 +2931,8 @@ class EquipmentMixin:
         """
         if snapshot.player.class_id not in EQUIPMENT_CLASS_PROFILES:
             return True
-        # Calibration controls optimization, never ordinary movement. Depth
-        # abilities are checked separately from the current ability_sources.
+        # A preparation with no target keeps the worn kit (blocker_leaves_no_target).
+        # Depth abilities are checked separately from the current ability_sources.
         cacheable = snapshot is self._map_predicate_snapshot
         depth = (self._equipment_departure_destination_depth(snapshot)
                  if destination_depth is None else destination_depth)
@@ -2955,8 +2956,7 @@ class EquipmentMixin:
                 self._equipment_departure_preparation_memo = (
                     self._decision_sequence, snapshot, preparation)
         if preparation is not None and any(
-            blocker == "calibration-required" or blocker.startswith("calibration-stale:")
-            for blocker in preparation.blockers
+            blocker_leaves_no_target(blocker) for blocker in preparation.blockers
         ):
             if self._equipment_transaction_session is not None and codes is not None:
                 codes.append("session-active")
@@ -3042,12 +3042,6 @@ class EquipmentMixin:
                     or not self._normal_remove_curse_actionable_this_visit(snapshot)
                 )
             ):
-                ready = True
-            elif (
-                "optimization-timeout" in preparation.blockers
-            ):
-                # The memo key proves that this timed-out search has exactly the
-                # same semantic inputs as the earlier completed search.
                 ready = True
             elif self._suppression_waits_on_current_loadout(snapshot, preparation, depth):
                 ready = True

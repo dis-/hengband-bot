@@ -3944,11 +3944,10 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 carried_key = carrying.choose_key(looted)
-            self.assertNotEqual(carried_key, "rra")
-            self.assertEqual(
-                carrying.last_reason,
-                "town:blocked:equipment-optimization-timeout",
-            )
+            self.assertFalse(carrying._current_worn_loadout_confirmed(
+                looted, carrying._equipment_optimization_preparation))
+            # A timed-out search names no target: the worn kit departs.
+            self.assertEqual(carried_key, "rra")
 
             restarted = self._policy(baseline, path)
             restarted._equipment_catalog.home_scan_complete = False
@@ -3961,11 +3960,9 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             ):
                 key = restarted.choose_key(baseline)
 
-            self.assertNotEqual(key, "rra")
-            self.assertEqual(
-                restarted.last_reason,
-                "town:blocked:equipment-optimization-timeout",
-            )
+            self.assertFalse(restarted._current_worn_loadout_confirmed(
+                baseline, restarted._equipment_optimization_preparation))
+            self.assertEqual(key, "rra")
 
     def test_fuel_tick_reuses_confirmation_through_choose_key(self):
         baseline = self._town(fuel=5000)
@@ -3987,7 +3984,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             self.assertEqual(key, "rra")
             self.assertEqual(restarted.last_reason, "town:recall-to-angband")
 
-    def test_light_only_home_upgrade_refuses_through_choose_key(self):
+    def test_light_only_home_upgrade_timeout_keeps_worn_through_choose_key(self):
         light = self._equipment()[-1]
         snapshot = self._town(equipment=[light])
         home_gear = [
@@ -4015,12 +4012,9 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 key = policy.choose_key(snapshot)
-        self.assertNotEqual(key, "rra")
-        self.assertEqual(
-            policy.last_reason, "town:blocked:equipment-optimization-timeout"
-        )
+        self.assertEqual(key, "rra")
 
-    def test_dual_shovel_incident_refuses_through_choose_key(self):
+    def test_dual_shovel_incident_timeout_keeps_worn_through_choose_key(self):
         shovels = [
             item(
                 letter, TVAL_DIGGING, SV_DIGGING_SHOVEL,
@@ -4042,12 +4036,9 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 key = policy.choose_key(snapshot)
-        self.assertNotEqual(key, "rra")
-        self.assertEqual(
-            policy.last_reason, "town:blocked:equipment-optimization-timeout"
-        )
+        self.assertEqual(key, "rra")
 
-    def test_light_only_pack_incident_refuses_through_choose_key(self):
+    def test_light_only_pack_incident_restores_the_weapon_through_choose_key(self):
         packed = [
             item(
                 "u", TVAL_SWORD, 1, name="packed sword", known=True,
@@ -4073,9 +4064,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             ):
                 key = policy.choose_key(snapshot)
         self.assertNotEqual(key, "rra")
-        self.assertEqual(
-            policy.last_reason, "town:blocked:equipment-optimization-timeout"
-        )
+        self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
     def test_changed_inputs_do_not_republish_stale_confirmation(self):
         baseline = self._town()
@@ -4405,13 +4394,11 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                 side_effect=self._zero_budget(real_prepare),
             ):
                 key = restarted.choose_key(snapshot)
-        self.assertNotEqual(key, "rra")
-        self.assertEqual(
-            restarted.last_reason,
-            "town:blocked:equipment-optimization-timeout",
-        )
+            self.assertFalse(restarted._current_worn_loadout_confirmed(
+                snapshot, restarted._equipment_optimization_preparation))
+        self.assertEqual(key, "rra")
 
-    def test_record_fail_closed_shapes_refuse_through_choose_key(self):
+    def test_record_fail_closed_shapes_stay_unconfirmed_through_choose_key(self):
         snapshot = self._town()
         shapes = {
             "missing": None,
@@ -4435,11 +4422,9 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
                     side_effect=self._zero_budget(real_prepare),
                 ):
                     key = policy.choose_key(snapshot)
-                self.assertNotEqual(key, "rra")
-                self.assertEqual(
-                    policy.last_reason,
-                    "town:blocked:equipment-optimization-timeout",
-                )
+                self.assertFalse(policy._current_worn_loadout_confirmed(
+                    snapshot, policy._equipment_optimization_preparation))
+                self.assertEqual(key, "rra")
 
     def test_policy_signature_orders_duplicate_ids_by_identity_only(self):
         snapshot = self._town()
