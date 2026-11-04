@@ -6924,6 +6924,11 @@ class TownMixin:
                     continuation="recall.read",
                 )
                 return CHARACTER_DUMP_MACRO
+            if not snapshot.player.recalling:
+                from hengbot.me_powerful_activation import spare_identify_key
+                spare_identify = spare_identify_key(self, snapshot)
+                if spare_identify is not None:
+                    return spare_identify
             if self._can_read_now(snapshot):
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None and guardian_blocked:

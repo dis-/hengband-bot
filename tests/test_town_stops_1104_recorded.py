@@ -27,6 +27,7 @@ from hengbot.cli import (
     _send_decision_key_with_prompt_chain,
     _send_new_decision_key,
 )
+from hengbot import me_powerful_activation as powerful_activation
 from hengbot.model import Position, STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.equipment_capacity import plan_equipment_transactions
@@ -515,11 +516,14 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
 
         DECLARED: the rows up to the board are posted as this replay decides
         them (the Magic-Eater's arrival dump and destroy rows do not match the
-        recorded ones); only the board's own decision is pinned.
+        recorded ones); only the board's own decision is pinned.  This life's worn
+        {average} ring and amulet would be repaired first, but the recorded boards
+        never show that, so the repair would repeat until its uses are spent.
         """
         policy, recorded, steps = self.load("gold-pile")
-        with mock.patch.object(HengbotPolicy, "_periodic_character_dump_key",
-                               lambda _self, _snapshot, key: key):
+        with (self.rings_already_repaired(),
+              mock.patch.object(HengbotPolicy, "_periodic_character_dump_key",
+                                lambda _self, _snapshot, key: key)):
             for _row, supply in steps[:50]:
                 key = policy.choose_key(supply())
                 if key:
@@ -692,6 +696,50 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
                 self.assertIsNone(policy._town_equipped_identification_key(board, macro=True))
                 self.assertIsNone(policy._identification_need)
         self.assertIsNone(equipped_identification_target(policy, board))
+
+    @contextmanager
+    def rings_already_repaired(self):
+        """DECLARED: the visit's rows ran before worn sensed jewellery was identified."""
+        with (mock.patch("hengbot.me_powerful_activation.average_hides_modifiers",
+                         lambda _item: False),
+              mock.patch("hengbot.policy_identification.average_hides_modifiers",
+                         lambda _item: False)):
+            yield
+
+    def test_magic_eater_full_identifies_gear_at_the_recall_read(self):
+        """Owner 2026-11-04 「Lv.10以降街で余裕があるときに可能な限り全ての装備を*鑑定*」.
+
+        n1-c life-130 15:27: every recorded row of the visit, its recovery and
+        errands and departure dump, replays unchanged; the spare work takes the
+        board of the recall read, one target per decision.  Spent uses move to the
+        next target and then leave the rest for the next visit.
+        """
+        self.publish_nothing()
+        with self.rings_already_repaired():
+            policy, recorded, steps = self.replay("ring-departure", 34)
+            self.assertEqual(recorded[34]["reason"], "town:recall-to-angband")
+            board = steps[34][1]()
+            key = policy.choose_key(board)
+            self.assertEqual(policy.last_reason, "me-powerful:identify")
+            self.assertRegex(key, r"^UAf(/[a-l]|[a-w])$")
+
+            limit = powerful_activation.ATTEMPTS_PER_TARGET
+            attempts = powerful_activation._memory(policy).attempts
+            spent = next(signature for (_effect, signature) in attempts)
+            attempts[("identify", spent)] = limit
+            following = powerful_activation.spare_identify_key(policy, board)
+            self.assertNotIn(following, (None, key))
+            for item in (*board.equipment, *board.inventory):
+                attempts[("identify", policy._item_signature(item))] = limit
+            self.assertIsNone(powerful_activation.spare_identify_key(policy, board))
+
+    def test_control_no_charge_reads_the_recall_as_recorded(self):
+        self.publish_nothing()
+        with self.rings_already_repaired():
+            policy, recorded, steps = self.replay("ring-departure", 34)
+            with mock.patch("hengbot.me_capability.charges", lambda *_args: 0):
+                key = policy.choose_key(steps[34][1]())
+        self.assertEqual((key, policy.last_reason), (recorded[34]["key"], recorded[34]["reason"]))
 
     def ability_shelf(self):
         """Row 7 of the stop's visit: the Black Market page, the sheet accepted.

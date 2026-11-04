@@ -12814,5 +12814,38 @@
   "destruction_use.py:_reliable_carried_staff": {
     "classification": "data",
     "evidence": "Data/selector result; no independent command or effect credit. pure selector: the known charged Staff of *Destruction* at the modelled 80% success; read by _carried_key and holds_means."
+  },
+  "me_powerful_activation.py:_first_open": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the first target with uses left (ATTEMPTS_PER_TARGET), read by _work and spare_identify_key.",
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)"
+  },
+  "me_powerful_activation.py:_use": {
+    "classification": "adapter",
+    "rows": [
+      "identification"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Adapter: composes the Powerful Activation key and records its attempt for town_key and spare_identify_key; no independent progress.",
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)"
+  },
+  "me_powerful_activation.py:spare_identify_key": {
+    "classification": "producer",
+    "rows": [
+      "identification"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-04 class-16 spare *Identify* of all gear in town with room, delegated by _town_special_key at the recall read, after the town's owners and town:recover. Safe board, no physical hostile, pays_safely, the absorbed power's displayed charges: U + A + 'f' + target for gear not fully known, ammunition excluded; ATTEMPTS_PER_TARGET uses per item; otherwise None and the read goes on.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)"
   }
 }

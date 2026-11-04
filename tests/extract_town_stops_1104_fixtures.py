@@ -36,6 +36,7 @@ CASES = {
     "entry-spent": ("../stops-1104-1330/n1-a/life-477", "20261104-085436-town-blocked-shop-required-operation-uncomposable", 66),
     "staff-need-room": ("../stops-1104-1330/n1-b/life-308", "20261104-131438-town-blocked-survival-identify_staff_ready", 22),
     # The sensed rings of n1-c life-130 (bot-28e3790a6).
+    "ring-departure": ("../carry-gear-1104/n1-c/life-130", "jsonlog/town-arrival/20261104-152713.007536043-turn1861337", 35),
     "worn-ring": ("../worn-ring-1104/n1-c/life-130", "20261104-153933-town-blocked-survival-inventory_weight_ready", 3),
 }
 CALIBRATION = "_character_calibration_path"
@@ -91,7 +92,8 @@ def main() -> None:
     for name, (life, capture, rows) in CASES.items():
         if len(sys.argv) > 2 and name not in sys.argv[2:]:
             continue
-        visit = root / life / "incident-captures" / capture / "town-arrival"
+        visit = (root / life / capture if capture.startswith("jsonlog/")
+                 else root / life / "incident-captures" / capture / "town-arrival")
         target = FIXTURES / name
         target.mkdir(parents=True, exist_ok=True)
         (target / "policy.pkl.xz").write_bytes(
