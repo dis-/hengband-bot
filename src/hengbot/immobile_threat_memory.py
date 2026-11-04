@@ -156,7 +156,7 @@ def avoided(policy, snapshot, monster: MonsterState) -> bool:
                 and policy._material_melee_damage(snapshot, monster)))
 
 
-def _ring(position: Position) -> set[Position]:
+def ring_cells(position: Position) -> set[Position]:
     return {position, *(Position(position.y + dy, position.x + dx)
                         for dy, dx in NEIGHBOR_OFFSETS)}
 
@@ -189,7 +189,7 @@ def observe(policy, snapshot) -> None:
         cell
         for position, monster in visit.monsters.items()
         if avoided(policy, snapshot, monster)
-        for cell in _ring(position)
+        for cell in ring_cells(position)
     )
     _drop_committed_paths(policy, visit.cells)
 
