@@ -1,5 +1,6 @@
 """Recorded claim-return boards through public policy and follow executor."""
 import tests  # noqa: F401
+from recorded_junk_scope import choose_past_junk_key
 import copy
 import gzip
 import json
@@ -30,7 +31,7 @@ class TopStopsClaimReturnTest(executor_harness.ProductionHarness):
                     "player": {"level": board.player.level},
                     "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
                 })
-                key = policy.choose_key(board)
+                key = choose_past_junk_key(policy, board)
                 self.assertEqual((str(key), policy.last_reason),
                                  (case["decision"]["key"], "fixedquest:claim:return"))
                 self.assertEqual(board.dungeon_level, 5)

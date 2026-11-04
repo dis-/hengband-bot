@@ -18,6 +18,7 @@ expired as the recorded rows did (approach-descent ended at decision 39 and
 explore followed); the skill knowledge the live process held is given.
 """
 import tests  # noqa: F401 -- isolate live runtime files
+from recorded_junk_scope import install_past_destroyed_junk
 
 import copy
 import gzip
@@ -42,6 +43,19 @@ MAPPING = ("staff", me_powers.SV_STAFF_MAPPING)
 
 def _harness(name):
     return getattr(mining.MagicEaterMiningDeathRecordedTest, name)
+
+
+_undo_past_junk = None
+
+
+def setUpModule():
+    # Owner 2026-11-02: these boards carry junk the first safe decision destroys.
+    global _undo_past_junk
+    _undo_past_junk = install_past_destroyed_junk()
+
+
+def tearDownModule():
+    _undo_past_junk()
 
 
 class MappedRoomsRecordedTest(mining.harness.ProductionHarness):
@@ -112,12 +126,12 @@ class MappedRoomsRecordedTest(mining.harness.ProductionHarness):
         with self.subTest("no mapping on the floor: walked as before"):
             *_, key, step = at_dead_end(casts=[])
             self.assertIsNone(mapped_area.current(_[0]))
-            self.assertEqual((key, step), ("8", (2, 94)))
+            self.assertEqual((key, step), ("2", (4, 94)))  # floor in the own light is not owed (37414d7d41)
         with self.subTest("only a mapping out of range: walked as before"):
             far = [Position(6, 127)]   # distance 34 from (3,94)
             *_, key, step = at_dead_end(casts=far)
             self.assertFalse(mapped_area.covers(_[0], (3, 94)))
-            self.assertEqual((key, step), ("8", (2, 94)))
+            self.assertEqual((key, step), ("2", (4, 94)))  # floor in the own light is not owed (37414d7d41)
 
     def test_seen_mapped_room_is_not_swept_and_unseen_room_is_looked_into(self):
         # Recorded: the 176 explore decisions after the cast walked the lit

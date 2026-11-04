@@ -13,6 +13,7 @@ the recorded "no frontier, wander" decisions mean it had been given up
 open key keep the board unchanged at the next turn (the lock holds).
 """
 import tests  # noqa: F401 -- isolate live runtime files
+from recorded_junk_scope import choose_past_junk_key
 
 import copy
 import gzip
@@ -103,7 +104,7 @@ class FundraiseUpstairsDoorRecordedTest(harness.ProductionHarness):
             "player": {"level": raw["player"]["level"]},
             "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
         })
-        return policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
+        return choose_past_junk_key(policy, parse_snapshot(raw, policy._monrace_knowledge))
 
     def post(self, policy, raw, following):
         key = self.choose(policy, raw)

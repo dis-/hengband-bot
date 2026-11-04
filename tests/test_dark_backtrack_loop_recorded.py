@@ -24,6 +24,7 @@ controls the light radius / a fuelled pack torch.
 from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
+from recorded_junk_scope import choose_past_junk_key
 import gzip
 import hashlib
 import unittest
@@ -86,7 +87,7 @@ class DarkBacktrackLoopRecordedTest(unittest.TestCase):
         self.addCleanup(explore.stop)
 
     def _decide(self, board):
-        return self.policy.choose_key(board), self.policy.last_reason
+        return choose_past_junk_key(self.policy, board), self.policy.last_reason
 
     def test_fixture_is_the_recorded_lightless_pair(self):
         lit, dark = self._board(0), self._board(1)

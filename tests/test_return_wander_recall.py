@@ -1,6 +1,7 @@
 """Captured Yeek Cave return wander and its bounded Recall escape."""
 
 import tests  # noqa: F401
+from recorded_junk_scope import choose_past_junk_key
 import gzip
 import json
 import unittest
@@ -44,7 +45,7 @@ def replay_captured_wander(record, snapshot=None):
         patch.object(policy, "_explore_step", return_value=None),
         patch.object(policy, "_is_oscillating", return_value=False),
     ):
-        key = policy.choose_key(snapshot)
+        key = choose_past_junk_key(policy, snapshot)
     return policy, key
 
 
@@ -93,7 +94,7 @@ class ReturnWanderRecallTest(unittest.TestCase):
         policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
 
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
-            key = policy.choose_key(snapshot)
+            key = choose_past_junk_key(policy, snapshot)
 
         self.assertEqual(policy.last_reason, "stuck:recall-escape")
         self.assertEqual(key, READ_KEY + recall.slot)
@@ -117,7 +118,7 @@ class ReturnWanderRecallTest(unittest.TestCase):
         policy._returning_to_town = True
         policy._last_return_trigger = record["decision"]["last_return_trigger"]
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
-            key = policy.choose_key(snapshot)
+            key = choose_past_junk_key(policy, snapshot)
 
         self.assertEqual((key, policy.last_reason), (UP_STAIRS_KEY, "return:ascend"))
 
@@ -146,7 +147,7 @@ class ReturnWanderRecallTest(unittest.TestCase):
                 with patch.object(
                     policy, "_skill_exp_request_key", return_value=None
                 ):
-                    key = policy.choose_key(snapshot)
+                    key = choose_past_junk_key(policy, snapshot)
 
                 self.assertNotEqual(policy.last_reason, "stuck:recall-escape")
                 self.assertFalse(key.startswith(READ_KEY))

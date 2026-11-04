@@ -23,6 +23,7 @@ k) is settled as unidentifiable, as the live process had it (no
 identify:pack-pressure in the 2606 recorded decisions with 20 of 23 slots used).
 """
 import tests  # noqa: F401 -- isolate live runtime files
+from recorded_junk_scope import install_past_destroyed_junk
 
 import copy
 import gzip
@@ -44,6 +45,19 @@ MAPPING = ("staff", me_powers.SV_STAFF_MAPPING)
 
 def _harness(name):
     return getattr(mining.MagicEaterMiningDeathRecordedTest, name)
+
+
+_undo_past_junk = None
+
+
+def setUpModule():
+    # Owner 2026-11-02: these boards carry junk the first safe decision destroys.
+    global _undo_past_junk
+    _undo_past_junk = install_past_destroyed_junk()
+
+
+def tearDownModule():
+    _undo_past_junk()
 
 
 class N1cAscendLoopRecordedTest(mining.harness.ProductionHarness):

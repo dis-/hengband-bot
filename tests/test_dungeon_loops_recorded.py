@@ -25,6 +25,7 @@ look probe's reply is the ring's recorded look row.  A walk's reply moves the
 player one cell on the recorded board.
 """
 import tests  # noqa: F401 -- isolate live runtime files
+from recorded_junk_scope import choose_past_junk_key
 
 import copy
 from collections import deque
@@ -104,7 +105,7 @@ class DungeonLoopsRecordedTest(harness.ProductionHarness):
         return policy, raw
 
     def choose(self, policy, raw):
-        return str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+        return str(choose_past_junk_key(policy, parse_snapshot(raw, policy._monrace_knowledge)))
 
     def post(self, policy, raw, key, following):
         game = FaithfulHookGame()

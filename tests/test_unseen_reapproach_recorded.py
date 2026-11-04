@@ -26,6 +26,7 @@ live ones the fixed bot would not have seen, so they are declared boards.
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation
+from recorded_junk_scope import choose_past_junk_key
 
 import gzip
 import hashlib
@@ -102,7 +103,7 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
             knowledge_ledger_path=directory / "knowledge.jsonl",
         )
         board = snapshots[-1]
-        key = policy.choose_key(board)
+        key = choose_past_junk_key(policy, board)
         if key is not None:
             policy.confirm_key_posted(key)
         return key, policy.last_reason, board

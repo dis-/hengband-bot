@@ -27,6 +27,7 @@ executor; the replies are constructed.  Fixture:
 tests/extract_diggerless_scavenge_fixture.py.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+from recorded_junk_scope import choose_past_junk_key
 
 import copy
 from pathlib import Path
@@ -104,7 +105,7 @@ class DiggerlessScavengeFloorTest(stockout.IdstaffStockoutRunRecordedTest):
         board = policy.with_known_skill_exp(
             parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
         self.assertEqual(policy._count_treasure_detection_scrolls(board), 1)
-        key = str(policy.choose_key(board))
+        key = str(choose_past_junk_key(policy, board))
         self.assertEqual(policy.last_reason, "fundraise:detect-treasure", key)
         self.assertFalse(policy._returning_to_town)
         self.assertEqual(policy._fundraising_mode, "scavenge")
