@@ -73,6 +73,16 @@ class DungeonBoards(unittest.TestCase):
         self.assertNotEqual(reason, APPROACH)
         self.assertNotEqual(key, "3")
 
+    def test_no_blow_is_struck_at_a_jelly_the_worn_zantetsu_cannot_cut(self):
+        """life-307 11:21 and 11:23: Zantetsu on a small aqua illusion ('j'), every blow
+        cut to zero (player-attack.cpp:545), stall:melee twice."""
+        raw = self.case["zantetsu"]
+        policy = self.primed(raw)
+        key, reason = self.decide(policy, raw)
+        # Recorded: ('4', 'melee').
+        self.assertNotEqual(reason, "melee")
+        self.assertNotEqual(key, "4")
+
 
 class HomeTake(executor_pins.ProductionHarness):
     def test_a_take_merged_into_a_carried_stack_moves_the_next_address(self):

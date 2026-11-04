@@ -83,7 +83,7 @@ def melee_refused_key(policy, snapshot, adjacent) -> str | None:
     adjacent chooser scores melee zero while it is refused (attack_expectation).
     After this order, every class's bow or throw answers too (owner 2026-11-01
     21h, 「近接できない時だけ使う」, the ranged rung's ``_adjacent_ranged_key``)."""
-    if not adjacent or not attack_expectation.melee_refused(policy, snapshot):
+    if not adjacent or not attack_expectation.melee_answers_none_of(policy, snapshot, adjacent):
         return None
     return (attack_key(policy, snapshot, policy._weakest(adjacent))
             or policy._adjacent_ranged_key(snapshot, adjacent))

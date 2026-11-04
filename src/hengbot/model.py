@@ -502,6 +502,7 @@ class InventoryItem:
     is_equipment: bool = False
     is_ego: bool = False
     is_artifact: bool = False
+    artifact_id: int = 0  # FixedArtifactId; 0 for no fixed artifact
     is_cursed: bool = False
     inscription: str = ""
     is_broken: bool = False
@@ -1769,6 +1770,7 @@ def _parse_items(items_data: Any, *, protocol: int = PROTOCOL_LEGACY) -> list[In
                 is_equipment=_as_bool(item_data.get("is_equipment", False)),
                 is_ego=_as_bool(item_data.get("is_ego", False)),
                 is_artifact=_as_bool(item_data.get("is_artifact", False)),
+                artifact_id=int(item_data.get("artifact_id") or 0),
                 is_cursed=_as_bool(item_data.get("is_cursed", False)),
                 inscription=str(item_data.get("inscription", "")),
                 is_broken=_as_bool(item_data.get("is_broken", False)),

@@ -4,7 +4,8 @@ Every rung that may hit an adjacent hostile asks ``adjacent_attack``; a rung
 holding a target of its own asks ``strike_key``.  ``_MELEE_OPEN`` is the order
 of answers while the game allows a blow: a new answer before melee is one row
 there.  While the game refuses the blow, ``me_ranged_first.melee_refused_key``
-owns the answer (fear and a NO_MELEE dungeon refuse melee only).
+owns the answer (fear and a NO_MELEE dungeon refuse melee only), as it does
+beside hostiles no worn weapon can hurt (attack_expectation.blows_cannot_hurt).
 
 A rung declares only what differs: the reason of its blow, how the blow is sent
 (a town producer entry or a walking step instead of ``direct_blow``) and what an
@@ -73,12 +74,14 @@ def adjacent_attack(policy, snapshot, adjacent, reason: str, *,
     the first answer of a fight the game allows."""
     if not adjacent:
         return None
-    if attack_expectation.melee_refused(policy, snapshot):
+    if attack_expectation.melee_answers_none_of(policy, snapshot, adjacent):
         key = me_ranged_first.melee_refused_key(policy, snapshot, adjacent)
         return None if key is None else Answer(key)
     if on_engage is not None:
         on_engage()
-    return Answer(strike_key(policy, snapshot, policy._weakest(adjacent), reason, blow))
+    hurtable = [monster for monster in adjacent
+                if not attack_expectation.blows_cannot_hurt(policy, snapshot, monster)]
+    return Answer(strike_key(policy, snapshot, policy._weakest(hurtable), reason, blow))
 
 
 def unseen_attacker_key(policy, snapshot, speed: Callable, last: Callable[[], str | None]) -> str | None:

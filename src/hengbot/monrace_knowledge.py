@@ -65,6 +65,7 @@ class MonraceKnowledge:
     # Base experience ("exp" in MonraceDefinitions): a kill awards
     # level * exp / (player max level + 2) on top of the per-damage share.
     experience: int = 0
+    symbol: str = ""
 
 
 def _strip_jsonc(text: str) -> str:
@@ -228,6 +229,7 @@ def load_monrace_knowledge(path: Path) -> dict[int, MonraceKnowledge]:
         )
         shoot_num, shoot_sides = _parse_dice(skill.get("shoot"))
         result[int(monster["id"])] = MonraceKnowledge(
+            symbol=str(monster.get("symbol", {}).get("character", "")),
             max_hp=max_hp,
             speed=110 + int(monster.get("speed", 0)),
             can_summon=bool(SUMMON_ABILITIES.intersection(abilities)),

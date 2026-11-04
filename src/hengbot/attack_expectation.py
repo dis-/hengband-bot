@@ -49,6 +49,10 @@ THROW_MULTIPLIER = 1          # cmd-throw.cpp: the plain throw command's mult
 TO_H_B_FLOOR = 0              # QUEST_1 derivation: to_h_b taken as 0
 TO_D_M_FLOOR = -2             # QUEST_1 derivation: to_d_m at its minimum (STR 3)
 BTH_PLUS_ADJ = 3
+# player-attack.cpp:545: FixedArtifactId::ZANTETSU cuts no 'j' to 0 damage
+# (「こんな軟らかいものは切れん！」).
+ZANTETSU_ARTIFACT_ID = 150
+ZANTETSU_UNCUT_SYMBOLS = frozenset("j")
 
 
 def _race(policy, target):
@@ -87,10 +91,27 @@ def melee_refused(policy, snapshot) -> bool:
             or not policy._can_fight_in_dungeon(snapshot.floor_key[0]))
 
 
+def blows_cannot_hurt(policy, snapshot, target) -> bool:
+    """Every worn weapon's blow does ``target`` no damage (player-attack.cpp:545)."""
+    knowledge = _race(policy, target)
+    if knowledge is None or knowledge.symbol not in ZANTETSU_UNCUT_SYMBOLS:
+        return False
+    weapons = [item for item in (_hand_weapon(snapshot, "main_hand"),
+                                 _hand_weapon(snapshot, "sub_hand")) if item is not None]
+    return bool(weapons) and all(item.artifact_id == ZANTETSU_ARTIFACT_ID for item in weapons)
+
+
+def melee_answers_none_of(policy, snapshot, adjacent) -> bool:
+    """A blow answers none of ``adjacent``: the game refuses it, or it cannot hurt them."""
+    return melee_refused(policy, snapshot) or all(
+        blows_cannot_hurt(policy, snapshot, monster) for monster in adjacent)
+
+
 def melee(policy, snapshot, target) -> float:
     """Melee's expected damage per player action against ``target``, else 0."""
     player = snapshot.player
-    if melee_refused(policy, snapshot) or harms_on_touch(policy, target):
+    if (melee_refused(policy, snapshot) or harms_on_touch(policy, target)
+            or blows_cannot_hurt(policy, snapshot, target)):
         return 0.0  # fear or NO_MELEE refuses melee (cmd-attack.cpp:228, :202)
     ac = _armour(policy, target)
     damage = 0.0
