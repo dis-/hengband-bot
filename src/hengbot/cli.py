@@ -43,7 +43,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
 from hengbot.town_maps import TownMap, find_outpost_map, find_town_map, parse_town_map
 from hengbot.town_travel import is_travel_macro
-from hengbot.town_hold import decision_reach, decision_rung, offer_buffer, standing_claim, town_hold
+from hengbot.town_hold import decision_reach, decision_rung, offer_buffer, open_offers, standing_claim, take_offers, town_hold
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
@@ -1898,6 +1898,9 @@ class _PolicyObserverScope:
     def __enter__(self):
         state = self._policy.__dict__
         self._bindings = dict(state)
+        # The hold's copy shares the offer slot: an evaluator that opens it must
+        # not hand its offers to the next decision.
+        self._offers_open = open_offers(self._policy) is not None
         for name, value in self._bindings.items():
             if isinstance(value, _OBSERVER_COPIED_CONTAINERS):
                 state[name] = _observer_container_copy(value)
@@ -1913,6 +1916,8 @@ class _PolicyObserverScope:
         return self._policy
 
     def __exit__(self, *_exc):
+        if not self._offers_open:
+            take_offers(self._policy)
         for path, previous in self._sidecars.items():
             current = path.read_bytes() if path.exists() else None
             if current != previous:
