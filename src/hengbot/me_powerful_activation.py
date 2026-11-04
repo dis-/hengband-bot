@@ -43,6 +43,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from hengbot import me_capability, me_powers
+from hengbot.equipment_optimizer import average_hides_modifiers
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import (
     SV_STAFF_IDENTIFY, SV_STAFF_REMOVE_CURSE, item_requires_full_identification,
@@ -146,9 +147,11 @@ def _uncurse_target(policy, snapshot):
 
 
 def _identify_target(policy, snapshot):
-    return next((item for item in (*snapshot.equipment, *snapshot.inventory)
-                 if item.known and not item.fully_known
-                 and item_requires_full_identification(item)), None)
+    """What a full identification reveals, worn jewellery hiding its numbers first."""
+    hidden = next((item for item in snapshot.equipment if average_hides_modifiers(item)), None)
+    return hidden or next((item for item in (*snapshot.equipment, *snapshot.inventory)
+                           if item.known and not item.fully_known
+                           and item_requires_full_identification(item)), None)
 
 
 TARGETS = {UNCURSE: _uncurse_target, IDENTIFY: _identify_target}

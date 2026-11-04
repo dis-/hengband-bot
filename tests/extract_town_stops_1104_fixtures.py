@@ -8,7 +8,9 @@ rows up to the stop's decision, recompressed with xz.
     python tests/extract_town_stops_1104_fixtures.py <captures/stops-1104-morning> [case ...]
 """
 import gzip
+import json
 import lzma
+import re
 import sys
 import zlib
 from pathlib import Path
@@ -33,6 +35,8 @@ CASES = {
     "ability-suppression": ("../stops-1104-1330/n1-a/life-477", "20261104-095223-town-blocked-survival-depth_abilities", 27),
     "entry-spent": ("../stops-1104-1330/n1-a/life-477", "20261104-085436-town-blocked-shop-required-operation-uncomposable", 66),
     "staff-need-room": ("../stops-1104-1330/n1-b/life-308", "20261104-131438-town-blocked-survival-identify_staff_ready", 22),
+    # The sensed rings of n1-c life-130 (bot-28e3790a6).
+    "worn-ring": ("../worn-ring-1104/n1-c/life-130", "20261104-153933-town-blocked-survival-inventory_weight_ready", 3),
 }
 CALIBRATION = "_character_calibration_path"
 # The small runtime files a replay of the visit's equipment work reads, for the
@@ -43,7 +47,7 @@ RUNTIME_FILES = ("_confirmed_loadout_path", "_town_visit_purchase_path",
 DUMP = "_character_dump_path"
 
 
-def last_character_response(snapshots: Path) -> bytes:
+def last_character_response(snapshots: Path, accept=lambda _line: True) -> bytes:
     """The ring's last C response (multi-member gzip tail from its first header)."""
     data = snapshots.read_bytes()
     data = data[data.find(b"\x1f\x8b\x08"):]
@@ -57,8 +61,28 @@ def last_character_response(snapshots: Path) -> bytes:
             data = data[following:] if following >= 0 else b""
             continue
         data = member.unused_data
-        found = next((line for line in reversed(lines) if b'"stat_modifiers"' in line), found)
+        found = next((line for line in reversed(lines)
+                      if b'"stat_modifiers"' in line and accept(line)), found)
     return found
+
+
+def response_of_dump(snapshots: Path, dump: bytes) -> bytes:
+    """The last C response of the whole ring with the dump's maximum HP and gold.
+
+    worn-ring: the arrival's dump is older than the visit's first C response.
+    """
+    text = dump.decode("euc-jp", errors="replace")
+    max_hp = re.search(r"ＨＰ\s+\d+/\s*(\d+)", text)[1]
+    gold = re.search(r"所持金\s+(\d+)", text)[1]
+
+    def accept(line):
+        player = json.loads(line)["player"]
+        return str(player["max_hp"]) == max_hp and str(player["gold"]) == gold
+    for path in sorted(snapshots.glob("*.jsonl.gz"), reverse=True):
+        found = last_character_response(path, accept)
+        if found:
+            return found
+    raise SystemExit(f"no C response of the dump in {snapshots}")
 
 
 def main() -> None:
@@ -82,12 +106,15 @@ def main() -> None:
                 if source.is_file():
                     (target / "runtime").mkdir(exist_ok=True)
                     (target / "runtime" / role).write_bytes(source.read_bytes())
-        if name in {"worn-average", "ability-gap"}:
+        if name in {"worn-average", "ability-gap", "worn-ring"}:
             # The dump the arrival read, and the C response that goes with it.
             (target / "dump.txt.xz").write_bytes(
                 lzma.compress((visit / "sidecars" / DUMP).read_bytes(), preset=preset))
-            (target / "character.json.xz").write_bytes(lzma.compress(last_character_response(
-                visit.parent / "snapshots" / "snapshots-current.jsonl.gz"), preset=preset))
+            snapshots = visit.parent / "snapshots"
+            response = (response_of_dump(snapshots, (visit / "sidecars" / DUMP).read_bytes())
+                        if name == "worn-ring"
+                        else last_character_response(snapshots / "snapshots-current.jsonl.gz"))
+            (target / "character.json.xz").write_bytes(lzma.compress(response, preset=preset))
 
 
 if __name__ == "__main__":

@@ -25,9 +25,11 @@ from hengbot.model import (
     SV_BOW_SLING,
     SV_LITE_FEANOR,
     SV_LITE_LANTERN,
+    TVAL_AMULET,
     TVAL_ARROW,
     TVAL_BOLT,
     TVAL_LITE,
+    TVAL_RING,
     TVAL_SHOT,
     InventoryItem,
     StoreItem,
@@ -181,6 +183,20 @@ def average_feeling_trusted(mutation_signature: Iterable[int] | None) -> bool:
             and MUTATION_BAD_LUCK not in tuple(mutation_signature))
 
 
+def average_hides_modifiers(item: EquipmentItem) -> bool:
+    """An unidentified ring or amulet sensed {average}: its numbers stay hidden.
+
+    pseudo_value_check_heavy (perception/simple-perception.cpp) answers
+    FEEL_AVERAGE for every uncursed, non-ego ring or amulet without reading its
+    values; a Ring of Constitution always has pval >= 1 (apply-magic-ring.cpp).
+    n1-c life-130 2026-11-04 15:21: an Eldritch Horror's lose_all_info took the
+    KNOWN flag of two rings of (+3) and (+4), they were sensed {average}, and
+    the sheet's +9 CON refused every C screen (visible-modifier-mismatch).
+    """
+    return (not item.known and item.pseudo_feeling == "average"
+            and item.tval in (TVAL_RING, TVAL_AMULET))
+
+
 def average_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
     """An unidentified item sensed {average}, read as having no modifier.
 
@@ -188,8 +204,10 @@ def average_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
     the trust rule of average_feeling_trusted(): n1-b life-307 wore a Q34
     {average} cloak for its whole life and the sheet refused every C screen,
     so no optimizer compared its five carried weapons (pack-full-no-room).
+    The feeling says nothing about jewellery (average_hides_modifiers).
     """
-    return trusted and not item.known and item.pseudo_feeling == "average"
+    return (trusted and not item.known and item.pseudo_feeling == "average"
+            and not average_hides_modifiers(item))
 
 
 def average_light_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
