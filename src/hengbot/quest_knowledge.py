@@ -108,6 +108,10 @@ def _terrain_class(feature: str) -> str:
     upper = feature.upper()
     if "QUEST_EXIT" in upper:
         return "exit"
+    # A vein on water (MAGMA_VEIN_ON_DEEP_WATER) is a wall until dug; the water
+    # names below describe what the digging would leave.
+    if "MAGMA" in upper or "QUARTZ" in upper:
+        return "wall"
     if "RUBBLE" in upper:
         return "rubble"
     if "DOOR" in upper:
