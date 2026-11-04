@@ -12,6 +12,8 @@ from hengbot.monrace_knowledge import _strip_jsonc
 DAMAGING_FLAGS = frozenset(
     {"LAVA", "COLD_PUDDLE", "ELEC_PUDDLE", "ACID_PUDDLE", "POISON_PUDDLE"}
 )
+STANDING_DAMAGE_ELEMENTS = {"LAVA": "fire", "COLD_PUDDLE": "cold", "ELEC_PUDDLE": "elec",
+                            "ACID_PUDDLE": "acid", "POISON_PUDDLE": ""}
 
 
 def load_damaging_terrain_ids(path: Path) -> frozenset[int]:
@@ -25,6 +27,18 @@ def load_damaging_terrain_ids(path: Path) -> frozenset[int]:
         if flags.intersection(DAMAGING_FLAGS) or {"WATER", "DEEP"} <= flags:
             result.add(int(terrain["id"]))
     return frozenset(result)
+
+
+def load_damaging_terrain_elements(path: Path) -> dict[int, str]:
+    """Terrain id -> the element its standing damage is: the immunity that stops it
+    (hp-mp-processor.cpp), or "" for poison, which no immunity stops."""
+    data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
+    return {
+        int(terrain["id"]): element
+        for terrain in data.get("terrains", [])
+        for flag, element in STANDING_DAMAGE_ELEMENTS.items()
+        if flag in terrain.get("flags", [])
+    }
 
 
 def find_terrain_definitions(state_file: Path) -> Path | None:
