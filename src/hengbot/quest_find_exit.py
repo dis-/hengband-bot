@@ -26,6 +26,15 @@ strategy's line (``abort_conditions.hp_ratio``) with an enemy, Recall is read an
 fight goes on with potions and blows until it fires.  Cure Critical Wounds is no HP
 recovery (owner 2026-11-03).  With no enemy the floor is rested on (owner 2026-11-03).
 
+Owner 2026-11-04 「隘路で敵を十分倒してから先に進むことを明記する」: on an unexposed choke
+nothing advances while ``comes_for_player`` holds for an awake enemy in view, or one known
+beside the next leg.  ``choke_hold_turns`` ends only a wait with no such enemy, the quiet
+wait after a fight on that choke; ``choke_enemy_wait_turns`` is the far bound on an enemy
+that stays in view without ever making contact (a blow resets it).  With nothing fought or
+known, the walk goes on at once.  An enemy that does not come does not freeze the walk: it
+is shot from the choke when it stands in the way, otherwise passed.  A sleeper stays asleep
+unless it is in the way or beside the next choke.
+
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
 quiet board stays with them (food, light, the unseen) and reaches ``walk_key`` through
@@ -116,6 +125,17 @@ def _pulls(policy, monster) -> bool:
     return knowledge is not None and "TELE_TO" in knowledge.abilities
 
 
+def comes_for_player(policy, navigator, snapshot, monster) -> bool:
+    """Awake, not NEVER_MOVE, and with a walk to beside the player for its kind of
+    movement (an aquatic one in a sealed pocket has none)."""
+    if monster.asleep or _never_moves(policy, monster):
+        return False
+    knowledge = policy._monrace_knowledge.get(monster.race_id)
+    flags = knowledge.flags if knowledge is not None else frozenset()
+    return quest_exposure.can_reach(navigator.battlefield.terrain, flags,
+                                    _cell(monster.position), _cell(snapshot.player.position))
+
+
 def _rank(profile, monster) -> tuple[int, int]:
     targets = profile.priority_targets
     index = targets.index(monster.race_id) if monster.race_id in targets else len(targets)
@@ -125,7 +145,7 @@ def _rank(profile, monster) -> tuple[int, int]:
 class _Board:
     """The enemies of one board, as this plan weighs them."""
 
-    def __init__(self, policy, snapshot, profile):
+    def __init__(self, policy, snapshot, profile, navigator):
         sealed = sealed_races(profile)
         position = snapshot.player.position
         known = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
@@ -134,8 +154,8 @@ class _Board:
         self.occupied = {monster.position for monster in known}
         # A monster that cannot come is no reason to hold a choke; one beside the player
         # is left behind by walking on (a siren's pull ends beside it, 840 HP unfought).
-        self.mobile_awake = [monster for monster in known if not monster.asleep
-                             and not _never_moves(policy, monster)]
+        self.mobile_awake = [monster for monster in known
+                             if comes_for_player(policy, navigator, snapshot, monster)]
         self.coming_in_view = [monster for monster in self.mobile_awake
                                if monster.perception != "detected"]
         self.adjacent_mobile = [monster for monster in self.coming_in_view
@@ -229,13 +249,42 @@ def _chokes(navigator, plan) -> set[Position]:
             if not exposure.exposed(tuple(cell))} - navigator.exit_spent_chokes
 
 
+def _next_leg(navigator, plan, position: Position) -> list[Position]:
+    """The walk ahead up to and including the next choke."""
+    chokes = {Position(*cell) for cell in plan["choke_cells"]}
+    leg = []
+    for cell in _least_exposed(navigator, plan, position, {_exit_cell(navigator)})[1:]:
+        leg.append(cell)
+        if cell in chokes:
+            break
+    return leg
+
+
+def _must_wait(navigator, plan, position, board) -> bool:
+    """An awake enemy that comes is in view, or known beside the next leg."""
+    if board.coming_in_view:
+        return True
+    leg = _next_leg(navigator, plan, position)
+    return any(monster.position.distance_to(cell) <= 1
+               for monster in board.mobile_awake for cell in leg)
+
+
 def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
     """Wait on this choke for what comes; a shot first.  None once its wait is spent."""
     if navigator.exit_hold_cell != position:
         navigator.exit_hold_cell, navigator.exit_hold_turns = position, 0
-    navigator.exit_hold_turns += 1
-    if navigator.exit_hold_turns > int(plan["choke_hold_turns"]):
+        navigator.exit_enemy_turns = 0
+    if _must_wait(navigator, plan, position, board):
+        navigator.exit_fought_at = position
+        navigator.exit_hold_turns = 0
+        navigator.exit_enemy_turns += 1
+        spent = navigator.exit_enemy_turns > int(plan["choke_enemy_wait_turns"])
+    else:
+        navigator.exit_hold_turns += 1
+        spent = navigator.exit_hold_turns > int(plan["choke_hold_turns"])
+    if spent:
         navigator.exit_spent_chokes = navigator.exit_spent_chokes | {position}
+        navigator.exit_fought_at = None
         return None
     shot = (policy._ranged_attack_key(snapshot, board.coming_in_view, [])
             if board.coming_in_view else None)
@@ -243,6 +292,40 @@ def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
         return shot
     policy.last_reason = HOLD_REASON
     return WAIT_KEY
+
+
+def _wait_after_fight(policy, snapshot, navigator, plan, board) -> str | None:
+    """Nothing in sight on the choke that fought: what the noise woke may still come."""
+    position = snapshot.player.position
+    if navigator.exit_fought_at != position or position in navigator.exit_spent_chokes:
+        return None
+    return _hold(policy, snapshot, navigator, plan, position, board)
+
+
+def _clear_the_way_key(policy, snapshot, navigator, plan, board, path) -> str | None:
+    """From a choke, a shot at what stands in the walk ahead and will not come, or sleeps
+    in it or beside the next choke.  No shot to be had: the walk goes on."""
+    position = snapshot.player.position
+    chokes = {Position(*cell) for cell in plan["choke_cells"]}
+    if position not in chokes or _exposure(navigator, plan).exposed(_cell(position)):
+        return None
+    leg = []
+    for cell in path[1:]:
+        leg.append(cell)
+        if cell in chokes:
+            break
+    next_choke = leg[-1] if leg and leg[-1] in chokes else None
+    targets = [
+        monster for monster in board.in_view
+        if not _never_moves(policy, monster) or monster.position in leg
+    ]
+    targets = [
+        monster for monster in targets
+        if monster.position in leg
+        or (monster.asleep and next_choke is not None
+            and monster.position.distance_to(next_choke) <= 1)
+    ]
+    return policy._ranged_attack_key(snapshot, targets, []) if targets else None
 
 
 def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
@@ -286,6 +369,9 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
     ) else through
     if len(path) < 2:
         return None
+    shot = _clear_the_way_key(policy, snapshot, navigator, plan, board, path)
+    if shot is not None:
+        return shot
     step = path[1]
     if step in board.occupied:
         blocker = next((monster for monster in board.in_view if monster.position == step), None)
@@ -317,7 +403,7 @@ def key(policy, snapshot) -> str | None:
     quest_id = snapshot.floor_key[2]
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
-    board = _Board(policy, snapshot, profile)
+    board = _Board(policy, snapshot, profile, navigator)
     exposed = _exposure(navigator, plan).exposed(_cell(snapshot.player.position))
     stepped = _step_on_exit(policy, snapshot, navigator, board)
     if stepped is not None:
@@ -333,6 +419,7 @@ def key(policy, snapshot) -> str | None:
         return (
             _rest(policy, snapshot, plan, board)
             or (_to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None)
+            or _wait_after_fight(policy, snapshot, navigator, plan, board)
             or (_advance(policy, snapshot, navigator, plan, board) if board.in_view else None)
         )
     return (
@@ -353,6 +440,7 @@ def _engaged(policy, snapshot, profile, navigator, plan, board) -> str | None:
 
 def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
     if board.adjacent_mobile:
+        _note_contact(navigator, plan, snapshot.player.position)
         target = min(board.adjacent_mobile, key=lambda monster: _rank(profile, monster))
         answer = combat_answer.adjacent_attack(policy, snapshot, [target], MELEE_REASON)
         if answer is not None and answer.key is not None:
@@ -360,7 +448,25 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         # A blow the game refuses (fear) and no missile: the choke is still the place.
         policy.last_reason = HOLD_REASON
         return WAIT_KEY
-    return _to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None
+    moved = _to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None
+    if moved is None and board.coming_in_view and not _spent_here(navigator, snapshot):
+        # No choke to be had: it is still fought here, not walked into.
+        policy.last_reason = HOLD_REASON
+        return WAIT_KEY
+    return moved
+
+
+def _spent_here(navigator, snapshot) -> bool:
+    return snapshot.player.position in navigator.exit_spent_chokes
+
+
+def _note_contact(navigator, plan, position: Position) -> None:
+    """A blow on a choke: its waits start over and it is worth waiting on again."""
+    if [position.y, position.x] in plan["choke_cells"]:
+        navigator.exit_hold_cell = position
+        navigator.exit_hold_turns = navigator.exit_enemy_turns = 0
+        navigator.exit_fought_at = position
+        navigator.exit_spent_chokes = navigator.exit_spent_chokes - {position}
 
 
 def walk_key(policy, snapshot) -> str | None:
@@ -370,6 +476,7 @@ def walk_key(policy, snapshot) -> str | None:
         return None
     quest_id = snapshot.floor_key[2]
     navigator = _navigator(policy, snapshot, quest_id)
-    board = _Board(policy, snapshot, policy.approved_quest_strategy(quest_id))
+    board = _Board(policy, snapshot, policy.approved_quest_strategy(quest_id), navigator)
     return (_step_on_exit(policy, snapshot, navigator, board)
+            or _wait_after_fight(policy, snapshot, navigator, plan, board)
             or _advance(policy, snapshot, navigator, plan, board))

@@ -286,15 +286,95 @@ class Q18RecordedBoardsTest(unittest.TestCase):
         self.assertEqual((key, reason), (step_key((2, 7), (1, 8)), MELEE_REASON))
 
     def test_no_hold_on_4_13_with_the_seahorse_coming(self):
+        # (4,13) is exposed: the waiting happens on the next free choke, not here.
         y, x, (_, reason) = self.replay(2723443)  # recorded: a shot, holding here
         self.assertEqual((y, x), (4, 13))
         self.assertEqual(reason, WALK_REASON)
+
+    def test_the_recorded_seahorse_board_on_the_free_choke_waits(self):
+        """DECLARED CONSTRUCTED: the recorded board, player moved to the choke (1,12),
+        the recorded seahorse on (3,11) two cells off."""
+        raw = copy.deepcopy(LIVE[2723443])
+        raw["player"].update(y=1, x=12)
+        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in AMMO_TVALS]
+        raw["equipment"] = [item for item in raw["equipment"] if item["slot"] != "bow"]
+        self.assertEqual(decide(raw)[:2], (WAIT_KEY, HOLD_REASON))
 
     def test_below_the_line_recall_is_still_read(self):
         y, x, (key, reason) = self.replay(2723779)  # recorded: the same read
         self.assertEqual((y, x), (4, 13))
         self.assertEqual(reason, RECALL_REASON)
         self.assertTrue(key.startswith("r"))
+
+
+class Q18ClearBeforeAdvancingTest(unittest.TestCase):
+    """Owner 2026-11-04 「隘路で敵を十分倒してから先に進むことを明記する」."""
+
+    CHOKE, NEXT = (1, 12), (2, 13)
+
+    def run_boards(self, boards):
+        policy = new_policy(boards[0])
+        rows = []
+        for turn, raw in enumerate(boards):
+            raw = copy.deepcopy(raw)
+            raw["turn"] = BASE["turn"] + 10 * (turn + 1)
+            key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+            rows.append((key, policy.last_reason))
+        return rows
+
+    def test_it_waits_kills_then_advances_after_the_quiet_bound(self):
+        """DECLARED CONSTRUCTED: the recorded n1-a seahorse (seq 1489, 443 two cells off) on
+        this plan's choke, then adjacent, then dead."""
+        coming = board(self.CHOKE, monsters=[monster(SEAHORSE, 2, 11 - 1)], speed=0, ammo=False)
+        adjacent = board(self.CHOKE, monsters=[monster(SEAHORSE, 2, 11)], speed=0, ammo=False)
+        clear = board(self.CHOKE, speed=0, ammo=False)
+        bound = STRATEGIES[18].engagement_plan["find_exit"]["choke_hold_turns"]
+        rows = self.run_boards([coming, adjacent, adjacent, *[clear] * (bound + 1)])
+        self.assertEqual(rows[0], (WAIT_KEY, HOLD_REASON))
+        self.assertEqual(rows[1], (step_key(self.CHOKE, (2, 11)), MELEE_REASON))
+        self.assertEqual(rows[2], (step_key(self.CHOKE, (2, 11)), MELEE_REASON))
+        self.assertEqual(rows[3:3 + bound], [(WAIT_KEY, HOLD_REASON)] * bound)
+        self.assertEqual(rows[3 + bound], (step_key(self.CHOKE, self.NEXT), WALK_REASON))
+
+    def test_control_nothing_fought_advances_at_once(self):
+        self.assertEqual(self.run_boards([board(self.CHOKE)]),
+                         [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
+
+    def test_hurt_with_no_enemy_rests_before_the_wait_and_the_walk(self):
+        self.assertEqual(self.run_boards([board(self.CHOKE, hp=FULL_HP // 2)]), [(REST_MACRO, "rest")])
+
+    def test_an_enemy_known_beside_the_next_leg_holds_and_a_far_one_does_not_for_long(self):
+        near = board(self.CHOKE)
+        near["detected_monsters"] = [dict(monster(SHARK, 1, 15), perception="detected")]
+        self.assertEqual(self.run_boards([near]), [(WAIT_KEY, HOLD_REASON)])
+
+    def test_an_aquatic_enemy_in_a_sealed_pocket_does_not_freeze_it(self):
+        sealed = board(self.CHOKE, monsters=[monster(SHARK, 18, 15)], ammo=False)
+        self.assertEqual(self.run_boards([sealed]), [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
+
+    def test_a_siren_in_view_does_not_freeze_it(self):
+        seen = board(self.CHOKE, monsters=[monster(SIREN, 6, 14)], ammo=False)
+        self.assertEqual(self.run_boards([seen]), [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
+
+    def test_a_sleeper_in_the_only_way_is_shot_from_the_choke_or_struck_beside_it(self):
+        sleeper = monster(SQUID, 2, 11, asleep=True)
+        self.assertTrue(self.run_boards([board((1, 9), monsters=[sleeper])])[0][1].startswith("ranged:"))
+        self.assertEqual(self.run_boards([board((1, 9), monsters=[sleeper], ammo=False)]),
+                         [(step_key((1, 9), (1, 10)), WALK_REASON)])
+        beside = monster(SQUID, *self.NEXT, asleep=True)
+        self.assertEqual(self.run_boards([board(self.CHOKE, monsters=[beside], ammo=False)]),
+                         [(step_key(self.CHOKE, self.NEXT), MELEE_REASON)])
+
+    def test_a_sleeper_beside_the_next_choke_is_shot_and_one_off_the_route_is_left(self):
+        beside = monster(SQUID, 1, 16, asleep=True)  # beside the next choke (1,15)
+        self.assertTrue(self.run_boards([board(self.CHOKE, monsters=[beside])])[0][1].startswith("ranged:"))
+        off_route = monster(SQUID, 3, 3, asleep=True)
+        self.assertEqual(self.run_boards([board(self.CHOKE, monsters=[off_route])]),
+                         [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
+
+    def test_an_exposed_cell_still_walks_on(self):
+        self.assertEqual(self.run_boards([board((2, 7), monsters=[monster(SHARK, 3, 8)], speed=0)]),
+                         [(step_key((2, 7), (1, 8)), WALK_REASON)])
 
 
 class Q18PlaythroughTest(unittest.TestCase):
@@ -344,18 +424,20 @@ class Q18PlaythroughTest(unittest.TestCase):
                                 primed=board((1, 5), monsters=[shark], speed=0, ammo=False))
         self.assertEqual((key, reason), (WAIT_KEY, HOLD_REASON))
 
-    def test_the_wait_is_bounded_then_it_walks_on(self):
+    def test_the_quiet_bound_does_not_push_past_an_enemy_in_view(self):
         shark = monster(SHARK, 4, 7)
         raw = board((1, 5), monsters=[shark], speed=0, ammo=False)
         policy = new_policy(raw)
-        budget = STRATEGIES[18].engagement_plan["find_exit"]["choke_hold_turns"]
+        plan = STRATEGIES[18].engagement_plan["find_exit"]
         reasons = []
-        for turn in range(budget + 2):
+        for _ in range(plan["choke_enemy_wait_turns"] + 2):
             raw["turn"] += 10
             policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
             reasons.append(policy.last_reason)
-        self.assertEqual(reasons[:budget], [HOLD_REASON] * budget)
-        self.assertNotEqual(reasons[budget], HOLD_REASON)
+        self.assertGreater(plan["choke_enemy_wait_turns"], plan["choke_hold_turns"])
+        self.assertEqual(reasons[:plan["choke_enemy_wait_turns"]],
+                         [HOLD_REASON] * plan["choke_enemy_wait_turns"])
+        self.assertNotEqual(reasons[plan["choke_enemy_wait_turns"]], HOLD_REASON)
 
     def test_a_choke_fight_strikes_the_adjacent_enemy(self):
         raw = board((1, 3), monsters=[monster(SQUID, 1, 4)], speed=0)

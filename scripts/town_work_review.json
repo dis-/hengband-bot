@@ -13093,5 +13093,27 @@
     ],
     "delegation": "selected child; no independent success",
     "evidence": "The least exposed walk as positions; emits no key."
+  },
+  "quest_find_exit.py:_wait_after_fight": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The quiet wait on the choke that fought; no independent progress."
+  },
+  "quest_find_exit.py:_clear_the_way_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The shot from a choke at what stands in the way; no independent progress."
   }
 }

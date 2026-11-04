@@ -72,6 +72,8 @@ class QuestFloorNavigator:
     # The FIND_EXIT choke wait (quest_find_exit): same restored-checkpoint rule.
     exit_hold_cell = None
     exit_hold_turns = 0
+    exit_enemy_turns = 0
+    exit_fought_at = None
     exit_spent_chokes = frozenset()
 
     def __post_init__(self) -> None:
@@ -96,6 +98,8 @@ class QuestFloorNavigator:
         self.q34_inscription_sent = frozenset()
         self.exit_hold_cell = None
         self.exit_hold_turns = 0
+        self.exit_enemy_turns = 0
+        self.exit_fought_at = None
         self.exit_spent_chokes = frozenset()
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:

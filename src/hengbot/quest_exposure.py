@@ -85,6 +85,34 @@ def exposure_map(terrain, casters) -> Exposure:
                     {cell: frozenset(found) for cell, found in shout.items()})
 
 
+def can_reach(terrain, flags, source: tuple[int, int], player: tuple[int, int]) -> bool:
+    """A monster with these race ``flags`` has a walk from ``source`` to beside ``player``.
+
+    monster_can_cross_terrain (monster-info.cpp:42): an AQUATIC one stays on water, one
+    that neither swims nor flies stays out of deep water; walls and rubble stop all but
+    the ones that pass or eat them.
+    """
+    if {"PASS_WALL", "KILL_WALL"} & flags:
+        return True
+    if "AQUATIC" in flags and "CAN_FLY" not in flags:
+        allowed = {"shallow_water", "deep_water"}
+    elif {"CAN_SWIM", "CAN_FLY"} & flags:
+        allowed = _WALKABLE_KINDS
+    else:
+        allowed = _WALKABLE_KINDS - {"deep_water"}
+    seen, pending = {source}, [source]
+    while pending:
+        cell = pending.pop()
+        if game_distance(cell, player) <= 1 and max(abs(cell[0] - player[0]), abs(cell[1] - player[1])) <= 1:
+            return True
+        for dy, dx in _NEIGHBOURS:
+            nxt = (cell[0] + dy, cell[1] + dx)
+            if nxt not in seen and terrain.get(nxt) in allowed:
+                seen.add(nxt)
+                pending.append(nxt)
+    return False
+
+
 def least_exposed_path(
     terrain, exposure: Exposure, start: tuple[int, int], goals, blocked=frozenset(),
 ) -> list[tuple[int, int]]:
