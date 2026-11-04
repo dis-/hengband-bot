@@ -106,7 +106,8 @@ class HomeMixin:
                     or not self._carried_disposal_preserves_departure(snapshot, item, count)):
                 continue
             if item.is_equipment and not item.is_ammo and not item.is_digging_tool:
-                if not self._home_full_equipment_surplus(snapshot, item):
+                if not (self._home_full_equipment_surplus(snapshot, item)
+                        or spare_gear.sold_for_weight(self, snapshot, item)):
                     continue
             stores = tuple(s for s in (STORE_ALCHEMIST, STORE_MAGIC, STORE_WEAPON,
                 STORE_ARMOURY, STORE_GENERAL, STORE_TEMPLE, 8, STORE_BLACK)
@@ -114,7 +115,8 @@ class HomeMixin:
             # A store's refusal is a store fact; try the remaining buyers.
             value = known_sale_value(item, item_base_cost(item, self._baseitem_costs)) or 0
             candidates.append((max(0, value)*count, self._item_signature(item), item, count, stores))
-        return sorted(candidates, key=lambda entry: (entry[0], entry[1], entry[2].slot))
+        return spare_gear.gear_first_when_it_covers(self, snapshot, sorted(
+            candidates, key=lambda entry: (entry[0], entry[1], entry[2].slot)))
 
     def _observe_overweight_surplus_effect(self, snapshot) -> bool:
         state = self._overweight_surplus_disposal

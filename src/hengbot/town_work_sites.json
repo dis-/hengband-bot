@@ -5810,6 +5810,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_home.py:HomeMixin._home_is_full": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_home.py:HomeMixin._home_knowledge_await_key": {
     "classification": "producer",
     "rows": [
@@ -9468,7 +9475,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "spare_gear.py:gear_first_when_it_covers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "spare_gear.py:released": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "spare_gear.py:sold_for_weight": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

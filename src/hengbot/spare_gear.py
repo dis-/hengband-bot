@@ -120,6 +120,34 @@ def released(policy: Any, snapshot: Any, item: Any) -> bool:
     return policy._target_loadout_known() or policy._calibration_rejection is not None
 
 
+def sold_for_weight(policy: Any, snapshot: Any, item: Any) -> bool:
+    """Spare gear the overweight relief may sell: Home cannot take it.
+
+    Owner 2026-10-04: a full Home's surplus is sold.  n1-c life-130 (11-04 20:40)
+    stopped 378 over with 476 of spare gear in the pack, because the only other
+    gear test, the dominance prune, answers for Warriors alone.
+    """
+    return bool(not item.is_artifact
+                and policy._home_is_full(snapshot)
+                and not policy._is_wanted_jewelry(snapshot, item)
+                and released(policy, snapshot, item))
+
+
+def gear_first_when_it_covers(policy: Any, snapshot: Any, candidates: list) -> list:
+    """Spare gear ahead of the potions when it alone clears the excess.
+
+    Each group keeps the caller's cheapest-first order, so nothing valuable
+    goes ahead of cheaper spare gear.  ``candidates`` are the relief's
+    (value, signature, item, count, stores) rows.
+    """
+    limit = policy._inventory_weight_limit(snapshot)
+    gear = [entry for entry in candidates if sold_for_weight(policy, snapshot, entry[2])]
+    if limit is None or sum(entry[2].weight * entry[3] for entry in gear) < (
+            policy._inventory_weight(snapshot) - limit):
+        return candidates
+    return [*gear, *(entry for entry in candidates if entry not in gear)]
+
+
 def stow_pending(policy: Any, snapshot: Any) -> bool:
     """Spare gear in the pack that a Home visit can still shelve this visit."""
     if (not snapshot.in_town
