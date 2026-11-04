@@ -1559,7 +1559,8 @@ class NavigationMixin:
                     return route[0]
                 self._retire_explore_goal(identity)
     
-        path = self._plan_explore_path(snapshot)
+        path = self._plan_explore_path(snapshot) or self._plan_explore_path_pass(
+            snapshot, allow_damaging=True, through=self._explore_past_monster_cells(snapshot))
         if not path:
             return None
         self._explore_path = path[1:]
@@ -1574,6 +1575,26 @@ class NavigationMixin:
             self._explore_path_outcome = ExplorationPathOutcome.PAUSE
             self._remember_one_step_explore(snapshot, start, path[0])
         return path[0]
+
+    def _explore_past_monster_cells(self, snapshot: Snapshot) -> frozenset[tuple[int, int]]:
+        """The cells of hostiles in view that a walk may meet and fight on the way.
+
+        ``_build_grid_index`` drops a monster's cell from the floor index only
+        while it is in view.  A corridor it stands in then ends every frontier
+        beyond it on this board and on no board out of its sight, so the two
+        answers took turns stepping in and out of view (n1-c life-128 2026-11-04,
+        18F: two 日光猿 19 squares along).  A hostile the engagement retreat would
+        leave stays out of the route: it answers the same on every board that
+        remembers its area, and this walk is not the way to it.
+        """
+        if snapshot.in_town:
+            return frozenset()
+        return frozenset(
+            (monster.position.y, monster.position.x)
+            for monster in self._strategic_hostiles(snapshot)
+            if not self._material_melee_damage(snapshot, monster)
+            and (monster.position.y, monster.position.x) in self._remembered_floor_t
+        )
 
     def _explore_goal_evidence_matches(
         self,
@@ -1765,6 +1786,7 @@ class NavigationMixin:
         *,
         allow_damaging: bool,
         new_information_only: bool = False,
+        through: frozenset[tuple[int, int]] = frozenset(),
     ) -> list[Position]:
         start = snapshot.player.position
         previous = self._recent[-2] if len(self._recent) >= 2 else None
@@ -1811,7 +1833,7 @@ class NavigationMixin:
                     goal = pos
                     break
             for neighbor in self._walkable_neighbors(
-                snapshot, pos, allow_damaging=allow_damaging
+                snapshot, pos, allow_damaging=allow_damaging, through=through
             ):
                 if (
                     neighbor in self._engagement_avoid_cells

@@ -6224,6 +6224,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_navigation.py:NavigationMixin._explore_past_monster_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "none"
+  },
   "policy_navigation.py:NavigationMixin._explore_step": {
     "classification": "producer",
     "rows": [
@@ -7648,6 +7655,14 @@
     "delegation": "selected child; no independent success"
   },
   "policy_supply.py:SupplyMixin._mana_food_survival_override_key": {
+    "classification": "producer",
+    "rows": [
+      "device",
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_supply.py:SupplyMixin._mana_food_tower_key": {
     "classification": "producer",
     "rows": [
       "device",

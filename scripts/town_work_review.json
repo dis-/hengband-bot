@@ -5718,6 +5718,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_navigation.py:NavigationMixin._explore_past_monster_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit: the route cells _explore_step may plan through, empty in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "none"
+  },
   "policy_navigation.py:NavigationMixin._global_frontier_path": {
     "classification": "data",
     "rows": [
@@ -7150,6 +7161,18 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_supply.py:SupplyMixin._mana_food_tower_key": {
+    "classification": "producer",
+    "rows": [
+      "device",
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns and consumers: leaves a store page, else delegates to me_staff_sequence.town_key; reached only from _mana_food_survival_override_key under tower_feeds_staple.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

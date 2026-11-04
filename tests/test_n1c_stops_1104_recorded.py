@@ -14,8 +14,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import me_staff_sequence
+from hengbot import me_powers, me_staff_sequence
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot.model import Position
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import decisions, journal, restore
 from test_hourly_0700_1102_recorded import RecordedTownPolicy
@@ -196,6 +197,38 @@ class DungeonStops(RecordedTownPolicy):
         # Recorded: ('3', 'immobile-threat:approach-to-shoot').
         self.assertNotEqual(policy.last_reason, "immobile-threat:approach-to-shoot")
         self.assertNotEqual(key, "3")
+
+    def test_a_monster_in_the_corridor_does_not_end_exploration_only_while_in_view(self):
+        """life-128 08:23:51 (Dungeon 18F): from (3,2) the frontiers lie along the
+        corridor east, so explore steps to (2,3); there two 日光猿 19 squares along
+        come into view, their cells leave the floor index, no frontier is reachable
+        and the ladder steps back toward the stairs, out of view.  40 decisions.
+
+        DECLARED CONSTRUCTED: the remembered map is read from the stop's policy
+        state and the floor's two map-area casts from its decision log, with an
+        empty Home list.
+        """
+        with gzip.open(FIXTURES / "blocked-corridor.json.gz", "rt", encoding="utf-8") as stream:
+            case = json.load(stream)
+        policy = self.primed(case["stop"], [], case["skill"])
+        cells = lambda name: {tuple(cell) for cell in case["terrain"][name]}
+        policy._remembered_floor_t |= cells("floor_t")
+        policy._remembered_known_t |= cells("known_t")
+        policy._remembered_marked_t |= cells("marked_t")
+        policy._remembered_wall_t |= cells("wall_t")
+        policy._probed_frontiers |= {Position(*cell) for cell in case["probed"]}
+        policy._engagement_avoid_cells |= {Position(*cell) for cell in case["avoid"]}
+        for visit in case["visit_counts"]:
+            policy._visit_counts[Position(*visit["key"])] = visit["count"]
+        board = self.board(policy, case["stop"])
+        mapping = ("staff", me_powers.SV_STAFF_MAPPING)
+        setattr(policy, me_powers.MEMORY, me_powers.FloorMemory(board.floor_key, board.turn - 1, uses=[
+            me_powers.Use(mapping, mapping, "new-floor", Position(*cast), turn)
+            for cast, turn in (((14, 43), 614980), ((6, 10), 615343))]))
+        key = policy.choose_key(board)
+        # Recorded: ('1', 'stuck:seek-stairs'); here, with no stairs remembered,
+        # the same ladder answers ('4', 'stuck:wander').
+        self.assertEqual((key, policy.last_reason), ("6", "explore"))
 
 
 if __name__ == "__main__":
