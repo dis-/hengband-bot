@@ -9185,14 +9185,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
         finally:
             step_target = self._take_claim_target()
-        if step is not None:
-            self.last_reason = "stuck:seek-stairs"
-            self._declare_reach(step_target)
-            return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
+        # The stair underfoot comes first: the route never ends on this cell, so
+        # with a second stair known it walked on between the two until the stuck
+        # bound read a Recall (n1-c life-139, Angband 5F [14,51] and [24,80]).
         if not floor_exit_locked and here is not None and self._is_upstairs_target(here):
             self._defer_descent(snapshot)
             self.last_reason = "stuck:ascend"
             return UP_STAIRS_KEY
+        if step is not None:
+            self.last_reason = "stuck:seek-stairs"
+            self._declare_reach(step_target)
+            return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
 
         return self._town_producer_entry(
             "idle-fallback", lambda: self._town_idle_key(snapshot), family="idle")

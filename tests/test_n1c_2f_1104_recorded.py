@@ -76,3 +76,55 @@ class WalkingReturnOnAngband2F(PostedBoards):
 
         self.assertEqual((key, policy.last_reason), ("r" + recall.slot, "return:recall"))
         self.post_key(policy, raw, key, prompts=[READ_PROMPT])
+
+
+class StuckLadderAtAKnownStair(PostedBoards):
+    """Angband 5F, 22:34: the walk passed '<' [14,51] at decision 2963 and '<'
+    [24,80] at 3002, and at 60 steps the stuck bound read a Recall.  22:38: 60
+    steps into the walk to the one '<' [12,166] it read another.  Those boards
+    were lost with the state log, so the shape is on the 2F board.
+
+    DECLARED CONSTRUCTED: two ordinary up stairs, the exhausted floor (no explore
+    step, searched walls, no visible loot; the recorded rows were on that ladder).
+    """
+
+    def board_and_policy(self, raw):
+        policy = self.fresh_policy(raw)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        here = board.player.position
+        far = next(position for position, grid in board.grids.items()
+                   if grid.passable and not grid.has_up_stairs and not grid.has_down_stairs
+                   and abs(position.y - here.y) + abs(position.x - here.x) > 12
+                   and not grid.is_store)
+        grids = {position: replace(grid, object_count=0, object_tvals=(),
+                                   has_down_stairs=False, has_up_stairs=False)
+                 for position, grid in board.grids.items()}
+        grids[here] = replace(grids[here], has_up_stairs=True, in_view=True)
+        grids[far] = replace(grids[far], has_up_stairs=True, in_view=True)
+        board = replace(board, grids=grids, found_items=())
+        policy._remembered_downstairs.clear()
+        policy._remembered_upstairs.clear()
+        policy.prime(board)
+        policy._build_grid_index(board)
+        policy._visit_counts = Counter({Position(y, x): 1 for y, x in policy._remembered_floor_t})
+        policy._probed_frontiers.update(Position(y, x) for y, x in policy._remembered_floor_t)
+        policy._blocked_unknown.update(
+            (y + dy, x + dx) for y, x in policy._remembered_floor_t
+            for dy in (-1, 0, 1) for dx in (-1, 0, 1))
+        policy._search_counts[(here.y, here.x)] = SEARCH_LIMIT
+        return board, policy
+
+    def test_the_stair_underfoot_is_taken_and_the_walk_is_not_a_dead_end(self):
+        raw = board_raw()
+        board, policy = self.board_and_policy(raw)
+        # Held across a walk: 59 of the bound, then one more walking step.
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        policy.last_reason = "stuck:seek-stairs"
+        with (
+            patch.object(policy, "_skill_exp_request_key", return_value=None),
+            patch.object(policy, "_undersearched_walls", return_value=[]),
+            patch.object(policy, "_explore_step", return_value=None),
+        ):
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), (UP_STAIRS_KEY, "stuck:ascend"))
+        self.post_key(policy, raw, key)

@@ -932,7 +932,6 @@ PICKUP_REASONS = frozenset({"pickup", "victory:pickup", "conquest:pickup"})
 STUCK_FAMILY_REASONS = frozenset(
     {
         "stuck:wander",
-        "stuck:seek-stairs",
         "search",
         "seek-secret-wall",
         "breakout:least-visited",
@@ -973,6 +972,9 @@ STUCK_NEUTRAL_REASONS = frozenset(
         # progress on the floor: resetting here restarted the count at 42 of 60
         # and the loop guard stopped the bot first (n1-a life-474).
         "nav:break-oscillation",
+        # A walk along a route to a known stair is no dead end: on a wide floor
+        # the count read a Recall 60 steps into it (n1-c life-139, Angband 5F).
+        "stuck:seek-stairs",
     }
 )
 
