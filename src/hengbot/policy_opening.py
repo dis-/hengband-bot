@@ -355,6 +355,31 @@ class OpeningRouteMixin:
         # An empty envelope cannot activate a building beneath the player.
         return ""
 
+    def _opening_q1_route_stalled(self, snapshot, stage) -> bool:
+        """Whether the route's own next step repeats on one cell of one state.
+
+        No-progress purchases and multi-cell town oscillation share the store
+        retry bound; real inventory/gold progress resets it.  Only the route's
+        own steps count.  A town fight is decided before this (n1-c life-127
+        2026-11-04 07:31: eight actions killing a mercenary on one cell stopped
+        the bot as no-progress:quest), and an equipment transaction in flight
+        answers the route's approach with its own wait under its own bound
+        (life-128 07:38: no-progress:observe:fundraising-digger on the seven
+        waits for a cloak whose curse changed its name).
+        """
+        session = self._equipment_transaction_session
+        if session is not None and not session.complete:
+            return False
+        progress = (stage, snapshot.player.gold,
+                    tuple((it.slot, it.name, it.count) for it in snapshot.inventory))
+        if getattr(self, "_opening_q1_progress", None) != progress:
+            self._opening_q1_progress = progress
+            self._opening_q1_positions = {}
+        position = snapshot.player.position
+        visits = self._opening_q1_positions
+        visits[position] = visits.get(position, 0) + 1
+        return visits[position] >= STORE_STUCK_LIMIT
+
     def _opening_q1_light_to_wield(self, snapshot):
         """The light to wear before Q1, or None to keep the worn one.
 
@@ -417,19 +442,6 @@ class OpeningRouteMixin:
             # and it is not a no-progress visit of the route (D49 n1-c
             # life-066: seven futile melee keys, then no-progress:quest).
             return None
-        # Count repeated visits to the same state within one economic stage.
-        # No-progress purchases and multi-cell town oscillation share the
-        # existing store retry bound; real inventory/gold progress resets it.
-        progress = (stage, snapshot.player.gold,
-                    tuple((it.slot, it.name, it.count) for it in snapshot.inventory))
-        if getattr(self, "_opening_q1_progress", None) != progress:
-            self._opening_q1_progress = progress
-            self._opening_q1_positions = {}
-        position = snapshot.player.position
-        visits = self._opening_q1_positions
-        visits[position] = visits.get(position, 0) + 1
-        if visits[position] >= STORE_STUCK_LIMIT:
-            return self._opening_q1_stop("no-progress:" + stage)
         # Settle town combat before shopping travel can pull us away again.
         # Otherwise the shop step and mob approach undo one another forever.
         if store is not None or self._physical_adjacent_hostiles(snapshot):
@@ -441,6 +453,8 @@ class OpeningRouteMixin:
                         and not self._step_raises_unintended_confirm(snapshot, monster.position)]
             if adjacent and self._can_fight_in_dungeon(0):
                 return self._opening_q1_strike(snapshot, adjacent)
+        if self._opening_q1_route_stalled(snapshot, stage):
+            return self._opening_q1_stop("no-progress:" + stage)
         if store is not None:
             step = self._shopping_approach_step(snapshot, store_type=store,
                                                 requester="quest-request")

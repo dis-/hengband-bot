@@ -23,6 +23,16 @@ SV_WAND_WONDER = 24         # sv-definition/sv-wand-types.h; lib/edit id 292
 WONDER_HOLD_LIMIT = 2
 
 
+def power_command_refused(player) -> bool:
+    """The game refuses the ``m`` command (input-key-processor.cpp, every class but
+    the Berserker): 「狂戦士化していて頭が回らない！」 and no turn passes.
+
+    n1-c life-125 (2026-11-04 06:47): a rage mutation's berserk, then ``mAi`` at
+    command input stopped the bot as a stuck prompt.
+    """
+    return "berserk" in (player.status_bar or ())
+
+
 def is_absorption_device(class_id: int, item: InventoryItem | StoreItem) -> bool:
     """Identified devices the Magic-Eater can absorb.
 
