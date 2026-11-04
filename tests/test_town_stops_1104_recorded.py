@@ -292,6 +292,26 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
                          ("Cf\ry\x1b\x1b", "town:character-dump"))
         self.assertIsNone(policy._town_blocked_reason)
 
+    def test_equipment_refusing_only_the_landing_opens_the_set(self):
+        """n1-a life-477 09:52 (09:55 too), town:blocked:survival:depth_abilities.
+
+        failed: equipment_departure_ready beside depth_abilities (free_action,
+        20F, gold 16502); blockers pending-random-teleport-suppression.  The
+        worn-loadout wait is refused only while a landing ability is missing, so
+        the town end named two conditions and ac3d070e0's one-condition test
+        stopped.  Owner 2026-10-19: fundraise whatever the gold.
+        """
+        policy, recorded, steps = self.replay("ability-suppression", 26)
+        self.assertEqual(recorded[26]["reason"], "town:blocked:survival:depth_abilities")
+        board = steps[26][1]()
+        self.assertEqual(policy._missing_required_abilities(board, 20), frozenset({"free_action"}))
+        with redirect_stdout(io.StringIO()):
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("5", "fundraising:no-safe-destination"))
+        self.assertTrue(policy._no_safe_destination_set)
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assert_posts(policy, recorded[26], board, key)
+
     def test_gold_pile_is_walked_and_a_refused_pile_is_no_target(self):
         """n1-c life-123 04:33, owner-retired-burst.
 

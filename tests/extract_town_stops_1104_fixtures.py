@@ -30,6 +30,7 @@ CASES = {
     # The stops of the 11-04 day (builds after 014ddb7dd).
     "pack-unrelieved": ("../stops-1104-1330/n1-a/life-477", "20261104-081722-town-blocked-unmet-equipment_departure_ready", 27),
     "closed-transaction": ("../stops-1104-1330/n1-c/life-129", "20261104-131829-town-blocked-unmet-equipment_departure_ready", 22),
+    "ability-suppression": ("../stops-1104-1330/n1-a/life-477", "20261104-095223-town-blocked-survival-depth_abilities", 27),
 }
 CALIBRATION = "_character_calibration_path"
 # The small runtime files a replay of the visit's equipment work reads, for the
