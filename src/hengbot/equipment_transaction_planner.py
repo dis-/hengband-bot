@@ -38,6 +38,8 @@ class EquipmentTransactionPlan:
     actions: tuple[EquipmentTransaction, ...]
     blockers: tuple[str, ...]
     peak_pack_items: int
+    # One one-for-one Home swap dips into the pack reserve (``_one_for_one_home_swap``).
+    reserve_swap: bool = False
 
     @property
     def executable(self) -> bool:
@@ -67,6 +69,11 @@ def _slots(loadout: Loadout) -> dict[str, OwnedEquipment]:
     return dict(loadout.slots)
 
 
+def _one_for_one_home_swap(group: list[EquipmentTransaction]) -> bool:
+    """Take off, shelve, take and wear, in that order: the pack ends where it began."""
+    return [action.kind for action in group] == ["takeoff", "deposit", "withdraw", "equip"]
+
+
 def plan_equipment_transactions(
     items: Iterable[OwnedEquipment],
     current: Loadout,
@@ -79,6 +86,7 @@ def plan_equipment_transactions(
     retain_item_identities: frozenset[str] = frozenset(),
     preserve_worn_light: bool = False,
     home_deposit_available: bool = True,
+    home_swap_reserve: int = 0,
 ) -> EquipmentTransactionPlan:
     """Build a batched, fail-closed Home/equipment transaction plan."""
     catalog = {item.id: item for item in items}
@@ -270,6 +278,7 @@ def plan_equipment_transactions(
         completed_slots = set()
         staged_peak = pack
         minimum_shortfall = None
+        reserve_swap = False
         target_item_ids = {item.id for item in target_slots.values()}
         finalize_deposits = {
             action.item_id: action for action in actions
@@ -353,6 +362,14 @@ def plan_equipment_transactions(
                 if peak <= pack_capacity:
                     group, group_peak, next_pack = candidate_group, peak, count
                     break
+                # Owner 2026-11-04 「自宅の中だけ割ってよい」: one such sequence at a
+                # time, and only when it ends on the count it began with.
+                if (candidate_group is deposit_first and not reserve_swap and count == pack
+                        and peak <= pack_capacity + home_swap_reserve
+                        and _one_for_one_home_swap(candidate_group)):
+                    group, group_peak, next_pack = candidate_group, peak, count
+                    reserve_swap = True
+                    break
                 shortfall = peak - pack_capacity
                 minimum_shortfall = (shortfall if minimum_shortfall is None
                                      else min(minimum_shortfall, shortfall))
@@ -368,7 +385,7 @@ def plan_equipment_transactions(
                 completed_slots.add(source_slot)
 
         if any(action.kind in {"takeoff", "equip", "reposition"} for action in staged):
-            return EquipmentTransactionPlan(tuple(staged), tuple(blockers), staged_peak)
+            return EquipmentTransactionPlan(tuple(staged), tuple(blockers), staged_peak, reserve_swap)
         blockers.append(f"pack-space-required:{minimum_shortfall or 1}")
     return EquipmentTransactionPlan(
         tuple(actions), tuple(dict.fromkeys(blockers)), peak_pack_items

@@ -5,7 +5,7 @@ from hengbot.item_reservation import (
     claim_candidate_memo, decision_memo, decision_caches_enabled,
 )
 from hengbot.town_work import town_work_decision
-from hengbot.town_pack_budget import floor_step_fits, permits
+from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
@@ -2568,6 +2568,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_full_retry_deposits = getattr(self, "_home_full_retry_deposits", None)
         from hengbot.policy_state import normalize_policy_state
         normalize_policy_state(self)
+        note_reserve_swap(self._equipment_transaction_session)
         active_arbiter = getattr(self, "_town_turn_arbiter", None)
         if active_arbiter is not None:
             active_arbiter._retirement_diagnostic = None
@@ -10711,6 +10712,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._equipment_transaction_posted_catalog_update = None
             self._equipment_transaction_home_pages = None
         self._equipment_transaction_session = session
+        note_reserve_swap(session)
         if session is not None and session is not previous:
             action = getattr(session, "current_action", None)
             if action is not None:

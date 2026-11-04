@@ -65,6 +65,31 @@ def used_at_once(item) -> bool:
     return (item.tval, item.sval) in USED_AT_ONCE_TAKES
 
 
+_RESERVE_SWAP: ContextVar[frozenset] = ContextVar("town_reserve_swap_items", default=frozenset())
+
+
+def note_reserve_swap(session) -> None:
+    """Remember what the open session's reserve swap may hold in the reserve.
+
+    Owner 2026-11-04 「自宅の中だけ割ってよい」: the item taken off and the item
+    taken out of one planned swap (equipment_transaction_planner), nothing else.
+    """
+    plan = getattr(session, "plan", None)
+    _RESERVE_SWAP.set(frozenset(
+        action.item_identity for action in plan.actions
+        if action.kind in {"takeoff", "withdraw"}
+    ) if getattr(plan, "reserve_swap", False) else frozenset())
+
+
+def reserve_swap_slot(item) -> int:
+    """One slot of the reserve for an item of the open reserve swap, else none."""
+    swap = _RESERVE_SWAP.get()
+    if not swap or not hasattr(item, "tval"):
+        return 0
+    from hengbot.equipment_optimizer import equipment_identity
+    return int(equipment_identity(item) in swap)
+
+
 def permits(snapshot, slots: int, *, reserve_used: int = 0) -> bool:
     return (not getattr(snapshot, "in_town", False) or slots <= 0
             or PACK_CAPACITY - len(snapshot.inventory) - slots
@@ -78,7 +103,7 @@ def home_take_fits(snapshot, item, quantity: int) -> bool:
     take the composer will refuse is never left pending across a Home exit.
     """
     return permits(snapshot, incoming_slots(snapshot, item, quantity),
-                   reserve_used=int(used_at_once(item)))
+                   reserve_used=max(int(used_at_once(item)), reserve_swap_slot(item)))
 
 
 def below_floor(snapshot) -> bool:
