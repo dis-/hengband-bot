@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -2578,6 +2578,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         me_powerful_activation.observe(self, snapshot)
         speed_dose.observe(self, snapshot)
         destruction_use.observe(self, snapshot)
+        summon_response.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._complete_character_dump(snapshot)
@@ -7435,7 +7436,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if esp_threat_hunt is not None:
             return esp_threat_hunt
-        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
+        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) or summon_response.action_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
             snapshot, emergency_hostiles
         ))
         if summoner_ranged is not None:
@@ -7483,6 +7484,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return paralyzer_prevention
 
         if not snapshot.in_town:
+            # Owner 2026-11-04: the answer to the summons of this floor visit.
+            summons = summon_response.key(self, snapshot)
+            if summons is not None:
+                return summons
             # Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」:
             # before any never-moving monster is avoided.
             immobile_kill = immobile_ranged_kill.key(self, snapshot)

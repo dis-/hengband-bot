@@ -13430,5 +13430,71 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
+  },
+  "summon_response.py:_plain_name": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "evidence": "Data/selector result; no independent command or effect credit: the monster name without the English article, for comparing a message with a board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "summon_response.py:_shot_at": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Selects the ranged order at one named caster: me_ranged_first.attack_key on a clear ray, else _ranged_attack_key; read only by caster_shot_key."
+  },
+  "summon_response.py:caster_shot_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-04 rule 1: shoots the monster named casting a summon on this visit past a nearer body; None when no shot can be made. After the emergency ladder and paralyzer prevention."
+  },
+  "summon_response.py:key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-04: the rung of the summon answers, after the emergency ladder and paralyzer prevention, before the immobile-monster owners."
+  },
+  "summon_response.py:leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-04 rule 2: two unseen casts within the window on one spot, an awake hostile in view: destruction_use.key, else a Scroll of Teleportation through _escape_scroll (quest_no_teleport answers None there); None otherwise."
+  },
+  "summon_response.py:recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-04 rule 3: the third summon of a floor visit reads Word of Recall through once_quest_recall.read_key (exit locks and holds kept) and latches the return with a survival trigger; not on a ONCE quest floor."
   }
 }
