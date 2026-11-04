@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import spare_gear
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -15,7 +16,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import home_identification, home_pass_charge
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
-from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
+from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot import consumable_policy
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
@@ -2303,11 +2304,7 @@ class HomeMixin:
             )
             or self._quest_strategy_for_errand_or_floor(snapshot)
         )
-        mining_planned = self._fundraising_mode in {"prepare", "mine", "scavenge"} or (
-            snapshot.in_town
-            and snapshot.player.class_id >= 0
-            and snapshot.player.gold < FUNDRAISING_START_GOLD
-        )
+        mining_planned = spare_gear.mining_planned(self, snapshot)
         if (
             item.tval == TVAL_POTION
             and item.aware
@@ -2880,14 +2877,7 @@ class HomeMixin:
                     for category in blocking_categories
                     if category.startswith("quest-")
                 )
-            mining_planned = self._fundraising_mode in {
-                "prepare", "mine", "scavenge"
-            } or (
-                snapshot.in_town
-                and snapshot.player.class_id >= 0
-                and snapshot.player.gold < FUNDRAISING_START_GOLD
-            )
-            if mining_planned:
+            if spare_gear.mining_planned(self, snapshot):
                 if item.is_treasure_detection_scroll:
                     categories.add("fundraising-detection")
                 if item.is_digging_tool:
@@ -3131,47 +3121,9 @@ class HomeMixin:
             return False
         if snapshot is not None and self._retention_surplus(snapshot, item) <= 0:
             return False
-        # A GOOD melee weapon — identified ego/artifact or one with real +to-hit/+to-dam/
-        # +pval — is protected from Home-shelving ONLY while it might still be needed
-        # for re-arm: mining swaps the digger into the main hand, displacing the real
-        # combat weapon to the pack, and stashing THAT strands the character fighting
-        # on a pickaxe (the bug the user hit — the Lucerne Hammer (2d5)(+16,+9) et al.
-        # ended up in the Home while a Pick stayed wielded). That risk exists only
-        # while no real (non-digger) melee weapon is wielded — a digger wielded, or
-        # the main hand empty. Once a real weapon IS wielded, a spare good weapon is
-        # no longer needed there: it becomes ordinary spare_equipment below, shelved
-        # like any other duplicate, and _home_rearm_key can withdraw it again if a
-        # later mining run needs it. No snapshot (a handful of item-only call sites)
-        # falls back to the old, conservative always-protect behaviour. Unidentified
-        # or mundane spare weapons still shelve/sell regardless.
-        good_weapon = item.is_melee_weapon and item.known and (
-            item.is_ego
-            or item.is_artifact
-            or item.to_h > 0
-            or item.to_d > 0
-            or item.pval > 0
-        )
-        # Spare wearable gear (armour, rings, amulets, junk weapons) is shelved at Home —
+        # Spare wearable gear (armour, rings, amulets, weapons) is shelved at Home:
         # the equipment optimiser wields the best and this stashes the rest.
-        equipment_deposit_shape = self._spare_equipment_deposit_shape(item)
-        spare_equipment = (
-            equipment_deposit_shape
-            and not item.is_digging_tool
-            and not good_weapon
-            and (
-                self._target_loadout_known()
-                # Issue #87: a rejected character sheet skips the optimizer
-                # (R1), so no target loadout will arrive to release spare
-                # gear; a free-slot shortage is handled first (A0).  A stale
-                # calibration awaiting its re-dump is not rejected: its
-                # target loadout is still coming.
-                or (
-                    snapshot is not None
-                    and self._calibration_rejection is not None
-                    and self._town_pack_space_shortage(snapshot)
-                )
-            )
-        )
+        spare_equipment = spare_gear.released(self, snapshot, item)
         protected_unknown_consumable = (
             self._deepest_level >= 20
             and (item.is_potion or item.is_scroll)
@@ -4299,9 +4251,7 @@ class HomeMixin:
             if self._identification_flow_owns(current):
                 self._offer_home_atomic_no_step("deposit", "identification-owns-item")
                 return None
-            if current.is_digging_tool and not self._is_surplus_digging_tool(
-                snapshot, current
-            ):
+            if self._digging_tool_stays_carried(snapshot, current):
                 self._abandon_blocked_equipment_transaction(snapshot)
                 self.last_reason = "equipment-transaction:retain-digging-tool"
                 self._offer_home_atomic_no_step("deposit", "retain-digging-tool")
@@ -4726,10 +4676,7 @@ class HomeMixin:
                 self._home_deposit_candidate(item, snapshot)
                 or self._is_surplus_digging_tool(snapshot, item)
             )
-            and not (
-                item.is_digging_tool
-                and not self._is_surplus_digging_tool(snapshot, item)
-            )
+            and not spare_gear.digger_needed(self, snapshot, item)
             and not self._is_wanted_jewelry(snapshot, item)
             and not self._identification_flow_owns(item)
             and self._item_signature(item) not in self._home_rejected_deposits

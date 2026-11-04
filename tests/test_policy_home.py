@@ -3388,6 +3388,9 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             item_identity=policy_module.equipment_identity(shovel),
         )
         policy = HengbotPolicy()
+        # A digger is withdrawn for a mining set (owner 2026-11-04
+        # 「採掘に行かない時はシャベルも仕舞う」).
+        policy._fundraising_mode = "prepare"
         policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
             policy_module.EquipmentTransactionPlan((action,), (), 1)
         )

@@ -1105,6 +1105,8 @@ class DiggerQuestPins(unittest.TestCase):
         self.assertFalse(self.policy._store_accepts_sale(STORE_WEAPON, cursed))
 
     def test_pin_m3_transaction_home_selector(self):
+        # Owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」: retained only for a mining set.
+        self.policy._fundraising_mode = "prepare"
         unknown, pick, mattock = self._common_diggers()
         snapshot = self._snapshot(
             [unknown, pick, mattock], town=True,

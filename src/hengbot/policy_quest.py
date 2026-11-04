@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import spare_gear
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
 from hengbot.policy_opening import OpeningRouteMixin
 from hengbot.quest_opening_readiness import q34_readiness_rejection_key
@@ -998,6 +999,8 @@ class QuestMixin(OpeningRouteMixin):
                 (TVAL_LITE, SV_LITE_TORCH)
             ) is not None
         ):
+            obtainable = True
+        if name == "utility_tools.wall_breach" and spare_gear.home_breach_digger(self) is not None:
             obtainable = True
         return SupplyStatus(
             name,

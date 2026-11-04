@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import spare_gear
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import item_available
@@ -6,9 +7,6 @@ from hengbot.town_pack_budget import home_take_fits
 
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
-from hengbot.town_hold import (
-    home_catalogue_sequence_enforced as town_home_catalogue_sequence_enforced,
-)
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import consumable_policy, mining_loadout
@@ -655,8 +653,10 @@ class EquipmentMixin:
     @claims(ClaimOwner.HOME_VISIT)
     def _queue_standing_home_digger(self, snapshot: Snapshot) -> str | None:
         """Bind Home stock for a mining departure's two-digger carry target."""
-        if (town_home_catalogue_sequence_enforced(self)
-                and self._fundraising_mode not in {"prepare", "mine", "scavenge"}):
+        # Owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」: a mining set,
+        # or the next quest's wall_breach carry.
+        mining = self._fundraising_mode in spare_gear.MINING_MODES
+        if not mining and spare_gear.quest_digger_at_home(self, snapshot) is None:
             return None
         if self._defer_town_errand("home-visit", "queue-digging-tool-withdraw"):
             return None
@@ -664,7 +664,7 @@ class EquipmentMixin:
         if (
             store is None
             or store.store_type != STORE_HOME
-            or self._digging_tool_count(snapshot) >= 2
+            or (mining and self._digging_tool_count(snapshot) >= 2)
         ):
             return None
         digger = max(
@@ -672,6 +672,7 @@ class EquipmentMixin:
                 item
                 for item in store.items
                 if item.is_digging_tool
+                and (mining or self._is_quest_wall_breach_item(item))
                 and not self._equip_blocked_by_identification(item)
                 and self._item_signature(item) not in self._deferred_home_items
             ),
@@ -1381,10 +1382,9 @@ class EquipmentMixin:
                 if self._retention_reservation(snapshot, owned.item) > 0:
                     reasons.append("retention-reservation")
                 if (
-                    owned.item.is_digging_tool
-                    and self._fundraising_mode in {"prepare", "mine", "scavenge"}
+                    self._digging_tool_stays_carried(snapshot, owned.item)
                 ):
-                    reasons.append("digging-tool-in-fundraising")
+                    reasons.append("digging-tool-for-mining")
                 if (
                     self._equipped_weapon_high_grade(snapshot)
                     and self._weapon_is_inferior(owned.item)
@@ -2437,9 +2437,7 @@ class EquipmentMixin:
                 return self._equipment_home_outcome(
                     None, label="defer-identification",
                 )
-            if target.is_digging_tool and not self._is_surplus_digging_tool(
-                snapshot, target
-            ):
+            if self._digging_tool_stays_carried(snapshot, target):
                 # A plan computed before the fundraising withdrawal must not
                 # put the newly acquired kit straight back on Home's shelf.
                 self._abandon_blocked_equipment_transaction(snapshot)

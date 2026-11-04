@@ -273,7 +273,9 @@ class Live23HomeCycleTest(unittest.TestCase):
                 policy._fundraising_mode = mode
                 policy = pickle.loads(pickle.dumps(policy))
                 key = policy._queue_standing_home_digger(room)
-                if mode is None and crossarea:
+                # Owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」: with or without
+                # the cross-area enforcement.
+                if mode is None:
                     self.assertIsNone(key)
                     self.assertIsNone(policy._home_pending_item)
                 else:

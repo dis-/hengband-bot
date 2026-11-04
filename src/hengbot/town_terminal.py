@@ -852,6 +852,7 @@ _DEPARTURE_LEAF_SERVERS: dict[str, tuple[Server, ...]] = {
     "home_atomic_withdraw_clear": (Server("home-errand"), Server("home-visit")),
     "digger_withdrawal_resolved": (Server("home-errand"),),
     "identification_need_clear": (Server("identification"),),
+    "spare_gear_stowed": (Server("home-visit"),),
     # Always ready (the quest-entry contract owns quest carry).
     "quest_carry_ready": (),
     "combat_weapon_ready": _TRANSACTION_SERVERS,
@@ -1450,6 +1451,7 @@ def stockout_mining_supply_terminal(
         failed = gather_recall_departure(policy, board).failed
     failed = tuple(name for name in failed
                    if name not in {"equipment_departure_ready", "home_candidate_resolved",
+                                   "spare_gear_stowed",
                                    "identification_need_clear", "departure_identification_need_clear"})
     blocked = {row["item"] for row in policy.procurement_requirements(board)
                if row.get("blocked_reason") == "no-actionable-supplier"}
@@ -2381,7 +2383,9 @@ def purchase_gaps(policy: Any, board: Any, unmet: tuple[str, ...]) -> tuple[str,
 
 def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:
     minimum, _destination, _depth = policy._visit_departure_minimum(board)
-    unmet = gather_recall_departure(policy, board).failed
+    # Spare gear no owner shelved is kept for the next visit, never a stop.
+    unmet = tuple(name for name in gather_recall_departure(policy, board).failed
+                  if name != "spare_gear_stowed")
     survival_unmet = tuple(minimum["failed"])
     return TownEndMaterial(
         unmet=unmet,

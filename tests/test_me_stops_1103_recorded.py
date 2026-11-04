@@ -24,9 +24,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+from hengbot.equipment_optimizer import equipment_identity
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from hengbot.town_hold import hold_claims
+from recorded_digger_carry import pre_digger_home_replay, pre_digger_home_rule
 from replay_town_arrival import adopt_calibration, decisions, restore
 
 
@@ -78,21 +80,47 @@ class MagicEaterStopsRecordedTest(unittest.TestCase):
         self.addCleanup(visit.close)
         return visit
 
-    def test_worn_shovels_are_not_planned_into_home(self):
+    def test_worn_shovels_off_duty_go_to_the_home_that_takes_them(self):
+        # Owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」: the plan's deposit stands and
+        # the Home executor, reading the same rule, does not refuse it, so
+        # the abandon/re-wear alternation has no way back.
         visit = self.visit("shovel-deposit")
         recorded, board = visit.replay_until_last(self)
-        # The recorded plan finished its equip and walked to Home to shelve
-        # the Shovels; both stay in the pack now, the transaction is done.
+        self.assertEqual(recorded["reason"], "equipment-transaction:travel-home")
+        self.assertIsNone(visit.policy._fundraising_mode)
+        shovels = [item for item in board.inventory if item.is_digging_tool]
+        self.assertEqual(sum(item.count for item in shovels), 2)
+        visit.policy.choose_key(board)
+        self.assertEqual(visit.policy.last_reason, "equipment-transaction:travel-home")
+        self.assertIsNotNone(visit.policy._equipment_transaction_session)
+        for shovel in shovels:
+            self.assertFalse(visit.policy._digging_tool_stays_carried(board, shovel))
+
+    def test_worn_shovels_of_a_mining_set_are_not_planned_into_home(self):
+        visit = self.visit("shovel-deposit")
+        recorded, board = visit.replay_until_last(self)
         self.assertEqual(recorded["reason"], "equipment-transaction:travel-home")
         self.assertEqual(sum(item.count for item in board.inventory if item.is_digging_tool), 2)
         self.assertEqual([item.is_digging_tool for item in board.equipment
                           if item.slot == "main_hand"], [False])
+        # DECLARED CONSTRUCTED: the mining set open on the recorded board, and
+        # the recorded plan dropped as the executor's refusal drops it; no new
+        # plan takes the tools off again (the life-121 alternation).
+        visit.policy._fundraising_mode = "prepare"
+        for shovel in board.inventory:
+            if shovel.is_digging_tool:
+                self.assertTrue(visit.policy._digging_tool_stays_carried(board, shovel))
+        visit.policy._abandon_blocked_equipment_transaction(board)
+        visit.policy._equipment_transaction_failed_items.clear()
         visit.policy.choose_key(board)
-        self.assertFalse(visit.policy.last_reason.startswith("equipment-transaction:"),
-                         visit.policy.last_reason)
-        self.assertIsNone(visit.policy._equipment_transaction_session)
-        self.assertEqual(visit.policy._equipment_transaction_failed_items, set())
+        session = visit.policy._equipment_transaction_session
+        identities = {equipment_identity(item) for item in board.inventory if item.is_digging_tool}
+        self.assertFalse(session is not None and any(
+            action.kind == "deposit" and action.item_identity in identities
+            for action in session.plan.actions))
 
+    # declared wall: tests/recorded_digger_carry.py (the subject is not the digger).
+    @pre_digger_home_replay
     def test_travel_beside_the_sparrow_walks_a_step(self):
         visit = self.visit("sparrow-travel")
         recorded, board = visit.replay_until_last(self)
@@ -115,7 +143,12 @@ class MagicEaterStopsRecordedTest(unittest.TestCase):
                                lambda *_args: frozenset()), mock.patch.object(
                 HengbotPolicy, "_native_travel_refused_beside_monster",
                 lambda *_args: False):
-            recorded, board = visit.replay_until_last(self)
+            # Owner 2026-11-04: the off-duty diggers' stow plan takes over the
+            # recorded Home walk and then walks elsewhere, so only the recorded
+            # rule reaches this board (the recorded rows are the scene); the
+            # rule is on for the decision under test, the suspended walk's release.
+            with pre_digger_home_rule():
+                recorded, board = visit.replay_until_last(self)
             policy = visit.policy
             # The first flee step left the Home walk suspended, both weapons
             # off.  The recorded transaction waited behind it: its wait became

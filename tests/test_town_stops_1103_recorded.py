@@ -30,6 +30,21 @@ TRAVEL_HOME = "\x1b`n(."
 TRAVEL_ALCHEMIST = "\x1b`n%."
 
 
+# Declared wall: tests/recorded_digger_carry.py (each subject is another stop;
+# their strict rows predate the spare gear rule).
+_undo_wall = None
+
+
+def setUpModule():
+    global _undo_wall
+    from recorded_digger_carry import install_for_module
+    _undo_wall = install_for_module()
+
+
+def tearDownModule():
+    _undo_wall()
+
+
 class TownStops1103RecordedTest(executor_pins.ProductionHarness):
     def setUp(self):
         super().setUp()

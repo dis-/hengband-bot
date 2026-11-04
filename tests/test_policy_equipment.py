@@ -248,6 +248,7 @@ from hengbot.policy import (
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
+from recorded_digger_carry import pre_digger_home_replay
 from recorded_consumable_policy import pre_consumable_table_replay
 try:
     from trajectory_harness import drive_trajectory
@@ -1922,6 +1923,9 @@ class GlobalEquipmentOptimizationOwnershipTest(unittest.TestCase):
             known=True, fully_known=True, is_equipment=True,
         )
         policy = HengbotPolicy()
+        # A digger is withdrawn for a mining set (owner 2026-11-04
+        # 「採掘に行かない時はシャベルも仕舞う」).
+        policy._fundraising_mode = "prepare"
         snapshot = self._town(inventory=(shovel, pick))
         seed_character_calibration(policy, snapshot)
         digger_ids = (
@@ -5372,6 +5376,10 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
 
         def restarted_inside_home():
             policy = HengbotPolicy()
+            # Owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」: only a mining set retains it.
+            policy._fundraising_mode = "prepare"
+            # The retention authority's earlier exit is another branch's pin.
+            policy._retention_reservation = Mock(return_value=0)
             policy._equipment_transaction_session = (
                 policy_module.EquipmentTransactionSession(
                     policy_module.EquipmentTransactionPlan((action,), (), 1)
@@ -6074,6 +6082,7 @@ class EquipmentTransactionOwnershipRegressionTest(unittest.TestCase):
     # table sends the board's テレポート・レベル (g) and 解呪 (k) scrolls to
     # the Home first.
     @pre_consumable_table_replay
+    @pre_digger_home_replay  # declared wall: tests/recorded_digger_carry.py
     def test_captured_r5_raw_board_does_not_return_to_home(self):
         # The raw board still owes another owner's work (the *Identify* of
         # pack item p); that runs first and is not a Home entry either.

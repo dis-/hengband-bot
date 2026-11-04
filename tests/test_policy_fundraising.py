@@ -381,18 +381,23 @@ class IdleItemDepositTest(unittest.TestCase):
         self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[1]))
         self.assertFalse(pol._is_surplus_digging_tool(snap, diggers[2]))
 
-    def test_deposit_sweep_keeps_two_carried_diggers(self):
+    def test_deposit_sweep_keeps_diggers_only_for_mining(self):
+        # Owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」.
         diggers = [
             item("a", TVAL_DIGGING, 1, name="Shovel"),
             item("b", TVAL_DIGGING, 4, name="Pick"),
         ]
         snap = self._town(diggers)
 
-        for mode in (None, "dive"):
+        for mode in ("prepare", "mine", "scavenge"):
             pol = HengbotPolicy()
             pol._fundraising_mode = mode
             self.assertEqual(pol._digging_tool_count(snap), 2)
             self.assertIsNone(pol._find_home_deposit(snap))
+        for mode in (None, "dive"):
+            pol = HengbotPolicy()
+            pol._fundraising_mode = mode
+            self.assertTrue(pol._find_home_deposit(snap).is_digging_tool)
 
     def test_surplus_diggers_keep_dwarven_shovel_over_plain_pick(self):
         pol = HengbotPolicy()
