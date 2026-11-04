@@ -33,8 +33,8 @@ from types import SimpleNamespace
 
 from hengbot.equipment_optimizer import SLOT_HEAD, Loadout, current_loadout
 from hengbot.warrior_optimization import WarriorOptimizationPreparation
-from tests.test_me_nokey_1031_recorded import PostedKey
-from test_hourly_0700_1102_recorded import RecordedTownPolicy
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
+import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "suppression-wait-n1b-298-1102.json.gz"
@@ -47,7 +47,7 @@ def _case():
         return json.load(stream)
 
 
-class SuppressionWaitDepartsTest(RecordedTownPolicy, PostedKey):
+class SuppressionWaitDepartsTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, _test_me_nokey_1031_recorded.PostedKey):
     @classmethod
     def setUpClass(cls):
         cls.case = _case()

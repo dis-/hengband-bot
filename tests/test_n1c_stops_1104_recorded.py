@@ -19,7 +19,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.model import Position
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import decisions, journal, restore
-from test_hourly_0700_1102_recorded import RecordedTownPolicy
+import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 from tests import test_input_executor as executor_pins
 from town_work_corpus import replay_window
 
@@ -159,7 +159,7 @@ class TownStops(executor_pins.ProductionHarness):
         self.assertIsNone(record.failure)
 
 
-class DungeonStops(RecordedTownPolicy):
+class DungeonStops(_test_hourly_0700_1102_recorded.RecordedTownPolicy):
     @classmethod
     def setUpClass(cls):
         cls.case = _boards()

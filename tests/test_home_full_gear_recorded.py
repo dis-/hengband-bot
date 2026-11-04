@@ -25,13 +25,14 @@ from unittest.mock import patch
 from hengbot import item_fate
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import STORE_ALCHEMIST, StoreState
-from tests.test_input_executor import FaithfulHookGame, ProductionHarness, store_screen
+from tests.test_input_executor import FaithfulHookGame, store_screen
+from tests import test_input_executor as _test_input_executor
 from tests.test_spare_gear_recorded import Visit
 
 STOP = "town:blocked:overweight-home-full-no-legal-relief"
 
 
-class HomeFullGearRecordedTest(ProductionHarness):
+class HomeFullGearRecordedTest(_test_input_executor.ProductionHarness):
     def visit(self, name):
         visit = Visit(name, True)
         self.addCleanup(visit.close)

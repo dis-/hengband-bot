@@ -46,7 +46,8 @@ from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE, RETURN_T
 from tests import test_d57_nav_depth_1101_recorded as nav
 from tests import test_depart2_1101_recorded as depart2
 from tests import test_input_executor as executor_pins
-from tests.test_dungeon_1031_recorded import READ_PROMPT, RecordedHarness, decide
+from tests.test_dungeon_1031_recorded import READ_PROMPT, decide
+from tests import test_dungeon_1031_recorded as _test_dungeon_1031_recorded
 from tests import test_hit_no_action_1101_recorded as hit
 from tests import test_n1c_deaths_1101_recorded as d57
 from tests.test_esp_threat_rest_recorded import EDIT
@@ -179,7 +180,7 @@ WARG_PROBLEM = 14
 TVAL_SCROLL, SV_TELEPORT = 70, 9
 
 
-class WargProblemTeleportReserveRecordedTest(RecordedHarness):
+class WargProblemTeleportReserveRecordedTest(_test_dungeon_1031_recorded.RecordedHarness):
     """Answer 4 「014 だけ広げる」: the five-scroll reserve covers Q14.
 
     n1-c life-092 on イークの洞穴5階 with quest 14 TAKEN (1/16 wargs), fifteen

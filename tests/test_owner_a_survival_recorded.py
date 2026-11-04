@@ -45,9 +45,8 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from tests import test_input_executor as executor_pins
-from tests.test_dungeon_1031_recorded import (
-    QUAFF_PROMPT, READ_PROMPT, RecordedHarness, decide,
-)
+from tests.test_dungeon_1031_recorded import QUAFF_PROMPT, READ_PROMPT, decide
+from tests import test_dungeon_1031_recorded as _test_dungeon_1031_recorded
 from tests.test_town_decision_speed_caches import EDIT, build_policy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "owner-a-survival-1031.json.gz"
@@ -58,7 +57,7 @@ REVENANT = 555
 LIT_ROOM_CELL = Position(19, 114)
 
 
-class SurvivalHarness(RecordedHarness):
+class SurvivalHarness(_test_dungeon_1031_recorded.RecordedHarness):
     @classmethod
     def setUpClass(cls):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:

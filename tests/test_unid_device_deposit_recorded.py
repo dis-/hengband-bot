@@ -33,7 +33,7 @@ from pathlib import Path
 
 from hengbot.model import parse_snapshot
 import tests.test_unid_deposit_recorded as recorded
-from tests.test_idstaff_stockout_kit_recorded import IdstaffStockoutKitRecordedTest
+from tests import test_idstaff_stockout_kit_recorded as _test_idstaff_stockout_kit_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "unid-device-deposit-20261101.json.gz"
@@ -47,7 +47,7 @@ HOME_TRAVEL = "\x1b`n(."
 
 class UnidentifiedDeviceDepositRecordedTest(recorded.UnidentifiedDepositRecordedTest):
     fixture = FIXTURE
-    replay = IdstaffStockoutKitRecordedTest.replay
+    replay = _test_idstaff_stockout_kit_recorded.IdstaffStockoutKitRecordedTest.replay
 
     def setUp(self):
         super().setUp()

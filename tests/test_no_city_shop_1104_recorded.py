@@ -21,7 +21,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import LEAVE_STORE_KEY, NEIGHBOR_OFFSETS
 from tests import test_input_executor as executor_pins
-from tests.test_dungeon_stops_1103_recorded import RecordedBoards
+from tests import test_dungeon_stops_1103_recorded as _test_dungeon_stops_1103_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-2f-1104" / "board-2f.json.xz"
@@ -34,7 +34,7 @@ def board_raw() -> dict:
     return json.loads(lzma.decompress(FIXTURE.read_bytes()))
 
 
-class ShopEntrancesOnADungeonFloor(RecordedBoards):
+class ShopEntrancesOnADungeonFloor(_test_dungeon_stops_1103_recorded.RecordedBoards):
     def post(self, policy, raw: dict, key: str) -> None:
         """Post ``key`` through the production executor, from the store page."""
         game = executor_pins.FaithfulHookGame()

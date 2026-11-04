@@ -25,7 +25,7 @@ from hengbot.policy import SEARCH_LIMIT
 from hengbot.policy_constants import STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.wilderness_exit import SHAFT_TERRAIN_IDS
 from tests import test_input_executor as executor_pins
-from tests.test_dungeon_stops_1103_recorded import RecordedBoards
+from tests import test_dungeon_stops_1103_recorded as _test_dungeon_stops_1103_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-2f-1104" / "board-2f.json.xz"
@@ -37,7 +37,7 @@ def board_raw() -> dict:
     return json.loads(lzma.decompress(FIXTURE.read_bytes()))
 
 
-class PostedBoards(RecordedBoards):
+class PostedBoards(_test_dungeon_stops_1103_recorded.RecordedBoards):
     def post_key(self, policy, raw: dict, key: str, prompts=()) -> None:
         """Post ``key`` through the production executor."""
         game = executor_pins.FaithfulHookGame()

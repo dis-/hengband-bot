@@ -46,7 +46,7 @@ from hengbot.magic_eater import MISSILE_REASON
 from hengbot.model import parse_snapshot
 from tests import test_input_executor as executor_pins
 from tests import test_me_staff_loops_1031_recorded as loops
-from tests.test_town_combat_survival_recorded import MissilePostedKey
+from tests import test_town_combat_survival_recorded as _test_town_combat_survival_recorded
 
 
 FIXTURES = Path(__file__).with_name("fixtures")
@@ -88,7 +88,7 @@ def recorded(case):
     return {row["turn"]: (row["reason"], row["key"]) for row in case["decisions"]}
 
 
-class PostedDeathKey(MissilePostedKey):
+class PostedDeathKey(_test_town_combat_survival_recorded.MissilePostedKey):
     """Drive the recorded boards; a quaff or an alter key answers its prompt."""
 
     prompts = PROMPTS

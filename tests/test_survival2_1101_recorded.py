@@ -64,7 +64,7 @@ from tests import test_hit_no_action_1101_recorded as hit
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests import test_n1c_deaths_1101_recorded as d57
 from tests import test_owner15_survival_1101_recorded as owner15
-from tests.test_me_nokey_1031_recorded import PostedKey
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "survival2-1101.json.gz",
@@ -107,7 +107,7 @@ def boards(case, first, last):
     return [copy.deepcopy(raw) for raw in case["boards"] if first <= raw["turn"] <= last]
 
 
-class StatDrainImmobileRecordedTest(PostedKey):
+class StatDrainImmobileRecordedTest(_test_me_nokey_1031_recorded.PostedKey):
     """Answer 1: never walk beside a never-moving stat drainer; step out of its ring."""
 
     def drive_keeping_away(self, case, policy, rows, monster):
@@ -184,7 +184,7 @@ class StatDrainImmobileRecordedTest(PostedKey):
         self.assertEqual(decided[-2], (374106, "2", "melee"))  # the ghost south of it
 
 
-class MeleeRefusedRangedRecordedTest(PostedKey):
+class MeleeRefusedRangedRecordedTest(_test_me_nokey_1031_recorded.PostedKey):
     """Answer 2: while melee is refused, the bow answers the adjacent hostile."""
 
     _board = anti_melee.AntiMeleeDungeonRecordedTest._board

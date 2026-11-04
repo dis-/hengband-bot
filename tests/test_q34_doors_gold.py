@@ -25,13 +25,10 @@ from hengbot.policy_constants import (
 )
 from hengbot.quest_final_room import avoided_doors, door_gates, next_sequence_door
 from hengbot.quest_navigator import SWEEP_BUDGET
-from tests.test_input_executor import FaithfulHookGame, ProductionHarness, command_screen
-from tests.test_q34_collect_recorded import (
-    Q34CollectRecordedTest,
-    captured,
-    make_policy,
-    observe_until,
-)
+from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests import test_input_executor as _test_input_executor
+from tests.test_q34_collect_recorded import captured, make_policy, observe_until
+from tests import test_q34_collect_recorded as _test_q34_collect_recorded
 
 FINAL_ROOM = Path(__file__).parent / "fixtures" / "q34-final-room-1029.json.gz"
 # Row 188's palette entry for the picked (open) glass door [4,14].
@@ -55,8 +52,8 @@ def with_open_doors(raw, opened):
     return raw
 
 
-class Q34DoorsGoldTest(ProductionHarness):
-    collect_post = Q34CollectRecordedTest.post
+class Q34DoorsGoldTest(_test_input_executor.ProductionHarness):
+    collect_post = _test_q34_collect_recorded.Q34CollectRecordedTest.post
 
     @classmethod
     def setUpClass(cls):

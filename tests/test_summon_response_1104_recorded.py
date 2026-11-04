@@ -17,7 +17,7 @@ from pathlib import Path
 from hengbot import summon_response
 from hengbot.model import parse_snapshot
 from tests import test_n1c_deaths_1101_recorded as d57
-from tests.test_me_nokey_1031_recorded import PostedKey
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "summon-response-n1a-475-1104.json.gz"
@@ -94,7 +94,7 @@ class RecognitionTest(unittest.TestCase):
             self.assertEqual(self.casters(message), [], message)
 
 
-class CasterShotTest(PostedKey):
+class CasterShotTest(_test_me_nokey_1031_recorded.PostedKey):
     def test_the_caster_is_aimed_past_the_summoned_monster_beside_the_player(self):
         policy, raw, key = replay(WORSHIPPER_SPAN, until=CASTER_PAST_THE_ADJACENT)
         here = raw["player"]

@@ -20,8 +20,8 @@ from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot import me_staff_sequence as sequence
 from hengbot.town_terminal import gather_town_end, verdict_town_end
 from tests import test_input_executor as executor_pins
-from tests.test_me_nokey_1031_recorded import PostedKey
-from test_hourly_0700_1102_recorded import RecordedTownPolicy
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
+import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "hourly-0000-1103.json.gz"
@@ -34,7 +34,7 @@ def _cases():
         return json.load(stream)
 
 
-class OutsideEquipBeforeHomeReentryTest(RecordedTownPolicy, executor_pins.ProductionHarness):
+class OutsideEquipBeforeHomeReentryTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, executor_pins.ProductionHarness):
     """n1-c life-112 00:25:46 town:blocked:owner-retired-burst.
 
     In Morivant the equipment session's one action was to wear the carried
@@ -118,7 +118,7 @@ class OutsideEquipBeforeHomeReentryTest(RecordedTownPolicy, executor_pins.Produc
         self.assertEqual("".join(game.accepted), key)
 
 
-class RememberedStaffListAfterRestartTest(RecordedTownPolicy, PostedKey):
+class RememberedStaffListAfterRestartTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, _test_me_nokey_1031_recorded.PostedKey):
     """n1-c life-112 00:05:57 quest:blocked:me-staff.
 
     The process restarted on Yeek cave 8F after the 00:04 loop-detected
@@ -174,7 +174,7 @@ class RememberedStaffListAfterRestartTest(RecordedTownPolicy, PostedKey):
             "休憩 (0-9999, '*' で HP/MP全快, '&' で必要なだけ): &")])
 
 
-class TempleShelfEvidenceStockoutTest(RecordedTownPolicy, PostedKey):
+class TempleShelfEvidenceStockoutTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, _test_me_nokey_1031_recorded.PostedKey):
     """n1-c life-112 00:34:58 town:blocked:survival:cure_critical_ready.
 
     Back from 18F with 5 of 10 Cure Critical Wounds potions, the visit found

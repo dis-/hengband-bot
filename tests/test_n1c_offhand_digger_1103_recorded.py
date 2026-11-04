@@ -28,8 +28,8 @@ from pathlib import Path
 
 from hengbot import me_capability
 from hengbot import me_staff_sequence as sequence
-from tests.test_me_nokey_1031_recorded import PostedKey
-from test_hourly_0700_1102_recorded import RecordedTownPolicy
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
+import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-offhand-digger-1103.json.gz"
@@ -41,7 +41,7 @@ def _case():
         return json.load(stream)
 
 
-class OffHandDiggerRestoreTest(RecordedTownPolicy, PostedKey):
+class OffHandDiggerRestoreTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, _test_me_nokey_1031_recorded.PostedKey):
     @classmethod
     def setUpClass(cls):
         cls.case = _case()

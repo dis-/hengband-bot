@@ -28,20 +28,20 @@ import json
 from pathlib import Path
 
 from hengbot.model import parse_snapshot
-from tests.test_me_nokey_1031_recorded import PostedKey
-from tests.test_q14_lv8_1102_recorded import Q14Lv8ThreatRecordedTest
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
+from tests import test_q14_lv8_1102_recorded as _test_q14_lv8_1102_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "q14-kill-time-ac-1102.json.gz"
 
 
-class Q14KillTimeReferenceAcRecordedTest(PostedKey):
-    # PostedKey.post: the travel macro needs the game's 256-key queue.
-    recorded_policy = Q14Lv8ThreatRecordedTest.recorded_policy
+class Q14KillTimeReferenceAcRecordedTest(_test_me_nokey_1031_recorded.PostedKey):
+    # _test_me_nokey_1031_recorded.PostedKey.post: the travel macro needs the game's 256-key queue.
+    recorded_policy = _test_q14_lv8_1102_recorded.Q14Lv8ThreatRecordedTest.recorded_policy
 
     @classmethod
     def setUpClass(cls):
-        Q14Lv8ThreatRecordedTest.setUpClass.__func__(cls)
+        _test_q14_lv8_1102_recorded.Q14Lv8ThreatRecordedTest.setUpClass.__func__(cls)
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             cls.case = json.load(stream)
 
@@ -69,7 +69,7 @@ class Q14KillTimeReferenceAcRecordedTest(PostedKey):
         self.assertEqual(readiness["reason"], "ready")
         self.assertTrue(readiness["verdict"])
         self.assertEqual(policy.last_reason, "me-staff:travel-morivant")
-        # DECLARED CONSTRUCTED (PostedKey): the engine's reply to the travel command.
+        # DECLARED CONSTRUCTED (_test_me_nokey_1031_recorded.PostedKey): the engine's reply to the travel command.
         self.post(policy, raw, key)
 
 

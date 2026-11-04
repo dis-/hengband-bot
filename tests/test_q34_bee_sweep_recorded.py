@@ -14,11 +14,12 @@ import unittest
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import DOOR_OPEN_LIMIT
-from tests.test_input_executor import FaithfulHookGame, ProductionHarness, command_screen
+from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests import test_input_executor as _test_input_executor
 from tests.test_q34_collect_recorded import captured, make_policy
 
 
-class Q34BeeSweepRecordedTest(ProductionHarness):
+class Q34BeeSweepRecordedTest(_test_input_executor.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         cls.data = json.loads((Path(__file__).parent / "fixtures" /

@@ -57,7 +57,7 @@ from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.quest_strategies import load_quest_strategies
 from tests import test_opening_route_r2_recorded as round2
 from tests import test_q34_bee_sweep_recorded as bee
-from tests.test_input_executor import ProductionHarness
+from tests import test_input_executor as _test_input_executor
 from tests.test_q34_collect_recorded import captured, make_policy
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,7 +80,7 @@ def load_fixture():
         return json.load(stream)
 
 
-class Q34SequenceDoorRecordedTest(ProductionHarness):
+class Q34SequenceDoorRecordedTest(_test_input_executor.ProductionHarness):
     post = bee.Q34BeeSweepRecordedTest.post
 
     @classmethod
@@ -150,7 +150,7 @@ class Q34SequenceDoorRecordedTest(ProductionHarness):
         self.assertEqual(policy.last_reason, "quest:blocked:q34-sequence-door-locked")
 
 
-class Q31DistantHuornRecordedTest(ProductionHarness):
+class Q31DistantHuornRecordedTest(_test_input_executor.ProductionHarness):
     post = bee.Q34BeeSweepRecordedTest.post
 
     @classmethod
@@ -213,7 +213,7 @@ class Q31DistantHuornRecordedTest(ProductionHarness):
         self.assertEqual(policy.last_reason, "quest-strategy:retake-hold")
 
 
-class Q34OpeningAdjacentMonsterRecordedTest(ProductionHarness):
+class Q34OpeningAdjacentMonsterRecordedTest(_test_input_executor.ProductionHarness):
     post = bee.Q34BeeSweepRecordedTest.post
 
     @classmethod
@@ -251,7 +251,7 @@ class Q34OpeningAdjacentMonsterRecordedTest(ProductionHarness):
                             for monster in adjacent})
 
 
-class Q2BreachChargesRecordedTest(ProductionHarness):
+class Q2BreachChargesRecordedTest(_test_input_executor.ProductionHarness):
     post = bee.Q34BeeSweepRecordedTest.post
 
     @classmethod

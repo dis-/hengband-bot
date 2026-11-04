@@ -16,8 +16,8 @@ from pathlib import Path
 from hengbot import me_staff_sequence as sequence
 from hengbot.policy_constants import STORE_HOME
 from hengbot.policy_types import TownErrandPlan
-from tests.test_me_nokey_1031_recorded import PostedKey
-from test_hourly_0700_1102_recorded import RecordedTownPolicy
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
+import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "hourly-0700b-1103.json.gz"
@@ -28,7 +28,7 @@ def _cases():
         return json.load(stream)
 
 
-class HomePassChargesAttemptedWorkTest(RecordedTownPolicy, PostedKey):
+class HomePassChargesAttemptedWorkTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, _test_me_nokey_1031_recorded.PostedKey):
     """n1-c life-115 07:21:43 town:blocked:unmet:home_candidate_resolved.
 
     The Magic-Eater (build 7219d480d) kept an unknown ロング・ソード (2d5) at

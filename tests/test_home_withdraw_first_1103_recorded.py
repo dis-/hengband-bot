@@ -26,8 +26,8 @@ from pathlib import Path
 from hengbot.equipment_optimizer import equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_planner import EquipmentTransaction, EquipmentTransactionPlan
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
-from tests.test_me_nokey_1031_recorded import PostedKey
-from test_hourly_0700_1102_recorded import RecordedTownPolicy
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
+import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "home-withdraw-first-1103.json.gz"
@@ -42,7 +42,7 @@ def _case():
         return json.load(stream)
 
 
-class HomeWithdrawFirstTest(RecordedTownPolicy, PostedKey):
+class HomeWithdrawFirstTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, _test_me_nokey_1031_recorded.PostedKey):
     @classmethod
     def setUpClass(cls):
         cls.case = _case()
