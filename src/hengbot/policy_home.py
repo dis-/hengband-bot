@@ -2887,16 +2887,23 @@ class HomeMixin:
             if spare_gear.mining_planned(self, snapshot):
                 if item.is_treasure_detection_scroll:
                     categories.add("fundraising-detection")
-                if item.is_digging_tool:
+                # A digger beyond the ones the mining plan keeps is plain
+                # surplus; the ammunition fit must count it as shed.
+                if item.is_digging_tool and self._retention_reservation(snapshot, item) > 0:
                     categories.add("fundraising-digger")
                 if item.is_light:
                     categories.add("fundraising-light")
             return bool(categories & blocking_categories)
 
         def unreserved_required_supply(item: InventoryItem) -> bool:
+            # Reserved only as "bought this visit" is no carry target: that
+            # protects the bought quantity, it does not make the rest of the
+            # stack spare (n1-a life-482 2026-11-05: 1 of 2 Identify staves
+            # went back to Home per trip while the reserve owner took it again).
             return (
                 required_supply(item)
-                and self._retention_reservation(snapshot, item) == 0
+                and self._retention_reservation_detail(snapshot, item)[1]
+                in (None, "visit-purchase")
                 and item != surplus_identify_staff
             )
 
