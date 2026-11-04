@@ -109,6 +109,24 @@ class Burst1104RecordedTest(executor_pins.ProductionHarness):
             self.assertEqual((policy.choose_key(board), policy.last_reason),
                              ("rfa", "town:recall-to-angband"))
 
+    def test_walk_to_a_town_monster_is_not_charged_as_a_defect(self):
+        """n1-c life-133 21:12, owner-retired-burst after `town-progress-invariant:
+        defect:town:kill-mob-approach`: the seam relabelled the survival walk to a
+        monster, so the detectors' budget of 3 retired three times in nine steps."""
+        policy, recorded, steps = self.load("hunt-at-seam")
+        self.replay("before-the-walk", policy, steps[:118])
+        for row in range(118, 125):
+            self.assertIn("town-progress-invariant:defect:", recorded[row]["reason"])
+            board = steps[row][1]()
+            key = policy.choose_key(board)
+            self.assertEqual((key, policy.last_reason),
+                             (recorded[row]["key"], "town:kill-mob-approach"), row)
+            self.assertEqual(policy._town_turn_arbiter.telemetry["producer_owner"],
+                             "survival", row)
+            self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners, row)
+            policy.confirm_key_posted(key)
+        self.assert_posts(policy, recorded[124], board, key)
+
 
 if __name__ == "__main__":
     unittest.main()

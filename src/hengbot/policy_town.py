@@ -1709,6 +1709,23 @@ class TownMixin:
             - getattr(self, "_deferred_loot", set())
         )
 
+    def _town_seam_exempt(self, snapshot: Snapshot, reason: str) -> bool:
+        """A surface decision the progress counterfactual must not relabel.
+
+        The accepted recall owns the surface until it lands (_decide's own rule):
+        the read scroll reopened the recall shortage, the counterfactual composed
+        its supplier route and three retirements stopped the visit (n1-a life-474
+        2026-11-03 21:36).  A town survival reason is never an errand's stall
+        (owner 2026-10-31 「生存の扱いにして数えない」): relabelling n1-c life-133's
+        walk to a monster charged it to the detectors (2026-11-04 21:12).  The
+        arbiter's survival family is the one list of those reasons.
+        """
+        if snapshot.store is not None:
+            return False
+        if snapshot.player.recalling and reason in RECALL_COUNTDOWN_REASONS:
+            return True
+        return self._town_turn_arbiter.owner_for_reason(reason) == "survival"
+
     def _town_procurement_decision(
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str | None:
@@ -1781,13 +1798,7 @@ class TownMixin:
         self._town_begin_progress_decision(snapshot)
         if self._preserve_unavailable_quest_candidate(key):
             return key
-        if (snapshot.store is None and snapshot.player.recalling
-                and proposed_reason in RECALL_COUNTDOWN_REASONS):
-            # The accepted recall owns the surface until it lands (_decide's
-            # own rule).  The read scroll reopened the recall shortage, the
-            # counterfactual below composed its supplier route and relabelled
-            # the wait a defect, and three retirements stopped the visit
-            # (n1-a life-474 2026-11-03 21:36, owner-retired-burst).
+        if self._town_seam_exempt(snapshot, proposed_reason):
             return key
         if snapshot.store is not None and proposed_reason in {
             "store:entry-await-observation",
