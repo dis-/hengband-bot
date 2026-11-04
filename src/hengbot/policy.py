@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, quest_force_rows, quest_no_teleport, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -6957,7 +6957,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             return key
         target = self._walk_step_target(snapshot, key)
-        if target is None:
+        if target is None or quest_find_exit.planned_step(self, snapshot):
             return key
         active, low = self._low_hp_walk_gate_active(snapshot)
         if not active:
@@ -7402,6 +7402,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
 
         self._latch_unviable_quest_return(snapshot, strategic_hostiles)
+
+        # A FIND_EXIT plan fights at its chokes: the ladders below walk away from them.
+        find_exit = self._town_producer_entry(
+            "quest_find_exit.key", lambda: quest_find_exit.key(self, snapshot), family="quest-request")
+        if find_exit is not None:
+            return find_exit
 
         # 0. Emergency consumables (teleport out / heal up / eat before fainting).
         # Emergency material-threat spending deliberately stays strategic. A

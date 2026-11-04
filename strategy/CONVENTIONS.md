@@ -16,6 +16,14 @@
 
 退却不能の ONCE クエストでは期待される一連の交戦被害を RAW HP の 50% 以内に収める。退却可能なら 70% までを交戦予算とし、それを超える前に中止する。回復薬は既定では消費せず保険として携行する。速度薬などの条件付き消耗品は `expected_damage_hp_ratio_min: 0.5` を満たす場合だけ使う。呪文で要件を満たせるのは成功率 90% 以上の場合だけとする。
 
+## 別の受注条件と出口型クエスト
+
+`required_force.force_alternatives` は受注条件の別の行を並べる（`required_force` 自身が最初の行）。各行は `min_hp`、`min_expected_dps`、`heal_potions`、`speed_potions` を持ち、任意で `speed_alternatives`（`gear_speed_bonus`、`absorbed_charges`）と `always_hasted` を持つ。読み方は `quest_force_rows.py` の1か所だけ。`required_force.floors_replace_projection: true` は、行そのものを受注の判定とし、共通の3ターン予測と撃破時間の検査を使わないことを表す（階層の要求と帰還の巻物の所持は確かめる）。
+
+`engagement_plan.no_teleport: true` は、その階でテレポートと短距離テレポートの巻物をどの場面でも読まないことを表す（`quest_no_teleport.py`）。
+
+出口を踏むと達成する FIND_EXIT 型は `engagement_plan.find_exit` に `choke_cells`、`choke_hold_turns`、`rest_below_ratio` を書き、`sealed_races` に経路の届かない敵を書く（`quest_find_exit.py`）。
+
 ## 回復薬なし段階
 
 これは「戦術を維持したまま運だけが最悪」の段階であり、戦術崩壊の価格ではない。地形、隘路、距離管理は維持される一方、敵の命中率は 100%、ダメージダイスは最大、遠隔軟化は 0 とする。各敵の撃破ターンはその段階の `min_expected_dps` による遅い側の整数切上げで求め、その間の最大被害が RAW HP の 50% に収まる `min_hp` とする。戦術崩壊は `abort_conditions` と緊急解除に任せる。段階値が通常の拘束ゲートの十倍以上に膨らむ場合は、戦術失敗を混入していないか再検討する。
