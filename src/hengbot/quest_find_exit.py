@@ -8,7 +8,12 @@
  * ``rest_below_ratio``: below this HP the quiet floor is rested on before walking on.
 
 ``engagement_plan.sealed_races`` are monsters no route reaches; they count for nothing
-here nor in the acceptance projection.
+here.  ``find_exit.exposure_races`` are never-moving casters: the cells their spells reach
+are derived from the map (quest_exposure).  Owner 2026-11-04 「叫びを受ける位置を特定して
+可能な限り避ける」: the walk takes the fewest such cells, nobody holds, rests or fights by
+choice on one, and on one the walk goes on to the next free cell unless a monster
+is in the only way.  A shriek wakes the whole floor and hastes every monster the player
+has in view (spells-sight.cpp aggravate_monsters); n1-a took 47 of them on one cell and died.
 
 Game (C:/hengband/src, player-move.cpp:256): stepping on the QUEST_EXIT of a FIND_EXIT
 quest completes it there and then and leaves the floor; no stair command is sent, and
@@ -29,7 +34,7 @@ the navigator.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, once_quest_recall, speed_dose, status_cure
+from hengbot import combat_answer, once_quest_recall, quest_exposure, speed_dose, status_cure
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, WAIT_KEY
@@ -80,6 +85,25 @@ def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
     navigator.allow_diagonal = True
     navigator.reset_for_floor(snapshot.floor_key)
     return navigator
+
+
+_EXPOSURES: dict[tuple[int, tuple[int, ...]], quest_exposure.Exposure] = {}
+
+
+def _exposure(navigator, plan) -> quest_exposure.Exposure:
+    """The cells the plan's casters reach, derived once from the quest map."""
+    races = tuple(plan.get("exposure_races", ()))
+    key = (navigator.quest_id, races)
+    if key not in _EXPOSURES:
+        battlefield = navigator.battlefield
+        _EXPOSURES[key] = quest_exposure.exposure_map(
+            battlefield.terrain,
+            [cell for cell, race in battlefield.monster_placements if race in races])
+    return _EXPOSURES[key]
+
+
+def _cell(position: Position) -> tuple[int, int]:
+    return position.y, position.x
 
 
 def _never_moves(policy, monster) -> bool:
@@ -200,7 +224,9 @@ def _speed(policy, snapshot, profile, board) -> str | None:
 
 
 def _chokes(navigator, plan) -> set[Position]:
-    return {Position(*cell) for cell in plan["choke_cells"]} - navigator.exit_spent_chokes
+    exposure = _exposure(navigator, plan)
+    return {Position(*cell) for cell in plan["choke_cells"]
+            if not exposure.exposed(tuple(cell))} - navigator.exit_spent_chokes
 
 
 def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
@@ -228,7 +254,7 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
         if held is not None:
             return held
         chokes = _chokes(navigator, plan)
-    path = navigator._static_path(position, chokes, blocked=board.occupied)
+    path = _least_exposed(navigator, plan, position, chokes, board.occupied)
     if len(path) < 2:
         return None
     policy.last_reason = TO_CHOKE_REASON
@@ -236,18 +262,28 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     return policy._step_toward(snapshot, path[1])
 
 
-def _advance(policy, snapshot, navigator, board) -> str | None:
-    """A step toward the exit, round a monster when that is a sidestep; else it is struck.
+def _least_exposed(navigator, plan, start: Position, goals, blocked=()) -> list[Position]:
+    path = quest_exposure.least_exposed_path(
+        navigator.battlefield.terrain, _exposure(navigator, plan), _cell(start),
+        {_cell(goal) for goal in goals}, frozenset(_cell(cell) for cell in blocked))
+    return [Position(*cell) for cell in path]
 
-    Rubble is dug only when no water leads on: a dig is turns spent on one cell.
-    """
+
+def _exposed_count(navigator, plan, path: list[Position]) -> int:
+    exposure = _exposure(navigator, plan)
+    return sum(exposure.exposed(_cell(cell)) for cell in path)
+
+
+def _advance(policy, snapshot, navigator, plan, board) -> str | None:
+    """A step of the least exposed walk to the exit, round a monster when that exposes no
+    more and is a sidestep; else it is struck."""
     position, exit_cell = snapshot.player.position, _exit_cell(navigator)
-    rubble = {Position(*cell) for cell, kind in navigator.battlefield.terrain.items()
-              if kind == "rubble"}
-    through = (navigator._static_path(position, {exit_cell}, blocked=rubble)
-               or navigator._static_path(position, {exit_cell}))
-    around = navigator._static_path(position, {exit_cell}, blocked=board.occupied | rubble)
-    path = around if around and len(around) <= len(through) + SIDESTEP_LIMIT else through
+    through = _least_exposed(navigator, plan, position, {exit_cell})
+    around = _least_exposed(navigator, plan, position, {exit_cell}, board.occupied)
+    path = around if (
+        around and len(around) <= len(through) + SIDESTEP_LIMIT
+        and _exposed_count(navigator, plan, around) <= _exposed_count(navigator, plan, through)
+    ) else through
     if len(path) < 2:
         return None
     step = path[1]
@@ -273,7 +309,8 @@ def _rest(policy, snapshot, plan, board) -> str | None:
 
 
 def key(policy, snapshot) -> str | None:
-    """The board with an enemy about, or with HP to rest back; None leaves it shared."""
+    """The board with an enemy about, or with HP to rest back, or on a cell the casters
+    reach; None leaves it shared."""
     plan = _plan(policy, snapshot)
     if plan is None or snapshot.player.food_state in STARVING:
         return None
@@ -281,18 +318,27 @@ def key(policy, snapshot) -> str | None:
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
     board = _Board(policy, snapshot, profile)
+    exposed = _exposure(navigator, plan).exposed(_cell(snapshot.player.position))
+    stepped = _step_on_exit(policy, snapshot, navigator, board)
+    if stepped is not None:
+        return stepped
+    if exposed:
+        # Survival first, then out of their reach: no hold, rest or chosen fight here.
+        return (
+            (_below_line_recall(policy, snapshot, profile) if board.enemy_for_the_line else None)
+            or (_heal(policy, snapshot, profile) if board.engaged else None)
+            or _advance(policy, snapshot, navigator, plan, board)
+        )
     if not board.enemy_for_the_line:
         return (
-            _step_on_exit(policy, snapshot, navigator, board)
-            or _rest(policy, snapshot, plan, board)
+            _rest(policy, snapshot, plan, board)
             or (_to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None)
-            or (_advance(policy, snapshot, navigator, board) if board.in_view else None)
+            or (_advance(policy, snapshot, navigator, plan, board) if board.in_view else None)
         )
     return (
-        _step_on_exit(policy, snapshot, navigator, board)
-        or _below_line_recall(policy, snapshot, profile)
+        _below_line_recall(policy, snapshot, profile)
         or (_engaged(policy, snapshot, profile, navigator, plan, board) if board.engaged else None)
-        or _advance(policy, snapshot, navigator, board)
+        or _advance(policy, snapshot, navigator, plan, board)
     )
 
 
@@ -326,4 +372,4 @@ def walk_key(policy, snapshot) -> str | None:
     navigator = _navigator(policy, snapshot, quest_id)
     board = _Board(policy, snapshot, policy.approved_quest_strategy(quest_id))
     return (_step_on_exit(policy, snapshot, navigator, board)
-            or _advance(policy, snapshot, navigator, board))
+            or _advance(policy, snapshot, navigator, plan, board))
