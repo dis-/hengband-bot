@@ -339,6 +339,27 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason), ("\x1b", "shop:in-store-done"))
         self.assertIsNone(policy._town_blocked_reason)
 
+    def test_empty_staff_under_an_identification_need_makes_room_for_its_buy(self):
+        """n1-b life-308 13:14, town:blocked:survival:identify_staff_ready.
+
+        failed: identify_staff_ready, home_candidate_resolved,
+        identification_need_clear, departure_identification_need_clear; 0 of 20
+        charges, a 20-charge Identify staff at $941 with 14742 gold, 4 free slots,
+        seven stacks the pack pass may shelve.  An identification need hid the
+        staff from the need list, so the pass never learned the buy waited on a slot.
+        """
+        self.publish_nothing()
+        policy, recorded, steps = self.replay("staff-need-room", 9)
+        with self.recorded_calibration("staff-need-room"):
+            result = replay_window("staff-need-room", policy, iter(steps[9:20]))
+            self.assertIsNone(result.first_divergence)
+            self.assertEqual(recorded[20]["reason"], "town:entrance-step-off:town:end-step-off")
+            board = steps[20][1]()
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), (TRAVEL_HOME, "shop:travel"))
+        self.assertIsNotNone(policy._pack_headroom_visit)
+        self.assert_posts(policy, recorded[20], board, key)
+
     def test_gold_pile_is_walked_and_a_refused_pile_is_no_target(self):
         """n1-c life-123 04:33, owner-retired-burst.
 
