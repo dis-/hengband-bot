@@ -13,22 +13,21 @@ Claude Code and other agents must use this table when implementing equipment
 selection or descent gates. It supersedes earlier discussion and provisional
 speed requirements.
 
-| Dungeon depth | Required | Recommended / optimization |
+| Dungeon depth | Adds to the shallower bands | Recommended / optimization |
 | --- | --- | --- |
 | 1-19F | No additional resistance requirement | Maximize offense and defense. |
 | 20F | Free action and fire resistance | Poison resistance is recommended. |
-| 21-25F | Free action, confusion resistance, and fire resistance | Poison resistance is recommended. |
+| 21-25F | Confusion resistance | Poison resistance is recommended. |
 | 26-30F | Poison, cold, electricity and acid resistance | Maximize offense and defense after satisfying it. |
-| 31-39F | Chaos resistance only | Add no further mandatory resistance. |
-| 40-49F | Chaos and nether resistance | Nether resistance is required from 40F onward. |
-| 50-80F | Chaos, nether, telepathy, and a usable `*Destruction*` method | There is no equipment-speed requirement before 81F. Exploration of 80F is allowed. |
-| 81F+ | Speed `+25`, chaos, nether, telepathy, a usable `*Destruction*` method, and as many resistances as reasonably possible | Do not descend from 80F until this strict gate is satisfied. |
+| 31-39F | Chaos resistance | Add no further mandatory resistance. |
+| 40-49F | Nether resistance | Nether resistance is required from 40F onward. |
+| 50-80F | Telepathy and a usable `*Destruction*` method | There is no equipment-speed requirement before 81F. Exploration of 80F is allowed. |
+| 81F+ | Speed `+25`, and as many resistances as reasonably possible | Do not descend from 80F until this strict gate is satisfied. |
 
-Each band lists its own mandatory abilities (the "only" bands add nothing beyond
-what is named). Chaos resistance is required continuously from 31F; nether
-resistance continuously from 40F; telepathy and `*Destruction*` from 50F; speed
-`+25` from 81F. Free action begins at 20F, while confusion resistance begins at
-21F. The 20-25F and 26-30F elemental requirements are specific to those bands.
+The requirement at a depth is the union of its band and every shallower band
+(owner 2026-11-04 「要求は深くなるごとにAND条件で厳しくする想定」): a deeper band
+never asks for less. `DEPTH_ABILITY_REQUIREMENTS` in `policy_constants.py` is the
+one table; the policy's depth gates and the equipment optimizer both read it.
 
 Supporting rules:
 

@@ -36,6 +36,12 @@ from hengbot.model import (
     item_requires_full_identification,
 )
 from hengbot.launcher_damage import best_obtainable_launcher_damage
+from hengbot.policy_constants import (
+    DEPTH_ABILITY_REQUIREMENTS,
+    DESTRUCTION_GATE_DEPTH,
+    SPEED_GATE_DEPTH,
+    _required_abilities_for_depth,
+)
 
 
 EquipmentItem = InventoryItem | StoreItem
@@ -245,19 +251,7 @@ def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
 
 
 def required_abilities(depth: int) -> frozenset[str]:
-    requirements: set[str] = set()
-    for minimum, band_requirements in (
-        (20, {"free_action", "resist_fire"}),
-        (21, {"resist_conf"}),
-        (26, {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}),
-        (31, {"resist_chaos"}),
-        (40, {"resist_neth"}),
-        (50, {"telepathy"}),
-    ):
-        if depth < minimum:
-            break
-        requirements.update(band_requirements)
-    return frozenset(requirements)
+    return _required_abilities_for_depth(depth)
 
 
 def divable_depth(
@@ -272,17 +266,16 @@ def divable_depth(
     for name, flag in ABILITY_FLAG.items():
         if flag in loadout.flags:
             abilities.add(name)
-    deepest = 19
-    for depth in (20, 21, 26, 31, 40, 50, 81):
+    bands = (*(first_floor for first_floor, _ in DEPTH_ABILITY_REQUIREMENTS), SPEED_GATE_DEPTH)
+    deepest = bands[0] - 1
+    for depth, next_band in zip(bands, (*bands[1:], SPEED_GATE_DEPTH + 1)):
         if not required_abilities(depth).issubset(abilities):
             break
-        if depth >= 50 and not has_destruction:
+        if depth >= DESTRUCTION_GATE_DEPTH and not has_destruction:
             break
-        if depth >= 81 and speed_bonus < 25:
+        if depth >= SPEED_GATE_DEPTH and speed_bonus < 25:
             break
-        deepest = {21: 25, 26: 30, 31: 39, 40: 49, 50: 80}.get(
-            depth, depth
-        )
+        deepest = next_band - 1
     return deepest
 
 

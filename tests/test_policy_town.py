@@ -53,6 +53,7 @@ import hengbot.policy as policy_module
 
 import hengbot.equipment_mutation as equipment_mutation_module
 
+from hengbot.policy_constants import _required_abilities_for_depth
 from hengbot.home_errand import HomeErrandRequest
 
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
@@ -9277,7 +9278,9 @@ class TownRecallReturnTest(unittest.TestCase):
         self.assertEqual(
             pol.last_reason,
             "fundraising:no-safe-destination:"
-            "depth-gate:destination-34:missing-resist_chaos",
+            # Owner decision 2026-11-04: 34F asks every band at or above its first floor.
+            "depth-gate:destination-34:missing-free_action,resist_acid,resist_chaos,"
+            "resist_cold,resist_conf,resist_elec,resist_fire,resist_pois",
         )
         self.assertEqual(pol._fundraising_mode, "prepare")
         self.assertFalse(pol._recall_destination_safe(snap, DUNGEON_ANGBAND))
@@ -9289,7 +9292,7 @@ class TownRecallReturnTest(unittest.TestCase):
         )
         snap = replace(
             snap,
-            player=replace(snap.player, abilities=frozenset({"resist_chaos"})),
+            player=replace(snap.player, abilities=_required_abilities_for_depth(34)),
             dungeon_recall_depths={DUNGEON_ANGBAND: 34},
             inventory=[
                 replace(carried, count=99) if carried.is_recall_scroll else carried
@@ -11934,7 +11937,7 @@ class TownCycleDetectorTest(unittest.TestCase):
             self._town_snap(),
             player=replace(
                 self._town_snap().player,
-                abilities=frozenset({"resist_chaos"}),
+                abilities=_required_abilities_for_depth(31),
             ),
             inventory=[recall, item("f", TVAL_FOOD, FOOD_MIN_SVAL, count=15)],
             entered_dungeon_ids=(DUNGEON_ANGBAND,),
@@ -13782,7 +13785,7 @@ class ResistanceGapReturnTest(unittest.TestCase):
         )
 
     def test_missing_current_depth_ability_starts_a_return(self):
-        # 26F needs pois+cold+elec+acid (see DEPTH_ABILITY_REQUIREMENTS); a bare
+        # 26F adds pois+cold+elec+acid (see DEPTH_ABILITY_REQUIREMENTS); a bare
         # character standing there already (not merely about to descend into it)
         # has none of them.
         snap = self._at(26, set())
@@ -13792,7 +13795,8 @@ class ResistanceGapReturnTest(unittest.TestCase):
         self.assertEqual(policy._last_return_trigger, "resist-gap")
 
     def test_fully_resisted_current_depth_does_not_return(self):
-        snap = self._at(26, {"resist_pois", "resist_cold", "resist_elec", "resist_acid"})
+        # Owner decision 2026-11-04: fully resisted means every band down to 26F.
+        snap = self._at(26, _required_abilities_for_depth(26))
 
         self.assertFalse(HengbotPolicy()._should_start_town_return(snap))
 
@@ -14163,7 +14167,9 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         self.assertEqual(
             policy.last_reason,
             "fundraising:no-safe-destination:"
-            "depth-gate:destination-30:missing-resist_acid,resist_elec",
+            # Owner decision 2026-11-04: 30F asks every band at or above its first floor.
+            "depth-gate:destination-30:missing-free_action,resist_acid,"
+            "resist_conf,resist_elec,resist_fire",
         )
         self.assertIsNone(policy._town_blocked_reason)
         self.assertEqual(policy._fundraising_mode, "prepare")

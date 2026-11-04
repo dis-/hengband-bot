@@ -27,6 +27,11 @@ PERMANENT = frozenset({
     "resist_cold", "resist_fear", "resist_neth", "resist_pois",
     "see_invisible",
 })
+# CHANGED by owner decision 2026-11-04 (「要求は深くなるごとにAND条件で厳しくする
+# 想定」): 34F asks every band at or above its first floor, not only resist_chaos.
+CUMULATIVE_GAP_AT_34 = frozenset({
+    "free_action", "resist_acid", "resist_chaos", "resist_conf",
+})
 
 
 def _parse(path):
@@ -86,11 +91,12 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
         self.assertNotEqual(key, "rha")
         self.assertEqual(
             policy.last_reason,
-            "town:blocked:depth-gate:destination-34:missing-resist_chaos",
+            "town:blocked:depth-gate:destination-34:"
+            "missing-free_action,resist_acid,resist_chaos,resist_conf",
         )
         self.assertEqual(
             policy._missing_required_abilities(self.town, 34),
-            frozenset({"resist_chaos"}),
+            CUMULATIVE_GAP_AT_34,
         )
 
     def test_depth34_landed_snapshot_starts_public_resist_gap_recovery(self):
@@ -103,7 +109,7 @@ class AbilitySourcesIncidentTest(unittest.TestCase):
         self.assertEqual(policy._last_return_trigger, "resist-gap")
         self.assertEqual(
             policy._missing_required_abilities(self.landed, 34),
-            frozenset({"resist_chaos"}),
+            CUMULATIVE_GAP_AT_34,
         )
 
     def test_evidence_permanent_sources_are_the_five_true_intrinsics(self):

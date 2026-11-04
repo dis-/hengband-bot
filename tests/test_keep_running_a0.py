@@ -31,7 +31,7 @@ from unittest.mock import patch
 from hengbot import cli
 from hengbot.model import DUNGEON_YEEK_CAVE, Position, TVAL_POTION, SV_POTION_CURE_CRITICAL, TVAL_STAFF, SV_STAFF_IDENTIFY
 from hengbot.policy import HengbotPolicy, REST_MACRO, TR_NO_TELE
-from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, READ_KEY, WAIT_KEY
+from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, READ_KEY, WAIT_KEY, _required_abilities_for_depth
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_town import VISIT_CLOSABLE_REASONS
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -389,7 +389,7 @@ class DepartureTest(unittest.TestCase):
         alternate = 7
         board = replace(board, grids={}, entered_dungeon_ids=(original, alternate),
             dungeon_recall_depths={original: 19, alternate: 40},
-            player=replace(board.player, abilities=board.player.abilities | {"resist_chaos", "resist_neth"}))
+            player=replace(board.player, abilities=board.player.abilities | _required_abilities_for_depth(40)))
         policy._town_blocked_reason = "repetition"
         policy._visit_departure_committed = "equipment-departure-incomplete"
         # DECLARED CONSTRUCTED: guardian refusal and its selected alternate.

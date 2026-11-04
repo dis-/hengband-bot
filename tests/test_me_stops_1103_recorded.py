@@ -39,7 +39,7 @@ class Visit:
     """A case's arrival policy and its journalled boards in a scratch directory."""
 
     def __init__(self, name):
-        source = FIXTURES / name
+        source = FIXTURES / name  # An absolute path names another test's fixture.
         self._directory = TemporaryDirectory()
         root = Path(self._directory.name)
         self.scratch = root / "scratch"

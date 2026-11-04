@@ -150,7 +150,8 @@ class NoSafeDestinationGoldRecordedTest(unittest.TestCase):
         self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
         self.assertEqual(board.dungeon_recall_depths[DUNGEON_ANGBAND], 26)
         self.assertEqual(policy._missing_required_abilities(board, 26),
-                         frozenset({"resist_acid", "resist_elec"}))
+                         # Owner decision 2026-11-04: 26F also asks the 20F band.
+                         frozenset({"free_action", "resist_acid", "resist_elec"}))
         self.assertEqual(policy._missing_required_abilities(board, 23),
                          frozenset({"free_action"}))
         self.assertFalse(policy._fixed_quest_ready_for_travel(board, 18))
