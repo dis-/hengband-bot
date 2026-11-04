@@ -15,6 +15,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+from hengbot import town_last_stand
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -84,8 +85,9 @@ class TownAdjacentMeleeUnderErrandHold(RecordedBoards):
 
         DECLARED CONSTRUCTED: a722b754e2 walks a town move beside a visible
         monster (the game refuses the travel, n1-c life-122).  The earlier rows
-        hold that off to stay on the recorded boards, which followed the travel;
-        ``last_row`` itself decides on production code.
+        hold that off, and the fight on an interrupted travel's first board (town
+        fights are survival, owner 2026-10-31), to stay on the recorded boards, which
+        followed the travel; ``last_row`` itself decides on production code.
         """
         visit = Path(raw) / "town-arrival"
         visit.mkdir()
@@ -102,13 +104,14 @@ class TownAdjacentMeleeUnderErrandHold(RecordedBoards):
             if row == last_row:
                 return policy, rows, board, policy.choose_key(board)
             with mock.patch.object(HengbotPolicy, "_native_travel_refused_beside_monster",
-                                   staticmethod(lambda _snapshot: False)):
+                                   staticmethod(lambda _snapshot: False)),                     mock.patch.object(town_last_stand, "fights_beside",
+                                      lambda _policy, _snapshot: False):
                 key = policy.choose_key(board)
             self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
             policy.confirm_key_posted(key)
         self.fail(last_row)
 
-    def test_travel_beside_a_visible_monster_is_walked(self):
+    def test_interrupted_travel_beside_a_hostile_is_fought_on_its_first_board(self):
         with TemporaryDirectory() as raw:
             policy, rows, board, key = self.replay_to(self.TRAVEL_BESIDE_MONSTER_ROW, raw)
         self.assertEqual((rows[self.TRAVEL_BESIDE_MONSTER_ROW]["key"],
@@ -116,7 +119,8 @@ class TownAdjacentMeleeUnderErrandHold(RecordedBoards):
                          ("\x1b`n(.", "store:entry-interrupted-replan"))
         self.assertTrue(any(board.player.position.distance_to(monster.position) <= 1
                             for monster in board.visible_monsters))
-        self.assertEqual((key, policy.last_reason), ("7", "store:entry-interrupted-replan"))
+        # a722b754e2 walked one step here and the next board fought.
+        self.assertEqual((key, policy.last_reason), ("7", "melee"))
 
     def test_first_adjacent_board_is_fought(self):
         with TemporaryDirectory() as raw:

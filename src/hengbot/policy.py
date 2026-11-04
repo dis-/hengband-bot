@@ -4917,9 +4917,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._town_travel_state = None
                 # Short native travel ended outside Home. Keep the phase's
                 # producer responsible for composing and declaring its retry.
-                step = self._shopping_approach_step(
-                    snapshot, posted_entry_owner, router_plan_stop=True
-                )
+                # A town fight is survival (owner 2026-10-31): a hostile beside
+                # the player is fought on this board, not walked past for one.
+                step = None if town_last_stand.fights_beside(self, snapshot) else (
+                    self._shopping_approach_step(
+                        snapshot, posted_entry_owner, router_plan_stop=True
+                    ))
                 if step is not None:
                     self.last_reason = "store:entry-interrupted-replan"
                     return self._shopping_approach_key(
