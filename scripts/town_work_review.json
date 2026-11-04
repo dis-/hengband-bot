@@ -12810,5 +12810,9 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:_reliable_carried_staff": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the known charged Staff of *Destruction* at the modelled 80% success; read by _carried_key and holds_means."
   }
 }

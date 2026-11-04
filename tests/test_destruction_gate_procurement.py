@@ -27,7 +27,7 @@ copy.  This module pins the owner the user decided on 2026-09-23:
    する」 - until the bot can actually USE a *Destruction* method in play,
    50F+ is forbidden outright; the deepest permitted arrival or descent is
    49F no matter how many uses are carried.  The ban lives in one named
-   condition, ``DESTRUCTION_USE_IMPLEMENTED``, whose entire surface is the two
+   condition, ``destruction_use.holds_means``, whose entire surface is the two
    functions beside it: ``destruction_dive_permitted`` (the gate refuses the
    arrival) and ``permitted_dive_depth`` (the INTENT is clamped to 49F).
 
@@ -98,7 +98,6 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import (
     DESTRUCTION_GATE_DEPTH,
     DESTRUCTION_GATE_LABEL,
-    DESTRUCTION_USE_IMPLEMENTED,
     SPEED_GATE_DEPTH,
     SPEED_GATE_LABEL,
     WAIT_KEY,
@@ -248,7 +247,7 @@ class DestructionGateProcurementTest(
 
     def setUp(self):
         flip = patch(
-            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.destruction_use.holds_means", lambda *_: True
         )
         flip.start()
         self.addCleanup(flip.stop)
@@ -689,7 +688,7 @@ class DestructionGateProcurementTest(
 class DestructionFiftyFloorBanTest(
     _RecordedDestructionBoard, unittest.TestCase
 ):
-    """The 50F+ ban, pinned with ``DESTRUCTION_USE_IMPLEMENTED`` AS SHIPPED.
+    """The 50F+ ban, pinned with ``destruction_use.holds_means`` AS SHIPPED.
 
     User 2026-09-23
     「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを禁止
@@ -701,7 +700,6 @@ class DestructionFiftyFloorBanTest(
         policy = self._independent()
         stocked = self._fully_stocked(self.board)
 
-        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
         self.assertEqual(policy._total_destruction_uses(stocked), 20)
         self.assertEqual(policy._missing_destruction_uses(stocked), 0)
 
@@ -772,7 +770,7 @@ class DestructionFiftyFloorBanTest(
         stocked = self._fully_stocked(self.board)
 
         with patch(
-            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.destruction_use.holds_means", lambda *_: True
         ):
             policy = self._independent()
             self.assertEqual(
@@ -871,7 +869,7 @@ class DestructionFiftyFloorBanTest(
             "destruction-gate",
         )
         with patch(
-            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.destruction_use.holds_means", lambda *_: True
         ):
             restored = self._independent()
             self.assertEqual(

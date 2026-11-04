@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import spare_gear
 from hengbot.town_pack_budget import native_travel_fits
-from hengbot import ability_gear, consumable_policy, me_capability, town_pack_headroom
+from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import home_pass_charge, town_end_mining, town_travel
 from hengbot import unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
@@ -7809,7 +7809,9 @@ class TownMixin:
             # Leaving the depth (the return itself) clears this, so it cannot
             # flap. DEPTH_ABILITY_REQUIREMENTS only starts at 20F, so shallow
             # (and Yeek Cave mining, capped at 13F) floors never trigger it.
-            if self._missing_required_abilities(snapshot, snapshot.dungeon_level):
+            if destruction_use.gap_here(
+                    self, snapshot,
+                    self._missing_required_abilities(snapshot, snapshot.dungeon_level)):
                 self._last_return_trigger = "resist-gap"
                 return True
             ledger_shortages = self._ledger_return_shortages(

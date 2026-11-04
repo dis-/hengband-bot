@@ -369,10 +369,6 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
         self.assert_staff_first(
             self.without_scrolls(copy.deepcopy(self.raw), SV_TELEPORT), NO_SCROLL_RUNG)
 
-    def test_ban_stays(self):
-        from hengbot.policy_constants import DESTRUCTION_USE_IMPLEMENTED
-        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
-
 
 @own_tests_only
 class StatusThreatRungTest(paralyzer.ParalyzerContactRecordedTest):

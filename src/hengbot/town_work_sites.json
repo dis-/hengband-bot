@@ -405,6 +405,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:_reliable_carried_staff": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:holds_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:key": {
     "classification": "data",
     "rows": [

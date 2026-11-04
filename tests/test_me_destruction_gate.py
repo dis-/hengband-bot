@@ -10,7 +10,7 @@ rows with the counts and failure percents named per case), observed by one
 public ``choose_key``.  The 50F+ gate is read through the policy's own
 predicates and its viewer report (``procurement_requirements``) with the
 intended arrival depth patched to 50F (production clamps it below 50 while
-``DESTRUCTION_USE_IMPLEMENTED`` is False: no 50F+ dive is allowed yet, so
+``destruction_use.holds_means`` is False: no 50F+ dive is allowed yet, so
 the gate count only matters once the use logic exists).
 """
 import tests  # noqa: F401 -- isolate live runtime files
