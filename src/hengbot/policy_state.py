@@ -335,6 +335,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_prepared", None)
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     restored.__dict__.setdefault("_q2_blue_recovery_perceived", set())
+    restored.__dict__.setdefault("_quest_light_areas_read", set())
     restored.__dict__.setdefault("_town_visit_purchase_quantities", {})
     restored.__dict__.setdefault("_town_visit_sale_identify_charges", None)
     restored.__dict__.setdefault("_crossarea_fundraising_enforced", False)

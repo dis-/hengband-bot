@@ -13774,5 +13774,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
+  "quest_early_sweep.py:engaged": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: called from _quest_execute_key and _q2_phase_key under the TAKEN approved quest's profile; acts only when its plan has early_sweep.",
+    "evidence": "Filters a monster list for its caller; sends no key and has no independent progress."
+  },
+  "quest_light_areas.py:_area": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: called from _q2_ranged_core_key and _q2_phase_key under the TAKEN approved quest's profile; the area rule acts only when its plan has light_areas.",
+    "evidence": "Names the plan area of a cell; sends no key and has no independent progress."
+  },
+  "quest_light_areas.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: called from _q2_ranged_core_key and _q2_phase_key under the TAKEN approved quest's profile; the area rule acts only when its plan has light_areas.",
+    "evidence": "The Light read or absorbed cast of a quest plan, once per area; no independent progress."
   }
 }

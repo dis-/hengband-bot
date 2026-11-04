@@ -7,7 +7,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_find_exit, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
+from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_early_sweep, quest_find_exit, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -1974,8 +1974,10 @@ class QuestMixin(OpeningRouteMixin):
             and not target_grid.lit
             and light_key not in self._quest_light_attempted
         ):
-            light = self._quest_light_key(
+            light = quest_light_areas.key(
+                self,
                 snapshot,
+                profile,
                 "quest-strategy:q2-light-area"
                 if profile.quest_id == 2
                 else "quest-strategy:ranged-light-area",
@@ -2219,9 +2221,12 @@ class QuestMixin(OpeningRouteMixin):
         for raw_position, race_id in battlefield.monster_placements:
             placements_by_race.setdefault(race_id, []).append(Position(*raw_position))
 
+        strategic_hostiles = quest_early_sweep.engaged(
+            self, snapshot, profile, self._strategic_hostiles(snapshot)
+        )
         visible_hostiles = [
             monster
-            for monster in self._strategic_hostiles(snapshot)
+            for monster in strategic_hostiles
             if monster.perception != "detected"
         ]
         uninterrupted_engagement = (
@@ -2326,7 +2331,7 @@ class QuestMixin(OpeningRouteMixin):
         # walking back to the entrance hold lets the group multiply unchecked.
         residual_hostiles = [
             monster
-            for monster in self._strategic_hostiles(snapshot)
+            for monster in strategic_hostiles
             if monster.race_id in Q2_BREEDER_RACES
         ]
         if residual_hostiles:
@@ -2485,8 +2490,8 @@ class QuestMixin(OpeningRouteMixin):
                 or light_phase in self._q2_phase_light_attempted
             ):
                 return None
-            light = self._quest_light_key(
-                snapshot, "quest-strategy:q2-light-after-opening"
+            light = quest_light_areas.key(
+                self, snapshot, profile, "quest-strategy:q2-light-after-opening"
             )
             if light is not None:
                 self._q2_phase_light_attempted.add(light_phase)
@@ -2570,8 +2575,8 @@ class QuestMixin(OpeningRouteMixin):
                 ):
                     light_phase = (snapshot.floor_key, race_id, placement)
                     light = (
-                        self._quest_light_key(
-                            snapshot, f"quest-strategy:q2-light-phase-{race_id}"
+                        quest_light_areas.key(
+                            self, snapshot, profile, f"quest-strategy:q2-light-phase-{race_id}"
                         )
                         if light_phase not in self._q2_phase_light_attempted
                         else None
@@ -3063,6 +3068,9 @@ class QuestMixin(OpeningRouteMixin):
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
         if profile is None:
             return None
+
+        hostiles = quest_early_sweep.engaged(self, snapshot, profile, hostiles)
+        adjacent = quest_early_sweep.engaged(self, snapshot, profile, adjacent)
 
         absorb = absorb_key(self, snapshot, hostiles)
         if absorb is not None:
