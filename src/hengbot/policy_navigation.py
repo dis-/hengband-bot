@@ -766,21 +766,24 @@ class NavigationMixin:
                 self.last_reason = "livelock:seek-upstairs"
                 self._declare_reach(step_target)
                 return self._step_toward(snapshot, step)
-            if (
-                self._returning_to_town
-                and not player.blind
-                and not player.confused
-                and self._can_read_scrolls(snapshot)
-                and (teleport := self._find_teleport_scroll(snapshot)) is not None
-                and teleport.count > 1
-            ):
-                # The return explorer has proved that this remembered region has
-                # no route to an up-stair. Relocate once, preserving one emergency
-                # scroll, then let normal exploration rebuild its progress budget.
-                self._nav_exhausted = False
-                self._nav_stall_count = 0
-                self.last_reason = "livelock:teleport-explore"
-                return self._read_key(snapshot, teleport)
+        if (
+            not player.blind
+            and not player.confused
+            and self._can_read_scrolls(snapshot)
+            and (teleport := self._find_teleport_scroll(snapshot)) is not None
+            and teleport.count > 1
+        ):
+            # Nothing above left this remembered region, whether a return found
+            # no route to an up-stair or a quest floor must not be left. Teleport
+            # stays on the floor, so the quest lock does not hold it (n1-c
+            # life-140: a two-cell pocket of rock left by *Destruction* on random
+            # quest 40, 9 scrolls in the pack). Relocate once, preserving one
+            # emergency scroll, then let normal exploration rebuild its progress
+            # budget.
+            self._nav_exhausted = False
+            self._nav_stall_count = 0
+            self.last_reason = "livelock:teleport-explore"
+            return self._read_key(snapshot, teleport)
         self.last_reason = "livelock:exhausted"
         return WAIT_KEY
 
