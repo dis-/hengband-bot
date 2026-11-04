@@ -18,15 +18,16 @@ import copy
 import gzip
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from hengbot import once_quest_recall, quest_force_rows, quest_no_teleport
+from hengbot import once_quest_recall, quest_exposure, quest_force_rows, quest_no_teleport
 from hengbot.model import Position, SV_POTION_HEALING, SV_POTION_SPEED, TVAL_POTION, TVAL_SCROLL, parse_snapshot
 from hengbot.model import _GRID_TERRAIN_NAMES
 from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
-from hengbot.policy_constants import REST_MACRO, WAIT_KEY
+from hengbot.policy_constants import EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, WAIT_KEY
 from hengbot.quest_find_exit import (
     HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
     TO_CHOKE_REASON, WALK_REASON,
@@ -46,7 +47,14 @@ TERRAINS = {row["key"]: row for row in json.loads(_strip_jsonc(
     (GAME / "TerrainDefinitions.jsonc").read_text(encoding="utf-8")))["terrains"]}
 RACES = load_monrace_knowledge(find_monrace_definitions(ROOT, None) or GAME / "MonraceDefinitions.jsonc")
 QUESTS = load_quest_knowledge(find_quest_definitions(ROOT) or GAME / "quests")
+# DECLARED: approval is switched on here.  The owner withdrew it on main until this fix is
+# checked (「直しが入るまで止めておいて」); these tests exercise the plan, not the flag.
 STRATEGIES = load_quest_strategies(ROOT / "strategy" / "quests")
+STRATEGIES[18] = replace(STRATEGIES[18], approved=True)
+EXECUTABLE_WITH_18 = frozenset({*EXECUTABLE_QUEST_STRATEGY_IDS, 18})
+with gzip.open(ROOT / "tests" / "fixtures" / "q18-live-20261104.json.gz", "rt", encoding="utf-8",
+               errors="surrogateescape") as _stream:
+    LIVE = {row["turn"]: row for row in json.load(_stream)["boards"]}
 ENTRANCE, EXIT, LAST_CELL = (1, 2), (1, 22), (1, 23)
 SQUID, SEAHORSE, SIREN, KRAKEN, SHARK = 482, 443, 1272, 775, 386
 SV_PHASE, SV_TELEPORT, SV_RECALL = 8, 9, 11
@@ -155,16 +163,138 @@ class Q18MapFactsTest(unittest.TestCase):
                     if (dy, dx) != (0, 0) and terrain.get((cell[0] + dy, cell[1] + dx)) in passable}
 
         plan = STRATEGIES[18].engagement_plan["find_exit"]
-        self.assertEqual(plan["choke_cells"], [[1, 3], [1, 5], [4, 13], [3, 22], [4, 26], [2, 26], [1, 24]])
+        self.assertEqual(plan["choke_cells"],
+                         [[1, 3], [1, 5], [1, 9], [1, 12], [1, 15], [1, 19], [3, 22], [2, 26], [1, 24]])
         self.assertEqual(neighbours((1, 3)), {(1, 2), (1, 4)})
         self.assertEqual(neighbours((1, 5)), {(1, 4), (2, 6)})
-        self.assertEqual(neighbours((4, 13)), {(4, 12), (5, 12), (4, 14)})
+        self.assertEqual(neighbours((1, 9)), {(1, 8), (1, 10)})
+        self.assertEqual(neighbours((1, 12)), {(2, 11), (2, 13)})
+        self.assertEqual(neighbours((1, 15)), {(1, 14), (1, 16)})
+        self.assertEqual(neighbours((1, 19)), {(2, 18), (2, 20)})
         self.assertEqual(neighbours((3, 22)), {(4, 21), (4, 22)})
-        self.assertEqual(neighbours((4, 26)), {(5, 26), (3, 25)})
         self.assertEqual(neighbours((2, 26)), {(3, 25), (1, 25)})
         self.assertEqual(neighbours((1, 24)), {(1, 23), (1, 25)})
         self.assertEqual(neighbours(LAST_CELL), {EXIT, (1, 24)})
         self.assertEqual(neighbours(EXIT), {LAST_CELL})
+
+
+LEAST_EXPOSED_ROUTE = [
+    (1, 2), (1, 3), (1, 4), (1, 5), (2, 6), (2, 7), (1, 8), (1, 9), (1, 10), (2, 11), (1, 12), (2, 13),
+    (1, 14), (1, 15), (1, 16), (1, 17), (2, 18), (1, 19), (2, 20), (3, 20), (4, 21), (4, 22), (5, 23),
+    (5, 24), (6, 25), (5, 26), (4, 26), (3, 25), (2, 26), (1, 25), (1, 24), (1, 23), (1, 22)]
+EXPOSED_ON_ROUTE = [(2, 6), (2, 7), (1, 16), (1, 17), (2, 18), (5, 24), (6, 25), (5, 26), (4, 26)]
+# Every cell a shriek was recorded on, 2026-11-04 18:40-18:45 (n1-a 47, n1-b 76).
+RECORDED_SHRIEK_CELLS = {(4, 13): 47, (9, 21): 31, (15, 9): 17, (10, 21): 12, (14, 7): 11,
+                         (4, 18): 2, (15, 8): 2, (11, 22): 1}
+
+
+class Q18ExposureTest(unittest.TestCase):
+    def setUp(self):
+        battlefield = QUESTS[18].battlefield
+        self.terrain = battlefield.terrain
+        self.sirens = [cell for cell, race in battlefield.monster_placements if race == SIREN]
+        self.exposure = quest_exposure.exposure_map(self.terrain, self.sirens)
+
+    def test_every_recorded_shriek_cell_comes_out_exposed(self):
+        for cell in RECORDED_SHRIEK_CELLS:
+            self.assertTrue(self.exposure.exposed(cell), cell)
+
+    def test_the_cell_no_siren_sees_is_reached_through_its_neighbour(self):
+        self.assertNotIn((4, 13), self.exposure.pull)
+        self.assertFalse(quest_exposure.projectable(self.terrain, (6, 14), (4, 13)))
+        self.assertTrue(quest_exposure.projectable(self.terrain, (6, 14), (5, 12)))
+        self.assertIn((6, 14), self.exposure.shout[(4, 13)])
+
+    def test_the_recorded_pulls_had_the_direct_line_and_landed_in_the_centre(self):
+        # n1-b seq 3617 stepped from (4,18) to (4,19); the next board stands at (15,8).
+        self.assertIn((16, 8), self.exposure.pull[(4, 19)])
+        self.assertEqual(quest_exposure.game_distance((16, 8), (4, 19)), 17)
+        self.assertNotIn((9, 22), self.exposure.pull.get((15, 9), ()))  # the second took two pulls
+        self.assertIn((16, 8), self.exposure.pull[(15, 9)])
+        self.assertIn((9, 22), self.exposure.pull[(15, 8)])
+
+    def test_no_route_takes_fewer_exposed_cells_and_the_recorded_ones_took_more(self):
+        route = quest_exposure.least_exposed_path(self.terrain, self.exposure, ENTRANCE, {EXIT})
+        self.assertEqual(route, LEAST_EXPOSED_ROUTE)
+        self.assertEqual([cell for cell in route if self.exposure.exposed(cell)], EXPOSED_ON_ROUTE)
+        self.assertEqual([cell for cell in route if cell in self.exposure.pull], [(6, 25), (5, 26)])
+
+    def test_every_choke_is_out_of_reach(self):
+        for cell in STRATEGIES[18].engagement_plan["find_exit"]["choke_cells"]:
+            self.assertFalse(self.exposure.exposed(tuple(cell)), cell)
+
+
+class Q18ExposedCellTest(unittest.TestCase):
+    """DECLARED CONSTRUCTED boards, cells from the real map."""
+
+    def test_no_rest_on_an_exposed_cell_it_walks_on(self):
+        key, reason, _ = decide(board((1, 16), hp=400))
+        self.assertEqual((key, reason), (step_key((1, 16), (1, 17)), WALK_REASON))
+
+    def test_no_hold_on_an_exposed_cell_with_an_enemy_coming(self):
+        key, reason, _ = decide(board((2, 7), monsters=[monster(SHARK, 5, 9)], ammo=False))
+        self.assertEqual((key, reason), (step_key((2, 7), (1, 8)), WALK_REASON))
+
+    def test_no_chosen_fight_on_an_exposed_cell(self):
+        key, reason, _ = decide(board((2, 7), monsters=[monster(SHARK, 3, 8)], speed=0))
+        self.assertEqual((key, reason), (step_key((2, 7), (1, 8)), WALK_REASON))
+
+    def test_a_monster_is_passed_when_there_is_another_step_and_struck_when_not(self):
+        squid = monster(SQUID, 1, 17)
+        key, reason, _ = decide(board((1, 16), monsters=[squid], speed=0))
+        self.assertEqual((key, reason), (step_key((1, 16), (2, 17)), WALK_REASON))
+        both = [squid, monster(SHARK, 2, 17)]
+        key, reason, _ = decide(board((1, 16), monsters=both, speed=0))
+        self.assertEqual(reason, MELEE_REASON)
+
+    def test_survival_still_comes_first_on_an_exposed_cell(self):
+        shark = monster(SHARK, 3, 8)
+        self.assertEqual(decide(board((2, 7), hp=300, monsters=[shark], speed=0))[1], RECALL_REASON)
+        self.assertEqual(decide(board((2, 7), hp=500, monsters=[shark], speed=0))[1], HEAL_REASON)
+
+    def test_after_the_recorded_pulls_it_walks_on_by_the_least_exposed_way(self):
+        # n1-b seq 3618 at (15,8) (melee then hold beside the siren) and seq 3636 at (9,21)
+        # (melee beside the siren), monsters as logged.
+        first = [monster(292, 13, 6), monster(SIREN, 16, 8), monster(SEAHORSE, 17, 7, index=2)]
+        _, reason, _ = decide(board((15, 8), monsters=first, hp=FULL_HP))
+        self.assertEqual(reason, WALK_REASON)
+        second = [monster(SHARK, 9, 20), monster(SIREN, 9, 22), monster(SEAHORSE, 10, 20),
+                  monster(406, 10, 18), monster(SQUID, 11, 22)]
+        _, reason, _ = decide(board((9, 21), monsters=second, hp=FULL_HP))
+        self.assertIn(reason, {WALK_REASON, MELEE_REASON})
+        exposure = quest_exposure.exposure_map(
+            QUESTS[18].battlefield.terrain,
+            [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN])
+        path = quest_exposure.least_exposed_path(QUESTS[18].battlefield.terrain, exposure, (9, 21), {EXIT})
+        self.assertEqual(path[-1], EXIT)
+        self.assertLess(sum(exposure.exposed(cell) for cell in path), len(path))
+
+
+class Q18RecordedBoardsTest(unittest.TestCase):
+    """The recorded n1-a boards (tests/fixtures/q18-live-20261104.json.gz,
+    tests/extract_q18_live_fixture.py) with this plan; the recorded keys are in the rows."""
+
+    @staticmethod
+    def replay(turn):
+        raw = LIVE[turn]
+        return raw["player"]["y"], raw["player"]["x"], decide(raw)[:2]
+
+    def test_the_walk_turns_north_off_the_recorded_lake_crossing(self):
+        # Recorded: '3' to (3,8), past the sleeper.  (1,8), the only way north, holds it.
+        y, x, (key, reason) = self.replay(2723388)
+        self.assertEqual((y, x), (2, 7))
+        self.assertEqual((key, reason), (step_key((2, 7), (1, 8)), MELEE_REASON))
+
+    def test_no_hold_on_4_13_with_the_seahorse_coming(self):
+        y, x, (_, reason) = self.replay(2723443)  # recorded: a shot, holding here
+        self.assertEqual((y, x), (4, 13))
+        self.assertEqual(reason, WALK_REASON)
+
+    def test_below_the_line_recall_is_still_read(self):
+        y, x, (key, reason) = self.replay(2723779)  # recorded: the same read
+        self.assertEqual((y, x), (4, 13))
+        self.assertEqual(reason, RECALL_REASON)
+        self.assertTrue(key.startswith("r"))
 
 
 class Q18PlaythroughTest(unittest.TestCase):
@@ -187,9 +317,7 @@ class Q18PlaythroughTest(unittest.TestCase):
             if position == EXIT:
                 break
         self.assertEqual(route[-1], EXIT)
-        self.assertEqual(route[:5], [(1, 2), (1, 3), (1, 4), (1, 5), (2, 6)])  # the north way
-        self.assertEqual(route[-7:], [(4, 26), (3, 25), (2, 26), (1, 25), (1, 24), (1, 23), (1, 22)])
-        self.assertEqual(len(route), 32)
+        self.assertEqual(route, LEAST_EXPOSED_ROUTE)
 
     def test_sealed_kraken_is_nothing_to_this_floor(self):
         key, reason, _ = decide(board(monsters=[monster(KRAKEN, 19, 15)]))
@@ -201,8 +329,8 @@ class Q18PlaythroughTest(unittest.TestCase):
 
     def test_an_awake_enemy_is_met_at_the_nearest_choke(self):
         far = monster(SHARK, 6, 10)
-        key, reason, _ = decide(board((3, 8), monsters=[far], ammo=False))
-        self.assertEqual((key, reason), (step_key((3, 8), (2, 7)), TO_CHOKE_REASON))
+        key, reason, _ = decide(board((2, 11), monsters=[far], ammo=False))
+        self.assertEqual((key, reason), (step_key((2, 11), (1, 12)), TO_CHOKE_REASON))
 
     def test_the_choke_holds_for_what_comes_and_shoots_first(self):
         key, reason, _ = decide(board((1, 5), monsters=[monster(SHARK, 4, 7)], speed=0, ammo=False))
@@ -493,7 +621,8 @@ class Q18TownTest(unittest.TestCase):
         policy = self.policy()
         snapshot = self.snapshot(policy, self.town_board(0))
         with patch.object(ConservativePolicy, "_fixed_quest_ready", return_value=True), \
-                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True):
+                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True), \
+                patch("hengbot.policy_quest.EXECUTABLE_QUEST_STRATEGY_IDS", EXECUTABLE_WITH_18):
             policy._fixed_quest_key(snapshot, [])
         self.assertTrue(policy.last_reason.startswith("fixedquest:request"), policy.last_reason)
 
