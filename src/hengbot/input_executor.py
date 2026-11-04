@@ -163,6 +163,7 @@ FLOOR_PICKUP_PROMPT_PATTERN = (
 
 # spell-kind/spells-world.cpp choose_dungeon(_("に帰還", "recall")): the
 # format "どのダンジョン{}しますか:" / "Which dungeon do you {}?: ".
+BUILDING_ENCHANT_PROMPTS = ("どのアイテムを改良しますか？", "Improve which item?")
 RECALL_DUNGEON_PROMPTS = ("どのダンジョンに帰還しますか:", "Which dungeon do you recall?:")
 # A recall read whose destination chooser had no owned, listed answer: the
 # executor cancels the chooser with ESC and stops under this name (D22).
@@ -269,6 +270,9 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
             found = _suffix_match(prompt, ("[Y/n]", "[y/n]", "[(O)k/(C)ancel]"))
             if found:
                 return ScreenMatch(ScreenKind.CONFIRM, prompt, oy, ox + found[1])
+            # market/building-enchanter.cpp: choose_item over the kept menu.
+            if prompt.endswith(BUILDING_ENCHANT_PROMPTS):
+                return ScreenMatch(ScreenKind.ITEM_SOURCE, prompt, oy, ox)
             return ScreenMatch(ScreenKind.BUILDING, "complete-building-menu", oy + 23, ox)
 
     # view/display-messages.cpp:185-207 (row zero only).
