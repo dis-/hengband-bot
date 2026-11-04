@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, unseen_strike
+from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -675,6 +675,7 @@ class NavigationMixin:
                 neighbor not in confined
                 and grid is not None
                 and grid.passable
+                and not dungeon_shop.entrance(snapshot, grid)
                 and not grid.is_door
                 and not grid.has_monster
                 and not self._warning_step_refused(snapshot, neighbor)
@@ -1159,6 +1160,8 @@ class NavigationMixin:
                 # Rubble is passed by tunnelling ('T'+dir) — treat it like a door
                 # the pathfinder may route through, until we give up on it.
                 remembered_rubble.add(key)
+            elif dungeon_shop.entrance(snapshot, grid):
+                pass  # no route, exploration or flight crosses it
             elif grid.passable:
                 remembered_floor.add(key)
             elif grid.wall:
