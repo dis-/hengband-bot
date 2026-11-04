@@ -79,7 +79,6 @@ from hengbot.navigation import NAV_TARGET_STALL_LIMIT
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 
-from recorded_floor_knowledge import pre_remains_pile_replay
 
 
 FIXTURE = (
@@ -160,13 +159,18 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
             for record, reason, key in replayed
             if reason != record["reason"]
         ]
+        # 7c9d551df4 (n1-a life-475): a named summoner past a nearer body is not
+        # shot, so the next rung answers 5379-5381, which the live bot fired on.
         self.assertEqual(
             strong_fight_start,
-            [(5383, "melee", "item:strong-fight-speed", "qa")],
+            [(5379, "summoner:ranged-kill", "melee:choke", "6"),
+             (5380, "summoner:ranged-kill", "melee", "2"),
+             (5381, "summoner:ranged-kill", "melee", "2"),
+             (5383, "melee", "item:strong-fight-speed", "qa")],
         )
         replayed = [
             entry for entry in replayed
-            if entry[0]["decision_sequence"] != 5383
+            if entry[0]["decision_sequence"] not in {5379, 5380, 5381, 5383}
         ]
         self.assertEqual(
             [record["reason"] for record, _reason, _key in replayed],
@@ -268,10 +272,9 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         self.assertEqual((policy.last_reason, key), ("trigger-autodestroy", "7"))
         self.assertIsNone(policy.loot_state(countdown)["blocker"])
 
-    @pre_remains_pile_replay  # declared wall: board recorded 2026-09-23, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     def test_countdown_rearms_a_real_ledger_expiry_once(self):
         policy, _replayed, countdown = self._replay_to_recall()
-        target = BESIDE[0]
+        target = BESIDE[1]  # BESIDE[0] is a tval 10 pile, not loot (owner 10-23 #101)
         self.assertIn(target, policy._known_loot)
         policy._loot_target = target
         policy._recent = deque([countdown.player.position] * 2, maxlen=20)
@@ -340,7 +343,6 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         self.assertEqual((policy.last_reason, key), ("return:wait-recall", "5"))
         self.assertEqual(policy._loot_ledger_rearmed, set())
 
-    @pre_remains_pile_replay  # declared wall: board recorded 2026-09-23, before the 2026-10-23 remains-pile rule (tests/recorded_floor_knowledge.py)
     def test_l4_every_reachable_item_is_collected_nearest_first_then_wait(self):
         """L4: the whole countdown sweep, its order, and the wait it returns to."""
         policy, _replayed, snapshot = self._replay_to_recall()
@@ -396,20 +398,20 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
             transcript,
             [
                 ("trigger-autodestroy", "7"),
-                ("return:seek-loot", "6"),
+                ("return:seek-loot", "3"),
                 ("pickup", "g"),
-                ("return:seek-loot", "6"),
-                ("pickup", "g"),
-                ("return:seek-loot", "1"),
+                ("return:seek-loot", "9"),
                 ("pickup", "g"),
                 ("return:wait-recall", "5"),
             ],
         )
-        self.assertEqual(picked, [BESIDE[0], BESIDE[1], UNDERFOOT])
+        # BESIDE[0] holds only tval 10: the game's auto-pickup tells a wanted corpse
+        # apart, the bot never walks to one (owner 2026-10-23 「自動拾いを活用して判別すること」).
+        self.assertEqual(picked, [UNDERFOOT, BESIDE[1]])
         # Every routed pickup went to a nearest remaining item.
         for target, distance, nearest in targets:
             self.assertEqual((target, distance), (target, nearest))
-        # Seven decisions of the recorded 38-decision countdown were enough;
+        # Six decisions of the recorded 38-decision countdown were enough;
         # the four items no route reaches are abandoned and the wait resumes
         # without cancelling anything.
         self.assertLess(len(transcript), len(self.recorded_wait) + 1)
