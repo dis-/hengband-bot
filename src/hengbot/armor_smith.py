@@ -8,8 +8,9 @@ before departure; never a departure condition.
 The errand starts at the recall read (policy_town ``_town_special_key``), after
 the spare *Identify* and before the read: every departure condition already
 holds there, so every survival need, quest reward, Tower errand, purchase and
-Home need of the visit has had the board.  An active recall, a visible monster
-or a hit taken leaves the read as it was; the raises wait for the next visit.
+Home need of the visit has had the board.  An active recall, a monster beside
+the player or a hit taken leaves the board to the others (the town hunt is ahead
+of every errand); the raises wait for the next visit.
 
 The Outpost the bots play (TownDefinitionList "normal", 01_Outpost_Full) has only
 the inn, the mayor and building 13: no smith (01_Outpost_Lite's belongs to the
@@ -92,7 +93,9 @@ SMITHS = {
 class ArmorSmithStay:
     """This stay in town's facts: the inn's hops stay in it, a dungeon floor ends it."""
     attempts: dict = field(default_factory=dict)  # (slot, shown name) -> raises posted
-    origin: int | None = None  # the town the trip left: the trip is under way
+    origin: int | None = None  # the town the trip starts from: the trip is under way
+    destination: int | None = None  # the smith's town of the trip
+    away: bool = False  # the trip has left ``origin`` (its walk to the inn is still in it)
     travelled: bool = False  # the stay's one trip has started
     closed: bool = False  # a leg failed: the read goes on
     progress: tuple | None = None
@@ -163,11 +166,11 @@ def raises(policy, snapshot, price: int, fare: int = 0) -> list:
 
 
 def _board_allows(policy, snapshot) -> bool:
-    """Survival first: no hit, no monster in sight, no state that would refuse."""
+    """Survival first: no hit, no monster beside the player, no state that would refuse."""
     player = snapshot.player
     return (snapshot.in_town and snapshot.store is None and not player.recalling
             and not getattr(policy, "_took_damage", False)
-            and not policy._physical_hostiles(snapshot)
+            and not policy._physical_adjacent_hostiles(snapshot)
             and not (player.blind or player.confused or player.hallucinated or player.paralyzed))
 
 
@@ -230,9 +233,15 @@ def _leg_key(policy, snapshot, record, destination: int, reason: str) -> str | N
 def _errand_key(policy, snapshot, record) -> str | None:
     town = policy._effective_town_id(snapshot)
     class_id = snapshot.player.class_id
-    if record.origin == town:
-        record.origin = None  # back where the trip started
-        return None
+    if record.origin is not None:
+        if town != record.origin:
+            record.away = True
+        elif record.away:
+            record.origin = None  # back where the trip started
+            return None
+        else:
+            # The walk to the inn takes many boards; each asks the leg again.
+            return _leg_key(policy, snapshot, record, record.destination, TRAVEL_REASON)
     smith = _town_smith(town, class_id)
     if smith is not None:
         plan = raises(policy, snapshot, smith.price(class_id))
@@ -251,7 +260,7 @@ def _errand_key(policy, snapshot, record) -> str | None:
         return None
     key = _leg_key(policy, snapshot, record, destination, TRAVEL_REASON)
     if key is not None:
-        record.origin, record.travelled = town, True
+        record.origin, record.destination, record.travelled = town, destination, True
     return key
 
 
