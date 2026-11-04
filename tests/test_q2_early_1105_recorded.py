@@ -95,5 +95,83 @@ class Q2EarlyRecordedTest(swarm.PostedSwarmKey):
         self.post(policy, raw, key)
 
 
+RAT = 86
+RAT_BOARD = 522675  # three giant white rats and two puddles in view
+RAT_CELLS = ((1, 1), (3, 1), (3, 7), (1, 8), (1, 9), (1, 10))
+MASS_CELLS = tuple((3, x) for x in range(9, 20))
+RECALL_REASON = "breeder-breakthrough:recall"
+
+
+def rats_board(rats, masses=0, *, action=0, exp=0, quest_id=None):
+    """DECLARED CONSTRUCTED: the recorded rat board with ``rats`` rats and ``masses`` masses.
+
+    Monster indices are stable per cell, so a cut rat is gone and a new one is new."""
+    raw = copy.deepcopy(next(b for b in CASE["boards"] if b["turn"] == RAT_BOARD))
+    rat = next(m for m in raw["visible_monsters"] if m["race_id"] == RAT)
+    mass = next(m for b in CASE["boards"] for m in b["visible_monsters"] if m["race_id"] == UNDEAD_MASS)
+    others = [m for m in raw["visible_monsters"] if m["race_id"] != RAT]
+    raw["visible_monsters"] = [
+        *others,
+        *(dict(rat, index=900 + i, y=y, x=x) for i, (y, x) in enumerate(RAT_CELLS[:rats])),
+        *(dict(mass, index=950 + i, y=y, x=x) for i, (y, x) in enumerate(MASS_CELLS[:masses])),
+    ]
+    raw["grid_map"]["cells"] = [cell for cell in raw["grid_map"]["cells"] if cell.get("m") is None]
+    raw["turn"] += 10 * action
+    raw["player"]["exp"] += exp
+    if quest_id is not None:
+        raw["floor"]["quest_id"] = quest_id
+    return raw
+
+
+class PlanFloorWindowTest(swarm.PostedSwarmKey):
+    """Owner 2026-11-05 「攻撃を始めてから数える」, through the public choose_key."""
+
+    def run_boards(self, boards):
+        policy = new_policy(boards[0])
+        for raw in boards:
+            loops.decide(policy, copy.deepcopy(raw))
+        return policy
+
+    def attacked_then(self, later_rats, masses=0):
+        """Two rats, one killed (the attack), then 20 actions at ``later_rats``."""
+        return [rats_board(2, masses),
+                rats_board(1, masses, action=1, exp=1),
+                *(rats_board(later_rats, masses, action=action, exp=1) for action in range(2, 22))]
+
+    def test_the_attacked_race_keeps_growing_and_the_floor_is_left(self):
+        boards = self.attacked_then(4)
+        policy = self.run_boards(boards)
+        self.assertEqual(policy._breeder_engagement_race, RAT)
+        self.assertEqual(policy._breeder_breakthrough_floor, (0, 15, 2))
+        last = rats_board(4, action=22, exp=1)
+        key = loops.decide(policy, copy.deepcopy(last))
+        self.assertEqual(policy.last_reason, RECALL_REASON)
+        self.post(policy, last, key)
+
+    def test_the_attacked_race_falls_and_the_floor_is_kept(self):
+        policy = self.run_boards([rats_board(4), rats_board(3, action=1, exp=1),
+                                  *(rats_board(2, action=action, exp=1) for action in range(2, 22))])
+        self.assertIsNone(policy._breeder_breakthrough_floor)
+        self.assertEqual(policy._breeder_engagement_start_count, 2)
+
+    def test_another_race_coming_into_view_is_not_counted(self):
+        boards = [rats_board(2), rats_board(1, action=1, exp=1),
+                  *(rats_board(1, 11, action=action, exp=1) for action in range(2, 22))]
+        self.assertIsNone(self.run_boards(boards)._breeder_breakthrough_floor)
+
+    def test_breeders_only_seen_open_no_window(self):
+        # life-482: one mass at the first sight, eleven in view twenty actions later.
+        boards = [rats_board(0, 1 + action // 2, action=action) for action in range(23)]
+        policy = self.run_boards(boards)
+        self.assertIsNone(policy._breeder_engagement_start_count)
+        self.assertIsNone(policy._breeder_breakthrough_floor)
+
+    def test_a_floor_without_a_plan_keeps_the_rule(self):
+        boards = [rats_board(0, 1 + action // 2, action=action, quest_id=0) for action in range(23)]
+        policy = self.run_boards(boards)
+        self.assertIsNotNone(policy._breeder_breakthrough_floor)
+        self.assertIsNone(policy._breeder_engagement_race)
+
+
 if __name__ == "__main__":
     unittest.main()

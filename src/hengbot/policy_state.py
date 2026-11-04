@@ -267,6 +267,8 @@ def normalize_policy_state(restored, *, restart=False):
     # The breeder engagement window counts player actions (breeder_stalemate).
     restored.__dict__.setdefault("_breeder_engagement_actions", 0)
     restored.__dict__.setdefault("_breeder_engagement_last_turn", None)
+    restored.__dict__.setdefault("_breeder_engagement_race", None)
+    restored.__dict__.setdefault("_breeder_last_board", None)
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         current_ledger.__dict__.setdefault(

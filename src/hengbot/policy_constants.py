@@ -710,6 +710,10 @@ Q2_POST_BLUE_SEQUENCE = (
     ("upper-left-puddle", 944, (Position(8, 55),)),
 )
 
+# In view before the blue icky things are dead: [8,55] from the north route,
+# [18,46] down the breach (n1-a life-478 at [7,47]).  Knowing them proves no passage.
+Q2_SEEN_BEFORE_BLUE = frozenset({Position(8, 55), Position(18, 46)})
+
 Q2_BREACH_MIN_DIGGING = 3
 # Stone to Mud dissolves one wall per cast (the first wall in the direction),
 # so a wand breaches the route only with one charge per corridor wall.

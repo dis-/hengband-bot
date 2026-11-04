@@ -266,6 +266,7 @@ from hengbot.policy_constants import (
     Q2_BREACH_STANDING,
     Q2_BREEDER_RACES,
     Q2_POST_BLUE_SEQUENCE,
+    Q2_SEEN_BEFORE_BLUE,
     Q2_RESIDUAL_SWEEP_RACES,
     Q2_WERERAT_RACE,
     Q2_WHITE_CROCODILE_RACE,
@@ -2436,41 +2437,21 @@ class QuestMixin(OpeningRouteMixin):
 
         # Q2 progress lives in the explored map as well as in this process.  A
         # reconnect must not restart the ordered sewer sweep and walk back to
-        # the opening rooms.  Reaching a later checkpoint is only possible
-        # after the blue-jelly confirmation and bolt recovery in this strategy,
-        # so restore every strictly earlier checkpoint monotonically.
-        reached_post_blue = (
-            [
-                index
-                for index, (_, _, placements) in enumerate(Q2_POST_BLUE_SEQUENCE)
-                if any(
-                    (grid := snapshot.grid_at(placement)) is not None and grid.known
-                    for placement in placements
-                )
-            ]
-            if self._q2_reconnect_recovery_floor == snapshot.floor_key
-            else []
-        )
-        if reached_post_blue:
-            reached_index = max(reached_post_blue)
+        # the opening rooms.  A known cell past the blue-jelly room proves only
+        # that the player got past it (Q2_SEEN_BEFORE_BLUE are known earlier),
+        # not that any later phase was done: seeing the spider nest on the way
+        # to the worms is no survey of the worms, so the post-blue walk runs
+        # again in its order.
+        if self._q2_reconnect_recovery_floor == snapshot.floor_key and any(
+            placement not in Q2_SEEN_BEFORE_BLUE
+            and (grid := snapshot.grid_at(placement)) is not None
+            and grid.known
+            for _, _, placements in Q2_POST_BLUE_SEQUENCE
+            for placement in placements
+        ):
             self._q2_breach_complete = True
             self._q2_cleared_races.update({86, 153, 252})
             self._q2_blue_recovery_complete = True
-            for _, _, placements in Q2_POST_BLUE_SEQUENCE[:reached_index]:
-                self._q2_surveyed_placements.update(placements)
-
-            completed_post_blue_races = {
-                race_id
-                for _, race_id, placements in Q2_POST_BLUE_SEQUENCE
-                if all(
-                    placement in self._q2_surveyed_placements
-                    for phase_label, phase_race, phase_placements
-                    in Q2_POST_BLUE_SEQUENCE
-                    if phase_race == race_id
-                    for placement in phase_placements
-                )
-            }
-            self._q2_cleared_races.update(completed_post_blue_races)
 
         # Illuminate the eastbound route immediately after the opening rats are
         # cleared. Waiting until the gremlin is visible is too late on this dark
