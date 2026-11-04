@@ -157,8 +157,13 @@ class N1b279DeathRecordedTest(executor_pins.ProductionHarness):
         board = parse_snapshot(raw, policy._monrace_knowledge)
         strategic = policy._strategic_hostiles(board)
         physical = policy._physical_hostiles(board)
-        self.assertEqual(strategic, [])
-        self.assertTrue(physical)
+        # 25c3b8a9d1 (survival first, n1-c life-098): the weak breeder striking
+        # from beside the player stays on the list so the melee rungs fight it;
+        # the rest of the swarm is still set aside.
+        biting = [m for m in physical if survival_preemption.strikes_from_adjacent(policy, board, m)]
+        self.assertEqual(strategic, biting)
+        self.assertTrue(biting)
+        self.assertGreater(len(physical), len(strategic))
         # HP 333 is above the low-HP threshold and the projection (35) far
         # below HP: no emergency return is re-armed by the suppressed swarm.
         self.assertIs(survival_preemption.emergency_hostiles(
