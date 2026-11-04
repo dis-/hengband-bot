@@ -44,7 +44,6 @@
     "self._explore_step(snapshot) @ ": 1
   },
   "policy.py:_low_hp_walk_gate": {
-    "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._low_hp_no_kit_hit_key(snapshot, hostiles) @ If:body:low": 1
   },
   "policy.py:_observe_home_atomic_withdrawal_outside": {
@@ -96,12 +95,10 @@
     "self._dungeon_recall_confirmation_key(snapshot) @ If:body:self._fundraising_mode != 'mine' and self._active_fixed_quest_id(snapshot) is None and (not self._return_exit_locked(snapshot)) and (not self._emergency_return_active or self._returning_to_town) and (not snapshot.player.blind) and (not snapshot.player.confused)": 1
   },
   "policy_combat.py:_choke_engagement_key": {
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._ranged_attack_key(snapshot, visible_triggers, adjacent) @ If:body:not adjacent": 1
   },
   "policy_combat.py:_emergency_item": {
     "self._blocking_escape_melee_key(snapshot, hostiles, self._is_upstairs_target) @ If:body:self._emergency_escape_pending / If:body:lethal or summoner_open / If:body:route_step is None": 1,
-    "self._direction_key(player.position, self._weakest(adjacent).position) @ If:body:self._emergency_escape_pending / If:body:lethal or summoner_open / If:body:adjacent and (not player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._flee_step(snapshot, hostiles) @ If:body:self._emergency_escape_pending / If:body:lethal or summoner_open": 1,
     "self._q22_opening_consumable_before_escape(snapshot, profile) @ ": 1,
     "self._unique_combat_consumable(snapshot, hostiles) @ If:body:not summoner_open and (not q22_reposition_active)": 1
@@ -123,7 +120,6 @@
     "self._direction_key(snapshot.player.position, self._weakest(strategic_adjacent).position) @ If:body:snapshot.in_town and (not self._took_damage) and strategic_adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0]) and (not material_threat)": 1
   },
   "policy_combat.py:_melee_swarm_combat_key": {
-    "self._direction_key(snapshot.player.position, self._weakest(adjacent).position) @ If:body:openness <= SUMMONER_CHOKE_NEIGHBORS - 1 / If:body:adjacent and (not snapshot.player.afraid) and self._can_fight_in_dungeon(snapshot.floor_key[0])": 1,
     "self._ranged_attack_key(snapshot, converging, adjacent) @ If:body:not adjacent": 1,
     "self._return_to_town_key(snapshot, hostiles, allow_recall=self._fundraising_mode != 'mine') @ If:body:openness <= SUMMONER_CHOKE_NEIGHBORS - 1 / If:body:not self._choke_plan_active(snapshot) / If:body:self._breeder_choke_attempt_ended_floor == snapshot.floor_key and self._engagement_breeder_population(snapshot)": 1,
     "self._return_to_town_key(snapshot, hostiles, allow_recall=self._fundraising_mode != 'mine') @ If:body:openness > SUMMONER_CHOKE_NEIGHBORS - 1 / If:body:route is not None / If:body:self._breeder_choke_attempt_ended_floor == snapshot.floor_key and self._engagement_breeder_population(snapshot)": 1
@@ -471,9 +467,6 @@
     "self._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:store is not None": 1,
     "self._town_kill_mob_key(snapshot) @ If:body:snapshot.player.hp < snapshot.player.max_hp / If:body:hostiles": 1
   },
-  "policy_opening.py:_opening_q1_strike": {
-    "self._direction_key(snapshot.player.position, target.position) @ ": 1
-  },
   "policy_fundraising.py:_start_fundraising_return": {
     "self._leave_fundraising_floor(snapshot) @ ": 1
   },
@@ -509,10 +502,10 @@
   "return_yield.py:latched_return_key": {
     "policy._return_to_town_key(snapshot, policy._strategic_hostiles(snapshot)) @ ": 1
   },
-  "town_last_stand.py:key": {
-    "policy._direction_key(snapshot.player.position, monster.position) @ ": 1
-  },
   "unseen_strike.py:key": {
     "policy._direction_key(here, cell) @ ": 1
+  },
+  "combat_answer.py:direct_blow": {
+    "policy._direction_key(snapshot.player.position, target.position) @ ": 1
   }
 }

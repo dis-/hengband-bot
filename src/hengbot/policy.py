@@ -6,13 +6,14 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import blind_strike, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
+from hengbot import combat_answer, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import consumable_policy, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
 from dataclasses import dataclass, field, replace
+from functools import partial
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
@@ -7008,24 +7009,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if potion is not None:
                 self.last_reason = "item:heal"
                 return reserved_item_command(self, snapshot, "quaff", potion)
-        if (
-            adjacent
-            and not player.afraid
-            and self._can_fight_in_dungeon(snapshot.floor_key[0])
-        ):
-            ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(adjacent))  # D21
-            if ranged is not None:
-                return ranged
-            self.last_reason = "melee"
-            return self._direction_key(
-                player.position, self._weakest(adjacent).position
-            )
-        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, adjacent)) is not None:
-            return ranged  # fear and NO_MELEE refuse melee only
+        if (adjacent_answer := combat_answer.adjacent_attack(self, snapshot, adjacent, "melee")) is not None:
+            return adjacent_answer.key
         if low and not tick_only:
-            answer = (unseen_strike.speed_key(self, snapshot)
-                      or blind_strike.emergency_key(self, snapshot)
-                      or self._low_hp_no_kit_hit_key(snapshot, hostiles))
+            answer = combat_answer.unseen_attacker_key(
+                self, snapshot, unseen_strike.speed_key,
+                lambda: self._low_hp_no_kit_hit_key(snapshot, hostiles))
             if answer is not None:
                 return answer
         tick_rest = once_quest_recall.tick_rest_key(self, snapshot)
@@ -7916,16 +7905,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if scroll is not None:
                 self.last_reason = "flee:scroll"
                 return self._read_key(snapshot, scroll)
-            if strategic_adjacent and not player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-                ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(strategic_adjacent))  # D21
-                if ranged is not None:
-                    return ranged
-                self.last_reason = "flee:cornered-attack"
-                return self._town_producer_entry("_direction_key#1", lambda: self._direction_key(
-                    player.position, self._weakest(strategic_adjacent).position
-                ))
-            if (ranged := me_ranged_first.melee_refused_key(self, snapshot, strategic_adjacent)) is not None:
-                return ranged  # fear and NO_MELEE refuse melee only
+            cornered = combat_answer.adjacent_attack(
+                self, snapshot, strategic_adjacent, "flee:cornered-attack",
+                blow=lambda target: self._town_producer_entry(
+                    "_direction_key#1", partial(combat_answer.direct_blow, self, snapshot, target)))
+            if cornered is not None:
+                return cornered.key
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
@@ -8005,33 +7990,26 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ]
 
         # 2. Melee an adjacent hostile (weakest first) — unless too afraid.
-        if (
-            combat_adjacent
-            and not player.afraid
-            and self._can_fight_in_dungeon(snapshot.floor_key[0])
-        ):
+        adjacent_answer = combat_answer.adjacent_attack(
+            self, snapshot, combat_adjacent, "melee",
+            # A town fight is survival (owner 2026-10-31) and _town_kill_mob_key
+            # delegates the adjacent one to this rung: an errand hold must not
+            # refuse it, or the WAIT it leaves spends the escape kit and walks
+            # away from a monster the hunt walks back to (n1-c life-123).
+            blow=lambda target: self._town_producer_entry(
+                "_direction_key#2", partial(combat_answer.direct_blow, self, snapshot, target),
+                family="survival"),
             # A chase closed on its monster: combat takes over (rev 9.2 M, for
             # whichever chasing owner holds it).
-            self._complete_claim_goal(
+            on_engage=lambda: self._complete_claim_goal(
                 "closed-to-melee",
                 owners=CLAIM_MONSTER_CHASE_OWNERS,
                 monsters={
                     (monster.index, monster.race_id) for monster in combat_adjacent
                 },
-            )
-            ranged = me_ranged_first.attack_key(self, snapshot, self._weakest(combat_adjacent))  # D21
-            if ranged is not None:
-                return ranged
-            self.last_reason = "melee"
-            # A town fight is survival (owner 2026-10-31) and _town_kill_mob_key
-            # delegates the adjacent one to this rung: an errand hold must not
-            # refuse it, or the WAIT it leaves spends the escape kit and walks
-            # away from a monster the hunt walks back to (n1-c life-123).
-            return self._town_producer_entry("_direction_key#2", lambda: self._direction_key(
-                player.position, self._weakest(combat_adjacent).position
-            ), family="survival")
-        if (ranged := me_ranged_first.melee_refused_key(self, snapshot, combat_adjacent)) is not None:
-            return ranged  # NO_MELEE refuses melee only (fear flees above)
+            ))
+        if adjacent_answer is not None:
+            return adjacent_answer.key  # NO_MELEE refuses melee only (fear flees above)
 
         # 2r. Ranged attack: fire matching ammo (or throw a spare oil flask) at a
         # ray-aligned hostile before it closes. Fear blocks melee but NOT firing,

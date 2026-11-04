@@ -16,7 +16,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_FINISHED,
 )
 from hengbot.item_reservation import decision_memo
-from hengbot import me_capability, me_ranged_first
+from hengbot import combat_answer, me_capability
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import (
     acceptance_dps_floor, acceptance_hp_floor, carry_floor, is_heal_potion_for,
@@ -341,12 +341,7 @@ class OpeningRouteMixin:
         """The weakest adjacent hostile, in the dungeon's order: the Magic-Eater's
         ranged answer first (me_ranged_first; owner 2026-10-31 「近接以外の攻撃
         手段も街で使う」), else melee."""
-        target = self._weakest(adjacent)
-        ranged = me_ranged_first.attack_key(self, snapshot, target)
-        if ranged is not None:
-            return ranged
-        self.last_reason = "melee"
-        return self._direction_key(snapshot.player.position, target.position)
+        return combat_answer.strike_key(self, snapshot, self._weakest(adjacent), "melee")
 
     @claims(ClaimOwner.QUEST_REQUEST, census_only=True)
     def _opening_q1_stop(self, detail):

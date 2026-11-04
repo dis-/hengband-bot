@@ -12655,5 +12655,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
+  "combat_answer.py:adjacent_attack": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The rungs' one answer beside a hostile (moved from their pasted copies): melee_refused_key while the game refuses melee, else strike_key at the weakest adjacent hostile; returns an Answer, never a command itself. A rung's town entry, reason and family stay declared at that rung.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "combat_answer.py:strike_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The fixed order at one target: me_ranged_first.attack_key, else the rung's reason and blow; child of the combat, flee and emergency rungs, town_last_stand.key and _opening_q1_strike; the callers hold the gates.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "combat_answer.py:direct_blow": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The melee direction key at an adjacent target (_direction_key), under the caller's gates and, where the rung declares one, its _town_producer_entry (_direction_key#1, _direction_key#2).",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "combat_answer.py:unseen_attacker_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The survival ladders' order against an unseen attacker: the rung's Speed dose (unseen_strike), blind_strike.emergency_key, then the rung's last answer; child of the low-HP walk gate and the lethal emergency ladder.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
