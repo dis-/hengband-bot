@@ -1,0 +1,165 @@
+"""disenchant-1105: what disenchants an unresisting player is destroyed or avoided.
+
+Owner 2026-11-05: 「劣化耐性がないときに劣化属性攻撃をするモンスターとの戦闘は可能であれば
+回避する。クエスト中でなければ*破壊*対象とする。」, 「ランダムクエストの階であってもターゲット
+でなければ*破壊*してよい」 (disenchant_avoid, destruction_use.sight_trigger_key).
+
+Recorded boards (tests/extract_disenchant_fixture.py), every decision through the public
+choose_key, the posted key through the production executor:
+ * MOBILE: n1-b life-306 鉄獄19階, an awake race 913 (BR_DISE) two cells away, recorded
+   ``hunt`` ``4`` and then ``melee`` ``1``; the resist_disen control answers the same.
+ * MOLD: n1-c life-140 オークの洞窟23階, a sleeping 劣化モルド (race 192), recorded
+   ``ranged:fire-offset``, which woke it; the control answers the same.
+ * QUEST: test_rq_teleport_reserve's random quest board, and Q31's fixed quest board.
+
+DECLARED CONSTRUCTED: no capture holds such a monster with a *Destruction* means, so the
+staff (with_staff), the resist_disen source and full HP, the monster moved or re-raced,
+the board's other monsters removed, and the quest target given the breath.  The executor's reply is
+the same board ten turns later.
+"""
+import tests  # noqa: F401 -- isolate live runtime files
+
+import copy
+import dataclasses
+import gzip
+import json
+from pathlib import Path
+
+from hengbot import disenchant_avoid
+from hengbot.model import parse_snapshot
+from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy import HengbotPolicy
+from tests import test_input_executor as executor_pins
+from tests import test_n1c_death_1102_recorded as q31
+from tests import test_rq_teleport_reserve_recorded as rq
+from tests.test_destruction_use_1104_recorded import (
+    HELD_TURN, TARGET, USE_PROMPT, move, own_tests_only, with_staff,
+)
+from tests.test_dungeon_1031_recorded import RecordedHarness, decide
+from tests.test_town_decision_speed_caches import EDIT
+
+FIXTURE = Path(__file__).with_name("fixtures") / "disenchant-1105.json.gz"
+SIGHT = ("us", "emergency:destruction:disenchanter")
+BREATHER = 913
+ORDINARY = 338       # the air hounds of the random quest board
+
+
+def resisting(raw):
+    raw["player"]["ability_sources"]["resist_disen"]["equipment"] = True
+    return raw
+
+
+def alone(raw, race, distance):
+    """The one monster of the board: awake, unhurt, ``race``, ``distance`` cells east; the
+    player unresisting and at full HP (the quest boards' characters resist and are hurt)."""
+    raw["player"]["ability_sources"]["resist_disen"] = dict.fromkeys(
+        raw["player"]["ability_sources"]["resist_disen"], False)
+    raw["player"]["hp"] = raw["player"]["max_hp"]
+    monster = copy.deepcopy(raw["visible_monsters"][0])
+    raw["visible_monsters"] = [monster]
+    raw["detected_monsters"] = []
+    monster["race_id"] = race
+    monster["asleep"] = False
+    monster["health"] = "unhurt"
+    move(raw, monster, raw["player"]["y"], raw["player"]["x"] + distance)
+    return raw
+
+
+class Boards(RecordedHarness):
+    @classmethod
+    def setUpClass(cls):
+        with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
+            cls.cases = json.load(stream)
+        cls.monraces = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def answer(self, raw, *, first=None, knowledge=None):
+        policy = HengbotPolicy(monrace_knowledge={**self.monraces, **(knowledge or {})})
+        policy.prime(parse_snapshot(copy.deepcopy(first or raw), policy._monrace_knowledge))
+        key = decide(policy, copy.deepcopy(raw))
+        return (key, policy.last_reason), policy
+
+    def post_staff(self, policy, raw, key):
+        accepted = self.post(policy, raw, key, [executor_pins.prompt_screen(USE_PROMPT)],
+                             self.later(raw))
+        self.assertEqual(accepted, ["u", key[1:]])
+
+
+class SightTriggerTest(Boards):
+    def setUp(self):
+        self.raw = self.boards("mobile")[0]
+
+    def test_awake_in_view_is_used_on_through_the_executor(self):
+        raw = with_staff(self.raw)
+        answer, policy = self.answer(raw)
+        self.assertEqual(answer, SIGHT)
+        self.post_staff(policy, raw, answer[0])
+
+    def test_with_resistance_there_is_no_use(self):
+        answer, _ = self.answer(resisting(with_staff(self.raw)))
+        self.assertEqual(answer, ("4", "hunt"))     # the recorded row
+
+    def test_staff_below_eighty_percent_is_no_means(self):
+        answer, _ = self.answer(with_staff(self.raw, skill=59))
+        self.assertFalse(answer[1].startswith("emergency:destruction"))
+
+    def test_asleep_is_left_asleep(self):
+        raw = with_staff(self.raw)
+        raw["visible_monsters"][0]["asleep"] = True
+        self.assertFalse(self.answer(raw)[0][1].startswith("emergency:destruction"))
+
+    def test_beyond_the_radius_is_no_use_and_at_it_is(self):
+        far = alone(with_staff(copy.deepcopy(self.raw)), BREATHER, 14)
+        self.assertFalse(self.answer(far)[0][1].startswith("emergency:destruction"))
+        near = alone(with_staff(copy.deepcopy(self.raw)), BREATHER, 13)
+        self.assertEqual(self.answer(near)[0], SIGHT)
+
+    def test_an_ordinary_monster_is_no_trigger(self):
+        raw = alone(with_staff(self.raw), ORDINARY, 2)
+        self.assertFalse(self.answer(raw)[0][1].startswith("emergency:destruction"))
+
+
+@own_tests_only
+class QuestFloorTest(rq.RandomQuestTeleportReserveRecordedTest, Boards):
+    @classmethod
+    def setUpClass(cls):
+        rq.RandomQuestTeleportReserveRecordedTest.setUpClass()
+
+    def setUp(self):
+        boards = self.boards("reserve-held")
+        self.first = boards[0]
+        self.raw = next(raw for raw in boards if raw["turn"] == HELD_TURN)
+
+    def quest_answer(self, raw, knowledge=None):
+        return self.answer(raw, first=self.first, knowledge=knowledge)
+
+    def test_random_quest_non_target_is_used_on(self):
+        answer, policy = self.quest_answer(alone(with_staff(self.raw), BREATHER, 5))
+        self.assertEqual(answer, SIGHT)
+        self.assertEqual(parse_snapshot(self.raw, self.monraces).floor_key[2], rq.QUEST_ID)
+        self.assertTrue(policy._floor_navigation_exit_locked(
+            parse_snapshot(copy.deepcopy(self.raw), self.monraces)))
+
+    def test_random_quest_target_is_not_used_on(self):
+        knowledge = {TARGET: dataclasses.replace(
+            self.monraces[TARGET],
+            abilities=self.monraces[TARGET].abilities | disenchant_avoid.ABILITIES)}
+        answer, _ = self.quest_answer(alone(with_staff(self.raw), TARGET, 5), knowledge)
+        self.assertFalse(answer[1].startswith("emergency:destruction"))
+
+    def test_random_quest_wounded_target_in_the_circle_bars_the_use(self):
+        raw = alone(with_staff(self.raw), BREATHER, 5)
+        target = copy.deepcopy(raw["visible_monsters"][0])
+        target.update(race_id=TARGET, index=target["index"] + 1, health="wounded",
+                      x=raw["player"]["x"] + 16)
+        raw["visible_monsters"].append(target)
+        self.assertFalse(self.quest_answer(raw)[0][1].startswith("emergency:destruction"))
+
+    def test_fixed_quest_floor_is_not_used_on(self):
+        policy = q31.new_policy()
+        policy._monrace_knowledge[BREATHER] = self.monraces[BREATHER]
+        board = next(raw for raw in q31.CASE["boards"] if raw["visible_monsters"])
+        raw = alone(with_staff(copy.deepcopy(board)), BREATHER, 3)
+        q31.d57.loops.decide(policy, raw)
+        self.assertFalse(policy.last_reason.startswith("emergency:destruction"))
+        self.assertEqual(policy._floor_navigation_exit_locked(
+            parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)), True)

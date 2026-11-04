@@ -7494,6 +7494,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             summons = summon_response.key(self, snapshot)
             if summons is not None:
                 return summons
+            # Owner 2026-11-05: a race that disenchants the gear, at first sight.
+            sight_use = destruction_use.sight_trigger_key(self, snapshot)
+            if sight_use is not None:
+                return sight_use
             # Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」:
             # before any never-moving monster is avoided.
             immobile_kill = immobile_ranged_kill.key(self, snapshot)
