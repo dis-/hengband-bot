@@ -3116,7 +3116,9 @@ class HomeMixin:
             return False
         # Spare wearable gear (armour, rings, amulets, weapons) is shelved at Home:
         # the equipment optimiser wields the best and this stashes the rest.
-        spare_equipment = spare_gear.released(self, snapshot, item)
+        spare_equipment = (spare_gear.released(self, snapshot, item)
+                           and not (snapshot is not None
+                                    and item_fate.sold_not_shelved(self, snapshot, item)))
         protected_unknown_consumable = (
             self._deepest_level >= 20
             and (item.is_potion or item.is_scroll)

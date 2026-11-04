@@ -52,6 +52,20 @@ class ItemFateRecordedTest(ProductionHarness):
         self.assertTrue(policy._home_full_relief["sweep"])
         self.assertEqual(policy._home_junk_sweep_count, (policy._town_visit_epoch, 1))
 
+    def test_rank_21_plus_in_the_pack_is_sold_and_the_top_ten_is_shelved(self):
+        visit, board = self.visit("home-full-stop", 7)
+        policy = visit.policy
+        pick = lambda name: next(item for item in board.inventory if name in item.name)
+        mail, shield = pick("ドワーフの鎖かたびら"), pick("耐火の金属製ラージ・シールド")
+        self.assertTrue(item_fate.sold_not_shelved(policy, board, mail))
+        self.assertFalse(policy._home_deposit_candidate(mail, board))
+        self.assertTrue(policy._home_deposit_candidate(shield, board))
+        self.assertFalse(item_fate.sold_not_shelved(policy, board, shield))
+        # A spent buyer gives it back to Home: no loop, no held departure.
+        policy._town_store_attempted[STORE_ARMOURY] = board.turn
+        self.assertFalse(item_fate.sold_not_shelved(policy, board, mail))
+        self.assertTrue(policy._home_deposit_candidate(mail, board))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import spare_gear
+from hengbot import item_fate, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import home_pass_charge, town_end_mining, town_travel
@@ -4960,7 +4960,7 @@ class TownMixin:
         candidates.extend(
             item
             for item in snapshot.inventory
-            if (
+            if item_fate.sold_not_shelved(self, snapshot, item) or (
                 self._home_deposit_candidate(item, snapshot)
                 and not item.is_ammo
                 and not item.is_torch
