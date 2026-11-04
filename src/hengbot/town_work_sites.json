@@ -9145,6 +9145,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_room_sweep.py:_leave_by_exit": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_room_sweep.py:_light_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_room_sweep.py:_lines": {
     "classification": "producer",
     "rows": [

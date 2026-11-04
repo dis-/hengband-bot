@@ -3,6 +3,8 @@
 The data (QUEST_25 gives the reasons of its cells):
 
  * ``stands``: the cells walked in order; ``meet_turns`` waits there for what comes;
+   ``read_light`` lights the room from there, once a round, enemy or none (the shared
+   ``_quest_light_key``: a Scroll of Light, or class 16's absorbed Light as on Q2);
  * ``last_targets``: what is left until every stand has been walked, each with its
    ``race``, ``cell``, closed ``door`` and the ``stand`` that opens the door and shoots;
  * ``line_races``: never-moving casters whose direct line every walk crosses as little
@@ -10,7 +12,8 @@ The data (QUEST_25 gives the reasons of its cells):
    n1-a died standing on a cell under fire);
  * ``enemy_wait_turns``: the far bound on a coming enemy that stays in view without a
    shot or a blow; ``rest_below_ratio``: rest below this on a quiet floor;
- * ``max_rounds``: full walks with the quest still open before the plan stops by name.
+ * ``max_rounds``: full walks with the quest still open before the plan stops by name;
+ * ``exit_when_out_of_healing``: see below.
 
 Q25 owner 2026-11-04.  「手のドルジは最後に回して戻って撃つ」: everything else first, then the
 door and the shot; teleported away, the same stand is walked back to with no limit on
@@ -20,8 +23,15 @@ teleport that still left an enemy on the player.  ``abort_conditions.recall_belo
 below that many scrolls, with an enemy about, Recall is read and the fight goes on
 (once_quest_recall.below_scroll_floor, which keeps every other recall rung held too).  Cure
 Critical Wounds is no HP recovery (owner 2026-11-03).  A quiet floor is rested on at any HP
-(owner 2026-11-03).  The stair under the start leaves and fails the quest
-(quest.cpp leave_quest_check): the owner's words do not name it, so no rung takes it.
+(owner 2026-11-03).
+
+The stair leaves and fails the quest (quest.cpp leave_quest_check).  Owner 2026-11-04
+「薬を使い切っていたら踏んで良い」: taken only at PANIC_HP_RATIO or below (the ladder's own
+life-threat line) with an enemy about, no Healing left, and a walk of at most
+ITEM_DESTROYING_BREEDER_STAIR_DISTANCE steps (the ladder's distance for a stair under threat).
+
+Owner 2026-11-04 「光の巻物を読む」: the floor is dark, so the hall is lit from its mouth to
+be shot from afar.
 
 Game facts this rests on (C:/hengband/src).  TELE_AWAY and TELE_TO need the caster's direct
 line to the player's own cell (mspell-attack.cpp check_thrown_mspell lists both as aimed-off
@@ -41,7 +51,13 @@ from __future__ import annotations
 from hengbot import combat_answer, me_ranged_first, once_quest_recall, quest_exposure, quest_find_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, TVAL_POTION
-from hengbot.policy_constants import QUEST_POTION_SVALS, WAIT_KEY
+from hengbot.policy_constants import (
+    ITEM_DESTROYING_BREEDER_STAIR_DISTANCE,
+    PANIC_HP_RATIO,
+    QUEST_POTION_SVALS,
+    UP_STAIRS_KEY,
+    WAIT_KEY,
+)
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON, RECALL_REASON
 from hengbot.quest_navigator import QuestFloorNavigator
 
@@ -51,6 +67,9 @@ APPROACH_REASON = "quest-strategy:sweep-approach"
 TELEPORT_REASON = "quest-strategy:sweep-teleport"
 RESTORE_REASON = "quest-strategy:sweep-restore"
 NOTHING_LEFT_REASON = "quest:blocked:sweep-nothing-left"
+LIGHT_REASON = "quest-strategy:sweep-light"
+EXIT_WALK_REASON = "quest-strategy:sweep-exit-walk"
+EXIT_REASON = "quest-strategy:sweep-exit"
 
 
 def _plan(policy, snapshot) -> dict | None:
@@ -67,7 +86,7 @@ def holds(policy, snapshot) -> bool:
 
 def planned_step(policy, snapshot) -> bool:
     """This board's step is the plan's own: the low-HP walk gate does not rewrite it."""
-    return policy.last_reason == WALK_REASON and _plan(policy, snapshot) is not None
+    return policy.last_reason in {WALK_REASON, EXIT_WALK_REASON} and _plan(policy, snapshot) is not None
 
 
 def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
@@ -209,6 +228,18 @@ def _next_stop(navigator, plan) -> None:
         navigator.sweep_round += 1
 
 
+def _light_key(policy, snapshot, navigator, plan) -> str | None:
+    """On a ``read_light`` stand, once a round, when the light can be read by."""
+    here = [snapshot.player.position.y, snapshot.player.position.x]
+    if (navigator.sweep_round in navigator.sweep_lit_rounds or not policy._can_read_scrolls(snapshot)
+            or not any(stop["cell"] == here and stop.get("read_light") for stop in plan["stands"])):
+        return None
+    key = policy._quest_light_key(snapshot, LIGHT_REASON)
+    if key is not None:
+        navigator.sweep_lit_rounds = navigator.sweep_lit_rounds | {navigator.sweep_round}
+    return key
+
+
 def _last_target_key(policy, snapshot, navigator, plan, stop) -> str | None:
     """On its stand: open the door; with the door open and nothing on the cell, it is done."""
     door = tuple(stop["door"])
@@ -230,6 +261,8 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
         goal = Position(*stop.get("stand", stop.get("cell")))
         if here != goal:
             return _step(policy, snapshot, _path(navigator, plan, snapshot, {goal}, blocked), WALK_REASON)
+        if (light := _light_key(policy, snapshot, navigator, plan)) is not None:
+            return light
         if "door" in stop:
             opened = _last_target_key(policy, snapshot, navigator, plan, stop)
             if opened is not None:
@@ -326,6 +359,23 @@ def _below_line(policy, snapshot, profile, navigator) -> str | None:
     return policy._read_key(snapshot, scroll)
 
 
+def _leave_by_exit(policy, snapshot, navigator, plan, board) -> str | None:
+    """Life-threatened with the Healing used up and the stair a few steps off."""
+    if (not plan.get("exit_when_out_of_healing")
+            or snapshot.player.hp_ratio > PANIC_HP_RATIO
+            or quest_find_exit._healing_potion(policy, snapshot) is not None):
+        return None
+    goal = Position(*navigator.battlefield.exit)
+    if snapshot.player.position == goal:
+        policy.last_reason = EXIT_REASON
+        return UP_STAIRS_KEY
+    occupied = {monster.position for monster in board.in_view}
+    path = _path(navigator, plan, snapshot, {goal}, occupied)
+    if len(path) - 1 > ITEM_DESTROYING_BREEDER_STAIR_DISTANCE:
+        return None
+    return _step(policy, snapshot, path, EXIT_WALK_REASON)
+
+
 def _give_up(policy, snapshot, profile) -> str | None:
     if not once_quest_recall.below_scroll_floor(policy, snapshot, profile):
         return None
@@ -368,9 +418,11 @@ def key(policy, snapshot) -> str | None:
         )
     return (
         quest_find_exit._cure(policy, snapshot)
+        or _leave_by_exit(policy, snapshot, navigator, plan, board)
         or _give_up(policy, snapshot, profile)
         or _below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
+        or _light_key(policy, snapshot, navigator, plan)
         or _fight(policy, snapshot, profile, navigator, plan, board)
     )

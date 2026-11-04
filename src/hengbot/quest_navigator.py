@@ -88,6 +88,7 @@ class QuestFloorNavigator:
     sweep_enemy_turns = 0
     sweep_heal_next = False
     sweep_gone = frozenset()
+    sweep_lit_rounds = frozenset()
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -126,6 +127,7 @@ class QuestFloorNavigator:
         self.sweep_enemy_turns = 0
         self.sweep_heal_next = False
         self.sweep_gone = frozenset()
+        self.sweep_lit_rounds = frozenset()
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
         """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.

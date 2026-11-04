@@ -647,6 +647,10 @@ EQUIPMENT_SLOT_KEY = {
 
 PANIC_HP_RATIO = 0.20
 
+# How far a stair is worth walking to under threat (the breeder ladder's, and
+# quest_room_sweep's exit).
+ITEM_DESTROYING_BREEDER_STAIR_DISTANCE = 5
+
 MIN_FREE_PACK_SLOTS = 5
 
 UNIQUE_COMBAT_MAX_ATTACKS = 20
