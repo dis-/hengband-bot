@@ -5,7 +5,11 @@ Owner 2026-11-04: 「成功率80%以上の*破壊*を使えるとき、強敵か
 使用。また、ランダムクエストの階ではターゲット以外の脅威を排除するのに使う。傷を負った
 ターゲットは巻き込まない場面に限定する。」; 「治して階の探索を続ける。破壊の回数だけでは
 帰還しない。」; 「巻物が無くても使う」 (with no Teleportation, before Phase Door and Recall).
-The 50F ban stays (policy_constants.DESTRUCTION_USE_IMPLEMENTED).
+50F+ 「使える手段がある時だけ解く」: ``holds_means`` is the one predicate of
+policy_constants.destruction_dive_permitted, for arrivals and descents only.  With the
+means gone on such a floor (rate below 80%, charges spent) no further descent or new
+arrival is allowed and the existing return rules decide when to leave: the floor itself
+is no gap (``gap_here``), and a charged list after the inn permits it again.
 
 Game (C:/hengband/src):
  * spell-kind/spells-floor.cpp destroy_area: refused on a fixed quest floor and on
@@ -51,7 +55,7 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_STAFF_DESTRUCTION, TVAL_STAFF, Position, game_distance
 from hengbot.town_hold import LOOT_OWNERS
 from hengbot.policy_constants import (
-    EMERGENCY_RETURN_COUNT, PLAYER_CLASS_BERSERKER, ExplorationPathOutcome,
+    DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_LABEL, EMERGENCY_RETURN_COUNT, PLAYER_CLASS_BERSERKER, ExplorationPathOutcome,
 )
 
 
@@ -98,6 +102,7 @@ FORGET_VISIT = (summoner_wait, immobile_threat_memory, hunt_target)
 class Memory:
     pending: tuple | None = None   # (floor, turn, position) of the last use
     fallback: tuple | None = None  # the floor whose next ask is the rung's own read
+    entitled_floor: tuple | None = None  # the 50F+ floor where the means was last held
 
 
 def _memory(policy) -> Memory:
@@ -125,12 +130,33 @@ def _reliable_staff(snapshot) -> bool:
     return success * 100 >= me_capability.RELIABLE_MIN_SUCCESS
 
 
-def _carried_key(policy, snapshot) -> str | None:
+def _reliable_carried_staff(policy, snapshot):
     if not _reliable_staff(snapshot):
         return None
-    staff = next((item for item in snapshot.inventory
-                  if policy._is_destruction_staff(item) and item.known and item.charges > 0), None)
+    return next((item for item in snapshot.inventory
+                 if policy._is_destruction_staff(item) and item.known and item.charges > 0), None)
+
+
+def _carried_key(policy, snapshot) -> str | None:
+    staff = _reliable_carried_staff(policy, snapshot)
     return None if staff is None else reserved_item_command(policy, snapshot, "staff", staff)
+
+
+def holds_means(policy, snapshot) -> bool:
+    """A staff or absorbed power at 80%+ with a charge; the character's status now
+    does not matter and a scroll is no means (owner 2026-11-04)."""
+    return (me_capability.replacing_charges(policy, snapshot, STAFF) > 0
+            or _reliable_carried_staff(policy, snapshot) is not None)
+
+
+def gap_here(policy, snapshot, missing) -> frozenset:
+    """``missing`` of the floor the player stands on: the *Destruction* label is no
+    gap on a floor where the means was held; a floor reached without it (a warrior's
+    trapdoor to 50F) keeps the label and returns."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is not None and memory.entitled_floor == snapshot.floor_key:
+        return frozenset(missing) - {DESTRUCTION_GATE_LABEL}
+    return frozenset(missing)
 
 
 # -- the scene ------------------------------------------------------------------
@@ -225,6 +251,8 @@ def key(policy, snapshot) -> str | None:
 
 def observe(policy, snapshot) -> None:
     """Every decision, before the board joins the map memory: settle the last use."""
+    if snapshot.dungeon_level >= DESTRUCTION_GATE_DEPTH and holds_means(policy, snapshot):
+        _memory(policy).entitled_floor = snapshot.floor_key
     memory = getattr(policy, MEMORY, None)
     if memory is None:
         return

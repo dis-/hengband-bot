@@ -724,22 +724,20 @@ DESTRUCTION_GATE_DEPTH = 50
 
 DESTRUCTION_GATE_LABEL = "destruction"
 
-# USER DECISION 2026-09-23:
-# 「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを禁止する」.
-# While this is False the deepest permitted arrival or descent is
-# DESTRUCTION_GATE_DEPTH - 1 (49F), no matter how many *Destruction* uses are
-# carried: possession is not the missing piece, the use-logic is.  The round
-# that teaches the bot to actually read the scroll / use the staff in play
-# flips this to True -- that one line plus its own pins is the whole change.
-# Nothing reads this name directly; the two functions below are the whole
-# surface, so a test flips the ban by patching this single module attribute.
-DESTRUCTION_USE_IMPLEMENTED = False
+# USER DECISION 2026-11-04 (after 69 live uses): 「使える手段がある時だけ解く」.
+# 50F+ is reached only by a character holding a means destruction_use can use
+# (``destruction_use.holds_means``: a staff or an absorbed power at 80%+, with a
+# charge); scrolls do not count.  Everyone else's deepest permitted arrival or
+# descent is DESTRUCTION_GATE_DEPTH - 1 (49F).  This governs new arrivals and
+# descents only: a character whose means ran out on 51F is not made to leave by
+# it (destruction_use.entitled_here).  The two functions below are the whole
+# surface; ``holds_means`` is a callable, asked only for a depth at the gate.
 
-def destruction_dive_permitted(depth: int) -> bool:
-    """Whether ``depth`` may be reached at all under the 50F+ ban."""
-    return DESTRUCTION_USE_IMPLEMENTED or depth < DESTRUCTION_GATE_DEPTH
+def destruction_dive_permitted(depth: int, holds_means) -> bool:
+    """Whether ``depth`` may be reached at all under the 50F+ rule."""
+    return depth < DESTRUCTION_GATE_DEPTH or holds_means()
 
-def permitted_dive_depth(depth: int) -> int:
+def permitted_dive_depth(depth: int, holds_means) -> int:
     """Clamp an INTENDED depth to the deepest floor the bot may reach.
 
     The ban refuses the arrival; on its own that left the rest of the policy
@@ -751,7 +749,7 @@ def permitted_dive_depth(depth: int) -> int:
     intent here keeps every consumer of it consistent with what the gate will
     actually permit.
     """
-    return depth if destruction_dive_permitted(depth) else DESTRUCTION_GATE_DEPTH - 1
+    return depth if destruction_dive_permitted(depth, holds_means) else DESTRUCTION_GATE_DEPTH - 1
 
 DESTRUCTION_USES_PER_STEP = 5
 

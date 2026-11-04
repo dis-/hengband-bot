@@ -1294,7 +1294,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
     def test_destruction_scroll_or_charged_staff_satisfies_the_50f_gate(self):
         """CHANGED 2026-09-23 by user decision
         「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを
-        禁止する」: while DESTRUCTION_USE_IMPLEMENTED is False, carrying the
+        禁止する」: while destruction_use.holds_means is False, carrying the
         method no longer opens 50F.  The possession rule it used to assert is
         still the rule the flag restores, and that is asserted below under the
         flipped flag, so nothing about the gate itself was loosened.
@@ -1314,9 +1314,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
         )
 
         # The ban: possession is not the missing piece, the use-logic is.
-        from hengbot.policy_constants import DESTRUCTION_USE_IMPLEMENTED
 
-        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
         for snap in (scroll, charged, empty_staff):
             self.assertEqual(
                 HengbotPolicy()._missing_required_abilities(snap, 50),
@@ -1330,7 +1328,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
 
         # The possession rule the follow-up round restores, unchanged.
         with patch(
-            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.destruction_use.holds_means", lambda *_: True
         ):
             self.assertEqual(
                 HengbotPolicy()._missing_required_abilities(scroll, 50),
@@ -1370,7 +1368,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
         )
 
         with patch(
-            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.destruction_use.holds_means", lambda *_: True
         ):
             self.assertEqual(
                 HengbotPolicy()._missing_required_abilities(slow, 81),

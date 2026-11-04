@@ -60,7 +60,6 @@ from hengbot.model import DUNGEON_ANGBAND
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import (
     DESTRUCTION_GATE_LABEL,
-    DESTRUCTION_USE_IMPLEMENTED,
     WAIT_KEY,
     required_depth_gates,
 )
@@ -227,7 +226,7 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
     def test_f4_a_safe_destination_is_not_diverted(self):
         """CHANGED 2026-09-23 by user decision
         「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを
-        禁止する」: while ``DESTRUCTION_USE_IMPLEMENTED`` is False, 50F+ is
+        禁止する」: while ``destruction_use.holds_means`` is False, 50F+ is
         refused outright, so even a character whose ability set carries the
         gate label is diverted.  The undiverted behaviour this pin asserted is
         the behaviour the flag restores, and it is asserted below under the
@@ -245,7 +244,6 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
             ),
         )
 
-        self.assertFalse(DESTRUCTION_USE_IMPLEMENTED)
         self.assertFalse(policy._recall_destination_safe(safe, DUNGEON_ANGBAND))
         self.assertEqual(policy._town_special_key(safe), WAIT_KEY)
         self.assertEqual(policy.last_reason, FALLBACK_REASON)
@@ -253,7 +251,7 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
 
         restored = self._independent()
         with patch(
-            "hengbot.policy_constants.DESTRUCTION_USE_IMPLEMENTED", True
+            "hengbot.destruction_use.holds_means", lambda *_: True
         ):
             self.assertTrue(
                 restored._recall_destination_safe(safe, DUNGEON_ANGBAND)

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import combat_answer, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
+from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -667,19 +667,20 @@ class SupplyMixin:
         Going to 50F means 5 uses; going to 60F means 10.
 
         The answer is finally clamped by ``permitted_dive_depth``.  An
-        objective the 50F+ ban forbids is not an intent anybody may act on:
+        objective the 50F+ rule forbids is not an intent anybody may act on:
         leaving it unclamped published a 5-use shortage for a depth the gate
         would refuse, which is what stopped the live bot at 22:49 on
         2026-09-23.  Clamping here, on the one helper the whole *Destruction*
         owner reads, keeps the requirement, the purchase, the Home-first
-        withdrawal and the retention reservation all consistent with the ban --
-        and all of them come back the moment the constant is flipped.
+        withdrawal and the retention reservation all consistent with the rule --
+        and all of them come back for a character holding the means.
         """
+        holds_means = lambda: destruction_use.holds_means(self, snapshot)
         target = self._target_dungeon_id
         if target is None:
-            return permitted_dive_depth(self._planned_depth())
+            return permitted_dive_depth(self._planned_depth(), holds_means)
         return permitted_dive_depth(
-            self._dungeon_entry_depth(snapshot, target, via_recall=True)
+            self._dungeon_entry_depth(snapshot, target, via_recall=True), holds_means
         )
 
     def _required_destruction_uses(self, snapshot: Snapshot) -> int:

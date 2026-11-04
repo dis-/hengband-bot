@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, status_cure, summoner_wait, town_end_mining
+from hengbot import destruction_use, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, status_cure, summoner_wait, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -1417,18 +1417,15 @@ class ObservationMixin:
 
     def _missing_required_abilities(self, snapshot: Snapshot, depth: int) -> frozenset:
         missing = set(required_depth_gates(depth) - snapshot.player.abilities)
-        # USER DECISION 2026-09-23:
-        # 「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ること
-        # を禁止する」.  Until the bot can actually USE a *Destruction* method
-        # in play, 50F+ is forbidden outright: neither carrying the item nor an
-        # intrinsic ability unlocks the depth, only the missing use-logic does.
-        # This is the ONE place the ban is consulted -- every arrival and
-        # descent owner asks this predicate -- so the round that implements the
-        # use-logic flips DESTRUCTION_USE_IMPLEMENTED and nothing else.  The
-        # gate label, the ability table, the band-descent rule and the
-        # unsafe-recall fallback are untouched: this is an additional cap, and
-        # the refusal keeps its existing `missing-destruction` wording.
-        if not destruction_dive_permitted(depth):
+        # USER DECISION 2026-11-04 「使える手段がある時だけ解く」: 50F+ needs a
+        # means destruction_use can use; scrolls or an intrinsic ability unlock
+        # nothing.  This is the ONE place the rule is consulted -- every arrival
+        # and descent owner asks this predicate.  The gate label, the ability
+        # table (telepathy from 50F), the band-descent rule and the unsafe-recall
+        # fallback are untouched, and the refusal keeps its `missing-destruction`
+        # wording.
+        if not destruction_dive_permitted(
+                depth, lambda: destruction_use.holds_means(self, snapshot)):
             missing.add(DESTRUCTION_GATE_LABEL)
         elif DESTRUCTION_GATE_LABEL in missing and self._has_destruction_method(
             snapshot
