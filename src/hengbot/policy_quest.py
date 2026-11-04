@@ -611,6 +611,10 @@ class QuestMixin(OpeningRouteMixin):
             tower_recharge = q2_tower_recharge.town_key(self, snapshot, hostiles)
             if tower_recharge is not None:
                 return tower_recharge
+            from hengbot import armor_smith
+            smith_trip = armor_smith.trip_key(self, snapshot)
+            if smith_trip is not None:
+                return smith_trip
         from hengbot import me_powerful_activation
         powerful = me_powerful_activation.town_key(self, snapshot, hostiles)
         if powerful is not None:

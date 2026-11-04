@@ -76,6 +76,79 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "armor_smith.py:Smith.price": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "armor_smith.py:_errand_key": {
+    "classification": "producer",
+    "rows": [
+      "enchant",
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "armor_smith.py:_leg_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "armor_smith.py:_raise_key": {
+    "classification": "producer",
+    "rows": [
+      "enchant"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "armor_smith.py:_town_smith": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "armor_smith.py:_trip_destination": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "armor_smith.py:raises": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "armor_smith.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "armor_smith.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "enchant",
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "armor_smith.py:trip_key": {
+    "classification": "producer",
+    "rows": [
+      "enchant",
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "baseitem_knowledge.py:find_baseitem_definitions": {
     "classification": "data",
     "rows": [

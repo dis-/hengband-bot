@@ -12,7 +12,10 @@ import re
 from dataclasses import replace
 from collections.abc import Mapping
 
-from hengbot.input_executor import Continuation, RECALL_DUNGEON_PROMPTS, ScreenKind
+from hengbot.armor_smith import RAISE_KEY_PATTERN, RAISE_REASON
+from hengbot.input_executor import (
+    BUILDING_ENCHANT_PROMPTS, Continuation, RECALL_DUNGEON_PROMPTS, ScreenKind,
+)
 from hengbot.morivant_tower import RECHARGE_ALL_REASONS
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
 from hengbot.policy_constants import (
@@ -34,6 +37,21 @@ _PRICE = (r"\s*買値 \$\d+ で買いますか？\[Y/n\]",)
 
 def _answer(kind, keys, feature=None, **options):
     return Continuation(frozenset({kind}), keys, feature, **options)
+
+
+def _building_raise(label):
+    """One raise at the armour smith, answered only on its observed prompts.
+
+    market/building-enchanter.cpp: the chooser opens on the pack only when the
+    pack holds armour.  'a' refused (no gold) leaves the menu up and both page
+    answers fall away; a raise past the cap prints its failure over the menu.
+    """
+    prompts = "|".join(re.escape(prompt) for prompt in BUILDING_ENCHANT_PROMPTS)
+
+    def page(keys, names):
+        return _answer(ScreenKind.ITEM_SOURCE, keys, (rf"\((?:{names}):.*(?:{prompts})",),
+                       exact_feature=True, feature_pattern=True, optional=True)
+    return [_answer(ScreenKind.BUILDING, "a"), page("/", "持ち物|Inven"), page(label, "装備品|Equip")]
 
 
 def _surface_recall_read(command, slot, board):
@@ -156,6 +174,9 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
             _answer(ScreenKind.BUILDING, "\x1b"),
             *continuations,
         ]
+    if owner == RAISE_REASON and re.fullmatch(RAISE_KEY_PATTERN, key):
+        raises = [step for label in key[3::3] for step in _building_raise(label)]
+        return key[0], [*raises, _answer(ScreenKind.BUILDING, "\x1b"), *continuations]
     command, tail = key[0], key[1:]
     # The once-mode sender also enters this common port. Reuse the same
     # established plans as the ordinary decision router instead of bypassing
