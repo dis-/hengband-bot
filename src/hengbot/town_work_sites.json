@@ -1568,6 +1568,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "item_fate.py:gear_tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_fate.py:sale_value": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_fate.py:weight_relief_order": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "item_reservation.py:ReservationVerdict.reason": {
     "classification": "data",
     "rows": [
@@ -5810,13 +5831,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "policy_home.py:HomeMixin._home_is_full": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_home.py:HomeMixin._home_knowledge_await_key": {
     "classification": "producer",
     "rows": [
@@ -9475,21 +9489,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "spare_gear.py:gear_first_when_it_covers": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "spare_gear.py:released": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "spare_gear.py:sold_for_weight": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9579,6 +9579,48 @@
       "fundraising"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "store_sale.py:_flag_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "store_sale.py:_named_definition": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "store_sale.py:_value_knowledge": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "store_sale.py:_visible_sale_value": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "store_sale.py:known_sale_value": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "store_sale.py:sale_monrace": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "summon_response.py:_plain_name": {
     "classification": "data",

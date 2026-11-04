@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import spare_gear
+from hengbot import item_fate, spare_gear
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -98,24 +98,19 @@ class HomeMixin:
         standard = max(diggers, key=lambda i: (self._digging_tool_sale_quality(i), i.slot)) if diggers else None
         for item in snapshot.inventory:
             count = self._retention_surplus(snapshot, item)
-            if (count <= 0 or item.weight <= 0 or not item.known or item.is_artifact
-                    or item.is_bounty or item is standard or self._overweight_mining_kit_reserved(snapshot, item)
-                    or self._disposal_protected_by_identification(item)
-                    or self._home_disposal.decision(self._item_signature(item)) == "keep"
-                    or not item_available(self, snapshot, item, "shop-sell", "overweight-surplus")
-                    or not self._carried_disposal_preserves_departure(snapshot, item, count)):
+            if (count <= 0 or item.weight <= 0 or item.is_artifact
+                    or item is standard or self._overweight_mining_kit_reserved(snapshot, item)
+                    or item_fate.held(self, snapshot, item, "shop-sell", "overweight-surplus")
+                    or not self._carried_disposal_preserves_departure(snapshot, item, count)
+                    or not item_fate.gear_surplus(self, snapshot, item)):
                 continue
-            if item.is_equipment and not item.is_ammo and not item.is_digging_tool:
-                if not (self._home_full_equipment_surplus(snapshot, item)
-                        or spare_gear.sold_for_weight(self, snapshot, item)):
-                    continue
             stores = tuple(s for s in (STORE_ALCHEMIST, STORE_MAGIC, STORE_WEAPON,
                 STORE_ARMOURY, STORE_GENERAL, STORE_TEMPLE, 8, STORE_BLACK)
                 if self._store_accepts_sale(s, item) and s not in self._store_sale_refused)
             # A store's refusal is a store fact; try the remaining buyers.
             value = known_sale_value(item, item_base_cost(item, self._baseitem_costs)) or 0
             candidates.append((max(0, value)*count, self._item_signature(item), item, count, stores))
-        return spare_gear.gear_first_when_it_covers(self, snapshot, sorted(
+        return item_fate.weight_relief_order(self, snapshot, sorted(
             candidates, key=lambda entry: (entry[0], entry[1], entry[2].slot)))
 
     def _observe_overweight_surplus_effect(self, snapshot) -> bool:
@@ -199,6 +194,11 @@ class HomeMixin:
         limit = self._inventory_weight_limit(snapshot)
         if (sum(i.weight*n for _, _, i, n, _ in candidates)
                 < self._inventory_weight(snapshot)-limit):
+            if not self._home_knowledge_current:
+                # The gear ranking counts the Home shelves; never stop without them.
+                return self._town_producer_entry(
+                    "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                    family="home-scan")
             self._town_blocked_reason = "overweight-home-full-no-legal-relief"
             return self._town_blocked_key(snapshot)
         pending = state.get("pending")
@@ -214,6 +214,13 @@ class HomeMixin:
             return WAIT_KEY
         if pending:
             chosen = next((c for c in candidates if self._sale_item_identity(c[2]) == pending["identity"]), None)
+            if chosen is None and not pending.get("posted"):
+                # The Armoury's page sale took it, or a pending ware is no longer
+                # surplus: neither is a stop while other rows clear the excess
+                # (n1-c life-134 11-04 21:42, 1682 over 1650, the sword left).
+                state.pop("pending")
+                pending = None
+                chosen = candidates[0] if candidates else None
         else:
             chosen = candidates[0] if candidates else None
         if chosen is None:
@@ -426,39 +433,31 @@ class HomeMixin:
             item = replace(item, slot="home-surplus")
         signature = self._item_signature(item)
         probe = replace(snapshot, inventory=(*snapshot.inventory, item))
-        empty_identify_surplus = (item.tval == TVAL_STAFF
-                                  and item.sval == SV_STAFF_IDENTIFY
-                                  and max(item.charges, item.pval) == 0)
         preferred_store = self._home_disposal_store(signature)
         store_type = next((store for store in (preferred_store, STORE_WEAPON, STORE_ARMOURY,
                            STORE_MAGIC, STORE_GENERAL, STORE_TEMPLE, STORE_ALCHEMIST)
                            if store != STORE_HOME
                            and self._store_accepts_sale(store, item)
                            and store not in self._store_sale_refused), None)
-        if (not item_available(self, snapshot, item, "home-visit", "home-full-sale")
-                or item.is_empty_bottle or not item.known or self._disposal_protected_by_identification(item)
+        if (item_fate.held(self, snapshot, item, "home-visit", "home-full-sale")
+                or item.is_empty_bottle
                 or signature in self._unsellable_items
-                or self._home_disposal.decision(signature) == "keep"
-                or self._retention_reservation(probe, item) > 0
-                or self._home_full_equipment_reserved(snapshot, item)
-                or (self._item_matches_purchase_rung(probe, item)
-                    and not empty_identify_surplus)
+                or item_fate.stock_reserved(self, snapshot, probe, item)
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
                 or self._home_full_merge_reserved(snapshot, item, destroy=False)
-                or item.is_bounty
                 # The store-side sale guard keeps the standing digging tool;
                 # selecting it here would withdraw an item no store sale may
                 # take (live 2026-10-05 05:14 retain-standing-digging-tool loop).
                 or self._sale_retains_digging_tool(probe, item)
                 or recall_short
-                or not self._home_full_equipment_surplus(snapshot, item)
+                or not item_fate.gear_surplus(self, snapshot, item)
                 or store_type is None):
             return None
-        value = item_base_cost(item, self._baseitem_costs)
-        if value is not None and value <= 0:
+        base = item_base_cost(item, self._baseitem_costs)
+        if base is not None and base <= 0:
             return None
-        return item, store_type, value or 0
+        return item, store_type, item_fate.sale_value(self, item)
 
     def _home_full_relief_leaves_recall_short(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem,
@@ -504,37 +503,20 @@ class HomeMixin:
                 continue
             sig = self._item_signature(carried)
             relief = self._home_full_relief or {}
-            empty_identify_surplus = (carried.tval == TVAL_STAFF
-                                      and carried.sval == SV_STAFF_IDENTIFY
-                                      and max(carried.charges, carried.pval) == 0)
-            if (not item_available(self, snapshot, carried, "home-visit",
-                                   "destroy" if destroy else "home-full-sale")
+            if (item_fate.held(self, snapshot, carried, "home-visit",
+                               "destroy" if destroy else "home-full-sale")
                     or sig in relief.get("skipped", {})
                     or sig in {entry[0] for entry in relief.get("deposits", ())}
-                    or not carried.known or self._disposal_protected_by_identification(carried)
                     or (destroy and carried.is_artifact)
-                    or carried.is_bounty or self._home_disposal.decision(sig) == "keep"
-                    or self._retention_reservation(snapshot, carried) > 0
-                    or self._home_full_equipment_reserved(snapshot, carried)
-                    or (self._item_matches_purchase_rung(snapshot, carried)
-                        and not empty_identify_surplus)
-                    or not self._home_full_equipment_surplus(snapshot, carried)):
+                    or item_fate.stock_reserved(self, snapshot, snapshot, carried)
+                    or not item_fate.gear_surplus(self, snapshot, carried)):
                 return True
         return False
 
     def _home_full_equipment_surplus(
         self, snapshot: Snapshot, item: InventoryItem,
     ) -> bool:
-        """Keep loadout candidates; R1 is not the retention authority for ammo."""
-        if not item.is_equipment or item.is_ammo:
-            # Ammunition has its own quantity/launcher reservation, applied by
-            # both callers. It is deliberately absent from the R1 catalogue.
-            return True
-        if self._sale_retains_digging_tool(snapshot, item):
-            return False
-        return ((item.is_torch and item.known and item.fuel <= 0)
-                or self._is_spare_lantern(snapshot, item)
-                or self._is_disposable_dominated_armour(snapshot, item))
+        return item_fate.gear_surplus(self, snapshot, item)
 
     def _home_full_discard_candidate(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem,
@@ -547,18 +529,11 @@ class HomeMixin:
         item = replace(item, slot="home-surplus")
         signature = self._item_signature(item)
         probe = replace(snapshot, inventory=(*snapshot.inventory, item))
-        empty_identify_surplus = (item.tval == TVAL_STAFF
-                                  and item.sval == SV_STAFF_IDENTIFY
-                                  and max(item.charges, item.pval) == 0)
-        if (not item_available(self, snapshot, item, "home-visit", "destroy")
-                or item.is_artifact or item.is_bounty
+        if (item_fate.held(self, snapshot, item, "home-visit", "destroy", known=False)
+                or item.is_artifact
                 or self._is_high_value_book(item)
                 or signature in self._undestroyable_sigs
-                or self._home_disposal.decision(signature) == "keep"
-                or self._retention_reservation(probe, item) > 0
-                or self._home_full_equipment_reserved(snapshot, item)
-                or (self._item_matches_purchase_rung(probe, item)
-                    and not empty_identify_surplus)
+                or item_fate.stock_reserved(self, snapshot, probe, item)
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
                 or self._home_full_merge_reserved(snapshot, item, destroy=True)
@@ -578,7 +553,7 @@ class HomeMixin:
         # unused ammunition). A pack-only comparison would discard that proof
         # when its better counterpart remains on a Home shelf after the take.
         if (not item.is_equipment
-                and not empty_identify_surplus
+                and not item_fate.empty_identify_staff(item)
                 and self._destroy_would_discard_superior_item(probe, item)):
             return None
         return item
@@ -1168,17 +1143,22 @@ class HomeMixin:
                               "skipped_home_counts", {}).get(self._item_signature(item), 0))
             # A full pack cannot take shelf surplus. Free a carried surplus
             # stack first under the same sale-first retention authority.
+            # So does a pack at the reserve floor, whose take the composer refuses
+            # (n1-c life-134 11-04 21:46, 19 of 23: the errand never filed and the
+            # stop followed).  There a planned deposit may be sold from the pack:
+            # the owner's ranking already calls it surplus.
+            pack_bound = item_fate.home_take_blocked(snapshot)
+            full_pack = len(snapshot.inventory) >= PACK_CAPACITY
             carried_stock = tuple(item for item in snapshot.inventory
                                  if self._item_signature(item) not in relief.get("skipped", {})
-                                 and self._item_signature(item) not in {
-                                     entry[0] for entry in relief["deposits"]}
+                                 and (not full_pack or self._item_signature(item) not in {
+                                     entry[0] for entry in relief["deposits"]})
                                  and self._retention_reservation(snapshot, item) == 0
                                  and not self._home_full_equipment_reserved(snapshot, item)
                                  and self._carried_disposal_preserves_departure(snapshot, item, item.count)
-                                 ) if len(snapshot.inventory) >= PACK_CAPACITY else ()
+                                 ) if pack_bound else ()
             pack_ids = {id(item) for item in carried_stock}
-            stock = (stock if len(snapshot.inventory) < PACK_CAPACITY
-                     else carried_stock)
+            stock = carried_stock if pack_bound else stock
             # Charged Identify transport may not fill the final required
             # capacity while readiness is false. Empty staves remain ordinary
             # surplus and pass through this list unchanged.
@@ -1208,12 +1188,11 @@ class HomeMixin:
                     skipped.pop(sig, None)
                 kept_stock.append(candidate)
             stock = tuple(kept_stock)
-            sale_stock = (carried_stock if len(snapshot.inventory) >= PACK_CAPACITY
+            sale_stock = (carried_stock if pack_bound
                           else tuple(item for item in stock if id(item) not in pack_ids))
             probes = {id(item): (replace(snapshot, inventory=tuple(
                     carried for carried in snapshot.inventory if carried is not item))
                     if id(item) in pack_ids else snapshot) for item in stock}
-            self._prime_disposable_armour_scan(snapshot)
             # Junk on the shelf or pack is destroyed before any sale of other
             # stock (#70; owner 2026-10-04 auto-destroy target).  The board
             # carries the character-dependent junk classes (2026-10-20).
@@ -1235,7 +1214,7 @@ class HomeMixin:
                 classed.sort(key=lambda entry: entry[0])
                 groups = ([[item for _, item in classed if id(item) not in pack_ids],
                            [item for _, item in classed if id(item) in pack_ids]]
-                          if len(snapshot.inventory) < PACK_CAPACITY
+                          if not pack_bound
                           else [[item for _, item in classed]])
                 junk = []
                 for group in groups:
@@ -1245,14 +1224,9 @@ class HomeMixin:
                     if junk:
                         break
             del self._junk_board
-            candidates = [] if junk else [
+            candidates = [] if junk or relief.get("sweep") else [
                 (result, item) for item in sale_stock
-                if not item.is_equipment
-                and (result := self._home_full_sale_candidate(probes[id(item)], item))]
-            if not candidates and not junk:
-                candidates = [(result, item) for item in sale_stock
-                              if item.is_equipment
-                              and (result := self._home_full_sale_candidate(probes[id(item)], item))]
+                if (result := self._home_full_sale_candidate(probes[id(item)], item))]
             if junk:
                 discard, unidentified = junk, []
             elif not candidates:
@@ -1260,10 +1234,11 @@ class HomeMixin:
                            if (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
                 unidentified = [(candidate, item) for item in stock
                                 if (candidate := self._home_full_discard_candidate(
-                                    probes[id(item)], item, identify=True))]
+                                    probes[id(item)], item, identify=True))
+                                and (id(item) in pack_ids
+                                     or item_fate.can_identify_now(self, snapshot, candidate))]
             else:
                 discard = unidentified = []
-            self.__dict__.pop("_disposable_armour_scan_cache", None)
             if relief.get("sweep"):
                 # The sweep destroys junk only, a ware the pack can carry.
                 if not junk or not self._can_add_item_without_overweight(
@@ -1274,7 +1249,7 @@ class HomeMixin:
                     snapshot, inventory=(*snapshot.inventory, junk[0][0])),
                     junk[0][0])
             if not candidates:
-                if len(snapshot.inventory) < PACK_CAPACITY:
+                if not pack_bound:
                     # Free a shelf, not more pack space, whenever a Home
                     # auto-destroy candidate exists. If every shelf target
                     # is protected, a genuinely unneeded carried stack can
@@ -1339,9 +1314,12 @@ class HomeMixin:
                     return None
                 store_type = STORE_HOME
             else:
-                (item, store_type, _value), source = max(candidates, key=lambda entry: entry[0][2])
+                (item, store_type, _value), source = min(
+                    candidates, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
                 relief["mode"] = "sale"
             signature = self._item_signature(item)
+            if relief["mode"] != "identify":
+                relief["rank_released"] = signature
             # Retain the physical source row even when a shelf and pack stack
             # share the same signature. A shelf take earns a shelf slot.
             pack_only = id(source) in pack_ids
@@ -3006,15 +2984,15 @@ class HomeMixin:
         deposit while it is pending.  When the selector deposits the carried
         surplus (a free slot is observed) and no take is in flight, the
         relief's premise is gone (live 2026-10-21 05:00, Home 239/240,
-        1761 > 1750: the pending relief hid the weight deposit).  A relief
-        that already took a ware made that slot for its own deposits and
-        keeps it (C4-A 2026-10-20 one-shot sale).
+        1761 > 1750: the pending relief hid the weight deposit; n1-c life-130
+        2026-11-04 20:27, 238/240 after two sales of eight, stopped over the
+        limit).  A relief with a ware in flight keeps it (C4-A 2026-10-20
+        one-shot sale).
         """
         relief = self._home_full_relief
         if (weight_relief is None or weight_relief.route != "deposit"
                 or relief is None or relief.get("sale") is not None
-                or relief.get("withdrawn")
-                or relief["remaining"] != max(1, len(relief["deposits"]))):
+                or relief.get("withdrawn")):
             return False
         self._home_full_relief = None
         self._home_full_retry_deposits = None
@@ -5190,6 +5168,7 @@ class HomeMixin:
                 item
                 for item in store.items
                 if self._item_signature(item) not in self._deferred_home_items
+                and item_fate.gear_tier(self, snapshot, item) != item_fate.KEEP
                 and self._is_disposable_dominated_armour(snapshot, item)
             ),
             None,

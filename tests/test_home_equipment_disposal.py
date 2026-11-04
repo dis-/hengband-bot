@@ -2,6 +2,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
+from unittest.mock import patch
 
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -60,7 +61,10 @@ class HomeEquipmentDisposalTest(unittest.TestCase):
             store=StoreState(store_type=STORE_HOME, items=items), town_flag=True,
         )
 
-    def test_capacity_two_sword_withdraws_and_routes_to_weapon_smith(self):
+    # Owner 2026-11-04: this small Home keeps its top 10; the flow is what is pinned.
+    @patch("hengbot.item_fate.gear_surplus", return_value=True)
+    @patch("hengbot.item_fate.gear_tier", return_value="room")
+    def test_capacity_two_sword_withdraws_and_routes_to_weapon_smith(self, *_):
         home = self.snapshot([
             self.sword("a", "strong sword one", 5),
             self.sword("b", "strong sword two", 4),

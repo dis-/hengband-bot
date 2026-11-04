@@ -12184,26 +12184,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._disposable_armour_cache = cached
         return candidate_identity in cached[2]
 
-    def _prime_disposable_armour_scan(self, snapshot: Snapshot) -> None:
-        """Share stable ownership protection across one Home candidate scan."""
-        catalog_owner = self._equipment_catalog
-        catalog_fingerprint = (
-            id(catalog_owner._carried), id(catalog_owner._home),
-            len(catalog_owner._carried), len(catalog_owner._home),
-        )
-        catalog = catalog_owner.items
-        protected = frozenset(
-            owned.id
-            for owned in catalog
-            if owned.origin == "equipped"
-            or owned.item.is_cursed
-            or self._equipment_disposal_reserved(snapshot, owned.item)
-        )
-        self._disposable_armour_scan_cache = (
-            snapshot, catalog_owner, catalog_fingerprint,
-            self._decision_sequence, catalog, protected,
-        )
-
     @staticmethod
     def _is_plain_gear(item: InventoryItem | StoreItem) -> bool:
         """Identified non-ego melee weapon, launcher or armour.
