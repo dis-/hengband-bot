@@ -299,6 +299,15 @@ def tearDownModule():
 
 FOOD_TYPE_MANA = 4
 
+from hengbot.policy_constants import BUILDING_IDENTIFY_DISMISS_SUFFIX  # noqa: E402
+
+
+def _worn_plain_weapon():
+    """An occupied main hand: an empty one is re-armed first (owner 2026-10-31 「町でも持たせる」)."""
+    return item("main_hand", TVAL_SWORD, 1, is_equipment=True,
+                damage_dice_num=2, damage_dice_sides=5, known=True)
+
+
 class ReturnToTownTest(unittest.TestCase):
     FLOOR = (1, 12, 0)
 
@@ -2954,8 +2963,10 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             "light",
             TVAL_LITE,
             SV_LITE_LANTERN,
-            known=False,
-            fuel=7500,
+            known=True,
+            # Owner 2026-10-31 「そもそもなぜ松明を装備する？」: a burning lantern stays
+            # worn (10ee4bcf73); a spent one with no refill is what the torch replaces.
+            fuel=0,
             is_equipment=True,
         )
         digger = item(
@@ -3851,6 +3862,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         set_completed_equipment_optimization(policy)
         policy._fundraising_mode = "scavenge"
 
+        policy._observe(snap)  # a fresh arrival forgets remembered shelves (04166b1fc0)
         _known_unaffordable_detection(policy, snap)
         self.assertEqual(policy.choose_key(snap), ">\ry")
         self.assertEqual(policy.last_reason, "descend")
@@ -4304,7 +4316,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
     def test_scavenging_keeps_moving_when_upstairs_route_is_unknown(self):
         grids = {
             Position(10, 10): grid(10, 10),
-            Position(10, 11): grid(10, 11),
+            Position(10, 11): grid(10, 11, marked=False),  # shown away from the own light (37414d7d41)
         }
         for y in range(9, 12):
             for x in range(9, 13):
@@ -4392,7 +4404,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             Position(29, 5): grid(29, 5, open_door=True),
             Position(30, 5): grid(30, 5),
             Position(31, 5): grid(31, 5, open_door=True),
-            Position(32, 5): grid(32, 5),
+            Position(32, 5): grid(32, 5, marked=False),  # shown away from the own light (37414d7d41)
         }
         for y in range(28, 34):
             for x in range(4, 7):
@@ -7785,7 +7797,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             {Position(10, 10): grid(10, 10)},
             [],
             inventory=[target, star_scroll],
-            equipment=[self._lantern()],
+            equipment=[self._lantern(), _worn_plain_weapon()],
         )
         policy = HengbotPolicy()
         policy._home_pending_item = policy._item_signature(target)
@@ -8083,7 +8095,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             {Position(10, 10): grid(10, 10)},
             [],
             inventory=[lance, star_scroll],
-            equipment=[self._lantern()],
+            equipment=[self._lantern(), _worn_plain_weapon()],
             floor_key=(0, 0, 0),
             town_flag=True,
         )
@@ -8115,7 +8127,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             {Position(10, 10): grid(10, 10)},
             [],
             inventory=[target, shifted_into_old_slot, star_scroll],
-            equipment=[self._lantern()],
+            equipment=[self._lantern(), _worn_plain_weapon()],
         )
         policy = HengbotPolicy()
         policy._home_pending_item = unknown_signature
@@ -9395,13 +9407,16 @@ class TownRecallReturnTest(unittest.TestCase):
         pol, snap = self._ready_town(
             8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
         )
+        # DECLARED CONSTRUCTED: as in the next test, the sheet is read.
+        snap = replace(snap, equipment_observed=True, player=replace(
+            snap.player, stat_index=(18, 18, 18, 18, 18, 18)))
         conjuncts = pol._recall_town_departure_conjuncts(snap)
         conjuncts["light_ready"] = False
-        pol._recall_town_departure_conjuncts = lambda _snapshot: dict(conjuncts)
+        pol._recall_town_departure_conjuncts = lambda _snapshot, **_kwargs: dict(conjuncts)
 
         with patch.object(pol, "_town_claims_active", return_value=False):
             self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
-        self.assertEqual(pol.last_reason, "town:blocked:departure-unsatisfiable")
+        self.assertEqual(pol.last_reason, "town:blocked:unmet:light_ready")
         self.assertEqual(pol._town_wander_streak, 0)
         block = pol.departure_block_state()
         self.assertEqual(block["gate"], "town_departure_ready")
@@ -9434,6 +9449,11 @@ class TownRecallReturnTest(unittest.TestCase):
                 current, current_snap = self._ready_town(
                     8, DUNGEON_ANGBAND, DUNGEON_ANGBAND, angband_unlocked=True
                 )
+                # DECLARED CONSTRUCTED: the sheet's stats: an unread strength leaves
+                # the departure minimum's weight leaf unknown, a stop of its own.
+                current_snap = replace(
+                    current_snap, equipment_observed=True, player=replace(
+                        current_snap.player, stat_index=(18, 18, 18, 18, 18, 18)))
                 current._recall_town_departure_conjuncts = (
                     lambda _snapshot, values=candidate, **_kwargs: dict(values)
                 )
@@ -9442,9 +9462,15 @@ class TownRecallReturnTest(unittest.TestCase):
                 if failed_leaf == "recall_departure_ready":
                     self.assertEqual(key, "R300\r")
                     self.assertEqual(current.last_reason, "town:wait-restock:temple")
+                elif failed_leaf == "spare_gear_stowed":
+                    # Spare gear no owner shelved waits for the next visit, never a stop
+                    # (town_terminal.gather_town_end).
+                    self.assertEqual(key, "rra")
                 else:
                     self.assertEqual(key, WAIT_KEY)
-                    self.assertEqual(current.last_reason, "town:blocked:departure-unsatisfiable")
+                    # Owner 2026-11-02 「購入に関する問題以外は採掘せずに名前を付けて停止」:
+                    # the town end names the stop's condition.
+                    self.assertEqual(current.last_reason, f"town:blocked:unmet:{failed_leaf}")
                 block = current.departure_block_state()
                 self.assertEqual(block["values"], candidate)
                 self.assertEqual(block["failed"], [failed_leaf])
@@ -9777,7 +9803,7 @@ class TownRecallReturnTest(unittest.TestCase):
         pol._morivant_full_identify = policy_module.MorivantFullIdentifyExpedition(
             0, tuple(pol._item_signature(target) for target in targets)
         )
-        dismiss = policy_module.FULL_IDENTIFY_DISMISS_SUFFIX
+        dismiss = BUILDING_IDENTIFY_DISMISS_SUFFIX  # D34 6dbe548956
         with patch.object(pol, "_nearest_goal_step", return_value=Position(10, 11)):
             self.assertEqual(
                 pol._morivant_full_identify_key(snap),
@@ -10116,7 +10142,8 @@ class TownRecallReturnTest(unittest.TestCase):
             {Position(10, 10): here}, [],
             floor_key=(DUNGEON_YEEK_CAVE, depth, 0), quests={14: quest},
             entered_dungeon_ids=(DUNGEON_YEEK_CAVE,),
-            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT)],
+            # Five: below them the floor's lock is released (owner 2026-11-01 「014 だけ広げる」).
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=5)],
         )
         pol = HengbotPolicy(quest_knowledge={14: info})
         pol._explore_step = lambda _snapshot: None
@@ -14838,6 +14865,8 @@ class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
             "_recall_town_departure_conjuncts",
             return_value={"recorded-ready-wall": True},
         ):
+            policy.choose_key(self.before)
+            self.assertEqual(policy.last_reason, "town:character-dump")  # the pre-dive dump
             key = policy.choose_key(self.before)
 
         self.assertFalse(str(key).startswith(READ_KEY))
@@ -15169,7 +15198,9 @@ class TownKillMobAlternationRecordedTest(unittest.TestCase):
             if any(not monster.pet for monster in snapshot.visible_monsters)
         ]
 
-        self.assertEqual(len(visible_reasons), 13)
+        # 15: two boards keep a monster whose cell the grid map does not export
+        # (6cce55f61a); the kill family owns them too.
+        self.assertEqual(len(visible_reasons), 15)
         self.assertTrue(
             all(
                 reason == "melee" or reason.startswith("town:kill-mob")
@@ -15520,7 +15551,8 @@ class TownWeightDepartureRecordedTest(unittest.TestCase):
     def test_r1_recorded_public_replay_posts_named_weight_owner(self):
         policy, decisions, _snapshot, _selected = self._replay()
 
-        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 5)
+        # 4: the cheap books are destroyed first now (owner 2026-11-02, 7efbc639f6).
+        self.assertEqual(policy._town_visit_ledger.unsatisfied_passes[STORE_HOME], 4)
         self.assertIn("home:weight-overload-deposit", {
             reason for _key, reason in decisions
         })
@@ -15529,7 +15561,8 @@ class TownWeightDepartureRecordedTest(unittest.TestCase):
         policy, decisions, snapshot, selected = self._replay()
 
         self.assertIsNotNone(selected)
-        self.assertEqual(decisions[84], ("dp\x1b", "home:weight-overload-deposit"))
+        # The gear waiting for identification goes with it (owner 2026-10-31, 38bcb0240d).
+        self.assertEqual(decisions[84], ("dqdpdodndmdl\x1b", "home:weight-overload-deposit"))
         self.assertTrue(selected.is_equipment)
         self.assertFalse(any(
             category in {"recall", "teleport", "cure-critical", "food"}

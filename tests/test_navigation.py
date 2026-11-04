@@ -1969,7 +1969,8 @@ class SurvivalGateTest(unittest.TestCase):
             width=40,
             height=40,
             quests={14: quest},
-            inventory=[item("t", SCROLL, SV_SCROLL_TELEPORT)],
+            # Five: below them the floor's lock is released (owner 2026-11-01 「014 だけ広げる」).
+            inventory=[item("t", SCROLL, SV_SCROLL_TELEPORT, count=5)],
         )
         policy = HengbotPolicy(quest_knowledge={14: info})
         policy.choose_key(snap)
