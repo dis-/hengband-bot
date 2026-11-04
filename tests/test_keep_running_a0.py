@@ -15,7 +15,7 @@ catalogue complete (DECLARED CONSTRUCTED, ``catalogued``).
 """
 import tests  # noqa: F401
 
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
 from dataclasses import replace
 import io
 import json
@@ -30,7 +30,7 @@ from unittest.mock import patch
 
 from hengbot import cli
 from hengbot.model import DUNGEON_YEEK_CAVE, Position, TVAL_POTION, SV_POTION_CURE_CRITICAL, TVAL_STAFF, SV_STAFF_IDENTIFY
-from hengbot.policy import HengbotPolicy, TR_NO_TELE
+from hengbot.policy import HengbotPolicy, REST_MACRO, TR_NO_TELE
 from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, READ_KEY, WAIT_KEY
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_town import VISIT_CLOSABLE_REASONS
@@ -40,6 +40,19 @@ from policy_fixtures import grid, item
 
 FIXTURES = Path(__file__).parent / "fixtures/keep-running-a0"
 BOARDS = sorted(FIXTURES.glob("*.state.jsonl.gz"))
+
+
+@contextmanager
+def attribute_set(owner, name, value):
+    """``name`` holds ``value`` for the block.  A plain set and restore: since
+    988422f930 a TownVisit field is a forwarding property, which ``patch.object``
+    cannot delete on the way out."""
+    saved = getattr(owner, name)
+    setattr(owner, name, value)
+    try:
+        yield
+    finally:
+        setattr(owner, name, saved)
 
 
 def ready_board():
@@ -107,7 +120,7 @@ class MinimumTest(unittest.TestCase):
             ("_store_buy_inflight", ("posted",), "store_transfer_clear"),
             ("_batch_sell_pending", ("posted",), "store_transfer_clear"),
         ):
-            with self.subTest(attribute=name), patch.object(policy, name, value):
+            with self.subTest(attribute=name), attribute_set(policy, name, value):
                 result = policy._departure_minimum(board, depth)
                 self.assertFalse(result["holds"])
                 self.assertIn(leaf, result["failed"])
@@ -280,10 +293,15 @@ class DepartureTest(unittest.TestCase):
             with patch.object(policy, "_departure_supplier_counterfactual", side_effect=AssertionError("release")), patch.object(
                     policy, "_shopping_approach_step", side_effect=AssertionError("required purchase")):
                 self.assertEqual(policy._decide(board), "rha")
+                # 98ee353d1b, owner 2026-10-31 (a condition lost after the commit is
+                # satisfied again, not waited out): the commitment hands back and
+                # town:recover rests; the cause stays so it is not forced twice.
                 refused = replace(board, player=replace(board.player, hp=1))
-                self.assertEqual(policy._decide(refused), WAIT_KEY)
-                self.assertEqual(policy._town_blocked_reason, "repetition")
-                self.assertEqual(policy._decide(board), "rha")
+                self.assertEqual(policy._decide(refused), REST_MACRO)
+                self.assertEqual(policy.last_reason, "town:recover")
+                self.assertIsNone(policy._visit_departure_committed)
+                self.assertIn("departure-unsatisfiable", policy._visit_departure_recorded)
+                self.assertIsNone(policy._town_blocked_reason)
                 self.assertEqual(len(self.records(root)), 1)
 
     def test_committed_recall_keeps_existing_hard_hazard_cancellation(self):
