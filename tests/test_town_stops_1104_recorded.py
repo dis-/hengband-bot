@@ -29,7 +29,10 @@ from hengbot.cli import (
 )
 from hengbot.model import Position, STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
+from hengbot.equipment_capacity import plan_equipment_transactions
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
+from hengbot.town_pack_budget import reserve_swap_slot
+from hengbot.town_terminal import gather_recall_departure, gather_town_end, verdict_town_end
 from hengbot.town_arrival_checkpoint import (
     JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST,
 )
@@ -257,7 +260,10 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         answer, so the decision is pinned without posting it.
         """
         self.publish_nothing()
-        with self.recorded_calibration("pack-unrelieved"):
+        # A swap the reserve still refuses (the one-for-one allowance is off here).
+        with (self.recorded_calibration("pack-unrelieved"),
+              mock.patch("hengbot.equipment_transaction_planner._one_for_one_home_swap",
+                         lambda _group: False)):
             policy, recorded, steps = self.replay("pack-unrelieved", 26)
             self.assertEqual(recorded[26]["reason"],
                              "town:blocked:unmet:equipment_departure_ready")
@@ -268,6 +274,119 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._town_blocked_reason)
         self.assertEqual(policy._equipment_optional_failure_pending["reason"],
                          "pack-space-unrelieved-current-loadout")
+
+    def swap_at_home(self):
+        """The 08:17 visit up to its Home page, where the session holds the swap."""
+        self.publish_nothing()
+        policy, _recorded, steps = self.load("pack-unrelieved")
+        replay_window("pack-unrelieved", policy, iter(steps[:13]))
+        return policy, steps[13][1]()
+
+    def test_home_swap_holds_one_reserve_slot_and_ends_on_the_same_count(self):
+        """n1-a life-477 08:17, the swap 1abbb1e49's visit could not make.
+
+        blockers pack-space-required:1 at 19 of 23 carried.  Owner 2026-11-04
+        「自宅の中だけ割ってよい」: take off, shelve, take, wear.
+
+        DECLARED CONSTRUCTED: the boards after the first posted key are the game's
+        answers, written from the recorded Home page.
+        """
+        with self.recorded_calibration("pack-unrelieved"):
+            policy, home = self.swap_at_home()
+            self.assertEqual(len(home.inventory), 19)
+            key = policy.choose_key(home)
+            self.assertEqual((key, policy.last_reason), ("th", "equipment-transaction:takeoff"))
+            policy.confirm_key_posted(key)
+            session = policy._equipment_transaction_session
+            self.assertTrue(session.plan.reserve_swap)
+            self.assertEqual([action.kind for action in session.plan.actions],
+                             ["takeoff", "deposit", "withdraw", "equip"])
+            worn = next(item for item in home.equipment if item.slot == "body")
+            target = next(owned.item for owned in policy._equipment_catalog.items
+                          if owned.id == session.plan.actions[2].item_id)
+            self.assertIn("resist_fire", policy._missing_required_abilities(home, 20))
+            self.assertIn("r火", target.name)
+
+            def next_board(previous, **fields):
+                return replace(previous, turn=previous.turn + 10, **fields)
+
+            without_body = [item for item in home.equipment if item.slot != "body"]
+            taken_off = next_board(home, equipment=without_body,
+                                   inventory=[*home.inventory, replace(worn, slot="t")])
+            key = policy.choose_key(taken_off)
+            self.assertEqual((key, policy.last_reason), ("dt", "equipment-transaction:deposit"))
+            self.assertEqual(23 - len(taken_off.inventory), 3)
+            policy.confirm_key_posted(key)
+            shelved = next_board(taken_off, inventory=list(home.inventory))
+            policy.confirm_key_posted(policy.choose_key(shelved))
+            outside = next_board(shelved, store=None)
+            key = policy.choose_key(outside)
+            self.assertEqual(policy.last_reason, "equipment-transaction:atomic-withdraw")
+            policy.confirm_key_posted(key)
+            carrying = next_board(outside, inventory=[*home.inventory, replace(target, slot="t")])
+            policy.confirm_key_posted(policy.choose_key(carrying))
+            at_page = next_board(carrying, store=home.store)
+            key = policy.choose_key(at_page)
+            self.assertEqual((key, policy.last_reason), ("wt", "equipment-transaction:equip"))
+            policy.confirm_key_posted(key)
+            worn_new = next_board(at_page, inventory=list(home.inventory),
+                                  equipment=[*without_body, replace(target, slot="body")])
+            policy.choose_key(worn_new)
+            self.assertEqual(23 - len(worn_new.inventory), 4)
+
+    def test_home_swap_refuses_a_plan_that_ends_on_another_count(self):
+        """Controls: a replacement from the pack ends one lower, a kept old item one
+        higher; neither is the one-for-one sequence, so the reserve holds."""
+        with self.recorded_calibration("pack-unrelieved"):
+            policy, home = self.swap_at_home()
+            policy.choose_key(home)
+            preparation = policy._equipment_optimization_preparation
+            catalog = list(policy._equipment_catalog.items)
+            current = preparation.current
+            target = preparation.result.best.loadout
+            carried = frozenset(owned.id for owned in catalog if owned.origin == "pack")
+            fair = plan_equipment_transactions(
+                catalog, current, target, current_pack_items=19, home_scan_complete=True,
+                preserve_pack_item_ids=carried)
+            self.assertTrue(fair.reserve_swap)
+            self.assertEqual(fair.blockers, ())
+            kept = plan_equipment_transactions(
+                catalog, current, target, current_pack_items=19, home_scan_complete=True,
+                preserve_pack_item_ids=carried,
+                retain_item_identities=frozenset({fair.actions[0].item_identity}))
+            self.assertFalse(kept.reserve_swap)
+            self.assertTrue(kept.blockers[0].startswith("pack-space-required:"))
+            new_item = next(owned for owned in catalog if owned.id == fair.actions[2].item_id)
+            from_pack = replace(new_item, origin="pack")
+            lower = plan_equipment_transactions(
+                [from_pack if owned is new_item else owned for owned in catalog],
+                current,
+                replace(target, slots=tuple((slot, from_pack if item.id == new_item.id else item)
+                                            for slot, item in target.slots)),
+                current_pack_items=19, home_scan_complete=True,
+                preserve_pack_item_ids=carried | {from_pack.id})
+            self.assertFalse(lower.reserve_swap)
+            self.assertTrue(lower.blockers[0].startswith("pack-space-required:"))
+
+    def test_home_swap_interrupted_with_the_old_item_carried_cannot_depart(self):
+        """An interrupted swap at 3 free slots: the session gone, the taken-off armor
+        in the pack.  The departure refuses the slots and the town end does not depart.
+
+        DECLARED CONSTRUCTED: the board after the takeoff, outside, session dropped.
+        """
+        with self.recorded_calibration("pack-unrelieved"):
+            policy, home = self.swap_at_home()
+            policy.confirm_key_posted(policy.choose_key(home))
+            worn = next(item for item in home.equipment if item.slot == "body")
+            carried = replace(
+                home, turn=home.turn + 10, store=None,
+                equipment=[item for item in home.equipment if item.slot != "body"],
+                inventory=[*home.inventory, replace(worn, slot="t")])
+            policy._set_equipment_transaction_session(None)
+            self.assertFalse(policy._town_pack_space_ready(carried))
+            self.assertIn("free_pack_slots_ready", gather_recall_departure(policy, carried).failed)
+            self.assertNotEqual(verdict_town_end(gather_town_end(policy, carried)).kind, "depart")
+            self.assertEqual(reserve_swap_slot(replace(worn, slot="t")), 0)
 
     def test_transaction_the_visit_closed_is_not_home_work_left(self):
         """n1-c life-129 13:18, town:blocked:unmet:equipment_departure_ready.

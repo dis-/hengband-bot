@@ -11,7 +11,7 @@ def plan_equipment_transactions(*args, **kwargs):
         # Empty plans and capacity relief remain legal above the budget.
         return plan
     return _plan(*args, pack_capacity=budget.PACK_CAPACITY - budget.MIN_TERMINAL_FREE_PACK_SLOTS,
-                 **kwargs)
+                 home_swap_reserve=1, **kwargs)
 
 
 def release_unaffordable_session(policy, snapshot):
@@ -29,7 +29,8 @@ def release_unaffordable_session(policy, snapshot):
         return
     item = next((item for item in snapshot.equipment
                  if item.slot == action.target_slot), None)
-    if item is None or budget.permits(snapshot, budget.incoming_slots(snapshot, item, item.count)):
+    if item is None or budget.permits(snapshot, budget.incoming_slots(snapshot, item, item.count),
+                                      reserve_used=budget.reserve_swap_slot(item)):
         return
     policy._release_claim_goal('equipment-capacity-replan', owners=('equipment-txn',))
     if (policy._store_visit is not None

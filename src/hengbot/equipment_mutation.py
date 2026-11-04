@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from hengbot.item_reservation import ReservationVerdict, standalone_verdict, checked_item_command
-from hengbot.town_pack_budget import incoming_slots, permits
+from hengbot.town_pack_budget import incoming_slots, permits, reserve_swap_slot
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -387,7 +387,7 @@ class EquipmentMutationExecutor:
         slot = _SLOT_BY_KEY.get(slot_key)
         item = _worn(snapshot, slot) or slot_key
         if getattr(snapshot, "in_town", False) and not permits(snapshot, incoming_slots(snapshot, item, item.count)
-                       if hasattr(item, "tval") else 1):
+                       if hasattr(item, "tval") else 1, reserve_used=reserve_swap_slot(item)):
             return EquipmentMutationResult(None, "town-pack-budget")
         if verdict is None:
             verdict = standalone_verdict("takeoff", item)
