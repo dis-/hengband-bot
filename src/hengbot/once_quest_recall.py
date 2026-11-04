@@ -63,6 +63,16 @@ def _quiet(policy, snapshot) -> bool:
     return not (_enemy_about(snapshot) or _hit_by_unseen(policy, snapshot))
 
 
+def below_scroll_floor(policy, snapshot, profile) -> bool | None:
+    """``abort_conditions.recall_below_teleports``: this count, not the HP line, decides
+    the recall (Q25, owner 2026-11-04 「テレポートで立て直すだけ」, and below 5 scrolls
+    Recall is read, the give-up point of a kill-all floor).  None: the plan names no count."""
+    floor = profile.abort_conditions.get("recall_below_teleports")
+    if floor is None:
+        return None
+    return policy._quest_named_item_count(snapshot, "required_scrolls", "teleport") < int(floor)
+
+
 def held(policy, snapshot) -> bool:
     """The ONCE quest floor keeps us: at any HP with no enemy about (the walk gate then
     drinks or rests), or above the strategy's HP line with an escape left."""
@@ -73,6 +83,8 @@ def held(policy, snapshot) -> bool:
     hold_line = None if profile is None else profile.abort_conditions.get("hp_ratio")
     if hold_line is None or _deliberate_leave(policy, snapshot):
         return False
+    if below_scroll_floor(policy, snapshot, profile) is not None:
+        return _quiet(policy, snapshot) or not below_scroll_floor(policy, snapshot, profile)
     return _quiet(policy, snapshot) or (
         snapshot.player.hp_ratio > float(hold_line)
         and (policy._escape_scroll(snapshot) is not None

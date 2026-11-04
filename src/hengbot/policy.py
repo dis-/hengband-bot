@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -6957,7 +6957,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             return key
         target = self._walk_step_target(snapshot, key)
-        if target is None or quest_find_exit.planned_step(self, snapshot):
+        if target is None or quest_find_exit.planned_step(self, snapshot) or quest_room_sweep.planned_step(self, snapshot):
             return key
         active, low = self._low_hp_walk_gate_active(snapshot)
         if not active:
@@ -7408,6 +7408,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             "quest_find_exit.key", lambda: quest_find_exit.key(self, snapshot), family="quest-request")
         if find_exit is not None:
             return find_exit
+        room_sweep = self._town_producer_entry(
+            "quest_room_sweep.key", lambda: quest_room_sweep.key(self, snapshot), family="quest-request")
+        if room_sweep is not None:
+            return room_sweep
 
         # 0. Emergency consumables (teleport out / heal up / eat before fainting).
         # Emergency material-threat spending deliberately stays strategic. A
@@ -14263,6 +14267,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
             "resists": {"ready": resists_ready, "required": list(force.get("resists", ()))},
         }
+        if "ranged" in force:
+            details["ranged"] = quest_ranged_force.details(self, snapshot, force)
         if dps != melee_dps:
             details["melee_dps"] = melee_dps
         lit_torch = carry_status.get("throwing_items.lit_torch")
@@ -14294,6 +14300,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 ("speed_potions", speed_count >= speed_required),
                 ("heal_potions", healing >= int(force.get("heal_potions", 0))),
                 ("absorbed_speed_charges", not force.get(quest_force_rows.ABSORBED_SHORT)),
+                ("ranged", quest_ranged_force.ready(self, snapshot, force)),
             ) if not ready
         ]
         return not details["failed"]

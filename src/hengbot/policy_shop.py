@@ -183,7 +183,7 @@ class ShopMixin(InStoreMixin):
             SV_SCROLL_WORD_OF_RECALL,
             TVAL_FLASK,
         )
-        from hengbot.policy_constants import QUEST_AMMO_TVALS, QUEST_SCROLL_SVALS
+        from hengbot.policy_constants import QUEST_AMMO_TVALS, QUEST_POTION_SVALS, QUEST_SCROLL_SVALS
         from hengbot.policy_constants import (
             MANA_FOOD_CHARGE_TARGET,
             MANA_FOOD_DEVICE_TARGET,
@@ -240,6 +240,9 @@ class ShopMixin(InStoreMixin):
             if category.startswith("required_scrolls."):
                 sval = QUEST_SCROLL_SVALS.get(category.partition(".")[2])
                 return ((TVAL_SCROLL, sval),) if sval is not None else None
+            if category.startswith("required_potions."):
+                sval = QUEST_POTION_SVALS.get(category.partition(".")[2])
+                return ((TVAL_POTION, sval),) if sval is not None else None
             if category == "food":
                 if snapshot.player.food_type == FOOD_TYPE_MANA:
                     return tuple(
@@ -256,7 +259,7 @@ class ShopMixin(InStoreMixin):
                 return tuple(kind for kind in baseitem_costs if kind[0] == TVAL_BOW)
             if category.startswith("quest-carry:throwing_items."):
                 return base_kinds(category.removeprefix("quest-carry:"))
-            if category.startswith("quest-carry:required_scrolls."):
+            if category.startswith(("quest-carry:required_scrolls.", "quest-carry:required_potions.")):
                 return base_kinds(category.removeprefix("quest-carry:"))
             if category == "quest-carry:utility_tools.wall_breach":
                 return base_kinds("utility_tools.wall_breach")

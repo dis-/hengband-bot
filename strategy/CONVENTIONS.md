@@ -24,6 +24,10 @@
 
 出口を踏むと達成する FIND_EXIT 型は `engagement_plan.find_exit` に `choke_cells`、`choke_hold_turns`（来る敵のいない待ちの上限）、`choke_enemy_wait_turns`（見えたまま接触しない敵を待つ上限）、`rest_below_ratio`、`exposure_races`、`dig_cells`、`dig_attempt_limit`、`clear_turn_limit` を書き、`sealed_races` に経路の届かない敵を書く（`quest_find_exit.py`）。
 
+全滅が達成条件の階を部屋ごとに歩く型は `engagement_plan.room_sweep` に `stands`（順に歩くマス、任意で `meet_turns`）、`last_targets`（`race`、`cell`、`door`、`stand`。ほかを歩き終えてから扉を開けて撃つ）、`line_races`（直接の射線を避ける動かない術者）、`enemy_wait_turns`、`rest_below_ratio`、`max_rounds` を書く（`quest_room_sweep.py`）。`abort_conditions.recall_below_teleports` は、HP の線の代わりにテレポートの巻物の残りで帰還を決めることを表す（敵がいる時だけ読む）。
+
+`required_force.ranged` は遠距離の要件で、`shot_average`、`ammo`、`turn_average`、任意で `device_classes` と `reference_race` を持つ。行は `ranged_turn_average` で1ターンの値を上書きできる。読み方は `quest_ranged_force.py` の1か所だけ（矢弾の名前に出る /shot と /turn を読み、`device_classes` の職業は基準の敵への期待ダメージが `shot_average` 以上の魔道具を1回1発で数える）。`required_force.required_potions` は持参する薬の個数（`restore_exp`、`restore_str`）。
+
 ## 回復薬なし段階
 
 これは「戦術を維持したまま運だけが最悪」の段階であり、戦術崩壊の価格ではない。地形、隘路、距離管理は維持される一方、敵の命中率は 100%、ダメージダイスは最大、遠隔軟化は 0 とする。各敵の撃破ターンはその段階の `min_expected_dps` による遅い側の整数切上げで求め、その間の最大被害が RAW HP の 50% に収まる `min_hp` とする。戦術崩壊は `abort_conditions` と緊急解除に任せる。段階値が通常の拘束ゲートの十倍以上に膨らむ場合は、戦術失敗を混入していないか再検討する。
