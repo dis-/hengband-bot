@@ -420,6 +420,7 @@ class PlayerState:
     # source are retained so an all-false map remains distinguishable from the
     # legacy flat boolean format.
     ability_sources: Mapping[str, frozenset[str]] = field(default_factory=AbilitySources)
+    immunities: frozenset[str] = frozenset()  # elements whose damage cannot touch the player
     # Six natural values, before equipment pval.  None under protocol 3,
     # which no longer exports the raw value (not printed, not derivable).
     stat_cur: tuple[int, ...] | None = ()
@@ -1147,6 +1148,10 @@ def parse_snapshot(
         drained_stats=drained_stats,
         abilities=abilities,
         ability_sources=AbilitySources(ability_sources),
+        immunities=frozenset(
+            element for element, sources in player_data.get("immunities", {}).items()
+            if isinstance(sources, dict) and any(_as_bool(granted) for granted in sources.values())
+        ),
         stat_cur=stat_cur,
         stat_max=stat_max,
         stat_use=stat_use,

@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
-from hengbot import combat_answer, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
+from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
@@ -1255,6 +1255,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         dungeon_knowledge: "dict[int, DungeonInfo] | None" = None,
         monrace_knowledge: "dict[int, MonraceKnowledge] | None" = None,
         damaging_terrain_ids: frozenset[int] | None = None,
+        damaging_terrain_elements: dict[int, str] | None = None,
         quest_knowledge: "dict[int, QuestInfo] | None" = None,
         quest_strategies: "dict[int, StrategyProfile] | None" = None,
         home_disposal_state: HomeDisposalState | None = None,
@@ -1275,6 +1276,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._dungeon_knowledge = dungeon_knowledge or {}
         self._monrace_knowledge = monrace_knowledge or {}
         self._damaging_terrain_ids = damaging_terrain_ids or frozenset()
+        self._damaging_terrain_elements = damaging_terrain_elements or {}
         self._quest_knowledge = quest_knowledge or {}
         self._quest_strategies = quest_strategies or {}
         self._baseitem_costs = dict(baseitem_costs or {})
@@ -4915,9 +4917,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._town_travel_state = None
                 # Short native travel ended outside Home. Keep the phase's
                 # producer responsible for composing and declaring its retry.
-                step = self._shopping_approach_step(
-                    snapshot, posted_entry_owner, router_plan_stop=True
-                )
+                # A town fight is survival (owner 2026-10-31): a hostile beside
+                # the player is fought on this board, not walked past for one.
+                step = None if town_last_stand.fights_beside(self, snapshot) else (
+                    self._shopping_approach_step(
+                        snapshot, posted_entry_owner, router_plan_stop=True
+                    ))
                 if step is not None:
                     self.last_reason = "store:entry-interrupted-replan"
                     return self._shopping_approach_key(
@@ -7035,6 +7040,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self.last_reason = "emergency:wait"
         return WAIT_KEY
 
+    @damaging_ground.leave_first
     def _decide(self, snapshot: Snapshot) -> str:
         self._evaluate_cross_decision_latches(snapshot)
         # A0 hands this visit to repetition. Pre-empt optional enchants and

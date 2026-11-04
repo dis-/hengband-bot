@@ -51,3 +51,16 @@ def key(policy, snapshot, hostiles, reason: str) -> str | None:
     if monster is None:
         return None
     return combat_answer.strike_key(policy, snapshot, monster, reason)
+
+
+def fights_beside(policy, snapshot) -> bool:
+    """A hostile beside the player that the town-fight rules fight: one the character
+    can beat (the hunt's own test), or any attacker when nothing else is carried.
+    A friendly is no hostile here, so 「勝てない時は攻撃しない」 is untouched."""
+    player = snapshot.player
+    adjacent = [monster for monster in snapshot.visible_monsters
+                if monster.hostile and not monster.pet
+                and player.position.distance_to(monster.position) <= 1]
+    return bool(adjacent) and (
+        any(not policy._town_monster_unbeatable(snapshot, monster) for monster in adjacent)
+        or target(policy, snapshot, adjacent) is not None)
