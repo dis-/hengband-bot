@@ -6152,6 +6152,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # USER DECISION 2026-10-03 06:2x: Speed at a strong fight's start, in
         # place of the fighting action only.
         key = self._strong_fight_speed_filter(snapshot, key)
+        # Class 16's absorbed Speed in place of an attack (me_powers FIGHT).
+        key = me_powers.fight_key(self, snapshot, key)
         # Bookkeeping is a separate, higher rung: save and dump may replace
         # the selected key under their safe-filler predicates. The result
         # detector excludes their family from town errand judgement.

@@ -59,6 +59,10 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    for the hunted race shown nowhere; a row casts only when its effect reveals
    that race (hunt_target.REVEALS), so Detect Evil searches for an EVIL target
    and the rod for any.  hunt_target.route_key then walks to the shown cell.
+ - スピード (staff 22): set_acceleration, 16-45 turns (speed_dose).  Owner 2026-11-04
+   「魔道具術師　取り込んだスピードが残10回以上なら、特にピンチでなくても戦闘時加速する」
+   「成功率8割以上のときに限定して」: ``fight_key`` asks the FIGHT occasion in place of a
+   decided attack on an awake hostile (attack_answer), after every survival rung.
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -101,10 +105,11 @@ from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
     SV_STAFF_LITE, SV_STAFF_MAPPING,
 )
-from hengbot import hunt_target, me_capability, me_ranged_first
+from hengbot import attack_answer, hunt_target, me_capability, me_ranged_first
 from hengbot.me_device_policy import devices
 from hengbot.model import (
-    SV_ROD_DETECTION, SV_ROD_DISARMING, SV_ROD_TELEPORT_AWAY, SV_WAND_DISARMING, SV_WAND_TELEPORT_AWAY,
+    SV_ROD_DETECTION, SV_ROD_DISARMING, SV_ROD_TELEPORT_AWAY, SV_STAFF_SPEED, SV_WAND_DISARMING,
+    SV_WAND_TELEPORT_AWAY,
     SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_WAND, Position, game_distance,
 )
 from hengbot.policy_constants import DIRECTION_KEYS, MONSTER_SPELL_MAX_RANGE
@@ -122,6 +127,7 @@ SECRET_SEARCH = "secret-search"
 TRAP = "trap"            # asked with the trap the bot would disarm
 THREAT = "threat"        # asked with each visible hostile (threat_key)
 QUEST_OPENING = "quest-opening"  # asked with a quest plan's opening target (quest_opening_away)
+FIGHT = "fight"          # asked in place of a decided attack (fight_key)
 MAP_AREA = "map-area"    # the effect whose area mapped_area reads
 
 DETECT_RAD = 30          # spell/spells-util.h DETECT_RAD_DEFAULT / DETECT_RAD_MAP
@@ -133,6 +139,12 @@ OPEN_SPACE_NEIGHBOURS = 5
 # Failed casts of one power for one trigger at one place before it is given
 # up there (owner 2026-10-31 「最大5回まで同じ場所で試す」).
 FAILURES_PER_PLACE = 5
+# Owner 2026-11-04 「残10回以上」: the Speed row's charges.
+FIGHT_SPEED_MIN_CHARGES = 10
+# cmd-usestaff.cpp set_acceleration(randint1(30) + 15), one tick per 10 game turns:
+# the shortest haste, for the boards whose speed field cannot show it (at +0 it is
+# blank, _player_hasted).
+HASTE_MIN_GAME_TURNS = 160
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
 
 # cmd-magiceat.cpp: the kind question ([A] staff, [B] wand, [C] rod) and the
@@ -226,6 +238,10 @@ POWERS = (
           "teleport-away", 0, 71, ("unbeatable-in-range", "quest-opening-target"),
           darkness_scaled=False,
           aimed=True, against_hostile=True),
+    Power("staff", SV_STAFF_SPEED, me_capability.names("staff", SV_STAFF_SPEED),
+          "speed", 0, 80, ("fight-unhasted",),
+          requires=("fight-speed-charges", "speed-reliable"),
+          darkness_scaled=False, against_hostile=True),
 )
 BY_KEY = {power.ident: power for power in POWERS}
 
@@ -485,6 +501,12 @@ def _unbeatable_in_range(ctx, power):
         damage_against=lambda each: me_ranged_first.best_expected(policy, ctx.snapshot, each))
 
 
+def _fight_unhasted(ctx, power):
+    """Not hasted (the speed field), and no landed cast's shortest haste still runs."""
+    return not ctx.policy._player_hasted(ctx.snapshot) and all(
+        ctx.snapshot.turn - use.turn >= HASTE_MIN_GAME_TURNS for use in ctx.uses_of(power))
+
+
 @dataclass(frozen=True)
 class Trigger:
     name: str
@@ -505,11 +527,16 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
     Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
+    Trigger("fight-unhasted", frozenset({FIGHT}), _fight_unhasted),
 )}
 
 REQUIREMENTS = {
     # Never in a DARKNESS dungeon (lite_area does nothing); unknown is not proof.
     "not-darkness-dungeon": lambda ctx: ctx.darkness() is False,
+    "fight-speed-charges": lambda ctx: me_capability.charges(
+        ctx.policy, ctx.snapshot, "staff", SV_STAFF_SPEED) >= FIGHT_SPEED_MIN_CHARGES,
+    "speed-reliable": lambda ctx: me_capability.reliable(
+        ctx.policy, ctx.snapshot, ("staff", SV_STAFF_SPEED)),
 }
 
 
@@ -658,6 +685,14 @@ def threat_key(policy, snapshot) -> str | None:
         if (key := power_key(policy, snapshot, THREAT, monster.position)) is not None:
             return key
     return None
+
+
+def fight_key(policy, snapshot, key: str | None) -> str | None:
+    """The FIGHT occasion's power in place of a decided attack, else ``key``."""
+    if (key is None or not _gate(policy, snapshot)
+            or not attack_answer.attacks_awake_hostile(policy, snapshot, key)):
+        return key
+    return power_key(policy, snapshot, FIGHT) or key
 
 
 def mapped_areas(policy, snapshot) -> tuple:
