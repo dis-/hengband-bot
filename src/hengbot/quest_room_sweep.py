@@ -6,7 +6,11 @@ The data (QUEST_25 gives the reasons of its cells):
    ``read_light`` lights the room from there, once a round, enemy or none (the shared
    ``_quest_light_key``: a Scroll of Light, or class 16's absorbed Light as on Q2);
  * ``last_targets``: what is left until every stand has been walked, each with its
-   ``race``, ``cell``, closed ``door`` and the ``stand`` that opens the door and shoots;
+   ``race``, ``cell``, the ``stand`` it is shot from and the closed ``door``, if any, that
+   the stand opens first;
+ * ``left_alone_races``: last targets that are no target at all until the walk reaches their
+   first stop: seen, they get no shot, no walk, no wait, and rest goes on (a teleport away
+   is walked back from like any other);
  * ``line_races``: never-moving casters whose direct line every walk crosses as little
    as it can, and on which nobody rests or waits by choice (Q18's first fights, 2026-11-04:
    n1-a died standing on a cell under fire);
@@ -38,7 +42,8 @@ line to the player's own cell (mspell-attack.cpp check_thrown_mspell lists both 
 refusals; decide_lite_projection): quest_exposure's ``pull`` map is that line.  The player's
 shot needs the player's line and a monster he sees (target_able).  ``quest_exposure`` shows
 no cell on Q25 that has the player's line to a quylthulg without its line back, so the quyls
-are shot from in their line and first of all, walking in by the cells with the fewest lines.
+are shot from in their line, and every walk crosses the fewest lines.  Owner 2026-11-05
+「クイルスルグは放置しても問題ないし、簡単には倒せないので最後ドルジの前に処理する」.
 
 A cell the weapon warning refused (warning.cpp process_warning; the latch is the policy's) is
 no step while a movement scroll remains (owner: 物資が全て尽きている場合のみ徒歩強行を許す).
@@ -110,15 +115,25 @@ def _door_is_closed(snapshot, cell: tuple[int, int]) -> bool:
     return grid is None or not grid.known or grid.is_closed_door
 
 
+def _left_alone_races(navigator, plan) -> frozenset:
+    """The ``left_alone_races`` whose first stop the walk has not reached yet."""
+    reached = {stop.get("race") for stop in _stops(plan)[:navigator.sweep_stage + 1]}
+    return frozenset(plan.get("left_alone_races", ())) - reached
+
+
 class _Board:
     """The enemies of one board, as this plan weighs them."""
 
-    def __init__(self, policy, snapshot, profile):
+    def __init__(self, policy, snapshot, profile, navigator, plan):
         position = snapshot.player.position
         known = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
                  if monster.hostile]
+        seen = [monster for monster in known if monster.perception != "detected"]
+        left_alone = _left_alone_races(navigator, plan)
+        self.left_alone = [monster for monster in seen if monster.race_id in left_alone]
+        self.occupied = {monster.position for monster in seen}
         self.in_view = sorted(
-            (monster for monster in known if monster.perception != "detected"),
+            (monster for monster in seen if monster.race_id not in left_alone),
             key=lambda monster: quest_find_exit._rank(profile, monster))
         self.beside = [monster for monster in self.in_view
                        if monster.position.distance_to(position) <= 1]
@@ -333,9 +348,9 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         navigator.sweep_enemy_turns += 1
         policy.last_reason = HOLD_REASON
         return WAIT_KEY
-    if not board.in_view:
+    if not board.in_view and not board.left_alone:
         return None  # hit by the unseen: unseen_strike and the shared ladders answer it
-    occupied = {monster.position for monster in board.in_view}
+    occupied = board.occupied
     still = next((monster for monster in board.in_view
                   if quest_find_exit._never_moves(policy, monster)), None)
     if still is not None:
@@ -385,8 +400,7 @@ def _leave_by_exit(policy, snapshot, navigator, plan, board) -> str | None:
     if snapshot.player.position == goal:
         policy.last_reason = EXIT_REASON
         return UP_STAIRS_KEY
-    occupied = {monster.position for monster in board.in_view}
-    path = _path(policy, navigator, plan, snapshot, {goal}, occupied)
+    path = _path(policy, navigator, plan, snapshot, {goal}, board.occupied)
     if len(path) - 1 > ITEM_DESTROYING_BREEDER_STAIR_DISTANCE:
         return None
     return _step(policy, snapshot, path, EXIT_WALK_REASON)
@@ -424,13 +438,15 @@ def key(policy, snapshot) -> str | None:
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
     _note_gone(policy, snapshot, navigator, plan)
-    board = _Board(policy, snapshot, profile)
+    board = _Board(policy, snapshot, profile, navigator, plan)
     if not board.enemy:
         navigator.sweep_enemy_turns = 0
         return (
             _restore(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
             or quest_find_exit._rest(policy, snapshot, plan, board)
+            # The shared ladders below would fight what is seen: the walk answers it here.
+            or (_advance(policy, snapshot, navigator, plan, board.occupied) if board.left_alone else None)
         )
     return (
         quest_find_exit._cure(policy, snapshot)

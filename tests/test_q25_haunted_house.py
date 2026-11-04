@@ -63,6 +63,8 @@ FULL_HP = 800
 DIRECTION = {(-1, -1): "7", (-1, 0): "8", (-1, 1): "9", (0, -1): "4", (0, 1): "6",
              (1, -1): "1", (1, 0): "2", (1, 1): "3"}
 LAST_STOP = len(PLAN["stands"])
+QUYL_STOP = LAST_STOP + 1
+DRUJ_STOP = LAST_STOP + 3
 
 
 def _terrain_key(glyph: str) -> str:
@@ -203,15 +205,30 @@ class Q25MapFactsTest(unittest.TestCase):
         for stop in PLAN["stands"]:
             self.assertEqual(self.TERRAIN[tuple(stop["cell"])], "floor", stop)
         for stop in PLAN["last_targets"]:
-            self.assertEqual(self.TERRAIN[tuple(stop["door"])], "door", stop)
+            if "door" in stop:
+                self.assertEqual(self.TERRAIN[tuple(stop["door"])], "door", stop)
             self.assertEqual(self.TERRAIN[tuple(stop["stand"])], "floor", stop)
 
     def test_the_hall_stands_reach_their_targets_within_a_radius_2_light(self):
-        for stand, targets in (((7, 8), ((9, 8), (9, 9))), ((8, 15), ((7, 17), (8, 17), (9, 17), (9, 13)))):
+        for stand, targets in (((7, 8), ((9, 8),)), ((8, 15), ((7, 17), (8, 17), (9, 17)))):
             self.assertIn({"cell": list(stand)}, PLAN["stands"])
             for target in targets:
                 self.assertLessEqual(quest_exposure.game_distance(stand, target), 2)
                 self.assertTrue(quest_exposure.projectable(self.TERRAIN, stand, target))
+
+    def test_the_quyl_stand_is_dry_and_reaches_both_within_a_radius_2_light(self):
+        stops = [stop for stop in PLAN["last_targets"] if stop["race"] == QUYL]
+        self.assertEqual([tuple(stop["cell"]) for stop in stops], [(9, 9), (9, 13)])
+        for stop in stops:
+            stand, quyl = tuple(stop["stand"]), tuple(stop["cell"])
+            self.assertEqual(self.TERRAIN[stand], "floor")
+            self.assertLessEqual(quest_exposure.game_distance(stand, quyl), 2)
+            self.assertTrue(quest_exposure.projectable(self.TERRAIN, stand, quyl))
+            self.assertEqual(stand[0], quyl[0])  # on the ray: a shot with no target-failure limit
+
+    def test_the_end_of_the_walk_is_the_stair_the_quyls_and_the_druj(self):
+        self.assertEqual([stop["race"] for stop in PLAN["last_targets"]], [STAIR, QUYL, QUYL, DRUJ])
+        self.assertEqual(tuple(STRATEGIES[25].priority_targets[-3:]), (STAIR, QUYL, DRUJ))
 
     def test_no_dry_cell_has_the_players_line_to_a_quyl_without_its_line_back(self):
         """So the quyls cannot be shot out of their line on this map."""
@@ -258,6 +275,8 @@ class Q25WalkTest(unittest.TestCase):
         order = [visited.index(tuple(stop["cell"])) for stop in PLAN["stands"]]
         self.assertEqual(order, sorted(order))
         self.assertEqual(opened[-2:], [(13, 28), (11, 19)])
+        tail = visited[visited.index((13, 27)):]
+        self.assertLess(tail.index((9, 11)), tail.index((11, 20)))
         self.assertEqual(lit, [(5, 3)])
         self.assertNotIn((11, 19), visited)
         self.assertNotIn((13, 1), visited)  # never back on the stair
@@ -293,7 +312,7 @@ class Q25WalkTest(unittest.TestCase):
 
 class Q25DrujLastTest(unittest.TestCase):
     STAND, DOOR, CELL = (11, 20), (11, 19), (11, 18)
-    STAGE = LAST_STOP + 1
+    STAGE = DRUJ_STOP
 
     def test_the_stand_is_walked_to_and_the_door_opened_only_at_its_stage(self):
         key, reason, _ = decide(board(self.STAND), stage=self.STAGE)
@@ -347,11 +366,11 @@ class Q25DrujLastTest(unittest.TestCase):
 
 
 class Q25TargetOrderTest(unittest.TestCase):
-    def test_a_quyl_in_view_is_shot_before_the_tome(self):
+    def test_the_tome_is_shot_with_a_quyl_nearer_and_in_view(self):
         raw = board((7, 9), monsters=[monster(TOME, 9, 7), monster(QUYL, 9, 9)])
         key, reason, _ = decide(raw)
         self.assertTrue(reason.startswith("ranged:"), reason)
-        self.assertTrue(key.endswith("2"), key)  # south at the quyl; the tome is on the diagonal
+        self.assertTrue(key.endswith("1"), key)  # at the tome on the diagonal; the quyl is south
 
     def test_control_with_no_quyl_the_tome_is_shot(self):
         raw = board((7, 9), monsters=[monster(TOME, 9, 7)])
@@ -380,6 +399,136 @@ class Q25TargetOrderTest(unittest.TestCase):
         raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in {16, 17, 18}]
         key, reason, _ = decide(raw)
         self.assertEqual(reason, APPROACH_REASON)
+
+
+class Q25QuylLastTest(unittest.TestCase):
+    """Owner 2026-11-05: 「クイルスルグは放置しても問題ないし、簡単には倒せないので最後ドルジの前に処理する」."""
+
+    HALL = (7, 11)
+    STAND = (9, 11)
+    QUYLS = ((9, 9), (9, 13))
+
+    def seen(self, position=HALL, **kwargs):
+        return board(position, speed=0, monsters=[monster(QUYL, *cell, index=480 + index)
+                                                  for index, cell in enumerate(self.QUYLS)], **kwargs)
+
+    def test_mid_sweep_a_seen_quyl_gets_no_shot_and_the_walk_goes_on(self):
+        key, reason, policy = decide(self.seen(), stage=4)  # to [7,8]
+        self.assertEqual((key, reason), ("7", WALK_REASON))
+        self.assertEqual(navigator_of(policy).sweep_enemy_turns, 0)
+
+    def test_control_at_the_quyls_stop_it_is_shot(self):
+        key, reason, _ = decide(self.seen(self.STAND), stage=QUYL_STOP)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertTrue(key.endswith(("4", "6")), key)
+
+    def test_control_the_stair_stop_still_leaves_it_alone(self):
+        _, reason, _ = decide(self.seen(), stage=QUYL_STOP - 1)
+        self.assertEqual(reason, WALK_REASON)
+
+    def test_with_no_shot_it_is_not_walked_up_to_before_its_stop(self):
+        raw = self.seen()
+        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in {16, 17, 18}]
+        _, reason, _ = decide(raw, stage=4)
+        self.assertEqual(reason, WALK_REASON)
+        _, reason, _ = decide(copy.deepcopy(raw), stage=QUYL_STOP)
+        self.assertEqual(reason, APPROACH_REASON)
+
+    def test_it_does_not_hold_a_stand_up_or_stop_the_rest(self):
+        key, reason, _ = decide(self.seen((5, 4), hp=300), stage=4)  # in a line: out of it first
+        self.assertEqual((key, reason), (step_key((5, 4), (5, 3)), WALK_REASON))
+        key, reason, _ = decide(board((5, 3), hp=300, monsters=[monster(QUYL, 9, 9)]), stage=4)
+        self.assertEqual((key, reason), (REST_MACRO, "rest"))
+
+    def test_below_the_scroll_floor_it_alone_is_no_enemy_for_the_recall(self):
+        _, reason, _ = decide(self.seen(teleports=4), stage=4)
+        self.assertEqual(reason, WALK_REASON)
+
+    def test_hit_by_the_unseen_with_only_a_quyl_in_view_it_is_not_shot(self):
+        raw = self.seen()
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 4)
+        choose(policy, raw)
+        raw["messages"] = ["何かがアイス・ボールの呪文を唱えた。"]  # recorded in the first real play
+        raw["player"]["hp"] -= 30
+        raw["turn"] += 10
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        # The shared rung that shoots a never-moving monster: the plan must not reach it.
+        with patch("hengbot.immobile_ranged_kill.key", return_value="SHOT"):
+            key = policy.choose_key(snapshot)
+        self.assertIsNotNone(policy._unseen_attack_evidence)
+        self.assertEqual((key, policy.last_reason), ("7", WALK_REASON))
+
+    def test_quiet_with_only_a_quyl_in_view_the_shared_rungs_are_not_reached(self):
+        raw = self.seen()
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 4)
+        with patch("hengbot.immobile_ranged_kill.key", return_value="SHOT"):
+            key = choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), ("7", WALK_REASON))
+
+    def test_a_coming_enemy_is_answered_as_if_the_quyl_were_not_there(self):
+        raw = self.seen()
+        raw["visible_monsters"].append(monster(SPECTRE, 7, 13))
+        key, reason, _ = decide(raw, stage=4)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertTrue(key.endswith("6"), key)
+
+    def test_teleported_away_at_its_stop_it_walks_back_with_no_limit(self):
+        raw = board((2, 25), speed=0)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, QUYL_STOP)
+        for attempt in range(60):  # far past any attempt count
+            raw["player"].update(y=1 + attempt % 3, x=20 + attempt % 10)
+            raw["visible_monsters"] = []
+            choose(policy, raw)
+            self.assertEqual(policy.last_reason, WALK_REASON)
+            raw["player"].update(y=self.STAND[0], x=self.STAND[1])
+            raw["visible_monsters"] = [monster(QUYL, *self.QUYLS[0])]
+            choose(policy, raw)
+            self.assertTrue(policy.last_reason.startswith("ranged:"), policy.last_reason)
+            self.assertEqual(navigator_of(policy).sweep_stage, QUYL_STOP)
+        self.assertEqual(navigator_of(policy).sweep_round, 0)
+
+    def test_dead_the_walk_goes_on_to_the_druj_and_no_round_is_spent(self):
+        raw = board(self.STAND, speed=0)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, QUYL_STOP)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertEqual(navigator_of(policy).sweep_stage, DRUJ_STOP)
+        self.assertEqual(navigator_of(policy).sweep_round, 0)
+        self.assertEqual(PLAN["last_targets"][-1]["race"], DRUJ)
+
+    def test_at_its_stop_something_else_in_view_goes_first(self):
+        raw = self.seen(self.STAND)
+        raw["visible_monsters"].append(monster(SPECTRE, 7, 11))
+        key, reason, _ = decide(raw, stage=QUYL_STOP)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertTrue(key.endswith("8"), key)
+
+    def test_a_blinked_quyl_on_the_way_is_walked_round_not_struck(self):
+        raw = board(self.HALL, speed=0, monsters=[monster(QUYL, 6, 10)])
+        key, reason, _ = decide(raw, stage=4)
+        self.assertEqual(reason, WALK_REASON)
+        self.assertEqual(key, "4")  # [7,10]; the free walk's own first step is [6,10]
+
+    def test_missing_it_goes_on_shooting_from_the_stand(self):
+        raw = board(self.STAND, speed=0, monsters=[monster(QUYL, *self.QUYLS[0])])
+        policy = new_policy(raw)
+        _set_stage(policy, raw, QUYL_STOP)
+        for _ in range(10):
+            self.assertTrue(choose(policy, raw).endswith("4"))
+            self.assertTrue(policy.last_reason.startswith("ranged:"), policy.last_reason)
+
+    def test_the_rounds_do_not_turn_while_they_are_left_alone(self):
+        raw = self.seen()
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 4)
+        for _ in range(30):
+            choose(policy, raw)
+        self.assertEqual(navigator_of(policy).sweep_round, 0)
+        self.assertEqual(navigator_of(policy).sweep_stage, 4)
 
 
 class Q25EmergencyTest(unittest.TestCase):
@@ -513,7 +662,7 @@ class Q25LightTest(unittest.TestCase):
         self.assertEqual(reason, TELEPORT_REASON)
 
     def test_a_lit_hall_is_shot_from_afar(self):
-        raw = board((5, 4), speed=0, monsters=[monster(QUYL, 9, 8, index=1)])
+        raw = board((5, 4), speed=0, monsters=[monster(TOME, 9, 8, index=1)])
         key, reason, _ = decide(raw, stage=self.STAGE + 1)
         self.assertTrue(reason.startswith("ranged:"), reason)
 
