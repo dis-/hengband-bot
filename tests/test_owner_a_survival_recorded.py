@@ -38,7 +38,9 @@ import copy
 import gzip
 import json
 from pathlib import Path
+from unittest import mock
 
+from hengbot import return_yield
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -82,8 +84,22 @@ class LatchedReturnBesideAHostileTest(SurvivalHarness):
         row = self.recorded("adjacent")[1712931]
         self.assertEqual((row["reason"], row["key"]), ("melee", "9"))
 
+    def test_quiet_latched_board_reads_recall_before_the_summoner_owner(self):
+        # Owner 2026-11-04 「視界内=攻撃を受ける範囲に起きた敵がいない」(67f4168579): the
+        # first latched board reads at once, ahead of the recorded avoidance.
+        policy, raw = self.replay(("latch", "adjacent"), 1712415)
+        self.assertEqual(self.recorded("latch")[1712415]["reason"],
+                         "explore:avoid-immobile-summoner")
+        self.assertEqual(decide(policy, raw), "rd")
+        self.assertEqual(policy.last_reason, "return:recall")
+
     def test_latched_return_reads_recall_beside_the_adjacent_hostile(self):
-        policy, raw = self.replay(("latch", "adjacent"), 1712931)
+        # DECLARED CONSTRUCTED: the quiet read above is held off so the replay
+        # keeps the recorded path to this board: the Recall still unread and
+        # the summoner remembered, which only its owner's rung records.
+        with mock.patch.object(return_yield, "quiet_recall_due", return_value=False):
+            policy, raw = self.replay(("latch", "adjacent"), 1712931)
+        self.assertTrue(policy._immobile_summoner_memory[1])
         board = parse_snapshot(raw, policy._monrace_knowledge)
         self.assertTrue(policy._returning_to_town)
         self.assertFalse(board.player.recalling)
