@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, quest_no_teleport, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, quest_force_rows, quest_no_teleport, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -14183,10 +14183,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
 
-    def _approved_strategy_force_ready(
-        self, snapshot: Snapshot, profile: StrategyProfile
-    ) -> bool:
-        force = self._strategy_force_for_snapshot(snapshot, profile)
+    def _strategy_measured_dps(self, snapshot: Snapshot, force: dict) -> float:
+        """The worn main weapon's expected damage at ``force``'s reference AC."""
         weapon = next((it for it in snapshot.equipment if it.slot == "main_hand"), None)
         # New strategy profiles must declare their target scale.  The fallback
         # preserves old third-party profiles without silently changing them.
@@ -14228,7 +14226,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             damage = (max(0.0, average_dice + snapshot.player.main_hand_to_d)
                       if snapshot.player.main_hand_to_d is not None else 0.0)
             dps = blows * chance * damage
-        dps = float(dps or 0.0)
+        return float(dps or 0.0)
+
+    def _approved_strategy_force_ready(
+        self, snapshot: Snapshot, profile: StrategyProfile
+    ) -> bool:
+        force = self._strategy_force_for_snapshot(snapshot, profile)
+        reference_ac = force_reference_ac(force)
+        dps = self._strategy_measured_dps(snapshot, force)
         # A class that fights this quest with thrown lit torches (QUEST_1
         # class 16) is measured by that output; melee is its fallback once
         # the carried torches are gone, never the gate (#47 n1-c life-058).
@@ -14282,14 +14287,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 ("dps", dps >= acceptance_dps_floor(force, snapshot.player.class_id)),
                 ("speed_potions", speed_count >= speed_required),
                 ("heal_potions", healing >= int(force.get("heal_potions", 0))),
+                ("absorbed_speed_charges", not force.get(quest_force_rows.ABSORBED_SHORT)),
             ) if not ready
         ]
-        return (
-            snapshot.player.max_hp >= acceptance_hp_floor(force, snapshot.player.class_id)
-            and dps >= acceptance_dps_floor(force, snapshot.player.class_id)
-            and speed_count >= speed_required
-            and healing >= int(force.get("heal_potions", 0))
-        )
+        return not details["failed"]
 
 
     @claims(ClaimOwner.QUEST_REQUEST)

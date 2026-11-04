@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import destruction_use, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, status_cure, summoner_wait, town_end_mining
+from hengbot import destruction_use, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, status_cure, summoner_wait, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -1386,7 +1386,8 @@ class ObservationMixin:
         2026-10-31 「Q1の要求値を下げ、受注可能にする」); False reads the full
         requirement the owner lowers from.
         """
-        force = self._strategy_force_unlowered(snapshot, profile)
+        force = quest_force_rows.resolve(
+            self, snapshot, self._strategy_force_unlowered(snapshot, profile))
         carry = getattr(self, "_quest_carry_lowered", None) if lowered else None
         if carry is not None and carry[0] == profile.quest_id:
             force = lower_carries(force, carry[1])
