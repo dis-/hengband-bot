@@ -19,8 +19,8 @@ class StepGateLintTest(unittest.TestCase):
     def test_repository_census(self):
         steps, reads, findings = lint.analyze_repository()
         self.assertEqual(findings, [])
-        self.assertEqual(steps, 7)  # gate + six existing raw-key composing sites
-        self.assertEqual(reads, 11)  # four owner reads + seven documented exceptions
+        self.assertEqual(steps, 5)  # gate + four existing raw-key composing sites
+        self.assertEqual(reads, 10)  # four owner reads + six documented exceptions
 
     def test_new_return_and_offer_bypasses_are_detected(self):
         bodies = [

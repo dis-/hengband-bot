@@ -16,6 +16,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, ProcurementHomeGate
 from hengbot.policy_calibration import CalibrationMixin
+from hengbot.town_visit import TownVisitAttributes
 from hengbot.policy_combat import CombatMixin
 from hengbot.policy_equipment import EquipmentMixin
 from hengbot.policy_fundraising import FundraisingMixin
@@ -121,6 +122,7 @@ class PolicyStructureTest(unittest.TestCase):
                 SupplyMixin,
                 TownMixin,
                 TownArbiterMixin,
+                TownVisitAttributes,
             },
         )
 

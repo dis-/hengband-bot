@@ -203,10 +203,10 @@ def _hits(snapshot, power, aim, blocks) -> dict:
     return _ball_cells(ray[-1] if ray else origin, radius, blocks, cells)
 
 
-def _damage(policy, snapshot, power, monster, r) -> float:
+def _damage(policy, snapshot, power, monster, distance) -> float:
     base = me_device_attacks.expected_damage(
         power, snapshot.player.level, me_device_attacks.race_flags(policy, monster))
-    return min((base + r) / (r + 1), max(monster.hp, 0))
+    return min((base + distance) / (distance + 1), max(monster.hp, 0))
 
 
 def _group_score(policy, snapshot, means, aim, blocks) -> float | None:

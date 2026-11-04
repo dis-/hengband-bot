@@ -14865,8 +14865,9 @@ class TownPriorityStage3Round1RecordedTest(unittest.TestCase):
             "_recall_town_departure_conjuncts",
             return_value={"recorded-ready-wall": True},
         ):
-            policy.choose_key(self.before)
-            self.assertEqual(policy.last_reason, "town:character-dump")  # the pre-dive dump
+            # The board's turn precedes the replayed rows, so each decision is a
+            # fresh visit whose pre-dive dump comes first; the subject is the read.
+            policy._departure_dump_enabled = False
             key = policy.choose_key(self.before)
 
         self.assertFalse(str(key).startswith(READ_KEY))

@@ -28,7 +28,7 @@ WARNING_READ_BYPASSES = {
     ("policy_navigation.py", "_step_toward"): (1, "After predicate refusal, membership selects the sanctioned forced walk."),
     ("policy_navigation.py", "_explore_step"): (2, "Exploration merges the latch into avoidance even when supplies are exhausted."),
     ("policy_combat.py", "_refresh_paralyzer_avoidance"): (1, "Paralyzer-ring cleanup preserves latched warning avoidance."),
-    ("policy_supply.py", "_unseen_reverse_choke_step"): (2, "First-step and BFS filters exclude every latched cell unconditionally."),
+    ("policy_supply.py", "_unseen_reverse_choke_step"): (1, "The refused set of the first-step and BFS filters holds every latched cell unconditionally (b3817ca1ca)."),
     ("policy_town.py", "_town_entrance_step_off_key"): (1, "Entrance exit candidates exclude every latched cell unconditionally."),
 }
 WARNING_OWNERS = {
