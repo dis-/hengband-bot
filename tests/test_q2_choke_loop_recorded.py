@@ -174,6 +174,11 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
                     and not monster.asleep and monster.can_multiply)
 
         rows = self._replay(pre_fix=True, inspect=inspect)
+        rows, abandoned = rows[:LAST], rows[LAST]
+        # Owner 2026-11-03 「20回ごとに区切って比べる」「Q2 などは放棄」(222db4ff5d): the
+        # breeders were not reduced in 20 actions, so the last board leaves the floor
+        # (tests.test_q2_patrol_breeder_1103_recorded pins the rule).
+        self.assertEqual(abandoned, ("rf", "breeder-breakthrough:recall"))
         # e32d0f44 (2026-10-08, USER DECISION 2026-09-20 50-turn hold): once
         # the unseen-summoner hold starts at the choke cell it owns that cell
         # until its timer expires, so the pre-fix substrate holds one more
@@ -181,7 +186,7 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
         hold_owned = {6, 13, 20}
         self.assertEqual(
             [row for index, row in enumerate(rows) if index not in hold_owned],
-            [self._expected(index) for index in range(LAST + 1) if index not in hold_owned])
+            [self._expected(index) for index in range(LAST) if index not in hold_owned])
         self.assertEqual({index: rows[index] for index in hold_owned},
                          {index: ("5", HOLD) for index in hold_owned})
         self.assertEqual({self._live(index) for index in hold_owned},
@@ -192,6 +197,8 @@ class Q2ChokeLoopRecordedTest(unittest.TestCase):
     # ------------------------------------------------------------ fix
     def test_quest_strategy_alone_owns_every_recorded_board(self):
         rows = self._replay()
+        # The last board leaves the abandoned floor: see the test above.
+        self.assertEqual(rows.pop(), ("rf", "breeder-breakthrough:recall"))
         for index in range(FIRST_CHANGED):
             self.assertEqual(rows[index], self._expected(index), index)
         # First changed decision: the phase strategy keeps the turn at the

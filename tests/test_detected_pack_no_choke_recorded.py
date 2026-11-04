@@ -129,6 +129,13 @@ class DetectedPackNoChokeRecordedTest(unittest.TestCase):
             row = json.loads(line)
             if position is not None:
                 row["player"]["y"], row["player"]["x"] = position.y, position.x
+                # The walk is constructed from here: a monster the grid map does not
+                # export (in view since 6cce55f61a) is answered, which this walk of the
+                # detected pack's boards is not about.
+                cells = {(cell["y"], cell["x"]) for cell in row["grid_map"]["cells"]}
+                if any((monster.get("y"), monster.get("x")) not in cells
+                       for monster in row.get("visible_monsters", [])):
+                    continue
             board, key, reason = replay.decide(json.dumps(row, ensure_ascii=False))
             hold = policy._detected_threat_hold
             walk.append((board, key, reason, hold))

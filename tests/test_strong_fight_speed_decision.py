@@ -100,9 +100,11 @@ class StrongFightSpeedRecordedTest(lethal._Replay):
         # strong run yet, but the lethal ladder heals first -- a Speed potion
         # never delays the emergency ladder.  (Ordering pin: not
         # distinguished by reverting the decision, which never quaffed.)
-        for turn in (B_WARMUP, B_CURE):
-            _board, key, reason = self._decide(turn)
-            self.assertEqual((key, reason), self._live(turn), turn)
+        _board, key, reason = self._decide(B_WARMUP)
+        self.assertEqual((key, reason), self._live(B_WARMUP))
+        # Owner 2026-11-01 (D57), 6d3f3ef1c0: Healing, not the recorded Cure Critical.
+        _board, key, reason = self._decide(B_CURE)
+        self.assertEqual((key, reason), ("qc", "emergency:cure-status-healing"))
         board, key, reason = self._decide(B_CURED)
         self.assertIsNotNone(self.policy._find_exact_potion(board, SV_POTION_SPEED))
         self.assertTrue(self.policy._emergency_escape_pending)
