@@ -50,6 +50,8 @@ def new_policy(first_board=None):
     policy = loops.new_policy(case, swarm.CASE["skill"], monraces=CASE["monraces"])
     policy._quest_knowledge = load_quest_knowledge(find_quest_definitions(Path(__file__)))
     policy._fixed_quest_speed_attempted = True
+    # A floor without a plan: a plan floor counts from the first attack (test_q2_early_1105_recorded).
+    policy._quest_strategies.pop(2, None)
     return policy
 
 

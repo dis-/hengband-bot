@@ -25,11 +25,32 @@ one.  An abandoned window's verdict stands until ``forget``.
 
 This replaces the earlier flight triggers (five kills with more breeders
 than at engagement; 3,000 game turns without a reduction).
+
+Floors with a quest plan (owner 2026-11-05 「攻撃を始めてから数える」): the bot
+walks those floors in the plan's order past breeders it does not fight yet, and
+what comes into view is not growth.  n1-a life-478 was abandoned at full HP on
+one gremlin at the window's start and one blue icky thing at its end; life-482
+on one Undead mass glimpsed at the start and eleven in view at the end.  There a
+window opens on the board that shows the first attack landed on a breeder (a
+visible breeder of the last board hurt, or gone with the player's experience
+up: the key's own target differs per attack owner, the result does not) and
+counts only that race, from its count before the attack.  A shot that misses
+opens nothing yet.  The comparison and the abandonment are the same.
 """
 from __future__ import annotations
 
+from typing import NamedTuple
+
 
 FLEE_AFTER_PLAYER_ACTIONS = 20
+
+
+class _LastBoard(NamedTuple):
+    """What the next board's attack reading compares with."""
+    floor: tuple
+    exp: int
+    sighted: dict       # visible breeder's index -> (race, estimated HP)
+    counts: dict        # race -> perceived breeders
 
 
 def forget(policy) -> None:
@@ -38,6 +59,7 @@ def forget(policy) -> None:
     policy._breeder_engagement_start_turn = None
     policy._breeder_engagement_actions = 0
     policy._breeder_engagement_last_turn = None
+    policy._breeder_engagement_race = None
 
 
 def stalemate_standing(policy) -> bool:
@@ -48,7 +70,37 @@ def stalemate_standing(policy) -> bool:
     )
 
 
-def _open_window(policy, snapshot, count: int) -> None:
+def _counts_from_first_attack(policy, snapshot) -> bool:
+    """This floor is the TAKEN quest's with a plan."""
+    quest_id = policy._active_fixed_quest_id(snapshot)
+    return quest_id is not None and policy.approved_quest_strategy(quest_id) is not None
+
+
+def _attacked_race(policy, snapshot, breeders: list) -> tuple[int, int] | None:
+    """(race, its count on the last board) of a breeder the last action hit."""
+    last = policy._breeder_last_board
+    sighted = {monster.index: monster for monster in snapshot.visible_monsters
+               if monster.hostile and monster.can_multiply}
+    counts: dict[int, int] = {}
+    for monster in breeders:
+        counts[monster.race_id] = counts.get(monster.race_id, 0) + 1
+    policy._breeder_last_board = _LastBoard(
+        snapshot.floor_key, snapshot.player.exp,
+        {index: (monster.race_id, monster.hp) for index, monster in sighted.items()},
+        counts)
+    if last is None or last.floor != snapshot.floor_key:
+        return None
+    for index, (race, hp) in last.sighted.items():
+        now = sighted.get(index)
+        hurt = now is not None and now.race_id == race and now.hp < hp
+        killed = now is None and snapshot.player.exp > last.exp
+        if hurt or killed:
+            return race, last.counts.get(race, 1)
+    return None
+
+
+def _open_window(policy, snapshot, count: int, race: int | None = None) -> None:
+    policy._breeder_engagement_race = race
     policy._breeder_engagement_start_count = count
     policy._breeder_engagement_start_turn = snapshot.turn
     policy._breeder_engagement_actions = 0
@@ -57,11 +109,18 @@ def _open_window(policy, snapshot, count: int) -> None:
 
 def flee_due(policy, snapshot, breeders: list) -> bool:
     """Count this board's action; True once a window ended without a reduction."""
-    count = len(breeders)
+    attacked = _attacked_race(policy, snapshot, breeders)
     if policy._breeder_engagement_start_count is None:
-        if breeders:
-            _open_window(policy, snapshot, count)
+        if _counts_from_first_attack(policy, snapshot):
+            if attacked is not None:
+                _open_window(policy, snapshot, attacked[1], attacked[0])
+        elif breeders:
+            _open_window(policy, snapshot, len(breeders))
         return False
+    race = policy._breeder_engagement_race
+    if race is not None:
+        breeders = [monster for monster in breeders if monster.race_id == race]
+    count = len(breeders)
     if stalemate_standing(policy):
         return True
     last_turn = policy._breeder_engagement_last_turn
@@ -73,7 +132,7 @@ def flee_due(policy, snapshot, breeders: list) -> bool:
     if count >= policy._breeder_engagement_start_count:
         return True
     if breeders:
-        _open_window(policy, snapshot, count)
+        _open_window(policy, snapshot, count, race)
     else:
         forget(policy)
     return False
