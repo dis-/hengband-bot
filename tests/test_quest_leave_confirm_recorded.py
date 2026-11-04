@@ -21,9 +21,10 @@ Substrate: capture ``autorecover-20261002-182904-exit-no-marker``, the
 process that attached at 18:28:18 with a fresh policy.  Its ring keeps the
 boards of decisions 217-329.  A fresh policy fed those boards (warm-up
 217-289, keys not asserted: the live process had walked this floor since
-decision 0) reproduces every live (key, reason) of 290-298, arms the breeder
-latch itself on 298 exactly as the live log shows (299 is the first
-``breeder-breakthrough:*`` row), and 299 is the first divergence (R4).
+decision 0) reproduces every live (key, reason) of 290-298; the live log latched
+the breeder floor on 298 by the five-kill trigger 7f714e287a removed (299 is the
+first ``breeder-breakthrough:*`` row), so the pins set it there (DECLARED
+CONSTRUCTED), and 299 is the first divergence (R4).
 DECLARED WALL: the ``skill_exp`` knowledge row and calibration file are the
 same character's from the 11:51 process (castle fixture), as in the earlier
 2026-10-02 pins.
@@ -128,7 +129,7 @@ class QuestLeaveConfirmRecordedTest(unittest.TestCase):
         )
         return snapshots[-1]
 
-    def _replay_through(self, last):
+    def _replay_through(self, last, arm_latch=True):
         rows, boards = {}, {}
         for sequence in range(FIRST, last + 1):
             board = self._board(sequence)
@@ -136,6 +137,12 @@ class QuestLeaveConfirmRecordedTest(unittest.TestCase):
             rows[sequence] = (str(key), self.policy.last_reason)
             boards[sequence] = board
             self.policy.confirm_key_posted(key)
+            if sequence == DIVERGENCE - 1 and arm_latch:
+                # DECLARED CONSTRUCTED: 7f714e287a replaced the five-kill trigger
+                # that latched this floor on 298 by 20 player actions without a
+                # reduction (owner 2026-11-02 「20ターンで数が減らせないなら逃走」),
+                # which this window does not reach.  The floor is latched as live.
+                self.policy._breeder_breakthrough_floor = QUEST_FLOOR
         return rows, boards
 
     def _live(self, sequence):
@@ -157,11 +164,13 @@ class QuestLeaveConfirmRecordedTest(unittest.TestCase):
         ))
         self.assertEqual(self.question, "本当にこの階を去りますか？[y/n]")
 
-    def test_replay_reproduces_live_and_arms_the_latch_on_the_locked_floor(self):
-        rows, boards = self._replay_through(DIVERGENCE - 1)
+    def test_replay_reproduces_live_up_to_the_latch_on_the_locked_floor(self):
+        rows, boards = self._replay_through(DIVERGENCE - 1, arm_latch=False)
         self.assertEqual(
             {n: rows[n] for n in REPRODUCED}, {n: self._live(n) for n in REPRODUCED}
         )
+        self.assertIsNone(self.policy._breeder_breakthrough_floor)  # see _replay_through
+        self.policy._breeder_breakthrough_floor = QUEST_FLOOR
         board = boards[DIVERGENCE - 1]
         self.assertEqual(board.floor_key, QUEST_FLOOR)
         quest = board.quests[41]
