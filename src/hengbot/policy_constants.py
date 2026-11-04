@@ -947,8 +947,12 @@ STUCK_FAMILY_REASONS = frozenset(
         # A latched general return can exhaust every known exit and fall back
         # to least-visited wandering. Count that same bounded escape work so a
         # carried Recall scroll reaches the existing stuck escape before the
-        # broader navigation no-progress detector.
+        # broader navigation no-progress detector.  Its wall search is the same
+        # work: without these labels the count restarted and the bound never
+        # came (n1-c life-139, 8 minutes along Angband 2F with Recall carried).
         "return:wander",
+        "return:search-upstairs",
+        "return:seek-secret-wall",
         "fundraise:probe",
         "fundraise:search",
         "paralyzer-guard:approach-range",

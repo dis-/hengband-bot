@@ -41,7 +41,7 @@ from hengbot.cli import (
 )
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy_constants import SEARCH_KEY, TUNNEL_KEY, WALK_OUT_MAX_DEPTH
+from hengbot.policy_constants import SEARCH_KEY, STUCK_ESCAPE_LIMIT, TUNNEL_KEY, WALK_OUT_MAX_DEPTH
 from tests import test_input_executor as executor_pins
 from tests.test_barehand_mining_recorded import ITEM_PROMPTS, taken_off, wielded
 from test_esp_threat_rest_recorded import EDIT, _policy
@@ -165,6 +165,23 @@ class ClaimReturnWallSearchTest(executor_pins.ProductionHarness):
                 self.assertFalse(_cell_loop_guard_applies(
                     board, policy.last_reason, board.player.position))
                 self.post(policy, board, raw, key)
+
+    def test_the_search_bound_reads_the_carried_recall(self):
+        """n1-c life-139: the wall search never reached the bound, as its labels
+        restarted the count.  DECLARED CONSTRUCTED: the 58 earlier searches, and no
+        junk scroll 'h' (destroyed first since the fixture was recorded)."""
+        policy = self.policy()
+        first, second = (copy.deepcopy(raw) for raw in CASE["boards"][:2])
+        for raw in (first, second):
+            raw["inventory"] = [item for item in raw["inventory"]
+                                if item["tval"] != TVAL_DIGGING and item["slot"] != "h"]
+        board, key = self.decide(policy, first)
+        self.assertEqual((key, policy.last_reason), (SEARCH_KEY, "return:search-upstairs"))
+        self.post(policy, board, first, key)
+        policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
+        board, key = self.decide(policy, second)
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertEqual(key, "r" + recall.slot, policy.last_reason)
 
 
 if __name__ == "__main__":
