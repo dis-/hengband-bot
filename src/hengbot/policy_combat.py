@@ -739,10 +739,8 @@ class CombatMixin:
             and self._can_fight_in_dungeon(snapshot.floor_key[0])
             and not material_threat
         ):
-            self.last_reason = "no-wait:melee"
-            return self._direction_key(
-                snapshot.player.position, self._weakest(strategic_adjacent).position
-            )
+            return combat_answer.strike_key(
+                self, snapshot, self._weakest(strategic_adjacent), "no-wait:melee")
         if not only_suppressed_weak_breeders:
             # Rejecting an idle turn is not permission to spend a teleport.
             # The same material-loss / low-HP rule as unseen fire applies;
@@ -780,11 +778,8 @@ class CombatMixin:
             for monster in hostiles
             if snapshot.player.position.distance_to(monster.position) <= 1
         ]
-        if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-            self.last_reason = "no-wait:melee"
-            return self._direction_key(
-                snapshot.player.position, self._weakest(adjacent).position
-            )
+        if (answer := combat_answer.adjacent_attack(self, snapshot, adjacent, "no-wait:melee")) is not None:
+            return answer.key
 
         # A completely boxed player has no legal movement alternative.  Keep
         # the invariant explicit even there: attack the nearest observed threat
@@ -1294,10 +1289,8 @@ class CombatMixin:
             if monster.distance <= 1
         ]
         if adjacent and not player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-            self.last_reason = "melee:esp-threat-hunt"
-            return self._direction_key(
-                player.position, self._weakest(adjacent).position
-            )
+            return combat_answer.strike_key(
+                self, snapshot, self._weakest(adjacent), "melee:esp-threat-hunt")
         ranged = self._ranged_attack_key(
             snapshot, visible_committed or strategic_hostiles, adjacent
         )

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import goal_route, lamp_fuel, me_capability, random_quest_reserve, unseen_strike, wilderness_exit
+from hengbot import combat_answer, goal_route, lamp_fuel, me_capability, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -1995,11 +1995,8 @@ class SupplyMixin:
             return None
         if not self._unseen_choke_hold_active(snapshot, hostiles):
             return None
-        if adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-            self.last_reason = "melee:choke"
-            return self._direction_key(
-                snapshot.player.position, self._weakest(adjacent).position
-            )
+        if (answer := combat_answer.adjacent_attack(self, snapshot, adjacent, "melee:choke")) is not None:
+            return answer.key
         self.last_reason = "melee:choke-hold"
         return WAIT_KEY
 
