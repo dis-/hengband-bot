@@ -8,8 +8,8 @@ DECLARED CONSTRUCTED: no character has played this quest.  The boards are the re
 Q31 board of tests/fixtures/once-quest-recall-20261103.json.gz with its floor, grid map, quest
 row, position, HP, monsters and carried potions and scrolls replaced: the grid map from the
 real lib/edit/quests/025_HauntedHouse.jsonc (every cell known), the monsters with the races and
-cells of that map.  Monster data is the real MonraceDefinitions.  Approval is switched on
-here: the file keeps ``approved`` false until the owner has checked it.
+cells of that map.  Monster data is the real MonraceDefinitions.  The owner approved the
+file on 2026-11-05 (「Q25を仕上げる」).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -55,7 +55,6 @@ QUESTS = load_quest_knowledge(find_quest_definitions(ROOT) or GAME / "quests")
 FILE_STRATEGIES = load_quest_strategies(ROOT / "strategy" / "quests")
 STRATEGIES = {**FILE_STRATEGIES, 25: replace(FILE_STRATEGIES[25], approved=True)}
 PLAN = STRATEGIES[25].engagement_plan["room_sweep"]
-EXECUTABLE_WITH_25 = frozenset({*EXECUTABLE_QUEST_STRATEGY_IDS, 25})
 START = (13, 1)
 TYRANNOSAUR, DREADMASTER, VAMPIRE, DRUJ, TOME, HOUND, IPSISSIMUS, SHADOW, SPECTRE, SKELETAL_T, QUYL, STAIR, MASS = (
     705, 690, 623, 748, 557, 739, 571, 665, 508, 466, 480, 439, 202)
@@ -197,7 +196,8 @@ class Q25MapFactsTest(unittest.TestCase):
         text = (ROOT / "strategy" / "quests" / "QUEST_25.jsonc").read_text(encoding="utf-8")
         self.assertNotIn("[8,1]", text)
         self.assertIsNone(STRATEGIES[25].engagement_plan["hold_position"])
-        self.assertFalse(FILE_STRATEGIES[25].approved)
+        self.assertTrue(FILE_STRATEGIES[25].approved)
+        self.assertIn(25, EXECUTABLE_QUEST_STRATEGY_IDS)
 
     def test_every_stop_is_walkable_and_every_target_door_is_a_door(self):
         for stop in PLAN["stands"]:
@@ -282,9 +282,10 @@ class Q25WalkTest(unittest.TestCase):
         _, reason, _ = decide(board((13, 2), status=2))
         self.assertNotIn(reason, {HOLD_REASON, WALK_REASON})
 
-    def test_file_as_it_stands_unapproved_does_not_run_the_plan(self):
+    def test_an_unapproved_file_does_not_run_the_plan(self):
         raw = board((13, 2))
-        policy = ConservativePolicy(monrace_knowledge=RACES, quest_knowledge=QUESTS, quest_strategies=FILE_STRATEGIES)
+        unapproved = {**FILE_STRATEGIES, 25: replace(FILE_STRATEGIES[25], approved=False)}
+        policy = ConservativePolicy(monrace_knowledge=RACES, quest_knowledge=QUESTS, quest_strategies=unapproved)
         policy.prime(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
         choose(policy, raw)
         self.assertNotIn(policy.last_reason, {HOLD_REASON, WALK_REASON})
@@ -597,16 +598,16 @@ class Q25TownTest(unittest.TestCase):
         policy.prime(snapshot)
         return policy, snapshot
 
-    def test_ready_is_requested_only_once_the_quest_is_listed_executable(self):
+    def test_ready_is_requested_only_while_the_quest_is_listed_executable(self):
         policy, snapshot = self.policy_and_snapshot()
         self.assertEqual(policy._fixed_quest_head(snapshot).id, 25)
         with patch.object(ConservativePolicy, "_fixed_quest_ready", return_value=True), \
-                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True):
+                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True), \
+                patch("hengbot.policy_quest.EXECUTABLE_QUEST_STRATEGY_IDS", EXECUTABLE_QUEST_STRATEGY_IDS - {25}):
             self.assertIsNone(policy._fixed_quest_key(snapshot, []))
         policy, snapshot = self.policy_and_snapshot()
         with patch.object(ConservativePolicy, "_fixed_quest_ready", return_value=True), \
-                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True), \
-                patch("hengbot.policy_quest.EXECUTABLE_QUEST_STRATEGY_IDS", EXECUTABLE_WITH_25):
+                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True):
             policy._fixed_quest_key(snapshot, [])
         self.assertTrue(policy.last_reason.startswith("fixedquest:request"), policy.last_reason)
 
