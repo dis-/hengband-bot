@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
+from hengbot.policy_constants import ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
 from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
@@ -239,7 +240,6 @@ from hengbot.model import (
 # the player still had full HP and carried Teleport and Recall; the old policy
 # kept fighting, and later rows reached 12-15 visible breeders.
 ITEM_DESTROYING_BREEDER_LEAVE_THRESHOLD = 4
-ITEM_DESTROYING_BREEDER_STAIR_DISTANCE = 5
 ITEM_DESTROYING_MELEE_EFFECTS = frozenset({"ACID", "COLD", "ELEC", "FIRE"})
 SV_SCROLL_TELEPORT_LEVEL = 10
 from hengbot.policy import DESCEND_MIN_HP_RATIO, ExplorationGoalIdentity, ExplorationGoalKind

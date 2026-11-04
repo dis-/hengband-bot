@@ -21,6 +21,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+from hengbot import policy_quest as policy_quest_module
 from hengbot import consumable_policy, once_quest_recall, quest_exposure, quest_force_rows, quest_ranged_force
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_TEMPLE,
@@ -33,7 +34,8 @@ from hengbot.policy_constants import EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, 
 from hengbot.quest_find_exit import HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_room_sweep import (
-    APPROACH_REASON, NOTHING_LEFT_REASON, OPEN_REASON, RESTORE_REASON, TELEPORT_REASON, WALK_REASON,
+    APPROACH_REASON, EXIT_REASON, EXIT_WALK_REASON, LIGHT_REASON, NOTHING_LEFT_REASON, OPEN_REASON, RESTORE_REASON,
+    TELEPORT_REASON, WALK_REASON,
 )
 from hengbot.quest_strategies import load_quest_strategies
 from tests.test_q14_heal_ccw_recorded import town_maps
@@ -57,7 +59,7 @@ EXECUTABLE_WITH_25 = frozenset({*EXECUTABLE_QUEST_STRATEGY_IDS, 25})
 START = (13, 1)
 TYRANNOSAUR, DREADMASTER, VAMPIRE, DRUJ, TOME, HOUND, IPSISSIMUS, SHADOW, SPECTRE, SKELETAL_T, QUYL, STAIR, MASS = (
     705, 690, 623, 748, 557, 739, 571, 665, 508, 466, 480, 439, 202)
-SV_PHASE, SV_TELEPORT, SV_RECALL = 8, 9, 11
+SV_PHASE, SV_TELEPORT, SV_RECALL, SV_LIGHT = 8, 9, 11, 24
 FULL_HP = 800
 DIRECTION = {(-1, -1): "7", (-1, 0): "8", (-1, 1): "9", (0, -1): "4", (0, 1): "6",
              (1, -1): "1", (1, 0): "2", (1, 1): "3"}
@@ -109,7 +111,7 @@ def _stack(tval, sval, count):
     return dict(copy.deepcopy(row), sval=sval, count=count, name=f"item{tval}-{sval}")
 
 
-def board(position=START, *, hp=FULL_HP, monsters=(), healing=5, speed=3, teleports=15, recall=3, ccw=0,
+def board(position=START, *, hp=FULL_HP, monsters=(), healing=5, speed=3, teleports=15, recall=3, ccw=0, light=2,
           recalling=False, max_hp=FULL_HP, status=1):
     """DECLARED CONSTRUCTED, see the module note."""
     raw = copy.deepcopy(BASE)
@@ -125,7 +127,8 @@ def board(position=START, *, hp=FULL_HP, monsters=(), healing=5, speed=3, telepo
         _stack(tval, sval, count) for tval, sval, count in (
             (TVAL_POTION, SV_POTION_HEALING, healing), (TVAL_POTION, SV_POTION_SPEED, speed),
             (TVAL_POTION, SV_POTION_CURE_CRITICAL, ccw),
-            (TVAL_SCROLL, SV_TELEPORT, teleports), (TVAL_SCROLL, SV_RECALL, recall)) if count]
+            (TVAL_SCROLL, SV_TELEPORT, teleports), (TVAL_SCROLL, SV_RECALL, recall),
+            (TVAL_SCROLL, SV_LIGHT, light)) if count]
     raw["visible_monsters"] = [dict(row) for row in monsters]
     raw["detected_monsters"] = []
     raw["messages"] = []
@@ -229,11 +232,15 @@ class Q25WalkTest(unittest.TestCase):
     def test_a_quiet_floor_is_walked_stop_by_stop_with_doors_opened_and_the_last_two_last(self):
         raw = board()
         policy = new_policy(raw)
-        position, visited, opened = START, [], []
+        position, visited, opened, lit = START, [], [], []
         for _ in range(500):
             raw["player"].update(y=position[0], x=position[1])
             key = choose(policy, raw)
             if policy.last_reason == HOLD_REASON:
+                continue
+            if policy.last_reason == LIGHT_REASON:
+                self.assertEqual(position, (5, 3))
+                lit.append(position)
                 continue
             if key.startswith("o") or policy.last_reason == OPEN_REASON:
                 delta = next(offset for offset, value in DIRECTION.items() if key.endswith(value))
@@ -251,14 +258,15 @@ class Q25WalkTest(unittest.TestCase):
         order = [visited.index(tuple(stop["cell"])) for stop in PLAN["stands"]]
         self.assertEqual(order, sorted(order))
         self.assertEqual(opened[-2:], [(13, 28), (11, 19)])
+        self.assertEqual(lit, [(5, 3)])
         self.assertNotIn((11, 19), visited)
         self.assertNotIn((13, 1), visited)  # never back on the stair
 
     def test_the_walk_avoids_deep_water(self):
-        key, reason, _ = decide(board((6, 7)), stage=3)  # to [7,8]
+        key, reason, _ = decide(board((6, 7)), stage=4)  # to [7,8]
         self.assertEqual(reason, WALK_REASON)
         self.assertEqual(key, step_key((6, 7), (7, 8)))
-        key, reason, _ = decide(board((7, 8)), stage=5)  # to [9,6], round the water
+        key, reason, _ = decide(board((7, 8)), stage=6)  # to [9,6], round the water
         self.assertEqual(reason, WALK_REASON)
         self.assertEqual(key, step_key((7, 8), (7, 7)))
 
@@ -427,14 +435,30 @@ class Q25EmergencyTest(unittest.TestCase):
         _, reason, _ = decide(raw)
         self.assertEqual(reason, HEAL_REASON)
 
-    def test_the_stair_underfoot_is_never_taken(self):
-        for hp in (100, 300, FULL_HP):
-            raw = board(START, hp=hp, monsters=[monster(TYRANNOSAUR, 13, 2)])
-            key, _, _ = decide(raw)
+    def test_the_stair_is_taken_life_threatened_with_the_healing_used_up(self):
+        enemy = [monster(TYRANNOSAUR, 12, 2)]
+        key, reason, _ = decide(board(START, hp=100, healing=0, speed=0, monsters=enemy))
+        self.assertEqual((key, reason), ("<", EXIT_REASON))
+        key, reason, _ = decide(board((10, 1), hp=100, healing=0, speed=0, monsters=[monster(SPECTRE, 9, 1)]))
+        self.assertEqual((key, reason), (step_key((10, 1), (11, 1)), EXIT_WALK_REASON))
+
+    def test_controls_the_stair_is_not_taken(self):
+        enemy = [monster(TYRANNOSAUR, 12, 2)]
+        for raw, expected in (
+            (board(START, hp=100, speed=0, monsters=enemy), TELEPORT_REASON),  # Healing left
+            (board(START, hp=300, healing=0, speed=0, monsters=enemy), TELEPORT_REASON),  # above the panic line
+            (board(START, hp=FULL_HP, healing=0, speed=0, monsters=enemy), None),
+            (board((5, 1), hp=100, healing=0, speed=0, monsters=[monster(SPECTRE, 4, 1)]), TELEPORT_REASON),  # 8 steps
+        ):
+            key, reason, _ = decide(raw)
             self.assertNotIn("<", key)
-        key, _, _ = decide(board(START, hp=100, teleports=0, recall=0, healing=0,
-                                 monsters=[monster(TYRANNOSAUR, 13, 2)]))
-        self.assertNotIn("<", key)
+            self.assertNotEqual(reason, EXIT_WALK_REASON)
+            if expected is not None:
+                self.assertEqual(reason, expected)
+
+    def test_quiet_the_stair_is_not_taken_at_any_hp(self):
+        key, reason, _ = decide(board(START, hp=100, healing=0))
+        self.assertEqual((key, reason), (REST_MACRO, "rest"))
 
     def test_a_heavy_fight_takes_the_speed_potion(self):
         _, reason, _ = decide(board((8, 19), monsters=[monster(TYRANNOSAUR, 8, 20)]))
@@ -452,6 +476,67 @@ class Q25EmergencyTest(unittest.TestCase):
         self.assertEqual(reason, RESTORE_REASON)
 
 
+class Q25LightTest(unittest.TestCase):
+    MOUTH = (5, 3)
+    STAGE = 3
+
+    def test_the_mouth_is_out_of_both_quyls_lines_and_opens_on_the_hall(self):
+        self.assertEqual(PLAN["stands"][self.STAGE], {"cell": list(self.MOUTH), "read_light": True})
+        lines = quest_exposure.exposure_map(QUESTS[25].battlefield.terrain, [(9, 9), (9, 13)]).pull
+        self.assertNotIn(self.MOUTH, lines)
+
+    def test_it_is_read_once_there_then_the_walk_goes_on(self):
+        raw = board(self.MOUTH)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, self.STAGE)
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, LIGHT_REASON)
+        self.assertTrue(key.startswith("r"), key)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_with_an_enemy_shooting_from_the_dark_it_is_still_read(self):
+        raw = board(self.MOUTH, speed=0, monsters=[monster(SPECTRE, 7, 12)])
+        _, reason, _ = decide(raw, stage=self.STAGE)
+        self.assertEqual(reason, LIGHT_REASON)
+
+    def test_control_not_on_the_mouth_or_with_none_it_is_not_read(self):
+        _, reason, _ = decide(board((5, 2)), stage=self.STAGE)
+        self.assertEqual(reason, WALK_REASON)
+        _, reason, _ = decide(board(self.MOUTH, light=0), stage=self.STAGE)
+        self.assertEqual(reason, WALK_REASON)
+
+    def test_survival_comes_first(self):
+        raw = board(self.MOUTH, hp=300, monsters=[monster(SPECTRE, 5, 4)])
+        _, reason, _ = decide(raw, stage=self.STAGE)
+        self.assertEqual(reason, TELEPORT_REASON)
+
+    def test_a_lit_hall_is_shot_from_afar(self):
+        raw = board((5, 4), speed=0, monsters=[monster(QUYL, 9, 8, index=1)])
+        key, reason, _ = decide(raw, stage=self.STAGE + 1)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+
+    def test_the_absorbed_light_staff_casts_in_its_place(self):
+        raw = board(self.MOUTH, light=0)
+        with patch("hengbot.policy_quest.carry_cast_key", return_value="mAb"):
+            key, reason, _ = decide(raw, stage=self.STAGE)
+        self.assertEqual(key, "mAb")
+        self.assertTrue(reason.startswith(LIGHT_REASON), reason)
+
+    def test_the_carry_is_asked_at_acceptance_and_the_staff_waives_it(self):
+        accept = Q25AcceptanceTest()
+        ready, telemetry, _ = accept.verdict(accept.town(max_hp=850, light=1), 200)
+        self.assertFalse(ready, telemetry)
+        self.assertIn("required_scrolls.light", telemetry["strategy_force"]["failed"])
+        ready, telemetry, _ = accept.verdict(accept.town(max_hp=850), 200)
+        self.assertTrue(ready, telemetry)
+        real = policy_quest_module.replaced_by_absorbed
+        with patch("hengbot.policy_quest.replaced_by_absorbed", side_effect=lambda policy, snapshot, target, *rest: (
+                getattr(target, "name", None) == "light" or real(policy, snapshot, target, *rest))):
+            ready, telemetry, _ = accept.verdict(accept.town(max_hp=850, light=0), 200)
+        self.assertTrue(ready, telemetry)
+
+
 class Q25LineTest(unittest.TestCase):
     def test_a_quyls_line_is_a_cell_the_rule_knows_and_the_walk_takes_the_fewest(self):
         lines = quest_exposure.exposure_map(QUESTS[25].battlefield.terrain, [(9, 9), (9, 13)]).pull
@@ -464,13 +549,13 @@ class Q25LineTest(unittest.TestCase):
         # A coming enemy in view with no shot: the ammunition is gone.
         raw = board((7, 8), speed=0, monsters=[monster(VAMPIRE, 7, 12)])
         raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in {16, 17, 18}]
-        _, reason, _ = decide(raw, stage=3)
+        _, reason, _ = decide(raw, stage=4)
         self.assertEqual(reason, WALK_REASON)
 
     def test_control_out_of_every_line_it_waits_for_what_comes(self):
         raw = board((12, 6), speed=0, monsters=[monster(VAMPIRE, 12, 8)])
         raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in {16, 17, 18}]
-        key, reason, _ = decide(raw, stage=6)
+        key, reason, _ = decide(raw, stage=7)
         self.assertEqual((key, reason), (WAIT_KEY, HOLD_REASON))
 
     def test_hurt_and_quiet_in_a_line_it_walks_out_before_resting(self):
@@ -561,8 +646,8 @@ class Q25AcceptanceTest(unittest.TestCase):
                  "resist_fire", "resist_cold", "resist_elec", "resist_acid", "resist_chaos")
 
     def town(self, *, max_hp, healing=5, speed=3, resists=True, unhasted_speed=110, shot=68, turn=181, ammo=40,
-             teleports=5, restores=2, class_id=None):
-        raw = board(max_hp=max_hp, hp=max_hp, healing=healing, speed=speed, teleports=teleports)
+             teleports=5, restores=2, class_id=None, light=2):
+        raw = board(max_hp=max_hp, hp=max_hp, healing=healing, speed=speed, teleports=teleports, light=light)
         raw["floor"].update(quest_id=0, level=0, in_town=True)
         raw["progress"]["quests"][0]["status"] = 0
         raw["player"]["speed"] = unhasted_speed
