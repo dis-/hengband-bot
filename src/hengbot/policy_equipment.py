@@ -3087,6 +3087,11 @@ class EquipmentMixin:
             # for the optimizer inputs that selected the Home item.
             ready = True
             self._stage_suppression_wait_departure(snapshot, depth, commit)
+        if not ready and self._pack_space_unrelieved(snapshot, preparation, depth):
+            ready = True
+            if commit and self._equipment_optional_failure_pending is None:
+                self._stage_optional_equipment_failure_departure(
+                    snapshot, depth, reason="pack-space-unrelieved-current-loadout")
         if not ready and codes is not None:
             codes.extend(self._equipment_departure_refusal_codes(
                 snapshot, preparation, depth))
@@ -3094,6 +3099,28 @@ class EquipmentMixin:
             self._equipment_departure_cache_token = cache_token
             self._equipment_departure_cache_value = ready
         return ready
+
+    def _pack_space_unrelieved(self, snapshot, preparation, depth) -> bool:
+        """A swap only the pack reserve refuses, with nothing left to free a slot.
+
+        Owner 2026-10-03 「失敗した任意の装備の変更は今の確定した装備で出発」.  The
+        town pipeline accepted these four free slots as final
+        (``_town_pack_space_ready``), so no owner serves pack-space-required; a
+        full Home was the only such case named here.  n1-a life-477 2026-11-04
+        08:17: a one-slot body swap at 19 of 23 carried, Home with room, no
+        surplus to shelve or sell.
+        """
+        blockers = getattr(preparation, "blockers", ())
+        transaction = getattr(preparation, "transaction", None)
+        return bool(
+            blockers
+            and all(blocker.startswith("pack-space-required:") for blocker in blockers)
+            and self._equipment_transaction_session is None
+            and self._terminal_pack_space_signature == self._town_pack_space_signature(snapshot)
+            and not any(action.phase == PHASE_HOME_PREPARE and action.kind == "deposit"
+                        for action in getattr(transaction, "actions", ()))
+            and not self._missing_required_abilities(snapshot, depth)
+        )
 
     def _suppression_waits_on_current_loadout(self, snapshot, preparation, depth) -> bool:
         """A pending random-teleport suppression no producer can act on this

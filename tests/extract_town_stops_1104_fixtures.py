@@ -27,8 +27,15 @@ CASES = {
     # From the capture set beside it (bots bot-6925e7e43 / bot-a50ef8fcc).
     "ability-gap": ("../stops-1104-0750/n1-a/life-476", "20261104-072412-town-blocked-survival-depth_abilities", 12),
     "home-kit-bound": ("../stops-1104-0750/n1-a/life-476", "20261104-072335-town-blocked-owner-retired-burst", 25),
+    # The stops of the 11-04 day (builds after 014ddb7dd).
+    "pack-unrelieved": ("../stops-1104-1330/n1-a/life-477", "20261104-081722-town-blocked-unmet-equipment_departure_ready", 27),
 }
 CALIBRATION = "_character_calibration_path"
+# The small runtime files a replay of the visit's equipment work reads, for the
+# cases of this set (stops-1104-1330).
+RUNTIME_FILES = ("_confirmed_loadout_path", "_town_visit_purchase_path",
+                 "_overweight_surplus_ledger_path", "_unseen_attack_path",
+                 "_breeder_floor_record_path", "_exploration_ledger.path")
 DUMP = "_character_dump_path"
 
 
@@ -65,6 +72,12 @@ def main() -> None:
         kept = b"".join(journal.splitlines(keepends=True)[:rows])
         (target / "journal.jsonl.xz").write_bytes(lzma.compress(kept, preset=preset))
         (target / "calibration.json").write_bytes((visit / "sidecars" / CALIBRATION).read_bytes())
+        if "stops-1104-1330" in life:
+            for role in RUNTIME_FILES:
+                source = visit / "sidecars" / role
+                if source.is_file():
+                    (target / "runtime").mkdir(exist_ok=True)
+                    (target / "runtime" / role).write_bytes(source.read_bytes())
         if name in {"worn-average", "ability-gap"}:
             # The dump the arrival read, and the C response that goes with it.
             (target / "dump.txt.xz").write_bytes(
