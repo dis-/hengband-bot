@@ -32,6 +32,7 @@ from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
 from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
 from hengbot.summoner_wait import SUMMONER_WAIT_GAME_TURNS
+from recorded_junk_scope import choose_past_destroyed_junk
 from tests import policy_fixtures as fixtures
 from tests import test_input_executor as executor_pins
 
@@ -339,7 +340,7 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         grids[source] = replace(grids[source], in_view=False, currently_observed=False)
         hidden = replace(board, player=replace(board.player, position=Position(24, 65)),
                          grids=grids, visible_monsters=[], turn=after["turn"])
-        key = policy.choose_key(hidden)
+        key, hidden, _destroyed = choose_past_destroyed_junk(policy, hidden)
         self.assertEqual(policy.last_reason, "explore")
         self.assertIn(Position(24, 70), policy._engagement_avoid_cells)
         self.assertIn(source, policy._immobile_summoner_memory[1])
