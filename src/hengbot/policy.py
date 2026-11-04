@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import combat_answer, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import ability_gear, consumable_policy, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import ability_gear, consumable_policy, destruction_use, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -2574,6 +2574,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         me_powers.observe(self, snapshot)
         me_powerful_activation.observe(self, snapshot)
         speed_dose.observe(self, snapshot)
+        destruction_use.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._complete_character_dump(snapshot)
@@ -7820,7 +7821,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "status-threat:scroll"
-                    return self._read_key(snapshot, scroll)
+                    return self._threat_read_key(snapshot, scroll)
             step = self._town_producer_entry("_flee_step#1", lambda: self._flee_step(snapshot, status_threats))
             if step is not None:
                 # Make the retreat a persistent navigation veto for this floor.
@@ -7844,7 +7845,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "status-threat:scroll"
-                    return self._read_key(snapshot, scroll)
+                    return self._threat_read_key(snapshot, scroll)
             self.last_reason = "status-threat:wait"
             return WAIT_KEY
 
@@ -7905,7 +7906,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "flee:scroll"
-                return self._read_key(snapshot, scroll)
+                return self._threat_read_key(snapshot, scroll)
             cornered = combat_answer.adjacent_attack(
                 self, snapshot, strategic_adjacent, "flee:cornered-attack",
                 blow=lambda target: self._town_producer_entry(
@@ -8071,7 +8072,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "threat:scroll"
-                return self._read_key(snapshot, scroll)
+                return self._threat_read_key(snapshot, scroll)
             self.last_reason = "threat:wait"
             return WAIT_KEY
 
@@ -11719,6 +11720,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             for item in snapshot.inventory
             if equipment_move_identity(item) == identity
         )
+
+    def _threat_read_key(self, snapshot: Snapshot, scroll: InventoryItem) -> str:
+        """A rung's read away from a threat: *Destruction* in place of its
+        Teleportation when that holds (destruction_use), else the read."""
+        return (destruction_use.key(self, snapshot, scroll)
+                or self._read_key(snapshot, scroll))
 
     def _read_key(
         self, snapshot: Snapshot, item: InventoryItem, suffix: str = ""
@@ -15484,6 +15491,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _issue_emergency_consumable(
         self, snapshot: Snapshot, item: InventoryItem, reason: str
     ) -> str:
+        if reason == "emergency:teleport":
+            used = destruction_use.key(self, snapshot, item)
+            if used is not None:
+                return used
         self._emergency_return_active = True
         signature = self._item_signature(item)
         pre_use_count = sum(

@@ -748,7 +748,7 @@ class CombatMixin:
             scroll = self._escape_scroll(snapshot) if material_threat else None
             if scroll is not None:
                 self.last_reason = "no-wait:escape-scroll"
-                return self._read_key(snapshot, scroll)
+                return self._threat_read_key(snapshot, scroll)
 
             step = self._flee_step(snapshot, hostiles)
             if step is not None and not (
@@ -815,6 +815,7 @@ class CombatMixin:
             (
                 "emergency:teleport",
                 "emergency:phase",
+                "emergency:destruction",
                 "emergency:stairs",
                 "emergency:cure",
                 "flee:scroll",
@@ -2764,7 +2765,7 @@ class CombatMixin:
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "status-threat:scroll"
-                return self._read_key(snapshot, scroll)
+                return self._threat_read_key(snapshot, scroll)
         shared_avoid = self._engagement_avoid_cells
         self._engagement_avoid_cells = shared_avoid - self._paralyzer_avoid_cells
         try:

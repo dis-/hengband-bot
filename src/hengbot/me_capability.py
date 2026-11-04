@@ -268,8 +268,9 @@ REPLACES = (
     Replacement(("wand", SV_WAND_STONE_TO_MUD), Carry("utility_tools", "wall_breach"),
                 amount="charges"),
     # 5 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える」 (the 50F+ gate).
+    # ``cast``: destruction_use casts it (owner 2026-11-04).
     Replacement(("staff", SV_STAFF_DESTRUCTION), Kind(TVAL_STAFF, SV_STAFF_DESTRUCTION),
-                when="reliable", amount="charges"),
+                when="reliable", amount="charges", cast=True),
     # 2026-11-01 「スピードの杖の取り込み後、成功率が80%以上なら以降スピードの薬の購入、
     # 持ち歩きをやめる。スピードの薬を使用する場面では代わりに取り込んだ杖を試みる。」
     # (the scenes' dose: speed_dose).
