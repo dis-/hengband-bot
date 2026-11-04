@@ -12910,6 +12910,39 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:sight_trigger_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The use on a SIGHT_TRIGGERS race awake in the radius (owner 2026-11-05), by destruction_use.key; sets last_reason emergency:destruction:disenchanter; refused in town (_floor_destroyed), so no town errand and no effect credit; asked only by the dungeon ladder outside town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "disenchant_avoid.py:retreat_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The engagement retreat from a monster that disenchants an unresisting player (owner 2026-11-05), by _avoid_engagement_key; kept_away is false in town, so no town errand and no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._avoid_engagement_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The body of the threat:avoid-engagement rung moved out for its second caller (disenchant_avoid.retreat_key): one flee step through _town_producer_entry, as before; no town errand and no effect credit of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_reliable_carried_staff": {
     "classification": "data",
     "evidence": "Data/selector result; no independent command or effect credit. pure selector: the known charged Staff of *Destruction* at the modelled 80% success; read by _carried_key and holds_means."

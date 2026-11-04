@@ -52,12 +52,16 @@ stay: a one-turn lethal contact and a stat-draining blow (owner 11-01 21h)
 are kept until the owner says otherwise.  「遠距離で安全に倒せるなら倒す方を
 優先する」: every never-moving monster that is still kept away from is shot
 when the bot can kill it safely from range (immobile_ranged_kill).
+
+Owner 2026-11-05 (disenchant_avoid): a never-moving monster that disenchants an
+unresisting player is ringed as well.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from hengbot import disenchant_avoid
 from hengbot.model import MonsterState, Position
 from hengbot.monrace_knowledge import SUMMON_ABILITIES
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, ExplorationPathOutcome
@@ -147,6 +151,7 @@ def avoided(policy, snapshot, monster: MonsterState) -> bool:
     if monster.can_summon:
         return _lethal(policy, snapshot, monster)
     return (_drains_stats(policy, monster) or _lethal(policy, snapshot, monster)
+            or disenchant_avoid.kept_away(policy, snapshot, monster)
             or (is_avoidable_immobile(policy, monster)
                 and policy._material_melee_damage(snapshot, monster)))
 

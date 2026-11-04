@@ -499,6 +499,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:sight_trigger_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "disenchant_avoid.py:fought": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "disenchant_avoid.py:not_avoided": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "disenchant_avoid.py:retreat_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "dungeon_shop.py:_on_dungeon_floor": {
     "classification": "data",
     "rows": [
@@ -2863,6 +2891,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._active_fixed_quest_id": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._avoid_engagement_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

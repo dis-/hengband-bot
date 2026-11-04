@@ -50,13 +50,16 @@ applied to the never-moving monster:
 
 On a floor whose exit is locked nothing changes: the existing fight owners
 decide there.
+
+Owner 2026-11-05 (disenchant_avoid.left_alone): a disenchanting one asleep or with a
+breath is not shot; an awake one whose touch alone disenchants is, as above.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot import immobile_threat_memory
+from hengbot import disenchant_avoid, immobile_threat_memory
 from hengbot.model import MonsterState, Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, SUMMONER_RANGED_KILL_SHOTS
 
@@ -146,7 +149,8 @@ def key(policy, snapshot) -> str | None:
     for monster in sorted(immobile_threat_memory.remembered(policy),
                           key=lambda monster: snapshot.player.position.distance_to(
                               monster.position)):
-        if not kept_away(policy, snapshot, monster):
+        if (not kept_away(policy, snapshot, monster)
+                or disenchant_avoid.left_alone(policy, snapshot, monster)):
             continue
         found = plan(policy, snapshot, monster)
         if found is None:

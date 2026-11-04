@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import armor_smith, ability_gear, consumable_policy, destruction_use, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -7494,6 +7494,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             summons = summon_response.key(self, snapshot)
             if summons is not None:
                 return summons
+            # Owner 2026-11-05: a race that disenchants the gear, at first sight.
+            sight_use = destruction_use.sight_trigger_key(self, snapshot)
+            if sight_use is not None:
+                return sight_use
             # Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」:
             # before any never-moving monster is avoided.
             immobile_kill = immobile_ranged_kill.key(self, snapshot)
@@ -7703,9 +7707,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if choke_plan is not None:
             return choke_plan
 
-        breeders = [
+        breeders = disenchant_avoid.not_avoided(self, snapshot, [
             monster for monster in strategic_hostiles if monster.can_multiply
-        ]
+        ])
         if (
             breeders
             and self._breeder_breakthrough_floor != snapshot.floor_key
@@ -8023,11 +8027,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             snapshot, strategic_hostiles
         )
         combat_hostiles = quest_targets or strategic_hostiles
-        combat_adjacent = [
+        combat_adjacent = disenchant_avoid.not_avoided(self, snapshot, [
             monster
             for monster in strategic_adjacent
             if monster in combat_hostiles
-        ]
+        ])
 
         # 2. Melee an adjacent hostile (weakest first) — unless too afraid.
         adjacent_answer = combat_answer.adjacent_attack(
@@ -8050,6 +8054,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             ))
         if adjacent_answer is not None:
             return adjacent_answer.key  # NO_MELEE refuses melee only (fear flees above)
+
+        # Owner 2026-11-05: what disenchants the gear is walked away from, not shot.
+        gear_retreat = disenchant_avoid.retreat_key(
+            self, snapshot, strategic_hostiles, immobile_threat_memory.ringed)
+        if gear_retreat is not None:
+            return gear_retreat
+        combat_hostiles = disenchant_avoid.fought(self, snapshot, combat_hostiles)
 
         # 2r. Ranged attack: fire matching ammo (or throw a spare oil flask) at a
         # ray-aligned hostile before it closes. Fear blocks melee but NOT firing,
@@ -8926,16 +8937,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not immobile_threat_memory.ringed(self, monster)
             for monster in strategic_hostiles
         ):
-            step = self._town_producer_entry("_flee_step#4", lambda: self._flee_step(snapshot, strategic_hostiles))
-            if step is not None:
-                # Treat the retreat as a navigation veto, not a one-turn move.
-                # A committed explore path otherwise walks straight back here.
-                self._claim_engagement_avoid_cells((snapshot.player.position,))
-                self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
-                self.last_reason = "threat:avoid-engagement"
-                self._declare_reach(step)
-                self._declare_triggers(strategic_hostiles)
-                return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
+            avoid_engagement = self._avoid_engagement_key(snapshot, strategic_hostiles)
+            if avoid_engagement is not None:
+                return avoid_engagement
 
         # 6. Head for a known downstairs / dungeon entrance: path straight there
         #    if reachable, otherwise explore toward it (the entrance may be known
@@ -16662,6 +16666,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return self._summoner_retreat_route(snapshot, summoners, hostiles)[1]
 
 
+    def _avoid_engagement_key(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> str | None:
+        """The step out of an engagement's area, else None."""
+        step = self._town_producer_entry("_flee_step#4", lambda: self._flee_step(snapshot, hostiles))
+        if step is None:
+            return None
+        # Treat the retreat as a navigation veto, not a one-turn move.
+        # A committed explore path otherwise walks straight back here.
+        self._claim_engagement_avoid_cells((snapshot.player.position,))
+        self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+        self.last_reason = "threat:avoid-engagement"
+        self._declare_reach(step)
+        self._declare_triggers(hostiles)
+        return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
+
     def _material_melee_engagement(
         self, snapshot: Snapshot, monster: MonsterState
     ) -> bool:
@@ -16757,7 +16777,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _material_melee_damage(
         self, snapshot: Snapshot, monster: MonsterState
     ) -> bool:
-        """Its melee over the engagement horizon is a material share of HP."""
+        """Its melee over the engagement horizon is a material share of HP, or the
+        owner keeps away from it whatever its damage (disenchant_avoid)."""
+        if disenchant_avoid.avoided(self, snapshot, monster):
+            return True
         if monster.max_melee_damage <= 0:
             return False
         horizon = 3

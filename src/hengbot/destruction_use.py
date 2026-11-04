@@ -32,6 +32,12 @@ most dangerous awake visible hostile other than the quest target is in
 ``GUARANTEED_RADIUS``; and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
 else leaves the rung's read as it was.
 
+Owner 2026-11-05 (``sight_trigger_key``, SIGHT_TRIGGERS): some races are used on as soon
+as one is awake in view in GUARANTEED_RADIUS, with no emergency, asked after the survival
+rungs.  The same gates hold but for the most-dangerous test; a fixed quest floor is
+refused by the game, and on a random quest floor only the target itself is no such race
+(「ランダムクエストの階であってもターゲットでなければ*破壊*してよい」).
+
 A use that printed no flash (a failure, the empty staff) or a key the game did
 not take leaves the next ask to what the rung reads today: speed_dose's rule for
 a failed cast on the survival rungs, with no retry number of its own.
@@ -46,9 +52,10 @@ into the map memory, so a cell the game still shows comes back from the board.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 
 from hengbot import (
-    attack_expectation, hunt_target, immobile_threat_memory, me_capability, summoner_wait,
+    attack_expectation, disenchant_avoid, hunt_target, immobile_threat_memory, me_capability, summoner_wait,
 )
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
@@ -67,6 +74,8 @@ GUARANTEED_RADIUS = 13       # cmd-usestaff.cpp:282 13 + randint0(5)
 WORST_RADIUS = 17
 FLASH = ("燃えるような閃光が発生した！", "There is a searing blast of light!")
 MEMORY = "_destruction_use_memory"
+# The races used on at first sight: (the reason's suffix, the test of a monster).
+SIGHT_TRIGGERS = ((":disenchanter", disenchant_avoid.exposes_gear),)
 # The triggers _emergency_item latches for the escape it is about to take.
 LADDER_RETURN_TRIGGERS = frozenset({
     "emergency-summoner", "emergency-ranged-status-lock", "emergency-lethal-swarm",
@@ -198,13 +207,19 @@ def _spared_in_circle(policy, snapshot, target) -> bool:
         for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
 
 
+def _awake_in_view(policy, snapshot, target) -> list:
+    """The awake visible hostiles but the target; none with an attacker the board
+    does not show (the use would not reach it)."""
+    if getattr(policy, "_unseen_attack_evidence", None) is not None:
+        return []
+    return [m for m in snapshot.visible_monsters
+            if m.hostile and not m.asleep and m.race_id != target]
+
+
 def _threat_in_range(policy, snapshot, target) -> bool:
     """The most dangerous awake visible hostile but the target is in the guaranteed
-    radius; an attacker the board does not show is no such threat."""
-    if getattr(policy, "_unseen_attack_evidence", None) is not None:
-        return False
-    awake = [m for m in snapshot.visible_monsters
-             if m.hostile and not m.asleep and m.race_id != target]
+    radius."""
+    awake = _awake_in_view(policy, snapshot, target)
     if not awake:
         return False
     here = snapshot.player.position
@@ -213,11 +228,11 @@ def _threat_in_range(policy, snapshot, target) -> bool:
     return game_distance(here, worst.position) <= GUARANTEED_RADIUS
 
 
-def _scene_holds(policy, snapshot) -> bool:
+def _scene_holds(policy, snapshot, in_range=_threat_in_range) -> bool:
     if not _clear_headed(snapshot.player) or not _floor_destroyed(policy, snapshot):
         return False
     target = _target_race(policy, snapshot)
-    return (_threat_in_range(policy, snapshot, target)
+    return (in_range(policy, snapshot, target)
             and not _spared_in_circle(policy, snapshot, target))
 
 
@@ -232,19 +247,36 @@ def _falls_back(memory, snapshot) -> bool:
     return False
 
 
-def key(policy, snapshot) -> str | None:
+def key(policy, snapshot, *, in_range=_threat_in_range, suffix="") -> str | None:
     """The use before the rung's read, setting ``last_reason``; else None."""
     if _falls_back(_memory(policy), snapshot):
         return None
-    if not _scene_holds(policy, snapshot):
+    if not _scene_holds(policy, snapshot, in_range):
         return None
     cast = _absorbed_key(policy, snapshot)
     used = cast or _carried_key(policy, snapshot)
     if used is None:
         return None
-    policy.last_reason = REASON + (substitutes.CAST_SUFFIX if cast else "")
+    policy.last_reason = REASON + suffix + (substitutes.CAST_SUFFIX if cast else "")
     _memory(policy).pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
     return used
+
+
+def sight_trigger_key(policy, snapshot) -> str | None:
+    """The use on a SIGHT_TRIGGERS race awake in the guaranteed radius, else None.
+    A board with none does not ask ``key``, so it leaves a failed use's fallback alone."""
+    for suffix, applies in SIGHT_TRIGGERS:
+        in_range = partial(_race_in_range, applies=applies)
+        if in_range(policy, snapshot, _target_race(policy, snapshot)):
+            return key(policy, snapshot, in_range=in_range, suffix=suffix)
+    return None
+
+
+def _race_in_range(policy, snapshot, target, *, applies) -> bool:
+    here = snapshot.player.position
+    return any(game_distance(here, m.position) <= GUARANTEED_RADIUS
+               and applies(policy, snapshot, m)
+               for m in _awake_in_view(policy, snapshot, target))
 
 
 # -- after the use --------------------------------------------------------------
