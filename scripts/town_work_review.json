@@ -13708,5 +13708,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "dungeon_shop.py:entrance": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Predicate; answers False in town.",
+    "evidence": "dungeon-only: owner 2026-11-04 「入らない」, dungeon_shop.py keyed on not in_town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
+  "dungeon_shop.py:only_way": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dead-end step; answers None in town.",
+    "evidence": "dungeon-only: owner 2026-11-04 「入らない」, dungeon_shop.py keyed on not in_town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
+  "dungeon_shop.py:leave_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon floor store page only; never reached in town.",
+    "evidence": "dungeon-only: owner 2026-11-04 「入らない」, dungeon_shop.py keyed on not in_town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
   }
 }
