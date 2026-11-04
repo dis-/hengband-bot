@@ -4067,13 +4067,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy.py:HengbotPolicy._threat_read_key": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy.py:HengbotPolicy._town_holder_wait_key": {
     "classification": "producer",
     "rows": [

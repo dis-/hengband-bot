@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -745,10 +745,12 @@ class CombatMixin:
             # Rejecting an idle turn is not permission to spend a teleport.
             # The same material-loss / low-HP rule as unseen fire applies;
             # below it, use the movement/attack alternatives in this ladder.
+            if material_threat and (used := destruction_use.key(self, snapshot)) is not None:
+                return used
             scroll = self._escape_scroll(snapshot) if material_threat else None
             if scroll is not None:
                 self.last_reason = "no-wait:escape-scroll"
-                return self._threat_read_key(snapshot, scroll)
+                return self._read_key(snapshot, scroll)
 
             step = self._flee_step(snapshot, hostiles)
             if step is not None and not (
@@ -2480,6 +2482,9 @@ class CombatMixin:
                     # 2026-11-02 「そもそもショートテレポートでは十分な距離が
                     # 稼げないため代替にならない。」 Without one it falls through
                     # to the rungs below unchanged.
+                    if not guardian_reposition and (
+                            used := destruction_use.key(self, snapshot)) is not None:
+                        return used
                     scroll = self._escape_scroll(
                         snapshot, teleport_only=guardian_reposition
                     )
@@ -2762,10 +2767,12 @@ class CombatMixin:
             and not snapshot.player.blind
             and not snapshot.player.confused
         ):
+            if (used := destruction_use.key(self, snapshot)) is not None:
+                return used
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "status-threat:scroll"
-                return self._threat_read_key(snapshot, scroll)
+                return self._read_key(snapshot, scroll)
         shared_avoid = self._engagement_avoid_cells
         self._engagement_avoid_cells = shared_avoid - self._paralyzer_avoid_cells
         try:
@@ -3142,6 +3149,8 @@ class CombatMixin:
         second rung."""
         player = snapshot.player
         if not player.blind and not player.confused:
+            if (used := destruction_use.key(self, snapshot)) is not None:
+                return used
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 return self._issue_emergency_consumable(

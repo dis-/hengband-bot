@@ -43,6 +43,8 @@ HELD_TURN = 1662215
 TELEPORT = ("rc", "emergency:teleport")
 STAFF_KEY = ("us", "emergency:destruction")
 STAFF_NAME = "*破壊*"
+SV_TELEPORT, SV_PHASE = 9, 8
+NO_SCROLL_RUNG = "emergency:recall"
 RELIABLE_SKILL = 60          # (60 - 50 - 2) / (60 - 50) = 80%
 AWAKE_RACE = 338             # the air hounds of the recorded board
 CURE_REASONS = ("item:cure", "item:cure-critical")
@@ -335,6 +337,37 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
         answer, policy = self.answer(raw)
         self.assertEqual(answer, STAFF_KEY)
         self.assertEqual(self.answer(raw, policy)[0], TELEPORT)
+
+    def without_scrolls(self, raw, *svals):
+        """DECLARED CONSTRUCTED: the pack without the named scrolls (it holds no Phase Door)."""
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if not (item["tval"] == 70 and item["sval"] in svals)]
+        return raw
+
+    def assert_staff_first(self, raw, rung_reason):
+        """No staff: the rung reads.  The staff: it comes first, through the executor.
+        The following board of a failed use: the rung reads again."""
+        control, _ = self.answer(copy.deepcopy(raw))
+        self.assertEqual(control[1], rung_reason, control)
+        staffed = with_staff(copy.deepcopy(raw))
+        answer, policy = self.answer(staffed)
+        self.assertEqual(answer, STAFF_KEY)
+        self.post_staff(policy, staffed, answer[0])
+        policy.confirm_key_posted(answer[0])
+        failed = dict(copy.deepcopy(staffed), turn=staffed["turn"] + 10,
+                      messages=["杖をうまく使えなかった。"])
+        self.assertEqual(self.answer(failed, policy)[0][1], rung_reason)
+
+    def test_no_teleport_comes_before_phase_door(self):
+        # DECLARED CONSTRUCTED: the recorded Teleportation stack made Phase Door.
+        raw = copy.deepcopy(self.raw)
+        next(item for item in raw["inventory"]
+             if item["tval"] == 70 and item["sval"] == SV_TELEPORT)["sval"] = SV_PHASE
+        self.assert_staff_first(raw, "emergency:phase")
+
+    def test_no_escape_scroll_comes_before_recall(self):
+        self.assert_staff_first(
+            self.without_scrolls(copy.deepcopy(self.raw), SV_TELEPORT), NO_SCROLL_RUNG)
 
     def test_ban_stays(self):
         from hengbot.policy_constants import DESTRUCTION_USE_IMPLEMENTED

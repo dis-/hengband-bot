@@ -1,10 +1,11 @@
-"""*Destruction* in place of the Teleportation a rung reads away from a threat.
+"""*Destruction* before the scroll a rung reads away from a threat.
 
 Owner 2026-11-04: 「成功率80%以上の*破壊*を使えるとき、強敵からのテレポートによる逃走に
 代わり*破壊*を使用する。」  Answers: 「杖と取り込んだ力だけ」; 「脅威が範囲内に見える時に
 使用。また、ランダムクエストの階ではターゲット以外の脅威を排除するのに使う。傷を負った
 ターゲットは巻き込まない場面に限定する。」; 「治して階の探索を続ける。破壊の回数だけでは
-帰還しない。」  The 50F ban stays (policy_constants.DESTRUCTION_USE_IMPLEMENTED).
+帰還しない。」; 「巻物が無くても使う」 (with no Teleportation, before Phase Door and Recall).
+The 50F ban stays (policy_constants.DESTRUCTION_USE_IMPLEMENTED).
 
 Game (C:/hengband/src):
  * spell-kind/spells-floor.cpp destroy_area: refused on a fixed quest floor and on
@@ -21,15 +22,14 @@ Game (C:/hengband/src):
    (cmd-magiceat.cpp) refuses a confused player; a failure spends the turn and
    keeps the charge.
 
-Gates (``key``): the rung holds a Teleportation scroll to read; the character is
-clear-headed; a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
+Gates (``key``, asked by each rung before its read): the character is clear-headed; a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
 absorbed power first as in speed_dose); the floor is one the game destroys; the
 most dangerous awake visible hostile other than the quest target is in
 ``GUARANTEED_RADIUS``; and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
 else leaves the rung's read as it was.
 
 A use that printed no flash (a failure, the empty staff) or a key the game did
-not take falls back to the Teleportation on the next ask: speed_dose's rule for
+not take leaves the next ask to what the rung reads today: speed_dose's rule for
 a failed cast on the survival rungs, with no retry number of its own.
 
 The flash on a board (``observe``) ends the emergency without a town return:
@@ -97,7 +97,7 @@ FORGET_VISIT = (summoner_wait, immobile_threat_memory, hunt_target)
 @dataclass
 class Memory:
     pending: tuple | None = None   # (floor, turn, position) of the last use
-    fallback: tuple | None = None  # the floor whose next ask reads the Teleportation
+    fallback: tuple | None = None  # the floor whose next ask is the rung's own read
 
 
 def _memory(policy) -> Memory:
@@ -196,7 +196,7 @@ def _scene_holds(policy, snapshot) -> bool:
 
 
 def _falls_back(memory, snapshot) -> bool:
-    """The last use failed or its key was not taken: this ask reads the scroll."""
+    """The last use failed or its key was not taken: this ask is the rung's own."""
     if memory.pending is not None and memory.pending[:2] == (snapshot.floor_key, snapshot.turn):
         memory.pending = None
         return True
@@ -206,9 +206,9 @@ def _falls_back(memory, snapshot) -> bool:
     return False
 
 
-def key(policy, snapshot, scroll) -> str | None:
-    """The use in place of reading ``scroll``, setting ``last_reason``; else None."""
-    if not scroll.is_teleport_scroll or _falls_back(_memory(policy), snapshot):
+def key(policy, snapshot) -> str | None:
+    """The use before the rung's read, setting ``last_reason``; else None."""
+    if _falls_back(_memory(policy), snapshot):
         return None
     if not _scene_holds(policy, snapshot):
         return None

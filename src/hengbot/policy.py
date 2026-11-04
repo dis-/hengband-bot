@@ -7001,6 +7001,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if potion is not None:
                 self.last_reason = "item:heal"
                 return reserved_item_command(self, snapshot, "quaff", potion)
+            if threatened and (used := destruction_use.key(self, snapshot)) is not None:
+                return used
             scroll = self._escape_scroll(snapshot) if threatened else None
             if scroll is not None:
                 return self._issue_emergency_consumable(
@@ -7824,10 +7826,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and not player.blind
                 and not player.confused
             ):
+                if (used := destruction_use.key(self, snapshot)) is not None:
+                    return used
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "status-threat:scroll"
-                    return self._threat_read_key(snapshot, scroll)
+                    return self._read_key(snapshot, scroll)
             step = self._town_producer_entry("_flee_step#1", lambda: self._flee_step(snapshot, status_threats))
             if step is not None:
                 # Make the retreat a persistent navigation veto for this floor.
@@ -7848,10 +7852,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self._declare_reach(step)
                 return self._town_producer_entry("_step_toward:survival", lambda: self._step_toward(snapshot, step), family="survival")
             if not player.blind and not player.confused:
+                if (used := destruction_use.key(self, snapshot)) is not None:
+                    return used
                 scroll = self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "status-threat:scroll"
-                    return self._threat_read_key(snapshot, scroll)
+                    return self._read_key(snapshot, scroll)
             self.last_reason = "status-threat:wait"
             return WAIT_KEY
 
@@ -7909,10 +7915,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self.last_reason = "flee"
                 return self._town_producer_entry("_step_toward:escape", lambda: self._step_toward(snapshot, step), family="escape")
             # Cornered: try a relocation scroll before anything desperate.
+            if (used := destruction_use.key(self, snapshot)) is not None:
+                return used
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "flee:scroll"
-                return self._threat_read_key(snapshot, scroll)
+                return self._read_key(snapshot, scroll)
             cornered = combat_answer.adjacent_attack(
                 self, snapshot, strategic_adjacent, "flee:cornered-attack",
                 blow=lambda target: self._town_producer_entry(
@@ -8075,10 +8083,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self._declare_reach(step)
                 self._declare_triggers(strategic_hostiles)
                 return self._town_producer_entry("_step_toward:positioning", lambda: self._step_toward(snapshot, step), family="positioning")
+            if (used := destruction_use.key(self, snapshot)) is not None:
+                return used
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "threat:scroll"
-                return self._threat_read_key(snapshot, scroll)
+                return self._read_key(snapshot, scroll)
             self.last_reason = "threat:wait"
             return WAIT_KEY
 
@@ -11728,12 +11738,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if (item.tval, item.sval) == kind
         )
 
-    def _threat_read_key(self, snapshot: Snapshot, scroll: InventoryItem) -> str:
-        """A rung's read away from a threat: *Destruction* in place of its
-        Teleportation when that holds (destruction_use), else the read."""
-        return (destruction_use.key(self, snapshot, scroll)
-                or self._read_key(snapshot, scroll))
-
     def _read_key(
         self, snapshot: Snapshot, item: InventoryItem, suffix: str = ""
     ) -> str:
@@ -15217,6 +15221,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # running at the landing position.
             if snapshot.player.recalling and breeders and nearby_threat:
                 if not snapshot.player.blind and not snapshot.player.confused:
+                    if (used := destruction_use.key(self, snapshot)) is not None:
+                        return used
                     scroll = self._escape_scroll(snapshot)
                     if scroll is not None:
                         reason = (
@@ -15498,10 +15504,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _issue_emergency_consumable(
         self, snapshot: Snapshot, item: InventoryItem, reason: str
     ) -> str:
-        if reason == "emergency:teleport":
-            used = destruction_use.key(self, snapshot, item)
-            if used is not None:
-                return used
         self._emergency_return_active = True
         signature = self._item_signature(item)
         pre_use_count = sum(
