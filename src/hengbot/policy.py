@@ -2236,7 +2236,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             tuple[tuple[tuple[str, int, int], int, StoreItem, int, int], ...],
         ] | None = None
         self._home_atomic_withdraw_procurement_class: tuple[int, int] | None = None
-        self._home_atomic_withdraw_move_identity: str | None = None
+        self._home_atomic_withdraw_move_identity: tuple[int, int] | None = None
         self._home_atomic_withdraw_index: int | None = None
         self._home_atomic_withdraw_posted_turn: int | None = None
         # The pending item whose own posted take was confirmed.  It stays the
@@ -4269,7 +4269,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self, "_home_atomic_withdraw_move_identity", None
             )
             after_count = (
-                self._inventory_move_identity_count(snapshot, move_identity)
+                self._home_take_count(snapshot, move_identity)
                 if move_identity is not None
                 else self._inventory_signature_count(snapshot, signature)
             )
@@ -4954,7 +4954,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     observed_effect = bool(
                         withdrawal is not None
                         and (
-                            self._inventory_move_identity_count(
+                            self._home_take_count(
                                 snapshot,
                                 getattr(
                                     self, "_home_atomic_withdraw_move_identity", None
@@ -11713,11 +11713,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return (item.name, item.tval, item.sval)
 
     @staticmethod
-    def _inventory_move_identity_count(snapshot: Snapshot, identity: str) -> int:
+    def _home_take_count(snapshot: Snapshot, kind: tuple[int, int]) -> int:
+        """The pack's count of a Home take's (tval, sval)."""
         return sum(
             max(1, item.count)
             for item in snapshot.inventory
-            if equipment_move_identity(item) == identity
+            if (item.tval, item.sval) == kind
         )
 
     def _read_key(

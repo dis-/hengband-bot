@@ -3845,16 +3845,11 @@ class HomeMixin:
             self.last_reason = "home-visit:withdraw-not-authorized"
             self._offer_home_atomic_no_step("withdraw", "withdraw-not-authorized")
             return None
-        move_identity = (
-            equipment_move_identity(item)
-            if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
-            else None
-        )
-        before_count = (
-            self._inventory_move_identity_count(snapshot, move_identity)
-            if move_identity is not None
-            else self._inventory_signature_count(snapshot, signature)
-        )
+        # Judged by the pack's count of the kind: a take that merges into a
+        # carried stack renames it (charges, inscription), so its name proves
+        # nothing (n1-a life-475's wands, n1-b life-308's Identify staff).
+        move_identity = (item.tval, item.sval)
+        before_count = self._home_take_count(snapshot, move_identity)
         pending_signature = (
             signature
         )
@@ -3900,9 +3895,7 @@ class HomeMixin:
             and self._home_errand.request is not None
             and self._home_errand.request.signature == signature
         ):
-            self._home_errand.post(
-                self._inventory_signature_count(snapshot, signature)
-            )
+            self._home_errand.post(before_count)
             self._complete_observed_effect(
                 "home-errand-posted", owners=("home-errand",),
                 sources=("store-operation",),
