@@ -33,7 +33,8 @@ Who decides what:
  * A never-moving one is ringed by immobile_threat_memory (like a stat drainer), so the
    ring and its step-out apply.  immobile_ranged_kill's safe shots (owner 2026-11-02)
    apply to an awake one that can only touch, which cannot disenchant from range;
-   ``left_alone`` keeps them from a sleeper and from a breather.
+   ``left_alone`` keeps them from a breather and from a sleeper, unless its ring closes
+   the way on (owner 2026-11-05 「通路をふさぐ時だけ撃つ」).
 """
 
 from __future__ import annotations
@@ -82,11 +83,13 @@ def retreat_key(policy, snapshot, hostiles, ringed) -> str | None:
     return policy._avoid_engagement_key(snapshot, hostiles)
 
 
-def left_alone(policy, snapshot, monster) -> bool:
-    """A kept-away never-mover no shot may wake or answer with a breath."""
+def left_alone(policy, snapshot, monster, closes_the_way) -> bool:
+    """A kept-away never-mover no shot may answer with a breath, or wake with no need:
+    ``closes_the_way`` tells whether its ring is what closes the way on."""
     knowledge = policy._monrace_knowledge.get(monster.race_id)
     return (kept_away(policy, snapshot, monster)
-            and (monster.asleep or bool(ABILITIES & knowledge.abilities)))
+            and (bool(ABILITIES & knowledge.abilities)
+                 or (monster.asleep and not closes_the_way(policy, snapshot, monster))))
 
 
 def not_avoided(policy, snapshot, monsters) -> list:

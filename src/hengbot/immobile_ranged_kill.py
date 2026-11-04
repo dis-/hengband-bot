@@ -51,12 +51,14 @@ applied to the never-moving monster:
 On a floor whose exit is locked nothing changes: the existing fight owners
 decide there.
 
-Owner 2026-11-05 (disenchant_avoid.left_alone): a disenchanting one asleep or with a
-breath is not shot; an awake one whose touch alone disenchants is, as above.
+Owner 2026-11-05 (disenchant_avoid.left_alone): a disenchanting one with a breath is
+not shot; an awake one whose touch alone disenchants is, as above; a sleeping one only
+when its ring closes the way on (``closes_the_way``, 「通路をふさぐ時だけ撃つ」).
 """
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 
 from hengbot import disenchant_avoid, immobile_threat_memory
@@ -135,6 +137,33 @@ def _with_zone_released(policy, snapshot, search):
         policy._refresh_warning_avoidance(snapshot, added_cells=cells)
 
 
+def _way_on_reached(policy, snapshot, through: frozenset) -> bool:
+    """A walk over the routes (and ``through``) reaches a frontier or a way down."""
+    start = snapshot.player.position
+    seen = {start}
+    queue = deque([start])
+    while queue:
+        position = queue.popleft()
+        grid = snapshot.grids.get(position)
+        if position != start and grid is not None and (
+                grid.has_down_stairs or policy._is_frontier(snapshot, grid)):
+            return True
+        for neighbor in policy._walkable_neighbors(snapshot, position, through=through):
+            if neighbor not in seen and neighbor not in policy._engagement_avoid_cells:
+                seen.add(neighbor)
+                queue.append(neighbor)
+    return False
+
+
+def closes_the_way(policy, snapshot, monster: MonsterState) -> bool:
+    """The routes reach no frontier or way down, and would with this monster gone."""
+    through = frozenset(
+        (cell.y, cell.x) for cell in immobile_threat_memory.ring_cells(monster.position)
+        if (grid := snapshot.grids.get(cell)) is not None and grid.passable)
+    return (not _way_on_reached(policy, snapshot, frozenset())
+            and _way_on_reached(policy, snapshot, through))
+
+
 def killable(policy, snapshot, monster: MonsterState) -> bool:
     """The immobile summoner owner keeps no zone for a monster killed this way."""
     return plan(policy, snapshot, monster) is not None
@@ -150,7 +179,7 @@ def key(policy, snapshot) -> str | None:
                           key=lambda monster: snapshot.player.position.distance_to(
                               monster.position)):
         if (not kept_away(policy, snapshot, monster)
-                or disenchant_avoid.left_alone(policy, snapshot, monster)):
+                or disenchant_avoid.left_alone(policy, snapshot, monster, closes_the_way)):
             continue
         found = plan(policy, snapshot, monster)
         if found is None:

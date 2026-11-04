@@ -26,7 +26,7 @@ import json
 from pathlib import Path
 
 from hengbot import disenchant_avoid
-from hengbot.model import parse_snapshot
+from hengbot.model import _decode_grid_map, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from tests import test_input_executor as executor_pins
@@ -44,6 +44,7 @@ AVOID = "threat:avoid-engagement"
 BREATHER = 913
 TOUCHER = 399        # 劣化ビースト: mobile, four UN_BONUS blows
 ORDINARY = 338       # the air hounds of the random quest board
+NEVER_MOVING_BREATHER = 1264
 
 
 def resisting(raw):
@@ -169,6 +170,71 @@ class QuestFloorTest(rq.RandomQuestTeleportReserveRecordedTest, Boards):
     def test_locked_quest_floor_without_the_means_is_not_walked_away_from(self):
         answer, _ = self.quest_answer(alone(self.raw, TOUCHER, 2))
         self.assertNotEqual(answer[1], AVOID)
+
+
+def corridor(raw, *, beyond_open=True, side_branch=False):
+    """DECLARED CONSTRUCTED on the recorded mold board: the recorded map's own cell rows,
+    all walls but a corridor on row 8 (x 21 to 35), the player at its east end, the
+    sleeping mold at x 28.  West of it the corridor ends in unknown ground, or in walls
+    (``beyond_open=False``); ``side_branch`` opens unknown ground on the player's side."""
+    records = _decode_grid_map(raw["grid_map"], raw["protocol_version"])
+    wall = next(row for row in records if row.get("known") and row["terrain"].get("wall"))
+    floor = next(row for row in records if row.get("known") and row["terrain"].get("move")
+                 and not row.get("monster_index") and not row.get("object_count")
+                 and not row["terrain"].get("trap") and not row["terrain"].get("door"))
+    unknown = {*(((y, 20)) for y in (7, 8, 9))} if beyond_open else set()
+    floors = {(8, x) for x in range(21, 36)}
+    if side_branch:
+        floors |= {(9, 33), (10, 33)}
+        unknown |= {(11, y) for y in (32, 33, 34)}
+    rows = []
+    for y in range(raw["grid_map"]["h"]):
+        for x in range(raw["grid_map"]["w"]):
+            if (y, x) in unknown:
+                continue
+            template = floor if (y, x) in floors else wall
+            row = dict(copy.deepcopy(template), y=y, x=x, monster_index=0, object_count=0)
+            row["flags"]["mark"] = True      # seen ground: only the left-out cells are unknown
+            rows.append(row)
+    index = raw["visible_monsters"][0]["index"]
+    next(row for row in rows if (row["y"], row["x"]) == (8, 28))["monster_index"] = index
+    del raw["grid_map"]
+    raw["nearby_grids"] = rows
+    raw["visible_monsters"][0].update(y=8, x=28)
+    raw["player"].update(y=8, x=35)
+    return raw
+
+
+class WayOnTest(Boards):
+    """Owner 2026-11-05 「通路をふさぐ時だけ撃つ」."""
+
+    def setUp(self):
+        self.raw = self.boards("mold")[0]
+        self.assertTrue(self.raw["visible_monsters"][0]["asleep"])
+
+    def test_a_ring_that_closes_the_way_is_shot_through_the_executor(self):
+        raw = corridor(self.raw)
+        (key, reason), policy = self.answer(raw)
+        self.assertTrue(reason.startswith("ranged:"), reason)
+        self.assertEqual(key, "fr4")         # the bolts, west along the corridor
+        self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
+
+    def test_a_way_on_this_side_leaves_it_asleep(self):
+        key, reason = self.answer(corridor(self.raw, side_branch=True))[0]
+        self.assertFalse(reason.startswith("ranged:"), reason)
+        self.assertFalse(key.startswith("f"), key)
+
+    def test_nothing_beyond_it_leaves_it_asleep(self):
+        key, reason = self.answer(corridor(self.raw, beyond_open=False))[0]
+        self.assertFalse(reason.startswith("ranged:"), reason)
+        self.assertFalse(key.startswith("f"), key)
+
+    def test_a_breather_closing_the_way_is_not_shot(self):
+        raw = corridor(self.raw)
+        raw["visible_monsters"][0]["race_id"] = NEVER_MOVING_BREATHER
+        key, reason = self.answer(raw)[0]
+        self.assertFalse(reason.startswith("ranged:"), reason)
+        self.assertFalse(key.startswith("f"), key)
 
 
 class AvoidanceTest(Boards):
