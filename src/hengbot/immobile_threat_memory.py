@@ -87,8 +87,11 @@ class FloorVisit:
     # Remembered monsters not in view from a reached shooting cell
     # (immobile_ranged_kill), until perceived again.
     unaimed: set[Position] = field(default_factory=set)
-    walking_to: Position | None = None
-    walk_yielded: set[Position] = field(default_factory=set)
+    # The cells each target's walk to a shooting cell stepped from, the targets
+    # whose walk came back to one of them, and the player's cell on the last board.
+    walked_from: dict[Position, set[Position]] = field(default_factory=dict)
+    walk_retired: set[Position] = field(default_factory=set)
+    last_cell: Position | None = None
 
 
 def never_moves(policy, monster: MonsterState) -> bool:
@@ -167,6 +170,7 @@ def observe(policy, snapshot) -> None:
     if visit is None or visit.floor != snapshot.floor_key:
         visit = FloorVisit(snapshot.floor_key)
         setattr(policy, MEMORY, visit)
+    _retire_returned_walks(visit, snapshot.player.position)
     perceived = {monster.position: monster
                  for monster in policy._perceived_hostiles(snapshot)
                  if never_moves(policy, monster)}
@@ -204,34 +208,27 @@ def unaimed(policy, position: Position) -> bool:
     return visit is not None and position in visit.unaimed
 
 
-def begin_walk(policy, position: Position) -> None:
-    """This decision steps toward a cell to shoot the monster at ``position``."""
+def note_walk(policy, target: Position, cell: Position) -> None:
+    """This decision steps from ``cell`` toward a cell to shoot the monster at ``target``."""
     visit = getattr(policy, MEMORY, None)
     if visit is not None:
-        visit.walking_to = position
+        visit.walked_from.setdefault(target, set()).add(cell)
 
 
-def end_walk(policy) -> Position | None:
-    """The target the previous decision walked toward, if any."""
-    visit = getattr(policy, MEMORY, None)
-    if visit is None:
-        return None
-    walked, visit.walking_to = visit.walking_to, None
-    return walked
+def _retire_returned_walks(visit: FloorVisit, cell: Position) -> None:
+    """A player back on a cell a walk stepped from: that walk ends in no shot.
+    A step that did not move the player (a door, a refused step) is no return."""
+    if cell != visit.last_cell:
+        visit.walk_retired.update(target for target, cells in visit.walked_from.items()
+                                  if cell in cells)
+    visit.last_cell = cell
 
 
-def yield_walk(policy, position: Position) -> None:
-    """Another hostile came into view on the walk to shoot the monster at ``position``."""
-    visit = getattr(policy, MEMORY, None)
-    if visit is not None:
-        visit.walk_yielded.add(position)
-
-
-def walk_yielded(policy, position: Position) -> bool:
+def walk_retired(policy, position: Position) -> bool:
     """This floor visit no longer walks to shoot it (it may still be shot from where
     the player stands, and it stays avoided)."""
     visit = getattr(policy, MEMORY, None)
-    return visit is not None and position in visit.walk_yielded
+    return visit is not None and position in visit.walk_retired
 
 
 def route_cells(policy) -> frozenset[Position]:

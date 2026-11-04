@@ -1736,6 +1736,14 @@ class NavigationMixin:
             path.append(node)
             node = parent[node]
         path.reverse()
+        # The search's second pass is for a corridor trap.  Damaging ground is
+        # crossed only when no hazard-free frontier is left, and that is
+        # _plan_explore_path's question: this goal's route committed a walk
+        # through deep acid past a safe frontier nine steps away (n1-a life-478,
+        # Angband 19F, 2026-11-04 10:45, died standing on it).
+        if any(self._is_damaging_grid(snapshot.grids.get(cell)) for cell in path):
+            self._probed_frontiers.add(goal)
+            return []
         return path
 
     def _global_frontier_search(

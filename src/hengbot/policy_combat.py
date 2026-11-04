@@ -1555,7 +1555,7 @@ class CombatMixin:
         check neither).  An ordinary adjacent fight stays melee (None)."""
         player = snapshot.player
         if (not adjacent or player.confused or player.blind
-                or not attack_expectation.melee_refused(self, snapshot)):
+                or not attack_expectation.melee_answers_none_of(self, snapshot, adjacent)):
             return None
         chosen = self._ranged_projectile(snapshot)
         if chosen is None:
@@ -4606,6 +4606,8 @@ class CombatMixin:
 
         def easy(m: MonsterState) -> bool:
             if m.distance > HUNT_RANGE:
+                return False
+            if attack_expectation.blows_cannot_hurt(self, snapshot, m):
                 return False
             # Do not deliberately close with a sleeper that the material-threat
             # gate will immediately flee from after one step.  That disagreement

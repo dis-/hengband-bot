@@ -323,7 +323,7 @@ def _view(policy, snapshot):
     if withdraw:
         signature, before_count, _withdrawn, quantity = withdraw[:4]
         move_identity = getattr(policy, '_home_atomic_withdraw_move_identity', None)
-        after_count = (policy._inventory_move_identity_count(snapshot, move_identity)
+        after_count = (policy._home_take_count(snapshot, move_identity)
                        if move_identity is not None else
                        policy._inventory_signature_count(snapshot, signature))
         # An observed take can be wielded by its next owner. The observer
