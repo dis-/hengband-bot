@@ -1,0 +1,77 @@
+{
+ "race_id": 25,
+ "class_id": 0,
+ "personality_id": 1,
+ "level": 40,
+ "stat_cur": [
+  16,
+  14,
+  107,
+  85,
+  146,
+  85
+ ],
+ "base_stats": [
+  78,
+  4,
+  18,
+  115,
+  216,
+  45
+ ],
+ "base_hp": 549,
+ "base_ac_bonus": 0,
+ "intrinsic_abilities": [
+  "resist_cold",
+  "resist_fear",
+  "resist_neth",
+  "resist_pois",
+  "see_invisible"
+ ],
+ "pinned_identities": [],
+ "observed_turn": 9464311,
+ "mutation_signature": [],
+ "intrinsic_tr_flags": [
+  10,
+  47,
+  51,
+  52,
+  53,
+  60,
+  78,
+  80
+ ],
+ "schema_version": 2,
+ "source": "equipped-c-screen",
+ "natural_stats": [
+  16,
+  14,
+  107,
+  85,
+  146,
+  85
+ ],
+ "intrinsic_adjustments": [
+  8,
+  -10,
+  -9,
+  3,
+  7,
+  -4
+ ],
+ "hp_floor": 41,
+ "evidence_hash": "1ef50384f9bacc636f113b8a695dd474f7a4b763f00b46177cf854ea41a78066",
+ "response_sequence": 6,
+ "protocol_version": 4,
+ "stat_key_kind": "visible-base-current-v2",
+ "visible_stat_key": [
+  16,
+  14,
+  107,
+  85,
+  146,
+  85
+ ],
+ "session_id": "672ce89931c94c47b103b893315abe95",
+ "intrinsic_capabilities": []
+}

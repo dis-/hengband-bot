@@ -326,8 +326,18 @@ class HomeMixin:
         if epoch != self._town_visit_epoch:
             swept = 0
         home_visit = getattr(self, "_home_visit", None)
-        if (snapshot.store is None or snapshot.store.store_type != STORE_HOME
-                or swept >= HOME_BATCH_RESERVED_SLOTS
+        at_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
+        # Outside, only for a rank 21+ ware (owner 2026-10-04, take surplus out
+        # and sell): never with a recall running or a Home this town lacks.
+        walks_home = (snapshot.store is None and snapshot.in_town
+                      and not snapshot.player.recalling
+                      and self._home_available(snapshot)
+                      and self._home_knowledge_current
+                      and swept < item_fate.SWEEP_LIMIT_PER_STAY
+                      and item_fate.sweep_ware(
+                          self, snapshot, self._home_knowledge_items) is not None)
+        if (not (at_home or walks_home)
+                or swept >= item_fate.SWEEP_LIMIT_PER_STAY
                 or not self._home_knowledge_current
                 or self._home_errand.active
                 or self._home_pending_item is not None
@@ -361,7 +371,7 @@ class HomeMixin:
         self._home_full_relief = None
         self._home_errand.finish()
         self._home_junk_sweep_count = (self._town_visit_epoch,
-                                       HOME_BATCH_RESERVED_SLOTS)
+                                       item_fate.SWEEP_LIMIT_PER_STAY)
 
     def _revalidate_home_full_destroy_after_restore(self, snapshot: Snapshot) -> None:
         """A checkpoint cannot prove its pending destroy was posted this run."""
@@ -1241,13 +1251,16 @@ class HomeMixin:
                 discard = unidentified = []
             if relief.get("sweep"):
                 # The sweep destroys junk only, a ware the pack can carry.
-                if not junk or not self._can_add_item_without_overweight(
-                        snapshot, junk[0][1]):
-                    self._end_home_junk_sweep()
-                    return None
-                relief["sweep_class"] = self._junk_class(replace(
-                    snapshot, inventory=(*snapshot.inventory, junk[0][0])),
-                    junk[0][0])
+                if junk and self._can_add_item_without_overweight(snapshot, junk[0][1]):
+                    relief["sweep_class"] = self._junk_class(replace(
+                        snapshot, inventory=(*snapshot.inventory, junk[0][0])),
+                        junk[0][0])
+                else:
+                    ware = None if junk else item_fate.sweep_ware(self, snapshot, sale_stock)
+                    if ware is None:
+                        self._end_home_junk_sweep()
+                        return None
+                    candidates = [ware]
             if not candidates:
                 if not pack_bound:
                     # Free a shelf, not more pack space, whenever a Home

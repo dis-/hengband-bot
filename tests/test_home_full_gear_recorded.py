@@ -151,6 +151,28 @@ class HomeFullGearRecordedTest(ProductionHarness):
         self.assertIn("溶解のロング・ソード",
                       policy._overweight_surplus_disposal["pending"]["identity"][0])
 
+    def test_only_top_ten_left_cleans_consumables_and_keeps_the_named_stop(self):
+        # Owner: 「消耗品や不用品などを整理。装備は売らない。」 and 「停止して調査」.
+        visit = self.visit("home-full-2146")
+        policy = visit.policy
+        self.replay(visit, 6)
+        recorded, supply = visit.rows[6]
+        inside = supply()
+        # DECLARED CONSTRUCTED: the shelves hold artifacts only, so no slot has
+        # more than ten pieces and nothing but the pack's consumables is legal.
+        policy.consume_home_knowledge(tuple(
+            item for item in policy._home_knowledge_items if item.is_artifact))
+        rows = policy._overweight_surplus_candidates(inside)
+        self.assertTrue(rows)
+        self.assertFalse(any(entry[2].is_equipment for entry in rows), rows)
+        self.assertLess(sum(entry[2].weight * entry[3] for entry in rows),
+                        policy._inventory_weight(inside) - policy._inventory_weight_limit(inside))
+        policy._home_full_relief = None
+        policy._overweight_surplus_disposal = {"town": 0}
+        policy._build_grid_index(inside)
+        policy._overweight_surplus_sale_key(replace(inside, store=None))
+        self.assertEqual(policy._town_blocked_reason, STOP.removeprefix("town:blocked:"))
+
 
 if __name__ == "__main__":
     unittest.main()

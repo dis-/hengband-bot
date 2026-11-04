@@ -152,7 +152,9 @@ class JunkHomeSweepRecordedTest(unittest.TestCase):
     def test_no_sweep_step_outside_a_home_visit(self):
         policy = self._policy()
         board = self.recorded._feed(policy, self._row(ENTRANCE_ROW))
-        self.assertFalse(policy._begin_home_junk_sweep(board))
+        # Junk alone never walks to Home; a rank 21+ ware does (item_fate).
+        with patch("hengbot.item_fate.sweep_ware", return_value=None):
+            self.assertFalse(policy._begin_home_junk_sweep(board))
         self.assertIsNone(policy._home_full_relief)
         self.assertIsNone(getattr(policy, "_home_junk_sweep_count", None))
 
