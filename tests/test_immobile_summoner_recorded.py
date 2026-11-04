@@ -145,13 +145,19 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
                              ("5", "summoner:hold-choke"))
 
     def _corridor(self, *, quest=False, stairs=False, inventory=(), hp=949,
-                  monster_x=15, detected=False, wall=False):
+                  monster_x=15, detected=False, wall=False, owed_floor=False):
         # DECLARED CONSTRUCTED: a sealed one-cell corridor, no frontiers/loot.
         grids = {
             Position(y, x): fixtures.grid(y, x, passable=y == 10 and 7 <= x <= 16,
                                          in_view=True, lit=True)
             for y in range(9, 12) for x in range(6, 18)
         }
+        # owed_floor: the corridor west of the player is floor shown away from the own light
+        # (unmarked, as on a live board): 37414d7d41 owes no visit to marked floor
+        # (owner 2026-10-23 #101 「探索済みとする」), and this exploration is what the pins ask.
+        if owed_floor:
+            for x in range(7, 10):
+                grids[Position(10, x)] = fixtures.grid(10, x, in_view=True, lit=True, marked=False)
         grids[Position(10, monster_x)] = fixtures.grid(10, monster_x, monster=True,
                                                       in_view=True, lit=True)
         if stairs:
@@ -287,13 +293,13 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(policy.last_reason, "item:heal")
 
     def test_constructed_unreachable_visible_summoner_does_not_hold_choke(self):
-        board = self._corridor(quest=True, wall=True)
+        board = self._corridor(quest=True, wall=True, owed_floor=True)
         policy = self._policy(board)
         key = policy.choose_key(board)
         self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
 
     def test_constructed_unreachable_detected_summoner_releases_cached_hold(self):
-        board = self._corridor(quest=True, wall=True, detected=True)
+        board = self._corridor(quest=True, wall=True, detected=True, owed_floor=True)
         policy = self._policy(board)
         policy._detected_threat_hold = (board.floor_key, board.turn)
         policy._detected_threat_hold_position = board.player.position
@@ -302,7 +308,7 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._detected_threat_hold)
 
     def test_constructed_immobile_does_not_count_as_converging_melee_pack(self):
-        board = self._corridor(quest=True, wall=True, detected=True)
+        board = self._corridor(quest=True, wall=True, detected=True, owed_floor=True)
         other = replace(fixtures.hostile(20, 10, 16, distance=4), perception="detected")
         board = replace(board, detected_monsters=[*board.detected_monsters, other])
         policy = self._policy(board)
@@ -313,7 +319,8 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         # DECLARED CONSTRUCTED: a summoner with no damaging ranged attacks
         # meets the melee-pack filter unless the shared immobility predicate
         # excludes it. One mobile detected monster alone cannot own a hold.
-        board = self._corridor(quest=True, wall=True, detected=True, monster_x=13)
+        board = self._corridor(quest=True, wall=True, detected=True, monster_x=13,
+                               owed_floor=True)
         immobile = replace(board.detected_monsters[0], max_ranged_damage=0)
         mobile = replace(fixtures.hostile(20, 11, 13, distance=3), perception="detected")
         grids = dict(board.grids)
@@ -421,10 +428,11 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
     def test_glass_third_capture_leaves_and_posts(self):
         self._assert_glass_capture(2)
 
-    def _walking_summoner_corridor(self, *, wall=False, quest=False, detected=False):
+    def _walking_summoner_corridor(self, *, wall=False, quest=False, detected=False,
+                                   owed_floor=False):
         # DECLARED CONSTRUCTED: same corridor, mobile race 915; the barrier
         # determines reachability independently of NEVER_MOVE knowledge.
-        board = self._corridor(wall=wall, quest=quest, detected=detected,
+        board = self._corridor(wall=wall, quest=quest, detected=detected, owed_floor=owed_floor,
                                inventory=[fixtures.item("r", 70, 11)])
         channel = "detected_monsters" if detected else "visible_monsters"
         return replace(board, **{channel: [replace(getattr(board, channel)[0], race_id=915)]})
@@ -561,13 +569,14 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         self.assertIsNotNone(policy._detected_threat_hold)
 
     def test_glass_constructed_quest_does_not_wait_for_unreachable_mobile_summoner(self):
-        board = self._walking_summoner_corridor(wall=True, quest=True)
+        board = self._walking_summoner_corridor(wall=True, quest=True, owed_floor=True)
         policy = self._policy(board)
         later, key = self._until_wait_ends(policy, board)
         self.assertEqual((str(key), policy.last_reason), ("4", "explore"))
 
     def test_glass_constructed_detected_quest_releases_cached_hold(self):
-        board = self._walking_summoner_corridor(wall=True, quest=True, detected=True)
+        board = self._walking_summoner_corridor(wall=True, quest=True, detected=True,
+                                                owed_floor=True)
         policy = self._policy(board)
         policy._detected_threat_hold = (board.floor_key, board.turn)
         policy._detected_threat_hold_position = board.player.position
