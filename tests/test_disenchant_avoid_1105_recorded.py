@@ -40,7 +40,9 @@ from tests.test_town_decision_speed_caches import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "disenchant-1105.json.gz"
 SIGHT = ("us", "emergency:destruction:disenchanter")
+AVOID = "threat:avoid-engagement"
 BREATHER = 913
+TOUCHER = 399        # 劣化ビースト: mobile, four UN_BONUS blows
 ORDINARY = 338       # the air hounds of the random quest board
 
 
@@ -163,3 +165,62 @@ class QuestFloorTest(rq.RandomQuestTeleportReserveRecordedTest, Boards):
         self.assertFalse(policy.last_reason.startswith("emergency:destruction"))
         self.assertEqual(policy._floor_navigation_exit_locked(
             parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)), True)
+
+    def test_locked_quest_floor_without_the_means_is_not_walked_away_from(self):
+        answer, _ = self.quest_answer(alone(self.raw, TOUCHER, 2))
+        self.assertNotEqual(answer[1], AVOID)
+
+
+class AvoidanceTest(Boards):
+    def test_recorded_rows(self):
+        self.assertEqual([row["reason"] for row in self.cases["mobile"]["decisions"]],
+                         ["hunt", "melee", "melee", "melee"])
+        self.assertEqual(self.cases["mold"]["decisions"][0]["reason"], "ranged:fire-offset")
+
+    def test_recorded_hunt_becomes_the_retreat_through_the_executor(self):
+        raw = self.boards("mobile")[0]
+        (key, reason), policy = self.answer(raw)
+        # From (48,56), away from the monster at (49,54); the recorded hunt was 4, toward it.
+        self.assertEqual((key, reason), ("9", AVOID))
+        self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
+
+    def test_resistance_keeps_the_recorded_hunt_and_melee(self):
+        boards = [resisting(raw) for raw in self.boards("mobile")]
+        rows = self.cases["mobile"]["decisions"]
+        self.assertEqual(self.answer(boards[0])[0], (rows[0]["key"], rows[0]["reason"]))
+        self.assertEqual(self.answer(boards[1])[0], (rows[1]["key"], rows[1]["reason"]))
+
+    def test_an_adjacent_breather_with_no_blow_is_walked_away_from(self):
+        # Race 913 has no melee; nothing strikes from beside the player yet.
+        self.assertEqual(self.answer(self.boards("mobile")[1])[0][1], AVOID)
+
+    def test_a_striker_beside_the_player_is_fought(self):
+        raw = alone(self.boards("mobile")[1], TOUCHER, 1)
+        self.assertEqual(self.answer(raw)[0][1], "melee")
+
+    def test_with_no_step_away_an_awake_one_is_fought_as_today(self):
+        raw = self.boards("mobile")[0]
+        board_policy = self.answer(raw)[1]
+        board = parse_snapshot(copy.deepcopy(raw), self.monraces)
+        monster = board.visible_monsters[0]
+        self.assertTrue(disenchant_avoid.avoided(board_policy, board, monster))
+        self.assertEqual(disenchant_avoid.fought(board_policy, board, [monster]), [monster])
+        asleep = dataclasses.replace(monster, asleep=True)
+        self.assertEqual(disenchant_avoid.fought(board_policy, board, [asleep]), [])
+
+    def test_sleeping_mold_is_not_shot_or_approached(self):
+        raw = self.boards("mold")[0]
+        self.assertTrue(raw["visible_monsters"][0]["asleep"])
+        key, reason = self.answer(raw)[0]
+        self.assertNotIn(reason, ("ranged:fire-offset", "immobile-threat:approach-to-shoot"))
+        self.assertFalse(key.startswith("f"))
+
+    def test_resisting_keeps_the_recorded_shot_at_the_mold(self):
+        rows = self.cases["mold"]["decisions"]
+        raw = resisting(self.boards("mold")[0])
+        self.assertEqual(self.answer(raw)[0], (rows[0]["key"], rows[0]["reason"]))
+
+    def test_awake_touching_mold_stays_the_safe_ranged_kill(self):
+        raw = self.boards("mold")[1]
+        self.assertFalse(raw["visible_monsters"][0]["asleep"])
+        self.assertEqual(self.answer(raw)[0][1], "immobile-threat:approach-to-shoot")
