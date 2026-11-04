@@ -9254,6 +9254,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._floor_key, self._dungeon_knowledge, self._wilderness_map, grid
         )
 
+    def _walk_out_ends_in_wilderness(self) -> bool:
+        """Whether walking up from here can never reach town (wilderness_exit)."""
+        return wilderness_exit.entrance_is_wilderness(
+            self._floor_key, self._dungeon_knowledge, self._wilderness_map
+        )
+
     def _is_upstairs_target(self, grid: GridState) -> bool:
         return grid.has_up_stairs and not self._up_stairs_exit_to_wilderness(grid) and (
             (

@@ -8097,10 +8097,12 @@ class TownMixin:
         recall = self._find_recall_scroll(snapshot)
         if (
             allow_recall
-            # Where every '<' leaves for the wilderness (Angband 1F), walking
-            # out is impossible: read Recall (loop 3, #47, n1-c life-055).
+            # Where the dungeon's top leaves for the wilderness (Angband), walking
+            # out only reaches the floor that reads Recall anyway: read it here
+            # (loop 3, #47, n1-c life-055; life-139, 8 minutes on 2F whose one
+            # '<' was a shaft to the wilderness).
             and (snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
-                 or self._up_stairs_exit_to_wilderness())
+                 or self._walk_out_ends_in_wilderness())
             and recall is not None
             and not player.blind
             and not player.confused
