@@ -8097,10 +8097,12 @@ class TownMixin:
         recall = self._find_recall_scroll(snapshot)
         if (
             allow_recall
-            # Where every '<' leaves for the wilderness (Angband 1F), walking
-            # out is impossible: read Recall (loop 3, #47, n1-c life-055).
+            # Where the dungeon's top leaves for the wilderness (Angband), walking
+            # out only reaches the floor that reads Recall anyway: read it here
+            # (loop 3, #47, n1-c life-055; life-139, 8 minutes on 2F whose one
+            # '<' was a shaft to the wilderness).
             and (snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
-                 or self._up_stairs_exit_to_wilderness())
+                 or self._walk_out_ends_in_wilderness())
             and recall is not None
             and not player.blind
             and not player.confused
@@ -8155,6 +8157,27 @@ class TownMixin:
             self._escape_state.owner == "return"
             and self._escape_state.rung == "return:seek-secret-wall"
         )
+        # A latched return owns the decision before the ordinary stuck-escape
+        # rung below _decide, so a long wander or wall search would otherwise
+        # reach the broader navigation no-progress limit first. Once the
+        # existing stuck bound expires, use a carried readable Recall scroll
+        # if no reachable upstairs route was found above, ahead of the search.
+        if (
+            upstairs_step is None
+            and self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
+            and not player.blind
+            and not player.confused
+            and self._can_read_scrolls(snapshot)
+        ):
+            recall = self._find_recall_scroll(snapshot)
+            if recall is not None:
+                self._stuck_escape_streak = 0
+                if wall_owner:
+                    self._escape_state.release()
+                self._note_return_start(None)
+                self.last_reason = "stuck:recall-escape"
+                return self._read_dungeon_recall_scroll_key(snapshot, recall)
+
         if wall_owner:
             if upstairs_step is None:
                 self._escape_state.stable_decisions = 0
@@ -8221,24 +8244,6 @@ class TownMixin:
                 self._step_toward(snapshot, upstairs_step),
                 step="return.seek-upstairs", work_id="return:upstairs-route",
             )
-
-        # A latched return owns the decision before the ordinary stuck-escape
-        # rung below _decide, so a long return:wander streak would otherwise
-        # reach the broader navigation no-progress limit first. Once the
-        # existing stuck bound expires, use a carried readable Recall scroll
-        # if no reachable upstairs route was found above.
-        if (
-            self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
-            and not player.blind
-            and not player.confused
-            and self._can_read_scrolls(snapshot)
-        ):
-            recall = self._find_recall_scroll(snapshot)
-            if recall is not None:
-                self._stuck_escape_streak = 0
-                self._note_return_start(None)
-                self.last_reason = "stuck:recall-escape"
-                return self._read_dungeon_recall_scroll_key(snapshot, recall)
 
         if self._is_oscillating():
             # The ordinary exploration owner has an oscillation breakout below,

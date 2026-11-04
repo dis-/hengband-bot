@@ -932,7 +932,6 @@ PICKUP_REASONS = frozenset({"pickup", "victory:pickup", "conquest:pickup"})
 STUCK_FAMILY_REASONS = frozenset(
     {
         "stuck:wander",
-        "stuck:seek-stairs",
         "search",
         "seek-secret-wall",
         "breakout:least-visited",
@@ -947,8 +946,12 @@ STUCK_FAMILY_REASONS = frozenset(
         # A latched general return can exhaust every known exit and fall back
         # to least-visited wandering. Count that same bounded escape work so a
         # carried Recall scroll reaches the existing stuck escape before the
-        # broader navigation no-progress detector.
+        # broader navigation no-progress detector.  Its wall search is the same
+        # work: without these labels the count restarted and the bound never
+        # came (n1-c life-139, 8 minutes along Angband 2F with Recall carried).
         "return:wander",
+        "return:search-upstairs",
+        "return:seek-secret-wall",
         "fundraise:probe",
         "fundraise:search",
         "paralyzer-guard:approach-range",
@@ -969,6 +972,9 @@ STUCK_NEUTRAL_REASONS = frozenset(
         # progress on the floor: resetting here restarted the count at 42 of 60
         # and the loop guard stopped the bot first (n1-a life-474).
         "nav:break-oscillation",
+        # A walk along a route to a known stair is no dead end: on a wide floor
+        # the count read a Recall 60 steps into it (n1-c life-139, Angband 5F).
+        "stuck:seek-stairs",
     }
 )
 

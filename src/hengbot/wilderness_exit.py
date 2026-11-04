@@ -35,6 +35,19 @@ def up_stairs_exit_to_wilderness(floor_key, dungeon_knowledge, wilderness_map, g
 
     Unknown floor, dungeon or map answers False (the previous behaviour).
     """
+    if not entrance_is_wilderness(floor_key, dungeon_knowledge, wilderness_map):
+        return False
+    climb = 2 if grid is not None and grid.terrain_id in SHAFT_TERRAIN_IDS else 1
+    return floor_key[1] - climb < dungeon_knowledge[floor_key[0]].min_depth
+
+
+def entrance_is_wilderness(floor_key, dungeon_knowledge, wilderness_map) -> bool:
+    """Whether this dungeon's top leads to the wilderness instead of a town.
+
+    Then no staircase walk from any of its floors ends in town: it would only
+    reach the top floor and read Recall there (loop 3, #47).
+    Unknown floor, dungeon or map answers False (the previous behaviour).
+    """
     if floor_key is None:
         return False
     dungeon_id, level, _quest = floor_key
@@ -42,9 +55,6 @@ def up_stairs_exit_to_wilderness(floor_key, dungeon_knowledge, wilderness_map, g
         return False
     info = dungeon_knowledge.get(dungeon_id)
     if info is None or wilderness_map is None:
-        return False
-    climb = 2 if grid is not None and grid.terrain_id in SHAFT_TERRAIN_IDS else 1
-    if level - climb >= info.min_depth:
         return False
     y, x = getattr(info, "wild_y", None), getattr(info, "wild_x", None)
     if y is None or x is None:
