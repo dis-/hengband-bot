@@ -8748,6 +8748,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_find_exit.py:_clear_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_find_exit.py:_clear_the_way_key": {
     "classification": "producer",
     "rows": [
@@ -8832,6 +8839,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_find_exit.py:_off_the_pull_lines": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_find_exit.py:_opened_terrain": {
     "classification": "data",
     "rows": [
@@ -8846,12 +8860,26 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_find_exit.py:_plan_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_find_exit.py:_planned_open": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "quest_find_exit.py:_pull_walk": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_find_exit.py:_rank": {
     "classification": "data",
@@ -8894,6 +8922,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_find_exit.py:_unvisited_movers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_find_exit.py:_wait_after_fight": {
     "classification": "producer",

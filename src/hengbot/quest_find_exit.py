@@ -47,9 +47,14 @@ derived from the cells really opened, since a hole opens lines of fire too.
 Owner 2026-11-04 「叫ばれる条件とテレポートバックを受ける条件は少し異なる。テレポートバックは
 確実に避けるべきなので条件を把握すること。」: a pull cell (quest_exposure ``pull``) is forbidden, not
 costed: ``pull_cells`` is every walk's blocked set here and ``pull_step_refused`` the net in
-_step_toward for every other walker.  With no way left (a vein that will not open) the plan
-stops under NO_SAFE_ROUTE_REASON instead of walking them.  A player already on one takes the
-walk with the fewest of them, under PULLED_BACK_REASON.
+_step_toward for every other walker.  A player already on one takes the walk with the fewest
+of them, under PULLED_BACK_REASON.
+
+Owner 2026-11-04, when a vein will not open: 「可能な限り多くのモンスターを事前に倒してから引き寄せの
+マスを進む」.  With no pull-free way on, ``_clear_key`` kills first: what comes is fought at the
+chokes, and each mapped mover's cell is visited from a cell off the pull lines.
+``clearing_finished``: no awake enemy comes and no such cell is left, or ``clear_turn_limit``
+is spent, so it cannot freeze.  Only then does ``_pull_walk`` cross, under PULL_WALK_REASON.
 
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
@@ -73,16 +78,18 @@ STEP_ON_EXIT_REASON = "quest-strategy:exit-step"
 DIG_REASON = "quest-strategy:exit-dig"
 PULLED_BACK_REASON = "quest-strategy:exit-pulled-back"
 PULL_REFUSED_REASON = "quest-strategy:pull-cell-refused"
-NO_SAFE_ROUTE_REASON = "quest:blocked:exit-no-safe-route"
+CLEAR_REASON = "quest-strategy:exit-clear-first"
+PULL_WALK_REASON = "quest-strategy:exit-pull-walk"
 RECALL_REASON = "emergency:recall-quest-fail"
 HEAL_REASON = "quest-strategy:heal"
 CURE_REASON = "quest-strategy:cure"
 SPEED_REASON = "quest-strategy:quaff-speed"
 _PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON,
-                           PULLED_BACK_REASON})
+                           PULLED_BACK_REASON, CLEAR_REASON, PULL_WALK_REASON})
 STARVING = frozenset({"weak", "fainting"})
 # Going round a monster on the way costs at most this many steps, else it is fought.
 SIDESTEP_LIMIT = 2
+VEIN_DIG_POWER = 10  # TerrainDefinitions MAGMA_VEIN_ON_DEEP_WATER tunnel power
 PERMANENT_HASTE_SPEED = 120
 DEFAULT_SPEED_RATIO = 0.5
 
@@ -164,7 +171,7 @@ def pull_cells(navigator, plan) -> frozenset:
 def pull_step_refused(policy, snapshot, step: Position) -> bool:
     """A walker other than the way back is about to step onto a pull cell of this floor."""
     plan = _plan(policy, snapshot)
-    if plan is None or policy.last_reason == PULLED_BACK_REASON:
+    if plan is None or policy.last_reason in {PULLED_BACK_REASON, PULL_WALK_REASON}:
         return False
     navigator = policy._quest_navigators.get(snapshot.floor_key[2])
     if navigator is None:
@@ -472,24 +479,150 @@ def _exposed_count(navigator, plan, path: list[Position]) -> int:
 
 def _dig(policy, snapshot, navigator, plan, board, profile, cell: Position) -> str | None:
     """The T command at a planned vein beside the player; a coming enemy is answered first."""
-    if board.mobile_awake or board.adjacent_mobile or board.hit_by_unseen:
+    skill = snapshot.player.digging_skill
+    # exe_tunnel: skill_dig > power + randint0(40 * power); power 10 here, so 10 never opens it.
+    hopeless = skill is not None and skill <= VEIN_DIG_POWER
+    if not hopeless and (board.mobile_awake or board.adjacent_mobile or board.hit_by_unseen):
         return _fight(policy, snapshot, profile, navigator, plan, board)
     attempts = dict(navigator.exit_dig_attempts)
     attempts[_cell(cell)] = attempts.get(_cell(cell), 0) + 1
     navigator.exit_dig_attempts = attempts
-    if attempts[_cell(cell)] > int(plan["dig_attempt_limit"]):
+    if hopeless or attempts[_cell(cell)] > int(plan["dig_attempt_limit"]):
         navigator.exit_abandoned_digs = navigator.exit_abandoned_digs | {_cell(cell)}
         return _advance(policy, snapshot, navigator, plan, board)
     policy.last_reason = DIG_REASON
     return TUNNEL_KEY + policy._direction_key(snapshot.player.position, cell)
 
 
+def _floor_needs_clearing(navigator, plan) -> bool:
+    """The entrance has no pull-free way to the exit any more: a vein did not open."""
+    start = Position(*navigator.battlefield.player_start)
+    return not _least_exposed(navigator, plan, start, {_exit_cell(navigator)})
+
+
+def _unvisited_movers(policy, navigator, profile) -> dict[tuple[int, int], set]:
+    """Each mapped mover's cell not yet seen empty, and the free cells to attack it from."""
+    pull = pull_cells(navigator, _plan_of(profile))
+    terrain = _opened_terrain(navigator, navigator.exit_dug)
+    sealed = sealed_races(profile)
+    found: dict[tuple[int, int], set] = {}
+    for cell, race in navigator.battlefield.monster_placements:
+        knowledge = policy._monrace_knowledge.get(race)
+        if (race in sealed or cell in navigator.exit_cleared_placements
+                or (knowledge is not None and "NEVER_MOVE" in knowledge.flags)):
+            continue
+        found[cell] = {(cell[0] + dy, cell[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+                       if (dy, dx) != (0, 0)
+                       and terrain.get((cell[0] + dy, cell[1] + dx)) in {"deep_water", "shallow_water"}
+                       and (cell[0] + dy, cell[1] + dx) not in pull}
+    return found
+
+
+def _plan_of(profile) -> dict:
+    return profile.engagement_plan["find_exit"]
+
+
+def _note_empty_placements(snapshot, navigator, board, movers) -> None:
+    position = _cell(snapshot.player.position)
+    occupied = {_cell(cell) for cell in board.occupied}
+    for cell in movers:
+        if quest_exposure.game_distance(cell, position) <= 1 and cell not in occupied:
+            navigator.exit_cleared_placements = navigator.exit_cleared_placements | {cell}
+
+
+def clearing_finished(navigator) -> bool:
+    return navigator.exit_clearing_done
+
+
+def _clear_key(policy, snapshot, navigator, plan, board) -> str | None:
+    """Kill what can be fought off the pull lines; None when the clearing has ended."""
+    profile = policy.approved_quest_strategy(navigator.quest_id)
+    position = snapshot.player.position
+    navigator.exit_clear_turns += 1
+    if navigator.exit_clear_turns > int(plan["clear_turn_limit"]):
+        navigator.exit_clearing_done = True
+        return None
+    exposed = _exposure(navigator, plan).exposed(_cell(position))
+    if board.mobile_awake:
+        moved = _to_choke(policy, snapshot, navigator, plan, board) if exposed else None
+        answer = moved or _fight(policy, snapshot, profile, navigator, plan, board)
+        if answer is not None:
+            return answer
+        policy.last_reason = HOLD_REASON
+        return WAIT_KEY
+    if exposed and snapshot.player.hp_ratio < float(plan["rest_below_ratio"]):
+        # The rest comes off the shouted cells, before the next sleeper.
+        path = _least_exposed(navigator, plan, position,
+                              {Position(*cell) for cell in plan["choke_cells"]}, board.occupied,
+                              as_it_is=True)
+        if len(path) >= 2:
+            policy.last_reason = CLEAR_REASON
+            return policy._step_toward(snapshot, path[1])
+    movers = _unvisited_movers(policy, navigator, profile)
+    _note_empty_placements(snapshot, navigator, board, movers)
+    movers = _unvisited_movers(policy, navigator, profile)
+    beside = next((monster for monster in board.in_view
+                   if _cell(monster.position) in movers
+                   and monster.position.distance_to(position) <= 1), None)
+    if beside is not None:
+        return combat_answer.strike_key(policy, snapshot, beside, MELEE_REASON)
+    stands = {Position(*cell) for cells in movers.values() for cell in cells}
+    path = _least_exposed(navigator, plan, position, stands, board.occupied, as_it_is=True)
+    if len(path) < 2:
+        navigator.exit_clearing_done = True
+        return None
+    policy.last_reason = CLEAR_REASON
+    policy._declare_reach(path[-1])
+    return policy._step_toward(snapshot, path[1])
+
+
+def _pull_walk(policy, snapshot, navigator, plan, board) -> str | None:
+    """The clearing is over: across the pull cells by the walk with the fewest of them."""
+    terrain = _opened_terrain(navigator, navigator.exit_dug)
+    exposure = _exposure_with(navigator, plan, navigator.exit_dug)
+    position, exit_cell = _cell(snapshot.player.position), {_cell(_exit_cell(navigator))}
+    occupied = frozenset(_cell(cell) for cell in board.occupied)
+    path = (quest_exposure.least_exposed_path(terrain, exposure, position, exit_cell, occupied)
+            or quest_exposure.least_exposed_path(terrain, exposure, position, exit_cell))
+    if len(path) < 2:
+        return None
+    step = Position(*path[1])
+    if step in board.occupied:
+        blocker = next((monster for monster in board.in_view if monster.position == step), None)
+        if blocker is not None:
+            return combat_answer.strike_key(policy, snapshot, blocker, MELEE_REASON)
+    policy.last_reason = PULL_WALK_REASON
+    policy._declare_reach(_exit_cell(navigator))
+    return policy._step_toward(snapshot, step)
+
+
+def _off_the_pull_lines(policy, snapshot, navigator, plan, board) -> str | None:
+    """Pulled while the clearing runs: back to the nearest cell off the lines."""
+    terrain = _opened_terrain(navigator, navigator.exit_dug)
+    exposure = _exposure_with(navigator, plan, navigator.exit_dug)
+    pull = pull_cells(navigator, plan)
+    goals = {cell for cell, kind in terrain.items()
+             if kind in {"deep_water", "shallow_water"} and cell not in pull}
+    occupied = frozenset(_cell(cell) for cell in board.occupied)
+    path = quest_exposure.least_exposed_path(
+        terrain, exposure, _cell(snapshot.player.position), goals, occupied)
+    if len(path) < 2:
+        return None
+    policy.last_reason = PULLED_BACK_REASON
+    return policy._step_toward(snapshot, Position(*path[1]))
+
+
 def _advance(policy, snapshot, navigator, plan, board) -> str | None:
     """A step of the least exposed walk to the exit, round a monster when that exposes no
     more and is a sidestep; else it is struck."""
     position, exit_cell = snapshot.player.position, _exit_cell(navigator)
+    clearing = _floor_needs_clearing(navigator, plan)
     if _cell(position) in pull_cells(navigator, plan):
-        return _way_back(policy, snapshot, navigator, plan, board)
+        if not clearing:
+            return _way_back(policy, snapshot, navigator, plan, board)
+        if clearing_finished(navigator):
+            return _pull_walk(policy, snapshot, navigator, plan, board)
+        return _off_the_pull_lines(policy, snapshot, navigator, plan, board)
     through = _least_exposed(navigator, plan, position, {exit_cell})
     around = _least_exposed(navigator, plan, position, {exit_cell}, board.occupied)
     path = around if (
@@ -497,9 +630,12 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
         and _exposed_count(navigator, plan, around) <= _exposed_count(navigator, plan, through)
     ) else through
     if len(path) < 2:
-        # Every way on crosses a caster's direct line: not walked without the coordinator.
-        policy.last_reason = NO_SAFE_ROUTE_REASON
-        return WAIT_KEY
+        # Every way on crosses a caster's direct line: kill first, then cross.
+        if not clearing_finished(navigator):
+            cleared = _clear_key(policy, snapshot, navigator, plan, board)
+            if cleared is not None:
+                return cleared
+        return _pull_walk(policy, snapshot, navigator, plan, board)
     shot = _clear_the_way_key(policy, snapshot, navigator, plan, board, path)
     if shot is not None:
         return shot

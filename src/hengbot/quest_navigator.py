@@ -78,6 +78,9 @@ class QuestFloorNavigator:
     exit_dug = frozenset()
     exit_abandoned_digs = frozenset()
     exit_dig_attempts = {}  # replaced, never mutated
+    exit_cleared_placements = frozenset()
+    exit_clear_turns = 0
+    exit_clearing_done = False
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -107,6 +110,9 @@ class QuestFloorNavigator:
         self.exit_dug = frozenset()
         self.exit_abandoned_digs = frozenset()
         self.exit_dig_attempts = {}
+        self.exit_cleared_placements = frozenset()
+        self.exit_clear_turns = 0
+        self.exit_clearing_done = False
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
         """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.
