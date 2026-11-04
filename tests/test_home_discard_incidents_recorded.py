@@ -11,6 +11,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import tests  # noqa: F401
 from hengbot import town_hold
@@ -216,7 +217,10 @@ class DiscardIncidentsTest(unittest.TestCase):
             self.assertNotIn('k', key)
             self.assertTrue(any(i.slot == 'p' for i in after.inventory))
 
-    def test_refused_surplus_sale_falls_back_to_observed_destruction(self):
+    # Owner 2026-11-04: this small Home keeps its top 10; the flow is what is pinned.
+    @patch("hengbot.item_fate.gear_surplus", return_value=True)
+    @patch("hengbot.item_fate.gear_tier", return_value="room")
+    def test_refused_surplus_sale_falls_back_to_observed_destruction(self, *_):
         b = parse_snapshot(row('221036', 85))
         target = next(i for i in b.inventory if i.slot == 'r')
         for enforced in (False, True):

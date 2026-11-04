@@ -11,6 +11,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import tests  # noqa: F401
 from hengbot import town_terminal
@@ -116,14 +117,18 @@ class FollowupRecordedTest(unittest.TestCase):
         p, b = setup()
         item = p._home_knowledge_items[99]
         self.assertTrue(p._is_disposable_dominated_armour(b, item))
-        self.assertIsNotNone(p._home_full_discard_candidate(b, item))
+        # Owner 2026-11-04: the dominance prune no longer releases a top-10 piece.
+        self.assertIsNone(p._home_full_discard_candidate(b, item))
+        with patch("hengbot.item_fate.gear_surplus", return_value=True):
+            self.assertIsNotNone(p._home_full_discard_candidate(b, item))
         shelf = tuple(i for i in p._home_knowledge_items if i is not item)
         carried = replace(item, slot='u')
         after = replace(b, inventory=(*b.inventory, carried))
         p.consume_home_knowledge(shelf)
         p._refresh_carried_equipment_catalog(after)
         probe = replace(after, inventory=b.inventory)
-        self.assertIsNotNone(p._home_full_discard_candidate(probe, carried))
+        with patch("hengbot.item_fate.gear_surplus", return_value=True):
+            self.assertIsNotNone(p._home_full_discard_candidate(probe, carried))
 
     # declared wall: pre-2026-10-20 junk scope
     @pre_junk_scope_replay

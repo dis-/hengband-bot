@@ -131,16 +131,20 @@ class WeightReliefRootRecordedTest(unittest.TestCase):
         self.assertFalse(policy._release_home_full_relief_for_weight(snapshot, relief))
         self.assertIsNotNone(policy._home_full_relief)
 
-    def test_relief_that_took_a_ware_keeps_its_freed_slot(self):
-        # DECLARED: the same relief after one take (as C4-A 2026-10-20 decision
-        # 15 of the one-shot replay: the relief's own take freed the slot).
+    def test_relief_that_sold_a_ware_gives_its_free_slot_to_the_deposit(self):
+        # DECLARED: the same relief after one sale.  n1-c life-130 11-04 20:27
+        # stopped over the limit with Home 238/240 while this relief hid the
+        # deposits.  Only a ware still in flight keeps the relief.
         policy, snapshot = self._stale_relief_board()
         policy._home_full_relief["remaining"] -= 1
         relief = policy._weight_relief_selection(snapshot)
         self.assertEqual((relief.route, relief.home_room), ("deposit", True))
+        policy._home_full_relief["withdrawn"] = True
         self.assertFalse(policy._release_home_full_relief_for_weight(snapshot, relief))
-        self.assertIsNotNone(policy._home_full_relief)
-        self.assertIsNone(policy._find_home_deposit(snapshot))
+        policy._home_full_relief["withdrawn"] = False
+        self.assertTrue(policy._release_home_full_relief_for_weight(snapshot, relief))
+        self.assertIsNone(policy._home_full_relief)
+        self.assertIsNotNone(policy._find_home_deposit(snapshot))
 
     def test_selector_gate_is_the_overweight_test_of_the_deposits(self):
         # The selector asks the overweight test the deposit candidates own

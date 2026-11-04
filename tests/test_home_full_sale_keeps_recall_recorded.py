@@ -171,8 +171,7 @@ class HomeFullSaleKeepsRecallRecordedTest(unittest.TestCase):
         self.assertIsNotNone(policy._home_full_sale_candidate(snapshot, stacks[0]))
         # Selling the 9 (plus the carried 7) would leave 3 < 9.
         self.assertIsNone(policy._home_full_sale_candidate(snapshot, stacks[1]))
-        self.assertEqual(
-            self._relief_pick(home, approach, inside, "scavenge")[0], RECALL_NAME)
+        # Which legal row goes first is item_fate's cheapest-first order.
 
 
 if __name__ == "__main__":

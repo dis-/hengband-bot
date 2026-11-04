@@ -202,11 +202,9 @@ class OverweightHomeFullStep15bTest(unittest.TestCase):
                         player=replace(board.player, stat_index=(0,*board.player.stat_index[1:])))
         candidates = policy._overweight_surplus_candidates(board)
         spare = [c for c in candidates if c[2].is_digging_tool]
-        self.assertEqual([(c[2].slot,c[3]) for c in spare], [('m',1)])
-        after, sold = self.dispose(policy, self.sale_board(board))
-        self.assertIn((policy._sale_item_identity(extra),1), sold)
-        self.assertFalse(policy._inventory_overweight(after))
-        self.assertEqual(sorted(i.pval for i in after.inventory if i.is_digging_tool), [6,7])
+        # Owner 2026-11-04: a tool in its slot's top 10 is not sold; the named
+        # weight stop stays when nothing else clears the excess.
+        self.assertEqual(spare, [])
 
     def test_pin4_recorded_nonfull_pack_does_not_destroy_identify_staff(self):
         for stamp, turn in (('20261008-134200', 15796137),
