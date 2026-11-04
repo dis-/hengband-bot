@@ -99,7 +99,7 @@ class OverflowGearRecordedTest(unittest.TestCase):
         self.assertEqual(len(home.inventory), 20)
         self.assertTrue(policy._town_pack_space_shortage(home))
         self.assertEqual(
-            decisions[-1], ("dkdj\x1b", "home:atomic-deposit")
+            decisions[-1], ("dqdpdodndmdldkdj\x1b", "home:atomic-deposit")
         )
         deposited = {item.slot: item.name for item in home.inventory
                      if item.slot in ("j", "k")}
@@ -116,8 +116,8 @@ class OverflowGearRecordedTest(unittest.TestCase):
         _decisions, home = self._drive(policy, HOME_PAGE)
         candidates = {item.slot for item in home.inventory
                       if policy._home_deposit_candidate(item, home)}
-        # Plain spare gear only; the shovel is the only digging tool and
-        # stays out of _find_home_deposit.
+        # Plain spare gear only; the shovel (s) is a candidate too, shelved
+        # off duty (owner 2026-11-04) unless poverty plans a mining run.
         self.assertEqual(candidates, set(GEAR_SLOTS) | {"s"})
         for item in home.inventory:
             if item.slot not in candidates:
@@ -151,7 +151,9 @@ class OverflowGearRecordedTest(unittest.TestCase):
             item = next(item for item in home.inventory if item.slot == slot)
             self.assertFalse(policy._home_deposit_candidate(item, home))
 
-    def test_control_no_shortage_keeps_the_target_gate(self):
+    def test_rejected_sheet_releases_gear_without_a_shortage(self):
+        # Owner 2026-11-04 「使わない装備をキープしたまま...自宅に仕舞う」: the
+        # rejected sheet's release no longer waits for a free-slot shortage.
         policy = self._policy()
         _decisions, home = self._drive(policy, HOME_PAGE)
         # Constructed: the pack without the two Identify staff stacks and the
@@ -162,7 +164,7 @@ class OverflowGearRecordedTest(unittest.TestCase):
         self.assertFalse(policy._town_pack_space_shortage(trimmed))
         for slot in GEAR_SLOTS:
             item = next(item for item in trimmed.inventory if item.slot == slot)
-            self.assertFalse(policy._home_deposit_candidate(item, trimmed))
+            self.assertTrue(policy._home_deposit_candidate(item, trimmed))
 
 
 if __name__ == "__main__":

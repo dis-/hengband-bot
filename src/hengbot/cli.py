@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from hengbot import __version__ as HENGBOT_VERSION
+from hengbot import spare_gear
 
 _CONTROL_OWNER_HANDLES: dict[int, object] = {}
 _TOWN_IDLE_D0_SESSION_ID = uuid.uuid4().hex
@@ -1813,6 +1814,7 @@ def _empty_decision_facts() -> dict:
         "departure_block": {}, "cross_town_shopping": {},
         "quest_strategy": None,
         "retention_reservations": [], "deposit_keep_conflict": None,
+        "carried_spare_gear": [],
         "staged_prompt_chain": None,
     }
 
@@ -1995,6 +1997,7 @@ def _capture_decision_facts_unchecked(snapshot, policy) -> dict:
             else None
         ),
         "retention_reservations": retention["retention_reservations"],
+        "carried_spare_gear": spare_gear.carried_names(policy, snapshot),
         "deposit_keep_conflict": retention["deposit_keep_conflict"],
         "staged_prompt_chain": None,
     }
@@ -2243,6 +2246,8 @@ def _write_decision(
                         else None
                     ),
                 )
+            if facts.get("carried_spare_gear"):
+                record["carried_spare_gear"] = facts["carried_spare_gear"]
             if policy is not None:
                 from hengbot.town_work import current_record, receipts
                 arbiter = getattr(policy, "_town_turn_arbiter", None)

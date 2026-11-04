@@ -9223,7 +9223,10 @@ class TownRecallReturnTest(unittest.TestCase):
             dungeon_recall_depths={DUNGEON_ANGBAND: 1},
         )
         pol._town_store_attempted[STORE_HOME] = snap.turn
-        self.assertIsNone(pol._find_home_deposit(snap))
+        # Owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」: the spare Shovel is Home's, yet
+        # with this visit's Home stop spent it holds nothing.
+        self.assertIs(pol._find_home_deposit(snap), snap.inventory[-1])
+        self.assertTrue(pol._town_departure_conjuncts(snap, commit=False)["spare_gear_stowed"])
         with patch.object(
             pol, "_recall_town_departure_conjuncts",
             return_value={"test_ready": True},
@@ -15586,6 +15589,9 @@ class OrganizationDepartureRecordedTest(unittest.TestCase):
         self.assertEqual(len(self.terminal.inventory), 15)
         # Equipment search state is absent from the JSON-view capture. Wall
         # that unrelated collaborator only after the real surplus producer.
+        # Owner 2026-11-04: this visit's Home stop has passed, so the carried
+        # digger waits for the next visit (spare_gear_stowed never holds it).
+        policy._town_store_attempted[STORE_HOME] = self.terminal.turn
         with patch.object(policy, "_equipment_departure_ready", return_value=True):
             self.assertTrue(policy._town_departure_ready(self.terminal))
             self.assertFalse(policy._descent_is_blocked(self.terminal))

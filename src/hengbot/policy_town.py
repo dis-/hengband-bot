@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import home_pass_charge, town_end_mining, town_travel
@@ -2254,6 +2255,9 @@ class TownMixin:
             "identification_need_clear": (
                 not home_required or self._identification_need is None
             ),
+            # Owner 2026-11-04: gear the departure does not use goes to Home.
+            # It never stops a visit (town_terminal.gather_town_end drops it).
+            "spare_gear_stowed": not spare_gear.stow_pending(self, snapshot),
             # Never depart mid-calibration or with its supplies still at Home.
         }
 
@@ -3118,6 +3122,10 @@ class TownMixin:
             and self._find_home_deposit(snapshot) is not None
         ):
             add(STORE_HOME, "deposit", "home-first")
+        if (STORE_HOME not in self._town_store_attempted
+                and self._home_available(snapshot)
+                and spare_gear.quest_digger_at_home(self, snapshot) is not None):
+            add(STORE_HOME, "stored-digger", "home-first")
         procurement_probe = self._home_procurement_probe
         if procurement_probe is not None and (
             (

@@ -88,6 +88,7 @@ import absorbing_state_catalog
 import test_esp_threat_rest_recorded as esp_recorded
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
+from recorded_digger_carry import pre_digger_home_replay
 from recorded_loadout import (
     pre_light_radius_replay, pre_ratio_optimizer_replay, recorded_loadout_replay,
 )
@@ -369,6 +370,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         )
 
     @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
+    @pre_digger_home_replay  # declared wall: tests/recorded_digger_carry.py
     def test_t1_drained_in_town_routes_to_the_unobserved_temple(self):
         policy, snapshot = self._board(FIRST_DEPARTURE)
         self.assertEqual(
@@ -413,6 +415,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         )
 
     @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
+    @pre_digger_home_replay  # declared wall: tests/recorded_digger_carry.py
     def test_t3_temple_observed_with_restore_buys_it(self):
         policy, snapshot = self._board(FIRST_DEPARTURE)
         page = self._temple_page_board(snapshot, with_restore=True)
@@ -433,6 +436,7 @@ class ExperiencePotionRecordedTest(unittest.TestCase):
         self.assertEqual(policy._town_claim_categories, ["experience-restore"])
 
     @pre_light_radius_replay  # declared wall: pre-2026-10-19 light comparison (tests/recorded_loadout.py)
+    @pre_digger_home_replay  # declared wall: tests/recorded_digger_carry.py
     def test_t4_not_drained_no_temple_trip(self):
         policy, snapshot = self._board(FIRST_DEPARTURE)
         # Hand-built: the recorded board with the drain filled.

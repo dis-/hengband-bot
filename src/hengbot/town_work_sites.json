@@ -5848,13 +5848,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_home.py:HomeMixin._spare_equipment_deposit_shape": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_home.py:HomeMixin._stage_home_operation": {
     "classification": "producer",
     "rows": [
@@ -8205,13 +8198,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_town.py:TownMixin._town_pack_space_shortage": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_town.py:TownMixin._town_procurement_decision": {
     "classification": "producer",
     "rows": [
@@ -8906,6 +8892,27 @@
     "delegation": "selected child; no independent success"
   },
   "sol_events.py:serialize_event": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "spare_gear.py:digger_needed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "spare_gear.py:digger_stays_carried": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "spare_gear.py:released": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

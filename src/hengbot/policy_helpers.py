@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot import spare_gear
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 
 from dataclasses import replace
@@ -120,13 +121,12 @@ class PolicyHelpersMixin:
 
         The Home executor refuses to shelve a retained tool
         (equipment-transaction:retain-digging-tool).  n1-c life-121 2026-11-03:
-        the Magic-Eater came back wearing its two Shovels, each plan took them
-        off to deposit them, Home refused, the abandonment put them back on,
-        until quest:blocked:me-staff.
+        a plan that took off what Home refused alternated until
+        quest:blocked:me-staff, so both sides read this one rule
+        (spare_gear, owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」).
         """
-        return item.is_digging_tool and (
-            self._fundraising_mode in {"prepare", "mine", "scavenge"}
-            or not self._is_surplus_digging_tool(snapshot, item))
+        return spare_gear.digger_stays_carried(self, snapshot, item)
+
     @claims(ClaimOwner.DETECTORS)
     def _refuse_no_progress_cycle(self, snapshot: Snapshot, key: str) -> str:
         """Refuse a repeated transition after an equivalent-state cycle.

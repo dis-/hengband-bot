@@ -115,7 +115,9 @@ class ConsumablePolicyRecordedTest(unittest.TestCase):
                          [(75, 32), (75, 56), (70, 10), (70, 14)])
         key = self.policy.choose_key(board)
         self.assertEqual(self.policy.last_reason, "home:atomic-deposit")
-        self.assertEqual(key, "dkdide\x1b")
+        # t: the board's digger (owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」).
+        self.assertTrue(slots["t"].is_digging_tool)
+        self.assertEqual(key, "dtdkdide\x1b")
         self.assertFalse(self.policy._home_deposit_candidate(slots["b"], board))
 
     def test_requirement_buys_a_kind_without_the_buy_flag(self):
