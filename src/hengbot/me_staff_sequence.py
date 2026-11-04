@@ -516,6 +516,24 @@ def _phase(policy, snapshot) -> str:
     return "return" if town != OUTPOST_TOWN_ID else "done"
 
 
+def tower_feeds_staple(policy, snapshot) -> bool:
+    """The Tower's recharge is what ends this hunger, and the gold pays for it.
+
+    「減ったら塔でチャージする」.  Hungry but not yet weak, ``_find_edible`` eats
+    only the staple, so no Home or shelf device relieves it (n1-c life-128
+    2026-11-04 13:05: two empty Wands of Wonder, 38170 gold against a 3344 gold
+    expedition, the trip already walking to the inn; the mana override took the
+    board from it and retired the Lv36 character).
+    """
+    staple = staple_food(snapshot)
+    if staple is None or staple.charges > 0 or not applies(policy, snapshot):
+        return False
+    phase = _phase(policy, snapshot)
+    if phase == "travel":
+        return snapshot.player.gold >= _expedition_cost(snapshot, supply_cost(policy, snapshot))
+    return phase == "recharge" and snapshot.player.gold >= recharge_cost(snapshot) + TOWN_TELEPORT_COST
+
+
 def _stop(policy, detail: str) -> str:
     state(policy).failure = detail
     policy.last_reason = STOP_REASON
@@ -721,6 +739,10 @@ def _settle_pending(policy, snapshot) -> None:
         if step == "recharge" and item is not None and item.charges > charges:
             record.attempts.pop(("recharge", key), None)
         if step == "absorb" and item is None:
+            # ATTEMPT_LIMIT counts absorptions that did not happen, not every
+            # staff of the kind a life takes in (n1-c life-128 2026-11-04 12:18:
+            # the fourth Staff of Speed, 17919 gold, stopped the bot).
+            record.attempts.pop(("absorb", key), None)
             stage = current_stage(policy)
             record.absorbed = {**record.absorbed, key: charges}
             if stage is not None and stage_complete(policy, stage):

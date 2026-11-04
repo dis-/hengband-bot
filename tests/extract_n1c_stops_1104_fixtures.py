@@ -22,6 +22,13 @@ TOWN_STOPS = {
     "opening-fight": ROOT / "life-127/incident-captures/20261104-073130-quest-blocked-opening-route",
     "staff-inscription": ROOT / "life-127/incident-captures/20261104-073626-quest-blocked-me-staff",
 }
+OPEN = Path("C:/hengband-backups/pdca/captures/stops-1104-1330/n1-c/life-128/incident-captures")
+TOWN_STOPS.update({
+    "tower-hunger": OPEN / "20261104-130531-town-blocked-survival-mana-no-charges",
+    "fourth-absorb": OPEN / "20261104-121816-quest-blocked-me-staff",
+})
+BLOCKED_CORRIDOR = OPEN / "20261104-082351-loop-detected"
+BLOCKED_CORRIDOR_TURN = 617151
 BERSERK = ROOT / "life-125/incident-captures/20261104-064749-stuck-prompt"
 LOOP = ROOT / "life-125/incident-captures/20261104-071817-loop-detected"
 BERSERK_TURN = 778734
@@ -60,6 +67,17 @@ def main() -> None:
         berserk=dict(stop=board(berserk, BERSERK_TURN), skill=skill(BERSERK, "snapshots-20261104-064230-23018c.jsonl.gz"),
                      absorbed=state["absorbed"]),
         loop=dict(boards=[board(loop, turn) for turn in LOOP_TURNS], skill=skill(LOOP, "snapshots-current.jsonl.gz"))))
+    blocked = ring_rows(BLOCKED_CORRIDOR / "snapshots" / "snapshots-current.jsonl.gz")
+    recorded = json.loads((BLOCKED_CORRIDOR / "policy-state.json").read_bytes())
+    write(FIXTURES / "blocked-corridor.json.gz", dict(
+        source="snapshots-current and policy-state of the life-128 loop-detected capture",
+        stop=board(blocked, BLOCKED_CORRIDOR_TURN),
+        skill=[row for row in blocked if row["type"] == "knowledge"
+               and row["knowledge"]["category"] == "skill_exp"][-1],
+        terrain={name: recorded["terrain"][name] for name in ("known_t", "marked_t", "floor_t", "wall_t")},
+        visit_counts=recorded["state"]["_visit_counts"],
+        probed=recorded["state"]["_probed_frontiers"],
+        avoid=recorded["state"]["_engagement_avoid_cells"]))
 
 
 if __name__ == "__main__":

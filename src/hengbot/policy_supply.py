@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import combat_answer, goal_route, lamp_fuel, me_capability, random_quest_reserve, unseen_strike, wilderness_exit
+from hengbot import combat_answer, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -1651,6 +1651,9 @@ class SupplyMixin:
             self.last_reason = "town:blocked:survival-mana-no-charges"
             return WAIT_KEY
 
+        if me_staff_sequence.tower_feeds_staple(self, snapshot):
+            return self._mana_food_tower_key(snapshot)
+
         # Home is the universal first supplier.  Stale knowledge means "scan",
         # never absence; only a current complete catalogue may release a buy.
         home_device = self._home_mana_food_candidate()
@@ -1800,6 +1803,19 @@ class SupplyMixin:
 
         self.last_reason = "town:blocked:survival-mana-no-charges"
         return WAIT_KEY
+
+    def _mana_food_tower_key(self, snapshot: Snapshot) -> str | None:
+        """The empty staple's one supplier, on the staff sequence's own legs.
+
+        The sequence asks here because the Home and shop routes below serve only
+        what ``_find_edible`` would eat.  ``None`` (its adjacent-hostile and
+        fundraising boards) hands the board to the owners below this override.
+        """
+        self._home_procurement_probe = None
+        if snapshot.store is not None:
+            self.last_reason = "survival:mana-leave-wrong-store"
+            return LEAVE_STORE_KEY
+        return me_staff_sequence.town_key(self, snapshot, self._strategic_hostiles(snapshot))
 
     @claims(ClaimOwner.SURVIVAL)
     def _mana_food_floor_pickup_key(self, snapshot: Snapshot) -> str | None:
