@@ -14893,9 +14893,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def _resistance_depth_limit(self, snapshot: Snapshot) -> int:
         # The deepest floor the character can dive without a lethal resistance gap:
-        # the deepest depth for which it (and every shallower band) has the mandatory
-        # resistances. Free action and fire resistance open 20F; confusion
-        # resistance is additionally required from 21F through 25F.
+        # the first floor with a missing gate ends it (DEPTH_ABILITY_REQUIREMENTS).
         limit = 0
         for depth in range(1, 128):
             if self._missing_required_abilities(snapshot, depth):

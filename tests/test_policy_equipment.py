@@ -1412,7 +1412,9 @@ class EntranceTravelTest(unittest.TestCase):
         self.assertIsNone(self._travel(pol, self._surface_snap()))
         self.assertEqual(
             pol.last_reason,
-            "depth-gate:destination-31:missing-resist_chaos",
+            # Owner decision 2026-11-04: 31F asks every band at or above its first floor.
+            "depth-gate:destination-31:missing-free_action,resist_acid,resist_chaos,"
+            "resist_cold,resist_conf,resist_elec,resist_fire,resist_pois",
         )
 
     def test_incomplete_optimizer_blocks_native_entrance_travel(self):

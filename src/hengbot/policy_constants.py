@@ -704,21 +704,24 @@ Q2_BREACH_WALL_COUNT = len(Q2_BREACH_CORRIDOR)
 
 Q2_BREACH_ATTEMPT_LIMIT = 20
 
+# USER DECISION 2026-11-04 「要求は深くなるごとにAND条件で厳しくする想定。」
+# Each row is (first floor, what that floor adds); a floor requires every row
+# at or above its first floor, so a deeper band never asks for less.  This is
+# the one table: the policy's depth gates and the equipment optimizer both read
+# it through _required_abilities_for_depth.
 DEPTH_ABILITY_REQUIREMENTS = (
-    (20, 20, frozenset({"free_action", "resist_fire"})),
-    (21, 25, frozenset({"free_action", "resist_conf", "resist_fire"})),
-    (26, 30, frozenset({"resist_pois", "resist_cold", "resist_elec", "resist_acid"})),
-    (31, 39, frozenset({"resist_chaos"})),
-    (40, 49, frozenset({"resist_chaos", "resist_neth"})),
-    (50, 80, frozenset({"resist_chaos", "resist_neth", "telepathy"})),
-    (81, 127, frozenset({"resist_chaos", "resist_neth", "telepathy"})),
+    (20, frozenset({"free_action", "resist_fire"})),
+    (21, frozenset({"resist_conf"})),
+    (26, frozenset({"resist_pois", "resist_cold", "resist_elec", "resist_acid"})),
+    (31, frozenset({"resist_chaos"})),
+    (40, frozenset({"resist_neth"})),
+    (50, frozenset({"telepathy"})),
 )
 
 def _required_abilities_for_depth(depth: int) -> frozenset:
-    for low, high, required in DEPTH_ABILITY_REQUIREMENTS:
-        if low <= depth <= high:
-            return required
-    return frozenset()
+    return frozenset().union(
+        *(adds for first_floor, adds in DEPTH_ABILITY_REQUIREMENTS if depth >= first_floor)
+    )
 
 DESTRUCTION_GATE_DEPTH = 50
 

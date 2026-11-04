@@ -56,6 +56,7 @@ def setUpModule():
 def tearDownModule():
     _knowledge_patch.stop()
     _knowledge_tmp.cleanup()
+from hengbot.policy_constants import _required_abilities_for_depth
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
@@ -1272,16 +1273,42 @@ class ResistanceDepthGateTest(unittest.TestCase):
         )
 
     def test_reports_the_missing_abilities_for_a_band(self):
-        snap = self._at(30, {"resist_pois"})  # 26-30F needs pois+cold+elec+acid
+        # Owner decision 2026-11-04: 30F asks the 20F, 21F and 26F bands together.
+        snap = self._at(30, {"resist_pois"})
         self.assertEqual(
             HengbotPolicy()._missing_required_abilities(snap, 30),
-            frozenset({"resist_cold", "resist_elec", "resist_acid"}),
+            frozenset({
+                "free_action", "resist_fire", "resist_conf",
+                "resist_cold", "resist_elec", "resist_acid",
+            }),
+        )
+
+    def test_a_deeper_floor_asks_every_band_at_or_above_its_first_floor(self):
+        # Owner 2026-11-04 「要求は深くなるごとにAND条件で厳しくする想定」:
+        # the deep band's own abilities no longer open a floor that a shallower
+        # band's missing ability keeps shut.
+        deep_bands_only = {"resist_chaos", "resist_neth"}
+        snap = self._at(39, deep_bands_only)  # 39F -> 40F
+        self.assertFalse(
+            HengbotPolicy()._is_descent_target(snap, snap.grids[Position(10, 10)])
+        )
+        self.assertEqual(
+            HengbotPolicy()._missing_required_abilities(snap, 40),
+            frozenset({
+                "free_action", "resist_fire", "resist_conf", "resist_pois",
+                "resist_cold", "resist_elec", "resist_acid",
+            }),
+        )
+        kit = deep_bands_only | set(HengbotPolicy()._missing_required_abilities(snap, 40))
+        kitted = self._at(39, kit)
+        self.assertTrue(
+            HengbotPolicy()._is_descent_target(kitted, kitted.grids[Position(10, 10)])
         )
 
     def test_50f_also_requires_a_destruction_method(self):
         # AGENTS.md: from 50F a usable *Destruction* method is mandatory on top
         # of the resistance table; it is not a player.abilities flag.
-        abilities = {"resist_chaos", "resist_neth", "telepathy"}
+        abilities = set(_required_abilities_for_depth(50))
         snap = self._at(49, abilities)  # 49F -> 50F
         self.assertEqual(
             HengbotPolicy()._missing_required_abilities(snap, 50),
@@ -1299,7 +1326,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
         still the rule the flag restores, and that is asserted below under the
         flipped flag, so nothing about the gate itself was loosened.
         """
-        abilities = {"resist_chaos", "resist_neth", "telepathy"}
+        abilities = set(_required_abilities_for_depth(50))
         scroll = self._at(
             49, abilities,
             inventory=[item("s", TVAL_SCROLL, SV_SCROLL_STAR_DESTRUCTION)],
@@ -1353,7 +1380,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
         so ``destruction`` is missing there as well while the flag is False.
         The speed+25 rule itself is untouched and is still asserted on both
         sides, here and under the flipped flag."""
-        abilities = {"resist_chaos", "resist_neth", "telepathy"}
+        abilities = set(_required_abilities_for_depth(50))
         kit = [item("s", TVAL_SCROLL, SV_SCROLL_STAR_DESTRUCTION)]
         slow = self._at(80, abilities, inventory=kit)  # base speed 110
         fast = self._at(80, abilities, inventory=kit, speed=135)

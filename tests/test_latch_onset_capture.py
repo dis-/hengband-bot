@@ -208,7 +208,9 @@ class LatchOnsetCaptureTest(unittest.TestCase):
         onset = records[1]
         self.assertEqual(onset["town_blocked_reason"], {
             "before": None,
-            "after": "depth-gate:destination-30:missing-resist_acid,resist_elec",
+            # Owner decision 2026-11-04: 30F asks every band at or above its first floor.
+            "after": "depth-gate:destination-30:missing-free_action,resist_acid,"
+                     "resist_conf,resist_elec,resist_fire",
         })
         self.assertTrue(onset["assignment"]["assigning_file"].endswith("policy_town.py"))
         self.assertIsInstance(onset["assignment"]["assigning_line"], int)
