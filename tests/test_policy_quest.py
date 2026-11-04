@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from hengbot import quest_early_sweep, quest_light_areas
 import ast
 import gzip
 import inspect
@@ -266,6 +267,15 @@ def tearDownModule():
 def teleport_reserve():
     """The random-quest teleport reserve (owner 2026-11-01): the exit lock holds."""
     return item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=RANDOM_QUEST_TELEPORT_RESERVE)
+
+
+
+def past_q2_early_sweep(test):
+    """These pins are about phases after P4, or replay a life recorded before the plan's
+    early_sweep and light_areas (test_q2_early_1105_recorded pins those)."""
+    return patch.object(quest_early_sweep, "_stage", lambda policy, plan: None)(
+        patch.object(quest_light_areas, "PLAN_KEY", "not-read-by-this-pin")(test)
+    )
 
 
 class FixedQuestTest(unittest.TestCase):
@@ -5717,7 +5727,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._quest_knowledge[2] = QuestInfo(
             2, "The Sewer", 6, 15, 0, battlefield=battlefield
         )
-        later = policy_module.Q2_POST_BLUE_SEQUENCE[-1][2][0]
+        later = Position(21, 50)  # a spider nest cell: known only past the blue room
         snapshot = Snapshot(
             player(1, 5),
             {
@@ -5733,6 +5743,25 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertIn(153, policy._q2_cleared_races)
         self.assertTrue(policy._q2_breach_complete)
+
+    def test_q2_reconnect_cells_seen_before_the_blue_room_prove_no_passage(self):
+        definitions = REAL_QUEST_DEFINITIONS
+        if definitions is None:
+            self.skipTest("real Hengband quest definitions are unavailable")
+        q2 = load_quest_knowledge(definitions)[2]
+        for seen in (Position(8, 55), Position(18, 46)):
+            policy = self._policy()
+            policy._quest_knowledge[2] = q2
+            navigator = QuestFloorNavigator(2, q2.battlefield)
+            snapshot = Snapshot(
+                player(4, 47),
+                {Position(4, 47): grid(4, 47), seen: grid(seen.y, seen.x, in_view=False)},
+                [], floor_key=(0, 15, 2),
+            )
+            policy._q2_reconnect_recovery_floor = snapshot.floor_key
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator)
+            self.assertFalse(policy._q2_breach_complete, seen)
+            self.assertNotIn(252, policy._q2_cleared_races, seen)
 
     def test_q2_real_map_routes_to_observation_cell_for_isolated_gremlin(self):
         definitions = REAL_QUEST_DEFINITIONS
@@ -6204,6 +6233,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy.last_reason, "quest-strategy:q2-blue-recovery-complete"
         )
 
+    @past_q2_early_sweep
     def test_q2_posted_fire_invalidates_blue_recovery_perception(self):
         q2 = load_quest_knowledge(REAL_QUEST_DEFINITIONS)[2]
         monrace_definitions = find_monrace_definitions(Path(__file__), None)
@@ -6290,6 +6320,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy.last_reason, "quest-strategy:q2-blue-recovery-survey"
         )
 
+    @past_q2_early_sweep
     def test_q2_blue_recovery_incident_exits_on_first_former_wait(self):
         monrace_definitions = find_monrace_definitions(Path(__file__), None)
         self.assertIsNotNone(
@@ -6473,7 +6504,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertNotEqual((first, second), ("8", "2"))
         self.assertEqual(
-            policy.last_reason, "quest-strategy:q2-post-blue-down-puddle"
+            policy.last_reason, "quest-strategy:q2-post-blue-nether-worm"
         )
 
     def test_q2_stale_empty_puddle_cell_does_not_skip_downward_phase(self):
@@ -6487,6 +6518,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._q2_breach_complete = True
         policy._q2_blue_recovery_complete = True
         navigator = QuestFloorNavigator(2, q2.battlefield)
+        policy._q2_surveyed_placements.add(Position(11, 60))  # P4 done: the worms come first
         navigator.opened.update(Position(y, 47) for y in range(5, 12))
         puddle = Position(18, 46)
         snapshot = Snapshot(
@@ -6533,9 +6565,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy.last_reason, "quest-strategy:q2-post-blue-nether-worm"
         )
         self.assertTrue(policy._q2_blue_recovery_complete)
-        self.assertTrue({175, 885} <= policy._q2_cleared_races)
-        self.assertNotIn(944, policy._q2_cleared_races)
-        self.assertNotIn(213, policy._q2_cleared_races)
+        # A known cell proves the passage only: every post-blue phase runs again.
+        self.assertFalse({175, 885, 944, 213} & policy._q2_cleared_races)
 
     def test_q2_phase_routing_owns_distant_visible_hostile(self):
         policy = self._policy()
@@ -6826,6 +6857,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertIsNone(policy._quest_carry_purchase(weapon_store, profile))
 
+    @past_q2_early_sweep
     def test_q2_lights_dark_shooting_area_before_firing_fixed_undead(self):
         policy = self._policy()
         # Real Q2 placement: corpse mass 202 occupies [7,35]/[7,36].
@@ -7043,6 +7075,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             "quest-strategy:q2-close-residual-multiplier-no-ammo",
         )
 
+    @past_q2_early_sweep
     def test_q2_closes_on_corpse_masses_before_recovering_dry_ammo(self):
         policy = self._policy()
         battlefield = QuestBattlefield(
@@ -7258,6 +7291,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         return policy, snapshot, QuestFloorNavigator(2, battlefield)
 
+    @past_q2_early_sweep
     def test_q2_real_tail_keeps_firing_during_dry_ammo_recovery(self):
         knowledge = MonraceKnowledge(
             10,
@@ -7337,6 +7371,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("rt", "emergency:teleport"))
         phase.assert_not_called()
 
+    @past_q2_early_sweep
     def test_q2_abandons_oscillating_dry_ammo_route_and_engages_cluster(self):
         policy = self._policy()
         cluster = (
@@ -7511,6 +7546,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertEqual(key, "6")
 
+    @past_q2_early_sweep
     def test_q2_residual_multiplier_route_does_not_reverse_between_vantages(self):
         definitions = REAL_QUEST_DEFINITIONS
         if definitions is None:
@@ -7672,6 +7708,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._q2_phase_key(at_end, self.profiles[2], navigator), "4"
         )
 
+    @past_q2_early_sweep
     def test_q2_fires_profile_bolts_at_fixed_water_target(self):
         policy = self._policy()
         # Real Q2 placement: deep-water target 944 occupies [12,64].
@@ -7700,6 +7737,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             policy._q2_ranged_core_key(no_crossbow, self.profiles[2], [target])
         )
 
+    @past_q2_early_sweep
     def test_q2_start_room_cursor_fires_at_nonaligned_shallow_puddle(self):
         policy = self._policy()
         left = replace(hostile(2, 2, 2, distance=2), race_id=885)
@@ -7723,6 +7761,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(key, "fq*p14t5\x1b")
         self.assertEqual(policy.last_reason, "quest-strategy:q2-fire")
 
+    @past_q2_early_sweep
     def test_q2_deep_puddle_uses_explicit_cursor_instead_of_stalling_target_mode(self):
         policy = self._policy()
         target = replace(hostile(16, 12, 64, distance=6), race_id=944)
