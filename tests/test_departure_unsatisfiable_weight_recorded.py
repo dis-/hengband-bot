@@ -67,15 +67,18 @@ import hashlib
 import json
 import unittest
 from dataclasses import replace
+from functools import wraps
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot.cli import _consume_response_sequence
+from hengbot import consumable_policy
 from hengbot.equipment_mutation import EquipmentMutationState
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.model import parse_snapshot
+from recorded_monster_scope import pre_exported_position_replay
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_HOME
 
@@ -83,6 +86,16 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 import test_policy_home  # WeightOverloadTownTest's overweight town board
 from extraction_calibration import install_extraction_calibration
 from recorded_loadout import pre_ratio_optimizer_replay
+
+
+def pre_consumable_shelf_replay(replay):
+    """Run ``replay`` with no potion or scroll shelved by the consumable table."""
+    @wraps(replay)
+    def wrapped(*args, **kwargs):
+        with patch.object(consumable_policy, "shelved_at_home", return_value=False):
+            return replay(*args, **kwargs)
+
+    return wrapped
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -187,6 +200,11 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
 
     @classmethod
     @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
+    # declared walls: this recording predates the exported monster cell (6cce55f61a)
+    # and the owner's consumable table, whose Home shelf (725ce08f22) deposits a stat
+    # restore potion on row 54 (pinned by tests/test_consumable_policy_recorded.py).
+    @pre_exported_position_replay
+    @pre_consumable_shelf_replay
     def _replay(cls):
         """Replay the recorded prefix through the first reconciliation change."""
         if cls.replay is not None:
@@ -288,6 +306,9 @@ class DepartureUnsatisfiableWeightRecordedTest(unittest.TestCase):
     # which this board's optimizer first chooses a 'tb' takeoff; the declared
     # wall keeps the subject (the departure recall purchase).
     @pre_ratio_optimizer_replay  # declared wall: pre-2026-10-02 loadout comparison (tests/recorded_loadout.py)
+    # declared walls: as _replay
+    @pre_exported_position_replay
+    @pre_consumable_shelf_replay
     def test_production_buys_the_departure_recall_with_the_target(self):
         """No wall: the first changed decision is the recall quantity at 68."""
         self.assertEqual(
