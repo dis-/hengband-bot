@@ -1958,11 +1958,7 @@ def _commit_identify_equipped(policy: Any, board: Any, terminal: TerminalRef,
     target = equipped_identification_target(policy, board)
     signature = terminal.args[0]
     full = bool(target is not None and target.known)
-    if full and STORE_ALCHEMIST in policy._town_store_attempted:
-        policy._defer_full_identification(signature)
-    else:
-        policy._identification_candidate = signature
-        policy._request_identification("full" if full else "normal")
+    policy._worn_identification_source_missing(target, signature)
     policy._offer_execution(
         None, producer="identification",
         work_id=f"identify:equipped:{signature}",

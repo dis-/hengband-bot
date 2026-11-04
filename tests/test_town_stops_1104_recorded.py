@@ -27,12 +27,15 @@ from hengbot.cli import (
     _send_decision_key_with_prompt_chain,
     _send_new_decision_key,
 )
+from hengbot import me_powerful_activation as powerful_activation
 from hengbot.model import Position, STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.equipment_capacity import plan_equipment_transactions
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from hengbot.town_pack_budget import reserve_swap_slot
-from hengbot.town_terminal import gather_recall_departure, gather_town_end, verdict_town_end
+from hengbot.town_terminal import (
+    equipped_identification_target, gather_recall_departure, gather_town_end, verdict_town_end,
+)
 from hengbot.town_arrival_checkpoint import (
     JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST,
 )
@@ -41,6 +44,7 @@ from replay_town_arrival import adopt_calibration, decisions, journal, restore
 from tests import test_classA_observed_input as follow_harness
 from tests import test_input_executor as executor_pins
 from tests import test_lv7_town_stop_recorded as lv7
+from tests import test_me_powerful_activation as me_powerful_pins
 from town_work_corpus import replay_window
 
 
@@ -62,6 +66,16 @@ def setUpModule():
 
 def tearDownModule():
     _undo_wall()
+
+
+def identify(response, slot, name, pval, flags):
+    """DECLARED CONSTRUCTED: a worn row of ``response`` as the identified item."""
+    row = next(item for item in response["equipment"] if item.get("slot") == slot)
+    row.pop("pseudo_feeling", None)
+    row.update(ac=0, charges=0, charging=False, damage_dice={"num": 0, "sides": 0},
+               fully_known=True, is_artifact=False, is_bounty=False, is_broken=False,
+               is_cursed=False, is_ego=False, known=True, known_flags=flags, name=name,
+               pval=pval, to_a=0, to_d=0, to_h=0)
 
 
 class TownStops1104RecordedTest(executor_pins.ProductionHarness):
@@ -502,11 +516,14 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
 
         DECLARED: the rows up to the board are posted as this replay decides
         them (the Magic-Eater's arrival dump and destroy rows do not match the
-        recorded ones); only the board's own decision is pinned.
+        recorded ones); only the board's own decision is pinned.  This life's worn
+        {average} ring and amulet would be repaired first, but the recorded boards
+        never show that, so the repair would repeat until its uses are spent.
         """
         policy, recorded, steps = self.load("gold-pile")
-        with mock.patch.object(HengbotPolicy, "_periodic_character_dump_key",
-                               lambda _self, _snapshot, key: key):
+        with (self.rings_already_repaired(),
+              mock.patch.object(HengbotPolicy, "_periodic_character_dump_key",
+                                lambda _self, _snapshot, key: key)):
             for _row, supply in steps[:50]:
                 key = policy.choose_key(supply())
                 if key:
@@ -542,7 +559,7 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(policy.last_reason, "identify:full")
         self.assertTrue(key.startswith("r"), repr(key))
 
-    def publish_recorded_dump(self, policy, edit=None, stop="worn-average"):
+    def publish_recorded_dump(self, policy, edit=None, stop="worn-average", edit_dump=None):
         """The life's last C response and dump, published on their own board.
 
         DECLARED CONSTRUCTED: the ring keeps no CLI sequence, so one is given,
@@ -554,8 +571,8 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         response["sequence"] = 1
         if edit is not None:
             edit(response)
-        policy._character_dump_path.write_bytes(
-            lzma.decompress((fixture / "dump.txt.xz").read_bytes()))
+        dump = lzma.decompress((fixture / "dump.txt.xz").read_bytes())
+        policy._character_dump_path.write_bytes(edit_dump(dump) if edit_dump else dump)
         board = parse_snapshot(
             {name: value for name, value in {**response, "type": "player_turn"}.items()
              if name != "character"}, policy._monrace_knowledge)
@@ -601,6 +618,128 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._character_calibration)
         self.assertEqual(policy._calibration_unavailable_reason,
                          "equipment-stat-modifiers-unknown")
+
+    post_powerful = me_powerful_pins.MagicEaterPowerfulActivationTest.post
+
+    def test_worn_sensed_ring_is_identified_and_then_the_sheet_reads_it(self):
+        """n1-c life-130 15:38: the sheet has refused this life's C screens since 15:21.
+
+        An Eldritch Horror forgot the worn rings of (+3) and (+4) and the amulet
+        (lose_all_info), the game sensed them {average}, and they were read as
+        having no modifier: predicted CON gear +2 (the Pike), printed +9.  The
+        feeling says nothing about jewellery, so the safe town board identifies
+        them first with Powerful Activation, instead of the recorded pack item,
+        and the same sheet is then accepted.
+
+        DECLARED CONSTRUCTED: the game's prompts (as test_me_powerful_stuck_recorded),
+        and the identified items' rows and dump lines (pvals: the sheet's own CON
+        row; flags: the live row of the ring after its *Identify*).
+        """
+        policy, recorded, steps = self.replay("worn-ring", 0)
+        self.assertEqual((recorded[0]["key"], recorded[0]["reason"]),
+                         ("UAfq", "me-powerful:identify"))
+        self.publish_recorded_dump(policy, stop="worn-ring")
+        self.assertIsNone(policy._character_calibration)
+        self.assertEqual(policy._calibration_unavailable_reason,
+                         "equipment-stat-modifiers-unknown")
+
+        board = steps[0][1]()
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("UAf/d", "me-powerful:identify"))
+        raw = json.loads(recorded[0]["line"] or recorded[0]["inputs"][-1])
+        following = copy.deepcopy(raw)
+        following["turn"] += 10
+        identify(following, "main_ring", "耐久力の指輪 (+3)", 3, [4, 73])
+        last = raw["inventory"][-1]["slot"]
+        chooser = {"areas": ["inventory", "equipment"], "menu": False, "first_label": "a"}
+        game, _board = self.post_powerful(policy, raw, key, [
+            me_powerful_pins.racial_screen(38),
+            me_powerful_pins.prompt(me_powerful_pins.TYPE_PROMPT),
+            me_powerful_pins.staff_powers(),
+            me_powerful_pins.prompt(me_powerful_pins.FULL_IDENTIFY_PROMPT, "item",
+                                    area="inventory", last_label=last, **chooser),
+            me_powerful_pins.prompt(me_powerful_pins.FULL_IDENTIFY_PROMPT, "item",
+                                    area="equipment", last_label="l", **chooser),
+            executor_pins.source_derived_identify_viewer(),
+            executor_pins.source_derived_identify_viewer(final=True),
+        ], following)
+        self.assertEqual(game.accepted, ["U", "b", "A", "f", "/", "d", " ", ""])
+
+        def all_identified(response):
+            identify(response, "main_ring", "耐久力の指輪 (+3)", 3, [4, 73])
+            identify(response, "sub_ring", "耐久力の指輪 (+4)", 4, [4, 73])
+            identify(response, "neck", "耐性のアミュレット", 0, [])
+
+        def identified_dump(dump):
+            for old, new in (("d) 耐久力の指輪 {並}", "d) 耐久力の指輪 (+3)"),
+                             ("e) 耐久力の指輪 {並}", "e) 耐久力の指輪 (+4)"),
+                             ("f) 耐性のアミュレット {並}", "f) 耐性のアミュレット")):
+                dump = dump.replace(old.encode("euc-jp"), new.encode("euc-jp"))
+            return dump
+        self.publish_recorded_dump(policy, all_identified, "worn-ring", identified_dump)
+        self.assertIsNone(policy._calibration_unavailable_reason)
+        self.assertIsNotNone(policy._character_calibration)
+
+    def test_control_worn_ring_without_a_source_does_not_hold_the_visit(self):
+        """With the Alchemist tried and no source, the visit goes on as it is worn.
+
+        DECLARED: the recorded board has a monster to kill first, so the worn-item
+        producer is asked directly; the source is taken away.
+        """
+        policy, _recorded, steps = self.replay("worn-ring", 0)
+        board = steps[0][1]()
+        policy.choose_key(board)
+        policy._town_store_attempted[STORE_ALCHEMIST] = policy._decision_sequence
+        with mock.patch.object(HengbotPolicy, "_find_identification_source",
+                               lambda *_args, **_kwargs: None):
+            for _item in range(2):  # the rings share a signature; then the amulet
+                self.assertIsNone(policy._town_equipped_identification_key(board, macro=True))
+                self.assertIsNone(policy._identification_need)
+        self.assertIsNone(equipped_identification_target(policy, board))
+
+    @contextmanager
+    def rings_already_repaired(self):
+        """DECLARED: the visit's rows ran before worn sensed jewellery was identified."""
+        with (mock.patch("hengbot.me_powerful_activation.average_hides_modifiers",
+                         lambda _item: False),
+              mock.patch("hengbot.policy_identification.average_hides_modifiers",
+                         lambda _item: False)):
+            yield
+
+    def test_magic_eater_full_identifies_gear_at_the_recall_read(self):
+        """Owner 2026-11-04 「Lv.10以降街で余裕があるときに可能な限り全ての装備を*鑑定*」.
+
+        n1-c life-130 15:27: every recorded row of the visit, its recovery and
+        errands and departure dump, replays unchanged; the spare work takes the
+        board of the recall read, one target per decision.  Spent uses move to the
+        next target and then leave the rest for the next visit.
+        """
+        self.publish_nothing()
+        with self.rings_already_repaired():
+            policy, recorded, steps = self.replay("ring-departure", 34)
+            self.assertEqual(recorded[34]["reason"], "town:recall-to-angband")
+            board = steps[34][1]()
+            key = policy.choose_key(board)
+            self.assertEqual(policy.last_reason, "me-powerful:identify")
+            self.assertRegex(key, r"^UAf(/[a-l]|[a-w])$")
+
+            limit = powerful_activation.ATTEMPTS_PER_TARGET
+            attempts = powerful_activation._memory(policy).attempts
+            spent = next(signature for (_effect, signature) in attempts)
+            attempts[("identify", spent)] = limit
+            following = powerful_activation.spare_identify_key(policy, board)
+            self.assertNotIn(following, (None, key))
+            for item in (*board.equipment, *board.inventory):
+                attempts[("identify", policy._item_signature(item))] = limit
+            self.assertIsNone(powerful_activation.spare_identify_key(policy, board))
+
+    def test_control_no_charge_reads_the_recall_as_recorded(self):
+        self.publish_nothing()
+        with self.rings_already_repaired():
+            policy, recorded, steps = self.replay("ring-departure", 34)
+            with mock.patch("hengbot.me_capability.charges", lambda *_args: 0):
+                key = policy.choose_key(steps[34][1]())
+        self.assertEqual((key, policy.last_reason), (recorded[34]["key"], recorded[34]["reason"]))
 
     def ability_shelf(self):
         """Row 7 of the stop's visit: the Black Market page, the sheet accepted.

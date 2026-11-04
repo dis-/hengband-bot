@@ -32,6 +32,7 @@ from hengbot.model import (
     StoreItem,
     item_requires_full_identification,
 )
+from hengbot.equipment_optimizer import average_hides_modifiers
 from hengbot.policy_constants import (
     CARDINAL_OFFSETS,
     CHEST_COLLECT_BUDGET,
@@ -42,6 +43,7 @@ from hengbot.policy_constants import (
     CHEST_OPEN_KEY,
     CHEST_SEARCH_BUDGET,
     CHEST_SEARCH_KEY,
+    EQUIPMENT_SLOT_KEY,
     FULL_IDENTIFY_DISMISS_SUFFIX,
     FUNDRAISING_GOLD_TARGET,
     IDENTIFY_FAIL_LIMIT,
@@ -885,8 +887,30 @@ class IdentificationMixin:
                     )
                 )
                 or (not item.known and item.pseudo_feeling != "average")
+                # Worn jewellery the C screen cannot read until it is identified.
+                or (getattr(item, "slot", None) in EQUIPMENT_SLOT_KEY
+                    and average_hides_modifiers(item))
             )
         )
+
+    def _worn_identification_source_missing(self, target, signature) -> None:
+        """No source for a worn item: ask for one, or set out as it is worn.
+
+        Once the Alchemist was tried, *Identify* work and sensed jewellery
+        (``average_hides_modifiers``; only the C screen waits for it) are
+        deferred for the visit; the need would hide every later town need.
+        """
+        tried = STORE_ALCHEMIST in self._town_store_attempted
+        full = target is not None and target.known
+        if full and tried:
+            self._defer_full_identification(signature)
+        elif tried and target is not None and average_hides_modifiers(target):
+            self._defer_identification_candidate(signature, "worn-jewellery-source-unavailable")
+            self._identification_candidate = None
+            self._identification_need = None
+        else:
+            self._identification_candidate = signature
+            self._request_identification("full" if full else "normal")
 
     @classmethod
     def _identification_waiting_item(cls, item: InventoryItem | StoreItem) -> bool:

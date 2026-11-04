@@ -43,6 +43,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from hengbot import me_capability, me_powers
+from hengbot.equipment_optimizer import AMMUNITION_TVALS, average_hides_modifiers
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import (
     SV_STAFF_IDENTIFY, SV_STAFF_REMOVE_CURSE, item_requires_full_identification,
@@ -139,19 +140,31 @@ def _memory(policy) -> Memory:
 
 # -- the town work --------------------------------------------------------------
 
-def _uncurse_target(policy, snapshot):
+def _uncurse_targets(policy, snapshot):
     permanent = getattr(policy, "_permanent_cursed_items", ())
-    return next((item for item in snapshot.equipment if item.is_cursed
-                 and policy._item_signature(item) not in permanent), None)
+    return (item for item in snapshot.equipment if item.is_cursed
+            and policy._item_signature(item) not in permanent)
 
 
-def _identify_target(policy, snapshot):
-    return next((item for item in (*snapshot.equipment, *snapshot.inventory)
-                 if item.known and not item.fully_known
-                 and item_requires_full_identification(item)), None)
+def _identify_targets(policy, snapshot):
+    """Worn jewellery hiding its numbers, then gear that needs *Identify*."""
+    yield from (item for item in snapshot.equipment if average_hides_modifiers(item))
+    yield from (item for item in (*snapshot.equipment, *snapshot.inventory)
+                if item.known and not item.fully_known
+                and item_requires_full_identification(item))
 
 
-TARGETS = {UNCURSE: _uncurse_target, IDENTIFY: _identify_target}
+def _spare_identify_targets(policy, snapshot):
+    """Gear not fully known (identify_fully's chooser: object_is_not_fully_identified).
+
+    lose_all_info (status/base-status.cpp) spares only a FULL_KNOWN item.
+    """
+    return (item for item in (*snapshot.equipment, *snapshot.inventory)
+            if item.is_equipment and not item.fully_known
+            and item.tval not in AMMUNITION_TVALS)
+
+
+TARGETS = {UNCURSE: _uncurse_targets, IDENTIFY: _identify_targets}
 
 
 def _address(item) -> str:
@@ -160,17 +173,22 @@ def _address(item) -> str:
     return item.slot if slot is None else "/" + slot
 
 
-def _work(policy, snapshot):
+def _first_open(policy, effect, targets):
+    """The first target with uses left: a target that never lands is left behind."""
     memory = _memory(policy)
-    for effect in EFFECTS:
-        if not me_capability.has(policy, snapshot, effect.kind, effect.sval):
-            continue
-        target = TARGETS[effect](policy, snapshot)
-        if target is None:
-            continue
+    for target in targets:
         signature = policy._item_signature(target)
         if memory.attempts.get((effect.name, signature), 0) < ATTEMPTS_PER_TARGET:
             return effect, target, signature
+    return None
+
+
+def _work(policy, snapshot):
+    for effect in EFFECTS:
+        if me_capability.has(policy, snapshot, effect.kind, effect.sval):
+            work = _first_open(policy, effect, TARGETS[effect](policy, snapshot))
+            if work is not None:
+                return work
     return None
 
 
@@ -206,11 +224,33 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         return None  # the absorbed power regenerates; nothing is bought
     if snapshot.player.hp <= cost(snapshot.player.level):
         return _rest_key(policy, snapshot, hostiles)
+    return _use(policy, snapshot, effect, target, signature)
+
+
+def _use(policy, snapshot, effect, target, signature) -> str:
     memory = _memory(policy)
     memory.attempts[(effect.name, signature)] = memory.attempts.get((effect.name, signature), 0) + 1
     memory.pending = (effect, signature, snapshot.turn)
     policy.last_reason = effect.reason
     return effect.key + (_address(target) if effect.targeted else "")
+
+
+def spare_identify_key(policy, snapshot) -> str | None:
+    """*Identify* one more piece of gear at the recall read, all town work done.
+
+    Owner 2026-11-04 「魔道具術師の場合はLv.10以降街で余裕があるときに可能な限り
+    全ての装備を*鑑定*しておきたい」.  The town's owners and its recovery come
+    first; without an enemy, HP to pay or a charge the rest waits for the next
+    visit and the read goes on.
+    """
+    if (snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER
+            or not _safe(policy, snapshot) or policy._physical_hostiles(snapshot)
+            or not pays_safely(policy, snapshot)
+            or not me_capability.has(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval)
+            or me_capability.charges(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval) <= 0):
+        return None
+    work = _first_open(policy, IDENTIFY, _spare_identify_targets(policy, snapshot))
+    return _use(policy, snapshot, *work) if work is not None else None
 
 
 def observe(policy, snapshot) -> None:

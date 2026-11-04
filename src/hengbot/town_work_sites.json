@@ -617,6 +617,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:average_hides_modifiers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:current_loadout": {
     "classification": "data",
     "rows": [
@@ -2054,6 +2061,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powerful_activation.py:_first_open": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powerful_activation.py:_rest_key": {
     "classification": "producer",
     "rows": [
@@ -2061,12 +2075,33 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_powerful_activation.py:_spare_identify_targets": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_powerful_activation.py:_use": {
+    "classification": "adapter",
+    "rows": [
+      "identification"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powerful_activation.py:racial_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "me_powerful_activation.py:spare_identify_key": {
+    "classification": "producer",
+    "rows": [
+      "identification"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_powerful_activation.py:town_key": {
     "classification": "producer",

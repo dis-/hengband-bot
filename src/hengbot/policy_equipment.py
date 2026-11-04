@@ -3337,11 +3337,7 @@ class EquipmentMixin:
         )
         if source is None:
             signature = self._item_signature(target)
-            if full and STORE_ALCHEMIST in self._town_store_attempted:
-                self._defer_full_identification(signature)
-            else:
-                self._identification_candidate = signature
-                self._request_identification("full" if full else "normal")
+            self._worn_identification_source_missing(target, signature)
             self._offer_execution(
                 None, producer="identification",
                 work_id=f"identify:equipped:{signature}",
