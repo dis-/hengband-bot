@@ -481,11 +481,10 @@ class InStoreMixin:
                     )
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         if ledger["ops"] >= STORE_STUCK_LIMIT:
-            required = self._unfinished_required_page_operation(snapshot)
-            if required is not None:
-                return self._in_store_required_operation_stop(
-                    snapshot, "entry-budget", required,
-                )
+            # Every operation so far took effect (an unconfirmed one ended the
+            # entry above), so a spent budget is no defect: the visit's owners
+            # take the rest from the outside.  n1-a life-477 2026-11-04 08:54: a
+            # 30000-gold book sold and an Identify staff swap, row k still wanted.
             return self._in_store_leave(snapshot, IN_STORE_DONE_REASON)
         selection = self._in_store_selection(snapshot)
         if selection is None or not selection.get("would_key"):

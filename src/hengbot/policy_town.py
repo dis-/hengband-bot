@@ -3414,7 +3414,16 @@ class TownMixin:
         add_ledger_shortages()
         if self._identification_need is not None:
             # Identification remains primary, while the supply ledger retains
-            # its independent departure claims.
+            # its independent departure claims.  With no source left, the Identify
+            # staff that is the departure's own claim is also the need's source
+            # (n1-b life-308 2026-11-04 13:14: 0 of 20 charges, a 20-charge staff
+            # on the shelf, and the pack pass never told the buy needed a slot).
+            if self._find_identification_source(
+                snapshot,
+                full=self._identification_need == "full",
+                reliable_only=self._identification_requires_reliable_source(snapshot),
+            ) is None:
+                add_identify_staff_suppliers()
             return needs
         quest_strategy = self._carry_procurement_strategy(snapshot)
         if quest_strategy is not None:

@@ -7,7 +7,7 @@ the fixed decision is posted through the production executor port.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 import copy
 from dataclasses import replace
 import gzip
@@ -15,6 +15,7 @@ import io
 import json
 import lzma
 from pathlib import Path
+import shutil
 from tempfile import TemporaryDirectory
 import time
 import unittest
@@ -28,7 +29,11 @@ from hengbot.cli import (
 )
 from hengbot.model import Position, STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
-from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
+from hengbot.policy_types import StoreVisit, StoreVisitPhase
+from hengbot.town_arrival_checkpoint import (
+    JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST,
+)
+from hengbot.warrior_optimization import CharacterCalibration, load_character_calibration
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
 from tests import test_classA_observed_input as follow_harness
 from tests import test_input_executor as executor_pins
@@ -59,6 +64,10 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
             lzma.decompress((fixture / "journal.jsonl.xz").read_bytes())))
         runtime = self.scratch / stop / "runtime"
         runtime.mkdir()
+        if (fixture / "runtime").is_dir():
+            shutil.copytree(fixture / "runtime", visit / SIDECAR_DIRECTORY)
+            (visit / SIDECAR_MANIFEST).write_text(json.dumps({
+                path.name: {"copied": True} for path in (fixture / "runtime").iterdir()}))
         policy = restore(visit, runtime)
         adopt_calibration(policy, fixture / "calibration.json", runtime)
         # The stops share the isolated runtime directory; each has its own history.
@@ -72,6 +81,28 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(result.first_divergence)
         self.assertEqual(result.matched_rows, rows)
         return policy, recorded, steps
+
+    def publish_nothing(self):
+        """DECLARED: the replay writes no dump file, so a dump row publishes nothing."""
+        publish = mock.patch.object(HengbotPolicy, "_publish_character_dump",
+                                    lambda *_args, **_kwargs: None)
+        publish.start()
+        self.addCleanup(publish.stop)
+
+    @contextmanager
+    def recorded_calibration(self, stop):
+        """DECLARED: the sheet the visit's dump published is not in the journal, so
+        the arrival's calibration stands in for it, also where the arrival's level
+        is one behind; without it the optimizer answers calibration-required."""
+        calibration = load_character_calibration(FIXTURES / stop / "calibration.json")
+
+        def validated(policy, _snapshot):
+            policy._calibration_unavailable_reason = None
+            return calibration
+        with (mock.patch.object(HengbotPolicy, "_validated_character_calibration", validated),
+              mock.patch.object(CharacterCalibration, "stale_reason",
+                                lambda *_args, **_kwargs: None)):
+            yield
 
     def assert_posts(self, policy, row, board, key):
         """The production executor posts ``key`` on the recorded board."""
@@ -213,6 +244,121 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason), (TRAVEL_HOME, "shop:travel"))
         self.assertEqual(policy._town_visit_ledger.blocked_stores, set())
         self.assert_posts(policy, recorded[24], board, key)
+
+    def test_swap_only_the_reserve_refuses_departs_on_the_worn_loadout(self):
+        """n1-a life-477 08:17, town:blocked:unmet:equipment_departure_ready.
+
+        failed: equipment_departure_ready (blockers pack-space-required:1, four
+        actions, free_pack_slots_ready true at 4 free).  A one-slot body swap,
+        Home with room, nothing to shelve or sell.  Owner 2026-10-03: a failed
+        optional change departs on the confirmed loadout.
+
+        DECLARED: the departure dump is a prompt macro the test game does not
+        answer, so the decision is pinned without posting it.
+        """
+        self.publish_nothing()
+        with self.recorded_calibration("pack-unrelieved"):
+            policy, recorded, steps = self.replay("pack-unrelieved", 26)
+            self.assertEqual(recorded[26]["reason"],
+                             "town:blocked:unmet:equipment_departure_ready")
+            board = steps[26][1]()
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("Cf\ry\x1b\x1b", "town:character-dump"))
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertEqual(policy._equipment_optional_failure_pending["reason"],
+                         "pack-space-unrelieved-current-loadout")
+
+    def test_transaction_the_visit_closed_is_not_home_work_left(self):
+        """n1-c life-129 13:18, town:blocked:unmet:equipment_departure_ready.
+
+        failed: equipment_departure_ready (blockers equipment-transaction-failed,
+        closure retain-reserved).  Home was left for a shop, so it was not
+        "attempted", and a closed transaction read as reachable Home work while
+        the route projection said no work was outstanding.
+
+        DECLARED: the departure dump is a prompt macro the test game does not
+        answer, so the decision is pinned without posting it.
+        """
+        self.publish_nothing()
+        policy, recorded, steps = self.replay("closed-transaction", 1)
+        with self.recorded_calibration("closed-transaction"):
+            result = replay_window("closed-transaction", policy, iter(steps[1:20]))
+            self.assertIsNone(result.first_divergence)
+            self.assertEqual(recorded[20]["reason"], "town:entrance-step-off:town:end-step-off")
+            board = steps[20][1]()
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("Cf\ry\x1b\x1b", "town:character-dump"))
+        self.assertIsNone(policy._town_blocked_reason)
+
+    def test_equipment_refusing_only_the_landing_opens_the_set(self):
+        """n1-a life-477 09:52 (09:55 too), town:blocked:survival:depth_abilities.
+
+        failed: equipment_departure_ready beside depth_abilities (free_action,
+        20F, gold 16502); blockers pending-random-teleport-suppression.  The
+        worn-loadout wait is refused only while a landing ability is missing, so
+        the town end named two conditions and ac3d070e0's one-condition test
+        stopped.  Owner 2026-10-19: fundraise whatever the gold.
+        """
+        policy, recorded, steps = self.replay("ability-suppression", 26)
+        self.assertEqual(recorded[26]["reason"], "town:blocked:survival:depth_abilities")
+        board = steps[26][1]()
+        self.assertEqual(policy._missing_required_abilities(board, 20), frozenset({"free_action"}))
+        with redirect_stdout(io.StringIO()):
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("5", "fundraising:no-safe-destination"))
+        self.assertTrue(policy._no_safe_destination_set)
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assert_posts(policy, recorded[26], board, key)
+
+    def test_spent_entry_budget_leaves_for_the_visit_to_come_back(self):
+        """n1-a life-477 08:54, town:blocked:shop-required-operation-uncomposable.
+
+        cause entry-budget, row k, Identify staff 18 of 20: eight operations that
+        all took effect (a 30000-gold book, a staff, a swap of the 1-charge staves).
+
+        DECLARED CONSTRUCTED: the Magic Shop entry's ledger, its visit and the Home
+        list's currency are written on the recorded last page; this arrival's
+        optimizer does not replay the visit's Home rows.
+        """
+        policy, recorded, steps = self.load("entry-spent")
+        self.assertEqual(recorded[65]["reason"], "town:blocked:shop-required-operation-uncomposable")
+        board = steps[65][1]()
+        policy._decision_sequence = 393
+        policy._in_store_entry_ledger = {
+            "store": board.store.store_type, "opened_sequence": 384,
+            "ops": 8, "pending": None, "ended": False,
+        }
+        policy._store_visit = StoreVisit("town-errand", "shopping", board.store.store_type,
+                                         phase=StoreVisitPhase.OPERATING, opened_sequence=384)
+        policy._in_store_screen_verified = True
+        policy._home_knowledge_current = True
+        self.assertEqual(policy._departure_blocking_page_operation(board)["op"], "buy")
+        key = policy._in_store_entry_key(board)
+        self.assertEqual((key, policy.last_reason), ("\x1b", "shop:in-store-done"))
+        self.assertIsNone(policy._town_blocked_reason)
+
+    def test_empty_staff_under_an_identification_need_makes_room_for_its_buy(self):
+        """n1-b life-308 13:14, town:blocked:survival:identify_staff_ready.
+
+        failed: identify_staff_ready, home_candidate_resolved,
+        identification_need_clear, departure_identification_need_clear; 0 of 20
+        charges, a 20-charge Identify staff at $941 with 14742 gold, 4 free slots,
+        seven stacks the pack pass may shelve.  An identification need hid the
+        staff from the need list, so the pass never learned the buy waited on a slot.
+        """
+        self.publish_nothing()
+        policy, recorded, steps = self.replay("staff-need-room", 9)
+        with self.recorded_calibration("staff-need-room"):
+            result = replay_window("staff-need-room", policy, iter(steps[9:20]))
+            self.assertIsNone(result.first_divergence)
+            self.assertEqual(recorded[20]["reason"], "town:entrance-step-off:town:end-step-off")
+            board = steps[20][1]()
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), (TRAVEL_HOME, "shop:travel"))
+        self.assertIsNotNone(policy._pack_headroom_visit)
+        self.assert_posts(policy, recorded[20], board, key)
 
     def test_gold_pile_is_walked_and_a_refused_pile_is_no_target(self):
         """n1-c life-123 04:33, owner-retired-burst.

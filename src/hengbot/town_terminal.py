@@ -2352,6 +2352,9 @@ class TownEndMaterial:
     mining_startable: bool
     # The unmet conditions that are purchase gaps (``purchase_gaps``).
     purchase_gaps: tuple[str, ...] = ()
+    # The equipment verdict refuses only this landing: a depth with no required
+    # ability accepts the same loadout (``_ability_gap_answered_by_fundraising``).
+    equipment_refuses_only_landing: bool = False
 
 
 class TownEnd(NamedTuple):
@@ -2383,6 +2386,10 @@ def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:
     return TownEndMaterial(
         unmet=unmet,
         survival_unmet=survival_unmet,
+        equipment_refuses_only_landing=(
+            "depth_abilities" in survival_unmet
+            and "equipment_departure_ready" in unmet
+            and policy._equipment_departure_ready(board, destination_depth=1, commit=False)),
         purchase_gaps=purchase_gaps(
             policy, board, tuple(dict.fromkeys((*survival_unmet, *unmet)))),
         mining_set_open=town_end_mining.mining_set_open(policy),
@@ -2420,9 +2427,14 @@ def _ability_gap_answered_by_fundraising(material: TownEndMaterial, end: TownEnd
     no-safe-destination set answers them; a gate gold cannot answer (it refuses
     *Destruction* and speed) still stops by name.  n1-a life-476 2026-11-04
     07:22-07:24, resist_fire with 144025 gold: this stop came first and the set
-    never opened.
+    never opened.  An equipment verdict that refuses only the same landing is the
+    same gap (n1-a life-477 09:52, free_action and a Home item that waits for its
+    suppression: a worn-loadout wait is refused while a landing ability is missing).
     """
-    return (end.kind == "stop" and end.conditions == ("depth_abilities",)
+    conditions = set(end.conditions)
+    if material.equipment_refuses_only_landing:
+        conditions.discard("equipment_departure_ready")
+    return (end.kind == "stop" and conditions == {"depth_abilities"}
             and material.mining_startable and not material.mining_set_open)
 
 

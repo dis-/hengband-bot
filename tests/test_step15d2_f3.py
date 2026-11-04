@@ -102,7 +102,7 @@ class Step15d2F3Test(unittest.TestCase):
         self.assertFalse(policy._home_knowledge_current)
         self.assertEqual(len(offered_steps(policy)), offers)
 
-    def test_entry_budget_stop_is_visible_and_keeps_the_existing_budget(self):
+    def test_spent_entry_budget_leaves_and_keeps_the_existing_budget(self):
         policy, board = self._required_board()
         # DECLARED CONSTRUCTED from the 040322 release boundary: the same
         # entry has exhausted its eight operation budget while a required
@@ -118,15 +118,11 @@ class Step15d2F3Test(unittest.TestCase):
         policy._in_store_screen_verified = True
         key = policy._in_store_entry_key(board)
         self.assertEqual(key, "\x1b")
-        self.assertEqual(
-            policy.last_reason,
-            "town:blocked:shop-required-operation-uncomposable",
-        )
+        # Every operation took effect: the visit's owners take the rest outside
+        # (n1-a life-477 2026-11-04 08:54).
+        self.assertEqual(policy.last_reason, "shop:in-store-done")
         self.assertEqual(policy._in_store_entry_ledger["ops"], 8)
-        self.assertEqual(
-            policy._shop_selector_diagnostics["required-page-continuation"]["cause"],
-            "entry-budget",
-        )
+        self.assertNotIn("required-page-continuation", policy._shop_selector_diagnostics)
 
     def test_reconciled_014739_no_effect_sale_stops_without_retry(self):
         policy, board = self._required_board()
