@@ -329,6 +329,7 @@ def v3_player_skills(player_data: Mapping[str, Any], equipment: Sequence[Mapping
         "saving_skill": skill_rating_value(ratings, "saving_throw"),
         "device_skill": skill_rating_value(ratings, "magic_device"),
         "stealth_skill": skill_rating_value(ratings, "stealth"),
+        "digging_skill": skill_rating_value(ratings, "digging"),
         "two_weapon_skill": None,
         "shield_skill": None,
     }

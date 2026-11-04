@@ -18,7 +18,6 @@ import copy
 import gzip
 import json
 import unittest
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,9 +26,9 @@ from hengbot.model import Position, SV_POTION_HEALING, SV_POTION_SPEED, TVAL_POT
 from hengbot.model import _GRID_TERRAIN_NAMES
 from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
-from hengbot.policy_constants import EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, WAIT_KEY
+from hengbot.policy_constants import REST_MACRO, WAIT_KEY
 from hengbot.quest_find_exit import (
-    DIG_REASON, HEAL_REASON, HOLD_REASON, NO_SAFE_ROUTE_REASON, PULL_REFUSED_REASON, PULLED_BACK_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
+    DIG_REASON, HEAL_REASON, HOLD_REASON, CLEAR_REASON, PULL_REFUSED_REASON, PULL_WALK_REASON, PULLED_BACK_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
     TO_CHOKE_REASON, WALK_REASON,
 )
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
@@ -47,11 +46,7 @@ TERRAINS = {row["key"]: row for row in json.loads(_strip_jsonc(
     (GAME / "TerrainDefinitions.jsonc").read_text(encoding="utf-8")))["terrains"]}
 RACES = load_monrace_knowledge(find_monrace_definitions(ROOT, None) or GAME / "MonraceDefinitions.jsonc")
 QUESTS = load_quest_knowledge(find_quest_definitions(ROOT) or GAME / "quests")
-# DECLARED: approval is switched on here.  The owner withdrew it on main until this fix is
-# checked (「直しが入るまで止めておいて」); these tests exercise the plan, not the flag.
 STRATEGIES = load_quest_strategies(ROOT / "strategy" / "quests")
-STRATEGIES[18] = replace(STRATEGIES[18], approved=True)
-EXECUTABLE_WITH_18 = frozenset({*EXECUTABLE_QUEST_STRATEGY_IDS, 18})
 with gzip.open(ROOT / "tests" / "fixtures" / "q18-live-20261104.json.gz", "rt", encoding="utf-8",
                errors="surrogateescape") as _stream:
     LIVE = {row["turn"]: row for row in json.load(_stream)["boards"]}
@@ -363,14 +358,68 @@ class Q18DigTest(unittest.TestCase):
         self.assertEqual(rows[:limit], [("T" + step_key((2, 6), (1, 7)), DIG_REASON)] * limit)
         self.assertEqual(rows[limit], (step_key((2, 6), (2, 7)), WALK_REASON))
 
-    def test_the_vein_before_the_pull_cells_that_will_not_open_stops_by_name(self):
-        raw = board((5, 24))
-        policy = new_policy(raw)
-        limit = STRATEGIES[18].engagement_plan["find_exit"]["dig_attempt_limit"]
-        for _ in range(limit + 1):
+
+class Q18VeinWillNotOpenTest(unittest.TestCase):
+    """Owner 2026-11-04 「可能な限り多くのモンスターを事前に倒してから引き寄せのマスを進む」.
+    DECLARED CONSTRUCTED: the digging rating, and a floor already emptied of monsters."""
+
+    @staticmethod
+    def no_digger(position=(5, 24), **kwargs):
+        raw = board(position, **kwargs)
+        raw["player"]["skill_ratings"]["digging"]["value"] = 10
+        return raw
+
+    def walk(self, policy, raw, limit):
+        position = (raw["player"]["y"], raw["player"]["x"])
+        reasons = []
+        for _ in range(limit):
+            raw["player"].update(y=position[0], x=position[1])
             raw["turn"] += 10
             key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
-        self.assertEqual((key, policy.last_reason), (WAIT_KEY, NO_SAFE_ROUTE_REASON))
+            reasons.append(policy.last_reason)
+            delta = next((offset for offset, value in DIRECTION.items() if value == key), None)
+            self.assertIsNotNone(delta, (position, key, policy.last_reason))
+            position = (position[0] + delta[0], position[1] + delta[1])
+            yield position, policy.last_reason
+
+    def test_it_clears_first_then_steps_on_the_pull_cell(self):
+        raw = self.no_digger()
+        policy = new_policy(raw)
+        pull = quest_exposure.exposure_map(
+            QUESTS[18].battlefield.terrain,
+            [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN]).pull
+        seen = []
+        for position, reason in self.walk(policy, raw, 900):
+            seen.append(reason)
+            if position in pull:
+                break
+        self.assertEqual(position, (6, 25))
+        self.assertEqual(reason, PULL_WALK_REASON)
+        self.assertIn(CLEAR_REASON, seen)
+        navigator = policy._quest_navigators[18]
+        self.assertTrue(navigator.exit_clearing_done)
+        self.assertGreater(len(navigator.exit_cleared_placements), 10)
+
+    def test_control_an_awake_enemy_that_comes_keeps_it_off_the_pull_cells(self):
+        raw = self.no_digger(monsters=[monster(SHARK, 4, 21)], speed=0, ammo=False)
+        key, reason, _ = decide(raw)
+        self.assertNotEqual(key, step_key((5, 24), (6, 25)))
+        self.assertNotIn(reason, {PULL_WALK_REASON, PULL_REFUSED_REASON})
+
+    def test_the_clearing_cannot_freeze(self):
+        raw = self.no_digger(monsters=[monster(SHARK, 4, 21)], speed=0, ammo=False)
+        policy = new_policy(raw)
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        policy.choose_key(snapshot)
+        navigator = policy._quest_navigators[18]
+        navigator.exit_clear_turns = STRATEGIES[18].engagement_plan["find_exit"]["clear_turn_limit"]
+        raw["turn"] += 10
+        key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+        self.assertEqual((key, policy.last_reason), (step_key((5, 24), (6, 25)), PULL_WALK_REASON))
+
+    def test_below_the_line_with_an_enemy_recall_still_comes_first(self):
+        raw = self.no_digger(hp=300, monsters=[monster(SHARK, 5, 23)], speed=0)
+        self.assertEqual(decide(raw)[1], RECALL_REASON)
 
 
 class Q18PullCellTest(unittest.TestCase):
@@ -834,8 +883,7 @@ class Q18TownTest(unittest.TestCase):
         policy = self.policy()
         snapshot = self.snapshot(policy, self.town_board(0))
         with patch.object(ConservativePolicy, "_fixed_quest_ready", return_value=True), \
-                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True), \
-                patch("hengbot.policy_quest.EXECUTABLE_QUEST_STRATEGY_IDS", EXECUTABLE_WITH_18):
+                patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True):
             policy._fixed_quest_key(snapshot, [])
         self.assertTrue(policy.last_reason.startswith("fixedquest:request"), policy.last_reason)
 
