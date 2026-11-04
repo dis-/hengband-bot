@@ -20,6 +20,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import unittest
 from dataclasses import replace
+from unittest.mock import patch
 
 from hengbot import item_fate
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
@@ -172,6 +173,46 @@ class HomeFullGearRecordedTest(ProductionHarness):
         policy._build_grid_index(inside)
         policy._overweight_surplus_sale_key(replace(inside, store=None))
         self.assertEqual(policy._town_blocked_reason, STOP.removeprefix("town:blocked:"))
+
+    def test_no_take_for_identification_without_a_source(self):
+        # Owner 10-31 「鑑定待ちの装備は預ける」; n1-c life-130 20:27 took an unknown
+        # Halberd out over the limit, could not identify it and carried it.
+        visit = self.visit("home-full-2146")
+        policy = visit.policy
+        self.replay(visit, 6)
+        recorded, supply = visit.rows[6]
+        inside = supply()
+        # DECLARED CONSTRUCTED: nothing surplus in the pack, so the Home row is all.
+        inside = replace(inside, inventory=tuple(
+            item for item in inside.inventory if policy._retention_surplus(inside, item) == 0))
+        self.assertFalse(item_fate.home_take_blocked(inside))
+        halberd = next(item for item in policy._home_knowledge_items if item.tval == 22)
+        # DECLARED CONSTRUCTED: one unknown weapon among artifacts.
+        policy.consume_home_knowledge((*(item for item in policy._home_knowledge_items if item.is_artifact),
+                                       replace(halberd, name="ハルベルト (3d5)", known=False, fully_known=False)))
+        for source, mode in ((False, None), (True, "identify")):
+            policy._home_full_relief = {"deposits": (), "remaining": 1, "sale": None, "withdrawn": False, "town": 0}
+            with patch("hengbot.item_fate.can_identify_now", return_value=source):
+                policy._home_full_relief_key(inside)
+            relief = policy._home_full_relief or {}
+            self.assertEqual(relief.get("mode") if relief.get("sale") else None, mode)
+
+    def test_a_consumable_a_store_buys_is_sold_not_destroyed(self):
+        # n1-c life-134 21:46: 19 slots freed by destroying a potion (recorded 01kf).
+        visit = self.visit("home-full-2146")
+        policy = visit.policy
+        self.replay(visit, 6)
+        recorded, supply = visit.rows[6]
+        inside = supply()
+        # DECLARED CONSTRUCTED: one slot free above the floor; shelves all artifacts.
+        spare = next(item for item in inside.inventory if item.name.startswith("賢さ復活"))
+        inside = replace(inside, inventory=tuple(item for item in inside.inventory if item is not spare))
+        policy.consume_home_knowledge(tuple(
+            item for item in policy._home_knowledge_items if item.is_artifact))
+        policy._home_full_relief = {"deposits": (), "remaining": 1, "sale": None, "withdrawn": False, "town": 0}
+        policy._home_full_relief_key(inside)
+        self.assertEqual(policy._home_full_relief["mode"], "sale")
+        self.assertTrue(policy._home_full_relief["pack_only"])
 
 
 if __name__ == "__main__":

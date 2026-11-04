@@ -1261,6 +1261,7 @@ class HomeMixin:
                         self._end_home_junk_sweep()
                         return None
                     candidates = [ware]
+            carried_sale = []
             if not candidates:
                 if not pack_bound:
                     # Free a shelf, not more pack space, whenever a Home
@@ -1289,6 +1290,14 @@ class HomeMixin:
                                 snapshot, item, item.count))
                         carried_stock = carried_junk
                         pack_ids.update(id(item) for item in carried_junk)
+                        # What a store buys is sold; destruction is for the rest
+                        # (owner 10-04; n1-c life-134 21:46 destroyed a potion).
+                        carried_sale = [
+                            (result, item) for item in carried_junk
+                            if (result := self._home_full_sale_candidate(replace(
+                                snapshot, inventory=tuple(
+                                    carried for carried in snapshot.inventory
+                                    if carried is not item)), item))]
                         carried_discard = [
                             (candidate, item) for item in carried_junk
                             if (candidate := self._home_full_discard_candidate(
@@ -1304,7 +1313,11 @@ class HomeMixin:
                                     if carried is not item)), item, identify=True))
                         ]
                         discard, unidentified = carried_discard, carried_unidentified
-                if discard:
+                if carried_sale:
+                    (item, store_type, _value), source = min(
+                        carried_sale, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
+                    relief["mode"] = "sale"
+                elif discard:
                     item, source = min(discard, key=lambda entry:
                                        self._home_full_discard_rank(snapshot, entry[0]))
                     relief["mode"] = "destroy"
@@ -1325,7 +1338,8 @@ class HomeMixin:
                             "_overweight_surplus_sale_key",
                             lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
                     return None
-                store_type = STORE_HOME
+                if not carried_sale:
+                    store_type = STORE_HOME
             else:
                 (item, store_type, _value), source = min(
                     candidates, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
