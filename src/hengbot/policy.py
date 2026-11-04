@@ -7143,7 +7143,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and self._batch_sell_pending is None
                 and (self._home_full_relief is not None
                      or self._home_full_retry_deposits is not None
-                     or self._home_is_full(snapshot))):
+                     or self._home_is_full(snapshot)
+                     or self._begin_home_junk_sweep(snapshot))):
             relief_key = self._town_producer_entry("_home_full_relief_key",
                 lambda: self._home_full_relief_key(snapshot))
             if relief_key is not None:

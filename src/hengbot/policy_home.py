@@ -326,8 +326,18 @@ class HomeMixin:
         if epoch != self._town_visit_epoch:
             swept = 0
         home_visit = getattr(self, "_home_visit", None)
-        if (snapshot.store is None or snapshot.store.store_type != STORE_HOME
-                or swept >= HOME_BATCH_RESERVED_SLOTS
+        at_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
+        # Outside, only for a rank 21+ ware (owner 2026-10-04, take surplus out
+        # and sell): never with a recall running or a Home this town lacks.
+        walks_home = (snapshot.store is None and snapshot.in_town
+                      and not snapshot.player.recalling
+                      and self._home_available(snapshot)
+                      and self._home_knowledge_current
+                      and swept < item_fate.SWEEP_LIMIT_PER_STAY
+                      and item_fate.sweep_ware(
+                          self, snapshot, self._home_knowledge_items) is not None)
+        if (not (at_home or walks_home)
+                or swept >= item_fate.SWEEP_LIMIT_PER_STAY
                 or not self._home_knowledge_current
                 or self._home_errand.active
                 or self._home_pending_item is not None
@@ -361,7 +371,7 @@ class HomeMixin:
         self._home_full_relief = None
         self._home_errand.finish()
         self._home_junk_sweep_count = (self._town_visit_epoch,
-                                       HOME_BATCH_RESERVED_SLOTS)
+                                       item_fate.SWEEP_LIMIT_PER_STAY)
 
     def _revalidate_home_full_destroy_after_restore(self, snapshot: Snapshot) -> None:
         """A checkpoint cannot prove its pending destroy was posted this run."""
@@ -1241,13 +1251,17 @@ class HomeMixin:
                 discard = unidentified = []
             if relief.get("sweep"):
                 # The sweep destroys junk only, a ware the pack can carry.
-                if not junk or not self._can_add_item_without_overweight(
-                        snapshot, junk[0][1]):
-                    self._end_home_junk_sweep()
-                    return None
-                relief["sweep_class"] = self._junk_class(replace(
-                    snapshot, inventory=(*snapshot.inventory, junk[0][0])),
-                    junk[0][0])
+                if junk and self._can_add_item_without_overweight(snapshot, junk[0][1]):
+                    relief["sweep_class"] = self._junk_class(replace(
+                        snapshot, inventory=(*snapshot.inventory, junk[0][0])),
+                        junk[0][0])
+                else:
+                    ware = None if junk else item_fate.sweep_ware(self, snapshot, sale_stock)
+                    if ware is None:
+                        self._end_home_junk_sweep()
+                        return None
+                    candidates = [ware]
+            carried_sale = []
             if not candidates:
                 if not pack_bound:
                     # Free a shelf, not more pack space, whenever a Home
@@ -1276,6 +1290,14 @@ class HomeMixin:
                                 snapshot, item, item.count))
                         carried_stock = carried_junk
                         pack_ids.update(id(item) for item in carried_junk)
+                        # What a store buys is sold; destruction is for the rest
+                        # (owner 10-04; n1-c life-134 21:46 destroyed a potion).
+                        carried_sale = [
+                            (result, item) for item in carried_junk
+                            if (result := self._home_full_sale_candidate(replace(
+                                snapshot, inventory=tuple(
+                                    carried for carried in snapshot.inventory
+                                    if carried is not item)), item))]
                         carried_discard = [
                             (candidate, item) for item in carried_junk
                             if (candidate := self._home_full_discard_candidate(
@@ -1291,7 +1313,11 @@ class HomeMixin:
                                     if carried is not item)), item, identify=True))
                         ]
                         discard, unidentified = carried_discard, carried_unidentified
-                if discard:
+                if carried_sale:
+                    (item, store_type, _value), source = min(
+                        carried_sale, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
+                    relief["mode"] = "sale"
+                elif discard:
                     item, source = min(discard, key=lambda entry:
                                        self._home_full_discard_rank(snapshot, entry[0]))
                     relief["mode"] = "destroy"
@@ -1312,7 +1338,8 @@ class HomeMixin:
                             "_overweight_surplus_sale_key",
                             lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
                     return None
-                store_type = STORE_HOME
+                if not carried_sale:
+                    store_type = STORE_HOME
             else:
                 (item, store_type, _value), source = min(
                     candidates, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
@@ -3103,7 +3130,9 @@ class HomeMixin:
             return False
         # Spare wearable gear (armour, rings, amulets, weapons) is shelved at Home:
         # the equipment optimiser wields the best and this stashes the rest.
-        spare_equipment = spare_gear.released(self, snapshot, item)
+        spare_equipment = (spare_gear.released(self, snapshot, item)
+                           and not (snapshot is not None
+                                    and item_fate.sold_not_shelved(self, snapshot, item)))
         protected_unknown_consumable = (
             self._deepest_level >= 20
             and (item.is_potion or item.is_scroll)

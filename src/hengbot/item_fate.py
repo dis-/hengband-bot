@@ -25,6 +25,8 @@ from hengbot.store_sale import known_sale_value
 KEEP, ROOM, ANY = "keep", "room", "any"
 KEPT_RANKS = 10
 ROOM_RANKS = 20
+# Home wares one town stay takes out and sells with no pressure on the Home.
+SWEEP_LIMIT_PER_STAY = 3
 
 SLOT_BY_TVAL = {
     19: "launcher", 20: "digger", 21: "melee", 22: "melee", 23: "melee",
@@ -142,3 +144,22 @@ def can_identify_now(policy: Any, snapshot: Any, item: Any) -> bool:
     full = bool(item.known)
     return (identify_power_command(policy, snapshot, replace(item, slot="a"), full=full) is not None
             or policy._carried_identification_source(snapshot, full=full) is not None)
+
+
+def sold_not_shelved(policy: Any, snapshot: Any, item: Any) -> bool:
+    """Rank 21+ in the pack goes to its buyer, not to Home and out again."""
+    return bool(item.is_equipment and not item.is_ammo
+                and gear_tier(policy, snapshot, item) == ANY
+                and gear_surplus(policy, snapshot, item)
+                and not held(policy, snapshot, item, "shop-sell", "sell")
+                and policy._town_organization_sale_store(snapshot, item) is not None)
+
+
+def sweep_ware(policy: Any, snapshot: Any, stock: Any) -> Any:
+    """The cheapest rank 21+ Home row with a buyer, the pack able to carry it."""
+    rows = [(result, item) for item in stock
+            if SLOT_BY_TVAL.get(item.tval) is not None
+            and gear_tier(policy, snapshot, item) == ANY
+            and (result := policy._home_full_sale_candidate(snapshot, item)) is not None
+            and policy._can_add_item_without_overweight(snapshot, item)]
+    return min(rows, key=lambda entry: sale_value(policy, entry[0][0])) if rows else None
