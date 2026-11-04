@@ -381,7 +381,7 @@ class WeightOverloadTownTest(unittest.TestCase):
         inventory = list(snapshot.inventory)
         inventory[7] = replace(inventory[7], count=0)
         inventory.append(
-            replace(item("r", 9, 0, name="heavy statue"), weight=200)
+            replace(item("r", 9, 0, name="heavy bulk"), weight=200)
         )
         snapshot = replace(
             snapshot,
@@ -463,7 +463,8 @@ class WeightOverloadTownTest(unittest.TestCase):
             item("body", 33, 1, is_equipment=True), weight=996
         )
         inventory = [
-            replace(item("a", 9, 0, name="heavy statue"), weight=200),
+            # Not a statue: those are junk since the owner's 2026-11-02 rule (7efbc639f6).
+            replace(item("a", 5, 0, name="heavy bulk"), weight=200),
             replace(item("o", TVAL_BOLT, 1, count=99), weight=3),
             replace(item("p", TVAL_BOLT, 1, count=35), weight=3),
             replace(item("q", TVAL_BOLT, 1, count=27), weight=3),
@@ -485,7 +486,9 @@ class WeightOverloadTownTest(unittest.TestCase):
             town_flag=True,
             town_id=0,
             inventory=inventory,
-            equipment=[launcher, armour],
+            # A worn weapon: an empty main hand is re-armed first (a801927771).
+            equipment=[launcher, armour, replace(
+                item("main_hand", 23, 1, is_equipment=True), weight=0)],
             quests={
                 31: QuestState(
                     31, status=QUEST_STATUS_UNTAKEN, fixed=True, level=25
@@ -532,7 +535,7 @@ class WeightOverloadTownTest(unittest.TestCase):
         selected = policy._find_home_deposit(snapshot)
 
         self.assertEqual(selected.slot, "a")
-        self.assertEqual(selected.name, "heavy statue")
+        self.assertEqual(selected.name, "heavy bulk")
 
     def test_recorded_overweight_deposits_required_surplus_in_one_visit(self):
         actor = replace(
@@ -3377,34 +3380,6 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "equipment-transaction:atomic-withdraw")
         self.assertEqual(policy._store_visit.operation_key, "pb\x1b")
         self.assertEqual(policy._deferred_home_items, set())
-
-    def test_captured_withdrawn_digger_is_not_transaction_deposited(self):
-        shovel = item(
-            "d", TVAL_DIGGING, 1, name="captured withdrawn shovel",
-            known=True, fully_known=True, is_equipment=True,
-        )
-        action = policy_module.EquipmentTransaction(
-            policy_module.PHASE_HOME_PREPARE, "deposit", "pack:shovel",
-            item_identity=policy_module.equipment_identity(shovel),
-        )
-        policy = HengbotPolicy()
-        # A digger is withdrawn for a mining set (owner 2026-11-04
-        # 「採掘に行かない時はシャベルも仕舞う」).
-        policy._fundraising_mode = "prepare"
-        policy._equipment_transaction_session = policy_module.EquipmentTransactionSession(
-            policy_module.EquipmentTransactionPlan((action,), (), 1)
-        )
-        entrance = self._entrance_snapshot([shovel], turn=2388220)
-        policy._shopping_approach_store_type = STORE_HOME
-
-        self.assertIsNone(
-            policy._atomic_home_deposit_key(entrance, entrance.player.position)
-        )
-        self.assertEqual(
-            policy.last_reason, "equipment-transaction:retain-digging-tool"
-        )
-        self.assertIsNone(policy._equipment_transaction_session)
-        self.assertIsNone(policy._home_atomic_deposit_pending)
 
     def test_unaddressed_equipment_work_claim_yields_on_unchanged_progress_core(self):
         observed = store_item("a", TVAL_POTION, 402, name="other item")

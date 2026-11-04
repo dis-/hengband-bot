@@ -173,7 +173,9 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             world.captured_false_leaves,
             {"equipment_departure_ready", "home_candidate_resolved"},
         )
-        self.assertEqual(world.current_false_leaves, {"home_candidate_resolved"})
+        # spare_gear_stowed: the recorded pack's unworn gear (owner 2026-11-04).
+        self.assertEqual(world.current_false_leaves,
+                         {"home_candidate_resolved", "spare_gear_stowed"})
         self.assertEqual(policy.equipment_optimization_state()["optional_failure_departure"]["reason"],
                          "optional-optimization-failure-confirmed-loadout")
         self.assertEqual(
@@ -219,11 +221,12 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         # "5pm1\r\x1b".  The retired phase is dropped on restore; the progressing
         # Home work is the ordinary standing-digger take (the base code decides
         # the same once its strip state is cleared).
+        # Owner 2026-11-04 「採掘に行かない時はシャベルも仕舞う」: no digger take any more;
+        # the visit goes on to its next supplier.
         self.assertEqual(
             (first, row["key"], second, policy.last_reason),
-            ("\x1b", "\x1b", "5pV\x1b", "home:atomic-withdraw"),
+            ("\x1b", "\x1b", "\x1b`n&.", "shop:travel"),
         )
-        self.assertTrue(policy._home_owner_goal_pending(outside))
         self.assertEqual(policy._equipment_transaction_failed_items, failed_items)
         self.assertEqual(
             tuple(policy._equipment_optimization_preparation.blockers),
@@ -251,7 +254,7 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         # Strip restore take retired; see the failure-gate pin above.
         self.assertEqual(
             (withdrawal, policy.last_reason),
-            ("5pV\x1b", "home:atomic-withdraw"),
+            ("\x1b`n&.", "shop:travel"),
         )
         self.assertNotEqual(
             policy.last_reason, "town:blocked:restock-store-unreachable"
@@ -266,9 +269,11 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
         result = drive(state)
 
         self.assertTrue(result.passed, result.report())
-        self.assertEqual(result.decisions, 2)
+        # 3: the taken weapon is wielded first (owner 2026-10-31 「町でも持たせる」).
+        self.assertEqual(result.decisions, 3)
         self.assertEqual(result.entries, 1)
         self.assertEqual(result.exits, 1)
+        self.assertEqual(result.keys["wa"], 1)
         self.assertEqual(result.keys["5 pa\x1b"], 1)
         self.assertEqual(result.reasons["home:atomic-withdraw"], 1)
         self.assertEqual(result.keys["{a.\r"], 1)
