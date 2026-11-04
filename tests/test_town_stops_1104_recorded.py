@@ -269,6 +269,29 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(policy._equipment_optional_failure_pending["reason"],
                          "pack-space-unrelieved-current-loadout")
 
+    def test_transaction_the_visit_closed_is_not_home_work_left(self):
+        """n1-c life-129 13:18, town:blocked:unmet:equipment_departure_ready.
+
+        failed: equipment_departure_ready (blockers equipment-transaction-failed,
+        closure retain-reserved).  Home was left for a shop, so it was not
+        "attempted", and a closed transaction read as reachable Home work while
+        the route projection said no work was outstanding.
+
+        DECLARED: the departure dump is a prompt macro the test game does not
+        answer, so the decision is pinned without posting it.
+        """
+        self.publish_nothing()
+        policy, recorded, steps = self.replay("closed-transaction", 1)
+        with self.recorded_calibration("closed-transaction"):
+            result = replay_window("closed-transaction", policy, iter(steps[1:20]))
+            self.assertIsNone(result.first_divergence)
+            self.assertEqual(recorded[20]["reason"], "town:entrance-step-off:town:end-step-off")
+            board = steps[20][1]()
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("Cf\ry\x1b\x1b", "town:character-dump"))
+        self.assertIsNone(policy._town_blocked_reason)
+
     def test_gold_pile_is_walked_and_a_refused_pile_is_no_target(self):
         """n1-c life-123 04:33, owner-retired-burst.
 

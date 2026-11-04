@@ -3652,8 +3652,13 @@ class EquipmentMixin:
             self._town_need_evaluation_include_launcher_enchant = (
                 previous_include_launcher_enchant
             )
+        closure = getattr(self, "_equipment_transaction_visit_closure", None)
         if (
             STORE_HOME not in self._town_store_attempted
+            # A transaction this visit closed is its own Home route attempt: no
+            # plan is generated again, so reachability promises nothing (n1-c
+            # life-129 2026-11-04 13:18, retain-reserved, Home left for a shop).
+            and (closure is None or closure.get("epoch") != self._town_visit_epoch)
             and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
             and self._town_visit_ledger.unsatisfied_passes[STORE_HOME] == 0
             and self._town_visit_ledger.approach_fails[STORE_HOME] == 0
