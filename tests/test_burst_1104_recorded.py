@@ -20,13 +20,14 @@ from unittest import mock
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.policy_equipment import prepare_warrior_optimization
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
-from replay_town_arrival import decisions, journal, restore
+from replay_town_arrival import adopt_calibration, decisions, journal, restore
 from tests import test_input_executor as executor_pins
 from town_work_corpus import replay_window
 
 
 FIXTURES = Path(__file__).with_name("fixtures") / "burst-1104"
 BLOCKED_ON_TIMEOUT = "town:blocked:equipment-optimization-timeout"
+TRAVEL_HOME = ("\x1b`n(.", "equipment-transaction:travel-home")
 
 
 def no_search_budget(*args, **kwargs):
@@ -126,6 +127,31 @@ class Burst1104RecordedTest(executor_pins.ProductionHarness):
             self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners, row)
             policy.confirm_key_posted(key)
         self.assert_posts(policy, recorded[124], board, key)
+
+    def test_home_deposit_goes_first_when_a_shop_route_is_refused(self):
+        """n1-c life-133 21:10, owner-retired-burst after `5` shop:approach,
+        route-refused:6: the session's next action is a Home deposit, and the
+        refusal waited for a dispatcher that never came (5bd0ea673 for a withdraw).
+
+        DECLARED: the sheet of the row 4 dump is not in this capture; the calibration
+        is the one the next arrival recorded from the same worn kit.
+        """
+        policy, recorded, steps = self.load("deposit-route-refused")
+        self.replay("before-the-dump", policy, steps[:5])
+        board = steps[5][1]()
+        adopt_calibration(policy, FIXTURES / "deposit-route-refused" / "calibration.json",
+                          Path(policy._character_dump_path).parent)
+        key = policy.choose_key(board)
+        self.assertEqual(key, recorded[5]["key"])
+        policy.confirm_key_posted(key)
+        self.replay("the-route-refused", policy, steps[6:27])
+        self.assertEqual(policy._equipment_transaction_session.current_action.kind, "deposit")
+        self.assertEqual(recorded[27]["reason"], "town:entrance-step-off:shop:approach")
+        board = steps[27][1]()
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), TRAVEL_HOME)
+        policy.confirm_key_posted(key)
+        self.assert_posts(policy, recorded[27], board, key)
 
 
 if __name__ == "__main__":
