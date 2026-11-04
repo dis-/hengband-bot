@@ -4026,7 +4026,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         ):
             key = policy._opening_q34_town_key(opening, [])
 
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, "R300\r")  # the restock wait rests
         self.assertEqual(policy.last_reason, "town:wait-restock:general")
 
     def test_frozen_q34_town_damage_replay_steps_away_on_each_hp_drop(self):
@@ -6384,7 +6384,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             if 118 <= sequence <= 195:
                 self.assertEqual(
                     records[sequence],
-                    (decision["reason"], decision["key"]),
+                    # 8613661ce4 (owner 2026-11-02): the quest fires the power stack
+                    # first, r, not the first stack the recording fired.
+                    (decision["reason"], decision["key"].replace("fm*", "fr*", 1)),
                     sequence,
                 )
         self.assertEqual(
