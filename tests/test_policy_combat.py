@@ -291,6 +291,16 @@ def _is_forbidden_uppercase_call(path, node):
     )
 
 
+def _without_recall(board):
+    return replace(board, inventory=[
+        item for item in board.inventory if not item.is_recall_scroll])
+
+
+def _shows_unexported_monster(board):
+    """A monster in view whose cell the grid map does not export (6cce55f61a)."""
+    return any(monster.position not in board.grids for monster in board.visible_monsters)
+
+
 class DetectedMonsterChannelTest(unittest.TestCase):
     @staticmethod
     def _corridor_snapshot(detected):
@@ -517,11 +527,21 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         decisions = []
         every = []
 
-        for row in rows[:9]:
-            snapshot = parse_snapshot(row, knowledge)
+        # 6cce55f61a keeps a directly seen monster whose cell the grid map does
+        # not export: that one board fires at it (below), the others have only
+        # the detected pack this pin is about.
+        boards = [parse_snapshot(row, knowledge) for row in rows[:9]]
+        seen = [board for board in boards if _shows_unexported_monster(board)]
+        self.assertEqual([board.turn for board in seen], [3801564, 3801579])
+        shooter = HengbotPolicy(monrace_knowledge=knowledge)
+        shooter.choose_key(seen[0])
+        self.assertEqual(shooter.last_reason, "ranged:fire-offset")
+        for snapshot in boards:
+            if snapshot in seen:
+                continue
             key = policy.choose_key(snapshot)
             every.append((snapshot.player.position, key, policy.last_reason))
-            if row["turn"] in {3801585, 3801595}:
+            if snapshot.turn in {3801585, 3801595}:
                 decisions.append((snapshot.player.position, key))
 
         self.assertEqual(
@@ -686,7 +706,11 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         )
         self.assertIsNone(policy._detected_threat_route)
 
-    def _recorded_hold_rearm_replay(self):
+    def _recorded_hold_rearm_replay(self, recall=False):
+        """The recorded hold replay.  DECLARED CONSTRUCTED: without ``recall`` the
+        boards carry no Recall: the breeder breakthrough reads a carried one as
+        soon as the hold ends (test_recorded_hold_expiry_reads_the_carried_recall),
+        and the boards never show that read taking effect."""
         fixture = (
             Path(__file__).parent / "fixtures"
             / "incident-20260920-0146-detected-hold-rearm.jsonl.gz"
@@ -705,10 +729,43 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         with gzip.open(decisions_fixture, "rt", encoding="utf-8") as stream:
             recorded_decisions = [json.loads(line) for line in stream]
         replay = []
+        # Two boards show a directly seen monster whose cell the grid map does not
+        # export (6cce55f61a); the channel rule below is about the detected pack,
+        # test_recorded_unexported_monster_is_answered_on_its_two_boards pins them.
         for snapshot in snapshots:
+            if _shows_unexported_monster(snapshot):
+                continue
+            if not recall:
+                snapshot = _without_recall(snapshot)
             key = policy.choose_key(snapshot)
             replay.append((snapshot, key, policy.last_reason))
         return policy, knowledge, replay, recorded_decisions
+
+    def test_recorded_hold_expiry_reads_the_carried_recall(self):
+        _policy, _knowledge, replay, _recorded = self._recorded_hold_rearm_replay(recall=True)
+        released = next(row for row in replay if row[2] not in {
+            DETECTED_HOLD, "detected:prepare-choke"})
+        self.assertEqual((released[0].turn, released[1], released[2]),
+                         (3820208, "rg", "breeder-breakthrough:recall"))
+
+    def test_recorded_unexported_monster_is_answered_on_its_two_boards(self):
+        fixture = (
+            Path(__file__).parent / "fixtures"
+            / "incident-20260920-0146-detected-hold-rearm.jsonl.gz"
+        )
+        knowledge = load_monrace_knowledge(
+            Path(r"C:\hengband\lib\edit\MonraceDefinitions.jsonc"))
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            boards = [parse_snapshot(json.loads(line), knowledge) for line in stream]
+        seen = [board for board in boards if _shows_unexported_monster(board)]
+        self.assertEqual(len(seen), 2)
+        for board in seen:
+            self.assertEqual(
+                [(monster.distance, monster.perception) for monster in board.visible_monsters],
+                [(3, "direct")])
+            policy = HengbotPolicy(monrace_knowledge=knowledge)
+            policy.choose_key(board)
+            self.assertNotIn(policy.last_reason, {DETECTED_HOLD, "detected:prepare-choke"})
 
     def test_recorded_detected_hold_expiry_cannot_rearm_on_the_floor(self):
         _policy, _knowledge, replay, recorded = self._recorded_hold_rearm_replay()
@@ -794,7 +851,7 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             (parse_snapshot(row, knowledge) for row in rows),
             key=lambda snapshot: snapshot.turn,
         )
-        visible, detected_again = snapshots
+        visible, detected_again = (_without_recall(board) for board in snapshots)
         self.assertTrue(replay[-1][0].turn < visible.turn < detected_again.turn)
         self.assertNotIn(
             replay[-1][2],
@@ -5415,8 +5472,13 @@ class CombatTest(unittest.TestCase):
             Position(10, 11): grid(10, 11),
             Position(10, 12): grid(10, 12, downstairs=True),
         }
+        # Owner 2026-10-31 「勝てない時は攻撃しない」: the unarmed character of the old
+        # board cannot defeat it (172afb20ce); one with a weapon still hunts it.
+        armed = replace(player(10, 10), main_hand_blows=5, main_hand_to_d=5)
+        weapon = item("main_hand", TVAL_SWORD, 1, is_equipment=True,
+                      damage_dice_num=2, damage_dice_sides=5)
         self.assertEqual(
-            HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [friendly])),
+            HengbotPolicy().choose_key(Snapshot(armed, grids, [friendly], equipment=[weapon])),
             "+6y",
         )
 
@@ -5544,14 +5606,30 @@ class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
         self.assertEqual(key, "4")
         self.assertEqual(policy.last_reason, "threat:paralyzer-avoid")
 
-    def test_distance_two_recorded_state_keeps_non_scroll_decision(self):
+    def test_distance_two_paralyzer_keeping_pace_reads_the_scroll(self):
+        # Owner 2026-11-03 「階段が隣などとても近くにある場合を除き徒歩での逃走は絶対に
+        # 間に合わない。」: the recorded Homunculus (speed +0) keeps pace with a walk
+        # (paralyzer_contact.follows_walk).
         policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
 
         key = policy.choose_key(self.snapshots[3305937])
 
+        self.assertEqual(key, "re")
+        self.assertEqual(policy.last_reason, "status-threat:scroll")
+
+    def test_distance_two_slower_paralyzer_keeps_non_scroll_decision(self):
+        policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
+        board = self.snapshots[3305937]
+        # DECLARED CONSTRUCTED: the Homunculus slower than the player.
+        board = replace(board, visible_monsters=[
+            replace(monster, speed=100) if monster.race_id == 280 else monster
+            for monster in board.visible_monsters
+        ])
+
+        key = policy.choose_key(board)
+
         self.assertEqual(key, "qb")
         self.assertEqual(policy.last_reason, "emergency:quaff-speed")
-        self.assertNotEqual(policy.last_reason, "status-threat:scroll")
 
 
 class ConsumableTest(unittest.TestCase):
@@ -7267,7 +7345,9 @@ class PredictiveEscapeTest(unittest.TestCase):
             floor_key=(DUNGEON_YEEK_CAVE, 2, 0),
             inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
         )
-        self.assertNotEqual(pol.choose_key(safe), "rr")
+        # Owner 2026-11-04: a latched emergency Recall is read on the first board
+        # with no awake hostile in view (67f4168579).
+        self.assertEqual(pol.choose_key(safe), "rr")
         self.assertTrue(pol._returning_to_town)
 
     def test_healthy_first_teleport_landing_continues_dive(self):
@@ -7774,7 +7854,10 @@ class EmergencyRecallEscapeTest(unittest.TestCase):
                     player(10, 10, hp=170, max_hp=200, word_recall=4),
                     grids,
                     [],
-                    messages=("It hits you.",),
+                    # Owner 2026-11-01 「近接で殴られたら反撃」: melee evidence strikes
+                    # back (tests.test_owner15_survival_1101_recorded); a spell
+                    # keeps the walk this pin is about.
+                    messages=("何かが呪文を唱えた。",),
                     turn=2,
                     floor_key=floor,
                 )
