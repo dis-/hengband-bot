@@ -391,6 +391,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:_absorbed_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:_carried_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_capacity.py:plan_equipment_transactions": {
     "classification": "data",
     "rows": [
@@ -4040,6 +4061,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._terminal_equipment_blocker": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._threat_read_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

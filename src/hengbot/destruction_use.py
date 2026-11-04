@@ -1,0 +1,318 @@
+"""*Destruction* in place of the Teleportation a rung reads away from a threat.
+
+Owner 2026-11-04: 「成功率80%以上の*破壊*を使えるとき、強敵からのテレポートによる逃走に
+代わり*破壊*を使用する。」  Answers: 「杖と取り込んだ力だけ」; 「脅威が範囲内に見える時に
+使用。また、ランダムクエストの階ではターゲット以外の脅威を排除するのに使う。傷を負った
+ターゲットは巻き込まない場面に限定する。」; 「治して階の探索を続ける。破壊の回数だけでは
+帰還しない。」  The 50F ban stays (policy_constants.DESTRUCTION_USE_IMPLEMENTED).
+
+Game (C:/hengband/src):
+ * spell-kind/spells-floor.cpp destroy_area: refused on a fixed quest floor and on
+   the surface.  Radius 13 + randint0(5) (cmd-usestaff.cpp:282; the Powerful
+   Activation's 18 is never cast here).  Every monster is deleted (no experience)
+   but a QUESTOR, which is healed fully and teleported away.  A dungeon guardian
+   is not a QUESTOR (only the bounty of the floor's quest is set so,
+   dungeon-processor.cpp:102).  Items and non-permanent terrain go, the map
+   knowledge of the circle goes, and 「燃えるような閃光が発生した！」 is printed, with
+   blindness 10+1d10 unless the player resists blindness or light.
+ * A staff (object-use/use-execution.cpp): no blind or confused refusal, but
+   confusion halves the skill, stun may refuse it, a Berserker always fails, a
+   failure spends the turn and keeps the charge.  The absorbed power
+   (cmd-magiceat.cpp) refuses a confused player; a failure spends the turn and
+   keeps the charge.
+
+Gates (``key``): the rung holds a Teleportation scroll to read; the character is
+clear-headed; a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
+absorbed power first as in speed_dose); the floor is one the game destroys; the
+most dangerous awake visible hostile other than the quest target is in
+``GUARANTEED_RADIUS``; and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
+else leaves the rung's read as it was.
+
+A use that printed no flash (a failure, the empty staff) or a key the game did
+not take falls back to the Teleportation on the next ask: speed_dose's rule for
+a failed cast on the survival rungs, with no retry number of its own.
+
+The flash on a board (``observe``) ends the emergency without a town return:
+``emergency:destruction`` is deliberately no member of EMERGENCY_ESCAPE_REASONS,
+and the ladder's own return latch of that decision is undone.  What the player
+knew of the circle is forgotten (``forget_circle``) before the board is merged
+into the map memory, so a cell the game still shows comes back from the board.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from hengbot import (
+    attack_expectation, hunt_target, immobile_threat_memory, me_capability, summoner_wait,
+)
+from hengbot import me_absorbed_substitutes as substitutes
+from hengbot.item_reservation import reserved_item_command
+from hengbot.model import SV_STAFF_DESTRUCTION, TVAL_STAFF, Position, game_distance
+from hengbot.town_hold import LOOT_OWNERS
+from hengbot.policy_constants import (
+    EMERGENCY_RETURN_COUNT, PLAYER_CLASS_BERSERKER, ExplorationPathOutcome,
+)
+
+
+REASON = "emergency:destruction"
+POWER = ("staff", SV_STAFF_DESTRUCTION)
+STAFF = (TVAL_STAFF, SV_STAFF_DESTRUCTION)
+STAFF_LEVEL = 50             # BaseitemDefinitions.jsonc id 307
+GUARANTEED_RADIUS = 13       # cmd-usestaff.cpp:282 13 + randint0(5)
+WORST_RADIUS = 17
+FLASH = ("燃えるような閃光が発生した！", "There is a searing blast of light!")
+MEMORY = "_destruction_use_memory"
+# The triggers _emergency_item latches for the escape it is about to take.
+LADDER_RETURN_TRIGGERS = frozenset({
+    "emergency-summoner", "emergency-ranged-status-lock", "emergency-lethal-swarm",
+})
+# Floor memory the destroyed circle invalidates.  Sets of Position:
+POSITION_SETS = (
+    "_remembered_downstairs", "_remembered_upstairs", "_remembered_entrances",
+    "_known_treasure", "_known_loot", "_deferred_loot", "_unseen_deferred_loot",
+    "_safety_deferred_loot", "_nav_ledger_deferred_loot", "_loot_ledger_rearmed",
+    "_loot_safety_rearmed", "_engagement_avoid_cells", "_engagement_owned_avoid_cells",
+    "_paralyzer_avoid_cells", "_warning_refused_cells", "_probed_frontiers",
+    "_processed_chest_positions", "_window_edge_goals",
+)
+# Sets and counters of (y, x):
+YX_COLLECTIONS = (
+    "_remembered_floor_t", "_remembered_door_t", "_remembered_rubble_t", "_remembered_wall_t",
+    "_remembered_known_t", "_remembered_marked_t", "_blocked_doors", "_blocked_rubble",
+    "_blocked_unknown", "_search_counts", "_wall_search_counts",
+)
+# Dicts keyed by Position:
+POSITION_DICTS = (
+    "_remembered_grids", "_remembered_grid_signatures", "_remembered_grid_sources",
+    "_look_floor_items", "_look_floor_object_counts", "_remembered_paralyzers",
+    "_one_step_explore_failures", "_hazard_cache",
+)
+# Collections of (kind, Position):
+KIND_POSITION_COLLECTIONS = ("_unverified_stairs", "_stair_rejection_strikes")
+# Module memories of monsters and holds that may stand in the circle.
+FORGET_VISIT = (summoner_wait, immobile_threat_memory, hunt_target)
+
+
+@dataclass
+class Memory:
+    pending: tuple | None = None   # (floor, turn, position) of the last use
+    fallback: tuple | None = None  # the floor whose next ask reads the Teleportation
+
+
+def _memory(policy) -> Memory:
+    memory = getattr(policy, MEMORY, None)
+    if memory is None:
+        memory = Memory()
+        setattr(policy, MEMORY, memory)
+    return memory
+
+
+# -- the means ------------------------------------------------------------------
+
+def _absorbed_key(policy, snapshot) -> str | None:
+    """The reliable power (me_capability's counting row) with a charge here."""
+    if me_capability.replacing_charges(policy, snapshot, STAFF) <= 0:
+        return None
+    return substitutes.cast_key(policy, snapshot, substitutes.POWERS[POWER])
+
+
+def _reliable_staff(snapshot) -> bool:
+    """use-execution.cpp's chance (attack_expectation) at the table's number."""
+    if snapshot.player.class_id == PLAYER_CLASS_BERSERKER:
+        return False
+    success = attack_expectation.device_use_success(snapshot.player.device_skill, STAFF_LEVEL)
+    return success * 100 >= me_capability.RELIABLE_MIN_SUCCESS
+
+
+def _carried_key(policy, snapshot) -> str | None:
+    if not _reliable_staff(snapshot):
+        return None
+    staff = next((item for item in snapshot.inventory
+                  if policy._is_destruction_staff(item) and item.known and item.charges > 0), None)
+    return None if staff is None else reserved_item_command(policy, snapshot, "staff", staff)
+
+
+# -- the scene ------------------------------------------------------------------
+
+def _clear_headed(player) -> bool:
+    return not (player.blind or player.confused or player.hallucinated or player.stunned)
+
+
+def _floor_destroyed(policy, snapshot) -> bool:
+    """destroy_area refuses a fixed quest floor and the surface."""
+    if snapshot.in_town or snapshot.dungeon_level <= 0:
+        return False
+    quest_id = snapshot.floor_key[2]
+    return not quest_id or (quest_id in snapshot.quests
+                            and policy._runtime_random_quest(snapshot, quest_id))
+
+
+def _target_race(policy, snapshot) -> int | None:
+    quest_id = policy._active_kill_quest_id(snapshot)
+    quest = snapshot.quests.get(quest_id) if quest_id is not None else None
+    return policy._quest_target_race_id(quest) if quest is not None else None
+
+
+def _guardian_race(policy, snapshot) -> int | None:
+    info = policy._dungeon_knowledge.get(snapshot.floor_key[0])
+    if info is None or snapshot.dungeon_level != info.max_depth or info.guardian_id <= 0:
+        return None
+    return info.guardian_id
+
+
+def _spared_in_circle(policy, snapshot, target) -> bool:
+    """A damaged quest target (healed by the use) or the floor's guardian (deleted;
+    the owner's words do not cover it, so the rung reads as today)."""
+    guardian = _guardian_race(policy, snapshot)
+    return any(
+        game_distance(snapshot.player.position, monster.position) <= WORST_RADIUS
+        and (monster.race_id == guardian
+             or (monster.race_id == target and monster.hp < monster.max_hp))
+        for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
+
+
+def _threat_in_range(policy, snapshot, target) -> bool:
+    """The most dangerous awake visible hostile but the target is in the guaranteed
+    radius; an attacker the board does not show is no such threat."""
+    if getattr(policy, "_unseen_attack_evidence", None) is not None:
+        return False
+    awake = [m for m in snapshot.visible_monsters
+             if m.hostile and not m.asleep and m.race_id != target]
+    if not awake:
+        return False
+    here = snapshot.player.position
+    worst = max(awake, key=lambda m: (policy._predicted_damage(snapshot, [m], turns=1),
+                                      -game_distance(here, m.position)))
+    return game_distance(here, worst.position) <= GUARANTEED_RADIUS
+
+
+def _scene_holds(policy, snapshot) -> bool:
+    if not _clear_headed(snapshot.player) or not _floor_destroyed(policy, snapshot):
+        return False
+    target = _target_race(policy, snapshot)
+    return (_threat_in_range(policy, snapshot, target)
+            and not _spared_in_circle(policy, snapshot, target))
+
+
+def _falls_back(memory, snapshot) -> bool:
+    """The last use failed or its key was not taken: this ask reads the scroll."""
+    if memory.pending is not None and memory.pending[:2] == (snapshot.floor_key, snapshot.turn):
+        memory.pending = None
+        return True
+    if memory.fallback == snapshot.floor_key:
+        memory.fallback = None
+        return True
+    return False
+
+
+def key(policy, snapshot, scroll) -> str | None:
+    """The use in place of reading ``scroll``, setting ``last_reason``; else None."""
+    if not scroll.is_teleport_scroll or _falls_back(_memory(policy), snapshot):
+        return None
+    if not _scene_holds(policy, snapshot):
+        return None
+    cast = _absorbed_key(policy, snapshot)
+    used = cast or _carried_key(policy, snapshot)
+    if used is None:
+        return None
+    policy.last_reason = REASON + (substitutes.CAST_SUFFIX if cast else "")
+    _memory(policy).pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
+    return used
+
+
+# -- after the use --------------------------------------------------------------
+
+def observe(policy, snapshot) -> None:
+    """Every decision, before the board joins the map memory: settle the last use."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None:
+        return
+    if memory.fallback is not None and memory.fallback != snapshot.floor_key:
+        memory.fallback = None
+    if memory.pending is None:
+        return
+    floor, turn, position = memory.pending
+    if snapshot.floor_key != floor:
+        memory.pending = None
+    elif any(message in FLASH for message in snapshot.messages):
+        memory.pending = None
+        _end_emergency(policy)
+        forget_circle(policy, position)
+    elif snapshot.turn != turn:
+        memory.pending = None
+        memory.fallback = floor
+
+
+def _end_emergency(policy) -> None:
+    """「破壊の回数だけでは帰還しない」: drop the ladder's latch for this escape."""
+    policy._emergency_escape_pending = False
+    policy._emergency_return_active = False
+    if (policy._last_return_trigger in LADDER_RETURN_TRIGGERS
+            and policy._dive_emergencies < EMERGENCY_RETURN_COUNT):
+        policy._returning_to_town = False
+        policy._note_return_end()
+        policy._last_return_trigger = None
+
+
+def _discard(collection, stale) -> None:
+    for each in [each for each in collection if stale(each)]:
+        if isinstance(collection, set):
+            collection.discard(each)
+        else:
+            del collection[each]
+
+
+def forget_circle(policy, centre: Position) -> None:
+    """Drop what the bot remembers of the destroyed circle (the worst radius); a
+    cell that survived at 14-17 is shown by the next board again."""
+    def in_circle(position) -> bool:
+        return game_distance(centre, position) <= WORST_RADIUS
+
+    for name in POSITION_SETS + POSITION_DICTS:
+        _discard(getattr(policy, name, ()), in_circle)
+    for name in YX_COLLECTIONS:
+        _discard(getattr(policy, name, ()), lambda yx: in_circle(Position(*yx)))
+    for name in KIND_POSITION_COLLECTIONS:
+        _discard(getattr(policy, name, ()), lambda each: in_circle(each[1]))
+    _discard(policy._exploration_ledger.mapped_areas,
+             lambda area: in_circle(Position(area[0], area[1])))
+    _release_goals(policy, in_circle)
+    _restart_progress_marks(policy)
+    for module in FORGET_VISIT:
+        module.forget_floor_visit(policy)
+
+
+def _release_goals(policy, in_circle) -> None:
+    """No route or goal may point into the changed map."""
+    policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+    if policy._loot_target is not None and in_circle(policy._loot_target):
+        policy._release_claim_goal("loot-destroyed", policy._loot_target,
+                                   owners=LOOT_OWNERS)
+        policy._loot_target = None
+    if policy._treasure_target is not None and in_circle(policy._treasure_target):
+        policy._release_claim_goal("treasure-destroyed", policy._treasure_target,
+                                   owners=("fundraising",))
+        policy._treasure_target = None
+    if policy._chest_position is not None and in_circle(policy._chest_position):
+        policy._chest_position = None
+    if policy._choke_engagement_plan is not None:
+        policy._release_choke_plan("destruction")
+    policy._clear_unseen_retreat()
+    policy._status_threat_latch = None
+    policy._pending_stair_command = None
+
+
+def _restart_progress_marks(policy) -> None:
+    """The per-floor navigation accounting (as at a floor change): the known map
+    just shrank, so its high marks would read new exploration as no progress."""
+    policy._nav_ledger.reset()
+    policy._nav_stall_count = 0
+    policy._nav_exhausted = False
+    policy._nav_escape_steps = 0
+    policy._nav_known_high = 0
+    policy._nav_progress_marker = None
+    policy._oscillation_outcome_marker = None
+    marked = len(policy._remembered_marked_t)
+    policy._fruitless_disengage_marked_high = marked
+    policy._exploration_ledger.marked_high = marked
