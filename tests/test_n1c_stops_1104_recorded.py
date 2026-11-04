@@ -132,6 +132,31 @@ class TownStops(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason), ("3mc", "me-staff:travel-morivant"))
         self.assert_posts(policy, recorded[18], board, key)
 
+    def test_a_fourth_staff_of_a_kind_is_absorbed(self):
+        """life-128 12:18:16: after the Tower's recharge, a fourth Staff of Speed
+        stopped as absorb-no-progress:staff:22 although the earlier three went in:
+        the attempt count never restarted on a success.
+
+        DECLARED CONSTRUCTED: the checkpoint's count already holds those three, so
+        the previous absorption's settling is declared on the first board.  Not
+        posted: the executor answers ``G`` at the game's item prompt, which no
+        recorded screen shows; this key's path is the one the earlier three took.
+        """
+        policy, _recorded, steps = self.load("fourth-absorb")
+        record = me_staff_sequence.state(policy)
+        self.assertEqual(record.attempts[("absorb", "staff:22")], 3)
+        record.pending = ("absorb", (("staff:22", record.absorbed["staff:22"]),))
+        for entry, supply in steps[:-1]:
+            policy.choose_key(supply())
+            if entry["key"]:
+                policy.confirm_key_posted(entry["key"])
+        board = steps[-1][1]()
+        key = policy.choose_key(board)
+        # Recorded: ('', 'quest:blocked:me-staff').
+        self.assertEqual(policy.last_reason, me_staff_sequence.ABSORB_REASON)
+        self.assertTrue(key.startswith("G"), key)
+        self.assertIsNone(record.failure)
+
 
 class DungeonStops(RecordedTownPolicy):
     @classmethod

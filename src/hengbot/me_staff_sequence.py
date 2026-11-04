@@ -739,6 +739,10 @@ def _settle_pending(policy, snapshot) -> None:
         if step == "recharge" and item is not None and item.charges > charges:
             record.attempts.pop(("recharge", key), None)
         if step == "absorb" and item is None:
+            # ATTEMPT_LIMIT counts absorptions that did not happen, not every
+            # staff of the kind a life takes in (n1-c life-128 2026-11-04 12:18:
+            # the fourth Staff of Speed, 17919 gold, stopped the bot).
+            record.attempts.pop(("absorb", key), None)
             stage = current_stage(policy)
             record.absorbed = {**record.absorbed, key: charges}
             if stage is not None and stage_complete(policy, stage):
