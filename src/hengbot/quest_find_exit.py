@@ -44,6 +44,13 @@ route.  No tool, no weapon swap.  An enemy that comes is answered first, at a ch
 dig resumes after.  Route planning counts the cell as open; what a caster reaches now is
 derived from the cells really opened, since a hole opens lines of fire too.
 
+Owner 2026-11-04 「叫ばれる条件とテレポートバックを受ける条件は少し異なる。テレポートバックは
+確実に避けるべきなので条件を把握すること。」: a pull cell (quest_exposure ``pull``) is forbidden, not
+costed: ``pull_cells`` is every walk's blocked set here and ``pull_step_refused`` the net in
+_step_toward for every other walker.  With no way left (a vein that will not open) the plan
+stops under NO_SAFE_ROUTE_REASON instead of walking them.  A player already on one takes the
+walk with the fewest of them, under PULLED_BACK_REASON.
+
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
 quiet board stays with them (food, light, the unseen) and reaches ``walk_key`` through
@@ -64,11 +71,15 @@ TO_CHOKE_REASON = "quest-strategy:exit-to-choke"
 WALK_REASON = "quest-strategy:exit-walk"
 STEP_ON_EXIT_REASON = "quest-strategy:exit-step"
 DIG_REASON = "quest-strategy:exit-dig"
+PULLED_BACK_REASON = "quest-strategy:exit-pulled-back"
+PULL_REFUSED_REASON = "quest-strategy:pull-cell-refused"
+NO_SAFE_ROUTE_REASON = "quest:blocked:exit-no-safe-route"
 RECALL_REASON = "emergency:recall-quest-fail"
 HEAL_REASON = "quest-strategy:heal"
 CURE_REASON = "quest-strategy:cure"
 SPEED_REASON = "quest-strategy:quaff-speed"
-_PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON})
+_PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON,
+                           PULLED_BACK_REASON})
 STARVING = frozenset({"weak", "fainting"})
 # Going round a monster on the way costs at most this many steps, else it is fought.
 SIDESTEP_LIMIT = 2
@@ -141,6 +152,24 @@ def _planned_open(navigator, plan) -> frozenset:
     """The cells the route counts as open: dug, or still to be dug."""
     wanted = frozenset(tuple(cell) for cell in plan.get("dig_cells", ()))
     return (wanted - navigator.exit_abandoned_digs) | navigator.exit_dug
+
+
+def pull_cells(navigator, plan) -> frozenset:
+    """Where a caster's direct line reaches, on the floor as it is or as planned."""
+    now = _exposure_with(navigator, plan, navigator.exit_dug).pull
+    planned = _exposure_with(navigator, plan, _planned_open(navigator, plan)).pull
+    return frozenset(now) | frozenset(planned)
+
+
+def pull_step_refused(policy, snapshot, step: Position) -> bool:
+    """A walker other than the way back is about to step onto a pull cell of this floor."""
+    plan = _plan(policy, snapshot)
+    if plan is None or policy.last_reason == PULLED_BACK_REASON:
+        return False
+    navigator = policy._quest_navigators.get(snapshot.floor_key[2])
+    if navigator is None:
+        navigator = _navigator(policy, snapshot, snapshot.floor_key[2])
+    return _cell(step) in pull_cells(navigator, plan)
 
 
 def _observe_digs(snapshot, navigator, plan) -> None:
@@ -391,8 +420,49 @@ def _least_exposed(navigator, plan, start: Position, goals, blocked=(), *,
     opened = navigator.exit_dug if as_it_is else _planned_open(navigator, plan)
     path = quest_exposure.least_exposed_path(
         _opened_terrain(navigator, opened), _exposure_with(navigator, plan, opened), _cell(start),
-        {_cell(goal) for goal in goals}, frozenset(_cell(cell) for cell in blocked))
+        {_cell(goal) for goal in goals}, frozenset(_cell(cell) for cell in blocked),
+        forbidden=pull_cells(navigator, plan) - {_cell(start)})
     return [Position(*cell) for cell in path]
+
+
+def _safe_region(navigator, plan) -> set:
+    """The cells off every pull line from which the planned floor leads to the exit."""
+    terrain = _opened_terrain(navigator, _planned_open(navigator, plan))
+    forbidden = pull_cells(navigator, plan)
+    start = _cell(_exit_cell(navigator))
+    seen, pending = {start}, [start]
+    while pending:
+        cell = pending.pop()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                nxt = (cell[0] + dy, cell[1] + dx)
+                if (nxt not in seen and nxt not in forbidden
+                        and terrain.get(nxt) in {"deep_water", "shallow_water", "floor"}):
+                    seen.add(nxt)
+                    pending.append(nxt)
+    return seen
+
+
+def _way_back(policy, snapshot, navigator, plan, board) -> str | None:
+    """Pulled onto a pull cell: over the floor as it is, the walk with the fewest of them
+    to a cell the safe route goes on from."""
+    position = _cell(snapshot.player.position)
+    terrain = _opened_terrain(navigator, navigator.exit_dug)
+    exposure = _exposure_with(navigator, plan, navigator.exit_dug)
+    goals = _safe_region(navigator, plan)
+    occupied = frozenset(_cell(cell) for cell in board.occupied)
+    path = (quest_exposure.least_exposed_path(terrain, exposure, position, goals, occupied)
+            or quest_exposure.least_exposed_path(terrain, exposure, position, goals))
+    if len(path) < 2:
+        return None
+    step = Position(*path[1])
+    if step in board.occupied:
+        blocker = next((monster for monster in board.in_view if monster.position == step), None)
+        if blocker is not None:
+            return combat_answer.strike_key(policy, snapshot, blocker, MELEE_REASON)
+    policy.last_reason = PULLED_BACK_REASON
+    policy._declare_reach(_exit_cell(navigator))
+    return policy._step_toward(snapshot, step)
 
 
 def _exposed_count(navigator, plan, path: list[Position]) -> int:
@@ -418,6 +488,8 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
     """A step of the least exposed walk to the exit, round a monster when that exposes no
     more and is a sidestep; else it is struck."""
     position, exit_cell = snapshot.player.position, _exit_cell(navigator)
+    if _cell(position) in pull_cells(navigator, plan):
+        return _way_back(policy, snapshot, navigator, plan, board)
     through = _least_exposed(navigator, plan, position, {exit_cell})
     around = _least_exposed(navigator, plan, position, {exit_cell}, board.occupied)
     path = around if (
@@ -425,7 +497,9 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
         and _exposed_count(navigator, plan, around) <= _exposed_count(navigator, plan, through)
     ) else through
     if len(path) < 2:
-        return None
+        # Every way on crosses a caster's direct line: not walked without the coordinator.
+        policy.last_reason = NO_SAFE_ROUTE_REASON
+        return WAIT_KEY
     shot = _clear_the_way_key(policy, snapshot, navigator, plan, board, path)
     if shot is not None:
         return shot

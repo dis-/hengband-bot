@@ -29,7 +29,7 @@ from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, lo
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, WAIT_KEY
 from hengbot.quest_find_exit import (
-    DIG_REASON, HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
+    DIG_REASON, HEAL_REASON, HOLD_REASON, NO_SAFE_ROUTE_REASON, PULL_REFUSED_REASON, PULLED_BACK_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
     TO_CHOKE_REASON, WALK_REASON,
 )
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
@@ -255,13 +255,11 @@ class Q18ExposedCellTest(unittest.TestCase):
         key, reason, _ = decide(board((2, 7), monsters=[monster(SHARK, 3, 8)], speed=0))
         self.assertEqual((key, reason), (step_key((2, 7), (1, 8)), WALK_REASON))
 
-    def test_a_monster_is_passed_when_there_is_another_step_and_struck_when_not(self):
+    def test_a_monster_is_struck_when_the_only_other_step_is_a_pull_cell(self):
+        # (2,17) goes on too, but a caster's direct line reaches it.
         squid = monster(SQUID, 1, 17)
         key, reason, _ = decide(board((1, 16), monsters=[squid], speed=0))
-        self.assertEqual((key, reason), (step_key((1, 16), (2, 17)), WALK_REASON))
-        both = [squid, monster(SHARK, 2, 17)]
-        key, reason, _ = decide(board((1, 16), monsters=both, speed=0))
-        self.assertEqual(reason, MELEE_REASON)
+        self.assertEqual((key, reason), (step_key((1, 16), (1, 17)), MELEE_REASON))
 
     def test_survival_still_comes_first_on_an_exposed_cell(self):
         shark = monster(SHARK, 3, 8)
@@ -273,11 +271,11 @@ class Q18ExposedCellTest(unittest.TestCase):
         # (melee beside the siren), monsters as logged.
         first = [monster(292, 13, 6), monster(SIREN, 16, 8), monster(SEAHORSE, 17, 7, index=2)]
         _, reason, _ = decide(board((15, 8), monsters=first, hp=FULL_HP))
-        self.assertEqual(reason, WALK_REASON)
+        self.assertEqual(reason, PULLED_BACK_REASON)
         second = [monster(SHARK, 9, 20), monster(SIREN, 9, 22), monster(SEAHORSE, 10, 20),
                   monster(406, 10, 18), monster(SQUID, 11, 22)]
         _, reason, _ = decide(board((9, 21), monsters=second, hp=FULL_HP))
-        self.assertIn(reason, {WALK_REASON, MELEE_REASON})
+        self.assertIn(reason, {PULLED_BACK_REASON, MELEE_REASON})
         exposure = quest_exposure.exposure_map(
             QUESTS[18].battlefield.terrain,
             [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN])
@@ -364,6 +362,72 @@ class Q18DigTest(unittest.TestCase):
             rows.append((key, policy.last_reason))
         self.assertEqual(rows[:limit], [("T" + step_key((2, 6), (1, 7)), DIG_REASON)] * limit)
         self.assertEqual(rows[limit], (step_key((2, 6), (2, 7)), WALK_REASON))
+
+    def test_the_vein_before_the_pull_cells_that_will_not_open_stops_by_name(self):
+        raw = board((5, 24))
+        policy = new_policy(raw)
+        limit = STRATEGIES[18].engagement_plan["find_exit"]["dig_attempt_limit"]
+        for _ in range(limit + 1):
+            raw["turn"] += 10
+            key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, NO_SAFE_ROUTE_REASON))
+
+
+class Q18PullCellTest(unittest.TestCase):
+    """Owner 2026-11-04 「テレポートバックは確実に避けるべきなので条件を把握すること。」"""
+
+    def setUp(self):
+        self.terrain = QUESTS[18].battlefield.terrain
+        self.sirens = [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN]
+
+    def test_the_undug_route_has_two_pull_cells_and_the_dug_route_none(self):
+        undug = quest_exposure.exposure_map(self.terrain, self.sirens)
+        self.assertEqual([cell for cell in LEAST_EXPOSED_ROUTE if cell in undug.pull], [(6, 25), (5, 26)])
+        dug = quest_exposure.exposure_map({**self.terrain, (1, 7): "deep_water", (5, 25): "deep_water"}, self.sirens)
+        self.assertEqual([cell for cell in DUG_ROUTE if cell in dug.pull], [])
+
+    def test_a_pull_needs_the_direct_line_a_shout_only_a_neighbour(self):
+        exposure = quest_exposure.exposure_map(self.terrain, self.sirens)
+        self.assertIn((4, 26), exposure.shout)
+        self.assertNotIn((4, 26), exposure.pull)
+        self.assertTrue(quest_exposure.projectable(self.terrain, (9, 22), (5, 26)))
+        self.assertFalse(quest_exposure.projectable(self.terrain, (9, 22), (4, 26)))
+
+    def test_no_rung_steps_onto_a_pull_cell_around_the_east_door(self):
+        pull = quest_exposure.exposure_map(self.terrain, self.sirens).pull
+        cells = ((5, 24), (4, 26), (5, 23), (3, 25))
+        for position in cells:
+            neighbours = [(position[0] + dy, position[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+                          if (dy, dx) != (0, 0)
+                          and self.terrain.get((position[0] + dy, position[1] + dx)) in {"deep_water", "shallow_water"}]
+            sets = [(), *[[monster(SHARK, *cell)] for cell in neighbours],
+                    [monster(SQUID, *cell) for cell in neighbours],
+                    [monster(SHARK, position[0] + 3, position[1] - 3)]]
+            for monsters in sets:
+                for hp in (FULL_HP, 500, 300, 100):
+                    for healing in (2, 0):
+                        raw = board(position, hp=hp, monsters=monsters, healing=healing, speed=0, ammo=False)
+                        key, reason, _ = decide(raw)
+                        delta = next((offset for offset, value in DIRECTION.items() if value == key), None)
+                        if delta is None:
+                            continue
+                        target = (position[0] + delta[0], position[1] + delta[1])
+                        occupied = {(row["y"], row["x"]) for row in monsters}
+                        self.assertFalse(target in pull and target not in occupied, (position, monsters, hp, reason))
+
+    def test_the_net_refuses_every_other_walker(self):
+        policy = new_policy(board((5, 24)))
+        snapshot = parse_snapshot(board((5, 24)), policy._monrace_knowledge)
+        policy.last_reason = "flee"
+        self.assertEqual(policy._step_toward(snapshot, Position(6, 25)), WAIT_KEY)
+        self.assertEqual(policy.last_reason, PULL_REFUSED_REASON)
+
+    def test_a_player_on_a_pull_cell_takes_the_way_back_by_name(self):
+        key, reason, _ = decide(board((6, 25)))
+        self.assertEqual(reason, PULLED_BACK_REASON)
+        self.assertIn(key, {step_key((6, 25), (5, 24))})
+        _, reason, _ = decide(board((15, 8)))
+        self.assertEqual(reason, PULLED_BACK_REASON)
 
 
 class Q18ClearBeforeAdvancingTest(unittest.TestCase):
@@ -571,7 +635,7 @@ class Q18PlaythroughTest(unittest.TestCase):
     def test_a_siren_beside_the_player_is_walked_away_from(self):
         siren = monster(SIREN, 9, 22)
         key, reason, _ = decide(board((8, 23), monsters=[siren]))
-        self.assertEqual(reason, WALK_REASON)
+        self.assertEqual(reason, PULLED_BACK_REASON)  # its own direct line
         self.assertNotEqual(key, step_key((8, 23), (9, 22)))
 
 

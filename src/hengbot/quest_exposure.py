@@ -14,8 +14,10 @@ The game's rule (C:/hengband/src), which a plain line of sight does not give:
  * check_thrown_mspell (mspell-attack.cpp:211): an aimed-off spell still goes when it
    needs no direct line.  SHRIEK is not in its list, TELE_TO is.
 
-So a shriek reaches a player the caster cannot see, from a cell beside him (``SHOUT``);
-a pull needs the direct line (``PULL``).  Recorded n1-a (2026-11-04 18:40) took 47 shrieks
+So a shriek reaches a player the caster cannot see, from a cell beside him (``shout``);
+a pull needs the direct line to the player's own cell (``pull``).  A sleeping caster casts
+nothing (awake_monster, monster-processor.cpp, returns before any spell), so both maps
+are conservative; a caster's range is ``cdis`` (monster-update.cpp, the distance below).  Recorded n1-a (2026-11-04 18:40) took 47 shrieks
 standing on [4,13], which no siren has a line to: the siren at [6,14] reaches [4,14].
 
 ``projection_path`` is the port of the game's rasterizer; terrain is the quest map's.
@@ -115,13 +117,17 @@ def can_reach(terrain, flags, source: tuple[int, int], player: tuple[int, int]) 
 
 def least_exposed_path(
     terrain, exposure: Exposure, start: tuple[int, int], goals, blocked=frozenset(),
+    *, forbidden=frozenset(),
 ) -> list[tuple[int, int]]:
-    """The 8-way walk with the fewest exposed cells, then the fewest steps.
+    """The 8-way walk with the fewest exposed cells, then the fewest steps, never onto
+    ``forbidden``.  With nothing forbidden (the way back of a player already pulled), the
+    fewest pull cells come first.
 
-    Pulled cells count before cells a shriek only reaches: among equal counts of exposed
-    cells a walk that cannot be pulled is the better one.
+    Owner 2026-11-04 「テレポートバックは確実に避けるべき」: callers forbid the pull cells.
     """
     goals = set(goals)
+    blocked = frozenset(blocked) | frozenset(forbidden)
+    pull_first = not forbidden
     best = {start: (0, 0, 0)}
     previous: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
     queue = [((0, 0, 0), start)]
@@ -139,8 +145,8 @@ def least_exposed_path(
             nxt = (cell[0] + dy, cell[1] + dx)
             if terrain.get(nxt) not in _WALKABLE_KINDS or nxt in blocked:
                 continue
-            step = (cost[0] + int(exposure.exposed(nxt)), cost[1] + int(nxt in exposure.pull),
-                    cost[2] + 1)
+            step = (cost[0] + int(nxt in exposure.pull) if pull_first else cost[0],
+                    cost[1] + int(exposure.exposed(nxt)), cost[2] + 1)
             if nxt not in best or step < best[nxt]:
                 best[nxt] = step
                 previous[nxt] = cell
