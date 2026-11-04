@@ -51,6 +51,28 @@ class DungeonBoards(unittest.TestCase):
             policy.confirm_key_posted(key)
         return key, policy.last_reason
 
+    def test_a_walk_to_shoot_does_not_step_again_from_a_cell_it_came_back_to(self):
+        """life-477 08:53 (telepathy lifts ``unaimed``, seek-downstairs walks back) and
+        life-308 12:42 (a dark corpse heap is seen only from beside it, the next
+        heap's walk leads back): both alternated to the loop guard."""
+        boards = self.case["esp_walk"]
+        policy = self.primed(boards[0])
+        self.assertEqual(self.decide(policy, boards[0]), ("4", APPROACH))
+        self.assertEqual(self.decide(policy, boards[1]), ("6", "seek-downstairs"))
+        # Recorded: ('4', APPROACH).
+        self.assertEqual(self.decide(policy, boards[2]), ("6", "seek-downstairs"))
+
+        boards = self.case["dark_walk"]
+        policy = self.primed(boards[0])
+        for raw in boards[:-3]:
+            self.decide(policy, raw)
+        self.assertEqual(self.decide(policy, boards[-3]), ("3", APPROACH))
+        self.decide(policy, boards[-2])
+        # Recorded: ('3', APPROACH) at (25,74).
+        key, reason = self.decide(policy, boards[-1])
+        self.assertNotEqual(reason, APPROACH)
+        self.assertNotEqual(key, "3")
+
 
 class HomeTake(executor_pins.ProductionHarness):
     def test_a_take_merged_into_a_carried_stack_moves_the_next_address(self):

@@ -37,13 +37,16 @@ applied to the never-moving monster:
   alternated with the summoner zone's step out of it (n1-c life-110,
   Orc cave 22F, 2026-11-02 22:44: a クイルスルグ remembered at (37,141),
   ``7`` to (42,141) and ``3`` back until the loop detector stopped the bot);
-- no other hostile came into view on the walk to the shooting cell
-  (``immobile_threat_memory.walk_yielded``): the rule above sends that board
-  to the normal ladder, whose next owner stepped out of view, where the other
-  hostile no longer counted and the walk began again (n1-c life-125, Dungeon
-  14F, 2026-11-04 07:18: 紫おばけキノコ at (19,64) and a sleeping ゾンビ・イーク,
-  ``3`` to (3,65) and seek-loot's ``7`` back until the loop detector stopped
-  the bot).  It stays avoided, and is shot if a cell shows it alone.
+- the walk never came back to a cell it already stepped from on this floor
+  visit (``immobile_threat_memory.walk_retired``): whatever answered the board
+  at the end of the walk, a return means the walk does not end in a shot.  The
+  monster stays avoided, and is shot if the player's own cell shows it.  The
+  type, by what sent the player back: another hostile in view at the shooting
+  cell (n1-c life-125, Dungeon 14F, 2026-11-04 07:18, seek-loot's step back);
+  telepathy lifting ``unaimed`` on both cells (n1-a life-477, Angband 13F,
+  08:53, a 発光アイ at (8,6), ``4`` to (4,9) and seek-downstairs' ``6`` back);
+  a dark monster seen only from beside it (n1-b life-308, Orc cave 11F, 12:42,
+  a 死体の塊 at (27,76), ``7`` to (25,74) and the next corpse's ``3`` back).
 
 On a floor whose exit is locked nothing changes: the existing fight owners
 decide there.
@@ -101,7 +104,7 @@ def plan(policy, snapshot, monster: MonsterState) -> KillPlan | None:
     here = snapshot.grid_at(player.position)
     if here is not None and _shooting_cell(policy, snapshot, monster, here):
         step, walk = None, 0
-    elif immobile_threat_memory.walk_yielded(policy, monster.position):
+    elif immobile_threat_memory.walk_retired(policy, monster.position):
         return None
     else:
         route = _with_zone_released(policy, snapshot, lambda: policy._nearest_goal_route(
@@ -140,7 +143,6 @@ def key(policy, snapshot) -> str | None:
     if snapshot.in_town:
         return None
     visible = {monster.position: monster for monster in snapshot.visible_monsters}
-    walked = immobile_threat_memory.end_walk(policy)
     for monster in sorted(immobile_threat_memory.remembered(policy),
                           key=lambda monster: snapshot.player.position.distance_to(
                               monster.position)):
@@ -148,12 +150,10 @@ def key(policy, snapshot) -> str | None:
             continue
         found = plan(policy, snapshot, monster)
         if found is None:
-            if monster.position == walked and _others_present(policy, snapshot, monster):
-                immobile_threat_memory.yield_walk(policy, monster.position)
             continue
         if found.step is not None:
             policy.last_reason = APPROACH_REASON
-            immobile_threat_memory.begin_walk(policy, monster.position)
+            immobile_threat_memory.note_walk(policy, monster.position, snapshot.player.position)
             policy._declare_reach(found.step)
             return policy._step_toward(snapshot, found.step)
         target = visible.get(monster.position)
