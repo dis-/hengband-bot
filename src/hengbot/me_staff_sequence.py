@@ -516,6 +516,24 @@ def _phase(policy, snapshot) -> str:
     return "return" if town != OUTPOST_TOWN_ID else "done"
 
 
+def tower_feeds_staple(policy, snapshot) -> bool:
+    """The Tower's recharge is what ends this hunger, and the gold pays for it.
+
+    「減ったら塔でチャージする」.  Hungry but not yet weak, ``_find_edible`` eats
+    only the staple, so no Home or shelf device relieves it (n1-c life-128
+    2026-11-04 13:05: two empty Wands of Wonder, 38170 gold against a 3344 gold
+    expedition, the trip already walking to the inn; the mana override took the
+    board from it and retired the Lv36 character).
+    """
+    staple = staple_food(snapshot)
+    if staple is None or staple.charges > 0 or not applies(policy, snapshot):
+        return False
+    phase = _phase(policy, snapshot)
+    if phase == "travel":
+        return snapshot.player.gold >= _expedition_cost(snapshot, supply_cost(policy, snapshot))
+    return phase == "recharge" and snapshot.player.gold >= recharge_cost(snapshot) + TOWN_TELEPORT_COST
+
+
 def _stop(policy, detail: str) -> str:
     state(policy).failure = detail
     policy.last_reason = STOP_REASON

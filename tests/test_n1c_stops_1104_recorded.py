@@ -1,4 +1,4 @@
-"""The n1-c stops of 2026-11-04 on the viewing bots (stops-1104-0750).
+"""The n1-c stops of 2026-11-04 on the viewing bots (stops-1104-0750 and stops-1104-1330).
 
 Recorded: tests/extract_n1c_stops_1104_fixtures.py.  Town stops replay from
 their arrival checkpoints through the public chooser; the dungeon stops decide
@@ -114,6 +114,23 @@ class TownStops(executor_pins.ProductionHarness):
         self.assertEqual((key, policy.last_reason),
                          ("{/g.\r", "equipment:suppress-equipped-random-teleport"))
         self.assert_posts(policy, recorded[15], board, key)
+
+    def test_hunger_keeps_the_trip_to_the_tower_that_recharges_the_staple(self):
+        """life-128 13:05:31 (Lv36, retired): both Wands of Wonder empty, 38170 gold
+        against a 3344 gold expedition, walking to the inn.  Turning hungry on the
+        way sent the mana override to Home (a Wand of Speed Monster and one of
+        Disarming it may not eat) and the Magic shop, then the named stop.
+
+        「減ったら塔でチャージする」."""
+        policy, recorded, steps = self.load("tower-hunger")
+        result = replay_window("tower-hunger", policy, iter(steps[:18]))
+        self.assertIsNone(result.first_divergence)
+        board = steps[18][1]()
+        self.assertEqual(board.player.food_state, "hungry")
+        key = policy.choose_key(board)
+        # Recorded: ('`n(.', 'survival:mana-home-travel').
+        self.assertEqual((key, policy.last_reason), ("3mc", "me-staff:travel-morivant"))
+        self.assert_posts(policy, recorded[18], board, key)
 
 
 class DungeonStops(RecordedTownPolicy):
