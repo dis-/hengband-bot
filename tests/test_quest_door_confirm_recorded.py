@@ -280,6 +280,12 @@ NOT_A_WALK = {
     "_unseen_retreat_intercept_key": "melee on an adjacent monster",
     "_town_kill_mob_key": "'+' + dir + 'y' attack on a town monster",
     "decide": "quest floor melee on an adjacent monster",
+    "_adjacent_ranged_key": "fire / aim suffix at an adjacent monster",
+    "_quest_sequence_door_key": "OPEN_KEY + dir at the door; its walk goes through _step_toward",
+    "attack_key": "me_q1_torch: throw suffix at the target",
+    "direct_blow": "combat_answer: melee on an adjacent monster",
+    "key": "unseen_strike: ALTER_KEY + dir at a free neighbour",
+    "strike_key": "blind_strike: ALTER_KEY + dir at the remembered cell",
 }
 # The boxed town breakout was the one town-routed residual; it was deleted
 # with the town defined end (owner 2026-11-02).
