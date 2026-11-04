@@ -14,6 +14,8 @@ Recorded: each arrival checkpoint and its journal rows
 (tests/extract_spare_gear_fixtures.py), decided through the public chooser.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+from hengbot import me_powerful_activation
+from unittest import mock
 
 import gzip
 import json
@@ -39,9 +41,8 @@ from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from hengbot.town_terminal import gather_fundraising, gather_town_end, verdict_fundraising
 from replay_town_arrival import adopt_calibration, decisions, restore
 from tests.policy_fixtures import item, store_item
-from tests.test_input_executor import (
-    FaithfulHookGame, ProductionHarness, command_screen, store_screen,
-)
+from tests.test_input_executor import FaithfulHookGame, command_screen, store_screen
+from tests import test_input_executor as _test_input_executor
 
 FIXTURES = Path(__file__).with_name("fixtures") / "spare-gear-1104"
 LEAF = "spare_gear_stowed"
@@ -77,10 +78,16 @@ class Visit:
             self.policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
 
 
-class SpareGearRecordedTest(ProductionHarness):
+class SpareGearRecordedTest(_test_input_executor.ProductionHarness):
     def visit(self, name, *, calibrated=False):
         visit = Visit(name, calibrated)
         self.addCleanup(visit.close)
+        # DECLARED: the Magic-Eater's *Identify* goes first on these boards (town_key)
+        # and the recorded boards never show its effect; this pin is about the shelf.
+        patcher = mock.patch.object(me_powerful_activation, "town_key",
+                                    lambda _policy, _snapshot, _hostiles: None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         return visit
 
     def test_rejected_sheet_shelves_every_unworn_item_through_the_executor(self):

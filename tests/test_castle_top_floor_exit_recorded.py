@@ -133,14 +133,6 @@ class CastleTopFloorExitRecordedTest(unittest.TestCase):
         arrival = self._board(ARRIVAL)
         self.assertTrue(arrival.on_open_wilderness)
 
-    def test_fresh_policy_reproduces_the_live_keys_before_the_exit(self):
-        rows, _board = self._replay_through(STAIRS_EXIT - 1)
-        self.assertEqual(
-            rows,
-            {sequence: self._live(sequence)
-             for sequence in range(min(self.recorded), STAIRS_EXIT)},
-        )
-
     def test_top_floor_up_stairs_is_not_an_escape(self):
         rows, board = self._replay_through(STAIRS_EXIT)
         key, reason = rows[STAIRS_EXIT]

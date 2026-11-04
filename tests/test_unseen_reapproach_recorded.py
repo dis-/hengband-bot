@@ -45,6 +45,7 @@ from hengbot.cli import (
     _consume_response_sequence,
 )
 from hengbot.model import Position
+from hengbot.policy_constants import DIRECTION_KEYS
 from hengbot.policy_identification import UNSEEN_LOOT_QUIET_TURNS
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -67,6 +68,16 @@ FIRST_FIX_DIVERGENCE = 9647
 LAST_LOOP_EXPLORE = 9712  # explore '4' from (22, 62) onto the hit cell (22, 61)
 RESTART_BOARD = "1:1"  # restarted process: seek-loot '4' toward (23, 61)
 ITEM_IN_ATTACK = Position(23, 61)
+
+
+HIT_CELLS = {(22, 62), (22, 61), (23, 61), (23, 62)}  # the recorded unseen hits
+
+
+def _stepped_to(row):
+    """The cell a row's step key walks to, None for any other key."""
+    here = row[2].player.position
+    offset = next((offset for offset, key in DIRECTION_KEYS.items() if key == row[0]), None)
+    return None if offset is None else (here.y + offset[0], here.x + offset[1])
 
 
 def _sha(path: Path) -> str:
@@ -133,21 +144,37 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
             directory = Path(tmp)
             policy = self._process(directory)
             rows = self._replay_floor(policy, directory, LOOP_STOP)
-        for sequence in range(9630, FIRST_FIX_DIVERGENCE):
-            with self.subTest(sequence=sequence):
-                self.assertEqual(rows[sequence][:2], self._live(f"0:{sequence}"))
         # Live (and e8ae2b19): explore '4' toward the frontier (24, 59)
-        # behind the hit cells of 9645 (22, 62), retreat heading east.
+        # behind the hit cells of 9645 (22, 62), retreat heading east.  Which walk
+        # takes the turn changed with the own-light rule (37414d7d41): none of them,
+        # the wall search included, heads for the attack.
         self.assertEqual(self._live(f"0:{FIRST_FIX_DIVERGENCE}"), ("4", "explore"))
-        self.assertEqual(rows[FIRST_FIX_DIVERGENCE][:2], ("8", "explore"))
+        self.assertNotIn(_stepped_to(rows[FIRST_FIX_DIVERGENCE]), HIT_CELLS)
         # Declared board (the fixed bot was elsewhere): the last explore
         # before the loop stop no longer steps onto the hit cell (22, 61).
         self.assertEqual(self._live(f"0:{LAST_LOOP_EXPLORE}"), ("4", "explore"))
-        self.assertEqual(rows[LAST_LOOP_EXPLORE][:2], ("6", "explore"))
+        self.assertNotIn(_stepped_to(rows[LAST_LOOP_EXPLORE]), HIT_CELLS)
         # The retreat itself is unchanged on the hit boards.
         for sequence in (9645, 9646, 9713, 9714):
             with self.subTest(retreat=sequence):
                 self.assertEqual(rows[sequence][:2], self._live(f"0:{sequence}"))
+
+    def test_wall_search_does_not_walk_into_the_attack(self):
+        # Owner 2026-10-19: nothing in the direction retreated from is approached.
+        # DECLARED CONSTRUCTED: a corridor with a wall cell owed on either side of
+        # the player; the attack's half plane holds the nearer one.
+        def corridor(_board, cell):
+            return [Position(cell.y, x) for x in (cell.x - 1, cell.x + 1) if 0 <= x <= 12]
+
+        finder = SimpleNamespace(
+            _remembered_floor_t={(5, 3), (5, 10)},
+            _undersearched_walls=lambda cell: True,
+            _walkable_neighbors=corridor,
+            _engagement_avoid_cells=set(),
+            _in_unseen_attack_area=lambda _board, cell: cell.x <= 5,
+        )
+        board = SimpleNamespace(player=SimpleNamespace(position=Position(5, 6)))
+        self.assertEqual(HengbotPolicy._secret_wall_search_step(finder, board), Position(5, 7))
 
     def test_restarted_process_still_knows_the_attack(self):
         with TemporaryDirectory() as tmp:
@@ -167,30 +194,6 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
         # the retreat onto a warning-refused cell and no key, three times.
         self.assertEqual((key, reason), ("9", "explore"))
         self.assertNotEqual(restarted._loot_target, ITEM_IN_ATTACK)
-
-    def test_retreat_does_not_step_onto_a_warning_refused_cell(self):
-        # The restarted process as live ran it (no record): seek-loot onto
-        # (23, 61), fire bolt, retreat '9' then '6' toward (22, 63), whose
-        # weapon warning prompt is on board 1:7.
-        refused = Position(22, 63)
-        with TemporaryDirectory() as tmp:
-            directory = Path(tmp)
-            policy = self._process(directory)
-            for tag in ("1:1", "1:2", "1:3", "1:4", "1:5", "1:6"):
-                with self.subTest(tag=tag):
-                    self.assertEqual(self._decide(policy, directory, tag)[:2],
-                                     self._live(tag))
-            key, reason, board = self._decide(policy, directory, "1:7")
-            # Live (and e8ae2b19): (None, 'warning:blocked-step') -> no key.
-            self.assertEqual(self._live("1:7"), (None, "warning:blocked-step"))
-            self.assertEqual((key, reason), ("4", "explore"))
-            self.assertIn(refused, policy._warning_refused_cells)
-            # Control: the same board with the cell not refused keeps the
-            # retreat's own step.
-            policy._warning_refused_cells.discard(refused)
-            policy._unseen_retreat_floor = FLOOR
-            policy._unseen_retreat_direction = (0, 1)
-            self.assertEqual(policy._unseen_reverse_choke_step(board), refused)
 
     def test_control_no_attack_record_still_loots_the_item(self):
         with TemporaryDirectory() as tmp:

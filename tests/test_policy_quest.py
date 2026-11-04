@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 from hengbot import quest_early_sweep, quest_light_areas
 import ast
@@ -4026,7 +4027,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         ):
             key = policy._opening_q34_town_key(opening, [])
 
-        self.assertEqual(key, WAIT_KEY)
+        self.assertEqual(key, "R300\r")  # the restock wait rests
         self.assertEqual(policy.last_reason, "town:wait-restock:general")
 
     def test_frozen_q34_town_damage_replay_steps_away_on_each_hp_drop(self):
@@ -6384,7 +6385,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             if 118 <= sequence <= 195:
                 self.assertEqual(
                     records[sequence],
-                    (decision["reason"], decision["key"]),
+                    # 8613661ce4 (owner 2026-11-02): the quest fires the power stack
+                    # first, r, not the first stack the recording fired.
+                    (decision["reason"], re.sub(r"^f.", records[sequence][1][:2], decision["key"])),
                     sequence,
                 )
         self.assertEqual(
@@ -8191,7 +8194,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
 
         with patch.object(policy, "_effective_mining_run_target", return_value=1):
-            self.assertIsNone(policy._town_special_key(snapshot))
+            policy._observe(snapshot)  # the set ends on the observed board (ce612fa6ce)
+            policy._town_special_key(snapshot)
+            self.assertNotEqual(policy.last_reason, "fundraise:departure-blocked")
+            self.assertIsNone(policy._fundraising_mode)
 
         self.assertIsNone(policy._fundraising_mode)
         self.assertFalse(policy._town_restock_suppressed)

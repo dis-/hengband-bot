@@ -33,9 +33,9 @@ from pathlib import Path
 from hengbot import identification_wait
 from hengbot.model import _parse_items
 from tests import test_input_executor as executor_pins
-from tests.test_me_nokey_1031_recorded import PostedKey
+from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
 from tests.test_recall_dungeon_prompt_recorded import READ_PROMPT, chooser_screen
-from test_hourly_0700_1102_recorded import RecordedTownPolicy
+import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "identification-wait-n1b-300-1103.json.gz"
@@ -48,7 +48,7 @@ def _case():
         return json.load(stream)
 
 
-class IdentificationWaitDepartsTest(RecordedTownPolicy, PostedKey):
+class IdentificationWaitDepartsTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, _test_me_nokey_1031_recorded.PostedKey):
     @classmethod
     def setUpClass(cls):
         cls.case = _case()

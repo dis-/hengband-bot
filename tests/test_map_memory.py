@@ -25,7 +25,8 @@ def snapshot(x, grids, *, floor=FLOOR, turn=1):
 class PerFloorGridMemoryTest(unittest.TestCase):
     def test_choose_key_explores_into_corridor_missing_from_wire_snapshot(self):
         policy = HengbotPolicy()
-        corridor = [grid(10, x) for x in range(5, 11)]
+        # Unmarked: floor in the own light is not owed a visit (37414d7d41, #101).
+        corridor = [grid(10, x, marked=False) for x in range(5, 11)]
 
         # Walk the emitted corridor so that its final tile is the only unvisited
         # exploration target when the dark floor vanishes from the wire snapshot.

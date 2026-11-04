@@ -69,7 +69,7 @@ class SummonerHoldUnderFireTest(executor_pins.ProductionHarness):
         self.assertEqual(recorded, [(6095, "explore", "4"), (6096, "no-wait:flee", "6"),
                                     (6097, "explore", "4")])
         policy, board, keys = self._policy_on(self.case["boards"][:2])
-        self.assertEqual(keys[0][1:], ("4", "explore"))
+        self.assertEqual(keys[0][1:], ("3", "explore"))  # floor in the own light is not owed (37414d7d41, #101)
         self.assertEqual(keys[1], (Position(2, 30), "5", "summoner:hold-choke"))
         creep = next(m for m in board.visible_monsters if m.race_id == CRYPT_CREEP)
         self.assertEqual(policy._monster_cast_distance(creep.position, Position(2, 30)), 20)

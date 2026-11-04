@@ -34,7 +34,7 @@ from pathlib import Path
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.me_ranged_first import TORCH_REASON
 from tests import test_me_staff_loops_1031_recorded as loops
-from tests.test_town_combat_survival_recorded import MissilePostedKey
+from tests import test_town_combat_survival_recorded as _test_town_combat_survival_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "death-n1c-077-1101.json.gz"
@@ -55,7 +55,7 @@ def boards(*, missile=True, torches=True):
     return rows
 
 
-class TownLastStandRangedRecordedTest(MissilePostedKey):
+class TownLastStandRangedRecordedTest(_test_town_combat_survival_recorded.MissilePostedKey):
     def stand(self, **variant):
         """The answers on the six recorded stand boards (after the first)."""
         policy = loops.new_policy(CASE, CASE["skill"], record=CASE["sequence"],

@@ -19,7 +19,7 @@ from hengbot.cli import (
 )
 from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
 from tests import test_input_executor as executor_pins
-from test_hourly_0700_1102_recorded import RecordedTownPolicy
+import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "hourly-2300-1102.json.gz"
@@ -30,7 +30,7 @@ def _cases():
         return json.load(stream)
 
 
-class VanishedIdentificationCandidateTest(RecordedTownPolicy):
+class VanishedIdentificationCandidateTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy):
     """n1-a life-466 23:18:46 town:blocked:departure-unsatisfiable.
 
     At 5F (decision 5107) the warrior picked up an unknown robe; back in town
@@ -87,7 +87,7 @@ class VanishedIdentificationCandidateTest(RecordedTownPolicy):
         self.assertEqual(policy._departure_block_state(board)["failed"], [])
 
 
-class QuestDungeonTargetAcrossBoardsTest(RecordedTownPolicy, executor_pins.ProductionHarness):
+class QuestDungeonTargetAcrossBoardsTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy, executor_pins.ProductionHarness):
     """n1-a life-466 23:18:56 posting-contract:recall-already-active.
 
     The restarted session read Word of Recall to the Yeek cave (decision 12,
@@ -140,7 +140,7 @@ class QuestDungeonTargetAcrossBoardsTest(RecordedTownPolicy, executor_pins.Produ
         self.assertEqual(game.accepted, ["1"])
 
 
-class ConfusedWaitLoopGuardTest(RecordedTownPolicy):
+class ConfusedWaitLoopGuardTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy):
     """n1-b life-297 22:49:45 loop-detected at 15F.
 
     A demon's claw confused the character (decision 544) after its last Cure
@@ -165,7 +165,7 @@ class ConfusedWaitLoopGuardTest(RecordedTownPolicy):
                                                   board.player.position))
 
 
-class FundraisingLootRouteThroughHostilesTest(RecordedTownPolicy):
+class FundraisingLootRouteThroughHostilesTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy):
     """n1-c life-111 23:15:44 loop-detected at Yeek cave 1F.
 
     The mining run walked to a floor item at (41,28): ``4`` from (49,37),
@@ -202,7 +202,7 @@ class FundraisingLootRouteThroughHostilesTest(RecordedTownPolicy):
         self.assertEqual((policy._loot_target.y, policy._loot_target.x), (41, 28))
 
 
-class UnaimedImmobileSummonerTest(RecordedTownPolicy):
+class UnaimedImmobileSummonerTest(_test_hourly_0700_1102_recorded.RecordedTownPolicy):
     """n1-c life-110 22:44:12 loop-detected at Orc cave 22F.
 
     A クイルスルグ (race 342, NEVER_MOVE, INVISIBLE, S_MONSTER) was in view

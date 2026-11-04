@@ -16,7 +16,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_state import normalize_policy_state
 from tests import test_input_executor as executor_pins
-from tests.test_dungeon_stops_1103_recorded import RecordedBoards
+from tests import test_dungeon_stops_1103_recorded as _test_dungeon_stops_1103_recorded
 
 
 FIXTURES = Path(__file__).with_name("fixtures") / "loops-1104"
@@ -27,7 +27,7 @@ def fixture(name: str) -> dict:
     return json.loads(lzma.decompress((FIXTURES / name).read_bytes()))
 
 
-class ItemCommandBoards(RecordedBoards):
+class ItemCommandBoards(_test_dungeon_stops_1103_recorded.RecordedBoards):
     def post_item_command(self, policy, raw: dict, key: str, prompt: str) -> None:
         """Post ``key`` (command, item letter) through the production executor."""
         game = executor_pins.FaithfulHookGame()

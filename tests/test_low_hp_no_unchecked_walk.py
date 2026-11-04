@@ -187,6 +187,12 @@ class LowHpNoKitUnseenHitTest(_Boards):
 
     def test_unseen_melee_attacks_a_direction_instead_of_walking(self):
         board = self._hit_board("何かに噛まれた。")
+        # Owner 2026-11-03 「必要なら加速や体力回復など危険度に応じて物資を使用」: the
+        # carried Speed goes first (unseen_strike.speed_key).
+        self.assertEqual(copy.deepcopy(self.policy).choose_key(board)[0], "q")
+        board = replace(board, inventory=type(board.inventory)(
+            item for item in board.inventory
+            if item is not self.policy._find_exact_potion(board, SV_POTION_SPEED)))
         key, reason = self._decide(board)
         # The lethal-emergency ladder reaches its last answer here; since
         # #47 hit-no-action-1101 it strikes (unseen_strike) instead of waiting

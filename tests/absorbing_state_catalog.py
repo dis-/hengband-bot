@@ -239,8 +239,9 @@ def _captured_home_deferral_retry():
     if (
         producer["decision_index"] != 26
         # TEST_FAKERY_LINT_ALLOW: literal-success-predicate: the captured producer key is part of the required faithful replay identity
-        or producer_key != "\x1b`n!."
-        or policy.last_reason != "shop:travel"
+        # The Home trip's deposit, now the spare gear's shelf (owner 2026-11-04).
+        or producer_key != "5"
+        or policy.last_reason != "equipment-transaction:atomic-deposit"
         or target_signature not in added
     ):
         raise AssertionError(
@@ -570,7 +571,8 @@ def _captured_departure_unsatisfiable():
     )
     if (
         false_leaves
-        != {"home_candidate_resolved"}
+        # spare_gear_stowed: the recorded pack carries unworn gear (owner 2026-11-04).
+        != {"home_candidate_resolved", "spare_gear_stowed"}
         or policy.equipment_optimization_state().get("optional_failure_departure", {}).get("reason")
         != "optional-optimization-failure-confirmed-loadout"
         # Admission now validates the observed kit without persisting it. The

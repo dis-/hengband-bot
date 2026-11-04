@@ -2160,7 +2160,9 @@ class FundraisingMixin:
                 if best is None or score < best[0]:
                     best = (score, first_step)
             for neighbor in self._walkable_neighbors(snapshot, pos):
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if (neighbor in seen or neighbor in self._engagement_avoid_cells
+                        # Owner 2026-10-19: nothing in the direction retreated from.
+                        or self._in_unseen_attack_area(snapshot, neighbor)):
                     continue
                 seen.add(neighbor)
                 queue.append(

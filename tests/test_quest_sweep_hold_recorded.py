@@ -120,8 +120,11 @@ class QuestSweepHoldRecordedTest(unittest.TestCase):
         board = self.board(22, 15411)
         policy = self.policy(board)
         row = self.cases[22]["rows"][0]
+        # 8613661ce4 (owner 2026-11-02): the quest fires the power stack first, the
+        # (+5,+5) bolts at m, not the plain stack the recording fired.
+        self.assertEqual(row["decision"]["key"][:2], "fl")
         self.assertEqual(self.decide(policy, board),
-                         (row["decision"]["key"], "quest-strategy:ranged-fire"))
+                         ("fm" + row["decision"]["key"][2:], "quest-strategy:ranged-fire"))
 
     def test_q22_active_mobile_enemy_still_retakes_hold(self):
         # DECLARED CONSTRUCTED: remove fear from the recorded fleeing orc.
