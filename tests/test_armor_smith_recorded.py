@@ -15,6 +15,13 @@ market/building-enchanter.cpp under cmd-building.cpp's menu.  The prompts are th
 source's; no live screen of this building was captured.  DECLARED: the spare
 *Identify* of the same read is out of charges (its own test covers it), and the
 Tower sequence is finished, which a fresh policy cannot know.
+
+The whole trip (``test_whole_trip``): every key from the recorded read board to
+the landing back in the Outpost is chosen by the public chooser and posted through
+the production executor port.  Recorded: the Outpost read board and the Telmora
+board.  CONSTRUCTED: ``TripGame``'s replies (the walks, the inn's fare and landing,
+the raises), the character carried onto the Telmora board, and the line (see
+``line_at``).  No live screen of the smith or of this trip exists yet.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -33,7 +40,7 @@ from hengbot import armor_smith
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import _strip_jsonc
-from hengbot.policy_constants import TOWN_TELEPORT_COST
+from hengbot.policy_constants import TOWN_TELEPORT_BUILDING_TYPES, TOWN_TELEPORT_COST
 from hengbot.town_maps import find_town_map, parse_town_map
 from tests import test_input_executor as executor_pins
 from tests import test_q2_tower_recharge_recorded as q2_town
@@ -46,6 +53,7 @@ GAME = Path("C:/hengband")
 FIXTURES = Path(__file__).with_name("fixtures")
 READ_ROW = 34
 RECORDED_GOLD = 17700
+LINE = 15900  # test_whole_trip: three raises above it after the fare
 FIGHTERS_HALL = 7
 PRICE = 600  # 02_Telmora.jsonc building 7, a Magic-Eater is no owner of it
 CAP = 37 // 5
@@ -92,6 +100,22 @@ class SmithHookGame(executor_pins.FaithfulHookGame):
         self.state["player"]["gold"] -= PRICE
         self.raised.append(slot)
 
+    def _key(self, key):
+        if self.phase == "command":
+            self.phase = "building"
+        elif self.phase == "building":
+            if key == "a" and self.state["player"]["gold"] >= PRICE:
+                self.phase = "pack" if self.pack_has_armour else "equip"
+            elif key == "\x1b":
+                self.phase = "command"
+                self.state["turn"] += 1
+        elif self.phase == "pack":
+            assert key == "/", key
+            self.phase = "equip"
+        elif self.phase == "equip":
+            self._raise(SLOTS[key])
+            self.phase = "building"
+
     def _consume(self, *, pump_frontend=True):
         if pump_frontend:
             self.term_fifo.extend(self.frontend_fifo)
@@ -102,20 +126,7 @@ class SmithHookGame(executor_pins.FaithfulHookGame):
             return
         for key in raw:
             self.posted.append(key)
-            if self.phase == "command":
-                self.phase = "building"
-            elif self.phase == "building":
-                if key == "a" and self.state["player"]["gold"] >= PRICE:
-                    self.phase = "pack" if self.pack_has_armour else "equip"
-                elif key == "\x1b":
-                    self.phase = "command"
-                    self.state["turn"] += 1
-            elif self.phase == "pack":
-                assert key == "/", key
-                self.phase = "equip"
-            elif self.phase == "equip":
-                self._raise(SLOTS[key])
-                self.phase = "building"
+            self._key(key)
         if self.phase == "command":
             self.screen = executor_pins.command_screen(self.state["turn"])
             self.jsonl.append(copy.deepcopy(self.state))
@@ -125,6 +136,70 @@ class SmithHookGame(executor_pins.FaithfulHookGame):
             self.screen = smith_screen(EQUIP_PAGE if self.pack_has_armour else EQUIP_ONLY_PAGE)
         else:
             self.screen = smith_screen()
+
+
+class TripGame(SmithHookGame):
+    """CONSTRUCTED: the walks, the inn and the smith over two recorded boards."""
+
+    capacity = 256
+    MOVES = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+             "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
+
+    def __init__(self, boards, maps):
+        super().__init__(boards[0])
+        self.boards, self.maps, self.town = boards, maps, 0
+        self.fares = 0
+        self.cursor = None
+
+    def _here(self):
+        return self.state["player"]["y"], self.state["player"]["x"]
+
+    def _building_at(self, y, x):
+        return next((number for number, cell in self.maps[self.town].buildings.items()
+                     if (cell.y, cell.x) == (y, x)), None)
+
+    def _land(self, town):
+        """cmd-building.cpp BACT_TELEPORT_TOWN: a new floor of that town; the fare paid."""
+        board = copy.deepcopy(self.boards[town])
+        for name in ("inventory", "equipment", "progress"):
+            board[name] = self.state[name]
+        board["player"] = dict(self.state["player"], y=board["player"]["y"], x=board["player"]["x"])
+        board["turn"] = self.state["turn"] + 10
+        board["messages"] = []
+        self.state, self.town, self.phase = board, town, "command"
+
+    def _key(self, key):
+        if self.phase == "travel":
+            if key == ".":
+                self.state["player"].update(y=self.cursor[0], x=self.cursor[1])
+                self.state["turn"] += 10
+                self.phase = "command"
+            elif key in self.MOVES:
+                self.cursor = (self.cursor[0] + self.MOVES[key][0], self.cursor[1] + self.MOVES[key][1])
+        elif self.phase == "command":
+            if key == "`":
+                self.cursor, self.phase = self._here(), "travel"
+            elif key in self.MOVES:
+                y, x = self._here()
+                y, x = y + self.MOVES[key][0], x + self.MOVES[key][1]
+                self.state["player"].update(y=y, x=x)
+                self.state["turn"] += 10
+                building = self._building_at(y, x)
+                if building == TOWN_TELEPORT_BUILDING_TYPES[self.town]:
+                    self.phase = "inn"
+                elif building is not None:
+                    self.phase = "building"
+            else:
+                assert key == "\x1b", repr(key)
+        elif self.phase == "inn":
+            assert key == "m", repr(key)
+            self.state["player"]["gold"] -= TOWN_TELEPORT_COST
+            self.fares += 1
+            self.phase = "inn-choice"
+        elif self.phase == "inn-choice":
+            self._land(ord(key) - ord("a"))
+        else:
+            super()._key(key)
 
 
 class ArmorSmithRecordedTest(executor_pins.ProductionHarness):
@@ -303,6 +378,71 @@ class ArmorSmithRecordedTest(executor_pins.ProductionHarness):
             key = policy.choose_key(steps[index][1]())
         self.assertEqual((key, policy.last_reason), (recorded[index]["key"], recorded[index]["reason"]))
         self.assertIsNone(armor_smith.state(policy).origin)
+
+    # -- the whole trip ------------------------------------------------------
+
+    def test_whole_trip(self):
+        """Read board, walk to the inn, teleport, walk to the smith, raises, back, read.
+
+        Live n1-b life-310, n1-c life-140: one travel key, then the read.  The walk
+        to the inn is still in the town the trip started from.
+        """
+        with self.rings_already_repaired():
+            policy, recorded, steps = self.replay("ring-departure", READ_ROW)
+        outpost = json.loads(recorded[READ_ROW]["line"] or recorded[READ_ROW]["inputs"][-1])
+        # DECLARED: Telmora is the listed town the board's character goes to.
+        outpost["progress"]["visited_town_ids"] = [0, 1]
+        game = TripGame({0: outpost, 1: copy.deepcopy(self.q2["board"])}, self.maps)
+        game.screen = executor_pins.command_screen(outpost["turn"])
+        reasons = []
+        with self.rings_already_repaired(), self.line_at(LINE):
+            for _decision in range(60):
+                _game, _client, executor = self.make(game)
+                self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+                port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+                board = parse_snapshot(copy.deepcopy(game.state), policy._monrace_knowledge)
+                key = policy.choose_key(board)
+                self.assertIsNotNone(key)
+                reason = policy.last_reason
+                if not reasons or reasons[-1] != reason:
+                    reasons.append(reason)
+                sent, _line = _send_new_decision_key(
+                    port, "trip-board", key, None, set(), in_store=False,
+                    decision={"sequence": policy._decision_sequence, "reason": reason})
+                self.assertTrue(sent, (reason, key, port.last_result))
+                self.assertEqual(port.last_result.outcome, "completed", (reason, key))
+                policy.confirm_key_posted(key)
+                if game.fares == 2:
+                    break
+        names = [name.removesuffix("-step-off") for name in reasons]
+        names = [name for index, name in enumerate(names) if index == 0 or names[index - 1] != name]
+        self.assertEqual(names, [armor_smith.TRAVEL_REASON, armor_smith.APPROACH_REASON,
+                                 armor_smith.RAISE_REASON, armor_smith.RETURN_REASON])
+        self.assertEqual(game.town, 0)
+        # 17,700 - 500 = 17,200, then 16,600 and 16,000 still pay; 15,400 stops.
+        self.assertEqual(game.raised, ["feet"] * 3)
+        self.assertEqual(game.state["player"]["gold"], 15400 - TOWN_TELEPORT_COST)
+        feet = next(it for it in game.state["equipment"] if it["slot"] == "feet")
+        self.assertIn("[6,-3]", feet["name"])
+        stay = armor_smith.state(policy)
+        self.assertTrue(stay.travelled)
+
+        # Back on the Outpost: the errand ends and is not started again.
+        landed = parse_snapshot(copy.deepcopy(game.state), policy._monrace_knowledge)
+        with self.line_at(1):
+            self.assertIsNone(armor_smith.trip_key(policy, landed))
+            self.assertIsNone(armor_smith.town_key(policy, landed))
+        self.assertIsNone(stay.origin)
+
+        # The read: the recorded board with this stay.  DECLARED: the return's fresh
+        # visit (its shops and Home have no reply in TripGame) is replaced by the
+        # recorded visit's rows.
+        shutil.rmtree(self.scratch / "ring-departure")
+        policy, row, read = self.read_board()
+        policy._armor_smith_stay = stay
+        with self.line_at(1):
+            key = self.decide(policy, read)
+        self.assertEqual((key, policy.last_reason), (row["key"], row["reason"]))
 
     # -- the smith's town ----------------------------------------------------
 
