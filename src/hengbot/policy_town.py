@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import native_travel_fits
-from hengbot import consumable_policy, me_capability, town_pack_headroom
+from hengbot import ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import home_pass_charge, town_end_mining, town_travel
 from hengbot import unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
@@ -3614,6 +3614,9 @@ class TownMixin:
             )
         ):
             add(STORE_HOME, "equipment-catalog", "home-first")
+        ability_store = ability_gear.supplier_store(self, snapshot)
+        if ability_store is not None:
+            add(ability_store, "ability-gear")
         if STORE_BLACK not in self._town_store_attempted:
             add(STORE_BLACK, "black-market")
         return needs
@@ -3695,6 +3698,7 @@ class TownMixin:
             ("equipment-catalog", "home-first", 1, False),  # Catalog completion yields to a ready departure.
             ("equipment-work", "home-first", 1, True),
             ("equipment-transaction", "home-first", 1, True),
+            ("ability-gear", "normal", 1, False),  # The landing's own gate stops a departure without it.
             ("black-market", "normal", 1, False),  # Black Market browsing is opportunistic.
         )
         specs: list[NeedSpec] = []

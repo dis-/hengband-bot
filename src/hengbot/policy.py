@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, permits
 from hengbot import combat_answer, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import consumable_policy, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import ability_gear, consumable_policy, once_quest_recall, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -5180,6 +5180,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._store_visit.operation_posted = False
                     self._store_visit.operation_effect_observed = True
                 self._store_buy_inflight = None
+                ability_gear.note_bought(self, snapshot, watched_store, watched_signature)
                 self._in_store_best_effort("_note_shelf_trade",
                     snapshot, watched_store, "buy", watched_signature, bought,
                     gold_spent=before_gold - snapshot.player.gold,

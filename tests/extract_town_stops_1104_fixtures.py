@@ -65,7 +65,7 @@ def main() -> None:
         kept = b"".join(journal.splitlines(keepends=True)[:rows])
         (target / "journal.jsonl.xz").write_bytes(lzma.compress(kept, preset=preset))
         (target / "calibration.json").write_bytes((visit / "sidecars" / CALIBRATION).read_bytes())
-        if name == "worn-average":
+        if name in {"worn-average", "ability-gap"}:
             # The dump the arrival read, and the C response that goes with it.
             (target / "dump.txt.xz").write_bytes(
                 lzma.compress((visit / "sidecars" / DUMP).read_bytes(), preset=preset))

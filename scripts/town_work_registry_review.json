@@ -410,5 +410,12 @@
   ],
   "purchase:me-device:policy": [
     "optional-buy"
+  ],
+  "need:ability-gear:normal:0": [
+    "optional-buy",
+    "browse"
+  ],
+  "purchase:ability-gear:buy": [
+    "optional-buy"
   ]
 }

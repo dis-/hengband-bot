@@ -64,6 +64,8 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "tail:cure": "supply-ledger:cure",
     "tail:ammo": "ammo:carry-plan",
     "tail:identify-staff": "identify-staff-cap",
+    # Worn or stored by the equipment comparison (ability_gear).
+    "ability-gear:buy": "equipment-catalogue",
     "black-market:speed": "emergency-potion",
     "black-market:healing": "emergency-potion",
     "black-market:stone-to-mud": "utility:stone-to-mud",
