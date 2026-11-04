@@ -32,6 +32,7 @@ from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import Position, game_distance, parse_snapshot
+from hengbot.policy_constants import EMERGENCY_ESCAPE_REASONS
 from tests import test_n1c_death_1102_recorded as q31
 from tests import test_paralyzer_contact_recorded as paralyzer
 from tests import test_rq_teleport_reserve_recorded as rq
@@ -44,6 +45,7 @@ STAFF_KEY = ("us", "emergency:destruction")
 STAFF_NAME = "*破壊*"
 RELIABLE_SKILL = 60          # (60 - 50 - 2) / (60 - 50) = 80%
 AWAKE_RACE = 338             # the air hounds of the recorded board
+CURE_REASONS = ("item:cure", "item:cure-critical")
 USE_PROMPT = "どの杖を使いますか? "
 TARGET = rq.QUEST_TARGET_RACE
 
@@ -67,6 +69,36 @@ def move(raw, monster, y, x):
         if cell.get("m") == monster["index"]:
             cell["m"] = 0
     monster["y"], monster["x"] = y, x
+
+
+def destroyed_map(grid_map, centre, radius=destruction_use.WORST_RADIUS):
+    """grid_map with no cell of the circle (the game forgot it)."""
+    grid_map = copy.deepcopy(grid_map)
+    def kept(y, x):
+        return game_distance(centre, Position(y, x)) > radius
+    runs = []
+    for y, x0, length, palette in grid_map["runs"]:
+        start = None
+        for x in range(x0, x0 + length + 1):
+            keep = x < x0 + length and kept(y, x)
+            if keep and start is None:
+                start = x
+            elif not keep and start is not None:
+                runs.append([y, start, x - start, palette])
+                start = None
+    grid_map["runs"] = runs
+    grid_map["cells"] = [cell for cell in grid_map.get("cells", ()) if kept(cell["y"], cell["x"])]
+    return grid_map
+
+
+def after_flash(raw, *, blind=True):
+    """The board of a use that worked: the flash, nothing in view, no circle."""
+    centre = Position(raw["player"]["y"], raw["player"]["x"])
+    following = dict(copy.deepcopy(raw), turn=raw["turn"] + 10,
+                     messages=[destruction_use.FLASH[0]], visible_monsters=[], detected_monsters=[])
+    following["grid_map"] = destroyed_map(raw["grid_map"], centre)
+    following["player"]["status"]["blind"] = blind
+    return following
 
 
 def own_tests_only(cls):
@@ -243,6 +275,47 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
         policy._dungeon_knowledge[raw["floor"]["dungeon_id"]] = DungeonInfo(
             raw["floor"]["dungeon_id"], "", 1, raw["floor"]["level"], 1, guardian_id=AWAKE_RACE)
         self.assertEqual(self.answer(raw, policy)[0], TELEPORT)
+
+    def test_after_the_flash_the_character_cures_and_explores_on(self):
+        raw = with_staff(copy.deepcopy(self.raw))
+        answer, policy = self.answer(raw)
+        self.assertEqual(answer, STAFF_KEY)
+        self.assertNotIn(answer[1], EMERGENCY_ESCAPE_REASONS)
+        policy.confirm_key_posted(answer[0])
+        emergencies = policy._dive_emergencies
+        centre = Position(raw["player"]["y"], raw["player"]["x"])
+        inside = Position(centre.y, centre.x + 3)
+        policy._remembered_upstairs.add(inside)
+        policy._engagement_avoid_cells.add(inside)
+        policy._known_loot.add(inside)
+        policy._remembered_floor_t.add((inside.y, inside.x))
+        policy._explore_path = [inside]
+        outside = Position(centre.y, centre.x + 30)
+        policy._remembered_upstairs.add(outside)
+
+        cured = after_flash(raw)
+        cure = rq.decide(policy, copy.deepcopy(cured))
+        self.assertEqual(policy._dive_emergencies, emergencies)
+        self.assertFalse(policy._emergency_escape_pending)
+        self.assertFalse(policy._returning_to_town)
+        self.assertNotIn(inside, policy._remembered_upstairs)
+        self.assertIn(outside, policy._remembered_upstairs)
+        self.assertNotIn(inside, policy._engagement_avoid_cells)
+        self.assertNotIn(inside, policy._known_loot)
+        self.assertNotIn((inside.y, inside.x), policy._remembered_floor_t)
+        self.assertNotIn(inside, policy._explore_path)
+        self.assertNotIn(inside, policy._remembered_grids)
+        self.assertIn(policy.last_reason, CURE_REASONS)
+        self.assertEqual(cure[0], "q")
+        policy.confirm_key_posted(cure)
+
+        seeing = dict(copy.deepcopy(cured), turn=cured["turn"] + 10, messages=[])
+        seeing["player"]["status"]["blind"] = False
+        rq.decide(policy, copy.deepcopy(seeing))
+        self.assertEqual(policy._dive_emergencies, emergencies)
+        self.assertFalse(policy._returning_to_town, policy.last_reason)
+        self.assertFalse(policy.last_reason.startswith(("emergency:", "return:")),
+                         policy.last_reason)
 
     def test_a_failed_use_reads_teleport_on_the_next_ask(self):
         raw = with_staff(copy.deepcopy(self.raw))

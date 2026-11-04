@@ -31,17 +31,28 @@ else leaves the rung's read as it was.
 A use that printed no flash (a failure, the empty staff) or a key the game did
 not take falls back to the Teleportation on the next ask: speed_dose's rule for
 a failed cast on the survival rungs, with no retry number of its own.
+
+The flash on a board (``observe``) ends the emergency without a town return:
+``emergency:destruction`` is deliberately no member of EMERGENCY_ESCAPE_REASONS,
+and the ladder's own return latch of that decision is undone.  What the player
+knew of the circle is forgotten (``forget_circle``) before the board is merged
+into the map memory, so a cell the game still shows comes back from the board.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot import attack_expectation, me_capability
+from hengbot import (
+    attack_expectation, hunt_target, immobile_threat_memory, me_capability, summoner_wait,
+)
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
-from hengbot.model import SV_STAFF_DESTRUCTION, TVAL_STAFF, game_distance
-from hengbot.policy_constants import PLAYER_CLASS_BERSERKER
+from hengbot.model import SV_STAFF_DESTRUCTION, TVAL_STAFF, Position, game_distance
+from hengbot.town_hold import LOOT_OWNERS
+from hengbot.policy_constants import (
+    EMERGENCY_RETURN_COUNT, PLAYER_CLASS_BERSERKER, ExplorationPathOutcome,
+)
 
 
 REASON = "emergency:destruction"
@@ -52,6 +63,36 @@ GUARANTEED_RADIUS = 13       # cmd-usestaff.cpp:282 13 + randint0(5)
 WORST_RADIUS = 17
 FLASH = ("燃えるような閃光が発生した！", "There is a searing blast of light!")
 MEMORY = "_destruction_use_memory"
+# The triggers _emergency_item latches for the escape it is about to take.
+LADDER_RETURN_TRIGGERS = frozenset({
+    "emergency-summoner", "emergency-ranged-status-lock", "emergency-lethal-swarm",
+})
+# Floor memory the destroyed circle invalidates.  Sets of Position:
+POSITION_SETS = (
+    "_remembered_downstairs", "_remembered_upstairs", "_remembered_entrances",
+    "_known_treasure", "_known_loot", "_deferred_loot", "_unseen_deferred_loot",
+    "_safety_deferred_loot", "_nav_ledger_deferred_loot", "_loot_ledger_rearmed",
+    "_loot_safety_rearmed", "_engagement_avoid_cells", "_engagement_owned_avoid_cells",
+    "_paralyzer_avoid_cells", "_warning_refused_cells", "_probed_frontiers",
+    "_processed_chest_positions", "_window_edge_goals",
+)
+# Sets and counters of (y, x):
+YX_COLLECTIONS = (
+    "_remembered_floor_t", "_remembered_door_t", "_remembered_rubble_t", "_remembered_wall_t",
+    "_remembered_known_t", "_remembered_marked_t", "_blocked_doors", "_blocked_rubble",
+    "_blocked_unknown", "_search_counts", "_wall_search_counts",
+)
+# Dicts keyed by Position:
+POSITION_DICTS = (
+    "_remembered_grids", "_remembered_grid_signatures", "_remembered_grid_sources",
+    "_look_floor_items", "_look_floor_object_counts", "_remembered_paralyzers",
+    "_one_step_explore_failures", "_hazard_cache",
+)
+# Collections of (kind, Position):
+KIND_POSITION_COLLECTIONS = ("_unverified_stairs", "_stair_rejection_strikes")
+# Module memories of monsters and holds that may stand in the circle.
+FORGET_VISIT = (summoner_wait, immobile_threat_memory, hunt_target)
+
 
 @dataclass
 class Memory:
@@ -191,11 +232,87 @@ def observe(policy, snapshot) -> None:
         memory.fallback = None
     if memory.pending is None:
         return
-    floor, turn, _position = memory.pending
+    floor, turn, position = memory.pending
     if snapshot.floor_key != floor:
         memory.pending = None
     elif any(message in FLASH for message in snapshot.messages):
         memory.pending = None
+        _end_emergency(policy)
+        forget_circle(policy, position)
     elif snapshot.turn != turn:
         memory.pending = None
         memory.fallback = floor
+
+
+def _end_emergency(policy) -> None:
+    """「破壊の回数だけでは帰還しない」: drop the ladder's latch for this escape."""
+    policy._emergency_escape_pending = False
+    policy._emergency_return_active = False
+    if (policy._last_return_trigger in LADDER_RETURN_TRIGGERS
+            and policy._dive_emergencies < EMERGENCY_RETURN_COUNT):
+        policy._returning_to_town = False
+        policy._note_return_end()
+        policy._last_return_trigger = None
+
+
+def _discard(collection, stale) -> None:
+    for each in [each for each in collection if stale(each)]:
+        if isinstance(collection, set):
+            collection.discard(each)
+        else:
+            del collection[each]
+
+
+def forget_circle(policy, centre: Position) -> None:
+    """Drop what the bot remembers of the destroyed circle (the worst radius); a
+    cell that survived at 14-17 is shown by the next board again."""
+    def in_circle(position) -> bool:
+        return game_distance(centre, position) <= WORST_RADIUS
+
+    for name in POSITION_SETS + POSITION_DICTS:
+        _discard(getattr(policy, name, ()), in_circle)
+    for name in YX_COLLECTIONS:
+        _discard(getattr(policy, name, ()), lambda yx: in_circle(Position(*yx)))
+    for name in KIND_POSITION_COLLECTIONS:
+        _discard(getattr(policy, name, ()), lambda each: in_circle(each[1]))
+    _discard(policy._exploration_ledger.mapped_areas,
+             lambda area: in_circle(Position(area[0], area[1])))
+    _release_goals(policy, in_circle)
+    _restart_progress_marks(policy)
+    for module in FORGET_VISIT:
+        module.forget_floor_visit(policy)
+
+
+def _release_goals(policy, in_circle) -> None:
+    """No route or goal may point into the changed map."""
+    policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+    if policy._loot_target is not None and in_circle(policy._loot_target):
+        policy._release_claim_goal("loot-destroyed", policy._loot_target,
+                                   owners=LOOT_OWNERS)
+        policy._loot_target = None
+    if policy._treasure_target is not None and in_circle(policy._treasure_target):
+        policy._release_claim_goal("treasure-destroyed", policy._treasure_target,
+                                   owners=("fundraising",))
+        policy._treasure_target = None
+    if policy._chest_position is not None and in_circle(policy._chest_position):
+        policy._chest_position = None
+    if policy._choke_engagement_plan is not None:
+        policy._release_choke_plan("destruction")
+    policy._clear_unseen_retreat()
+    policy._status_threat_latch = None
+    policy._pending_stair_command = None
+
+
+def _restart_progress_marks(policy) -> None:
+    """The per-floor navigation accounting (as at a floor change): the known map
+    just shrank, so its high marks would read new exploration as no progress."""
+    policy._nav_ledger.reset()
+    policy._nav_stall_count = 0
+    policy._nav_exhausted = False
+    policy._nav_escape_steps = 0
+    policy._nav_known_high = 0
+    policy._nav_progress_marker = None
+    policy._oscillation_outcome_marker = None
+    marked = len(policy._remembered_marked_t)
+    policy._fruitless_disengage_marked_high = marked
+    policy._exploration_ledger.marked_high = marked
