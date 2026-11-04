@@ -10,6 +10,7 @@ from pathlib import Path
 import unittest
 
 import tests  # noqa: F401 -- runtime file isolation
+from recorded_junk_scope import install_past_destroyed_junk
 from tests.hold_closings import recorded_closings
 from hengbot import town_hold
 from hengbot.town_hold import observe_goal as observe
@@ -48,6 +49,19 @@ def attach(enforced=False, crossarea=True):
         expected_effect=declaration["expected_effect"],
         continuation=declaration["continuation"])
     return policy, boards, raw[-1]
+
+
+_undo_past_junk = None
+
+
+def setUpModule():
+    # Owner 2026-11-02: these boards carry junk the first safe decision destroys.
+    global _undo_past_junk
+    _undo_past_junk = install_past_destroyed_junk()
+
+
+def tearDownModule():
+    _undo_past_junk()
 
 
 class CatcycleTest(unittest.TestCase):

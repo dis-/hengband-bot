@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from recorded_junk_scope import install_past_destroyed_junk
 import base64
 import gzip
 import json
@@ -42,6 +43,19 @@ DIRECTIONS = {
     "1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
     "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1),
 }
+
+
+_undo_past_junk = None
+
+
+def setUpModule():
+    # Owner 2026-11-02: these boards carry junk the first safe decision destroys.
+    global _undo_past_junk
+    _undo_past_junk = install_past_destroyed_junk()
+
+
+def tearDownModule():
+    _undo_past_junk()
 
 
 class DarkwalkIncidentTest(unittest.TestCase):

@@ -62,6 +62,7 @@ Walls, each declared:
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from recorded_junk_scope import install_past_destroyed_junk
 from recorded_loadout import recorded_loadout_replay
 from hengbot.policy import staged_prompt_chain_matches
 import gzip
@@ -104,6 +105,19 @@ FOREST = 7
 # read on (the ordinary wait for an armed town recall).
 STEP_OFF = "town:wait-recall-step-off"
 STEP_OFF_KEYS = ("1", "7", "7", "7", "7", "7", "1", "1", "1")
+
+
+_undo_past_junk = None
+
+
+def setUpModule():
+    # Owner 2026-11-02: these boards carry junk the first safe decision destroys.
+    global _undo_past_junk
+    _undo_past_junk = install_past_destroyed_junk()
+
+
+def tearDownModule():
+    _undo_past_junk()
 
 
 class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
