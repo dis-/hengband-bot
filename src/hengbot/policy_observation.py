@@ -851,6 +851,7 @@ class ObservationMixin:
             self.town_visit_report = None
             self._quest_light_attempted.clear()
             self._q2_phase_light_attempted.clear()
+            self._quest_light_areas_read.clear()
             self._q2_phase_visited_goals.clear()
             self._q2_phase_route_targets.clear()
             self._q2_phase_last_move = None

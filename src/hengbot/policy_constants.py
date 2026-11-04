@@ -701,11 +701,12 @@ Q2_BLUE_RECOVERY_CELLS = frozenset(
 )
 
 Q2_POST_BLUE_SEQUENCE = (
+    # Formation P4: the worms come before the spiders (P6) and the puddles (P7).
+    ("nether-worm", 213, (Position(11, 60),)),
     ("down-puddle", 885, (Position(18, 46),)),
     ("spiders", 175, tuple(Position(21, x) for x in range(50, 56))),
     ("lower-right-puddle", 885, (Position(20, 62),)),
     ("upper-puddle", 944, (Position(12, 64),)),
-    ("nether-worm", 213, (Position(11, 60),)),
     ("upper-left-puddle", 944, (Position(8, 55),)),
 )
 

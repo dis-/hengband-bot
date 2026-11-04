@@ -26,6 +26,8 @@
 
 全滅が達成条件の階を部屋ごとに歩く型は `engagement_plan.room_sweep` に `stands`（順に歩くマス、任意で `meet_turns`）、`last_targets`（`race`、`cell`、`door`、`stand`。ほかを歩き終えてから扉を開けて撃つ）、`line_races`（直接の射線を避ける動かない術者）、`enemy_wait_turns`、`rest_below_ratio`、`max_rounds` を書く（`quest_room_sweep.py`）。`abort_conditions.recall_below_teleports` は、HP の線の代わりにテレポートの巻物の残りで帰還を決めることを表す（敵がいる時だけ読む）。
 
+序盤の段で動かない敵を後回しにする型は `engagement_plan.early_sweep` に `deferred_races` と `stages`（`race`、`goal`）を書く。最後の段が終わるまで、`goal` への道の上にいるものを除いて `deferred_races` を狙わない（`quest_early_sweep.py`）。`engagement_plan.light_areas` は光の巻物を読む区画の行（`name`、`bounds` は上・左・下・右）で、区画ごとに1回だけ読み、どの区画にも入らないマスでは読まない（`quest_light_areas.py`）。
+
 `required_force.ranged` は遠距離の要件で、`shot_average`、`ammo`、`turn_average`、任意で `device_classes` と `reference_race` を持つ。行は `ranged_turn_average` で1ターンの値を上書きできる。読み方は `quest_ranged_force.py` の1か所だけ（矢弾の名前に出る /shot と /turn を読み、`device_classes` の職業は基準の敵への期待ダメージが `shot_average` 以上の魔道具を1回1発で数える）。`required_force.required_potions` は持参する薬の個数（`restore_exp`、`restore_str`）。
 
 ## 回復薬なし段階

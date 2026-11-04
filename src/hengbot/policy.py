@@ -1322,6 +1322,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._quest_strategy_post_wave_light_attempted: set[int] = set()
         self._quest_light_attempted: set[tuple[tuple[int, int, int], Position]] = set()
         self._q2_phase_light_attempted: set[tuple[object, ...]] = set()
+        self._quest_light_areas_read: set[tuple[tuple[int, int, int], str]] = set()
         self._q2_phase_visited_goals: set[
             tuple[tuple[int, int, int], int, Position, Position]
         ] = set()
