@@ -1139,13 +1139,6 @@ class HomeMixin:
                 return self._town_producer_entry("_home_full_skip_key",
                     lambda: self._home_full_skip_key("surplus-withdraw-failed"))
         if self._home_full_relief_yields_to_store_operation(snapshot):
-            ledger = getattr(self, "_in_store_entry_ledger", None) or {}
-            if ledger.get("ops", 0) >= STORE_STUCK_LIMIT:
-                operation = self._departure_blocking_page_operation(snapshot)
-                if operation is not None:
-                    return self._in_store_required_operation_stop(
-                        snapshot, "entry-budget", operation
-                    )
             return None
         if sale is None:
             if not self._home_knowledge_current:

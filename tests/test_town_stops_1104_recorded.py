@@ -312,6 +312,33 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._town_blocked_reason)
         self.assert_posts(policy, recorded[26], board, key)
 
+    def test_spent_entry_budget_leaves_for_the_visit_to_come_back(self):
+        """n1-a life-477 08:54, town:blocked:shop-required-operation-uncomposable.
+
+        cause entry-budget, row k, Identify staff 18 of 20: eight operations that
+        all took effect (a 30000-gold book, a staff, a swap of the 1-charge staves).
+
+        DECLARED CONSTRUCTED: the Magic Shop entry's ledger, its visit and the Home
+        list's currency are written on the recorded last page; this arrival's
+        optimizer does not replay the visit's Home rows.
+        """
+        policy, recorded, steps = self.load("entry-spent")
+        self.assertEqual(recorded[65]["reason"], "town:blocked:shop-required-operation-uncomposable")
+        board = steps[65][1]()
+        policy._decision_sequence = 393
+        policy._in_store_entry_ledger = {
+            "store": board.store.store_type, "opened_sequence": 384,
+            "ops": 8, "pending": None, "ended": False,
+        }
+        policy._store_visit = StoreVisit("town-errand", "shopping", board.store.store_type,
+                                         phase=StoreVisitPhase.OPERATING, opened_sequence=384)
+        policy._in_store_screen_verified = True
+        policy._home_knowledge_current = True
+        self.assertEqual(policy._departure_blocking_page_operation(board)["op"], "buy")
+        key = policy._in_store_entry_key(board)
+        self.assertEqual((key, policy.last_reason), ("\x1b", "shop:in-store-done"))
+        self.assertIsNone(policy._town_blocked_reason)
+
     def test_gold_pile_is_walked_and_a_refused_pile_is_no_target(self):
         """n1-c life-123 04:33, owner-retired-burst.
 
