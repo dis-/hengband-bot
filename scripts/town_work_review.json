@@ -11808,6 +11808,17 @@
     "evidence": "The absorbed power's key m + A/B/C + I2A(sval) (+ direction) under DEVICE_REASON; called only by me_device_attacks.attack_key and me_ranged_first._adjacent_options' sender; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_powers.py:fight_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-04 「魔道具術師　取り込んだスピードが残10回以上なら、特にピンチでなくても戦闘時加速する」「成功率8割以上のときに限定して」: me_powers.power_key's FIGHT occasion (the Speed row) in place of a decided attack on an awake hostile (attack_answer); me_powers._gate refuses the town, the wilderness and a store first, so no town key is replaced.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_powers.py:threat_key": {
     "classification": "dungeon-only",
     "rows": [

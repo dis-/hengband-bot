@@ -216,12 +216,16 @@ def _full_count(policy, snapshot, row, target) -> bool:
     return count(policy, snapshot, *row.power) >= max_charges(row.power[1])
 
 
-def _reliable(policy, snapshot, row, target) -> bool:
+def reliable(policy, snapshot, power: tuple) -> bool:
     """The displayed success rate is at least ``RELIABLE_MIN_SUCCESS`` (only
     the displayed list prints the failure percent, cmd-magiceat.cpp)."""
-    entry = observed_row(policy, *row.power)
+    entry = observed_row(policy, *power)
     return (_magic_eater(snapshot) and entry is not None
             and int(entry.get("success") or 0) >= RELIABLE_MIN_SUCCESS)
+
+
+def _reliable(policy, snapshot, row, target) -> bool:
+    return reliable(policy, snapshot, row.power)
 
 
 def _staff_sequence(policy, snapshot, row, target) -> bool:
