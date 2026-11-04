@@ -2,6 +2,7 @@
 
 Owner 2026-11-04 (summon-response-decision-20261104), 「案のとおり3つとも」:
  1. 「召喚した本人が見えて狙えるなら、隣に増援がいても先に撃つ。」 (``caster_shot_key``)
+ 2. 「姿の見えない敵の召喚が2回続いたら今いる場所から離れる。」 (``leave_key``)
 
 The rungs stand after the survival ladder (policy._choose_key): what threatens the
 player's life answers first.
@@ -12,6 +13,23 @@ the player's own summons have no subject and an item name (the auto-destroyed
 魔法書[野性の召喚]) never ends in a cast, so neither is read as one.  The board's
 messages are the new ones only (control_client merges a skipped board's into the next).
 
+Blind, a cast prints only 「何かをつぶやいた」, which every spell prints; the line that
+follows a summon with a monster in it is read as an unseen cast (``_BLIND_SOUNDS``).
+
+"In a row" (rule 2), from n1-c life-130's decision logs (95 113 decisions, 115 unseen
+casts): between consecutive unseen casts on a floor the gap ran 0-21 decisions with the
+player within 5 cells (66 pairs), then 24+ decisions with the player 9+ cells away (one
+exception, 54 decisions at 0 cells).  So the casts continue while the next comes within
+``UNSEEN_CAST_WINDOW_DECISIONS`` and the player has not moved ``LEFT_SPOT_DISTANCE``
+cells from the last one.  A seen cast in between does not end the run: the caster the
+player cannot see is still there (n1-a life-475: unseen, seen, unseen at one cell).
+
+Leaving is the existing escapes only: *Destruction* where destruction_use's gates pass,
+else a Scroll of Teleportation, with an awake hostile in view; a floor whose strategy
+forbids the scroll keeps its fight (quest_no_teleport).  The spot left stays out of
+routes (the hold point's own veto) and the run ends once the player is away or the
+flash has gone off, so a choke hold elsewhere needs two new casts to be left again.
+
 Pickled checkpoints have no ``MEMORY`` attribute: it is created on first use.
 """
 
@@ -21,12 +39,19 @@ import re
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
-from hengbot import me_ranged_first
-from hengbot.policy_constants import RANGED_MAX_DISTANCE
+from hengbot import destruction_use, me_ranged_first, return_yield
+from hengbot.model import Position
+from hengbot.policy_constants import RANGED_MAX_DISTANCE, ExplorationPathOutcome
 
 
 MEMORY = "_summon_response_memory"
 CASTER_SHOT_REASON = "summoner:ranged-kill:named-caster"
+LEAVE_REASON = "summons:leave-teleport"
+# Owner 2026-11-04: 「2回」.
+UNSEEN_CASTS_TO_LEAVE = 2
+# From the logs (module docstring): how far apart two unseen casts still run on.
+UNSEEN_CAST_WINDOW_DECISIONS = 21
+LEFT_SPOT_DISTANCE = 6
 # ``monster_desc`` of a monster the player does not see.
 UNSEEN_NAMES = frozenset({"何か", "It"})
 # The tail of each cast, after the caster's name.
@@ -54,6 +79,17 @@ _CAST_TAILS_JA = (
     "が魔法で特別な強敵を蘇らせた！",
     "が魔法で幽鬼戦隊を召喚した！",
 )
+# What a blind player hears after a summon (mspell-summon.cpp); it names no caster.
+_BLIND_SOUNDS = frozenset({
+    "多くのものが間近に現れた音がする。", "You hear many things appear nearby.",
+    "重厚な足音が近くで聞こえる。", "You hear heavy steps nearby.",
+    "何かが間近に現れた音がする。", "You hear something appear nearby.",
+    "間近で何か多くのものが這い回る音が聞こえる。", "You hear many creepy things appear nearby.",
+    "多くの力強いものが間近に現れた音が聞こえる。", "You hear many powerful things appear nearby.",
+    "何者かが次元を超えて現れた気配がした。", "You feel shadow shifting by immortal beings.",
+    "多くのものが間近に現れた音が聞こえる。",
+    "多くの力強いものが間近に蘇った音が聞こえる。", "You hear many powerful things animate nearby.",
+})
 _CAST_RE_EN = re.compile(r"^(.+?) (?:magically (?:summons|animates) |vomits minion Peroros!)")
 _REPEAT_RE = re.compile(r" <x([1-9]\d*)>$")
 
@@ -67,6 +103,8 @@ class Summon(NamedTuple):
 
 
 def _parse_cast(text: str) -> Summon | None:
+    if text in _BLIND_SOUNDS:
+        return Summon(next(iter(UNSEEN_NAMES)))
     for tail in _CAST_TAILS_JA:
         if text.endswith(tail) and len(text) > len(tail):
             return Summon(text[:-len(tail)])
@@ -93,6 +131,10 @@ class Memory:
     floor: tuple | None = None
     board: tuple | None = None        # the last board read: a redraw is not read twice
     casters: set[str] = field(default_factory=set)  # plain names seen casting on this visit
+    decisions: int = 0                # decisions of this visit
+    unseen_run: int = 0               # unseen casts in a row (module docstring)
+    last_unseen: tuple[int, Position] | None = None  # the decision and cell of the last
+    leave_turn: int | None = None     # the board of the last leave: a redraw reads no second
 
 
 def _memory(policy) -> Memory:
@@ -118,14 +160,29 @@ def observe(policy, snapshot) -> None:
     if board == memory.board:
         return
     memory.board = board
+    memory.decisions += 1
+    if _run_ended(memory, snapshot):
+        memory.unseen_run = 0
     for message in snapshot.messages:
         for summon in summons_of(message):
-            _count(memory, summon)
+            _count(memory, summon, snapshot.player.position)
 
 
-def _count(memory: Memory, summon: Summon) -> None:
+def _run_ended(memory: Memory, snapshot) -> bool:
+    if memory.last_unseen is None:
+        return False
+    decision, cell = memory.last_unseen
+    return (memory.decisions - decision > UNSEEN_CAST_WINDOW_DECISIONS
+            or snapshot.player.position.distance_to(cell) >= LEFT_SPOT_DISTANCE
+            or any(message in destruction_use.FLASH for message in snapshot.messages))
+
+
+def _count(memory: Memory, summon: Summon, here: Position) -> None:
     if summon.seen:
         memory.casters.add(_plain_name(summon.caster))
+    else:
+        memory.unseen_run += 1
+        memory.last_unseen = (memory.decisions, here)
 
 
 # -- 1. the caster in view ------------------------------------------------------
@@ -169,6 +226,41 @@ def caster_shot_key(policy, snapshot) -> str | None:
     return None
 
 
+# -- 2. the caster out of view --------------------------------------------------
+
+def leave_due(policy, snapshot) -> bool:
+    """The unseen casts ran on and the window is still open on this board."""
+    memory = _memory(policy)
+    return memory.unseen_run >= UNSEEN_CASTS_TO_LEAVE and not _run_ended(memory, snapshot)
+
+
+def leave_key(policy, snapshot) -> str | None:
+    """Leave the spot by the existing escapes (module docstring), else None."""
+    memory = _memory(policy)
+    if (not leave_due(policy, snapshot) or memory.leave_turn == snapshot.turn
+            or not return_yield.awake_hostile_in_view(policy, snapshot)):
+        return None
+    used = destruction_use.key(policy, snapshot)
+    if used is not None:
+        memory.leave_turn = snapshot.turn
+        return used
+    scroll = policy._escape_scroll(snapshot, teleport_only=True)
+    if scroll is None:
+        return None
+    here = snapshot.player.position
+    policy._claim_engagement_avoid_cells((here,))
+    if here in policy._explore_path:
+        policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
+    memory.leave_turn = snapshot.turn
+    policy.last_reason = LEAVE_REASON
+    return policy._read_key(snapshot, scroll)
+
+
 def key(policy, snapshot) -> str | None:
     """The owner's answer to the summons on this visit, else None."""
-    return caster_shot_key(policy, snapshot)
+    return leave_key(policy, snapshot) or caster_shot_key(policy, snapshot)
+
+
+def action_due(policy, snapshot) -> bool:
+    """A rule outranks the older three-shot summoner rung above the emergency ladder."""
+    return leave_due(policy, snapshot)

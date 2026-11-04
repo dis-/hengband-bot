@@ -1249,6 +1249,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("summoner:retreat", T, EFFECT),
         ("summoner:stairs", O, FLOOR_CHANGE),
         ("summoner:hold-teleport", T, EFFECT),
+        ("summons:", T, EFFECT),
         ("threat:scroll", T, EFFECT),
         ("threat:wait", T, EFFECT),
     ),

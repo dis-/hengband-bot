@@ -7436,7 +7436,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if esp_threat_hunt is not None:
             return esp_threat_hunt
-        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
+        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) or summon_response.action_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
             snapshot, emergency_hostiles
         ))
         if summoner_ranged is not None:

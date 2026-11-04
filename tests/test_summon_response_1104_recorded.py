@@ -30,6 +30,8 @@ WORSHIPPER = "悪魔崇拝者"
 CASTER_PAST_THE_ADJACENT = 2033730
 # <ナーグル>の疫病人間 casts behind the bodies around the player.
 CASTER_BEHIND_BODIES = 2038996
+UNSEEN_DEMONS_SPAN = (2027761, 2027800)
+SECOND_UNSEEN_CAST = 2027775
 BOOK_MESSAGE = "Lv1 自然の魔法書[野性の召喚]を自動破壊します。"
 
 
@@ -140,6 +142,72 @@ class CasterShotTest(PostedKey):
                    and (cell.y, cell.x) not in occupied for cell in cells):
                 return cells[1].y, cells[1].x
         raise AssertionError("no clear ray")
+
+
+class LeaveTest(d57.PostedDeathKey):
+    def test_the_second_unseen_cast_reads_teleportation(self):
+        # The span starts at an unseen cast: 「何かは...」 at (48,25), again 14 game turns later.
+        policy, raw, key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST)
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON)
+        self.assertTrue(key.startswith("r"), key)
+        self.assertIn(key[1], "abcdefghijklmnopqrstuvw")
+        self.post(policy, raw, key)
+        position = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge).player.position
+        self.assertIn(position, policy._engagement_avoid_cells)
+
+    def test_one_unseen_cast_stays(self):
+        policy, _raw, _key = replay(UNSEEN_DEMONS_SPAN, until=UNSEEN_DEMONS_SPAN[0])
+        self.assertNotEqual(policy.last_reason, summon_response.LEAVE_REASON)
+
+    def test_a_cast_beyond_the_window_starts_a_new_run(self):
+        # DECLARED CONSTRUCTED: the recorded memory aged past the window.
+        boards = boards_of(UNSEEN_DEMONS_SPAN)
+        policy = d57.loops.new_policy(dict(CASE, boards=boards), CASE["skill"], monraces=CASE["monraces"])
+        for raw in boards:
+            if raw["turn"] == SECOND_UNSEEN_CAST:
+                memory = summon_response._memory(policy)
+                memory.decisions += summon_response.UNSEEN_CAST_WINDOW_DECISIONS + 1
+            key = d57.loops.decide(policy, raw)
+            if raw["turn"] == SECOND_UNSEEN_CAST:
+                self.assertNotEqual(policy.last_reason, summon_response.LEAVE_REASON)
+                self.assertEqual(summon_response._memory(policy).unseen_run, 1)
+                return
+            policy.confirm_key_posted(key)
+
+    def test_moving_away_ends_the_run(self):
+        # DECLARED CONSTRUCTED: the first cast's cell recorded 6 cells from the second's.
+        boards = boards_of(UNSEEN_DEMONS_SPAN)
+        policy = d57.loops.new_policy(dict(CASE, boards=boards), CASE["skill"], monraces=CASE["monraces"])
+        for raw in boards:
+            if raw["turn"] == SECOND_UNSEEN_CAST:
+                memory = summon_response._memory(policy)
+                decision, cell = memory.last_unseen
+                memory.last_unseen = (decision, type(cell)(cell.y, cell.x + summon_response.LEFT_SPOT_DISTANCE + 2))
+            key = d57.loops.decide(policy, raw)
+            if raw["turn"] == SECOND_UNSEEN_CAST:
+                self.assertNotEqual(policy.last_reason, summon_response.LEAVE_REASON)
+                return
+            policy.confirm_key_posted(key)
+
+    def test_no_teleport_floor_keeps_its_fight(self):
+        # DECLARED CONSTRUCTED: the floor's strategy forbids the scroll (quest_no_teleport);
+        # the fixed quest floor of Q18 also refuses *Destruction*.
+        def change(raw):
+            raw["floor"]["quest_id"] = 18
+        policy, raw, key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST, change=change)
+        self.assertNotEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
+
+    def test_life_threat_ladder_answers_first(self):
+        # DECLARED CONSTRUCTED: the recorded board at a tenth of its HP.
+        def change(raw):
+            raw["player"]["hp"] = raw["player"]["max_hp"] // 10
+        policy, _raw, _key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST, change=change)
+        self.assertNotEqual(policy.last_reason, summon_response.LEAVE_REASON)
+        self.assertRegex(policy.last_reason, "^(emergency|item:heal|flee)")
+
+    def test_blind_sound_counts_as_unseen(self):
+        self.assertFalse(summon_response.summons_of("多くのものが間近に現れた音がする。")[0].seen)
+        self.assertFalse(summon_response.summons_of("You hear many things appear nearby.")[0].seen)
 
 
 if __name__ == "__main__":
