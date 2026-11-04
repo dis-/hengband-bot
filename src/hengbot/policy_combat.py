@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest_no_teleport, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -439,7 +439,7 @@ class CombatMixin:
             teleport_level=self._first_item(
                 snapshot, lambda item: item.is_scroll and item.aware
                 and item.sval == SV_SCROLL_TELEPORT_LEVEL,
-            ) if can_read else None,
+            ) if can_read and not quest_no_teleport.forbids(self, snapshot) else None,
             recall=self._find_recall_scroll(snapshot) if can_read else None,
             recalling=snapshot.player.recalling,
         )
@@ -554,13 +554,14 @@ class CombatMixin:
 
         if not self._can_read_scrolls(snapshot):
             return None
-        teleport_level = self._first_item(
+        relocation_allowed = not quest_no_teleport.forbids(self, snapshot)
+        teleport_level = relocation_allowed and self._first_item(
             snapshot,
             lambda item: (
                 item.is_scroll and item.aware and item.sval == SV_SCROLL_TELEPORT_LEVEL
             ),
         )
-        if teleport_level is not None:
+        if teleport_level:
             self.last_reason = "breeder-item-damage:teleport-level"
             return reserved_item_command(self, snapshot, "read", teleport_level)
 
@@ -570,11 +571,11 @@ class CombatMixin:
                 self.last_reason = "breeder-item-damage:recall"
                 return self._read_dungeon_recall_scroll_key(snapshot, recall)
 
-        teleport = self._first_item(
+        teleport = relocation_allowed and self._first_item(
             snapshot,
             lambda item: item.is_scroll and item.aware and item.sval == SV_SCROLL_TELEPORT,
         )
-        if teleport is not None:
+        if teleport:
             self.last_reason = "breeder-item-damage:teleport"
             return reserved_item_command(self, snapshot, "read", teleport)
         return None
