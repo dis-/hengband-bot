@@ -83,6 +83,28 @@ class DungeonBoards(unittest.TestCase):
         self.assertNotEqual(reason, "melee")
         self.assertNotEqual(key, "4")
 
+    def test_the_frontier_walk_commits_no_route_over_damaging_ground(self):
+        """life-478 10:45, dead on deep acid: the oscillation's global frontier route
+        (601910, breakout:seek-frontier) crossed it past hazard-free frontiers.  The
+        floor memory, visits and written-off frontiers are the policy's own at the
+        death, 90 decisions on (policy-state.json): DECLARED CONSTRUCTED for this board."""
+        raw = self.case["acid"]
+        policy = self.primed(raw)
+        memory = self.case["acid_memory"]
+        for name, cells in memory["terrain"].items():
+            getattr(policy, f"_remembered_{name}").update(map(tuple, cells))
+        policy._visit_counts.update(
+            {Position(*entry["key"]): entry["count"] for entry in memory["visits"]})
+        policy._probed_frontiers.update(Position(*cell) for cell in memory["probed"])
+        for _ in range(40):
+            self.decide(policy, raw)
+            if policy.last_reason == "breakout:seek-frontier":
+                break
+        board = parse_snapshot(copy.deepcopy(raw), self.monrace)
+        self.assertEqual(policy.last_reason, "breakout:seek-frontier")
+        self.assertEqual([step for step in policy._explore_path
+                          if policy._is_damaging_grid(board.grids.get(step))], [])
+
 
 class HomeTake(executor_pins.ProductionHarness):
     def test_a_take_merged_into_a_carried_stack_moves_the_next_address(self):
