@@ -37,7 +37,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
-from hengbot import approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence
+from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.town_hold import hold_claims, offered_steps
@@ -2938,6 +2938,7 @@ class ShopMixin(InStoreMixin):
                 snapshot, max(i.charges, i.pval)
             ),
         ))
+        add(rung("ability-gear:buy", "ability-gear", lambda: True, lambda i: ability_gear.rung_matches(self, snapshot, i)))
         black_market_pick = self._black_market_optional_purchase(snapshot)
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
         add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
@@ -3431,6 +3432,10 @@ class ShopMixin(InStoreMixin):
                 if food is not None:
                     return food
             return None
+        ability_row = ability_gear.purchase(self, snapshot)
+        if (ability_row is not None
+                and (ability_row.tval, ability_row.sval) not in excluded_classes):
+            return ability_row
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             if (
                 not self._has_withdrawable_digging_tool(snapshot)
@@ -5582,6 +5587,7 @@ class ShopMixin(InStoreMixin):
             "quest-healing", "light", "identify-staff", "ammo",
             "throwing-torches", "remove-curse", "home-star-remove-curse-stock",
             "star-remove-curse", "launcher-enchant", "black-market",
+            "ability-gear",
         }
         home_errand_categories = {
             "experience-potion-home", "identification-withdrawal",

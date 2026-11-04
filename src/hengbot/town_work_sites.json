@@ -1,4 +1,32 @@
 {
+  "ability_gear.py:_bought": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_gear.py:_cheapest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_gear.py:_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_gear.py:purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ammo_carry.py:AmmoCarryPlan.kept_slots": {
     "classification": "data",
     "rows": [
@@ -6148,6 +6176,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_instore.py:expected_buy_confirmation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_instore.py:shelf_item_name": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

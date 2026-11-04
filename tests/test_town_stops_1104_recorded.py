@@ -8,6 +8,7 @@ the fixed decision is posted through the production executor port.
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 from contextlib import redirect_stdout
+import copy
 from dataclasses import replace
 import gzip
 import io
@@ -15,15 +16,23 @@ import json
 import lzma
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import time
 import unittest
 from unittest import mock
 
-from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot.cli import (
+    PostingContract,
+    _ExecutorInputPort,
+    _send_decision_key_with_prompt_chain,
+    _send_new_decision_key,
+)
 from hengbot.model import Position, STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
+from tests import test_classA_observed_input as follow_harness
 from tests import test_input_executor as executor_pins
+from tests import test_lv7_town_stop_recorded as lv7
 from town_work_corpus import replay_window
 
 
@@ -253,14 +262,14 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(policy.last_reason, "identify:full")
         self.assertTrue(key.startswith("r"), repr(key))
 
-    def publish_recorded_dump(self, policy, edit=None):
+    def publish_recorded_dump(self, policy, edit=None, stop="worn-average"):
         """The life's last C response and dump, published on their own board.
 
         DECLARED CONSTRUCTED: the ring keeps no CLI sequence, so one is given,
         and the response is read as its own board (turn 1086963, before this
         visit; the final board's lantern fuel no longer matches the dump).
         """
-        fixture = FIXTURES / "worn-average"
+        fixture = FIXTURES / stop
         response = json.loads(lzma.decompress((fixture / "character.json.xz").read_bytes()))
         response["sequence"] = 1
         if edit is not None:
@@ -272,7 +281,7 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
              if name != "character"}, policy._monrace_knowledge)
         policy._publish_character_dump(
             {"started_ns": 0, "baseline": None, "sequence": None},
-            response["character"], response, board)
+            response["character"], response, policy.with_known_skill_exp(board))
 
     def test_worn_average_item_keeps_the_calibration_and_the_weapons_are_shelved(self):
         """n1-b life-307 03:32, town:blocked:pack-full-no-room.
@@ -312,6 +321,91 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._character_calibration)
         self.assertEqual(policy._calibration_unavailable_reason,
                          "equipment-stat-modifiers-unknown")
+
+    def ability_shelf(self):
+        """Row 7 of the stop's visit: the Black Market page, the sheet accepted.
+
+        DECLARED: the visit's own rows ran before b0af0c63a1 read the worn {並}
+        cloak as unmodified, so they had no calibration; the visit's last C
+        response and dump are published here, as the live build reads them.
+        """
+        policy, recorded, steps = self.replay("ability-gap", 7)
+        self.assertEqual(recorded[7]["reason"], "shop:observe-and-leave")
+        self.publish_recorded_dump(policy, stop="ability-gap")
+        self.assertIsNotNone(policy._character_calibration)
+        return policy, recorded, steps[7][1]()
+
+    def post_purchase(self, policy, raw, following, key, ware):
+        game = executor_pins.FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.jsonl = [copy.deepcopy(raw)]
+        game.screen = lv7.Lv7TownStopRecordedTest.shelf_screen(raw)
+        # The recorded item prompt, the price question (store/purchase-order.cpp,
+        # no quantity for a single row), the shelf again.
+        game.screens = [follow_harness.recorded("live-screen-cap-05-alchemist-buy-p.json"),
+                        executor_pins.prompt_screen(f"買値 ${ware['price']} で買いますか？[Y/n]"),
+                        lv7.Lv7TownStopRecordedTest.shelf_screen(following)]
+        game.states = [copy.deepcopy(raw)] * 2 + [copy.deepcopy(following)]
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=time.monotonic() + 10).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        sent, _, _, _ = _send_decision_key_with_prompt_chain(
+            port, "ability-gear", key, None, set(), policy=policy,
+            shadow_client=None, file=io.StringIO(), deadline=time.monotonic() + 10,
+            poll_interval=0, prompt_japanese=True,
+            decision={"sequence": policy._decision_sequence, "reason": policy.last_reason},
+            snapshot=parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge),
+            posting_contract=PostingContract(), in_store=True)
+        self.assertTrue(sent, getattr(port.last_result, "reason", None))
+        self.assertEqual(port.last_result.outcome, "completed")
+
+    def test_missing_ability_buys_the_cheapest_shelf_row_and_the_comparison_wears_it(self):
+        """n1-a life-476 07:24, resist_fire for Angband 20F, 144025 gold.
+
+        Owner 2026-11-04 「買えるなら買う」: 火炎の指輪 {r火} at 30145 is cheaper
+        than 全耐性スケイル・メイル at 121388 on the same page.  Once carried the
+        comparison wears it, and the dearer row is not bought for the same gap.
+
+        DECLARED CONSTRUCTED: the board after the purchase, with enough gold
+        left for the dearer row, so only the judgement refuses it; the capture
+        has no later Home boards, so the transaction's own steps are not played.
+        """
+        policy, recorded, board = self.ability_shelf()
+        self.assertEqual(policy._missing_required_abilities(board, 20), frozenset({"resist_fire"}))
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("pG\r", "shop:in-store-buy"))
+        raw = json.loads(recorded[7]["inputs"][-1] if not recorded[7]["line"] else recorded[7]["line"])
+        store_rows = raw["store"]["items"]
+        ware = next(row for row in store_rows if row["letter"] == "G")
+        following = copy.deepcopy(raw)
+        following["turn"] += 10
+        following["player"]["gold"] = 121388 + 1
+        following["store"]["items"] = [row for row in store_rows if row["letter"] != "G"]
+        following["inventory"].append({**{name: value for name, value in ware.items()
+                                          if name not in {"letter", "price"}},
+                                       "slot": "s"})
+        self.post_purchase(policy, raw, following, key, ware)
+        policy.confirm_key_posted(key)
+        after = parse_snapshot(following, policy._monrace_knowledge)
+        key = policy.choose_key(after)
+        self.assertFalse(key.startswith("p"), (key, policy.last_reason))
+        # The next comparison, once the session planned before the purchase has
+        # ended at Home, reaches the 20F band with the ring.
+        policy._set_equipment_transaction_session(None)
+        policy._equipment_optimization_signature = None
+        result = policy._prepare_equipment_optimization(policy.with_known_skill_exp(after)).result
+        self.assertEqual(result.chosen_depth, 20)
+        worn = result.best.loadout.item_ids
+        ring = next(owned for owned in policy._equipment_catalog.items
+                    if owned.item.tval == ware["tval"] and owned.item.sval == ware["sval"])
+        self.assertIn(ring.id, worn)
+
+    def test_control_too_little_gold_leaves_the_shelf(self):
+        """One gold short of the ring: the recorded page's answer stands."""
+        policy, recorded, board = self.ability_shelf()
+        short = replace(board, player=replace(board.player, gold=30144))
+        key = policy.choose_key(short)
+        self.assertEqual((key, policy.last_reason), (recorded[7]["key"], recorded[7]["reason"]))
 
 
 if __name__ == "__main__":
