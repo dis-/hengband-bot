@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, unseen_strike
+from hengbot import combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1986,6 +1986,9 @@ class NavigationMixin:
                 # through the final entrance-WAIT safety envelope.
                 self._intentional_entrance_activation = True
             return WAIT_KEY + tail
+        if quest_find_exit.pull_step_refused(self, snapshot, step):
+            self.last_reason = quest_find_exit.PULL_REFUSED_REASON
+            return WAIT_KEY
         from hengbot.town_pack_budget import floor_step_fits
         if not floor_step_fits(snapshot, step):
             self.last_reason = "warning:blocked-step"

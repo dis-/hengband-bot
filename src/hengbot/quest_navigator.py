@@ -72,7 +72,12 @@ class QuestFloorNavigator:
     # The FIND_EXIT choke wait (quest_find_exit): same restored-checkpoint rule.
     exit_hold_cell = None
     exit_hold_turns = 0
+    exit_enemy_turns = 0
+    exit_fought_at = None
     exit_spent_chokes = frozenset()
+    exit_dug = frozenset()
+    exit_abandoned_digs = frozenset()
+    exit_dig_attempts = {}  # replaced, never mutated
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -96,7 +101,12 @@ class QuestFloorNavigator:
         self.q34_inscription_sent = frozenset()
         self.exit_hold_cell = None
         self.exit_hold_turns = 0
+        self.exit_enemy_turns = 0
+        self.exit_fought_at = None
         self.exit_spent_chokes = frozenset()
+        self.exit_dug = frozenset()
+        self.exit_abandoned_digs = frozenset()
+        self.exit_dig_attempts = {}
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
         """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.

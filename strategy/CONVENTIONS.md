@@ -22,7 +22,7 @@
 
 `engagement_plan.no_teleport: true` は、その階でテレポートと短距離テレポートの巻物をどの場面でも読まないことを表す（`quest_no_teleport.py`）。
 
-出口を踏むと達成する FIND_EXIT 型は `engagement_plan.find_exit` に `choke_cells`、`choke_hold_turns`、`rest_below_ratio` を書き、`sealed_races` に経路の届かない敵を書く（`quest_find_exit.py`）。
+出口を踏むと達成する FIND_EXIT 型は `engagement_plan.find_exit` に `choke_cells`、`choke_hold_turns`（来る敵のいない待ちの上限）、`choke_enemy_wait_turns`（見えたまま接触しない敵を待つ上限）、`rest_below_ratio`、`exposure_races`、`dig_cells`、`dig_attempt_limit` を書き、`sealed_races` に経路の届かない敵を書く（`quest_find_exit.py`）。
 
 ## 回復薬なし段階
 

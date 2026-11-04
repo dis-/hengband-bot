@@ -29,7 +29,7 @@ from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, lo
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, WAIT_KEY
 from hengbot.quest_find_exit import (
-    HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
+    DIG_REASON, HEAL_REASON, HOLD_REASON, NO_SAFE_ROUTE_REASON, PULL_REFUSED_REASON, PULLED_BACK_REASON, MELEE_REASON, RECALL_REASON, SPEED_REASON, STEP_ON_EXIT_REASON,
     TO_CHOKE_REASON, WALK_REASON,
 )
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
@@ -90,6 +90,17 @@ def monster(race, y, x, *, index=None, asleep=False):
             "friendly": False, "health": "unhurt", "index": index or race, "invulnerable": False,
             "level": RACES[race].level, "name": f"race{race}", "pet": False, "race_id": race,
             "slow": False, "stunned": False, "x": x, "y": y}
+
+
+def open_cell(raw, cell):
+    """The vein as the game leaves it: DESTROYED is DEEP_WATER."""
+    grid_map = raw["grid_map"]
+    if _palette_row("DEEP_WATER") not in grid_map["palette"]:
+        grid_map["palette"].append(_palette_row("DEEP_WATER"))
+    index = grid_map["palette"].index(_palette_row("DEEP_WATER"))
+    for run in grid_map["runs"]:
+        if (run[0], run[1]) == cell:
+            run[3] = index
 
 
 def potion(sval, count):
@@ -183,6 +194,11 @@ LEAST_EXPOSED_ROUTE = [
     (1, 14), (1, 15), (1, 16), (1, 17), (2, 18), (1, 19), (2, 20), (3, 20), (4, 21), (4, 22), (5, 23),
     (5, 24), (6, 25), (5, 26), (4, 26), (3, 25), (2, 26), (1, 25), (1, 24), (1, 23), (1, 22)]
 EXPOSED_ON_ROUTE = [(2, 6), (2, 7), (1, 16), (1, 17), (2, 18), (5, 24), (6, 25), (5, 26), (4, 26)]
+DUG_ROUTE = [
+    (1, 2), (1, 3), (1, 4), (1, 5), (2, 6), (1, 7), (1, 8), (1, 9), (1, 10), (2, 11), (1, 12), (2, 13),
+    (1, 14), (1, 15), (1, 16), (1, 17), (2, 18), (1, 19), (2, 20), (3, 20), (4, 21), (4, 22), (5, 23),
+    (5, 24), (5, 25), (4, 26), (3, 25), (2, 26), (1, 25), (1, 24), (1, 23), (1, 22)]
+EXPOSED_ON_DUG_ROUTE = [(2, 6), (1, 16), (1, 17), (2, 18), (5, 24), (5, 25), (4, 26)]
 # Every cell a shriek was recorded on, 2026-11-04 18:40-18:45 (n1-a 47, n1-b 76).
 RECORDED_SHRIEK_CELLS = {(4, 13): 47, (9, 21): 31, (15, 9): 17, (10, 21): 12, (14, 7): 11,
                          (4, 18): 2, (15, 8): 2, (11, 22): 1}
@@ -239,13 +255,11 @@ class Q18ExposedCellTest(unittest.TestCase):
         key, reason, _ = decide(board((2, 7), monsters=[monster(SHARK, 3, 8)], speed=0))
         self.assertEqual((key, reason), (step_key((2, 7), (1, 8)), WALK_REASON))
 
-    def test_a_monster_is_passed_when_there_is_another_step_and_struck_when_not(self):
+    def test_a_monster_is_struck_when_the_only_other_step_is_a_pull_cell(self):
+        # (2,17) goes on too, but a caster's direct line reaches it.
         squid = monster(SQUID, 1, 17)
         key, reason, _ = decide(board((1, 16), monsters=[squid], speed=0))
-        self.assertEqual((key, reason), (step_key((1, 16), (2, 17)), WALK_REASON))
-        both = [squid, monster(SHARK, 2, 17)]
-        key, reason, _ = decide(board((1, 16), monsters=both, speed=0))
-        self.assertEqual(reason, MELEE_REASON)
+        self.assertEqual((key, reason), (step_key((1, 16), (1, 17)), MELEE_REASON))
 
     def test_survival_still_comes_first_on_an_exposed_cell(self):
         shark = monster(SHARK, 3, 8)
@@ -257,11 +271,11 @@ class Q18ExposedCellTest(unittest.TestCase):
         # (melee beside the siren), monsters as logged.
         first = [monster(292, 13, 6), monster(SIREN, 16, 8), monster(SEAHORSE, 17, 7, index=2)]
         _, reason, _ = decide(board((15, 8), monsters=first, hp=FULL_HP))
-        self.assertEqual(reason, WALK_REASON)
+        self.assertEqual(reason, PULLED_BACK_REASON)
         second = [monster(SHARK, 9, 20), monster(SIREN, 9, 22), monster(SEAHORSE, 10, 20),
                   monster(406, 10, 18), monster(SQUID, 11, 22)]
         _, reason, _ = decide(board((9, 21), monsters=second, hp=FULL_HP))
-        self.assertIn(reason, {WALK_REASON, MELEE_REASON})
+        self.assertIn(reason, {PULLED_BACK_REASON, MELEE_REASON})
         exposure = quest_exposure.exposure_map(
             QUESTS[18].battlefield.terrain,
             [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN])
@@ -286,9 +300,19 @@ class Q18RecordedBoardsTest(unittest.TestCase):
         self.assertEqual((key, reason), (step_key((2, 7), (1, 8)), MELEE_REASON))
 
     def test_no_hold_on_4_13_with_the_seahorse_coming(self):
+        # (4,13) is exposed: the waiting happens on the next free choke, not here.
         y, x, (_, reason) = self.replay(2723443)  # recorded: a shot, holding here
         self.assertEqual((y, x), (4, 13))
         self.assertEqual(reason, WALK_REASON)
+
+    def test_the_recorded_seahorse_board_on_the_free_choke_waits(self):
+        """DECLARED CONSTRUCTED: the recorded board, player moved to the choke (1,12),
+        the recorded seahorse on (3,11) two cells off."""
+        raw = copy.deepcopy(LIVE[2723443])
+        raw["player"].update(y=1, x=12)
+        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in AMMO_TVALS]
+        raw["equipment"] = [item for item in raw["equipment"] if item["slot"] != "bow"]
+        self.assertEqual(decide(raw)[:2], (WAIT_KEY, HOLD_REASON))
 
     def test_below_the_line_recall_is_still_read(self):
         y, x, (key, reason) = self.replay(2723779)  # recorded: the same read
@@ -297,27 +321,214 @@ class Q18RecordedBoardsTest(unittest.TestCase):
         self.assertTrue(key.startswith("r"))
 
 
+class Q18DigTest(unittest.TestCase):
+    """Owner 2026-11-04 「簡単に掘れるので道具がなくても必ず掘る。」.  DECLARED CONSTRUCTED boards."""
+
+    def test_both_digs_with_no_tool(self):
+        raw = board((2, 6))
+        self.assertFalse(any(item.get("tval") == 20 for item in raw["equipment"]))
+        self.assertEqual(decide(raw)[:2], ("T" + step_key((2, 6), (1, 7)), DIG_REASON))
+        self.assertEqual(decide(board((5, 24)))[:2], ("T" + step_key((5, 24), (5, 25)), DIG_REASON))
+
+    def test_a_dug_cell_is_walked(self):
+        for start, cell in (((2, 6), (1, 7)), ((5, 24), (5, 25))):
+            raw = board(start)
+            open_cell(raw, cell)
+            self.assertEqual(decide(raw)[:2], (step_key(start, cell), WALK_REASON))
+
+    def test_the_exposure_is_of_the_floor_as_dug(self):
+        terrain = QUESTS[18].battlefield.terrain
+        sirens = [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN]
+        dug = {**terrain, (1, 7): "deep_water", (5, 25): "deep_water"}
+        exposure = quest_exposure.exposure_map(dug, sirens)
+        route = quest_exposure.least_exposed_path(dug, exposure, ENTRANCE, {EXIT})
+        self.assertEqual(route, DUG_ROUTE)
+        self.assertEqual([cell for cell in route if exposure.exposed(cell)], EXPOSED_ON_DUG_ROUTE)
+        for cell in STRATEGIES[18].engagement_plan["find_exit"]["choke_cells"]:
+            self.assertFalse(exposure.exposed(tuple(cell)), cell)
+
+    def test_a_coming_enemy_is_answered_at_the_choke_first(self):
+        coming = board((2, 6), monsters=[monster(SHARK, 6, 6)], speed=0, ammo=False)
+        self.assertEqual(decide(coming)[:2], (step_key((2, 6), (1, 5)), TO_CHOKE_REASON))
+
+    def test_the_bound_falls_back_to_the_undug_route(self):
+        raw = board((2, 6))
+        policy = new_policy(raw)
+        limit = STRATEGIES[18].engagement_plan["find_exit"]["dig_attempt_limit"]
+        rows = []
+        for _ in range(limit + 1):
+            raw["turn"] += 10
+            key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+            rows.append((key, policy.last_reason))
+        self.assertEqual(rows[:limit], [("T" + step_key((2, 6), (1, 7)), DIG_REASON)] * limit)
+        self.assertEqual(rows[limit], (step_key((2, 6), (2, 7)), WALK_REASON))
+
+    def test_the_vein_before_the_pull_cells_that_will_not_open_stops_by_name(self):
+        raw = board((5, 24))
+        policy = new_policy(raw)
+        limit = STRATEGIES[18].engagement_plan["find_exit"]["dig_attempt_limit"]
+        for _ in range(limit + 1):
+            raw["turn"] += 10
+            key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, NO_SAFE_ROUTE_REASON))
+
+
+class Q18PullCellTest(unittest.TestCase):
+    """Owner 2026-11-04 「テレポートバックは確実に避けるべきなので条件を把握すること。」"""
+
+    def setUp(self):
+        self.terrain = QUESTS[18].battlefield.terrain
+        self.sirens = [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN]
+
+    def test_the_undug_route_has_two_pull_cells_and_the_dug_route_none(self):
+        undug = quest_exposure.exposure_map(self.terrain, self.sirens)
+        self.assertEqual([cell for cell in LEAST_EXPOSED_ROUTE if cell in undug.pull], [(6, 25), (5, 26)])
+        dug = quest_exposure.exposure_map({**self.terrain, (1, 7): "deep_water", (5, 25): "deep_water"}, self.sirens)
+        self.assertEqual([cell for cell in DUG_ROUTE if cell in dug.pull], [])
+
+    def test_a_pull_needs_the_direct_line_a_shout_only_a_neighbour(self):
+        exposure = quest_exposure.exposure_map(self.terrain, self.sirens)
+        self.assertIn((4, 26), exposure.shout)
+        self.assertNotIn((4, 26), exposure.pull)
+        self.assertTrue(quest_exposure.projectable(self.terrain, (9, 22), (5, 26)))
+        self.assertFalse(quest_exposure.projectable(self.terrain, (9, 22), (4, 26)))
+
+    def test_no_rung_steps_onto_a_pull_cell_around_the_east_door(self):
+        pull = quest_exposure.exposure_map(self.terrain, self.sirens).pull
+        cells = ((5, 24), (4, 26), (5, 23), (3, 25))
+        for position in cells:
+            neighbours = [(position[0] + dy, position[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+                          if (dy, dx) != (0, 0)
+                          and self.terrain.get((position[0] + dy, position[1] + dx)) in {"deep_water", "shallow_water"}]
+            sets = [(), *[[monster(SHARK, *cell)] for cell in neighbours],
+                    [monster(SQUID, *cell) for cell in neighbours],
+                    [monster(SHARK, position[0] + 3, position[1] - 3)]]
+            for monsters in sets:
+                for hp in (FULL_HP, 500, 300, 100):
+                    for healing in (2, 0):
+                        raw = board(position, hp=hp, monsters=monsters, healing=healing, speed=0, ammo=False)
+                        key, reason, _ = decide(raw)
+                        delta = next((offset for offset, value in DIRECTION.items() if value == key), None)
+                        if delta is None:
+                            continue
+                        target = (position[0] + delta[0], position[1] + delta[1])
+                        occupied = {(row["y"], row["x"]) for row in monsters}
+                        self.assertFalse(target in pull and target not in occupied, (position, monsters, hp, reason))
+
+    def test_the_net_refuses_every_other_walker(self):
+        policy = new_policy(board((5, 24)))
+        snapshot = parse_snapshot(board((5, 24)), policy._monrace_knowledge)
+        policy.last_reason = "flee"
+        self.assertEqual(policy._step_toward(snapshot, Position(6, 25)), WAIT_KEY)
+        self.assertEqual(policy.last_reason, PULL_REFUSED_REASON)
+
+    def test_a_player_on_a_pull_cell_takes_the_way_back_by_name(self):
+        key, reason, _ = decide(board((6, 25)))
+        self.assertEqual(reason, PULLED_BACK_REASON)
+        self.assertIn(key, {step_key((6, 25), (5, 24))})
+        _, reason, _ = decide(board((15, 8)))
+        self.assertEqual(reason, PULLED_BACK_REASON)
+
+
+class Q18ClearBeforeAdvancingTest(unittest.TestCase):
+    """Owner 2026-11-04 「隘路で敵を十分倒してから先に進むことを明記する」."""
+
+    CHOKE, NEXT = (1, 12), (2, 13)
+
+    def run_boards(self, boards):
+        policy = new_policy(boards[0])
+        rows = []
+        for turn, raw in enumerate(boards):
+            raw = copy.deepcopy(raw)
+            raw["turn"] = BASE["turn"] + 10 * (turn + 1)
+            key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+            rows.append((key, policy.last_reason))
+        return rows
+
+    def test_it_waits_kills_then_advances_after_the_quiet_bound(self):
+        """DECLARED CONSTRUCTED: the recorded n1-a seahorse (seq 1489, 443 two cells off) on
+        this plan's choke, then adjacent, then dead."""
+        coming = board(self.CHOKE, monsters=[monster(SEAHORSE, 2, 11 - 1)], speed=0, ammo=False)
+        adjacent = board(self.CHOKE, monsters=[monster(SEAHORSE, 2, 11)], speed=0, ammo=False)
+        clear = board(self.CHOKE, speed=0, ammo=False)
+        bound = STRATEGIES[18].engagement_plan["find_exit"]["choke_hold_turns"]
+        rows = self.run_boards([coming, adjacent, adjacent, *[clear] * (bound + 1)])
+        self.assertEqual(rows[0], (WAIT_KEY, HOLD_REASON))
+        self.assertEqual(rows[1], (step_key(self.CHOKE, (2, 11)), MELEE_REASON))
+        self.assertEqual(rows[2], (step_key(self.CHOKE, (2, 11)), MELEE_REASON))
+        self.assertEqual(rows[3:3 + bound], [(WAIT_KEY, HOLD_REASON)] * bound)
+        self.assertEqual(rows[3 + bound], (step_key(self.CHOKE, self.NEXT), WALK_REASON))
+
+    def test_control_nothing_fought_advances_at_once(self):
+        self.assertEqual(self.run_boards([board(self.CHOKE)]),
+                         [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
+
+    def test_hurt_with_no_enemy_rests_before_the_wait_and_the_walk(self):
+        self.assertEqual(self.run_boards([board(self.CHOKE, hp=FULL_HP // 2)]), [(REST_MACRO, "rest")])
+
+    def test_an_enemy_known_beside_the_next_leg_holds_and_a_far_one_does_not_for_long(self):
+        near = board(self.CHOKE)
+        near["detected_monsters"] = [dict(monster(SHARK, 1, 15), perception="detected")]
+        self.assertEqual(self.run_boards([near]), [(WAIT_KEY, HOLD_REASON)])
+
+    def test_an_aquatic_enemy_in_a_sealed_pocket_does_not_freeze_it(self):
+        sealed = board(self.CHOKE, monsters=[monster(SHARK, 18, 15)], ammo=False)
+        self.assertEqual(self.run_boards([sealed]), [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
+
+    def test_a_siren_in_view_does_not_freeze_it(self):
+        seen = board(self.CHOKE, monsters=[monster(SIREN, 6, 14)], ammo=False)
+        self.assertEqual(self.run_boards([seen]), [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
+
+    def test_a_sleeper_in_the_only_way_is_shot_from_the_choke_or_struck_beside_it(self):
+        sleeper = monster(SQUID, 2, 11, asleep=True)
+        self.assertTrue(self.run_boards([board((1, 9), monsters=[sleeper])])[0][1].startswith("ranged:"))
+        self.assertEqual(self.run_boards([board((1, 9), monsters=[sleeper], ammo=False)]),
+                         [(step_key((1, 9), (1, 10)), WALK_REASON)])
+        beside = monster(SQUID, *self.NEXT, asleep=True)
+        self.assertEqual(self.run_boards([board(self.CHOKE, monsters=[beside], ammo=False)]),
+                         [(step_key(self.CHOKE, self.NEXT), MELEE_REASON)])
+
+    def test_a_sleeper_beside_the_next_choke_is_shot_and_one_off_the_route_is_left(self):
+        beside = monster(SQUID, 1, 16, asleep=True)  # beside the next choke (1,15)
+        self.assertTrue(self.run_boards([board(self.CHOKE, monsters=[beside])])[0][1].startswith("ranged:"))
+        off_route = monster(SQUID, 3, 3, asleep=True)
+        self.assertEqual(self.run_boards([board(self.CHOKE, monsters=[off_route])]),
+                         [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
+
+    def test_an_exposed_cell_still_walks_on(self):
+        self.assertEqual(self.run_boards([board((2, 7), monsters=[monster(SHARK, 3, 8)], speed=0)]),
+                         [(step_key((2, 7), (1, 8)), WALK_REASON)])
+
+
 class Q18PlaythroughTest(unittest.TestCase):
     def test_opening_walks_east_toward_the_exit(self):
         key, reason, _ = decide(board())
         self.assertEqual((key, reason), (step_key(ENTRANCE, (1, 3)), WALK_REASON))
 
-    def test_a_quiet_floor_is_walked_from_the_entrance_to_the_exit(self):
+    def test_a_quiet_floor_is_walked_and_dug_from_the_entrance_to_the_exit(self):
         raw = board()
         policy = new_policy(raw)
-        position, route = ENTRANCE, [ENTRANCE]
-        for _ in range(40):
+        position, route, digs = ENTRANCE, [ENTRANCE], []
+        for _ in range(45):
             raw["player"].update(y=position[0], x=position[1])
             raw["turn"] += 10
             key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+            if key.startswith("T"):
+                self.assertEqual(policy.last_reason, DIG_REASON)
+                delta = next(offset for offset, value in DIRECTION.items() if value == key[1:])
+                cell = (position[0] + delta[0], position[1] + delta[1])
+                digs.append((position, cell))
+                open_cell(raw, cell)
+                continue
             self.assertIn(policy.last_reason, {WALK_REASON, STEP_ON_EXIT_REASON}, route)
             delta = next(offset for offset, value in DIRECTION.items() if value == key)
             position = (position[0] + delta[0], position[1] + delta[1])
             route.append(position)
             if position == EXIT:
                 break
-        self.assertEqual(route[-1], EXIT)
-        self.assertEqual(route, LEAST_EXPOSED_ROUTE)
+        self.assertEqual(digs, [((2, 6), (1, 7)), ((5, 24), (5, 25))])
+        self.assertEqual(route, DUG_ROUTE)
+        self.assertEqual(len(route) - 1, 31)
 
     def test_sealed_kraken_is_nothing_to_this_floor(self):
         key, reason, _ = decide(board(monsters=[monster(KRAKEN, 19, 15)]))
@@ -344,18 +555,20 @@ class Q18PlaythroughTest(unittest.TestCase):
                                 primed=board((1, 5), monsters=[shark], speed=0, ammo=False))
         self.assertEqual((key, reason), (WAIT_KEY, HOLD_REASON))
 
-    def test_the_wait_is_bounded_then_it_walks_on(self):
+    def test_the_quiet_bound_does_not_push_past_an_enemy_in_view(self):
         shark = monster(SHARK, 4, 7)
         raw = board((1, 5), monsters=[shark], speed=0, ammo=False)
         policy = new_policy(raw)
-        budget = STRATEGIES[18].engagement_plan["find_exit"]["choke_hold_turns"]
+        plan = STRATEGIES[18].engagement_plan["find_exit"]
         reasons = []
-        for turn in range(budget + 2):
+        for _ in range(plan["choke_enemy_wait_turns"] + 2):
             raw["turn"] += 10
             policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
             reasons.append(policy.last_reason)
-        self.assertEqual(reasons[:budget], [HOLD_REASON] * budget)
-        self.assertNotEqual(reasons[budget], HOLD_REASON)
+        self.assertGreater(plan["choke_enemy_wait_turns"], plan["choke_hold_turns"])
+        self.assertEqual(reasons[:plan["choke_enemy_wait_turns"]],
+                         [HOLD_REASON] * plan["choke_enemy_wait_turns"])
+        self.assertNotEqual(reasons[plan["choke_enemy_wait_turns"]], HOLD_REASON)
 
     def test_a_choke_fight_strikes_the_adjacent_enemy(self):
         raw = board((1, 3), monsters=[monster(SQUID, 1, 4)], speed=0)
@@ -422,7 +635,7 @@ class Q18PlaythroughTest(unittest.TestCase):
     def test_a_siren_beside_the_player_is_walked_away_from(self):
         siren = monster(SIREN, 9, 22)
         key, reason, _ = decide(board((8, 23), monsters=[siren]))
-        self.assertEqual(reason, WALK_REASON)
+        self.assertEqual(reason, PULLED_BACK_REASON)  # its own direct line
         self.assertNotEqual(key, step_key((8, 23), (9, 22)))
 
 

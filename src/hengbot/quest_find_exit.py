@@ -26,6 +26,31 @@ strategy's line (``abort_conditions.hp_ratio``) with an enemy, Recall is read an
 fight goes on with potions and blows until it fires.  Cure Critical Wounds is no HP
 recovery (owner 2026-11-03).  With no enemy the floor is rested on (owner 2026-11-03).
 
+Owner 2026-11-04 「隘路で敵を十分倒してから先に進むことを明記する」: on an unexposed choke
+nothing advances while ``comes_for_player`` holds for an awake enemy in view, or one known
+beside the next leg.  ``choke_hold_turns`` ends only a wait with no such enemy, the quiet
+wait after a fight on that choke; ``choke_enemy_wait_turns`` is the far bound on an enemy
+that stays in view without ever making contact (a blow resets it).  With nothing fought or
+known, the walk goes on at once.  An enemy that does not come does not freeze the walk: it
+is shot from the choke when it stands in the way, otherwise passed.  A sleeper stays asleep
+unless it is in the way or beside the next choke.
+
+``find_exit.dig_cells`` are veins the walk opens.  Owner 2026-11-04 「簡単に掘れるので道具が
+なくても必ず掘る。」.  Game: exe_tunnel (tunnel-execution.cpp:53) on a vein without CAN_DIG
+succeeds when skill_dig > power + randint0(40 * power), power 10 for magma on water, one
+player turn a try and the T command repeats itself (always_repeat); a skill of 10 or less never
+succeeds, so ``dig_attempt_limit`` bounds the commands and the walk falls back to the undug
+route.  No tool, no weapon swap.  An enemy that comes is answered first, at a choke; the
+dig resumes after.  Route planning counts the cell as open; what a caster reaches now is
+derived from the cells really opened, since a hole opens lines of fire too.
+
+Owner 2026-11-04 「叫ばれる条件とテレポートバックを受ける条件は少し異なる。テレポートバックは
+確実に避けるべきなので条件を把握すること。」: a pull cell (quest_exposure ``pull``) is forbidden, not
+costed: ``pull_cells`` is every walk's blocked set here and ``pull_step_refused`` the net in
+_step_toward for every other walker.  With no way left (a vein that will not open) the plan
+stops under NO_SAFE_ROUTE_REASON instead of walking them.  A player already on one takes the
+walk with the fewest of them, under PULLED_BACK_REASON.
+
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
 quiet board stays with them (food, light, the unseen) and reaches ``walk_key`` through
@@ -37,7 +62,7 @@ from __future__ import annotations
 from hengbot import combat_answer, once_quest_recall, quest_exposure, speed_dose, status_cure
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
-from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, WAIT_KEY
+from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, TUNNEL_KEY, WAIT_KEY
 from hengbot.quest_navigator import QuestFloorNavigator
 
 MELEE_REASON = "quest-strategy:melee"
@@ -45,11 +70,16 @@ HOLD_REASON = "quest-strategy:hold"
 TO_CHOKE_REASON = "quest-strategy:exit-to-choke"
 WALK_REASON = "quest-strategy:exit-walk"
 STEP_ON_EXIT_REASON = "quest-strategy:exit-step"
+DIG_REASON = "quest-strategy:exit-dig"
+PULLED_BACK_REASON = "quest-strategy:exit-pulled-back"
+PULL_REFUSED_REASON = "quest-strategy:pull-cell-refused"
+NO_SAFE_ROUTE_REASON = "quest:blocked:exit-no-safe-route"
 RECALL_REASON = "emergency:recall-quest-fail"
 HEAL_REASON = "quest-strategy:heal"
 CURE_REASON = "quest-strategy:cure"
 SPEED_REASON = "quest-strategy:quaff-speed"
-_PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON})
+_PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON,
+                           PULLED_BACK_REASON})
 STARVING = frozenset({"weak", "fainting"})
 # Going round a monster on the way costs at most this many steps, else it is fought.
 SIDESTEP_LIMIT = 2
@@ -84,22 +114,70 @@ def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
     navigator.allow_deep_water = True  # hp-mp-processor.cpp:210 drowns only the overweight
     navigator.allow_diagonal = True
     navigator.reset_for_floor(snapshot.floor_key)
+    plan = _plan(policy, snapshot)
+    if plan is not None:
+        _observe_digs(snapshot, navigator, plan)
     return navigator
 
 
-_EXPOSURES: dict[tuple[int, tuple[int, ...]], quest_exposure.Exposure] = {}
+_EXPOSURES: dict[tuple, quest_exposure.Exposure] = {}
+_TERRAINS: dict[tuple, dict] = {}
+
+
+def _opened_terrain(navigator, opened: frozenset) -> dict:
+    """The quest map with these vein cells opened: DESTROYED leaves deep water."""
+    key = (navigator.quest_id, opened)
+    if key not in _TERRAINS:
+        _TERRAINS[key] = {**navigator.battlefield.terrain, **{cell: "deep_water" for cell in opened}}
+    return _TERRAINS[key]
+
+
+def _exposure_with(navigator, plan, opened: frozenset) -> quest_exposure.Exposure:
+    """The cells the plan's casters reach with these cells open, derived once."""
+    races = tuple(plan.get("exposure_races", ()))
+    key = (navigator.quest_id, races, opened)
+    if key not in _EXPOSURES:
+        _EXPOSURES[key] = quest_exposure.exposure_map(
+            _opened_terrain(navigator, opened),
+            [cell for cell, race in navigator.battlefield.monster_placements if race in races])
+    return _EXPOSURES[key]
 
 
 def _exposure(navigator, plan) -> quest_exposure.Exposure:
-    """The cells the plan's casters reach, derived once from the quest map."""
-    races = tuple(plan.get("exposure_races", ()))
-    key = (navigator.quest_id, races)
-    if key not in _EXPOSURES:
-        battlefield = navigator.battlefield
-        _EXPOSURES[key] = quest_exposure.exposure_map(
-            battlefield.terrain,
-            [cell for cell, race in battlefield.monster_placements if race in races])
-    return _EXPOSURES[key]
+    """What the casters reach on the floor as it is now."""
+    return _exposure_with(navigator, plan, navigator.exit_dug)
+
+
+def _planned_open(navigator, plan) -> frozenset:
+    """The cells the route counts as open: dug, or still to be dug."""
+    wanted = frozenset(tuple(cell) for cell in plan.get("dig_cells", ()))
+    return (wanted - navigator.exit_abandoned_digs) | navigator.exit_dug
+
+
+def pull_cells(navigator, plan) -> frozenset:
+    """Where a caster's direct line reaches, on the floor as it is or as planned."""
+    now = _exposure_with(navigator, plan, navigator.exit_dug).pull
+    planned = _exposure_with(navigator, plan, _planned_open(navigator, plan)).pull
+    return frozenset(now) | frozenset(planned)
+
+
+def pull_step_refused(policy, snapshot, step: Position) -> bool:
+    """A walker other than the way back is about to step onto a pull cell of this floor."""
+    plan = _plan(policy, snapshot)
+    if plan is None or policy.last_reason == PULLED_BACK_REASON:
+        return False
+    navigator = policy._quest_navigators.get(snapshot.floor_key[2])
+    if navigator is None:
+        navigator = _navigator(policy, snapshot, snapshot.floor_key[2])
+    return _cell(step) in pull_cells(navigator, plan)
+
+
+def _observe_digs(snapshot, navigator, plan) -> None:
+    """A planned vein the board shows open.  Other digs on the floor are not planned."""
+    for raw in plan.get("dig_cells", ()):
+        grid = snapshot.grid_at(Position(*raw))
+        if grid is not None and grid.known and grid.passable:
+            navigator.exit_dug = navigator.exit_dug | {tuple(raw)}
 
 
 def _cell(position: Position) -> tuple[int, int]:
@@ -116,6 +194,17 @@ def _pulls(policy, monster) -> bool:
     return knowledge is not None and "TELE_TO" in knowledge.abilities
 
 
+def comes_for_player(policy, navigator, snapshot, monster) -> bool:
+    """Awake, not NEVER_MOVE, and with a walk to beside the player for its kind of
+    movement (an aquatic one in a sealed pocket has none)."""
+    if monster.asleep or _never_moves(policy, monster):
+        return False
+    knowledge = policy._monrace_knowledge.get(monster.race_id)
+    flags = knowledge.flags if knowledge is not None else frozenset()
+    return quest_exposure.can_reach(navigator.battlefield.terrain, flags,
+                                    _cell(monster.position), _cell(snapshot.player.position))
+
+
 def _rank(profile, monster) -> tuple[int, int]:
     targets = profile.priority_targets
     index = targets.index(monster.race_id) if monster.race_id in targets else len(targets)
@@ -125,7 +214,7 @@ def _rank(profile, monster) -> tuple[int, int]:
 class _Board:
     """The enemies of one board, as this plan weighs them."""
 
-    def __init__(self, policy, snapshot, profile):
+    def __init__(self, policy, snapshot, profile, navigator):
         sealed = sealed_races(profile)
         position = snapshot.player.position
         known = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
@@ -134,8 +223,8 @@ class _Board:
         self.occupied = {monster.position for monster in known}
         # A monster that cannot come is no reason to hold a choke; one beside the player
         # is left behind by walking on (a siren's pull ends beside it, 840 HP unfought).
-        self.mobile_awake = [monster for monster in known if not monster.asleep
-                             and not _never_moves(policy, monster)]
+        self.mobile_awake = [monster for monster in known
+                             if comes_for_player(policy, navigator, snapshot, monster)]
         self.coming_in_view = [monster for monster in self.mobile_awake
                                if monster.perception != "detected"]
         self.adjacent_mobile = [monster for monster in self.coming_in_view
@@ -229,13 +318,42 @@ def _chokes(navigator, plan) -> set[Position]:
             if not exposure.exposed(tuple(cell))} - navigator.exit_spent_chokes
 
 
+def _next_leg(navigator, plan, position: Position) -> list[Position]:
+    """The walk ahead up to and including the next choke."""
+    chokes = {Position(*cell) for cell in plan["choke_cells"]}
+    leg = []
+    for cell in _least_exposed(navigator, plan, position, {_exit_cell(navigator)})[1:]:
+        leg.append(cell)
+        if cell in chokes:
+            break
+    return leg
+
+
+def _must_wait(navigator, plan, position, board) -> bool:
+    """An awake enemy that comes is in view, or known beside the next leg."""
+    if board.coming_in_view:
+        return True
+    leg = _next_leg(navigator, plan, position)
+    return any(monster.position.distance_to(cell) <= 1
+               for monster in board.mobile_awake for cell in leg)
+
+
 def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
     """Wait on this choke for what comes; a shot first.  None once its wait is spent."""
     if navigator.exit_hold_cell != position:
         navigator.exit_hold_cell, navigator.exit_hold_turns = position, 0
-    navigator.exit_hold_turns += 1
-    if navigator.exit_hold_turns > int(plan["choke_hold_turns"]):
+        navigator.exit_enemy_turns = 0
+    if _must_wait(navigator, plan, position, board):
+        navigator.exit_fought_at = position
+        navigator.exit_hold_turns = 0
+        navigator.exit_enemy_turns += 1
+        spent = navigator.exit_enemy_turns > int(plan["choke_enemy_wait_turns"])
+    else:
+        navigator.exit_hold_turns += 1
+        spent = navigator.exit_hold_turns > int(plan["choke_hold_turns"])
+    if spent:
         navigator.exit_spent_chokes = navigator.exit_spent_chokes | {position}
+        navigator.exit_fought_at = None
         return None
     shot = (policy._ranged_attack_key(snapshot, board.coming_in_view, [])
             if board.coming_in_view else None)
@@ -243,6 +361,40 @@ def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
         return shot
     policy.last_reason = HOLD_REASON
     return WAIT_KEY
+
+
+def _wait_after_fight(policy, snapshot, navigator, plan, board) -> str | None:
+    """Nothing in sight on the choke that fought: what the noise woke may still come."""
+    position = snapshot.player.position
+    if navigator.exit_fought_at != position or position in navigator.exit_spent_chokes:
+        return None
+    return _hold(policy, snapshot, navigator, plan, position, board)
+
+
+def _clear_the_way_key(policy, snapshot, navigator, plan, board, path) -> str | None:
+    """From a choke, a shot at what stands in the walk ahead and will not come, or sleeps
+    in it or beside the next choke.  No shot to be had: the walk goes on."""
+    position = snapshot.player.position
+    chokes = {Position(*cell) for cell in plan["choke_cells"]}
+    if position not in chokes or _exposure(navigator, plan).exposed(_cell(position)):
+        return None
+    leg = []
+    for cell in path[1:]:
+        leg.append(cell)
+        if cell in chokes:
+            break
+    next_choke = leg[-1] if leg and leg[-1] in chokes else None
+    targets = [
+        monster for monster in board.in_view
+        if not _never_moves(policy, monster) or monster.position in leg
+    ]
+    targets = [
+        monster for monster in targets
+        if monster.position in leg
+        or (monster.asleep and next_choke is not None
+            and monster.position.distance_to(next_choke) <= 1)
+    ]
+    return policy._ranged_attack_key(snapshot, targets, []) if targets else None
 
 
 def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
@@ -254,7 +406,7 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
         if held is not None:
             return held
         chokes = _chokes(navigator, plan)
-    path = _least_exposed(navigator, plan, position, chokes, board.occupied)
+    path = _least_exposed(navigator, plan, position, chokes, board.occupied, as_it_is=True)
     if len(path) < 2:
         return None
     policy.last_reason = TO_CHOKE_REASON
@@ -262,22 +414,82 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     return policy._step_toward(snapshot, path[1])
 
 
-def _least_exposed(navigator, plan, start: Position, goals, blocked=()) -> list[Position]:
+def _least_exposed(navigator, plan, start: Position, goals, blocked=(), *,
+                   as_it_is: bool = False) -> list[Position]:
+    """The least exposed walk over the planned floor, or (``as_it_is``) the present one."""
+    opened = navigator.exit_dug if as_it_is else _planned_open(navigator, plan)
     path = quest_exposure.least_exposed_path(
-        navigator.battlefield.terrain, _exposure(navigator, plan), _cell(start),
-        {_cell(goal) for goal in goals}, frozenset(_cell(cell) for cell in blocked))
+        _opened_terrain(navigator, opened), _exposure_with(navigator, plan, opened), _cell(start),
+        {_cell(goal) for goal in goals}, frozenset(_cell(cell) for cell in blocked),
+        forbidden=pull_cells(navigator, plan) - {_cell(start)})
     return [Position(*cell) for cell in path]
 
 
+def _safe_region(navigator, plan) -> set:
+    """The cells off every pull line from which the planned floor leads to the exit."""
+    terrain = _opened_terrain(navigator, _planned_open(navigator, plan))
+    forbidden = pull_cells(navigator, plan)
+    start = _cell(_exit_cell(navigator))
+    seen, pending = {start}, [start]
+    while pending:
+        cell = pending.pop()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                nxt = (cell[0] + dy, cell[1] + dx)
+                if (nxt not in seen and nxt not in forbidden
+                        and terrain.get(nxt) in {"deep_water", "shallow_water", "floor"}):
+                    seen.add(nxt)
+                    pending.append(nxt)
+    return seen
+
+
+def _way_back(policy, snapshot, navigator, plan, board) -> str | None:
+    """Pulled onto a pull cell: over the floor as it is, the walk with the fewest of them
+    to a cell the safe route goes on from."""
+    position = _cell(snapshot.player.position)
+    terrain = _opened_terrain(navigator, navigator.exit_dug)
+    exposure = _exposure_with(navigator, plan, navigator.exit_dug)
+    goals = _safe_region(navigator, plan)
+    occupied = frozenset(_cell(cell) for cell in board.occupied)
+    path = (quest_exposure.least_exposed_path(terrain, exposure, position, goals, occupied)
+            or quest_exposure.least_exposed_path(terrain, exposure, position, goals))
+    if len(path) < 2:
+        return None
+    step = Position(*path[1])
+    if step in board.occupied:
+        blocker = next((monster for monster in board.in_view if monster.position == step), None)
+        if blocker is not None:
+            return combat_answer.strike_key(policy, snapshot, blocker, MELEE_REASON)
+    policy.last_reason = PULLED_BACK_REASON
+    policy._declare_reach(_exit_cell(navigator))
+    return policy._step_toward(snapshot, step)
+
+
 def _exposed_count(navigator, plan, path: list[Position]) -> int:
-    exposure = _exposure(navigator, plan)
+    exposure = _exposure_with(navigator, plan, _planned_open(navigator, plan))
     return sum(exposure.exposed(_cell(cell)) for cell in path)
+
+
+def _dig(policy, snapshot, navigator, plan, board, profile, cell: Position) -> str | None:
+    """The T command at a planned vein beside the player; a coming enemy is answered first."""
+    if board.mobile_awake or board.adjacent_mobile or board.hit_by_unseen:
+        return _fight(policy, snapshot, profile, navigator, plan, board)
+    attempts = dict(navigator.exit_dig_attempts)
+    attempts[_cell(cell)] = attempts.get(_cell(cell), 0) + 1
+    navigator.exit_dig_attempts = attempts
+    if attempts[_cell(cell)] > int(plan["dig_attempt_limit"]):
+        navigator.exit_abandoned_digs = navigator.exit_abandoned_digs | {_cell(cell)}
+        return _advance(policy, snapshot, navigator, plan, board)
+    policy.last_reason = DIG_REASON
+    return TUNNEL_KEY + policy._direction_key(snapshot.player.position, cell)
 
 
 def _advance(policy, snapshot, navigator, plan, board) -> str | None:
     """A step of the least exposed walk to the exit, round a monster when that exposes no
     more and is a sidestep; else it is struck."""
     position, exit_cell = snapshot.player.position, _exit_cell(navigator)
+    if _cell(position) in pull_cells(navigator, plan):
+        return _way_back(policy, snapshot, navigator, plan, board)
     through = _least_exposed(navigator, plan, position, {exit_cell})
     around = _least_exposed(navigator, plan, position, {exit_cell}, board.occupied)
     path = around if (
@@ -285,7 +497,12 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
         and _exposed_count(navigator, plan, around) <= _exposed_count(navigator, plan, through)
     ) else through
     if len(path) < 2:
-        return None
+        # Every way on crosses a caster's direct line: not walked without the coordinator.
+        policy.last_reason = NO_SAFE_ROUTE_REASON
+        return WAIT_KEY
+    shot = _clear_the_way_key(policy, snapshot, navigator, plan, board, path)
+    if shot is not None:
+        return shot
     step = path[1]
     if step in board.occupied:
         blocker = next((monster for monster in board.in_view if monster.position == step), None)
@@ -293,6 +510,9 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
             policy.last_reason = HOLD_REASON
             return WAIT_KEY
         return combat_answer.strike_key(policy, snapshot, blocker, MELEE_REASON)
+    if _cell(step) in _planned_open(navigator, plan) - navigator.exit_dug:
+        profile = policy.approved_quest_strategy(navigator.quest_id)
+        return _dig(policy, snapshot, navigator, plan, board, profile, step)
     policy.last_reason = WALK_REASON
     policy._declare_reach(exit_cell)
     return policy._step_toward(snapshot, step)
@@ -317,7 +537,7 @@ def key(policy, snapshot) -> str | None:
     quest_id = snapshot.floor_key[2]
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
-    board = _Board(policy, snapshot, profile)
+    board = _Board(policy, snapshot, profile, navigator)
     exposed = _exposure(navigator, plan).exposed(_cell(snapshot.player.position))
     stepped = _step_on_exit(policy, snapshot, navigator, board)
     if stepped is not None:
@@ -333,6 +553,7 @@ def key(policy, snapshot) -> str | None:
         return (
             _rest(policy, snapshot, plan, board)
             or (_to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None)
+            or _wait_after_fight(policy, snapshot, navigator, plan, board)
             or (_advance(policy, snapshot, navigator, plan, board) if board.in_view else None)
         )
     return (
@@ -353,6 +574,7 @@ def _engaged(policy, snapshot, profile, navigator, plan, board) -> str | None:
 
 def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
     if board.adjacent_mobile:
+        _note_contact(navigator, plan, snapshot.player.position)
         target = min(board.adjacent_mobile, key=lambda monster: _rank(profile, monster))
         answer = combat_answer.adjacent_attack(policy, snapshot, [target], MELEE_REASON)
         if answer is not None and answer.key is not None:
@@ -360,7 +582,25 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         # A blow the game refuses (fear) and no missile: the choke is still the place.
         policy.last_reason = HOLD_REASON
         return WAIT_KEY
-    return _to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None
+    moved = _to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None
+    if moved is None and board.coming_in_view and not _spent_here(navigator, snapshot):
+        # No choke to be had: it is still fought here, not walked into.
+        policy.last_reason = HOLD_REASON
+        return WAIT_KEY
+    return moved
+
+
+def _spent_here(navigator, snapshot) -> bool:
+    return snapshot.player.position in navigator.exit_spent_chokes
+
+
+def _note_contact(navigator, plan, position: Position) -> None:
+    """A blow on a choke: its waits start over and it is worth waiting on again."""
+    if [position.y, position.x] in plan["choke_cells"]:
+        navigator.exit_hold_cell = position
+        navigator.exit_hold_turns = navigator.exit_enemy_turns = 0
+        navigator.exit_fought_at = position
+        navigator.exit_spent_chokes = navigator.exit_spent_chokes - {position}
 
 
 def walk_key(policy, snapshot) -> str | None:
@@ -370,6 +610,7 @@ def walk_key(policy, snapshot) -> str | None:
         return None
     quest_id = snapshot.floor_key[2]
     navigator = _navigator(policy, snapshot, quest_id)
-    board = _Board(policy, snapshot, policy.approved_quest_strategy(quest_id))
+    board = _Board(policy, snapshot, policy.approved_quest_strategy(quest_id), navigator)
     return (_step_on_exit(policy, snapshot, navigator, board)
+            or _wait_after_fight(policy, snapshot, navigator, plan, board)
             or _advance(policy, snapshot, navigator, plan, board))
