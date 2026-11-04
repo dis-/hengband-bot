@@ -68,7 +68,8 @@ from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import load_damaging_terrain_ids
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
-from recorded_junk_scope import pre_home_junk_sweep_replay
+from recorded_junk_scope import choose_past_destroyed_junk, pre_home_junk_sweep_replay
+from recorded_monster_scope import pre_exported_position_replay
 
 
 GAME_ROOT = Path("C:/hengband")
@@ -169,6 +170,8 @@ class EspThreatRestTest(unittest.TestCase):
     @classmethod
     # declared wall: capture 2026-09-21 predates the Home junk sweep (2026-10-22)
     @pre_home_junk_sweep_replay
+    # declared wall: capture 2026-09-21 predates the exported monster cell (6cce55f61a)
+    @pre_exported_position_replay
     def _lifetime(cls):
         """Replay decisions 1..137 as recorded, then decide 138."""
         if cls.lifetime is not None:
@@ -205,7 +208,7 @@ class EspThreatRestTest(unittest.TestCase):
         return policy, snapshot
 
     def _decide(self, policy, snapshot):
-        key = policy.choose_key(snapshot)
+        key, _board, _destroyed = choose_past_destroyed_junk(policy, snapshot)
         return key, policy.last_reason, policy._esp_threat_assessment
 
     def _as_race(self, monster: MonsterState, race_id: int, **changes):
@@ -300,8 +303,10 @@ class EspThreatRestTest(unittest.TestCase):
         # (ranged p95 13).  The player's corridor cell (27, 28) has 3 floor
         # slots (+5 wall slots no member can use): the monk and two hounds
         # contribute max(melee, ranged), the other two hounds ranged only:
-        # 102 + 20 + 20 + 13 + 13 = 168 / 479 = 35% -> MEDIUM -> explore.
-        self.assertEqual((key, reason), ("8", "explore"))
+        # 102 + 20 + 20 + 13 + 13 = 168 / 479 = 35% -> MEDIUM -> explore.  The step
+        # is '3', not the recorded '8': no visit is owed to floor seen in the own
+        # light (owner 2026-10-23 #101 「探索済みとする」, 37414d7d41).
+        self.assertEqual((key, reason), ("3", "explore"))
         self.assertEqual(
             (assessment["tier"], assessment["strength"], assessment["hp"]),
             ("medium", 168, 479),

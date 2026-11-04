@@ -31,13 +31,21 @@ class ItemDestroyingBreederLeaveRecordedTest(unittest.TestCase):
         }
         cls.snapshot = parse_snapshot(cls.row, cls.knowledge)
 
+    def on_the_grid_map(self):
+        return [monster for monster in self.snapshot.visible_monsters
+                if self.snapshot.grid_at(monster.position) is not None
+                and self.snapshot.grid_at(monster.position).has_monster]
+
     def test_incident_board_leaves_before_carried_escape_scrolls_are_lost(self):
         self.assertEqual(self.row["turn"], 13223119)
         self.assertEqual(self.row["recorded_decision"]["reason"], "melee")
         self.assertEqual(self.row["recorded_decision"]["visible_hostiles"], 4)
         self.assertEqual(self.snapshot.floor_key[1], 23)
         self.assertEqual(self.snapshot.player.hp, 1069)
-        self.assertEqual(len(self.snapshot.visible_monsters), 4)
+        # The game listed 16; the recorded 4 are those the grid map exported.
+        # Since 6cce55f61a the parser keeps the rest at their exported y/x.
+        self.assertEqual(len(self.snapshot.visible_monsters), 16)
+        self.assertEqual(len(self.on_the_grid_map()), 4)
         self.assertTrue(any(item.is_recall_scroll for item in self.snapshot.inventory))
         self.assertTrue(any(item.is_teleport_scroll for item in self.snapshot.inventory))
 
@@ -51,7 +59,7 @@ class ItemDestroyingBreederLeaveRecordedTest(unittest.TestCase):
     def test_three_visible_item_damaging_breeders_keep_the_recorded_fight(self):
         control = replace(
             self.snapshot,
-            visible_monsters=self.snapshot.visible_monsters[:3],
+            visible_monsters=self.on_the_grid_map()[:3],
         )
         policy = HengbotPolicy(monrace_knowledge=self.knowledge)
         policy._skill_exp_request_key = lambda _snapshot: None

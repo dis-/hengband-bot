@@ -205,9 +205,18 @@ class BlindedAgainAfterTheCureRecordedTest(d57.PostedDeathKey):
         rows = d57.boards(CASE_084, 1287774, REBLINDED_TURN)
         rows[-1]["player"]["hp"] = 60  # below max(151 * 0.5, 151 - 300)
         policy = d57.new_policy(CASE_084)
-        # No Healing potion and no readable scroll: the emergency ladder's
-        # own blind strike, not its cure.
-        self.assertEqual(decide_all(policy, rows)[-1][1:], ("+6", "emergency:blind-strike"))
+        # The pack carries Speed: the dose comes first (owner 2026-11-03
+        # 「必要なら加速や体力回復など危険度に応じて物資を使用すること」, 5947219765).
+        self.assertEqual(decide_all(policy, rows)[-1][1:], ("qb", "unseen:quaff-speed"))
+        # DECLARED CONSTRUCTED: no Speed either.  No Healing potion and no
+        # readable scroll: the emergency ladder's own blind strike, not its cure.
+        rows = d57.boards(CASE_084, 1287774, REBLINDED_TURN)
+        rows[-1]["player"]["hp"] = 60
+        for raw in rows:
+            raw["inventory"] = [item for item in raw["inventory"]
+                                if item["name"] != d57.SPEED_POTION]
+        self.assertEqual(decide_all(d57.new_policy(CASE_084), rows)[-1][1:],
+                         ("+6", "emergency:blind-strike"))
 
 
 class TeleportAwayRecordedTest(d57.PostedDeathKey):

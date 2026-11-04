@@ -16,10 +16,36 @@ subject is junk disposal pin the new behaviour instead
 """
 
 from contextlib import contextmanager
+from dataclasses import replace
 from functools import wraps
 from unittest.mock import patch
 
 from hengbot.policy import HengbotPolicy
+
+
+JUNK_DESTROY_REASON = "inventory:destroy-worthless-junk"
+
+
+def choose_past_destroyed_junk(policy, snapshot):
+    """``choose_key`` on the board, then again each time it destroys junk.
+
+    Owner 2026-11-02 「他のゴミも同様である」: junk is destroyed on the first safe
+    decision, and the owner's consumable table (same day) discards potions and
+    scrolls older recorded packs carry.  For recorded boards whose subject comes
+    after it; unlike the walls below production decides every step.  DECLARED
+    CONSTRUCTED: the destroyed stack leaves the board, the other slots keep their
+    recorded letters.  Returns (key, board, names of the destroyed stacks).
+    """
+    destroyed = []
+    while True:
+        key = policy.choose_key(snapshot)
+        if policy.last_reason != JUNK_DESTROY_REASON:
+            return key, snapshot, destroyed
+        junk = policy._find_worthless_junk(snapshot)
+        destroyed.append(junk.name)
+        policy.confirm_key_posted(key)
+        snapshot = replace(snapshot, inventory=[item for item in snapshot.inventory
+                                                if item is not junk])
 
 
 def pre_junk_scope_class(policy, _snapshot, item):

@@ -40,6 +40,7 @@ from hengbot.cli import SendResult, _ExecutorInputPort
 from hengbot.control_client import ControlClient
 from hengbot.input_executor import OperationExecutor
 from hengbot.magic_eater import MISSILE_REASON
+from hengbot.policy_constants import MANA_FOOD_CHARGE_TARGET
 from hengbot.me_ranged_first import TORCH_REASON
 from tests import test_me_nokey_1031_recorded as nokey
 from tests import test_me_staff_loops_1031_recorded as loops
@@ -140,10 +141,17 @@ class TownCombatSurvivalTest(MissilePostedKey, loops.MeStaffLoopsRecordedTest):
         _raw, key, reason = self.telmora(0, other_devices=False)
         self.assertTrue(reason.startswith("me-staff:travel-morivant"), (key, reason))
 
-    def test_staple_low_but_not_critical_keeps_the_quest_hold(self):
+    def test_staple_below_its_target_goes_to_the_tower_past_the_quest_hold(self):
+        # d8647b789e, owner 「減ったら塔でチャージする」: no departure has its food until
+        # the Tower recharged the staple, other charged devices or not.
         for charges, devices in ((0, True), (3, False)):
             _raw, key, reason = self.telmora(charges, other_devices=devices)
-            self.assertFalse(reason.startswith("me-staff:"), (charges, devices, key, reason))
+            self.assertTrue(reason.startswith("me-staff:travel-morivant"),
+                            (charges, devices, key, reason))
+
+    def test_staple_at_its_target_keeps_the_quest_hold(self):
+        _raw, key, reason = self.telmora(MANA_FOOD_CHARGE_TARGET, other_devices=True)
+        self.assertFalse(reason.startswith("me-staff:"), (key, reason))
 
 
 if __name__ == "__main__":

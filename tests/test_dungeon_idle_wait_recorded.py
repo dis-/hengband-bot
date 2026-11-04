@@ -19,6 +19,7 @@ from unittest.mock import patch
 
 from hengbot.model import MonsterState, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from recorded_junk_scope import choose_past_destroyed_junk
 from hengbot.policy import EXTENDED_STUCK_WINDOW, HengbotPolicy, SEARCH_LIMIT
 
 
@@ -87,8 +88,9 @@ class DungeonIdleWaitRecordedTests(unittest.TestCase):
         self.assertIsNone(policy._least_visited_neighbor(self.captured))
 
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
-            key = policy.choose_key(self.captured)
+            key, _board, destroyed = choose_past_destroyed_junk(policy, self.captured)
 
+        self.assertTrue(destroyed)
         self.assertEqual(key, "rh")
         self.assertEqual(policy.last_reason, "stuck:recall-escape")
 
@@ -161,8 +163,9 @@ class DungeonIdleWaitRecordedTests(unittest.TestCase):
             patch.object(policy, "_skill_exp_request_key", return_value=None),
             patch.object(policy, "_undersearched_walls", return_value=[]),
         ):
-            key = policy.choose_key(board)
+            key, _board, destroyed = choose_past_destroyed_junk(policy, board)
 
+        self.assertTrue(destroyed)
         self.assertEqual(key, "6", policy.last_reason)
         self.assertEqual(policy.last_reason, "stuck:seek-stairs")
 

@@ -13,9 +13,11 @@ import lzma
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy import HengbotPolicy
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import decisions, journal, restore
 from tests import test_lv7_town_stop_recorded as lv7
@@ -75,30 +77,53 @@ class TownAdjacentMeleeUnderErrandHold(RecordedBoards):
     """
 
     ADJACENT_ROW = 21
+    TRAVEL_BESIDE_MONSTER_ROW = 4
+
+    def replay_to(self, last_row, raw):
+        """The visit decided up to ``last_row`` as recorded; its key and board.
+
+        DECLARED CONSTRUCTED: a722b754e2 walks a town move beside a visible
+        monster (the game refuses the travel, n1-c life-122).  The earlier rows
+        hold that off to stay on the recorded boards, which followed the travel;
+        ``last_row`` itself decides on production code.
+        """
+        visit = Path(raw) / "town-arrival"
+        visit.mkdir()
+        (visit / POLICY_FILE).write_bytes(
+            lzma.decompress((FIXTURES / "town-melee-policy.pkl.xz").read_bytes()))
+        (visit / JOURNAL_FILE).write_bytes(gzip.compress(
+            lzma.decompress((FIXTURES / "town-melee-journal.jsonl.xz").read_bytes())))
+        rows = journal(visit)
+        scratch = Path(raw) / "scratch"
+        scratch.mkdir()
+        policy = restore(visit, scratch)
+        for row, (recorded, supply) in enumerate(decisions(policy, visit, scratch)):
+            board = supply()
+            if row == last_row:
+                return policy, rows, board, policy.choose_key(board)
+            with mock.patch.object(HengbotPolicy, "_native_travel_refused_beside_monster",
+                                   staticmethod(lambda _snapshot: False)):
+                key = policy.choose_key(board)
+            self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+            policy.confirm_key_posted(key)
+        self.fail(last_row)
+
+    def test_travel_beside_a_visible_monster_is_walked(self):
+        with TemporaryDirectory() as raw:
+            policy, rows, board, key = self.replay_to(self.TRAVEL_BESIDE_MONSTER_ROW, raw)
+        self.assertEqual((rows[self.TRAVEL_BESIDE_MONSTER_ROW]["key"],
+                          rows[self.TRAVEL_BESIDE_MONSTER_ROW]["reason"]),
+                         ("\x1b`n(.", "store:entry-interrupted-replan"))
+        self.assertTrue(any(board.player.position.distance_to(monster.position) <= 1
+                            for monster in board.visible_monsters))
+        self.assertEqual((key, policy.last_reason), ("7", "store:entry-interrupted-replan"))
 
     def test_first_adjacent_board_is_fought(self):
         with TemporaryDirectory() as raw:
-            visit = Path(raw) / "town-arrival"
-            visit.mkdir()
-            (visit / POLICY_FILE).write_bytes(
-                lzma.decompress((FIXTURES / "town-melee-policy.pkl.xz").read_bytes()))
-            (visit / JOURNAL_FILE).write_bytes(gzip.compress(
-                lzma.decompress((FIXTURES / "town-melee-journal.jsonl.xz").read_bytes())))
-            rows = journal(visit)
+            policy, rows, board, key = self.replay_to(self.ADJACENT_ROW, raw)
             # 91357d2d0 read a Teleport scroll here.
             self.assertEqual((rows[self.ADJACENT_ROW]["key"], rows[self.ADJACENT_ROW]["reason"]),
                              ("rf", "no-wait:escape-scroll"))
-            scratch = Path(raw) / "scratch"
-            scratch.mkdir()
-            policy = restore(visit, scratch)
-            for row, (recorded, supply) in enumerate(decisions(policy, visit, scratch)):
-                board = supply()
-                key = policy.choose_key(board)
-                if row == self.ADJACENT_ROW:
-                    break
-                self.assertEqual((key, policy.last_reason),
-                                 (recorded["key"], recorded["reason"]))
-                policy.confirm_key_posted(key)
         monster = next(iter(board.visible_monsters))
         self.assertEqual(monster.name, "貧しげな傭兵")
         self.assertEqual(board.player.position.distance_to(monster.position), 1)

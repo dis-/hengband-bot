@@ -61,9 +61,13 @@ def constructed(raw, *, hp=None, unseen=False, afraid=False):
 class UnseenAttackerStrikeRecordedTest(d57.PostedDeathKey):
     """Hit by an attacker the player cannot see: strike back, do not walk."""
 
-    def drive_unseen(self, hps):
+    def drive_unseen(self, hps, speed=True):
         rows = [constructed(raw, hp=hp, unseen=True)
                 for raw, hp in zip(d57.boards(d57.CASE_085, STRIKE_FROM, STRIKE_AT), hps)]
+        if not speed:  # DECLARED CONSTRUCTED: the Potions of Speed taken out of the pack
+            for raw in rows:
+                raw["inventory"] = [item for item in raw["inventory"]
+                                    if item["name"] != d57.SPEED_POTION]
         policy = d57.lamp_policy()
         raw, key, reason = self.drive(policy, rows)[-1]
         self.assertEqual(raw["turn"], STRIKE_AT)
@@ -88,8 +92,14 @@ class UnseenAttackerStrikeRecordedTest(d57.PostedDeathKey):
         self.assertTrue(reason.endswith("emergency:unseen-strike"), (key, reason))
 
     def test_control_below_the_gate_threshold_the_gate_strikes(self):
-        # The recorded HP (80, 71): the low-HP walk gate already struck on main.
+        # The recorded HP (80, 71).  The pack carries Speed: the dose comes first
+        # (owner 2026-11-03 「必要なら加速や体力回復など危険度に応じて物資を使用すること」,
+        # 8bef5c9db and 5947219765).
         _policy, _raw, key, reason = self.drive_unseen((80, 71))
+        self.assertEqual(key[0], "q", (key, reason))
+        self.assertTrue(reason.endswith("unseen:quaff-speed"), (key, reason))
+        # Without it the low-HP walk gate strikes.
+        _policy, _raw, key, reason = self.drive_unseen((80, 71), speed=False)
         self.assertEqual(key[0], "+", (key, reason))
 
 

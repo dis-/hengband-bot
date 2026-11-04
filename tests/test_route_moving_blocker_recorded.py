@@ -38,7 +38,9 @@ import gzip
 import json
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from hengbot import survival_preemption
 from hengbot.model import Position, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
@@ -125,8 +127,22 @@ class RouteMovingBlockerRecordedTest(nokey.PostedKey):
         self.assertEqual((self.recorded[220640]["key"], self.recorded[220640]["reason"]),
                          ("4", "melee"))
 
+    def test_a_biting_mouse_is_fought_on_the_first_walk_board(self):
+        # 25c3b8a9d1 (survival first, n1-c life-098): a weak breeder striking from
+        # beside the player stays on the strategic list.  The live bot opened the door.
+        raw, key, reason = self.drive()[0]
+        self.assertEqual(raw["turn"], WALK_FIRST_TURN)
+        self.assertEqual((self.recorded[WALK_FIRST_TURN]["key"],
+                          self.recorded[WALK_FIRST_TURN]["reason"]),
+                         ("o8", "fundraise:open-upstairs-door"))
+        self.assertEqual((key, reason), ("6", "breeder-breakthrough:clear-escape-path"))
+
     def test_upstairs_walk_keeps_its_route_past_moving_mice(self):
-        walk = self.drive()
+        # Declared wall: these boards follow the recorded walk, which walked past
+        # the biting mice.  Fighting them (the test above) leaves those boards.
+        with mock.patch.object(survival_preemption, "strikes_from_adjacent",
+                               return_value=False):
+            walk = self.drive()
         previous_step = None
         for raw, key, reason in walk:
             turn, here = raw["turn"], _at(raw)

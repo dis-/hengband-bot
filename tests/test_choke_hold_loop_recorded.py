@@ -19,6 +19,7 @@ from unittest.mock import patch
 
 from hengbot.model import Position, Snapshot, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from recorded_junk_scope import choose_past_destroyed_junk
 from hengbot.policy import HengbotPolicy, WAIT_KEY
 from policy_fixtures import grid, hostile, player
 
@@ -62,7 +63,8 @@ class ChokeHoldLoopRecordedTest(unittest.TestCase):
                 policy.prime(snapshot)
                 arm(policy, snapshot, onset['turn'])
                 with patch.object(policy, '_skill_exp_request_key', return_value=None):
-                    key = policy.choose_key(snapshot)
+                    key, _board, destroyed = choose_past_destroyed_junk(policy, snapshot)
+                self.assertLessEqual(set(destroyed), {'透明物体感知の薬', '聖祈言の巻物'})
                 self.assertNotIn(policy.last_reason, HOLDS, (key, policy.last_reason))
                 self.assertEqual((key, policy.last_reason), ('8', 'explore'))
                 self.assertIsNone(policy._unseen_retreat_floor)

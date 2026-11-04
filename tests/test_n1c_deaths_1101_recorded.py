@@ -64,7 +64,8 @@ JELLY, BLOODSHOT_EYE = 1273, 129
 SPEED_POTION = "スピードの薬"
 LIGHT_MESSAGES = frozenset({"明かりが暗くなってしまった。", "明かりが消えてしまった！"})
 # The game's prompts of the two-key commands these drives post.
-PROMPTS = {"q": "どの薬を飲みますか? ", "+": "方向 (ESCで中断)?", "w": "どれを装備しますか? "}
+PROMPTS = {"q": "どの薬を飲みますか? ", "r": "どの巻物を読みますか? ", "+": "方向 (ESCで中断)?",
+           "w": "どれを装備しますか? "}
 
 
 def new_policy(case):

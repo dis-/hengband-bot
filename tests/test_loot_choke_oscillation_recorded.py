@@ -50,6 +50,7 @@ from pathlib import Path
 
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from recorded_monster_scope import pre_exported_position_replay
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import SUMMONER_CHOKE_NEIGHBORS
 
@@ -76,6 +77,8 @@ class LootChokeOscillationTest(unittest.TestCase):
         cls.inputs = [r for r in records if r["role"] == "decision-input"]
         cls.monrace = load_monrace_knowledge(MONRACES)
 
+    # declared wall: this recording predates the exported monster cell (6cce55f61a)
+    @pre_exported_position_replay
     def _replay(self, *, strip_detected=False):
         policy = HengbotPolicy(monrace_knowledge=self.monrace)
         # The live process read its ~f list long before this window; a restart

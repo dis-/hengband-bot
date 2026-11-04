@@ -123,13 +123,21 @@ def drive_equipment_swap(test, policy, raw, page, done, post):
                 item["letter"] = letter
         elif key == "5" and raw.get("store") is None:
             following = dict(copy.deepcopy(raw), store=copy.deepcopy(page))
+        elif key.startswith("p") and raw.get("store") is not None:
+            stored = next(item for item in page["items"] if item["letter"] == key[1])
+            following = withdrawn(raw, stored)
+            page["items"].remove(stored)
+            for letter, item in zip(string.ascii_lowercase, page["items"]):
+                item["letter"] = letter
         elif key.startswith("t"):
             following = takeoff(raw, policy._equipment_transaction_session.current_action.target_slot)
         elif key.startswith("w"):
             following = wield(raw, key[1])
+        elif key == "\x1b" and raw.get("store") is not None:
+            following = dict(copy.deepcopy(raw), store=None)
         else:
             test.fail((key, reason, steps))
-        if raw.get("store") is not None and home is None:
+        if raw.get("store") is not None and following.get("store", "") is not None and home is None:
             following["store"] = copy.deepcopy(page)
         post(policy, raw, key, following, home=home)
         raw = following
@@ -312,13 +320,15 @@ class MeWeaponProficiencyRecordedTest(executor_harness.ProductionHarness):
         self.assertIn(("withdraw", "home", None), plan)
         self.assertIn(("equip", "home", "main_hand"), plan)
         self.post(policy, self.board("home-open"), key, self.board("outside-1"))
-        for name in ("outside-1", "outside-2"):
-            self.decide(policy, self.board(name))
+        # 1b59bb3c4b retires the carried pending withdrawal on outside-1, so the
+        # deposit no longer waits a step off the entrance: one atomic command enters
+        # and deposits, and its tail leaves Home.  The live bot walked off and re-entered.
+        key, reason = self.decide(policy, self.board("outside-1"))
+        self.assertEqual((key, reason), ("5", "equipment-transaction:atomic-deposit"))
+        self.post(policy, self.board("outside-1"), key, self.board("home-reentered"))
         key, reason = self.decide(policy, self.board("home-reentered"))
-        self.assertEqual((key, reason), ("dn", "equipment-transaction:deposit"))
-        self.post(policy, self.board("home-reentered"), key, self.board("home-deposited"))
-        key, _reason = self.decide(policy, self.board("home-deposited"))
-        self.post(policy, self.board("home-deposited"), key, self.board("outside-after-deposit"))
+        self.assertEqual((key, reason), ("dn\x1b", "home:weight-overload-deposit"))
+        self.post(policy, self.board("home-reentered"), key, self.board("outside-after-deposit"))
         page = self.board("home-deposited")["store"]
         stored = next(item for item in page["items"]
                       if (item["tval"], item.get("sval")) == LONG_SWORD)
@@ -335,7 +345,9 @@ class MeWeaponProficiencyRecordedTest(executor_harness.ProductionHarness):
         raw, steps = drive_equipment_swap(
             self, policy, self.board("outside-after-deposit"), page, wielding_long_sword, self.post)
         self.assertEqual(steps, [
-            (f"5p{stored['letter']}\x1b", "equipment-transaction:atomic-withdraw"),
+            ("5", "equipment-transaction:travel-home:await-entry"),
+            (f"p{stored['letter']}", "equipment-transaction:withdraw"),
+            ("\x1b", "home:store-context-exit"),
             ("5", "equipment-transaction:travel-home:await-entry"),
             ("tb", "equipment-transaction:takeoff"),  # the Large Leather Shield
             ("ta", "equipment-transaction:takeoff"),  # the Short Sword
