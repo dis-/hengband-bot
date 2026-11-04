@@ -17,6 +17,7 @@ not kept); at turn 560863 the remembered downstairs is expired as the
 recorded rows did (as test_mapped_rooms_1101_recorded).
 """
 import tests  # noqa: F401 -- isolate live runtime files
+from recorded_junk_scope import install_past_destroyed_junk
 
 import copy
 import json
@@ -35,6 +36,19 @@ RESTART_TURN = rooms.DEAD_END_TURN   # the second session's board
 
 def _rooms(name):
     return getattr(rooms.MappedRoomsRecordedTest, name)
+
+
+_undo_past_junk = None
+
+
+def setUpModule():
+    # Owner 2026-11-02: these boards carry junk the first safe decision destroys.
+    global _undo_past_junk
+    _undo_past_junk = install_past_destroyed_junk()
+
+
+def tearDownModule():
+    _undo_past_junk()
 
 
 class MappedAreaLedgerRecordedTest(mining.harness.ProductionHarness):
@@ -121,7 +135,7 @@ class MappedAreaLedgerRecordedTest(mining.harness.ProductionHarness):
         policy, raw, board = self.restarted()
         key, step = self.explore(policy, raw, board)
         self.assertIsNone(mapped_area.current(policy))
-        self.assertEqual((key, step), ("8", (2, 94)))
+        self.assertEqual((key, step), ("2", (4, 94)))
 
 
 if __name__ == "__main__":

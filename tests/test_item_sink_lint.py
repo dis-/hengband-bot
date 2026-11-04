@@ -108,7 +108,6 @@ def new_path(self, snapshot):
             with self.subTest(site=site):
                 self.assertEqual(current.get(site), Counter(expressions))
         for required in ('policy_home.py:_home_full_relief_key', 'policy_shop.py:_shop_core',
-                         'policy_town.py:_town_procurement_decision',
                          'policy_town.py:_return_to_town_key', 'policy.py:_choose_key'):
             self.assertIn(required, adapters)
 

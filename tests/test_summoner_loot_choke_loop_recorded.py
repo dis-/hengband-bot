@@ -1,6 +1,7 @@
 """Recorded regression for a detected summoner choke hold losing to loot."""
 
 import tests  # noqa: F401
+from recorded_junk_scope import choose_past_junk_key
 import gzip
 import hashlib
 import json
@@ -50,7 +51,7 @@ class SummonerLootChokeLoopRecordedTest(unittest.TestCase):
         policy._detected_threat_hold_position = loot_board.player.position
 
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
-            key = policy.choose_key(loot_board)
+            key = choose_past_junk_key(policy, loot_board)
         # The detected pack holds no summoner: the hold is named for it
         # (summoner-avoid-narrow-1102; recorded as summoner:hold-choke).
         self.assertEqual(self.records[0]["decision"]["reason"], "summoner:hold-choke")
@@ -58,19 +59,19 @@ class SummonerLootChokeLoopRecordedTest(unittest.TestCase):
 
         still_held = replace(loot_board, turn=started + HOLD_TURNS)
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
-            key = policy.choose_key(still_held)
+            key = choose_past_junk_key(policy, still_held)
         self.assertEqual((key, policy.last_reason), (WAIT_KEY, "detected:hold-choke"))
 
         released = replace(loot_board, turn=started + HOLD_TURNS + 1)
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
-            key = policy.choose_key(released)
+            key = choose_past_junk_key(policy, released)
         self.assertEqual((key, policy.last_reason), ("6", "seek-loot"))
 
         # The same unseen detection cannot start a fresh hold on the next
         # preparation board after the 50-turn episode has expired.
         after_release = replace(prepare_board, turn=started + HOLD_TURNS + 11)
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
-            key = policy.choose_key(after_release)
+            key = choose_past_junk_key(policy, after_release)
         self.assertEqual(policy.last_reason, "seek-loot")
         self.assertNotEqual(key, WAIT_KEY)
         self.assertEqual(policy._detected_threat_hold[1], started)

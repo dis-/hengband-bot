@@ -19,6 +19,7 @@ identification / kind where a control needs a different light.
 from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
+from recorded_junk_scope import choose_past_junk_key
 import gzip
 import hashlib
 import json
@@ -103,7 +104,7 @@ class LanternLostRecordedTest(unittest.TestCase):
 
     def test_recorded_empty_lantern_is_refilled_on_the_return_walk(self):
         policy, board = self._return_walk()
-        key = policy.choose_key(board)
+        key = choose_past_junk_key(policy, board)
         self.assertEqual(key, REFILL_FROM_SLOT_A)
         self.assertEqual(policy.last_reason, "refill-light")
 
@@ -112,14 +113,14 @@ class LanternLostRecordedTest(unittest.TestCase):
         # DECLARED CONSTRUCTED: fuel above zero but at the refill threshold,
         # the state of the 06:25:17-06:25:36 dimming messages.
         board = _with_worn_light(board, fuel=LANTERN_REFILL_FUEL)
-        key = policy.choose_key(board)
+        key = choose_past_junk_key(policy, board)
         self.assertEqual(key, REFILL_FROM_SLOT_A)
         self.assertEqual(policy.last_reason, "refill-light")
 
     def test_control_lantern_above_threshold_keeps_walking(self):
         policy, board = self._return_walk()
         board = _with_worn_light(board, fuel=LANTERN_REFILL_FUEL + 1)
-        policy.choose_key(board)
+        choose_past_junk_key(policy, board)
         self.assertEqual(policy.last_reason, "return:explore")
 
     def test_control_unknown_fuel_lantern_keeps_the_darkness_rule(self):
@@ -127,7 +128,7 @@ class LanternLostRecordedTest(unittest.TestCase):
         # Constructed: an unidentified lantern does not show its fuel; the
         # existing rule refills it only once the own grid is dark.
         board = _with_worn_light(board, known=False)
-        policy.choose_key(board)
+        choose_past_junk_key(policy, board)
         self.assertEqual(policy.last_reason, "return:explore")
 
     def test_control_torch_only_character_keeps_the_torch_rules(self):
@@ -145,7 +146,7 @@ class LanternLostRecordedTest(unittest.TestCase):
                 item for item in board.inventory if item is not oil
             ),
         )
-        policy.choose_key(board)
+        choose_past_junk_key(policy, board)
         self.assertEqual(policy.last_reason, "return:explore")
         # In darkness the existing rule still combines the spare torch.
         dark_policy, dark_board = self._return_walk()
@@ -172,7 +173,7 @@ class LanternLostRecordedTest(unittest.TestCase):
         oil = next(item for item in board.inventory if item.is_oil)
         self.assertEqual((oil.slot, oil.count), ("a", 5))
         self.assertIsNone(policy._find_disposable_item(board))
-        key = policy.choose_key(board)
+        key = choose_past_junk_key(policy, board)
         self.assertNotEqual(policy.last_reason, "inventory:destroy-disposable-item")
         self.assertFalse(key.startswith("01k"))
 

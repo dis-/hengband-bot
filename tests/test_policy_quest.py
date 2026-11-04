@@ -1336,7 +1336,8 @@ class FixedQuestTest(unittest.TestCase):
             player(10, 10, hp=100, max_hp=100),
             {Position(10, 10): grid(10, 10, upstairs=True)},
             [], floor_key=(0, 5, 14), quests={14: quest},
-            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT), item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
+            # Five teleports: below them the lock is released (owner 2026-11-01 「014 だけ広げる」).
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=5), item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)],
         )
         policy = HengbotPolicy(quest_knowledge={14: info})
         self.assertTrue(policy._quest_floor_exit_locked(snap))
@@ -1520,6 +1521,8 @@ class FixedQuestTest(unittest.TestCase):
         snap = Snapshot(
             player(10, 10), {}, [], floor_key=(0, 5, 14),
             quests={14: quest},
+            # Five teleports: below them the lock is released (owner 2026-11-01 「014 だけ広げる」).
+            inventory=[item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=5)],
         )
         policy = HengbotPolicy()
 

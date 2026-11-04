@@ -50,7 +50,7 @@ def live_visit(root: Path) -> tuple[Path, list[str]]:
     policy._in_store_ops_enabled = True
     log = root / "jsonlog" / "bot-decisions.jsonl"
     log.parent.mkdir()
-    recorder = FlightRecorder(log.parent, root / "incident-captures")
+    recorder = FlightRecorder(log.parent, root / "stop-records")
     keys = []
     for index, step in enumerate(window["steps"]):
         lines = [json.dumps(raw) + "\n" for raw in step["inputs"]]

@@ -6,12 +6,46 @@ consult the predicate or fail here.
 """
 
 import tests  # noqa: F401
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
+from hengbot import blind_strike
+from hengbot.model import Position
+from hengbot.policy_constants import ALTER_KEY, WAIT_KEY
 from melee_site_lint import analyze_repository, melee_sites, unguarded_melee_sites
 
 
-MELEE_SITE_CENSUS = 22
+MELEE_SITE_CENSUS = 12
+
+
+class BlindStrikeGuardTest(unittest.TestCase):
+    """Fear and a NO_MELEE floor refuse the blow without a turn: the recall wait stays."""
+
+    def board(self, afraid=False):
+        return SimpleNamespace(floor_key=(7, 3, 0), player=SimpleNamespace(
+            afraid=afraid, position=Position(10, 10)))
+
+    def policy(self, can_fight=True):
+        policy = SimpleNamespace(
+            _blind_strike_memory=((7, 3, 0), [Position(10, 11)]),
+            _can_fight_in_dungeon=lambda _dungeon: can_fight,
+            _direction_key=lambda _here, _cell: "6", last_reason="")
+        return policy
+
+    def test_remembered_attacker_is_struck(self):
+        policy = self.policy()
+        with mock.patch.object(blind_strike, "remembered_cells",
+                               return_value=[Position(10, 11)]):
+            self.assertEqual(blind_strike.key(policy, self.board()), ALTER_KEY + "6")
+
+    def test_refused_blow_stays_instead(self):
+        for policy, board in ((self.policy(can_fight=False), self.board()),
+                              (self.policy(), self.board(afraid=True))):
+            with mock.patch.object(blind_strike, "remembered_cells",
+                                   return_value=[Position(10, 11)]):
+                self.assertEqual(blind_strike.key(policy, board), WAIT_KEY)
+            self.assertEqual(policy.last_reason, "unseen-recall:blind-stay")
 
 
 class MeleeSiteLintTest(unittest.TestCase):

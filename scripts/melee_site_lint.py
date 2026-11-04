@@ -84,6 +84,24 @@ def _guarded(node: ast.AST, parents: dict) -> bool:
     )
 
 
+# Sites whose guard this syntactic check cannot see, each with where the guard is.
+GUARDED_ELSEWHERE = {
+    ("combat_answer.py", "direct_blow"):
+        "adjacent_attack and strike_key callers: attack_expectation.melee_answers_none_of",
+    ("unseen_strike.py", "key"): "strike_cell returns None when the predicate fails",
+    ("me_q1_torch.py", "attack_key"): "the direction aims a thrown torch or missile, no melee",
+}
+
+
+def _enclosing_function(node: ast.AST, parents: dict) -> str | None:
+    ancestor = parents.get(node)
+    while ancestor is not None:
+        if isinstance(ancestor, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return ancestor.name
+        ancestor = parents.get(ancestor)
+    return None
+
+
 def unguarded_melee_sites(source: str, filename: str = "<source>") -> list[str]:
     tree = ast.parse(source)
     parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
@@ -91,6 +109,7 @@ def unguarded_melee_sites(source: str, filename: str = "<source>") -> list[str]:
         f"{filename}:{node.lineno}: {ast.unparse(node)}"
         for node in ast.walk(tree)
         if _is_site(node, parents) and not _guarded(node, parents)
+        and (filename, _enclosing_function(node, parents)) not in GUARDED_ELSEWHERE
     ]
 
 

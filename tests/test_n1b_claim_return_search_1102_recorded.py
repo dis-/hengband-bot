@@ -28,6 +28,7 @@ no-digger board (the recorded board without its two diggers).
 """
 
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+from recorded_junk_scope import choose_past_junk_key
 
 import copy
 import gzip
@@ -98,7 +99,7 @@ class ClaimReturnWallSearchTest(executor_pins.ProductionHarness):
     def decide(self, policy, raw):
         board = policy.with_known_skill_exp(
             parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
-        return board, policy.choose_key(board)
+        return board, choose_past_junk_key(policy, board)
 
     def post(self, policy, board, raw, key):
         """Send ``key`` through the production executor; the turn passes."""

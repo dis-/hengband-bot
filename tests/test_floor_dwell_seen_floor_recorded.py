@@ -24,6 +24,7 @@ recorded board follows whatever the replayed policy chose.
 from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
+from recorded_junk_scope import choose_past_junk_key
 import gzip
 import hashlib
 import json
@@ -77,7 +78,7 @@ class _Replay:
 
     def decide(self, line: str):
         board = self.board(line)
-        key = self.policy.choose_key(board)
+        key = choose_past_junk_key(self.policy, board)
         return board, key, self.policy.last_reason
 
 
@@ -210,7 +211,10 @@ class RemainsPileRecordedTest(unittest.TestCase):
         decided = self._decide_both((10, 23))
         self.assertEqual(
             [(key, reason) for _board, key, reason in decided],
-            [("6", "seek-loot"), ("gaa", "pickup")],
+            # The pack's junk goes first on the corpse's cell (owner 2026-11-02), so
+            # the pile is not new to the second decision there: the autodestroy step
+            # comes before its pickup (_current_floor_item_key).
+            [("6", "seek-loot"), ("6", "trigger-autodestroy")],
         )
 
     def test_skeleton_fragment_pile_unchanged(self):

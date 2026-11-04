@@ -2039,6 +2039,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # cannot send us back into the multiplied population.
         self._breeder_fled_floor: tuple[int, int, int] | None = None
         self._fruitless_disengage_floor: tuple[int, int, int] | None = None
+        self._quest_sweep_engage_commit = None  # quest_sweep_target.COMMIT_ATTRIBUTE
         self._fruitless_disengage_decisions = 0
         self._fruitless_disengage_marked_high = 0
         self._fruitless_disengage_spent_this_decision = False

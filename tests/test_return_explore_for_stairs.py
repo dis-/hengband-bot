@@ -1,6 +1,7 @@
 """Return-owner frontier exploration and safety controls."""
 
 import tests  # noqa: F401
+from recorded_junk_scope import choose_past_junk_key
 import gzip
 import json
 import unittest
@@ -57,7 +58,7 @@ class ReturnExploreForStairsTest(unittest.TestCase):
                     patch.object(policy, "_is_oscillating", return_value=True),
                     patch.object(policy, "_probe_unknown_step", return_value=None),
                 ):
-                    key = policy.choose_key(snapshot)
+                    key = choose_past_junk_key(policy, snapshot)
                 expected_key, _target = EXPECTED[record["capture"]]
                 self.assertEqual((key, policy.last_reason), (expected_key, "return:explore"))
 
@@ -73,7 +74,7 @@ class ReturnExploreForStairsTest(unittest.TestCase):
         policy.prime(snapshot)
         policy._returning_to_town = True
         policy._last_return_trigger = "escape-kit-empty"
-        key = policy.choose_key(snapshot)
+        key = choose_past_junk_key(policy, snapshot)
         self.assertEqual(key, DIRECTION_KEYS[(neighbor.y - snapshot.player.position.y,
                                              neighbor.x - snapshot.player.position.x)])
         self.assertEqual(policy.last_reason, "return:seek-upstairs")
@@ -90,7 +91,7 @@ class ReturnExploreForStairsTest(unittest.TestCase):
             patch.object(policy, "_is_oscillating", return_value=True),
             patch.object(policy, "_probe_unknown_step", return_value=None),
         ):
-            key = policy.choose_key(snapshot)
+            key = choose_past_junk_key(policy, snapshot)
         self.assertNotIn(key, DIRECTION_KEYS.values())
         self.assertIn(policy.last_reason, {"rest", "emergency:wait", "item:heal"})
 

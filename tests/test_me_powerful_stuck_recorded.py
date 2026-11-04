@@ -23,6 +23,7 @@ the recorded *Identify* charges unknown (5 of 21 chosen), and the reply board
 with the target fully known.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+from recorded_junk_scope import install_past_destroyed_junk
 
 import copy
 import gzip
@@ -72,6 +73,19 @@ def recorded_policy(case):
 def recorded_racial_screen(case):
     """The game's reply to the posted ``U`` (control-at-stop.json)."""
     return copy.deepcopy(case["screen"])
+
+
+_undo_past_junk = None
+
+
+def setUpModule():
+    # Owner 2026-11-02: these boards carry junk the first safe decision destroys.
+    global _undo_past_junk
+    _undo_past_junk = install_past_destroyed_junk()
+
+
+def tearDownModule():
+    _undo_past_junk()
 
 
 class MePowerfulStuckRecordedTest(executor_harness.ProductionHarness):

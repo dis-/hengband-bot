@@ -1588,9 +1588,11 @@ class NavigationMixin:
         answers took turns stepping in and out of view (n1-c life-128 2026-11-04,
         18F: two 日光猿 19 squares along).  A hostile the engagement retreat would
         leave stays out of the route: it answers the same on every board that
-        remembers its area, and this walk is not the way to it.
+        remembers its area, and this walk is not the way to it.  So does every
+        hostile on a floor being disengaged from: stepping through an inert unique
+        the disengage just gave up on would strike it again.
         """
-        if snapshot.in_town:
+        if snapshot.in_town or self._fruitless_disengage_floor == snapshot.floor_key:
             return frozenset()
         return frozenset(
             (monster.position.y, monster.position.x)

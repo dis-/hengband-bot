@@ -271,7 +271,10 @@ REAL_QUEST_DEFINITIONS = find_quest_definitions(
 )
 
 class UnseenAttackerTest(unittest.TestCase):
-    UNSEEN_ATTACK = "何かに殴られた。"
+    # Owner 2026-11-01 「近接で殴られたら反撃」: melee evidence strikes back
+    # (tests.test_owner15_survival_1101_recorded); the retreat these pins are about
+    # answers spell and missile evidence.
+    UNSEEN_ATTACK = "何かが呪文を唱えた。"
     CURSE_MESSAGES = (
         "Your Ring of Woe drains HP from you!",
         "The Jewel of Judgement drains life from you!",
@@ -357,7 +360,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 10, hp=95, max_hp=200),
                 grids,
                 [],
-                messages=(self.UNSEEN_ATTACK,),
+                messages=("何かに殴られた。",),
                 turn=2,
                 floor_key=(1, 5, 0),
             )
@@ -368,7 +371,7 @@ class UnseenAttackerTest(unittest.TestCase):
         # nothing adjacent, 「近接で敵の方向が分からなければランダムな方向に
         # 攻撃」 -- no walk; the alter command attacks a direction.
         # Was: last_reason startswith "unseen" (unseen:reverse-choke walk).
-        self.assertEqual(pol.last_reason, "no-wait:attack")
+        self.assertEqual(pol.last_reason, "unseen:strike")  # owner 2026-11-01 「近接で殴られたら反撃」
         self.assertTrue(key.startswith("+") and key[1:] in set("12346789"), key)
 
     def test_unseen_hit_does_not_flee_to_upstairs(self):
@@ -383,7 +386,7 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 10, hp=95, max_hp=200),
                 grids,
                 [],
-                messages=(self.UNSEEN_ATTACK,),
+                messages=("何かに殴られた。",),
                 turn=2,
                 floor_key=(1, 5, 0),
             )
@@ -394,7 +397,7 @@ class UnseenAttackerTest(unittest.TestCase):
         # 攻撃」 -- no walk; the alter command attacks a direction.
         # Was: key in "12346789" with last_reason "unseen:reverse-choke".
         self.assertTrue(key.startswith("+") and key[1:] in set("12346789"), key)
-        self.assertEqual(pol.last_reason, "no-wait:attack")
+        self.assertEqual(pol.last_reason, "unseen:strike")  # owner 2026-11-01 「近接で殴られたら反撃」
         self.assertNotEqual(key, "<")
 
     def test_real_modest_unseen_hit_reverses_toward_choke_without_return(self):
@@ -603,10 +606,10 @@ class UnseenAttackerTest(unittest.TestCase):
 
     def test_japanese_and_english_unseen_attacks_arm_retreat(self):
         for message in (
-            "何かに殴られた。",
-            "何かに殴られた。 <x2>",
-            "It hits you.",
-            "It hits you. <x3>",
+            "何かが呪文を唱えた。",
+            "何かが呪文を唱えた。 <x2>",
+            "何かがブレスを吐いた。",
+            "何かが矢を射った。 <x3>",
         ):
             with self.subTest(message=message):
                 grids = self._reverse_choke_grids()
@@ -990,15 +993,15 @@ class UnseenAttackerTest(unittest.TestCase):
                 player(10, 10, hp=170, max_hp=200),
                 grids,
                 [],
-                messages=(self.UNSEEN_ATTACK,),
+                messages=("何かに殴られた。",),
                 inventory=[teleport],
                 turn=2,
                 floor_key=floor,
             )
         )
 
-        self.assertIn(key, set("12346789"))
-        self.assertEqual(pol.last_reason, "unseen:reverse-choke")
+        self.assertTrue(key.startswith("+") and key[1:] in set("12346789"), key)
+        self.assertEqual(pol.last_reason, "unseen:strike")  # owner 2026-11-01 「近接で殴られたら反撃」
 
     def test_unseen_damage_during_recall_moves_when_no_escape_item(self):
         grids = {Position(10, x): grid(10, x) for x in range(10, 15)}
@@ -2850,7 +2853,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
             self._snapshot(monster_pos=Position(10, 11)),
             visible_monsters=[
                 MonsterState(
-                    1, Position(10, 11), hp=10, max_hp=10, distance=1,
+                    1, Position(10, 11), hp=1, max_hp=1, distance=1,
                     friendly=True, pet=False,
                 )
             ],
@@ -2885,12 +2888,15 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         self.assertEqual(self._approach(policy, snapshot), "6")
         self.assertEqual(policy.last_reason, "town:kill-mob-approach")
 
-    def test_visible_friendly_is_engaged_without_range_or_strength_gate(self):
-        for monster_pos, distance, max_hp, speed in (
-            (Position(10, 13), 3, 10, 110),
-            (Position(10, 11), 1, 101, 121),
+    def test_visible_friendly_is_engaged_only_when_it_can_be_defeated(self):
+        # Owner 2026-10-31 「勝てない時は攻撃しない」 over the 07-18 hunt of every
+        # friendly: range does not matter, strength does.
+        for monster_pos, distance, max_hp, speed, expected in (
+            (Position(10, 13), 3, 1, 110, ("6", "town:kill-mob-approach")),
+            (Position(10, 11), 1, 1, 121, ("+6y", "town:kill-mob-friendly")),
+            (Position(10, 11), 1, 101, 121, ("6", "")),  # keeps to its errand: the step swaps places
         ):
-            with self.subTest(monster_pos=monster_pos):
+            with self.subTest(monster_pos=monster_pos, max_hp=max_hp):
                 policy = HengbotPolicy()
                 snapshot = replace(
                     self._snapshot(monster_pos=monster_pos),
@@ -2904,13 +2910,7 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
                 )
 
                 key = self._approach(policy, snapshot)
-                if distance == 1:
-                    self.assertEqual(key, "+6y")
-                    self.assertEqual(policy.last_reason, "town:kill-mob-friendly")
-                else:
-                    self.assertEqual(key, "6")
-                    self.assertEqual(policy.last_reason, "town:kill-mob-approach")
-
+                self.assertEqual((key, policy.last_reason), expected)
     def test_pet_is_not_engaged_and_town_travel_proceeds(self):
         policy = HengbotPolicy()
         snapshot = replace(

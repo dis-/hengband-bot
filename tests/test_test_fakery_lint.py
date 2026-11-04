@@ -240,6 +240,14 @@ def test_repeated_drive():
 
 class TestTreeFakeryLint(unittest.TestCase):
     EXPECTED_UNDECLARED = {
+        ("collaborator-wall", "disengage"),
+        ("collaborator-wall", "verdict"),
+        ("frozen-drive-state", "choose_past_destroyed_junk"),
+        ("pipeline-result-injected", "policy"),
+        ("pipeline-result-injected", "test_optimizer_choice_is_not_released_with_its_siblings"),
+        ("private-state-injected", "_replay"),
+        ("private-state-injected", "test_home_kinds_are_deposited_on_the_home_visit"),
+        ("public-path-replaced", "test_owners_decide_the_arrival_board_after_the_set_ended"),
         ("invariant-input-overwritten", "test_incomplete_optimizer_blocks_normal_direct_entrance"),
         ("pipeline-result-injected", "test_unactionable_suppression_keeps_confirmed_loadout"),
         ("frozen-drive-state", "test_live_home_door_block_replay_never_posts_stay_publicly"),
@@ -253,12 +261,12 @@ class TestTreeFakeryLint(unittest.TestCase):
         ("private-state-injected", "test_failed_uncomposable_transaction_opens_equipment_departure_conjunct"),
         ("private-state-injected", "test_retired_failure_freezes_worn_target_across_optimizer_rebuild"),
     }
-    EXPECTED_UNDECLARED_INSTANCES = 13
+    EXPECTED_UNDECLARED_INSTANCES = 21
     # Retired calibration phases removed seven additional declared sites.
     # S3.3 phase-2 adds two explicitly declared final-fallback seams for the
     # missing B checkpoint; only the ladder's None sentinel is substituted.
     # The October 4 Home-hang replay helper declares its captured scan re-arm.
-    DECLARED_FINDING_RATCHET = 126
+    DECLARED_FINDING_RATCHET = 123
 
     def test_capture_dependency_lint_rejects_real_directory_not_fixture(self):
         bad = 'capture = Path("incident-captures/evicted/snapshots.jsonl")\n'

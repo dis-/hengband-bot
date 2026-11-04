@@ -1501,6 +1501,10 @@ class _OfferSlot:
     def __init__(self) -> None:
         self.buffer: DecisionOffers | None = None
 
+    def __repr__(self) -> str:
+        # No address: a checkpoint's record of the policy is compared byte by byte.
+        return "_OfferSlot()"
+
 
 class TownHold:
     """The town hold's live state.

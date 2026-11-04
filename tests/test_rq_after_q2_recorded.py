@@ -22,6 +22,7 @@ DECLARED CONSTRUCTED: the after-Q2 case adds the Q2 row
 board.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+from recorded_junk_scope import install_past_destroyed_junk
 
 import copy
 import gzip
@@ -59,6 +60,19 @@ def power_memory():
             Position(row["position"]["y"], row["position"]["x"]),
             row["turn"], row["reason"], row["key"]))
     return me_powers.FloorMemory(ANGBAND_5F, CASE["power_uses"][0]["turn"], uses)
+
+
+_undo_past_junk = None
+
+
+def setUpModule():
+    # Owner 2026-11-02: these boards carry junk the first safe decision destroys.
+    global _undo_past_junk
+    _undo_past_junk = install_past_destroyed_junk()
+
+
+def tearDownModule():
+    _undo_past_junk()
 
 
 class RandomQuestAfterQ2RecordedTest(d57.PostedDeathKey):

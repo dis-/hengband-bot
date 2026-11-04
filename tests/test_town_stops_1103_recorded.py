@@ -15,7 +15,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import identification_wait, random_quest_reserve, town_terminal
+from hengbot import identification_wait, random_quest_reserve, town_last_stand, town_terminal
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy import HengbotPolicy
@@ -111,6 +111,10 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
         patcher = mock.patch.object(
             HengbotPolicy, "_native_travel_refused_beside_monster",
             staticmethod(lambda _snapshot: False), create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        # 74006ebc76: the same fight on the interrupted travel's first board.
+        patcher = mock.patch.object(town_last_stand, "fights_beside", lambda _policy, _board: False)
         patcher.start()
         self.addCleanup(patcher.stop)
         recorded_entry = HengbotPolicy._town_producer_entry

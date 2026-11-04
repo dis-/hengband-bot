@@ -23,6 +23,7 @@ oil removed from the pack.
 from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
+from recorded_junk_scope import choose_past_junk_key
 import gzip
 import hashlib
 import unittest
@@ -109,7 +110,7 @@ class LanternRewieldRecordedTest(unittest.TestCase):
 
     def test_recorded_lit_return_board_wields_the_lantern(self):
         policy, board = self._board(0)
-        key = policy.choose_key(board)
+        key = choose_past_junk_key(policy, board)
         self.assertEqual(key, WIELD_LANTERN_FROM_SLOT_O)
         self.assertEqual(policy.last_reason, "restore-lantern")
 
@@ -117,7 +118,7 @@ class LanternRewieldRecordedTest(unittest.TestCase):
         for returning in (True, False):
             with self.subTest(returning=returning):
                 policy, board = self._board(1, returning=returning)
-                key = policy.choose_key(board)
+                key = choose_past_junk_key(policy, board)
                 self.assertEqual(key, WIELD_LANTERN_FROM_SLOT_O)
                 self.assertEqual(policy.last_reason, "restore-lantern")
 
@@ -126,7 +127,7 @@ class LanternRewieldRecordedTest(unittest.TestCase):
             with self.subTest(line=line):
                 policy, board = self._board(line)
                 board = self._lantern_wielded(board)
-                key = policy.choose_key(board)
+                key = choose_past_junk_key(policy, board)
                 self.assertEqual(key, REFILL_FROM_SLOT_A)
                 self.assertEqual(policy.last_reason, "refill-light")
 
@@ -135,7 +136,7 @@ class LanternRewieldRecordedTest(unittest.TestCase):
         board = replace(board, inventory=type(board.inventory)(
             item for item in board.inventory if not item.is_oil
         ))
-        policy.choose_key(board)
+        choose_past_junk_key(policy, board)
         self.assertNotEqual(policy.last_reason, "restore-lantern")
         self.assertTrue(policy.last_reason.startswith("dark:"))
 

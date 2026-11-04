@@ -48,6 +48,37 @@ def choose_past_destroyed_junk(policy, snapshot):
                                                 if item is not junk])
 
 
+def choose_past_junk_key(policy, snapshot):
+    """The key of ``choose_past_destroyed_junk``.  The board's own decision after the destroys."""
+    return choose_past_destroyed_junk(policy, snapshot)[0]
+
+
+def install_past_destroyed_junk():
+    """A module's setUpModule, for boards a harness hands to ``choose_key``: every
+    decision of the module goes past the destroys as ``choose_past_destroyed_junk``
+    does.  Not a wall: production decides each step.  Returns the undo."""
+    from hengbot.policy import HengbotPolicy
+
+    production = HengbotPolicy.choose_key
+
+    def choose_key(policy, snapshot):
+        while True:
+            key = production(policy, snapshot)
+            if policy.last_reason != JUNK_DESTROY_REASON:
+                return key
+            junk = policy._find_worthless_junk(snapshot)
+            policy.confirm_key_posted(key)
+            snapshot = replace(snapshot, inventory=[item for item in snapshot.inventory
+                                                    if item is not junk])
+
+    HengbotPolicy.choose_key = choose_key
+
+    def undo():
+        HengbotPolicy.choose_key = production
+
+    return undo
+
+
 def pre_junk_scope_class(policy, _snapshot, item):
     """The junk predicate of #70 (2026-10-18), before the 2026-10-20 widening."""
     if item.is_bounty or item.is_artifact:

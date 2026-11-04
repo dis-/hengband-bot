@@ -74,7 +74,10 @@ def remembered_cells(policy, snapshot) -> list:
 
 
 def strike_key(policy, snapshot, reason: str) -> str | None:
-    """Attack the remembered cell, else None."""
+    """Attack the remembered cell, else None.  Fear and a NO_MELEE floor refuse the
+    blow without a game turn (cmd-attack.cpp), so neither is ever struck from."""
+    if snapshot.player.afraid or not policy._can_fight_in_dungeon(snapshot.floor_key[0]):
+        return None
     cells = remembered_cells(policy, snapshot)
     if not cells:
         return None
