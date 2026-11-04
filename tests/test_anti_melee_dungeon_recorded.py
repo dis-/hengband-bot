@@ -206,12 +206,13 @@ class AntiMeleeDungeonRecordedTest(unittest.TestCase):
             key = policy._unseen_retreat_intercept_key(board, hostiles, adjacent)
         return key, policy.last_reason, self._attacked_cells(board)
 
-    def test_unseen_choke_holds_instead_of_melee(self):
+    def test_unseen_choke_fires_instead_of_melee(self):
         for line, (turn, _key) in zip(self.lines, RECORDED):
             with self.subTest(turn=turn):
                 key, reason, attacked = self._choke(line)
-                # Was the adjacent attack / ``melee:choke``.
-                self.assertEqual(reason, "melee:choke-hold")
+                # Was the adjacent attack / ``melee:choke``, then the hold; the
+                # refused blow's ranged answer (owner 2026-11-04, combat_answer).
+                self.assertEqual(reason, "ranged:fire")
                 self.assertNotIn(key, attacked)
 
     def test_control_unseen_choke_melees_without_the_flag(self):

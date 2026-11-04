@@ -11,8 +11,10 @@ Order: the strongest other absorbed attack power when it beats Magic Missile
 absorbed Magic Missile (``mBp``; the power list reports an empty or unlearned
 power and the next decision falls through), a known attack wand from the
 pack, a spare lit torch, then the caller's melee.  Town fights use the same
-order (owner 2026-10-31 「近接以外の攻撃手段も街で使う」).  Only the generic
-combat rungs call this; apart from the absorbed attack powers, quest floors
+order (owner 2026-10-31 「近接以外の攻撃手段も街で使う」).  The rungs that
+answer an adjacent hostile call this through combat_answer (owner 2026-11-04
+「4つとも比べる順にする」 added the no-wait rewrite, the ESP hunt, the unseen
+choke and the disengage); apart from the absorbed attack powers, quest floors
 keep their reviewed strategies (me_q1_torch, q34 missiles) and every other
 class keeps melee -- except against breeders, where every class first weighs
 its area attacks by the damage to the whole group (breeder_area_attack).

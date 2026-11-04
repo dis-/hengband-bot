@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dark_recall, immobile_threat_memory, mapped_area, me_powers, unseen_strike
+from hengbot import combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -948,12 +948,9 @@ class NavigationMixin:
                     self.last_reason = "combat:disengage-cut-through"
                     return self._step_toward(snapshot, target)
         adjacent = self._physical_adjacent_hostiles(snapshot)
-        if adjacent and self._can_fight_in_dungeon(snapshot.floor_key[0]):
-            self.last_reason = "combat:disengage-melee"
-            return self._direction_key(
-                snapshot.player.position, self._weakest(adjacent).position
-            )
-        return None
+        # Fear refuses the blow: the ranged answer, else the caller's bounded wait.
+        answer = combat_answer.adjacent_attack(self, snapshot, adjacent, "combat:disengage-melee")
+        return None if answer is None else answer.key
 
     def _descent_is_blocked(self, snapshot: Snapshot) -> bool:
         self._descent_refusal_reason = None
