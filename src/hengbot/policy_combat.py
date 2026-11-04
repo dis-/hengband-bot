@@ -3797,6 +3797,8 @@ class CombatMixin:
                 )
             if (answer := combat_answer.adjacent_attack(self, snapshot, adjacent, "melee:choke")) is not None:
                 return answer.key
+            if attack_expectation.only_unhurtable_beside(self, snapshot, adjacent):
+                return None
             self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
@@ -3990,6 +3992,8 @@ class CombatMixin:
                 return restore
         if (answer := combat_answer.adjacent_attack(self, snapshot, adjacent, "melee:choke")) is not None:
             return answer.key
+        if attack_expectation.only_unhurtable_beside(self, snapshot, adjacent):
+            return None
         self.last_reason = "melee:choke-hold"
         return WAIT_KEY
     @claims(ClaimOwner.ESCAPE)

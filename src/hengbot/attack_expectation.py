@@ -91,19 +91,41 @@ def melee_refused(policy, snapshot) -> bool:
             or not policy._can_fight_in_dungeon(snapshot.floor_key[0]))
 
 
+def _refuses_woman(snapshot, target, knowledge, weapons) -> bool:
+    """cmd-attack.cpp:194-199 「拙者、おなごは斬れぬ！」: no blow at all at a visible
+    female while Zantetsu is in either hand and the player is clear-headed; the turn
+    is spent."""
+    player = snapshot.player
+    return (knowledge.female
+            and not (player.stunned or player.confused or player.hallucinated)
+            and any(item.artifact_id == ZANTETSU_ARTIFACT_ID for item in weapons)
+            and any(monster.position == target.position for monster in snapshot.visible_monsters))
+
+
 def blows_cannot_hurt(policy, snapshot, target) -> bool:
-    """Every worn weapon's blow does ``target`` no damage (player-attack.cpp:545)."""
+    """A blow at ``target`` does nothing: the game refuses it, or every worn weapon
+    does it no damage (player-attack.cpp:545)."""
     knowledge = _race(policy, target)
-    if knowledge is None or knowledge.symbol not in ZANTETSU_UNCUT_SYMBOLS:
+    if knowledge is None:
         return False
     weapons = [item for item in (_hand_weapon(snapshot, "main_hand"),
                                  _hand_weapon(snapshot, "sub_hand")) if item is not None]
-    return bool(weapons) and all(item.artifact_id == ZANTETSU_ARTIFACT_ID for item in weapons)
+    if _refuses_woman(snapshot, target, knowledge, weapons):
+        return True
+    return (knowledge.symbol in ZANTETSU_UNCUT_SYMBOLS and bool(weapons)
+            and all(item.artifact_id == ZANTETSU_ARTIFACT_ID for item in weapons))
 
 
 def melee_answers_none_of(policy, snapshot, adjacent) -> bool:
     """A blow answers none of ``adjacent``: the game refuses it, or it cannot hurt them."""
     return melee_refused(policy, snapshot) or all(
+        blows_cannot_hurt(policy, snapshot, monster) for monster in adjacent)
+
+
+def only_unhurtable_beside(policy, snapshot, adjacent) -> bool:
+    """Every hostile beside the player is one no blow can hurt: holding a cell there
+    answers nothing, so a hold rung leaves the board to the rules below it."""
+    return bool(adjacent) and all(
         blows_cannot_hurt(policy, snapshot, monster) for monster in adjacent)
 
 
