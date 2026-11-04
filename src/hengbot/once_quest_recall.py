@@ -29,7 +29,7 @@ quiet floor: the low-HP walk gate rests through it and spends no scroll.
 
 from __future__ import annotations
 
-from hengbot import breeder_quest
+from hengbot import breeder_quest, quest_no_teleport
 from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON, REST_MACRO, STUCK_ESCAPE_LIMIT
 
 
@@ -75,7 +75,10 @@ def held(policy, snapshot) -> bool:
         return False
     return _quiet(policy, snapshot) or (
         snapshot.player.hp_ratio > float(hold_line)
-        and policy._escape_scroll(snapshot) is not None
+        and (policy._escape_scroll(snapshot) is not None
+             # No scroll is ever read here: the line alone decides (owner 2026-11-04
+             # 「薬で戦い線より下で帰還」).
+             or quest_no_teleport.forbids(policy, snapshot))
     )
 
 

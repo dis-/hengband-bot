@@ -18,6 +18,7 @@ QUEST_FLAG_ONCE = 0x04
 QUEST_FLAG_TOWER = 0x08
 _FLAG_BITS = {"SILENT": QUEST_FLAG_SILENT, "PRESET": QUEST_FLAG_PRESET, "ONCE": QUEST_FLAG_ONCE, "TOWER": QUEST_FLAG_TOWER}
 _QUEST_TYPES = {"NONE": 0, "KILL_LEVEL": 1, "KILL_ANY_LEVEL": 2, "FIND_ARTIFACT": 3, "FIND_EXIT": 4, "KILL_NUMBER": 5, "KILL_ALL": 6, "RANDOM": 7, "TOWER": 8}
+QUEST_TYPE_FIND_EXIT = _QUEST_TYPES["FIND_EXIT"]
 QUEST_TYPE_KILL_NUMBER = _QUEST_TYPES["KILL_NUMBER"]
 QUEST_TYPE_KILL_LEVEL = _QUEST_TYPES["KILL_LEVEL"]
 QUEST_TYPE_KILL_ANY_LEVEL = _QUEST_TYPES["KILL_ANY_LEVEL"]
@@ -108,6 +109,10 @@ def _terrain_class(feature: str) -> str:
     upper = feature.upper()
     if "QUEST_EXIT" in upper:
         return "exit"
+    # A vein on water (MAGMA_VEIN_ON_DEEP_WATER) is a wall until dug; the water
+    # names below describe what the digging would leave.
+    if "MAGMA" in upper or "QUARTZ" in upper:
+        return "wall"
     if "RUBBLE" in upper:
         return "rubble"
     if "DOOR" in upper:

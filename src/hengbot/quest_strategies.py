@@ -80,6 +80,18 @@ def lower_carries(force: dict[str, Any], lowered: dict[str, int]) -> dict[str, A
     return force
 
 
+def valid_force_alternatives(force: dict[str, Any]) -> bool:
+    """The schema of ``force_alternatives`` (quest_force_rows reads the rows)."""
+    rows = force.get("force_alternatives", [])
+    names = ("min_hp", "min_expected_dps", "heal_potions", "speed_potions")
+    return isinstance(rows, list) and all(
+        isinstance(row, dict) and all(
+            isinstance(row.get(name), (int, float)) and not isinstance(row.get(name), bool)
+            and row[name] >= 0 for name in names)
+        for row in rows
+    )
+
+
 @dataclass(frozen=True)
 class StrategyProfile:
     quest_id: int
@@ -134,6 +146,9 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
             raise ValueError(
                 "launcher min_average_damage must be a non-negative number"
             )
+    if not valid_force_alternatives(force):
+        raise ValueError("force_alternatives rows must give min_hp, min_expected_dps, "
+                         "heal_potions and speed_potions as non-negative numbers")
     carry_names = {
         "throwing_items": {
             "lit_torch", "shot", "arrow", "bolt", "launcher_ammo",

@@ -32,7 +32,7 @@ breeders advance it; FIND_*) keep the breakthrough's behaviour.
 """
 from __future__ import annotations
 
-from hengbot import breeder_floor_record, breeder_stalemate
+from hengbot import breeder_floor_record, breeder_stalemate, quest_no_teleport
 from hengbot.model import Position
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, QUEST_STATUS_TAKEN
 from hengbot.quest_knowledge import (
@@ -118,6 +118,8 @@ def teleport_key(policy, snapshot) -> str | None:
         return None
     player = snapshot.player
     if player.blind or player.confused or not policy._can_read_scrolls(snapshot):
+        return None
+    if quest_no_teleport.forbids(policy, snapshot):
         return None
     scroll = policy._first_item(snapshot, lambda item: item.is_teleport_scroll)
     if scroll is None:

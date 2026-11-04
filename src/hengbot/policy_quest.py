@@ -7,7 +7,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_opening_away, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
+from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_find_exit, quest_opening_away, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -288,6 +288,7 @@ from hengbot.quest_knowledge import (
     QUEST_FLAG_ONCE,
     QUEST_FLAG_SILENT,
     QUEST_TYPE_KILL_LEVEL,
+    QUEST_TYPE_FIND_EXIT,
     QUEST_TYPE_KILL_NUMBER,
     QUEST_TYPE_RANDOM,
     QuestInfo,
@@ -3036,6 +3037,10 @@ class QuestMixin(OpeningRouteMixin):
         if absorb is not None:
             return absorb
 
+        walked = quest_find_exit.walk_key(self, snapshot)
+        if walked is not None:
+            return walked
+
         opening_away = quest_opening_away.key(self, snapshot, profile)
         if opening_away is not None:
             return opening_away
@@ -4884,6 +4889,9 @@ class QuestMixin(OpeningRouteMixin):
     def _quest_exit_would_fail(self, snapshot: Snapshot) -> bool:
         """Match Hengband's leave_quest_check for visible escape reasons."""
         active_fixed = self._active_fixed_quest_id(snapshot)
+        info = self._quest_knowledge.get(active_fixed) if active_fixed is not None else None
+        if info is not None and info.type == QUEST_TYPE_FIND_EXIT:
+            return False  # player-move.cpp:256 completes it on the exit, before the check
         return self._kill_quest_exit_would_fail(snapshot) or (
             active_fixed is not None and self._fixed_quest_is_once(active_fixed)
         )
@@ -5150,6 +5158,18 @@ class QuestMixin(OpeningRouteMixin):
             return reject("departure")
         if not info.threat_roster:
             return reject("empty-roster")
+        if profile is not None and profile.required_force.get("floors_replace_projection"):
+            # The owner's rows are the acceptance; the projection below knows no choke.
+            # The entrance asks for the quest level's depth abilities
+            # (_quest_equipment_entry_allowed): a quest that could not be entered is not taken.
+            if self._missing_required_abilities(snapshot, info.level):
+                return reject("depth-abilities")
+            # No relocation scroll is read on such a plan: Recall is its only way out.
+            if self._find_recall_scroll(snapshot) is None:
+                return reject("no-recall")
+            telemetry["verdict"] = True
+            telemetry["reason"] = "ready"
+            return True
 
         # One potion consumes one player action.  Across the three-turn threat
         # window, no more than THREAT_TURNS doses are realizable; value the best

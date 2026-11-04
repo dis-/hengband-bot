@@ -69,6 +69,10 @@ class QuestFloorNavigator:
     # checkpoints without these attributes on the old behaviour.
     q34_carried_before = None
     q34_inscription_sent = frozenset()
+    # The FIND_EXIT choke wait (quest_find_exit): same restored-checkpoint rule.
+    exit_hold_cell = None
+    exit_hold_turns = 0
+    exit_spent_chokes = frozenset()
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -90,6 +94,9 @@ class QuestFloorNavigator:
         self.opened.clear()
         self.q34_carried_before = None
         self.q34_inscription_sent = frozenset()
+        self.exit_hold_cell = None
+        self.exit_hold_turns = 0
+        self.exit_spent_chokes = frozenset()
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
         """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.

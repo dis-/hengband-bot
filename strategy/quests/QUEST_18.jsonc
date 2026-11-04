@@ -1,1 +1,59 @@
-{"quest_id":18,"name":{"ja":"湖の洞窟","en":"Water Cave"},"approved":false,"approved_note":"","engagement_plan":{"opening":"[1,22] から入り、上側通路を西へ進んで [1,23] の隘路を確保する。","hold_position":[1,23],"formation":"確認済みの幅1の上側通路へ敵を引き込み、水棲敵と開水面で戦わない。"},"priority_targets":[775,740,482,443,903,406,386,292,1272,944,88,220,160,40],"consumable_plan":{"speed_potion":"[1,23] の隘路を離れて深水域の敵と戦う前に使う。","heal_threshold_ratio":0.70,"other":"可能なら毒、酸、電撃、冷気、暗黒、混乱、盲目への耐性を携行する。"},"abort_conditions":{"hp_ratio":0.40,"allowed":false},"required_force":{"min_hp":20083,"min_expected_dps":null,"level_guideline":38,"resists":["acid","electricity","cold","poison","darkness","confusion"],"speed_potions":1,"heal_potions":3,"throwing_items":{},"rationale":"再導出待ちの旧値を維持する。モデル speed 120 と同時8体上限で、r_idx 775: 1333*3=3999、r_idx 740: 1100*3=3300、r_idx 482 六体: 266*2=532 ずつ、3ターン合計10491。回復薬3本の900 HPを含め 10491 < 0.50*(min_hp+900) から min_hp >= 20083。耐性反映、実 energy 係数、min_expected_dps は承認前に再導出する。[1,23] は入口近くの確認済み隘路。ONCE のため退却不可。"},"generated_by":"Codex Phase 3 real-data draft generator","generated_at":"2026-07-16T00:00:00+09:00"}
+{
+  "quest_id": 18,
+  "name": {"ja": "湖の洞窟", "en": "Water Cave"},
+  "approved": true,
+  "approved_note": "2026-11-04 にユーザー承認済み（「Q18から直しを入れて実際に受けられるところまでブラッシュアップしよう。」）。出口 [1,22] を踏めば達成で、隔離されたクラーケン2種とは戦わない。テレポートはどの場面でも読まない。隘路で各個撃破し、線より下で敵がいれば帰還を読んで薬と攻撃を続ける。受注は条件1か条件2のどちらか。",
+  "engagement_plan": {
+    "opening": "入口 [1,2] から東の [1,3] へ進む。[1,3] は幅1の通路で、敵は東の [1,4] と西の [1,2] からしか触れない。[1,4] の巨大イカ（482）をここで倒してから [1,5] へ進む。南回り（[2,1] から西の水路）は通らない。7歩長く、湖の西側でセイレーン [9,5] の視界に入る区間が増え、合流先は同じ北側の帯だからである。",
+    "hold_position": null,
+    "formation": "目を覚ました敵がいる間は近くの隘路に立って1体ずつ倒し、敵が見えなくなってから次へ進む。隘路は [1,3]（入口の通路）、[1,5]（湖への出口。敵は [2,6] と [1,4] からだけ）、[4,13]（西の湖と東の湖を結ぶ幅1の帯。東からは1体、西からは2体まで）、[3,22]（東の湖の北の窪み。隣は [4,21] と [4,22] だけ）、[4,26]（出口へ必ず通る東の水路の入口。隣は [5,26] と [3,25] だけ）、[2,26]（同じ水路。隣は [3,25] と [1,25] だけ）、[1,24]（出口前の最後の通路。隣は [1,23] と [1,25] だけ）。起きて来ない敵を1か所で30手まで待ち、来なければ次へ進む。眠っている敵は避けて通り、唯一の通路を塞いでいれば叩く。セイレーンは動かないので戦わず歩いて離れる。",
+    "no_teleport": true,
+    "find_exit": {
+      "choke_cells": [[1, 3], [1, 5], [4, 13], [3, 22], [4, 26], [2, 26], [1, 24]],
+      "choke_hold_turns": 30,
+      "rest_below_ratio": 0.9
+    },
+    // Greater and lesser kraken: the magma veins around [19,15] and [19,22] seal them,
+    // so no route reaches them and their TELE_TO has no line of sight.
+    "sealed_races": [775, 740],
+    "max_simultaneous_melee": 2,
+    "note": "テレポートを読むと必ず中央の64マスに落ち、セイレーンの叫びとテレポートバックを受ける。短距離テレポートも同じ判定で着地するので読まない。敵へのテレポート・アウェイはプレイヤーを動かさないので禁止の外だが、隘路の戦いでは使わない。"
+  },
+  "priority_targets": [482, 443, 903, 406, 386, 292, 88, 220, 160, 944, 40, 1272],
+  "consumable_plan": {
+    "speed_potion": "conditional",
+    "speed_potion_use_when": {"expected_damage_hp_ratio_min": 0.5, "note": "条件1では3ターンの想定被害が現在HPの半分以上の時に飲む。条件2は常時加速の計算なので、敵が起きている間は切らさない。"},
+    "heal_threshold_ratio": 0.70,
+    "other": "隘路で体力回復の薬とスピードの薬を使って戦う。線（HP 40%）より下で敵がいれば帰還を読み、発動まで隘路で薬と攻撃を続ける。致命傷の治癒は HP の回復に数えず、盲目と混乱を治す時だけ使う。敵がいなければ休む。"
+  },
+  "abort_conditions": {"hp_ratio": 0.40, "allowed": false},
+  "required_force": {
+    "min_hp": 700,
+    "min_expected_dps": 150,
+    "level_guideline": 38,
+    // タツノオトシゴ r_idx 443 の実 AC。出口の唯一の隣 [1,23] に立ち、倒さず通れない拘束目標。
+    "reference_ac": 60,
+    "resists": ["free_action", "confusion", "poison", "acid", "electricity", "cold"],
+    "speed_potions": 1,
+    "heal_potions": 2,
+    "throwing_items": {},
+    // 受注の判定はこの2つの条件そのもの（2026-11-04 ユーザー決定）。共通の3ターン予測は隘路を
+    // 知らず、8方向に敵が並ぶ前提なので使わない。
+    "floors_replace_projection": true,
+    // 条件2（2026-11-04 ユーザー承認）: 常時加速。
+    "force_alternatives": [
+      {
+        "min_hp": 500,
+        "min_expected_dps": 75,
+        "heal_potions": 2,
+        "speed_potions": 6,
+        "speed_alternatives": {"gear_speed_bonus": 10, "absorbed_charges": 6},
+        "always_hasted": true,
+        "note": "常時加速なら敵の行動は半分になり、隘路2体の3ターン最大被害は約325。火力も2倍の手数なので75で条件1の150と同じ。加速の手段はスピードの薬6本か、表示の成功率80%以上で6回使える取り込んだスピードか、装備の +10 以上のどれか。"
+      }
+    ],
+    "rationale": "達成条件は出口 [1,22] を踏むことで、撃破は要らない。ただし狭い閉鎖空間で、隔離されたクラーケン2種以外との戦闘は避けられないため隘路で各個撃破する。隘路で同時に触れるのは2体まで。最悪の2体の3ターン最大被害は約650（素の速度）、最悪の1ラウンドはブレス266＋マナの矢176。条件1: HP 700 は最悪の1ラウンド442を受けても立っていられる値で、3ターンの最大被害650も1本300の体力回復2本を足した1300の半分に収まる。火力150はタツノオトシゴ（AC 60、約660 HP）を約5手、巨大イカ（800 HP）を6手で倒す値。スピード1本は重い場面に使う。条件2: 常時加速で敵の行動が半分になり3ターンの最大被害は約325、HP 500 で受けられる。手数も2倍なので火力75で条件1と同じ速さで倒す。耐性: 麻痺知らずはタツノオトシゴの噛みつき、耐混乱はセイレーンの見せつけ、耐毒・酸・電はイカのブレス、耐冷はタツノオトシゴの矢に対して要る。重さの上限を超えると深い水で溺れるので、上限以内を受注の条件とする。テレポートを読まないので帰還の巻物が唯一の逃げ道であり、1枚以上の所持も受注の条件とする。階層35の入口の要求（耐カオス）も受注の時に確かめる。"
+  },
+  "generated_by": "Codex Phase 3 real-data draft generator; reviewed with the owner 2026-11-04",
+  "generated_at": "2026-11-04T00:00:00+09:00"
+}
