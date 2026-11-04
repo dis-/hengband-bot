@@ -40,6 +40,10 @@ shot needs the player's line and a monster he sees (target_able).  ``quest_expos
 no cell on Q25 that has the player's line to a quylthulg without its line back, so the quyls
 are shot from in their line and first of all, walking in by the cells with the fewest lines.
 
+A cell the weapon warning refused (warning.cpp process_warning; the latch is the policy's) is
+no step while a movement scroll remains (owner: 物資が全て尽きている場合のみ徒歩強行を許す).
+Every walk here goes round it, and a stop reached only over it is passed for this round.
+
 ``key`` runs before the shared survival ladders while an enemy is about: they walk away and
 read Recall, which is what this plan refuses.  A quiet board stays with them (food, light,
 the unseen) and reaches ``walk_key`` through the navigator.  A leave already decided (a
@@ -173,12 +177,19 @@ def _note_gone(policy, snapshot, navigator, plan) -> None:
             navigator.sweep_gone = navigator.sweep_gone | {cell}
 
 
-def _path(navigator, plan, snapshot, goals, blocked=()) -> list[Position]:
+def _refused_cells(policy, snapshot) -> list[Position]:
+    """The cells the weapon warning refused that may not be stepped on now (the gate's own
+    predicate: the all-supplies-exhausted forced walk may take them)."""
+    return [cell for cell in policy._warning_refused_cells if policy._warning_step_refused(snapshot, cell)]
+
+
+def _path(policy, navigator, plan, snapshot, goals, blocked=()) -> list[Position]:
     """The walk with the fewest cells in a caster's line, then the fewest steps; through
-    deep water only from where no dry walk leads (a teleport can land on a shore)."""
+    deep water only from where no dry walk leads (a teleport can land on a shore); never
+    over a cell the warning refused."""
     start = _cell(snapshot.player.position)
     goals = {_cell(goal) for goal in goals}
-    taken = frozenset(_cell(cell) for cell in blocked)
+    taken = frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot)))
     lines = _lines(navigator, plan, snapshot)
     for water in (False, True):
         terrain = _terrain_of(navigator, snapshot, water=water)
@@ -202,7 +213,7 @@ def _out_of_line(policy, snapshot, navigator, plan) -> str | None:
     walkable = _terrain_of(navigator, snapshot, water=False)
     free = {Position(*cell) for cell, kind in walkable.items()
             if kind in {"floor", "passage"} and cell not in lines}
-    return _step(policy, snapshot, _path(navigator, plan, snapshot, free), WALK_REASON)
+    return _step(policy, snapshot, _path(policy, navigator, plan, snapshot, free), WALK_REASON)
 
 
 def _step(policy, snapshot, path: list[Position], reason: str) -> str | None:
@@ -260,7 +271,12 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
         stop = _stops(plan)[navigator.sweep_stage]
         goal = Position(*stop.get("stand", stop.get("cell")))
         if here != goal:
-            return _step(policy, snapshot, _path(navigator, plan, snapshot, {goal}, blocked), WALK_REASON)
+            stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, {goal}, blocked), WALK_REASON)
+            if stepped is not None or not _refused_cells(policy, snapshot):
+                return stepped
+            # Only over a refused cell: this stop waits for the next round.
+            _next_stop(navigator, plan)
+            continue
         if (light := _light_key(policy, snapshot, navigator, plan)) is not None:
             return light
         if "door" in stop:
@@ -325,7 +341,7 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
     if still is not None:
         around = {Position(still.position.y + dy, still.position.x + dx)
                   for dy in (-1, 0, 1) for dx in (-1, 0, 1)} - occupied
-        approached = _step(policy, snapshot, _path(navigator, plan, snapshot, around, occupied), APPROACH_REASON)
+        approached = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, around, occupied), APPROACH_REASON)
         if approached is not None:
             return approached
     return _advance(policy, snapshot, navigator, plan, occupied)
@@ -370,7 +386,7 @@ def _leave_by_exit(policy, snapshot, navigator, plan, board) -> str | None:
         policy.last_reason = EXIT_REASON
         return UP_STAIRS_KEY
     occupied = {monster.position for monster in board.in_view}
-    path = _path(navigator, plan, snapshot, {goal}, occupied)
+    path = _path(policy, navigator, plan, snapshot, {goal}, occupied)
     if len(path) - 1 > ITEM_DESTROYING_BREEDER_STAIR_DISTANCE:
         return None
     return _step(policy, snapshot, path, EXIT_WALK_REASON)

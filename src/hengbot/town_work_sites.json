@@ -6521,6 +6521,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_navigation.py:NavigationMixin._warning_step_refused": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_navigation.py:NavigationMixin._window_edge_relocation_path": {
     "classification": "data",
     "rows": [
@@ -9392,6 +9399,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_room_sweep.py:_refused_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_room_sweep.py:_restore": {
     "classification": "producer",

@@ -566,6 +566,48 @@ class Q25LineTest(unittest.TestCase):
         self.assertEqual((key, reason), (REST_MACRO, "rest"))
 
 
+class Q25WarningRefusedStepTest(unittest.TestCase):
+    """RECORDED: n1-b life-310, the first real play (bot-e0a97bcb5, 2026-11-05).  Both boards
+    of each pair are the game's own; the second carries the prompt of the first's step.  The
+    walk offered the refused cell again, the gate made that no key, and the bot stopped
+    (no-key-exhausted) at 1136/1137 HP with nothing on it."""
+
+    with gzip.open(ROOT / "tests" / "fixtures" / "q25-warning-1105.json.gz", "rt", encoding="utf-8") as _stream:
+        BOARDS = json.load(_stream)
+
+    def after_the_prompt(self, name, *, stage=None, supplies=True):
+        walk, prompt = copy.deepcopy(self.BOARDS[name]["walk"]), copy.deepcopy(self.BOARDS[name]["prompt"])
+        if not supplies:
+            for raw in (walk, prompt):
+                raw["inventory"] = [item for item in raw["inventory"] if item["tval"] != TVAL_SCROLL]
+        policy = new_policy(walk)
+        if stage is not None:
+            _set_stage(policy, walk, stage)
+        walked = policy.choose_key(parse_snapshot(walk, policy._monrace_knowledge))
+        answered = policy.choose_key(parse_snapshot(prompt, policy._monrace_knowledge))
+        return walked, answered, policy
+
+    def test_a_refused_cell_with_a_way_round_is_walked_round(self):
+        walked, answered, policy = self.after_the_prompt("corridor")
+        self.assertEqual(walked, "4")  # to [1,17]
+        self.assertEqual({(cell.y, cell.x) for cell in policy._warning_refused_cells}, {(1, 17)})
+        self.assertEqual((answered, policy.last_reason), ("1", WALK_REASON))  # [2,17]
+
+    def test_a_stop_only_over_the_refused_cell_is_passed_and_the_walk_goes_on(self):
+        """[3,1] is the only way from the hall to the north-west rooms."""
+        walked, answered, policy = self.after_the_prompt("choke", stage=1)
+        self.assertEqual(walked, "8")  # to [3,1], for [2,2]
+        self.assertEqual({(cell.y, cell.x) for cell in policy._warning_refused_cells}, {(3, 1)})
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertEqual(navigator_of(policy).sweep_stage, 3)  # [2,2] and [1,4] passed; [5,3] next
+        self.assertEqual(answered, "2")
+        self.assertEqual(navigator_of(policy).sweep_round, 0)
+
+    def test_control_with_no_scroll_left_the_forced_walk_still_crosses(self):
+        _, answered, policy = self.after_the_prompt("choke", stage=1, supplies=False)
+        self.assertEqual((answered, policy.last_reason), ("8y", WALK_REASON))
+
+
 class Q25TownTest(unittest.TestCase):
     """Giver and carries on the recorded Outpost board of tests/fixtures/q14-lv8-1102.json.gz.
     DECLARED CONSTRUCTED: its quest rows (every earlier quest finished) and the giver cell."""
