@@ -97,6 +97,18 @@ FREE_ACTION_PRESERVE_DEPTH = 10
 TR_FREE_ACT = 46
 
 
+def blocker_leaves_no_target(blocker: str) -> bool:
+    """The optimizer was skipped or gave up, so no target exists: the worn kit stays.
+
+    Calibration and search time control optimization, never ordinary movement: this
+    is no Home work and no stop.  n1-a life-480 2026-11-04 21:07: the exact search of
+    a 43-item catalog (83,968 loadouts) ran out of its 25 seconds with no other
+    departure leaf unmet, and three retired visits ended the life.
+    """
+    return (blocker in {"calibration-required", "optimization-timeout"}
+            or blocker.startswith("calibration-stale:"))
+
+
 def optimization_encounters(
     encounters: tuple,
     *,

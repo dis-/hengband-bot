@@ -6351,7 +6351,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         self.assertIn("livelock:exhausted", reasons)
         self.assertFalse(policy._equipment_departure_ready(snap))
 
-    def test_timed_out_optimizer_cannot_recall_while_wearable_gear_is_packed(self):
+    def test_timed_out_optimizer_keeps_the_worn_kit_while_wearable_gear_is_packed(self):
         """A real timeout shape proves no best; live gear must remain authority."""
         packed = [
             item("w", TVAL_SWORD, 1, is_equipment=True, known=True),
@@ -6379,9 +6379,9 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._prepare_equipment_optimization = lambda _snapshot: timed_out
 
         self.assertNotEqual(policy.choose_key(snap), "rra")
-        self.assertFalse(policy._equipment_departure_ready(snap))
+        self.assertTrue(policy._equipment_departure_ready(snap))
 
-    def test_stale_dressed_timeout_is_refused_for_currently_stripped_snapshot(self):
+    def test_stale_dressed_timeout_keeps_the_currently_stripped_snapshot(self):
         dressed = Loadout((), "stale-dressed")
         timed_out = SimpleNamespace(
             current=dressed,
@@ -6406,7 +6406,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         with patch.object(
             policy, "_prepare_equipment_optimization", return_value=timed_out
         ):
-            self.assertFalse(policy._equipment_departure_ready(snapshot))
+            self.assertTrue(policy._equipment_departure_ready(snapshot))
 
     def test_stale_home_candidate_latch_does_not_block_ready_recall(self):
         snap = Snapshot(
@@ -14274,7 +14274,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         policy.choose_key(snapshot)
         policy._town_errand_plan = None
         policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("optimization-timeout",), result=None,
+            blockers=("no-valid-loadout",), result=None,
         )
         for store_type in (
             STORE_GENERAL, STORE_ARMOURY, STORE_WEAPON, STORE_TEMPLE,
@@ -14371,7 +14371,7 @@ class NoSafeRecallDestinationTest(unittest.TestCase):
         policy, snap = self._fixture()
         policy.choose_key(snap); policy._town_errand_plan = None
         policy._equipment_optimization_preparation = SimpleNamespace(
-            blockers=("optimization-timeout",), result=None
+            blockers=("no-valid-loadout",), result=None
         )
         policy._town_visit_ledger.approach_fails[STORE_HOME] = (
             policy._town_store_visit_limit(STORE_HOME)
