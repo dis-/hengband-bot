@@ -97,7 +97,7 @@ class RecordedHomeFull3Test(unittest.TestCase):
             p.confirm_key_posted(key)
             key = p.choose_key(outside)
             self.assertTrue(key.startswith('5'), (key, p.last_reason, p.home_route_refusal_state()))
-        self.assertEqual(p.last_reason, 'home-errand:atomic-withdraw:full-home-sale')
+            self.assertEqual(p.last_reason, 'home-errand:atomic-withdraw:full-home-sale')
             self.assertEqual(p._shopping_approach_store_type, STORE_HOME)
             self.assertEqual(town_hold.standing_claim(p).owner.value, 'home-errand')
             self.assertIsNotNone(p._home_atomic_withdraw_pending)
