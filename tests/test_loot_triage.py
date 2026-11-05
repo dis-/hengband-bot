@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from hengbot import item_fate
 from hengbot.baseitem_knowledge import item_base_cost, load_baseitem_costs
 from hengbot.cli import _dispatch_response_lines
 from hengbot.model import (
@@ -252,10 +253,14 @@ class TownOrganizationTest(unittest.TestCase):
         policy._equipment_optimization_preparation = preparation
         policy._prepare_equipment_optimization = Mock(return_value=preparation)
         snapshot = self._town([spare], STORE_WEAPON)
-        self.assertIs(policy._find_town_organization_surplus(snapshot), spare)
-        self.assertEqual(policy._shop(snapshot), "{a@0\r")
-        self.assertEqual(policy.last_reason, "shop:batch-inscribe")
-        self.assertIsNone(policy._find_town_organization_surplus(self._town([])))
+        # Owner 2026-11-04 (item_fate): the only sword ranks first in its
+        # slot and is kept; rank 21+ is sold any time.
+        self.assertIsNone(policy._find_town_organization_surplus(snapshot))
+        with patch.object(item_fate, "gear_tier", return_value=item_fate.ANY):
+            self.assertIs(policy._find_town_organization_surplus(snapshot), spare)
+            self.assertEqual(policy._shop(snapshot), "{a@0\r")
+            self.assertEqual(policy.last_reason, "shop:batch-inscribe")
+            self.assertIsNone(policy._find_town_organization_surplus(self._town([])))
 
     def test_surplus_blocks_departure_until_removed(self):
         spare = carried("a", name="spare sword", is_equipment=True)

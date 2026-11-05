@@ -5028,6 +5028,7 @@ class TownMixin:
             or self._sale_retains_digging_tool(snapshot, item)
             # The owner's table shelves these at Home (consumable_policy).
             or consumable_policy.shelved_at_home(item)
+            or not item_fate.ranked_gear_saleable(self, snapshot, item)
         ):
             return None
         for store_type in (

@@ -26,7 +26,7 @@ import time
 
 from hengbot.cli import (_consume_response_sequence, _ExecutorInputPort,
                          _send_new_decision_key)
-from hengbot.model import parse_snapshot, STORE_MAGIC
+from hengbot.model import parse_snapshot, STORE_HOME, STORE_MAGIC
 from hengbot.policy_types import TownErrandPlan
 from tests import test_input_executor as executor_harness
 from tests.test_esp_threat_rest_recorded import _policy
@@ -73,7 +73,11 @@ class RodOverflowRecordedTest(executor_harness.ProductionHarness):
             policy._home_deposit_abandoned = True
         return policy, board, raw
 
-    def test_recorded_pack_routes_to_sale_after_completed_shop_visits(self):
+    def test_recorded_pack_routes_kept_amulet_home_after_completed_shop_visits(self):
+        # Owner 2026-11-04 (item_fate): the top 10 of a slot are kept, under
+        # pack pressure too, so the 31,500 gold amulet goes Home, not to the
+        # Magic Shop (the same root as n1-b life-322 2026-11-06, the sold
+        # Light Crossbow).
         policy, board, raw = self.attached()
         self.assertEqual((board.turn, len(board.inventory)), (1664219, 21))
         recorded = self.capture["decisions"][-2]
@@ -84,11 +88,10 @@ class RodOverflowRecordedTest(executor_harness.ProductionHarness):
             "unavailable_reason"], "equipment-stat-modifiers-unknown")
         self.assertIn(STORE_MAGIC, policy._town_store_attempted)
         key = policy.choose_key(board)
-        self.assertEqual((key, policy.last_reason), ("\x1b`n&.", "shop:travel"))
-        self.assertEqual(policy._shopping_approach_store_type, STORE_MAGIC)
-        candidate = policy._find_town_organization_surplus(board)
-        self.assertEqual((candidate.slot, candidate.tval), ("l", 40))
-        self.assertNotIn(STORE_MAGIC, policy._town_store_attempted)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
+        self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+        amulet = next(item for item in board.inventory if item.slot == "l")
+        self.assertIsNone(policy._town_organization_sale_store(board, amulet))
 
         # Follow's actual sender and executor submit the selected travel key.
         game = executor_harness.FaithfulHookGame()
@@ -108,21 +111,21 @@ class RodOverflowRecordedTest(executor_harness.ProductionHarness):
             decision={"sequence": policy._decision_sequence,
                       "reason": policy.last_reason, "key": key})
         self.assertEqual(port.last_result.outcome, "completed")
-        # Follow expands the configured Magic-store travel macro to Ctrl-Q.
-        self.assertEqual(game.accepted, ["\x11"])
+        # Follow expands the configured Home travel macro to Ctrl-U.
+        self.assertEqual(game.accepted, ["\x15"])
 
-    def test_current_magic_page_still_accepts_surplus_after_observation_visit(self):
+    def test_current_magic_page_keeps_ranked_amulet_after_observation_visit(self):
         policy, board, _ = self.attached(72)
         self.assertEqual(board.store.store_type, STORE_MAGIC)
-        self.assertEqual(policy._town_organization_sale_store(
-            board, next(item for item in board.inventory if item.tval == 40)), STORE_MAGIC)
+        self.assertIsNone(policy._town_organization_sale_store(
+            board, next(item for item in board.inventory if item.tval == 40)))
         key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), ("\x1b", "shop:observe-and-leave"))
         policy.confirm_key_posted(key)
         # The captured next row really is the exit from this observation page.
         outside = parse_snapshot(self.capture["boards"][73])
         key = policy.choose_key(outside)
-        self.assertEqual((key, policy.last_reason), ("{l@0\r", "shop:batch-inscribe"))
+        self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
 
     def test_recorded_detection_rod_is_never_terminal_overflow_victim(self):
         policy, board, _ = self.attached(refused=True)
@@ -144,10 +147,10 @@ class RodOverflowRecordedTest(executor_harness.ProductionHarness):
 
     def test_actual_sale_refusal_still_closes_outlet(self):
         policy, board, _ = self.attached()
-        amulet = next(item for item in board.inventory if item.slot == "l")
-        self.assertEqual(policy._town_organization_sale_store(board, amulet), STORE_MAGIC)
+        wand = next(item for item in board.inventory if item.slot == "g")
+        self.assertEqual(policy._town_organization_sale_store(board, wand), STORE_MAGIC)
         policy._store_sale_refused.update(range(8))
-        self.assertIsNone(policy._town_organization_sale_store(board, amulet))
+        self.assertIsNone(policy._town_organization_sale_store(board, wand))
 
     def test_constructed_roomy_pack_keeps_completed_visit_closed(self):
         policy, board, _ = self.attached()

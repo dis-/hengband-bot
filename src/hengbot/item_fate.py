@@ -146,6 +146,26 @@ def can_identify_now(policy: Any, snapshot: Any, item: Any) -> bool:
             or policy._carried_identification_source(snapshot, full=full) is not None)
 
 
+def ranked_gear_saleable(policy: Any, snapshot: Any, item: Any) -> bool:
+    """The owner's ranking applied to a store sale of ranked gear.
+
+    Rank 21+ goes any time, 11-20 only when room is needed, the top 10 and
+    anything unranked (an artifact, an unidentified piece) stay.  n1-b life-322
+    2026-11-06: an unidentified Light Crossbow from Q14 went to the Weapon Smith
+    for $57 as "spare" because the optimizer cannot choose what it cannot judge.
+    Digging tools keep their own retention (``_sale_retains_digging_tool``);
+    what the ranking does not cover (lights, consumables) is not asked here.
+    """
+    if not item.is_equipment or item.is_ammo or item.is_digging_tool:
+        return True
+    if SLOT_BY_TVAL.get(item.tval) is None:
+        return True
+    tier = gear_tier(policy, snapshot, item)
+    if tier == ROOM:
+        return policy._town_pack_space_shortage(snapshot) or policy._home_is_full(snapshot)
+    return tier == ANY
+
+
 def sold_not_shelved(policy: Any, snapshot: Any, item: Any) -> bool:
     """Rank 21+ in the pack goes to its buyer, not to Home and out again."""
     return bool(item.is_equipment and not item.is_ammo
