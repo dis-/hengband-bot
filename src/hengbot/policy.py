@@ -400,6 +400,7 @@ from hengbot.town_hold import (
     TownHold,
     claim_family_of as town_claim_family_of,
     errand_hold as town_errand_hold,
+    home_route_opened_for as town_home_route_opened_for,
     home_catalogue_sequence_enforced as town_home_catalogue_sequence_enforced,
     home_catalogue_work_holder as town_home_catalogue_work_holder,
     home_hold_board as town_home_hold_board,
@@ -3474,7 +3475,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         preserve_home_hold: bool = True,
     ) -> bool:
         """Apply the S3.3 hold to the requested town producer."""
-        enforced = preserve_home_hold and town_home_sequence_has_holder(self)
+        enforced = (preserve_home_hold and town_home_sequence_has_holder(self)
+                    and not town_home_route_opened_for(self, family))
         row = self._town_errand_deferral(
             family, reason, getattr(self, "_map_predicate_snapshot", None),
             work_identity=work_identity, enforced=True,
