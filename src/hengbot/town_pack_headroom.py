@@ -12,7 +12,11 @@ PACK_FULL_NO_ROOM = "pack-full-no-room"
 
 
 def preservable(policy, snapshot, item):
-    """A whole unneeded consumable/device, independent of current free slots."""
+    """A whole unneeded consumable/device, independent of current free slots.
+
+    A scroll the launcher enchant read consumes this visit is not surplus:
+    the read comes first (q2-launcher-damage-buy-ammo-decision-20261102)."""
+    from hengbot.town_terminal import launcher_enchant_scroll
     return bool(
         snapshot is not None and snapshot.in_town
         and item.known and item.aware and not item.is_equipment
@@ -25,6 +29,7 @@ def preservable(policy, snapshot, item):
         and not policy._identification_flow_owns(item)
         and not policy._disposal_protected_by_identification(item)
         and policy._junk_class(snapshot, item) is None
+        and not launcher_enchant_scroll(policy, snapshot, item)
     )
 
 
