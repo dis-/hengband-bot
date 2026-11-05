@@ -5,6 +5,14 @@ item-intent check from `town_structure_lint.py`, which does not update its own
 baseline. `tests.test_item_sink_lint` exercises the failure cases with AST
 mutations.
 
+## Dungeon ladder
+
+`item_sink_lint.py` also runs `dungeon_ladder_lint.py`: the order of the rungs of
+`HengbotPolicy._decide`, read from the AST, against the table in
+`src/hengbot/dungeon_ladder.py`, and the owner rules' places in that table. Adding
+or moving a rung changes the table in the same commit (`--print` lists the rows).
+`tests.test_dungeon_ladder` exercises the failure cases.
+
 ## Producer census
 
 The producer baseline (`town_producer_baseline.json`) and

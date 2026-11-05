@@ -326,6 +326,8 @@ def analyze_repository(*, check_exit=True):
             findings.append(f'{site}: pinned adapter call site changed or disappeared')
     from town_structure_lint import analyze_repository as analyze_structure
     findings.extend(analyze_structure())
+    from dungeon_ladder_lint import analyze_repository as analyze_ladder
+    findings.extend(analyze_ladder())
     return findings
 
 
