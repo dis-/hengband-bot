@@ -37,6 +37,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
+from hengbot import launcher_upgrade
 from hengbot import quest_optional_carry
 from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence
 from hengbot import mining_loadout
@@ -5598,7 +5599,7 @@ class ShopMixin(InStoreMixin):
             "quest-healing", "light", "identify-staff", "ammo",
             "throwing-torches", "remove-curse", "home-star-remove-curse-stock",
             "star-remove-curse", "launcher-enchant", "black-market",
-            "ability-gear",
+            "ability-gear", launcher_upgrade.CATEGORY,
         }
         home_errand_categories = {
             "experience-potion-home", quest_optional_carry.CATEGORY, "identification-withdrawal",

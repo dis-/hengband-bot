@@ -16,7 +16,7 @@ from dataclasses import replace
 from functools import wraps
 from unittest.mock import patch
 
-from hengbot import cli
+from hengbot import cli, launcher_upgrade
 from hengbot.ammo_carry import is_plain_store_ammo
 from hengbot.model import STORE_HOME, TVAL_BOLT
 
@@ -51,6 +51,10 @@ def shelf_wall_on_replay(function):
 
     @wraps(function)
     def walled(*args, **kwargs):
-        with patch.object(cli, "parse_snapshot", parse):
+        # The bolts' absence would send the bot to look for them for the
+        # waiting crossbow (launcher_upgrade, 2026-11-06); the wall keeps
+        # that look out as well.
+        with (patch.object(cli, "parse_snapshot", parse),
+              patch.object(launcher_upgrade, "waiting_launcher", lambda _policy, _snapshot: None)):
             return function(*args, **kwargs)
     return walled

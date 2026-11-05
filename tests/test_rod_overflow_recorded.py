@@ -26,7 +26,7 @@ import time
 
 from hengbot.cli import (_consume_response_sequence, _ExecutorInputPort,
                          _send_new_decision_key)
-from hengbot.model import parse_snapshot, STORE_HOME, STORE_MAGIC
+from hengbot.model import parse_snapshot, STORE_HOME, STORE_MAGIC, TVAL_ARROW
 from hengbot.policy_types import TownErrandPlan
 from tests import test_input_executor as executor_harness
 from tests.test_esp_threat_rest_recorded import _policy
@@ -71,6 +71,10 @@ class RodOverflowRecordedTest(executor_harness.ProductionHarness):
             # for this visit. This isolates the terminal overflow decision.
             policy._store_sale_refused.update(range(8))
             policy._home_deposit_abandoned = True
+            # Constructed: this visit already reopened the Weapon Smith to look
+            # for arrows for the Home Long Bow (launcher_upgrade), so the
+            # completed Smith stop stays closed.
+            policy._launcher_supplier_reopened = (policy._town_visit_epoch, TVAL_ARROW)
         return policy, board, raw
 
     def test_recorded_pack_routes_kept_amulet_home_after_completed_shop_visits(self):

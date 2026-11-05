@@ -1017,6 +1017,14 @@ class InStoreMixin:
                 return False
             return not self._current_store_sale_candidates(view)
 
+    def _shelf_evidence_page(self, snapshot: Snapshot, store_type: int):
+        """The shop's page as this town's last sight of it, until the stock can change."""
+        record = self._in_store_attribute("_shelf_evidence").get("pages", {}).get(
+            (self._effective_town_id(snapshot), store_type))
+        if record is None or not self._shelf_evidence_valid(record, snapshot.turn):
+            return None
+        return self._shelf_page_after_trades(record)
+
     def _shelf_evidence_entry(self, snapshot: Snapshot, store_type: int,
                               category: str) -> dict | None:
         """The (town, store, category) ledger entry for a planned stop."""

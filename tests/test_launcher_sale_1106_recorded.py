@@ -28,6 +28,8 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from hengbot import launcher_upgrade, spare_gear
+from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import (
     STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, TVAL_BOW, TVAL_DIGGING, parse_snapshot,
 )
@@ -130,6 +132,92 @@ class LauncherSale1106RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._find_town_organization_surplus(snapshot))
         _snapshot, key, reason = self.decide(policy, self.board("smith-page"))
         self.assertEqual((key, reason), ("\x1b", "shop:observe-and-leave"))
+
+    def test_identified_crossbow_is_worn_on_the_seen_smith_page(self):
+        policy = self.policy(None)
+        board = self.next_stay(943500)
+        snapshot, key, reason = self.decide(policy, board)
+        self.assertEqual((key, reason), ("tc", "equipment-transaction:takeoff"))
+        plan = policy._equipment_transaction_session.plan.actions
+        self.assertEqual([(action.kind, action.target_slot) for action in plan],
+                         [("takeoff", "bow"), ("equip", "bow"), ("deposit", None)])
+
+        # DECLARED CONSTRUCTED: the take-off's effect, the Sling in the pack.
+        taken = copy.deepcopy(board)
+        taken["turn"] += 1
+        sling = next(item for item in taken["equipment"] if item["tval"] == TVAL_BOW)
+        taken["equipment"].remove(sling)
+        index = next(index for index, item in enumerate(taken["inventory"]) if item["tval"] == TVAL_BOW)
+        taken["inventory"].insert(index, sling)
+        relettered(taken)
+        letter = next(item["slot"] for item in taken["inventory"] if item["sval"] == 23)
+        taken_board, key, reason = self.decide(policy, taken)
+        self.assertEqual((key, reason), ("w" + letter, "equipment-transaction:equip"))
+
+        game = executor_pins.FaithfulHookGame()
+        game.state = copy.deepcopy(taken)
+        game.screen = executor_pins.command_screen(taken["turn"])
+        worn = copy.deepcopy(taken)
+        worn["turn"] += 10
+        game.screens = [executor_pins.prompt_screen(WIELD_PROMPT),
+                        executor_pins.command_screen(worn["turn"])]
+        game.states = [copy.deepcopy(taken), worn]
+        _game, _client, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        sent, _line = _send_new_decision_key(
+            port, "recorded-board", key, None, set(), in_store=False,
+            decision={"sequence": policy._decision_sequence, "reason": reason},
+            snapshot=taken_board, posting_contract=PostingContract())
+        self.assertTrue(sent, port.last_result.stop_line)
+        self.assertEqual(game.accepted, ["w", letter])
+
+    def test_unseen_smith_is_visited_for_the_waiting_launcher(self):
+        policy = self.policy(None)
+        board = self.next_stay(943500)
+        # DECLARED RECONSTRUCTED: a stay that has not seen the Smith's page.
+        policy._in_store_attribute("_shelf_evidence").get("pages", {}).clear()
+        policy._town_supplier_stock.clear()
+        snapshot, _key, _reason = self.decide(policy, board)
+        crossbow = next(item for item in snapshot.inventory if item.tval == TVAL_BOW)
+        self.assertIs(launcher_upgrade.waiting_launcher(policy, snapshot), crossbow)
+        self.assertFalse(spare_gear.released(policy, snapshot, crossbow))
+        self.assertIn(launcher_upgrade.CATEGORY, policy._town_errand_plan.need_categories[STORE_WEAPON])
+
+    def test_new_launcher_worn_empty_reopens_the_smith(self):
+        policy = self.policy(None)
+        sling_worn = self.next_stay(943500)
+        sling_worn["inventory"] = [item for item in sling_worn["inventory"] if item["tval"] != TVAL_BOW]
+        relettered(sling_worn)
+        self.decide(policy, sling_worn)
+        # DECLARED RECONSTRUCTED: this stay finished Home (the Sling shelved)
+        # and the Smith (its page seen) before the crossbow was worn.
+        for store_type in (STORE_HOME, STORE_WEAPON):
+            policy._set_town_store_attempted(store_type, sling_worn["turn"], "recorded-plan")
+        # DECLARED CONSTRUCTED: the crossbow worn, the Sling at Home.
+        worn = copy.deepcopy(sling_worn)
+        worn["equipment"] = [item for item in worn["equipment"] if item["tval"] != TVAL_BOW]
+        worn["equipment"].insert(1, dict(self.crossbow(), slot="bow"))
+        for turn in (943510, 943511):
+            worn["turn"] = turn
+            snapshot, key, reason = self.decide(policy, worn)
+        self.assertNotIn(STORE_WEAPON, policy._town_store_attempted)
+        self.assertIn(launcher_upgrade.CATEGORY, policy._town_errand_plan.need_categories[STORE_WEAPON])
+        self.assertEqual(policy._count_matching_ammo(snapshot), 0)
+
+        # DECLARED CONSTRUCTED: at the Smith's door, then its recorded page.
+        page = self.boards["smith-page"]
+        door = copy.deepcopy(worn)
+        door["turn"] = 943570
+        door["player"]["y"], door["player"]["x"] = page["player"]["y"], page["player"]["x"]
+        self.decide(policy, door)
+        inside = copy.deepcopy(door)
+        inside["turn"] += 1
+        inside["store"] = page["store"]
+        inside["type"] = "store"
+        bolts = next(item["letter"] for item in page["store"]["items"] if item["tval"] == 18)
+        _snapshot, key, reason = self.decide(policy, inside)
+        self.assertEqual((key, reason), ("p" + bolts + "99\r\r", "shop:in-store-buy"))
 
 
 if __name__ == "__main__":

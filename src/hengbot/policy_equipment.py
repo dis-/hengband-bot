@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import spare_gear
+from hengbot import launcher_upgrade, spare_gear
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import item_available
@@ -536,14 +536,17 @@ class EquipmentMixin:
     ) -> tuple[StoreItem, ...]:
         """Affordable plain ammunition on a supplier page.
 
-        The page is the current-town one (``_current_town_supplier_page``);
-        with ``remembered`` the last remembered page of that store also
+        The page is the current-town one (``_current_town_supplier_page``), or
+        this town's last sight of the shop while its stock cannot have changed
+        (``launcher_upgrade.shelf_page``); with ``remembered`` the last
+        remembered page of that store also
         counts, like ``_quest_carry_remembered_affordable``.  Plain is what
         the ``tail:ammo`` rung buys (``is_plain_store_ammo``); affordable
         means a positive purchasable quantity (count > 0 and one unit's price
         within the carried gold).
         """
-        page = self._current_town_supplier_page(snapshot, store_type)
+        page = (self._current_town_supplier_page(snapshot, store_type)
+                or launcher_upgrade.shelf_page(self, snapshot, store_type))
         if page is None and remembered:
             page = self._town_supplier_stock.get(store_type)
         if page is None:
@@ -1141,6 +1144,7 @@ class EquipmentMixin:
                 item.origin == "pack"
                 and (
                 self._identification_flow_owns(item.item)
+                or launcher_upgrade.is_waiting(self, snapshot, item.item)
                 # Abandonment quarantines the failed physical action for this
                 # town visit.  Deposits are not target-loadout members, so the
                 # selector's failed-target check cannot suppress a stale
