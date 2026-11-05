@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, unseen_strike
+from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, sealed_pocket, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -735,6 +735,9 @@ class NavigationMixin:
             self._nav_exhausted = False
             self._nav_stall_count = 0
             return None
+        melt = sealed_pocket.key(self, snapshot)
+        if melt is not None:
+            return melt
         quest_locked = (
             self._quest_floor_exit_locked(snapshot)
             or snapshot.floor_key[2] != 0

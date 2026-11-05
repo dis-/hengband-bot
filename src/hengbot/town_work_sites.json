@@ -4182,6 +4182,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy.py:HengbotPolicy._stone_to_mud_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._strategic_adjacent_hostiles": {
     "classification": "data",
     "rows": [
@@ -9523,6 +9530,41 @@
     "classification": "producer",
     "rows": [
       "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_floor_leading_on": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_line": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_melt_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },

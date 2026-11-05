@@ -1858,7 +1858,7 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_normal_loot_key", "departure", "return:seek-loot"),      # 6709
     _decide("_navigation_livelock_key", "detectors",
             "livelock:ascend", "livelock:recall-escape",
-            "livelock:seek-", "livelock:teleport-explore"),            # 6726
+            "livelock:seek-", "livelock:teleport-explore", "livelock:stone-to-mud"),            # 6726
     _decide("_return_to_town_key", "departure"),                       # 6739
     _decide("_return_to_town_key", "departure", "return:",
             ordinary=True),                                            # 6756

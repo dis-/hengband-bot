@@ -2112,12 +2112,7 @@ class QuestMixin(OpeningRouteMixin):
             self.last_reason = "quest:blocked:q2-breach-attempts"
             return WAIT_KEY
         direction = "2"
-        wand = self._first_item(
-            snapshot,
-            lambda item: item.tval == TVAL_WAND
-            and item.sval == SV_WAND_STONE_TO_MUD
-            and item.charges > 0,
-        )
+        wand = self._stone_to_mud_wand(snapshot)
         if wand is not None:
             self._q2_breach_attempts += 1
             self.last_reason = "quest-strategy:q2-breach-wand"

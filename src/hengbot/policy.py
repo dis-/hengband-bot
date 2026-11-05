@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, sealed_pocket, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -9216,6 +9216,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # No town owner answered: the visit takes its declared end
             # instead of a least-visited wander (owner 2026-11-02).
             return town_end_key(self, snapshot)
+        melt = sealed_pocket.key(self, snapshot)
+        if melt is not None:
+            return melt
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "stuck:wander"
@@ -13285,6 +13288,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
 
+    def _stone_to_mud_wand(self, snapshot: Snapshot) -> InventoryItem | None:
+        return self._first_item(
+            snapshot,
+            lambda item: item.tval == TVAL_WAND
+            and item.sval == SV_WAND_STONE_TO_MUD
+            and item.charges > 0,
+        )
+
     @staticmethod
     def _has_charged_stone_to_mud(snapshot: Snapshot) -> bool:
         return any(
@@ -16715,6 +16726,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def _stuck_escape_key(self, snapshot: Snapshot) -> str | None:
         """Leave a floor whose walkable ways forward are gone, else None."""
+        melt = sealed_pocket.key(self, snapshot)
+        if melt is not None:
+            return melt
         # A known descent can be sealed behind ordinary diggable veins even
         # after every walkable frontier has been exhausted.  Recompute the
         # augmented route on every decision: successful tunnelling changes
