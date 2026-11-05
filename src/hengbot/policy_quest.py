@@ -4450,6 +4450,14 @@ class QuestMixin(OpeningRouteMixin):
             if self._inventory_overweight(snapshot) and not allows_overweight_travel(self, snapshot):
                 return None
 
+            # The *Identify* expedition owns the town it travelled to.  The
+            # return below sent it back from Morivant on arrival and it left
+            # again, 500 gold a leg (n1-a life-486 11:41: 5,061 gold to 61,
+            # owner 10-26 「辺境以外で金欠になるのを阻止する」).
+            if (self._morivant_full_identify is not None
+                    and self._morivant_full_identify.phase == "travel"):
+                return None
+
             fixed_quest_candidates = [
                 quest for quest in self._known_fixed_quests(snapshot).values()
                 if quest.id in FIXED_QUEST_ALLOWLIST
