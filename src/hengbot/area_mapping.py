@@ -140,17 +140,29 @@ def _due(policy, snapshot: Snapshot) -> bool:
             and not me_powers.mapped_since(policy, snapshot, memory.destroyed_turn))
 
 
+def device_ready(item, kind: str) -> bool:
+    """An identified staff with a charge, or a rod of the stack not charging."""
+    if not item.known or not item.aware:
+        return False
+    if kind == "staff":
+        return item.charges > 0
+    return (item.charging_count or 0) < item.count and (
+        item.charging_count is not None or not item.charging)
+
+
 def _carried_device(snapshot: Snapshot):
     for item in snapshot.inventory:
         kind = CARRIED.get((item.tval, item.sval))
-        if kind is None or not item.known or not item.aware:
-            continue
-        if kind == "staff" and item.charges > 0:
-            return item, kind
-        if kind == "rod" and (item.charging_count or 0) < item.count and (
-                item.charging_count is not None or not item.charging):
+        if kind is not None and device_ready(item, kind):
             return item, kind
     return None
+
+
+def device_usable_now(policy, snapshot: Snapshot) -> bool:
+    """A utility device may be used on this board (the mapping row's hostile rule)."""
+    player = snapshot.player
+    return (not (player.blind or player.confused or player.hallucinated or player.paralyzed)
+            and me_powers.utility_device_permitted(policy, snapshot))
 
 
 def _held_scroll_key(policy, snapshot: Snapshot) -> str | None:
@@ -164,10 +176,9 @@ def _held_scroll_key(policy, snapshot: Snapshot) -> str | None:
 
 
 def _carried_key(policy, snapshot: Snapshot, trigger: str) -> str | None:
-    memory, position, player = _memory(policy, snapshot), snapshot.player.position, snapshot.player
-    if (player.blind or player.confused or player.hallucinated or player.paralyzed
-            or memory.failed[position] >= me_powers.FAILURES_PER_PLACE
-            or not me_powers.utility_device_permitted(policy, snapshot)):
+    memory, position = _memory(policy, snapshot), snapshot.player.position
+    if (memory.failed[position] >= me_powers.FAILURES_PER_PLACE
+            or not device_usable_now(policy, snapshot)):
         return None
     carried = _carried_device(snapshot)
     used = None if carried is None else reserved_item_command(policy, snapshot, carried[1], carried[0])
