@@ -334,7 +334,11 @@ class ExplorationIdentityObservationTest(unittest.TestCase):
         self.assertEqual(step, Position(10, 11))
         identity = policy._explore_goal_identity
         self.assertIsNotNone(identity)
-        self.assertEqual(identity.kind, ExplorationGoalKind.VISIT)
+        # The corridor's cells are marked (seen in the own light): #101 owes
+        # them no visit, so the planner reaches (10,11) as a frontier and the
+        # goal is a frontier goal (explore-osc-1106: a VISIT label on it was
+        # complete on the next board).
+        self.assertEqual(identity.kind, ExplorationGoalKind.FRONTIER)
         self.assertEqual(identity.position, Position(10, 11))
         self.assertEqual(
             identity.evidence_signature,

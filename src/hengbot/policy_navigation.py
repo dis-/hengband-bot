@@ -1574,9 +1574,11 @@ class NavigationMixin:
             return None
         self._explore_path = path[1:]
         goal = path[-1]
+        # The planner's own answer: a goal it reached as a frontier is a
+        # frontier goal even when never stepped on.
         kind = (
             ExplorationGoalKind.VISIT
-            if self._visit_counts[goal] == 0
+            if self._explore_visit_owed(goal)
             else ExplorationGoalKind.FRONTIER
         )
         self._record_explore_goal(snapshot, kind, goal)
@@ -1632,8 +1634,7 @@ class NavigationMixin:
             # explored (#101), as _plan_explore_path_pass no longer owes it.
             return (
                 snapshot.player.position == identity.position
-                or self._visit_counts[identity.position] > 0
-                or (identity.position.y, identity.position.x) in self._marked_t
+                or not self._explore_visit_owed(identity.position)
             )
         if identity.kind == ExplorationGoalKind.FRONTIER:
             return not self._is_remembered_frontier(snapshot, identity.position)
@@ -1799,6 +1800,26 @@ class NavigationMixin:
                 queue.append(neighbor)
         return parent, unseen_veto
 
+    def _explore_visit_owed(self, pos: Position) -> bool:
+        """Whether exploration still owes ``pos`` a visit: the one answer for the
+        planner, the goal's kind and a visit goal's completion.
+
+        A never-visited remembered floor cell, unless it is already explored:
+        seen inside the player's own light (``_marked_t``, owner 2026-10-23 #101),
+        inside a magic mapping, or refused as unenterable.  The goal's kind used
+        to ask only "never stepped on": a frontier seen in the own light became a
+        visit goal that was complete on the next board, so every step planned
+        afresh and the visit penalty flipped the nearest goal back and forth
+        (n1-b life-323 2026-11-06, Orc cave 23F, (22,92)/(23,92)).
+        """
+        return (
+            self._visit_counts[pos] == 0
+            and (pos.y, pos.x) in self._floor_t
+            and (pos.y, pos.x) not in self._marked_t
+            and pos not in self._unenterable_explore_goals
+            and not mapped_area.covers(self, (pos.y, pos.x))
+        )
+
     def _plan_explore_path_pass(
         self,
         snapshot: Snapshot,
@@ -1832,13 +1853,7 @@ class NavigationMixin:
                 # is explored, and the unknown ground beyond it is reached as a
                 # frontier.  Stepping on every such cell swept a dark cave floor
                 # cell by cell for half an hour (hourly-1900-1102).
-                if (
-                    self._visit_counts[pos] == 0
-                    and (pos.y, pos.x) in self._floor_t
-                    and (pos.y, pos.x) not in self._marked_t
-                    and pos not in self._unenterable_explore_goals
-                    and not mapped_area.covers(self, (pos.y, pos.x))
-                ):
+                if self._explore_visit_owed(pos):
                     goal = pos
                     break
                 if (
