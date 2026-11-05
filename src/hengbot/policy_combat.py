@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -2888,19 +2888,9 @@ class CombatMixin:
             snapshot, hostiles, turns=3
         ) >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
 
-    @staticmethod
-    def _player_hasted(snapshot: Snapshot) -> bool:
-        """The speed field shows haste: yellow while is_fast() and not slowed
-        (main-window-stat-poster.cpp:277-278 and 295-296; the bot board's
-        speed_display carries the same colour, bot-json-output.cpp:1471-1479).
-        At a displayed speed of exactly +0 the field is blank, so haste there
-        is not observable."""
-        display = snapshot.player.speed_display
-        return (
-            display is not None
-            and not display[3]
-            and display[2] == "yellow"
-        )
+    def _player_hasted(self, snapshot: Snapshot) -> bool:
+        """The haste is on (haste_read)."""
+        return haste_read.hasted(self, snapshot)
 
     @claims(ClaimOwner.SURVIVAL)
     def _strong_fight_speed_filter(self, snapshot: Snapshot, key):

@@ -21,7 +21,7 @@ is asked for: a character that cannot take the quest yet spends nothing on it.
 
 from __future__ import annotations
 
-from hengbot import me_capability, quest_ranged_force
+from hengbot import haste_read, me_capability, quest_ranged_force
 
 ALTERNATIVES = "force_alternatives"
 ROW_FIELDS = ("min_hp", "min_expected_dps", "heal_potions", "speed_potions")
@@ -37,8 +37,7 @@ _NO_KIT = {"throwing_items": {}, "required_potions": {}}
 
 
 def _unhasted_speed(policy, snapshot) -> int:
-    hasted = policy._player_hasted(snapshot)
-    return snapshot.player.speed - (_POTION_SPEED_BONUS if hasted else 0)
+    return snapshot.player.speed - (_POTION_SPEED_BONUS if haste_read.adds_speed(snapshot) else 0)
 
 
 def _speed_cost(policy, snapshot, row: dict) -> int:

@@ -13,11 +13,12 @@ import copy
 import gzip
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hengbot import quest_find_exit, quest_room_light, quest_room_sweep, summon_response
+from hengbot import quest_find_exit, quest_force_rows, quest_room_light, quest_room_sweep, summon_response
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, TVAL_POTION, _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
@@ -171,6 +172,92 @@ class Q25RecordedTest(nokey.PostedKey):
         carried = {item["sval"] for item in raw["inventory"] if item["tval"] == TVAL_POTION}
         self.assertLessEqual({SV_POTION_CURE_CRITICAL, SV_POTION_CURING}, carried)
         self.assertFalse(carried & (HEAL_POTION_SVALS - {SV_POTION_CURE_CRITICAL}))
+
+
+class HasteUnderSlownessRecordedTest(unittest.TestCase):
+    """n1-b life-312: a shattered Potion of Slowness at 11651908, the four Speed potions of the recording
+    from there to 11651925, the slowness over at 11651971 (「動きの遅さがなくなったようだ。」)."""
+
+    def test_slowed_with_the_haste_still_on_no_speed_potion_is_drunk(self):
+        for turn in (11651908, 11651913, 11651919, 11651925):
+            raw, key, reason, _ = answer(turn)
+            self.assertEqual(raw["player"]["speed_display"]["color"], "light_green")
+            self.assertNotEqual(reason, quest_find_exit.SPEED_REASON, turn)
+            self.assertFalse(key.startswith("q"), (turn, key, reason))
+
+    def test_the_haste_truly_over_the_speed_potion_is_still_drunk(self):
+        # 「動きの素早さがなくなったようだ。」 at 11651714: the same field and the same value.
+        raw, key, reason, _ = answer(11651714)
+        self.assertEqual(raw["player"]["speed_display"]["color"], "light_green")
+        self.assertEqual(reason, quest_find_exit.SPEED_REASON)
+        self.assertTrue(key.startswith("q"), key)
+
+
+class HasteReadTest(unittest.TestCase):
+    """DECLARED CONSTRUCTED: q25's quiet board with the speed field and the game's lines put on it."""
+
+    YELLOW, GREEN, VIOLET = ("yellow", 13), ("light_green", 3), ("violet", -7)
+
+    def reads(self, *boards):
+        """(colour and value, lines) per board through choose_key: the reading after the last."""
+        raw = q25.board(speed=0)
+        policy = q25.new_policy(raw)
+        for (colour, value), lines in boards:
+            raw["player"]["speed_display"] = {"color": colour, "riding": False, "text": "", "value": value}
+            raw["messages"] = list(lines)
+            q25.choose(policy, raw)
+        return policy._player_hasted(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+
+    def test_yellow_is_on_and_violet_off(self):
+        self.assertTrue(self.reads((self.YELLOW, ())))
+        self.assertFalse(self.reads((self.VIOLET, ())))
+
+    def test_the_plain_colour_with_no_line_is_off(self):
+        self.assertFalse(self.reads((self.GREEN, ())))
+        self.assertFalse(self.reads((self.YELLOW, ()), (self.GREEN, ())))
+
+    def test_slowed_while_hasted_stays_on_for_every_later_board(self):
+        slowed = (self.GREEN, ("体の動きが遅くなってしまった！",))
+        self.assertTrue(self.reads((self.YELLOW, ()), slowed))
+        self.assertTrue(self.reads((self.YELLOW, ()), slowed, (self.GREEN, ()), (self.GREEN, ())))
+        self.assertTrue(self.reads((self.YELLOW, ()), (self.GREEN, ("You feel yourself moving slower!",))))
+
+    def test_hasted_while_slowed_is_on(self):
+        self.assertTrue(self.reads((self.VIOLET, ()), (self.GREEN, ("素早く動けるようになった！",))))
+
+    def test_either_end_is_read(self):
+        slowed = (self.GREEN, ("体の動きが遅くなってしまった！",))
+        self.assertFalse(self.reads((self.YELLOW, ()), slowed, (self.VIOLET, ("動きの素早さがなくなったようだ。",))))
+        self.assertTrue(self.reads((self.YELLOW, ()), slowed, (self.YELLOW, ("動きの遅さがなくなったようだ。",))))
+        self.assertFalse(self.reads((self.YELLOW, ()), slowed, (self.VIOLET, ("動きの素早さがなくなったようだ。",)),
+                                    (self.GREEN, ("動きの遅さがなくなったようだ。",))))
+
+    def test_the_haste_ending_with_the_slowness_ending_on_one_board_is_off(self):
+        slowed = (self.GREEN, ("体の動きが遅くなってしまった！",))
+        self.assertFalse(self.reads((self.YELLOW, ()), slowed,
+                                    (self.GREEN, ("動きの素早さがなくなったようだ。", "動きの遅さがなくなったようだ。"))))
+
+    def test_the_field_is_the_mounts_while_riding(self):
+        raw = q25.board(speed=0)
+        snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
+        mounted = replace(snapshot, player=replace(snapshot.player, speed_display=(13, "", "yellow", True)))
+        self.assertFalse(q25.new_policy(raw)._player_hasted(mounted))
+
+    def test_haste_cancelled_by_slowness_adds_nothing_to_the_measured_speed(self):
+        raw = q25.board(speed=0)
+        policy = q25.new_policy(raw)
+        raw["player"]["speed"] = 123
+        raw["player"]["speed_display"] = {"color": "yellow", "riding": False, "text": "", "value": 13}
+        q25.choose(policy, raw)
+        snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
+        self.assertEqual(quest_force_rows._unhasted_speed(policy, snapshot), 113)
+        raw["player"]["speed"] = 113
+        raw["player"]["speed_display"] = {"color": "light_green", "riding": False, "text": "", "value": 3}
+        raw["messages"] = ["体の動きが遅くなってしまった！"]
+        q25.choose(policy, raw)
+        snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
+        self.assertTrue(policy._player_hasted(snapshot))
+        self.assertEqual(quest_force_rows._unhasted_speed(policy, snapshot), 113)
 
 
 class RuleThreeOnAPlanFloorTest(unittest.TestCase):
