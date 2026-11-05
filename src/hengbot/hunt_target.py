@@ -26,7 +26,15 @@ remembered for this floor visit (fair play: the game displayed it) until the
 player sees the cell empty, the certification immobile_threat_memory uses.
 The search powers are the me_powers rows whose effect reveals the race
 (``REVEALS``); ``route_key`` walks to the remembered cell, and the ordinary
-combat and hunt rungs take over once the target is in sight.
+combat and hunt rungs take over once the target is in their reach.
+
+Recorded n1-a life-485 (Angband 38F, RANDOM quest 45, 2026-11-05 08:48): the
+never-moving target showed along a corridor from 20 cells, the game's sight
+limit, while the hunt rung reaches 8 and the ranged ladder 10.  The walk stopped
+at the first sight, nothing else approached, seek-loot stepped back out of
+sight, and the walk stepped in again until the loop detector stopped the bot.
+So the walk asks the same question in and out of view (``_walk_ends_in_refusal``),
+and one that would end in a refusal gives the cell up where it stands.
 """
 
 from __future__ import annotations
@@ -34,6 +42,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hengbot.model import Position, game_distance
+from hengbot.policy_constants import HUNT_RANGE
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_RANDOM
 
 MEMORY = "_hunt_target_memory"
@@ -54,6 +63,10 @@ class FloorVisit:
     floor: tuple
     race: int | None = None
     position: Position | None = None  # the cell the game last showed the target on
+    # The frontiers known when the walk found none closer to the target: they are explore's,
+    # however often a detection shows the target again (n1-a life-485: one step back made
+    # the same frontier "closer", and seek-loot and the walk traded (21,121) and (22,121)).
+    spent_frontiers: frozenset = frozenset()
 
 
 def _quest_race(policy, snapshot) -> int | None:
@@ -134,10 +147,21 @@ def race_flags(policy, race: int) -> frozenset:
     return getattr(policy._monrace_knowledge.get(race), "flags", frozenset())
 
 
+def _walk_ends_in_refusal(policy, snapshot, target) -> bool:
+    """The target is in sight, and walking on would only reach a rung that refuses it.
+
+    The combat and hunt rungs answered this board first, so a target inside their
+    reach is one they turned down.  Past it, the walk goes on when the ranged ladder
+    or the hunt rung will take the target at the end of the walk."""
+    return target.distance <= HUNT_RANGE or not (
+        policy._has_usable_ranged_option(snapshot)
+        or policy._hunt_would_close(snapshot, target))
+
+
 def route_key(policy, snapshot, hostiles) -> str | None:
     """The step toward the cell the target was last shown on, else None.
 
-    Only while no hostile is in sight and the character was not just hit (the
+    Only while no other hostile is in sight and the character was not just hit (the
     combat rungs own those boards) and no town return is running.  A detection
     reaches past the explored ground, so when no known route reaches the cell
     the walk goes to the nearest exploration frontier closer to it than the
@@ -145,8 +169,13 @@ def route_key(policy, snapshot, hostiles) -> str | None:
     the cell is given up and the next search follows the me_powers spacing
     rule."""
     visit = _visit(policy, snapshot)
-    if (visit is None or visit.position is None or hostiles
+    if (visit is None or visit.position is None
+            or any(monster.race_id != visit.race for monster in hostiles)
             or getattr(policy, "_took_damage", False) or policy._returning_to_town):
+        return None
+    if hostiles and _walk_ends_in_refusal(
+            policy, snapshot, min(hostiles, key=lambda monster: monster.distance)):
+        visit.position = None
         return None
     goal = visit.position
     step = policy._nearest_goal_step(
@@ -155,8 +184,11 @@ def route_key(policy, snapshot, hostiles) -> str | None:
         here = game_distance(snapshot.player.position, goal)
         step = policy._nearest_goal_step(
             snapshot, lambda grid: game_distance(grid.position, goal) < here
+            and grid.position not in visit.spent_frontiers
             and policy._is_frontier(snapshot, grid))
     if step is None:
+        visit.spent_frontiers |= {position for position, grid in snapshot.grids.items()
+                                  if policy._is_frontier(snapshot, grid)}
         visit.position = None
         return None
     policy.last_reason = REASON

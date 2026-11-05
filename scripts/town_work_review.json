@@ -814,7 +814,7 @@
       "positioning"
     ],
     "context": "Dungeon-only: hunt_target.observe clears the memory in town and target_race is None at dungeon level 0, so no cell is kept there.",
-    "evidence": "Owner 2026-11-02 「ランダムクエスト討伐対象やガーディアンを討伐するとき、対象が邪悪なら邪悪感知を用いて探す」: walks (_nearest_goal_step, else the nearest exploration frontier closer to it) to the cell a detection last showed the hunted RANDOM/KILL_LEVEL quest target or target-dungeon guardian on; None while a hostile is visible, the character was just hit, a town return runs, or nothing is reachable. Runs after _kill_quest_floor_recovery_key, before the town and exploration rungs.",
+    "evidence": "Owner 2026-11-02 「ランダムクエスト討伐対象やガーディアンを討伐するとき、対象が邪悪なら邪悪感知を用いて探す」: walks (_nearest_goal_step, else the nearest exploration frontier closer to it) to the cell a detection last showed the hunted RANDOM/KILL_LEVEL quest target or target-dungeon guardian on; None while another hostile is visible, the character was just hit, a town return runs, or nothing is reachable; a target in sight that the rung at the end of the walk would refuse gives the cell up. Runs after _kill_quest_floor_recovery_key, before the town and exploration rungs.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -3975,6 +3975,17 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_combat.py:CombatMixin._hunt_would_close": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Pure predicate of _hunt_step (and of hunt_target.route_key): the hunt rung closes with this monster once it is within HUNT_RANGE.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   },
   "policy_combat.py:CombatMixin._hunt_step": {
     "classification": "producer",
