@@ -247,6 +247,11 @@ def _available(power, row):
     return isinstance(row.get("current"), int) and row["current"] > 0
 
 
+def row_is(power, row) -> bool:
+    """Whether a displayed list row is ``power``."""
+    return row.get("name") in power.names
+
+
 def sight_hits_bystander(snapshot) -> bool:
     """project_all_los would also hit a visible pet or peaceful monster."""
     return any(not monster.hostile for monster in snapshot.visible_monsters)
