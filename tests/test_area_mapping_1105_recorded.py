@@ -10,8 +10,8 @@ board: test_sealed_pocket_quest_1105_recorded's stop board.
 
 DECLARED CONSTRUCTED: the displayed power lists (the live process had them, the capture
 does not); the use's memory; a carried staff or rod in the pack; the board and the memory
-after a use; the floor with no quest (the mapped area is not applied on a quest floor);
-the rock around the sealed cells; the executor's prompts.
+after a use; some boards' floor with no quest, or a fixed quest's id; the rock around the
+sealed cells; the executor's prompts.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 from recorded_junk_scope import install_past_destroyed_junk
@@ -204,6 +204,38 @@ class AreaMappingRecordedTest(executor_pins.ProductionHarness):
                 and (y, x) not in policy._remembered_known_t}
         self.assertTrue(sure)
         self.assertLessEqual(sure, set(area.corridor))
+
+    def mapped_owed(self, quest_id, carried=True):
+        raw = copy.deepcopy(self.boards[FLASH_TURN])
+        if carried:
+            _device(raw, STAFF_TVAL, STAFF_SVAL, "周辺感知の杖 (5回分)")
+        raw["floor"]["quest_id"] = quest_id
+        policy, raw = self.flashed(raw=raw)
+        self.choose(policy, raw)
+        later = dict(copy.deepcopy(raw), turn=raw["turn"] + 10, messages=[])
+        _, board = self.choose(policy, later)
+        owed = mapped_area.disc_cells(board, CENTRE, me_powers.DETECT_RAD) - policy._marked_t
+        return policy, board, mapped_area.current(policy), owed
+
+    def test_the_random_quest_floor_maps_as_an_ordinary_floor(self):
+        # Owner 2026-11-05: 「ランダムクエストの階だけ特殊な探索ルールにしているのをやめる」.
+        policy, board, area, owed = self.mapped_owed(40)
+        self.assertEqual(board.floor_key[2], 40)
+        self.assertTrue(policy._on_random_quest_floor(board))
+        self.assertIsNotNone(area)
+        self.assertIn((CENTRE, me_powers.DETECT_RAD), area.discs)
+        self.assertTrue(area.corridor)
+        _, _, ordinary, ordinary_owed = self.mapped_owed(0)
+        self.assertEqual((area.cells, area.corridor), (ordinary.cells, ordinary.corridor))
+        self.assertEqual(owed, ordinary_owed)
+        _, _, _, unmapped = self.mapped_owed(40, carried=False)
+        # The walk shrinks: 1,761 grids owed without the map, 1,127 with it.
+        self.assertEqual((len(owed), len(unmapped)), (1127, 1761))
+
+    def test_a_fixed_quest_floor_keeps_its_own_exploration(self):
+        _, board, area, _ = self.mapped_owed(2)
+        self.assertEqual(board.floor_key[2], 2)
+        self.assertIsNone(area)
 
     def test_a_failed_staff_stays_due(self):
         policy, raw = self.carried(STAFF_TVAL, STAFF_SVAL, "周辺感知の杖 (5回分)")

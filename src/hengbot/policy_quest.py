@@ -4875,6 +4875,11 @@ class QuestMixin(OpeningRouteMixin):
         quest = snapshot.quests[quest_id]
         return (info.type if info is not None else quest.type) == QUEST_TYPE_RANDOM
 
+    def _on_random_quest_floor(self, snapshot: Snapshot) -> bool:
+        """This floor's quest id is a runtime RANDOM quest (a fixed quest's is not)."""
+        quest_id = snapshot.floor_key[2]
+        return quest_id != 0 and quest_id in snapshot.quests and self._runtime_random_quest(snapshot, quest_id)
+
     def quest_leave_confirmation_owned(self, snapshot: Snapshot, key) -> bool:
         """Whether a stair key posted now owns 「本当にこの階を去りますか？」.
 

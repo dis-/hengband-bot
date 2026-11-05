@@ -276,8 +276,7 @@ def leave_key(policy, snapshot) -> str | None:
 def _once_floor(policy, snapshot) -> bool:
     """A fixed quest's floor with the ONCE flag: leaving it fails the quest for good."""
     quest_id = snapshot.floor_key[2]
-    if not quest_id or (quest_id in snapshot.quests
-                        and policy._runtime_random_quest(snapshot, quest_id)):
+    if not quest_id or policy._on_random_quest_floor(snapshot):
         return False
     return policy._fixed_quest_is_once(quest_id)
 
