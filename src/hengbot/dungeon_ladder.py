@@ -12,7 +12,8 @@ each rung's layer, what the layer returns over, where an owner rule stands in ea
 owner, and why a rung stands ahead of a rule.  A reorder is therefore a table diff in the
 same commit, for a reviewer to see.
 
-The table describes; nothing asks it to decide.  ``--print`` of the lint lists the rows.
+The table decides nothing about the order; the one thing read from it at run time is the
+list of rungs survival_preemption refuses.  ``--print`` of the lint lists the rows.
 
 Rows: ``entry`` goes through ``_town_producer_entry`` (named by its rung name), ``direct`` is
 called without it (so no gate of the entry applies), ``inline`` is a reason set in
@@ -26,6 +27,8 @@ from typing import NamedTuple
 class Rung(NamedTuple):
     name: str
     kind: str
+    preempted: bool = False  # survival_preemption refuses it while a hostile attacks
+    exempt: str = ""  # why it is not, for a rung the completeness check asks about
 
 
 class Layer(NamedTuple):
@@ -34,20 +37,36 @@ class Layer(NamedTuple):
     rungs: tuple[Rung, ...]
 
 
-def _rungs(kind, *names):
-    return tuple(Rung(name, kind) for name in names)
+def _rungs(kind, names, exempt):
+    return tuple(Rung(name, kind, False, exempt) for name in names)
 
 
-def E(*names):
-    return _rungs("entry", *names)
+def E(*names, exempt=""):
+    return _rungs("entry", names, exempt)
 
 
-def D(*names):
-    return _rungs("direct", *names)
+def D(*names, exempt=""):
+    return _rungs("direct", names, exempt)
 
 
-def I(*names):  # noqa: E743 (the row's kind, as E and D)
-    return _rungs("inline", *names)
+def I(*names, exempt=""):  # noqa: E743 (the row's kind, as E and D)
+    return _rungs("inline", names, exempt)
+
+
+def P(*names):
+    """Through the entry, and refused by survival_preemption while a hostile attacks."""
+    return tuple(Rung(name, "entry", True) for name in names)
+
+
+# Why a rung above the combat rungs may take a board on which a hostile attacks.
+ANSWERS_DANGER = "answers danger itself"
+FIGHTS = "attacks, or arms for the fight in contact"
+NO_ATTACKER = "its own test declines with a hostile about or a hit just taken"
+QUEST_FLOOR = "a quest floor: survival_preemption.preempts never refuses there"
+TOWN_ONLY = "town only: survival_preemption.preempts never refuses there"
+WALK_OUT = "the approved walk-out past breeders (survival_preemption's docstring)"
+# No rule says so: named for the owner's question (D21 asked of these, not answered).
+NOT_DECIDED = "walks or shoots while attacked: not refused, and no rule decided it"
 
 
 LADDER = (
@@ -62,45 +81,54 @@ LADDER = (
         *E("_esp_threat_hunt_key", "_summoner_ranged_kill_key"),
     )),
     Layer("emergency", "the summons rules, floor avoidance, combat and all below", (
-        *E("_emergency_item"),
-        *D("return_yield.quiet_recall_key", "me_powers.threat_key"),
+        *E("_emergency_item", exempt=ANSWERS_DANGER),
+        *D("return_yield.quiet_recall_key", exempt=NO_ATTACKER),
+        *D("me_powers.threat_key", exempt=ANSWERS_DANGER),
         *E("_item_destroying_breeder_leave_key", "_mana_food_survival_override_key",
-           "_paralyzer_prevention_key"),
+           "_paralyzer_prevention_key", exempt=ANSWERS_DANGER),
     )),
     Layer("floor-avoidance", "light, the approved quest floor, combat and all below", (
         *D("summon_response.key", "destruction_use.sight_trigger_key", "resist_potion.ladder_key",
-           "immobile_ranged_kill.key"),
-        *E("_immobile_summoner_key"),
-        *D("immobile_threat_memory.step_out_key"),
-        *E("_unseen_retreat_intercept_key", "_unseen_retreat_key",
-           "_detected_threat_preparation_key", "_return_to_town_key#1"),
+           exempt=ANSWERS_DANGER),
+        *D("immobile_ranged_kill.key", exempt=NOT_DECIDED),
+        *E("_immobile_summoner_key", exempt=NOT_DECIDED),
+        *D("immobile_threat_memory.step_out_key", exempt=NOT_DECIDED),
+        *E("_unseen_retreat_intercept_key", exempt=FIGHTS),
+        *E("_unseen_retreat_key", exempt=ANSWERS_DANGER),
+        *E("_detected_threat_preparation_key", exempt=NO_ATTACKER),
+        *P("_return_to_town_key#1"),
     )),
     Layer("light", "the approved quest floor, combat and all below", (
-        *E("_darkness_recovery_key"),
-        *D("me_powers.power_key:DARK"),
-        *E("_dark_locomotion_key"),
+        *E("_darkness_recovery_key", exempt=ANSWERS_DANGER),
+        *D("me_powers.power_key:DARK", exempt=NO_ATTACKER),
+        *P("_dark_locomotion_key"),
     )),
     Layer("opening", "the approved quest floor, combat and all below", (
-        *E("_opening_q34_town_key", "_dig_to_known_downstairs_key",
-           "_breakout_restore_weapon_key#1"),
+        *P("_opening_q34_town_key", "_dig_to_known_downstairs_key"),
+        *E("_breakout_restore_weapon_key#1", exempt=FIGHTS),
     )),
     Layer("plan-approved-quest", "every layer below, unconditionally on an approved quest "
           "floor: navigator.decide's return ends the ladder there", (
-        *E("_survival_gate_key#1"),
-        *I("refill-light", "quest:blocked:enter"),
-        *E("_chest_processing_key#1"),
-        *D("once_quest_recall.tick_rest_before_navigator"),
-        *E("navigator.decide"),
+        *E("_survival_gate_key#1", exempt=ANSWERS_DANGER),
+        *I("refill-light", "quest:blocked:enter", exempt=QUEST_FLOOR),
+        *P("_chest_processing_key#1"),
+        *D("once_quest_recall.tick_rest_before_navigator", exempt=QUEST_FLOOR),
+        *E("navigator.decide", exempt=QUEST_FLOOR),
     )),
     Layer("pre-combat", "the flee, melee and ranged rungs and all below", (
-        *E("_mining_loadout_rollback_key"),
-        *D("speed_dose.key"),
-        *E("_wilderness_survival_key", "_town_kill_mob_key"),
-        *I("confused:wait"),
-        *E("_breeder_breakthrough_key", "_choke_engagement_key", "_ranged_attack_key#1",
-           "_fruitless_disengage_key", "_mining_unbeatable_unique_abort_key",
-           "_unprofitable_unique_disengage_key", "_fundraising_combat_equipment_key",
-           "_finish_mining_floor", "_breeder_breakthrough_escape_key", "_melee_swarm_combat_key"),
+        *E("_mining_loadout_rollback_key", exempt=FIGHTS),
+        *D("speed_dose.key", exempt=QUEST_FLOOR),
+        *E("_wilderness_survival_key", exempt=ANSWERS_DANGER),
+        *E("_town_kill_mob_key", exempt=TOWN_ONLY),
+        *I("confused:wait", exempt=NO_ATTACKER),
+        *E("_breeder_breakthrough_key", exempt=WALK_OUT),
+        *E("_choke_engagement_key", "_ranged_attack_key#1", exempt=FIGHTS),
+        *E("_fruitless_disengage_key", "_mining_unbeatable_unique_abort_key",
+           "_unprofitable_unique_disengage_key", exempt=NOT_DECIDED),
+        *E("_fundraising_combat_equipment_key", exempt=FIGHTS),
+        *P("_finish_mining_floor"),
+        *E("_breeder_breakthrough_escape_key", exempt=WALK_OUT),
+        *E("_melee_swarm_combat_key", exempt=FIGHTS),
     )),
     Layer("combat", "safe-now maintenance, objectives, rest, descent and idle", (
         *E("_escape_by_stairs"),
@@ -142,34 +170,41 @@ LADDER = (
            "consumable_policy.use_now_key"),
     )),
     Layer("objectives", "rest, descent and idle; town and dungeon rungs interleaved", (
-        *E("_kill_quest_floor_recovery_key"),
+        *P("_kill_quest_floor_recovery_key"),
         *D("hunt_target.route_key"),
         *E("_home_disposal_processing_key", "_town_cancel_unsafe_recall_key"),
         *I("town:wait-recall-step-off", "town:wait-recall", "town:eat-before-travel",
            "town:seek-shelter", "town:recover"),
-        *E("_town_restore_weapon_key", "_fixed_quest_key#1", "_town_space_deposit_key",
-           "_victory_loot_key", "_conquest_loot_key", "_fixed_quest_key#2",
-           "_stat_restore_quaff_key", "_experience_potion_quaff_key", "_stat_gain_quaff_key",
+        *E("_town_restore_weapon_key"),
+        *P("_fixed_quest_key#1"),
+        *E("_town_space_deposit_key"),
+        *P("_victory_loot_key", "_conquest_loot_key", "_fixed_quest_key#2"),
+        *E("_stat_restore_quaff_key", "_experience_potion_quaff_key", "_stat_gain_quaff_key",
            "_town_order_step4_key#2"),
         *D("_dungeon_equipment_identify_key"),
-        *E("_fundraising_key#1", "_pack_pressure_identify_key", "_full_pack_destroy_key",
-           "_chest_processing_key#2", "_normal_loot_key#1", "_navigation_livelock_key",
-           "_return_to_town_key#2", "_worthless_junk_destroy_key", "_return_to_town_key#3",
-           "_home_catalogue_work_key"),
+        *P("_fundraising_key#1"),
+        *E("_pack_pressure_identify_key", "_full_pack_destroy_key"),
+        *P("_chest_processing_key#2", "_normal_loot_key#1"),
+        *E("_navigation_livelock_key"),
+        *P("_return_to_town_key#2"),
+        *E("_worthless_junk_destroy_key"),
+        *P("_return_to_town_key#3"),
+        *E("_home_catalogue_work_key"),
         *I("equipment-transaction:acquire-home-catalog"),
         *E("_shopping_approach_key#1", "_town_equipped_identification_key"),
         *D("_town_item_processing_key"),
         *E("_town_device_processing_key", "_heavy_curse_inscription_key",
            "_town_remove_curse_key", "_town_enchant_launcher_key",
-           "_town_random_teleport_suppression_key", "_equipment_transaction_town_key#2",
-           "_normal_loot_key#2"),
+           "_town_random_teleport_suppression_key", "_equipment_transaction_town_key#2"),
+        *P("_normal_loot_key#2"),
         *I("restore-lantern", "wield-light", "refill-light", "refill-light"),
         *E("_town_special_key", "_home_full_knowledge_key"),
         *I("shop:approach"),
         *E("_shopping_approach_key#2", "_town_destroy_key", "_town_overflow_destroy_key",
            "_town_special_key"),
         *I("home:atomic-withdraw-pending-hold"),
-        *E("_fundraising_key#2", "_released_restock_store_key", "_recall_restock_key"),
+        *P("_fundraising_key#2"),
+        *E("_released_restock_store_key", "_recall_restock_key"),
     )),
     Layer("rest", "descent and idle", (
         *E("_esp_threat_rest_key"),
@@ -181,7 +216,8 @@ LADDER = (
         *E("direct-descent"),
         *I("return:None"),
         *D("_avoid_engagement_key"),
-        *E("_descent_step", "_hunt_step#2"),
+        *P("_descent_step"),
+        *E("_hunt_step#2"),
         *I("clear-descent"),
         *E("_entrance_travel_key"),
     )),
@@ -192,11 +228,11 @@ LADDER = (
         *D("_stuck_escape_key", "sealed_pocket.after_destruction_key"),
         *E("oscillating-probe"),
         *I("probe", "search"),
-        *E("_explore_step#1"),
+        *P("_explore_step#1"),
         *I("breakout:seek-frontier"),
         *D("town_end_key", "_stuck_escape_key"),
         *I("search"),
-        *E("_immobile_breeder_giveup_key", "_explore_step#2"),
+        *P("_immobile_breeder_giveup_key", "_explore_step#2"),
         *I("explore"),
         *E("_immobile_summoner_exit_key", "frontier-probe"),
         *I("probe", "search"),
@@ -312,6 +348,18 @@ OWNER_RULES = (
             "_paralyzer_prevention_key": "the blow that ends the game: survival",
         }, ("navigator.decide",)),
 )
+
+
+# From the emergency ladder to the combat rungs: every rung here is refused while a hostile
+# attacks, or says why not.  The survival rule of D21, as a check instead of a hand list.
+SURVIVAL_CHECKED_LAYERS = (
+    "emergency", "floor-avoidance", "light", "opening", "plan-approved-quest", "pre-combat",
+)
+
+
+def preempted_names() -> frozenset[str]:
+    """survival_preemption.PREEMPTED_RUNGS: the rungs its gate refuses."""
+    return frozenset(rung.name for rung in rows() if rung.preempted)
 
 
 def rows() -> tuple[Rung, ...]:

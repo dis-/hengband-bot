@@ -248,6 +248,22 @@ def _rule_findings(names) -> list[str]:
     return findings
 
 
+def _preemption_findings(layers) -> list[str]:
+    """Each rung above the combat rungs is refused while attacked, or says why not."""
+    findings = []
+    for layer in layers:
+        for rung in layer.rungs:
+            if rung.preempted and rung.kind != 'entry':
+                findings.append(f'{rung.name}: preempted but {rung.kind}: the gate is in the entry')
+            if rung.preempted and rung.exempt:
+                findings.append(f'{rung.name}: both preempted and exempt')
+            if (layer.name in ladder.SURVIVAL_CHECKED_LAYERS
+                    and not rung.preempted and not rung.exempt):
+                findings.append(f'{rung.name}: above the combat rungs, neither preempted '
+                                'nor exempt with a reason')
+    return findings
+
+
 def analyze(policy_source: str, plan_sources: dict[str, str]) -> list[str]:
     """Everything the table says against these sources; [] when they agree."""
     table = ladder.rows()
@@ -259,6 +275,7 @@ def analyze(policy_source: str, plan_sources: dict[str, str]) -> list[str]:
     if list(ladder.AFTER_DECIDE) != after:
         findings.append(f'after _decide: the table says {list(ladder.AFTER_DECIDE)}, _choose_key has {after}')
     findings.extend(_rule_findings([rung.name for rung in table]))
+    findings.extend(_preemption_findings(ladder.LADDER))
     for plan in ladder.FLOOR_PLANS:
         said = [tuple(name for name, _ in branch.rungs) for branch in plan.branches]
         found = plan_branches(plan_sources[plan.module])

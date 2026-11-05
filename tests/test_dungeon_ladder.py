@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import dungeon_ladder_lint as lint  # noqa: E402
-from hengbot import dungeon_ladder as ladder  # noqa: E402
+from hengbot import dungeon_ladder as ladder, survival_preemption  # noqa: E402
 
 
 def analyze_with(policy=None, plan=None):
@@ -116,6 +116,27 @@ class OwnerRulePlacesTest(unittest.TestCase):
         findings = lint._rule_findings(['navigator.decide', *names])
         self.assertTrue(any('navigator.decide returns over the survival rule' in finding
                             for finding in findings), findings)
+
+
+class PreemptionCompletenessTest(unittest.TestCase):
+    def test_the_gate_refuses_what_the_table_says(self):
+        self.assertEqual(survival_preemption.PREEMPTED_RUNGS, ladder.preempted_names())
+        self.assertLessEqual(survival_preemption.PREEMPTED_RUNGS,
+                             {rung.name for rung in ladder.rows()})
+
+    def test_a_rung_above_combat_with_no_answer_fails(self):
+        layer = ladder.Layer("pre-combat", "", (ladder.Rung("_new_key", "entry"),))
+        self.assertEqual(lint._preemption_findings([layer]), [
+            '_new_key: above the combat rungs, neither preempted nor exempt with a reason'])
+
+    def test_a_direct_rung_cannot_be_preempted(self):
+        layer = ladder.Layer("idle", "", (ladder.Rung("mod.key", "direct", True),))
+        self.assertEqual(lint._preemption_findings([layer]), [
+            'mod.key: preempted but direct: the gate is in the entry'])
+
+    def test_preempted_and_exempt_fails(self):
+        layer = ladder.Layer("idle", "", (ladder.Rung("_x", "entry", True, "why"),))
+        self.assertEqual(lint._preemption_findings([layer]), ['_x: both preempted and exempt'])
 
 
 class ReturnsOverTest(unittest.TestCase):
