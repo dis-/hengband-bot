@@ -17,8 +17,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hengbot import quest_find_exit, quest_room_sweep, summon_response
-from hengbot.model import SV_POTION_CURE_CRITICAL, TVAL_POTION, _parse_items, parse_snapshot
+from hengbot import quest_find_exit, quest_room_light, quest_room_sweep, summon_response
+from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, TVAL_POTION, _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
 from tests import test_me_nokey_1031_recorded as nokey
@@ -46,6 +46,10 @@ QUIET_AT_THE_END = 11653365
 SV_POTION_CURING = 61
 GOAT, BALROG = "メンデスの山羊", "レッサー・バルログ"
 QUYL = 480
+# The first cast from the dark of the floor, at [6,1]: the Scroll of Light.
+FIRST_UNSEEN_CAST = 11651515
+# [1,18], 何か and 撲殺の悪魔 both casting, 啓蒙の薬 picked up 250 ticks before.
+POTION_PICKED_UP_IN_THE_DARK = 11653256
 
 
 def _new_policy():
@@ -90,6 +94,22 @@ class Q25RecordedTest(nokey.PostedKey):
         raw, key, reason, sequence = answer(turn)
         self.post(SimpleNamespace(last_reason=reason, _decision_sequence=sequence), raw, key, screens=[
             prompt_screen(text) for command, text in COMMAND_PROMPTS.items() if key.startswith(command)])
+
+    def test_the_first_cast_from_the_dark_reads_the_light(self):
+        raw, key, reason, _ = answer(FIRST_UNSEEN_CAST)
+        self.assertEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+        slot = next(item["slot"] for item in raw["inventory"]
+                    if item["tval"] == q25.TVAL_SCROLL and item["sval"] == q25.SV_LIGHT)
+        self.assertEqual(key, "r" + slot)
+        self.post_recorded(FIRST_UNSEEN_CAST)
+
+    def test_the_potion_picked_up_on_the_floor_lights_it_at_the_next_cast(self):
+        raw, key, reason, _ = answer(POTION_PICKED_UP_IN_THE_DARK)
+        self.assertEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+        slot = next(item["slot"] for item in raw["inventory"]
+                    if item["tval"] == TVAL_POTION and item["sval"] == SV_POTION_ENLIGHTENMENT)
+        self.assertEqual(key, "q" + slot)
+        self.post_recorded(POTION_PICKED_UP_IN_THE_DARK)
 
     def test_two_unseen_casts_read_the_teleport_in_the_crowd(self):
         raw, key, reason, _ = answer(SECOND_UNSEEN_CAST)
@@ -210,6 +230,101 @@ class Q18ConstructedTest(unittest.TestCase):
         key, reason, _ = q18.decide(raw)
         self.assertEqual(reason, summon_response.CASTER_SHOT_REASON)
         self.assertTrue(key.startswith("f"), key)
+
+
+class Q25DarkRoomTest(unittest.TestCase):
+    """Owner 2026-11-05 「光の巻物か啓蒙の薬で適宜照らす」.  DECLARED CONSTRUCTED: q25's boards, every
+    cell known and drawn dark as the module's palette has it; ``lit`` draws them lit."""
+
+    IN_THE_HALL = (5, 8)
+    CAST = "何かが恐ろしげな幻覚を作り出した。"
+
+    @staticmethod
+    def lit(raw):
+        for row in raw["grid_map"]["palette"]:
+            row[1] = 0
+        return raw
+
+    def cast_board(self, position=IN_THE_HALL, *, message=CAST, **kwargs):
+        raw = q25.board(position, speed=0, **kwargs)
+        raw["messages"] = [message]
+        return raw
+
+    @staticmethod
+    def with_potion(raw, count=1):
+        potion = dict(q25._stack(q25.TVAL_POTION, SV_POTION_ENLIGHTENMENT, count), slot="p")
+        raw["inventory"].append(potion)
+        return raw
+
+    def test_a_cast_from_the_dark_is_answered_by_the_scroll(self):
+        key, reason, _ = q25.decide(self.cast_board(), stage=4)
+        self.assertEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+        self.assertTrue(key.startswith("r"), key)
+
+    def test_the_absorbed_light_casts_in_its_place(self):
+        with patch("hengbot.policy_quest.carry_cast_key", return_value="mAb"):
+            key, reason, _ = q25.decide(self.cast_board(light=0), stage=4)
+        self.assertEqual(key, "mAb")
+        self.assertTrue(reason.startswith(quest_room_light.UNSEEN_LIGHT_REASON), reason)
+
+    def test_the_potion_goes_before_the_scroll(self):
+        key, reason, _ = q25.decide(self.with_potion(self.cast_board()), stage=4)
+        self.assertEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+        self.assertTrue(key.startswith("q"), key)
+
+    def test_a_room_drawn_lit_is_not_read(self):
+        _key, reason, _ = q25.decide(self.lit(self.cast_board()), stage=4)
+        self.assertNotEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+
+    def test_once_a_room_then_the_plan_goes_on(self):
+        raw = self.cast_board()
+        policy = q25.new_policy(raw)
+        q25._set_stage(policy, raw, 4)
+        q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.UNSEEN_LIGHT_REASON)
+        q25.choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, quest_room_light.UNSEEN_LIGHT_REASON)
+
+    def test_seen_lit_and_dark_again_it_is_read_again(self):
+        raw = self.cast_board()
+        policy = q25.new_policy(raw)
+        q25._set_stage(policy, raw, 4)
+        q25.choose(policy, raw)
+        q25.choose(policy, self.lit(copy.deepcopy(raw)))
+        raw["turn"] += 100
+        q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.UNSEEN_LIGHT_REASON)
+
+    def test_survival_comes_first(self):
+        raw = self.cast_board(hp=300, monsters=[q25.monster(q25.SPECTRE, 5, 9)])
+        _key, reason, _ = q25.decide(raw, stage=4)
+        self.assertEqual(reason, quest_room_sweep.TELEPORT_REASON)
+
+    def test_what_is_no_cast_lights_nothing(self):
+        for line in ("何かが足下に転がってきた。", "何かが聞こえた。", "何かはうめいた。"):
+            _key, reason, _ = q25.decide(self.cast_board(message=line), stage=4)
+            self.assertNotEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON, line)
+
+    def test_a_blind_player_lights_nothing(self):
+        raw = self.with_potion(self.cast_board(ccw=0))
+        raw["player"]["status"]["blind"] = True
+        _key, reason, _ = q25.decide(raw, stage=4)
+        self.assertNotEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+
+    def test_a_floor_without_the_field_keeps_its_old_answer(self):
+        with patch.dict(q25.PLAN, {"light_dark_room": False}):
+            _key, reason, _ = q25.decide(self.cast_board(), stage=4)
+        self.assertNotEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+
+    def test_a_lit_cell_is_no_place_for_the_unseen_attacker(self):
+        cell = (5, 12)
+        raw = self.cast_board()
+        snapshot = parse_snapshot(copy.deepcopy(self.lit(raw)), q25.RACES)
+        self.assertTrue(quest_room_light.drawn_lit(snapshot, cell))
+        policy = q25.new_policy(raw)
+        navigator = quest_room_sweep._navigator(policy, snapshot, 25)
+        with patch.object(ConservativePolicy, "_recent_reverse_direction", lambda self, position: (0, -1)):
+            self.assertEqual(quest_room_sweep._unseen_attacker_cells(policy, snapshot, navigator), set())
 
 
 class Q25LeaveOnAQuietBoardTest(unittest.TestCase):

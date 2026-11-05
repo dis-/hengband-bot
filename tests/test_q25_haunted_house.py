@@ -460,6 +460,8 @@ class Q25QuylLastTest(unittest.TestCase):
 
     def test_hit_by_the_unseen_with_only_a_quyl_in_view_it_is_not_shot(self):
         raw = self.seen()
+        # DECLARED: no Light here.  What a dark room does is Q25DarkRoomTest's.
+        raw["inventory"] = [item for item in raw["inventory"] if (item["tval"], item["sval"]) != (TVAL_SCROLL, SV_LIGHT)]
         policy = new_policy(raw)
         _set_stage(policy, raw, 4)
         choose(policy, raw)
@@ -807,8 +809,8 @@ class Q25UnseenAttackerTest(unittest.TestCase):
 
     HIT = "何かがアイス・ボールの呪文を唱えた。"
 
-    def hit_after_walking(self, start, end, *, hp=700, opened=(), **kwargs):
-        raw = board(start, speed=0, **kwargs)
+    def hit_after_walking(self, start, end, *, hp=700, opened=(), light=0, **kwargs):
+        raw = board(start, speed=0, light=light, **kwargs)
         for door in opened:
             open_door(raw, door)
         policy = new_policy(raw)
@@ -854,7 +856,7 @@ class Q25UnseenAttackerTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, CLOSE_REASON)
 
     def test_after_a_teleport_the_direction_is_unknown_and_the_plan_walks(self):
-        raw = board((3, 24), speed=0)
+        raw = board((3, 24), speed=0, light=0)
         policy = new_policy(raw)
         _set_stage(policy, raw, 1)
         choose(policy, raw)
@@ -908,6 +910,10 @@ class Q25WarningRefusedStepTest(unittest.TestCase):
 
     def after_the_prompt(self, name, *, stage=None, supplies=True, monsters=()):
         walk, prompt = copy.deepcopy(self.BOARDS[name]["walk"]), copy.deepcopy(self.BOARDS[name]["prompt"])
+        # DECLARED: no Light on these boards.  What a dark room does is Q25DarkRoomTest's.
+        for raw in (walk, prompt):
+            raw["inventory"] = [item for item in raw["inventory"]
+                                if (item["tval"], item["sval"]) != (TVAL_SCROLL, SV_LIGHT)]
         if not supplies:
             for raw in (walk, prompt):
                 raw["inventory"] = [item for item in raw["inventory"] if item["tval"] != TVAL_SCROLL]

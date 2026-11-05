@@ -13,6 +13,7 @@ from hengbot.model import (
     STORE_TEMPLE,
     STORE_WEAPON,
     SPELLBOOK_TVALS,
+    SV_POTION_ENLIGHTENMENT,
     SV_POTION_RESIST_COLD,
     SV_POTION_RESTORE_EXP,
     SV_POTION_RESTORE_STR,
@@ -676,6 +677,8 @@ QUEST_SCROLL_SVALS = {
 QUEST_POTION_SVALS = {
     "restore_exp": SV_POTION_RESTORE_EXP,
     "restore_str": SV_POTION_RESTORE_STR,
+    # Owner 2026-11-05: engagement_plan.room_sweep.opening_quaff; no required carry.
+    "enlightenment": SV_POTION_ENLIGHTENMENT,
 }
 
 Q2_BREEDER_RACES = frozenset({86, 153, 202, 252, 213})

@@ -3,8 +3,8 @@
 The data (QUEST_25 gives the reasons of its cells):
 
  * ``stands``: the cells walked in order; ``meet_turns`` waits there for what comes;
-   ``read_light`` lights the room from there, once a round, enemy or none (the shared
-   ``_quest_light_key``: a Scroll of Light, or class 16's absorbed Light as on Q2);
+   ``read_light`` lights the room from there, once a round, enemy or none, unless the board
+   shows it lit already (quest_room_light);
  * ``last_targets``: what is left until every stand has been walked, each with its
    ``race``, ``cell``, the ``stand`` it is shot from and the closed ``door``, if any, that
    the stand opens first;
@@ -21,6 +21,7 @@ The data (QUEST_25 gives the reasons of its cells):
    shot or a blow; ``rest_below_ratio``: rest below this on a quiet floor;
  * ``max_rounds``: full walks with the quest still open before the plan stops by name;
  * ``unseen_attacker``: "cover_or_close", see below;
+ * ``light_dark_room``: quest_room_light;
  * ``exit_when_out_of_healing``: see below.
 
 Q25 owner 2026-11-04.  「手のドルジは最後に回して戻って撃つ」: everything else first, then the
@@ -75,13 +76,21 @@ breeder stalemate, starvation) leaves the board to them.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, me_ranged_first, once_quest_recall, quest_exposure, quest_find_exit, summon_response, unseen_strike
+from hengbot import (
+    combat_answer,
+    me_ranged_first,
+    once_quest_recall,
+    quest_exposure,
+    quest_find_exit,
+    quest_room_light,
+    summon_response,
+    unseen_strike,
+)
 from hengbot.item_reservation import reserved_item_command
-from hengbot.model import Position, TVAL_POTION
+from hengbot.model import Position
 from hengbot.policy_constants import (
     ITEM_DESTROYING_BREEDER_STAIR_DISTANCE,
     PANIC_HP_RATIO,
-    QUEST_POTION_SVALS,
     UP_STAIRS_KEY,
     WAIT_KEY,
 )
@@ -94,7 +103,7 @@ APPROACH_REASON = "quest-strategy:sweep-approach"
 TELEPORT_REASON = "quest-strategy:sweep-teleport"
 RESTORE_REASON = "quest-strategy:sweep-restore"
 NOTHING_LEFT_REASON = "quest:blocked:sweep-nothing-left"
-LIGHT_REASON = "quest-strategy:sweep-light"
+LIGHT_REASON = quest_room_light.LIGHT_REASON
 EXIT_WALK_REASON = "quest-strategy:sweep-exit-walk"
 EXIT_REASON = "quest-strategy:sweep-exit"
 COVER_REASON = "quest-strategy:sweep-cover"
@@ -334,12 +343,13 @@ def _next_stop(navigator, plan) -> None:
 
 
 def _light_key(policy, snapshot, navigator, plan) -> str | None:
-    """On a ``read_light`` stand, once a round, when the light can be read by."""
+    """On a ``read_light`` stand, once a round, when the room is dark."""
     here = [snapshot.player.position.y, snapshot.player.position.x]
-    if (navigator.sweep_round in navigator.sweep_lit_rounds or not policy._can_read_scrolls(snapshot)
+    if (navigator.sweep_round in navigator.sweep_lit_rounds
             or not any(stop["cell"] == here and stop.get("read_light") for stop in plan["stands"])):
         return None
-    key = policy._quest_light_key(snapshot, LIGHT_REASON)
+    key = quest_room_light.light_room_key(
+        policy, snapshot, navigator, _open_terrain(navigator, snapshot), LIGHT_REASON)
     if key is not None:
         navigator.sweep_lit_rounds = navigator.sweep_lit_rounds | {navigator.sweep_round}
     return key
@@ -411,6 +421,7 @@ def _unseen_attacker_cells(policy, snapshot, navigator) -> set[tuple[int, int]]:
             if kind in quest_exposure.PROJECTING_KINDS
             and (cell[0] - here[0]) * behind[0] + (cell[1] - here[1]) * behind[1] < 0
             and not _in_light_and_line(navigator, snapshot, here, cell)
+            and not quest_room_light.drawn_lit(snapshot, cell)
             and quest_exposure.game_distance(here, cell) <= UNSEEN_ATTACK_SIGHT
             and quest_exposure.projectable(_open_terrain(navigator, snapshot), cell, here)}
 
@@ -562,12 +573,16 @@ def _restore(policy, snapshot) -> str | None:
     """A quiet board: what the drains took, by the potions the plan carries for them."""
     for name, drained in _RESTORES:
         if drained(snapshot.player):
-            potion = policy._first_item(snapshot, lambda item: item.tval == TVAL_POTION and item.aware
-                                        and item.sval == QUEST_POTION_SVALS[name])
+            potion = quest_room_light.carried_potion(policy, snapshot, name)
             if potion is not None:
                 policy.last_reason = RESTORE_REASON
                 return reserved_item_command(policy, snapshot, "quaff", potion)
     return None
+
+
+def _unseen_light(policy, snapshot, navigator, plan, board) -> str | None:
+    return quest_room_light.unseen_light_key(
+        policy, snapshot, navigator, plan, _open_terrain(navigator, snapshot), board.hit_by_unseen)
 
 
 def key(policy, snapshot) -> str | None:
@@ -585,7 +600,8 @@ def key(policy, snapshot) -> str | None:
     if not board.enemy:
         navigator.sweep_enemy_turns = 0
         return (
-            summon_response.key(policy, snapshot)
+            _unseen_light(policy, snapshot, navigator, plan, board)
+            or summon_response.key(policy, snapshot)
             or _restore(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
             or quest_find_exit._rest(policy, snapshot, plan, board)
@@ -599,6 +615,8 @@ def key(policy, snapshot) -> str | None:
         or _below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
+        # Before the unseen rule and the summons: the light may show them their caster.
+        or _unseen_light(policy, snapshot, navigator, plan, board)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
         or summon_response.key(policy, snapshot)
         or _light_key(policy, snapshot, navigator, plan)

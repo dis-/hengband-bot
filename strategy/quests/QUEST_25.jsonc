@@ -35,6 +35,8 @@
       "max_rounds": 100,
       // 見えない敵に撃たれたら（2026-11-05 ユーザー決定）。文は engagement_plan.formation の末尾。
       "unseen_attacker": "cover_or_close",
+      // 見えない敵に撃たれたり呪文を受けたりして今の部屋が暗ければ、生存の処置の次に照らす（2026-11-05 ユーザー決定「Q25で敵が見えないなら部屋が暗いということのはずなので、光の巻物か啓蒙の薬で適宜照らすことを要求する」）。quest_room_light.py。
+      "light_dark_room": true,
       "exit_when_out_of_healing": true
     },
     "max_simultaneous_melee": 1,

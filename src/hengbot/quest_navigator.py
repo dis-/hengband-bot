@@ -91,6 +91,7 @@ class QuestFloorNavigator:
     sweep_lit_rounds = frozenset()
     sweep_last_seen = {}  # never mutated, replaced whole (quest_room_sweep)
     sweep_cover_taken = frozenset()
+    sweep_light_read = frozenset()  # rooms read and not yet seen lit (quest_room_light)
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -132,6 +133,7 @@ class QuestFloorNavigator:
         self.sweep_lit_rounds = frozenset()
         self.sweep_last_seen = {}
         self.sweep_cover_taken = frozenset()
+        self.sweep_light_read = frozenset()
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
         """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.
