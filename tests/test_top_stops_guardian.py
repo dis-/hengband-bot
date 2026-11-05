@@ -9,19 +9,25 @@ from dataclasses import replace
 from pathlib import Path
 
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot import guardian_rumor
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
-from hengbot.model import (Snapshot, Position, PLAYER_CLASS_WARRIOR, TVAL_SCROLL,
+from hengbot.model import (Snapshot, Position, QuestState, PLAYER_CLASS_WARRIOR, TVAL_SCROLL,
     SV_SCROLL_WORD_OF_RECALL, SV_SCROLL_TELEPORT, TVAL_POTION,
     SV_POTION_CURE_CRITICAL, TVAL_FOOD, TVAL_FLASK, TVAL_SWORD, TVAL_LITE,
     SV_LITE_LANTERN, TVAL_STAFF, SV_STAFF_IDENTIFY)
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import EMPTY_DIVE_LIMIT, RUMOR_COST, RUMOR_GOLD_RESERVE, WAIT_KEY
+from hengbot.policy_constants import (EMPTY_DIVE_LIMIT, QUEST_STATUS_FINISHED, RUMOR_COST,
+    RUMOR_GOLD_RESERVE, WAIT_KEY, required_depth_gates)
 from policy_fixtures import player, grid, item, set_completed_equipment_optimization
 import tests.test_input_executor as executor_harness
 from tests.test_input_executor import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-guardian-projection.json"
 EDIT = Path("C:/hengband/lib/edit")
+# DECLARED CONSTRUCTED: the projected life-363 board with quest rows and Q2 not
+# among them, the state in which 11-05 shuts Angband (random_quest_hold).
+BEFORE_Q2 = {34: QuestState(34, status=QUEST_STATUS_FINISHED)}
+AFTER_Q2 = {**BEFORE_Q2, 2: QuestState(2, status=QUEST_STATUS_FINISHED)}
 
 
 class TopStopsGuardianTest(executor_harness.ProductionHarness):
@@ -207,3 +213,207 @@ class TopStopsGuardianTest(executor_harness.ProductionHarness):
         self.assertEqual(policy._target_dungeon_id, 3)
         self.assertEqual(policy.last_reason, "town:repetition-depart:recall")
         self.send(board, key, policy.last_reason, recall=True)
+
+    def bounced_before_q2(self):
+        """Owner 2026-11-05 「噂で別のダンジョンを開く」: the board, armed by its first key."""
+        policy, board = self.scene()
+        board = replace(board, quests=BEFORE_Q2)
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:unsafe-recall-fallback")
+        self.assertIsNone(policy._alternate_dungeon)
+        self.assertEqual(policy._target_dungeon_id, 2)
+        self.assertTrue(guardian_rumor.pending(policy))
+        self.send(board, key, policy.last_reason)
+        return policy, replace(board, turn=board.turn + 1)
+
+    @staticmethod
+    def opened(board, *rows):
+        """Source-derived: a rumor sets max_level to min_depth, listed in id order."""
+        depths = {**board.dungeon_recall_depths, **dict(rows)}
+        return replace(board, turn=board.turn + 1, entered_dungeon_ids=tuple(sorted(depths)),
+            dungeon_recall_depths=depths, angband_recall_unlocked=1 in depths)
+
+    @staticmethod
+    def moved(board, dx, **player):
+        here = board.player.position
+        return replace(board, turn=board.turn + 1, player=replace(board.player,
+            position=Position(here.y, here.x + dx), **player))
+
+    def test_before_q2_bounce_reads_rumors_until_a_dungeon_opens_then_recalls_there(self):
+        policy, board = self.bounced_before_q2()
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("6", "town:rumor"))
+        self.send(board, key, policy.last_reason)
+        board = self.moved(board, 1)
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("6" + "u\r" * 40 + "\x1b", "town:rumor-batch"))
+        self.send(board, key, policy.last_reason, rumor=True)
+        # The batch opened nothing the pick takes: the character stands on the
+        # inn, and two more batches run although only its gold has changed.
+        for batch in range(2):
+            board = self.moved(board, 1, gold=board.player.gold - RUMOR_COST * 40)
+            key = policy.choose_key(board)
+            self.assertEqual((str(key), policy.last_reason), ("4", "town:entrance-step-off:town:rumor"))
+            self.send(board, key, policy.last_reason)
+            board = self.moved(board, -1)
+            key = policy.choose_key(board)
+            self.assertEqual(policy.last_reason, "town:rumor-batch", batch)
+            self.send(board, key, policy.last_reason, rumor=True)
+        self.assertEqual(policy._target_dungeon_id, 2)
+        board = self.opened(board, (3, 10))
+        key = policy.choose_key(board)
+        self.assertFalse(guardian_rumor.pending(policy))
+        self.assertEqual(policy._alternate_dungeon, 3)
+        self.assertEqual(policy._target_dungeon_reason, guardian_rumor.TARGET_REASON)
+        self.assertEqual((str(key), policy.last_reason), ("rab", "town:recall-to-alt-dungeon"))
+        self.send(board, key, policy.last_reason, recall=True)
+
+    def test_before_q2_angband_forest_or_chameleon_opening_keeps_reading(self):
+        for dungeon, depth in ((1, 1), (7, 15), (18, 30)):
+            with self.subTest(dungeon=dungeon):
+                policy, board = self.bounced_before_q2()
+                board = self.opened(self.moved(board, 1), (dungeon, depth))
+                key = policy.choose_key(board)
+                self.assertTrue(guardian_rumor.pending(policy))
+                self.assertIsNone(policy._alternate_dungeon)
+                self.assertEqual(policy._target_dungeon_id, 2)
+                self.assertEqual(policy.last_reason, "town:rumor-batch")
+                self.send(board, key, policy.last_reason, rumor=True)
+
+    def test_before_q2_without_funds_the_set_opens_once_and_stops_nowhere(self):
+        policy, board = self.bounced_before_q2()
+        board = self.moved(board, 1, gold=RUMOR_GOLD_RESERVE + RUMOR_COST - 1)
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:rumor-needs-funds")
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        self.send(board, key, policy.last_reason)
+        # The funds wait does not reopen the shops that could not sell the kit.
+        policy._town_store_attempted[6] = board.turn
+        board = replace(board, turn=board.turn + 1)
+        policy.choose_key(board)
+        self.assertIn(6, policy._town_store_attempted)
+        # DECLARED CONSTRUCTED: the shops of the kit's plan were visited and could
+        # not sell it.  The cycle break settles the set instead of the funds wait.
+        board = replace(board, turn=board.turn + 1)
+        policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:rumor-needs-funds")
+        for store in policy._town_errand_plan.stops:
+            policy._town_store_attempted[store] = board.turn
+        policy._retire_town_errand_plan_for_rebuild()
+        board = replace(board, turn=board.turn + 1)
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "fundraise:fallback-exhausted-plan")
+        self.assertEqual(str(key), WAIT_KEY)
+        self.assertTrue(guardian_rumor.pending(policy))
+        self.send(board, key, policy.last_reason)
+
+    def test_before_q2_the_gold_a_set_earned_is_read_at_once(self):
+        policy, board = self.bounced_before_q2()
+        policy._fundraising_mode = "prepare"
+        board = self.moved(board, 1, gold=RUMOR_GOLD_RESERVE + RUMOR_COST * 2)
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("6" + "u\r" * 2 + "\x1b", "town:rumor-batch"))
+
+    def test_before_q2_supplies_do_not_hold_the_reads(self):
+        policy, board = self.bounced_before_q2()
+        policy._town_departure_ready = lambda _snapshot: False
+        key = policy.choose_key(board)
+        self.assertEqual((str(key), policy.last_reason), ("6", "town:rumor"))
+
+    def test_before_q2_forced_departure_is_released_for_the_reads(self):
+        policy, board = self.scene()
+        board = replace(board, quests=BEFORE_Q2)
+        policy._town_blocked_reason = "repetition"
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:unsafe-recall-fallback")
+        self.assertIsNone(policy._town_blocked_reason)
+        self.send(board, key, policy.last_reason)
+        key = policy.choose_key(replace(board, turn=board.turn + 1))
+        self.assertEqual(policy.last_reason, "town:rumor")
+
+    def test_before_q2_observation_valve_arms_the_reads_instead_of_the_stop(self):
+        policy, board = self.scene()
+        policy._target_empty_dives = EMPTY_DIVE_LIMIT
+        policy._guardian_bounce_dives = EMPTY_DIVE_LIMIT
+        key = policy.choose_key(replace(board, quests=BEFORE_Q2))
+        self.assertTrue(guardian_rumor.pending(policy))
+        self.assertIsNone(policy._town_blocked_reason)
+        self.assertEqual(policy.last_reason, "town:rumor")
+        self.assertEqual(str(key), "6")
+
+    def test_before_q2_no_dungeon_left_to_open_stays_the_visible_stop(self):
+        # DECLARED CONSTRUCTED: every other dungeon a rumor can open is refused by
+        # the static facts, so no read can help.
+        policy, board = self.scene()
+        for did in (3, 4, 12, 14):
+            policy._dungeon_knowledge[did] = replace(
+                policy._dungeon_knowledge[did], flags=frozenset({"NO_MELEE"}))
+        board = replace(board, quests=BEFORE_Q2)
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
+        self.assertFalse(guardian_rumor.pending(policy))
+        self.assertEqual(str(key), WAIT_KEY)
+        self.send(board, key, policy.last_reason)
+
+    def test_before_q2_rumors_cannot_open_a_dungeon_entered_deeper_than_30(self):
+        # DECLARED CONSTRUCTED: with every ability a deeper dungeon's landing would
+        # be taken, but the inn's rumor never reads a dungeon entered below 30F.
+        policy, board = self.scene()
+        for did in (3, 4, 12, 14):
+            policy._dungeon_knowledge[did] = replace(
+                policy._dungeon_knowledge[did], flags=frozenset({"NO_MELEE"}))
+        board = replace(board, quests=BEFORE_Q2, player=replace(board.player, abilities=frozenset(
+            required_depth_gates(49))))
+        policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
+
+    def test_before_q2_a_landing_the_kit_may_not_arrive_on_is_not_worth_reading_for(self):
+        # DECLARED CONSTRUCTED: left are the Castle (20F) and the Mountain (25F),
+        # and the character has none of the abilities their landings require.
+        policy, board = self.scene()
+        for did in (3, 4):
+            policy._dungeon_knowledge[did] = replace(
+                policy._dungeon_knowledge[did], flags=frozenset({"NO_MELEE"}))
+        board = replace(board, quests=BEFORE_Q2,
+            player=replace(board.player, abilities=frozenset()))
+        policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
+
+    def test_before_q2_the_reads_are_only_settled_in_town(self):
+        # DECLARED CONSTRUCTED: the mining set's floor, on a kit that reads passable.
+        policy, board = self.bounced_before_q2()
+        policy._guardian_fight_viable = lambda _snapshot, _info: True
+        policy.choose_key(replace(board, town_flag=False, floor_key=(2, 1, 0)))
+        self.assertTrue(guardian_rumor.pending(policy))
+
+    def test_before_q2_reads_end_in_the_stop_when_nothing_is_left_to_open(self):
+        policy, board = self.bounced_before_q2()
+        for did in (3, 4, 12, 14):
+            policy._dungeon_knowledge[did] = replace(
+                policy._dungeon_knowledge[did], flags=frozenset({"NO_MELEE"}))
+        policy.choose_key(board)
+        self.assertFalse(guardian_rumor.pending(policy))
+        self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
+
+    def test_before_q2_no_way_to_the_inn_is_the_visible_stop(self):
+        # DECLARED CONSTRUCTED: no route from the goal search.
+        policy, board = self.bounced_before_q2()
+        policy._nearest_goal_step = lambda _snapshot, _predicate: None
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
+        self.assertFalse(guardian_rumor.pending(policy))
+        self.send(board, key, policy.last_reason)
+
+    def test_q2_resolved_ends_the_reads_for_angband(self):
+        policy, board = self.bounced_before_q2()
+        policy.choose_key(replace(board, quests=AFTER_Q2))
+        self.assertFalse(guardian_rumor.pending(policy))
+        self.assertEqual(policy._alternate_dungeon, 1)
+        self.assertTrue(policy._rumor_unlock_pending)
+
+    def test_a_passable_guardian_ends_the_reads(self):
+        policy, board = self.bounced_before_q2()
+        policy._guardian_fight_viable = lambda _snapshot, _info: True
+        policy.choose_key(board)
+        self.assertFalse(guardian_rumor.pending(policy))
+        self.assertEqual(policy._target_dungeon_id, 2)

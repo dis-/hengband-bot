@@ -39,6 +39,7 @@
   "_fixed_quest_readiness": "Quest readiness assessment; not item operation identities.",
   "_fixed_quest_reward_pending": "Quest ID awaiting reward entry; not an item identity.",
   "_fundraising_mode": "Selected activity mode; concrete selected items use operation sources.",
+  "_guardian_rumor_bounced": "Rumor destination flag; no selected item identity.",
   "_heavy_cursed_items": "Observed negative curse eligibility signatures; not an operation queue.",
   "_home_atomic_withdraw_index": "Catalogue page address; item identity is in _home_atomic_withdraw_pending.",
   "_home_atomic_withdraw_procurement_class": "Procurement classification; identity is in _home_atomic_withdraw_pending.",

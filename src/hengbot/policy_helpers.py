@@ -559,10 +559,7 @@ class PolicyHelpersMixin:
         best: DungeonInfo | None = None
         for did in snapshot.entered_dungeon_ids:
             info = self._dungeon_knowledge.get(did)
-            if info is None or not exploration_destination_allowed(did) or did in (
-                DUNGEON_ANGBAND,
-                DUNGEON_CHAMELEON_CAVE,
-            ):
+            if info is None or not self._fallback_destination_allowed(did):
                 continue
             if did == DUNGEON_YEEK_CAVE and not allow_yeek_cave:
                 continue
@@ -578,8 +575,6 @@ class PolicyHelpersMixin:
                 continue  # the one we are leaving — never re-pick it, always step down
             if did == guardian_bounced_dungeon:
                 continue  # the guardian valve leaves the bounced dungeon too
-            if not self._can_fight_in_dungeon(did):
-                continue  # never switch a melee character into a no-melee dungeon
             landing_depth = snapshot.dungeon_recall_depths.get(did, info.min_depth)
             if max_entry_depth is None:
                 if (
@@ -590,20 +585,7 @@ class PolicyHelpersMixin:
                     continue
             elif landing_depth > max_entry_depth:
                 continue
-            # Its entry floor must be within our RESISTANCE safe band, or we just
-            # trade one under-resisted dungeon for another. The character lacking
-            # confusion resistance was sent to the Mountain (25F needs it), swarmed,
-            # and returned with zero loot after a very short dive; steer it instead
-            # to a dungeon whose landing depth its resistances actually cover
-            # (e.g. a sub-20F Orc cave with no resistance requirement).
-            if self._missing_required_abilities(snapshot, landing_depth):
-                continue
-            # A recall that lands on a guardian floor the current kit cannot
-            # pass is answered by an immediate guardian-kit-insufficient return:
-            # switching there repeats the very town<->guardian bounce the switch
-            # exists to end (live 2026-09-25: Orc cave, landing 23 = its guardian
-            # floor, picked as the unsafe-recall fallback, 7 round trips).
-            if self._guardian_floor_blocked(snapshot, did, landing_depth):
+            if not self._fallback_landing_allowed(snapshot, did, landing_depth):
                 continue
             if best is None:
                 best = info
@@ -637,6 +619,36 @@ class PolicyHelpersMixin:
         ):
             return DUNGEON_ANGBAND
         return None
+    def _fallback_destination_allowed(self, dungeon_id: int) -> bool:
+        """Whether ``dungeon_id`` can ever be the fallback of ``_pick_alternate_dungeon``.
+
+        A melee character is never switched into a no-melee dungeon.
+        """
+        return (exploration_destination_allowed(dungeon_id)
+                and dungeon_id not in (DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE)
+                and self._can_fight_in_dungeon(dungeon_id))
+
+    def _fallback_landing_allowed(
+        self, snapshot: Snapshot, dungeon_id: int, landing_depth: int
+    ) -> bool:
+        """Whether a fallback's recall landing is a floor this kit may arrive on.
+
+        Its entry floor must be within our RESISTANCE safe band, or we just
+        trade one under-resisted dungeon for another. The character lacking
+        confusion resistance was sent to the Mountain (25F needs it), swarmed,
+        and returned with zero loot after a very short dive; steer it instead
+        to a dungeon whose landing depth its resistances actually cover
+        (e.g. a sub-20F Orc cave with no resistance requirement).
+
+        A recall that lands on a guardian floor the current kit cannot
+        pass is answered by an immediate guardian-kit-insufficient return:
+        switching there repeats the very town<->guardian bounce the switch
+        exists to end (live 2026-09-25: Orc cave, landing 23 = its guardian
+        floor, picked as the unsafe-recall fallback, 7 round trips).
+        """
+        return (not self._missing_required_abilities(snapshot, landing_depth)
+                and not self._guardian_floor_blocked(snapshot, dungeon_id, landing_depth))
+
     def _can_fight_in_dungeon(self, dungeon_id: int) -> bool:
         """Whether this character can fight in ``dungeon_id`` (static data).
 

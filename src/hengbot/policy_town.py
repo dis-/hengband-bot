@@ -3,7 +3,7 @@ from hengbot import quest_optional_carry
 from hengbot import item_fate, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
-from hengbot import home_pass_charge, town_end_mining, town_travel
+from hengbot import guardian_rumor, home_pass_charge, town_end_mining, town_travel
 from hengbot import unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 
@@ -273,6 +273,10 @@ class TownMixin:
         )
         if home_relief is not None:
             durable += (home_relief,)
+        if guardian_rumor.pending(self):
+            # Here spending is the work: a batch of reads changes nothing else
+            # the board shows until a dungeon opens.
+            durable += (("guardian-rumor", snapshot.player.gold),)
         arbiter = getattr(self, "_town_turn_arbiter", None)
         owner = (
             arbiter.owner_for_reason(reason or self.last_reason)
@@ -6259,11 +6263,13 @@ class TownMixin:
                                     "guardian-bounce-no-alternate"
                                 )
                                 return self._town_blocked_key(snapshot)
-                            if (self._target_dungeon_id == DUNGEON_ANGBAND
+                            if guardian_rumor.pending(self) or (
+                                    self._target_dungeon_id == DUNGEON_ANGBAND
                                     and self._rumor_unlock_pending):
-                                # The guardian alternate may be locked Angband.
-                                # Release forced departure so the existing inn
-                                # rumor owner can unlock it on the next board.
+                                # The guardian alternate may be locked Angband,
+                                # or a dungeon still to open.  Release forced
+                                # departure so the existing inn rumor owner can
+                                # open it on the next board.
                                 self._town_blocked_reason = None
                                 self.last_reason = "town:unsafe-recall-fallback"
                                 self._offer_execution(
@@ -6405,14 +6411,30 @@ class TownMixin:
 
         The one switch both recall-reading rungs use: the guardian valve's
         choice (user decision 2026-09-25, 「倒せない階でなければ深くても可」),
-        never the refused dungeon.  False when no landing qualifies; the
-        caller then stops visibly on guardian-bounce-no-alternate.
+        never the refused dungeon.  With no landing it may be a rumor away
+        (guardian_rumor).  False when that cannot help either; the caller then
+        stops visibly on guardian-bounce-no-alternate.
         """
         return self._activate_safe_recall_fallback(
             snapshot,
             self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True),
             guardian_bounced_dungeon=dungeon_id,
-        ) is not None
+        ) is not None or guardian_rumor.arm(self, snapshot, dungeon_id)
+
+    def _guardian_rumor_no_inn_step_key(self, snapshot: Snapshot) -> str:
+        """The rumor owner has no step: leave the inn tile, or stop visibly.
+
+        Leaving the inn stands the character on its tile, and only walking on
+        again opens the menu for the next batch.  With no way to the inn at all
+        nothing else can open a dungeon, so the visible stop stays.
+        """
+        here = snapshot.grid_at(snapshot.player.position)
+        if here is not None and here.building_type == INN_BUILDING_TYPE:
+            self.last_reason = "town:rumor"
+            return self._town_entrance_step_off_key(snapshot, self.last_reason)
+        guardian_rumor.release(self)
+        self._town_blocked_reason = "guardian-bounce-no-alternate"
+        return self._town_blocked_key(snapshot)
 
     @claims(ClaimOwner.SHOP_BUY)
     def _town_restock_wait_key(self, snapshot: Snapshot) -> str | None:
@@ -6510,12 +6532,18 @@ class TownMixin:
             # immediately, producing Alchemist -> entrance -> Alchemist trips.
             # Genuine stock turnover is re-armed by _retry_after_store_restock.
 
+        plan = self._town_errand_plan
+        plan_exhausted = plan is not None and plan.index >= len(plan.stops)
         if (
             self._fundraising_mode == "prepare"
             and not self._fundraising_supplies_ready(snapshot)
-            and self._town_errand_plan is not None
-            and self._town_errand_plan.index >= len(self._town_errand_plan.stops)
-            and self._town_recall_destination(snapshot, guardian_gate=False)[0] is None
+            and (
+                # Waiting for rumor money: no recall target owns the gates, and
+                # with no shop left to visit only this ends the wait.
+                (guardian_rumor.pending(self) and (plan is None or plan_exhausted))
+                or (plan_exhausted
+                    and self._town_recall_destination(snapshot, guardian_gate=False)[0] is None)
+            )
         ):
             # The final shop may have supplied only part of the mining kit.
             # Resolve the exhausted walk-in plan now, while its result is
@@ -6633,7 +6661,7 @@ class TownMixin:
 
         rumor_needed = (
             self._rumor_unlock_pending and not snapshot.angband_recall_unlocked
-        ) or self._town_travel_rumor_pending is not None
+        ) or self._town_travel_rumor_pending is not None or guardian_rumor.pending(self)
         if rumor_needed:
             if self._defer_town_errand("rumor", "read-rumor"):
                 return None
@@ -6642,6 +6670,7 @@ class TownMixin:
             # needed to make the inn's travel destination selectable.
             if (
                 self._town_travel_rumor_pending is None
+                and not guardian_rumor.pending(self)
                 and not self._town_departure_ready(snapshot)
             ):
                 self.last_reason = "town:rumor-wait-supplies"
@@ -6653,8 +6682,11 @@ class TownMixin:
                 return WAIT_KEY
             rumor_reserve = max(RUMOR_GOLD_RESERVE, self._outpost_return_fare(snapshot))
             if player.gold < rumor_reserve + RUMOR_COST:
+                if not guardian_rumor.pending(self) or self._fundraising_mode != "prepare":
+                    # For a dungeon, once per set: the next boards belong to the
+                    # kit's shops, and what they could not sell stays attempted.
+                    self._town_store_attempted.clear()
                 self._fundraising_mode = "prepare"
-                self._town_store_attempted.clear()
                 self.last_reason = "town:rumor-needs-funds"
                 self._offer_execution(
                     WAIT_KEY, producer="rumor", work_id="rumor:funds",
@@ -6742,6 +6774,8 @@ class TownMixin:
                 producer="rumor", work_id="rumor:inn-route",
                 cause="inn-route-unavailable",
             )
+            if guardian_rumor.pending(self):
+                return self._guardian_rumor_no_inn_step_key(snapshot)
 
         # Return to the dungeon by Word of Recall once we have depth to justify it:
         # to Angband once its recall is unlocked (Yeek Cave conquered), otherwise

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot import guardian_rumor
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot import destruction_use, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, status_cure, summon_response, summoner_wait, town_end_mining
 import json
@@ -595,7 +596,9 @@ class ObservationMixin:
                 # It may be selected again after the existing alternate period,
                 # but must not immediately override the alternate below.
                 self._conquest_committed = None
-            elif guardian_bounces_only:
+            elif guardian_bounces_only and not guardian_rumor.arm(
+                self, snapshot, bounced_dungeon
+            ):
                 # User decision 2026-09-25 (guardian-recall-pingpong-r3,
                 # 「見える形で停止する」): every other entered dungeon lands on
                 # a guardian floor the kit cannot pass (or is never a
@@ -628,6 +631,7 @@ class ObservationMixin:
                 self._alternate_dungeon_reason = "no_depth_progress"
                 self._conquest_committed = None
             self._no_depth_progress_dives = 0
+        guardian_rumor.settle(self, snapshot)
         # A switched target overrides the ordinary selection until its lifecycle
         # ends through conquest, loadout-fallback completion, or replacement.
         if self._alternate_dungeon is not None:
