@@ -14149,7 +14149,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_light.py:opening_quaff_key": {
+  "quest_room_light.py:floor_potion_key": {
     "classification": "producer",
     "rows": [
       "survival"

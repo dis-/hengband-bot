@@ -628,12 +628,13 @@ def key(policy, snapshot) -> str | None:
     navigator = _navigator(policy, snapshot, quest_id)
     _note_gone(policy, snapshot, navigator, plan)
     _note_last_seen(snapshot, navigator, plan)
+    quest_room_light.note_floor_potion(policy, snapshot, navigator, plan)
     board = _Board(policy, snapshot, profile, navigator, plan)
     _note_ambush(policy, snapshot, navigator, plan, board)
     if not board.enemy:
         navigator.sweep_enemy_turns = 0
         return (
-            quest_room_light.opening_quaff_key(policy, snapshot, navigator, plan)
+            quest_room_light.floor_potion_key(policy, snapshot, navigator, plan, quiet=True)
             or _unseen_light(policy, snapshot, navigator, plan, board)
             or summon_response.key(policy, snapshot)
             or _restore(policy, snapshot)
@@ -650,7 +651,7 @@ def key(policy, snapshot) -> str | None:
         or _below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
-        or quest_room_light.opening_quaff_key(policy, snapshot, navigator, plan)
+        or quest_room_light.floor_potion_key(policy, snapshot, navigator, plan, quiet=False)
         # Before the unseen rule and the summons: the light may show them their caster.
         or _unseen_light(policy, snapshot, navigator, plan, board)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.

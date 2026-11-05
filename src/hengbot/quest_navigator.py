@@ -94,7 +94,8 @@ class QuestFloorNavigator:
     sweep_ambush = None  # the cover held for the unseen attacker (quest_room_sweep)
     sweep_ambush_turns = 0
     sweep_light_read = frozenset()  # rooms read and not yet seen lit (quest_room_light)
-    sweep_opening_quaffed = False
+    sweep_potion_carried = 0  # the plan's potion, last counted (quest_room_light)
+    sweep_potion_due = False
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -139,7 +140,8 @@ class QuestFloorNavigator:
         self.sweep_ambush = None
         self.sweep_ambush_turns = 0
         self.sweep_light_read = frozenset()
-        self.sweep_opening_quaffed = False
+        self.sweep_potion_carried = 0
+        self.sweep_potion_due = False
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
         """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.

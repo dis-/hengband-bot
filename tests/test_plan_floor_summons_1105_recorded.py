@@ -50,6 +50,7 @@ QUYL = 480
 FIRST_UNSEEN_CAST = 11651515
 # [1,18], 何か and 撲殺の悪魔 both casting, 啓蒙の薬 picked up 250 ticks before.
 POTION_PICKED_UP_IN_THE_DARK = 11653256
+POTION_FIRST_QUIET_BOARD = 11653011
 
 
 def _new_policy():
@@ -103,7 +104,17 @@ class Q25RecordedTest(nokey.PostedKey):
         self.assertEqual(key, "r" + slot)
         self.post_recorded(FIRST_UNSEEN_CAST)
 
-    def test_the_potion_picked_up_on_the_floor_lights_it_at_the_next_cast(self):
+    def test_the_potion_picked_up_on_the_floor_is_drunk_on_the_next_quiet_board(self):
+        # Picked up in the melee of 11653002; the recording walked on and carried it to the end.
+        raw, key, reason, _ = answer(POTION_FIRST_QUIET_BOARD)
+        self.assertEqual(reason, quest_room_light.OPENING_REASON)
+        slot = next(item["slot"] for item in raw["inventory"]
+                    if item["tval"] == TVAL_POTION and item["sval"] == SV_POTION_ENLIGHTENMENT)
+        self.assertEqual(key, "q" + slot)
+        self.assertEqual(raw["visible_monsters"], [])
+        self.post_recorded(POTION_FIRST_QUIET_BOARD)
+
+    def test_the_potion_still_carried_lights_the_room_at_the_next_cast(self):
         raw, key, reason, _ = answer(POTION_PICKED_UP_IN_THE_DARK)
         self.assertEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
         slot = next(item["slot"] for item in raw["inventory"]
@@ -268,8 +279,15 @@ class Q25DarkRoomTest(unittest.TestCase):
         self.assertTrue(reason.startswith(quest_room_light.UNSEEN_LIGHT_REASON), reason)
 
     def test_the_potion_goes_before_the_scroll(self):
-        key, reason, _ = q25.decide(self.with_potion(self.cast_board()), stage=4)
-        self.assertEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+        # A potion not yet seen on this floor is due anyway (Q25OpeningPotionTest); so seen, it is the light's.
+        raw = self.with_potion(self.cast_board())
+        policy = q25.new_policy(raw)
+        q25._set_stage(policy, raw, 4)
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        navigator = quest_room_sweep._navigator(policy, snapshot, 25)
+        navigator.sweep_potion_carried = 1
+        key = q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.UNSEEN_LIGHT_REASON)
         self.assertTrue(key.startswith("q"), key)
 
     def test_a_room_drawn_lit_is_not_read(self):
@@ -367,12 +385,42 @@ class Q25OpeningPotionTest(unittest.TestCase):
         _key, reason, _ = q25.decide(q25.board(speed=0))
         self.assertEqual(reason, quest_room_sweep.WALK_REASON)
 
-    def test_picked_up_later_it_waits_for_the_dark(self):
-        raw = self.with_potion(q25.board(q25.Q25LightTest.MOUTH, speed=0, light=0))
+    def picked_up_later(self, *, monsters=()):
+        """The walk at its third stop with none, then a board with one in the pack."""
+        raw = q25.board(q25.Q25LightTest.MOUTH, speed=0, light=0)
         policy = q25.new_policy(raw)
         q25._set_stage(policy, raw, 2)
         q25.choose(policy, raw)
         self.assertNotEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+        raw = self.with_potion(raw)
+        raw["visible_monsters"] = [dict(row) for row in monsters]
+        return raw, policy
+
+    def test_picked_up_later_it_is_drunk_on_the_next_quiet_board_and_only_once(self):
+        # Owner 2026-11-05 「拾ったらすぐ飲む」.
+        raw, policy = self.picked_up_later()
+        key = q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+        self.assertTrue(key.startswith("q"), key)
+        q25.choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+
+    def test_picked_up_in_a_fight_it_waits_for_the_quiet_board(self):
+        raw, policy = self.picked_up_later(monsters=[q25.monster(q25.SPECTRE, 5, 6)])
+        q25.choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+        raw["visible_monsters"] = []
+        q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+
+    def test_broken_before_the_quiet_board_nothing_is_due(self):
+        raw, policy = self.picked_up_later(monsters=[q25.monster(q25.SPECTRE, 5, 6)])
+        q25.choose(policy, raw)
+        raw["visible_monsters"] = []
+        raw["inventory"] = [item for item in raw["inventory"] if item["sval"] != SV_POTION_ENLIGHTENMENT
+                            or item["tval"] != TVAL_POTION]
+        q25.choose(policy, raw)
+        self.assertFalse(q25.navigator_of(policy).sweep_potion_due)
 
     def test_a_hall_drawn_lit_by_it_takes_no_read_at_the_mouth(self):
         raw = Q25DarkRoomTest.lit(q25.board(q25.Q25LightTest.MOUTH, speed=0))

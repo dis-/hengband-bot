@@ -1,8 +1,10 @@
-"""A plan's dark room, lit when something not seen acts on the player; its opening potion.
+"""A plan's dark room, lit when something not seen acts on the player; its potion of the floor.
 
 Owner 2026-11-05 「Q25で敵が見えないなら部屋が暗いということのはずなので、光の巻物か啓蒙の薬で適宜
-照らすことを要求する」 (``room_sweep.light_dark_room``) and 「必須にはしないが、啓蒙の薬を持っていれば
-開幕すぐ飲む」 (``room_sweep.opening_quaff``, a QUEST_POTION_SVALS name).
+照らすことを要求する」 (``room_sweep.light_dark_room``), 「必須にはしないが、啓蒙の薬を持っていれば
+開幕すぐ飲む」 and 「拾ったらすぐ飲む」 (``room_sweep.opening_quaff``, a QUEST_POTION_SVALS name): drunk once
+for each time the carried count rises, the arrival included, on the first quiet board; at the first stop
+the fight's own board will do, after its survival rungs.  A later one of a held stack is kept for the dark.
 
 Game (C:/hengband/src):
  * Scroll of Light: lite_area (spells-lite.cpp), a radius 2 LITE_WEAK burst, then lite_room: CAVE_GLOW
@@ -59,16 +61,27 @@ def carried_potion(policy, snapshot, name: str):
                               and item.sval == QUEST_POTION_SVALS[name])
 
 
-def opening_quaff_key(policy, snapshot, navigator, plan) -> str | None:
-    """The plan's opening potion, once, while the walk has not left its first stop."""
+def note_floor_potion(policy, snapshot, navigator, plan) -> None:
+    """Every board of the floor: the plan's potion is due when the carried count rose."""
     name = plan.get("opening_quaff")
-    if (name is None or navigator.sweep_opening_quaffed
-            or navigator.sweep_round or navigator.sweep_stage):
+    if name is None:
+        return
+    count = policy._quest_named_item_count(snapshot, "required_potions", name)
+    if count > navigator.sweep_potion_carried:
+        navigator.sweep_potion_due = True
+    elif count == 0:
+        navigator.sweep_potion_due = False
+    navigator.sweep_potion_carried = count
+
+
+def floor_potion_key(policy, snapshot, navigator, plan, *, quiet: bool) -> str | None:
+    """The plan's potion when due: on a quiet board, or anywhere at the walk's first stop."""
+    if not navigator.sweep_potion_due or not (quiet or not (navigator.sweep_round or navigator.sweep_stage)):
         return None
-    potion = carried_potion(policy, snapshot, name)
+    potion = carried_potion(policy, snapshot, plan["opening_quaff"])
     if potion is None:
         return None
-    navigator.sweep_opening_quaffed = True
+    navigator.sweep_potion_due = False
     policy.last_reason = OPENING_REASON
     return reserved_item_command(policy, snapshot, "quaff", potion)
 

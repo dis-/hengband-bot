@@ -9435,14 +9435,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_room_light.py:light_room_key": {
+  "quest_room_light.py:floor_potion_key": {
     "classification": "producer",
     "rows": [
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_room_light.py:opening_quaff_key": {
+  "quest_room_light.py:light_room_key": {
     "classification": "producer",
     "rows": [
       "survival"
