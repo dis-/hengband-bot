@@ -265,10 +265,11 @@ def _to_last_seen(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     return stepped
 
 
-def _refused_cells(policy, snapshot) -> list[Position]:
-    """The cells the weapon warning refused that may not be stepped on now (the gate's own
-    predicate: the all-supplies-exhausted forced walk may take them)."""
-    return [cell for cell in policy._warning_refused_cells if policy._warning_step_refused(snapshot, cell)]
+def _refused_cells(policy, snapshot, navigator) -> list[Position]:
+    """The cells of the map the weapon warning refused and that may not be stepped on now (the
+    gate's own predicate: the all-supplies-exhausted forced walk may take them)."""
+    cells = (Position(*cell) for cell in navigator.battlefield.terrain)
+    return [cell for cell in cells if policy._warning_step_refused(snapshot, cell)]
 
 
 def _path(policy, navigator, plan, snapshot, goals, blocked=()) -> list[Position]:
@@ -277,7 +278,7 @@ def _path(policy, navigator, plan, snapshot, goals, blocked=()) -> list[Position
     over a cell the warning refused."""
     start = _cell(snapshot.player.position)
     goals = {_cell(goal) for goal in goals}
-    taken = frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot)))
+    taken = frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot, navigator)))
     lines = _lines(navigator, plan, snapshot)
     for water in (False, True):
         terrain = _terrain_of(navigator, snapshot, water=water)
@@ -362,7 +363,7 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
         goal = Position(*stop.get("stand", stop.get("cell")))
         if here != goal:
             stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, {goal}, blocked), WALK_REASON)
-            if stepped is not None or not _refused_cells(policy, snapshot):
+            if stepped is not None or not _refused_cells(policy, snapshot, navigator):
                 return stepped
             # Only over a refused cell: this stop waits for the next round.
             _next_stop(navigator, plan)
