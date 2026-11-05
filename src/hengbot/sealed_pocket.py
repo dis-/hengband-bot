@@ -19,7 +19,7 @@ a STONE terrain turns to floor).  Every terrain with TUNNEL and not PERMANENT is
 unmelted.  A failed use takes the turn and keeps the charge.
 
 The direction (``_aim``) is read off the map: the line with the fewest grids to walkable
-known floor that leads on; with
+known floor that leads on (a magic mapping's blank grids are floor, mapped_area); with
 none on any line, the line with the fewest walls to ground not yet known, which is a
 frontier once melted, the nearest to such floor first.  Melting opens the grid, the board
 shows what is behind it and exploration takes over; still sealed, the next ask chooses
@@ -31,7 +31,8 @@ stop), as it does blind, confused, with no charge or with only permanent walls.
 Askers: ``_navigation_livelock_key`` before it would leave or read away,
 ``_stuck_escape_key`` where a stuck count would leave the floor first, and
 ``_town_idle_key`` in place of the first aimless step (exploration, the secret-door
-search and the known stairs have all answered by then).
+search and the known stairs have all answered by then).  The map comes first
+(area_mapping.sealed_key): it may show the way.
 """
 
 from __future__ import annotations
@@ -39,7 +40,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 
-from hengbot import me_powers
+from hengbot import area_mapping, me_powers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key
 from hengbot.model import Position, Snapshot, game_distance
@@ -185,7 +186,7 @@ def _line(snapshot: Snapshot, region: set, leading: set, mapped: set, step: tupl
 
 def _aim(policy, snapshot: Snapshot, region: set, memory: Memory) -> tuple[str, Position] | None:
     """(direction key, first wall) of the chosen line, else None."""
-    mapped = set()
+    mapped = area_mapping.blank_floor(policy, snapshot)
     leading = _floor_leading_on(policy, snapshot, region, mapped)
     origin = snapshot.player.position
     lines = []
@@ -236,6 +237,9 @@ def key(policy, snapshot: Snapshot) -> str | None:
     region = sealed_region(policy, snapshot)
     if region is None:
         return None
+    mapping = area_mapping.sealed_key(policy, snapshot)
+    if mapping is not None:
+        return mapping
     memory = _memory(policy, snapshot)
     aim = _aim(policy, snapshot, region, memory)
     if aim is None:

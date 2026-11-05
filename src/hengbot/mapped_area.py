@@ -29,8 +29,8 @@ Sources.  ``SOURCES`` lists who knows where a mapping was cast on this floor
 visit: the Magic-Eater's absorbed staff (``me_powers``) and the floor's
 exploration ledger, which keeps every disc across a bot restart on the same
 floor and forgets them on a new floor (owner 2026-11-01 「階の記録に残す」,
-``refresh`` writes the discs there).  A scroll, rod or staff of the same
-effect is one more source function.  Quest floors keep their own exploration
+``refresh`` writes the discs there), and a carried staff or rod (area_mapping).
+A scroll of the same effect would be one more source function.  Quest floors keep their own exploration
 (the area is not applied there).
 """
 
@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot import me_powers
+from hengbot import area_mapping, me_powers
 from hengbot.model import Position, game_distance
 from hengbot.policy_constants import NEIGHBOR_OFFSETS
 
@@ -61,7 +61,7 @@ def recorded_areas(policy, snapshot) -> tuple:
 
 
 # (centre, radius) of each mapping cast on the current floor visit.
-SOURCES = (me_powers.mapped_areas, recorded_areas)
+SOURCES = (me_powers.mapped_areas, recorded_areas, area_mapping.carried_areas)
 
 Cell = tuple[int, int]
 
@@ -95,7 +95,7 @@ def covers(policy, key: Cell) -> bool:
     return area is not None and area.covers(key)
 
 
-def _disc_cells(snapshot, centre: Position, radius: int) -> set:
+def disc_cells(snapshot, centre: Position, radius: int) -> set:
     # get_area(OUTER_WALL_EXCLUSIVE): the permanent outer wall is not scanned.
     return {
         (y, x)
@@ -122,12 +122,19 @@ def _corridor(blank: set, seen_floor: set) -> frozenset:
     return frozenset(blank - room)
 
 
-def build(snapshot, discs: tuple, known: set, seen_floor: set) -> MappedArea:
+def build(snapshot, discs: tuple, known: set, seen_floor: set, nothing_left: set = frozenset()) -> MappedArea:
+    """``nothing_left``: grids whose blanks are explored even in an open space."""
     cells = set()
     for centre, radius in discs:
-        cells |= _disc_cells(snapshot, centre, radius)
+        cells |= disc_cells(snapshot, centre, radius)
+    blank = cells - known
     return MappedArea(snapshot.floor_key, discs, frozenset(cells),
-                      _corridor(cells - known, seen_floor))
+                      _corridor(blank, seen_floor) | (blank & nothing_left))
+
+
+def floor_discs(policy, snapshot) -> tuple:
+    """Every live mapping of this floor visit, as (centre, radius)."""
+    return tuple(sorted({disc for source in SOURCES for disc in source(policy, snapshot)}))
 
 
 def refresh(policy, snapshot, known: set, seen_floor: set) -> MappedArea | None:
@@ -138,8 +145,8 @@ def refresh(policy, snapshot, known: set, seen_floor: set) -> MappedArea | None:
     sets).  The classification is made once per cast, from the board that
     first carried the mapped walls.
     """
-    discs = () if snapshot.floor_key[2] != 0 or snapshot.dungeon_level <= 0 else tuple(
-        sorted({disc for source in SOURCES for disc in source(policy, snapshot)}))
+    discs = () if snapshot.floor_key[2] != 0 or snapshot.dungeon_level <= 0 else floor_discs(
+        policy, snapshot)
     ledger = _ledger(policy, snapshot)
     if ledger is not None:
         ledger.note_mapped_areas((centre.y, centre.x, radius) for centre, radius in discs)
@@ -147,6 +154,6 @@ def refresh(policy, snapshot, known: set, seen_floor: set) -> MappedArea | None:
     if not discs:
         area = None
     elif area is None or area.floor != snapshot.floor_key or area.discs != discs:
-        area = build(snapshot, discs, known, seen_floor)
+        area = build(snapshot, discs, known, seen_floor, area_mapping.destroyed_cells(policy, snapshot))
     setattr(policy, ATTR, area)
     return area

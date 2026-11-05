@@ -55,7 +55,7 @@ from dataclasses import dataclass
 from functools import partial
 
 from hengbot import (
-    attack_expectation, disenchant_avoid, hunt_target, immobile_threat_memory, me_capability, summoner_wait,
+    area_mapping, attack_expectation, disenchant_avoid, hunt_target, immobile_threat_memory, me_capability, summoner_wait,
 )
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
@@ -299,6 +299,7 @@ def observe(policy, snapshot) -> None:
         memory.pending = None
         _end_emergency(policy)
         forget_circle(policy, position)
+        area_mapping.note_destruction(policy, snapshot, position, WORST_RADIUS, GUARANTEED_RADIUS)
     elif snapshot.turn != turn:
         memory.pending = None
         memory.fallback = floor
@@ -336,7 +337,7 @@ def forget_circle(policy, centre: Position) -> None:
     for name in KIND_POSITION_COLLECTIONS:
         _discard(getattr(policy, name, ()), lambda each: in_circle(each[1]))
     _discard(policy._exploration_ledger.mapped_areas,
-             lambda area: in_circle(Position(area[0], area[1])))
+             lambda area: game_distance(centre, Position(area[0], area[1])) <= WORST_RADIUS + area[2])
     _release_goals(policy, in_circle)
     _restart_progress_marks(policy)
     for module in FORGET_VISIT:
