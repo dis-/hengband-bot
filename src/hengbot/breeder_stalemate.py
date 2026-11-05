@@ -36,13 +36,38 @@ visible breeder of the last board hurt, or gone with the player's experience
 up: the key's own target differs per attack owner, the result does not) and
 counts only that race, from its count before the attack.  A shot that misses
 opens nothing yet.  The comparison and the abandonment are the same.
+
+Few of them in view on such a floor (owner 2026-11-05 「少ない時は倒した数で判断」,
+the option: 「見える数が5体未満なら、窓の中で倒せていれば続けます。5体以上なら今の比較
+です。」): 見える数 is the count the window ends with (the count this module always
+compared, perceived, of the window's race; the start count does not matter).  Under
+FEW_BREEDERS, a window with a kill of that race goes on although it did not reduce;
+without one it is abandoned as before.  n1-b life-316 left Q2 at full HP on a window
+that went from two blue icky things to three while it killed eleven.  Floors without
+a plan keep the rule of 11-03: the question was about Q2's window.
+
+A kill is the game's own line for a monster of the window's race, by its name:
+「…は死んだ。」 (shots, spells: get_died_message), 「…を葬り去った。」 and 「…を倒した。」
+(melee: show_kill_message).  The board's messages are the new ones only.  An unseen
+victim is 何か, so its race is not known and it does not count; nor do the deaths
+with a line of their own (effect-monster-*: 「…は蒸発した！」 and the like), nor a kill
+on a board before the race's name was seen.  A monster killed by another monster
+prints the same line and counts.  The kill on the board that opens a first window
+is the attack the window counts from; the one on the board that ends a window
+belongs to that window, not to the next.
 """
 from __future__ import annotations
 
 from typing import NamedTuple
 
+from hengbot.unseen_strike import message_text
+
 
 FLEE_AFTER_PLAYER_ACTIONS = 20
+# Owner 2026-11-05 「少ない時は倒した数で判断」: 「見える数が5体未満なら…」.
+FEW_BREEDERS = 5
+_KILL_LINES = ("は死んだ。", "を葬り去った。", "を倒した。")
+_KILL_LINE_PREFIX = "せっかくだから"     # show_kill_message, is_echizen
 
 
 class _LastBoard(NamedTuple):
@@ -51,6 +76,7 @@ class _LastBoard(NamedTuple):
     exp: int
     sighted: dict       # visible breeder's index -> (race, estimated HP)
     counts: dict        # race -> perceived breeders
+    names: dict = {}    # race -> the name kill lines give it, from every board so far
 
 
 def forget(policy) -> None:
@@ -60,6 +86,7 @@ def forget(policy) -> None:
     policy._breeder_engagement_actions = 0
     policy._breeder_engagement_last_turn = None
     policy._breeder_engagement_race = None
+    policy._breeder_engagement_killed = False
 
 
 def stalemate_standing(policy) -> bool:
@@ -84,10 +111,12 @@ def _attacked_race(policy, snapshot, breeders: list) -> tuple[int, int] | None:
     counts: dict[int, int] = {}
     for monster in breeders:
         counts[monster.race_id] = counts.get(monster.race_id, 0) + 1
+    names = {**(last.names if last is not None else {}),
+             **{monster.race_id: monster.name for monster in breeders}}
     policy._breeder_last_board = _LastBoard(
         snapshot.floor_key, snapshot.player.exp,
         {index: (monster.race_id, monster.hp) for index, monster in sighted.items()},
-        counts)
+        counts, names)
     if last is None or last.floor != snapshot.floor_key:
         return None
     for index, (race, hp) in last.sighted.items():
@@ -99,8 +128,28 @@ def _attacked_race(policy, snapshot, breeders: list) -> tuple[int, int] | None:
     return None
 
 
+def _note_kill(policy, snapshot) -> None:
+    """Remember a kill line of the window's race on this board."""
+    name = policy._breeder_last_board.names.get(policy._breeder_engagement_race)
+    if name and any(
+        message_text(message).removeprefix(_KILL_LINE_PREFIX) == name + line
+        for message in snapshot.messages for line in _KILL_LINES
+    ):
+        policy._breeder_engagement_killed = True
+
+
+def _window_kept(policy, count: int) -> bool:
+    """A completed window that goes on: it reduced, or few remain and it killed.
+
+    A window without a race (a floor without a plan) notes no kill."""
+    if count < policy._breeder_engagement_start_count:
+        return True
+    return count < FEW_BREEDERS and policy._breeder_engagement_killed
+
+
 def _open_window(policy, snapshot, count: int, race: int | None = None) -> None:
     policy._breeder_engagement_race = race
+    policy._breeder_engagement_killed = False
     policy._breeder_engagement_start_count = count
     policy._breeder_engagement_start_turn = snapshot.turn
     policy._breeder_engagement_actions = 0
@@ -114,6 +163,7 @@ def flee_due(policy, snapshot, breeders: list) -> bool:
         if _counts_from_first_attack(policy, snapshot):
             if attacked is not None:
                 _open_window(policy, snapshot, attacked[1], attacked[0])
+                _note_kill(policy, snapshot)
         elif breeders:
             _open_window(policy, snapshot, len(breeders))
         return False
@@ -127,9 +177,10 @@ def flee_due(policy, snapshot, breeders: list) -> bool:
     if last_turn is not None and snapshot.turn > last_turn:
         policy._breeder_engagement_actions += 1
     policy._breeder_engagement_last_turn = snapshot.turn
+    _note_kill(policy, snapshot)
     if policy._breeder_engagement_actions < FLEE_AFTER_PLAYER_ACTIONS:
         return False
-    if count >= policy._breeder_engagement_start_count:
+    if not _window_kept(policy, count):
         return True
     if breeders:
         _open_window(policy, snapshot, count, race)

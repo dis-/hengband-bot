@@ -269,9 +269,15 @@ class QuestStrategiesTest(unittest.TestCase):
                             self.assertIn(terrain, {"floor", "shallow_water"})
                         else:
                             self.assertIsNotNone(terrain)
-                    # WALL: QUEST_2's hold [1,7] is called a one-wide choke, but row 2 is
-                    # shallow water.  Plan text: an owner question (q2-live-1105).
-                    if data["approved"] and info.battlefield.chokepoints and quest_id != 2:
+                    # A plan may hold away from a choke only by saying so: QUEST_2's [1,7]
+                    # is open to the shallow water of row 2 (owner 2026-11-05
+                    # 「文を直して位置はそのまま」).
+                    if not data["engagement_plan"].get("hold_is_choke", True):
+                        self.assertNotIn(
+                            tuple(hold),
+                            {tuple(choke) for choke in info.battlefield.chokepoints})
+                        self.assertNotIn("幅1の隘路", data["engagement_plan"]["opening"])
+                    elif data["approved"] and info.battlefield.chokepoints:
                         reposition = data["engagement_plan"].get(
                             "opening_reposition"
                         )

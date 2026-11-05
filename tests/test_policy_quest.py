@@ -4893,10 +4893,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                 "utility_tools.wall_breach": replace(
                     base, inventory=[*base.inventory[:3], *base.inventory[4:]]
                 ),
-                # D33 (n1-a life-422): a wand short of the five corridor walls.
+                # D33 (n1-a life-422): a wand short of the two corridor walls.
                 "utility_tools.wall_breach#short-wand": replace(
                     base, inventory=[*base.inventory[:3],
-                                     replace(base.inventory[3], charges=4),
+                                     replace(base.inventory[3], charges=1),
                                      *base.inventory[4:]]
                 ),
             }

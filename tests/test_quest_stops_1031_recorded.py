@@ -21,7 +21,7 @@ opening owner never ran while Merry and a beggar touched the player.
 
 Q2 wall breach (n1-a life-422): the Telmora entry gate counted the
 utility_tools.wall_breach carry as one item, so a Stone to Mud wand with one
-charge passed for the five-wall corridor [7..11,47].  After the first cast the
+charge passed for the corridor [7..11,47] (two walls, then deep water).  After the first cast the
 bot waited at [7,47] on quest:blocked:q2-breach-tool until loop-detected.
 Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」: charges count one wall each;
 a qualifying digger still breaches the whole corridor.  The blocked reason is
@@ -272,12 +272,11 @@ class Q2BreachChargesRecordedTest(_test_input_executor.ProductionHarness):
         return policy
 
     def test_corridor_cells_of_the_quest_map(self):
-        # The count below predates the base legend, which shows only two of the five are walls.
-        # It stays until the owner decides (q2-live-1105): a lower count admits fewer charges.
+        # Owner 2026-11-05 「2回に下げる」: the charges are the corridor's walls.
         terrain = self.quests[2].battlefield.terrain
         self.assertEqual([terrain[(cell.y, cell.x)] for cell in Q2_BREACH_CORRIDOR],
                          ["wall", "wall", "deep_water", "deep_water", "deep_water"])
-        self.assertEqual(Q2_BREACH_WALL_COUNT, 5)
+        self.assertEqual(Q2_BREACH_WALL_COUNT, 2)
 
     def test_recorded_one_charge_wand_does_not_admit_the_q2_request(self):
         raw = self.data["board"]

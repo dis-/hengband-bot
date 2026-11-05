@@ -828,8 +828,9 @@ class QuestMixin(OpeningRouteMixin):
         if category == "utility_tools" and name == "wall_breach":
             # Owner 2026-10-31 「Q2の岩石溶解 - 回数を数える」: a qualifying
             # digger breaches the whole corridor; Stone to Mud charges count
-            # one wall each (D33 n1-a life-422 entered with one charge for
-            # the five walls and waited at [7,47]).
+            # one wall each (D33 n1-a life-422 entered with one charge and
+            # waited at [7,47]).  The carry's unit is one breach: its required
+            # 1 is one digger or Q2_BREACH_WALL_COUNT charges.
             items = (*snapshot.inventory, *snapshot.equipment)
             diggers = sum(
                 it.count for it in items

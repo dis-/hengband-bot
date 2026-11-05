@@ -420,9 +420,9 @@ class StoneToMudBreachTownTest(TownBoards):
         policy = self.policy(raw)
         all_stages_absorbed(policy, **{"wand:6": 12})
         _, _, status = self.carry(policy, raw)
-        # The recorded wand's one charge and the absorbed 12: 13 // 5 walls.
+        # The recorded wand's one charge and the absorbed 12: 13 // 2 walls.
         self.assertEqual(status["utility_tools.wall_breach"],
-                         {"measured": 2, "required": 1, "ready": True})
+                         {"measured": 6, "required": 1, "ready": True})
         key = self.decide(policy, raw)
         # Unfixed: the wall_breach carry is short and the Q2 travel waits.
         self.assertEqual(policy.last_reason.removesuffix("-step-off"), "fixedquest:q2-travel")
