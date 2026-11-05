@@ -22,7 +22,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import arena, arena_odds, me_ranged_first
+from hengbot import arena, arena_odds, me_powers, me_ranged_first
 from hengbot.character_sheet import SHEET_ENCODINGS, ArenaStanding, _decode_sheet, arena_standing
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.input_executor import ScreenKind, classify_screen
@@ -132,6 +132,7 @@ class ArenaRecorded(executor_pins.ProductionHarness):
     def test_a_hit_on_a_hold_keeps_the_hold(self):
         # CONSTRUCTED: an unseen monster with the gate shut, HP falling between two boards.
         policy = self.policy()
+        arena.state(policy).inside = True  # the same fight
         arena.state(policy).gate_attempts = arena.GATE_ATTEMPTS
         for hp in (1137, 900):
             raw = self.board("16-gate-closed", hp=hp)
@@ -177,11 +178,40 @@ class ArenaRecorded(executor_pins.ProductionHarness):
         policy.choose_key(snapshot)
         self.assertEqual(policy._town_store_attempted, {})  # TownVisit.begin ran
 
+    def test_a_new_fight_forgets_the_last_gate_and_reward(self):
+        # n1-c life-145 2026-11-05: wins chained in one town stay, then 398 holds on an open gate.
+        policy = self.policy()
+        record = arena.state(policy)
+        record.inside = False
+        record.gate_attempts = arena.GATE_ATTEMPTS
+        record.tried_reward_cells = {object()}
+        arena.observe(policy, self.snap(policy, self.board("09-move")))
+        self.assertEqual((record.gate_attempts, record.tried_reward_cells), (0, set()))
+        record.gate_attempts = 1  # the same fight keeps its count
+        arena.observe(policy, self.snap(policy, self.board("09-move")))
+        self.assertEqual(record.gate_attempts, 1)
+
+    def test_the_way_out_ends_the_fights_facts(self):
+        policy = self.policy()
+        arena.observe(policy, self.snap(policy, self.board("09-move")))
+        self.assertTrue(arena.state(policy).inside)
+        raw = self.board("09-move")
+        raw["floor"]["inside_arena"] = False
+        arena.observe(policy, self.snap(policy, raw))
+        self.assertFalse(arena.state(policy).inside)
+
+    def test_the_heal_key_is_one_the_menu_accepts(self):
+        # n1-c life-145: `mAs` stopped as "invalid Magic-Eater device attack".
+        from hengbot.me_device_attacks_input import compile_device
+        for key in ("mAs", "mC" + me_powers.encode_letter(9)):
+            self.assertEqual(compile_device(key, arena.HEAL_REASON)[0], "m")
+
     def test_a_shut_gate_does_not_walk_forever(self):
         policy = self.policy()
         raw = self.board("16-gate-closed")
         raw["visible_monsters"] = []  # CONSTRUCTED: an unseen monster with the gate shut
         record = arena.state(policy)
+        record.inside = True  # the same fight
         record.gate_attempts = arena.GATE_ATTEMPTS
         self.assertEqual(self.key(policy, raw), arena.WAIT_KEY)
         self.assertEqual(policy.last_reason, arena.HOLD_REASON)
