@@ -344,5 +344,44 @@ class Q25LeaveOnAQuietBoardTest(unittest.TestCase):
         self.assertEqual(answer_reason, summon_response.LEAVE_REASON)
 
 
+class Q25OpeningPotionTest(unittest.TestCase):
+    """Owner 2026-11-05 「必須にはしないが、啓蒙の薬を持っていれば開幕すぐ飲む」.  DECLARED CONSTRUCTED."""
+
+    with_potion = staticmethod(Q25DarkRoomTest.with_potion)
+
+    def test_held_it_is_drunk_on_the_first_board_and_only_once(self):
+        raw = self.with_potion(q25.board(speed=0), count=2)
+        policy = q25.new_policy(raw)
+        key = q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+        self.assertTrue(key.startswith("q"), key)
+        q25.choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+
+    def test_with_an_enemy_in_view_it_is_still_drunk_after_the_survival_rungs(self):
+        raw = self.with_potion(q25.board(speed=0, monsters=[q25.monster(q25.SPECTRE, 13, 5)]))
+        _key, reason, _ = q25.decide(raw)
+        self.assertEqual(reason, quest_room_light.OPENING_REASON)
+
+    def test_not_held_the_walk_starts(self):
+        _key, reason, _ = q25.decide(q25.board(speed=0))
+        self.assertEqual(reason, quest_room_sweep.WALK_REASON)
+
+    def test_picked_up_later_it_waits_for_the_dark(self):
+        raw = self.with_potion(q25.board(q25.Q25LightTest.MOUTH, speed=0, light=0))
+        policy = q25.new_policy(raw)
+        q25._set_stage(policy, raw, 2)
+        q25.choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+
+    def test_a_hall_drawn_lit_by_it_takes_no_read_at_the_mouth(self):
+        raw = Q25DarkRoomTest.lit(q25.board(q25.Q25LightTest.MOUTH, speed=0))
+        _key, reason, _ = q25.decide(raw, stage=q25.Q25LightTest.STAGE)
+        self.assertEqual(reason, quest_room_sweep.WALK_REASON)
+
+    def test_it_is_no_part_of_the_carry(self):
+        self.assertNotIn("enlightenment", q25.STRATEGIES[25].required_force.get("required_potions", {}))
+
+
 if __name__ == "__main__":
     unittest.main()

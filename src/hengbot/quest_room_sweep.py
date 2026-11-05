@@ -21,7 +21,7 @@ The data (QUEST_25 gives the reasons of its cells):
    shot or a blow; ``rest_below_ratio``: rest below this on a quiet floor;
  * ``max_rounds``: full walks with the quest still open before the plan stops by name;
  * ``unseen_attacker``: "cover_or_close", see below;
- * ``light_dark_room``: quest_room_light;
+ * ``light_dark_room``, ``opening_quaff``: quest_room_light;
  * ``exit_when_out_of_healing``: see below.
 
 Q25 owner 2026-11-04.  「手のドルジは最後に回して戻って撃つ」: everything else first, then the
@@ -600,7 +600,8 @@ def key(policy, snapshot) -> str | None:
     if not board.enemy:
         navigator.sweep_enemy_turns = 0
         return (
-            _unseen_light(policy, snapshot, navigator, plan, board)
+            quest_room_light.opening_quaff_key(policy, snapshot, navigator, plan)
+            or _unseen_light(policy, snapshot, navigator, plan, board)
             or summon_response.key(policy, snapshot)
             or _restore(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
@@ -615,6 +616,7 @@ def key(policy, snapshot) -> str | None:
         or _below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
+        or quest_room_light.opening_quaff_key(policy, snapshot, navigator, plan)
         # Before the unseen rule and the summons: the light may show them their caster.
         or _unseen_light(policy, snapshot, navigator, plan, board)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.

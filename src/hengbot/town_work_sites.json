@@ -9414,6 +9414,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_room_light.py:opening_quaff_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_room_light.py:unseen_light_key": {
     "classification": "producer",
     "rows": [

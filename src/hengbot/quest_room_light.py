@@ -1,7 +1,8 @@
-"""A plan's dark room, lit when something not seen acts on the player.
+"""A plan's dark room, lit when something not seen acts on the player; its opening potion.
 
 Owner 2026-11-05 「Q25で敵が見えないなら部屋が暗いということのはずなので、光の巻物か啓蒙の薬で適宜
-照らすことを要求する」 (``room_sweep.light_dark_room``).
+照らすことを要求する」 (``room_sweep.light_dark_room``) and 「必須にはしないが、啓蒙の薬を持っていれば
+開幕すぐ飲む」 (``room_sweep.opening_quaff``, a QUEST_POTION_SVALS name).
 
 Game (C:/hengband/src):
  * Scroll of Light: lite_area (spells-lite.cpp), a radius 2 LITE_WEAK burst, then lite_room: CAVE_GLOW
@@ -42,6 +43,7 @@ from hengbot.policy_constants import QUEST_POTION_SVALS
 
 LIGHT_REASON = "quest-strategy:sweep-light"
 UNSEEN_LIGHT_REASON = "quest-strategy:sweep-light-unseen"
+OPENING_REASON = "quest-strategy:sweep-opening-potion"
 ROOM_LIGHT_POTION = "enlightenment"
 
 # 「何かが」 opens every monster spell line but these (floor-object.cpp, world-turn-processor.cpp).
@@ -55,6 +57,20 @@ def carried_potion(policy, snapshot, name: str):
     """The aware potion of a QUEST_POTION_SVALS name, carried."""
     return policy._first_item(snapshot, lambda item: item.tval == TVAL_POTION and item.aware
                               and item.sval == QUEST_POTION_SVALS[name])
+
+
+def opening_quaff_key(policy, snapshot, navigator, plan) -> str | None:
+    """The plan's opening potion, once, while the walk has not left its first stop."""
+    name = plan.get("opening_quaff")
+    if (name is None or navigator.sweep_opening_quaffed
+            or navigator.sweep_round or navigator.sweep_stage):
+        return None
+    potion = carried_potion(policy, snapshot, name)
+    if potion is None:
+        return None
+    navigator.sweep_opening_quaffed = True
+    policy.last_reason = OPENING_REASON
+    return reserved_item_command(policy, snapshot, "quaff", potion)
 
 
 def _casts_unseen(policy, message: str) -> bool:
