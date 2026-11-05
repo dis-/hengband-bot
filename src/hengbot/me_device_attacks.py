@@ -325,14 +325,17 @@ def device_key(policy, power, direction) -> str:
 
 
 def device_target_key(policy, power, grid) -> str:
-    """``m`` + kind + power + ``@y,x``: a ball or breath burst on ``grid``.
+    """``m`` + kind + power + ``@y,x``: an aimed power at ``grid``.
 
     The executor answers get_aim_dir with ``*`` and moves the target cursor
-    to ``grid`` in the free mode (me_device_attacks_input); a grid target
-    drops PROJECT_STOP (spells-launcher.cpp:33-36, :60-63), so the projection
-    flies over monsters to the grid (projection-path-calculator.cpp:79)."""
-    if power.shape not in TARGETABLE_SHAPES:
-        raise ValueError("only a ball or a breath bursts on a target grid")
+    to ``grid`` in the free mode (me_device_attacks_input).  For a ball or a
+    breath a grid target drops PROJECT_STOP (spells-launcher.cpp:33-36, :60-63),
+    so the projection flies over monsters to the grid
+    (projection-path-calculator.cpp:79); that is what TARGETABLE_SHAPES names.
+    A bolt keeps PROJECT_STOP and stops at the first monster on its way (fire_bolt):
+    it reaches a monster off the eight rays, as the arena's fight uses it."""
+    if not power.aimed:
+        raise ValueError("a power that needs no aim has no target grid")
     policy.last_reason = DEVICE_REASON
     return "m" + KIND_LETTER[power.kind] + power.letter + f"@{grid.y},{grid.x}"
 

@@ -139,6 +139,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "arena.py:_away_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "arena.py:_building_key": {
     "classification": "producer",
     "rows": [
@@ -150,6 +157,20 @@
     "classification": "producer",
     "rows": [
       "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_fewest_actions_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_fired_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
@@ -174,10 +195,38 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "arena.py:_power_attack_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_power_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "arena.py:_return_key": {
     "classification": "producer",
     "rows": [
       "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_shot_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_speed_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
@@ -230,6 +279,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "arena_fight_chain.py:_Uses.left": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "arena_fight_chain.py:selection_at": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "arena_odds.py:_power_charges": {
     "classification": "data",
     "rows": [
@@ -245,6 +308,20 @@
     "delegation": "selected child; no independent success"
   },
   "arena_odds.py:attack_plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "arena_odds.py:healing_rows": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "arena_odds.py:ranged_force": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2339,6 +2416,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_device_attacks.py:scored": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_device_policy.py:Device.kind": {
     "classification": "data",
     "rows": [
@@ -3022,6 +3106,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "monster_ranged_evaluator.py:_castable_abilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "monster_ranged_evaluator.py:_selection_for_available": {
     "classification": "data",
     "rows": [
@@ -3037,6 +3128,13 @@
     "delegation": "selected child; no independent success"
   },
   "monster_ranged_evaluator.py:ability_selection_probabilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:source_selection_probabilities": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
