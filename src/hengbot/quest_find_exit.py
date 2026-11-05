@@ -64,7 +64,7 @@ the navigator.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, once_quest_recall, quest_exposure, speed_dose, status_cure
+from hengbot import combat_answer, once_quest_recall, quest_exposure, speed_dose, status_cure, summon_response
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, TUNNEL_KEY, WAIT_KEY
@@ -683,35 +683,40 @@ def key(policy, snapshot) -> str | None:
         return (
             (_below_line_recall(policy, snapshot, profile) if board.enemy_for_the_line else None)
             or (_heal(policy, snapshot, profile) if board.engaged else None)
+            or summon_response.key(policy, snapshot)
             or _advance(policy, snapshot, navigator, plan, board)
         )
     if not board.enemy_for_the_line:
         return (
-            _rest(policy, snapshot, plan, board)
+            summon_response.key(policy, snapshot)
+            or _rest(policy, snapshot, plan, board)
             or (_to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None)
             or _wait_after_fight(policy, snapshot, navigator, plan, board)
             or (_advance(policy, snapshot, navigator, plan, board) if board.in_view else None)
         )
     return (
         _below_line_recall(policy, snapshot, profile)
-        or (_engaged(policy, snapshot, profile, navigator, plan, board) if board.engaged else None)
+        or (_engaged_survival(policy, snapshot, profile, board) if board.engaged else None)
+        # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
+        or summon_response.key(policy, snapshot)
+        or (_fight(policy, snapshot, profile, navigator, plan, board) if board.engaged else None)
         or _advance(policy, snapshot, navigator, plan, board)
     )
 
 
-def _engaged(policy, snapshot, profile, navigator, plan, board) -> str | None:
+def _engaged_survival(policy, snapshot, profile, board) -> str | None:
     return (
         _cure(policy, snapshot)
         or _heal(policy, snapshot, profile)
         or _speed(policy, snapshot, profile, board)
-        or _fight(policy, snapshot, profile, navigator, plan, board)
     )
 
 
 def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
     if board.adjacent_mobile:
         _note_contact(navigator, plan, snapshot.player.position)
-        target = min(board.adjacent_mobile, key=lambda monster: _rank(profile, monster))
+        ranked = sorted(board.adjacent_mobile, key=lambda monster: _rank(profile, monster))
+        target = summon_response.named_casters_first(policy, ranked)[0]
         answer = combat_answer.adjacent_attack(policy, snapshot, [target], MELEE_REASON)
         if answer is not None and answer.key is not None:
             return answer.key

@@ -6,7 +6,10 @@ Owner 2026-11-04 (summon-response-decision-20261104), 「案のとおり3つと�
  3. 「同じ階で召喚が3回あったら帰還を読む。一度きりのクエストの階は除く。」 (``recall_key``)
 
 The rungs stand after the survival ladder (policy._choose_key): what threatens the
-player's life answers first.
+player's life answers first.  A floor with an engagement plan (quest_find_exit,
+quest_room_sweep) answers before that ladder, so its fight asks ``key`` itself, after its own
+survival rungs, and strikes by ``named_casters_first``: the rules outrank the plan's
+``priority_targets`` while they apply, and no plan keeps a second copy of them.
 
 A summon is recognised by the game's own strings (src/mspell/mspell-summon.cpp,
 specified-summon.cpp; ``{}`` is ``monster_desc``, so an unseen caster is 何か / It):
@@ -239,6 +242,12 @@ def caster_shot_key(policy, snapshot) -> str | None:
                 policy.last_reason = CASTER_SHOT_REASON
             return key
     return None
+
+
+def named_casters_first(policy, monsters) -> list:
+    """The blow's order on a plan floor: who was named casting, then as given."""
+    casters = _memory(policy).casters
+    return sorted(monsters, key=lambda monster: _plain_name(monster.name) not in casters)
 
 
 # -- 2. the caster out of view --------------------------------------------------

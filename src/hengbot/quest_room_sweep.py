@@ -75,7 +75,7 @@ breeder stalemate, starvation) leaves the board to them.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, me_ranged_first, once_quest_recall, quest_exposure, quest_find_exit, unseen_strike
+from hengbot import combat_answer, me_ranged_first, once_quest_recall, quest_exposure, quest_find_exit, summon_response, unseen_strike
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, TVAL_POTION
 from hengbot.policy_constants import (
@@ -475,7 +475,8 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
     """Beside the player, the blow; else a shot in the plan's order; else wait for what
     comes; else on, by way of what stands immobile in view and has no shot."""
     if board.beside:
-        answer = combat_answer.adjacent_attack(policy, snapshot, board.beside[:1], MELEE_REASON)
+        struck = summon_response.named_casters_first(policy, board.beside)[:1]
+        answer = combat_answer.adjacent_attack(policy, snapshot, struck, MELEE_REASON)
         if answer is not None and answer.key is not None:
             return answer.key
     for target in board.in_view:
@@ -584,7 +585,8 @@ def key(policy, snapshot) -> str | None:
     if not board.enemy:
         navigator.sweep_enemy_turns = 0
         return (
-            _restore(policy, snapshot)
+            summon_response.key(policy, snapshot)
+            or _restore(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
             or quest_find_exit._rest(policy, snapshot, plan, board)
             # The shared ladders below would fight what is seen: the walk answers it here.
@@ -597,6 +599,8 @@ def key(policy, snapshot) -> str | None:
         or _below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
+        # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
+        or summon_response.key(policy, snapshot)
         or _light_key(policy, snapshot, navigator, plan)
         or _fight(policy, snapshot, profile, navigator, plan, board)
     )
