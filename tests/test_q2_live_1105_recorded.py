@@ -23,6 +23,8 @@ import json
 import unittest
 from pathlib import Path
 
+from hengbot.model import Position
+from hengbot.policy_constants import Q2_POST_BLUE_SEQUENCE
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from tests import test_breeder_swarm_1102_recorded as swarm
 from tests import test_me_staff_loops_1031_recorded as loops
@@ -81,6 +83,24 @@ class TeleportLandingTest(swarm.PostedSwarmKey):
         key = loops.decide(policy, copy.deepcopy(row["board"]))
         self.assertEqual((row["key"], row["reason"]), ("5", "quest:blocked:q2-breeder-recommit"))
         self.assertEqual((key, policy.last_reason), ("9", RECOMMIT))
+        self.post(policy, row["board"], key)
+
+    def test_a_last_seen_cell_no_walk_reaches_gives_way_to_the_plan(self):
+        # DECLARED CONSTRUCTED: the phases past the blue icky things are done (the state of no
+        # recorded board) and the breeder was last seen on the deep water of the blue room.
+        row = FIRST[LANDING_WAIT]
+        policy = new_policy(row)
+        policy._q2_reconnect_recovery_floor = None
+        policy._q2_breach_complete = policy._q2_blue_recovery_complete = True
+        policy._q2_cleared_races.update({86, 153, 252})
+        policy._q2_surveyed_placements.update(
+            cell for _, _, placements in Q2_POST_BLUE_SEQUENCE for cell in placements)
+        policy._q2_breeder_last_seen = Position(10, 45)
+        policy._q2_breeder_last_seen_floor = (0, 15, 2)
+        key = loops.decide(policy, copy.deepcopy(row["board"]))
+        self.assertIsNone(policy._q2_breeder_last_seen)
+        self.assertNotEqual(key, "5", policy.last_reason)
+        self.assertTrue(policy.last_reason.startswith("quest-strategy:q2-phase-"), policy.last_reason)
         self.post(policy, row["board"], key)
 
 

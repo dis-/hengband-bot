@@ -2738,8 +2738,10 @@ class QuestMixin(OpeningRouteMixin):
                 if step is not None:
                     self.last_reason = "quest-strategy:q2-breeder-recommit"
                     return self._step_toward(snapshot, step)
-                self.last_reason = "quest:blocked:q2-breeder-recommit"
-                return WAIT_KEY
+                # No walk leads there (a breeder last seen over deep water):
+                # waiting cannot open one, so the plan's walk goes on.
+                self._q2_breeder_last_seen = None
+                self._q2_breeder_last_seen_floor = None
 
         for race_id in profile.priority_targets:
             if race_id == 252 and not self._q2_breach_complete:
