@@ -10212,6 +10212,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "retreat_enclosure.py:_leave_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing teleport or recall owner."
+  },
   "retreat_enclosure.py:_read_teleport": {
     "classification": "action",
     "rows": [
@@ -10226,12 +10233,19 @@
     ],
     "delegation": "No independent success; existing wait, retreat or teleport owner."
   },
-  "retreat_enclosure.py:walled_off_teleport_key": {
+  "retreat_enclosure.py:walled_off": {
     "classification": "action",
     "rows": [
       "positioning"
     ],
-    "delegation": "No independent success; existing wait, retreat or teleport owner."
+    "delegation": "No independent success; pure reading."
+  },
+  "retreat_enclosure.py:walled_off_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "return_yield.py:latched_return_key": {
     "classification": "adapter",
@@ -11396,6 +11410,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "walkout_dig.py:dig_step_key": {
+    "classification": "action",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "walkout_dig.py:diggable": {
     "classification": "data",

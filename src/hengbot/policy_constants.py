@@ -444,6 +444,9 @@ MANA_FOOD_CHARGE_TARGET = 15
 MANA_FOOD_DEVICE_TARGET = 2
 IDENTIFY_CHARGE_FLOOR = 5
 TELEPORT_REQUIRED_DEPTH = 2
+# Deep runs head back to restock once Teleportation is drawn down to this low
+# reserve (the supply ledger's return threshold; retreat_enclosure's Recall).
+TELEPORT_RETURN_THRESHOLD = 3
 CURE_CRITICAL_REQUIRED_DEPTH = 2
 STAFF_IDENTIFY_MIN_DEPTH = 10
 SUPPLY_STORES: dict[str, tuple[int, ...]] = {

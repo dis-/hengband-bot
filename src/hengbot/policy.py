@@ -198,6 +198,7 @@ from hengbot.policy_constants import (
     SUMMONER_CHOKE_NEIGHBORS,
     SUPPLY_STORES,
     TELEPORT_REQUIRED_DEPTH,
+    TELEPORT_RETURN_THRESHOLD,
     TORCH_REFILL_FUEL,
     BUY_KEY,
     BUY_CONFIRM_SUFFIX,
@@ -1104,7 +1105,6 @@ TELEPORT_SCROLL_TARGET = 3
 # Deep runs (10F+) escape far more often, so carry a big teleport buffer and only
 # head back to restock once it is drawn down to the low reserve.
 TELEPORT_SCROLL_DEEP_TARGET = 15
-TELEPORT_RETURN_THRESHOLD = 3
 # Once the character has reached this dungeon depth, returning to the dungeon
 # from town uses Word of Recall (which lands at the deepest level reached) rather
 # than walking to the wilderness entrance and re-descending from level 1.
@@ -7610,6 +7610,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 or (
                     self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure") is None
                     and not walkout_dig.has_route(self, snapshot)
+                    and not retreat_enclosure.dig_has_route(self, snapshot)
                 )
             )
         ):
@@ -16627,9 +16628,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         hostiles = self._physical_hostiles(snapshot)
         candidates = [
             monster for monster in hostiles
-            if monster.distance <= 1
-            and monster.max_ranged_damage <= 0
-            and self._escape_blocker_is_easy_kill(snapshot, hostiles, monster)
+            if monster.distance <= 1 and self._weak_blocker(snapshot, hostiles, monster)
         ]
         best: tuple[int, MonsterState] | None = None
         for monster in candidates:
@@ -16658,12 +16657,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                             ),
                             None,
                         )
-                        if (
-                            occupant is None
-                            or occupant.max_ranged_damage > 0
-                            or not self._escape_blocker_is_easy_kill(
-                                snapshot, hostiles, occupant
-                            )
+                        if occupant is None or not self._weak_blocker(
+                            snapshot, hostiles, occupant
                         ):
                             continue
                     seen.add(neighbor)
@@ -16675,6 +16670,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if best is None or not self._can_fight_in_dungeon(snapshot.floor_key[0]):
             return None
         return self._direction_key(player.position, best[1].position)
+
+    def _weak_blocker(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        monster: MonsterState,
+    ) -> bool:
+        """A blocker the walk-out bumps: no ranged attack, and an easy kill.
+
+        Also retreat_enclosure's reading of a weak enemy in walled-off ground."""
+        return (
+            monster.max_ranged_damage <= 0
+            and self._escape_blocker_is_easy_kill(snapshot, hostiles, monster)
+        )
 
     def _escape_blocker_is_easy_kill(
         self,

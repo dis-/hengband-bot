@@ -286,6 +286,7 @@ NOT_A_WALK = {
     "direct_blow": "combat_answer: melee on an adjacent monster",
     "key": "unseen_strike: ALTER_KEY + dir at a free neighbour",
     "strike_key": "blind_strike: ALTER_KEY + dir at the remembered cell",
+    "_strike_key": "retreat_enclosure: melee on an adjacent weak enemy; its walk goes through _step_toward",
 }
 # The boxed town breakout was the one town-routed residual; it was deleted
 # with the town defined end (owner 2026-11-02).

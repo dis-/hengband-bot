@@ -10,8 +10,9 @@ beside the target 486 game turns later.
 
 Owner 2026-11-04 on vetoes that hold the player: 「一旦テレポートで離脱を試みる。同じフロアで二度同じ形で
 動けなくなったら帰還。」; 2026-11-05 on the search: 「ランダムクエストで標的が見つからないときはフロアを周回
-して探す」 with no cap on laps.  The floor's one Teleportation is read (retreat_enclosure); the second
-step leaves the floor and fails the quest, and is a question for the owner, so no Recall is pinned.
+して探す」 with no cap on laps.  The floor's one Teleportation is read (retreat_enclosure).  Walled off
+again, owner 2026-11-06: dig, disarm, strike a weak enemy, then Teleportation again or Recall at or
+below the reserve (tests/test_walled_off_again_1106_recorded).
 
 The stall itself is named by the runner's dwell timer (linux_soak.py, outside this repository, on
 the floor and the character level alone), so it has no pin here.
@@ -48,7 +49,9 @@ READ_PROMPT = "どの巻物を読みますか? "
 VETOES_DONE_TURN = 2344864
 
 
-class WalledOffHuntAndSearch(loops.ItemCommandBoards):
+class WalledOffBoards(loops.ItemCommandBoards):
+    """The fixture's boards through choose_key (no tests of its own)."""
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -67,11 +70,17 @@ class WalledOffHuntAndSearch(loops.ItemCommandBoards):
                 return replay, line, key, reason
         return replay, line, key, reason
 
-    def at_the_stop(self, replay, *, later=0):
-        """The stop's last board as the loop met it (DECLARED, the module docstring)."""
+    def stop_raw(self, *, later=0, edit=None):
+        """The stop's last board, ``later`` game turns on, changed by ``edit`` (DECLARED)."""
         raw = json.loads(self.boards["stop"])
         raw["turn"] += later
-        line = json.dumps(raw, ensure_ascii=False)
+        if edit is not None:
+            edit(raw)
+        return raw
+
+    def at_the_stop(self, replay, *, later=0, edit=None):
+        """The stop's last board as the loop met it (DECLARED, the module docstring)."""
+        line = json.dumps(self.stop_raw(later=later, edit=edit), ensure_ascii=False)
         board = replay.board(line)
         policy = replay.policy
         ground = [*board.grids, *(Position(*cell) for cell in policy._floor_t)]
@@ -84,6 +93,8 @@ class WalledOffHuntAndSearch(loops.ItemCommandBoards):
         getattr(policy, hunt_target.MEMORY).position = None
         return replay.decide(line)
 
+
+class WalledOffHuntAndSearch(WalledOffBoards):
     def test_the_retreats_leave_the_recorded_column(self):
         replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)
         self.assertEqual(replay.policy._engagement_owned_avoid_cells, COLUMN)
@@ -107,15 +118,17 @@ class WalledOffHuntAndSearch(loops.ItemCommandBoards):
         _board, _key, reason = replay.decide(json.dumps(west, ensure_ascii=False))
         self.assertEqual(reason, hunt_target.REASON)
 
-    def test_a_search_walled_off_by_the_column_reads_teleportation_then_laps_on(self):
+    def test_a_search_walled_off_by_the_column_reads_teleportation_then_again(self):
         replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)
         _board, key, reason = self.at_the_stop(replay)
         self.assertEqual(reason, retreat_enclosure.TELEPORT_REASON)
         self.post_item_command(replay.policy, json.loads(self.boards["stop"]), key, READ_PROMPT)
-        # DECLARED: the read landed on this side after all.  The owner's second step is not
-        # taken on a quest floor: the lap goes on, and the dwell timer still names the floor.
-        _board, _key, reason = self.at_the_stop(replay, later=10)
-        self.assertEqual(reason, quest_target_search.LOOP_REASON)
+        # DECLARED: the read landed on this side after all.  Walled off again, with no digger,
+        # trap or weak enemy and 15 scrolls over the reserve of 5, the owner's 2026-11-06 answer
+        # reads Teleportation again (retreat_enclosure; tests/test_walled_off_again_1106_recorded).
+        _board, key, reason = self.at_the_stop(replay, later=10)
+        self.assertEqual(reason, retreat_enclosure.TELEPORT_REASON)
+        self.assertEqual(key, "re")
 
     def test_a_veto_that_walls_nothing_off_leaves_the_loop_walking(self):
         replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)

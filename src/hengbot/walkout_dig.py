@@ -116,17 +116,26 @@ def key(policy, snapshot: Snapshot) -> str | None:
     if plan is None:
         return None
     first, reason = plan
+    return dig_step_key(policy, snapshot, first, diggable, reason)
+
+
+def dig_step_key(policy, snapshot: Snapshot, first: Position, can_dig, reason: str,
+                 wield_reason: str = WIELD_REASON) -> str | None:
+    """Wield the digger before tunnelling into ``first``, else take the dig-route step.
+
+    Shared with retreat_enclosure's dig toward walled-off ground; the digger is
+    restored by the breakout's restore rung once neither asker has a route."""
     first_grid = snapshot.grids.get(first)
     if (
         first_grid is not None
-        and diggable(first_grid)
+        and can_dig(first_grid)
         and policy._equipped_digging_tool(snapshot) is None
     ):
-        wield = policy._wield_digging_tool_key(snapshot, WIELD_REASON)
+        wield = policy._wield_digging_tool_key(snapshot, wield_reason)
         if wield is not None:
             policy._breakout_dig_floor = snapshot.floor_key
             return wield
-    step = policy._dig_step_key(snapshot, first, diggable)
+    step = policy._dig_step_key(snapshot, first, can_dig)
     if step is not None:
         policy.last_reason = reason
     return step

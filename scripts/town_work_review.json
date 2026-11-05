@@ -12838,22 +12838,55 @@
     "rows": [
       "positioning"
     ],
-    "context": "Dungeon only: under teleport_key and walled_off_teleport_key; never reached in town.",
+    "context": "Dungeon only: under teleport_key and walled_off_key; never reached in town.",
     "evidence": "dungeon-only: the floor's one Teleportation read of owner 2026-11-04 「一旦テレポートで離脱を試みる。」; returns the read key or None.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait, retreat or teleport owner."
   },
-  "retreat_enclosure.py:walled_off_teleport_key": {
+  "retreat_enclosure.py:walled_off_key": {
     "classification": "action",
     "rows": [
       "positioning"
     ],
     "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
-    "evidence": "dungeon-only: n1-b life-317 Angband 50F, retreat vetoes walled known ground off from the hunt and the loop for 81,000 game turns; reads the floor's one Teleportation when a veto holds known ground; returns the read key or None.",
+    "evidence": "dungeon-only: n1-b life-317 Angband 50F, retreat vetoes walled known ground off from the hunt and the loop for 81,000 game turns; reads the floor's one Teleportation when a veto holds known ground, and walled off again (owner 2026-11-06) the dig, disarm and weak-enemy strike toward the ground, then Teleportation again or Recall at or below the reserve; returns the key or None.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
-    "delegation": "No independent success; existing wait, retreat or teleport owner."
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:walled_off": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon only: read by walled_off_key and dig_has_route; never reached in town.",
+    "evidence": "dungeon-only: pure reading of the player's side of the retreat vetoes and the known ground they wall off; no key.",
+    "delegation": "No independent success; pure reading."
+  },
+  "retreat_enclosure.py:_leave_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon only: under walled_off_key; never reached in town.",
+    "evidence": "dungeon-only: owner 2026-11-06 「ダメならテレポートを使用し、巻物が規定数以下になれば帰還。」: Recall at or below the reserve (5 on a covered kill quest floor, else TELEPORT_RETURN_THRESHOLD), else Teleportation again; returns the read key or None.",
+    "delegation": "No independent success; existing teleport or recall owner."
+  },
+  "walkout_dig.py:dig_step_key": {
+    "classification": "action",
+    "rows": [
+      "departure"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon only: under walkout_dig.key and retreat_enclosure's dig; never reached in town.",
+    "evidence": "dungeon-only: the walk-out dig's wield-then-tunnel step, shared with retreat_enclosure's dig toward walled-off ground (owner 2026-11-06 「壁を掘る」); _wield_digging_tool_key then _dig_step_key; returns the key or None.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "retreat_enclosure.py:teleport_key": {
     "classification": "action",
