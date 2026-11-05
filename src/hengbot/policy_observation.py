@@ -439,14 +439,12 @@ class ObservationMixin:
             self._target_dungeon_id = DUNGEON_YEEK_CAVE
             self._target_dungeon_reason = "initial_yeek_cave"
         pursued_target = self._target_dungeon_id
+        random_quest_hold.settle_target(self, snapshot)
         if random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND):
             self._rumor_unlock_pending = False
             if self._alternate_dungeon == DUNGEON_ANGBAND:
                 self._alternate_dungeon = None
                 self._alternate_dungeon_reason = None
-            if snapshot.angband_recall_unlocked or self._target_dungeon_id == DUNGEON_ANGBAND:
-                self._target_dungeon_id = DUNGEON_YEEK_CAVE
-                self._target_dungeon_reason = random_quest_hold.TARGET_REASON
         elif snapshot.angband_recall_unlocked:
             self._target_dungeon_id = DUNGEON_ANGBAND
             self._target_dungeon_reason = "angband_recall_unlocked"
