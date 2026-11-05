@@ -9,7 +9,7 @@ Q31 board of tests/fixtures/once-quest-recall-20261103.json.gz with its floor, g
 row, position, HP, monsters and carried potions and scrolls replaced: the grid map from the
 real lib/edit/quests/025_HauntedHouse.jsonc (every cell known), the monsters with the races and
 cells of that map.  Monster data is the real MonraceDefinitions.  The owner approved the
-file on 2026-11-05 (「Q25を仕上げる」).
+file on 2026-11-05 and withdrew it the same day (「直るまで受けない」); the table here keeps it on.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -203,8 +203,8 @@ class Q25MapFactsTest(unittest.TestCase):
         text = (ROOT / "strategy" / "quests" / "QUEST_25.jsonc").read_text(encoding="utf-8")
         self.assertNotIn("[8,1]", text)
         self.assertIsNone(STRATEGIES[25].engagement_plan["hold_position"])
-        self.assertTrue(FILE_STRATEGIES[25].approved)
-        self.assertIn(25, EXECUTABLE_QUEST_STRATEGY_IDS)
+        # Withdrawn 2026-11-05 「直るまで受けない」 until the summon rules reach this plan.
+        self.assertFalse(FILE_STRATEGIES[25].approved)
 
     def test_every_stop_is_walkable_and_every_target_door_is_a_door(self):
         for stop in PLAN["stands"]:
