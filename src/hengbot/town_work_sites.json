@@ -1454,6 +1454,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "immobile_threat_memory.py:never_moves": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "immobile_threat_memory.py:route_cells": {
     "classification": "data",
     "rows": [
@@ -9296,6 +9303,27 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_firing_cells.py:_lane_is_clear": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_firing_cells.py:touching_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_firing_cells.py:usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_force_rows.py:resolve": {
     "classification": "data",
