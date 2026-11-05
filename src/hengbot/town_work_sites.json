@@ -90,6 +90,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "area_mapping.py:_held_scroll": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "area_mapping.py:_held_scroll_key": {
     "classification": "data",
     "rows": [
@@ -105,6 +112,13 @@
     "delegation": "selected child; no independent success"
   },
   "area_mapping.py:blank_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "area_mapping.py:picked_up_scroll_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -6605,6 +6619,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_navigation.py:NavigationMixin._undersearched_walls": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_navigation.py:NavigationMixin._warning_step_refused": {
     "classification": "data",
     "rows": [
@@ -9666,7 +9687,28 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:_dead_ends": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_door_search_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_target_search.py:_next_goal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_walk_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

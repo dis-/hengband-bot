@@ -17177,6 +17177,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
 
+    def _forget_wall_search(self, position: Position) -> None:
+        """The search rounds spent at ``position`` and on its walls start again."""
+        self._search_counts.pop((position.y, position.x), None)
+        for dy, dx in NEIGHBOR_OFFSETS:
+            self._wall_search_counts.pop((position.y + dy, position.x + dx), None)
+
     def _is_frontier(self, snapshot: Snapshot, grid: GridState) -> bool:
         # A fully-remembered static town (Outpost map loaded) has nothing left
         # to explore: without this, unlit night WALL tiles are absent from the

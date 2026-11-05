@@ -169,6 +169,11 @@ def device_usable_now(policy, snapshot: Snapshot) -> bool:
             and me_powers.utility_device_permitted(policy, snapshot))
 
 
+def means_held(policy, snapshot: Snapshot) -> bool:
+    """A 周辺感知 to use: an absorbed power with a charge or a ready carried device."""
+    return me_powers.map_charged(policy, snapshot) or _carried_device(snapshot) is not None
+
+
 def _held_scroll(snapshot: Snapshot):
     return next((item for item in snapshot.inventory
                  if (item.tval, item.sval) == (TVAL_SCROLL, SV_SCROLL_MAPPING)

@@ -29,6 +29,17 @@ again.  A lap with no stop left to walk to answers nothing, and the ladder below
 A loop step is progress: new ground is not what it is for, so the no-progress and stuck
 counts restart on each (as sealed_pocket's use does).
 
+The secret doors (``_door_search_key``).  Owner the same day: 「周辺感知をもたない場合に限り何周か
+ごとに隠し扉を探す」.  With no usable 周辺感知 (area_mapping.means_held), every DOOR_SEARCH_LAPS laps
+the bot goes to the nearest dead end it can walk to and spends the search rounds there
+(SEARCH_LIMIT, the corridor dead-end rung answers on arrival), until every dead end had them; an
+absorbed Detect Doors is asked first (me_powers.SECRET_SEARCH, its own spacing).  Each round of
+this starts the dead ends' counts again: a search can miss (cmd-action/cmd-others.cpp search,
+skill_srh per grid).  There is no cap on laps.  A door found is a frontier, and ordinary
+exploration, which is asked before the loop, walks it.  The walk is not ``seek-secret-wall``:
+that reason counts to STUCK_ESCAPE_LIMIT, which releases the exit lock, and no leave rule changes
+here.  A walk between dead ends restarts that count, as any loop step does.
+
 The detection (``detection_key``, on the dungeon's safe decision, under me_powers' own rows,
 which cast an absorbed power first): only a means that can show this race
 (hunt_target.REVEALS), the carried Rod of Detection before the Staff of Detect Evil.  Again
@@ -47,11 +58,14 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
     SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_STAFF, Position, Snapshot, game_distance,
 )
-from hengbot.policy_constants import NEIGHBOR_OFFSETS
+from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY
 
 
 LOOP_REASON = "quest-search:loop"
 DETECT_REASON = "quest-search:detect"
+DOOR_REASON = "quest-search:seek-door"
+SEARCH_REASON = "search"  # the corridor dead-end rung's own reason
+DOOR_SEARCH_LAPS = 3  # the owner's 「何周か」: the target's healing is why the loop hurries
 MEMORY = "_quest_target_search"
 MAX_SIGHT = 20  # define.h
 # (tval, sval): (the command kind, hunt_target.REVEALS's effect), the fuller search first.
@@ -70,6 +84,9 @@ class Memory:
     casts: list = field(default_factory=list)  # (position, radius, turn) a carried device searched
     pending: tuple | None = None               # (turn, position, radius) of the last use
     failed: dict = field(default_factory=dict)  # position -> failed uses
+    laps: int = 0                              # laps finished on this floor visit
+    door_lap: int = 0                          # the lap the last door search began at
+    door_search: bool = False                  # the dead ends are being searched now
 
 
 def _memory(policy, snapshot: Snapshot) -> Memory:
@@ -163,25 +180,65 @@ def _next_goal(snapshot: Snapshot, memory: Memory, routes: dict) -> Position | N
     return None if not left else min(left, key=lambda stop: (routes[stop][0], stop.y, stop.x))
 
 
+def _dead_ends(policy, snapshot: Snapshot, routes: dict) -> list:
+    """The walkable grids the corridor dead-end rung searches."""
+    return [cell for cell in routes if policy._open_neighbor_count(snapshot, cell) <= 1]
+
+
+def _walk_key(policy, snapshot: Snapshot, routes: dict, goal: Position, reason: str) -> str:
+    """One step to ``goal``, as progress (the module docstring)."""
+    policy._nav_exhausted = False
+    policy._nav_stall_count = 0
+    policy._recent.clear()  # a search's standing still must not read as an oscillation
+    policy.last_reason = reason
+    policy._declare_reach(goal)
+    return policy._step_toward(snapshot, routes[goal][1])
+
+
+def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> str | None:
+    """This decision's part of the secret door search (the module docstring), else None."""
+    if area_mapping.means_held(policy, snapshot):
+        memory.door_search = False
+        return None
+    ends = _dead_ends(policy, snapshot, routes)
+    if not memory.door_search and memory.laps - memory.door_lap >= DOOR_SEARCH_LAPS:
+        memory.door_lap, memory.door_search = memory.laps, True
+        for cell in ends:
+            policy._forget_wall_search(cell)
+    if not memory.door_search:
+        return None
+    power = me_powers.power_key(policy, snapshot, me_powers.SECRET_SEARCH)
+    if power is not None:
+        return power
+    left = [cell for cell in ends if policy._undersearched_walls(cell)]
+    if not left:
+        memory.door_search = False
+        return None
+    goal = min(left, key=lambda cell: (routes[cell][0], cell.y, cell.x))
+    if goal != snapshot.player.position:
+        return _walk_key(policy, snapshot, routes, goal, DOOR_REASON)
+    policy._record_wall_search(goal)
+    policy.last_reason = SEARCH_REASON
+    return SEARCH_KEY
+
+
 def loop_key(policy, snapshot: Snapshot) -> str | None:
-    """The next step of the lap, else None."""
+    """The next step of the lap or of its door search, else None."""
     if not searching(policy, snapshot):
         return None
     memory, routes = _memory(policy, snapshot), _routes(policy, snapshot)
+    door = _door_search_key(policy, snapshot, memory, routes)
+    if door is not None:
+        return door
     goal = _next_goal(snapshot, memory, routes)
     if goal is None:
+        memory.laps += bool(memory.stops)
         stops = draw_stops(snapshot, set(routes))
         # One stop: all the ground is in sight of one place, so there is nothing to circle.
         memory.stops, memory.seen = (stops if len(stops) > 1 else ()), set()
         goal = _next_goal(snapshot, memory, routes)
     memory.goal = goal
-    if goal is None:
-        return None
-    policy._nav_exhausted = False
-    policy._nav_stall_count = 0
-    policy.last_reason = LOOP_REASON
-    policy._declare_reach(goal)
-    return policy._step_toward(snapshot, routes[goal][1])
+    return None if goal is None else _walk_key(policy, snapshot, routes, goal, LOOP_REASON)
 
 
 def observe(policy, snapshot: Snapshot) -> None:
