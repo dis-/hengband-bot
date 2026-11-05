@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import arena
 from hengbot import quest_optional_carry
-from hengbot import item_fate, launcher_upgrade, spare_gear
+from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import guardian_rumor, home_pass_charge, town_end_mining, town_travel
@@ -3337,6 +3337,11 @@ class TownMixin:
                 and STORE_GENERAL not in self._town_store_attempted
             ):
                 add(STORE_GENERAL, "fundraising-oil")
+            if (
+                mining_oil_sale.scroll_to_sell(self, snapshot) is not None
+                and STORE_ALCHEMIST not in self._town_store_attempted
+            ):
+                add(STORE_ALCHEMIST, "mining-oil-sale")
             mandatory_supplies_ready = (
                 self._fundraising_kit_secured(snapshot)
                 and self._count_treasure_detection_scrolls(snapshot) >= scrolls_needed
@@ -3713,6 +3718,7 @@ class TownMixin:
             ("mining-digger", "normal", 1, True),  # A purchased digger gates a fundraising run.
             ("fundraising-light", "normal", 1, True),  # Light gates a fundraising run.
             ("fundraising-oil", "normal", 1, True),  # Oil gates a fundraising run.
+            ("mining-oil-sale", "normal", 1, True),  # Its proceeds buy that oil.
             ("identification-source", "before-withdrawal", 1, True),  # Identification is consumed by departure readiness.
             ("identification-withdrawal", "post-alchemist-home", 1, True),  # The identification handoff gates departure.
             # The ledger prepends Home when it holds supplies. Reserve a lookup

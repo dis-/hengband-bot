@@ -21,6 +21,7 @@ from unittest import mock
 
 from hengbot import cli
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot import mining_oil_sale
 from hengbot.me_powers_refresh import REFRESH_REASON
 from hengbot.model import parse_snapshot
 from hengbot.policy import staged_prompt_chain_matches
@@ -230,6 +231,168 @@ class TownStops1105RecordedTest(executor_pins.ProductionHarness):
         self.assertFalse(policy.last_reason.startswith("fixedquest:"))
         self.assertIsNotNone(policy._morivant_full_identify)
         self.assert_posts(policy, recorded[55], board, key)
+
+    def test_a_short_oil_stack_keeps_the_identify_scroll_off_the_mining_shopping(self):
+        """Owner 2026-11-06: 採掘の買い物で油を鑑定の巻物より先に買います.
+        n1-b life-315 13:49: 79 gold, Identify at 78.  It held all five flasks, so
+        the purchase stands; one flask short, the Alchemist's page leaves it."""
+        policy, recorded, steps = self.load("mining-identify")
+        for index in range(44):
+            _, chosen, reason, key = self.decide(policy, steps[index][1])
+            self.assertEqual((chosen, reason), (recorded[index]["key"], recorded[index]["reason"]))
+            self.post(policy, key)
+        # DECLARED CONSTRUCTED: four flasks instead of the five recorded.
+        short = copy.deepcopy(json.loads(recorded[44]["line"] or recorded[44]["inputs"][-1]))
+        self.assertEqual(short["inventory"][0]["tval"], 77)
+        short["inventory"][0]["count"] = 4
+        twin = copy.deepcopy(policy)
+        _, chosen, reason, _ = self.on_page(twin, short)
+        self.assertFalse(chosen.startswith("p"), (chosen, reason))
+
+        _, chosen, reason, _ = self.decide(policy, steps[44][1])
+        self.assertEqual((chosen, reason), (recorded[44]["key"], "shop:in-store-buy"))
+
+    @staticmethod
+    def mining_oil_board(recorded, row, *, gold=None, scrolls=None):
+        """The recorded board, with the sale's effect on the purse and the stack."""
+        raw = copy.deepcopy(json.loads(recorded[row]["line"] or recorded[row]["inputs"][-1]))
+        if gold is not None:
+            raw["player"]["gold"] = gold
+        if scrolls is not None:
+            stack = next(item for item in raw["inventory"]
+                         if item["tval"] == 70 and item["sval"] == 26)
+            stack["count"] = scrolls
+        return raw
+
+    def replay_to_the_alchemist(self):
+        """n1-b life-315 13:50, the arrival with 1 gold, 7 scrolls, no oil and a dead
+        lantern.  The recorded boards play in order to the Alchemist's page; rows 4-7,
+        36, 37 and 49 now choose otherwise than the recorded build (a worn digger's
+        restore), which the boards after them do not depend on."""
+        policy, recorded, steps = self.load("mining-oil-sale")
+        for index in range(90):
+            self.post(policy, self.decide(policy, steps[index][1])[3])
+        return policy, recorded, steps
+
+    def on_page(self, policy, raw):
+        policy.observe_store_screen(True)
+        return self.decide(policy, lambda: parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+
+    @staticmethod
+    def tag_for_sale(page):
+        # DECLARED CONSTRUCTED: the game's answer to the inscription.
+        stack = page["inventory"][0]
+        stack["inscription"] = "@0"
+        stack["name"] += " {@0}"
+        return stack
+
+    def test_one_treasure_detection_scroll_buys_the_oil(self):
+        """Owner 2026-11-06: 財宝感知の巻物を1本売って油を買います.
+        n1-b life-315 13:50: oil at 5 gold, 1 gold, 7 scrolls: town:wait-restock:
+        general:oil-light, then town:blocked:survival:recall_departure_ready."""
+        policy, recorded, _ = self.replay_to_the_alchemist()
+        self.assertEqual(recorded[90]["reason"], "shop:observe-and-leave")
+        page = self.mining_oil_board(recorded, 90)
+        _, chosen, reason, key = self.on_page(policy, page)
+        self.assertEqual((chosen, reason), ("{a@0\r", "shop:in-store-inscribe"))
+        self.post(policy, key)
+        stack = self.tag_for_sale(page)
+        _, chosen, reason, key = self.on_page(policy, page)
+        self.assertEqual((chosen, reason), ("d01\ry", "shop:in-store-sell"))
+        self.post(policy, key)
+        # DECLARED CONSTRUCTED: the sale; 7 gold is what the Magic shop of n1-b
+        # life-314 paid per scroll (売値 $35 for five).
+        stack["count"] = 6
+        page["player"]["gold"] = 8
+        _, chosen, reason, key = self.on_page(policy, page)
+        self.assertEqual((chosen, reason), ("\x1b", "shop:in-store-done"))
+        self.post(policy, key)
+
+        # DECLARED CONSTRUCTED: the recorded street with the sale's effect.
+        street = self.mining_oil_board(recorded, 91, gold=8, scrolls=6)
+        board = parse_snapshot(copy.deepcopy(street), policy._monrace_knowledge)
+        _, chosen, reason, key = self.decide(policy, lambda: board)
+        self.assertEqual((chosen, reason), ("\x1b`n!.", "shop:travel"))
+        self.assert_posts(policy, dict(recorded[91], line=json.dumps(street)), board, key)
+        self.post(policy, key)
+
+        # DECLARED CONSTRUCTED: the General Store's recorded shelf with 8 gold.
+        shelf = self.mining_oil_board(recorded, 62, gold=8, scrolls=6)
+        oil = next(item for item in shelf["store"]["items"] if item["tval"] == 77)
+        self.assertEqual(oil["price"], 5)
+        _, chosen, reason, _ = self.on_page(policy, shelf)
+        self.assertEqual((chosen, reason), (f"p{oil['letter']}1\r\r", "shop:in-store-buy"))
+
+    def test_the_oil_sale_takes_one_scroll_of_a_stack_below_the_carry_target(self):
+        """Three scrolls under the kit's carry target of six: one goes, two stay."""
+        policy, recorded, _ = self.replay_to_the_alchemist()
+        # DECLARED CONSTRUCTED: three scrolls since the General Store's page opened the sale.
+        policy._mining_oil_sale["scrolls"] = 3
+        page = self.mining_oil_board(recorded, 90, scrolls=3)
+        _, chosen, _, key = self.on_page(policy, page)
+        self.assertEqual(chosen, "{a@0\r")
+        self.post(policy, key)
+        self.tag_for_sale(page)
+        _, chosen, _, _ = self.on_page(policy, page)
+        self.assertEqual(chosen, "d01\ry")
+
+    def test_the_oil_sale_is_one_scroll_even_when_it_buys_nothing(self):
+        """Proceeds short of the oil: no second scroll; the visit goes on without it."""
+        policy, recorded, _ = self.replay_to_the_alchemist()
+        page = self.mining_oil_board(recorded, 90)
+        self.post(policy, self.on_page(policy, page)[3])
+        stack = self.tag_for_sale(page)
+        self.post(policy, self.on_page(policy, page)[3])
+        # DECLARED CONSTRUCTED: a sale of 2 gold leaves 3; oil is 5.
+        stack["count"] = 6
+        page["player"]["gold"] = 3
+        _, chosen, reason, key = self.on_page(policy, page)
+        self.assertEqual((chosen, reason), ("\x1b", "shop:in-store-done"))
+        self.post(policy, key)
+        self.assertIsNone(mining_oil_sale.scroll_to_sell(
+            policy, parse_snapshot(page, policy._monrace_knowledge)))
+
+    def test_the_oil_sale_is_only_for_a_lantern_short_of_oil_and_money(self):
+        policy, recorded, _ = self.replay_to_the_alchemist()
+        recorded_page = self.mining_oil_board(recorded, 90)
+
+        def scroll(change):
+            page = copy.deepcopy(recorded_page)
+            change(page)
+            return mining_oil_sale.scroll_to_sell(
+                policy, parse_snapshot(page, policy._monrace_knowledge))
+
+        def lantern(page):
+            return next(item for item in page["inventory"] if item["tval"] == 39)
+
+        def torch_only(page):
+            page["inventory"] = [item for item in page["inventory"] if item["tval"] != 39]
+
+        def flask(page):
+            page["inventory"].append(dict(page["inventory"][0], tval=77, sval=0, name="油つぼ", slot="e"))
+
+        self.assertIsNotNone(scroll(lambda page: None))
+        # The town plan files the Alchemist for the sale, and the registry knows it.
+        board = parse_snapshot(copy.deepcopy(recorded_page), policy._monrace_knowledge)
+        self.assertIsNotNone(policy._candidate_need(board, "mining-oil-sale", "normal", 0))
+        self.assertIn("mining-oil-sale", [spec.category for spec in policy._town_need_registry()])
+        # The purse buys the oil at 5 gold.
+        self.assertIsNone(scroll(lambda page: page["player"].update(gold=5)))
+        # The set's one remaining run keeps the last scroll.
+        self.assertIsNone(scroll(lambda page: page["inventory"][0].update(count=1)))
+        # A torch takes no oil (src/cmd-item/cmd-refill.cpp).
+        self.assertIsNone(scroll(torch_only))
+        # A lantern with fuel left has no need yet.
+        self.assertIsNone(scroll(lambda page: lantern(page).update(light_turns=100)))
+        # An unidentified lantern shows no fuel.
+        self.assertIsNone(scroll(lambda page: lantern(page).update(known=False)))
+        self.assertIsNone(scroll(flask))
+
+        def dark_light(page):
+            page["inventory"].append(dict(lantern(page), name="★火消しライター", sval=4, slot="e",
+                                          known_flags=[8, 84, 85, 86, 87, 88, 116, 124, 146]))
+        # A dark light held (model.lights_nothing) neither needs oil nor lights the way.
+        self.assertIsNotNone(scroll(dark_light))
 
 
 if __name__ == "__main__":
