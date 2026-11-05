@@ -831,6 +831,8 @@ def _cell_loop_guard_applies(
     blocked-state stop.  Feeding the same decisions to the generic dungeon
     cell guard can stop the bot before ``town:cycle-break`` is emitted.
     """
+    if snapshot.inside_arena:
+        return False  # a closed room with one fight: arena.py
     if previous_position is None:
         previous_position = snapshot.player.position
     return (

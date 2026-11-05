@@ -61,7 +61,8 @@ def applies(snapshot) -> bool:
 
 def _throwable_torch(policy, snapshot):
     torches = [item for item in snapshot.inventory if item.is_torch and item.fuel > 0]
-    if not torches or policy._opening_q1_torches_reserved(snapshot):
+    # throw-execution.cpp: the arena refuses a throw without a turn.
+    if not torches or snapshot.inside_arena or policy._opening_q1_torches_reserved(snapshot):
         return None
     light = next((item for item in snapshot.equipment if item.slot == "light"), None)
     burning_torch = light is not None and (light.tval, light.sval) == (TVAL_LIGHT, SV_LIGHT_TORCH)
@@ -124,7 +125,9 @@ def _fire_missile(policy, direction) -> str:
 
 def _attack_wand(policy, snapshot, target, direction):
     # A carried wand is the same wand_effect (zapwand-execution.cpp:102), so a
-    # town ball keeps the absorbed powers' area rule.
+    # town ball keeps the absorbed powers' area rule.  cmd_limit_arena refuses it.
+    if snapshot.inside_arena:
+        return None
     return next((item for item in snapshot.inventory
                  if item.tval == TVAL_WAND and item.known
                  and item.sval in ATTACK_WAND_SVALS and item.charges > 0

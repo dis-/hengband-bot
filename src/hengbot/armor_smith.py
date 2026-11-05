@@ -165,7 +165,7 @@ def raises(policy, snapshot, price: int, fare: int = 0) -> list:
     return plan
 
 
-def _board_allows(policy, snapshot) -> bool:
+def board_allows(policy, snapshot) -> bool:
     """Survival first: no hit, no monster beside the player, no state that would refuse."""
     player = snapshot.player
     return (snapshot.in_town and snapshot.store is None and not player.recalling
@@ -186,7 +186,7 @@ def _trip_destination(snapshot) -> int | None:
     return min(listed, key=lambda town: _town_smith(town, class_id).price(class_id), default=None)
 
 
-def _no_progress(record, snapshot) -> bool:
+def no_progress(record, snapshot) -> bool:
     """The walk came back to one cell with nothing changed."""
     progress = (snapshot.player.gold, tuple(item.name for item in snapshot.equipment))
     if record.progress != progress:
@@ -204,7 +204,7 @@ def _close(record) -> None:
 
 
 def _raise_key(policy, snapshot, record, smith: Smith, plan: list) -> str | None:
-    if _no_progress(record, snapshot):
+    if no_progress(record, snapshot):
         return _close(record)
     step, enters = morivant_tower.building_step(
         policy, snapshot, smith.building, family=PRODUCER)
@@ -224,7 +224,7 @@ def _raise_key(policy, snapshot, record, smith: Smith, plan: list) -> str | None
 
 
 def _leg_key(policy, snapshot, record, destination: int, reason: str) -> str | None:
-    if _no_progress(record, snapshot):
+    if no_progress(record, snapshot):
         return _close(record)
     key = policy._town_teleport_key(snapshot, destination, producer=PRODUCER, reason=reason)
     return key if key is not None else _close(record)
@@ -267,7 +267,7 @@ def _errand_key(policy, snapshot, record) -> str | None:
 def trip_key(policy, snapshot) -> str | None:
     """While the trip is under way this owner holds the town's board."""
     record = state(policy)
-    if record.origin is None or record.closed or not _board_allows(policy, snapshot):
+    if record.origin is None or record.closed or not board_allows(policy, snapshot):
         return None
     return _errand_key(policy, snapshot, record)
 
@@ -275,6 +275,6 @@ def trip_key(policy, snapshot) -> str | None:
 def town_key(policy, snapshot) -> str | None:
     """At the recall read: the next key of the errand, or None for the read."""
     record = state(policy)
-    if record.closed or not _board_allows(policy, snapshot):
+    if record.closed or not board_allows(policy, snapshot):
         return None
     return _errand_key(policy, snapshot, record)

@@ -22,6 +22,9 @@ from hengbot.protocol import (
 )
 
 
+ARENA_FLOOR_KEY = (-1, 0, 0)  # no dungeon has this id; floor.inside_arena's own key
+
+
 class MissingMonraceKnowledgeError(ValueError):
     pass
 
@@ -1396,6 +1399,11 @@ def parse_snapshot(
         int(floor_data.get("level", 0)),
         int(floor_data.get("quest_id", 0)),
     )
+    # The emitter reports the arena as a town floor with a town's key.  It is neither:
+    # the way back must be a floor change (a fresh town visit, arena.py).
+    inside_arena = bool(floor_data.get("inside_arena", False))
+    if inside_arena:
+        floor_key = ARENA_FLOOR_KEY
 
     progress = data.get("progress", {})
     quests: dict[int, QuestState] = {}
@@ -1530,10 +1538,11 @@ def parse_snapshot(
         ),
         turn=int(data.get("turn", 0)),
         floor_key=floor_key,
-        inside_arena=bool(floor_data.get("inside_arena", False)),
+        inside_arena=inside_arena,
         width=width,
         height=height,
         town_flag=(
+            False if inside_arena else
             _as_bool(floor_data["in_town"]) if "in_town" in floor_data else None
         ),
         town_id=int(floor_data.get("town_id", -1)),

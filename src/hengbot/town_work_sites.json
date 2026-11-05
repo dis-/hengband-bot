@@ -132,6 +132,132 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "arena.py:_attack_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_building_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_entry_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_heal_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "arena.py:_leg_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_return_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_unseen_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_walk_toward": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_won_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:fight_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "arena.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:trip_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena_odds.py:_power_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "arena_odds.py:_selection": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "arena_odds.py:attack_plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "arena_odds.py:refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "armor_smith.py:Smith.price": {
     "classification": "data",
     "rows": [

@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, unseen_strike, wilderness_exit
+from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -2592,6 +2592,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         me_powers.observe(self, snapshot)
         me_powerful_activation.observe(self, snapshot)
         armor_smith.observe(self, snapshot)
+        arena.observe(self, snapshot)
         speed_dose.observe(self, snapshot)
         area_mapping.observe(self, snapshot)
         quest_target_search.observe(self, snapshot)
@@ -5412,6 +5413,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if (getattr(self, '_crossarea_fundraising_enforced', False) and self.last_reason in {*()}):
             return WAIT_KEY
         self._observe(snapshot, observation=latest_snapshot)
+        if snapshot.inside_arena:
+            return arena.fight_key(self, snapshot)
         if ((snapshot.in_town or snapshot.store is not None)
                 and self._effective_town_id(snapshot) > OUTPOST_TOWN_ID
                 and (snapshot.player.gold < TOWN_TELEPORT_COST
@@ -6974,6 +6977,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _low_hp_walk_gate(self, snapshot: Snapshot, key: str | None) -> str | None:
         if (
             snapshot.in_town
+            or snapshot.inside_arena  # arena.py owns the floor: its answers refuse scrolls
             or snapshot.store is not None
             or self._on_global_wilderness_map(snapshot)
         ):

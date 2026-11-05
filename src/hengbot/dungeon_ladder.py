@@ -246,6 +246,17 @@ LADDER = (
 
 # After the ladder has answered, _choose_key passes its key through these, in order; each may
 # put another in its place, so a rung's return is not always what is posted.
+# Ahead of the whole ladder, in ``_choose_key`` before ``_decide`` is asked, so above the
+# survival and summons rules; each with its reason.
+BEFORE_DECIDE = (
+    ("arena.fight_key",
+     "floor.inside_arena only.  The survival rungs' scrolls, potions and carried devices are "
+     "refused there (cmd_limit_arena), summons do not exist there (check_mspell_arena), there "
+     "is no way off the floor before the end, and a character beaten there does not die "
+     "(decide_arena_death): the owner heals by absorbed powers and fights, so survival is its "
+     "own first rung.  Every other floor passes by untouched."),
+)
+
 AFTER_DECIDE = (
     "_flee_sustain_key", "_strong_fight_speed_filter", "me_powers.fight_key",
     "_periodic_game_save_key", "_periodic_character_dump_key", "periodic_magic_eater_powers_key",

@@ -67,6 +67,7 @@ class MonraceKnowledge:
     experience: int = 0
     symbol: str = ""
     female: bool = False
+    names: tuple[str, ...] = ()  # the name fields of the definition (ja, en)
 
 
 def _strip_jsonc(text: str) -> str:
@@ -231,6 +232,8 @@ def load_monrace_knowledge(path: Path) -> dict[int, MonraceKnowledge]:
         shoot_num, shoot_sides = _parse_dice(skill.get("shoot"))
         result[int(monster["id"])] = MonraceKnowledge(
             symbol=str(monster.get("symbol", {}).get("character", "")),
+            names=tuple(str(name) for name in monster["name"].values())
+            if isinstance(monster.get("name"), dict) else (),
             female=monster.get("sex") == "FEMALE",
             max_hp=max_hp,
             speed=110 + int(monster.get("speed", 0)),

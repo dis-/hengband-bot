@@ -639,7 +639,8 @@ class CombatMixin:
         bare_no_op = key == WAIT_KEY or (
             snapshot.store is not None and key == "\r"
         )
-        if not bare_no_op:
+        # arena.py's hold has no better answer: there is no way out of that floor.
+        if not bare_no_op or snapshot.inside_arena:
             return key
 
         # The public choose_key return is the only enforcement point.  In-store
@@ -1530,6 +1531,8 @@ class CombatMixin:
         ammo = self._matching_ammo(snapshot)
         if ammo is not None:
             return "fire", ammo, "ranged:fire"
+        if snapshot.inside_arena:
+            return None  # throw-execution.cpp: the arena refuses a throw without a turn
         torch = self._first_item(
             snapshot, lambda it: it.is_torch and it.fuel > 0
         )

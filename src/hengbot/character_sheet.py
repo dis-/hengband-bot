@@ -76,6 +76,37 @@ def _decode_sheet(raw: bytes, encodings: tuple[str, ...]) -> str:
     raise CharacterSheetUnavailable("dump-encoding")
 
 
+@dataclass(frozen=True)
+class ArenaStanding:
+    """dump_aux_arena's line (io-dump/character-dump.cpp)."""
+    wins: int | None = None
+    defeated: bool = False
+    champion: bool = False
+
+
+def arena_standing(text: str) -> ArenaStanding | None:
+    """The arena line of a dump's text; None when the dump has none."""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("闘技場:"):
+            value = stripped.removeprefix("闘技場:").strip()
+            if value.endswith("敗北"):
+                return ArenaStanding(defeated=True)
+            if "チャンピオン" in value:
+                return ArenaStanding(champion=True)
+            found = re.fullmatch(r"(\d+)勝", value)
+            return ArenaStanding(wins=int(found.group(1))) if found else None
+        if stripped.startswith("Arena:"):
+            value = stripped.removeprefix("Arena:").strip()
+            if value.startswith("Defeated"):
+                return ArenaStanding(defeated=True)
+            if "Champion" in value:
+                return ArenaStanding(champion=True)
+            found = re.fullmatch(r"(\d+) Victor(?:y|ies)", value)
+            return ArenaStanding(wins=int(found.group(1))) if found else None
+    return None
+
+
 def parse_character_sheet(raw: bytes, *, encoding: str | None = None) -> CharacterSheet:
     text = _decode_sheet(raw, (encoding,) if encoding else SHEET_ENCODINGS)
     lines = text.splitlines()

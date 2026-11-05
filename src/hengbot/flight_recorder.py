@@ -217,6 +217,9 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_q2_tower_recharge",
         # The armour smith's attempts and trip of this stay in town (owner 2026-11-04).
         "_armor_smith_stay",
+        # The arena's trip, judgement and standing of this stay (owner 2026-11-05).
+        "_arena_stay",
+        "_arena_defeated",
         # The Q34 -> kit -> Q1 route's named stop detail (#47 n1-c 10-31).
         "_opening_q1_failure",
         # The Q1 carries lowered to what the gold buys (owner 2026-10-31).

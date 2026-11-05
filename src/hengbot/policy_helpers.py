@@ -140,6 +140,8 @@ class PolicyHelpersMixin:
         different versions of progress.  A recurrence is ineffective when game
         turns advanced less than policy decisions across its own decision span.
         """
+        if snapshot.inside_arena:
+            return key  # a fight on one cell and the gate's step are the floor's plan (arena.py)
         state = self._emission_state(snapshot)
         previous = self._emission_occurrences.get(state)
         sequence = self._decision_sequence
