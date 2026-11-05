@@ -22,7 +22,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hengbot import policy_quest as policy_quest_module
-from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_exposure, quest_force_rows, quest_ranged_force, trap_warning
+from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, trap_warning
 from hengbot.cli import _cell_loop_guard_applies
 from hengbot.model import (
     Position, STORE_ALCHEMIST, STORE_TEMPLE,
@@ -38,7 +38,7 @@ from hengbot.policy_constants import (
 from hengbot.quest_find_exit import HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_room_sweep import (
-    APPROACH_REASON, EXIT_REASON, EXIT_WALK_REASON, LIGHT_REASON, NOTHING_LEFT_REASON, OPEN_REASON, RESTORE_REASON,
+    APPROACH_REASON, CLOSE_REASON, COVER_REASON, EXIT_REASON, EXIT_WALK_REASON, LIGHT_REASON, NOTHING_LEFT_REASON, OPEN_REASON, RESTORE_REASON,
     TELEPORT_REASON, WALK_REASON, _note_last_seen, _sought_cells,
 )
 from hengbot.quest_strategies import load_quest_strategies
@@ -798,6 +798,99 @@ class Q25LineTest(unittest.TestCase):
         self.assertEqual((key, reason), (step_key((5, 4), (5, 3)), WALK_REASON))
         key, reason, _ = decide(board((5, 3), hp=300))
         self.assertEqual((key, reason), (REST_MACRO, "rest"))
+
+
+class Q25UnseenAttackerTest(unittest.TestCase):
+    """Owner 2026-11-05: 「生存は最優先として、移動は一歩で遮蔽が取れるかで判断。一歩で遮蔽が取れないなら
+    距離を詰めたほうが良い。」  DECLARED CONSTRUCTED: the walk is two boards of the module's map, the hit
+    is the recorded message 「何かがアイス・ボールの呪文を唱えた。」 with the HP it cost.  Doors as drawn."""
+
+    HIT = "何かがアイス・ボールの呪文を唱えた。"
+
+    def hit_after_walking(self, start, end, *, hp=700, opened=(), **kwargs):
+        raw = board(start, speed=0, **kwargs)
+        for door in opened:
+            open_door(raw, door)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 1)
+        choose(policy, raw)
+        raw["player"].update(y=end[0], x=end[1])
+        choose(policy, raw)
+        raw["player"]["hp"] = hp
+        raw["messages"] = [self.HIT]
+        return raw, policy
+
+    def in_the_west_passage(self, **kwargs):
+        """North up the first play's own walk: back on [8,1], out of every line ahead."""
+        return self.hit_after_walking((8, 1), (7, 1), **kwargs)
+
+    def test_a_step_out_of_every_line_ahead_is_taken(self):
+        raw, policy = self.in_the_west_passage()
+        self.assertEqual(choose(policy, raw), "2")
+        self.assertEqual(policy.last_reason, COVER_REASON)
+        self.assertEqual(navigator_of(policy).sweep_cover_taken, frozenset({(7, 1)}))
+
+    def test_it_is_looked_for_ahead_of_the_last_step_and_a_new_floor_forgets(self):
+        raw, policy = self.hit_after_walking((3, 23), (3, 24))
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        cells = quest_room_sweep._unseen_attacker_cells(policy, snapshot, navigator_of(policy))
+        self.assertTrue(cells)
+        self.assertTrue(all(cell[1] > 24 for cell in cells), cells)
+        navigator_of(policy).sweep_cover_taken = frozenset({(1, 1)})
+        navigator_of(policy).reset_for_floor((9, 9, 25))
+        self.assertEqual(navigator_of(policy).sweep_cover_taken, frozenset())
+
+    def test_at_the_corridor_door_of_the_first_play_it_closes(self):
+        """Rows 67-72: west through the open door [1,18].  Every neighbour shows to the corridor."""
+        raw, policy = self.hit_after_walking((1, 20), (1, 19), opened=[(1, 18)])
+        self.assertEqual(choose(policy, raw), "4")
+        self.assertEqual(policy.last_reason, CLOSE_REASON)
+
+    def test_a_cell_left_once_for_cover_closes_the_next_time(self):
+        raw, policy = self.in_the_west_passage()
+        choose(policy, raw)
+        raw["player"]["hp"] -= 10
+        self.assertEqual(choose(policy, raw), "9")  # ahead, toward the hall
+        self.assertEqual(policy.last_reason, CLOSE_REASON)
+
+    def test_after_a_teleport_the_direction_is_unknown_and_the_plan_walks(self):
+        raw = board((3, 24), speed=0)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 1)
+        choose(policy, raw)
+        raw["player"]["hp"] = 700
+        raw["messages"] = [self.HIT]
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_a_gaze_with_no_damage_is_no_hit_and_the_plan_walks(self):
+        raw, policy = self.in_the_west_passage(hp=FULL_HP)
+        raw["messages"] = ["何かがあなたの目をじっと見つめた！", "しかし効果がなかった！"]  # recorded
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_control_below_the_line_survival_comes_first(self):
+        raw, policy = self.in_the_west_passage(hp=200)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, TELEPORT_REASON)
+
+    def test_control_a_blow_is_struck_back(self):
+        raw, policy = self.in_the_west_passage()
+        raw["messages"] = ["何かに噛まれた。"]
+        key = choose(policy, raw)
+        self.assertTrue(key.startswith("+"), (key, policy.last_reason))
+
+    def test_control_without_the_plan_field_it_is_the_shared_rung(self):
+        raw, policy = self.in_the_west_passage()
+        with patch.dict(PLAN, {"unseen_attacker": "none"}):
+            choose(policy, raw)
+        self.assertNotIn(policy.last_reason, {COVER_REASON, CLOSE_REASON})
+
+    def test_the_plans_steps_are_not_rewritten_by_the_low_hp_gate(self):
+        raw, policy = self.in_the_west_passage()
+        choose(policy, raw)
+        self.assertTrue(quest_room_sweep.planned_step(
+            policy, parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
 
 
 class Q25WarningRefusedStepTest(unittest.TestCase):
