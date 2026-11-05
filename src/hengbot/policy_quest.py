@@ -9,7 +9,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
+from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -2138,6 +2138,7 @@ class QuestMixin(OpeningRouteMixin):
             return cast
 
         equipped = self._equipped_digging_tool(snapshot)
+        wall = snapshot.grid_at(breach_target)
         if equipped is None or equipped.pval < Q2_BREACH_MIN_DIGGING:
             strong = self._first_item(
                 snapshot,
@@ -2145,7 +2146,10 @@ class QuestMixin(OpeningRouteMixin):
                 and item.pval >= Q2_BREACH_MIN_DIGGING
                 and not self._equip_blocked_by_identification(item),
             )
-            if strong is None:
+            # Owner 2026-11-06 「見込み100回を超えたら掘らない」 (tunnel_feasibility).
+            if strong is None or (
+                wall is not None and tunnel_feasibility.not_dug(self, snapshot, wall, strong)
+            ):
                 self.last_reason = "quest:blocked:q2-breach-tool"
                 return WAIT_KEY
             main_hand = next(
@@ -2159,6 +2163,9 @@ class QuestMixin(OpeningRouteMixin):
                 snapshot, "q2-breach-loadout", strong, "main_hand"
             )
 
+        if wall is not None and tunnel_feasibility.not_dug(self, snapshot, wall):
+            self.last_reason = "quest:blocked:q2-breach-tool"
+            return WAIT_KEY
         self._q2_breach_attempts += 1
         self.last_reason = "quest-strategy:q2-breach-dig"
         return TUNNEL_KEY + direction
