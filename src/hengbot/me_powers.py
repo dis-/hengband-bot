@@ -764,6 +764,12 @@ def map_radius(policy, snapshot) -> int:
         BY_KEY[("staff", SV_STAFF_MAPPING)], unknown_is_dark=True)
 
 
+def map_charged(policy, snapshot) -> bool:
+    """An absorbed mapping power has a charge."""
+    return any(power.effect == MAP_AREA and me_capability.charges(policy, snapshot, *power.ident) > 0
+               for power in POWERS)
+
+
 def mapped_since(policy, snapshot, turn: int) -> bool:
     """A mapping landed on this floor at or after game turn ``turn``."""
     memory = getattr(policy, MEMORY, None)

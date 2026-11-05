@@ -14192,5 +14192,49 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
+  },
+  "area_mapping.py:_held_scroll": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the identified Scroll of Magic Mapping of the pack.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "area_mapping.py:picked_up_scroll_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reads a carried Scroll of Magic Mapping on the first safe dungeon decision (owner 2026-11-05 「拾ったら即座に読む」); junk_destroy_now.safe is false in town, so it never answers there.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_door_search_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search on a runtime RANDOM quest floor held for its target (owner 2026-11-05); dungeon only; reads the board and the policy's memory, posts through the shared step composer and the search key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_walk_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search on a runtime RANDOM quest floor held for its target (owner 2026-11-05); dungeon only; reads the board and the policy's memory, posts through the shared step composer and the search key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

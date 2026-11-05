@@ -8,7 +8,8 @@ Recorded input ``consumable-policy-20261102.jsonl.gz``
 (tests/extract_consumable_policy_1102_fixture.py):
   dungeon/0  n1-c life-103 on Angband 8F, turn 1807627, no visible monster,
              waiting for its Recall; slot b 赤外線視力の薬 (75/24) and slot i
-             魔法の地図の巻物 x2 (70/25), both 「捨てる」.  The recorded bot
+             魔法の地図の巻物 x2 (70/25), both 「捨てる」 then (owner 2026-11-05
+             「拾ったら即座に読む」 made the scroll a read).  The recorded bot
              answered ``5`` return:wait-recall and carried both.
   home/56-58 n1-a life-464 at the Outpost Home: the Home page, the ``~9``
              Home list its equipment transaction requested (turn 2869814) and
@@ -22,7 +23,9 @@ Recorded input ``consumable-policy-20261102.jsonl.gz``
 DECLARED CONSTRUCTED (named again where built): the ``~9`` request in flight
 when the recorded Home list arrives (the recorded bot had posted it); the
 fundraising mode "mine" of the recorded decision log on the Alchemist board;
-the use kinds placed in the dungeon board's slots b and i.
+the use kinds placed in the dungeon board's slots b and i; the boards after a read
+(the turn, the stack's count, no message); the status, the light and the monster of
+the scroll's waiting boards.
 """
 
 from __future__ import annotations
@@ -34,13 +37,18 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import consumable_policy
+from hengbot import area_mapping, consumable_policy, mapped_area, me_powers
 from hengbot.cli import _consume_response_sequence
-from hengbot.model import SV_SCROLL_DETECT_TREASURE, TVAL_POTION, TVAL_SCROLL
+from hengbot.model import Position, SV_SCROLL_DETECT_TREASURE, TVAL_POTION, TVAL_SCROLL
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from test_esp_threat_rest_recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).parent / "fixtures" / "consumable-policy-20261102.jsonl.gz"
+DISCARD_SCROLL_SVAL = 27
+MAP_REASON = "area-mapping:picked-up"
+# DECLARED CONSTRUCTED: an awake enemy in view, two grids away.
+MONSTER = {"index": 77, "race_id": 24, "hp": 10, "max_hp": 10, "distance": 2, "friendly": False,
+           "pet": False, "speed": 110, "name": "enemy", "visible": True, "asleep": False}
 
 
 class ConsumablePolicyRecordedTest(unittest.TestCase):
@@ -78,15 +86,103 @@ class ConsumablePolicyRecordedTest(unittest.TestCase):
         return self._consume(json.dumps(raw, ensure_ascii=False))
 
     def test_discard_kinds_are_destroyed_on_the_safe_dungeon_decision(self):
-        board = self._dungeon()
+        # DECLARED CONSTRUCTED: アイテム感知の巻物 (70/27, 「捨てる」) in slot i.
+        board = self._dungeon({"i": (TVAL_SCROLL, DISCARD_SCROLL_SVAL, "アイテム感知の巻物")})
         slots = {item.slot: item for item in board.inventory}
         self.assertEqual((slots["b"].tval, slots["b"].sval), (TVAL_POTION, 24))
-        self.assertEqual((slots["i"].tval, slots["i"].sval), (TVAL_SCROLL, 25))
         for slot in "bi":
             self.assertEqual(self.policy._junk_class(board, slots[slot]), "table-discard")
         key = self.policy.choose_key(board)
         self.assertEqual(self.policy.last_reason, "inventory:destroy-worthless-junk")
         self.assertTrue(key.endswith("kb"), key)
+
+    # -- Owner 2026-11-05 「拾ったら即座に読む」: the Scroll of Magic Mapping -----------
+
+    def _map_scroll_board(self, *changes):
+        raw = json.loads(self.lines["dungeon/0"])
+        for change in changes:
+            change(raw)
+        return raw
+
+    def _after_a_read(self, raw):
+        later = json.loads(json.dumps(raw))
+        later["turn"] += 10
+        later["messages"] = []
+        scroll = next(item for item in later["inventory"] if item["slot"] == "i")
+        scroll["count"] -= 1
+        if not scroll["count"]:
+            later["inventory"].remove(scroll)
+        return later
+
+    def test_map_scroll_is_read_instead_of_destroyed_and_counts_as_a_map(self):
+        raw = self._map_scroll_board()
+        board = self._consume(json.dumps(raw, ensure_ascii=False))
+        scroll = next(item for item in board.inventory if item.slot == "i")
+        self.assertEqual((scroll.tval, scroll.sval, scroll.count), (TVAL_SCROLL, 25, 2))
+        self.assertIsNone(self.policy._junk_class(board, scroll))
+        self.assertEqual(self.policy.choose_key(board), "ri")
+        self.assertEqual(self.policy.last_reason, MAP_REASON)
+        self.assertEqual(area_mapping.carried_areas(self.policy, board), ())
+
+        # The stack reads again on the next safe decision, from the same grid.
+        raw = self._after_a_read(raw)
+        board = self._consume(json.dumps(raw, ensure_ascii=False))
+        here = Position(raw["player"]["y"], raw["player"]["x"])
+        self.assertEqual(self.policy.choose_key(board), "ri")
+        self.assertEqual(self.policy.last_reason, MAP_REASON)
+        self.assertEqual(area_mapping.carried_areas(self.policy, board),
+                         ((here, me_powers.map_radius(self.policy, board)),))
+
+        # The last one read, the 「捨てる」 potion is next and the map is a source.
+        raw = self._after_a_read(raw)
+        board = self._consume(json.dumps(raw, ensure_ascii=False))
+        key = self.policy.choose_key(board)
+        self.assertEqual(self.policy.last_reason, "inventory:destroy-worthless-junk")
+        self.assertTrue(key.endswith("kb"), key)
+        self.assertEqual(set(mapped_area.floor_discs(self.policy, board)),
+                         {(here, me_powers.map_radius(self.policy, board))})
+
+    def test_map_scroll_waits_while_the_player_cannot_read_or_is_not_safe(self):
+        def status(name):
+            return lambda raw: raw["player"]["status"].__setitem__(name, True)
+
+        def dark(raw):
+            raw["player"]["can_see_own_grid"] = False
+
+        def hostile(raw):
+            raw["visible_monsters"] = [dict(MONSTER, y=raw["player"]["y"], x=raw["player"]["x"] + 2)]
+
+        for change in (status("blind"), status("confused"), status("stunned"), dark, hostile):
+            with self.subTest(change):
+                self.setUp()
+                board = self._consume(json.dumps(self._map_scroll_board(change), ensure_ascii=False))
+                self.assertNotEqual(self.policy.choose_key(board), "ri")
+                self.assertNotEqual(self.policy.last_reason, MAP_REASON)
+                self.assertEqual(area_mapping.carried_areas(self.policy, board), ())
+
+    def test_map_scroll_on_a_dark_grid_is_not_read_by_either_reader(self):
+        # choose_key answers dark:backtrack on this board, above both readers: asked directly.
+        raw = self._map_scroll_board(lambda raw: raw["player"].__setitem__("can_see_own_grid", False))
+        board = self._consume(json.dumps(raw, ensure_ascii=False))
+        self.assertIsNone(area_mapping.picked_up_scroll_key(self.policy, board))
+        self.assertIsNone(consumable_policy.use_now_key(self.policy, board))
+
+    def test_map_scroll_refused_by_the_game_is_not_asked_again_and_maps_nothing(self):
+        raw = self._map_scroll_board()
+        line = json.dumps(raw, ensure_ascii=False)
+        self.assertEqual(self.policy.choose_key(self._consume(line)), "ri")
+        board = self._consume(line)  # the same turn and count: the game refused it
+        self.policy.choose_key(board)
+        self.assertNotEqual(self.policy.last_reason, MAP_REASON)
+        later = json.loads(line)
+        later["turn"] += 10
+        board = self._consume(json.dumps(later, ensure_ascii=False))
+        self.policy.choose_key(board)
+        self.assertEqual(area_mapping.carried_areas(self.policy, board), ())
+
+    def test_map_scroll_is_not_bought_and_not_shelved(self):
+        kind = consumable_policy.consumables()[(TVAL_SCROLL, 25)]
+        self.assertEqual((kind.buy, kind.carry, kind.home), (False, False, False))
 
     def test_use_scroll_is_read_and_use_potion_drunk(self):
         # DECLARED CONSTRUCTED: *獲得* (70/47) in slot b, ヒーローの薬 (a
