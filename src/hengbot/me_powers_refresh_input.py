@@ -27,11 +27,10 @@ class BrowseStep(Continuation):
 
 
 def compile_refresh(key, owner):
-    if owner not in BROWSE_REASONS:
-        return None
+    # The label alone claims nothing: only the key the refresh composes is its own.
     match = re.fullmatch(r"b([ABC])", key)
-    if match is None:
-        raise ValueError("invalid Magic-Eater browse refresh")
+    if owner not in BROWSE_REASONS or match is None:
+        return None
     kind = next(kind for kind, letter in KIND_LETTER.items() if letter == match[1])
     return "b", [BrowseStep(frozenset(), "", kind=kind)]
 

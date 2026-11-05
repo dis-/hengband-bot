@@ -17,9 +17,11 @@ from tempfile import TemporaryDirectory
 import time
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 from hengbot import cli
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot.me_powers_refresh import REFRESH_REASON
 from hengbot.model import parse_snapshot
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import SIDECAR_DIRECTORY
@@ -102,6 +104,31 @@ class TownStops1105RecordedTest(executor_pins.ProductionHarness):
             decision={"sequence": policy._decision_sequence, "reason": policy.last_reason},
             snapshot=board, posting_contract=PostingContract())
         self.assertTrue(sent, port.last_result.stop_line)
+
+    def test_a_relief_walk_after_the_browse_refresh_reaches_the_game(self):
+        """n1-b life-319 01:22: resumed in town, the third browse board's Home relief
+        walked to the Black Market unnamed.  The walk kept the browse label, the
+        executor took it for a browse and stopped: three stops in 20 seconds."""
+        policy, recorded, steps = self.load("periodic-walk")
+        self.assertEqual((recorded[6]["key"], recorded[6]["reason"]), ("6", REFRESH_REASON))
+        board, chosen, reason, key = self.replay_to(policy, recorded, steps, 6)
+        # The last kind's browse is free to take the filler walk now.
+        self.assertEqual((chosen, reason), ("bC", REFRESH_REASON))
+        self.post(policy, key)
+
+        # DECLARED CONSTRUCTED: the browse takes no game time, so the board comes back.
+        again = lambda: board
+        with mock.patch.object(policy, "_home_relief_names_approach", return_value=False):
+            _board, chosen, reason, _key = self.decide(policy, again)
+        # A producer naming nothing does not inherit the bookkeeping label.
+        self.assertEqual((chosen, reason), ("6", ""))
+        _board, chosen, reason, key = self.decide(policy, again)
+        self.assertEqual((chosen, reason), ("6", "shop:approach"))
+        self.assert_posts(policy, recorded[6], board, key)
+
+        # Whatever the label says, the executor posts a key the refresh did not compose.
+        policy.last_reason = REFRESH_REASON
+        self.assert_posts(policy, recorded[6], board, key)
 
     def test_a_plain_walk_earns_its_distance_credit(self):
         """n1-b life-314 13:43: town:rumor walked 11 steps to the inn.

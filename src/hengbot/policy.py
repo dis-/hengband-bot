@@ -2577,6 +2577,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     @town_work_decision
     @reservation_decision
     def choose_key(self, snapshot: Snapshot) -> str | None:
+        # A bookkeeping label names one decision's key.  Left standing, it would
+        # name the key of the next producer that sets no reason of its own.
+        if (self.last_reason or "").startswith("periodic:"):
+            self.last_reason = ""
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
         self._home_full_relief = getattr(self, "_home_full_relief", None)
