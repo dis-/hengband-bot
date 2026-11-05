@@ -24,6 +24,7 @@ CASES = {
     "filed-take": ("n1-a/life-487/incident-captures/20261105-193019-town-blocked-unmet-home_candidate_resolved", 58),
     "entrance-walk": ("n1-a/life-487/incident-captures/20261105-133941-town-blocked-survival-cure_critical_ready", 62),
     "expedition": ("n1-a/life-486/incident-captures/20261105-114110-town-blocked-unmet-home_candidate_resolved", 56),
+    "periodic-walk": ("n1b-319-1106/incident-captures/20261106-012252-stuck-prompt", 7),
 }
 
 

@@ -5997,6 +5997,18 @@ class ShopMixin(InStoreMixin):
         self._set_town_store_attempted(store_type, snapshot.turn, "shopping-stuck")
         self._town_visit_ledger.approach_fails[store_type] += 1
 
+    def _home_relief_names_approach(self, writer_family: str, travel_reason: str) -> bool:
+        """The approach of a full Home's relief is named ``shop:approach``.
+
+        While the Home scan flag is up, a decision that already has a reason keeps
+        it; only a walk left with none is named here.  n1-b life-319 2026-11-06
+        walked to the Black Market unnamed after the browse refresh, under whose
+        label the walk stopped at the executor.
+        """
+        return (writer_family == "store-router" and travel_reason.startswith("shop:")
+                and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
+                and (not self.last_reason or not self._home_knowledge_scan_requested))
+
     @claims(ClaimOwner.STORE_ROUTER)
     def _shopping_approach_key(
         self, snapshot: Snapshot, step: Position, travel_reason: str
@@ -6154,9 +6166,7 @@ class ShopMixin(InStoreMixin):
             )
             return WAIT_KEY
         if not self._has_light_equipped(snapshot):
-            if (writer_family == "store-router" and travel_reason.startswith("shop:")
-                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
-                    and not self._home_knowledge_scan_requested):
+            if self._home_relief_names_approach(writer_family, travel_reason):
                 self.last_reason = "shop:approach"
             return self._stage_shopping_approach_key(
                 snapshot, approach_walk.walk_key(self, snapshot, step),
@@ -6168,9 +6178,7 @@ class ShopMixin(InStoreMixin):
             return clear_traveler
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
-            if (writer_family == "store-router" and travel_reason.startswith("shop:")
-                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
-                    and not self._home_knowledge_scan_requested):
+            if self._home_relief_names_approach(writer_family, travel_reason):
                 self.last_reason = "shop:approach"
             return self._stage_shopping_approach_key(
                 snapshot, approach_walk.walk_key(self, snapshot, step),
@@ -6206,16 +6214,12 @@ class ShopMixin(InStoreMixin):
             self._store_entry_wait_owner = store_type
             self._store_entry_wait_key = travel
             self._store_entry_wait_turn = snapshot.turn
-            if (writer_family == "store-router" and travel_reason.startswith("shop:")
-                    and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
-                    and not self._home_knowledge_scan_requested):
+            if self._home_relief_names_approach(writer_family, travel_reason):
                 self._declare_reach(self._shopping_approach_goal,
                                     family="store-router")
                 self.last_reason = "shop:approach"
             return travel
-        if (writer_family == "store-router" and travel_reason.startswith("shop:")
-                and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
-                and not self._home_knowledge_scan_requested):
+        if self._home_relief_names_approach(writer_family, travel_reason):
             self.last_reason = "shop:approach"
         return self._stage_shopping_approach_key(
             snapshot, approach_walk.walk_key(self, snapshot, step),
