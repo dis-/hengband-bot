@@ -342,7 +342,7 @@ def cast_blocked(snapshot) -> bool:
     """Whether no absorbed power may be cast on this board."""
     player = snapshot.player
     return (snapshot.store is not None or player.blind or player.confused
-            or player.hallucinated or player.paralyzed or power_command_refused(player))
+            or player.hallucinated or player.paralyzed or power_command_refused(snapshot))
 
 
 def power_key(policy, snapshot, sval: int) -> str | None:

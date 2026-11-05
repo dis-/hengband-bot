@@ -199,7 +199,7 @@ def _safe(policy, snapshot) -> bool:
             and not policy._physical_adjacent_hostiles(snapshot)
             and not getattr(policy, "_took_damage", False)
             and not (player.blind or player.confused or player.hallucinated
-                     or player.paralyzed or power_command_refused(player)))
+                     or player.paralyzed or power_command_refused(snapshot)))
 
 
 def _rest_key(policy, snapshot, hostiles) -> str | None:

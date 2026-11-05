@@ -619,7 +619,7 @@ def _gate(policy, snapshot) -> bool:
         and not snapshot.in_town and not snapshot.on_open_wilderness
         and snapshot.dungeon_level > 0 and snapshot.store is None
         and not (player.blind or player.confused or player.hallucinated or player.paralyzed
-                 or power_command_refused(player))
+                 or power_command_refused(snapshot))
     )
 
 

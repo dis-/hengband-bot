@@ -262,7 +262,7 @@ def can_use_powers(snapshot) -> bool:
     player = snapshot.player
     return (player.class_id == PLAYER_CLASS_MAGIC_EATER
             and not (player.blind or player.confused or player.hallucinated
-                     or power_command_refused(player)))
+                     or power_command_refused(snapshot)))
 
 
 def usable_powers(policy):

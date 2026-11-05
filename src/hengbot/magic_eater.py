@@ -6,7 +6,9 @@
 
 from hengbot.model import TVAL_WAND
 from hengbot.town_arbiter import claims
-from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, is_absorption_device
+from hengbot.magic_eater_devices import (
+    PLAYER_CLASS_MAGIC_EATER, is_absorption_device, power_command_refused,
+)
 from hengbot.me_device_policy import absorb_candidate
 from hengbot.policy_constants import MAGIC_MISSILE_REASON
 
@@ -66,7 +68,7 @@ def q34_missile_key(policy, snapshot, profile, target, direction):
     if not recheck and snapshot.magic_eater_wand_charges in {0, -1}:
         empty = board_key
         policy._q34_empty_magic_board = empty
-    if not recheck and empty == board_key:
+    if (not recheck and empty == board_key) or power_command_refused(snapshot):
         return None
     policy.last_reason = MISSILE_REASON
     policy._quest_strategy_throw_exp[34] = (

@@ -487,6 +487,8 @@ class Operation:
     magic_eater_wand_charges: int | None = None
     # Viewer-only copy of the Magic-Eater list this operation displayed.
     magic_eater_power_list: dict | None = None
+    # The game answered the ``m`` command with command input (me_menu).
+    magic_eater_command_refused: bool = False
 
 
 @dataclass(frozen=True)
@@ -1727,6 +1729,8 @@ class OperationExecutor:
             board["_magic_eater_wand_charges"] = operation.magic_eater_wand_charges
         if operation.magic_eater_power_list is not None:
             board["_magic_eater_power_list"] = operation.magic_eater_power_list
+        if operation.magic_eater_command_refused:
+            board["_magic_eater_command_refused"] = True
         board["_completed_operation_owner"] = operation.owner
         assert operation.operation_reference is not None
         receipt = OperationReceipt(

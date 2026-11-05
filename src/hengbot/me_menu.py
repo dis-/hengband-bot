@@ -39,6 +39,7 @@ KINDS = tuple(KIND_LETTER)
 # builds before that context published the same wait as command_char.
 LIST_CHOICE_KINDS = frozenset({"spell", "command_char"})
 USE_FAILED = "failed:magic-eater"
+COMMAND_REFUSED = "refused:magic-eater-command"
 ESC = "\x1b"
 
 
@@ -254,6 +255,13 @@ class MagicEaterMenu:
 
     def command_ends(self, step, seen, operation):
         """Whether command input ends the use (``seen`` is the command screen)."""
+        if step.stage == "kind" and seen.reading.kind == "command":
+            # Command input instead of the kind question: the game refused the
+            # command itself (berserk, anti-magic, a NO_MAGIC dungeon, whose
+            # message msg_erase may already have wiped) and no turn passed.
+            operation.business_outcome = COMMAND_REFUSED
+            operation.magic_eater_command_refused = True
+            return True
         if step.stage in self.unasked_stages:
             operation.business_outcome = USE_FAILED
             return True

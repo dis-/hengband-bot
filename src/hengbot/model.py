@@ -948,6 +948,8 @@ class Snapshot:
     magic_eater_wand_charges: int | None = None
     # Viewer-only: the Magic-Eater power list the completed operation displayed.
     magic_eater_power_list: dict | None = None
+    # The completed operation's ``m`` was refused with no turn passing (me_menu).
+    magic_eater_command_refused: bool = False
     protocol_version: int = PROTOCOL_LEGACY
     # Protocol-3 screen values (None when the emitter predates them).
     dungeon_name: str | None = None
@@ -1511,6 +1513,7 @@ def parse_snapshot(
         messages=tuple(str(message) for message in data.get("messages", [])),
         magic_eater_wand_charges=data.get("_magic_eater_wand_charges"),
         magic_eater_power_list=data.get("_magic_eater_power_list"),
+        magic_eater_command_refused=bool(data.get("_magic_eater_command_refused")),
         completed_operation_sequence=(
             int(data["_completed_operation_sequence"])
             if data.get("_completed_operation_sequence") is not None else None
