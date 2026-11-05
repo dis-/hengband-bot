@@ -492,6 +492,10 @@ MAGIC_MISSILE_REASON = "quest-strategy:ranged-fire:magic-eater"
 # Attacks the town arbiter treats as survival (owner 2026-10-31
 # 「生存の扱いにして数えない」): no errand budget, no owner retirement.
 TOWN_COMBAT_REASON_PREFIXES = ("melee", "ranged:", MAGIC_MISSILE_REASON)
+# No game flag: a board's abilities with one more layer of the five elements' opposition, as
+# resist_potion asks what the fight would be after the drink (one layer: (per + 2) / 3).
+OPPOSITION_ABILITY = "oppose_elements"
+OPPOSITION_FLAG = -1
 RESIST_FLAG_BY_ABILITY = {
     "free_action": 46,
     "resist_acid": 48,
@@ -512,6 +516,7 @@ RESIST_FLAG_BY_ABILITY = {
     "resist_disen": 63,
     "see_invisible": 78,
     "telepathy": 79,
+    OPPOSITION_ABILITY: OPPOSITION_FLAG,
 }
 THREAT_PREDICTION_MEMO_LIMIT = 8
 HUNT_HP_RATIO = 0.60

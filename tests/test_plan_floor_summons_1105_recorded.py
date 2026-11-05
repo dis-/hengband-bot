@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot import quest_find_exit, quest_force_rows, quest_room_light, quest_room_sweep, summon_response
-from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, TVAL_POTION, _parse_items, parse_snapshot
+from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, SV_POTION_RESISTANCE, TVAL_POTION, _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
 from tests import test_me_nokey_1031_recorded as nokey
@@ -152,13 +152,13 @@ class Q25RecordedTest(nokey.PostedKey):
         self.post_recorded(CASTER_PAST_THE_ADJACENT)
 
     def test_a_body_in_the_bolts_way_leaves_the_plans_blow(self):
-        raw, _key, reason, _ = answer(CASTER_BEHIND_A_BODY)
+        policy, raw, _key = replay_until(CASTER_BEHIND_A_BODY, without_resistance_potions)
         self.assertNotEqual(first_on_the_row_west(raw)["name"], BALROG)
-        self.assertEqual(reason, quest_find_exit.MELEE_REASON)
+        self.assertEqual(policy.last_reason, quest_find_exit.MELEE_REASON)
 
     def test_a_named_caster_beside_the_player_is_struck_before_the_plans_first(self):
-        raw, key, reason, _ = answer(CASTER_BESIDE)
-        self.assertEqual(reason, quest_find_exit.MELEE_REASON)
+        policy, raw, key = replay_until(CASTER_BESIDE, without_resistance_potions)
+        self.assertEqual(policy.last_reason, quest_find_exit.MELEE_REASON)
         here = raw["player"]
         struck = next(m for m in raw["visible_monsters"]
                       if max(abs(m["y"] - here["y"]), abs(m["x"] - here["x"])) == 1
@@ -178,6 +178,12 @@ class Q25RecordedTest(nokey.PostedKey):
         carried = {item["sval"] for item in raw["inventory"] if item["tval"] == TVAL_POTION}
         self.assertLessEqual({SV_POTION_CURE_CRITICAL, SV_POTION_CURING}, carried)
         self.assertFalse(carried & (HEAL_POTION_SVALS - {SV_POTION_CURE_CRITICAL}))
+
+
+def without_resistance_potions(raw):
+    """Held, resist_potion answers these two boards first (no chance even with the drink)."""
+    raw["inventory"] = [item for item in raw["inventory"]
+                        if not (item["tval"] == TVAL_POTION and item["sval"] == SV_POTION_RESISTANCE)]
 
 
 def replay_until(turn, change=None):

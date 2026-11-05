@@ -64,7 +64,7 @@ the navigator.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, once_quest_recall, quest_exposure, speed_dose, status_cure, summon_response
+from hengbot import combat_answer, once_quest_recall, quest_exposure, resist_potion, speed_dose, status_cure, summon_response
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, TUNNEL_KEY, WAIT_KEY
@@ -684,11 +684,13 @@ def key(policy, snapshot) -> str | None:
             (_below_line_recall(policy, snapshot, profile) if board.enemy_for_the_line else None)
             or (_heal(policy, snapshot, profile) if board.engaged else None)
             or summon_response.key(policy, snapshot)
+            or resist_potion.key(policy, snapshot)
             or _advance(policy, snapshot, navigator, plan, board)
         )
     if not board.enemy_for_the_line:
         return (
             summon_response.key(policy, snapshot)
+            or resist_potion.key(policy, snapshot)
             or _rest(policy, snapshot, plan, board)
             or (_to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None)
             or _wait_after_fight(policy, snapshot, navigator, plan, board)
@@ -699,6 +701,7 @@ def key(policy, snapshot) -> str | None:
         or (_engaged_survival(policy, snapshot, profile, board) if board.engaged else None)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
         or summon_response.key(policy, snapshot)
+        or resist_potion.key(policy, snapshot)
         or (_fight(policy, snapshot, profile, navigator, plan, board) if board.engaged else None)
         or _advance(policy, snapshot, navigator, plan, board)
     )

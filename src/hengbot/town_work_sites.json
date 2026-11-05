@@ -9862,6 +9862,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "resist_potion.py:_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "resist_potion.py:_leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "resist_potion.py:key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "resist_potion.py:ladder_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "retreat_enclosure.py:teleport_key": {
     "classification": "action",
     "rows": [
