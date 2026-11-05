@@ -4598,6 +4598,26 @@ class CombatMixin:
 
         return max(candidates, key=score)
     @claims(ClaimOwner.HUNT)
+    def _hunt_would_close(self, snapshot: Snapshot, m: MonsterState) -> bool:
+        """The hunt rung closes with this monster once it is within HUNT_RANGE."""
+        player = snapshot.player
+        if attack_expectation.blows_cannot_hurt(self, snapshot, m):
+            return False
+        # Do not deliberately close with a sleeper that the material-threat
+        # gate will immediately flee from after one step.  That disagreement
+        # produced a two-cell hunt/reposition loop on Yeek Cave 5F.  Judge
+        # the intended engagement at melee range, where every remaining
+        # monster action can become an attack, instead of only at its current
+        # (temporarily safe) distance.
+        if self._material_melee_fight(snapshot, m):
+            return False
+        if m.asleep or m.fearful:
+            return True
+        # Avoid poking things that clearly outclass us.
+        if m.max_hp > player.max_hp and m.speed > player.speed + 10:
+            return False
+        return m.max_hp <= max(player.max_hp, 1)
+
     def _hunt_step(
         self,
         snapshot: Snapshot,
@@ -4622,24 +4642,7 @@ class CombatMixin:
             return None
 
         def easy(m: MonsterState) -> bool:
-            if m.distance > HUNT_RANGE:
-                return False
-            if attack_expectation.blows_cannot_hurt(self, snapshot, m):
-                return False
-            # Do not deliberately close with a sleeper that the material-threat
-            # gate will immediately flee from after one step.  That disagreement
-            # produced a two-cell hunt/reposition loop on Yeek Cave 5F.  Judge
-            # the intended engagement at melee range, where every remaining
-            # monster action can become an attack, instead of only at its current
-            # (temporarily safe) distance.
-            if self._material_melee_engagement(snapshot, m):
-                return False
-            if m.asleep or m.fearful:
-                return True
-            # Avoid poking things that clearly outclass us.
-            if m.max_hp > player.max_hp and m.speed > player.speed + 10:
-                return False
-            return m.max_hp <= max(player.max_hp, 1)
+            return m.distance <= HUNT_RANGE and self._hunt_would_close(snapshot, m)
 
         identities: dict[int, tuple[int, int, Position]] = {}
         for monster in hostiles:

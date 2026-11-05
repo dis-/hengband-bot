@@ -16703,8 +16703,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _material_melee_engagement(
         self, snapshot: Snapshot, monster: MonsterState
     ) -> bool:
-        if monster.distance > HUNT_RANGE:
-            return False
+        return monster.distance <= HUNT_RANGE and self._material_melee_fight(snapshot, monster)
+
+    def _material_melee_fight(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> bool:
+        """Its melee is material, whatever its distance now."""
         # A weak never-moving monster is fought, not retreated from (owner
         # 2026-11-02, immobile_threat_memory.fought_normally).
         return (self._material_melee_damage(snapshot, monster)
