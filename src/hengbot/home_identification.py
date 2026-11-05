@@ -99,6 +99,12 @@ def filed_take_route_key(policy: Any, board: Any) -> str | None:
             or not any(policy._item_signature(item) == request.signature
                        for item in candidates(policy, board))):
         return None
+    if policy._home_store_block_owner == (policy._town_visit_epoch, "equipment-work"):
+        # The bound closed Home to the deposit a full Home refused; the take
+        # deposits nothing and frees a shelf (n1-a life-487 19:30, 20:08: the
+        # deposit closed Home on the pass the take was filed for, and the town
+        # end stopped under town:blocked:unmet:home_candidate_resolved).
+        policy._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
     return rearmed_home_route_key(policy, board)
 
 
