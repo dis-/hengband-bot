@@ -9,8 +9,11 @@ The data (QUEST_25 gives the reasons of its cells):
    ``race``, ``cell``, the ``stand`` it is shot from and the closed ``door``, if any, that
    the stand opens first;
  * ``left_alone_races``: last targets that are no target at all until the walk reaches their
-   first stop: seen, they get no shot, no walk, no wait, and rest goes on (a teleport away
-   is walked back from like any other);
+   first stop: seen, they get no shot, no walk, no wait, and rest goes on.  From that stop on,
+   one seen before and out of sight now is walked to where it was last seen (owner 2026-11-05
+   「プレイヤーを移動させられた場合は最後に見えた場所へ移動。モンスターが移動した場合は歩いて探す」):
+   the walk's own stops wait until that cell is in the light and in line.  Standing there with
+   nothing on it, the monster has moved (or died), and the stops are walked one by one;
  * ``line_races``: never-moving casters whose direct line every walk crosses as little
    as it can, and on which nobody rests or waits by choice (Q18's first fights, 2026-11-04:
    n1-a died standing on a cell under fire);
@@ -181,17 +184,57 @@ def _lines(navigator, plan, snapshot) -> quest_exposure.Exposure:
     return _EXPOSURES[key]
 
 
+def _in_light_and_line(navigator, snapshot, here: tuple[int, int], cell: tuple[int, int]) -> bool:
+    """A monster on ``cell`` would be seen from ``here``."""
+    return (quest_exposure.game_distance(here, cell) <= max(1, snapshot.light_radius or 1)
+            and quest_exposure.projectable(navigator.battlefield.terrain, here, cell))
+
+
 def _note_gone(policy, snapshot, navigator, plan) -> None:
     """A placed caster's cell in the player's light and line with nothing on it."""
-    battlefield = navigator.battlefield
     here = _cell(snapshot.player.position)
-    reach = max(1, snapshot.light_radius or 1)
     occupied = {_cell(monster.position) for monster in snapshot.visible_monsters}
-    for cell, race in battlefield.monster_placements:
+    for cell, race in navigator.battlefield.monster_placements:
         if (race in plan.get("line_races", ()) and cell not in navigator.sweep_gone
-                and cell not in occupied and quest_exposure.game_distance(here, cell) <= reach
-                and quest_exposure.projectable(battlefield.terrain, here, cell)):
+                and cell not in occupied and _in_light_and_line(navigator, snapshot, here, cell)):
             navigator.sweep_gone = navigator.sweep_gone | {cell}
+
+
+def _note_last_seen(snapshot, navigator, plan) -> None:
+    """Where each ``left_alone_races`` monster was last seen on this floor; a cell looked at
+    with nothing on it is forgotten (a blind player looks at nothing)."""
+    races = plan.get("left_alone_races", ())
+    known = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+             if monster.hostile and monster.race_id in races]
+    here = _cell(snapshot.player.position)
+    now = {index: entry for index, entry in navigator.sweep_last_seen.items()
+           if snapshot.player.blind or not _in_light_and_line(navigator, snapshot, here, entry[1])}
+    now.update({monster.index: (monster.race_id, _cell(monster.position)) for monster in known})
+    navigator.sweep_last_seen = now
+
+
+def _sought_cells(snapshot, navigator, plan) -> dict[int, tuple[int, int]]:
+    """The last-seen cells to go to: out of sight now, and past the walk's leaving them alone."""
+    left_alone = _left_alone_races(navigator, plan)
+    in_sight = {monster.index for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)}
+    return {index: cell for index, (race, cell) in navigator.sweep_last_seen.items()
+            if race not in left_alone and index not in in_sight}
+
+
+def _to_last_seen(policy, snapshot, navigator, plan, blocked=()) -> str | None:
+    """The step toward the nearest place a sought cell is looked at from: ground only, where
+    there is any.  With no way there the record is dropped and the stops go on."""
+    sought = _sought_cells(snapshot, navigator, plan)
+    if not sought:
+        return None
+    terrain = _terrain_of(navigator, snapshot, water=False)
+    goals = {Position(*spot) for spot, kind in terrain.items() if kind in {"floor", "passage"}
+             and any(_in_light_and_line(navigator, snapshot, spot, cell) for cell in sought.values())}
+    stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, goals, blocked), WALK_REASON)
+    if stepped is None:
+        navigator.sweep_last_seen = {index: entry for index, entry in navigator.sweep_last_seen.items()
+                                     if index not in sought}
+    return stepped
 
 
 def _refused_cells(policy, snapshot) -> list[Position]:
@@ -281,6 +324,8 @@ def _last_target_key(policy, snapshot, navigator, plan, stop) -> str | None:
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     """The next step of the walk; at a stop, what that stop asks, then the next."""
     here = snapshot.player.position
+    if (sought := _to_last_seen(policy, snapshot, navigator, plan, blocked)) is not None:
+        return sought
     for _ in range(len(_stops(plan)) + 1):
         if navigator.sweep_round >= int(plan["max_rounds"]):
             policy.last_reason = NOTHING_LEFT_REASON
@@ -440,6 +485,7 @@ def key(policy, snapshot) -> str | None:
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
     _note_gone(policy, snapshot, navigator, plan)
+    _note_last_seen(snapshot, navigator, plan)
     board = _Board(policy, snapshot, profile, navigator, plan)
     if not board.enemy:
         navigator.sweep_enemy_turns = 0

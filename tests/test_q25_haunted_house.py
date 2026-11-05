@@ -39,7 +39,7 @@ from hengbot.quest_find_exit import HEAL_REASON, HOLD_REASON, MELEE_REASON, RECA
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_room_sweep import (
     APPROACH_REASON, EXIT_REASON, EXIT_WALK_REASON, LIGHT_REASON, NOTHING_LEFT_REASON, OPEN_REASON, RESTORE_REASON,
-    TELEPORT_REASON, WALK_REASON,
+    TELEPORT_REASON, WALK_REASON, _note_last_seen, _sought_cells,
 )
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.trap_warning import SEARCH_REASON
@@ -294,6 +294,15 @@ class Q25WalkTest(unittest.TestCase):
         self.assertEqual(reason, WALK_REASON)
         self.assertEqual(key, step_key((7, 8), (7, 7)))
 
+    def test_the_rounds_limit_is_the_owners_100(self):
+        self.assertEqual(PLAN["max_rounds"], 100)
+        raw = board((13, 2))
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 0)
+        navigator_of(policy).sweep_round = 99
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, NOTHING_LEFT_REASON)
+
     def test_rounds_end_by_name(self):
         raw = board((13, 2))
         policy = new_policy(raw)
@@ -494,6 +503,77 @@ class Q25QuylLastTest(unittest.TestCase):
             self.assertTrue(policy.last_reason.startswith("ranged:"), policy.last_reason)
             self.assertEqual(navigator_of(policy).sweep_stage, QUYL_STOP)
         self.assertEqual(navigator_of(policy).sweep_round, 0)
+
+    SEEN_AT = (5, 8)
+
+    def moved_away(self, far):
+        """DECLARED: seen in the hall from the stand's stage, then the player is elsewhere and
+        the quyl out of sight (a TELE_AWAY's board, or its own BLINK's when ``far`` looks at it)."""
+        raw = board((7, 11), speed=0, monsters=[monster(QUYL, *self.SEEN_AT, index=481)])
+        policy = new_policy(raw)
+        _set_stage(policy, raw, QUYL_STOP)
+        choose(policy, raw)
+        raw["player"].update(y=far[0], x=far[1])
+        raw["visible_monsters"] = []
+        return raw, policy
+
+    def test_the_last_seen_cell_is_remembered_per_monster(self):
+        _, policy = self.moved_away((7, 11))
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {481: (QUYL, self.SEEN_AT)})
+
+    def test_the_player_moved_it_walks_to_the_last_seen_cell_not_the_stand(self):
+        raw, policy = self.moved_away((7, 11))
+        self.assertEqual(choose(policy, raw), "7")  # the stand [9,11] is due south
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertEqual(navigator_of(policy).sweep_stage, QUYL_STOP)
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {481: (QUYL, self.SEEN_AT)})
+
+    def test_seen_again_it_is_shot(self):
+        raw, policy = self.moved_away((7, 11))
+        raw["visible_monsters"] = [monster(QUYL, *self.SEEN_AT, index=481)]
+        choose(policy, raw)
+        self.assertTrue(policy.last_reason.startswith("ranged:"), policy.last_reason)
+
+    def test_the_monster_moved_the_cell_is_forgotten_and_the_stops_go_on(self):
+        raw, policy = self.moved_away((6, 9))
+        key = choose(policy, raw)
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {})
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertEqual(navigator_of(policy).sweep_stage, QUYL_STOP)
+        self.assertEqual(key, "3")  # on to the stand
+
+    def test_control_blind_a_cell_is_not_looked_at(self):
+        raw, policy = self.moved_away((6, 9))
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        _note_last_seen(replace(snapshot, player=replace(snapshot.player, blind=True)), navigator_of(policy), PLAN)
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {481: (QUYL, self.SEEN_AT)})
+
+    def test_control_mid_sweep_it_is_left_alone_however_it_was_seen(self):
+        raw = self.seen()
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 4)
+        choose(policy, raw)
+        self.assertEqual(set(navigator_of(policy).sweep_last_seen), {480, 481})
+        raw["player"].update(y=2, x=2)
+        raw["visible_monsters"] = []
+        choose(policy, raw)
+        self.assertEqual(navigator_of(policy).sweep_stage, 4)
+        self.assertEqual(_sought_cells(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge),
+                                       navigator_of(policy), PLAN), {})
+
+    def test_in_sight_it_is_not_sought_and_a_new_floor_forgets(self):
+        raw, policy = self.moved_away((7, 11))
+        raw["visible_monsters"] = [monster(QUYL, *self.SEEN_AT, index=481)]
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(_sought_cells(snapshot, navigator_of(policy), PLAN), {})
+        navigator_of(policy).reset_for_floor((9, 9, 25))
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {})
+
+    def test_no_way_to_it_the_record_is_dropped(self):
+        raw, policy = self.moved_away((7, 11))
+        with patch("hengbot.quest_room_sweep._path", return_value=[]):
+            choose(policy, raw)
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {})
 
     def test_dead_the_walk_goes_on_to_the_druj_and_no_round_is_spent(self):
         raw = board(self.STAND, speed=0)
