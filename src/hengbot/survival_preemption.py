@@ -50,25 +50,12 @@ Healing).  A weak breeder that strikes from beside the player
 (``strikes_from_adjacent``) is an attacker and stays on the strategic list,
 so the melee rungs fight it; only breeders that do not attack are set aside.
 """
+from hengbot import dungeon_ladder
 
-PREEMPTED_RUNGS = frozenset({
-    # departure: the town return and the descent walk.
-    "_return_to_town_key#1", "_return_to_town_key#2", "_return_to_town_key#3",
-    "_dig_to_known_downstairs_key", "_descent_step",
-    # fundraising: the income run, its floor exit and its return route.
-    "_fundraising_key#1", "_fundraising_key#2", "_finish_mining_floor",
-    # floor-loot.
-    "_chest_processing_key#1", "_chest_processing_key#2",
-    "_normal_loot_key#1", "_normal_loot_key#2",
-    "_victory_loot_key", "_conquest_loot_key",
-    # quest-request outside a quest floor.
-    "_fixed_quest_key#1", "_fixed_quest_key#2", "_kill_quest_floor_recovery_key",
-    "_opening_q34_town_key",
-    # explore.
-    "_explore_step#1", "_explore_step#2", "_immobile_breeder_giveup_key",
-    # the dark walk (life-085 below).
-    "_dark_locomotion_key",
-})
+
+# The departure, fundraising, floor-loot, quest-request, explore and dark-walk rungs: the
+# table's ``P`` rows, where the completeness check names the rungs that are not refused.
+PREEMPTED_RUNGS = dungeon_ladder.preempted_names()
 
 
 def strikes_from_adjacent(policy, board, monster) -> bool:
