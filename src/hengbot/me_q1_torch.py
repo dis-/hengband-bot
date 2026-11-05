@@ -8,7 +8,7 @@ The torch count and force floors are derived in strategy/quests/QUEST_1.jsonc.
 
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater import MISSILE_REASON
-from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 
 
 THROW_REASON = "quest-strategy:throw-torch"
@@ -32,7 +32,8 @@ def attack_key(policy, snapshot, profile, target):
     # not reopen it until game time has passed (regeneration is observed).
     if snapshot.magic_eater_wand_charges in {0, -1}:
         policy._me_q1_missile_empty_turn = snapshot.turn
-    if getattr(policy, "_me_q1_missile_empty_turn", None) == snapshot.turn:
+    if (getattr(policy, "_me_q1_missile_empty_turn", None) == snapshot.turn
+            or power_command_refused(snapshot)):
         return None
     policy.last_reason = MISSILE_REASON
     return "mBp" + direction

@@ -35,7 +35,7 @@ have hit for about four times as much).
 from hengbot import attack_expectation, breeder_area_attack, me_device_attacks
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater import MISSILE_REASON
-from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import TVAL_WAND
 from hengbot.policy_constants import DIRECTION_KEYS
 
@@ -113,7 +113,8 @@ def _missile_ready(policy, snapshot) -> bool:
     elif observed == 0:
         policy._me_missile_empty_turn = snapshot.turn
     return (getattr(policy, "_me_missile_unlearned_floor", None) != snapshot.floor_key
-            and getattr(policy, "_me_missile_empty_turn", None) != snapshot.turn)
+            and getattr(policy, "_me_missile_empty_turn", None) != snapshot.turn
+            and not power_command_refused(snapshot))
 
 
 def _fire_missile(policy, direction) -> str:
