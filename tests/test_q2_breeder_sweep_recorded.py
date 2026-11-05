@@ -194,6 +194,9 @@ class Q2ResidualBlockedRecordedTest(unittest.TestCase):
         # when no unvisited observation goal is routable.  The visits that
         # produced that state precede the capture, so mark every race-202
         # observation goal visited (optionally keeping one as a control).
+        # The recorded cell [9,46] is deep water (the base legend's W): the phase
+        # owner routes over deep water from there, so its goals are the ones marked.
+        navigator.allow_deep_water = True
         for placement in self.placements:
             for goal in navigator.observation_goals(
                 placement, RANGED_MAX_DISTANCE

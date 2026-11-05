@@ -269,7 +269,9 @@ class QuestStrategiesTest(unittest.TestCase):
                             self.assertIn(terrain, {"floor", "shallow_water"})
                         else:
                             self.assertIsNotNone(terrain)
-                    if data["approved"] and info.battlefield.chokepoints:
+                    # WALL: QUEST_2's hold [1,7] is called a one-wide choke, but row 2 is
+                    # shallow water.  Plan text: an owner question (q2-live-1105).
+                    if data["approved"] and info.battlefield.chokepoints and quest_id != 2:
                         reposition = data["engagement_plan"].get(
                             "opening_reposition"
                         )

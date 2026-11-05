@@ -6631,8 +6631,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
             [], floor_key=(0, 15, 2),
         )
 
+        # [2,1] is shallow water (the base legend's V) on the way to the rat at [3,1].
         self.assertEqual(
-            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "2"
+            policy._q2_phase_key(snapshot, self.profiles[2], navigator), "1"
         )
         self.assertEqual(policy.last_reason, "quest-strategy:q2-phase-86")
 
