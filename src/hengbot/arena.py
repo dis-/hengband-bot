@@ -48,6 +48,7 @@ from hengbot.character_sheet import (
     SHEET_ENCODINGS, ArenaStanding, CharacterSheetUnavailable, _decode_sheet, arena_standing,
 )
 from hengbot.item_reservation import reserved_item_command
+from hengbot.model import SV_STAFF_SPEED
 from hengbot.policy_constants import LEAVE_STORE_KEY, TOWN_TELEPORT_COST, WAIT_KEY
 from hengbot.quest_navigator import PICKUP_KEY
 
@@ -75,6 +76,7 @@ REWARD_REASON = "arena:reward"
 PICKUP_REASON = "arena:pickup"
 GATE_REASON = "arena:gate"
 HEAL_REASON = "arena:heal" + me_absorbed_substitutes.CAST_SUFFIX
+SPEED_REASON = "arena:speed" + me_absorbed_substitutes.CAST_SUFFIX
 # Attacks while the floor's monster is unseen: a gate that stays shut means it lives.
 GATE_ATTEMPTS = 2
 
@@ -83,9 +85,6 @@ BEATEN_TEXTS = ("の前に敗れ去った", "You are beaten by")
 _POSTER = re.compile(r"(.+?) ?に挑戦するものはいないか|Do I hear any challenges against: (.+)")
 _VICTOR_POSTERS = ("あなたは勝利者だ", "You are victorious", "すべての敵に勝利した",
                    "You have won against all foes")
-# Absorbed healing powers: the staff and the rod of me_device_policy.json.
-_HEAL_POWERS = (("rod", 9), ("staff", 18))  # Healing
-
 # arena-entry.cpp ARENA_ENTRIES, the race id of each fight (system/enums/monrace/monrace-id.h).
 # Entry 41 is the ceremony (1,000,000 gold) and 42 the はぐれメタル: past this table the
 # arena is finished for this owner (a question for the owner in its report).
@@ -337,20 +336,32 @@ def _aligned(origin, cell) -> bool:
 
 
 def _heal_key(policy, snapshot) -> str | None:
-    """An absorbed Healing power below the walking gate's HP line (no potion works here)."""
+    """An absorbed Healing power above the owner's rate, below the walking gate's HP line
+    (no potion works here)."""
     player = snapshot.player
     if (player.hp >= policy._low_hp_walk_threshold(player.max_hp) or player.blind
             or player.confused or player.hallucinated):
         return None
-    for kind, sval in _HEAL_POWERS:
-        row = me_capability.observed_row(policy, kind, sval)
-        usable = row is not None and (
-            (row.get("max", 0) - row.get("charging", 0) > 0) if kind == "rod"
-            else row.get("current", 0) > 0)
-        if usable:
+    for kind, sval, _amount, _success in arena_odds.healing_rows(policy):
+        if me_capability.charges(policy, snapshot, kind, sval) > 0:
             policy.last_reason = HEAL_REASON
-            return "m" + me_powers.KIND_LETTER[kind] + me_powers.encode_letter(sval)
+            return _power_key(kind, sval)
     return None
+
+
+def _power_key(kind: str, sval: int) -> str:
+    return "m" + me_powers.KIND_LETTER[kind] + me_powers.encode_letter(sval)
+
+
+def _speed_key(policy, snapshot) -> str | None:
+    """The Magic-Eater's haste, first and again when it ends (owner 「加速し」)."""
+    player = snapshot.player
+    if (not arena_odds.magic_eater(snapshot) or player.blind or player.confused
+            or player.hallucinated or policy._player_hasted(snapshot)
+            or not arena_odds.speed_held(policy, snapshot)):
+        return None
+    policy.last_reason = SPEED_REASON
+    return _power_key("staff", SV_STAFF_SPEED)
 
 
 def _power_attack_key(policy, snapshot, target) -> str | None:
@@ -399,14 +410,35 @@ def _away_key(policy, snapshot, target) -> str:
     return key if key is not None else _walk_toward(policy, snapshot, target.position, WALK_REASON)
 
 
+def _fewest_actions_key(policy, snapshot, target) -> str | None:
+    """The Magic-Eater: arena_fight_chain's FEWEST_ACTIONS; None is melee or the walk to it.
+
+    Owner: 「近接攻撃によほど優れていなければ遠距離攻撃が評価の中心になる」: melee is charged the
+    walk to reach it in the same count, and no other margin.  A ranged choice stays put."""
+    here = snapshot.player.position
+    ranged = arena_odds.ranged_force(policy, snapshot, target)
+    melee = attack_expectation.melee(policy, snapshot, target)
+    walk = max(0, here.distance_to(target.position) - 1)
+    if not arena_fight_chain.melee_is_fewest(max(target.hp, 1), ranged, melee, walk):
+        return _fired_key(policy, snapshot, target, ranged)
+    return None
+
+
 def _attack_key(policy, snapshot, target) -> str:
     here = snapshot.player.position
+    is_magic_eater = arena_odds.magic_eater(snapshot)
+    if is_magic_eater:
+        key = _fewest_actions_key(policy, snapshot, target)
+        if key is not None:
+            return key
     if here.distance_to(target.position) <= 1:
         answer = combat_answer.adjacent_attack(policy, snapshot, [target], MELEE_REASON)
         if answer is not None:
             return answer.key
         policy.last_reason = HOLD_REASON  # afraid with nothing to shoot: no way out of here
         return WAIT_KEY
+    if is_magic_eater:
+        return _walk_toward(policy, snapshot, target.position, WALK_REASON)
     knowledge = policy._monrace_knowledge.get(target.race_id)
     if knowledge is not None and arena_fight_chain.applies(knowledge):
         return _away_key(policy, snapshot, target)
@@ -477,6 +509,9 @@ def fight_key(policy, snapshot) -> str:
     hostiles = _hostiles(snapshot)
     if hostiles:
         here = player.position
+        speed = _speed_key(policy, snapshot)
+        if speed is not None:
+            return speed
         target = min(hostiles, key=lambda monster: (here.distance_to(monster.position), monster.index))
         return _attack_key(policy, snapshot, target)
     if (player.blind or player.hallucinated or snapshot.detected_monsters

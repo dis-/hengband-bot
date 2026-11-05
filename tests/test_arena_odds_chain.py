@@ -141,6 +141,43 @@ class ArenaOddsChain(unittest.TestCase):
                                       player_level=45, margin=0.85, recovery_per_action=0.8, longest=400)
         self.assertGreater(fight.kill_at.sum(), 0.99)
 
+    def test_the_fewest_actions_count_the_walk(self):
+        ranged = [(100.0, 5, "power"), (50.0, 2, "launcher")]
+        self.assertFalse(arena_fight_chain.melee_is_fewest(300.0, ranged, 150.0, 4))  # 6 against 3
+        self.assertTrue(arena_fight_chain.melee_is_fewest(300.0, ranged, 150.0, 0))  # 2 against 3
+        self.assertFalse(arena_fight_chain.melee_is_fewest(300.0, ranged, 0.0, 0))  # melee refused
+        # The powers end: 600 HP is 5 + 2 uses, then the walk and the rest by melee.
+        self.assertAlmostEqual(float(arena_fight_chain.actions_by_ranged(600.0, ranged, 100.0, 3)), 7.0)
+        self.assertAlmostEqual(float(arena_fight_chain.actions_by_ranged(700.0, ranged, 100.0, 3)), 7.0 + 3 + 1)
+
+    # --- the Magic-Eater's odds: the same plan as arena.fight_key (owner 2026-11-05)
+
+    def magic_eater(self, *rows):
+        lists = {}
+        for kind, row in rows:
+            lists.setdefault(kind, []).append(row)
+        self.policy._me_device_lists = {kind: (0, tuple(found)) for kind, found in lists.items()}
+        return replace(self.snapshot, player=replace(self.snapshot.player, class_id=16))
+
+    def test_the_odds_read_the_hasted_ratio_when_speed_is_held(self):
+        bolt = ("wand", {"name": "ファイア・ボルト", "success": 95, "current": 9})
+        race = 1062
+        plain = arena_odds.judge(self.policy, self.magic_eater(bolt), race)
+        hasted = arena_odds.judge(
+            self.policy, self.magic_eater(bolt, ("staff", {"name": "スピード", "success": 95, "current": 3})), race)
+        self.assertLess(hasted.monster_actions_per_action, plain.monster_actions_per_action * 0.7)
+        low_rate = arena_odds.judge(
+            self.policy, self.magic_eater(bolt, ("staff", {"name": "スピード", "success": 79, "current": 3})), race)
+        self.assertEqual(low_rate.monster_actions_per_action, plain.monster_actions_per_action)
+
+    def test_the_odds_count_healing_only_above_the_rate(self):
+        # CONSTRUCTED: a hard opponent at low HP.
+        def chance(success):
+            board = self.magic_eater(("staff", {"name": "体力回復", "success": success, "current": 9}))
+            weak = replace(board, player=replace(board.player, hp=300))
+            return arena_odds.judge(self.policy, weak, 1185).chance
+        self.assertGreater(chance(81), chance(80))
+
 
 if __name__ == "__main__":
     unittest.main()

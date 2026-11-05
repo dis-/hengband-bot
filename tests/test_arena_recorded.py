@@ -26,7 +26,8 @@ from hengbot import arena, arena_odds, me_powers, me_ranged_first
 from hengbot.character_sheet import SHEET_ENCODINGS, ArenaStanding, _decode_sheet, arena_standing
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.input_executor import ScreenKind, classify_screen
-from hengbot.model import ARENA_FLOOR_KEY, TVAL_WAND, parse_snapshot
+from hengbot.me_device_attacks import DEVICE_REASON
+from hengbot.model import ARENA_FLOOR_KEY, SV_STAFF_SPEED, TVAL_WAND, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
 from tests import test_input_executor as executor_pins
@@ -134,6 +135,69 @@ class ArenaRecorded(executor_pins.ProductionHarness):
         self.addCleanup(KNOWLEDGE.__setitem__, target.race_id, KNOWLEDGE[target.race_id])
         KNOWLEDGE[target.race_id] = replace(KNOWLEDGE[target.race_id], abilities=frozenset())
         self.assertEqual(self.key(policy, self.board("03-enter")), "2")
+        self.assertEqual(policy.last_reason, arena.WALK_REASON)
+
+    # --- the Magic-Eater's plan (owner 2026-11-05)
+    # CONSTRUCTED: the recorded Lv45 board as class 16 with the displayed rows named, and no
+    # ammunition; the first opponent has 200 HP, the melee's walk is 4 cells.
+
+    def magic_eater(self, *rows, label="03-enter", **player):
+        policy = self.policy()
+        raw = self.unarmed(label, **player)
+        raw["player"]["class_id"] = 16
+        lists = {}
+        for kind, row in rows:
+            lists.setdefault(kind, []).append(row)
+        policy._me_device_lists = {kind: (0, tuple(found)) for kind, found in lists.items()}
+        return policy, raw
+
+    FIRE_BOLT = ("wand", {"name": "ファイア・ボルト", "success": 95, "current": 9})
+    MISSILE = ("wand", {"name": "マジック・ミサイル", "success": 95, "current": 99})
+    SPEED = ("staff", {"name": "スピード", "success": 95, "current": 3})
+
+    def test_the_magic_eater_hastes_first(self):
+        policy, raw = self.magic_eater(self.SPEED, self.FIRE_BOLT)
+        key = self.key(policy, raw, prefix=arena.SPEED_REASON)
+        self.assertEqual(key, "mA" + me_powers.encode_letter(SV_STAFF_SPEED))
+        from hengbot.me_device_attacks_input import compile_device
+        self.assertEqual(compile_device(key, arena.SPEED_REASON)[0], "m")
+
+    def test_a_hasted_magic_eater_attacks(self):
+        policy, raw = self.magic_eater(self.SPEED, self.FIRE_BOLT)
+        policy._player_hasted = lambda _snapshot: True
+        self.assertRegex(self.key(policy, raw, prefix=DEVICE_REASON), r"^mB")
+
+    def test_a_low_rate_speed_is_not_cast(self):
+        policy, raw = self.magic_eater(("staff", {"name": "スピード", "success": 79, "current": 3}), self.FIRE_BOLT)
+        self.assertRegex(self.key(policy, raw, prefix=DEVICE_REASON), r"^mB")
+
+    def test_the_fewest_actions_fire_when_the_power_is_fewer(self):
+        # 200 HP: about 3.3 bolts against the 4 cells' walk and the blows.
+        policy, raw = self.magic_eater(self.FIRE_BOLT)
+        self.assertRegex(self.key(policy, raw, prefix=DEVICE_REASON), r"^mB")
+
+    def test_the_fewest_actions_walk_when_melee_is_fewer(self):
+        # 200 HP: about ten missiles against the 4 cells' walk and the blows.
+        policy, raw = self.magic_eater(self.MISSILE)
+        self.assertEqual(self.key(policy, raw), "2")
+        self.assertEqual(policy.last_reason, arena.WALK_REASON)
+
+    def test_a_power_reaches_a_cell_off_the_rays(self):
+        from hengbot.me_device_attacks_input import compile_device
+        policy, raw = self.magic_eater(self.FIRE_BOLT)
+        monster = raw["visible_monsters"][0]  # recorded on (11, 33), the board's own grid
+        raw["player"]["y"], raw["player"]["x"] = monster["y"] - 4, monster["x"] - 1
+        key = self.key(policy, raw, prefix=DEVICE_REASON)
+        self.assertTrue(key.endswith(f"@{monster['y']},{monster['x']}"), key)
+        self.assertEqual(compile_device(key, policy.last_reason)[1][0].goal, (monster["y"], monster["x"]))
+
+    def test_healing_above_the_owner_s_rate_is_used(self):
+        policy, raw = self.magic_eater(("staff", {"name": "体力回復", "success": 81, "current": 3}), hp=40)
+        self.assertEqual(self.key(policy, raw, prefix=arena.HEAL_REASON), "mA" + me_powers.encode_letter(18))
+
+    def test_healing_at_the_owner_s_rate_is_not_used(self):
+        policy, raw = self.magic_eater(("staff", {"name": "体力回復", "success": 80, "current": 3}), hp=40)
+        self.assertEqual(self.key(policy, raw), "2")
         self.assertEqual(policy.last_reason, arena.WALK_REASON)
 
     def test_low_hp_keeps_fighting_and_reads_nothing(self):

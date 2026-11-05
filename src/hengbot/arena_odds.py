@@ -21,8 +21,12 @@ Character (only what the board shows):
     then melee; the launcher only when melee is refused, for its ammunition.
   * ``ranged_force``: against a race whose spells part the two or heal it
     (arena_fight_chain), every power within its charges and the launcher while away.
+  * The Magic-Eater (owner 2026-11-05 「加速し、敵を倒すまでの手数が最短になる動きを取る。」)
+    against every race: arena_fight_chain's FEWEST_ACTIONS, at the hasted speed when Speed
+    is held, its recasts counted, and absorbed Healing above the owner's rate as more HP.
+    arena.fight_key does the same; the warrior's plan above is unchanged.
   * current HP, current speed, AC, the abilities on the board.  No potion, no
-    healing power, no regeneration is counted.
+    regeneration is counted; a healing power only for the Magic-Eater's plan.
 
 Kill time: mean = HP / (damage per action * DAMAGE_MARGIN), plus APPROACH_ACTIONS for a melee
 plan; against those races the expected HP followed by arena_fight_chain.  Either is widened by
@@ -48,8 +52,9 @@ import re
 
 import numpy as np
 
-from hengbot import arena_fight_chain, attack_expectation, me_device_attacks
-from hengbot.model import MonsterState, Position
+from hengbot import arena_fight_chain, attack_expectation, me_capability, me_device_attacks
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.model import SV_STAFF_SPEED, MonsterState, Position
 from hengbot.monrace_knowledge import SUMMON_ABILITIES
 from hengbot.monster_melee_evaluator import melee_action_distribution
 from hengbot.monster_ranged_evaluator import (
@@ -69,6 +74,14 @@ LONGEST_FIGHT_ACTIONS = 400  # beyond it regeneration and charges decide: not mo
 LAUNCHER_HIT_MARGIN = 0.75  # the shot's hit chance is not on the board
 # regen_monster: maxhp / 100 every 10 player turns at normal speed, doubled with REGENERATE.
 REGEN_PER_ACTION = 0.001
+# Owner 2026-11-05: 「成功率80%を超えている」, the displayed row (me_capability).
+HEALING_MIN_SUCCESS = 80
+# (kind, sval, HP): cmd-zaprod.cpp, cmd-usestaff.cpp cure_critical_wounds, not powerful.
+HEALING_POWERS = (("rod", 9, 500), ("staff", 18, 300))
+HASTE_SPEED = 10
+# set_acceleration(randint1(30) + 15): the shortest haste, 16 ticks of 10 game turns, is 32
+# actions of a character at speed +10: a recast is counted that often.
+HASTE_ACTIONS = 32
 _SHOT_PER_TURN = re.compile(r"(\d+)/turn")  # the game's own figure in the ammunition's name
 
 _STUN_ABILITIES = frozenset({"BR_SOUN", "BR_PLAS", "BO_PLAS", "BR_FORC", "BR_GRAV", "ROCKET"})
@@ -266,6 +279,8 @@ def judge(policy, snapshot, race_id: int) -> Odds:
     # remembered cell: the whole fight is counted at the blind margin when it can happen.
     margin = DAMAGE_MARGIN * (BLIND_MARGIN if open_to_blindness(snapshot, knowledge) else 1.0)
     target = opponent_state(snapshot, race_id, knowledge)
+    if magic_eater(snapshot):
+        return _magic_eater_odds(policy, snapshot, knowledge, arena_race, arena_board, target, plan, regen, margin, shown)
     if arena_fight_chain.applies(arena_race):
         fight = arena_fight_chain.run(
             arena_race, melee=_melee_of(plan), ranged=ranged_force(policy, arena_board, target), ratio=ratio,
@@ -287,11 +302,62 @@ def _melee_of(plan) -> float:
     return next((row[0] for row in plan if row[2] == "melee"), 0.0)
 
 
-def _chain_odds(policy, snapshot, knowledge, arena_race, fight, ratio, shown) -> Odds:
+def magic_eater(snapshot) -> bool:
+    return snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+
+
+def speed_held(policy, snapshot) -> bool:
+    """An absorbed Speed the 11-04 rule's rate allows (「成功率8割以上」); any charge."""
+    return (me_capability.charges(policy, snapshot, "staff", SV_STAFF_SPEED) > 0
+            and me_capability.reliable(policy, snapshot, ("staff", SV_STAFF_SPEED)))
+
+
+def healing_rows(policy) -> list[tuple[str, int, int, float]]:
+    """(kind, sval, HP, success) of the absorbed Healing the owner's rate allows, rod first.
+
+    Owner: 「体力回復の杖/ロッドが成功率80%を超えている場合は使用を選択肢に入れる」."""
+    rows = []
+    for kind, sval, amount in HEALING_POWERS:
+        row = me_capability.observed_row(policy, kind, sval)
+        if row is not None and int(row.get("success") or 0) > HEALING_MIN_SUCCESS:
+            rows.append((kind, sval, amount, int(row["success"]) / 100.0))
+    return rows
+
+
+def _healing_hp(policy, snapshot, ratio: float, mean_hit: float) -> int:
+    """The HP absorbed Healing adds to the race: each cast gives the opponent its actions."""
+    player = snapshot.player
+    room = player.max_hp - policy._low_hp_walk_threshold(player.max_hp)
+    added = 0.0
+    for kind, sval, amount, success in healing_rows(policy):
+        each = min(amount, room) * success - ratio * mean_hit
+        added += max(0.0, each) * me_capability.charges(policy, snapshot, kind, sval)
+    return int(added)
+
+
+def _magic_eater_odds(policy, snapshot, knowledge, arena_race, arena_board, target, plan, regen, margin, shown) -> Odds:
+    """The owner's plan for the class: haste first, the fewest actions, Healing at its rate."""
+    hasted = policy._player_hasted(snapshot)
+    speed = snapshot.player.speed
+    casts = speed_held(policy, snapshot) and not hasted
+    if casts:
+        speed += HASTE_SPEED
+    ratio = speed_energy(knowledge.speed) / max(1, speed_energy(speed))
+    fight = arena_fight_chain.run(
+        arena_race, melee=_melee_of(plan), ranged=ranged_force(policy, arena_board, target), ratio=ratio,
+        player_level=snapshot.player.level, margin=margin, recovery_per_action=regen,
+        longest=LONGEST_FIGHT_ACTIONS, plan=arena_fight_chain.FEWEST_ACTIONS,
+        recast_every=HASTE_ACTIONS if casts else 0)
+    return _chain_odds(policy, snapshot, knowledge, arena_race, fight, ratio, shown, with_healing=True)
+
+
+def _chain_odds(policy, snapshot, knowledge, arena_race, fight, ratio, shown, with_healing=False) -> Odds:
     """The race against the chain's kill times, each widened as ``_race_odds`` widens one."""
     action = _mixed_action(policy, snapshot, knowledge, arena_race, fight)
     mean_hit = float(action @ np.arange(action.size))
     hp = max(0, snapshot.player.hp)
+    if with_healing:
+        hp += _healing_hp(policy, snapshot, ratio, mean_hit)
     kills = [(n, share) for n, share in enumerate(fight.kill_at) if share > 0]
     chance = 0.0
     if kills:
