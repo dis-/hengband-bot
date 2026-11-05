@@ -6159,7 +6159,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             [],
             inventory=supplies,
             equipment=[self._lantern()],
-            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED), 2: QuestState(2, status=QUEST_STATUS_FINISHED)},
         )
         policy = HengbotPolicy()
         set_completed_equipment_optimization(policy)
@@ -6181,7 +6181,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             [],
             inventory=supplies,
             equipment=[self._lantern()],
-            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED), 2: QuestState(2, status=QUEST_STATUS_FINISHED)},
         )
         policy = HengbotPolicy()
         set_completed_equipment_optimization(policy)
@@ -6201,7 +6201,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             [],
             inventory=supplies,
             equipment=[self._lantern()],
-            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED), 2: QuestState(2, status=QUEST_STATUS_FINISHED)},
         )
         policy = HengbotPolicy()
         set_completed_equipment_optimization(policy)
@@ -6224,7 +6224,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             [],
             inventory=supplies,
             equipment=[self._lantern()],
-            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED)},
+            quests={14: QuestState(14, status=QUEST_STATUS_REWARDED), 2: QuestState(2, status=QUEST_STATUS_FINISHED)},
         )
         policy = HengbotPolicy()
         set_completed_equipment_optimization(policy)
@@ -6238,7 +6238,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
                     player(10, 10),
                     {Position(10, 10): grid(10, 10)},
                     [],
-                    quests={14: QuestState(14, status=status)},
+                    quests={14: QuestState(14, status=status), 2: QuestState(2, status=QUEST_STATUS_FINISHED)},
                     yeek_cave_conquered=False,
                 )
                 policy = HengbotPolicy()

@@ -20,10 +20,20 @@ an absent Q2 row is open.
 Only the crossing is held (``current < level <= destination``): a character
 already on (or below) a random quest floor is left to the quest owners and
 their exit lock (QuestPolicyMixin._quest_floor_exit_locked).
+
+Owner 2026-11-05: 「下水道をクリアするまで鉄獄に帰還しない」「地上からの経路はそもそも
+禁止しているはずだが、改めて明確に禁止する」.  While the hold is active nothing enters
+Angband from the surface: ``entry_refused`` is the one answer for the recall
+destination (PolicyObservation's target, _pick_alternate_dungeon) and for the
+walk ('>' on a surface tile, _is_descent_target).  The target falls back to the
+Yeek cave, as for a character whose Angband recall was never unlocked.  A
+character already inside Angband plays on above the hold until its ordinary
+return; the next departure goes elsewhere.
 """
 
 from __future__ import annotations
 
+from hengbot.model import DUNGEON_ANGBAND
 from hengbot.policy_constants import QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN
 from hengbot.q2_tower_recharge import Q2_QUEST_ID
 from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
@@ -31,7 +41,8 @@ from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
 # The fixed quest whose resolution releases the hold (owner 2026-11-02).
 GATING_QUEST_ID = Q2_QUEST_ID
 _OPEN_STATUSES = frozenset({QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN})
-REASON = "depth-gate:random-quest-after-q2"
+# Display only (spectator): why the target is not Angband though its recall is unlocked.
+TARGET_REASON = "angband_closed_before_q2"
 
 
 def _gating_quest_open(snapshot) -> bool:
@@ -55,6 +66,11 @@ def _pending_random_levels(policy, snapshot, dungeon_id: int) -> list[int]:
 def hold_active(snapshot) -> bool:
     """Whether Q2 still holds.  A board without quest rows (legacy) cannot tell."""
     return bool(snapshot.quests) and _gating_quest_open(snapshot)
+
+
+def entry_refused(snapshot, dungeon_id: int | None) -> bool:
+    """Whether recall or the walk may not enter ``dungeon_id`` from the surface now."""
+    return dungeon_id == DUNGEON_ANGBAND and hold_active(snapshot)
 
 
 def crossing_held(policy, snapshot, dungeon_id: int, current: int, destination: int) -> bool:

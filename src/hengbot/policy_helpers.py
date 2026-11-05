@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from hengbot import spare_gear
+from hengbot import random_quest_hold
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 
 from dataclasses import replace
@@ -502,6 +503,11 @@ class PolicyHelpersMixin:
             for item in snapshot.inventory
             if self._item_signature(item) == signature
         )
+    @staticmethod
+    def _recall_cannot_reach(snapshot: Snapshot, dungeon_id: int) -> bool:
+        """The recall prompt lists the entered dungeons only (choose_dungeon)."""
+        return bool(snapshot.entered_dungeon_ids) and dungeon_id not in snapshot.entered_dungeon_ids
+
     def _is_active_dungeon_entrance(self, grid: GridState) -> bool:
         return (
             grid.has_entrance
@@ -625,6 +631,7 @@ class PolicyHelpersMixin:
             and guardian_bounced_dungeon != DUNGEON_ANGBAND
             and self._alternate_dungeon != DUNGEON_ANGBAND
             and DUNGEON_ANGBAND in self._dungeon_knowledge
+            and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
             and self._can_fight_in_dungeon(DUNGEON_ANGBAND)
             and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
         ):

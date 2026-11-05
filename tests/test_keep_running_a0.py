@@ -29,6 +29,8 @@ import unittest
 from unittest.mock import patch
 
 from hengbot import cli
+from hengbot.model import QuestState
+from hengbot.policy_constants import QUEST_STATUS_FINISHED
 from hengbot.model import DUNGEON_YEEK_CAVE, Position, TVAL_POTION, SV_POTION_CURE_CRITICAL, TVAL_STAFF, SV_STAFF_IDENTIFY
 from hengbot.policy import HengbotPolicy, REST_MACRO, TR_NO_TELE
 from hengbot.policy_constants import ENTER_DUNGEON_MACRO, PACK_CAPACITY, READ_KEY, WAIT_KEY, _required_abilities_for_depth
@@ -285,6 +287,9 @@ class DepartureTest(unittest.TestCase):
 
     def test_committed_visit_preempts_release_shopping_and_refused_entrance(self):
         policy, board, _ = ready_board()
+        # The committed recall is Angband's, open only after Q2 (owner 2026-11-05).
+        board = replace(board, quests={
+            **board.quests, 2: QuestState(2, status=QUEST_STATUS_FINISHED)})
         catalogued(policy)
         policy._observe(board)
         with TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()):

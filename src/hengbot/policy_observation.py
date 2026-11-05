@@ -10,6 +10,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, STATUS_THREAT_RELOCATION_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
+from hengbot import random_quest_hold
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
@@ -437,7 +438,15 @@ class ObservationMixin:
             self._target_dungeon_id = DUNGEON_YEEK_CAVE
             self._target_dungeon_reason = "initial_yeek_cave"
         pursued_target = self._target_dungeon_id
-        if snapshot.angband_recall_unlocked:
+        if random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND):
+            self._rumor_unlock_pending = False
+            if self._alternate_dungeon == DUNGEON_ANGBAND:
+                self._alternate_dungeon = None
+                self._alternate_dungeon_reason = None
+            if snapshot.angband_recall_unlocked or self._target_dungeon_id == DUNGEON_ANGBAND:
+                self._target_dungeon_id = DUNGEON_YEEK_CAVE
+                self._target_dungeon_reason = random_quest_hold.TARGET_REASON
+        elif snapshot.angband_recall_unlocked:
             self._target_dungeon_id = DUNGEON_ANGBAND
             self._target_dungeon_reason = "angband_recall_unlocked"
             self._rumor_unlock_pending = False

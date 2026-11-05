@@ -7,7 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
-from hengbot.stair_destination import down_destination
+from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, quest_target_search, sealed_pocket, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, unseen_strike, wilderness_exit
 
@@ -16253,6 +16253,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
             return False
+        # Owner 2026-11-05: no way into Angband from the surface before Q2.
+        if snapshot.dungeon_level == 0 and random_quest_hold.entry_refused(
+                snapshot, surface_dungeon(grid)):
+            return False
         destination = down_destination(snapshot.dungeon_level, grid)
         # #102: QUEST_ENTER carries DOWN_STAIRS, but arriving on it (or '>'
         # there) asks the quest-entry question that no descent owner answers.
@@ -16323,7 +16327,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return True
             if self._taken_kill_quest_requires_walk_in(snapshot):
                 return True
-            return self._deepest_level < RECALL_MIN_DEPTH
+            return (self._deepest_level < RECALL_MIN_DEPTH
+                    or self._recall_cannot_reach(snapshot, self._active_dungeon_target()))
         if self._fundraising_mode in {"mine", "scavenge"}:
             return False
         # The floor above the landing: a shaft reaches the guardian one floor early.

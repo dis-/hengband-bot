@@ -18,6 +18,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from hengbot.model import QuestState
+from hengbot.policy_constants import QUEST_STATUS_FINISHED
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import StoreItem, StoreState, parse_snapshot, _parse_items
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -276,6 +278,9 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
                     entered_dungeon_ids=(1, 2) if unlocked else (2,),
                     angband_recall_unlocked=unlocked,
                     dungeon_recall_depths={1: 1, 2: 12})
+                # The valve's Angband is open only after Q2 (owner 2026-11-05).
+                board = replace(board, quests={
+                    **board.quests, 2: QuestState(2, status=QUEST_STATUS_FINISHED)})
                 self.assertFalse(policy._inventory_overweight(board))
                 self.assertTrue(policy._guardian_floor_blocked(board, 2, 12))
                 key = policy._town_special_key(board)

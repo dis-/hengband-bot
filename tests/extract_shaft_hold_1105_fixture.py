@@ -4,8 +4,8 @@ Source: the viewing Magic-Eater n1-b life-313, rows copied read-only to
 C:/hengband-backups/pdca/captures/n1b-313-shaft-1105/ from its snapshot rings.
 SHAFT: the walk on 鉄獄4階 onto the down shaft [51,56] (terrain 14), '>' at turn
 704848, and the arrival on 鉄獄6階, random quest 49, at turn 704849.
-RECALL: the town boards up to the arrival on 鉄獄1階 at turn 594591, read at
-12:22:28 as ``town:recall-to-angband`` (posted-descent-recall-rows.jsonl).
+RECALL: the boards of the town visit up to the arrival on 鉄獄1階 at turn 594591,
+read at 12:22:28 as ``town:recall-to-angband`` (posted-descent-recall-rows.jsonl).
 
 The fixture keeps those boards, the last skill-proficiency and Home knowledge
 rows before each span, the absorbed-staff record of the life's later policy
@@ -29,7 +29,7 @@ from hengbot.quest_knowledge import (
 
 CAPTURE = Path("C:/hengband-backups/pdca/captures/n1b-313-shaft-1105")
 SHAFT = (704795, 704849)
-RECALL = (594286, 594591)
+RECALL = (591324, 594591)
 OUTPUT = Path(__file__).with_name("fixtures") / "shaft-hold-n1b-313-1105.json.gz"
 
 
@@ -43,8 +43,10 @@ def span_boards(rows, first, last):
 
 
 def main():
-    with gzip.open(CAPTURE / "rows-spans.jsonl.gz", "rt", encoding="utf-8") as stream:
-        rows = [json.loads(line) for line in stream]
+    rows = []
+    for name in ("rows-town-visit-591300.jsonl.gz", "rows-spans.jsonl.gz"):
+        with gzip.open(CAPTURE / name, "rt", encoding="utf-8") as stream:
+            rows.extend(json.loads(line) for line in stream)
     knowledge = {}
     sequence = None
     for line in (CAPTURE / "knowledge-rows.jsonl").read_text(encoding="utf-8").splitlines():

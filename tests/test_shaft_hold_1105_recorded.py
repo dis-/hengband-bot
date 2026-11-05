@@ -27,12 +27,16 @@ from recorded_junk_scope import install_past_destroyed_junk
 import copy
 import gzip
 import json
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 from hengbot import me_powers, random_quest_hold
 from hengbot.dungeon_knowledge import DungeonInfo
-from hengbot.model import Position, parse_snapshot
-from hengbot.policy_constants import DOWN_STAIRS_KEY, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN
+from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, Position, parse_snapshot
+from hengbot.policy_constants import (
+    DOWN_STAIRS_KEY, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, RECALL_MIN_DEPTH, WAIT_KEY,
+)
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QuestInfo
 from hengbot.stair_destination import down_destination
 from tests import test_me_staff_loops_1031_recorded as loops
@@ -52,6 +56,8 @@ FLOOR_TERRAIN = 1
 UP_STAIR_TERRAIN = 6
 DOWN_STAIR_TERRAIN = 7
 QUEST_ON_5F = 90  # constructed: no quest file holds this id
+READ_TURN = 594297  # the board of the recorded read (posted at 12:22:28)
+RECALLING_TURN = 594319  # the charged recall on the town command loop
 
 
 def power_memory(first_turn):
@@ -129,6 +135,14 @@ class ShaftHoldRecordedTest(d57.PostedDeathKey):
         rows = self.drive(self.boards())
         self.assertNotIn(DOWN_STAIRS_KEY, [key for _turn, key, _reason in rows], rows)
         self.assertEqual(rows[-1][2], "approach-descent", rows)
+
+    def test_already_inside_angband_it_plays_on_above_the_hold(self):
+        # Before Q2 nothing recalls here again; a character already here is not stopped.
+        policies = []
+        rows = self.drive(self.boards(), policies.append)
+        self.assertEqual(policies[0]._target_dungeon_id, DUNGEON_YEEK_CAVE)
+        self.assertEqual(rows[-1][2], "approach-descent", rows)
+        self.assertTrue(rows[-1][1], rows)
 
     def test_after_q2_the_same_boards_descend(self):
         rows = self.drive(self.boards(q2_done=True))
@@ -216,6 +230,103 @@ class ShaftHoldRecordedTest(d57.PostedDeathKey):
         self.assertTrue(random_quest_hold.crossing_held(policy, board, 1, 5, 7))
         self.assertTrue(random_quest_hold.crossing_held(policy, board, 1, 7, 12))
         self.assertFalse(random_quest_hold.crossing_held(policy, board, 1, 3, 5))
+
+
+class AngbandClosedBeforeQ2RecordedTest(d57.PostedDeathKey):
+    """Owner 2026-11-05: 「下水道をクリアするまで鉄獄に帰還しない」「地上からの経路は...
+    改めて明確に禁止する」.  life-313 read ``town:recall-to-angband`` at 12:22:28 (Lv8,
+    Q2 not taken); the boards of that recall are recorded from the read on.
+    """
+
+    def boards(self, first, last, *, q2_done=False):
+        boards = [copy.deepcopy(raw) for raw in CASE["recall"] if first <= raw["turn"] <= last]
+        if q2_done:
+            for raw in boards:
+                raw["progress"]["quests"].append(dict(Q2_FINISHED))
+        return boards
+
+    def new_policy(self, boards):
+        policy = d57.new_policy(dict(CASE, boards=boards, skill=CASE["recall_skill"],
+                                     home=CASE["recall_home"]))
+        policy._quest_knowledge.update(
+            {row["id"]: QuestInfo(**row) for row in CASE["random_quests"]})
+        return policy
+
+    def decided(self, *, q2_done=False, first=READ_TURN, last=RECALLING_TURN):
+        """Every board decided; the policy, the last board parsed, and the rows."""
+        boards = self.boards(first, last, q2_done=q2_done)
+        policy = self.new_policy(boards)
+        rows = []
+        for raw in boards:
+            key = loops.decide(policy, raw)
+            rows.append((raw["turn"], key, policy.last_reason))
+            if raw is not boards[-1]:
+                policy.confirm_key_posted(key)
+        return policy, parse_snapshot(copy.deepcopy(boards[-1]), policy._monrace_knowledge), rows
+
+    def test_before_q2_the_recall_destination_is_not_angband(self):
+        policy, board, _rows = self.decided()
+        self.assertTrue(board.angband_recall_unlocked)
+        self.assertEqual(policy._target_dungeon_id, DUNGEON_YEEK_CAVE)
+        self.assertEqual(policy._target_dungeon_reason, random_quest_hold.TARGET_REASON)
+        self.assertNotEqual(policy._town_recall_destination(board)[1], DUNGEON_ANGBAND)
+        self.assertNotEqual(policy._surface_recall_selection(board), "a")
+
+    def test_after_q2_the_recall_destination_is_angband(self):
+        policy, board, _rows = self.decided(q2_done=True)
+        self.assertEqual(policy._town_recall_destination(board), ("angband", DUNGEON_ANGBAND))
+        self.assertEqual(policy._surface_recall_selection(board), "a")
+
+    def test_a_recall_already_set_for_angband_is_cancelled_before_q2(self):
+        _policy, _board, rows = self.decided()
+        self.assertEqual(rows[-1][1:], ("re", "town:cancel-wrong-recall-destination"), rows)
+        _policy, _board, rows = self.decided(q2_done=True)
+        self.assertEqual(rows[-1][1:], (WAIT_KEY, "town:wait-recall"), rows)
+
+    def on_surface(self, *, q2_done):
+        raw = self.boards(READ_TURN, READ_TURN, q2_done=q2_done)[0]
+        raw["floor"].update(in_town=False, town_id=-1, town_index=0)
+        policy = self.new_policy([raw])
+        key = loops.decide(policy, raw)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        here = board.grid_at(board.player.position)
+        entrance = replace(here, has_entrance=True, entrance_dungeon_id=DUNGEON_ANGBAND)
+        return policy, board, entrance, key, policy.last_reason
+
+    def test_the_walk_into_angband_is_refused_before_q2(self):
+        # DECLARED CONSTRUCTED: the wilderness tile of Angband's entrance (40,57).
+        policy, board, entrance, key, reason = self.on_surface(q2_done=False)
+        self.assertFalse(policy._is_descent_target(board, entrance))
+        self.assertEqual((key, reason), ("<", "wilderness:enter-global"))
+        policy, board, entrance, key, reason = self.on_surface(q2_done=True)
+        self.assertTrue(policy._is_descent_target(board, entrance))
+        self.assertEqual((key, reason), ("<", "wilderness:enter-global"))
+
+    def test_guardian_valve_has_no_angband_before_q2(self):
+        # Owner 10-27 sent a bounced character to Angband; 11-05 shuts it until Q2.
+        for q2_done, expected in ((False, None), (True, DUNGEON_ANGBAND)):
+            policy, board, _rows = self.decided(q2_done=q2_done)
+            policy._dungeon_knowledge[DUNGEON_ANGBAND] = DungeonInfo(
+                id=DUNGEON_ANGBAND, name="Angband", min_depth=1, max_depth=127,
+                min_player_level=30)
+            board = replace(board, entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE))
+            self.assertEqual(
+                policy._pick_alternate_dungeon(board, guardian_bounced_dungeon=DUNGEON_YEEK_CAVE),
+                expected)
+
+    def test_yeek_cave_not_yet_entered_is_walked_into(self):
+        # DECLARED CONSTRUCTED: the prompt lists Angband only and the deepest floor
+        # is Q34's 5F.  Its letter 'a' would be Angband, so the way in is on foot.
+        policy, board, _rows = self.decided(first=READ_TURN, last=READ_TURN)
+        board = replace(board, entered_dungeon_ids=(DUNGEON_ANGBAND,))
+        policy._deepest_level = RECALL_MIN_DEPTH
+        self.assertEqual(policy._town_recall_destination(board), (None, DUNGEON_YEEK_CAVE))
+        entrance = next(grid for grid in board.grids.values() if grid.has_entrance)
+        self.assertEqual(entrance.entrance_dungeon_id, DUNGEON_YEEK_CAVE)
+        self.assertTrue(policy._is_descent_target(board, entrance))
+        policy._town_map = SimpleNamespace(entrance=entrance.position)
+        policy._town_map_active = lambda _snapshot: True
+        self.assertEqual(policy._town_map_descent_entrance(board), entrance.position)
 
 
 if __name__ == "__main__":
