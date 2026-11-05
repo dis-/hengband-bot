@@ -996,6 +996,13 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("town:cross-town", R, ENTRANCE),
         ("town:cross-town-shopping-needs-funds", T, EFFECT),
         ("town:morivant", R, ENTRANCE),
+        ("town:arena:poster", T, EFFECT),
+        ("town:arena:enter", O, FLOOR_CHANGE),
+        ("town:arena:approach", R, ENTRANCE),
+        ("town:arena:travel", R, ENTRANCE),
+        ("town:arena:travel-step-off", T, EFFECT),
+        ("town:arena:return", R, ENTRANCE),
+        ("town:arena:return-step-off", T, EFFECT),
     ),
     *_rows(
         "survival",

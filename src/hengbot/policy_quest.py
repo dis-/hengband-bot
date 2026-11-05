@@ -611,6 +611,10 @@ class QuestMixin(OpeningRouteMixin):
             smith_trip = armor_smith.trip_key(self, snapshot)
             if smith_trip is not None:
                 return smith_trip
+            from hengbot import arena
+            arena_trip = arena.trip_key(self, snapshot)
+            if arena_trip is not None:
+                return arena_trip
             from hengbot import me_staff_sequence
             staff_sequence = me_staff_sequence.town_key(self, snapshot, hostiles)
             if staff_sequence is not None:

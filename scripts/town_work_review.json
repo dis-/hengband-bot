@@ -14390,5 +14390,170 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-05: resist_potion.key on the shared ladder, yielding to the flee and status-threat rungs below it."
+  },
+  "arena.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. record accessor: the trip and judgement of this stay in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "arena_odds.py:_power_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. the displayed uses of an absorbed power, for the win chance.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "arena_odds.py:refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. the mechanic the win chance does not model; a name, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "arena.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: at the recall read, after the armour smith, the arena's errand or None for the read; never a departure condition.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:trip_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: while the trip is under way (inn legs, the walk, poster, entry, the way back) this owner holds the town's board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_leg_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: one inn teleport leg through _town_teleport_key; a refused leg closes the errand and the read goes on.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_return_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: the inn leg back to the town the trip left, or None when there.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_entry_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: in Telmora: the poster read, then the step onto the building that enters the arena.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_building_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: the walk to the arena building or the step onto it with the poster or entry tail.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:fight_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: the one owner of the arena floor: heal, attack, reward, gate.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_attack_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: the floor's attack in the fixed answer order, the launcher, or the walk up.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_heal_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: an absorbed Healing power, the only healing the floor allows.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_unseen_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: a strike at an unseen monster, else a hold: the floor has no way out.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_walk_toward": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: one step on the open floor toward the opponent, the reward or the gate.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_won_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「ダンジョンに出発する前に闘技場に挑むかの判定を行う」: after the kill: the reward, then the gate.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

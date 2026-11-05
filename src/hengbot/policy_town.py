@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import arena
 from hengbot import quest_optional_carry
 from hengbot import item_fate, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
@@ -476,6 +477,8 @@ class TownMixin:
                 )
                 and getattr(self, "_cross_town_shopping", None) is not None
             )
+            # The arena's trip: the inn legs there and back.
+            or (reason or self.last_reason or "").startswith(arena.INN_WALK_REASONS)
         ):
             # The *Identify* expedition walks to this town's teleport building
             # along the route _town_teleport_route steps on.  Its remaining
@@ -512,6 +515,10 @@ class TownMixin:
                 "locomotion", owner, snapshot.floor_key, route.target,
                 route.remaining_edges,
             ),)
+        elif owner == "cross-town" and (reason or self.last_reason) == arena.APPROACH_REASON and (
+            walk := self._declared_walk_part(snapshot, owner, reason)
+        ) is not None:
+            return durable + (walk,)
         if goal is None:
             return durable
         if owner == "misc":
@@ -6984,6 +6991,10 @@ class TownMixin:
                 smith = armor_smith.town_key(self, snapshot)
                 if smith is not None:
                     return smith
+                from hengbot import arena
+                arena_errand = arena.town_key(self, snapshot)
+                if arena_errand is not None:
+                    return arena_errand
             if self._can_read_now(snapshot):
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None and guardian_blocked:

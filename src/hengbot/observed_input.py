@@ -12,6 +12,7 @@ import re
 from dataclasses import replace
 from collections.abc import Mapping
 
+from hengbot.arena import ENTER_KEY, ENTER_KEY_PATTERN, ENTER_REASON, POSTER_KEY, POSTER_KEY_PATTERN, POSTER_REASON
 from hengbot.armor_smith import RAISE_KEY_PATTERN, RAISE_REASON
 from hengbot.input_executor import (
     BUILDING_ENCHANT_PROMPTS, Continuation, RECALL_DUNGEON_PROMPTS, ScreenKind,
@@ -174,6 +175,16 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
             _answer(ScreenKind.BUILDING, "\x1b"),
             *continuations,
         ]
+    if owner == POSTER_REASON and re.fullmatch(POSTER_KEY_PATTERN, key):
+        # market/arena.cpp BACT_POSTER: a message over the kept menu, no time.  A defeated
+        # character gets no menu (cmd-building.cpp 「敗者に用はない。」): both fall away.
+        return key[0], [_answer(ScreenKind.BUILDING, POSTER_KEY, optional=True),
+                        _answer(ScreenKind.BUILDING, "\x1b", optional=True), *continuations]
+    if owner == ENTER_REASON and re.fullmatch(ENTER_KEY_PATTERN, key):
+        # market/arena.cpp go_to_arena: the floor changes with no question below the
+        # ceremony (the owner stops before it).  A refused entry leaves the menu up, and
+        # the executor closes a menu with no answer left.
+        return key[0], [_answer(ScreenKind.BUILDING, ENTER_KEY, optional=True), *continuations]
     if owner == RAISE_REASON and re.fullmatch(RAISE_KEY_PATTERN, key):
         raises = [step for label in key[3::3] for step in _building_raise(label)]
         return key[0], [*raises, _answer(ScreenKind.BUILDING, "\x1b"), *continuations]
