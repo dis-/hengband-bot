@@ -2002,6 +2002,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._breeder_engagement_actions = 0
         self._breeder_engagement_last_turn: int | None = None
         self._breeder_engagement_race: int | None = None
+        self._breeder_engagement_killed = False
         self._breeder_last_board = None
         self._choke_engagement_plan: ChokeEngagementPlan | None = None
         # Floor and snapshot turn of the decision that first waited for a
