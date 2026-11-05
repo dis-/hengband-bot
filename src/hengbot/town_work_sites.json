@@ -10170,7 +10170,21 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "retreat_enclosure.py:_read_teleport": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
   "retreat_enclosure.py:teleport_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
+  "retreat_enclosure.py:walled_off_teleport_key": {
     "classification": "action",
     "rows": [
       "positioning"

@@ -12833,6 +12833,28 @@
     "evidence": "Blind with no cure and only an unseen missile or spell hit, before the no-wait walk: the low-HP heal or Speed dose the existing rules give for this loss; delegates to them.",
     "delegation": "selected child; no independent success"
   },
+  "retreat_enclosure.py:_read_teleport": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: under teleport_key and walled_off_teleport_key; never reached in town.",
+    "evidence": "dungeon-only: the floor's one Teleportation read of owner 2026-11-04 「一旦テレポートで離脱を試みる。」; returns the read key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
+  "retreat_enclosure.py:walled_off_teleport_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: n1-b life-317 Angband 50F, retreat vetoes walled known ground off from the hunt and the loop for 81,000 game turns; reads the floor's one Teleportation when a veto holds known ground; returns the read key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
   "retreat_enclosure.py:teleport_key": {
     "classification": "action",
     "rows": [

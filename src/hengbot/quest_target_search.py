@@ -27,7 +27,9 @@ again.  A lap with no stop left to walk to answers nothing, and the ladder below
 (the secret walls, the stall bound).
 
 A loop step is progress: new ground is not what it is for, so the no-progress and stuck
-counts restart on each (as sealed_pocket's use does).
+counts restart on each (as sealed_pocket's use does).  So a loop whose ground a retreat's veto
+walls off would circle one side for ever: the floor's Teleportation is read first
+(retreat_enclosure.walled_off_teleport_key).  There is no cap on laps.
 
 The secret doors (``_door_search_key``).  Owner the same day: 「周辺感知をもたない場合に限り何周か
 ごとに隠し扉を探す」.  With no usable 周辺感知 (area_mapping.means_held), every DOOR_SEARCH_LAPS laps
@@ -53,7 +55,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from hengbot import area_mapping, hunt_target, me_powers
+from hengbot import area_mapping, hunt_target, me_powers, retreat_enclosure
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
     SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_STAFF, Position, Snapshot, game_distance,
@@ -226,6 +228,9 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     """The next step of the lap or of its door search, else None."""
     if not searching(policy, snapshot):
         return None
+    walled_off = retreat_enclosure.walled_off_teleport_key(policy, snapshot)
+    if walled_off is not None:
+        return walled_off
     memory, routes = _memory(policy, snapshot), _routes(policy, snapshot)
     door = _door_search_key(policy, snapshot, memory, routes)
     if door is not None:
