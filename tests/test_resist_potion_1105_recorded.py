@@ -253,5 +253,59 @@ class TableTest(unittest.TestCase):
         self.assertFalse(consumable_policy.quaffed_on_sight(potion))
 
 
+class BlackMarketTest(unittest.TestCase):
+    """Bought by the buy-out's own line: 10-08's departure resupply stays in hand."""
+
+    def _shelf(self, *wares, gold, inventory=None):
+        policy = shop.HengbotPolicy()
+        TOWN._declare_constructed_departure_prices(policy)
+        town = TOWN._town(inventory=inventory, store=StoreState(STORE_BLACK, list(wares)), gold=gold)
+        return policy, town
+
+    def test_with_spare_money_the_shelf_is_bought(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_POTION_RESISTANCE, price=500, count=3)
+        policy, town = self._shelf(ware, gold=10000)
+        key = str(shop._public_shop_inner(self, policy, town))
+        self.assertTrue(key.startswith(BUY_KEY + "a"), key)
+        self.assertEqual(policy._purchase_quantity(town, ware), 3)
+
+    def test_the_reserve_bounds_the_quantity(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_POTION_RESISTANCE, price=500, count=3)
+        policy, town = self._shelf(ware, gold=1000)
+        reserve = policy._full_departure_resupply_reserve(town)
+        self.assertEqual(policy._purchase_quantity(town, ware), (1000 - reserve) // 500)
+
+    def test_without_spare_money_it_is_not_bought(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_POTION_RESISTANCE, price=500, count=3)
+        policy, town = self._shelf(ware, gold=400)
+        self.assertIsNone(policy._next_purchase(town))
+        self.assertFalse(str(shop._public_shop_inner(self, policy, town)).startswith(BUY_KEY))
+
+    def test_the_kinds_that_save_a_life_come_first(self):
+        resist = shop.store_item("a", TVAL_POTION, SV_POTION_RESISTANCE, price=500, count=3)
+        speed = shop.store_item("b", TVAL_POTION, SV_POTION_SPEED, price=500, count=3)
+        # Twenty carried and none of the other: the fewer held does not decide it.
+        held = [*TOWN._supplies(), shop.item("s", TVAL_POTION, SV_POTION_SPEED, count=20)]
+        policy, town = self._shelf(resist, speed, gold=10000, inventory=held)
+        self.assertEqual(policy._next_purchase(town), speed)
+
+    def test_a_full_pack_with_no_stack_to_join_buys_none(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_POTION_RESISTANCE, price=500, count=3)
+        filler = [shop.item(f"x{index}", 70, 100 + index) for index in range(PACK_CAPACITY - len(TOWN._supplies()))]
+        policy, town = self._shelf(ware, gold=10000, inventory=[*TOWN._supplies(), *filler])
+        self.assertIsNone(policy._next_purchase(town))
+
+    def test_elsewhere_it_is_not_bought(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_POTION_RESISTANCE, price=500, count=3)
+        policy, town = self._shelf(ware, gold=10000)
+        alchemist = replace(town, store=StoreState(shop.STORE_ALCHEMIST, [ware]))
+        self.assertIsNone(policy._next_purchase(alchemist))
+
+    def test_the_carried_stack_is_no_surplus_up_to_the_carry_cap(self):
+        policy, town = self._shelf(gold=10000)
+        carried = shop.item("p", TVAL_POTION, SV_POTION_RESISTANCE, count=12)
+        self.assertEqual(policy._retention_surplus(town, carried), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

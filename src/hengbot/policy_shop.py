@@ -22,7 +22,7 @@ from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, 
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
-from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
+from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_RESISTANCE, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.town_arbiter import _new_town_turn_arbiter
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.home_visit import HomeVisitKind
@@ -2750,7 +2750,7 @@ class ShopMixin(InStoreMixin):
             if (
                 (
                     item.tval == TVAL_POTION
-                    and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING}
+                    and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING, SV_POTION_RESISTANCE}
                 )
                 or (
                     item.tval == TVAL_WAND
@@ -2779,7 +2779,12 @@ class ShopMixin(InStoreMixin):
                 return 2
             return int(item.sval != SV_POTION_SPEED)
 
-        return min(optional, key=lambda item: (held(item), kind_rank(item)))
+        def after_the_old_kinds(item: StoreItem) -> bool:
+            # Owner 2026-11-05 「資金に余裕があるとき闇市で購入する」: from what the kinds
+            # that save a life leave on this shelf.
+            return item.tval == TVAL_POTION and item.sval == SV_POTION_RESISTANCE
+
+        return min(optional, key=lambda item: (after_the_old_kinds(item), held(item), kind_rank(item)))
 
     def _required_remove_curse_purchase(self, snapshot: Snapshot) -> StoreItem | None:
         store = snapshot.store
@@ -2946,6 +2951,7 @@ class ShopMixin(InStoreMixin):
         black_market_pick = self._black_market_optional_purchase(snapshot)
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
         add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
+        add(rung("black-market:resistance", "resistance", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_RESISTANCE, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_RESISTANCE))
         add(rung("black-market:stone-to-mud", "device", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_WAND, lambda i: i.tval == TVAL_WAND and i.sval == SV_WAND_STONE_TO_MUD and i.charges > 0))
         # Class 16's device policy table: 「1本目を見たら買う」/「2本目以降も買う」
         # from the gold the staff sequence can spare (me_device_policy).
@@ -3956,6 +3962,7 @@ class ShopMixin(InStoreMixin):
         elif item.tval == TVAL_POTION and item.sval in {
             SV_POTION_SPEED,
             SV_POTION_HEALING,
+            SV_POTION_RESISTANCE,
         }:
             # An optional shelf is one bounded opportunity.  Empty the selected
             # stack now so spending cannot reset visit retirement and turn one

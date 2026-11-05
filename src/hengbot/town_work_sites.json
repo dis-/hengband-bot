@@ -7309,6 +7309,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_shop.py:ShopMixin._black_market_optional_purchase.after_the_old_kinds": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_shop.py:ShopMixin._black_market_optional_purchase.held": {
     "classification": "data",
     "rows": [
