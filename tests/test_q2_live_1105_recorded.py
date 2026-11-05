@@ -37,6 +37,7 @@ FIRST = CASE["first"]
 RESTART = CASE["restart"]
 RECOMMIT = "quest-strategy:q2-breeder-recommit"
 APPROACH = "quest-strategy:q2-approach-residual-multiplier"
+RAT_PHASE = "quest-strategy:q2-phase-86"
 CONTACT = 3  # [1,3], beside the puddle
 LANDING_WAIT = 5  # the first row at [13,60] with nothing in view
 
@@ -101,6 +102,19 @@ class TeleportLandingTest(swarm.PostedSwarmKey):
         self.assertIsNone(policy._q2_breeder_last_seen)
         self.assertNotEqual(key, "5", policy.last_reason)
         self.assertTrue(policy.last_reason.startswith("quest-strategy:q2-phase-"), policy.last_reason)
+        self.post(policy, row["board"], key)
+
+
+class RestartTest(swarm.PostedSwarmKey):
+    def test_known_cells_around_a_landing_skip_no_phase(self):
+        # The worm's cell [11,60] is known from the landing and no breach is dug.
+        row = RESTART[0]
+        self.assertEqual(row["reason"], "quest-strategy:q2-post-blue-down-puddle")
+        policy = new_policy(row)
+        key = loops.decide(policy, copy.deepcopy(row["board"]))
+        self.assertEqual(policy.last_reason, RAT_PHASE)
+        self.assertFalse(policy._q2_breach_complete)
+        self.assertEqual(policy._q2_cleared_races, set())
         self.post(policy, row["board"], key)
 
 

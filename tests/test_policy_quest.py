@@ -149,6 +149,7 @@ from hengbot.quest_knowledge import (
     load_quest_knowledge,
 )
 from hengbot.quest_strategies import StrategyProfile, load_quest_strategies
+from hengbot.policy_constants import Q2_BREACH_CORRIDOR
 from hengbot.quest_navigator import QuestFloorNavigator
 from hengbot.projection_path import projection_path
 from hengbot.policy_constants import Q2_BLUE_RECOVERY_CELLS, SEARCH_KEY
@@ -5717,7 +5718,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertNotIn(153, policy._q2_cleared_races)
         self.assertFalse(policy._q2_breach_complete)
 
-    def test_q2_reconnect_can_restore_progress_from_known_later_map(self):
+    def test_q2_reconnect_restores_progress_from_the_dug_breach(self):
         policy = self._policy()
         battlefield = QuestBattlefield(
             terrain={(1, x): "floor" for x in range(4, 8)},
@@ -5728,12 +5729,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy._quest_knowledge[2] = QuestInfo(
             2, "The Sewer", 6, 15, 0, battlefield=battlefield
         )
-        later = Position(21, 50)  # a spider nest cell: known only past the blue room
         snapshot = Snapshot(
             player(1, 5),
             {
                 Position(1, 5): grid(1, 5),
-                later: grid(later.y, later.x),
+                **{cell: grid(cell.y, cell.x) for cell in Q2_BREACH_CORRIDOR},
             },
             [], floor_key=(0, 15, 2),
             inventory=[item("i", TVAL_SCROLL, SV_SCROLL_LIGHT, count=6)],
@@ -5745,12 +5745,13 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertIn(153, policy._q2_cleared_races)
         self.assertTrue(policy._q2_breach_complete)
 
-    def test_q2_reconnect_cells_seen_before_the_blue_room_prove_no_passage(self):
+    def test_q2_reconnect_known_cells_prove_no_progress(self):
         definitions = REAL_QUEST_DEFINITIONS
         if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
         q2 = load_quest_knowledge(definitions)[2]
-        for seen in (Position(8, 55), Position(18, 46)):
+        # The first two are in view from the north route, the last from a teleport.
+        for seen in (Position(8, 55), Position(18, 46), Position(11, 60)):
             policy = self._policy()
             policy._quest_knowledge[2] = q2
             navigator = QuestFloorNavigator(2, q2.battlefield)
@@ -6541,7 +6542,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         )
         self.assertNotIn(puddle, policy._q2_surveyed_placements)
 
-    def test_q2_restart_at_nether_worm_keeps_later_puddle_pending(self):
+    def test_q2_restart_past_the_breach_confirms_the_blue_room_again(self):
         definitions = REAL_QUEST_DEFINITIONS
         if definitions is None:
             self.skipTest("real Hengband quest definitions are unavailable")
@@ -6549,12 +6550,11 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         policy = self._policy()
         policy._quest_knowledge[2] = q2
         navigator = QuestFloorNavigator(2, q2.battlefield)
-        final_checkpoint = Position(11, 60)
         snapshot = Snapshot(
             player(1, 7),
             {
                 Position(1, 7): grid(1, 7),
-                final_checkpoint: grid(11, 60, in_view=False),
+                **{cell: grid(cell.y, cell.x, in_view=False) for cell in Q2_BREACH_CORRIDOR},
             },
             [],
             floor_key=(0, 15, 2),
@@ -6565,11 +6565,9 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
 
         self.assertIn(key, {"1", "2", "3", "4", "6", "7", "8", "9"})
         self.assertEqual(
-            policy.last_reason, "quest-strategy:q2-post-blue-nether-worm"
+            policy.last_reason, "quest-strategy:q2-blue-confirm-approach"
         )
-        self.assertTrue(policy._q2_blue_recovery_complete)
-        # A known cell proves the passage only: every post-blue phase runs again.
-        self.assertFalse({175, 885, 944, 213} & policy._q2_cleared_races)
+        self.assertEqual(policy._q2_cleared_races, {86, 153})
 
     def test_q2_phase_routing_owns_distant_visible_hostile(self):
         policy = self._policy()
