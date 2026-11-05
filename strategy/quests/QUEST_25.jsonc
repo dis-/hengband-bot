@@ -48,6 +48,9 @@
   // （2026-11-05 ユーザー決定「最後ドルジの前に処理する」）。クイルは番が来るまで狙わない（left_alone_races）。
   "priority_targets": [571, 557, 690, 623, 705, 739, 665, 508, 466, 202, 439, 480, 748],
   "consumable_plan": {
+    // 自宅にあれば受注の前に持ち出す。受ける条件ではなく、買わない（2026-11-05 ユーザー決定「Q25の必須要件に啓蒙の薬は入れていないが、自宅にある場合は受注前に持ち出して」）。
+    // 1本: 階全体を明るくし続けるので2本目の用がない。
+    "optional_carry": {"enlightenment": 1},
     "speed_potion": "conditional",
     "speed_potion_use_when": {"expected_damage_hp_ratio_min": 0.5, "note": "条件1では3ターンの想定被害が現在HPの半分以上の時に飲む。条件2は常時加速の計算なので、敵が起きている間は切らさない。"},
     "heal_threshold_ratio": 0.70,

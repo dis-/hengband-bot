@@ -1181,6 +1181,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "home_errand.py:HomeErrandExecutor.release_stopped": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "home_identification.py:filed_take_route_key": {
     "classification": "producer",
     "rows": [
@@ -6853,6 +6860,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_quest.py:QuestMixin._fixed_quest_request_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_quest.py:QuestMixin._fixed_quest_reward_key": {
     "classification": "producer",
     "rows": [
@@ -9406,6 +9420,34 @@
       "store-approach"
     ],
     "delegation": "The parent owns admission; selected child operations retain their existing effect observers."
+  },
+  "quest_optional_carry.py:_prepared": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_optional_carry.py:_wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_optional_carry.py:retained": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_optional_carry.py:scan_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_ranged_force.py:score": {
     "classification": "producer",

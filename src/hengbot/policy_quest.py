@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import quest_optional_carry
 from hengbot import spare_gear
 from hengbot.stair_destination import down_destination
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
@@ -4609,12 +4610,7 @@ class QuestMixin(OpeningRouteMixin):
                     or not self._fixed_quest_ready(snapshot, quest_id)
                 ):
                     return None
-                return self._fixed_quest_building_key(
-                    snapshot,
-                    quest_id,
-                    "fixedquest:request",
-                    set_reward_pending=False,
-                )
+                return self._fixed_quest_request_key(snapshot, quest_id)
             # A taken kill quest uses ordinary entrance routing and stair
             # descent; its dungeon is the observed target
             # (_taken_kill_quest_dungeon).
@@ -4644,10 +4640,19 @@ class QuestMixin(OpeningRouteMixin):
             and quest_id in EXECUTABLE_QUEST_STRATEGY_IDS
             and self._fixed_quest_ready(snapshot, quest_id)
         ):
-            return self._fixed_quest_building_key(
-                snapshot, quest_id, "fixedquest:request", set_reward_pending=False
-            )
+            return self._fixed_quest_request_key(snapshot, quest_id)
         return None
+
+    def _fixed_quest_request_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
+        """A ready quest is requested, after what it would like carried in (quest_optional_carry)."""
+        scan = quest_optional_carry.scan_key(self, snapshot, quest_id)
+        if scan is not None:
+            return scan
+        if quest_optional_carry.before_acceptance(self, snapshot, quest_id):
+            return None
+        return self._fixed_quest_building_key(
+            snapshot, quest_id, "fixedquest:request", set_reward_pending=False
+        )
 
     def _fixed_quest_prepare_return_required(self, snapshot: Snapshot) -> bool:
         """Whether stage-2 quest travel, rather than new town work, owns now."""

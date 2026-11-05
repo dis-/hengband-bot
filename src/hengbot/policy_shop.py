@@ -37,6 +37,7 @@ from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
+from hengbot import quest_optional_carry
 from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence
 from hengbot import mining_loadout
 from hengbot.magic_eater_devices import is_mana_food_ware
@@ -5593,7 +5594,7 @@ class ShopMixin(InStoreMixin):
             "ability-gear",
         }
         home_errand_categories = {
-            "experience-potion-home", "identification-withdrawal",
+            "experience-potion-home", quest_optional_carry.CATEGORY, "identification-withdrawal",
             "fundraising-kit", "stored-detection", "stored-digger",
             "ammo-home-first", "home-star-remove-curse-use",
             "home-star-remove-curse-check",
