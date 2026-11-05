@@ -9242,6 +9242,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         melt = sealed_pocket.key(self, snapshot)
         if melt is not None:
             return melt
+        last_way = trap_warning.last_way_key(self, snapshot)
+        if last_way is not None:
+            return last_way
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "stuck:wander"

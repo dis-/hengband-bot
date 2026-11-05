@@ -31,7 +31,10 @@ from hengbot.model import (
     Position,
     Snapshot,
 )
+from hengbot import trap_warning
 from hengbot.policy import WAIT_KEY, HengbotPolicy
+from hengbot.policy_constants import CHEST_DISARM_BUDGET, SEARCH_LIMIT
+from hengbot.trap_warning import LAST_WAY_REASON, SEARCH_REASON
 
 from policy_fixtures import grid, hostile, item, player
 
@@ -85,6 +88,116 @@ def _policy(snapshot):
 
 def _row(y, x0, x1):
     return [Position(y, x) for x in range(x0, x1 + 1)]
+
+
+class TrapWarningLastWayTest(unittest.TestCase):
+    """DECLARED boards, owner 2026-11-05 on ordinary floors: 「避けられれば避ける」.  The warned cell
+    (no monster on the prompt) goes on the latch; through ``choose_key`` the bot answers it only
+    when every walker has run out of routes."""
+
+    HERE, WARNED = Position(10, 10), Position(10, 11)
+    PROMPT = ["大賢者のアミュレットが鋭く震えた！", "本当にこのまま進むか？[y/n]"]
+
+    def walked_into_it(self, floors, **kwargs):
+        walk = _board(self.HERE, floors, **kwargs)
+        walk = replace(walk, player=replace(walk.player, hp=walk.player.max_hp))
+        policy = _policy(walk)
+        policy.prime(walk)
+        policy._warning_step_pending = (
+            policy._decision_sequence, walk.floor_key, self.HERE, self.WARNED, False)
+        return policy, replace(walk, messages=list(self.PROMPT), turn=100), walk
+
+    def play(self, policy, walk, *, limit=120, found=False):
+        """Boards with the turn moving, until the last-way answer has spoken or ``limit``."""
+        keys = []
+        for turn in range(101, 101 + limit):
+            board = replace(walk, turn=turn)
+            if found:
+                board = replace(board, grids={**board.grids, self.WARNED: replace(board.grids[self.WARNED], trap=True)})
+            keys.append((policy.choose_key(board), policy.last_reason))
+            if keys[-1][0].endswith("y"):
+                break
+        return keys
+
+    def test_the_prompt_latches_and_remembers_it_is_a_traps(self):
+        policy, prompt, _ = self.walked_into_it(_row(10, 11, 13))
+        policy.choose_key(prompt)
+        self.assertIn(self.WARNED, policy._warning_refused_cells)
+        self.assertEqual(policy._trap_warning_cells, {self.WARNED: 0})
+
+    def test_with_another_way_it_is_walked_round(self):
+        floors = [*_row(10, 11, 13), *_row(11, 10, 13), Position(9, 13)]
+        policy, prompt, walk = self.walked_into_it(floors, marks={Position(9, 14): {"known": False}})
+        policy.choose_key(prompt)
+        keys = self.play(policy, walk, limit=6)
+        self.assertNotIn(SEARCH_REASON, [reason for _, reason in keys])
+        self.assertNotIn(LAST_WAY_REASON, [reason for _, reason in keys])
+        self.assertNotIn("6", [key for key, _ in keys])
+
+    def test_no_other_way_it_is_searched_then_crossed_when_nothing_is_found(self):
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13), supplies=False)
+        policy.choose_key(prompt)
+        keys = self.play(policy, walk)
+        searches = [key for key, reason in keys if reason == SEARCH_REASON]
+        self.assertEqual(searches, ["s"] * SEARCH_LIMIT, keys)
+        self.assertEqual(keys[-1][0], "6y")
+
+    def test_with_scrolls_left_too_no_other_way_is_answered(self):
+        """The forced walk of a monster's latch waits for the scrolls; a trap's does not."""
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13))
+        policy.choose_key(prompt)
+        keys = self.play(policy, walk)
+        self.assertEqual(keys[-1], ("6y", LAST_WAY_REASON))
+
+    def test_no_other_way_a_found_trap_is_disarmed_then_crossed(self):
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13), supplies=False)
+        policy.choose_key(prompt)
+        keys = [key for key, reason in self.play(policy, walk, found=True) if reason == LAST_WAY_REASON]
+        self.assertEqual(keys[-CHEST_DISARM_BUDGET - 1:], ["D6"] * CHEST_DISARM_BUDGET + ["6y"])
+
+    def test_control_a_monsters_latch_is_not_answered(self):
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13))
+        far = hostile(7, 10, 13)
+        policy.choose_key(replace(prompt, visible_monsters=[far]))
+        self.assertIn(self.WARNED, policy._warning_refused_cells)
+        self.assertEqual(policy._trap_warning_cells, {})
+        self.assertIsNone(trap_warning.last_way_key(policy, walk))
+
+    def test_the_way_to_it_does_not_cross_a_monsters_latch(self):
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13))
+        policy.choose_key(prompt)
+        policy._trap_warning_cells = {Position(10, 12): 0}  # and 11 stays latched, a monster's
+        self.assertIsNone(trap_warning.last_way_key(policy, walk))
+
+    def test_a_monster_come_into_line_ends_the_answer(self):
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13))
+        policy.choose_key(prompt)
+        self.assertIsNone(trap_warning.last_way_key(policy, replace(walk, visible_monsters=[hostile(7, 10, 13)])))
+
+    def test_control_with_no_supply_left_a_walker_keeps_the_forced_walk_with_no_search(self):
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13), supplies=False)
+        policy.choose_key(prompt)
+        self.assertEqual(policy._step_toward(walk, self.WARNED), "6y")
+
+    def test_crossed_the_latch_ends_with_it(self):
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13))
+        policy.choose_key(prompt)
+        on_it = replace(walk, player=replace(walk.player, position=self.WARNED), turn=200)
+        policy.choose_key(on_it)
+        self.assertNotIn(self.WARNED, policy._warning_refused_cells)
+        self.assertNotIn(self.WARNED, policy._engagement_avoid_cells)
+        self.assertEqual(policy._trap_warning_cells, {})
+
+    def test_a_walk_to_a_far_warned_cell_goes_by_the_open_cells(self):
+        policy, prompt, walk = self.walked_into_it(_row(10, 11, 13))
+        policy.choose_key(prompt)
+        back = replace(walk, player=replace(walk.player, position=Position(10, 9)), grids={
+            **walk.grids, Position(10, 9): grid(10, 9), Position(10, 8): grid(10, 8)})
+        policy._build_grid_index(back)
+        far = replace(back, player=replace(back.player, position=Position(10, 8)))
+        policy._build_grid_index(far)
+        self.assertEqual(trap_warning.last_way_key(policy, far), "6")
+        self.assertEqual(policy.last_reason, LAST_WAY_REASON)
 
 
 class DescentRouteTest(unittest.TestCase):

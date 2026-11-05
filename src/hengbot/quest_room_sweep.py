@@ -109,6 +109,11 @@ def _plan(policy, snapshot) -> dict | None:
     return None if profile is None else profile.engagement_plan.get("room_sweep")
 
 
+def walks_over_traps(policy, snapshot) -> bool:
+    """This floor's walks do not go round a trap: the stops lie behind them (2026-10-23)."""
+    return _plan(policy, snapshot) is not None
+
+
 def holds(policy, snapshot) -> bool:
     """This board's wait is the plan's own hold: under fire it still holds."""
     return policy.last_reason == HOLD_REASON and _plan(policy, snapshot) is not None

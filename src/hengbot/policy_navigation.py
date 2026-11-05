@@ -1961,6 +1961,7 @@ class NavigationMixin:
         *,
         tail: str = "",
         allow_paralyzer_ring_escape: bool = False,
+        trap_last_way: bool = False,
     ) -> str:
         """Direction key toward an adjacent tile, but if it is a CLOSED door,
         open it (``o`` + direction) instead of walking — a closed door is a
@@ -2082,7 +2083,7 @@ class NavigationMixin:
         ):
             tunnel = self._mining_tunnel_key(snapshot, step)
             return (tunnel if tunnel is not None else key) + tail
-        if self._warning_step_refused(snapshot, step):
+        if self._warning_step_refused(snapshot, step) and not trap_last_way:
             # The gate on the COMPLETE composed key: a latched warning
             # grid is never entered while a movement scroll remains (or
             # while the engagement owner independently requires the cell
@@ -2114,7 +2115,7 @@ class NavigationMixin:
             # is recorded here rather than defended against.
             self.last_reason = "warning:blocked-step"
             return WAIT_KEY
-        searched = trap_warning.search_key(self, snapshot, step)
+        searched = trap_warning.search_key(self, snapshot, step, last_way=trap_last_way)
         if searched is not None:
             return searched
         if step in self._warning_refused_cells or trap_warning.walk_across(self, snapshot, step):

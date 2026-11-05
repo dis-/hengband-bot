@@ -1027,6 +1027,17 @@ class Q25WarningRefusedStepTest(unittest.TestCase):
         policy.choose_key(other)
         self.assertEqual(policy._trap_warning_cells, {})
 
+    def test_control_the_same_prompt_off_the_plan_is_latched(self):
+        """The plan makes this floor's answer; with no room sweep the walkers go round it."""
+        walk, prompt = copy.deepcopy(self.BOARDS["choke"]["walk"]), copy.deepcopy(self.BOARDS["choke"]["prompt"])
+        policy = new_policy(walk)
+        _set_stage(policy, walk, 1)
+        policy.choose_key(parse_snapshot(walk, policy._monrace_knowledge))
+        with patch("hengbot.quest_room_sweep._plan", return_value=None):
+            trap_warning.note_warned(policy, parse_snapshot(prompt, policy._monrace_knowledge), Position(3, 1))
+        self.assertEqual(self.refused(policy), {(3, 1)})
+        self.assertEqual(policy._trap_warning_cells, {Position(3, 1): 0})
+
     def test_crossed_the_cell_is_forgotten(self):
         _, _, policy, prompt = self.after_the_prompt("choke", stage=1)
         on_it = copy.deepcopy(prompt)

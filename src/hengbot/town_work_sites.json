@@ -10746,6 +10746,13 @@
     ],
     "delegation": "none"
   },
+  "trap_warning.py:last_way_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "trap_warning.py:search_key": {
     "classification": "data",
     "rows": [
