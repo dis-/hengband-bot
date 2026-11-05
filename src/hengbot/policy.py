@@ -2088,6 +2088,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # every observation.
         self._fundraising_cleared_for_conquest: int | None = None
         self._rumor_unlock_pending = False
+        # The dungeon that bounced a character whose next destination is a rumor
+        # away (guardian_rumor).
+        self._guardian_rumor_bounced: int | None = None
         # Inn travel only lists towns marked as visited by the game.  Rumors can
         # reveal those towns, so keep the intended destination latched until the
         # exported progress confirms that the service can actually select it.

@@ -7991,6 +7991,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_town.py:TownMixin._guardian_rumor_no_inn_step_key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-05 rumor for a bounced character: the rumor owner's fall-through. On the inn tile it delegates the step to _town_entrance_step_off_key; with no way to the inn it names the existing guardian-bounce-no-alternate stop through _town_blocked_key. No key of its own.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)"
+  },
   "policy_town.py:TownMixin._town_special_key": {
     "classification": "producer",
     "rows": [

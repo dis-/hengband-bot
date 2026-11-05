@@ -8282,6 +8282,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_town.py:TownMixin._guardian_rumor_no_inn_step_key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_town.py:TownMixin._mining_walk_in_return_key": {
     "classification": "producer",
     "rows": [
