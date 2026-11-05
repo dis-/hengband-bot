@@ -857,8 +857,11 @@ class HomeMixin:
             # restrictions on it. Re-evaluate current stock and map evidence.
             self._town_blocked_reason = None
         if relief["town"] != self._effective_town_id(snapshot):
-            self._town_blocked_reason = "home-full-town-changed"
-            return self._town_blocked_key(snapshot)
+            # A trip to another town (the tower's recharge, the smith) comes
+            # first and the relief waits for its own town: its sale and its
+            # shop are that town's.  Blocking here held the trip until the
+            # burst (n1-a life-487 20:04, n1-c life-145 23:18).
+            return None
         sale = relief["sale"]
         if sale is not None:
             signature, store_type, before_count = sale

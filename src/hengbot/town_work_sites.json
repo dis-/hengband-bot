@@ -2641,11 +2641,11 @@
     "delegation": "selected child; no independent success"
   },
   "me_powers.py:fight_key": {
-    "classification": "dungeon-only",
+    "classification": "data",
     "rows": [
-      "quest-service"
+      "data/no-independent-credit"
     ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
+    "delegation": "selected child; no independent success"
   },
   "me_powers.py:power_key": {
     "classification": "dungeon-only",

@@ -2512,6 +2512,37 @@ def home_sequence_has_holder(policy: Any) -> bool:
             and str(STORE_HOME) in holder.goal.expectation)))
 
 
+def home_route_opened_for(policy: Any, family: str) -> bool:
+    """The Home the holder walks to is the walk ``family`` itself asked for.
+
+    Its route is the store router's claim, so the Home hold kept the family
+    out of its own walk and the plan's next stop took the board; the next
+    board, with no Home holder, gave the walk back (n1-b life-317 23:19, one
+    step each way between the Alchemist and Home until the burst).
+    """
+    holder = errand_hold(policy, "__none__", enforced=True)
+    visit = getattr(policy, "_store_visit", None)
+    return bool(holder is not None and holder.owner.value == "store-router"
+                and home_catalogue_work_holder(policy) is None
+                and visit is not None and visit.store_type == STORE_HOME
+                and visit.opened_for_family == family)
+
+
+def descent_walk_held_by_own_route(policy: Any, family: str) -> bool:
+    """The holder is the departure's own walk to the entrance it committed to.
+
+    The entrance travel stands under the store router's claim; a hit on the way
+    suspends it and a stale Home visit makes it a Home holder, so the departure
+    was held out of its own walk and the town end stopped (n1-a life-487 13:02,
+    13:39, one melee from the entrance on the way to a mining run).
+    """
+    holder = errand_hold(policy, "__none__", enforced=True)
+    return bool(family == "departure" and holder is not None
+                and holder.owner.value == "store-router"
+                and holder.goal.cell is not None
+                and Position(*holder.goal.cell) == policy._nav_ledger.descent_target)
+
+
 # --- Advancing the hold (moved from the policy, structure stage 2 B slice 4) -
 # The steps ``advance_hold`` and the errand hold take on the policy's state:
 # closing, suspending and resuming claims, the goal of a decision, the bars,

@@ -11941,15 +11941,15 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_powers.py:fight_key": {
-    "classification": "dungeon-only",
+    "classification": "data",
     "rows": [
-      "quest-service"
+      "data/no-independent-credit"
     ],
-    "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "Owner 2026-11-04 「魔道具術師　取り込んだスピードが残10回以上なら、特にピンチでなくても戦闘時加速する」「成功率8割以上のときに限定して」: me_powers.power_key's FIGHT occasion (the Speed row) in place of a decided attack on an awake hostile (attack_answer); me_powers._gate refuses the town, the wilderness and a store first, so no town key is replaced.",
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
+    "evidence": "Owner 2026-11-04 「魔道具術師　取り込んだスピードが残10回以上なら、特にピンチでなくても戦闘時加速する」「成功率8割以上のときに限定して」: me_powers.power_key's FIGHT occasion (the Speed row) in place of a decided attack on an awake hostile (attack_answer); me_powers._gate refuses the town, the wilderness and a store first, so no town key is replaced: in town it returns the key it was given, so it cannot name the decision's producer (a dungeon-only return here took the work record, the route and the effect credit, of every town decision: 11-05 owner-retired-burst on plain walks).",
+    "delegation": "selected child; no independent success"
   },
   "me_powers.py:threat_key": {
     "classification": "dungeon-only",
