@@ -751,6 +751,39 @@ class StoreItem:
 BAD_PSEUDO_FEELINGS = frozenset({"broken", "terrible", "worthless", "cursed"})
 
 
+# Light radius, as ItemEntity::get_lite_radius() (item-entity.cpp) adds it up
+# from the light flags of src/object-enchant/tr-types.h.  Only the item's known
+# flags are read: an artifact that is not fully known does not reveal its own.
+LIGHT_RADIUS_BY_FLAG = ((77, 1), (122, 2), (123, 3))  # TR_LITE_1/2/3
+DARKNESS_RADIUS_BY_FLAG = ((124, 1), (125, 2), (126, 3))  # TR_LITE_M1/M2/M3
+TR_DARK_SOURCE = 146
+
+
+def flag_light_radius(flags: frozenset[int]) -> int:
+    """The radius ``flags`` add (ItemEntity::get_lite_radius without the ego)."""
+    radius = -sum(value for flag, value in DARKNESS_RADIUS_BY_FLAG if flag in flags)
+    if TR_DARK_SOURCE not in flags:
+        radius += sum(value for flag, value in LIGHT_RADIUS_BY_FLAG if flag in flags)
+    return radius
+
+
+def lights_nothing(item: "InventoryItem | StoreItem") -> bool:
+    """A light source whose known flags darken: worn, it lights nothing.
+
+    ★火消しライター (TR_LITE_M1 with TR_DARK_SOURCE) fills the light slot
+    with radius -1; worn alone the player's light radius is 0 and the game
+    refuses reading on every unlit cell (grid.cpp ``no_lite``; n1-b life-321).
+    A light whose flags are not known does not count as dark here.
+    """
+    flags = item.known_flags
+    return (
+        item.tval == TVAL_LITE
+        and (TR_DARK_SOURCE in flags
+             or any(flag in flags for flag, _ in DARKNESS_RADIUS_BY_FLAG))
+        and flag_light_radius(flags) <= 0
+    )
+
+
 def item_requires_full_identification(item: InventoryItem | StoreItem) -> bool:
     """Return whether normal identification can leave combat traits hidden."""
     return (

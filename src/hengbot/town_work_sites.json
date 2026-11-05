@@ -1054,6 +1054,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:lighting_light_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:loadout_light_radius": {
     "classification": "data",
     "rows": [
@@ -8414,6 +8421,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_supply.py:SupplyMixin._worn_light": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_supply.py:SupplyMixin.procurement_requirements": {
     "classification": "data",

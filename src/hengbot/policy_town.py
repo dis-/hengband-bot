@@ -7904,9 +7904,7 @@ class TownMixin:
                 if not self._expedition_light_ready(snapshot):
                     self._last_return_trigger = "light-low"
                     return True
-            equipped_light = next(
-                (it for it in snapshot.equipment if it.is_light), None
-            )
+            equipped_light = self._worn_light(snapshot)
             if equipped_light is None:
                 self._last_return_trigger = "no-light"
                 return True
