@@ -167,8 +167,7 @@ LADDER = (
         *D("me_powers.power_key:FLOOR", "area_mapping.after_destruction_key",
            "area_mapping.picked_up_scroll_key", "quest_target_search.detection_key",
            "magic_eater.absorb_key"),
-        *E("junk_destroy_now.destroy_now_key"),
-        *D("consumable_policy.use_now_key"),
+        *E("junk_destroy_now.destroy_now_key", "consumable_policy.use_now_key"),
     )),
     Layer("objectives", "rest, descent and idle; town and dungeon rungs interleaved", (
         *P("_kill_quest_floor_recovery_key"),

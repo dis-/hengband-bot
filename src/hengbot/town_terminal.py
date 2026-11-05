@@ -1876,7 +1876,8 @@ TERMINALS: dict[str, TerminalDecl] = {
         lambda policy, board: TerminalRef(NO_REFUSAL, ("supply-stockout-prepare",)), ENFORCE),
     "_town_special_key": TerminalDecl(departure_intended_terminal, ENFORCE),
     "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, ENFORCE),
-    "junk_destroy_now.destroy_now_key": TerminalDecl(dungeon_board_intended_terminal, ENFORCE),
+    **{name: TerminalDecl(dungeon_board_intended_terminal, ENFORCE) for name in (
+        "junk_destroy_now.destroy_now_key", "consumable_policy.use_now_key")},
 }
 
 
