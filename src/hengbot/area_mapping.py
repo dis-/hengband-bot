@@ -1,12 +1,16 @@
 """周辺感知 after a *Destruction*, and in a sealed pocket.
 
 Owner 2026-11-05: 「*破壊*後の地形を全マス探索するのは無駄なので周辺感知があれば使って」.
-Not the Scroll of Magic Mapping: the owner named 周辺感知, and that is a different item.
+Owner the same day, on the Scroll of Magic Mapping when no 周辺感知 is there: 「持っていれば読む」,
+only what is held, with no keep or buy rule of its own (the owner's table still says
+「捨てる」, consumable_policy).
 
 The means, by the game (lib/edit/BaseitemDefinitions.jsonc): the staff (id 328, tval 55
 sval 9) and the rod (id 371, tval 66 sval 5), both ``map_area(DETECT_RAD_MAP)``
 (cmd-item/cmd-usestaff.cpp:141, cmd-zaprod.cpp:102), and a Magic-Eater's absorbed power
-of either (the me_powers rows, asked first).
+of either (the me_powers rows, asked first).  Last, while a *Destruction* is unmapped, the
+scroll (id 189, tval 70 sval 25, object-use/read/scroll-read-executor.cpp:244, the same
+map_area), which needs a grid the player can read on and never fails.
 
 ``destruction_use.observe`` reports the flash (``note_destruction``): the circle's map is
 gone, so the next decision that asks (the FLOOR occasion's row, then
@@ -35,7 +39,8 @@ from dataclasses import dataclass, field
 from hengbot import me_powers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
-    SV_ROD_MAPPING, SV_STAFF_MAPPING, TVAL_ROD, TVAL_STAFF, Position, Snapshot, game_distance,
+    SV_ROD_MAPPING, SV_SCROLL_MAPPING, SV_STAFF_MAPPING, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF,
+    Position, Snapshot, game_distance,
 )
 
 
@@ -57,7 +62,7 @@ class Memory:
     discs: list = field(default_factory=list)  # (centre, radius) a carried device mapped
     pending: tuple | None = None        # (turn, position, radius) of the last use
     failed: Counter = field(default_factory=Counter)  # position -> failed uses
-    circles: list = field(default_factory=list)  # (centre, sure radius) of each use
+    circles: list = field(default_factory=list)  # (centre, radius, sure radius) of each use
 
 
 def _memory(policy, snapshot: Snapshot) -> Memory:
@@ -78,7 +83,7 @@ def note_destruction(policy, snapshot: Snapshot, centre: Position, radius: int, 
     maps it, and within ``sure_radius`` nothing is left to go and see."""
     memory = _memory(policy, snapshot)
     memory.destroyed_turn = snapshot.turn
-    memory.circles.append((centre, sure_radius))
+    memory.circles.append((centre, radius, sure_radius))
     memory.discs = [disc for disc in memory.discs
                     if game_distance(centre, disc[0]) > radius + disc[1]]
     me_powers.forget_maps(policy, snapshot, centre, radius)
@@ -110,9 +115,23 @@ def destroyed_cells(policy, snapshot: Snapshot) -> set:
 
     memory = _floor_memory(policy, snapshot)
     cells = set()
-    for centre, radius in (() if memory is None else memory.circles):
+    for centre, _, radius in (() if memory is None else memory.circles):
         cells |= mapped_area.disc_cells(snapshot, centre, radius)
     return cells
+
+
+def destroyed_since_arrival(policy, snapshot: Snapshot) -> bool:
+    """The player's *Destruction* was seen on this floor visit."""
+    memory = _floor_memory(policy, snapshot)
+    return memory is not None and bool(memory.circles)
+
+
+def in_destroyed_circle(policy, snapshot: Snapshot, cells) -> bool:
+    """Every one of ``cells`` lies in reach of one *Destruction* of this floor visit."""
+    memory = _floor_memory(policy, snapshot)
+    return memory is not None and any(
+        all(game_distance(centre, cell) <= radius for cell in cells)
+        for centre, radius, _ in memory.circles)
 
 
 def _due(policy, snapshot: Snapshot) -> bool:
@@ -121,27 +140,50 @@ def _due(policy, snapshot: Snapshot) -> bool:
             and not me_powers.mapped_since(policy, snapshot, memory.destroyed_turn))
 
 
+def device_ready(item, kind: str) -> bool:
+    """An identified staff with a charge, or a rod of the stack not charging."""
+    if not item.known or not item.aware:
+        return False
+    if kind == "staff":
+        return item.charges > 0
+    return (item.charging_count or 0) < item.count and (
+        item.charging_count is not None or not item.charging)
+
+
 def _carried_device(snapshot: Snapshot):
     for item in snapshot.inventory:
         kind = CARRIED.get((item.tval, item.sval))
-        if kind is None or not item.known or not item.aware:
-            continue
-        if kind == "staff" and item.charges > 0:
-            return item, kind
-        if kind == "rod" and (item.charging_count or 0) < item.count and (
-                item.charging_count is not None or not item.charging):
+        if kind is not None and device_ready(item, kind):
             return item, kind
     return None
 
 
+def device_usable_now(policy, snapshot: Snapshot) -> bool:
+    """A utility device may be used on this board (the mapping row's hostile rule)."""
+    player = snapshot.player
+    return (not (player.blind or player.confused or player.hallucinated or player.paralyzed)
+            and me_powers.utility_device_permitted(policy, snapshot))
+
+
+def _held_scroll_key(policy, snapshot: Snapshot) -> str | None:
+    """The read of a held Scroll of Magic Mapping, only for an unmapped *Destruction*."""
+    if not _due(policy, snapshot) or not policy._can_read_scrolls(snapshot):
+        return None
+    for item in snapshot.inventory:
+        if (item.tval, item.sval) == (TVAL_SCROLL, SV_SCROLL_MAPPING) and item.known and item.aware:
+            return policy._read_key(snapshot, item)
+    return None
+
+
 def _carried_key(policy, snapshot: Snapshot, trigger: str) -> str | None:
-    memory, position, player = _memory(policy, snapshot), snapshot.player.position, snapshot.player
-    if (player.blind or player.confused or player.hallucinated or player.paralyzed
-            or memory.failed[position] >= me_powers.FAILURES_PER_PLACE
-            or not me_powers.utility_device_permitted(policy, snapshot)):
+    memory, position = _memory(policy, snapshot), snapshot.player.position
+    if (memory.failed[position] >= me_powers.FAILURES_PER_PLACE
+            or not device_usable_now(policy, snapshot)):
         return None
     carried = _carried_device(snapshot)
     used = None if carried is None else reserved_item_command(policy, snapshot, carried[1], carried[0])
+    if used is None:
+        used = _held_scroll_key(policy, snapshot)
     if used is None:
         return None
     policy.last_reason = f"{REASON}:{trigger}"

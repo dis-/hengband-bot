@@ -30,8 +30,11 @@ visit: the Magic-Eater's absorbed staff (``me_powers``) and the floor's
 exploration ledger, which keeps every disc across a bot restart on the same
 floor and forgets them on a new floor (owner 2026-11-01 「階の記録に残す」,
 ``refresh`` writes the discs there), and a carried staff or rod (area_mapping).
-A scroll of the same effect would be one more source function.  Quest floors keep their own exploration
-(the area is not applied there).
+A scroll of the same effect is the carried source's last means (area_mapping).
+
+Owner 2026-11-05 「ランダムクエストの階だけ特殊な探索ルールにしているのをやめる。地図がわかって
+いるなら全マス歩かない。」: a runtime RANDOM quest floor reads the map as any floor does.  A
+fixed quest floor keeps its own exploration, its plan's navigator (the area is not applied there).
 """
 
 from __future__ import annotations
@@ -137,6 +140,10 @@ def floor_discs(policy, snapshot) -> tuple:
     return tuple(sorted({disc for source in SOURCES for disc in source(policy, snapshot)}))
 
 
+def _fixed_quest_floor(policy, snapshot) -> bool:
+    return snapshot.floor_key[2] != 0 and not policy._on_random_quest_floor(snapshot)
+
+
 def refresh(policy, snapshot, known: set, seen_floor: set) -> MappedArea | None:
     """The area of this floor visit's mappings, rebuilt when a cast is added.
 
@@ -145,7 +152,7 @@ def refresh(policy, snapshot, known: set, seen_floor: set) -> MappedArea | None:
     sets).  The classification is made once per cast, from the board that
     first carried the mapped walls.
     """
-    discs = () if snapshot.floor_key[2] != 0 or snapshot.dungeon_level <= 0 else floor_discs(
+    discs = () if _fixed_quest_floor(policy, snapshot) or snapshot.dungeon_level <= 0 else floor_discs(
         policy, snapshot)
     ledger = _ledger(policy, snapshot)
     if ledger is not None:

@@ -490,11 +490,28 @@ def _hunt_target_unseen(ctx, power):
     flags = hunt_target.race_flags(policy, race)
     if not hunt_target.REVEALS[power.effect](flags):
         return False
-    revealing = [use for use in ctx.memory.uses
-                 if (reveals := hunt_target.REVEALS.get(BY_KEY[use.used].effect)) and reveals(flags)]
-    if not revealing or ctx.snapshot.turn - max(use.turn for use in revealing) >= HUNT_REDETECT_GAME_TURNS:
+    return redetect_due(ctx.snapshot, ctx.snapshot.player.position, _revealing_uses(ctx, flags))
+
+
+def _revealing_uses(ctx, flags) -> list:
+    """(position, radius, turn) of every landed use that would have shown such a race."""
+    return [(use.position, _cast_radius(ctx, use), use.turn) for use in ctx.memory.uses
+            if (reveals := hunt_target.REVEALS.get(BY_KEY[use.used].effect)) and reveals(flags)]
+
+
+def revealing_casts(policy, snapshot, flags) -> list:
+    """``_revealing_uses`` of this floor visit, for a search outside the rows."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return []
+    return _revealing_uses(Context(policy, snapshot, FLOOR, memory), flags)
+
+
+def redetect_due(snapshot, position, casts) -> bool:
+    """The search spacing: every earlier cast is its radius away, or the latest is old."""
+    if not casts or snapshot.turn - max(turn for _, _, turn in casts) >= HUNT_REDETECT_GAME_TURNS:
         return True
-    return all(ctx.distance(use.position) >= _cast_radius(ctx, use) for use in revealing)
+    return all(game_distance(position, centre) >= radius for centre, radius, _ in casts)
 
 
 def _area_mapping():

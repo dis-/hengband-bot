@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, sealed_pocket, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, quest_target_search, sealed_pocket, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -2584,6 +2584,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         armor_smith.observe(self, snapshot)
         speed_dose.observe(self, snapshot)
         area_mapping.observe(self, snapshot)
+        quest_target_search.observe(self, snapshot)
         destruction_use.observe(self, snapshot)
         summon_response.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
@@ -8160,6 +8161,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         floor_map = area_mapping.after_destruction_key(self, snapshot)
         if floor_map is not None:
             return floor_map
+        # A carried device that can show a random quest's unseen target (quest_target_search).
+        target_search = quest_target_search.detection_key(self, snapshot)
+        if target_search is not None:
+            return target_search
         # Class 16's device policy table: an absorb_now device is absorbed on
         # the spot when safe (me_device_policy, owner 2026-10-31).
         floor_absorb = magic_eater.absorb_key(self, snapshot, physical_hostiles)
@@ -9033,6 +9038,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if escape is not None:
                 return escape
 
+        # Sealed by the player's own *Destruction*: no search comes first (sealed_pocket).
+        destroyed_pocket = sealed_pocket.after_destruction_key(self, snapshot)
+        if destroyed_pocket is not None:
+            return destroyed_pocket
+
         # 8. If we are circling the same few tiles (frontiers whose unknown side
         #    the pathfinder can't reach), break out by stepping directly into an
         #    adjacent unknown tile to reveal it. Only when actually oscillating,
@@ -9160,6 +9170,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self._search_counts[here_key] += 1
                 self.last_reason = "search"
                 return SEARCH_KEY
+
+        # Nothing is left to explore and a random quest's target is unfound: the floor is
+        # circled for it, not walked cell by cell (quest_target_search).
+        target_loop = quest_target_search.loop_key(self, snapshot)
+        if target_loop is not None:
+            return target_loop
 
         if (
             snapshot.dungeon_level > 0

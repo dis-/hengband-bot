@@ -178,9 +178,7 @@ def _floor_destroyed(policy, snapshot) -> bool:
     """destroy_area refuses a fixed quest floor and the surface."""
     if snapshot.in_town or snapshot.dungeon_level <= 0:
         return False
-    quest_id = snapshot.floor_key[2]
-    return not quest_id or (quest_id in snapshot.quests
-                            and policy._runtime_random_quest(snapshot, quest_id))
+    return snapshot.floor_key[2] == 0 or policy._on_random_quest_floor(snapshot)
 
 
 def _target_race(policy, snapshot) -> int | None:

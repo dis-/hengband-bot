@@ -1,7 +1,8 @@
 """Extract the *Destruction* boards of n1-c life-140 (2026-11-05, random quest 40).
 
 Input: the capture archive's snapshots-current.jsonl.gz (a multi-member gzip file).
-Output: the state rows of the use (turn 3969877) and of the flash board after it.
+Output: the state rows of the use (turn 3969877), of the flash board after it, and of the
+following decisions in the pocket (the recorded searches and rests).
 """
 import json
 import lzma
@@ -10,7 +11,7 @@ import sys
 import zlib
 
 OUTPUT = Path(__file__).with_name("fixtures") / "area-mapping-1105.json.xz"
-TURNS = (3969877, 3969879)
+TURNS = (3969877, 3969879, 3969886, 3969891, 3970066, 3970272)
 
 
 def _members(data: bytes) -> bytes:

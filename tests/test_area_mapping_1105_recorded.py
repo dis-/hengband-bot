@@ -10,8 +10,8 @@ board: test_sealed_pocket_quest_1105_recorded's stop board.
 
 DECLARED CONSTRUCTED: the displayed power lists (the live process had them, the capture
 does not); the use's memory; a carried staff or rod in the pack; the board and the memory
-after a use; the floor with no quest (the mapped area is not applied on a quest floor);
-the rock around the sealed cells; the executor's prompts.
+after a use; some boards' floor with no quest, or a fixed quest's id; the rock around the
+sealed cells; the executor's prompts.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 from recorded_junk_scope import install_past_destroyed_junk
@@ -43,6 +43,7 @@ MAP_KEY = "mAj"
 AFTER = "me-power:after-destruction:map-area"
 SEALED = "me-power:sealed-pocket:map-area"
 STAFF_TVAL, STAFF_SVAL, ROD_TVAL, ROD_SVAL = 55, 9, 66, 5
+SCROLL_TVAL, SCROLL_SVAL = 70, 25
 GRANITE_TERRAIN_ID = 56
 MAPPING = ("staff", me_powers.SV_STAFF_MAPPING)
 FAR = Position(19, 2)  # 96 away: past the disc's 30 and the circle's 17
@@ -73,6 +74,10 @@ def _device(raw, tval, sval, name, **fields):
 
 
 class AreaMappingRecordedTest(executor_pins.ProductionHarness):
+    SEARCH_TURN = 3969886  # decision 3626: the recorded first search in the pocket
+    MELT = "al7"           # the recorded pack's wand, up-left: sealed test's line
+    # The recorded decisions from the flash on: rest, search, rest, rest, seven searches.
+
     def setUp(self):
         self.boards = _boards()
         self.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
@@ -200,6 +205,38 @@ class AreaMappingRecordedTest(executor_pins.ProductionHarness):
         self.assertTrue(sure)
         self.assertLessEqual(sure, set(area.corridor))
 
+    def mapped_owed(self, quest_id, carried=True):
+        raw = copy.deepcopy(self.boards[FLASH_TURN])
+        if carried:
+            _device(raw, STAFF_TVAL, STAFF_SVAL, "周辺感知の杖 (5回分)")
+        raw["floor"]["quest_id"] = quest_id
+        policy, raw = self.flashed(raw=raw)
+        self.choose(policy, raw)
+        later = dict(copy.deepcopy(raw), turn=raw["turn"] + 10, messages=[])
+        _, board = self.choose(policy, later)
+        owed = mapped_area.disc_cells(board, CENTRE, me_powers.DETECT_RAD) - policy._marked_t
+        return policy, board, mapped_area.current(policy), owed
+
+    def test_the_random_quest_floor_maps_as_an_ordinary_floor(self):
+        # Owner 2026-11-05: 「ランダムクエストの階だけ特殊な探索ルールにしているのをやめる」.
+        policy, board, area, owed = self.mapped_owed(40)
+        self.assertEqual(board.floor_key[2], 40)
+        self.assertTrue(policy._on_random_quest_floor(board))
+        self.assertIsNotNone(area)
+        self.assertIn((CENTRE, me_powers.DETECT_RAD), area.discs)
+        self.assertTrue(area.corridor)
+        _, _, ordinary, ordinary_owed = self.mapped_owed(0)
+        self.assertEqual((area.cells, area.corridor), (ordinary.cells, ordinary.corridor))
+        self.assertEqual(owed, ordinary_owed)
+        _, _, _, unmapped = self.mapped_owed(40, carried=False)
+        # The walk shrinks: 1,761 grids owed without the map, 1,127 with it.
+        self.assertEqual((len(owed), len(unmapped)), (1127, 1761))
+
+    def test_a_fixed_quest_floor_keeps_its_own_exploration(self):
+        _, board, area, _ = self.mapped_owed(2)
+        self.assertEqual(board.floor_key[2], 2)
+        self.assertIsNone(area)
+
     def test_a_failed_staff_stays_due(self):
         policy, raw = self.carried(STAFF_TVAL, STAFF_SVAL, "周辺感知の杖 (5回分)")
         self.choose(policy, raw)
@@ -216,6 +253,44 @@ class AreaMappingRecordedTest(executor_pins.ProductionHarness):
         raw["inventory"][-1]["charging"] = True
         self.choose(policy, raw)
         self.assertFalse(policy.last_reason.startswith(area_mapping.REASON), policy.last_reason)
+
+    def scroll(self, raw=None):
+        raw = copy.deepcopy(self.boards[FLASH_TURN] if raw is None else raw)
+        return _device(raw, SCROLL_TVAL, SCROLL_SVAL, "魔法の地図の巻物")
+
+    def scroll_key(self, raw):
+        return "r" + parse_snapshot(raw, self.monrace).inventory[-1].slot
+
+    def test_a_held_scroll_is_read_and_its_map_counts(self):
+        # Owner 2026-11-05 「持っていれば読む」: read before the junk rung destroys the 「捨てる」 kind.
+        raw = self.scroll()
+        raw["floor"]["quest_id"] = 0
+        policy, raw = self.flashed(raw=raw)
+        key, _ = self.choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), (self.scroll_key(raw), "area-mapping:after-destruction"))
+        later = dict(copy.deepcopy(raw), turn=raw["turn"] + 10, messages=[])
+        _, board = self.choose(policy, later)
+        self.assertEqual(area_mapping.carried_areas(policy, board), ((CENTRE, me_powers.DETECT_RAD),))
+        self.assertIsNotNone(mapped_area.current(policy))
+        self.assertFalse(area_mapping._due(policy, board))
+
+    def test_the_scroll_is_the_last_source(self):
+        raw = _device(self.scroll(), ROD_TVAL, ROD_SVAL, "周辺感知のロッド", charging_count=0)
+        policy, raw = self.flashed(raw=raw)
+        self.assertEqual(self.choose(policy, raw)[0][0], "z")
+        policy, raw = self.flashed(*self.full_rows(), raw=self.scroll())
+        self.assertEqual((self.choose(policy, raw)[0], policy.last_reason), (MAP_KEY, AFTER))
+
+    def test_the_scroll_needs_a_read_and_a_destruction(self):
+        policy, raw = self.flashed(raw=self.scroll())
+        raw["player"]["status"]["confused"] = True
+        self.choose(policy, raw)
+        self.assertFalse(policy.last_reason.startswith(area_mapping.REASON), policy.last_reason)
+        # A sealed pocket with no *Destruction* on record is no reason to read it: the
+        # owner's answer named the *Destruction*.
+        sealed = _device(json.loads(_sealed_pin()["lines"][-1]), SCROLL_TVAL, SCROLL_SVAL, "魔法の地図の巻物")
+        policy = self.policy(sealed)
+        self.assertIsNone(area_mapping.sealed_key(policy, parse_snapshot(sealed, policy._monrace_knowledge)))
 
     def test_an_absorbed_rod_maps_where_the_staff_is_not_absorbed(self):
         policy, raw = self.flashed()
@@ -236,6 +311,53 @@ class AreaMappingRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(me_powers.mapped_areas(policy, board), ((FAR, me_powers.DETECT_RAD),))
         # The row still counts them as uses: 「new-floor」 does not fire for them.
         self.assertEqual(len(memory.uses), 2)
+
+    def searched(self, *rows, centre=None):
+        """The flash on record, deciding on the board of the recorded first search."""
+        policy, raw = self.flashed(*rows)
+        self.choose(policy, raw)
+        if centre is not None:
+            memory = area_mapping._memory(policy, parse_snapshot(raw, policy._monrace_knowledge))
+            memory.circles[:] = [(centre, destruction_use.WORST_RADIUS, destruction_use.GUARANTEED_RADIUS)]
+        return policy
+
+    def test_the_first_search_in_a_destroyed_pocket_melts_at_once(self):
+        # Owner 2026-11-05 「*破壊* の後はすぐ溶かす」: recorded decision 3626, turn 3969886.
+        policy = self.searched()
+        key, _ = self.choose(policy, copy.deepcopy(self.boards[self.SEARCH_TURN]))
+        self.assertEqual((key, policy.last_reason), (self.MELT, sealed_pocket.REASON))
+
+    def test_the_survival_rungs_keep_their_place_above_the_melt(self):
+        # The recorded rest of turn 3969891 still rests.
+        policy = self.searched()
+        self.choose(policy, copy.deepcopy(self.boards[3969891]))
+        self.assertEqual(policy.last_reason, "rest")
+
+    def test_a_seal_outside_the_circle_keeps_the_search(self):
+        policy = self.searched(centre=FAR)
+        key, _ = self.choose(policy, copy.deepcopy(self.boards[self.SEARCH_TURN]))
+        self.assertEqual((key, policy.last_reason), ("s", "search"))
+
+    def test_a_seal_with_no_destruction_on_record_keeps_the_search(self):
+        raw = copy.deepcopy(self.boards[self.SEARCH_TURN])
+        policy = self.policy(copy.deepcopy(self.boards[USE_TURN]))
+        key, _ = self.choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), ("s", "search"))
+
+    def test_the_circle_of_another_floor_does_not_count(self):
+        policy = self.searched()
+        raw = copy.deepcopy(self.boards[self.SEARCH_TURN])
+        raw["floor"]["level"] = 49
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertIsNone(sealed_pocket.after_destruction_key(policy, board))
+
+    def test_a_due_map_still_comes_before_the_melt(self):
+        policy, raw = self.flashed(*self.full_rows())
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        destruction_use.observe(policy, board)
+        policy._me_power_floor.pending = None
+        self.assertEqual(sealed_pocket.after_destruction_key(policy, board), MAP_KEY)
+        self.assertEqual(policy.last_reason, SEALED)
 
     def test_a_sealed_pocket_reads_the_map_before_it_melts(self):
         raw = json.loads(_sealed_pin()["lines"][-1])
