@@ -23,7 +23,7 @@ from hengbot import cli
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot import mining_oil_sale
 from hengbot.me_powers_refresh import REFRESH_REASON
-from hengbot.model import parse_snapshot
+from hengbot.model import lights_nothing, parse_snapshot
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import SIDECAR_DIRECTORY
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
@@ -121,10 +121,14 @@ class TownStops1105RecordedTest(executor_pins.ProductionHarness):
         again = lambda: board
         with mock.patch.object(policy, "_home_relief_names_approach", return_value=False):
             _board, chosen, reason, _key = self.decide(policy, again)
-        # A producer naming nothing does not inherit the bookkeeping label.
-        self.assertEqual((chosen, reason), ("6", ""))
+        # The walk does not inherit the bookkeeping label.  Since zero-light-1106
+        # the worn ★火消しライター lights nothing (model.lights_nothing), so the walk
+        # is the equipment transaction's, fetching a light from Home, under its own
+        # name (before: an unnamed relief walk, then shop:approach).
+        self.assertTrue(lights_nothing(next(item for item in board.equipment if item.is_light)))
+        self.assertEqual((chosen, reason), ("6", "equipment-transaction:approach-home"))
         _board, chosen, reason, key = self.decide(policy, again)
-        self.assertEqual((chosen, reason), ("6", "shop:approach"))
+        self.assertEqual((chosen, reason), ("6", "equipment-transaction:approach-home"))
         self.assert_posts(policy, recorded[6], board, key)
 
         # Whatever the label says, the executor posts a key the refresh did not compose.
@@ -152,13 +156,19 @@ class TownStops1105RecordedTest(executor_pins.ProductionHarness):
 
     def test_a_home_walk_keeps_its_way_past_the_plan(self):
         """n1-b life-317 23:19 (Lv34, retired): the relief's walk to Home and the
-        plan's Alchemist alternate at (34,90) and (33,91): transfer [4, 7]."""
+        plan's Alchemist alternate at (34,90) and (33,91): transfer [4, 7].
+
+        Since zero-light-1106 (model.lights_nothing) the ★火消しライター in the
+        pack is a light that lights nothing, so row 13's Home deposit shelves it
+        ('ds') before the halberd the recorded build deposited ('dt').  Every
+        later recorded board still holds the lighter, so the walk of row 71 is no
+        longer reachable on these boards: the alternation itself lost this pin."""
         policy, recorded, steps = self.load("own-home-route")
-        self.assertEqual(recorded[71]["key"], "1")
-        board, _, _, key = self.replay_to(policy, recorded, steps, 71)
-        self.assertEqual((key, policy.last_reason), ("9", "shop:approach"))
-        self.assertEqual(policy._store_visit.store_type, 7)
-        self.assert_posts(policy, recorded[71], board, key)
+        self.assertEqual(recorded[13]["key"], "dt")
+        _, chosen, reason, _ = self.replay_to(policy, recorded, steps, 13)
+        self.assertEqual((chosen, reason), ("ds", "equipment-transaction:deposit"))
+        lighter = next(item for item in steps[13][1]().inventory if item.slot == "s")
+        self.assertTrue(lights_nothing(lighter))
 
     def test_the_identify_swap_takes_the_whole_emptiest_stack(self):
         """n1-a life-487 19:14: 7, 6 and 2x3 charges, 4x18 at 816 gold on the shelf,
