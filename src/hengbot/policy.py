@@ -2519,6 +2519,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._remembered_grid_signatures = {}
             self._remembered_grid_sources = {}
         self._scope_terrain_to_town(snapshot)
+        from hengbot import tunnel_feasibility
+        tunnel_feasibility.forget_dug_walls(self, snapshot)
 
         remembered = self._remembered_grids
         for position, grid in snapshot.grids.items():
