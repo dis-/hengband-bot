@@ -23,10 +23,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot import policy_quest as policy_quest_module
-from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, trap_warning
+from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_room_light, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, trap_warning
 from hengbot.cli import _cell_loop_guard_applies
 from hengbot.model import (
-    Position, STORE_ALCHEMIST, STORE_TEMPLE,
+    Position, STORE_ALCHEMIST, STORE_TEMPLE, StoreItem, StoreState,
     SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_POTION_RESTORE_EXP, SV_POTION_RESTORE_STR, SV_POTION_SPEED,
     TVAL_POTION, TVAL_SCROLL, TVAL_WAND, parse_snapshot, _GRID_TERRAIN_NAMES,
 )
@@ -763,7 +763,7 @@ class Q25LightTest(unittest.TestCase):
 
     def test_the_carry_is_asked_at_acceptance_and_the_staff_waives_it(self):
         accept = Q25AcceptanceTest()
-        ready, telemetry, _ = accept.verdict(accept.town(max_hp=850, light=1), 200)
+        ready, telemetry, _ = accept.verdict(accept.town(max_hp=850, light=11), 200)
         self.assertFalse(ready, telemetry)
         self.assertIn("required_scrolls.light", telemetry["strategy_force"]["failed"])
         ready, telemetry, _ = accept.verdict(accept.town(max_hp=850), 200)
@@ -1146,6 +1146,70 @@ class Q25WarningRefusedStepTest(unittest.TestCase):
         self.assertEqual(policy._trap_warning_cells, {})
 
 
+class Q25LightCountTest(unittest.TestCase):
+    """Owner 2026-11-05 「半端にせず必要数用意すること」: rooms of the real map + what fire burned."""
+
+    BURNED_ON_THE_RECORD = 2  # 4 -> 2, n1-b life-312 turn 11652737 (test_plan_floor_summons_1105_recorded)
+
+    def test_the_number_is_the_rooms_of_the_walk_and_what_fire_burned(self):
+        terrain = QUESTS[25].battlefield.terrain
+        cells = [tuple(stop["cell"]) for stop in PLAN["stands"]] + [tuple(stop["stand"]) for stop in PLAN["last_targets"]]
+        rooms = {quest_room_light.room_of(terrain, cell) for cell in cells}
+        self.assertEqual(len(rooms), 10)
+        self.assertEqual(STRATEGIES[25].required_force["required_scrolls"]["light"], 10 + self.BURNED_ON_THE_RECORD)
+
+    def test_the_real_file_carries_it_in_the_kit(self):
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=250.0):
+            status = policy._quest_carry_status(snapshot, policy._carry_procurement_strategy(snapshot).required_force)
+        self.assertEqual(status["required_scrolls.light"]["required"], 12)
+
+
+class Q25LightShelfTest(unittest.TestCase):
+    """An unbuyable requirement does not stop the town.  DECLARED CONSTRUCTED on Q25TownTest's recorded
+    Outpost board; the Alchemist's shelf is built, Light being in its random table (articles-on-sale.cpp)."""
+
+    @staticmethod
+    def ware(count, price=20):
+        return StoreItem(letter="a", name="Light", count=count, tval=TVAL_SCROLL, sval=SV_LIGHT, price=price, aware=True)
+
+    def at_the_shelf(self, *wares):
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        snapshot = replace(snapshot, player=replace(snapshot.player, gold=100000),
+                           store=StoreState(STORE_ALCHEMIST, items=list(wares)))
+        return policy, snapshot
+
+    def bought(self, shelf):
+        policy, snapshot = self.at_the_shelf(self.ware(shelf))
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=250.0):
+            profile = policy._carry_procurement_strategy(snapshot)
+            ware = policy._quest_carry_purchase(snapshot, profile)
+            self.assertEqual(ware, snapshot.store.items[0])
+            return policy._purchase_quantity(snapshot, ware)
+
+    def test_a_full_shelf_buys_what_is_asked_and_a_short_one_what_it_has(self):
+        self.assertEqual(self.bought(21), 12)
+        self.assertEqual(self.bought(5), 5)
+
+    def test_a_shelf_without_it_leaves_no_alchemist_need_and_no_departure_block(self):
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=250.0):
+            self.assertIn(STORE_ALCHEMIST, {need.store_type for need in policy._enumerate_town_needs(snapshot)
+                                            if need.category.startswith("quest-")})
+            policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+            needs = policy._enumerate_town_needs(snapshot)
+            self.assertNotIn(STORE_ALCHEMIST, {need.store_type for need in needs if need.category == "quest-scrolls"})
+            self.assertIn("required_scrolls.light", policy._abandoned_quest_carry_requirements)
+            self.assertNotIn("quest-scrolls", {need.category for need in policy._departure_blocking_town_needs(snapshot)})
+
+    def test_short_of_it_the_quest_is_not_accepted_and_the_town_goes_on(self):
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+        key = str(policy.choose_key(snapshot))
+        self.assertFalse(policy.last_reason.startswith("fixedquest:request"), (key, policy.last_reason))
+        self.assertFalse(policy.last_reason.startswith("town:blocked"), (key, policy.last_reason))
+
+
 class Q25TownTest(unittest.TestCase):
     """Giver and carries on the recorded Outpost board of tests/fixtures/q14-lv8-1102.json.gz.
     DECLARED CONSTRUCTED: its quest rows (every earlier quest finished) and the giver cell."""
@@ -1227,7 +1291,7 @@ class Q25AcceptanceTest(unittest.TestCase):
                  "resist_fire", "resist_cold", "resist_elec", "resist_acid", "resist_chaos")
 
     def town(self, *, max_hp, healing=5, speed=3, resists=True, unhasted_speed=110, shot=68, turn=181, ammo=40,
-             teleports=5, restores=2, class_id=None, light=2):
+             teleports=5, restores=2, class_id=None, light=12):
         raw = board(max_hp=max_hp, hp=max_hp, healing=healing, speed=speed, teleports=teleports, light=light)
         raw["floor"].update(quest_id=0, level=0, in_town=True)
         raw["progress"]["quests"][0]["status"] = 0
