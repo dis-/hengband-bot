@@ -23,7 +23,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from hengbot import arena, arena_odds, me_ranged_first
-from hengbot.character_sheet import ArenaStanding, arena_standing
+from hengbot.character_sheet import SHEET_ENCODINGS, ArenaStanding, _decode_sheet, arena_standing
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.input_executor import ScreenKind, classify_screen
 from hengbot.model import ARENA_FLOOR_KEY, TVAL_WAND, parse_snapshot
@@ -299,6 +299,9 @@ class ArenaRecorded(executor_pins.ProductionHarness):
         self.assertEqual(arena_standing(" Arena:  1 Victory"), ArenaStanding(wins=1))
         self.assertEqual(arena_standing(" Arena: Defeated by X in the 3rd fight"), ArenaStanding(defeated=True))
         self.assertIsNone(arena_standing("nothing"))
+        # A real sheet the game wrote (EUC-JP on Linux), through the owner's own decoding.
+        raw = gzip.decompress((FIXTURE.parent / "calib-recall-20261031.bot-test.txt.gz").read_bytes())
+        self.assertEqual(arena_standing(_decode_sheet(raw, SHEET_ENCODINGS)), ArenaStanding(wins=0))
 
 
 if __name__ == "__main__":
