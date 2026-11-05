@@ -9,7 +9,7 @@ Q31 board of tests/fixtures/once-quest-recall-20261103.json.gz with its floor, g
 row, position, HP, monsters and carried potions and scrolls replaced: the grid map from the
 real lib/edit/quests/025_HauntedHouse.jsonc (every cell known), the monsters with the races and
 cells of that map.  Monster data is the real MonraceDefinitions.  The owner approved the
-file on 2026-11-05 and withdrew it the same day (「直るまで受けない」); the table here keeps it on.
+file on 2026-11-05, withdrew it the same day (「直るまで受けない」) and restored it (「Q25の承認を戻す」).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -59,7 +59,7 @@ TERRAINS = {row["key"]: row for row in json.loads(_strip_jsonc(
 RACES = load_monrace_knowledge(find_monrace_definitions(ROOT, None) or GAME / "MonraceDefinitions.jsonc")
 QUESTS = load_quest_knowledge(find_quest_definitions(ROOT) or GAME / "quests")
 FILE_STRATEGIES = load_quest_strategies(ROOT / "strategy" / "quests")
-STRATEGIES = {**FILE_STRATEGIES, 25: replace(FILE_STRATEGIES[25], approved=True)}
+STRATEGIES = FILE_STRATEGIES
 PLAN = STRATEGIES[25].engagement_plan["room_sweep"]
 START = (13, 1)
 TYRANNOSAUR, DREADMASTER, VAMPIRE, DRUJ, TOME, HOUND, IPSISSIMUS, SHADOW, SPECTRE, SKELETAL_T, QUYL, STAIR, MASS = (
@@ -205,7 +205,7 @@ class Q25MapFactsTest(unittest.TestCase):
         self.assertNotIn("[8,1]", text)
         self.assertIsNone(STRATEGIES[25].engagement_plan["hold_position"])
         # Withdrawn 2026-11-05 「直るまで受けない」 until the summon rules reach this plan.
-        self.assertFalse(FILE_STRATEGIES[25].approved)
+        self.assertTrue(FILE_STRATEGIES[25].approved)
 
     def test_every_stop_is_walkable_and_every_target_door_is_a_door(self):
         for stop in PLAN["stands"]:
