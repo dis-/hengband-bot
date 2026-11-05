@@ -91,6 +91,8 @@ class QuestFloorNavigator:
     sweep_lit_rounds = frozenset()
     sweep_last_seen = {}  # never mutated, replaced whole (quest_room_sweep)
     sweep_cover_taken = frozenset()
+    sweep_ambush = None  # the cover held for the unseen attacker (quest_room_sweep)
+    sweep_ambush_turns = 0
     sweep_light_read = frozenset()  # rooms read and not yet seen lit (quest_room_light)
     sweep_opening_quaffed = False
 
@@ -134,6 +136,8 @@ class QuestFloorNavigator:
         self.sweep_lit_rounds = frozenset()
         self.sweep_last_seen = {}
         self.sweep_cover_taken = frozenset()
+        self.sweep_ambush = None
+        self.sweep_ambush_turns = 0
         self.sweep_light_read = frozenset()
         self.sweep_opening_quaffed = False
 

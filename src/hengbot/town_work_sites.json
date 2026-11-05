@@ -9463,6 +9463,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_room_sweep.py:_ambush_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_room_sweep.py:_below_line": {
     "classification": "producer",
     "rows": [

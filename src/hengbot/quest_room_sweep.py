@@ -56,17 +56,25 @@ policy's) is no step while a movement scroll remains (owner: 物資が全て尽�
 A trap's warning is no refusal (trap_warning, owner 2026-11-05 「罠があるので対応する」): the walk
 keeps its way and ``_step_toward`` searches, disarms and crosses.  No walk here weighs traps.
 
-``unseen_attacker``, owner 2026-11-05 「生存は最優先として、移動は一歩で遮蔽が取れるかで判断。一歩で
-遮蔽が取れないなら距離を詰めたほうが良い。」: hit by what cannot be seen, with nothing in view to answer,
-and after the survival rungs.  No message says where the attacker is (何か, monster-describer.cpp);
-what is read is today's reading of the retreat (``_recent_reverse_direction``): it stands ahead of
-the player's last step.  It needs the player's own line and no light on it, so it is on a cell
-ahead with a line to the player, out of the player's light.  One step to a cell none of those
-cells has a line to is cover; a cell already stepped out of once is not left the same way again,
-or the walk back and the hit would go on for ever.  Else the walk closes on the nearest of them.
-No last step (a teleport's landing), or no such cell, is an unknown direction: the owner's words
-do not settle it, and the plan's walk goes on.  A blow is struck back and a blind player answers
-by the shared rungs, as before.
+``unseen_attacker``, owner 2026-11-05 「まず暗くて照らせるなら照らす。遮蔽が近ければ遮蔽をとって待ち伏せ。
+遮蔽がないか遠ければ想定方向に距離を詰める」: hit by what cannot be seen, with nothing in view to answer,
+and after the survival rungs and the light (quest_room_light).  "Near" is one step, by the owner's
+earlier 「一歩で遮蔽が取れないなら距離を詰めたほうが良い」.  No message says where the attacker is (何か,
+monster-describer.cpp); what is read is today's reading of the retreat (``_recent_reverse_direction``):
+it stands ahead of the player's last step.  It needs the player's own line and no light on it, so it
+is on a cell ahead with a line to the player, out of the player's light.  One step to a cell none of
+those cells has a line to, and out of every ``line_races`` line, is cover.  Else the walk closes on the
+nearest of them.  No last step (a teleport's landing), or no such cell, is an unknown direction: the
+owner's words do not settle it, and the plan's walk goes on.  A blow is struck back and a blind player
+answers by the shared rungs, as before.
+
+On the cover the player holds in ambush: it has answered that hit, so the floor is quiet again and its
+own rungs (the potions, the rest) still go first; the shared ladders do not walk him off it.  The hold
+ends when an enemy comes into view (the fight rungs answer it, and it is the one expected), when he is
+hit again or moved, in a ``line_races`` line, or after ``enemy_wait_turns`` holds.  Blind or confused
+he does not hold (the shared rungs cure it) and the hold goes on afterwards.  A cell stepped out of
+once for cover is not left the same way again, or the hold, the walk back and the hit would go on for
+ever: the next hit there closes.
 
 ``key`` runs before the shared survival ladders while an enemy is about: they walk away and
 read Recall, which is what this plan refuses.  A quiet board stays with them (food, light,
@@ -426,16 +434,17 @@ def _unseen_attacker_cells(policy, snapshot, navigator) -> set[tuple[int, int]]:
             and quest_exposure.projectable(_open_terrain(navigator, snapshot), cell, here)}
 
 
-def _cover_step(snapshot, navigator, cells, board) -> Position | None:
-    """A free neighbour no cell of ``cells`` has a line to."""
+def _cover_step(snapshot, navigator, plan, cells, board) -> Position | None:
+    """A free neighbour no cell of ``cells`` has a line to, where it may be held."""
     here = snapshot.player.position
     terrain = _open_terrain(navigator, snapshot)
     walkable = _terrain_of(navigator, snapshot, water=False)
+    lines = _lines(navigator, plan, snapshot).pull
     around = (Position(here.y + dy, here.x + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
     for step in around:
         spot = _cell(step)
         if (walkable.get(spot) in {"floor", "passage"} and not _door_is_closed_on_map(navigator, snapshot, spot)
-                and step not in board.occupied
+                and step not in board.occupied and spot not in lines
                 and not any(quest_exposure.projectable(terrain, cell, spot) for cell in cells)):
             return step
     return None
@@ -448,14 +457,37 @@ def _unseen_answer(policy, snapshot, navigator, plan, board) -> str | None:
         return None
     here = _cell(snapshot.player.position)
     if here not in navigator.sweep_cover_taken:
-        step = _cover_step(snapshot, navigator, cells, board)
+        step = _cover_step(snapshot, navigator, plan, cells, board)
         if step is not None:
             navigator.sweep_cover_taken = navigator.sweep_cover_taken | {here}
+            navigator.sweep_ambush = _cell(step)
+            navigator.sweep_ambush_turns = 0
+            policy._unseen_hit_pending_floor = None  # answered, as the shared retreat consumes it
             policy.last_reason = COVER_REASON
             policy._declare_reach(step)
             return policy._step_toward(snapshot, step)
     goals = {Position(*cell) for cell in cells}
     return _step(policy, snapshot, _path(policy, navigator, plan, snapshot, goals, board.occupied), CLOSE_REASON)
+
+
+def _note_ambush(policy, snapshot, navigator, plan, board) -> None:
+    """Every board: what ends the hold on the cover (module docstring)."""
+    if navigator.sweep_ambush is None:
+        return
+    hit_now = policy._unseen_attack_evidence is not None or policy._unexplained_damage_streak >= 2
+    if (navigator.sweep_ambush != _cell(snapshot.player.position) or board.in_view or hit_now
+            or _in_line(navigator, plan, snapshot)
+            or navigator.sweep_ambush_turns >= int(plan["enemy_wait_turns"])):
+        navigator.sweep_ambush = None
+
+
+def _ambush_key(policy, snapshot, navigator) -> str | None:
+    """On the cover with nothing to answer: wait for what is expected."""
+    if navigator.sweep_ambush is None or snapshot.player.blind or snapshot.player.confused:
+        return None
+    navigator.sweep_ambush_turns += 1
+    policy.last_reason = HOLD_REASON
+    return WAIT_KEY
 
 
 def _unseen_key(policy, snapshot, navigator, plan, board) -> str | None:
@@ -597,6 +629,7 @@ def key(policy, snapshot) -> str | None:
     _note_gone(policy, snapshot, navigator, plan)
     _note_last_seen(snapshot, navigator, plan)
     board = _Board(policy, snapshot, profile, navigator, plan)
+    _note_ambush(policy, snapshot, navigator, plan, board)
     if not board.enemy:
         navigator.sweep_enemy_turns = 0
         return (
@@ -606,6 +639,7 @@ def key(policy, snapshot) -> str | None:
             or _restore(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
             or quest_find_exit._rest(policy, snapshot, plan, board)
+            or _ambush_key(policy, snapshot, navigator)
             # The shared ladders below would fight what is seen: the walk answers it here.
             or (_advance(policy, snapshot, navigator, plan, board.occupied) if board.left_alone else None)
         )

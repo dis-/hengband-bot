@@ -19,6 +19,7 @@ import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot import policy_quest as policy_quest_module
@@ -893,6 +894,98 @@ class Q25UnseenAttackerTest(unittest.TestCase):
         choose(policy, raw)
         self.assertTrue(quest_room_sweep.planned_step(
             policy, parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+
+
+class Q25AmbushTest(unittest.TestCase):
+    """Owner 2026-11-05 「遮蔽が近ければ遮蔽をとって待ち伏せ」.  DECLARED CONSTRUCTED as above: the hit in
+    the west passage, the step to the cover [8,1], then the boards on it."""
+
+    COVER = (8, 1)
+    HURT_A_LITTLE = FULL_HP - 20
+
+    def on_the_cover(self, *, hp=HURT_A_LITTLE, **kwargs):
+        raw, policy = Q25UnseenAttackerTest().hit_after_walking((8, 1), (7, 1), hp=hp, **kwargs)
+        self.assertEqual(choose(policy, raw), "2")
+        self.assertEqual(policy.last_reason, COVER_REASON)
+        raw["player"].update(y=self.COVER[0], x=self.COVER[1])
+        raw["messages"] = []
+        return raw, policy
+
+    def test_on_the_cover_it_waits_and_does_not_walk_on(self):
+        raw, policy = self.on_the_cover()
+        for _ in range(3):
+            self.assertEqual(choose(policy, raw), WAIT_KEY)
+            self.assertEqual(policy.last_reason, HOLD_REASON)
+        self.assertEqual(navigator_of(policy).sweep_ambush_turns, 3)
+
+    def test_the_wait_ends_with_the_plans_budget(self):
+        raw, policy = self.on_the_cover()
+        navigator_of(policy).sweep_ambush_turns = PLAN["enemy_wait_turns"] - 1
+        self.assertEqual(choose(policy, raw), WAIT_KEY)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertIsNone(navigator_of(policy).sweep_ambush)
+
+    def test_an_enemy_in_view_is_answered_by_the_fight_and_the_wait_is_over(self):
+        raw, policy = self.on_the_cover()
+        choose(policy, raw)
+        raw["visible_monsters"] = [monster(SPECTRE, 6, 1)]
+        key = choose(policy, raw)
+        self.assertTrue(key.startswith("f"), (key, policy.last_reason))
+        raw["visible_monsters"] = []
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_hurt_it_rests_on_the_cover_before_it_waits(self):
+        raw, policy = self.on_the_cover(hp=int(FULL_HP * 0.8))
+        self.assertEqual(choose(policy, raw), REST_MACRO)
+        self.assertEqual(navigator_of(policy).sweep_ambush, self.COVER)
+
+    def test_survival_comes_first(self):
+        raw, policy = self.on_the_cover()
+        raw["player"]["hp"] = 200
+        raw["messages"] = [Q25UnseenAttackerTest.HIT]
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, TELEPORT_REASON)
+
+    def test_hit_on_the_cover_the_read_answers_again(self):
+        raw, policy = self.on_the_cover()
+        choose(policy, raw)
+        raw["player"]["hp"] -= 20
+        raw["messages"] = [Q25UnseenAttackerTest.HIT]
+        choose(policy, raw)
+        self.assertIn(policy.last_reason, {COVER_REASON, CLOSE_REASON, WALK_REASON})
+
+    def test_moved_off_the_cover_the_wait_is_over(self):
+        raw, policy = self.on_the_cover()
+        choose(policy, raw)
+        raw["player"].update(y=3, x=24)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertIsNone(navigator_of(policy).sweep_ambush)
+
+    def test_blind_it_leaves_the_board_to_the_shared_rungs_and_the_wait_stays(self):
+        raw, policy = self.on_the_cover(ccw=1)
+        raw["player"]["status"]["blind"] = True
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, HOLD_REASON)
+        self.assertEqual(navigator_of(policy).sweep_ambush, self.COVER)
+
+    def test_a_cell_in_a_casters_line_is_no_cover(self):
+        raw, policy = Q25UnseenAttackerTest().in_the_west_passage()
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        lines = SimpleNamespace(pull=frozenset({(6, 1), (6, 2)}))  # the neighbours tried before the cover
+        with patch.object(quest_room_sweep, "_lines", return_value=lines):
+            step = quest_room_sweep._cover_step(
+                snapshot, navigator_of(policy), PLAN, set(), SimpleNamespace(occupied=set()))
+        self.assertEqual(step, Position(*self.COVER))
+
+    def test_on_a_caster_line_it_does_not_wait(self):
+        raw, policy = self.on_the_cover()
+        with patch.object(quest_room_sweep, "_in_line", return_value=True):
+            choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, HOLD_REASON)
+        self.assertIsNone(navigator_of(policy).sweep_ambush)
 
 
 class Q25WarningRefusedStepTest(unittest.TestCase):
