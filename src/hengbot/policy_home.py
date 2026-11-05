@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import quest_optional_carry
-from hengbot import item_fate, spare_gear
+from hengbot import item_fate, mining_oil_sale, spare_gear
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -2489,7 +2489,8 @@ class HomeMixin:
         # trigger.  That router can activate fundraising later in the same visit,
         # after Home has already asked this retention authority what may be stashed.
         elif item.is_treasure_detection_scroll and mining_planned:
-            target = self._mining_detection_stock_target(snapshot)
+            target = mining_oil_sale.kept_scrolls(
+                self, snapshot, item, self._mining_detection_stock_target(snapshot))
             matches = lambda candidate: candidate.is_treasure_detection_scroll
             branch = "mining:detection"
         elif item.is_digging_tool and mining_planned:

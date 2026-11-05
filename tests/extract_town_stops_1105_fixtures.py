@@ -25,6 +25,10 @@ CASES = {
     "entrance-walk": ("n1-a/life-487/incident-captures/20261105-133941-town-blocked-survival-cure_critical_ready", 62),
     "expedition": ("n1-a/life-486/incident-captures/20261105-114110-town-blocked-unmet-home_candidate_resolved", 56),
     "periodic-walk": ("n1b-319-1106/incident-captures/20261106-012252-stuck-prompt", 7),
+    # Under C:/hengband-backups/pdca/captures/mining-oil-1106.
+    "mining-identify": ("n1-b/life-315/incident-captures/20261105-135017-loop-detected", 45),
+    "mining-oil-sale": ("n1-b/life-315/incident-captures/20261105-135047-town-blocked-survival-recall_departure_ready", 92),
+    "q34-lantern-town": ("n1-c/life-141/incident-captures/20261105-054512-town-blocked-survival-recall_departure_ready", 18),
 }
 
 

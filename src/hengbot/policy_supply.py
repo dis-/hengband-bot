@@ -12,6 +12,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, replace
 
 from hengbot.town_arbiter import ClaimOwner, claims
+from hengbot.equipment_optimizer import q34_item_tagged
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_BLACK, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
     SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH, lights_nothing,
@@ -245,7 +246,7 @@ class SupplyMixin:
 
     def _unknown_light_last_resort(self, snapshot: Snapshot) -> bool:
         if snapshot.in_town:
-            return False
+            return self._town_q34_lantern(snapshot) is not None
         equipped = self._worn_light(snapshot)
         if equipped is None:
             return True
@@ -258,6 +259,27 @@ class SupplyMixin:
         if self._light_refill_item(snapshot) is not None:
             return False
         return self._find_light(snapshot, include_unknown=False) is None
+
+    def _town_q34_lantern(self, snapshot: Snapshot) -> InventoryItem | None:
+        """The unidentified Q34 lantern to wear in town once the light burned out.
+
+        Owner 2026-10-31 「Q34習得品も付けて良い」, and 2026-11-06 「町でも付けてよい」:
+        n1-c life-141 stood in town with its torch at 0 turns beside the Q34
+        lantern until town:blocked:survival:recall_departure_ready.  Only a
+        light with nothing left to give is replaced: no worn light, or a worn
+        torch or lantern known to be at 0 turns, and no known light or refill
+        to take instead.
+        """
+        worn = self._worn_light(snapshot)
+        if worn is not None and not (
+                worn.known and worn.sval <= SV_LITE_LANTERN and worn.fuel <= 0):
+            return None
+        if (self._light_refill_item(snapshot) is not None
+                or self._find_light(snapshot, include_unknown=False) is not None):
+            return None
+        return next((item for item in snapshot.inventory
+                     if item.is_lantern and not item.known and not item.is_cursed
+                     and q34_item_tagged(item)), None)
 
     def _supply_ledger(self, snapshot: Snapshot, depth: int) -> dict[str, SupplyStatus]:
         memo = _SUPPLY_LEDGER_OBSERVER_MEMO.get()
@@ -559,6 +581,12 @@ class SupplyMixin:
         """
         return 1 if staple_food(snapshot) is not None else MANA_FOOD_DEVICE_TARGET
 
+    def _departure_oil_short(self, snapshot: Snapshot) -> bool:
+        """Oil below the departure's five flasks, unless the worn Q34 lantern shows
+        fuel in town (lamp_fuel.q34_town_lantern_lit, owner 2026-11-06)."""
+        return (self._oil_below_departure_target(snapshot)
+                and not lamp_fuel.q34_town_lantern_lit(self, snapshot))
+
     def _light_ready(self, snapshot: Snapshot) -> bool:
         if self._planned_depth() >= 2 and not self._owns_lantern(snapshot):
             return False
@@ -575,7 +603,7 @@ class SupplyMixin:
                 or any(item.fuel > LANTERN_REFILL_FUEL for item in lanterns)
             )
         if lanterns:
-            return not self._oil_below_departure_target(snapshot)
+            return not self._departure_oil_short(snapshot)
         return self._count_usable_torches(snapshot) >= FOOD_STOCK_TARGET
 
     def _light_judgment(self, snapshot: Snapshot) -> LightJudgment:
@@ -623,7 +651,7 @@ class SupplyMixin:
         if not equipped.known:
             return (
                 equipped.is_lantern
-                and not self._oil_below_departure_target(snapshot)
+                and not self._departure_oil_short(snapshot)
             )
         return not judgment.faint_without_refill
 

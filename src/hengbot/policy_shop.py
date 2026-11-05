@@ -40,7 +40,7 @@ from hengbot.policy_instore import InStoreMixin
 from hengbot import launcher_upgrade
 from hengbot import quest_optional_carry
 from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence
-from hengbot import mining_loadout
+from hengbot import mining_loadout, mining_oil_sale
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.town_hold import hold_claims, offered_steps
 from hengbot.purchase_rungs import (
@@ -4245,6 +4245,8 @@ class ShopMixin(InStoreMixin):
             if not self._equipment_transaction_owns_item(sale):
                 result.append(sale)
             remaining = [item for item in remaining if item.slot != sale.slot]
+        if not result:
+            result = mining_oil_sale.sale_candidates(self, snapshot)
         if not result:
             organization = self._find_town_organization_surplus(snapshot)
             if (

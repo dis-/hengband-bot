@@ -216,6 +216,9 @@
   "need:fundraising-oil:normal:0": [
     "mining-buy"
   ],
+  "need:mining-oil-sale:normal:0": [
+    "sale"
+  ],
   "need:identification-source:before-withdrawal:0": [
     "identification",
     "supply-buy",
