@@ -26,7 +26,7 @@ from hengbot import arena, arena_odds, me_ranged_first
 from hengbot.character_sheet import ArenaStanding, arena_standing
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.input_executor import ScreenKind, classify_screen
-from hengbot.model import ARENA_FLOOR_KEY, parse_snapshot
+from hengbot.model import ARENA_FLOOR_KEY, TVAL_WAND, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
 from tests import test_input_executor as executor_pins
@@ -123,10 +123,35 @@ class ArenaRecorded(executor_pins.ProductionHarness):
         self.assertEqual(self.key(policy, self.board("09-move", hp=40)), "2")
         self.assertEqual(policy.last_reason, arena.MELEE_REASON)
 
+    def test_a_low_hp_walk_still_walks_up(self):
+        # CONSTRUCTED: HP 40.  The low-HP walking gate would answer with a scroll.
+        policy = self.policy()
+        self.assertEqual(self.key(policy, self.board("03-enter", hp=40)), "2")
+        self.assertEqual(policy.last_reason, arena.WALK_REASON)
+
+    def test_a_hit_on_a_hold_keeps_the_hold(self):
+        # CONSTRUCTED: an unseen monster with the gate shut, HP falling between two boards.
+        policy = self.policy()
+        arena.state(policy).gate_attempts = arena.GATE_ATTEMPTS
+        for hp in (1137, 900):
+            raw = self.board("16-gate-closed", hp=hp)
+            raw["visible_monsters"] = []
+            raw["messages"] = []
+            key = self.key(policy, raw)
+        self.assertTrue(policy._took_damage)
+        self.assertEqual((key, policy.last_reason), (arena.WAIT_KEY, arena.HOLD_REASON))
+
     def test_a_carried_wand_and_a_throw_are_not_offered(self):
         policy = self.policy()
         snapshot = self.snap(policy, self.board("09-move"))
-        self.assertIsNone(me_ranged_first._attack_wand(policy, snapshot, snapshot.visible_monsters[0], "2"))
+        # CONSTRUCTED: the recorded Stone to Mud wand as an attack wand.
+        wand = next(item for item in snapshot.inventory if item.tval == TVAL_WAND and item.charges > 0)
+        armed = replace(snapshot, inventory=[
+            replace(item, sval=min(me_ranged_first.ATTACK_WAND_SVALS)) if item is wand else item
+            for item in snapshot.inventory])
+        self.assertIsNone(me_ranged_first._attack_wand(policy, armed, armed.visible_monsters[0], "2"))
+        self.assertIsNotNone(me_ranged_first._attack_wand(
+            policy, replace(armed, inside_arena=False), armed.visible_monsters[0], "2"))
         self.assertIsNone(me_ranged_first._throwable_torch(policy, snapshot))
         self.assertEqual(policy._ranged_projectile(replace(snapshot, inventory=[
             item for item in snapshot.inventory if item.tval not in (16, 17, 18)])), None)
