@@ -309,11 +309,10 @@ def _selection_for_available(
     }
 
 
-def ability_selection_probabilities(
+def _castable_abilities(
     monster: MonraceKnowledge,
     context: SpellSelectionContext,
-) -> dict[str, float]:
-    """Return source-order ability probabilities for one spell attempt."""
+) -> frozenset[str]:
     abilities = set(monster.abilities)
     if not context.clean_shot:
         abilities.difference_update(
@@ -326,7 +325,15 @@ def ability_selection_probabilities(
         abilities.discard("RAISE_DEAD")
     if not context.player_has_mana:
         abilities.discard("DRAIN_MANA")
-    all_abilities = frozenset(abilities)
+    return frozenset(abilities)
+
+
+def ability_selection_probabilities(
+    monster: MonraceKnowledge,
+    context: SpellSelectionContext,
+) -> dict[str, float]:
+    """Return source-order ability probabilities for one spell attempt."""
+    all_abilities = _castable_abilities(monster, context)
     innate = all_abilities.intersection(INNATE_ABILITIES)
     full_probability = min(1.0, monster.spell_frequency * 2 / 100.0)
     distributions = (
@@ -338,6 +345,27 @@ def ability_selection_probabilities(
         for ability, probability in distribution.items():
             result[ability] = result.get(ability, 0.0) + scenario_probability * probability
     return result
+
+
+def source_selection_probabilities(
+    monster: MonraceKnowledge,
+    context: SpellSelectionContext,
+) -> dict[str, float]:
+    """The spell of one attempt as make_attack_spell chooses it.
+
+    msa_type: no_inate = !evaluate_percent(freq * 2); set_no_magic_mask then removes the
+    INNATE abilities (RF_ABILITY_NOMAGIC_MASK), so that branch casts only what is left.
+    ``ability_selection_probabilities`` keeps only the innate ones in that branch, which
+    the bot's danger readings were tuned on: it stays as it is until the owner decides.
+    The probabilities sum below 1 when a branch has nothing to cast: the monster moves."""
+    castable = _castable_abilities(monster, context)
+    with_innate = min(1.0, monster.spell_frequency * 2 / 100.0)
+    result: dict[str, float] = {}
+    for share, abilities in ((with_innate, castable), (1.0 - with_innate, castable - INNATE_ABILITIES)):
+        for ability, probability in _selection_for_available(monster, abilities, context).items():
+            result[ability] = result.get(ability, 0.0) + share * probability
+    return result
+
 
 ABILITY_ATTRIBUTE = {
     "ROCKET": "ROCKET",

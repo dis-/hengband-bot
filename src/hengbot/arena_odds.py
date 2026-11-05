@@ -49,8 +49,8 @@ from hengbot.monrace_knowledge import SUMMON_ABILITIES
 from hengbot.monster_melee_evaluator import melee_action_distribution
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
-    ability_selection_probabilities,
     ranged_action_distribution,
+    source_selection_probabilities,
 )
 from hengbot.policy_constants import RESIST_FLAG_BY_ABILITY, speed_energy
 
@@ -172,7 +172,7 @@ def _selection(knowledge) -> tuple[object, dict[str, float]]:
     """The arena's race (check_mspell_arena) and its spell selection."""
     arena_race = replace(
         knowledge, abilities=knowledge.abilities - SUMMON_ABILITIES - {"TELE_LEVEL"})
-    return arena_race, ability_selection_probabilities(
+    return arena_race, source_selection_probabilities(
         arena_race, SpellSelectionContext(distance=1, summon_possible=False))
 
 
