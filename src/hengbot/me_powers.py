@@ -95,7 +95,7 @@ and policy_fundraising.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import cached_property
 from typing import Callable
 
@@ -108,7 +108,7 @@ from hengbot.me_staff_sequence import (
 from hengbot import attack_answer, hunt_target, me_capability, me_ranged_first
 from hengbot.me_device_policy import devices
 from hengbot.model import (
-    SV_ROD_DETECTION, SV_ROD_DISARMING, SV_ROD_TELEPORT_AWAY, SV_STAFF_SPEED, SV_WAND_DISARMING,
+    SV_ROD_DETECTION, SV_ROD_DISARMING, SV_ROD_MAPPING, SV_ROD_TELEPORT_AWAY, SV_STAFF_SPEED, SV_WAND_DISARMING,
     SV_WAND_TELEPORT_AWAY,
     SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_WAND, Position, game_distance,
 )
@@ -128,6 +128,7 @@ TRAP = "trap"            # asked with the trap the bot would disarm
 THREAT = "threat"        # asked with each visible hostile (threat_key)
 QUEST_OPENING = "quest-opening"  # asked with a quest plan's opening target (quest_opening_away)
 FIGHT = "fight"          # asked in place of a decided attack (fight_key)
+SEALED = "sealed"        # asked by area_mapping in a sealed pocket
 MAP_AREA = "map-area"    # the effect whose area mapped_area reads
 
 DETECT_RAD = 30          # spell/spells-util.h DETECT_RAD_DEFAULT / DETECT_RAD_MAP
@@ -209,8 +210,12 @@ POWERS = (
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
-          MAP_AREA, DETECT_RAD, 30, ("new-floor", "stairs-needed-and-unknown"),
+          MAP_AREA, DETECT_RAD, 30,
+          ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket"),
           fallback=("staff", SV_STAFF_DETECT_DOOR), beside_harmless=True),
+    # The same effect (cmd-zaprod.cpp:102), asked only where the owner named 周辺感知.
+    Power("rod", SV_ROD_MAPPING, me_capability.names("rod", SV_ROD_MAPPING),
+          MAP_AREA, DETECT_RAD, 31, ("after-destruction", "sealed-pocket"), beside_harmless=True),
     Power("staff", SV_STAFF_DETECT_DOOR, POWER_NAMES[SV_STAFF_DETECT_DOOR],
           "detect-doors-stairs", DETECT_RAD, 40, ("before-secret-search",)),
     Power("staff", SV_STAFF_LITE, POWER_NAMES[SV_STAFF_LITE],
@@ -256,6 +261,7 @@ class Use:
     reason: str = ""
     key: str = ""                   # the posted key (an aimed power's ends in its direction)
     target: Position | None = None  # what an aimed power was aimed at
+    map_forgotten: bool = False     # a *Destruction* wiped what this mapping showed
 
 
 @dataclass
@@ -491,6 +497,22 @@ def _hunt_target_unseen(ctx, power):
     return all(ctx.distance(use.position) >= _cast_radius(ctx, use) for use in revealing)
 
 
+def _area_mapping():
+    # area_mapping imports this module (the rows, the hostile rule).
+    from hengbot import area_mapping
+
+    return area_mapping
+
+
+def _after_destruction(ctx, power):
+    return _area_mapping().due_after_destruction(ctx)
+
+
+def _sealed_pocket(ctx, power):
+    """area_mapping asks only when the map is wanted."""
+    return True
+
+
 def _unbeatable_in_range(ctx, power):
     """A visible hostile on a beam's line that this character cannot beat."""
     monster, policy = ctx.target_hostile, ctx.policy
@@ -512,6 +534,7 @@ class Trigger:
     name: str
     occasions: frozenset
     due: Callable
+    takes_fallback: bool = True  # False: only the row's own effect answers it
 
 
 TRIGGERS = {trigger.name: trigger for trigger in (
@@ -528,6 +551,9 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
     Trigger("fight-unhasted", frozenset({FIGHT}), _fight_unhasted),
+    # Owner 2026-11-05 named 周辺感知: its Door/Stairs fallback does not map.
+    Trigger("after-destruction", frozenset({FLOOR}), _after_destruction, takes_fallback=False),
+    Trigger("sealed-pocket", frozenset({SEALED}), _sealed_pocket, takes_fallback=False),
 )}
 
 REQUIREMENTS = {
@@ -599,6 +625,12 @@ def _hostiles_allow(ctx, power) -> bool:
     return not ctx.hostile_visible or (power.beside_harmless and not ctx.threat_visible)
 
 
+def utility_device_permitted(policy, snapshot) -> bool:
+    """The mapping row's hostile rule, for a carried device of the same effect."""
+    return not getattr(policy, "_took_damage", False) and (
+        not policy._physical_hostiles(snapshot) or not visible_threat(policy, snapshot))
+
+
 def observe(policy, snapshot) -> None:
     """Every decision: remember the displayed lists, settle the previous use."""
     observe_lists(policy, snapshot)
@@ -639,6 +671,8 @@ def _serving(ctx, power, trigger):
         return preferred
     if _charges(ctx, power) > 0:
         return power if _usable(ctx, power, trigger) else None
+    if not TRIGGERS[trigger].takes_fallback:
+        return None
     fallback = BY_KEY.get(power.fallback) if power.fallback is not None else None
     return fallback if fallback is not None and _usable(ctx, fallback, trigger) else None
 
@@ -704,7 +738,34 @@ def mapped_areas(policy, snapshot) -> tuple:
     ctx = Context(policy, snapshot, FLOOR, memory)
     return tuple(
         (use.position, ctx.radius(BY_KEY[use.used], unknown_is_dark=True))
-        for use in memory.uses if BY_KEY[use.used].effect == MAP_AREA)
+        for use in memory.uses if BY_KEY[use.used].effect == MAP_AREA and not use.map_forgotten)
+
+
+def map_radius(policy, snapshot) -> int:
+    """What a mapping cast here covers, the smaller reading in an unknown dungeon."""
+    return Context(policy, snapshot, FLOOR, None).radius(
+        BY_KEY[("staff", SV_STAFF_MAPPING)], unknown_is_dark=True)
+
+
+def mapped_since(policy, snapshot, turn: int) -> bool:
+    """A mapping landed on this floor at or after game turn ``turn``."""
+    memory = getattr(policy, MEMORY, None)
+    return (memory is not None and memory.floor == snapshot.floor_key
+            and any(BY_KEY[use.used].effect == MAP_AREA and use.turn >= turn for use in memory.uses))
+
+
+def forget_maps(policy, snapshot, centre: Position, radius: int) -> None:
+    """Mappings that met a destroyed circle stop reading as a map; the row keeps them
+    as uses, so its own triggers do not fire again for them."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return
+    reach = map_radius(policy, snapshot) + radius
+    memory.uses = [
+        replace(use, map_forgotten=True)
+        if BY_KEY[use.used].effect == MAP_AREA and game_distance(centre, use.position) <= reach
+        else use
+        for use in memory.uses]
 
 
 def decision_reason(policy, key) -> str | None:

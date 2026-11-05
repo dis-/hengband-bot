@@ -76,6 +76,41 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "area_mapping.py:_carried_device": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "area_mapping.py:_carried_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "area_mapping.py:after_destruction_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "area_mapping.py:blank_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "area_mapping.py:sealed_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "armor_smith.py:Smith.price": {
     "classification": "data",
     "rows": [
@@ -4181,6 +4216,13 @@
       "stat-recovery"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy.py:HengbotPolicy._stone_to_mud_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._strategic_adjacent_hostiles": {
     "classification": "data",
@@ -9523,6 +9565,41 @@
     "classification": "producer",
     "rows": [
       "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_floor_leading_on": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_line": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_melt_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
