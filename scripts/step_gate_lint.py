@@ -34,6 +34,7 @@ WARNING_READ_BYPASSES = {
 WARNING_OWNERS = {
     ("policy_navigation.py", "_warning_step_refused"): 1,
     ("policy_helpers.py", "_latch_warning_refusal"): 1,
+    ("policy_helpers.py", "_release_warning_refusal"): 1,
     ("policy_observation.py", "_observe"): 1,
     ("policy_observation.py", "_refresh_warning_avoidance"): 1,
 }

@@ -99,7 +99,7 @@ YX_COLLECTIONS = (
 POSITION_DICTS = (
     "_remembered_grids", "_remembered_grid_signatures", "_remembered_grid_sources",
     "_look_floor_items", "_look_floor_object_counts", "_remembered_paralyzers",
-    "_one_step_explore_failures", "_hazard_cache",
+    "_one_step_explore_failures", "_hazard_cache", "_trap_warning_cells",
 )
 # Collections of (kind, Position):
 KIND_POSITION_COLLECTIONS = ("_unverified_stairs", "_stair_rejection_strikes")

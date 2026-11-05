@@ -9,14 +9,18 @@ The data (QUEST_25 gives the reasons of its cells):
    ``race``, ``cell``, the ``stand`` it is shot from and the closed ``door``, if any, that
    the stand opens first;
  * ``left_alone_races``: last targets that are no target at all until the walk reaches their
-   first stop: seen, they get no shot, no walk, no wait, and rest goes on (a teleport away
-   is walked back from like any other);
+   first stop: seen, they get no shot, no walk, no wait, and rest goes on.  From that stop on,
+   one seen before and out of sight now is walked to where it was last seen (owner 2026-11-05
+   「プレイヤーを移動させられた場合は最後に見えた場所へ移動。モンスターが移動した場合は歩いて探す」):
+   the walk's own stops wait until that cell is in the light and in line.  Standing there with
+   nothing on it, the monster has moved (or died), and the stops are walked one by one;
  * ``line_races``: never-moving casters whose direct line every walk crosses as little
    as it can, and on which nobody rests or waits by choice (Q18's first fights, 2026-11-04:
    n1-a died standing on a cell under fire);
  * ``enemy_wait_turns``: the far bound on a coming enemy that stays in view without a
    shot or a blow; ``rest_below_ratio``: rest below this on a quiet floor;
  * ``max_rounds``: full walks with the quest still open before the plan stops by name;
+ * ``unseen_attacker``: "cover_or_close", see below;
  * ``exit_when_out_of_healing``: see below.
 
 Q25 owner 2026-11-04.  「手のドルジは最後に回して戻って撃つ」: everything else first, then the
@@ -45,9 +49,23 @@ no cell on Q25 that has the player's line to a quylthulg without its line back, 
 are shot from in their line, and every walk crosses the fewest lines.  Owner 2026-11-05
 「クイルスルグは放置しても問題ないし、簡単には倒せないので最後ドルジの前に処理する」.
 
-A cell the weapon warning refused (warning.cpp process_warning; the latch is the policy's) is
-no step while a movement scroll remains (owner: 物資が全て尽きている場合のみ徒歩強行を許す).
-Every walk here goes round it, and a stop reached only over it is passed for this round.
+A cell a monster's weapon warning refused (warning.cpp process_warning; the latch is the
+policy's) is no step while a movement scroll remains (owner: 物資が全て尽きている場合のみ徒歩強行を
+許す).  Every walk here goes round it, and a stop reached only over it is passed for this round.
+A trap's warning is no refusal (trap_warning, owner 2026-11-05 「罠があるので対応する」): the walk
+keeps its way and ``_step_toward`` searches, disarms and crosses.  No walk here weighs traps.
+
+``unseen_attacker``, owner 2026-11-05 「生存は最優先として、移動は一歩で遮蔽が取れるかで判断。一歩で
+遮蔽が取れないなら距離を詰めたほうが良い。」: hit by what cannot be seen, with nothing in view to answer,
+and after the survival rungs.  No message says where the attacker is (何か, monster-describer.cpp);
+what is read is today's reading of the retreat (``_recent_reverse_direction``): it stands ahead of
+the player's last step.  It needs the player's own line and no light on it, so it is on a cell
+ahead with a line to the player, out of the player's light.  One step to a cell none of those
+cells has a line to is cover; a cell already stepped out of once is not left the same way again,
+or the walk back and the hit would go on for ever.  Else the walk closes on the nearest of them.
+No last step (a teleport's landing), or no such cell, is an unknown direction: the owner's words
+do not settle it, and the plan's walk goes on.  A blow is struck back and a blind player answers
+by the shared rungs, as before.
 
 ``key`` runs before the shared survival ladders while an enemy is about: they walk away and
 read Recall, which is what this plan refuses.  A quiet board stays with them (food, light,
@@ -57,7 +75,7 @@ breeder stalemate, starvation) leaves the board to them.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, me_ranged_first, once_quest_recall, quest_exposure, quest_find_exit
+from hengbot import combat_answer, me_ranged_first, once_quest_recall, quest_exposure, quest_find_exit, unseen_strike
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, TVAL_POTION
 from hengbot.policy_constants import (
@@ -79,6 +97,9 @@ NOTHING_LEFT_REASON = "quest:blocked:sweep-nothing-left"
 LIGHT_REASON = "quest-strategy:sweep-light"
 EXIT_WALK_REASON = "quest-strategy:sweep-exit-walk"
 EXIT_REASON = "quest-strategy:sweep-exit"
+COVER_REASON = "quest-strategy:sweep-cover"
+CLOSE_REASON = "quest-strategy:sweep-close"
+UNSEEN_ATTACK_SIGHT = 20  # MAX_SIGHT, the reach of a monster's spell
 
 
 def _plan(policy, snapshot) -> dict | None:
@@ -88,6 +109,11 @@ def _plan(policy, snapshot) -> dict | None:
     return None if profile is None else profile.engagement_plan.get("room_sweep")
 
 
+def walks_over_traps(policy, snapshot) -> bool:
+    """This floor's walks do not go round a trap: the stops lie behind them (2026-10-23)."""
+    return _plan(policy, snapshot) is not None
+
+
 def holds(policy, snapshot) -> bool:
     """This board's wait is the plan's own hold: under fire it still holds."""
     return policy.last_reason == HOLD_REASON and _plan(policy, snapshot) is not None
@@ -95,7 +121,8 @@ def holds(policy, snapshot) -> bool:
 
 def planned_step(policy, snapshot) -> bool:
     """This board's step is the plan's own: the low-HP walk gate does not rewrite it."""
-    return policy.last_reason in {WALK_REASON, EXIT_WALK_REASON} and _plan(policy, snapshot) is not None
+    return (policy.last_reason in {WALK_REASON, EXIT_WALK_REASON, COVER_REASON, CLOSE_REASON}
+            and _plan(policy, snapshot) is not None)
 
 
 def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
@@ -164,38 +191,90 @@ def _terrain_of(navigator, snapshot, *, water: bool) -> dict:
 _EXPOSURES: dict[tuple, quest_exposure.Exposure] = {}
 
 
+def _open_doors(navigator, snapshot) -> frozenset:
+    return frozenset(cell for cell, kind in navigator.battlefield.terrain.items()
+                     if kind == "door" and not _door_is_closed(snapshot, cell))
+
+
+def _open_terrain(navigator, snapshot) -> dict:
+    """The map as lines cross it: through the doors as the board shows them."""
+    return {**navigator.battlefield.terrain, **{cell: "floor" for cell in _open_doors(navigator, snapshot)}}
+
+
+def _door_is_closed_on_map(navigator, snapshot, cell: tuple[int, int]) -> bool:
+    return navigator.battlefield.terrain.get(cell) == "door" and _door_is_closed(snapshot, cell)
+
+
 def _lines(navigator, plan, snapshot) -> quest_exposure.Exposure:
     """Where the living ``line_races`` reach, through the doors as the board shows them."""
     battlefield = navigator.battlefield
     races = frozenset(plan.get("line_races", ()))
     casters = tuple(sorted(cell for cell, race in battlefield.monster_placements
                            if race in races and cell not in navigator.sweep_gone))
-    opened = frozenset(cell for cell, kind in battlefield.terrain.items()
-                       if kind == "door" and not _door_is_closed(snapshot, cell))
-    key = (navigator.quest_id, casters, opened)
+    key = (navigator.quest_id, casters, _open_doors(navigator, snapshot))
     if key not in _EXPOSURES:
-        terrain = {**battlefield.terrain, **{cell: "floor" for cell in opened}}
-        _EXPOSURES[key] = quest_exposure.exposure_map(terrain, casters)
+        _EXPOSURES[key] = quest_exposure.exposure_map(_open_terrain(navigator, snapshot), casters)
     return _EXPOSURES[key]
+
+
+def _in_light_and_line(navigator, snapshot, here: tuple[int, int], cell: tuple[int, int]) -> bool:
+    """A monster on ``cell`` would be seen from ``here``."""
+    return (quest_exposure.game_distance(here, cell) <= max(1, snapshot.light_radius or 1)
+            and quest_exposure.projectable(navigator.battlefield.terrain, here, cell))
 
 
 def _note_gone(policy, snapshot, navigator, plan) -> None:
     """A placed caster's cell in the player's light and line with nothing on it."""
-    battlefield = navigator.battlefield
     here = _cell(snapshot.player.position)
-    reach = max(1, snapshot.light_radius or 1)
     occupied = {_cell(monster.position) for monster in snapshot.visible_monsters}
-    for cell, race in battlefield.monster_placements:
+    for cell, race in navigator.battlefield.monster_placements:
         if (race in plan.get("line_races", ()) and cell not in navigator.sweep_gone
-                and cell not in occupied and quest_exposure.game_distance(here, cell) <= reach
-                and quest_exposure.projectable(battlefield.terrain, here, cell)):
+                and cell not in occupied and _in_light_and_line(navigator, snapshot, here, cell)):
             navigator.sweep_gone = navigator.sweep_gone | {cell}
 
 
-def _refused_cells(policy, snapshot) -> list[Position]:
-    """The cells the weapon warning refused that may not be stepped on now (the gate's own
-    predicate: the all-supplies-exhausted forced walk may take them)."""
-    return [cell for cell in policy._warning_refused_cells if policy._warning_step_refused(snapshot, cell)]
+def _note_last_seen(snapshot, navigator, plan) -> None:
+    """Where each ``left_alone_races`` monster was last seen on this floor; a cell looked at
+    with nothing on it is forgotten (a blind player looks at nothing)."""
+    races = plan.get("left_alone_races", ())
+    known = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+             if monster.hostile and monster.race_id in races]
+    here = _cell(snapshot.player.position)
+    now = {index: entry for index, entry in navigator.sweep_last_seen.items()
+           if snapshot.player.blind or not _in_light_and_line(navigator, snapshot, here, entry[1])}
+    now.update({monster.index: (monster.race_id, _cell(monster.position)) for monster in known})
+    navigator.sweep_last_seen = now
+
+
+def _sought_cells(snapshot, navigator, plan) -> dict[int, tuple[int, int]]:
+    """The last-seen cells to go to: out of sight now, and past the walk's leaving them alone."""
+    left_alone = _left_alone_races(navigator, plan)
+    in_sight = {monster.index for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)}
+    return {index: cell for index, (race, cell) in navigator.sweep_last_seen.items()
+            if race not in left_alone and index not in in_sight}
+
+
+def _to_last_seen(policy, snapshot, navigator, plan, blocked=()) -> str | None:
+    """The step toward the nearest place a sought cell is looked at from: ground only, where
+    there is any.  With no way there the record is dropped and the stops go on."""
+    sought = _sought_cells(snapshot, navigator, plan)
+    if not sought:
+        return None
+    terrain = _terrain_of(navigator, snapshot, water=False)
+    goals = {Position(*spot) for spot, kind in terrain.items() if kind in {"floor", "passage"}
+             and any(_in_light_and_line(navigator, snapshot, spot, cell) for cell in sought.values())}
+    stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, goals, blocked), WALK_REASON)
+    if stepped is None:
+        navigator.sweep_last_seen = {index: entry for index, entry in navigator.sweep_last_seen.items()
+                                     if index not in sought}
+    return stepped
+
+
+def _refused_cells(policy, snapshot, navigator) -> list[Position]:
+    """The cells of the map the weapon warning refused and that may not be stepped on now (the
+    gate's own predicate: the all-supplies-exhausted forced walk may take them)."""
+    cells = (Position(*cell) for cell in navigator.battlefield.terrain)
+    return [cell for cell in cells if policy._warning_step_refused(snapshot, cell)]
 
 
 def _path(policy, navigator, plan, snapshot, goals, blocked=()) -> list[Position]:
@@ -204,7 +283,7 @@ def _path(policy, navigator, plan, snapshot, goals, blocked=()) -> list[Position
     over a cell the warning refused."""
     start = _cell(snapshot.player.position)
     goals = {_cell(goal) for goal in goals}
-    taken = frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot)))
+    taken = frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot, navigator)))
     lines = _lines(navigator, plan, snapshot)
     for water in (False, True):
         terrain = _terrain_of(navigator, snapshot, water=water)
@@ -279,6 +358,8 @@ def _last_target_key(policy, snapshot, navigator, plan, stop) -> str | None:
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     """The next step of the walk; at a stop, what that stop asks, then the next."""
     here = snapshot.player.position
+    if (sought := _to_last_seen(policy, snapshot, navigator, plan, blocked)) is not None:
+        return sought
     for _ in range(len(_stops(plan)) + 1):
         if navigator.sweep_round >= int(plan["max_rounds"]):
             policy.last_reason = NOTHING_LEFT_REASON
@@ -287,7 +368,7 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
         goal = Position(*stop.get("stand", stop.get("cell")))
         if here != goal:
             stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, {goal}, blocked), WALK_REASON)
-            if stepped is not None or not _refused_cells(policy, snapshot):
+            if stepped is not None or not _refused_cells(policy, snapshot, navigator):
                 return stepped
             # Only over a refused cell: this stop waits for the next round.
             _next_stop(navigator, plan)
@@ -315,6 +396,64 @@ def walk_key(policy, snapshot) -> str | None:
     navigator = _navigator(policy, snapshot, snapshot.floor_key[2])
     _note_gone(policy, snapshot, navigator, plan)
     return _advance(policy, snapshot, navigator, plan)
+
+
+# -- the attacker no one sees ----------------------------------------------------------
+
+
+def _unseen_attacker_cells(policy, snapshot, navigator) -> set[tuple[int, int]]:
+    """Where it can stand: ahead of the last step, with a line to the player, out of his light."""
+    here = _cell(snapshot.player.position)
+    behind = policy._recent_reverse_direction(snapshot.player.position)
+    if behind is None:
+        return set()
+    return {cell for cell, kind in _open_terrain(navigator, snapshot).items()
+            if kind in quest_exposure.PROJECTING_KINDS
+            and (cell[0] - here[0]) * behind[0] + (cell[1] - here[1]) * behind[1] < 0
+            and not _in_light_and_line(navigator, snapshot, here, cell)
+            and quest_exposure.game_distance(here, cell) <= UNSEEN_ATTACK_SIGHT
+            and quest_exposure.projectable(_open_terrain(navigator, snapshot), cell, here)}
+
+
+def _cover_step(snapshot, navigator, cells, board) -> Position | None:
+    """A free neighbour no cell of ``cells`` has a line to."""
+    here = snapshot.player.position
+    terrain = _open_terrain(navigator, snapshot)
+    walkable = _terrain_of(navigator, snapshot, water=False)
+    around = (Position(here.y + dy, here.x + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
+    for step in around:
+        spot = _cell(step)
+        if (walkable.get(spot) in {"floor", "passage"} and not _door_is_closed_on_map(navigator, snapshot, spot)
+                and step not in board.occupied
+                and not any(quest_exposure.projectable(terrain, cell, spot) for cell in cells)):
+            return step
+    return None
+
+
+def _unseen_answer(policy, snapshot, navigator, plan, board) -> str | None:
+    """Cover in one step, else closer; None when the direction is unknown."""
+    cells = _unseen_attacker_cells(policy, snapshot, navigator)
+    if not cells:
+        return None
+    here = _cell(snapshot.player.position)
+    if here not in navigator.sweep_cover_taken:
+        step = _cover_step(snapshot, navigator, cells, board)
+        if step is not None:
+            navigator.sweep_cover_taken = navigator.sweep_cover_taken | {here}
+            policy.last_reason = COVER_REASON
+            policy._declare_reach(step)
+            return policy._step_toward(snapshot, step)
+    goals = {Position(*cell) for cell in cells}
+    return _step(policy, snapshot, _path(policy, navigator, plan, snapshot, goals, board.occupied), CLOSE_REASON)
+
+
+def _unseen_key(policy, snapshot, navigator, plan, board) -> str | None:
+    """The plan's own answer, or its walk; the shared rungs keep a blow and blindness."""
+    if (plan.get("unseen_attacker") != "cover_or_close" or snapshot.player.blind
+            or unseen_strike.hit_in_melee(policy, snapshot)):
+        return None
+    return (_unseen_answer(policy, snapshot, navigator, plan, board)
+            or _advance(policy, snapshot, navigator, plan, board.occupied))
 
 
 # -- the fight -----------------------------------------------------------------------
@@ -348,6 +487,8 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         navigator.sweep_enemy_turns += 1
         policy.last_reason = HOLD_REASON
         return WAIT_KEY
+    if not board.in_view and (unseen := _unseen_key(policy, snapshot, navigator, plan, board)) is not None:
+        return unseen
     if not board.in_view and not board.left_alone:
         return None  # hit by the unseen: unseen_strike and the shared ladders answer it
     occupied = board.occupied
@@ -438,6 +579,7 @@ def key(policy, snapshot) -> str | None:
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
     _note_gone(policy, snapshot, navigator, plan)
+    _note_last_seen(snapshot, navigator, plan)
     board = _Board(policy, snapshot, profile, navigator, plan)
     if not board.enemy:
         navigator.sweep_enemy_turns = 0

@@ -32,7 +32,7 @@ from hengbot.model import Position
 from hengbot.projection_path import projection_path
 
 MAX_SPELL_RANGE = 18  # AngbandSystem::get_max_range
-_PROJECTING_KINDS = frozenset({"floor", "exit", "shallow_water", "deep_water", "passage", "tree"})
+PROJECTING_KINDS = frozenset({"floor", "exit", "shallow_water", "deep_water", "passage", "tree"})
 _WALKABLE_KINDS = frozenset({"floor", "exit", "shallow_water", "deep_water", "passage"})
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (dy, dx) != (0, 0))
 
@@ -44,7 +44,7 @@ def game_distance(a: tuple[int, int], b: tuple[int, int]) -> int:
 
 
 def _projects(terrain) -> set[tuple[int, int]]:
-    return {cell for cell, kind in terrain.items() if kind in _PROJECTING_KINDS}
+    return {cell for cell, kind in terrain.items() if kind in PROJECTING_KINDS}
 
 
 def projectable(terrain, source: tuple[int, int], target: tuple[int, int]) -> bool:

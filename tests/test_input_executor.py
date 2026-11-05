@@ -1776,6 +1776,22 @@ class TcpBarrierPinTest(ProductionHarness):
         self.assertEqual(result.outcome, "completed")
         self.assertEqual(game.accepted, ["6", "n"])
 
+    def test_a_trap_warning_is_refused_and_its_answers_are_posted_whole(self):
+        """trap_warning's keys: the search, the disarm and the walk with its own 'y'."""
+        game, _client, executor = self.make()
+        game.screens = [
+            prompt_screen("本当にこのまま進むか？ [y/n]"), command_screen(3),
+            command_screen(4), command_screen(5), command_screen(6),
+        ]
+        executor.observe_boundary(deadline=9999999999)
+        for sequence, (reason, keys) in enumerate(
+                (("quest-strategy:sweep-walk", "8"), ("warning:trap-search", "s"),
+                 ("quest-strategy:sweep-walk", "D8"), ("quest-strategy:sweep-walk", "8y"))):
+            result = executor.submit(
+                Operation(4600 + sequence, reason, keys, executor.ready_board), deadline=9999999999)
+            self.assertEqual(result.outcome, "completed", (keys, result.reason))
+        self.assertEqual(game.accepted, ["8", "n", "s", "D8", "8y"])
+
     def test_recall_depth_confirm_is_refused_for_any_owner(self):
         prompts = (
             "ここは最深到達階より浅い階です。この階に戻って来ますか？ [y/n]",

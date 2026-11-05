@@ -884,6 +884,7 @@ class ObservationMixin:
             self._engagement_avoid_cells.clear()
             self._engagement_owned_avoid_cells.clear()
             self._warning_refused_cells.clear()
+            self._trap_warning_cells.clear()
             self._warning_step_pending = None
             self._probe_counts.clear()
             self._dark_goal_counts.clear()

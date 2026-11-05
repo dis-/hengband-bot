@@ -258,6 +258,7 @@ def normalize_policy_state(restored, *, restart=False):
         restored.__dict__.pop(name, None)
     restored.__dict__.setdefault("_visit_departure_committed", None)
     restored.__dict__.setdefault("_visit_departure_recorded", set())
+    restored.__dict__.setdefault("_trap_warning_cells", {})
     # A scavenge run's 10,000-turn clock begins on its first Yeek Cave 1F
     # board; old checkpoints have not recorded that boundary yet.
     restored.__dict__.setdefault("_scavenge_run_start_turn", None)

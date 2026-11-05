@@ -704,6 +704,12 @@ class PolicyHelpersMixin:
         ones (fair play), so an untried staff conservatively does not count."""
         return self._total_destruction_uses(snapshot) > 0
 
+    def _release_warning_refusal(self, target: Position) -> None:
+        """A trap's latch ends when its cell is crossed; an engagement claim on it stays."""
+        self._warning_refused_cells.discard(target)
+        if target not in self._engagement_owned_avoid_cells:
+            self._engagement_avoid_cells.discard(target)
+
     def _latch_warning_refusal(self, target: Position) -> None:
         self._warning_refused_cells.add(target)
         self._engagement_avoid_cells.add(target)

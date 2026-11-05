@@ -22,22 +22,27 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hengbot import policy_quest as policy_quest_module
-from hengbot import consumable_policy, once_quest_recall, quest_exposure, quest_force_rows, quest_ranged_force
+from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, trap_warning
+from hengbot.cli import _cell_loop_guard_applies
 from hengbot.model import (
-    STORE_ALCHEMIST, STORE_TEMPLE,
+    Position, STORE_ALCHEMIST, STORE_TEMPLE,
     SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_POTION_RESTORE_EXP, SV_POTION_RESTORE_STR, SV_POTION_SPEED,
     TVAL_POTION, TVAL_SCROLL, TVAL_WAND, parse_snapshot, _GRID_TERRAIN_NAMES,
 )
 from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
-from hengbot.policy_constants import EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, WAIT_KEY
+from hengbot.policy_state import normalize_policy_state
+from hengbot.policy_constants import (
+    CHEST_DISARM_BUDGET, EXECUTABLE_QUEST_STRATEGY_IDS, REST_MACRO, SEARCH_KEY, SEARCH_LIMIT, WAIT_KEY,
+)
 from hengbot.quest_find_exit import HEAL_REASON, HOLD_REASON, MELEE_REASON, RECALL_REASON
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_room_sweep import (
-    APPROACH_REASON, EXIT_REASON, EXIT_WALK_REASON, LIGHT_REASON, NOTHING_LEFT_REASON, OPEN_REASON, RESTORE_REASON,
-    TELEPORT_REASON, WALK_REASON,
+    APPROACH_REASON, CLOSE_REASON, COVER_REASON, EXIT_REASON, EXIT_WALK_REASON, LIGHT_REASON, NOTHING_LEFT_REASON, OPEN_REASON, RESTORE_REASON,
+    TELEPORT_REASON, WALK_REASON, _note_last_seen, _sought_cells,
 )
 from hengbot.quest_strategies import load_quest_strategies
+from hengbot.trap_warning import SEARCH_REASON
 from tests.test_q14_heal_ccw_recorded import town_maps
 
 ROOT = Path(__file__).parents[1]
@@ -289,6 +294,15 @@ class Q25WalkTest(unittest.TestCase):
         self.assertEqual(reason, WALK_REASON)
         self.assertEqual(key, step_key((7, 8), (7, 7)))
 
+    def test_the_rounds_limit_is_the_owners_100(self):
+        self.assertEqual(PLAN["max_rounds"], 100)
+        raw = board((13, 2))
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 0)
+        navigator_of(policy).sweep_round = 99
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, NOTHING_LEFT_REASON)
+
     def test_rounds_end_by_name(self):
         raw = board((13, 2))
         policy = new_policy(raw)
@@ -489,6 +503,77 @@ class Q25QuylLastTest(unittest.TestCase):
             self.assertTrue(policy.last_reason.startswith("ranged:"), policy.last_reason)
             self.assertEqual(navigator_of(policy).sweep_stage, QUYL_STOP)
         self.assertEqual(navigator_of(policy).sweep_round, 0)
+
+    SEEN_AT = (5, 8)
+
+    def moved_away(self, far):
+        """DECLARED: seen in the hall from the stand's stage, then the player is elsewhere and
+        the quyl out of sight (a TELE_AWAY's board, or its own BLINK's when ``far`` looks at it)."""
+        raw = board((7, 11), speed=0, monsters=[monster(QUYL, *self.SEEN_AT, index=481)])
+        policy = new_policy(raw)
+        _set_stage(policy, raw, QUYL_STOP)
+        choose(policy, raw)
+        raw["player"].update(y=far[0], x=far[1])
+        raw["visible_monsters"] = []
+        return raw, policy
+
+    def test_the_last_seen_cell_is_remembered_per_monster(self):
+        _, policy = self.moved_away((7, 11))
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {481: (QUYL, self.SEEN_AT)})
+
+    def test_the_player_moved_it_walks_to_the_last_seen_cell_not_the_stand(self):
+        raw, policy = self.moved_away((7, 11))
+        self.assertEqual(choose(policy, raw), "7")  # the stand [9,11] is due south
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertEqual(navigator_of(policy).sweep_stage, QUYL_STOP)
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {481: (QUYL, self.SEEN_AT)})
+
+    def test_seen_again_it_is_shot(self):
+        raw, policy = self.moved_away((7, 11))
+        raw["visible_monsters"] = [monster(QUYL, *self.SEEN_AT, index=481)]
+        choose(policy, raw)
+        self.assertTrue(policy.last_reason.startswith("ranged:"), policy.last_reason)
+
+    def test_the_monster_moved_the_cell_is_forgotten_and_the_stops_go_on(self):
+        raw, policy = self.moved_away((6, 9))
+        key = choose(policy, raw)
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {})
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertEqual(navigator_of(policy).sweep_stage, QUYL_STOP)
+        self.assertEqual(key, "3")  # on to the stand
+
+    def test_control_blind_a_cell_is_not_looked_at(self):
+        raw, policy = self.moved_away((6, 9))
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        _note_last_seen(replace(snapshot, player=replace(snapshot.player, blind=True)), navigator_of(policy), PLAN)
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {481: (QUYL, self.SEEN_AT)})
+
+    def test_control_mid_sweep_it_is_left_alone_however_it_was_seen(self):
+        raw = self.seen()
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 4)
+        choose(policy, raw)
+        self.assertEqual(set(navigator_of(policy).sweep_last_seen), {480, 481})
+        raw["player"].update(y=2, x=2)
+        raw["visible_monsters"] = []
+        choose(policy, raw)
+        self.assertEqual(navigator_of(policy).sweep_stage, 4)
+        self.assertEqual(_sought_cells(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge),
+                                       navigator_of(policy), PLAN), {})
+
+    def test_in_sight_it_is_not_sought_and_a_new_floor_forgets(self):
+        raw, policy = self.moved_away((7, 11))
+        raw["visible_monsters"] = [monster(QUYL, *self.SEEN_AT, index=481)]
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(_sought_cells(snapshot, navigator_of(policy), PLAN), {})
+        navigator_of(policy).reset_for_floor((9, 9, 25))
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {})
+
+    def test_no_way_to_it_the_record_is_dropped(self):
+        raw, policy = self.moved_away((7, 11))
+        with patch("hengbot.quest_room_sweep._path", return_value=[]):
+            choose(policy, raw)
+        self.assertEqual(navigator_of(policy).sweep_last_seen, {})
 
     def test_dead_the_walk_goes_on_to_the_druj_and_no_round_is_spent(self):
         raw = board(self.STAND, speed=0)
@@ -715,46 +800,251 @@ class Q25LineTest(unittest.TestCase):
         self.assertEqual((key, reason), (REST_MACRO, "rest"))
 
 
+class Q25UnseenAttackerTest(unittest.TestCase):
+    """Owner 2026-11-05: 「生存は最優先として、移動は一歩で遮蔽が取れるかで判断。一歩で遮蔽が取れないなら
+    距離を詰めたほうが良い。」  DECLARED CONSTRUCTED: the walk is two boards of the module's map, the hit
+    is the recorded message 「何かがアイス・ボールの呪文を唱えた。」 with the HP it cost.  Doors as drawn."""
+
+    HIT = "何かがアイス・ボールの呪文を唱えた。"
+
+    def hit_after_walking(self, start, end, *, hp=700, opened=(), **kwargs):
+        raw = board(start, speed=0, **kwargs)
+        for door in opened:
+            open_door(raw, door)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 1)
+        choose(policy, raw)
+        raw["player"].update(y=end[0], x=end[1])
+        choose(policy, raw)
+        raw["player"]["hp"] = hp
+        raw["messages"] = [self.HIT]
+        return raw, policy
+
+    def in_the_west_passage(self, **kwargs):
+        """North up the first play's own walk: back on [8,1], out of every line ahead."""
+        return self.hit_after_walking((8, 1), (7, 1), **kwargs)
+
+    def test_a_step_out_of_every_line_ahead_is_taken(self):
+        raw, policy = self.in_the_west_passage()
+        self.assertEqual(choose(policy, raw), "2")
+        self.assertEqual(policy.last_reason, COVER_REASON)
+        self.assertEqual(navigator_of(policy).sweep_cover_taken, frozenset({(7, 1)}))
+
+    def test_it_is_looked_for_ahead_of_the_last_step_and_a_new_floor_forgets(self):
+        raw, policy = self.hit_after_walking((3, 23), (3, 24))
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        cells = quest_room_sweep._unseen_attacker_cells(policy, snapshot, navigator_of(policy))
+        self.assertTrue(cells)
+        self.assertTrue(all(cell[1] > 24 for cell in cells), cells)
+        navigator_of(policy).sweep_cover_taken = frozenset({(1, 1)})
+        navigator_of(policy).reset_for_floor((9, 9, 25))
+        self.assertEqual(navigator_of(policy).sweep_cover_taken, frozenset())
+
+    def test_at_the_corridor_door_of_the_first_play_it_closes(self):
+        """Rows 67-72: west through the open door [1,18].  Every neighbour shows to the corridor."""
+        raw, policy = self.hit_after_walking((1, 20), (1, 19), opened=[(1, 18)])
+        self.assertEqual(choose(policy, raw), "4")
+        self.assertEqual(policy.last_reason, CLOSE_REASON)
+
+    def test_a_cell_left_once_for_cover_closes_the_next_time(self):
+        raw, policy = self.in_the_west_passage()
+        choose(policy, raw)
+        raw["player"]["hp"] -= 10
+        self.assertEqual(choose(policy, raw), "9")  # ahead, toward the hall
+        self.assertEqual(policy.last_reason, CLOSE_REASON)
+
+    def test_after_a_teleport_the_direction_is_unknown_and_the_plan_walks(self):
+        raw = board((3, 24), speed=0)
+        policy = new_policy(raw)
+        _set_stage(policy, raw, 1)
+        choose(policy, raw)
+        raw["player"]["hp"] = 700
+        raw["messages"] = [self.HIT]
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_a_gaze_with_no_damage_is_no_hit_and_the_plan_walks(self):
+        raw, policy = self.in_the_west_passage(hp=FULL_HP)
+        raw["messages"] = ["何かがあなたの目をじっと見つめた！", "しかし効果がなかった！"]  # recorded
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_control_below_the_line_survival_comes_first(self):
+        raw, policy = self.in_the_west_passage(hp=200)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, TELEPORT_REASON)
+
+    def test_control_a_blow_is_struck_back(self):
+        raw, policy = self.in_the_west_passage()
+        raw["messages"] = ["何かに噛まれた。"]
+        key = choose(policy, raw)
+        self.assertTrue(key.startswith("+"), (key, policy.last_reason))
+
+    def test_control_without_the_plan_field_it_is_the_shared_rung(self):
+        raw, policy = self.in_the_west_passage()
+        with patch.dict(PLAN, {"unseen_attacker": "none"}):
+            choose(policy, raw)
+        self.assertNotIn(policy.last_reason, {COVER_REASON, CLOSE_REASON})
+
+    def test_the_plans_steps_are_not_rewritten_by_the_low_hp_gate(self):
+        raw, policy = self.in_the_west_passage()
+        choose(policy, raw)
+        self.assertTrue(quest_room_sweep.planned_step(
+            policy, parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+
+
 class Q25WarningRefusedStepTest(unittest.TestCase):
     """RECORDED: n1-b life-310, the first real play (bot-e0a97bcb5, 2026-11-05).  Both boards
     of each pair are the game's own; the second carries the prompt of the first's step.  The
     walk offered the refused cell again, the gate made that no key, and the bot stopped
-    (no-key-exhausted) at 1136/1137 HP with nothing on it."""
+    (no-key-exhausted) at 1136/1137 HP with nothing on it.  Owner 2026-11-05: 「罠があるので対応する」.
+    Both cells are traps by the map: [1,17] is `^`; [3,1] is `!` showing no object from beside it.
+    The grid shows neither (the export's MIMIC terrain), and no monster is on either board.
+    DECLARED: the later boards are the recorded prompt board without its messages, and a found
+    trap is its grid with ``trap`` set; the monsters of the controls are declared."""
 
     with gzip.open(ROOT / "tests" / "fixtures" / "q25-warning-1105.json.gz", "rt", encoding="utf-8") as _stream:
         BOARDS = json.load(_stream)
 
-    def after_the_prompt(self, name, *, stage=None, supplies=True):
+    def after_the_prompt(self, name, *, stage=None, supplies=True, monsters=()):
         walk, prompt = copy.deepcopy(self.BOARDS[name]["walk"]), copy.deepcopy(self.BOARDS[name]["prompt"])
         if not supplies:
             for raw in (walk, prompt):
                 raw["inventory"] = [item for item in raw["inventory"] if item["tval"] != TVAL_SCROLL]
+        prompt["visible_monsters"] = [dict(row) for row in monsters]
         policy = new_policy(walk)
         if stage is not None:
             _set_stage(policy, walk, stage)
         walked = policy.choose_key(parse_snapshot(walk, policy._monrace_knowledge))
         answered = policy.choose_key(parse_snapshot(prompt, policy._monrace_knowledge))
-        return walked, answered, policy
+        return walked, answered, policy, prompt
 
-    def test_a_refused_cell_with_a_way_round_is_walked_round(self):
-        walked, answered, policy = self.after_the_prompt("corridor")
-        self.assertEqual(walked, "4")  # to [1,17]
-        self.assertEqual({(cell.y, cell.x) for cell in policy._warning_refused_cells}, {(1, 17)})
-        self.assertEqual((answered, policy.last_reason), ("1", WALK_REASON))  # [2,17]
+    @staticmethod
+    def next_board(policy, prompt, *, trap=None, monsters=()):
+        raw = copy.deepcopy(prompt)
+        raw["messages"], raw["visible_monsters"] = [], [dict(row) for row in monsters]
+        raw["turn"] = prompt["turn"] = prompt["turn"] + 10
+        snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+        if trap is not None:
+            cell = Position(*trap)
+            snapshot = replace(snapshot, grids={**snapshot.grids, cell: replace(snapshot.grids[cell], trap=True)})
+        return snapshot
 
-    def test_a_stop_only_over_the_refused_cell_is_passed_and_the_walk_goes_on(self):
+    @staticmethod
+    def refused(policy):
+        return {(cell.y, cell.x) for cell in policy._warning_refused_cells}
+
+    def test_the_recorded_cells_show_no_trap_and_no_monster(self):
+        for name, cell in (("choke", (3, 1)), ("corridor", (1, 17))):
+            snapshot = parse_snapshot(copy.deepcopy(self.BOARDS[name]["prompt"]), None)
+            self.assertFalse(snapshot.grids[Position(*cell)].trap)
+            self.assertEqual((snapshot.visible_monsters, snapshot.detected_monsters), ([], []))
+
+    def test_no_monster_to_blame_it_is_searched_from_beside_it(self):
+        for name, stage, walk_key in (("corridor", None, "4"), ("choke", 1, "8")):
+            with self.subTest(name):
+                walked, answered, policy, _ = self.after_the_prompt(name, stage=stage)
+                self.assertEqual(walked, walk_key)
+                self.assertEqual(self.refused(policy), set())
+                self.assertEqual((answered, policy.last_reason), (SEARCH_KEY, SEARCH_REASON))
+
+    def test_a_stop_over_the_warned_cell_is_not_passed(self):
         """[3,1] is the only way from the hall to the north-west rooms."""
-        walked, answered, policy = self.after_the_prompt("choke", stage=1)
-        self.assertEqual(walked, "8")  # to [3,1], for [2,2]
-        self.assertEqual({(cell.y, cell.x) for cell in policy._warning_refused_cells}, {(3, 1)})
+        _, _, policy, _ = self.after_the_prompt("choke", stage=1)
+        self.assertEqual(navigator_of(policy).sweep_stage, 1)  # [2,2] still ahead
+
+    def test_with_no_scroll_left_it_is_the_same_answer(self):
+        _, answered, _, _ = self.after_the_prompt("choke", stage=1, supplies=False)
+        self.assertEqual(answered, SEARCH_KEY)
+
+    def test_never_found_the_searches_end_and_the_walk_answers_its_prompt(self):
+        _, answered, policy, prompt = self.after_the_prompt("choke", stage=1)
+        keys = [answered, *(policy.choose_key(self.next_board(policy, prompt)) for _ in range(SEARCH_LIMIT))]
+        self.assertEqual(keys, [SEARCH_KEY] * SEARCH_LIMIT + ["8y"])
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_found_it_is_disarmed_within_the_budget_and_then_crossed(self):
+        _, _, policy, prompt = self.after_the_prompt("choke", stage=1)
+        keys = [policy.choose_key(self.next_board(policy, prompt, trap=(3, 1)))
+                for _ in range(CHEST_DISARM_BUDGET + 1)]
+        self.assertEqual(keys, ["D8"] * CHEST_DISARM_BUDGET + ["8y"])
+
+    def test_with_an_enemy_awake_elsewhere_there_is_no_search(self):
+        """In the hall: no line to the corridor cell, so not to blame, but no time to search."""
+        far = monster(SPECTRE, 7, 5)
+        _, _, policy, prompt = self.after_the_prompt("choke", stage=1, monsters=[far])
+        self.assertEqual(self.refused(policy), set())
+        self.assertEqual({(cell.y, cell.x) for cell in policy._trap_warning_cells}, {(3, 1)})
+        snapshot = self.next_board(policy, prompt, monsters=[far])
+        self.assertIsNone(trap_warning.search_key(policy, snapshot, Position(3, 1)))
+        self.assertTrue(trap_warning.walk_across(policy, snapshot, Position(3, 1)))
+
+    def test_control_an_awake_monster_in_line_keeps_the_latch(self):
+        _, _, policy, prompt = self.after_the_prompt("choke", stage=1, monsters=[monster(SPECTRE, 1, 1)])
+        self.assertEqual(self.refused(policy), {(3, 1)})
+        self.assertEqual(policy._trap_warning_cells, {})
+        key = policy.choose_key(self.next_board(policy, prompt))
         self.assertEqual(policy.last_reason, WALK_REASON)
         self.assertEqual(navigator_of(policy).sweep_stage, 3)  # [2,2] and [1,4] passed; [5,3] next
-        self.assertEqual(answered, "2")
+        self.assertEqual(key, "2")
         self.assertEqual(navigator_of(policy).sweep_round, 0)
 
-    def test_control_with_no_scroll_left_the_forced_walk_still_crosses(self):
-        _, answered, policy = self.after_the_prompt("choke", stage=1, supplies=False)
-        self.assertEqual((answered, policy.last_reason), ("8y", WALK_REASON))
+    def test_control_an_asleep_monster_is_not_to_blame(self):
+        _, _, policy, _ = self.after_the_prompt("choke", stage=1, monsters=[monster(SPECTRE, 1, 1, asleep=True)])
+        self.assertEqual(self.refused(policy), set())
+
+    def test_control_the_latched_cell_with_no_scroll_left_still_forced(self):
+        _, _, policy, prompt = self.after_the_prompt(
+            "choke", stage=1, supplies=False, monsters=[monster(SPECTRE, 1, 1)])
+        self.assertEqual(policy.choose_key(self.next_board(policy, prompt)), "8y")
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_a_tail_that_answered_it_with_no_monster_latches_nothing(self):
+        walk, prompt = copy.deepcopy(self.BOARDS["choke"]["walk"]), copy.deepcopy(self.BOARDS["choke"]["prompt"])
+        prompt["player"].update(y=3, x=1)
+        policy = new_policy(walk)
+        _set_stage(policy, walk, 1)
+        policy.choose_key(parse_snapshot(walk, policy._monrace_knowledge))
+        policy.choose_key(parse_snapshot(prompt, policy._monrace_knowledge))
+        self.assertEqual(self.refused(policy), set())
+
+    def test_the_searches_of_a_corridor_of_traps_are_no_cell_loop(self):
+        _, _, policy, prompt = self.after_the_prompt("choke", stage=1)
+        snapshot = self.next_board(policy, prompt)
+        self.assertFalse(_cell_loop_guard_applies(snapshot, SEARCH_REASON, snapshot.player.position))
+
+    def test_a_restored_checkpoint_without_the_record_decides(self):
+        policy = new_policy(copy.deepcopy(self.BOARDS["choke"]["walk"]))
+        del policy.__dict__["_trap_warning_cells"]
+        normalize_policy_state(policy)
+        self.assertEqual(policy._trap_warning_cells, {})
+
+    def test_the_record_ends_with_the_floor_and_in_a_destroyed_circle(self):
+        _, _, policy, prompt = self.after_the_prompt("choke", stage=1)
+        self.assertIn("_trap_warning_cells", destruction_use.POSITION_DICTS)
+        other = self.next_board(policy, prompt)
+        other = replace(other, floor_key=(other.floor_key[0], other.floor_key[1] + 1, 0))
+        policy.choose_key(other)
+        self.assertEqual(policy._trap_warning_cells, {})
+
+    def test_control_the_same_prompt_off_the_plan_is_latched(self):
+        """The plan makes this floor's answer; with no room sweep the walkers go round it."""
+        walk, prompt = copy.deepcopy(self.BOARDS["choke"]["walk"]), copy.deepcopy(self.BOARDS["choke"]["prompt"])
+        policy = new_policy(walk)
+        _set_stage(policy, walk, 1)
+        policy.choose_key(parse_snapshot(walk, policy._monrace_knowledge))
+        with patch("hengbot.quest_room_sweep._plan", return_value=None):
+            trap_warning.note_warned(policy, parse_snapshot(prompt, policy._monrace_knowledge), Position(3, 1))
+        self.assertEqual(self.refused(policy), {(3, 1)})
+        self.assertEqual(policy._trap_warning_cells, {Position(3, 1): 0})
+
+    def test_crossed_the_cell_is_forgotten(self):
+        _, _, policy, prompt = self.after_the_prompt("choke", stage=1)
+        on_it = copy.deepcopy(prompt)
+        on_it["player"].update(y=3, x=1)
+        on_it["messages"] = []
+        policy.choose_key(parse_snapshot(on_it, policy._monrace_knowledge))
+        self.assertEqual(policy._trap_warning_cells, {})
 
 
 class Q25TownTest(unittest.TestCase):

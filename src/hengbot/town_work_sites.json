@@ -8961,6 +8961,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_exposure.py:projectable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_final_room.py:avoided_doors": {
     "classification": "data",
     "rows": [
@@ -9407,6 +9414,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_room_sweep.py:_cover_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_room_sweep.py:_fight": {
     "classification": "producer",
     "rows": [
@@ -9420,6 +9434,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_room_sweep.py:_in_light_and_line": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_room_sweep.py:_last_target_key": {
     "classification": "producer",
@@ -9455,6 +9476,20 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_room_sweep.py:_open_doors": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_room_sweep.py:_open_terrain": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_room_sweep.py:_out_of_line": {
     "classification": "producer",
@@ -9505,6 +9540,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_room_sweep.py:_sought_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_room_sweep.py:_step": {
     "classification": "producer",
     "rows": [
@@ -9520,6 +9562,34 @@
     "delegation": "selected child; no independent success"
   },
   "quest_room_sweep.py:_terrain_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_room_sweep.py:_to_last_seen": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_room_sweep.py:_unseen_answer": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_room_sweep.py:_unseen_attacker_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_room_sweep.py:_unseen_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -10675,6 +10745,20 @@
       "data/no-independent-credit"
     ],
     "delegation": "none"
+  },
+  "trap_warning.py:last_way_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "trap_warning.py:search_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "unseen_strike.py:_open_neighbour": {
     "classification": "data",
