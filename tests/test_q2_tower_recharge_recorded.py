@@ -2,7 +2,7 @@
 
 Owner: 「Q2の岩石溶解 - 回数を数える」 and 「モリバントの塔で充填」.  n1-a life-422
 (a Lv-high warrior, 2026-10-30) carried one Stone to Mud wand with one charge
-for the five-wall Q2 breach corridor.  With the charge count the Q2 carry is
+for the two-wall Q2 breach corridor.  With the charge count the Q2 carry is
 unmet; the wand's base pval is 12, so one recharge-all at the Tower of
 Sorcery (building 8) meets it.  Recorded boards (tests/fixtures/
 quest-stops-20261030.json.gz, q2 section): the Telmora board approaching the
@@ -168,6 +168,18 @@ class Q2TowerRechargeRecordedTest(executor_pins.ProductionHarness):
                 self.assertEqual(policy.last_reason.removesuffix("-step-off"),
                                  REASON + "travel-morivant")
                 self.post(policy, raw, key, self.moved(raw, key))
+
+    def test_two_charges_need_no_tower_trip(self):
+        # DECLARED CONSTRUCTED: the recorded Outpost board with the wand at two charges.
+        # Owner 2026-11-05 「2回に下げる」: [7,47] and [8,47] are the only walls.
+        raw = copy.deepcopy(self.q2["outpost_board"])
+        wand = self.wand(raw)
+        wand["name"] = wand["name"].replace("(1回分)", "(2回分)")
+        wand["charges"] = wand["pval"] = 2
+        policy = self.policy(raw)
+        key = self.decide(policy, raw)
+        self.assertTrue(policy.last_reason.startswith("fixedquest:q2-travel"), policy.last_reason)
+        self.post(policy, raw, key, self.moved(raw, key))
 
     def test_magic_eater_keeps_its_own_owners(self):
         raw = copy.deepcopy(self.q2["board"])

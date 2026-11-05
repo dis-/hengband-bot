@@ -715,8 +715,10 @@ Q2_POST_BLUE_SEQUENCE = (
 
 Q2_BREACH_MIN_DIGGING = 3
 # Stone to Mud dissolves one wall per cast (the first wall in the direction),
-# so a wand breaches the route only with one charge per corridor wall.
-Q2_BREACH_WALL_COUNT = len(Q2_BREACH_CORRIDOR)
+# so a wand breaches the route only with one charge per corridor wall.  Of the
+# corridor's five cells only [7,47] and [8,47] are walls; [9..11,47] are deep
+# water (lib/edit/quests/002_TheSewer.jsonc).  Owner 2026-11-05 「2回に下げる」.
+Q2_BREACH_WALL_COUNT = 2
 
 Q2_BREACH_ATTEMPT_LIMIT = 20
 
