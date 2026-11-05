@@ -13585,6 +13585,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
+  "summon_response.py:_awake_in_reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit: the awake hostiles a caller's test picks within ranged reach and not beside the player."
+  },
   "summon_response.py:_plain_name": {
     "classification": "data",
     "rows": [
@@ -13596,6 +13607,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "summon_response.py:_first_shot": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The first target _shot_at can shoot, naming a bow's shot by the caller's reason; read by caster_shot_key and counter_shot_key."
+  },
   "summon_response.py:_shot_at": {
     "classification": "producer",
     "rows": [
@@ -13605,7 +13627,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "Selects the ranged order at one named caster: me_ranged_first.attack_key on a clear ray, else _ranged_attack_key; read only by caster_shot_key."
+    "evidence": "Selects the ranged order at one named caster: me_ranged_first.attack_key on a clear ray, else _ranged_attack_key; read through _first_shot."
   },
   "summon_response.py:caster_shot_key": {
     "classification": "producer",
@@ -13617,6 +13639,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-04 rule 1: shoots the monster named casting a summon on this visit past a nearer body; None when no shot can be made. After the emergency ladder and paralyzer prevention."
+  },
+  "summon_response.py:counter_shot_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: policy._choose_key asks summon_response.key only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-05 on rule 2: while the leave is due and _is_material_threat is false, shoots the nearest awake monster in reach whose race can summon; None otherwise. Read by leave_key before the escapes."
   },
   "summon_response.py:key": {
     "classification": "producer",
@@ -13638,7 +13671,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "Owner 2026-11-04 rule 2: two unseen casts within the window on one spot, an awake hostile in view: destruction_use.key, else a Scroll of Teleportation through _escape_scroll (quest_no_teleport answers None there); None otherwise."
+    "evidence": "Owner 2026-11-04 rule 2: two unseen casts within the window on one spot, an awake hostile in view: counter_shot_key, else destruction_use.key, else a Scroll of Teleportation through _escape_scroll (quest_no_teleport answers None there); None otherwise."
   },
   "summon_response.py:recall_key": {
     "classification": "producer",

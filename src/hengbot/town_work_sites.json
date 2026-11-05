@@ -10105,6 +10105,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "summon_response.py:_awake_in_reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "summon_response.py:_first_shot": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "summon_response.py:_plain_name": {
     "classification": "data",
     "rows": [
@@ -10120,6 +10134,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "summon_response.py:caster_shot_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "summon_response.py:counter_shot_key": {
     "classification": "producer",
     "rows": [
       "combat"

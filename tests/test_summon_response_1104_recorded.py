@@ -215,6 +215,28 @@ class LeaveTest(d57.PostedDeathKey):
         self.assertNotEqual(policy.last_reason, summon_response.LEAVE_REASON)
         self.assertRegex(policy.last_reason, "^(emergency|item:heal|flee)")
 
+    def summoner_two_away(self, raw):
+        """DECLARED CONSTRUCTED: the second unseen cast's board with 悪魔崇拝者 on a clear ray two cells
+        away; the recorded board reads the leave (test_the_second_unseen_cast_reads_teleportation)."""
+        worshipper = next(row for board in CASE["boards"] for row in board["visible_monsters"]
+                          if row["name"] == WORSHIPPER)
+        y, x = CasterShotTest.clear_cell_two_away(raw)
+        raw["visible_monsters"].append(dict(worshipper, y=y, x=x, index=9999))
+
+    def test_on_an_ordinary_floor_a_summoner_in_reach_is_shot_first_at_low_threat(self):
+        policy, raw, key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST, change=self.summoner_two_away)
+        self.assertEqual(policy.last_reason, summon_response.COUNTER_SHOT_REASON, key)
+        self.assertTrue(key.startswith("f"), key)
+        self.post(policy, raw, key)
+
+    def test_on_an_ordinary_floor_a_magic_eaters_power_counts(self):
+        def change(raw):
+            self.summoner_two_away(raw)
+            raw["player"]["class_id"] = 16
+            raw["magic_eater_wand_charges"] = 5
+        policy, _raw, key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST, change=change)
+        self.assertEqual(key[:3], "mBp", policy.last_reason)
+
     def test_blind_sound_counts_as_unseen(self):
         self.assertFalse(summon_response.summons_of("多くのものが間近に現れた音がする。")[0].seen)
         self.assertFalse(summon_response.summons_of("You hear many things appear nearby.")[0].seen)

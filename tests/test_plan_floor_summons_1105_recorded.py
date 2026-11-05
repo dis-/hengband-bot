@@ -26,6 +26,7 @@ from tests import test_me_nokey_1031_recorded as nokey
 from tests.test_once_quest_recall_recorded import COMMAND_PROMPTS, prompt_screen
 from tests import test_q18_water_cave as q18
 from tests import test_q25_haunted_house as q25
+from tests.test_summon_response_1104_recorded import aimed_monster
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "q25-summons-n1b-312-1105.json.gz",
@@ -52,6 +53,11 @@ FIRST_UNSEEN_CAST = 11651515
 # [1,18], 何か and 撲殺の悪魔 both casting, 啓蒙の薬 picked up 250 ticks before.
 POTION_PICKED_UP_IN_THE_DARK = 11653256
 POTION_FIRST_QUIET_BOARD = 11653011
+# The run still open, HP 1135/1137: デス・クアシト beside the player at [5,1], three-turn prediction 379.
+SUMMONER_ONLY_BESIDE = 11652697
+# The run still open, HP 1003: 黒い仔山羊 and レッサー・バルログ two and three cells away, prediction 2478.
+SUMMONERS_IN_REACH_IN_A_HIGH_THREAT = 11652725
+QUASIT = "デス・クアシト"
 
 
 def _new_policy():
@@ -172,6 +178,130 @@ class Q25RecordedTest(nokey.PostedKey):
         carried = {item["sval"] for item in raw["inventory"] if item["tval"] == TVAL_POTION}
         self.assertLessEqual({SV_POTION_CURE_CRITICAL, SV_POTION_CURING}, carried)
         self.assertFalse(carried & (HEAL_POTION_SVALS - {SV_POTION_CURE_CRITICAL}))
+
+
+def replay_until(turn, change=None):
+    """The policy and answer on the board of ``turn``; ``change`` edits that board."""
+    policy = _new_policy()
+    for recorded in CASE["boards"]:
+        raw = copy.deepcopy(recorded)
+        if raw["turn"] == turn and change is not None:
+            change(raw)
+        key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+        if raw["turn"] == turn:
+            return policy, raw, key
+        policy.confirm_key_posted(key)
+    raise AssertionError(turn)
+
+
+def predicted(policy, raw):
+    snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+    return policy._predicted_damage(snapshot, policy._physical_hostiles(snapshot), turns=3)
+
+
+def can_summon_in_view(raw):
+    return [m["name"] for m in raw["visible_monsters"] if q25.RACES[m["race_id"]].can_summon]
+
+
+def quasit_down_the_row(raw):
+    """DECLARED CONSTRUCTED: the second unseen cast with デス・クアシト of the next board at [8,1],
+    and the walker at [6,2] that would stand on its bolt path taken away."""
+    next_board = next(row for row in CASE["boards"] if row["turn"] == SUMMONER_ONLY_BESIDE)
+    quasit = next(m for m in next_board["visible_monsters"] if m["name"] == QUASIT)
+    raw["visible_monsters"] = [m for m in raw["visible_monsters"] if (m["y"], m["x"]) != (6, 2)]
+    raw["visible_monsters"].append(dict(quasit, y=8, x=1, index=9999))
+
+
+class CounterShotOnThePlanFloorTest(nokey.PostedKey):
+    """Owner 2026-11-05 「脅威度が低く、かつ攻撃が届く相手が召還魔法を持っている場合のみ反撃」."""
+
+    def test_low_threat_and_a_summoner_in_reach_is_shot_before_the_leave(self):
+        policy, raw, key = replay_until(SECOND_UNSEEN_CAST, quasit_down_the_row)
+        self.assertLess(predicted(policy, raw) * 2, raw["player"]["hp"])
+        self.assertEqual(policy.last_reason, summon_response.COUNTER_SHOT_REASON)
+        self.assertEqual(aimed_monster(raw, key)["name"], QUASIT)
+        self.post(policy, raw, key)
+
+    def test_the_line_is_half_the_current_hp(self):
+        policy, raw, _key = replay_until(SECOND_UNSEEN_CAST, quasit_down_the_row)
+        line = predicted(policy, raw) * 2
+
+        def at_hp(hp):
+            # DECLARED CONSTRUCTED: maximum HP with it, so that the plan's heal does not answer first.
+            def change(board):
+                quasit_down_the_row(board)
+                board["player"].update(hp=hp, max_hp=hp)
+            return change
+
+        policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, at_hp(line + 1))
+        self.assertEqual(policy.last_reason, summon_response.COUNTER_SHOT_REASON, key)
+        policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, at_hp(line))
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
+
+    def test_the_recorded_high_threat_leaves(self):
+        # Its summoners two and three cells away also stand behind bodies: 魔王の使い, レッサー・バルログ.
+        policy, raw, key = replay_until(SUMMONERS_IN_REACH_IN_A_HIGH_THREAT)
+        self.assertGreaterEqual(predicted(policy, raw) * 2, raw["player"]["hp"])
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON)
+        self.assertTrue(key.startswith("r"), key)
+
+    def test_a_target_in_reach_with_no_summon_spell_leaves(self):
+        # DECLARED CONSTRUCTED: the walker at [6,2] moved to [8,1], where the first test's quasit stands.
+        def change(raw):
+            walker = next(m for m in raw["visible_monsters"] if (m["y"], m["x"]) == (6, 2))
+            walker.update(y=8, x=1, index=9999)
+        policy, raw, key = replay_until(SECOND_UNSEEN_CAST, change)
+        self.assertEqual(can_summon_in_view(raw), [])
+        self.assertLess(predicted(policy, raw) * 2, raw["player"]["hp"])
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
+
+    def test_a_summoner_only_beside_the_player_leaves(self):
+        # 「近接できない時だけ使う」 (owner 2026-11-01): the bow is not used beside it.
+        policy, raw, key = replay_until(SUMMONER_ONLY_BESIDE)
+        self.assertEqual(can_summon_in_view(raw), [QUASIT])
+        self.assertLess(predicted(policy, raw) * 2, raw["player"]["hp"])
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
+
+    def test_a_blocked_bolt_path_leaves(self):
+        # DECLARED CONSTRUCTED: as the first test, the walker at [6,2] left standing on the path.
+        def change(raw):
+            walker = next(m for m in raw["visible_monsters"] if (m["y"], m["x"]) == (6, 2))
+            quasit_down_the_row(raw)
+            raw["visible_monsters"].append(walker)
+        policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, change)
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
+
+    def test_no_ammunition_leaves(self):
+        # DECLARED CONSTRUCTED: as the first test, the arrows gone.
+        def change(raw):
+            quasit_down_the_row(raw)
+            raw["inventory"] = [item for item in raw["inventory"] if item["tval"] != 18]
+        policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, change)
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
+
+    def test_a_sleeping_summoner_is_not_shot(self):
+        # DECLARED CONSTRUCTED: as the first test, asleep: it is not what is casting.
+        def change(raw):
+            quasit_down_the_row(raw)
+            raw["visible_monsters"][-1]["asleep"] = True
+        policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, change)
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
+
+    def test_one_shot_a_decision_while_it_holds_then_the_leave(self):
+        # DECLARED CONSTRUCTED: as the first test, the next boards with no new cast.
+        policy, raw, key = replay_until(SECOND_UNSEEN_CAST, quasit_down_the_row)
+        self.assertEqual(policy.last_reason, summon_response.COUNTER_SHOT_REASON)
+        policy.confirm_key_posted(key)
+        raw["messages"] = []
+        raw["turn"] += 10
+        key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+        self.assertEqual(policy.last_reason, summon_response.COUNTER_SHOT_REASON, key)
+        policy.confirm_key_posted(key)
+        hp = predicted(policy, raw) * 2
+        raw["player"].update(hp=hp, max_hp=hp)
+        raw["turn"] += 10
+        key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+        self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
 
 
 class HasteUnderSlownessRecordedTest(unittest.TestCase):

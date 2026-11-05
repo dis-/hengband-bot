@@ -34,6 +34,15 @@ forbids the scroll keeps its fight (quest_no_teleport).  The spot left stays out
 routes (the hold point's own veto) and the run ends once the player is away or the
 flash has gone off, so a choke hold elsewhere needs two new casts to be left again.
 
+Owner 2026-11-05 on rule 2 (``counter_shot_key``): 「周辺の脅威度と遠距離攻撃手段に寄る。脅威度が
+高ければ離脱が先。脅威度が低く、かつ攻撃が届く相手が召還魔法を持っている場合のみ反撃。」  High is the
+ladder's material threat (``_is_material_threat``): every visible hostile's three-turn operational
+prediction at half the current HP or more, the owner's 「強い」 of 2026-09-22 and the measure of
+melee-threat-p95-adjacency.  The target is an awake hostile whose race has a summon spell
+(``can_summon``, the race data, not what was seen cast) that ``_shot_at`` can really shoot; a
+monster beside the player is not one: 「近接できない時だけ使う」 (owner 2026-11-01).  It holds on
+every floor rule 2 runs on, one shot per decision, and the leave comes when it no longer holds.
+
 Rule 3 reads through once_quest_recall.read_key, so every exit lock keeps its floor: a
 kill quest's lock (a runtime RANDOM quest and Q14 until the 11-01 teleport reserve is
 drawn down, random_quest_reserve) still holds such a floor and the read waits for the
@@ -57,6 +66,7 @@ from hengbot.policy_constants import RANGED_MAX_DISTANCE, ExplorationPathOutcome
 
 MEMORY = "_summon_response_memory"
 CASTER_SHOT_REASON = "summoner:ranged-kill:named-caster"
+COUNTER_SHOT_REASON = "summoner:ranged-kill:can-summon"
 LEAVE_REASON = "summons:leave-teleport"
 RECALL_REASON = "summons:recall"
 # The prefix makes it a survival return (town_hold.is_survival_return_trigger).
@@ -203,15 +213,14 @@ def _count(memory: Memory, summon: Summon, here: Position) -> None:
         memory.last_unseen = (memory.decisions, here)
 
 
-# -- 1. the caster in view ------------------------------------------------------
+# -- the shot -------------------------------------------------------------------
 
-def _caster_targets(policy, snapshot) -> list:
-    casters = _memory(policy).casters
+def _awake_in_reach(snapshot, wanted) -> list:
+    """The awake hostiles ``wanted`` picks in ranged reach and not beside the player, nearest first."""
     here = snapshot.player.position
     return sorted(
         (monster for monster in snapshot.visible_monsters
-         if monster.hostile and not monster.asleep
-         and _plain_name(monster.name) in casters
+         if monster.hostile and not monster.asleep and wanted(monster)
          and 2 <= here.distance_to(monster.position) <= RANGED_MAX_DISTANCE),
         key=lambda monster: monster.distance)
 
@@ -232,16 +241,25 @@ def _shot_at(policy, snapshot, target) -> str | None:
     return policy._ranged_attack_key(snapshot, [target], [])
 
 
-def caster_shot_key(policy, snapshot) -> str | None:
-    """Shoot the monster named casting a summon on this visit, nearest first; a
-    caster beside the player is the melee rungs' (they strike summoners first)."""
-    for target in _caster_targets(policy, snapshot):
+def _first_shot(policy, snapshot, targets, reason) -> str | None:
+    """The first of ``targets`` that can be shot; a bow's shot is told by ``reason``."""
+    for target in targets:
         key = _shot_at(policy, snapshot, target)
         if key is not None:
             if (policy.last_reason or "").startswith("ranged:fire"):
-                policy.last_reason = CASTER_SHOT_REASON
+                policy.last_reason = reason
             return key
     return None
+
+
+# -- 1. the caster in view ------------------------------------------------------
+
+def caster_shot_key(policy, snapshot) -> str | None:
+    """Shoot the monster named casting a summon on this visit, nearest first; a
+    caster beside the player is the melee rungs' (they strike summoners first)."""
+    casters = _memory(policy).casters
+    targets = _awake_in_reach(snapshot, lambda monster: _plain_name(monster.name) in casters)
+    return _first_shot(policy, snapshot, targets, CASTER_SHOT_REASON)
 
 
 def named_casters_first(policy, monsters) -> list:
@@ -258,12 +276,25 @@ def leave_due(policy, snapshot) -> bool:
     return memory.unseen_run >= UNSEEN_CASTS_TO_LEAVE and not _run_ended(memory, snapshot)
 
 
+def counter_shot_key(policy, snapshot) -> str | None:
+    """Rule 2's answer before the leave: with the threat around low, shoot the nearest
+    monster in reach whose race can summon (module docstring), else None."""
+    if policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot)):
+        return None
+    targets = _awake_in_reach(snapshot, lambda monster: monster.can_summon)
+    return _first_shot(policy, snapshot, targets, COUNTER_SHOT_REASON)
+
+
 def leave_key(policy, snapshot) -> str | None:
-    """Leave the spot by the existing escapes (module docstring), else None."""
+    """Rule 2: the counter-shot, else leave the spot by the existing escapes (module
+    docstring), else None."""
     memory = _memory(policy)
     if (not leave_due(policy, snapshot) or memory.leave_turn == snapshot.turn
             or not return_yield.awake_hostile_in_view(policy, snapshot)):
         return None
+    shot = counter_shot_key(policy, snapshot)
+    if shot is not None:
+        return shot
     used = destruction_use.key(policy, snapshot)
     if used is not None:
         memory.leave_turn = snapshot.turn
