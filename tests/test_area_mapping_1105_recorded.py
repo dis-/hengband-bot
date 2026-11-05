@@ -43,6 +43,7 @@ MAP_KEY = "mAj"
 AFTER = "me-power:after-destruction:map-area"
 SEALED = "me-power:sealed-pocket:map-area"
 STAFF_TVAL, STAFF_SVAL, ROD_TVAL, ROD_SVAL = 55, 9, 66, 5
+SCROLL_TVAL, SCROLL_SVAL = 70, 25
 GRANITE_TERRAIN_ID = 56
 MAPPING = ("staff", me_powers.SV_STAFF_MAPPING)
 FAR = Position(19, 2)  # 96 away: past the disc's 30 and the circle's 17
@@ -216,6 +217,44 @@ class AreaMappingRecordedTest(executor_pins.ProductionHarness):
         raw["inventory"][-1]["charging"] = True
         self.choose(policy, raw)
         self.assertFalse(policy.last_reason.startswith(area_mapping.REASON), policy.last_reason)
+
+    def scroll(self, raw=None):
+        raw = copy.deepcopy(self.boards[FLASH_TURN] if raw is None else raw)
+        return _device(raw, SCROLL_TVAL, SCROLL_SVAL, "魔法の地図の巻物")
+
+    def scroll_key(self, raw):
+        return "r" + parse_snapshot(raw, self.monrace).inventory[-1].slot
+
+    def test_a_held_scroll_is_read_and_its_map_counts(self):
+        # Owner 2026-11-05 「持っていれば読む」: read before the junk rung destroys the 「捨てる」 kind.
+        raw = self.scroll()
+        raw["floor"]["quest_id"] = 0
+        policy, raw = self.flashed(raw=raw)
+        key, _ = self.choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), (self.scroll_key(raw), "area-mapping:after-destruction"))
+        later = dict(copy.deepcopy(raw), turn=raw["turn"] + 10, messages=[])
+        _, board = self.choose(policy, later)
+        self.assertEqual(area_mapping.carried_areas(policy, board), ((CENTRE, me_powers.DETECT_RAD),))
+        self.assertIsNotNone(mapped_area.current(policy))
+        self.assertFalse(area_mapping._due(policy, board))
+
+    def test_the_scroll_is_the_last_source(self):
+        raw = _device(self.scroll(), ROD_TVAL, ROD_SVAL, "周辺感知のロッド", charging_count=0)
+        policy, raw = self.flashed(raw=raw)
+        self.assertEqual(self.choose(policy, raw)[0][0], "z")
+        policy, raw = self.flashed(*self.full_rows(), raw=self.scroll())
+        self.assertEqual((self.choose(policy, raw)[0], policy.last_reason), (MAP_KEY, AFTER))
+
+    def test_the_scroll_needs_a_read_and_a_destruction(self):
+        policy, raw = self.flashed(raw=self.scroll())
+        raw["player"]["status"]["confused"] = True
+        self.choose(policy, raw)
+        self.assertFalse(policy.last_reason.startswith(area_mapping.REASON), policy.last_reason)
+        # A sealed pocket with no *Destruction* on record is no reason to read it: the
+        # owner's answer named the *Destruction*.
+        sealed = _device(json.loads(_sealed_pin()["lines"][-1]), SCROLL_TVAL, SCROLL_SVAL, "魔法の地図の巻物")
+        policy = self.policy(sealed)
+        self.assertIsNone(area_mapping.sealed_key(policy, parse_snapshot(sealed, policy._monrace_knowledge)))
 
     def test_an_absorbed_rod_maps_where_the_staff_is_not_absorbed(self):
         policy, raw = self.flashed()

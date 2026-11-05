@@ -1,12 +1,16 @@
 """周辺感知 after a *Destruction*, and in a sealed pocket.
 
 Owner 2026-11-05: 「*破壊*後の地形を全マス探索するのは無駄なので周辺感知があれば使って」.
-Not the Scroll of Magic Mapping: the owner named 周辺感知, and that is a different item.
+Owner the same day, on the Scroll of Magic Mapping when no 周辺感知 is there: 「持っていれば読む」,
+only what is held, with no keep or buy rule of its own (the owner's table still says
+「捨てる」, consumable_policy).
 
 The means, by the game (lib/edit/BaseitemDefinitions.jsonc): the staff (id 328, tval 55
 sval 9) and the rod (id 371, tval 66 sval 5), both ``map_area(DETECT_RAD_MAP)``
 (cmd-item/cmd-usestaff.cpp:141, cmd-zaprod.cpp:102), and a Magic-Eater's absorbed power
-of either (the me_powers rows, asked first).
+of either (the me_powers rows, asked first).  Last, while a *Destruction* is unmapped, the
+scroll (id 189, tval 70 sval 25, object-use/read/scroll-read-executor.cpp:244, the same
+map_area), which needs a grid the player can read on and never fails.
 
 ``destruction_use.observe`` reports the flash (``note_destruction``): the circle's map is
 gone, so the next decision that asks (the FLOOR occasion's row, then
@@ -35,7 +39,8 @@ from dataclasses import dataclass, field
 from hengbot import me_powers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
-    SV_ROD_MAPPING, SV_STAFF_MAPPING, TVAL_ROD, TVAL_STAFF, Position, Snapshot, game_distance,
+    SV_ROD_MAPPING, SV_SCROLL_MAPPING, SV_STAFF_MAPPING, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF,
+    Position, Snapshot, game_distance,
 )
 
 
@@ -134,6 +139,16 @@ def _carried_device(snapshot: Snapshot):
     return None
 
 
+def _held_scroll_key(policy, snapshot: Snapshot) -> str | None:
+    """The read of a held Scroll of Magic Mapping, only for an unmapped *Destruction*."""
+    if not _due(policy, snapshot) or not policy._can_read_scrolls(snapshot):
+        return None
+    for item in snapshot.inventory:
+        if (item.tval, item.sval) == (TVAL_SCROLL, SV_SCROLL_MAPPING) and item.known and item.aware:
+            return policy._read_key(snapshot, item)
+    return None
+
+
 def _carried_key(policy, snapshot: Snapshot, trigger: str) -> str | None:
     memory, position, player = _memory(policy, snapshot), snapshot.player.position, snapshot.player
     if (player.blind or player.confused or player.hallucinated or player.paralyzed
@@ -142,6 +157,8 @@ def _carried_key(policy, snapshot: Snapshot, trigger: str) -> str | None:
         return None
     carried = _carried_device(snapshot)
     used = None if carried is None else reserved_item_command(policy, snapshot, carried[1], carried[0])
+    if used is None:
+        used = _held_scroll_key(policy, snapshot)
     if used is None:
         return None
     policy.last_reason = f"{REASON}:{trigger}"
