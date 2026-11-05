@@ -10355,6 +10355,9 @@ class DungeonConquestTest(unittest.TestCase):
         self.assertIsNone(policy._conquest_target(regressed))
         self.assertIsNone(policy._conquest_committed)
 
+# DECLARED 2026-11-05: no monster on these prompts, so trap_warning would answer them as a trap's;
+# these pins are of a monster's latch, so the prompt is declared a monster's.
+@patch("hengbot.trap_warning._monster_could_warn", new=lambda *_args: True)
 class WarningGridComposedWalkTest(unittest.TestCase):
     """The composed-walk callers (walk + follow-up tail) against the warning
     gate, pinned on the fixed-quest entrance shape: the caller's tail ('y')

@@ -441,6 +441,9 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "quest-strategy:hold",
         # Bounded by the plan's dig_attempt_limit (quest_find_exit).
         "quest-strategy:exit-dig",
+        # Bounded per warned cell by SEARCH_LIMIT (trap_warning): a corridor of
+        # traps walked one search at a time is no confined loop.
+        "warning:trap-search",
         ONCE_QUEST_TICK_REST_REASON,
         # Exact policy-registered escape WAIT terminals. Each owns the existing
         # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as

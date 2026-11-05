@@ -43,6 +43,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.cli import (
     _build_argument_parser,
@@ -54,6 +55,12 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 
 from recorded_floor_knowledge import pre_seen_floor_replay
 from test_esp_threat_rest_recorded import EDIT, _policy
+
+# DECLARED 2026-11-05: these boards show no monster, so trap_warning now answers their prompts as a
+# trap's (test_the_prompt_with_no_monster_is_a_traps).  Whether they were is unknown; these pins
+# are of the producers that honour a monster's latch, so the prompt is declared a monster's.
+blamed_on_a_monster = patch("hengbot.trap_warning._monster_could_warn", return_value=True)
+
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "warning-refused-step-dl30-20261020.jsonl.gz"
@@ -140,6 +147,17 @@ class WarningRefusedStepRecordedTest(unittest.TestCase):
             policy._decision_sequence, board.floor_key, origin, target, False,
         )
 
+    def test_the_prompt_with_no_monster_is_a_traps(self):
+        """No monster on the first prompt of the probe capture: answered, not latched."""
+        lines = self.boards[PROBE]
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            policy = self._process(directory)
+            board = self._warm(policy, directory, PROBE, len(lines) - 3)
+            self._decide(policy, board)
+            self.assertTrue(policy._trap_warning_cells)
+            self.assertEqual(policy._warning_refused_cells, set())
+
     def test_recorded_rows_are_the_incident(self):
         for capture, last in ((BREEDER, 3440), (CHOKE, 3514), (PROBE, 279)):
             with self.subTest(capture=capture):
@@ -152,7 +170,8 @@ class WarningRefusedStepRecordedTest(unittest.TestCase):
         )
 
     @pre_seen_floor_replay  # declared wall: board recorded 2026-10-20, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
-    def test_probe_does_not_reselect_a_refused_cell(self):
+    @blamed_on_a_monster
+    def test_probe_does_not_reselect_a_refused_cell(self, _blamed):
         lines = self.boards[PROBE]
         with TemporaryDirectory() as tmp:
             directory = Path(tmp)
@@ -180,7 +199,8 @@ class WarningRefusedStepRecordedTest(unittest.TestCase):
         policy._emergency_return_active = True
         policy._returning_to_town = False
 
-    def test_breakthrough_routes_around_a_refused_cell(self):
+    @blamed_on_a_monster
+    def test_breakthrough_routes_around_a_refused_cell(self, _blamed):
         lines = self.boards[BREEDER]
         here, refused, other = Position(19, 38), Position(18, 38), Position(20, 37)
         with TemporaryDirectory() as tmp:
@@ -231,7 +251,8 @@ class WarningRefusedStepRecordedTest(unittest.TestCase):
         self.assertNotEqual(key[:1], _key_to(here, refused))
 
     @pre_seen_floor_replay  # declared wall: board recorded 2026-10-20, before the 2026-10-23 seen-floor rule (tests/recorded_floor_knowledge.py)
-    def test_control_forced_walk_still_walks_with_y(self):
+    @blamed_on_a_monster
+    def test_control_forced_walk_still_walks_with_y(self, _blamed):
         lines = self.boards[PROBE]
         here, refused = Position(23, 47), Position(24, 47)
         with TemporaryDirectory() as tmp:

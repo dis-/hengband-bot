@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, sealed_pocket, unseen_strike
+from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -2114,8 +2114,12 @@ class NavigationMixin:
             # is recorded here rather than defended against.
             self.last_reason = "warning:blocked-step"
             return WAIT_KEY
-        if step in self._warning_refused_cells:
-            # 物資が全て尽きている場合のみ徒歩強行を許す: the forced walk
+        searched = trap_warning.search_key(self, snapshot, step)
+        if searched is not None:
+            return searched
+        if step in self._warning_refused_cells or trap_warning.walk_across(self, snapshot, step):
+            # 物資が全て尽きている場合のみ徒歩強行を許す (a monster's warning),
+            # and a trap's after its search and disarm: the forced walk
             # carries its deliberate 'y' with the movement key, so the
             # re-raised input_check is answered inline; the caller's tail
             # then feeds the screen the crossing opens.  When warning.cpp:501

@@ -3007,6 +3007,9 @@ class TownTravelerCombatPriorityTest(unittest.TestCase):
         self.assertEqual(self._approach(policy, hidden), "6")
         self.assertEqual(policy.last_reason, "town:kill-mob-approach")
 
+# DECLARED 2026-11-05: no monster on these prompts, so trap_warning would answer them as a trap's;
+# these pins are of a monster's latch, so the prompt is declared a monster's.
+@patch("hengbot.trap_warning._monster_could_warn", new=lambda *_args: True)
 class WarningGridAvoidanceTest(unittest.TestCase):
     """The 2026-08-03 06:23 Orc cave 19F capture: loot at (25,93) two cells
     north of (27,93), the step grid (26,93) raising the TR_WARNING prompt

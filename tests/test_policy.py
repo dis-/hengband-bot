@@ -1578,6 +1578,9 @@ def step_toward_concatenation_offenders(tree: ast.Module) -> list[tuple[str, int
 
 
 
+# DECLARED 2026-11-05: no monster on these prompts, so trap_warning would answer them as a trap's;
+# these pins are of a monster's latch, so the prompt is declared a monster's.
+@patch("hengbot.trap_warning._monster_could_warn", new=lambda *_args: True)
 class WarningConfirmExecutorSeamTest(unittest.TestCase):
     def test_executor_refusal_latches_grid_before_same_step_can_be_reposted(self):
         origin = Position(10, 10)

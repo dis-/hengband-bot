@@ -45,9 +45,11 @@ no cell on Q25 that has the player's line to a quylthulg without its line back, 
 are shot from in their line, and every walk crosses the fewest lines.  Owner 2026-11-05
 「クイルスルグは放置しても問題ないし、簡単には倒せないので最後ドルジの前に処理する」.
 
-A cell the weapon warning refused (warning.cpp process_warning; the latch is the policy's) is
-no step while a movement scroll remains (owner: 物資が全て尽きている場合のみ徒歩強行を許す).
-Every walk here goes round it, and a stop reached only over it is passed for this round.
+A cell a monster's weapon warning refused (warning.cpp process_warning; the latch is the
+policy's) is no step while a movement scroll remains (owner: 物資が全て尽きている場合のみ徒歩強行を
+許す).  Every walk here goes round it, and a stop reached only over it is passed for this round.
+A trap's warning is no refusal (trap_warning, owner 2026-11-05 「罠があるので対応する」): the walk
+keeps its way and ``_step_toward`` searches, disarms and crosses.  No walk here weighs traps.
 
 ``key`` runs before the shared survival ladders while an enemy is about: they walk away and
 read Recall, which is what this plan refuses.  A quiet board stays with them (food, light,

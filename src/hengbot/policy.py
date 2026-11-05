@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, quest_target_search, sealed_pocket, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, unseen_strike, wilderness_exit
+from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, quest_target_search, sealed_pocket, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -1610,6 +1610,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._warning_step_pending: (
             tuple[int, tuple[int, int, int], Position, Position] | None
         ) = None
+        # Grids warned for a trap, with the searches spent on each (this floor;
+        # trap_warning).
+        self._trap_warning_cells: dict[Position, int] = {}
         self._warning_prompt_stops_decision = False
         # Per-decision grid indexes (y, x) tuples: floor we can walk onto,
         # closed doors we can open, and all currently-known tiles. Rebuilt each
@@ -17343,7 +17346,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         keys.  This handler makes the disposition DELIBERATE:
 
         * player back on the walk's origin — the entry was refused; latch
-          the grid and let routing choose another action.  The executor
+          the grid (a monster could have warned) or answer its trap
+          (trap_warning), and let routing choose the action.  The executor
           answers every live warning inline.  At the ordinary command loop,
           'n' invokes repeat_check and replays the warning-causing command.
           Therefore the policy must never post 'n' for the stale message
@@ -17351,10 +17355,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         * player standing on the walk's target — the crossing happened.  If
           it was the sanctioned forced walk, the message is just its
           record.  Otherwise a composed tail answered the prompt the caller
-          never anticipated: latch the grid so the unsanctioned crossing
-          happens at most once per floor, and let the decision continue.
+          never anticipated: for a monster's warning latch the grid so the
+          unsanctioned crossing happens at most once per floor, and let the
+          decision continue.
         """
         self._warning_prompt_stops_decision = False
+        trap_warning.forget_crossed(self, snapshot)
         if not any(
             home_page_message_body(message).startswith(
                 WARNING_PROMPT_MESSAGE_PREFIXES
@@ -17379,10 +17385,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     # supplies forced walk.  Record the grid so it is
                     # avoided from now on; the crossing itself cannot be
                     # undone, so the decision proceeds normally.
-                    self._latch_warning_refusal(target)
+                    trap_warning.note_warned(self, snapshot, target)
                 return None
             if attributable and snapshot.player.position == origin:
-                self._latch_warning_refusal(target)
+                trap_warning.note_warned(self, snapshot, target)
                 self._warning_prompt_stops_decision = False
                 return None
         # With no attributable step there is no target cell to record, but
