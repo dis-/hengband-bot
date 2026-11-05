@@ -34,6 +34,8 @@ with gzip.open(FIXTURE, "rt", encoding="utf-8", errors="surrogateescape") as _st
 FIRST = CASE["first"]
 RESTART = CASE["restart"]
 RECOMMIT = "quest-strategy:q2-breeder-recommit"
+APPROACH = "quest-strategy:q2-approach-residual-multiplier"
+CONTACT = 3  # [1,3], beside the puddle
 LANDING_WAIT = 5  # the first row at [13,60] with nothing in view
 
 
@@ -55,6 +57,19 @@ def replay(rows, policy):
         if key:
             policy.confirm_key_posted(key)
     return decided
+
+
+class PuddleContactTest(swarm.PostedSwarmKey):
+    def test_a_touching_puddle_is_left_for_a_cell_with_a_clear_lane(self):
+        # [1,3]: the rat at [3,1] behind the puddle at [2,2], which just touched the player.
+        policy = new_policy(FIRST[0], from_town=True)
+        replay(FIRST[:CONTACT], policy)
+        row = FIRST[CONTACT]
+        key = loops.decide(policy, copy.deepcopy(row["board"]))
+        self.assertEqual((row["key"], row["reason"]), ("rh", "no-wait:escape-scroll"))
+        # To [2,4]: two from either puddle, on the way to [3,4] level with the rat.
+        self.assertEqual((key, policy.last_reason), ("3", APPROACH))
+        self.post(policy, row["board"], key)
 
 
 class TeleportLandingTest(swarm.PostedSwarmKey):

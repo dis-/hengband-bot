@@ -9,7 +9,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_early_sweep, quest_find_exit, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
+from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -2418,12 +2418,22 @@ class QuestMixin(OpeningRouteMixin):
             }
             breeder_buffer.discard(snapshot.player.position)
             ranged_vantages.difference_update(breeder_buffer)
-            if snapshot.player.position in ranged_vantages:
+            firing_cells = quest_firing_cells.usable(
+                self, snapshot, target.position, ranged_vantages
+            )
+            if snapshot.player.position in firing_cells:
                 self.last_reason = "quest-strategy:q2-hold-residual-multiplier-vantage"
                 return WAIT_KEY
+            # Past what never moves if a way round exists, else as it stands.
             step = navigator.route_to_static_goals(
                 snapshot.player.position,
-                ranged_vantages,
+                firing_cells,
+                blocked=breeder_buffer | quest_firing_cells.touching_cells(
+                    self, snapshot, (Position(y, x) for y, x in battlefield.terrain)
+                ),
+            ) or navigator.route_to_static_goals(
+                snapshot.player.position,
+                ranged_vantages - {snapshot.player.position},
                 blocked=breeder_buffer,
             )
             if step is not None:
