@@ -23,7 +23,7 @@ from dataclasses import dataclass
 import re
 
 from hengbot.input_executor import Continuation
-from hengbot.me_device_attacks import DEVICE_REASON, POWERS, TARGETABLE_SHAPES
+from hengbot.me_device_attacks import DEVICE_REASON, POWERS
 from hengbot.me_menu import MagicEaterMenu
 from hengbot.policy_constants import DIRECTION_KEYS
 from hengbot import me_absorbed_substitutes, me_powers
@@ -80,8 +80,6 @@ def compile_device(key, owner):
     goal = (int(match["y"]), int(match["x"])) if match["y"] is not None else None
     if power is None or power.aimed != bool(match["direction"] or goal):
         raise ValueError("invalid Magic-Eater device attack")
-    if goal is not None and getattr(power, "shape", None) not in TARGETABLE_SHAPES:
-        raise ValueError("only a ball or a breath bursts on a target grid")
     return "m", [DeviceStep(frozenset(), match["direction"] or "", kind=kind, sval=sval, goal=goal)]
 
 

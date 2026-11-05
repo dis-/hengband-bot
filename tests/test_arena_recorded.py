@@ -108,12 +108,33 @@ class ArenaRecorded(executor_pins.ProductionHarness):
         self.assertFalse(snapshot.in_town)
         self.assertTrue(snapshot.inside_arena)
 
+    def unarmed(self, label, **player):
+        """CONSTRUCTED: the recorded board without its ammunition."""
+        raw = self.board(label, **player)
+        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in (16, 17, 18)]
+        return raw
+
     def test_walks_up_then_strikes(self):
         policy = self.policy()
-        self.assertEqual(self.key(policy, self.board("03-enter")), "2")
+        self.assertEqual(self.key(policy, self.unarmed("03-enter")), "2")
         self.assertEqual(policy.last_reason, arena.WALK_REASON)
         self.assertEqual(self.key(policy, self.board("09-move")), "2")
         self.assertEqual(policy.last_reason, arena.MELEE_REASON)
+
+    def test_an_opponent_that_teleports_is_shot_while_it_is_away(self):
+        # Recorded: the first opponent has TELE_AWAY, the warrior a crossbow (owner 「直す」).
+        policy = self.policy()
+        self.assertEqual(self.key(policy, self.board("03-enter"), prefix="ranged:"), "fo2")
+
+    def test_an_opponent_that_stays_is_walked_up_to(self):
+        # CONSTRUCTED: no teleport and no heal on the race; the melee is stronger than the shot.
+        policy = self.policy()
+        snapshot = self.snap(policy, self.board("03-enter"))
+        target = snapshot.visible_monsters[0]
+        self.addCleanup(KNOWLEDGE.__setitem__, target.race_id, KNOWLEDGE[target.race_id])
+        KNOWLEDGE[target.race_id] = replace(KNOWLEDGE[target.race_id], abilities=frozenset())
+        self.assertEqual(self.key(policy, self.board("03-enter")), "2")
+        self.assertEqual(policy.last_reason, arena.WALK_REASON)
 
     def test_low_hp_keeps_fighting_and_reads_nothing(self):
         # CONSTRUCTED: HP 40 on the recorded board; the pack holds Teleport, Recall and potions,
@@ -126,7 +147,7 @@ class ArenaRecorded(executor_pins.ProductionHarness):
     def test_a_low_hp_walk_still_walks_up(self):
         # CONSTRUCTED: HP 40.  The low-HP walking gate would answer with a scroll.
         policy = self.policy()
-        self.assertEqual(self.key(policy, self.board("03-enter", hp=40)), "2")
+        self.assertEqual(self.key(policy, self.unarmed("03-enter", hp=40)), "2")
         self.assertEqual(policy.last_reason, arena.WALK_REASON)
 
     def test_a_hit_on_a_hold_keeps_the_hold(self):

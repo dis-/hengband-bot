@@ -14555,5 +14555,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_away_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「直す」: away from a race whose spells part the two or heal it, the strongest ranged attack, else a step.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_fired_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「直す」: the strongest of the arena's ranged force.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_power_attack_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「直す」: the strongest absorbed attack, by direction on a ray, else at the monster's cell.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "arena.py:_shot_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-05 「直す」: the launcher on any cell.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

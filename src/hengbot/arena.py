@@ -40,12 +40,14 @@ from dataclasses import dataclass, field
 import re
 
 from hengbot import (
-    armor_smith, arena_odds, attack_expectation, blind_strike, combat_answer, me_absorbed_substitutes,
-    me_capability, me_powers, me_ranged_first, morivant_tower, unseen_strike,
+    arena_fight_chain, armor_smith, arena_odds, attack_expectation, blind_strike, combat_answer,
+    me_absorbed_substitutes, me_capability, me_device_attacks, me_powers, me_ranged_first,
+    morivant_tower, unseen_strike,
 )
 from hengbot.character_sheet import (
     SHEET_ENCODINGS, ArenaStanding, CharacterSheetUnavailable, _decode_sheet, arena_standing,
 )
+from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import LEAVE_STORE_KEY, TOWN_TELEPORT_COST, WAIT_KEY
 from hengbot.quest_navigator import PICKUP_KEY
 
@@ -351,6 +353,52 @@ def _heal_key(policy, snapshot) -> str | None:
     return None
 
 
+def _power_attack_key(policy, snapshot, target) -> str | None:
+    """The strongest absorbed attack: on a ray by its direction, else at the monster's cell
+    (the room is open and lit, and a bolt stops at the first monster on its way)."""
+    here = snapshot.player.position
+    direction = policy._direction_key(here, target.position)
+    ranked = me_device_attacks.scored(policy, snapshot, target, direction)
+    if not ranked or ranked[0][0] <= 0:
+        return None
+    power = ranked[0][1]
+    if not power.aimed or _aligned(here, target.position):
+        return me_device_attacks.device_key(policy, power, direction)
+    return me_device_attacks.device_target_key(policy, power, target.position)
+
+
+def _shot_key(policy, snapshot, target) -> str | None:
+    """The launcher, on any cell: beside the target too (cmd-shoot.cpp does not refuse)."""
+    here = snapshot.player.position
+    if here.distance_to(target.position) > 1:
+        return policy._ranged_attack_key(snapshot, [target], [])
+    chosen = policy._ranged_projectile(snapshot)
+    if chosen is None:
+        return None
+    key = reserved_item_command(policy, snapshot, chosen[0], chosen[1],
+                                suffix=policy._direction_key(here, target.position))
+    if key is not None:
+        policy.last_reason = chosen[2]
+    return key
+
+
+def _fired_key(policy, snapshot, target, ranged) -> str | None:
+    """The strongest of ``ranged`` (arena_odds.ranged_force)."""
+    if not ranged:
+        return None
+    if ranged[0][2] == "launcher":
+        return _shot_key(policy, snapshot, target)
+    return _power_attack_key(policy, snapshot, target)
+
+
+def _away_key(policy, snapshot, target) -> str:
+    """arena_fight_chain's STRIKE_OR_FIRE away from the target: fire, else a step.
+
+    The owner's count (「直す」, 2026-11-05) holds only if the fight does what it counts."""
+    key = _fired_key(policy, snapshot, target, arena_odds.ranged_force(policy, snapshot, target))
+    return key if key is not None else _walk_toward(policy, snapshot, target.position, WALK_REASON)
+
+
 def _attack_key(policy, snapshot, target) -> str:
     here = snapshot.player.position
     if here.distance_to(target.position) <= 1:
@@ -359,6 +407,9 @@ def _attack_key(policy, snapshot, target) -> str:
             return answer.key
         policy.last_reason = HOLD_REASON  # afraid with nothing to shoot: no way out of here
         return WAIT_KEY
+    knowledge = policy._monrace_knowledge.get(target.race_id)
+    if knowledge is not None and arena_fight_chain.applies(knowledge):
+        return _away_key(policy, snapshot, target)
     if _aligned(here, target.position):
         key = me_ranged_first.attack_key(policy, snapshot, target)
         if key is not None:
