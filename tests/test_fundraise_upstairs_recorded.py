@@ -176,7 +176,8 @@ class FundraiseUpstairsDoorRecordedTest(harness.ProductionHarness):
             FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT)
         key = self.choose(policy, raw)
         self.assertFalse(key.startswith("o"))
-        self.assertEqual(policy.last_reason, "fundraise:seek-upstairs-wander")
+        # The carried digger digs, ahead of the wander (owner 2026-11-02, walkout_dig).
+        self.assertEqual(policy.last_reason, "return:dig-to-upstairs")
 
     def test_far_from_the_door_the_return_walks_toward_it(self):
         case = self.case(9409)

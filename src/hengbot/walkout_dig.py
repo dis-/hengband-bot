@@ -10,7 +10,12 @@ before.
 
 The return owner (policy_town ``_return_to_town_key``) asks ``key`` where it
 would otherwise search walls for a hidden up staircase (no walking route to
-one).  The route itself is the one dig-route helper (policy_fundraising
+one), and the fundraising floor exit (policy_fundraising
+``_leave_fundraising_floor``, which walks out without the return latch) where
+it would otherwise wander: owner 2026-11-06 「採掘中に困ったら掘って解決すると
+決めたが無視されている」 (n1-b life-322, Yeek cave 1F: a floating eye's ring sealed
+the one corridor out, 2,500 decisions of fundraise:seek-upstairs-wander).
+The route itself is the one dig-route helper (policy_fundraising
 ``_dig_route_first_step``, shared with the dig-to-stairs breakout).
 The digger is wielded and the combat weapon restored afterwards through the
 dig-to-stairs breakout's own keys (``_wield_digging_tool_key`` with
@@ -37,6 +42,9 @@ from hengbot.policy_constants import (
 WIELD_REASON = "return:wield-digging-tool"
 # The ladder rung whose producer asks ``key`` (survival_preemption).
 RETURN_RUNG = "_return_to_town_key#3"
+REASONS = frozenset({UPSTAIRS_REASON, FRONTIER_REASON})
+# The income runs (policy_fundraising ``_fundraising_key``).
+FUNDRAISING_MODES = frozenset({"mine", "scavenge"})
 
 
 def diggable(grid: GridState) -> bool:
@@ -58,6 +66,11 @@ def _frontier(policy, snapshot: Snapshot) -> set[Position]:
     }
 
 
+def _walking_out(policy) -> bool:
+    """A latched return, or an income run, whose floor exit asks without the latch."""
+    return policy._returning_to_town or policy._fundraising_mode in FUNDRAISING_MODES
+
+
 def _plan(policy, snapshot: Snapshot) -> tuple[Position, str] | None:
     """The first dig-route step and reason of a walk-out dig, else None.
 
@@ -68,7 +81,7 @@ def _plan(policy, snapshot: Snapshot) -> tuple[Position, str] | None:
     player = snapshot.player
     if (
         snapshot.in_town
-        or not policy._returning_to_town
+        or not _walking_out(policy)
         or player.blind
         or player.confused
         or policy._nav_exhausted
