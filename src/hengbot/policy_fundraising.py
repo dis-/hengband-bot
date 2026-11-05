@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import me_capability, mining_loadout, status_cure, walkout_dig
+from hengbot import me_capability, mining_loadout, status_cure, tunnel_feasibility, walkout_dig
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
@@ -1094,7 +1094,8 @@ class FundraisingMixin:
             )
             return None
         grid = snapshot.grids.get(grid_position)
-        if grid is None or not grid.tunnel or grid.enterable:
+        if (grid is None or not grid.tunnel or grid.enterable
+                or tunnel_feasibility.never_dug(snapshot, grid)):
             self._offer_execution_no_step(
                 producer="fundraising", work_id="fundraise:tunnel",
                 cause="no-diggable-wall",
