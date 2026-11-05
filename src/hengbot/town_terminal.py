@@ -1071,6 +1071,13 @@ def fixed_quest_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
 NOT_APPLICABLE = TerminalRef("not-applicable", ())
 
 
+def dungeon_board_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
+    """A rung of the dungeon's safe decision: off a dungeon board the entry
+    skips it before any town hold, as its own test (junk_destroy_now.safe)
+    would decline there."""
+    return NOT_APPLICABLE if board.in_town or board.store is not None else None
+
+
 def fixed_quest_return_intended_terminal(policy: Any, board: Any) -> TerminalRef:
     """Rung #1 (design 3.1 M5): it opens only while the quest-request owner is
     not retired and stage-2 quest travel owns the town now
@@ -1869,6 +1876,8 @@ TERMINALS: dict[str, TerminalDecl] = {
         lambda policy, board: TerminalRef(NO_REFUSAL, ("supply-stockout-prepare",)), ENFORCE),
     "_town_special_key": TerminalDecl(departure_intended_terminal, ENFORCE),
     "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, ENFORCE),
+    **{name: TerminalDecl(dungeon_board_intended_terminal, ENFORCE) for name in (
+        "junk_destroy_now.destroy_now_key", "consumable_policy.use_now_key")},
 }
 
 

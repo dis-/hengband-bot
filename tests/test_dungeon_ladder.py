@@ -2,11 +2,12 @@
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import dungeon_ladder_lint as lint  # noqa: E402
-from hengbot import dungeon_ladder as ladder, survival_preemption  # noqa: E402
+from hengbot import dungeon_ladder as ladder, survival_preemption, town_terminal  # noqa: E402
 
 
 def analyze_with(policy=None, plan=None):
@@ -137,6 +138,21 @@ class PreemptionCompletenessTest(unittest.TestCase):
     def test_preempted_and_exempt_fails(self):
         layer = ladder.Layer("idle", "", (ladder.Rung("_x", "entry", True, "why"),))
         self.assertEqual(lint._preemption_findings([layer]), ['_x: both preempted and exempt'])
+
+
+class DungeonBoardRungTest(unittest.TestCase):
+    """An entry row moved from a direct call adds no town hold: it declares itself off the town."""
+
+    def test_it_does_not_apply_on_a_town_or_store_board(self):
+        for name in ('junk_destroy_now.destroy_now_key', 'consumable_policy.use_now_key'):
+            decl = town_terminal.TERMINALS[name]
+            self.assertIs(decl.intended_terminal, town_terminal.dungeon_board_intended_terminal)
+        terminal = town_terminal.dungeon_board_intended_terminal
+        self.assertEqual(terminal(None, SimpleNamespace(in_town=True, store=None)),
+                         town_terminal.NOT_APPLICABLE)
+        self.assertEqual(terminal(None, SimpleNamespace(in_town=False, store=object())),
+                         town_terminal.NOT_APPLICABLE)
+        self.assertIsNone(terminal(None, SimpleNamespace(in_town=False, store=None)))
 
 
 class ReturnsOverTest(unittest.TestCase):

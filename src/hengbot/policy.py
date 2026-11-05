@@ -8207,12 +8207,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return floor_absorb
         # Carried junk is destroyed on the first safe decision, not at the
         # return (owner 2026-11-02, junk_destroy_now).
-        junk_now = junk_destroy_now.destroy_now_key(self, snapshot)
+        junk_now = self._town_producer_entry("junk_destroy_now.destroy_now_key", lambda: junk_destroy_now.destroy_now_key(self, snapshot), board=snapshot)
         if junk_now is not None:
             return junk_now
         # A 「拾って使う」 scroll of the owner's table is read at the same safe
         # point (consumable_policy, owner 2026-11-02).
-        use_now = consumable_policy.use_now_key(self, snapshot)
+        use_now = self._town_producer_entry("consumable_policy.use_now_key", lambda: consumable_policy.use_now_key(self, snapshot), board=snapshot)
         if use_now is not None:
             return use_now
 
