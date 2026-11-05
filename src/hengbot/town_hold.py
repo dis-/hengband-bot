@@ -2528,6 +2528,21 @@ def home_route_opened_for(policy: Any, family: str) -> bool:
                 and visit.opened_for_family == family)
 
 
+def descent_walk_held_by_own_route(policy: Any, family: str) -> bool:
+    """The holder is the departure's own walk to the entrance it committed to.
+
+    The entrance travel stands under the store router's claim; a hit on the way
+    suspends it and a stale Home visit makes it a Home holder, so the departure
+    was held out of its own walk and the town end stopped (n1-a life-487 13:02,
+    13:39, one melee from the entrance on the way to a mining run).
+    """
+    holder = errand_hold(policy, "__none__", enforced=True)
+    return bool(family == "departure" and holder is not None
+                and holder.owner.value == "store-router"
+                and holder.goal.cell is not None
+                and Position(*holder.goal.cell) == policy._nav_ledger.descent_target)
+
+
 # --- Advancing the hold (moved from the policy, structure stage 2 B slice 4) -
 # The steps ``advance_hold`` and the errand hold take on the policy's state:
 # closing, suspending and resuming claims, the goal of a decision, the bars,
