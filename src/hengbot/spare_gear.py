@@ -12,7 +12,8 @@ by their Home executors:
 * ``released``: may this pack item be shelved as spare gear?  The optimizer's
   choice stays; so does a good weapon while no real weapon is wielded (mining
   displaced it, and the re-arm needs it).  With a target known the rest is
-  spare; with the character sheet rejected no target is coming.
+  spare; with the character sheet rejected no target is coming.  A launcher that
+  only waits for its ammunition stays (launcher_upgrade).
 * ``digger_stays_carried``: a digging tool is carried only for mining.
 * ``stow_pending``: the departure leaf.  True only while Home can still take
   the gear this visit, so it can delay a departure but never stop one.
@@ -23,6 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from hengbot import launcher_upgrade
 from hengbot.model import STORE_HOME
 from hengbot.policy_constants import FUNDRAISING_START_GOLD
 
@@ -116,6 +118,8 @@ def released(policy: Any, snapshot: Any, item: Any) -> bool:
             or item.is_digging_tool or item.is_ammo):
         return False
     if _rearm_needed(snapshot, item) or _chosen_by_optimizer(policy, item):
+        return False
+    if snapshot is not None and launcher_upgrade.is_waiting(policy, snapshot, item):
         return False
     return policy._target_loadout_known() or policy._calibration_rejection is not None
 

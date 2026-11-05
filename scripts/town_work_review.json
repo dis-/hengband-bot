@@ -14654,5 +14654,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "launcher_upgrade.py:shelf_page": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure helper: this town's last shelf-evidence page of a supplier while its stock cannot have changed, outside a fundraising set; read by _launcher_ammo_offers (the optimizer's obtainable ammunition and the ammo errand); no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_instore.py:InStoreMixin._shelf_evidence_page": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure helper: the recorded shelf page (after this visit's own trades) while the shelf-evidence window holds, else None; no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_instore.py:InStoreMixin._shelf_page_after_trades": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure helper: the recorded page less the visit's own purchases; no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_instore.py:InStoreMixin._in_store_attribute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Accessor: a dict attribute a restored older checkpoint may lack (setdefault on the instance); no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

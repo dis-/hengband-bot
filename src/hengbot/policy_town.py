@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import arena
 from hengbot import quest_optional_carry
-from hengbot import item_fate, spare_gear
+from hengbot import item_fate, launcher_upgrade, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import guardian_rumor, home_pass_charge, town_end_mining, town_travel
@@ -3220,6 +3220,10 @@ class TownMixin:
             add(STORE_WEAPON, "weapon-sale")
         if self._find_light_sale(snapshot) is not None and STORE_GENERAL not in self._town_store_attempted:
             add(STORE_GENERAL, "light-sale")
+        new_launcher_ammo = launcher_upgrade.ammo_work_tval(self, snapshot)
+        if new_launcher_ammo is not None and (ammo_store := self._launcher_ammo_errand_store(
+                snapshot, new_launcher_ammo)) is not None:
+            add(ammo_store, launcher_upgrade.CATEGORY)
 
         if fundraising_active:
             if (
@@ -3730,6 +3734,7 @@ class TownMixin:
             ("identify-staff", "normal", 2, True),  # Primary and fallback suppliers each own a live route.
             ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
+            ("launcher-ammo", "normal", 1, False),  # launcher_upgrade.CATEGORY: seen through when ready to leave; never blocks.
             ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
             ("remove-curse", "normal", 4, True),  # Required worn-curse suppliers.
             ("home-star-remove-curse-use", "home-first", 1, True),
@@ -5028,6 +5033,7 @@ class TownMixin:
             or self._sale_retains_digging_tool(snapshot, item)
             # The owner's table shelves these at Home (consumable_policy).
             or consumable_policy.shelved_at_home(item)
+            or not item_fate.ranked_gear_saleable(self, snapshot, item)
         ):
             return None
         for store_type in (

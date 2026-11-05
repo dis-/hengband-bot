@@ -331,6 +331,9 @@
   "need:ammo:normal:0": [
     "optional-buy"
   ],
+  "need:launcher-ammo:normal:0": [
+    "optional-buy"
+  ],
   "need:throwing-torches:normal:0": [
     "optional-buy"
   ],

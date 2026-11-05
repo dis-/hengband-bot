@@ -17,6 +17,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from hengbot import item_fate
 from policy_fixtures import (
     store_item,
     grid,
@@ -4502,7 +4503,11 @@ class UnknownTargetLoadoutSurplusTest(unittest.TestCase):
             return preparation
 
         with patch.object(policy, "_prepare_equipment_optimization", side_effect=prepare):
-            key = policy._shop(snapshot)
+            # Owner 2026-11-04 (item_fate): the only ring ranks first in its
+            # slot and is kept; rank 21+ is sold any time.
+            self.assertIsNone(policy._find_town_organization_surplus(snapshot))
+            with patch.object(item_fate, "gear_tier", return_value=item_fate.ANY):
+                key = policy._shop(snapshot)
 
         self.assertEqual(key, "{b@0\r")
 
