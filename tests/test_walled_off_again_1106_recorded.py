@@ -24,16 +24,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from test_quest_loop_dwell_1106_recorded import READ_PROMPT, VETOES_DONE_TURN, WalledOffBoards
+from test_quest_loop_dwell_1106_recorded import READ_PROMPT, VETOES_DONE_TURN, WalledOffBoards, shown
 
 from hengbot import retreat_enclosure
 from hengbot.model import Position
 
-# The half-giant (index 76, race 1301) as the last detection of the fixture showed it.
-HALF_GIANT = {"asleep": True, "confused": False, "detected": True, "esp": False, "fast": False,
-              "fearful": False, "friendly": False, "health": "unhurt", "index": 76,
-              "invulnerable": False, "level": None, "name": "ハーフジャイアント", "pet": False,
-              "race_id": 1301, "slow": False, "stunned": False, "x": 85, "y": 4}
 SHOVEL = {"ac": 0, "aware": True, "charges": 0, "charging": False, "count": 1,
           "damage_dice": {"num": 1, "sides": 2}, "fully_known": True, "inscription": "",
           "is_artifact": False, "is_bounty": False, "is_broken": False, "is_cursed": False,
@@ -46,10 +41,6 @@ KOBOLD = {"asleep": False, "confused": False, "fast": False, "fearful": False, "
           "health": "unhurt", "index": 200, "invulnerable": False, "level": None,
           "name": "スモール・コボルド", "pet": False, "race_id": 29, "slow": False,
           "stunned": False, "x": 93, "y": 5}
-
-
-def shown(raw):
-    raw["detected_monsters"] = [*raw.get("detected_monsters", []), dict(HALF_GIANT)]
 
 
 def teleportation(count):

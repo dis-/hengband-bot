@@ -20,7 +20,8 @@ the floor and the character level alone), so it has no pin here.
 Fixture: tests/extract_quest_loop_dwell_1106_fixture.py: the boards from the arrival to the
 give-up, the stop's last board, and the first recorded board past the column.
 
-DECLARED CONSTRUCTED: on the stop board, the ground visited, its frontiers written off and the
+DECLARED CONSTRUCTED: the half-giant shown by a detection on the stop board where the search reads
+(``shown``; the recorded stop board lifts the column, tests/test_veto_life_1106_recorded); on the stop board, the ground visited, its frontiers written off and the
 target's cell given up (the 14,000 boards between did it, and a replay of them takes minutes); the later turn of a
 repeated board; the Teleportation's landing (the board past the column was reached on foot after the restart).
 """
@@ -47,6 +48,18 @@ FIXTURE = Path(__file__).parent / "fixtures" / "quest-loop-dwell-1106.json.xz"
 COLUMN = {Position(y, 93) for y in range(3, 8)}
 READ_PROMPT = "どの巻物を読みますか? "
 VETOES_DONE_TURN = 2344864
+# The half-giant the column was set for (index 76, race 1301), as the fixture's last detection
+# showed it (2345271).
+HALF_GIANT = {"asleep": True, "confused": False, "detected": True, "esp": False, "fast": False,
+              "fearful": False, "friendly": False, "health": "unhurt", "index": 76,
+              "invulnerable": False, "level": None, "name": "ハーフジャイアント", "pet": False,
+              "race_id": 1301, "slow": False, "stunned": False, "x": 85, "y": 4}
+
+
+def shown(raw):
+    """DECLARED: a detection shows the half-giant on this board, so its column stands
+    (retreat_veto_life lifts it otherwise, 84,000 game turns after it was last shown)."""
+    raw["detected_monsters"] = [*raw.get("detected_monsters", []), dict(HALF_GIANT)]
 
 
 class WalledOffBoards(loops.ItemCommandBoards):
@@ -120,13 +133,13 @@ class WalledOffHuntAndSearch(WalledOffBoards):
 
     def test_a_search_walled_off_by_the_column_reads_teleportation_then_again(self):
         replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)
-        _board, key, reason = self.at_the_stop(replay)
+        _board, key, reason = self.at_the_stop(replay, edit=shown)
         self.assertEqual(reason, retreat_enclosure.TELEPORT_REASON)
-        self.post_item_command(replay.policy, json.loads(self.boards["stop"]), key, READ_PROMPT)
+        self.post_item_command(replay.policy, self.stop_raw(edit=shown), key, READ_PROMPT)
         # DECLARED: the read landed on this side after all.  Walled off again, with no digger,
         # trap or weak enemy and 15 scrolls over the reserve of 5, the owner's 2026-11-06 answer
         # reads Teleportation again (retreat_enclosure; tests/test_walled_off_again_1106_recorded).
-        _board, key, reason = self.at_the_stop(replay, later=10)
+        _board, key, reason = self.at_the_stop(replay, later=10, edit=shown)
         self.assertEqual(reason, retreat_enclosure.TELEPORT_REASON)
         self.assertEqual(key, "re")
 

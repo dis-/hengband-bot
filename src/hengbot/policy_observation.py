@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import destruction_use, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, status_cure, summon_response, summoner_wait, town_end_mining
+from hengbot import destruction_use, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, retreat_veto_life, status_cure, summon_response, summoner_wait, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -993,6 +993,7 @@ class ObservationMixin:
             summon_response.forget_floor_visit(self)
             immobile_threat_memory.forget_floor_visit(self)
             retreat_enclosure.forget_floor_visit(self)
+            retreat_veto_life.forget_floor_visit(self)
             hunt_target.forget_floor_visit(self)
             breeder_stalemate.forget(self)
             if snapshot.in_town:

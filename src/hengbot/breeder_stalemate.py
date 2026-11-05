@@ -128,13 +128,18 @@ def _attacked_race(policy, snapshot, breeders: list) -> tuple[int, int] | None:
     return None
 
 
+def shows_kill(snapshot, name: str) -> bool:
+    """This board prints the game's kill line for a monster called ``name``."""
+    return any(
+        message_text(message).removeprefix(_KILL_LINE_PREFIX) == name + line
+        for message in snapshot.messages for line in _KILL_LINES
+    )
+
+
 def _note_kill(policy, snapshot) -> None:
     """Remember a kill line of the window's race on this board."""
     name = policy._breeder_last_board.names.get(policy._breeder_engagement_race)
-    if name and any(
-        message_text(message).removeprefix(_KILL_LINE_PREFIX) == name + line
-        for message in snapshot.messages for line in _KILL_LINES
-    ):
+    if name and shows_kill(snapshot, name):
         policy._breeder_engagement_killed = True
 
 
