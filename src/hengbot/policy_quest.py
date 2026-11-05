@@ -9,7 +9,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_early_sweep, quest_find_exit, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
+from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -268,7 +268,6 @@ from hengbot.policy_constants import (
     Q2_BREACH_STANDING,
     Q2_BREEDER_RACES,
     Q2_POST_BLUE_SEQUENCE,
-    Q2_SEEN_BEFORE_BLUE,
     Q2_RESIDUAL_SWEEP_RACES,
     Q2_WERERAT_RACE,
     Q2_WHITE_CROCODILE_RACE,
@@ -2029,6 +2028,13 @@ class QuestMixin(OpeningRouteMixin):
             reserved_item_command(self, snapshot, "fire", ammo, suffix=self._direction_key(snapshot.player.position, target.position))
         )
 
+    @staticmethod
+    def _q2_breach_corridor_open(snapshot: Snapshot) -> bool:
+        return all(
+            (grid := snapshot.grid_at(position)) is not None and grid.enterable
+            for position in Q2_BREACH_CORRIDOR
+        )
+
     @claims(ClaimOwner.QUEST_SWEEP)
     def _q2_encounter_key(
         self,
@@ -2083,7 +2089,7 @@ class QuestMixin(OpeningRouteMixin):
             (position, snapshot.grid_at(position))
             for position in Q2_BREACH_CORRIDOR
         ]
-        if all(grid is not None and grid.enterable for _, grid in corridor):
+        if self._q2_breach_corridor_open(snapshot):
             navigator.opened.update(Q2_BREACH_CORRIDOR)
             self._q2_breach_complete = True
             return None
@@ -2418,12 +2424,22 @@ class QuestMixin(OpeningRouteMixin):
             }
             breeder_buffer.discard(snapshot.player.position)
             ranged_vantages.difference_update(breeder_buffer)
-            if snapshot.player.position in ranged_vantages:
+            firing_cells = quest_firing_cells.usable(
+                self, snapshot, target.position, ranged_vantages
+            )
+            if snapshot.player.position in firing_cells:
                 self.last_reason = "quest-strategy:q2-hold-residual-multiplier-vantage"
                 return WAIT_KEY
+            # Past what never moves if a way round exists, else as it stands.
             step = navigator.route_to_static_goals(
                 snapshot.player.position,
-                ranged_vantages,
+                firing_cells,
+                blocked=breeder_buffer | quest_firing_cells.touching_cells(
+                    self, snapshot, (Position(y, x) for y, x in battlefield.terrain)
+                ),
+            ) or navigator.route_to_static_goals(
+                snapshot.player.position,
+                ranged_vantages - {snapshot.player.position},
                 blocked=breeder_buffer,
             )
             if step is not None:
@@ -2432,23 +2448,18 @@ class QuestMixin(OpeningRouteMixin):
             self.last_reason = "quest:blocked:q2-residual-multiplier-vantage"
             return WAIT_KEY
 
-        # Q2 progress lives in the explored map as well as in this process.  A
-        # reconnect must not restart the ordered sewer sweep and walk back to
-        # the opening rooms.  A known cell past the blue-jelly room proves only
-        # that the player got past it (Q2_SEEN_BEFORE_BLUE are known earlier),
-        # not that any later phase was done: seeing the spider nest on the way
-        # to the worms is no survey of the worms, so the post-blue walk runs
-        # again in its order.
-        if self._q2_reconnect_recovery_floor == snapshot.floor_key and any(
-            placement not in Q2_SEEN_BEFORE_BLUE
-            and (grid := snapshot.grid_at(placement)) is not None
-            and grid.known
-            for _, _, placements in Q2_POST_BLUE_SEQUENCE
-            for placement in placements
+        # Q2 progress lives in this process; the floor keeps one proof of it
+        # through a restart.  The breach is dug only after the rats and the
+        # gremlin, so a dug corridor proves those phases.  A known cell proves
+        # nothing: a teleport shows the far side of the map before any phase
+        # (n1-b life-316 at [13,60], with the worm's cell in view).  Everything
+        # else runs again in the plan's order.
+        if (
+            self._q2_reconnect_recovery_floor == snapshot.floor_key
+            and self._q2_breach_corridor_open(snapshot)
         ):
             self._q2_breach_complete = True
-            self._q2_cleared_races.update({86, 153, 252})
-            self._q2_blue_recovery_complete = True
+            self._q2_cleared_races.update({86, 153})
 
         # Illuminate the eastbound route immediately after the opening rats are
         # cleared. Waiting until the gremlin is visible is too late on this dark
@@ -2728,8 +2739,10 @@ class QuestMixin(OpeningRouteMixin):
                 if step is not None:
                     self.last_reason = "quest-strategy:q2-breeder-recommit"
                     return self._step_toward(snapshot, step)
-                self.last_reason = "quest:blocked:q2-breeder-recommit"
-                return WAIT_KEY
+                # No walk leads there (a breeder last seen over deep water):
+                # waiting cannot open one, so the plan's walk goes on.
+                self._q2_breeder_last_seen = None
+                self._q2_breeder_last_seen_floor = None
 
         for race_id in profile.priority_targets:
             if race_id == 252 and not self._q2_breach_complete:

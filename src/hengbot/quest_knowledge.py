@@ -86,6 +86,13 @@ class QuestInfo:
         return sum(count for _, count in self.threat_roster)
 
 
+QUEST_PREFERENCES_FILE = "QuestPreferences.jsonc"
+_TERRAIN_WITHOUT_PREFERENCES = {
+    "X": "PERMANENT", ".": "FLOOR", "D": "CLOSED_DOOR",
+    "<": "UP_STAIR", "%": "GRANITE", "T": "TREE",
+}
+
+
 def _flag_mask(value: Any) -> int:
     if isinstance(value, int):
         return value
@@ -180,7 +187,22 @@ def _legacy_battlefield(
     )
 
 
-def _json_quest(path: Path) -> QuestInfo:
+def _inherited_terrain(directory: Path) -> dict[str, str]:
+    """Glyph -> terrain of the base legend every quest map inherits.
+
+    The game reads lib/edit/QuestPreferences.jsonc before a quest's own legend.
+    Without it the 173 shallow-water cells of Q2 read as walls and split the map
+    in two (n1-b life-316: a teleport landed where no route led back).  Only the
+    terrain is taken: the base legend's random objects are not a quest's reward.
+    """
+    path = directory.parent / QUEST_PREFERENCES_FILE
+    if not path.is_file():
+        return dict(_TERRAIN_WITHOUT_PREFERENCES)
+    legend = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))["legend"]
+    return {glyph: entry["terrain"] for glyph, entry in legend.items()}
+
+
+def _json_quest(path: Path, inherited_terrain: dict[str, str]) -> QuestInfo:
     data: dict[str, Any] = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
     definition = data.get("definition", data)
     quest_id = int(definition.get("id", data.get("id", int(path.name.split("_", 1)[0]))))
@@ -194,7 +216,7 @@ def _json_quest(path: Path) -> QuestInfo:
         artifacts = [reward["artifact"]]
     artifact_ids = tuple(int(value) for value in artifacts)
     roster = _json_placed_monsters(data)
-    battlefield = _json_battlefield(data)
+    battlefield = _json_battlefield(data, inherited_terrain)
     return QuestInfo(
         id=quest_id,
         name=name,
@@ -268,7 +290,9 @@ def _json_placed_monsters(data: dict[str, Any]) -> Counter[int]:
     return roster
 
 
-def _json_battlefield(data: dict[str, Any]) -> QuestBattlefield | None:
+def _json_battlefield(
+    data: dict[str, Any], inherited_terrain: dict[str, str]
+) -> QuestBattlefield | None:
     legend = data.get("legend")
     raw_rows = data.get("map")
     if not isinstance(legend, dict) or not isinstance(raw_rows, list):
@@ -277,10 +301,7 @@ def _json_battlefield(data: dict[str, Any]) -> QuestBattlefield | None:
     if not rows:
         return None
 
-    features = {
-        "X": "PERMANENT", ".": "FLOOR", "D": "CLOSED_DOOR",
-        "<": "UP_STAIR", "%": "GRANITE", "T": "TREE",
-    }
+    features = dict(inherited_terrain)
     reward_glyphs: set[str] = set()
     monster_glyphs: dict[str, int] = {}
     for glyph, entry in legend.items():
@@ -321,9 +342,10 @@ def load_quest_knowledge(path: Path) -> dict[int, QuestInfo]:
     if path.is_file() and path.suffix.lower() != ".jsonc":
         raise ValueError(f"quest definitions must use JSONC: {path}")
     directory = path if path.is_dir() else path.parent
+    inherited_terrain = _inherited_terrain(directory)
     result: dict[int, QuestInfo] = {}
     for quest_path in sorted(directory.glob("*.jsonc")):
-        info = _json_quest(quest_path)
+        info = _json_quest(quest_path, inherited_terrain)
         result[info.id] = info
     return result
 

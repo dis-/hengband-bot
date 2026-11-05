@@ -271,10 +271,12 @@ class Q2BreachChargesRecordedTest(_test_input_executor.ProductionHarness):
         policy.consume_home_knowledge([])
         return policy
 
-    def test_corridor_is_five_walls_of_the_quest_map(self):
+    def test_corridor_cells_of_the_quest_map(self):
+        # The count below predates the base legend, which shows only two of the five are walls.
+        # It stays until the owner decides (q2-live-1105): a lower count admits fewer charges.
         terrain = self.quests[2].battlefield.terrain
         self.assertEqual([terrain[(cell.y, cell.x)] for cell in Q2_BREACH_CORRIDOR],
-                         ["wall"] * Q2_BREACH_WALL_COUNT)
+                         ["wall", "wall", "deep_water", "deep_water", "deep_water"])
         self.assertEqual(Q2_BREACH_WALL_COUNT, 5)
 
     def test_recorded_one_charge_wand_does_not_admit_the_q2_request(self):
