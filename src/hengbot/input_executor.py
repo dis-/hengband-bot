@@ -1025,14 +1025,18 @@ def compose_barrier_board(
     store = candidate["store"]
     state_store = state.get("store")
     if isinstance(state_store, Mapping):
-        for key in ("store_type", "page", "page_index", "visible_start"):
+        for key in ("store_type", "page", "page_index", "page_top", "visible_start"):
             if key in state_store and state_store.get(key) != store.get(key):
                 return None, ordered
     visible = "\n".join(str(line) for line in screen.get("lines", ()))
     items = store.get("items", ())
     if isinstance(items, Sequence) and items:
         names = [str(item.get("name", "")) for item in items if isinstance(item, Mapping)]
-        if names and not any(name and name in visible for name in names):
+        # A long name is cut where the weight is written, so a page of only
+        # such names (n1-b life-316: one artifact alone on the Home's page 2)
+        # shows none of them whole; it must then bind slot by slot.
+        if names and not any(name and name in visible for name in names) \
+                and not _store_page_is_on_screen(screen, store):
             return None, ordered
     # A row written before the reader attached answers no posted key, so a
     # same-turn page change cannot be excluded by the state binding: the
