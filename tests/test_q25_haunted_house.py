@@ -9,7 +9,7 @@ Q31 board of tests/fixtures/once-quest-recall-20261103.json.gz with its floor, g
 row, position, HP, monsters and carried potions and scrolls replaced: the grid map from the
 real lib/edit/quests/025_HauntedHouse.jsonc (every cell known), the monsters with the races and
 cells of that map.  Monster data is the real MonraceDefinitions.  The owner approved the
-file on 2026-11-05 and withdrew it the same day (「直るまで受けない」); the table here keeps it on.
+file on 2026-11-05, withdrew it the same day (「直るまで受けない」) and restored it (「Q25の承認を戻す」).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -19,14 +19,15 @@ import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot import policy_quest as policy_quest_module
-from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, trap_warning
+from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_optional_carry, quest_room_light, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, trap_warning
 from hengbot.cli import _cell_loop_guard_applies
 from hengbot.model import (
-    Position, STORE_ALCHEMIST, STORE_TEMPLE,
-    SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_POTION_RESTORE_EXP, SV_POTION_RESTORE_STR, SV_POTION_SPEED,
+    Position, STORE_ALCHEMIST, STORE_HOME, STORE_TEMPLE, StoreItem, StoreState,
+    SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, SV_POTION_HEALING, SV_POTION_RESTORE_EXP, SV_POTION_RESTORE_STR, SV_POTION_SPEED,
     TVAL_POTION, TVAL_SCROLL, TVAL_WAND, parse_snapshot, _GRID_TERRAIN_NAMES,
 )
 from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, load_monrace_knowledge
@@ -58,7 +59,7 @@ TERRAINS = {row["key"]: row for row in json.loads(_strip_jsonc(
 RACES = load_monrace_knowledge(find_monrace_definitions(ROOT, None) or GAME / "MonraceDefinitions.jsonc")
 QUESTS = load_quest_knowledge(find_quest_definitions(ROOT) or GAME / "quests")
 FILE_STRATEGIES = load_quest_strategies(ROOT / "strategy" / "quests")
-STRATEGIES = {**FILE_STRATEGIES, 25: replace(FILE_STRATEGIES[25], approved=True)}
+STRATEGIES = FILE_STRATEGIES
 PLAN = STRATEGIES[25].engagement_plan["room_sweep"]
 START = (13, 1)
 TYRANNOSAUR, DREADMASTER, VAMPIRE, DRUJ, TOME, HOUND, IPSISSIMUS, SHADOW, SPECTRE, SKELETAL_T, QUYL, STAIR, MASS = (
@@ -204,7 +205,7 @@ class Q25MapFactsTest(unittest.TestCase):
         self.assertNotIn("[8,1]", text)
         self.assertIsNone(STRATEGIES[25].engagement_plan["hold_position"])
         # Withdrawn 2026-11-05 「直るまで受けない」 until the summon rules reach this plan.
-        self.assertFalse(FILE_STRATEGIES[25].approved)
+        self.assertTrue(FILE_STRATEGIES[25].approved)
 
     def test_every_stop_is_walkable_and_every_target_door_is_a_door(self):
         for stop in PLAN["stands"]:
@@ -762,7 +763,7 @@ class Q25LightTest(unittest.TestCase):
 
     def test_the_carry_is_asked_at_acceptance_and_the_staff_waives_it(self):
         accept = Q25AcceptanceTest()
-        ready, telemetry, _ = accept.verdict(accept.town(max_hp=850, light=1), 200)
+        ready, telemetry, _ = accept.verdict(accept.town(max_hp=850, light=11), 200)
         self.assertFalse(ready, telemetry)
         self.assertIn("required_scrolls.light", telemetry["strategy_force"]["failed"])
         ready, telemetry, _ = accept.verdict(accept.town(max_hp=850), 200)
@@ -893,6 +894,98 @@ class Q25UnseenAttackerTest(unittest.TestCase):
         choose(policy, raw)
         self.assertTrue(quest_room_sweep.planned_step(
             policy, parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+
+
+class Q25AmbushTest(unittest.TestCase):
+    """Owner 2026-11-05 「遮蔽が近ければ遮蔽をとって待ち伏せ」.  DECLARED CONSTRUCTED as above: the hit in
+    the west passage, the step to the cover [8,1], then the boards on it."""
+
+    COVER = (8, 1)
+    HURT_A_LITTLE = FULL_HP - 20
+
+    def on_the_cover(self, *, hp=HURT_A_LITTLE, **kwargs):
+        raw, policy = Q25UnseenAttackerTest().hit_after_walking((8, 1), (7, 1), hp=hp, **kwargs)
+        self.assertEqual(choose(policy, raw), "2")
+        self.assertEqual(policy.last_reason, COVER_REASON)
+        raw["player"].update(y=self.COVER[0], x=self.COVER[1])
+        raw["messages"] = []
+        return raw, policy
+
+    def test_on_the_cover_it_waits_and_does_not_walk_on(self):
+        raw, policy = self.on_the_cover()
+        for _ in range(3):
+            self.assertEqual(choose(policy, raw), WAIT_KEY)
+            self.assertEqual(policy.last_reason, HOLD_REASON)
+        self.assertEqual(navigator_of(policy).sweep_ambush_turns, 3)
+
+    def test_the_wait_ends_with_the_plans_budget(self):
+        raw, policy = self.on_the_cover()
+        navigator_of(policy).sweep_ambush_turns = PLAN["enemy_wait_turns"] - 1
+        self.assertEqual(choose(policy, raw), WAIT_KEY)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertIsNone(navigator_of(policy).sweep_ambush)
+
+    def test_an_enemy_in_view_is_answered_by_the_fight_and_the_wait_is_over(self):
+        raw, policy = self.on_the_cover()
+        choose(policy, raw)
+        raw["visible_monsters"] = [monster(SPECTRE, 6, 1)]
+        key = choose(policy, raw)
+        self.assertTrue(key.startswith("f"), (key, policy.last_reason))
+        raw["visible_monsters"] = []
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+
+    def test_hurt_it_rests_on_the_cover_before_it_waits(self):
+        raw, policy = self.on_the_cover(hp=int(FULL_HP * 0.8))
+        self.assertEqual(choose(policy, raw), REST_MACRO)
+        self.assertEqual(navigator_of(policy).sweep_ambush, self.COVER)
+
+    def test_survival_comes_first(self):
+        raw, policy = self.on_the_cover()
+        raw["player"]["hp"] = 200
+        raw["messages"] = [Q25UnseenAttackerTest.HIT]
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, TELEPORT_REASON)
+
+    def test_hit_on_the_cover_the_read_answers_again(self):
+        raw, policy = self.on_the_cover()
+        choose(policy, raw)
+        raw["player"]["hp"] -= 20
+        raw["messages"] = [Q25UnseenAttackerTest.HIT]
+        choose(policy, raw)
+        self.assertIn(policy.last_reason, {COVER_REASON, CLOSE_REASON, WALK_REASON})
+
+    def test_moved_off_the_cover_the_wait_is_over(self):
+        raw, policy = self.on_the_cover()
+        choose(policy, raw)
+        raw["player"].update(y=3, x=24)
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, WALK_REASON)
+        self.assertIsNone(navigator_of(policy).sweep_ambush)
+
+    def test_blind_it_leaves_the_board_to_the_shared_rungs_and_the_wait_stays(self):
+        raw, policy = self.on_the_cover(ccw=1)
+        raw["player"]["status"]["blind"] = True
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, HOLD_REASON)
+        self.assertEqual(navigator_of(policy).sweep_ambush, self.COVER)
+
+    def test_a_cell_in_a_casters_line_is_no_cover(self):
+        raw, policy = Q25UnseenAttackerTest().in_the_west_passage()
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        lines = SimpleNamespace(pull=frozenset({(6, 1), (6, 2)}))  # the neighbours tried before the cover
+        with patch.object(quest_room_sweep, "_lines", return_value=lines):
+            step = quest_room_sweep._cover_step(
+                snapshot, navigator_of(policy), PLAN, set(), SimpleNamespace(occupied=set()))
+        self.assertEqual(step, Position(*self.COVER))
+
+    def test_on_a_caster_line_it_does_not_wait(self):
+        raw, policy = self.on_the_cover()
+        with patch.object(quest_room_sweep, "_in_line", return_value=True):
+            choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, HOLD_REASON)
+        self.assertIsNone(navigator_of(policy).sweep_ambush)
 
 
 class Q25WarningRefusedStepTest(unittest.TestCase):
@@ -1053,6 +1146,70 @@ class Q25WarningRefusedStepTest(unittest.TestCase):
         self.assertEqual(policy._trap_warning_cells, {})
 
 
+class Q25LightCountTest(unittest.TestCase):
+    """Owner 2026-11-05 「半端にせず必要数用意すること」: rooms of the real map + what fire burned."""
+
+    BURNED_ON_THE_RECORD = 2  # 4 -> 2, n1-b life-312 turn 11652737 (test_plan_floor_summons_1105_recorded)
+
+    def test_the_number_is_the_rooms_of_the_walk_and_what_fire_burned(self):
+        terrain = QUESTS[25].battlefield.terrain
+        cells = [tuple(stop["cell"]) for stop in PLAN["stands"]] + [tuple(stop["stand"]) for stop in PLAN["last_targets"]]
+        rooms = {quest_room_light.room_of(terrain, cell) for cell in cells}
+        self.assertEqual(len(rooms), 10)
+        self.assertEqual(STRATEGIES[25].required_force["required_scrolls"]["light"], 10 + self.BURNED_ON_THE_RECORD)
+
+    def test_the_real_file_carries_it_in_the_kit(self):
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=250.0):
+            status = policy._quest_carry_status(snapshot, policy._carry_procurement_strategy(snapshot).required_force)
+        self.assertEqual(status["required_scrolls.light"]["required"], 12)
+
+
+class Q25LightShelfTest(unittest.TestCase):
+    """An unbuyable requirement does not stop the town.  DECLARED CONSTRUCTED on Q25TownTest's recorded
+    Outpost board; the Alchemist's shelf is built, Light being in its random table (articles-on-sale.cpp)."""
+
+    @staticmethod
+    def ware(count, price=20):
+        return StoreItem(letter="a", name="Light", count=count, tval=TVAL_SCROLL, sval=SV_LIGHT, price=price, aware=True)
+
+    def at_the_shelf(self, *wares):
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        snapshot = replace(snapshot, player=replace(snapshot.player, gold=100000),
+                           store=StoreState(STORE_ALCHEMIST, items=list(wares)))
+        return policy, snapshot
+
+    def bought(self, shelf):
+        policy, snapshot = self.at_the_shelf(self.ware(shelf))
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=250.0):
+            profile = policy._carry_procurement_strategy(snapshot)
+            ware = policy._quest_carry_purchase(snapshot, profile)
+            self.assertEqual(ware, snapshot.store.items[0])
+            return policy._purchase_quantity(snapshot, ware)
+
+    def test_a_full_shelf_buys_what_is_asked_and_a_short_one_what_it_has(self):
+        self.assertEqual(self.bought(21), 12)
+        self.assertEqual(self.bought(5), 5)
+
+    def test_a_shelf_without_it_leaves_no_alchemist_need_and_no_departure_block(self):
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=250.0):
+            self.assertIn(STORE_ALCHEMIST, {need.store_type for need in policy._enumerate_town_needs(snapshot)
+                                            if need.category.startswith("quest-")})
+            policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+            needs = policy._enumerate_town_needs(snapshot)
+            self.assertNotIn(STORE_ALCHEMIST, {need.store_type for need in needs if need.category == "quest-scrolls"})
+            self.assertIn("required_scrolls.light", policy._abandoned_quest_carry_requirements)
+            self.assertNotIn("quest-scrolls", {need.category for need in policy._departure_blocking_town_needs(snapshot)})
+
+    def test_short_of_it_the_quest_is_not_accepted_and_the_town_goes_on(self):
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        policy._town_store_attempted[STORE_ALCHEMIST] = snapshot.turn
+        key = str(policy.choose_key(snapshot))
+        self.assertFalse(policy.last_reason.startswith("fixedquest:request"), (key, policy.last_reason))
+        self.assertFalse(policy.last_reason.startswith("town:blocked"), (key, policy.last_reason))
+
+
 class Q25TownTest(unittest.TestCase):
     """Giver and carries on the recorded Outpost board of tests/fixtures/q14-lv8-1102.json.gz.
     DECLARED CONSTRUCTED: its quest rows (every earlier quest finished) and the giver cell."""
@@ -1071,12 +1228,12 @@ class Q25TownTest(unittest.TestCase):
                 cell["p"] = 25
         return raw
 
-    def policy_and_snapshot(self):
+    def policy_and_snapshot(self, **player):
         maps = town_maps()
         policy = ConservativePolicy(town_map=maps[0], town_maps=maps, monrace_knowledge=RACES,
                                     quest_knowledge=QUESTS, quest_strategies=STRATEGIES)
         raw = self.town_board()
-        raw["player"].update(max_hp=900, hp=900)
+        raw["player"].update(max_hp=900, hp=900, **player)
         bolts = next(item for item in BASE["inventory"] if item["tval"] == 18)
         raw["inventory"].append(dict(copy.deepcopy(bolts), count=5, name="bolts (68/shot 181/turn)"))
         bow = next(item for item in BASE["equipment"] if item["slot"] == "bow")
@@ -1093,6 +1250,7 @@ class Q25TownTest(unittest.TestCase):
                 patch("hengbot.policy_quest.EXECUTABLE_QUEST_STRATEGY_IDS", EXECUTABLE_QUEST_STRATEGY_IDS - {25}):
             self.assertIsNone(policy._fixed_quest_key(snapshot, []))
         policy, snapshot = self.policy_and_snapshot()
+        policy.consume_home_knowledge(())  # read: no owed scan comes first (Q25OptionalCarryTest)
         with patch.object(ConservativePolicy, "_fixed_quest_ready", return_value=True), \
                 patch.object(ConservativePolicy, "_fixed_quest_ready_for_travel", return_value=True):
             policy._fixed_quest_key(snapshot, [])
@@ -1118,6 +1276,184 @@ class Q25TownTest(unittest.TestCase):
         self.assertEqual((force["heal_potions"], force["required_potions"]), (0, {}))
 
 
+class Q25OptionalCarryTest(unittest.TestCase):
+    """Owner 2026-11-05 「Q25の必須要件に啓蒙の薬は入れていないが、自宅にある場合は受注前に持ち出して」.
+    DECLARED CONSTRUCTED on Q25TownTest's recorded Outpost board: readiness is pinned true, the catalogue
+    is delivered as the knowledge response would be, the potion on the later boards as the withdrawal
+    would leave it."""
+
+    WITHDRAW = "home-errand:atomic-withdraw:quest-optional-carry"
+
+    def setUp(self):
+        for name in ("_fixed_quest_ready", "_fixed_quest_ready_for_travel"):
+            patcher = patch.object(ConservativePolicy, name, return_value=True)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def potion(snapshot, *, slot="p", count=1):
+        row = next(item for item in snapshot.inventory if item.tval == TVAL_POTION) if any(
+            item.tval == TVAL_POTION for item in snapshot.inventory) else None
+        base = parse_snapshot(copy.deepcopy(board()), RACES).inventory[0] if row is None else row
+        return replace(base, slot=slot, count=count, tval=TVAL_POTION, sval=SV_POTION_ENLIGHTENMENT,
+                       name="Enlightenment", aware=True, weight=4)
+
+    def town(self):
+        """A warrior: the recorded board's Magic-Eater reads its powers first."""
+        policy, snapshot = Q25TownTest().policy_and_snapshot(class_id=0)
+        policy.consume_skill_knowledge(dict(copy.deepcopy(_CASE["skill"]), turn=snapshot.turn, player=dict(
+            _CASE["skill"]["player"], level=snapshot.player.level)))
+        return policy, snapshot
+
+    def scanned(self, *, stored=1):
+        policy, snapshot = self.town()
+        policy.consume_home_knowledge((self.potion(snapshot, slot="a", count=stored),) if stored else ())
+        return policy, snapshot
+
+    @staticmethod
+    def on_the_entrance(snapshot):
+        entrance = next(position for position, grid in snapshot.grids.items() if grid.store_number == STORE_HOME)
+        return replace(snapshot, player=replace(snapshot.player, position=entrance))
+
+    @staticmethod
+    def decide_on(policy, snapshot):
+        return str(policy.choose_key(snapshot)), policy.last_reason
+
+    def with_the_potion(self, snapshot):
+        return replace(snapshot, turn=snapshot.turn + 10,
+                       inventory=[*snapshot.inventory, self.potion(snapshot)])
+
+    def test_with_one_at_home_it_goes_home_before_the_quest(self):
+        policy, snapshot = self.scanned()
+        _key, reason = self.decide_on(policy, snapshot)
+        self.assertFalse(reason.startswith("fixedquest:request"), reason)
+        self.assertEqual(policy._town_claim_categories[0], quest_optional_carry.CATEGORY)
+        self.assertEqual(policy._home_errand.request.purpose, quest_optional_carry.PURPOSE)
+
+    def test_only_one_is_taken_of_a_stack(self):
+        policy, snapshot = self.scanned(stored=3)
+        self.decide_on(policy, snapshot)
+        self.assertEqual(policy._home_errand.request.quantity, 1)
+
+    def test_withdrawn_then_the_quest_is_requested(self):
+        policy, snapshot = self.scanned()
+        entrance = self.on_the_entrance(snapshot)
+        key, _reason = self.decide_on(policy, entrance)  # into the Home once: its page size
+        policy.confirm_key_posted(key)
+        ware = StoreItem(letter="a", name="Enlightenment", count=1, tval=TVAL_POTION, sval=SV_POTION_ENLIGHTENMENT,
+                         price=0)
+        page = StoreState(STORE_HOME, items=[ware], stock_num=1, page_top=0, page_size=12, capacity=24)
+        key, reason = self.decide_on(policy, replace(entrance, turn=entrance.turn + 10, store=page))
+        self.assertEqual(reason, "home:leave-for-pending-withdraw")
+        policy.confirm_key_posted(key)
+        key, reason = self.decide_on(policy, replace(entrance, turn=entrance.turn + 20))
+        self.assertEqual(reason, self.WITHDRAW, key)
+        self.assertIn("pa", key)
+        policy.confirm_key_posted(key)
+        carried = self.with_the_potion(replace(entrance, turn=entrance.turn + 30))
+        policy.consume_home_knowledge(())
+        _key, reason = self.decide_on(policy, carried)
+        self.assertTrue(reason.startswith("fixedquest:request"), reason)
+        self.assertEqual(policy._home_errand.state.value, "done")
+
+    def test_none_at_home_the_quest_is_requested(self):
+        policy, snapshot = self.scanned(stored=0)
+        _key, reason = self.decide_on(policy, snapshot)
+        self.assertTrue(reason.startswith("fixedquest:request"), reason)
+
+    def test_already_carried_it_is_not_taken_again(self):
+        policy, snapshot = self.scanned()
+        _key, reason = self.decide_on(policy, replace(snapshot, inventory=[*snapshot.inventory, self.potion(snapshot)]))
+        self.assertTrue(reason.startswith("fixedquest:request"), reason)
+
+    def test_the_catalogue_not_known_the_scan_goes_first_and_the_town_does_not_wait_on_it(self):
+        policy, snapshot = self.town()
+        _key, reason = self.decide_on(policy, snapshot)
+        self.assertEqual(reason, "home:request-knowledge-scan")
+        # A scan that cannot be had: nothing is known to be there, and the quest goes on.
+        policy.confirm_key_posted(_key)
+        with patch.object(ConservativePolicy, "_home_catalogue_scan_owed", return_value=False):
+            _key, reason = self.decide_on(policy, replace(snapshot, turn=snapshot.turn + 10))
+        self.assertTrue(reason.startswith("fixedquest:request"), reason)
+
+    def test_the_catalogue_read_with_one_in_it_it_goes_home(self):
+        policy, snapshot = self.town()
+        key, _reason = self.decide_on(policy, snapshot)
+        policy.confirm_key_posted(key)
+        policy.consume_home_knowledge((self.potion(snapshot, slot="a"),))
+        self.decide_on(policy, replace(snapshot, turn=snapshot.turn + 10))
+        self.assertEqual(policy._home_errand.request.purpose, quest_optional_carry.PURPOSE)
+
+    def test_no_home_in_reach_the_quest_is_requested(self):
+        policy, snapshot = self.scanned()
+        with patch.object(ConservativePolicy, "_home_available", return_value=False):
+            _key, reason = self.decide_on(policy, snapshot)
+        self.assertTrue(reason.startswith("fixedquest:request"), reason)
+
+    def test_a_withdrawal_that_failed_is_not_filed_again_this_visit(self):
+        policy, snapshot = self.scanned()
+        self.decide_on(policy, snapshot)
+        policy._home_errand.state = type(policy._home_errand.state).FAILED
+        _key, reason = self.decide_on(policy, replace(snapshot, turn=snapshot.turn + 10))
+        self.assertTrue(reason.startswith("fixedquest:request"), reason)
+
+    def test_a_stopped_withdrawal_does_not_hold_the_town(self):
+        policy, snapshot = self.scanned()
+        self.decide_on(policy, snapshot)
+        policy._home_errand.state = type(policy._home_errand.state).STOPPED
+        policy._home_errand.stopped_fact = "constructed"
+        _key, reason = self.decide_on(policy, replace(snapshot, turn=snapshot.turn + 10))
+        self.assertTrue(reason.startswith("fixedquest:request"), reason)
+
+    def test_carried_it_is_no_deposit_no_weight_relief_no_sale(self):
+        policy, snapshot = self.scanned(stored=0)
+        carried = self.with_the_potion(snapshot)
+        item = carried.inventory[-1]
+        self.assertEqual(policy._retention_reservation_detail(carried, item),
+                         (1, quest_optional_carry.RETENTION_BRANCH))
+        self.assertEqual(policy._retention_surplus(carried, item), 0)
+        self.assertTrue(consumable_policy.carry_required(policy, carried, item))
+        self.assertNotIn(item, policy._weight_deposit_candidates(carried))
+
+    def test_at_home_with_it_carried_the_visit_does_not_put_it_back(self):
+        policy, snapshot = self.scanned(stored=0)
+        carried = self.with_the_potion(snapshot)
+        at_home = replace(self.on_the_entrance(carried), store=StoreState(STORE_HOME, items=[], stock_num=0))
+        self.assertFalse(policy._home_deposit_candidate(carried.inventory[-1], at_home))
+        key, reason = self.decide_on(policy, at_home)
+        self.assertNotIn(key[:2], {"dp", "gp"}, (key, reason))
+
+    def test_a_second_carried_is_past_the_plans_count_but_stays_with_the_quest(self):
+        policy, snapshot = self.scanned(stored=0)
+        two = replace(snapshot, inventory=[*snapshot.inventory, self.potion(snapshot, count=2)])
+        self.assertEqual(policy._retention_reservation(two, two.inventory[-1]), 1)
+
+    def test_it_is_no_part_of_the_carry_or_the_kit(self):
+        force = STRATEGIES[25].required_force
+        self.assertNotIn("enlightenment", force.get("required_potions", {}))
+        policy, snapshot = Q25TownTest().policy_and_snapshot()
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=250.0):
+            status = policy._quest_carry_status(snapshot, policy._carry_procurement_strategy(snapshot).required_force)
+        self.assertFalse(any("enlightenment" in name for name in status))
+
+    def test_stored_it_is_no_home_disposal(self):
+        policy, snapshot = self.scanned()
+        stored = self.potion(snapshot, slot="a")
+        ware = StoreItem(letter="a", name=stored.name, count=1, tval=TVAL_POTION, sval=SV_POTION_ENLIGHTENMENT, price=0)
+        at_home = replace(self.on_the_entrance(snapshot), store=StoreState(STORE_HOME, items=[ware], stock_num=1))
+        policy._home_disposal_pass = True
+        policy._home_disposal_home_key(at_home)
+        self.assertFalse(policy._home_disposal_candidates)
+
+    def test_a_plan_without_the_field_files_nothing(self):
+        policy, snapshot = self.scanned()
+        plain = {**STRATEGIES, 25: replace(STRATEGIES[25], consumable_plan={
+            key: value for key, value in STRATEGIES[25].consumable_plan.items() if key != "optional_carry"})}
+        with patch.object(policy, "_quest_strategies", plain):
+            _key, reason = self.decide_on(policy, snapshot)
+        self.assertTrue(reason.startswith("fixedquest:request"), reason)
+
+
 class _ReadyLight:
     one_shot_quest_entry_ready = True
     one_shot_quest_entry_reject_reason = "light"
@@ -1134,7 +1470,7 @@ class Q25AcceptanceTest(unittest.TestCase):
                  "resist_fire", "resist_cold", "resist_elec", "resist_acid", "resist_chaos")
 
     def town(self, *, max_hp, healing=5, speed=3, resists=True, unhasted_speed=110, shot=68, turn=181, ammo=40,
-             teleports=5, restores=2, class_id=None, light=2):
+             teleports=5, restores=2, class_id=None, light=12):
         raw = board(max_hp=max_hp, hp=max_hp, healing=healing, speed=speed, teleports=teleports, light=light)
         raw["floor"].update(quest_id=0, level=0, in_town=True)
         raw["progress"]["quests"][0]["status"] = 0

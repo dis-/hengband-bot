@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import quest_optional_carry
 from hengbot import item_fate, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
@@ -3170,6 +3171,8 @@ class TownMixin:
             add(STORE_TEMPLE, "experience-restore-check")
         if self._queue_home_experience_potion(snapshot):
             add(STORE_HOME, "experience-potion-home", "home-first")
+        if quest_optional_carry.routed(self):
+            add(STORE_HOME, quest_optional_carry.CATEGORY, "home-first")
         low_level_sale = self._find_low_level_sale(snapshot)
         if low_level_sale is not None:
             add(STORE_ALCHEMIST, "low-level-sale")
@@ -3679,6 +3682,7 @@ class TownMixin:
             ("experience-restore", "normal", 1, False),  # Restore before the Experience potion; never blocks departure.
             ("experience-restore-check", "normal", 1, False),  # One look at the Temple shelf per visit; never blocks departure.
             ("experience-potion-home", "home-first", 1, False),  # A stored Experience potion is withdrawn to drink.
+            ("quest-optional-carry-home", "home-first", 1, False),  # Withdrawn before the quest; never a condition.
             ("low-level-sale", "normal", 1, False),  # Low-level sales are opportunistic.
             ("mana-food-sale", "normal", 1, False),  # Surplus food sales are opportunistic.
             ("device-sale", "normal", 1, False),  # Device sales are opportunistic.
@@ -3766,6 +3770,7 @@ class TownMixin:
             "experience-restore",
             "experience-restore-check",
             "experience-potion-home",
+            quest_optional_carry.CATEGORY,
         }
         specs: dict[str, list[NeedSpec]] = {}
         for spec in self._town_need_registry():

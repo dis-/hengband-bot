@@ -43,6 +43,7 @@ from functools import lru_cache
 import json
 from pathlib import Path
 
+from hengbot import quest_optional_carry
 from hengbot.model import (
     RESTORE_POTION_SVAL_BY_STAT, SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP,
     SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_MAPPING,
@@ -181,6 +182,8 @@ def carry_required(policy, snapshot, item) -> bool:
                        and item_requires_full_identification(other)
                        for other in (*snapshot.inventory, *snapshot.equipment)))
     if policy.quest_potion_carried_for_strategy(snapshot, item):
+        return True
+    if quest_optional_carry.retained(policy, snapshot, item) > 0:
         return True
     if item.tval == TVAL_POTION and item.sval == SV_POTION_RESTORE_EXP:
         return bool(snapshot.player.exp_drained)

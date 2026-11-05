@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import quest_optional_carry
 from hengbot import item_fate, spare_gear
 from hengbot.item_reservation import (
     item_available,
@@ -2330,6 +2331,9 @@ class HomeMixin:
                 )
             ):
                 return item.count, "experience-restore"
+        optional_carry = quest_optional_carry.retained(self, snapshot, item)
+        if optional_carry:
+            return optional_carry, quest_optional_carry.RETENTION_BRANCH
         if self._is_destruction_item(item) and self._required_destruction_uses(
             snapshot
         ):
@@ -4837,6 +4841,8 @@ class HomeMixin:
                 and self._experience_drain_known(snapshot)
             ):
                 # Withdrawn and drunk, never offered for sale or destruction.
+                continue
+            if quest_optional_carry.wanted_kind(self, snapshot, item):
                 continue
             self._home_disposal_candidates.setdefault(
                 signature,

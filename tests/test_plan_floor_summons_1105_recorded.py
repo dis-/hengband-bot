@@ -13,11 +13,12 @@ import copy
 import gzip
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hengbot import quest_find_exit, quest_room_light, quest_room_sweep, summon_response
+from hengbot import quest_find_exit, quest_force_rows, quest_room_light, quest_room_sweep, summon_response
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, TVAL_POTION, _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
@@ -50,6 +51,7 @@ QUYL = 480
 FIRST_UNSEEN_CAST = 11651515
 # [1,18], 何か and 撲殺の悪魔 both casting, 啓蒙の薬 picked up 250 ticks before.
 POTION_PICKED_UP_IN_THE_DARK = 11653256
+POTION_FIRST_QUIET_BOARD = 11653011
 
 
 def _new_policy():
@@ -103,7 +105,17 @@ class Q25RecordedTest(nokey.PostedKey):
         self.assertEqual(key, "r" + slot)
         self.post_recorded(FIRST_UNSEEN_CAST)
 
-    def test_the_potion_picked_up_on_the_floor_lights_it_at_the_next_cast(self):
+    def test_the_potion_picked_up_on_the_floor_is_drunk_on_the_next_quiet_board(self):
+        # Picked up in the melee of 11653002; the recording walked on and carried it to the end.
+        raw, key, reason, _ = answer(POTION_FIRST_QUIET_BOARD)
+        self.assertEqual(reason, quest_room_light.OPENING_REASON)
+        slot = next(item["slot"] for item in raw["inventory"]
+                    if item["tval"] == TVAL_POTION and item["sval"] == SV_POTION_ENLIGHTENMENT)
+        self.assertEqual(key, "q" + slot)
+        self.assertEqual(raw["visible_monsters"], [])
+        self.post_recorded(POTION_FIRST_QUIET_BOARD)
+
+    def test_the_potion_still_carried_lights_the_room_at_the_next_cast(self):
         raw, key, reason, _ = answer(POTION_PICKED_UP_IN_THE_DARK)
         self.assertEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
         slot = next(item["slot"] for item in raw["inventory"]
@@ -160,6 +172,92 @@ class Q25RecordedTest(nokey.PostedKey):
         carried = {item["sval"] for item in raw["inventory"] if item["tval"] == TVAL_POTION}
         self.assertLessEqual({SV_POTION_CURE_CRITICAL, SV_POTION_CURING}, carried)
         self.assertFalse(carried & (HEAL_POTION_SVALS - {SV_POTION_CURE_CRITICAL}))
+
+
+class HasteUnderSlownessRecordedTest(unittest.TestCase):
+    """n1-b life-312: a shattered Potion of Slowness at 11651908, the four Speed potions of the recording
+    from there to 11651925, the slowness over at 11651971 (「動きの遅さがなくなったようだ。」)."""
+
+    def test_slowed_with_the_haste_still_on_no_speed_potion_is_drunk(self):
+        for turn in (11651908, 11651913, 11651919, 11651925):
+            raw, key, reason, _ = answer(turn)
+            self.assertEqual(raw["player"]["speed_display"]["color"], "light_green")
+            self.assertNotEqual(reason, quest_find_exit.SPEED_REASON, turn)
+            self.assertFalse(key.startswith("q"), (turn, key, reason))
+
+    def test_the_haste_truly_over_the_speed_potion_is_still_drunk(self):
+        # 「動きの素早さがなくなったようだ。」 at 11651714: the same field and the same value.
+        raw, key, reason, _ = answer(11651714)
+        self.assertEqual(raw["player"]["speed_display"]["color"], "light_green")
+        self.assertEqual(reason, quest_find_exit.SPEED_REASON)
+        self.assertTrue(key.startswith("q"), key)
+
+
+class HasteReadTest(unittest.TestCase):
+    """DECLARED CONSTRUCTED: q25's quiet board with the speed field and the game's lines put on it."""
+
+    YELLOW, GREEN, VIOLET = ("yellow", 13), ("light_green", 3), ("violet", -7)
+
+    def reads(self, *boards):
+        """(colour and value, lines) per board through choose_key: the reading after the last."""
+        raw = q25.board(speed=0)
+        policy = q25.new_policy(raw)
+        for (colour, value), lines in boards:
+            raw["player"]["speed_display"] = {"color": colour, "riding": False, "text": "", "value": value}
+            raw["messages"] = list(lines)
+            q25.choose(policy, raw)
+        return policy._player_hasted(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+
+    def test_yellow_is_on_and_violet_off(self):
+        self.assertTrue(self.reads((self.YELLOW, ())))
+        self.assertFalse(self.reads((self.VIOLET, ())))
+
+    def test_the_plain_colour_with_no_line_is_off(self):
+        self.assertFalse(self.reads((self.GREEN, ())))
+        self.assertFalse(self.reads((self.YELLOW, ()), (self.GREEN, ())))
+
+    def test_slowed_while_hasted_stays_on_for_every_later_board(self):
+        slowed = (self.GREEN, ("体の動きが遅くなってしまった！",))
+        self.assertTrue(self.reads((self.YELLOW, ()), slowed))
+        self.assertTrue(self.reads((self.YELLOW, ()), slowed, (self.GREEN, ()), (self.GREEN, ())))
+        self.assertTrue(self.reads((self.YELLOW, ()), (self.GREEN, ("You feel yourself moving slower!",))))
+
+    def test_hasted_while_slowed_is_on(self):
+        self.assertTrue(self.reads((self.VIOLET, ()), (self.GREEN, ("素早く動けるようになった！",))))
+
+    def test_either_end_is_read(self):
+        slowed = (self.GREEN, ("体の動きが遅くなってしまった！",))
+        self.assertFalse(self.reads((self.YELLOW, ()), slowed, (self.VIOLET, ("動きの素早さがなくなったようだ。",))))
+        self.assertTrue(self.reads((self.YELLOW, ()), slowed, (self.YELLOW, ("動きの遅さがなくなったようだ。",))))
+        self.assertFalse(self.reads((self.YELLOW, ()), slowed, (self.VIOLET, ("動きの素早さがなくなったようだ。",)),
+                                    (self.GREEN, ("動きの遅さがなくなったようだ。",))))
+
+    def test_the_haste_ending_with_the_slowness_ending_on_one_board_is_off(self):
+        slowed = (self.GREEN, ("体の動きが遅くなってしまった！",))
+        self.assertFalse(self.reads((self.YELLOW, ()), slowed,
+                                    (self.GREEN, ("動きの素早さがなくなったようだ。", "動きの遅さがなくなったようだ。"))))
+
+    def test_the_field_is_the_mounts_while_riding(self):
+        raw = q25.board(speed=0)
+        snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
+        mounted = replace(snapshot, player=replace(snapshot.player, speed_display=(13, "", "yellow", True)))
+        self.assertFalse(q25.new_policy(raw)._player_hasted(mounted))
+
+    def test_haste_cancelled_by_slowness_adds_nothing_to_the_measured_speed(self):
+        raw = q25.board(speed=0)
+        policy = q25.new_policy(raw)
+        raw["player"]["speed"] = 123
+        raw["player"]["speed_display"] = {"color": "yellow", "riding": False, "text": "", "value": 13}
+        q25.choose(policy, raw)
+        snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
+        self.assertEqual(quest_force_rows._unhasted_speed(policy, snapshot), 113)
+        raw["player"]["speed"] = 113
+        raw["player"]["speed_display"] = {"color": "light_green", "riding": False, "text": "", "value": 3}
+        raw["messages"] = ["体の動きが遅くなってしまった！"]
+        q25.choose(policy, raw)
+        snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
+        self.assertTrue(policy._player_hasted(snapshot))
+        self.assertEqual(quest_force_rows._unhasted_speed(policy, snapshot), 113)
 
 
 class RuleThreeOnAPlanFloorTest(unittest.TestCase):
@@ -268,8 +366,15 @@ class Q25DarkRoomTest(unittest.TestCase):
         self.assertTrue(reason.startswith(quest_room_light.UNSEEN_LIGHT_REASON), reason)
 
     def test_the_potion_goes_before_the_scroll(self):
-        key, reason, _ = q25.decide(self.with_potion(self.cast_board()), stage=4)
-        self.assertEqual(reason, quest_room_light.UNSEEN_LIGHT_REASON)
+        # A potion not yet seen on this floor is due anyway (Q25OpeningPotionTest); so seen, it is the light's.
+        raw = self.with_potion(self.cast_board())
+        policy = q25.new_policy(raw)
+        q25._set_stage(policy, raw, 4)
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        navigator = quest_room_sweep._navigator(policy, snapshot, 25)
+        navigator.sweep_potion_carried = 1
+        key = q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.UNSEEN_LIGHT_REASON)
         self.assertTrue(key.startswith("q"), key)
 
     def test_a_room_drawn_lit_is_not_read(self):
@@ -367,12 +472,42 @@ class Q25OpeningPotionTest(unittest.TestCase):
         _key, reason, _ = q25.decide(q25.board(speed=0))
         self.assertEqual(reason, quest_room_sweep.WALK_REASON)
 
-    def test_picked_up_later_it_waits_for_the_dark(self):
-        raw = self.with_potion(q25.board(q25.Q25LightTest.MOUTH, speed=0, light=0))
+    def picked_up_later(self, *, monsters=()):
+        """The walk at its third stop with none, then a board with one in the pack."""
+        raw = q25.board(q25.Q25LightTest.MOUTH, speed=0, light=0)
         policy = q25.new_policy(raw)
         q25._set_stage(policy, raw, 2)
         q25.choose(policy, raw)
         self.assertNotEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+        raw = self.with_potion(raw)
+        raw["visible_monsters"] = [dict(row) for row in monsters]
+        return raw, policy
+
+    def test_picked_up_later_it_is_drunk_on_the_next_quiet_board_and_only_once(self):
+        # Owner 2026-11-05 「拾ったらすぐ飲む」.
+        raw, policy = self.picked_up_later()
+        key = q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+        self.assertTrue(key.startswith("q"), key)
+        q25.choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+
+    def test_picked_up_in_a_fight_it_waits_for_the_quiet_board(self):
+        raw, policy = self.picked_up_later(monsters=[q25.monster(q25.SPECTRE, 5, 6)])
+        q25.choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+        raw["visible_monsters"] = []
+        q25.choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_light.OPENING_REASON)
+
+    def test_broken_before_the_quiet_board_nothing_is_due(self):
+        raw, policy = self.picked_up_later(monsters=[q25.monster(q25.SPECTRE, 5, 6)])
+        q25.choose(policy, raw)
+        raw["visible_monsters"] = []
+        raw["inventory"] = [item for item in raw["inventory"] if item["sval"] != SV_POTION_ENLIGHTENMENT
+                            or item["tval"] != TVAL_POTION]
+        q25.choose(policy, raw)
+        self.assertFalse(q25.navigator_of(policy).sweep_potion_due)
 
     def test_a_hall_drawn_lit_by_it_takes_no_read_at_the_mouth(self):
         raw = Q25DarkRoomTest.lit(q25.board(q25.Q25LightTest.MOUTH, speed=0))

@@ -417,5 +417,8 @@
   ],
   "purchase:ability-gear:buy": [
     "optional-buy"
+  ],
+  "need:quest-optional-carry-home:home-first:0": [
+    "home-withdraw"
   ]
 }

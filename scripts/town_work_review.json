@@ -14149,7 +14149,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_light.py:opening_quaff_key": {
+  "quest_room_light.py:floor_potion_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -14233,6 +14233,61 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Reached only from quest_target_search on a runtime RANDOM quest floor held for its target (owner 2026-11-05); dungeon only; reads the board and the policy's memory, posts through the shared step composer and the search key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_room_sweep.py:_ambush_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The wait on the cover of a KILL_ALL room sweep; no independent progress."
+  },
+  "quest_optional_carry.py:retained": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "evidence": "The retained count of a quest's optional carry; no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._fixed_quest_request_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "A ready quest's request, after its optional carry.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_optional_carry.py:scan_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "evidence": "The owed Home scan before a quest that looks in the catalogue; delegates to _home_full_knowledge_key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "home_errand.py:HomeErrandExecutor.release_stopped": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "evidence": "Gives up a stopped request; no command.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

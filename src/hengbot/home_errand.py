@@ -123,6 +123,14 @@ class HomeErrandExecutor:
             self.request = None
             self.before_count = None
 
+    def release_stopped(self) -> None:
+        """Give up a stopped request whose work nothing depends on."""
+        if self.state == HomeErrandState.STOPPED:
+            self.state = HomeErrandState.IDLE
+            self.request = None
+            self.before_count = None
+            self.stopped_fact = None
+
     def reason(self, action: str) -> str:
         if self.state == HomeErrandState.STOPPED and self.stopped_fact:
             return f"home-errand:stopped:{self.stopped_fact}"

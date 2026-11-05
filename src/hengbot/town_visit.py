@@ -47,6 +47,8 @@ class TownVisit:
     undestroyable_sigs: set[Signature] = field(default_factory=set)
     destroy_watch: tuple[Signature, int, int] | None = None
     destroy_fail_streak: int = 0
+    # quest_optional_carry filed its Home withdrawal: once a visit.
+    optional_carry_filed: bool = False
     # The posted abnormal departure stays visible on the landing board; its
     # diagnostic retires at the next fresh town visit.
     equipment_optional_failure_departure: dict[str, object] | None = None
