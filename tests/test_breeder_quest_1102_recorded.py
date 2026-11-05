@@ -29,7 +29,7 @@ DECLARED RECONSTRUCTED (as in test_breeder_swarm_1102_recorded):
 DECLARED CONSTRUCTED: the recorded boards after the teleport still show the
 player where the recording had it (the recorded process did not teleport);
 the kill-all case is the same boards with the floor's quest switched to
-quest 25 (lib/edit/quests/025_HauntedHouse.jsonc: KILL_ALL, PRESET+ONCE, on
+quest 28 (lib/edit/quests/025_HauntedHouse.jsonc: KILL_ALL, PRESET+ONCE, on
 the fixed-quest allowlist), TAKEN, and random quest 41 removed; the
 no-teleport case removes the Scrolls of Teleportation from the pack.
 """
@@ -49,19 +49,19 @@ QUEST_FLOOR = swarm.QUEST_FLOOR
 FLEE_TURN = swarm.FLEE_TURN
 LATCHED_TURN = 2199883  # the first board after the 20th action's decision
 TARGET_RACE = 1329
-KILL_ALL_QUEST = 25
+KILL_ALL_QUEST = 28
 SV_TELEPORT, SV_RECALL, TVAL_SCROLL = 9, 11, 70
 LEAVING = ("breeder-breakthrough:recall", "breeder-breakthrough:ascend",
            "breeder-breakthrough:seek-", "ranged:")
 
 
 def kill_all(raw):
-    """DECLARED CONSTRUCTED: the floor's quest is the kill-all quest 25."""
+    """DECLARED CONSTRUCTED: the floor's quest is the allowlisted, unapproved quest 28, typed kill-all here."""
     raw = copy.deepcopy(raw)
     raw["floor"]["quest_id"] = KILL_ALL_QUEST
     quests = [quest for quest in raw["progress"]["quests"] if quest["id"] != 41]
     quests.append({"fixed": True, "id": KILL_ALL_QUEST, "level": 24,
-                   "name": "幽霊屋敷", "status": 1, "type": 6})
+                   "name": "unapproved quest", "status": 1, "type": 6})
     raw["progress"]["quests"] = quests
     return raw
 
