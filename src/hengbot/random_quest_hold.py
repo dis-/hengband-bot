@@ -29,11 +29,20 @@ walk ('>' on a surface tile, _is_descent_target).  The target falls back to the
 Yeek cave, as for a character whose Angband recall was never unlocked.  A
 character already inside Angband plays on above the hold until its ordinary
 return; the next departure goes elsewhere.
+
+Owner 2026-11-06 「開いた中で条件を満たす階へ」: 「深さの条件を満たす開いたダンジョンの
+うち、一番深い階へ行きます。迷宮も候補です。条件を満たす所がなければイークの洞穴のまま
+です」.  A character with the Yeek cave conquered has nothing left to do there, so
+``settle_target`` takes the deepest landing ``_pick_alternate_dungeon`` allows, with
+all of its gates.  It reads the choice on town boards only, so a dive keeps the
+target it left with and the valve judges that dive by it.  The over-extension
+alternate overrides this target later in the same observation and stays until its
+own end, so a step down does not bounce back.
 """
 
 from __future__ import annotations
 
-from hengbot.model import DUNGEON_ANGBAND
+from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE
 from hengbot.policy_constants import QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN
 from hengbot.q2_tower_recharge import Q2_QUEST_ID
 from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
@@ -43,6 +52,8 @@ GATING_QUEST_ID = Q2_QUEST_ID
 _OPEN_STATUSES = frozenset({QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN})
 # Display only (spectator): why the target is not Angband though its recall is unlocked.
 TARGET_REASON = "angband_closed_before_q2"
+# Display only (spectator): the deepest open floor that passes the depth conditions.
+DEEPEST_OPEN_REASON = "deepest_open_before_q2"
 
 
 def _gating_quest_open(snapshot) -> bool:
@@ -71,6 +82,29 @@ def hold_active(snapshot) -> bool:
 def entry_refused(snapshot, dungeon_id: int | None) -> bool:
     """Whether recall or the walk may not enter ``dungeon_id`` from the surface now."""
     return dungeon_id == DUNGEON_ANGBAND and hold_active(snapshot)
+
+
+def settle_target(policy, snapshot) -> None:
+    """The recall target this board, for the part of it that Q2 decides."""
+    held_choice = policy._target_dungeon_reason == DEEPEST_OPEN_REASON
+    if not entry_refused(snapshot, DUNGEON_ANGBAND):
+        if held_choice:  # Q2 resolved: the ordinary selection takes over from the start
+            policy._target_dungeon_id = DUNGEON_YEEK_CAVE
+            policy._target_dungeon_reason = "initial_yeek_cave"
+        return
+    if snapshot.yeek_cave_conquered and snapshot.in_town:
+        deepest = policy._pick_alternate_dungeon(
+            snapshot, prefer_deepest=True, require_shallower=False)
+        if deepest is not None:
+            policy._target_dungeon_id = deepest
+            policy._target_dungeon_reason = DEEPEST_OPEN_REASON
+            return
+    elif held_choice:
+        return
+    if (snapshot.yeek_cave_conquered or snapshot.angband_recall_unlocked
+            or policy._target_dungeon_id == DUNGEON_ANGBAND):
+        policy._target_dungeon_id = DUNGEON_YEEK_CAVE
+        policy._target_dungeon_reason = TARGET_REASON
 
 
 def crossing_held(policy, snapshot, dungeon_id: int, current: int, destination: int) -> bool:
