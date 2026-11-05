@@ -14,18 +14,17 @@ rungs (store visits own the pack there).
 
 from __future__ import annotations
 
+from hengbot import safety_facts
+
 
 def safe(policy, snapshot) -> bool:
     """No visible hostile, not just hit, no store, no impairment, no flight."""
-    player = snapshot.player
+    facts = safety_facts.of(policy, snapshot)
     return not (
-        snapshot.in_town
-        or snapshot.store is not None
-        or any(monster.hostile for monster in snapshot.visible_monsters)
-        or getattr(policy, "_took_damage", False)
-        or player.blind or player.confused or player.stunned
-        or player.paralyzed or player.hallucinated
-        or policy._escape_state.owner not in {None, "return"}
+        facts.in_town or facts.in_store or facts.hostile_in_view or facts.took_damage
+        or facts.blind or facts.confused or facts.stunned
+        or facts.paralyzed or facts.hallucinated
+        or facts.escape_owner not in {None, "return"}
     )
 
 
