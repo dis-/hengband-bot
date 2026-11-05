@@ -40,8 +40,8 @@ from dataclasses import dataclass, field
 import re
 
 from hengbot import (
-    armor_smith, arena_odds, attack_expectation, blind_strike, combat_answer, me_capability,
-    me_powers, me_ranged_first, morivant_tower, unseen_strike,
+    armor_smith, arena_odds, attack_expectation, blind_strike, combat_answer, me_absorbed_substitutes,
+    me_capability, me_powers, me_ranged_first, morivant_tower, unseen_strike,
 )
 from hengbot.character_sheet import (
     SHEET_ENCODINGS, ArenaStanding, CharacterSheetUnavailable, _decode_sheet, arena_standing,
@@ -72,7 +72,7 @@ BLIND_STRIKE_REASON = "arena:blind-strike"
 REWARD_REASON = "arena:reward"
 PICKUP_REASON = "arena:pickup"
 GATE_REASON = "arena:gate"
-HEAL_REASON = me_powers.REASON + ":arena-heal"
+HEAL_REASON = "arena:heal" + me_absorbed_substitutes.CAST_SUFFIX
 # Attacks while the floor's monster is unseen: a gate that stays shut means it lives.
 GATE_ATTEMPTS = 2
 
@@ -107,6 +107,7 @@ class ArenaStay:
     expected: int | None = None  # the race judged for this entry
     poster_posted: bool = False
     poster_checked: bool = False
+    inside: bool = False  # on the arena's floor: leaving it ends the fight's facts
     gate_attempts: int = 0
     tried_reward_cells: set = field(default_factory=set)
     odds: dict = field(default_factory=dict)
@@ -137,11 +138,20 @@ def observe(policy, snapshot) -> None:
     if snapshot.floor_key[1] > 0:
         policy._arena_stay = None
         return
-    if snapshot.inside_arena:
-        record = state(policy)
-        record.holding = False
-        record.travelled = False  # one fight is progress: the next judgement may travel
-        record.poster_posted = record.poster_checked = False
+    if not snapshot.inside_arena:
+        if getattr(policy, "_arena_stay", None) is not None:
+            policy._arena_stay.inside = False
+        return
+    record = state(policy)
+    if not record.inside:
+        # A new fight: the last one's gate and reward say nothing about it (n1-c life-145
+        # 2026-11-05, a chain of wins: it held on an open gate until it starved).
+        record.inside = True
+        record.gate_attempts = 0
+        record.tried_reward_cells = set()
+    record.holding = False
+    record.travelled = False  # one fight is progress: the next judgement may travel
+    record.poster_posted = record.poster_checked = False
 
 
 def standing(policy) -> ArenaStanding | None:

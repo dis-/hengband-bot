@@ -43,6 +43,10 @@ def _cast_power(ident: tuple) -> me_powers.Power:
 
 # The powers cast in place of an item (me_device_attacks_input answers them).
 POWERS = {ident: _cast_power(ident) for ident in me_capability.substitute_powers()}
+# Healing in the arena, where no potion works (arena.py); neither asks for a direction.
+for _kind, _sval in (("rod", 9), ("staff", 18)):
+    POWERS[(_kind, _sval)] = me_powers.BY_KEY.get((_kind, _sval)) or me_powers.Power(
+        _kind, _sval, (), "absorbed-power", 0, 0, (), darkness_scaled=False, aimed=False)
 
 
 def owns(owner) -> bool:
