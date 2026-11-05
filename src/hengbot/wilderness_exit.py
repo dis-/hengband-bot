@@ -13,8 +13,7 @@ An up shaft climbs two floors (STAIRS + SHAFT terrain, FloorChangeMode::SHAFT,
 (輪6, #47, n1-c life-059: the '<' on 鉄獄2階 [5,62] was SHAFT_UP).
 """
 
-# lib/edit/TerrainDefinitions.jsonc: SHAFT_UP (13) and SHAFT_DOWN (14).
-SHAFT_TERRAIN_IDS = frozenset({13, 14})
+from hengbot.stair_destination import SHAFT_TERRAIN_IDS, stair_floors  # noqa: F401
 
 # src/floor/wild.cpp change_wild_mode: an awake hostile monster within
 # MAX_PLAYER_SIGHT (seen or not) refuses the global map without a turn.
@@ -37,8 +36,7 @@ def up_stairs_exit_to_wilderness(floor_key, dungeon_knowledge, wilderness_map, g
     """
     if not entrance_is_wilderness(floor_key, dungeon_knowledge, wilderness_map):
         return False
-    climb = 2 if grid is not None and grid.terrain_id in SHAFT_TERRAIN_IDS else 1
-    return floor_key[1] - climb < dungeon_knowledge[floor_key[0]].min_depth
+    return floor_key[1] - stair_floors(grid) < dungeon_knowledge[floor_key[0]].min_depth
 
 
 def entrance_is_wilderness(floor_key, dungeon_knowledge, wilderness_map) -> bool:

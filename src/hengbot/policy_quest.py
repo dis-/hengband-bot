@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot import spare_gear
+from hengbot.stair_destination import down_destination
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
 from hengbot.policy_opening import OpeningRouteMixin
 from hengbot.quest_opening_readiness import q34_readiness_rejection_key
@@ -6322,10 +6323,14 @@ class QuestMixin(OpeningRouteMixin):
             snapshot, expected_damage=expected_damage
         )
 
-    def _kill_quest_descent_allowed(self, snapshot: Snapshot) -> bool:
-        """Central veto for every ordinary or quest-regeneration descent."""
+    def _kill_quest_descent_allowed(self, snapshot: Snapshot, grid: GridState | None = None) -> bool:
+        """Central veto for every ordinary or quest-regeneration descent.
+
+        ``grid`` is the stair asked about; a shaft may overshoot the quest floor.
+        """
         active = self._taken_dungeon_kill_level_quest(snapshot)
-        return active is None or snapshot.dungeon_level < active[1].level
+        return (active is None
+                or down_destination(snapshot.dungeon_level, grid) <= active[1].level)
 
     @claims(ClaimOwner.QUEST_REQUEST)
     def _kill_quest_floor_recovery_key(self, snapshot: Snapshot) -> str | None:
@@ -6353,19 +6358,19 @@ class QuestMixin(OpeningRouteMixin):
             and self._quest_regen_phase == "descend"
             and snapshot.dungeon_level == info.level - 1
         ):
-            destination_depth = snapshot.dungeon_level + 1
+            destination_depth = down_destination(snapshot.dungeon_level, here)
             if (
                 here is not None
                 and here.is_descent
                 and not self._destination_depth_allowed(snapshot, destination_depth)
             ):
                 return WAIT_KEY
-            if here is not None and here.is_descent and self._kill_quest_descent_allowed(snapshot):
+            if here is not None and here.is_descent and self._kill_quest_descent_allowed(snapshot, here):
                 self.last_reason = "quest:regen:descend"
                 return DOWN_STAIRS_KEY
             step = self._nearest_goal_step(
                 snapshot,
-                lambda grid: grid.is_descent and self._kill_quest_descent_allowed(snapshot),
+                lambda grid: grid.is_descent and self._kill_quest_descent_allowed(snapshot, grid),
             )
             if step is not None:
                 self.last_reason = "quest:regen:descend"

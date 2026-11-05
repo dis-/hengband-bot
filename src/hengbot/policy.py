@@ -7,6 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
+from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_ranged_force, quest_room_sweep, quest_target_search, sealed_pocket, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, unseen_strike, wilderness_exit
 
@@ -8869,7 +8870,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and here.has_entrance
                 and self._is_active_dungeon_entrance(here)
             )
-            else snapshot.dungeon_level + 1
+            else down_destination(snapshot.dungeon_level, here)
             if snapshot.dungeon_level > 0
             and here is not None
             and here.is_descent
@@ -15012,18 +15013,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _next_depth_supply_shortage(self, snapshot: Snapshot) -> bool:
+        return self._depth_supply_shortage(snapshot, snapshot.dungeon_level + 1)
+
+    def _depth_supply_shortage(self, snapshot: Snapshot, depth: int) -> bool:
+        """Whether the agreed return supplies fall short for landing on ``depth``."""
         if (
             snapshot.player.class_id < 0
             or snapshot.in_town
             or snapshot.dungeon_level < 1
         ):
             return False
-        next_depth = snapshot.dungeon_level + 1
-        ledger = self._supply_ledger(snapshot, next_depth)
+        ledger = self._supply_ledger(snapshot, depth)
         return any(
             status.kind != "recall"
             and status.count < status.required_return
-            and (status.obtainable or next_depth > WALK_OUT_MAX_DEPTH)
+            and (status.obtainable or depth > WALK_OUT_MAX_DEPTH)
             for status in ledger.values()
         )
 
@@ -16249,11 +16253,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
             return False
+        # Owner 2026-11-05: no way into Angband from the surface before Q2.
+        if snapshot.dungeon_level == 0 and random_quest_hold.entry_refused(
+                snapshot, surface_dungeon(grid)):
+            return False
+        destination = down_destination(snapshot.dungeon_level, grid)
         # #102: QUEST_ENTER carries DOWN_STAIRS, but arriving on it (or '>'
         # there) asks the quest-entry question that no descent owner answers.
         if self._step_raises_unintended_confirm(snapshot, grid.position):
             return False
-        if not self._kill_quest_descent_allowed(snapshot):
+        if not self._kill_quest_descent_allowed(snapshot, grid):
             return False
         # Yeek Cave shares the Outpost wilderness tile. A remembered entrance
         # at the same local coordinates in another town/wilderness region is
@@ -16283,7 +16292,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Owner 2026-11-02: no stairs into a pending random quest floor before Q2.
         if snapshot.dungeon_level > 0 and random_quest_hold.crossing_held(
             self, snapshot, snapshot.floor_key[0],
-            snapshot.dungeon_level, snapshot.dungeon_level + 1,
+            snapshot.dungeon_level, destination,
         ):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
@@ -16304,7 +16313,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             untaken_kill_target is not None
             and snapshot.dungeon_level <= untaken_kill_target.level
         ):
-            return snapshot.dungeon_level < untaken_kill_target.level
+            return destination <= untaken_kill_target.level
         if snapshot.player.class_id < 0:
             return True
         if snapshot.in_town and grid.has_entrance:
@@ -16318,16 +16327,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return True
             if self._taken_kill_quest_requires_walk_in(snapshot):
                 return True
-            return self._deepest_level < RECALL_MIN_DEPTH
+            return (self._deepest_level < RECALL_MIN_DEPTH
+                    or self._recall_cannot_reach(snapshot, self._active_dungeon_target()))
         if self._fundraising_mode in {"mine", "scavenge"}:
             return False
-        if self._guardian_descent_blocked(snapshot):
+        # The floor above the landing: a shaft reaches the guardian one floor early.
+        if self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination - 1):
             return False
         # Depth-requirement gate (AGENTS.md): never descend into a floor whose
         # mandatory resistances the character lacks — confusion / poison / chaos /
         # nether etc. at depth are lethal without the resistance. Applies to the
-        # in-dungeon stairs (the next floor is one deeper).
-        if self._missing_required_abilities(snapshot, snapshot.dungeon_level + 1):
+        # in-dungeon stairs, at the floor this stair lands on.
+        if self._missing_required_abilities(snapshot, destination):
+            return False
+        # _descent_is_blocked asked for the next floor; a shaft lands below it.
+        if (destination > snapshot.dungeon_level + 1
+                and self._depth_supply_shortage(snapshot, destination)):
             return False
         return True
 

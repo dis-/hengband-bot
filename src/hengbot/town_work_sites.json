@@ -5723,6 +5723,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_helpers.py:PolicyHelpersMixin._recall_cannot_reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_helpers.py:PolicyHelpersMixin._refuse_no_progress_cycle": {
     "classification": "producer",
     "rows": [

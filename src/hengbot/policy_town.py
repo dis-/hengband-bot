@@ -6387,6 +6387,7 @@ class TownMixin:
             and self._fundraising_mode not in {"mine", "scavenge"}
             and not self._taken_kill_quest_requires_walk_in(snapshot)
             and self._deepest_level >= RECALL_MIN_DEPTH
+            and not self._recall_cannot_reach(snapshot, DUNGEON_YEEK_CAVE)
             and safe(DUNGEON_YEEK_CAVE)
         ):
             recall_dest = "yeek-cave"
@@ -8487,6 +8488,7 @@ class TownMixin:
         if (
             self._fundraising_mode in {"mine", "scavenge"}
             or self._deepest_level < RECALL_MIN_DEPTH
+            or self._recall_cannot_reach(snapshot, self._active_dungeon_target())
         ):
             return self._town_map.entrance
         return None

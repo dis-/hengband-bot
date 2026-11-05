@@ -240,7 +240,8 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNotNone(item)
         self.assertTrue(item.is_treasure_detection_scroll)
 
-    def test_ability_gap_opens_the_no_safe_destination_set(self):
+    @mock.patch("hengbot.random_quest_hold.hold_active", return_value=False)
+    def test_ability_gap_opens_the_no_safe_destination_set(self, _hold):
         """n1-a life-476 07:24, town:blocked:survival:depth_abilities, Lv26 retired.
 
         failed: depth_abilities (resist_fire, Angband 20F); gold 144025.  The
@@ -260,7 +261,8 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._town_blocked_reason)
         self.assert_posts(policy, recorded[11], board, key)
 
-    def test_opened_set_releases_a_spent_home_bound_for_its_kit(self):
+    @mock.patch("hengbot.random_quest_hold.hold_active", return_value=False)
+    def test_opened_set_releases_a_spent_home_bound_for_its_kit(self, _hold):
         """n1-a life-476 07:23 (06:50 too), owner-retired-burst.
 
         procurement: Treasure Detection 0/5, on Home's shelf.  The visit's
@@ -778,7 +780,8 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         self.assertTrue(sent, getattr(port.last_result, "reason", None))
         self.assertEqual(port.last_result.outcome, "completed")
 
-    def test_missing_ability_buys_the_cheapest_shelf_row_and_the_comparison_wears_it(self):
+    @mock.patch("hengbot.random_quest_hold.hold_active", return_value=False)
+    def test_missing_ability_buys_the_cheapest_shelf_row_and_the_comparison_wears_it(self, _hold):
         """n1-a life-476 07:24, resist_fire for Angband 20F, 144025 gold.
 
         Owner 2026-11-04 「買えるなら買う」: 火炎の指輪 {r火} at 30145 is cheaper
