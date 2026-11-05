@@ -3333,7 +3333,7 @@ class TownMixin:
                     add(STORE_GENERAL, "fundraising-light")
             if (
                 self._owns_lantern(snapshot)
-                and self._oil_below_departure_target(snapshot)
+                and self._departure_oil_short(snapshot)
                 and STORE_GENERAL not in self._town_store_attempted
             ):
                 add(STORE_GENERAL, "fundraising-oil")

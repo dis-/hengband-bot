@@ -7,11 +7,15 @@ town:blocked:survival:recall_departure_ready.
 
 The sale serves only an identified lantern that needs oil.  A torch takes no oil
 (src/cmd-item/cmd-refill.cpp), a fuel-less light needs none, a working light has no
-need yet, and an unidentified lantern shows no fuel to say it needs any.  One scroll
+need yet, and an unidentified lantern shows no fuel to say it needs any.  The one
+exception is the Q34 lantern worn in town (owner 2026-11-06: 「財宝感知の巻物を売って
+油を足す決まりも、このランタンに使います」): it needs oil once the player sees it
+out (lamp_fuel.q34_town_lantern_out).  One scroll
 per town visit; the set keeps the scrolls its remaining runs read.  No sale price is
 exported for pack items, so the sale is not predicted: if the proceeds still do not
 buy oil the visit goes on as it would have without this module.
 """
+from hengbot import lamp_fuel
 from hengbot.model import STORE_ALCHEMIST, STORE_GENERAL, SV_LITE_LANTERN, lights_nothing
 from hengbot.policy_constants import LANTERN_DIM_WARNING_FUEL
 
@@ -24,10 +28,18 @@ def _light_needs_oil(policy, snapshot):
               if item.is_light and not lights_nothing(item)]
     return (
         any(item.is_lantern for item in lights)
-        and all(item.sval <= SV_LITE_LANTERN and item.known
-                and item.fuel < LANTERN_DIM_WARNING_FUEL for item in lights)
+        and all(_burnt_low(policy, snapshot, item) for item in lights)
         and policy._count_oil(snapshot) == 0
     )
+
+
+def _burnt_low(policy, snapshot, item):
+    """A fuel-using light the player sees low: known below the dim warning, or the
+    worn Q34 lantern out."""
+    if not item.known:
+        return (item is lamp_fuel.q34_town_lantern(snapshot)
+                and lamp_fuel.q34_town_lantern_out(policy, snapshot))
+    return item.sval <= SV_LITE_LANTERN and item.fuel < LANTERN_DIM_WARNING_FUEL
 
 
 def _oil_unaffordable(policy, snapshot):

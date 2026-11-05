@@ -29,12 +29,20 @@ shown instead:
 Every refill producer reaches an unidentified lantern through
 ``_light_refill_item`` or ``_unknown_lantern_departure_refill_item``, and both
 ask here.
+
+The Q34 lantern worn in town (owner 2026-11-06, 「燃料があれば出発してよい」:
+「ランタンに燃料が残っていれば、油が5本に届かなくても出発します。財宝感知の巻物を
+売って油を足す決まりも、このランタンに使います。」) departs on the fuel these
+facts show it holds, and an out one is the oil sale's lantern
+(``q34_town_lantern_lit`` / ``q34_town_lantern_out``).  Other lanterns keep
+the five flasks.
 """
 
 from __future__ import annotations
 
 import re
 
+from hengbot.equipment_optimizer import q34_item_tagged
 from hengbot.policy_constants import LANTERN_FULL_FUEL, LANTERN_REFILL_FUEL
 from hengbot.town_arbiter import HENGBAND_TURNS_PER_TICK
 
@@ -116,3 +124,27 @@ def unidentified_lantern_out(snapshot) -> bool | None:
     if snapshot.light_radius is None and snapshot.can_see_own_grid is None:
         return None
     return snapshot.light_radius == 0 or snapshot.can_see_own_grid is False
+
+
+def q34_town_lantern(snapshot):
+    """The worn unidentified Q34 lantern while in town (policy_supply._town_q34_lantern wears it)."""
+    lantern = _worn_lantern(snapshot)
+    if (not snapshot.in_town or lantern is None or lantern.known
+            or not q34_item_tagged(lantern)):
+        return None
+    return lantern
+
+
+def q34_town_lantern_lit(policy, snapshot) -> bool:
+    """Whether the player sees fuel in the worn Q34 lantern: it lights them, or a
+    「ランプの油は一杯だ。」 since leaves some."""
+    if q34_town_lantern(snapshot) is None:
+        return False
+    floor = known_fuel_floor(policy, snapshot)
+    return unidentified_lantern_out(snapshot) is False or (floor is not None and floor > 0)
+
+
+def q34_town_lantern_out(policy, snapshot) -> bool:
+    """Whether the worn Q34 lantern shows no fuel: the oil sale's lantern."""
+    return (q34_town_lantern(snapshot) is not None
+            and not q34_town_lantern_lit(policy, snapshot))

@@ -455,6 +455,71 @@ class TownStops1105RecordedTest(executor_pins.ProductionHarness):
         next(item for item in burning["equipment"] if item["slot"] == "light")["light_turns"] = 19
         self.assertIsNone(twin._town_q34_lantern(parse_snapshot(burning, twin._monrace_knowledge)))
 
+    @staticmethod
+    def lantern_worn(raw, light_radius, *, oil=0, inscription="Q34"):
+        """DECLARED CONSTRUCTED: the game's board after the wield of row 17.
+
+        The lantern takes the light slot and the torch goes to the pack;
+        ``light_radius`` is the player's light (torch.cpp update_lite_radius: an
+        empty lantern adds none), the only fuel fact the unidentified lantern shows.
+        """
+        board = copy.deepcopy(raw)
+        lantern = next(item for item in board["inventory"] if item["tval"] == 39)
+        board["inventory"].remove(lantern)
+        if inscription != "Q34":
+            lantern.update(name="真鍮のランタン {並}", inscription=inscription)
+        light = next(index for index, item in enumerate(board["equipment"]) if item["slot"] == "light")
+        torch = board["equipment"][light]
+        board["equipment"][light] = dict(lantern, slot="light")
+        board["inventory"].append(torch)
+        if oil:
+            scroll = board["inventory"][0]
+            board["inventory"].insert(0, dict(scroll, tval=77, sval=0, name="油つぼ", count=oil))
+        for index, item in enumerate(board["inventory"]):
+            item["slot"] = chr(ord("a") + index)
+        board["player"]["light_radius"] = light_radius
+        board["turn"] += 10
+        return board
+
+    def test_the_q34_lantern_departs_on_its_fuel_and_takes_the_oil_sale(self):
+        """Owner 2026-11-06 「燃料があれば出発してよい」: 「ランタンに燃料が残っていれば、
+        油が5本に届かなくても出発します。財宝感知の巻物を売って油を足す決まりも、この
+        ランタンに使います。」  n1-c life-141 05:45: 1 gold, no oil, three Treasure
+        Detection scrolls, the Q34 lantern worn at row 17 (unidentified: no fuel figure;
+        the player's light radius shows whether it burns)."""
+        policy, recorded, steps = self.load("q34-lantern-town")
+        for index in range(17):
+            self.post(policy, self.decide(policy, steps[index][1])[3])
+        _, chosen, reason, key = self.decide(policy, steps[17][1])
+        self.assertEqual((chosen, reason), ("wc", "wield-light"))
+        self.post(policy, key)
+        raw = json.loads(recorded[17]["line"] or recorded[17]["inputs"][-1])
+        view = lambda board: parse_snapshot(copy.deepcopy(board), policy._monrace_knowledge)
+
+        # Lit: the departure passes on 0 of 5 flasks and the oil sale stays off.
+        lit = self.lantern_worn(raw, 2)
+        self.assertTrue(policy._fundraising_light_ready(view(lit)))
+        self.assertIsNone(mining_oil_sale.scroll_to_sell(policy, view(lit)))
+        # Another unidentified lantern keeps the five flasks.
+        self.assertFalse(policy._fundraising_light_ready(view(self.lantern_worn(raw, 2, inscription=""))))
+        twin = copy.deepcopy(policy)
+        reasons = []
+        for _ in range(2):
+            _, chosen, reason, key = self.decide(twin, lambda: view(lit))
+            reasons.append(reason)
+            self.post(twin, key)
+            # DECLARED CONSTRUCTED: the rest of the restock wait passes.
+            lit["turn"] += 5000
+        # The wait the visit held at row 17 runs out, then the mining run leaves.
+        self.assertEqual(reasons, ["town:wait-restock:general", "town:travel-entrance"])
+
+        # Out: the oil sale takes one scroll, and the oil it buys goes in at once.
+        out = view(self.lantern_worn(raw, 0))
+        self.assertFalse(policy._fundraising_light_ready(out))
+        self.assertTrue(mining_oil_sale.scroll_to_sell(policy, out).is_treasure_detection_scroll)
+        _, _, reason, _ = self.decide(copy.deepcopy(policy), lambda: view(self.lantern_worn(raw, 0, oil=1)))
+        self.assertEqual(reason, "refill-light")
+
 
 if __name__ == "__main__":
     unittest.main()

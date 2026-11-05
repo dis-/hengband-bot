@@ -581,6 +581,12 @@ class SupplyMixin:
         """
         return 1 if staple_food(snapshot) is not None else MANA_FOOD_DEVICE_TARGET
 
+    def _departure_oil_short(self, snapshot: Snapshot) -> bool:
+        """Oil below the departure's five flasks, unless the worn Q34 lantern shows
+        fuel in town (lamp_fuel.q34_town_lantern_lit, owner 2026-11-06)."""
+        return (self._oil_below_departure_target(snapshot)
+                and not lamp_fuel.q34_town_lantern_lit(self, snapshot))
+
     def _light_ready(self, snapshot: Snapshot) -> bool:
         if self._planned_depth() >= 2 and not self._owns_lantern(snapshot):
             return False
@@ -597,7 +603,7 @@ class SupplyMixin:
                 or any(item.fuel > LANTERN_REFILL_FUEL for item in lanterns)
             )
         if lanterns:
-            return not self._oil_below_departure_target(snapshot)
+            return not self._departure_oil_short(snapshot)
         return self._count_usable_torches(snapshot) >= FOOD_STOCK_TARGET
 
     def _light_judgment(self, snapshot: Snapshot) -> LightJudgment:
@@ -645,7 +651,7 @@ class SupplyMixin:
         if not equipped.known:
             return (
                 equipped.is_lantern
-                and not self._oil_below_departure_target(snapshot)
+                and not self._departure_oil_short(snapshot)
             )
         return not judgment.faint_without_refill
 

@@ -10353,7 +10353,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if (
             not snapshot.in_town
             or self._unknown_lantern_departure_refilled
-            or self._oil_below_departure_target(snapshot)
+            or (self._oil_below_departure_target(snapshot)
+                # The worn Q34 lantern seen out takes the oil the sale bought.
+                and not lamp_fuel.q34_town_lantern_out(self, snapshot))
             or lamp_fuel.refill_known_unneeded(self, snapshot)
         ):
             return None
