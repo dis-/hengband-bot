@@ -1,10 +1,12 @@
 from __future__ import annotations
-from hengbot import me_capability, mining_loadout, status_cure
+from hengbot import me_capability, mining_loadout, status_cure, walkout_dig
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from heapq import heappop, heappush
+from itertools import count
 
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -773,7 +775,12 @@ class FundraisingMixin:
         # reveals terrain, making BFS alternate between two equally short first
         # steps at a junction.  Break that confined cycle before asking BFS for
         # the same step again; the next decision resumes the staircase route.
-        oscillation_cells = set(self._recent) if self._is_oscillating() else set()
+        # A walk-out dig holds one cell over several decisions: that is no cycle.
+        oscillation_cells = (
+            set(self._recent)
+            if self._is_oscillating() and self.last_reason not in walkout_dig.REASONS
+            else set()
+        )
         if oscillation_cells:
             step = self._least_visited_neighbor(snapshot)
             if step is not None and step not in oscillation_cells:
@@ -847,6 +854,22 @@ class FundraisingMixin:
                     step="fundraising.explore-for-upstairs",
                     work_id="fundraise:return:explore",
                 )
+            # No walk reaches a staircase and nothing is left to explore: a carried
+            # digger digs out (owner 2026-11-02 「掘って進む」, walkout_dig).
+            dig = walkout_dig.key(self, snapshot)
+            if dig is not None:
+                return self._fundraising_return_route_key(
+                    dig, step="fundraising.walkout-dig",
+                    work_id="fundraise:return:walkout-dig",
+                    expected_effect="escape-tunnel-progress",
+                )
+            # This owner answers above the ladder's _navigation_livelock_key, so a
+            # walker here would never reach it: the no-progress bound is asked
+            # before the wander (recall, stairs, a Teleportation, the visible stop).
+            if self._nav_exhausted:
+                livelock = self._navigation_livelock_key(snapshot)
+                if livelock is not None:
+                    return livelock
             if self._is_oscillating():
                 step = self._probe_unknown_step(snapshot)
                 if step is not None:
@@ -1164,16 +1187,25 @@ class FundraisingMixin:
         ):
             return None
 
-        seen = {origin}
-        queue: deque[tuple[Position, Position | None]] = deque([(origin, None)])
-        while queue:
-            position, first = queue.popleft()
+        # Fewest cells tunnelled, then fewest steps: granite takes some eighty
+        # turns a cell (tunnel-execution.cpp: skill_dig > 40 + randint0(1600)),
+        # a step one.  The walkable floor includes a magic mapping's blank
+        # corridor grids, which have no grid on the board.
+        settled: set[Position] = set()
+        order = count()
+        frontier = [(0, 0, next(order), origin, None)]
+        while frontier:
+            digs, steps, _, position, first = heappop(frontier)
+            if position in settled:
+                continue
+            settled.add(position)
             if position in targets and position != origin:
                 return first
+            walkable = self._walkable_neighbors(snapshot, position)
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
                 if (
-                    neighbor in seen
+                    neighbor in settled
                     or neighbor in self._mining_unmarkable_grids
                     # Avoided cells carry lethal-danger weight in every
                     # routing BFS; a dig-breakout route walking one would
@@ -1183,15 +1215,17 @@ class FundraisingMixin:
                 ):
                     continue
                 grid = snapshot.grids.get(neighbor)
-                if grid is None or not grid.known or grid.has_monster:
+                if grid is not None and grid.has_monster:
                     continue
-                walkable = neighbor in self._walkable_neighbors(snapshot, position)
-                # Digging is permitted diagonally (do_cmd_tunnel takes any
-                # of the eight directions).
-                if not walkable and not diggable(grid):
-                    continue
-                seen.add(neighbor)
-                queue.append((neighbor, neighbor if first is None else first))
+                dug = 0
+                if neighbor not in walkable:
+                    # Digging is permitted diagonally (do_cmd_tunnel takes any
+                    # of the eight directions).
+                    if grid is None or not grid.known or not diggable(grid):
+                        continue
+                    dug = 1
+                heappush(frontier, (digs + dug, steps + 1, next(order), neighbor,
+                                    neighbor if first is None else first))
         return None
 
     def _dig_reachable_goal_and_step(

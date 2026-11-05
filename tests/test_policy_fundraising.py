@@ -1094,9 +1094,9 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             [Position(12, 126), Position(13, 126)] * 5, maxlen=STUCK_WINDOW
         )
         pol._mining_stall_turns = MINING_STALL_LIMIT
-        key = pol._fundraising_key(snap, [])
-        self.assertNotEqual(key, TUNNEL_KEY + "6")
-        self.assertNotEqual(pol.last_reason, "fundraise:tunnel-to-treasure")
+        pol._fundraising_key(snap, [])
+        # The vein is left; the exit digs toward the unexplored (owner 2026-11-02, walkout_dig).
+        self.assertEqual(pol.last_reason, "return:dig-to-frontier")
         # And the exit never re-reads a detection scroll either.
         key = pol._fundraising_key(snap, [])
         self.assertFalse(key.startswith(READ_KEY))
@@ -1163,7 +1163,7 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._mining_stall_turns = MINING_STALL_LIMIT  # leash spent
         key = pol._fundraising_key(snap, [])
         self.assertEqual(key, TUNNEL_KEY + "6")  # digging OUT toward the up-stairs
-        self.assertEqual(pol.last_reason, "fundraise:tunnel-out")
+        self.assertEqual(pol.last_reason, "return:dig-to-upstairs")
         self.assertFalse(key.startswith(READ_KEY))  # neither detect-treasure nor teleport
 
     def obsolete_walled_vein_is_left_instead_of_tunneled_at(self):
