@@ -234,10 +234,29 @@ class TownStops1105RecordedTest(executor_pins.ProductionHarness):
 
     def test_the_quest_return_leaves_the_expedition_at_morivant(self):
         """n1-a life-486 11:41: travel-2 and fixedquest:prepare-return alternate, 500
-        gold a leg, 5,061 gold to 61."""
+        gold a leg, 5,061 gold to 61.
+
+        Row 10 changed with LAUNCHER-SALE-1106 (item_fate.ranked_gear_saleable): the
+        Amulet of Resist Lightning ranks in the top 10, so no Magic shop sale is
+        planned for it any more and the pack reserve's Home deposit (space-deposit,
+        town_pack_headroom) comes before the launcher's enchant read, 43 rows before
+        the expedition starts.  The record's build planned that sale and never made
+        it.  From row 11 the boards are the record's, not this build's; the bot's
+        own keys are posted on them, and the expedition still starts at row 53."""
         policy, recorded, steps = self.load("expedition")
         self.assertEqual(recorded[55]["reason"], "fixedquest:prepare-return")
-        board, _, _, key = self.replay_to(policy, recorded, steps, 55)
+        self.assertEqual(recorded[10]["reason"], "town:enchant-launcher-todam")
+        _, chosen, reason, key = self.replay_to(policy, recorded, steps, 10)
+        self.assertEqual((chosen, reason), ("5", "home:atomic-deposit"))
+        self.assertIsNone(policy._morivant_full_identify)
+        self.post(policy, key)
+        for index in range(11, 55):
+            _, chosen, reason, key = self.decide(policy, steps[index][1])
+            self.assertNotEqual(policy.last_reason, BURST, f"row {index}")
+            if index >= 53:
+                self.assertEqual((chosen, reason), (recorded[index]["key"], recorded[index]["reason"]))
+            self.post(policy, key)
+        board, _, _, key = self.decide(policy, steps[55][1])
         self.assertFalse(policy.last_reason.startswith("fixedquest:"))
         self.assertIsNotNone(policy._morivant_full_identify)
         self.assert_posts(policy, recorded[55], board, key)
