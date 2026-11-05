@@ -14753,5 +14753,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing shop sale effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "policy_supply.py:SupplyMixin._town_q34_lantern": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Owner 2026-11-06 「町でも付けてよい」: the Q34 lantern is worn in town once the light burned out.",
+    "evidence": "Pure selector over the worn light, carried lights and the Q34 inscription; the wield is the ordinary light owner; no command or independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing equipment wield effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success."
   }
 }

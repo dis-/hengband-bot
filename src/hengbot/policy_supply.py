@@ -12,6 +12,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, replace
 
 from hengbot.town_arbiter import ClaimOwner, claims
+from hengbot.equipment_optimizer import q34_item_tagged
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_BLACK, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
     SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH, lights_nothing,
@@ -245,7 +246,7 @@ class SupplyMixin:
 
     def _unknown_light_last_resort(self, snapshot: Snapshot) -> bool:
         if snapshot.in_town:
-            return False
+            return self._town_q34_lantern(snapshot) is not None
         equipped = self._worn_light(snapshot)
         if equipped is None:
             return True
@@ -258,6 +259,27 @@ class SupplyMixin:
         if self._light_refill_item(snapshot) is not None:
             return False
         return self._find_light(snapshot, include_unknown=False) is None
+
+    def _town_q34_lantern(self, snapshot: Snapshot) -> InventoryItem | None:
+        """The unidentified Q34 lantern to wear in town once the light burned out.
+
+        Owner 2026-10-31 「Q34習得品も付けて良い」, and 2026-11-06 「町でも付けてよい」:
+        n1-c life-141 stood in town with its torch at 0 turns beside the Q34
+        lantern until town:blocked:survival:recall_departure_ready.  Only a
+        light with nothing left to give is replaced: no worn light, or a worn
+        torch or lantern known to be at 0 turns, and no known light or refill
+        to take instead.
+        """
+        worn = self._worn_light(snapshot)
+        if worn is not None and not (
+                worn.known and worn.sval <= SV_LITE_LANTERN and worn.fuel <= 0):
+            return None
+        if (self._light_refill_item(snapshot) is not None
+                or self._find_light(snapshot, include_unknown=False) is not None):
+            return None
+        return next((item for item in snapshot.inventory
+                     if item.is_lantern and not item.known and not item.is_cursed
+                     and q34_item_tagged(item)), None)
 
     def _supply_ledger(self, snapshot: Snapshot, depth: int) -> dict[str, SupplyStatus]:
         memo = _SUPPLY_LEDGER_OBSERVER_MEMO.get()

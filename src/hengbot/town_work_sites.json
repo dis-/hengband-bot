@@ -1096,6 +1096,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:q34_item_tagged": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:required_abilities": {
     "classification": "data",
     "rows": [
@@ -8435,6 +8442,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_supply.py:SupplyMixin._town_q34_lantern": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success."
   },
   "policy_supply.py:SupplyMixin._unknown_light_last_resort": {
     "classification": "data",

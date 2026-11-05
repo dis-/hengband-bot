@@ -10049,6 +10049,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # the torch-carrying Half-Troll.
         if not include_unknown:
             return None
+        if snapshot.in_town:
+            return self._town_q34_lantern(snapshot)
         return max(
             (item for item in snapshot.inventory if item.is_light and not item.known),
             key=self._light_rank,

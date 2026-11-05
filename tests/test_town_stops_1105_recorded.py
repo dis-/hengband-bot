@@ -404,6 +404,38 @@ class TownStops1105RecordedTest(executor_pins.ProductionHarness):
         # A dark light held (model.lights_nothing) neither needs oil nor lights the way.
         self.assertIsNotNone(scroll(dark_light))
 
+    def test_a_burnt_out_torch_gives_way_to_the_q34_lantern_in_town(self):
+        """Owner 2026-11-06 「町でも付けてよい」 (the 10-31 rule for Q34 gear):
+        n1-c life-141 05:45, its torch at 0 turns beside the unidentified Q34
+        lantern {並, Q34}, waited town:wait-restock:general:oil-light and stopped at
+        town:blocked:survival:recall_departure_ready."""
+        policy, recorded, steps = self.load("q34-lantern-town")
+        self.assertEqual(recorded[17]["reason"], "town:wait-restock:general:oil-light")
+        raw = json.loads(recorded[17]["line"] or recorded[17]["inputs"][-1])
+        twin = copy.deepcopy(policy)
+        board, chosen, reason, _ = self.replay_to(policy, recorded, steps, 17)
+        lantern = next(item for item in board.inventory if item.is_lantern)
+        self.assertEqual((lantern.slot, lantern.known, lantern.inscription), ("c", False, "Q34"))
+        # The wield answers the game's prompt, which the constructed command screen
+        # of the executor harness does not show: the pin stops at the chooser.
+        self.assertEqual((chosen, reason), ("wc", "wield-light"))
+
+        # DECLARED CONSTRUCTED on the same board: an unidentified lantern from
+        # elsewhere, listed first, is not worn in town; a torch still burning keeps.
+        for index in range(17):
+            self.post(twin, self.decide(twin, steps[index][1])[3])
+        other = copy.deepcopy(raw)
+        stray = dict(next(item for item in other["inventory"] if item["tval"] == 39),
+                     name="真鍮のランタン {並}", inscription="")
+        other["inventory"].insert(0, stray)
+        for index, item in enumerate(other["inventory"]):
+            item["slot"] = chr(ord("a") + index)
+        view = parse_snapshot(other, twin._monrace_knowledge)
+        self.assertEqual(twin._find_light(view).slot, "d")
+        burning = copy.deepcopy(raw)
+        next(item for item in burning["equipment"] if item["slot"] == "light")["light_turns"] = 19
+        self.assertIsNone(twin._town_q34_lantern(parse_snapshot(burning, twin._monrace_knowledge)))
+
 
 if __name__ == "__main__":
     unittest.main()
