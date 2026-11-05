@@ -2,10 +2,9 @@
 
 Owner 2026-11-02: 「angband 6F, 12Fのランダムクエストに挑む順が早いので達成率が
 低い。Q2の後に回したい」.  While the gating fixed quest (Q2, 下水道) is still
-open, no voluntary descent or recall landing may cross into a dungeon floor
-that holds a pending RANDOM quest: the dive stops one floor above the
-shallowest one (Angband deepest allowed = first random quest level - 1).
-After Q2 the hold lifts and nothing else changes.
+open, no voluntary descent may cross a dungeon floor that holds a pending
+RANDOM quest: the dive stops above it.  ``down_destination`` reads the stair: a
+shaft lands two floors down.  After Q2 the hold lifts and nothing else changes.
 
 Data, not numbers: the random quest floors are the RANDOM rows of the quest
 knowledge (lib/edit/quests/04N_RandomQuest.jsonc, "level" and "dungeon").
@@ -53,16 +52,13 @@ def _pending_random_levels(policy, snapshot, dungeon_id: int) -> list[int]:
     return levels
 
 
-def first_held_level(policy, snapshot, dungeon_id: int) -> int | None:
-    """The shallowest random quest floor of ``dungeon_id`` held now, if any."""
-    # A board without any quest rows (legacy protocol) cannot tell Q2 apart.
-    if not snapshot.quests or not _gating_quest_open(snapshot):
-        return None
-    levels = _pending_random_levels(policy, snapshot, dungeon_id)
-    return min(levels) if levels else None
+def hold_active(snapshot) -> bool:
+    """Whether Q2 still holds.  A board without quest rows (legacy) cannot tell."""
+    return bool(snapshot.quests) and _gating_quest_open(snapshot)
 
 
 def crossing_held(policy, snapshot, dungeon_id: int, current: int, destination: int) -> bool:
-    """Whether going from ``current`` to ``destination`` enters a held floor."""
-    level = first_held_level(policy, snapshot, dungeon_id)
-    return level is not None and current < level <= destination
+    """Whether going from ``current`` to ``destination`` enters or passes a held floor."""
+    return hold_active(snapshot) and any(
+        current < level <= destination
+        for level in _pending_random_levels(policy, snapshot, dungeon_id))
