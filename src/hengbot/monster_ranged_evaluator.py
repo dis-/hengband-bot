@@ -823,21 +823,19 @@ def _dense_damage_distribution(
     return dense
 
 
-def aggregate_ranged_damage_percentile(
+def ranged_action_distribution(
     monster: MonraceKnowledge,
     *,
-    actions: int,
     selection_probabilities: dict[str, float],
     flags: frozenset[int] = frozenset(),
     player_hp: int | None = None,
     blind: bool = False,
     saving_skill: int = 0,
     percentile: int = 95,
-) -> RangedDamagePercentile:
-    """Return the p95 total from the complete per-action damage mixture."""
-    if not 1 <= percentile <= 100:
-        raise ValueError(f"percentile must be in [1, 100]: {percentile}")
+) -> tuple[dict[int, float], int]:
+    """(damage of one action as a spell attempt mixture, the largest p-th single hit).
 
+    The zero entry holds the actions that did not cast or whose spell did nothing."""
     per_action: dict[int, float] = {0: 1.0}
     single_hit_floor = 0
     for ability, selection_probability in selection_probabilities.items():
@@ -887,6 +885,33 @@ def aggregate_ranged_damage_percentile(
         for damage, probability in per_action.items()
         if probability > 1e-15
     }
+    return per_action, single_hit_floor
+
+
+def aggregate_ranged_damage_percentile(
+    monster: MonraceKnowledge,
+    *,
+    actions: int,
+    selection_probabilities: dict[str, float],
+    flags: frozenset[int] = frozenset(),
+    player_hp: int | None = None,
+    blind: bool = False,
+    saving_skill: int = 0,
+    percentile: int = 95,
+) -> RangedDamagePercentile:
+    """Return the p95 total from the complete per-action damage mixture."""
+    if not 1 <= percentile <= 100:
+        raise ValueError(f"percentile must be in [1, 100]: {percentile}")
+
+    per_action, single_hit_floor = ranged_action_distribution(
+        monster,
+        selection_probabilities=selection_probabilities,
+        flags=flags,
+        player_hp=player_hp,
+        blind=blind,
+        saving_skill=saving_skill,
+        percentile=percentile,
+    )
     per_action_dense = _dense_damage_distribution(per_action)
     aggregate = np.ones(1, dtype=np.float64)
     for _ in range(max(0, actions)):

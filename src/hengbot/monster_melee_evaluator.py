@@ -93,6 +93,22 @@ def add_earthquake_damage(
     return tuple(sorted(result.items()))
 
 
+def melee_action_distribution(blows: tuple[MeleeBlowDistribution, ...]) -> np.ndarray:
+    """Damage of one monster melee action: every blow rolls its own hit (dense, by damage)."""
+    per_action = np.ones(1, dtype=np.float64)
+    for hit_probability, damage_distribution in blows:
+        hit_probability = min(1.0, max(0.0, hit_probability))
+        conditional: dict[int, float] = {0: 1.0 - hit_probability}
+        for damage, probability in damage_distribution:
+            conditional[damage] = (
+                conditional.get(damage, 0.0) + hit_probability * probability
+            )
+        per_action = np.convolve(
+            per_action, _dense_damage_distribution(conditional)
+        )
+    return per_action
+
+
 @lru_cache(maxsize=4096)
 def melee_damage_percentile(
     blows: tuple[MeleeBlowDistribution, ...],
@@ -106,20 +122,13 @@ def melee_damage_percentile(
     """
     if not 1 <= percentile <= 100:
         raise ValueError(f"percentile must be in [1, 100]: {percentile}")
-    per_action = np.ones(1, dtype=np.float64)
+    per_action = melee_action_distribution(blows)
     expected_per_action = 0.0
     single_hit_floor = 0
     for hit_probability, damage_distribution in blows:
         hit_probability = min(1.0, max(0.0, hit_probability))
-        conditional: dict[int, float] = {0: 1.0 - hit_probability}
         for damage, probability in damage_distribution:
-            conditional[damage] = (
-                conditional.get(damage, 0.0) + hit_probability * probability
-            )
             expected_per_action += hit_probability * probability * damage
-        per_action = np.convolve(
-            per_action, _dense_damage_distribution(conditional)
-        )
         if hit_probability > 0.0 and any(
             damage > 0 for damage, _ in damage_distribution
         ):
