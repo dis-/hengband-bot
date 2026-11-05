@@ -25,7 +25,7 @@ from hengbot.equipment_optimizer import (
     required_abilities,
     slot_for,
     owned_armor_fill_slots,
-    usable_light_candidate,
+    lighting_light_candidate,
 )
 from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
@@ -842,7 +842,7 @@ def prepare_warrior_optimization(
     )
     require_light = any(
         item.id not in search_excluded_item_ids
-        and usable_light_candidate(item)
+        and lighting_light_candidate(item)
         for item in items
     )
     require_body = any(

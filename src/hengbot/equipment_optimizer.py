@@ -33,7 +33,9 @@ from hengbot.model import (
     TVAL_SHOT,
     InventoryItem,
     StoreItem,
+    flag_light_radius,
     item_requires_full_identification,
+    lights_nothing,
 )
 from hengbot.launcher_damage import best_obtainable_launcher_damage
 from hengbot.policy_constants import (
@@ -104,12 +106,6 @@ TR_SELF_ELEC = 159
 TR_SELF_COLD = 160
 TR_PERSISTENT_CURSE = 161
 
-# Light radius, as ItemEntity::get_lite_radius() (item-entity.cpp) adds it up
-# from the light flags of src/object-enchant/tr-types.h.  Only the item's known
-# flags are read: an artifact that is not fully known does not reveal its own.
-LIGHT_RADIUS_BY_FLAG = ((77, 1), (122, 2), (123, 3))  # TR_LITE_1/2/3
-DARKNESS_RADIUS_BY_FLAG = ((124, 1), (125, 2), (126, 3))  # TR_LITE_M1/M2/M3
-TR_DARK_SOURCE = 146
 
 # Flags whose behavior makes an exploration loadout unusable for the present
 # bot.  Temporary curse state is handled separately: such an item is held for
@@ -425,11 +421,7 @@ def permanent_light_radius(item: OwnedEquipment | None) -> int:
         or item.item.sval < SV_LITE_FEANOR
     ):
         return 0
-    flags = item.flags
-    radius = -sum(value for flag, value in DARKNESS_RADIUS_BY_FLAG if flag in flags)
-    if TR_DARK_SOURCE not in flags:
-        radius += sum(value for flag, value in LIGHT_RADIUS_BY_FLAG if flag in flags)
-    return radius
+    return flag_light_radius(item.flags)
 
 
 def worn_light_radius(items: Iterable[OwnedEquipment | None]) -> int:
@@ -462,14 +454,7 @@ def worn_light_radius(items: Iterable[OwnedEquipment | None]) -> int:
         if item.item.tval == TVAL_LITE and item.item.sval >= SV_LITE_FEANOR:
             radius += permanent_light_radius(item)
             continue
-        flags = item.flags
-        radius -= sum(
-            value for flag, value in DARKNESS_RADIUS_BY_FLAG if flag in flags
-        )
-        if TR_DARK_SOURCE not in flags:
-            radius += sum(
-                value for flag, value in LIGHT_RADIUS_BY_FLAG if flag in flags
-            )
+        radius += flag_light_radius(item.flags)
     return radius
 
 
@@ -1099,6 +1084,35 @@ def usable_light_candidate(owned: OwnedEquipment) -> bool:
     )
 
 
+def lighting_light_candidate(owned: OwnedEquipment) -> bool:
+    """A usable light that is not known to light nothing (``lights_nothing``).
+
+    A dark light such as ★火消しライター (TR_LITE_M1 with TR_DARK_SOURCE,
+    radius -1) fills the light slot but lights nothing: worn alone the
+    player's radius is 0 and the game refuses reading (``no_lite``) on every
+    unlit cell (n1-b life-321).  Only a light that lights makes the light
+    requirement of the loadout search.
+    """
+    return usable_light_candidate(owned) and not lights_nothing(owned.item)
+
+
+def _loadout_lights(loadout: Loadout) -> bool:
+    """The loadout wears a light that lights, not darkened to 0 by the rest.
+
+    When a light that lights is owned, the light requirement asks the whole
+    loadout to light (USER DECISION 2026-10-23 「合計で比べる」): a dark
+    light, or a light whose radius the other worn items cancel, is never kept
+    for a stealth or score gain (n1-b life-321 wore ★火消しライター for its
+    +3 stealth and read nothing in the dark).  A light whose own flags are
+    not known adds no radius here and still counts as lighting.
+    """
+    light = loadout.item_at(SLOT_LIGHT)
+    if light is None or lights_nothing(light.item):
+        return False
+    own = worn_light_radius((light,))
+    return own <= 0 or loadout_light_radius(loadout) > 0
+
+
 def _meets_static_requirements(
     loadout: Loadout,
     *,
@@ -1108,7 +1122,7 @@ def _meets_static_requirements(
     require_light: bool = True,
 ) -> bool:
     """Reject loadouts whose failure does not depend on combat evaluation."""
-    if require_light and loadout.item_at(SLOT_LIGHT) is None:
+    if require_light and not _loadout_lights(loadout):
         return False
     abilities = set(intrinsic_abilities)
     for name, flag in ABILITY_FLAG.items():
@@ -1582,7 +1596,7 @@ def optimize_loadout(
         )
     )
     if require_light is None:
-        require_light = any(usable_light_candidate(item) for item in catalog)
+        require_light = any(lighting_light_candidate(item) for item in catalog)
     if require_body is None:
         require_body = any(
             item.exploration_legal and slot_for(item.item) == SLOT_BODY

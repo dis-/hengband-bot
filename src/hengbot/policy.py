@@ -530,6 +530,7 @@ from hengbot.model import (
     SV_LITE_LANTERN,
     SV_LITE_FEANOR,
     SV_LITE_TORCH,
+    lights_nothing,
     SV_POTION_SLEEP,
     SV_POTION_SPEED,
     SV_POTION_CURE_CRITICAL,
@@ -2518,6 +2519,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._remembered_grid_signatures = {}
             self._remembered_grid_sources = {}
         self._scope_terrain_to_town(snapshot)
+        from hengbot import tunnel_feasibility
+        tunnel_feasibility.forget_dug_walls(self, snapshot)
 
         remembered = self._remembered_grids
         for position, grid in snapshot.grids.items():
@@ -10064,11 +10067,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Torches and lanterns consume fuel; higher svals are permanent lights.
         # Fuel is only visible on identified lights (birth gear and store buys
         # are known); unknown ones are handled by _find_light's fallback.
-        return item.is_light and (item.sval > SV_LITE_LANTERN or item.fuel > 0)
+        return (
+            item.is_light
+            and (item.sval > SV_LITE_LANTERN or item.fuel > 0)
+            and not lights_nothing(item)
+        )
 
     def _light_to_wield(self, snapshot: Snapshot) -> InventoryItem | None:
         """Wield the best usable light: torch < lantern < permanent light."""
-        equipped = next((it for it in snapshot.equipment if it.is_light), None)
+        equipped = self._worn_light(snapshot)
         if equipped is None:
             return self._find_light(
                 snapshot,
@@ -10136,7 +10143,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return None
         if self._first_item(snapshot, lambda it: it.is_oil and it.fuel > 0) is None:
             return None
-        equipped = next((it for it in snapshot.equipment if it.is_light), None)
+        equipped = self._worn_light(snapshot)
         # Do not replace a working light with an empty lantern just to refill
         # it. The refill path runs after the worn light is exhausted; this
         # keeps the optimizer and the refill owner from alternating slots.
@@ -10270,7 +10277,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _darkness_torch(self, snapshot: Snapshot) -> InventoryItem | None:
-        worn = next((item for item in snapshot.equipment if item.is_light), None)
+        worn = self._worn_light(snapshot)
         if worn is not None and (
             worn.sval > SV_LITE_LANTERN
             or (worn.is_lantern and worn.fuel > LANTERN_REFILL_FUEL)
@@ -10570,7 +10577,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return self._own_grid_visible(snapshot)
         if not self._is_dark(snapshot):
             return True
-        equipped = next((item for item in snapshot.equipment if item.is_light), None)
+        equipped = self._worn_light(snapshot)
         if equipped is None and not snapshot.equipment_observed:
             # Direct legacy Snapshot constructors predate equipment presence
             # tracking. Live parsed snapshots always mark this channel observed.

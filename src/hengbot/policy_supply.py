@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.model import (
     STORE_ALCHEMIST, STORE_BLACK, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON,
-    SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH,
+    SV_LITE_FEANOR, SV_LITE_LANTERN, SV_LITE_TORCH, lights_nothing,
     SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE,
     SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_WAND_TELEPORT_AWAY,
     SV_POTION_HEALING, SV_POTION_SPEED, TVAL_ARROW, TVAL_BOLT,
@@ -179,6 +179,17 @@ class SupplyMixin:
                    and item.count > 0 and item.price <= snapshot.player.gold
                    for page in pages.values() for item in page.items)
 
+    @staticmethod
+    def _worn_light(snapshot: Snapshot) -> InventoryItem | None:
+        """The worn light source, or None when none lights the player.
+
+        A worn dark light (``lights_nothing``: ★火消しライター) fills the slot
+        but lights nothing; every light rule treats it as no light (n1-b
+        life-321 kept it, radius 0, and could not read in the dark).
+        """
+        worn = next((it for it in snapshot.equipment if it.is_light), None)
+        return None if worn is None or lights_nothing(worn) else worn
+
     def _owns_usable_permanent_light(self, snapshot: Snapshot) -> bool:
         """Return whether a usable permanent light is in hand (worn or carried).
 
@@ -191,6 +202,7 @@ class SupplyMixin:
             and item.sval >= SV_LITE_FEANOR
             and not item.is_cursed
             and not item.is_broken
+            and not lights_nothing(item)
             for item in (*snapshot.inventory, *snapshot.equipment)
         )
 
@@ -234,7 +246,7 @@ class SupplyMixin:
     def _unknown_light_last_resort(self, snapshot: Snapshot) -> bool:
         if snapshot.in_town:
             return False
-        equipped = next((it for it in snapshot.equipment if it.is_light), None)
+        equipped = self._worn_light(snapshot)
         if equipped is None:
             return True
         if not equipped.known:
@@ -573,7 +585,7 @@ class SupplyMixin:
         light-low の帰還と暗がりの歩きは、これを通して答える
         （tests/test_light_judgment_census.py が列挙した箇所を確かめる）。
         """
-        worn = next((item for item in snapshot.equipment if item.is_light), None)
+        worn = self._worn_light(snapshot)
         fuel_using = worn is not None and worn.sval <= SV_LITE_LANTERN
         # Normal lights warn below 100 fuel at ten-step marks
         # (src/object/lite-processor.cpp:71).
@@ -602,7 +614,7 @@ class SupplyMixin:
         )
 
     def _expedition_light_ready(self, snapshot: Snapshot) -> bool:
-        equipped = next((item for item in snapshot.equipment if item.is_light), None)
+        equipped = self._worn_light(snapshot)
         if equipped is None:
             return False
         if equipped.sval > SV_LITE_LANTERN:

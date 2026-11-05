@@ -6226,7 +6226,14 @@ class TownMixin:
                     # it cannot recall into a dungeon without carried food
                     # and a scroll left to return with.
                     return WAIT_KEY
-                recall = self._find_recall_scroll(snapshot)
+                # The game's read rule, as at the ordinary read point: on an
+                # unlit cell (the town at night with no light) the read is
+                # refused with no turn passing, and asking again repeats the
+                # refused key (n1-b life-321: twelve 「明かりがないので見えない。」).
+                recall = (
+                    self._find_recall_scroll(snapshot)
+                    if self._can_read_now(snapshot) else None
+                )
                 if recall is not None:
                     selection = ""
                     strict_departure_gate = False
@@ -7904,9 +7911,7 @@ class TownMixin:
                 if not self._expedition_light_ready(snapshot):
                     self._last_return_trigger = "light-low"
                     return True
-            equipped_light = next(
-                (it for it in snapshot.equipment if it.is_light), None
-            )
+            equipped_light = self._worn_light(snapshot)
             if equipped_light is None:
                 self._last_return_trigger = "no-light"
                 return True
