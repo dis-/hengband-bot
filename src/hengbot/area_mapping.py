@@ -62,7 +62,7 @@ class Memory:
     discs: list = field(default_factory=list)  # (centre, radius) a carried device mapped
     pending: tuple | None = None        # (turn, position, radius) of the last use
     failed: Counter = field(default_factory=Counter)  # position -> failed uses
-    circles: list = field(default_factory=list)  # (centre, sure radius) of each use
+    circles: list = field(default_factory=list)  # (centre, radius, sure radius) of each use
 
 
 def _memory(policy, snapshot: Snapshot) -> Memory:
@@ -83,7 +83,7 @@ def note_destruction(policy, snapshot: Snapshot, centre: Position, radius: int, 
     maps it, and within ``sure_radius`` nothing is left to go and see."""
     memory = _memory(policy, snapshot)
     memory.destroyed_turn = snapshot.turn
-    memory.circles.append((centre, sure_radius))
+    memory.circles.append((centre, radius, sure_radius))
     memory.discs = [disc for disc in memory.discs
                     if game_distance(centre, disc[0]) > radius + disc[1]]
     me_powers.forget_maps(policy, snapshot, centre, radius)
@@ -115,9 +115,23 @@ def destroyed_cells(policy, snapshot: Snapshot) -> set:
 
     memory = _floor_memory(policy, snapshot)
     cells = set()
-    for centre, radius in (() if memory is None else memory.circles):
+    for centre, _, radius in (() if memory is None else memory.circles):
         cells |= mapped_area.disc_cells(snapshot, centre, radius)
     return cells
+
+
+def destroyed_since_arrival(policy, snapshot: Snapshot) -> bool:
+    """The player's *Destruction* was seen on this floor visit."""
+    memory = _floor_memory(policy, snapshot)
+    return memory is not None and bool(memory.circles)
+
+
+def in_destroyed_circle(policy, snapshot: Snapshot, cells) -> bool:
+    """Every one of ``cells`` lies in reach of one *Destruction* of this floor visit."""
+    memory = _floor_memory(policy, snapshot)
+    return memory is not None and any(
+        all(game_distance(centre, cell) <= radius for cell in cells)
+        for centre, radius, _ in memory.circles)
 
 
 def _due(policy, snapshot: Snapshot) -> bool:

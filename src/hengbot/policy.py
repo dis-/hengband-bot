@@ -9033,6 +9033,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if escape is not None:
                 return escape
 
+        # Sealed by the player's own *Destruction*: no search comes first (sealed_pocket).
+        destroyed_pocket = sealed_pocket.after_destruction_key(self, snapshot)
+        if destroyed_pocket is not None:
+            return destroyed_pocket
+
         # 8. If we are circling the same few tiles (frontiers whose unknown side
         #    the pathfinder can't reach), break out by stepping directly into an
         #    adjacent unknown tile to reveal it. Only when actually oscillating,

@@ -3,8 +3,11 @@
 Owner 2026-11-05: 「*破壊*後全方位壁なら岩石溶解で脱出すれば良い」 (n1-c life-140:
 *Destruction* left two floor cells in rock on random quest 40, Angband 50F; the
 Teleportation that used to answer landed beside a biter and Recall left the quest).
-The condition is the walls, not how they came: nothing asks whether a *Destruction*
-happened, and no floor, class or depth is named.
+The condition is the walls, not how they came: no floor, class or depth is named.
+How they came sets only when: owner the same day, asked whether to melt before the
+secret-door search, 「*破壊* の後はすぐ溶かす」.  A pocket in the circle of the player's own
+*Destruction* on this floor visit is melted at once (``after_destruction_key``); any other
+seal keeps the search first.
 
 Sealed (``sealed_region``): what the player can walk to shows no way on.  Every
 neighbour of it is known, and none is a stair, or a door or rubble not given up.
@@ -28,7 +31,8 @@ of a low skill, or a terrain the board does not show) and its line is not asked 
 With no line left the asker's next rung answers (Teleportation, Recall, the visible
 stop), as it does blind, confused, with no charge or with only permanent walls.
 
-Askers: ``_navigation_livelock_key`` before it would leave or read away,
+Askers: the ladder above the searches for a destroyed pocket (``after_destruction_key``),
+``_navigation_livelock_key`` before it would leave or read away,
 ``_stuck_escape_key`` where a stuck count would leave the floor first, and
 ``_town_idle_key`` in place of the first aimless step (exploration, the secret-door
 search and the known stairs have all answered by then).  The map comes first
@@ -227,6 +231,16 @@ def _melt_key(policy, snapshot: Snapshot, direction: str) -> tuple[str, str] | N
             return used, REASON
     cast = carry_cast_key(policy, snapshot, "utility_tools", "wall_breach", direction)
     return None if cast is None else (cast, REASON + CAST_SUFFIX)
+
+
+def after_destruction_key(policy, snapshot: Snapshot) -> str | None:
+    """``key`` at once, for a sealed region inside the player's *Destruction*, else None."""
+    if not area_mapping.destroyed_since_arrival(policy, snapshot):
+        return None
+    region = sealed_region(policy, snapshot)
+    if region is None or not area_mapping.in_destroyed_circle(policy, snapshot, region):
+        return None
+    return key(policy, snapshot)
 
 
 def key(policy, snapshot: Snapshot) -> str | None:

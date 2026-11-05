@@ -74,6 +74,10 @@ def _device(raw, tval, sval, name, **fields):
 
 
 class AreaMappingRecordedTest(executor_pins.ProductionHarness):
+    SEARCH_TURN = 3969886  # decision 3626: the recorded first search in the pocket
+    MELT = "al7"           # the recorded pack's wand, up-left: sealed test's line
+    # The recorded decisions from the flash on: rest, search, rest, rest, seven searches.
+
     def setUp(self):
         self.boards = _boards()
         self.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
@@ -275,6 +279,53 @@ class AreaMappingRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(me_powers.mapped_areas(policy, board), ((FAR, me_powers.DETECT_RAD),))
         # The row still counts them as uses: 「new-floor」 does not fire for them.
         self.assertEqual(len(memory.uses), 2)
+
+    def searched(self, *rows, centre=None):
+        """The flash on record, deciding on the board of the recorded first search."""
+        policy, raw = self.flashed(*rows)
+        self.choose(policy, raw)
+        if centre is not None:
+            memory = area_mapping._memory(policy, parse_snapshot(raw, policy._monrace_knowledge))
+            memory.circles[:] = [(centre, destruction_use.WORST_RADIUS, destruction_use.GUARANTEED_RADIUS)]
+        return policy
+
+    def test_the_first_search_in_a_destroyed_pocket_melts_at_once(self):
+        # Owner 2026-11-05 「*破壊* の後はすぐ溶かす」: recorded decision 3626, turn 3969886.
+        policy = self.searched()
+        key, _ = self.choose(policy, copy.deepcopy(self.boards[self.SEARCH_TURN]))
+        self.assertEqual((key, policy.last_reason), (self.MELT, sealed_pocket.REASON))
+
+    def test_the_survival_rungs_keep_their_place_above_the_melt(self):
+        # The recorded rest of turn 3969891 still rests.
+        policy = self.searched()
+        self.choose(policy, copy.deepcopy(self.boards[3969891]))
+        self.assertEqual(policy.last_reason, "rest")
+
+    def test_a_seal_outside_the_circle_keeps_the_search(self):
+        policy = self.searched(centre=FAR)
+        key, _ = self.choose(policy, copy.deepcopy(self.boards[self.SEARCH_TURN]))
+        self.assertEqual((key, policy.last_reason), ("s", "search"))
+
+    def test_a_seal_with_no_destruction_on_record_keeps_the_search(self):
+        raw = copy.deepcopy(self.boards[self.SEARCH_TURN])
+        policy = self.policy(copy.deepcopy(self.boards[USE_TURN]))
+        key, _ = self.choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), ("s", "search"))
+
+    def test_the_circle_of_another_floor_does_not_count(self):
+        policy = self.searched()
+        raw = copy.deepcopy(self.boards[self.SEARCH_TURN])
+        raw["floor"]["level"] = 49
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertIsNone(sealed_pocket.after_destruction_key(policy, board))
+
+    def test_a_due_map_still_comes_before_the_melt(self):
+        policy, raw = self.flashed(*self.full_rows())
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        destruction_use.observe(policy, board)
+        policy._me_power_floor.pending = None
+        self.assertEqual(sealed_pocket.after_destruction_key(policy, board), MAP_KEY)
+        self.assertEqual(policy.last_reason, SEALED)
 
     def test_a_sealed_pocket_reads_the_map_before_it_melts(self):
         raw = json.loads(_sealed_pin()["lines"][-1])
