@@ -68,6 +68,7 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "ability-gear:buy": "equipment-catalogue",
     "black-market:speed": "emergency-potion",
     "black-market:healing": "emergency-potion",
+    "black-market:resistance": "resistance-potion",
     "black-market:stone-to-mud": "utility:stone-to-mud",
     # Read at once by _town_remove_curse_key.
     "curse:normal": CONSUMED_ON_USE,

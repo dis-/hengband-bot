@@ -45,7 +45,7 @@ from pathlib import Path
 
 from hengbot import quest_optional_carry
 from hengbot.model import (
-    RESTORE_POTION_SVAL_BY_STAT, SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP,
+    RESTORE_POTION_SVAL_BY_STAT, SV_POTION_EXPERIENCE, SV_POTION_RESISTANCE, SV_POTION_RESTORE_EXP,
     SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_MAPPING,
     SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
     TVAL_POTION, TVAL_SCROLL, item_requires_full_identification,
@@ -65,6 +65,8 @@ USE_OWNED_ELSEWHERE = {
     # Owner 2026-11-05 「拾ったら即座に読む」 (the form said 「捨てる」):
     # area_mapping.picked_up_scroll_key, whose read counts as a map.
     (TVAL_SCROLL, SV_SCROLL_MAPPING): "area-mapping",
+    # Owner 2026-11-05 「危ない敵と戦う時に飲む」 (the form left ``use`` off): resist_potion.key.
+    (TVAL_POTION, SV_POTION_RESISTANCE): "resist-potion",
 }
 # ``use`` kinds the bot cannot use yet (open questions for the owner): the
 # self-knowledge viewer (player-info/self-info.cpp self_knowledge, an any-key

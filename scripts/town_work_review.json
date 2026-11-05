@@ -14346,5 +14346,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "resist_potion.py:_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "evidence": "Pure lookup: the carried identified Potion of Resistance; read only by resist_potion.key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "resist_potion.py:_leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-05: no chance even with the drink: *Destruction* where its gates pass, else a Scroll of Teleportation; None otherwise. Read only by resist_potion.key."
+  },
+  "resist_potion.py:key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-05: the drink at a material threat with an awake enemy of the five elements in view, or the leave when _engagement_is_winnable fails even after the drink; after the survival rungs and the summon answers, before every attack."
+  },
+  "resist_potion.py:ladder_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-05: resist_potion.key on the shared ladder, yielding to the flee and status-threat rungs below it."
   }
 }

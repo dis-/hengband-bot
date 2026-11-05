@@ -91,6 +91,7 @@ from hengbot import (
     quest_exposure,
     quest_find_exit,
     quest_room_light,
+    resist_potion,
     summon_response,
     unseen_strike,
 )
@@ -637,6 +638,7 @@ def key(policy, snapshot) -> str | None:
             quest_room_light.floor_potion_key(policy, snapshot, navigator, plan, quiet=True)
             or _unseen_light(policy, snapshot, navigator, plan, board)
             or summon_response.key(policy, snapshot)
+            or resist_potion.key(policy, snapshot)
             or _restore(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
             or quest_find_exit._rest(policy, snapshot, plan, board)
@@ -656,6 +658,7 @@ def key(policy, snapshot) -> str | None:
         or _unseen_light(policy, snapshot, navigator, plan, board)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
         or summon_response.key(policy, snapshot)
+        or resist_potion.key(policy, snapshot)
         or _light_key(policy, snapshot, navigator, plan)
         or _fight(policy, snapshot, profile, navigator, plan, board)
     )

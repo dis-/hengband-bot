@@ -525,7 +525,7 @@
    "buy": true,
    "carry": true,
    "home": false,
-   "use": false,
+   "use": true,
    "discard": false
   },
   {

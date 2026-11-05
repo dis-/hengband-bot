@@ -23,7 +23,7 @@ from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
-from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
+from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_RESISTANCE, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
 from hengbot.policy_types import StoreVisit, StoreVisitPhase, ProcurementHomeGate
 from hengbot.latch_onset_capture import assignment_provenance
 from hengbot.equipment_optimizer import AMMUNITION_TVALS, equipment_identity, equipment_move_identity
@@ -32,7 +32,7 @@ from dataclasses import fields, replace
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.store_sale import known_sale_value
 from hengbot.policy_supply import supply_ledger_observer_memo
-from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
+from hengbot.policy_constants import EMERGENCY_POTION_CARRY_TARGET, HOME_KNOWLEDGE_MACRO
 from hengbot.model import STORE_ARMOURY, STORE_TEMPLE, STORE_BLACK
 from hengbot.town_hold import hold_claims, standing_claim
 import re
@@ -2334,6 +2334,9 @@ class HomeMixin:
         optional_carry = quest_optional_carry.retained(self, snapshot, item)
         if optional_carry:
             return optional_carry, quest_optional_carry.RETENTION_BRANCH
+        if item.tval == TVAL_POTION and item.aware and item.sval == SV_POTION_RESISTANCE:
+            # resist_potion drinks from the pack: the other bought potions' carry cap.
+            return min(item.count, EMERGENCY_POTION_CARRY_TARGET), "resistance-potion"
         if self._is_destruction_item(item) and self._required_destruction_uses(
             snapshot
         ):

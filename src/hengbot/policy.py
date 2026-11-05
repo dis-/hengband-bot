@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, unseen_strike, wilderness_exit
+from hengbot import area_mapping, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -170,6 +170,7 @@ from hengbot.policy_constants import (
     QUAFF_KEY,
     RANGED_SLEEPER_MAX_DISTANCE,
     RANGED_TARGET_FAILURE_LIMIT,
+    OPPOSITION_ABILITY,
     RESIST_FLAG_BY_ABILITY,
     SUMMONER_EXPOSED_NEIGHBORS,
     SUMMONER_RANGED_KILL_SHOTS,
@@ -7513,6 +7514,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             sight_use = destruction_use.sight_trigger_key(self, snapshot)
             if sight_use is not None:
                 return sight_use
+            # Owner 2026-11-05: the Potion of Resistance, before any attack below.
+            resist = resist_potion.ladder_key(
+                self, snapshot, strategic_hostiles, strategic_adjacent, physical_hostiles)
+            if resist is not None:
+                return resist
             # Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」:
             # before any never-moving monster is avoided.
             immobile_kill = immobile_ranged_kill.key(self, snapshot)
@@ -15769,6 +15775,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             "FIRE": "resist_fire",
             "COLD": "resist_cold",
         }.get(effect)
+        if resistance is not None and OPPOSITION_ABILITY in abilities:
+            damage = damage * 34 // 100
         if resistance in abilities:
             damage = damage * 34 // 100
         elif effect == "POISON" and "resist_pois" in abilities:

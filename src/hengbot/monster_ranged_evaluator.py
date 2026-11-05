@@ -10,7 +10,7 @@ import numpy as np
 
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.monrace_knowledge import MonraceKnowledge, SUMMON_ABILITIES
-from hengbot.policy_constants import speed_energy
+from hengbot.policy_constants import OPPOSITION_FLAG, speed_energy
 
 
 TR_IM_ACID = 40
@@ -369,6 +369,12 @@ def _expected_rate_damage(damage: float, rates: tuple[int, ...]) -> float:
     return sum(int(damage * rate) // 100 for rate in rates) / len(rates)
 
 
+def _layered_rate(resistance: int, flags: frozenset[int]) -> tuple[int, ...]:
+    """player-status-resist.cpp: (per + 2) / 3 for the resistance and for the opposition."""
+    layers = (resistance in flags) + (OPPOSITION_FLAG in flags)
+    return ((100, 34, 12)[layers],)
+
+
 def _attribute_rates(attribute: str, flags: frozenset[int]) -> tuple[int, ...]:
     elemental = {
         "ACID": (TR_IM_ACID, TR_RES_ACID),
@@ -381,9 +387,9 @@ def _attribute_rates(attribute: str, flags: frozenset[int]) -> tuple[int, ...]:
         immunity, resistance = elemental[attribute]
         if immunity in flags:
             return (0,)
-        return (34,) if resistance in flags else (100,)
+        return _layered_rate(resistance, flags)
     if attribute in {"POIS", "NUKE"}:
-        return (34,) if TR_RES_POIS in flags else (100,)
+        return _layered_rate(TR_RES_POIS, flags)
     if attribute == "LITE":
         if TR_IM_LITE in flags:
             return (0,)

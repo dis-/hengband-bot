@@ -80,6 +80,9 @@
   "purchase:tail:identify-staff": [
     "supply-buy"
   ],
+  "purchase:black-market:resistance": [
+    "optional-buy"
+  ],
   "purchase:black-market:speed": [
     "optional-buy"
   ],
