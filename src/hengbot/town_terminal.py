@@ -296,10 +296,16 @@ def verdict_enchant_launcher(material: EnchantLauncherMaterial) -> Admission:
     return ADMIT
 
 
+def launcher_enchant_scroll(policy: Any, board: Any, item: Any) -> bool:
+    """An enchant scroll ``_town_enchant_launcher_key`` reads on the worn
+    launcher this visit: a sval the launcher still needs."""
+    return bool(item.is_scroll and item.aware
+                and item.sval in policy._launcher_enchant_needed_svals(board))
+
+
 def launcher_enchant_scroll_held(policy: Any, board: Any) -> bool:
     """A carried enchant scroll of a sval the worn launcher still needs."""
-    needed = set(policy._launcher_enchant_needed_svals(board))
-    return any(item.is_scroll and item.aware and item.sval in needed
+    return any(launcher_enchant_scroll(policy, board, item)
                for item in board.inventory)
 
 
