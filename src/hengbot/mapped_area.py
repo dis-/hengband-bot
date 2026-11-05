@@ -30,7 +30,7 @@ visit: the Magic-Eater's absorbed staff (``me_powers``) and the floor's
 exploration ledger, which keeps every disc across a bot restart on the same
 floor and forgets them on a new floor (owner 2026-11-01 「階の記録に残す」,
 ``refresh`` writes the discs there), and a carried staff or rod (area_mapping).
-A scroll of the same effect is the carried source's last means (area_mapping).
+A scroll of the same effect is the carried source's last means, and is read when picked up (area_mapping).
 
 Owner 2026-11-05 「ランダムクエストの階だけ特殊な探索ルールにしているのをやめる。地図がわかって
 いるなら全マス歩かない。」: a runtime RANDOM quest floor reads the map as any floor does.  A

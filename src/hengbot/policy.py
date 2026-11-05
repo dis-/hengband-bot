@@ -8164,6 +8164,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         floor_map = area_mapping.after_destruction_key(self, snapshot)
         if floor_map is not None:
             return floor_map
+        # A Scroll of Magic Mapping is read when picked up, above the junk rung (area_mapping).
+        picked_map = area_mapping.picked_up_scroll_key(self, snapshot)
+        if picked_map is not None:
+            return picked_map
         # A carried device that can show a random quest's unseen target (quest_target_search).
         target_search = quest_target_search.detection_key(self, snapshot)
         if target_search is not None:

@@ -921,8 +921,8 @@
    "buy": false,
    "carry": false,
    "home": false,
-   "use": false,
-   "discard": true
+   "use": true,
+   "discard": false
   },
   {
    "tval": 70,

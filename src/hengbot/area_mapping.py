@@ -2,8 +2,11 @@
 
 Owner 2026-11-05: 「*破壊*後の地形を全マス探索するのは無駄なので周辺感知があれば使って」.
 Owner the same day, on the Scroll of Magic Mapping when no 周辺感知 is there: 「持っていれば読む」,
-only what is held, with no keep or buy rule of its own (the owner's table still says
-「捨てる」, consumable_policy).
+only what is held, with no keep or buy rule of its own.  And, asked whether to carry it:
+「拾ったら即座に読む」 (the table's 「捨てる」 became 「拾って使う」, consumable_policy): an identified
+one is read on the dungeon's first safe decision (``picked_up_scroll_key``, the moment the junk
+rung used to destroy it), whatever the map shows: the words carry no condition, and the read
+costs one turn.  A stack reads one scroll per safe decision, at once, without walking between.
 
 The means, by the game (lib/edit/BaseitemDefinitions.jsonc): the staff (id 328, tval 55
 sval 9) and the rod (id 371, tval 66 sval 5), both ``map_area(DETECT_RAD_MAP)``
@@ -36,7 +39,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 
-from hengbot import me_powers
+from hengbot import consumable_policy, junk_destroy_now, me_powers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
     SV_ROD_MAPPING, SV_SCROLL_MAPPING, SV_STAFF_MAPPING, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF,
@@ -47,6 +50,7 @@ from hengbot.model import (
 REASON = "area-mapping"
 AFTER_DESTRUCTION = "after-destruction"
 SEALED_POCKET = "sealed-pocket"
+PICKED_UP = "picked-up"
 MEMORY = "_area_mapping_memory"
 CARRIED = {(TVAL_STAFF, SV_STAFF_MAPPING): "staff", (TVAL_ROD, SV_ROD_MAPPING): "rod"}
 FAILED = frozenset({
@@ -165,14 +169,33 @@ def device_usable_now(policy, snapshot: Snapshot) -> bool:
             and me_powers.utility_device_permitted(policy, snapshot))
 
 
+def _held_scroll(snapshot: Snapshot):
+    return next((item for item in snapshot.inventory
+                 if (item.tval, item.sval) == (TVAL_SCROLL, SV_SCROLL_MAPPING)
+                 and item.known and item.aware), None)
+
+
 def _held_scroll_key(policy, snapshot: Snapshot) -> str | None:
-    """The read of a held Scroll of Magic Mapping, only for an unmapped *Destruction*."""
-    if not _due(policy, snapshot) or not policy._can_read_scrolls(snapshot):
+    """The read of a held Scroll of Magic Mapping, for an unmapped *Destruction*."""
+    item = _held_scroll(snapshot)
+    if item is None or not _due(policy, snapshot) or not policy._can_read_scrolls(snapshot):
         return None
-    for item in snapshot.inventory:
-        if (item.tval, item.sval) == (TVAL_SCROLL, SV_SCROLL_MAPPING) and item.known and item.aware:
-            return policy._read_key(snapshot, item)
-    return None
+    return policy._read_key(snapshot, item)
+
+
+def picked_up_scroll_key(policy, snapshot: Snapshot) -> str | None:
+    """A carried Scroll of Magic Mapping, read on the first safe decision; its disc counts."""
+    item = _held_scroll(snapshot)
+    if (item is None or not junk_destroy_now.safe(policy, snapshot)
+            or not policy._can_read_scrolls(snapshot)):
+        return None
+    memory = _memory(policy, snapshot)
+    if not consumable_policy.read_allowed(policy, snapshot, item):
+        memory.pending = None  # the refused read mapped nothing
+        return None
+    policy.last_reason = f"{REASON}:{PICKED_UP}"
+    memory.pending = (snapshot.turn, snapshot.player.position, me_powers.map_radius(policy, snapshot))
+    return policy._read_key(snapshot, item)
 
 
 def _carried_key(policy, snapshot: Snapshot, trigger: str) -> str | None:

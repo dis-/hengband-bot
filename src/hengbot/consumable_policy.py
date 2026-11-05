@@ -1,8 +1,9 @@
 """The owner's potion and scroll table (owner 2026-11-02).
 
 The owner filled one row per potion (tval 75) and scroll (tval 70) kind
-(``consumable_policy.json``, copied unchanged from the owner's form
-consumable-policy-20261102.json): ``buy`` 「購入する」, ``carry`` 「拾って持ち
+(``consumable_policy.json``, copied from the owner's form
+consumable-policy-20261102.json, then changed only by the owner's later answers,
+named at ``USE_OWNED_ELSEWHERE``): ``buy`` 「購入する」, ``carry`` 「拾って持ち
 歩く」, ``home`` 「拾って自宅に片付ける」, ``use`` 「拾って使う（飲む・読む）」 and
 ``discard`` 「捨てる」.  Owner answer the same day: 「要求がある時は買う」 -- the
 ``buy`` flag rules the ordinary (discretionary) purchases only; a requirement
@@ -44,7 +45,7 @@ from pathlib import Path
 
 from hengbot.model import (
     RESTORE_POTION_SVAL_BY_STAT, SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP,
-    SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_SCROLL_ENCHANT_WEAPON_TO_HIT,
+    SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_MAPPING,
     SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
     TVAL_POTION, TVAL_SCROLL, item_requires_full_identification,
 )
@@ -60,6 +61,9 @@ USE_OWNED_ELSEWHERE = {
     # policy_equipment._town_enchant_launcher_key: read on the worn launcher.
     (TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT): "launcher-enchant",
     (TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_DAM): "launcher-enchant",
+    # Owner 2026-11-05 「拾ったら即座に読む」 (the form said 「捨てる」):
+    # area_mapping.picked_up_scroll_key, whose read counts as a map.
+    (TVAL_SCROLL, SV_SCROLL_MAPPING): "area-mapping",
 }
 # ``use`` kinds the bot cannot use yet (open questions for the owner): the
 # self-knowledge viewer (player-info/self-info.cpp self_knowledge, an any-key
@@ -202,6 +206,24 @@ def _watch(policy) -> _ReadWatch:
     return watch
 
 
+def read_allowed(policy, snapshot, item) -> bool:
+    """This read may be sent (and is now watched), or the game refused the last one."""
+    watch = _watch(policy)
+    if watch.floor_key != snapshot.floor_key:
+        watch.refused.clear()
+    signature = policy._item_signature(item)
+    if (signature == watch.signature and item.count >= watch.count
+            and snapshot.floor_key == watch.floor_key):
+        # The game refused the read (no light to read by, ...): this
+        # floor does not ask again.
+        watch.refused.add(signature)
+    if signature in watch.refused:
+        return False
+    watch.signature, watch.count, watch.floor_key = (
+        signature, item.count, snapshot.floor_key)
+    return True
+
+
 def use_now_key(policy, snapshot) -> str | None:
     """Read one carried ``use`` scroll when it is safe, or None."""
     from hengbot.junk_destroy_now import safe
@@ -209,21 +231,9 @@ def use_now_key(policy, snapshot) -> str | None:
     if not safe(policy, snapshot):
         return None
     watch = _watch(policy)
-    if watch.floor_key != snapshot.floor_key:
-        watch.refused.clear()
     for item in snapshot.inventory:
-        if not read_on_sight(item):
+        if not read_on_sight(item) or not read_allowed(policy, snapshot, item):
             continue
-        signature = policy._item_signature(item)
-        if (signature == watch.signature and item.count >= watch.count
-                and snapshot.floor_key == watch.floor_key):
-            # The game refused the read (no light to read by, ...): this
-            # floor does not ask again.
-            watch.refused.add(signature)
-        if signature in watch.refused:
-            continue
-        watch.signature, watch.count, watch.floor_key = (
-            signature, item.count, snapshot.floor_key)
         policy.last_reason = "consumable:read-on-sight"
         return policy._read_key(snapshot, item)
     watch.signature = None
