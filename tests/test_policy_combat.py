@@ -4911,9 +4911,16 @@ class CombatTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        policy.choose_key(snapshot)
+        key = policy.choose_key(snapshot)
 
-        self.assertEqual(policy.last_reason, "threat:avoid-engagement")
+        # A sleeping monster does not close in, so it is not retreated from
+        # (n1-c life-153, tests/test_maze_seal_1106_recorded); the hunt still
+        # does not close with it.
+        self.assertNotEqual(policy.last_reason, "threat:avoid-engagement")
+        self.assertFalse(policy.last_reason.startswith(("hunt", "melee")))
+        dy, dx = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1),
+                  "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}[key]
+        self.assertGreaterEqual(max(abs(8 + dy - 11), abs(80 + dx - 83)), 3)
 
     def test_material_threat_retreat_invalidates_returning_explore_path(self):
         grids = {
