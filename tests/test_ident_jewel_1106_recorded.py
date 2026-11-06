@@ -15,6 +15,12 @@ town-arrival checkpoint of the character's next visit (12:09, incident capture
 arrival checkpoint left (the server keeps the last few), and its level-25
 calibration is not recorded, so the carried-ring pins replay the 12:09 visit.
 
+Owner 2026-11-06 (Magic-Eater): 「預ける前に＋自宅の品も — 預ける予定の装備は
+預ける前に *鑑定* する。自宅にある *鑑定* されていない装備も、町で余裕がある時に
+取り出して *鑑定* し、また仕舞う。」 (me_powerful_activation).  The recorded
+12:09 visit predates it: except in the two *Identify* pins, ``restore`` declares
+no time to spare for the spare *Identify* so the recorded keys replay.
+
 DECLARED CONSTRUCTED, carried-ring pins: the 10:58 ring (its exact board row) is
 carried into the 12:09 visit instead of being on the shelf - appended as the
 last pack letter of every journalled board, its Home row removed from the
@@ -32,12 +38,14 @@ import string
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_ALCHEMIST, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST
+from hengbot import me_powerful_activation  # after hengbot.cli: me_powers import cycle
 from replay_town_arrival import adopt_calibration, restore
 from test_esp_threat_rest_recorded import EDIT, _policy
 
@@ -72,7 +80,19 @@ class IdentJewel1106RecordedTest(unittest.TestCase):
         self.addCleanup(scratch.cleanup)
         self.scratch = Path(scratch.name)
 
-    def restore(self):
+    def restore(self, *, spare=False):
+        """The 12:09 arrival policy.
+
+        ``spare=False`` (DECLARED CONSTRUCTED): the town has no time to spare
+        for the Magic-Eater's *Identify* (me_powerful_activation
+        .spare_identify_ready), as the recorded visit, decided before the
+        owner's 2026-11-06 *Identify*-before-deposit rule, behaved.
+        """
+        if not spare:
+            self.no_spare = mock.patch.object(
+                me_powerful_activation, "spare_identify_ready", lambda *args: False)
+            self.no_spare.start()
+            self.addCleanup(self.no_spare.stop)
         visit = self.scratch / "town-arrival"
         visit.mkdir()
         (visit / POLICY_FILE).write_bytes(
@@ -233,6 +253,58 @@ class IdentJewel1106RecordedTest(unittest.TestCase):
                  if owned.origin == "home" and owned.item.name in (DAMAGE, DILITHIUM)}
         self.assertEqual(len(rings), 2)
         self.assertTrue(rings <= set(policy._deferred_home_items))
+
+    def test_planned_deposit_is_star_identified_before_it_is_shelved(self):
+        """Owner 2026-11-06 「預ける前に＋自宅の品も」: the ring the equipment
+        transaction plans to shelve is *identified* first, with a charge and
+        time to spare (53 charges, HP 371/383 on the first safe board)."""
+        policy = self.restore(spare=True)
+        self.replay_unchanged(policy, range(3))
+        planned = self.planned_deposits(policy)
+        board, key = self.decide(policy, 3)
+        ring = next(item for item in board.inventory if item.name == "耐因果混乱の指輪")
+        self.assertFalse(ring.fully_known)
+        self.assertIn(next(owned.id for owned in policy._equipment_catalog.items
+                           if owned.origin == "pack" and owned.item.slot == ring.slot), planned)
+        self.assertEqual((key, policy.last_reason),
+                         (f"UAf{ring.slot}", "me-powerful:identify"))
+        self.assertTrue(me_powerful_activation.spare_identify_ready(policy, board))
+
+    def test_shelved_gear_is_taken_out_for_star_identify(self):
+        """「自宅にある *鑑定* されていない装備も、町で余裕がある時に取り出して
+        *鑑定* し、また仕舞う」: with no carried gear left for the spare *Identify*,
+        the recall-read rung files one shelved piece not fully known as the
+        catalogue take Home identification already executes.
+
+        DECLARED CONSTRUCTED: the recall read is not in the window, so the rung
+        (spare_identify_key) is asked on the arrival board (row 0, no owner holds
+        the town yet), with the carried and worn gear's *Identify* uses spent
+        and the five potion stacks a-e left out so that a take fits the pack
+        reserve (23 of 23 slots were used).
+        """
+        policy = self.restore()
+        board, key = self.decide(policy, 0)
+        self.assertEqual((key, policy.last_reason), ("UAfs", "me-powerful:identify"))
+        self.post(policy, key)
+        self.no_spare.stop()
+        raw = json.loads(self.journal[0]["line"] or self.journal[0]["inputs"][-1])
+        raw["inventory"] = [item for item in raw["inventory"] if item["slot"] not in "abcde"]
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        memory = me_powerful_activation._memory(policy)
+        for item in (*board.equipment, *board.inventory):
+            if me_powerful_activation.spare_identify_target(item):
+                memory.attempts[("identify", policy._item_signature(item))] = (
+                    me_powerful_activation.ATTEMPTS_PER_TARGET)
+        self.assertTrue(me_powerful_activation.spare_identify_ready(policy, board))
+        self.assertFalse(policy._home_errand.active)
+        me_powerful_activation.spare_identify_key(policy, board)
+        request = policy._home_errand.request
+        shelved = next(owned.item for owned in policy._equipment_catalog.items
+                       if owned.origin == "home"
+                       and policy._item_signature(owned.item) == request.signature)
+        self.assertEqual(request.purpose, "identification-catalog")
+        self.assertTrue(me_powerful_activation.spare_identify_target(shelved))
+        self.assertEqual(memory.takes, {request.signature: 1})
 
 
 if __name__ == "__main__":
