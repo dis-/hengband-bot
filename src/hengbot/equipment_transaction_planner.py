@@ -87,8 +87,13 @@ def plan_equipment_transactions(
     preserve_worn_light: bool = False,
     home_deposit_available: bool = True,
     home_swap_reserve: int = 0,
+    curse_pinned_item_ids: frozenset[str] = frozenset(),
 ) -> EquipmentTransactionPlan:
-    """Build a batched, fail-closed Home/equipment transaction plan."""
+    """Build a batched, fail-closed Home/equipment transaction plan.
+
+    ``curse_pinned_item_ids``: worn items the player saw cursed though the
+    board's ``is_cursed`` is unset (unidentified); they block like known ones.
+    """
     catalog = {item.id: item for item in items}
     current_slots = _slots(current)
     target_slots = _slots(target)
@@ -141,7 +146,7 @@ def plan_equipment_transactions(
     }
     for item_id in sorted(changed_current):
         item = catalog.get(item_id)
-        if item is not None and item.item.is_cursed:
+        if item is not None and (item.item.is_cursed or item_id in curse_pinned_item_ids):
             blockers.append(f"cursed-equipped:{item_id}")
 
     prepare_deposits = sorted(

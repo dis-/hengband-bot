@@ -737,6 +737,7 @@ class ObservationMixin:
             self._home_identify_staff_sold_this_magic_visit = False
             self._home_digger_withdraw_pending = False
             self._equipment_transaction_failed_items.clear()
+            self.__dict__.pop("_equipment_curse_refused_ids", None)
             self._equipment_retired_worn_item_ids = frozenset()
             self._equipment_optional_failure_pending = None
             self._equipment_quarantine_second_chance_ids.clear()

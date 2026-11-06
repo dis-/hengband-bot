@@ -317,6 +317,7 @@ def warrior_optimizer_input_key(
     calibration: CharacterCalibration | None,
     identification_exempt_item_ids: frozenset[str] = frozenset(),
     knowledge_key: str | None = None,
+    curse_pinned_item_ids: frozenset[str] = frozenset(),
 ) -> str:
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
@@ -355,6 +356,9 @@ def warrior_optimizer_input_key(
             "max_mp": player.max_mp,
         },
     }
+    if curse_pinned_item_ids:
+        # Only present when set, so every key without a pin stays as it was.
+        inputs["curse_pinned_item_ids"] = curse_pinned_item_ids
     encoded = json.dumps(
         _canonical_optimizer_input(inputs),
         ensure_ascii=False,
@@ -687,8 +691,15 @@ def prepare_warrior_optimization(
     evaluator_cache: WarriorEvaluatorCache | None = None,
     calibration: CharacterCalibration | None = None,
     obtainable_ammunition: tuple[InventoryItem | StoreItem, ...] | None = None,
+    curse_pinned_item_ids: frozenset[str] = frozenset(),
 ) -> WarriorOptimizationPreparation:
-    """Evaluate and plan without emitting any game command."""
+    """Evaluate and plan without emitting any game command.
+
+    ``curse_pinned_item_ids`` are worn items the player saw cursed although
+    the board does not say ``is_cursed`` (an unidentified item: a cursed
+    pseudo feeling, or the game refused its takeoff); they stay in their slot
+    like a known cursed item.
+    """
     current = current_loadout(items)
     blockers: list[str] = []
     player = snapshot.player
@@ -818,7 +829,7 @@ def prepare_warrior_optimization(
         for item in items
         if item.id in current.item_ids
         and item.equipped_slot is not None
-        and item.item.is_cursed
+        and (item.item.is_cursed or item.id in curse_pinned_item_ids)
     }
     required_candidate_flags = {
         ABILITY_FLAG[ability]
@@ -923,6 +934,7 @@ def prepare_warrior_optimization(
             and item.equipped_slot == SLOT_LIGHT
             for item in items
         ),
+        curse_pinned_item_ids=curse_pinned_item_ids,
     )
     return WarriorOptimizationPreparation(
         current, result, transaction,
