@@ -25,7 +25,9 @@ import gzip
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from hengbot.model import parse_snapshot
 from tests import test_n1c_deaths_1101_recorded as d57
 
 
@@ -53,6 +55,10 @@ def replay(*, until, emergencies=1, change=None):
         policy.confirm_key_posted(key)
     raise AssertionError(until)
 
+
+def recorded_cover(policy):
+    """DECLARED CONSTRUCTED: the cover judgment as recorded (a wall beside a neighbour)."""
+    return patch.object(policy, "_summoner_cover_in_one_step", return_value=True)
 
 
 class RecordedRowsTest(unittest.TestCase):
@@ -82,6 +88,83 @@ class SecondEmergencyReturnTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("rd", "emergency:teleport"))
         self.assertFalse(policy._returning_to_town)
         self.assertIsNone(policy._last_return_trigger)
+
+
+class LowHpRetreatStepTest(unittest.TestCase):
+    def test_the_retreat_step_becomes_the_teleport_read(self):
+        # DECLARED CONSTRUCTED: the cover judged as recorded, so the producer posts the
+        # recorded summoner:retreat step and the walk gate alone answers it.
+        boards = [copy.deepcopy(raw) for raw in CASE["boards"] if READ <= raw["turn"] <= RETREAT]
+        policy = d57.loops.new_policy(dict(CASE, boards=boards), CASE["skill"],
+                                      monraces=CASE["monraces"])
+        policy._dive_emergencies = 1
+        with recorded_cover(policy):
+            for raw in boards:
+                key = d57.loops.decide(policy, raw)
+                if raw["turn"] == RETREAT:
+                    break
+                policy.confirm_key_posted(key)
+        self.assertEqual((key, policy.last_reason), ("rd", "emergency:teleport"))
+        self.assertFalse(policy._emergency_escape_pending)
+
+    def test_control_without_teleport_or_recall_the_step_stays(self):
+        # DECLARED CONSTRUCTED: the recorded cover, and the board without its
+        # Teleportation and Recall scrolls.
+        def no_scrolls(raw):
+            raw["inventory"] = [item for item in raw["inventory"]
+                                if not (item["tval"] == TVAL_SCROLL
+                                        and item["sval"] in (SV_TELEPORT, SV_RECALL))]
+        boards = [copy.deepcopy(raw) for raw in CASE["boards"] if READ <= raw["turn"] <= RETREAT]
+        policy = d57.loops.new_policy(dict(CASE, boards=boards), CASE["skill"],
+                                      monraces=CASE["monraces"])
+        policy._dive_emergencies = 1
+        with recorded_cover(policy):
+            for raw in boards:
+                if raw["turn"] == RETREAT:
+                    no_scrolls(raw)
+                key = d57.loops.decide(policy, raw)
+                if raw["turn"] == RETREAT:
+                    break
+                policy.confirm_key_posted(key)
+        self.assertEqual((key, policy.last_reason), ("6", "summoner:retreat"))
+
+
+class CannotOutrunTest(unittest.TestCase):
+    """The three kinds of the owner's sentence, on the recorded board (DECLARED
+    CONSTRUCTED: each keeps only the named monsters)."""
+
+    def judge(self, keep, *, fast=None, asleep=False, player_speed=None):
+        policy, _raw, _key = replay(until=READ)
+        board = next(copy.deepcopy(r) for r in CASE["boards"] if r["turn"] == RETREAT)
+        if player_speed is not None:
+            board["player"]["speed"] = player_speed
+        board["visible_monsters"] = [
+            dict(m, **({} if fast is None else {"fast": fast}), asleep=asleep)
+            for m in board["visible_monsters"] if m["race_id"] in keep]
+        snapshot = parse_snapshot(board, policy._monrace_knowledge)
+        hostiles = [m for m in snapshot.visible_monsters if m.hostile]
+        self.assertTrue(hostiles)
+        return policy._low_hp_step_cannot_outrun(snapshot, hostiles)
+
+    # The 智天使 and the セイレーン are race speed +10 (120): at player speed 120
+    # neither is faster, so only its spell names it.
+    def test_a_summoner(self):
+        self.assertTrue(self.judge({CHERUB}, fast=False, player_speed=120))
+
+    def test_a_tele_to_caster(self):
+        self.assertTrue(self.judge({SIREN}, fast=False, player_speed=120))
+
+    def test_control_a_race_speed_120_monster_at_player_speed_120(self):
+        self.assertFalse(self.judge({KING_COBRA, JACKAL}, fast=False, player_speed=120))
+
+    def test_a_hasted_monster_of_the_players_race_speed(self):
+        self.assertTrue(self.judge({JACKAL}, fast=True))
+
+    def test_control_monsters_no_faster_than_the_player(self):
+        self.assertFalse(self.judge({JACKAL, KING_COBRA}, fast=False))
+
+    def test_control_asleep(self):
+        self.assertFalse(self.judge({CHERUB, SIREN, JACKAL}, asleep=True))
 
 
 if __name__ == "__main__":

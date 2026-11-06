@@ -7005,6 +7005,40 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         here = snapshot.player.position
         return Position(here.y + delta[0], here.x + delta[1])
 
+    def _low_hp_step_cannot_outrun(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """An awake hostile in view that one retreat step does not escape: a
+        summoner, a TELE_TO caster (it pulls the player back), or a monster
+        faster than the player (owner 2026-11-06 「召喚する敵・引き寄せる敵・
+        速い敵」).  A monster's speed is its race speed, +10 while hasted and
+        -10 while slowed (MonsterEntity::get_temporary_speed)."""
+        player_speed = snapshot.player.speed
+        for monster in hostiles:
+            if monster.asleep:
+                continue
+            if monster.can_summon:
+                return True
+            knowledge = self._monrace_knowledge.get(monster.race_id)
+            if knowledge is not None and "TELE_TO" in knowledge.abilities:
+                return True
+            speed = monster.speed + (10 if monster.fast else 0) - (10 if monster.slow else 0)
+            if speed > player_speed:
+                return True
+        return False
+
+    def _low_hp_teleport_or_recall(self, snapshot: Snapshot) -> str | None:
+        """The read that replaces the retreat step: *Destruction* where it stands
+        in for a teleport (destruction_use), Teleportation, else Word of Recall
+        (once_quest_recall's floor rules).  A phase door is no replacement
+        (owner 2026-11-02 「ショートテレポートはテレポートの代替にならない」)."""
+        if (used := destruction_use.key(self, snapshot)) is not None:
+            return used
+        scroll = self._escape_scroll(snapshot, teleport_only=True)
+        if scroll is not None:
+            return self._issue_emergency_consumable(snapshot, scroll, "emergency:teleport")
+        return once_quest_recall.read_key(self, snapshot)
+
     def _low_hp_walk_gate(self, snapshot: Snapshot, key: str | None) -> str | None:
         if (
             snapshot.in_town
@@ -7030,6 +7064,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         adjacent = [
             m for m in hostiles if m.position.distance_to(player.position) <= 1
         ]
+        # Owner 2026-11-06 「HP が低い時、召喚する敵・引き寄せる敵・速い敵が見えて
+        # いれば、退却の1歩で済まさずテレポートか帰還を読む。」  n1-b life-325
+        # (城33階): at HP 155/386 one summoner:retreat step was let through with
+        # a hasted 智天使 (summoner), hasted jackals and a セイレーン (TELE_TO) in
+        # view; the siren pulled the player back and it died.  The checked step
+        # below only weighs the adjacent monsters, so with such a monster in
+        # view the escape read comes first; without a read the step stays.
+        if (
+            low
+            and key in DIRECTION_KEYS.values()
+            and self.last_reason in self.LOW_HP_CHECKED_STEP_REASONS
+            and self._low_hp_step_cannot_outrun(snapshot, hostiles)
+            and (escape := self._low_hp_teleport_or_recall(snapshot)) is not None
+        ):
+            return escape
         # An unseen attacker's melee blow on this board is an adjacent attacker
         # the step cannot be checked against: it is struck back below (追加決定2,
         # unseen_strike).  n1-a life-466 (2026-11-03 02:31, オークの洞窟14階):
