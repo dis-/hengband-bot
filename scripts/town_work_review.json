@@ -14710,6 +14710,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "arena.py:_detected_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by floor: only fight_key's boards reach it, and parse_snapshot takes floor.inside_arena out of town.",
+    "evidence": "Owner 2026-11-07 「テレパシーや感知で場所が分かる相手には、入口から部屋の中へ歩いて近づき、射線を通して戦う。」: a step toward an opponent known only by telepathy or detection.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "arena.py:_walk_toward": {
     "classification": "dungeon-only",
     "rows": [

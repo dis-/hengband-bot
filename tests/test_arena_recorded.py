@@ -137,6 +137,46 @@ class ArenaRecorded(executor_pins.ProductionHarness):
         self.assertEqual(self.key(policy, self.board("03-enter")), "2")
         self.assertEqual(policy.last_reason, arena.WALK_REASON)
 
+    # --- an opponent known only by telepathy (owner 2026-11-07)
+
+    def esp_only(self, y, x, **player):
+        """CONSTRUCTED from the recorded entry board, after n1-c life-157 (2026-11-07 01:26,
+        stall:arena:hold): 『らいおんはーと』 (race 19) out of view at the west wall, in
+        ``detected_monsters`` only (esp), the player still on the gate (6,33).  The recorded
+        map is the arena's own; only the monster is moved off the view."""
+        raw = self.board("03-enter", **player)
+        monster = dict(raw["visible_monsters"][0], race_id=19, name="『らいおんはーと』",
+                       fearful=True, y=y, x=x)
+        raw["visible_monsters"] = []
+        raw["detected_monsters"] = [{**monster, "esp": True}]
+        raw["grid_map"]["cells"] = [cell for cell in raw["grid_map"]["cells"] if "m" not in cell]
+        raw["grid_map"]["cells"].append({"m": monster["index"], "x": x, "y": y})
+        return raw
+
+    def test_the_gate_does_not_see_the_side_wall(self):
+        # The recorded map: the gate is set into the north wall (floor-generator.cpp build_arena).
+        policy = self.policy()
+        snapshot = self.snap(policy, self.esp_only(9, 19))
+        policy._build_grid_index(snapshot)
+        self.assertEqual((snapshot.player.position.y, snapshot.player.position.x), (6, 33))
+        self.assertEqual(snapshot.visible_monsters, [])
+        self.assertFalse(policy._has_line_of_fire(snapshot, snapshot.player.position,
+                                                  snapshot.detected_monsters[0].position))
+
+    def test_an_opponent_known_only_by_telepathy_is_walked_to(self):
+        policy = self.policy()
+        key = self.key(policy, self.esp_only(9, 19))
+        self.assertEqual((key, policy.last_reason), ("1", arena.DETECTED_WALK_REASON))
+
+    def test_blind_with_a_detected_opponent_does_not_walk(self):
+        # Blind, the visible list is empty for another reason: the unseen rule as before.
+        policy = self.policy()
+        raw = self.esp_only(9, 19)
+        raw["player"]["status"] = {**raw["player"].get("status", {}), "blind": True}
+        self.key(policy, raw)
+        self.assertIn(policy.last_reason,
+                      (arena.HOLD_REASON, arena.BLIND_STRIKE_REASON, arena.STRIKE_REASON))
+
     # --- the Magic-Eater's plan (owner 2026-11-05)
     # CONSTRUCTED: the recorded Lv45 board as class 16 with the displayed rows named, and no
     # ammunition; the first opponent has 200 HP, the melee's walk is 4 cells.
