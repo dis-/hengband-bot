@@ -41,6 +41,8 @@ from tempfile import TemporaryDirectory
 from unittest import mock
 
 from hengbot.cli import _consume_response_sequence
+from hengbot.equipment_optimizer import equipment_identity
+from hengbot.equipment_transaction_session import planned_item
 from hengbot.model import STORE_ALCHEMIST, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import staged_prompt_chain_matches
@@ -109,11 +111,15 @@ class IdentJewel1106RecordedTest(unittest.TestCase):
                           runtime)
         return policy
 
-    def decide(self, policy, row, carried=None, shelved=None):
-        """Decide journal ``row``; ``carried`` is appended to the pack (DECLARED)."""
+    def decide(self, policy, row, carried=None, shelved=None, identified=()):
+        """Decide journal ``row``; ``carried`` is appended to the pack and the
+        pack items named in ``identified`` are fully known (DECLARED)."""
         entry = self.journal[row]
 
         def transform(state):
+            for item in state.get("inventory", ()):
+                if item["name"] in identified:
+                    item["fully_known"] = True
             if carried is not None and "inventory" in state:
                 state["inventory"].append(
                     dict(copy.deepcopy(carried), slot=LETTERS[len(state["inventory"])]))
@@ -305,6 +311,108 @@ class IdentJewel1106RecordedTest(unittest.TestCase):
         self.assertEqual(request.purpose, "identification-catalog")
         self.assertTrue(me_powerful_activation.spare_identify_target(shelved))
         self.assertEqual(memory.takes, {request.signature: 1})
+
+    def test_star_identified_planned_deposit_is_still_deposited(self):
+        """n1-c life-150 18:05:31-45 (and life-151 19:49, 19:59): the planned
+        deposit *identified* before the walk was no longer found by its plan
+        (the identity names fully_known), so the transaction closed for the
+        visit as ``deposit-missing`` and Home became unavailable.
+
+        DECLARED CONSTRUCTED: the 耐因果混乱の指輪 the row-3 *Identify* names is
+        fully known on the later boards (rows 4-5), as the game shows it after
+        identify_fully; the 耐電のアミュレット *Identify* of row 4 is not
+        reflected on row 5.
+        """
+        ring_name = "耐因果混乱の指輪"
+        policy = self.restore(spare=True)
+        self.replay_unchanged(policy, range(3))
+        board, key = self.decide(policy, 3)
+        ring = next(item for item in board.inventory if item.name == ring_name)
+        self.assertEqual((key, policy.last_reason), (f"UAf{ring.slot}", "me-powerful:identify"))
+        self.post(policy, key)
+        # The plan goes on: the next planned deposit is *identified* too.
+        board, key = self.decide(policy, 4, identified=(ring_name,))
+        amulet = next(item for item in board.inventory if item.name == "耐電のアミュレット")
+        self.assertEqual((key, policy.last_reason), (f"UAf{amulet.slot}", "me-powerful:identify"))
+        ring = next(item for item in board.inventory if item.name == ring_name)
+        self.assertTrue(ring.fully_known)
+        deposits = [action for action in policy._equipment_transaction_session.plan.actions
+                    if action.kind == "deposit"]
+        self.assertIn(equipment_identity(ring), {action.item_identity for action in deposits})
+        self.assertTrue(all(planned_item(action, board.inventory) is not None
+                            for action in deposits))
+        self.post(policy, key)
+        # Row 5, in Home: the recorded deposit of the identified ring.
+        board, key = self.decide(policy, 5, identified=(ring_name,))
+        ring = next(item for item in board.inventory if item.name == ring_name)
+        self.assertEqual((key, policy.last_reason),
+                         (f"d{ring.slot}", "equipment-transaction:deposit"))
+
+    def spare_take_board(self, policy, drop="abcde"):
+        """The arrival board (row 0) with the spare *Identify* of carried and
+        worn gear spent, as in test_shelved_gear_is_taken_out_for_star_identify;
+        ``drop`` names the pack letters left out (DECLARED CONSTRUCTED)."""
+        board, key = self.decide(policy, 0)
+        self.post(policy, key)
+        self.no_spare.stop()
+        raw = json.loads(self.journal[0]["line"] or self.journal[0]["inputs"][-1])
+        raw["inventory"] = [item for item in raw["inventory"] if item["slot"] not in drop]
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        memory = me_powerful_activation._memory(policy)
+        for item in (*board.equipment, *board.inventory):
+            if me_powerful_activation.spare_identify_target(item):
+                memory.attempts[("identify", policy._item_signature(item))] = (
+                    me_powerful_activation.ATTEMPTS_PER_TARGET)
+        return board, memory
+
+    def leave_home_targets(self, policy, memory, *names):
+        """Spend the Home takes of every shelved target but ``names``."""
+        # The restored Memory predates ``takes`` (me_powerful_activation._home_take_key).
+        takes = memory.__dict__.setdefault("takes", {})
+        for owned in policy._equipment_catalog.items:
+            if (owned.origin == "home" and owned.item.name not in names
+                    and me_powerful_activation.spare_identify_target(owned.item)):
+                takes[policy._item_signature(owned.item)] = (
+                    me_powerful_activation.ATTEMPTS_PER_TARGET)
+
+    def test_heavy_shelved_gear_is_not_taken_over_the_weight_limit(self):
+        """n1-c life-150 19:09: 二重鎖かたびら was taken for *Identify* and
+        ``home:weight-overload-deposit`` shelved it again before *Identify*
+        ran, then 重鎖かたびら, ... eight owner retirements.
+
+        DECLARED CONSTRUCTED: the spare-take board with the 恐慌モンスターの
+        魔法棒 (l) also left out - carried 1638 of the 1650 limit - and only
+        the 250-weight 二重鎖かたびら (-2) [16,+6] left to take.
+        """
+        policy = self.restore()
+        board, memory = self.spare_take_board(policy, drop="abcdel")
+        self.assertEqual((policy._inventory_weight(board), policy._inventory_weight_limit(board)),
+                         (1638, 1650))
+        mail = "二重鎖かたびら (-2) [16,+6]"
+        self.leave_home_targets(policy, memory, mail)
+        self.assertTrue(me_powerful_activation.spare_identify_ready(policy, board))
+        self.assertIsNone(me_powerful_activation.spare_identify_key(policy, board))
+        self.assertFalse(policy._home_errand.active)
+        self.assertEqual(sum(memory.takes.get(policy._item_signature(owned.item), 0)
+                             for owned in policy._equipment_catalog.items
+                             if owned.item.name == mail), 0)
+
+    def test_shelved_gear_within_the_weight_limit_is_still_taken(self):
+        """The same board: past the mail that does not fit, the 5-weight
+        スリング (x2) (+4,+4) does (1643 of 1650) and is taken."""
+        policy = self.restore()
+        board, memory = self.spare_take_board(policy, drop="abcdel")
+        mail = "二重鎖かたびら (-2) [16,+6]"
+        sling = "スリング (x2) (0.80turn) (+4,+4)"
+        self.leave_home_targets(policy, memory, mail, sling)
+        me_powerful_activation.spare_identify_key(policy, board)
+        request = policy._home_errand.request
+        self.assertEqual(request.purpose, "identification-catalog")
+        shelved = next(owned.item for owned in policy._equipment_catalog.items
+                       if owned.origin == "home"
+                       and policy._item_signature(owned.item) == request.signature)
+        self.assertEqual(shelved.name, sling)
+        self.assertEqual(memory.takes[request.signature], 1)
 
 
 if __name__ == "__main__":
