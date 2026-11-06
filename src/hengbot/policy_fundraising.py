@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import me_capability, mining_loadout, status_cure, tunnel_feasibility, walkout_dig
+from hengbot import damaging_ground, me_capability, mining_loadout, status_cure, tunnel_feasibility, walkout_dig
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
@@ -2181,6 +2181,8 @@ class FundraisingMixin:
             Position(y, x)
             for y, x in self._remembered_floor_t
             if self._undersearched_walls(Position(y, x))
+            # Its search would be replaced by the step off (damaging_ground).
+            and not damaging_ground.hurts_at(self, snapshot, Position(y, x))
         }
         start = snapshot.player.position
         seen = {start}

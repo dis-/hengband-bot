@@ -181,7 +181,9 @@ def _seen_now(snapshot: Snapshot, stop: Position) -> bool:
 
 def _next_goal(snapshot: Snapshot, memory: Memory, routes: dict) -> Position | None:
     memory.seen.update(stop for stop in memory.stops if _seen_now(snapshot, stop))
-    if memory.goal in routes and memory.goal not in memory.seen:
+    # The player's own cell is reached, not a goal: routes holds it with no first step.
+    if (memory.goal in routes and memory.goal not in memory.seen
+            and memory.goal != snapshot.player.position):
         return memory.goal
     left = [stop for stop in memory.stops if stop not in memory.seen and stop in routes]
     return None if not left else min(left, key=lambda stop: (routes[stop][0], stop.y, stop.x))
@@ -192,14 +194,17 @@ def _dead_ends(policy, snapshot: Snapshot, routes: dict) -> list:
     return [cell for cell in routes if policy._open_neighbor_count(snapshot, cell) <= 1]
 
 
-def _walk_key(policy, snapshot: Snapshot, routes: dict, goal: Position, reason: str) -> str:
-    """One step to ``goal``, as progress (the module docstring)."""
+def _walk_key(policy, snapshot: Snapshot, routes: dict, goal: Position, reason: str) -> str | None:
+    """One step to ``goal``, as progress (the module docstring); None on ``goal`` itself."""
+    step = routes[goal][1]
+    if step is None:
+        return None
     policy._nav_exhausted = False
     policy._nav_stall_count = 0
     policy._recent.clear()  # a search's standing still must not read as an oscillation
     policy.last_reason = reason
     policy._declare_reach(goal)
-    return policy._step_toward(snapshot, routes[goal][1])
+    return policy._step_toward(snapshot, step)
 
 
 def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> str | None:
@@ -242,7 +247,9 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
         memory.laps += bool(memory.stops)
         stops = draw_stops(snapshot, set(routes))
         # One stop: all the ground is in sight of one place, so there is nothing to circle.
-        memory.stops, memory.seen = (stops if len(stops) > 1 else ()), set()
+        # The last lap's goal is spent with it: a goal kept would outlive the redraw and be
+        # walked to again, though the player stands on it (n1-b life-332, 11-07 00:25).
+        memory.stops, memory.seen, memory.goal = (stops if len(stops) > 1 else ()), set(), None
         goal = _next_goal(snapshot, memory, routes)
     memory.goal = goal
     return None if goal is None else _walk_key(policy, snapshot, routes, goal, LOOP_REASON)

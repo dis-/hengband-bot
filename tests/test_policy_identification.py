@@ -1234,6 +1234,61 @@ class ChestProcessingTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("chest:"))
         self.assertIn(chest_position, policy._processed_chest_positions)
 
+    def test_teleport_away_from_an_opened_chest_ends_its_claim(self):
+        # n1-b life-332 (Angband 30F, 11-07 00:42): Teleportation read beside the
+        # opened chest at (16,50) landed at (49,100); the kept claim walked back as
+        # chest:collect-contents whenever no hostile was in view, and seek-loot took
+        # the boards on which a sleeping monster far away was: the two alternated
+        # until loop-detected.  DECLARED CONSTRUCTED: one open hall, the chest and
+        # one spilled potion beside it, the landing, and the far sleeper.
+        chest_position = Position(10, 10)
+        content = Position(9, 10)
+        grids = {
+            Position(y, x): grid(y, x) for y in range(5, 36) for x in range(5, 66)
+        }
+        grids[chest_position] = grid(10, 10, objects=1, object_tvals=(TVAL_CHEST,))
+        grids[content] = grid(9, 10, objects=1, object_tvals=(TVAL_POTION,))
+        beside = Snapshot(
+            player(10, 11, hp=50, max_hp=50, class_id=PLAYER_CLASS_WARRIOR),
+            grids,
+            [],
+            floor_key=(DUNGEON_YEEK_CAVE, 2, 0),
+            width=70,
+            height=40,
+            equipment=[
+                item("a", TVAL_SWORD, 17, name="sword", is_equipment=True),
+                item("l", TVAL_LITE, SV_LITE_LANTERN, fuel=5000, is_equipment=True),
+            ],
+        )
+        policy = HengbotPolicy()
+        policy._floor_key = beside.floor_key
+        policy._chest_position = chest_position
+        policy._chest_phase_counts = {
+            "search": CHEST_SEARCH_BUDGET,
+            "disarm": CHEST_DISARM_BUDGET,
+            "open": 1,
+        }
+        policy.choose_key(beside)
+        self.assertEqual(policy.last_reason, "chest:collect-contents")
+
+        landed = replace(
+            beside,
+            player=player(30, 60, hp=50, max_hp=50, class_id=PLAYER_CLASS_WARRIOR),
+            turn=beside.turn + 10,
+        )
+        sleeper = hostile(9, 30, 21, distance=39, asleep=True)
+        in_view = replace(landed, visible_monsters=[sleeper], turn=landed.turn + 10)
+        out_of_view = replace(landed, turn=in_view.turn + 10)
+        reasons = []
+        for board in (landed, in_view, out_of_view):
+            policy.choose_key(board)
+            reasons.append(policy.last_reason)
+        # One owner whether the sleeper is in view or not, and never the chest's.
+        self.assertEqual(len(set(reasons)), 1, reasons)
+        self.assertFalse(reasons[0].startswith("chest:"), reasons)
+        self.assertIsNone(policy._chest_position)
+        self.assertIn(chest_position, policy._processed_chest_positions)
+
     def test_opened_chest_ignores_preexisting_nearby_quest_loot(self):
         chest_position = Position(10, 10)
         old_loot = Position(9, 10)

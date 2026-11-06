@@ -9189,6 +9189,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 not snapshot.in_town
                 and not forgetting_maze
                 and self._search_counts[here_key] < SEARCH_LIMIT
+                and not damaging_ground.hurts_here(self, snapshot)
             ):
                 self._search_counts[here_key] += 1
                 self._release_explore_walk("explore-oscillating:search")
@@ -9237,6 +9238,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not forgetting_maze
             and self._open_neighbor_count(snapshot, player.position) <= 1
             and self._undersearched_walls(player.position)
+            and not damaging_ground.hurts_here(self, snapshot)
         ):
             self._record_wall_search(player.position)
             self.last_reason = "search"
@@ -9287,6 +9289,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 not snapshot.in_town
                 and not forgetting_maze
                 and self._search_counts[here_key] < SEARCH_LIMIT
+                and not damaging_ground.hurts_here(self, snapshot)
             ):
                 self._search_counts[here_key] += 1
                 self.last_reason = "search"
@@ -9305,7 +9308,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             if (power := me_powers.power_key(self, snapshot, me_powers.SECRET_SEARCH)):
                 return power
-            if self._undersearched_walls(player.position):
+            # A search on ground that hurts would only be replaced by the step off it
+            # (damaging_ground.leave_first), uncounted rounds walked back to for ever:
+            # n1-a life-492 (Orc cave 23F, 11-06 23:55), HEAVY_ELECTRICAL_ZONE.
+            if (self._undersearched_walls(player.position)
+                    and not damaging_ground.hurts_here(self, snapshot)):
                 self._record_wall_search(player.position)
                 self.last_reason = "search"
                 return SEARCH_KEY

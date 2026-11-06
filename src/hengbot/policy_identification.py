@@ -80,6 +80,39 @@ from hengbot.quest_navigator import PICKUP_KEY
 
 
 class IdentificationMixin:
+    def _release_chest_left_by_jump(self, snapshot: Snapshot) -> None:
+        """An opened chest the player was carried away from is no longer worked.
+
+        Every board: a jump (two or more cells since the last board, a
+        teleport) that lands the player farther from an opened chest than its
+        contents can lie (Chest::open() -> drop_near(), radius three) ends
+        the chest's claim, and the chest counts as processed: what it spilled
+        is ordinary loot.  Kept, the claim walked back across the floor as
+        ``chest:collect-contents`` only while no hostile was in view, and
+        ordinary loot took every other board: n1-b life-332 (Angband 30F,
+        11-07 00:42) read Teleportation beside the chest at (16,50), landed at
+        (49,100), and a sleeping monster 39 cells away flipping in and out of
+        view alternated the two owners at (30,81)/(29,80) until the loop
+        detector stopped it."""
+        chest = self._chest_position
+        previous = self._last_position
+        if (
+            chest is None
+            or previous is None
+            or snapshot.in_town
+            or self._chest_phase_counts.get("open", 0) <= 0
+        ):
+            return
+        here = snapshot.player.position
+        jumped = max(abs(here.y - previous.y), abs(here.x - previous.x)) >= 2
+        if not jumped or here.distance_to(chest) <= 3:
+            return
+        self._processed_chest_positions.add(chest)
+        self._chest_position = None
+        self._chest_phase_counts = {}
+        self._chest_collecting = False
+        self._chest_preopen_objects = None
+
     @claims(ClaimOwner.FLOOR_LOOT)
     def _chest_processing_key(
         self,
