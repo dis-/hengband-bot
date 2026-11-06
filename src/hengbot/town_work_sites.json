@@ -1012,7 +1012,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:average_feeling_uninformative": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:average_hides_modifiers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:awaits_identification": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

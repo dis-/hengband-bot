@@ -3298,7 +3298,7 @@ class EquipmentMixin:
         Two cases, mirroring OwnedEquipment.identification_incomplete in
         equipment_optimizer.py exactly so nothing it blocks departure for can be
         untouchable here: a worn item that is still entirely unidentified
-        (known=False, and not merely pseudo-sensed "average") needs a plain
+        (``awaits_identification``: not merely pseudo-sensed "average") needs a plain
         Identify; a worn item already known but ego/artifact/dragon-armour
         (item_requires_full_identification) needs a *Identify* to reveal its
         combat traits. Without the first case, an equipped `known=false`

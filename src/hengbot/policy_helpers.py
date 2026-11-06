@@ -14,7 +14,7 @@ from hengbot.town_hold import (
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.equipment_optimizer import Loadout
-from hengbot.equipment_optimizer import equipment_identity
+from hengbot.equipment_optimizer import awaits_identification, equipment_identity
 from hengbot.model import (
     DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE,
     GridState, InventoryItem, MonsterState, Position, Snapshot, StoreItem,
@@ -299,6 +299,7 @@ class PolicyHelpersMixin:
             # An {average} item the selected loadout wears unidentified (owner
             # 2026-10-31) is not junk while it is selected.
             or (item.pseudo_feeling == "average"
+                and not awaits_identification(item)
                 and not self._selected_unidentified_wearable(item))
             # Empty bottles are the worthless junk a quaffed potion leaves behind;
             # no shop buys them, so shed them rather than let them fill the pack.

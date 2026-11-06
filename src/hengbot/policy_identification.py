@@ -32,7 +32,7 @@ from hengbot.model import (
     StoreItem,
     item_requires_full_identification,
 )
-from hengbot.equipment_optimizer import average_hides_modifiers
+from hengbot.equipment_optimizer import average_hides_modifiers, awaits_identification
 from hengbot.policy_constants import (
     CARDINAL_OFFSETS,
     CHEST_COLLECT_BUDGET,
@@ -43,7 +43,6 @@ from hengbot.policy_constants import (
     CHEST_OPEN_KEY,
     CHEST_SEARCH_BUDGET,
     CHEST_SEARCH_KEY,
-    EQUIPMENT_SLOT_KEY,
     FULL_IDENTIFY_DISMISS_SUFFIX,
     FUNDRAISING_GOLD_TARGET,
     IDENTIFY_FAIL_LIMIT,
@@ -886,10 +885,10 @@ class IdentificationMixin:
                         or item_requires_full_identification(item)
                     )
                 )
-                or (not item.known and item.pseudo_feeling != "average")
-                # Worn jewellery the C screen cannot read until it is identified.
-                or (getattr(item, "slot", None) in EQUIPMENT_SLOT_KEY
-                    and average_hides_modifiers(item))
+                # Unknown, unless {average} already told what Identify would
+                # (owner 2026-11-06: jewellery and unaware kinds are identified
+                # even when sensed {average}, worn or carried).
+                or awaits_identification(item)
             )
         )
 
@@ -1308,7 +1307,7 @@ class IdentificationMixin:
 
         full=True counts *Identify* targets (known ego/artifact/dragon-armour
         gear still missing its full traits); full=False counts plain Identify
-        targets (an unknown item whose pseudo-sense is not "average"). Used to
+        targets (an unknown item ``awaits_identification``). Used to
         size a single scroll purchase over the whole outstanding tier instead
         of one scroll per store trip -- discovering each further need only
         after a fresh Home round trip measurably wasted most of a town stay
