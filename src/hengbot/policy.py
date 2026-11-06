@@ -7475,11 +7475,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if esp_threat_hunt is not None:
             return esp_threat_hunt
-        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) or summon_response.action_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
-            snapshot, emergency_hostiles
-        ))
-        if summoner_ranged is not None:
-            return summoner_ranged
         emergency = self._town_producer_entry("_emergency_item", lambda: self._emergency_item(snapshot, emergency_hostiles))
         if emergency is not None:
             if self._choke_plan_active(snapshot):
@@ -7521,6 +7516,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if paralyzer_prevention is not None:
             return paralyzer_prevention
+
+        # Owner 2026-11-06 「命に関わる時の後へ回す」: the emergency ladder above
+        # answers first, then the last shots at a summoner.
+        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) or summon_response.action_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
+            snapshot, emergency_hostiles
+        ))
+        if summoner_ranged is not None:
+            return summoner_ranged
 
         if not snapshot.in_town:
             # Owner 2026-11-04: the answer to the summons of this floor visit.
@@ -9507,8 +9510,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ]
         if not candidates:
             return None
-        # Direct damage that can kill before the three-shot finish retains the
-        # ordinary emergency escape priority.
+        # Not while the hostiles can kill within the three shots.
         if self._predicted_damage(snapshot, hostiles, turns=3) >= snapshot.player.hp:
             return None
         # The quickest kill with a clear shot: a body on another's bolt path

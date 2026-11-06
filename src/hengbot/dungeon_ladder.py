@@ -78,7 +78,7 @@ LADDER = (
         *E("quest_find_exit.key", "quest_room_sweep.key"),
     )),
     Layer("above-emergency", "the emergency ladder and everything below", (
-        *E("_esp_threat_hunt_key", "_summoner_ranged_kill_key"),
+        *E("_esp_threat_hunt_key"),
     )),
     Layer("emergency", "the summons rules, floor avoidance, combat and all below", (
         *E("_emergency_item", exempt=ANSWERS_DANGER),
@@ -86,6 +86,10 @@ LADDER = (
         *D("me_powers.threat_key", exempt=ANSWERS_DANGER),
         *E("_item_destroying_breeder_leave_key", "_mana_food_survival_override_key",
            "_paralyzer_prevention_key", exempt=ANSWERS_DANGER),
+    )),
+    # Owner 2026-11-06 「命に関わる時の後へ回す」: below the emergency ladder.
+    Layer("summoner-shots", "the summons rules, floor avoidance, combat and all below", (
+        *E("_summoner_ranged_kill_key", exempt=FIGHTS),
     )),
     Layer("floor-avoidance", "light, the approved quest floor, combat and all below", (
         *D("summon_response.key", "destruction_use.sight_trigger_key", "resist_potion.ladder_key",
@@ -339,8 +343,6 @@ _ABOVE_EMERGENCY = {
     "quest_room_sweep.key": "a plan answers survival inside itself (FLOOR_PLANS)",
     "_esp_threat_hunt_key": "a committed hunt drinks by its own estimate (owner 2026-09-22); "
                             "whether it stays here is the review's open question",
-    "_summoner_ranged_kill_key": "the last shots at a summoner, unless they are lethal first; "
-                                 "whether it stays here is the review's open question",
 }
 
 OWNER_RULES = (
@@ -357,6 +359,9 @@ OWNER_RULES = (
             "_item_destroying_breeder_leave_key": "leaves a breeder that destroys the kit: survival",
             "_mana_food_survival_override_key": "starvation: survival",
             "_paralyzer_prevention_key": "the blow that ends the game: survival",
+            "_summoner_ranged_kill_key": "shoots the summoner itself, after survival "
+                                         "(owner 2026-11-06 「命に関わる時の後へ回す」); "
+                                         "a summons rule due on the board skips it",
         }, ("navigator.decide",)),
 )
 
@@ -364,7 +369,7 @@ OWNER_RULES = (
 # From the emergency ladder to the combat rungs: every rung here is refused while a hostile
 # attacks, or says why not.  The survival rule of D21, as a check instead of a hand list.
 SURVIVAL_CHECKED_LAYERS = (
-    "emergency", "floor-avoidance", "light", "opening", "plan-approved-quest", "pre-combat",
+    "emergency", "summoner-shots", "floor-avoidance", "light", "opening", "plan-approved-quest", "pre-combat",
 )
 
 

@@ -66,6 +66,8 @@ def new_policy(case, skill, *, record=None, monraces=None):
         for name in ("flags", "abilities"):
             facts[name] = frozenset(facts[name])
         facts["blows"] = tuple(MonsterBlow(**row) for row in facts["blows"])
+        if "names" in facts:  # a list in JSON; the knowledge is hashed
+            facts["names"] = tuple(facts["names"])
         policy._monrace_knowledge[int(race)] = MonraceKnowledge(**facts)
     first = case["boards"][0]
     policy.prime(parse_snapshot(copy.deepcopy(first), policy._monrace_knowledge))

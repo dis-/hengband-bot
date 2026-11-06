@@ -350,5 +350,5 @@ def key(policy, snapshot) -> str | None:
 
 
 def action_due(policy, snapshot) -> bool:
-    """A rule outranks the older three-shot summoner rung above the emergency ladder."""
+    """A rule outranks the older three-shot summoner rung below the emergency ladder."""
     return recall_due(policy, snapshot) or leave_due(policy, snapshot)
