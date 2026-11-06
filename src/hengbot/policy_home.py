@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import quest_optional_carry
-from hengbot import item_fate, mining_oil_sale, spare_gear
+from hengbot import bm_destruction_fund, item_fate, mining_oil_sale, spare_gear
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -328,17 +328,21 @@ class HomeMixin:
             swept = 0
         home_visit = getattr(self, "_home_visit", None)
         at_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
+        # The Black Market's *Destruction* fund sells until the staff is
+        # covered (owner 2026-11-07), past the stay's bound.
+        under_bound = (swept < item_fate.SWEEP_LIMIT_PER_STAY
+                       or (snapshot.in_town and bm_destruction_fund.funding(self, snapshot)))
         # Outside, only for a rank 21+ ware (owner 2026-10-04, take surplus out
         # and sell): never with a recall running or a Home this town lacks.
         walks_home = (snapshot.store is None and snapshot.in_town
                       and not snapshot.player.recalling
                       and self._home_available(snapshot)
                       and self._home_knowledge_current
-                      and swept < item_fate.SWEEP_LIMIT_PER_STAY
+                      and under_bound
                       and item_fate.sweep_ware(
                           self, snapshot, self._home_knowledge_items) is not None)
         if (not (at_home or walks_home)
-                or swept >= item_fate.SWEEP_LIMIT_PER_STAY
+                or not under_bound
                 or not self._home_knowledge_current
                 or self._home_errand.active
                 or self._home_pending_item is not None
@@ -373,6 +377,10 @@ class HomeMixin:
         self._home_errand.finish()
         self._home_junk_sweep_count = (self._town_visit_epoch,
                                        item_fate.SWEEP_LIMIT_PER_STAY)
+        if getattr(self, "_bm_destruction_shelf", None) is not None:
+            # With the *Destruction* staff shelved, a sweep that found no take
+            # (or no route) ends the fund's sales this stay too.
+            self._bm_fund_sweep_ended = self._town_visit_epoch
 
     def _revalidate_home_full_destroy_after_restore(self, snapshot: Snapshot) -> None:
         """A checkpoint cannot prove its pending destroy was posted this run."""
@@ -1265,6 +1273,11 @@ class HomeMixin:
                         self._end_home_junk_sweep()
                         return None
                     candidates = [ware]
+                    signature = self._item_signature(ware[0][0])
+                    if signature in bm_destruction_fund.plan(self, snapshot):
+                        # Its take and sale keep the fund's exception after
+                        # the census that chose it is gone.
+                        relief["fund"] = signature
             carried_sale = []
             if not candidates:
                 if not pack_bound:

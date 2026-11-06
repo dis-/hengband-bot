@@ -83,6 +83,9 @@
   "purchase:black-market:resistance": [
     "optional-buy"
   ],
+  "purchase:black-market:destruction": [
+    "optional-buy"
+  ],
   "purchase:black-market:speed": [
     "optional-buy"
   ],

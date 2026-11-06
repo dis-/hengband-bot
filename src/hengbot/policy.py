@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
+from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -7235,7 +7235,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
             if surplus_key is not None:
                 return surplus_key
-        if (snapshot.in_town and snapshot.player.hp >= snapshot.player.max_hp
+        relief_ready = (snapshot.in_town and snapshot.player.hp >= snapshot.player.max_hp
                 and not (snapshot.player.poisoned or snapshot.player.cut
                          or snapshot.player.confused or snapshot.player.blind)
                 and snapshot.player.food_state in {"normal", "full", "gorged"}
@@ -7243,7 +7243,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and self._home_atomic_deposit_pending is None
                 and self._home_atomic_withdraw_pending is None
                 and self._store_buy_inflight is None
-                and self._batch_sell_pending is None
+                and self._batch_sell_pending is None)
+        if (relief_ready
                 and (self._home_full_relief is not None
                      or self._home_full_retry_deposits is not None
                      or self._home_is_full(snapshot)
@@ -7252,6 +7253,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 lambda: self._home_full_relief_key(snapshot))
             if relief_key is not None:
                 return relief_key
+        if (relief_ready and self._home_full_relief is None
+                and bm_destruction_fund.census_wanted(self, snapshot)):
+            # The Black Market's *Destruction* staff is short (owner 2026-11-07):
+            # its fund reads Home's spares from a current census.
+            census_key = self._town_producer_entry(
+                "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                family="home-scan")
+            if census_key is not None:
+                bm_destruction_fund.census_requested(self, snapshot)
+                return census_key
         # Admission of an already-built Home transaction precedes evaluators
         # that may ask whether town departure is ready.  Those evaluators are
         # allowed to build a plan only when no transaction owns the character;

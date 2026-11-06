@@ -55,6 +55,12 @@ def _ranks(policy: Any, snapshot: Any) -> dict:
     return ranks
 
 
+def gear_rank(policy: Any, snapshot: Any, item: Any) -> int | None:
+    """The piece's rank in its slot by sale value; None when unranked."""
+    ranks = decision_memo(policy, "gear-ranks", snapshot, None, lambda: _ranks(policy, snapshot))
+    return ranks.get(policy._item_signature(item))
+
+
 def gear_tier(policy: Any, snapshot: Any, item: Any) -> str:
     """KEEP, ROOM (11-20) or ANY (21+); anything unranked is kept.
 
@@ -63,11 +69,15 @@ def gear_tier(policy: Any, snapshot: Any, item: Any) -> str:
     """
     if item.is_artifact or not item.known or SLOT_BY_TVAL.get(item.tval) is None:
         return KEEP
+    from hengbot import bm_destruction_fund
+    if bm_destruction_fund.releases(policy, snapshot, item):
+        # Owner 2026-11-07: Home's spare weapons and body armour, ranks 2-10
+        # too, pay for the Black Market's Staff of *Destruction*.
+        return ANY
     if not policy._home_knowledge_current:
         relief = policy._home_full_relief or {}
         return ROOM if relief.get("rank_released") == policy._item_signature(item) else KEEP
-    ranks = decision_memo(policy, "gear-ranks", snapshot, None, lambda: _ranks(policy, snapshot))
-    rank = ranks.get(policy._item_signature(item))
+    rank = gear_rank(policy, snapshot, item)
     if rank is None:
         return KEEP
     return KEEP if rank <= KEPT_RANKS else ROOM if rank <= ROOM_RANKS else ANY
@@ -176,7 +186,19 @@ def sold_not_shelved(policy: Any, snapshot: Any, item: Any) -> bool:
 
 
 def sweep_ware(policy: Any, snapshot: Any, stock: Any) -> Any:
-    """The cheapest rank 21+ Home row with a buyer, the pack able to carry it."""
+    """The cheapest rank 21+ Home row with a buyer, the pack able to carry it.
+
+    While the Black Market's *Destruction* staff is short of gold, its fund's
+    next piece first (bm_destruction_fund, owner 2026-11-07).
+    """
+    from hengbot import bm_destruction_fund
+    for signature in bm_destruction_fund.plan(policy, snapshot):
+        ware = next(((result, item) for item in stock
+                     if policy._item_signature(item) == signature
+                     and (result := policy._home_full_sale_candidate(snapshot, item)) is not None
+                     and policy._can_add_item_without_overweight(snapshot, item)), None)
+        if ware is not None:
+            return ware
     rows = [(result, item) for item in stock
             if SLOT_BY_TVAL.get(item.tval) is not None
             and gear_tier(policy, snapshot, item) == ANY

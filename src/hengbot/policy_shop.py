@@ -2749,28 +2749,38 @@ class ShopMixin(InStoreMixin):
             item
             for item in store.items
             if (
-                (
-                    item.tval == TVAL_POTION
-                    and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING, SV_POTION_RESISTANCE}
-                )
+                # Owner 2026-11-07 「*破壊*の杖の優先度を上げる」「何本でも買う」: the
+                # staff whenever shelved, however many are carried, and an
+                # absorbed *Destruction* (class 16) does not waive it.
+                self._is_destruction_staff(item)
                 or (
-                    item.tval == TVAL_WAND
-                    and item.sval == SV_WAND_STONE_TO_MUD
-                    and item.charges > 0
-                    and not self._has_charged_stone_to_mud(snapshot)
+                    (
+                        (
+                            item.tval == TVAL_POTION
+                            and item.sval in {SV_POTION_SPEED, SV_POTION_HEALING, SV_POTION_RESISTANCE}
+                        )
+                        or (
+                            item.tval == TVAL_WAND
+                            and item.sval == SV_WAND_STONE_TO_MUD
+                            and item.charges > 0
+                            and not self._has_charged_stone_to_mud(snapshot)
+                        )
+                    )
+                    # The owner's table rules optional buys (consumable_policy).
+                    and consumable_policy.discretionary_buy((item.tval, item.sval))
+                    and not me_capability.replaced_by_absorbed(
+                        self, snapshot, item, me_capability.PURCHASE)
                 )
             )
             and item.count > 0
             and snapshot.player.gold - item.price >= reserve
-            # The owner's table rules optional buys (consumable_policy).
-            and consumable_policy.discretionary_buy((item.tval, item.sval))
-            and not me_capability.replaced_by_absorbed(
-                self, snapshot, item, me_capability.PURCHASE)
         ]
         if not optional:
             return None
 
         def held(item: StoreItem) -> int:
+            if self._is_destruction_staff(item):
+                return 0
             if item.tval == TVAL_WAND:
                 return int(self._has_charged_stone_to_mud(snapshot))
             return self._count_potion(snapshot, item.sval)
@@ -2785,7 +2795,8 @@ class ShopMixin(InStoreMixin):
             # that save a life leave on this shelf.
             return item.tval == TVAL_POTION and item.sval == SV_POTION_RESISTANCE
 
-        return min(optional, key=lambda item: (after_the_old_kinds(item), held(item), kind_rank(item)))
+        return min(optional, key=lambda item: (
+            not self._is_destruction_staff(item), after_the_old_kinds(item), held(item), kind_rank(item)))
 
     def _required_remove_curse_purchase(self, snapshot: Snapshot) -> StoreItem | None:
         store = snapshot.store
@@ -2950,6 +2961,7 @@ class ShopMixin(InStoreMixin):
         ))
         add(rung("ability-gear:buy", "ability-gear", lambda: True, lambda i: ability_gear.rung_matches(self, snapshot, i)))
         black_market_pick = self._black_market_optional_purchase(snapshot)
+        add(rung("black-market:destruction", "destruction", lambda: black_market_pick is not None and self._is_destruction_staff(black_market_pick), lambda i: self._is_destruction_staff(i)))
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
         add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
         add(rung("black-market:resistance", "resistance", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_RESISTANCE, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_RESISTANCE))
@@ -3960,6 +3972,15 @@ class ShopMixin(InStoreMixin):
             missing = self._missing_destruction_uses(snapshot)
             per_unit = max(1, item.pval) if item.tval == TVAL_STAFF else 1
             needed = (missing + per_unit - 1) // per_unit
+            if (self._is_destruction_staff(item) and snapshot.store is not None
+                    and snapshot.store.store_type == STORE_BLACK
+                    and item.price > 0):
+                # Owner 2026-11-07 「何本でも買う」: the whole stack the optional
+                # reserve (owner 2026-10-08) leaves room for.
+                reserve = self._full_departure_resupply_reserve(snapshot)
+                optional_units = (0 if reserve is None
+                                  else max(0, (snapshot.player.gold - reserve) // item.price))
+                needed = max(needed, min(item.count, optional_units))
         elif item.tval == TVAL_POTION and item.sval in {
             SV_POTION_SPEED,
             SV_POTION_HEALING,
