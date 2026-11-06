@@ -295,7 +295,9 @@ FLOOR_PLANS = (
         Branch("the exit is beside the player", (("_step_on_exit", FIRST),)),
         Branch("on a cell the casters reach", (
             ("_below_line_recall", SURVIVAL), ("_heal", SURVIVAL),
-            ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_advance", OWN))),
+            ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
+            # A walk to a choke under way goes on before the exit walk (owner 2026-11-06).
+            ("_choke_walk_under_way", OWN), ("_advance", OWN))),
         Branch("no enemy for the line", (
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_rest", OWN),
             ("_to_choke", OWN),
@@ -303,7 +305,7 @@ FLOOR_PLANS = (
         Branch("an enemy for the line", (
             ("_below_line_recall", SURVIVAL), ("_engaged_survival", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_fight", OWN),
-            ("_advance", OWN))),
+            ("_choke_walk_under_way", OWN), ("_advance", OWN))),
     )),
     # Q25's revised plan: on its phase 2 and on the stairway the phase's own summons rule
     # (owner 2026-11-06) stands in the summons' place (``_summons``).

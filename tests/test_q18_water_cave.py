@@ -18,10 +18,11 @@ import copy
 import gzip
 import json
 import unittest
+from collections import deque
 from pathlib import Path
 from unittest.mock import patch
 
-from hengbot import once_quest_recall, quest_exposure, quest_force_rows, quest_no_teleport
+from hengbot import cli, once_quest_recall, quest_exposure, quest_find_exit, quest_force_rows, quest_no_teleport
 from hengbot.model import Position, SV_POTION_HEALING, SV_POTION_SPEED, TVAL_POTION, TVAL_SCROLL, parse_snapshot
 from hengbot.model import _GRID_TERRAIN_NAMES
 from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, load_monrace_knowledge
@@ -547,6 +548,135 @@ class Q18ClearBeforeAdvancingTest(unittest.TestCase):
     def test_an_exposed_cell_still_walks_on(self):
         self.assertEqual(self.run_boards([board((2, 7), monsters=[monster(SHARK, 3, 8)], speed=0)]),
                          [(step_key((2, 7), (1, 8)), WALK_REASON)])
+
+
+def detected(race, y, x, *, index):
+    return dict(monster(race, y, x, index=index), perception="detected")
+
+
+class Q18FarEnemyThatDoesNotComeTest(unittest.TestCase):
+    """Owner 2026-11-06 「n1-a が35階の水の洞窟で、隘路へ向かう歩きと出口へ向かう歩きを1マスごと
+    に交互に選んで止まった。来ない遠くの敵を理由に隘路へ戻らないようにし…」.
+
+    DECLARED CONSTRUCTED from the n1-a incidents (lives 490 and 491, floor (0,35,18)): the
+    player's cells, the spent chokes, the ESP-detected movers' races and cells as the decision
+    logs and the investigator recorded them; the rest is this module's board.
+    """
+
+    SPENT = frozenset({Position(1, 9), Position(1, 12), Position(1, 15)})
+
+    def walk(self, start, boards_monsters, *, spent=frozenset(), dug=(), visible=()):
+        """One decision per entry of ``boards_monsters`` (the detected monsters of that
+        board); the player moves by each step key, as the game would."""
+        raw = board(start, monsters=list(visible), speed=0, ammo=False)
+        for cell in dug:
+            open_cell(raw, cell)
+        policy = new_policy(raw)
+        position, rows = start, []
+        for detected_now in boards_monsters:
+            raw["player"].update(y=position[0], x=position[1])
+            raw["detected_monsters"] = [dict(row) for row in detected_now]
+            raw["turn"] += 10
+            snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+            if spent and not rows:  # the live floor had spent them before this stretch
+                quest_find_exit._navigator(policy, snapshot, 18).exit_spent_chokes = spent
+            key = str(policy.choose_key(snapshot))
+            rows.append((position, key, policy.last_reason))
+            delta = next((offset for offset, value in DIRECTION.items() if value == key), None)
+            if delta is not None:
+                position = (position[0] + delta[0], position[1] + delta[1])
+        return rows
+
+    def test_life_490_a_seahorse_stepping_in_place_far_off_does_not_send_it_back(self):
+        """n1-a life 490: on (1,8), chokes (1,9) (1,12) (1,15) spent, HP full, the seahorse
+        443 two rows of water away stepping (9,6) <-> (10,6) the whole time.  It stepped to
+        the choke (1,5) through the shouted (2,7), and from there back to the exit, 20 times."""
+        jitter = [[detected(SEAHORSE, 9 + turn % 2, 6, index=77)] for turn in range(8)]
+        rows = self.walk((1, 8), jitter, spent=self.SPENT)
+        self.assertNotIn(TO_CHOKE_REASON, [reason for _, _, reason in rows], rows)
+        cells = [cell for cell, _, _ in rows]
+        self.assertEqual(len(cells), len(set(cells)), rows)  # never back on a cell
+        self.assertEqual(rows[0][1:], (step_key((1, 8), (1, 9)), WALK_REASON))
+        self.assertGreater(cells[-1][1], 12, rows)
+
+    def test_control_a_far_seahorse_that_closes_in_still_sends_it_to_the_choke(self):
+        """The same board with the seahorse closing one cell a turn: after two cells it comes,
+        and the walk goes to the choke and keeps going on the shouted (2,7)."""
+        closing = [[detected(SEAHORSE, y, 6, index=77)] for y in (7, 6, 5, 4)]
+        rows = self.walk((1, 8), closing, spent=self.SPENT)
+        self.assertEqual([reason for _, _, reason in rows[:2]], [WALK_REASON, WALK_REASON], rows)
+        self.assertEqual(rows[2][2], TO_CHOKE_REASON, rows)
+        cell = rows[2][0]
+        self.assertEqual(rows[3][2], TO_CHOKE_REASON, rows)
+        self.assertNotEqual(rows[3][0], cell)
+
+    def test_the_walk_to_a_choke_goes_on_over_a_shouted_cell(self):
+        """n1-a life 490: (1,8) chose the choke (1,5) through the shouted (2,7), and (2,7) chose
+        the exit back through (1,8).  With a seahorse that comes (here in view), (2,7) goes on
+        to the choke."""
+        rows = self.walk((1, 8), [[]] * 3, spent=self.SPENT, visible=[monster(SEAHORSE, 7, 6)])
+        self.assertEqual(rows[0], ((1, 8), step_key((1, 8), (2, 7)), TO_CHOKE_REASON), rows)
+        self.assertEqual(rows[1][0], (2, 7), rows)
+        self.assertEqual(rows[1][2], TO_CHOKE_REASON, rows)
+        self.assertNotEqual(rows[1][1], step_key((2, 7), (1, 8)), rows)
+        cells = [cell for cell, _, _ in rows]
+        self.assertEqual(len(cells), len(set(cells)), rows)
+
+    def test_life_491_far_squids_that_do_not_come_do_not_stop_the_dig(self):
+        """n1-a life 491: on (5,24) beside the vein (5,25), the squids 482 ESP-detected at
+        (17,24) and (19,19) and not coming; the dig turned into a step to a choke, and (5,23)
+        stepped back east, 20 times."""
+        squids = [detected(SQUID, 17, 24, index=91), detected(SQUID, 19, 19, index=92)]
+        rows = self.walk((5, 24), [squids] * 4, dug=[(1, 7)])
+        self.assertEqual([(key, reason) for _, key, reason in rows],
+                         [("T" + step_key((5, 24), (5, 25)), DIG_REASON)] * 4, rows)
+
+    def test_control_a_coming_squid_is_answered_at_the_choke_before_the_dig(self):
+        """Owner 2026-11-04 「来る敵がいれば先に隘路で倒してから掘り直す」: a squid closing in
+        on (5,24) still sends the walk to a choke, and it keeps going there."""
+        squid = [[detected(SQUID, y, 24, index=91)] for y in (12, 11, 10, 9, 8)]
+        rows = self.walk((5, 24), squid, dug=[(1, 7)])
+        self.assertEqual(rows[0][2], DIG_REASON, rows)
+        moved = [row for row in rows if row[2] == TO_CHOKE_REASON]
+        self.assertTrue(moved, rows)
+        start = rows.index(moved[0])
+        self.assertNotIn(DIG_REASON, [row[2] for row in rows[start:]], rows)
+        self.assertNotIn(WALK_REASON, [row[2] for row in rows[start:]], rows)
+
+
+class Q18RestLoopGuardTest(unittest.TestCase):
+    """Owner 2026-11-06 「休憩中の止まり判定の誤りも直す」.  n1-a life 490 (floor (0,35,18)):
+    on the choke (1,12) the rest was cut after one turn each time (the sealed Greater kraken
+    775 stepping (18,14) <-> (18,15) in the ESP range), HP 550 -> 604 of 716 over 40 rests,
+    and the cell guard stopped the bot.  DECLARED CONSTRUCTED from that decision log."""
+
+    def run_rests(self, hp_of):
+        policy = new_policy(board((1, 12), hp=550, max_hp=716))
+        recent = deque(maxlen=cli.MULTIPLIER_COMBAT_LOOP_WINDOW)
+        last_position = last_player = None
+        for tick in range(cli.LOOP_WINDOW + 5):
+            raw = board((1, 12), hp=hp_of(tick), max_hp=716)
+            raw["detected_monsters"] = [detected(KRAKEN, 18, 14 + tick % 2, index=55)]
+            raw["turn"] += 10 * (tick + 1)
+            snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+            key = str(policy.choose_key(snapshot))
+            self.assertEqual((key, policy.last_reason), (REST_MACRO, "rest"), tick)
+            previous_position, last_position = last_position, snapshot.player.position
+            previous_player, last_player = last_player, snapshot.player
+            if not cli._cell_loop_guard_applies(snapshot, policy.last_reason, previous_position,
+                                                previous_player):
+                recent.clear()
+                continue
+            recent.append((snapshot.floor_key, snapshot.player.position.y, snapshot.player.position.x))
+            if cli._is_looping(recent):
+                return tick
+        return None
+
+    def test_a_rest_that_recovers_is_no_cell_loop(self):
+        self.assertIsNone(self.run_rests(lambda tick: 550 + tick))
+
+    def test_control_a_rest_that_recovers_nothing_still_trips_the_guard(self):
+        self.assertIsNotNone(self.run_rests(lambda tick: 550))
 
 
 class Q18PlaythroughTest(unittest.TestCase):

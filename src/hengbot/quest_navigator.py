@@ -81,6 +81,8 @@ class QuestFloorNavigator:
     exit_cleared_placements = frozenset()
     exit_clear_turns = 0
     exit_clearing_done = False
+    exit_tracks = {}  # monster index -> (race, ((turn, (y, x)), ...)); replaced, never mutated
+    exit_choke_goal = None  # the choke a walk is under way to (quest_find_exit._to_choke)
     # The room sweep of a KILL_ALL plan (quest_room_sweep): same rule.
     sweep_stage = 0
     sweep_round = 0
@@ -130,6 +132,8 @@ class QuestFloorNavigator:
         self.exit_cleared_placements = frozenset()
         self.exit_clear_turns = 0
         self.exit_clearing_done = False
+        self.exit_tracks = {}
+        self.exit_choke_goal = None
         self.sweep_stage = 0
         self.sweep_round = 0
         self.sweep_meet_turns = 0
