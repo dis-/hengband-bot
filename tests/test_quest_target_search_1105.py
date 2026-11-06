@@ -15,7 +15,8 @@ player's walk (the player moved as the key says, the board otherwise the same), 
 the absorbed powers taken away, the warrior who holds a device (a Magic-Eater absorbs it, and
 tests/test_hunt_redetect_1102_recorded.py pins the absorbed rows' spacing), and the next boards
 after a device use.  For the secret doors (owner 「周辺感知をもたない場合に限り何周かごとに隠し扉を
-探す」): a smaller map of two rooms and a hall with one dead-end spur, so that laps are short, the
+探す」, and 2026-11-06 「魔法の地図を持っていても隠し扉は見えないので、クエストの標的探しで隠し扉の
+探索を行う」): a smaller map of two rooms and a hall with one dead-end spur, so that laps are short, the
 door that a search showed, and the absorbed rows of each case.
 """
 import tests  # noqa: F401 -- isolate live runtime files
@@ -172,7 +173,9 @@ class QuestTargetSearchTest(unittest.TestCase):
         self.assertLessEqual(policy._nav_stall_count, 1)
         self.assertFalse(policy._nav_exhausted)
 
-    def test_a_usable_mapping_means_no_door_search(self):
+    def test_a_usable_mapping_does_not_stop_the_door_search(self):
+        # Owner 2026-11-06: a mapping leaves a secret door drawn as wall (map_area memorizes the
+        # MIMIC terrain), so the dead ends are searched every three laps all the same.
         carried = {
             "staff": dict(devices=((TVAL_STAFF, SV_STAFF_MAPPING, "周辺感知の杖"),)),
             "rod": dict(devices=((TVAL_ROD, SV_ROD_MAPPING, "周辺感知のロッド"),)),
@@ -183,9 +186,23 @@ class QuestTargetSearchTest(unittest.TestCase):
                 policy, raw = self.spur(*case["devices"], absorbed=case.get("absorbed"))
                 if name == "absorbed":
                     self.floor_rows_spent(policy, raw, ("staff", SV_STAFF_MAPPING))
-                rows, _ = self.laps_walk(policy, raw, 110)
-                self.assertGreater(rows[-1][2], search.DOOR_SEARCH_LAPS)
-                self.assertEqual({row[0] for row in rows}, {search.LOOP_REASON})
+                raw = self.walk_to_the_door_search(policy, raw)
+                self.assertEqual(policy.last_reason, search.SEARCH_REASON)
+                self.assertEqual((raw["player"]["y"], raw["player"]["x"]), DEAD_END)
+                self.assertEqual(getattr(policy, search.MEMORY).laps, search.DOOR_SEARCH_LAPS)
+
+    def test_with_mapping_and_detect_doors_absorbed_detect_doors_is_cast(self):
+        # n1-b life-322 (Angband 6F, RANDOM quest 49): Magic Mapping and Detect Doors absorbed,
+        # and the loop never cast Detect Doors in two hours of laps.
+        policy, raw = self.spur(absorbed={**MAGIC_EATER_MAPPING, **MAGIC_EATER_DETECT_DOORS})
+        self.floor_rows_spent(policy, raw, ("staff", SV_STAFF_MAPPING))
+        for _ in range(110):
+            key = self.choose(policy, raw)
+            if policy.last_reason != search.LOOP_REASON:
+                break
+            raw = _next_board(raw, key)
+        self.assertEqual(policy.last_reason, "me-power:before-secret-search:detect-doors-stairs")
+        self.assertEqual(getattr(policy, search.MEMORY).laps, search.DOOR_SEARCH_LAPS)
 
     def test_an_empty_staff_of_mapping_does_not_stop_the_door_search(self):
         policy, raw = self.spur((TVAL_STAFF, SV_STAFF_MAPPING, "周辺感知の杖"))
@@ -193,7 +210,7 @@ class QuestTargetSearchTest(unittest.TestCase):
         self.walk_to_the_door_search(policy, raw)
         self.assertEqual(policy.last_reason, search.SEARCH_REASON)
 
-    def test_a_mapping_gained_during_the_door_search_ends_it(self):
+    def test_a_mapping_gained_during_the_door_search_does_not_end_it(self):
         policy, raw = self.spur()
         raw = self.walk_to_the_door_search(policy, raw)
         # The rung above the loop answers on the dead end itself: one step off it.
@@ -201,8 +218,8 @@ class QuestTargetSearchTest(unittest.TestCase):
         raw["player"]["class_id"] = WARRIOR
         _device(raw, TVAL_STAFF, SV_STAFF_MAPPING, "周辺感知の杖")
         self.choose(policy, raw)
-        self.assertEqual(policy.last_reason, search.LOOP_REASON)
-        self.assertFalse(getattr(policy, search.MEMORY).door_search)
+        self.assertEqual(policy.last_reason, search.DOOR_REASON)
+        self.assertTrue(getattr(policy, search.MEMORY).door_search)
 
     def test_a_door_found_at_the_dead_end_is_walked_by_exploration(self):
         policy, raw = self.spur()
