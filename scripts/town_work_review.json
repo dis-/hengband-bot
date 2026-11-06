@@ -12838,7 +12838,7 @@
     "rows": [
       "positioning"
     ],
-    "context": "Dungeon only: under teleport_key and walled_off_key; never reached in town.",
+    "context": "Dungeon only: under enclosed_key and walled_off_key; never reached in town.",
     "evidence": "dungeon-only: the floor's one Teleportation read of owner 2026-11-04 「一旦テレポートで離脱を試みる。」; returns the read key or None.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
@@ -12850,7 +12850,7 @@
       "positioning"
     ],
     "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
-    "evidence": "dungeon-only: n1-b life-317 Angband 50F, retreat vetoes walled known ground off from the hunt and the loop for 81,000 game turns; reads the floor's one Teleportation when a veto holds known ground, and walled off again (owner 2026-11-06) the dig, disarm and weak-enemy strike toward the ground, then Teleportation again or Recall at or below the reserve; returns the key or None.",
+    "evidence": "dungeon-only: n1-b life-317 Angband 50F, retreat vetoes walled known ground off from the hunt and the loop for 81,000 game turns; reads the floor's one Teleportation when a veto holds known ground, and walled off again (owner 2026-11-06) the dig (digger or Stone to Mud), disarm and weak-enemy strike toward the ground, then Teleportation again or Recall at or below the reserve; returns the key or None.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
@@ -12888,16 +12888,38 @@
     "evidence": "dungeon-only: the walk-out dig's wield-then-tunnel step, shared with retreat_enclosure's dig toward walled-off ground (owner 2026-11-06 「壁を掘る」); _wield_digging_tool_key then _dig_step_key; returns the key or None.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "retreat_enclosure.py:teleport_key": {
+  "retreat_enclosure.py:enclosed_key": {
     "classification": "action",
     "rows": [
       "positioning"
     ],
     "context": "Dungeon idle fallback only; never reached in town.",
-    "evidence": "dungeon-only: owner 2026-11-04 「一旦テレポートで離脱を試みる。同じフロアで二度同じ形で動けなくなったら帰還。」 reads Teleportation once per floor when a retreat veto holds the player's only steps; returns the read key or None.",
+    "evidence": "dungeon-only: owner 2026-11-04 「一旦テレポートで離脱を試みる。同じフロアで二度同じ形で動けなくなったら帰還。」 reads Teleportation once per floor when a retreat veto holds the player's only steps; returns the read key or None. Both askers take _ladder (owner 2026-11-06 「同じ手順にする」): the floor's first Teleportation, then dig (digger route bounded by tunnel_feasibility.not_dug, else Stone to Mud), disarm, weak-enemy strike, then Teleportation again or Recall at or below the reserve.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
-    "delegation": "No independent success; existing wait, retreat or teleport owner."
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_ladder": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon only: under enclosed_key and walled_off_key; never reached in town.",
+    "evidence": "dungeon-only: Both askers take _ladder (owner 2026-11-06 「同じ手順にする」): the floor's first Teleportation, then dig (digger route bounded by tunnel_feasibility.not_dug, else Stone to Mud), disarm, weak-enemy strike, then Teleportation again or Recall at or below the reserve. Returns the key or None.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_sides": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon only: read by enclosed_key and walled_off; never reached in town.",
+    "evidence": "dungeon-only: pure reading of the player's side of the retreat vetoes and the known ground past them; no key.",
+    "delegation": "No independent success; pure reading."
   },
   "combat_answer.py:adjacent_attack": {
     "classification": "producer",
@@ -14797,5 +14819,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing equipment wield effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "sealed_pocket.py:_spend_melt": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon only: under sealed_pocket.key and melt_at_key (retreat_enclosure's Stone to Mud); never reached in town.",
+    "evidence": "dungeon-only: one Stone to Mud use (wand, else the absorbed power) along a direction, counted against its wall (FAILURES_PER_PLACE); returns the key or None.",
+    "delegation": "No independent success; existing Stone to Mud owner."
   }
 }

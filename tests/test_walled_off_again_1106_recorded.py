@@ -11,7 +11,8 @@ and posted through the production executor; each test then decides the stop's bo
 turns later, walled off again (DECLARED: the read landed on this side).
 
 DECLARED CONSTRUCTED, besides those of the recorded test: the half-giant the column was set for
-shown by a detection where it was last detected (so the column stands); a shovel in the pack, or in the hand with the cutlass in the
+shown by a detection where it was last detected (so the column stands); the recorded kit's two
+Stone to Mud wands taken out (the recorded test pins them); a shovel in the pack, or in the hand with the cutlass in the
 pack and the breakout's dig floor set; the Teleportation count; a pit trap in place of the column's top veto; a small kobold
 standing on a veto.
 """
@@ -24,9 +25,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from test_quest_loop_dwell_1106_recorded import READ_PROMPT, VETOES_DONE_TURN, WalledOffBoards, shown
+from test_quest_loop_dwell_1106_recorded import (
+    READ_PROMPT, VETOES_DONE_TURN, WalledOffBoards, shown as shown_with_wands, without_stone_to_mud,
+)
 
-from hengbot import retreat_enclosure
+from hengbot import retreat_enclosure, tunnel_feasibility
 from hengbot.model import Position
 
 SHOVEL = {"ac": 0, "aware": True, "charges": 0, "charging": False, "count": 1,
@@ -41,6 +44,13 @@ KOBOLD = {"asleep": False, "confused": False, "fast": False, "fearful": False, "
           "health": "unhurt", "index": 200, "invulnerable": False, "level": None,
           "name": "スモール・コボルド", "pet": False, "race_id": 29, "slow": False,
           "stunned": False, "x": 93, "y": 5}
+
+
+def shown(raw):
+    """The half-giant shown, and the kit without Stone to Mud (DECLARED: so the openers after
+    the dig, and Teleportation and Recall, are reached)."""
+    shown_with_wands(raw)
+    without_stone_to_mud(raw)
 
 
 def teleportation(count):
@@ -102,6 +112,21 @@ class WalledOffAgain(WalledOffBoards):
         replay, board, _key, reason = self.walled_off_again(edit, between=between)
         self.assertEqual(replay.policy._breakout_dig_floor, board.floor_key)
         self.assertEqual(reason, retreat_enclosure.DIG_REASON)
+
+    def test_stone_to_mud_melts_walls_the_digger_cap_refuses(self):
+        """The beam does not depend on the digging skill: a wall the owner's dig cap
+        (tunnel_feasibility.not_dug) refuses to a digger is still melted."""
+        class AllTried(dict):
+            def get(self, key, default=None):
+                return float(tunnel_feasibility.NOT_DUG_OVER_ATTEMPTS)
+
+        def between(policy):  # DECLARED: every wall already tried 100 times with a digger
+            setattr(policy, tunnel_feasibility.MEMORY,
+                    tunnel_feasibility.Memory(floor=policy._floor_key, tries=AllTried()))
+
+        _replay, _board, key, reason = self.walled_off_again(
+            shown_with_wands, first=shown_with_wands, between=between)
+        self.assertEqual(reason, retreat_enclosure.MELT_REASON)
 
     def test_a_trap_in_the_wall_is_walked_to_for_its_disarm(self):
         def setup(policy):

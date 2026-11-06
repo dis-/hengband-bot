@@ -1170,14 +1170,18 @@ class FundraisingMixin:
         diggable: Callable[[GridState], bool],
         *,
         walking_wins: bool = True,
+        tunnelled: bool = True,
     ) -> Position | None:
         """First step of the shortest known route to a target through floor
         and ``diggable`` cells.
 
         With ``walking_wins`` it is None when a walking route reaches a
         target, so the dig is solely for targets whose known approach needs
-        at least one cell tunnelled.  Pure (no offer, no bump count), so a
-        caller may ask whether a dig route still exists.
+        at least one cell tunnelled.  ``tunnelled`` walls are dug with a
+        digger and bounded by tunnel_feasibility.not_dug; a route melted
+        with Stone to Mud (retreat_enclosure) passes False, since the beam
+        does not depend on the digging skill.  Pure (no offer, no bump
+        count), so a caller may ask whether a dig route still exists.
         """
         origin = snapshot.player.position
         targets = set(targets)
@@ -1224,7 +1228,7 @@ class FundraisingMixin:
                     # Digging is permitted diagonally (do_cmd_tunnel takes any
                     # of the eight directions).
                     if (grid is None or not grid.known or not diggable(grid)
-                            or tunnel_feasibility.not_dug(self, snapshot, grid)):
+                            or tunnelled and tunnel_feasibility.not_dug(self, snapshot, grid)):
                         continue
                     dug = 1
                 heappush(frontier, (digs + dug, steps + 1, next(order), neighbor,

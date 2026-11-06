@@ -9316,7 +9316,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not snapshot.player.blind
             and not snapshot.player.confused
         ):
-            teleport = retreat_enclosure.teleport_key(self, snapshot)
+            teleport = retreat_enclosure.enclosed_key(self, snapshot)
             if teleport is not None:
                 self._stuck_escape_streak = 0
                 return teleport

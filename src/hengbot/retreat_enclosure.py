@@ -1,13 +1,13 @@
-"""Retreat vetoes that enclose the player: Teleportation, then Recall.
+"""Retreat vetoes that enclose the player or wall off known ground: one ladder out.
 
 A retreat's veto stays for the floor visit, so in a corridor it can hold every
 step out of a pocket after its threats have died (n1-a life-476 迷宮15階, n1-b
 life-307 迷宮18階: '5' at one cell until the loop guard).  Every veto is kept.
 Owner 2026-11-04: 「一旦テレポートで離脱を試みる。同じフロアで二度同じ形で動けなく
 なったら帰還。」  Phase Door is no substitute (owner 2026-11-02 「ショートテレポートは
-テレポートの代替にならない」); with no Teleportation the Recall is read at once.
+テレポートの代替にならない」).
 
-``teleport_key`` answers only from the idle fallback, after every survival rung has passed.
+``enclosed_key`` answers only from the idle fallback, after every survival rung has passed.
 
 The same veto can wall a hunted target's ground off without holding the player's own steps:
 n1-b life-317 (Angband 50F, RANDOM quest 40, 2026-11-05).  Five retreats from a half-giant
@@ -16,15 +16,21 @@ game turns the bot walked the 259 cells on its side while 83 detections showed t
 past the column.  A restart emptied the vetoes and it stood beside the target 486 game
 turns later.  ``walled_off_key`` is that shape's read, for the hunt and the search of a
 random quest (hunt_target, quest_target_search), where the idle fallback is never asked.
-The first time, the floor's one Teleportation.
 
-Walled off again after it, owner 2026-11-06: 「壁を掘る、罠を解除する、弱い敵なら倒すことを試みる。
-ダメならテレポートを使用し、巻物が規定数以下になれば帰還。」, on a random quest floor too (the
-Recall fails the quest, and the answer accepts that).  In order (``OPENERS``):
+Both askers take one ladder (``_ladder``).  The walled-off hunt starts it with the floor's
+first Teleportation and, walled off again after it, owner 2026-11-06: 「壁を掘る、罠を解除する、
+弱い敵なら倒すことを試みる。ダメならテレポートを使用し、巻物が規定数以下になれば帰還。」, on a
+random quest floor too (the Recall fails the quest, and the answer accepts that).  The enclosed
+player starts at the openers (owner 2026-11-06: 「閉じ込められた時はどちらも、掘る（岩石溶解を含む）・
+罠の解除・弱い敵を倒す を先に試し、駄目ならテレポート、巻物が規定数以下なら帰還。判定を1つにまとめる。」).
+In order (``OPENERS``):
 
-- dig: with a digging tool, the dig route (policy_fundraising ``_dig_route_first_step``,
-  the walk-out dig's) through walls that are no veto to the walled-off ground, bounded by
-  the owner's dig cap (tunnel_feasibility ``not_dug``, applied by the route);
+- dig: the dig route (policy_fundraising ``_dig_route_first_step``, the walk-out dig's)
+  through walls that are no veto to the ground past the vetoes.  With a digging tool, its
+  walls are bounded by the owner's dig cap (tunnel_feasibility ``not_dug``, applied by the
+  route); else, or with no such route, Stone to Mud counts as digging (owner 2026-11-06
+  「数える」): the wand or the absorbed power (sealed_pocket ``can_melt``, ``melt_at_key``,
+  its uses counted against each wall) melts the route's next wall once beside it;
 - disarm: a walk to the ground whose only way crosses a trap, onto which ``_step_toward``
   posts its existing disarm (CHEST_DISARM_BUDGET tries a trap, as every walk);
 - strike: a visible enemy standing on the ground or on the vetoes beside the player's side
@@ -43,7 +49,7 @@ from __future__ import annotations
 from collections import deque
 from typing import NamedTuple
 
-from hengbot import random_quest_reserve, walkout_dig
+from hengbot import random_quest_reserve, sealed_pocket, walkout_dig
 from hengbot.model import Position
 from hengbot.policy_constants import CHEST_DISARM_BUDGET, TELEPORT_RETURN_THRESHOLD
 
@@ -51,6 +57,7 @@ _READ = "_enclosure_teleport_read"  # (floor, turn) of this floor's latest Telep
 TELEPORT_REASON = "stuck:enclosed-teleport"
 DIG_REASON = "stuck:walled-off-dig"
 DIG_WIELD_REASON = "stuck:walled-off-wield-digger"
+MELT_REASON = "stuck:walled-off-stone-to-mud"
 DISARM_REASON = "stuck:walled-off-disarm"
 STRIKE_REASON = "stuck:walled-off-strike"
 RECALL_REASON = "stuck:walled-off-recall"
@@ -79,8 +86,8 @@ def _steps(policy, snapshot, position):
     ]
 
 
-def walled_off(policy, snapshot) -> WalledOff | None:
-    """The ground a retreat veto stands between the player and, else None."""
+def _sides(policy, snapshot) -> WalledOff | None:
+    """The player's side of the vetoes and the known ground past them (maybe none)."""
     owned = policy._engagement_owned_avoid_cells
     if not owned:
         return None
@@ -108,7 +115,13 @@ def walled_off(policy, snapshot) -> WalledOff | None:
             if neighbour not in reach and neighbour not in ground:
                 ground.add(neighbour)
                 stack.append(neighbour)
-    return WalledOff(frozenset(reach), frozenset(ground)) if ground else None
+    return WalledOff(frozenset(reach), frozenset(ground))
+
+
+def walled_off(policy, snapshot) -> WalledOff | None:
+    """The ground a retreat veto stands between the player and, else None."""
+    sides = _sides(policy, snapshot)
+    return sides if sides is not None and sides.ground else None
 
 
 def holds_ground(policy, snapshot) -> bool:
@@ -116,22 +129,28 @@ def holds_ground(policy, snapshot) -> bool:
     return walled_off(policy, snapshot) is not None
 
 
-def teleport_key(policy, snapshot) -> str | None:
-    """The first enclosure of the floor's read, else None (Recall owns it)."""
-    if not encloses(policy, snapshot) or _first_read_spent(policy, snapshot):
+def enclosed_key(policy, snapshot) -> str | None:
+    """While a veto holds the player's own steps (the idle fallback): ``_ladder`` from
+    the openers (owner 2026-11-06: 「閉じ込められた時はどちらも、掘る（岩石溶解を含む）・罠の解除・
+    弱い敵を倒す を先に試し、駄目ならテレポート、巻物が規定数以下なら帰還。」)."""
+    if not encloses(policy, snapshot):
         return None
-    return _read_teleport(policy, snapshot)
+    return _ladder(policy, snapshot, _sides(policy, snapshot), teleport_first=False)
 
 
 def walled_off_key(policy, snapshot) -> str | None:
-    """While vetoes hold known ground from a hunt or search: the floor's first
-    Teleportation, then the owner's openers, then Teleportation again or Recall."""
+    """While vetoes hold known ground from a hunt or search: ``_ladder`` from the floor's
+    first Teleportation (owner 2026-11-04; the openers once walled off again, 2026-11-06)."""
+    walled = walled_off(policy, snapshot)
+    return None if walled is None else _ladder(policy, snapshot, walled, teleport_first=True)
+
+
+def _ladder(policy, snapshot, walled, *, teleport_first: bool) -> str | None:
+    """With ``teleport_first``, the floor's first Teleportation; then the owner's
+    openers, then Teleportation (again) or Recall at or below the reserve."""
     if snapshot.player.recalling:
         return None
-    walled = walled_off(policy, snapshot)
-    if walled is None:
-        return None
-    if not _first_read_spent(policy, snapshot):
+    if teleport_first and not _first_read_spent(policy, snapshot):
         key = _read_teleport(policy, snapshot)
         if key is not None:
             return key
@@ -177,11 +196,31 @@ def dig_has_route(policy, snapshot) -> bool:
 
 
 def _dig_key(policy, snapshot, walled) -> str | None:
+    """The digger's route, else the Stone to Mud route."""
     first = _dig_route(policy, snapshot, walled)
+    if first is not None:
+        return walkout_dig.dig_step_key(
+            policy, snapshot, first, walkout_dig.diggable, DIG_REASON, DIG_WIELD_REASON)
+    return _melt_key(policy, snapshot, walled)
+
+
+def _melt_key(policy, snapshot, walled) -> str | None:
+    """Melt the route's next wall when beside it, else walk toward it."""
+    player = snapshot.player
+    if player.blind or player.confused or not sealed_pocket.can_melt(policy, snapshot):
+        return None
+
+    def meltable(grid) -> bool:
+        return walkout_dig.diggable(grid) and not sealed_pocket.worn_out(policy, snapshot, grid.position)
+
+    first = policy._dig_route_first_step(snapshot, set(walled.ground), meltable, tunnelled=False)
     if first is None:
         return None
-    return walkout_dig.dig_step_key(
-        policy, snapshot, first, walkout_dig.diggable, DIG_REASON, DIG_WIELD_REASON)
+    grid = snapshot.grids.get(first)
+    if grid is not None and meltable(grid):
+        return sealed_pocket.melt_at_key(policy, snapshot, first, MELT_REASON)
+    policy.last_reason = MELT_REASON
+    return policy._step_toward(snapshot, first)
 
 
 def _first_step(policy, snapshot, goals, admit) -> Position | None:

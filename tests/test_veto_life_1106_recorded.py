@@ -77,7 +77,9 @@ class VetoLife(WalledOffBoards):
         _board, _key, reason = self.at_turn(
             replay, LAST_SHOWN_TURN + retreat_veto_life.UNSEEN_GAME_TURNS - 1)
         self.assertTrue(self.column_stands(replay))
-        self.assertEqual(reason, retreat_enclosure.TELEPORT_REASON)
+        # The standing column walls the search off again: the hunt read the floor's first
+        # Teleportation in the entry (2344898), so the recorded wands melt a way (the ladder).
+        self.assertEqual(reason, retreat_enclosure.MELT_REASON)
         self.at_turn(replay, LAST_SHOWN_TURN + retreat_veto_life.UNSEEN_GAME_TURNS)
         self.assertFalse(COLUMN & replay.policy._engagement_owned_avoid_cells)
 
@@ -116,7 +118,7 @@ class VetoLife(WalledOffBoards):
         replay.policy._claim_engagement_avoid_cells(COLUMN)
         _board, _key, reason = self.at_the_stop(replay)
         self.assertTrue(self.column_stands(replay))
-        self.assertEqual(reason, retreat_enclosure.TELEPORT_REASON)
+        self.assertEqual(reason, retreat_enclosure.MELT_REASON)  # the ladder, as above
 
 
 if __name__ == "__main__":

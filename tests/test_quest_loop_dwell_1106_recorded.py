@@ -47,6 +47,9 @@ from tests import test_loops_1104_recorded as loops
 FIXTURE = Path(__file__).parent / "fixtures" / "quest-loop-dwell-1106.json.xz"
 COLUMN = {Position(y, 93) for y in range(3, 8)}
 READ_PROMPT = "どの巻物を読みますか? "
+# The walk keys and the (dy, dx) of their step.
+STEPS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1),
+         "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 VETOES_DONE_TURN = 2344864
 # The half-giant the column was set for (index 76, race 1301), as the fixture's last detection
 # showed it (2345271).
@@ -60,6 +63,11 @@ def shown(raw):
     """DECLARED: a detection shows the half-giant on this board, so its column stands
     (retreat_veto_life lifts it otherwise, 84,000 game turns after it was last shown)."""
     raw["detected_monsters"] = [*raw.get("detected_monsters", []), dict(HALF_GIANT)]
+
+
+def without_stone_to_mud(raw):
+    """DECLARED: the recorded kit without its two Stone to Mud wands (slot h)."""
+    raw["inventory"] = [item for item in raw["inventory"] if "岩石溶解" not in item["name"]]
 
 
 class WalledOffBoards(loops.ItemCommandBoards):
@@ -131,17 +139,36 @@ class WalledOffHuntAndSearch(WalledOffBoards):
         _board, _key, reason = replay.decide(json.dumps(west, ensure_ascii=False))
         self.assertEqual(reason, hunt_target.REASON)
 
-    def test_a_search_walled_off_by_the_column_reads_teleportation_then_again(self):
+    def test_a_search_walled_off_by_the_column_reads_teleportation_then_melts_a_way(self):
         replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)
         _board, key, reason = self.at_the_stop(replay, edit=shown)
         self.assertEqual(reason, retreat_enclosure.TELEPORT_REASON)
         self.post_item_command(replay.policy, self.stop_raw(edit=shown), key, READ_PROMPT)
-        # DECLARED: the read landed on this side after all.  Walled off again, with no digger,
-        # trap or weak enemy and 15 scrolls over the reserve of 5, the owner's 2026-11-06 answer
-        # reads Teleportation again (retreat_enclosure; tests/test_walled_off_again_1106_recorded).
+        # DECLARED: the read landed on this side after all.  Walled off again with no digger,
+        # the recorded kit's Stone to Mud wands open a way round the column (owner 2026-11-06
+        # 「壁を掘る」, Stone to Mud 「数える」): the walk toward the route's first wall.
         _board, key, reason = self.at_the_stop(replay, later=10, edit=shown)
-        self.assertEqual(reason, retreat_enclosure.TELEPORT_REASON)
-        self.assertEqual(key, "re")
+        self.assertEqual(reason, retreat_enclosure.MELT_REASON)
+        self.assertIn(key, set("12346789"))
+        # DECLARED: each walk is taken (the player moved by the key, 10 game turns a step)
+        # until the route's first wall is beside it, where the wand (slot h) is aimed at it.
+        here, later = self.stop_raw(), 10
+        position = [here["player"]["y"], here["player"]["x"]]
+        for _ in range(60):
+            if key[0] != "a":
+                dy, dx = STEPS[key]
+                position = [position[0] + dy, position[1] + dx]
+            later += 10
+
+            def moved(raw, position=tuple(position)):
+                shown(raw)
+                raw["player"]["y"], raw["player"]["x"] = position
+            _board, key, reason = self.at_the_stop(replay, later=later, edit=moved)
+            self.assertEqual(reason, retreat_enclosure.MELT_REASON)
+            if key[0] == "a":
+                break
+        self.assertEqual(key[:2], "ah")
+        self.assertIn(key[2:], set("12346789"))
 
     def test_a_veto_that_walls_nothing_off_leaves_the_loop_walking(self):
         replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)
