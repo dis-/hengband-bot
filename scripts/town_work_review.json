@@ -13145,6 +13145,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The Recall read below the strategy's line with an enemy (owner 2026-11-04); no independent progress."
   },
+  "quest_find_exit.py:_choke_walk_under_way": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The next step of a walk to a choke already under way while an enemy still comes (owner 2026-11-06); no independent progress."
+  },
   "quest_find_exit.py:_cure": {
     "classification": "producer",
     "rows": [

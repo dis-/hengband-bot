@@ -9423,6 +9423,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_find_exit.py:_choke_walk_under_way": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_find_exit.py:_chokes": {
     "classification": "data",
     "rows": [
