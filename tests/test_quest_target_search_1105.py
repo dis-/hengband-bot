@@ -288,6 +288,28 @@ class QuestTargetSearchTest(unittest.TestCase):
         self.assertEqual(self.choose(policy, raw)[:1] in MOVES, True)
         self.assertEqual(policy.last_reason, "explore")
 
+    def test_the_lap_closed_on_a_stop_the_redraw_drops_walks_to_a_new_stop(self):
+        # n1-b life-332 (11-07 00:25) and life-317 (11-05 19:39): the lap's last stop reached
+        # (the goal is the player's cell), the stops redrawn without it, and the goal kept
+        # through the redraw: the step toward it was None and the bot stopped on
+        # AttributeError 'NoneType' object has no attribute 'y'.
+        policy, raw = self.policy()
+        self.choose(policy, raw)
+        memory = getattr(policy, search.MEMORY)
+        here = Position(7, 30)
+        raw = _next_board(raw)
+        raw["player"]["y"], raw["player"]["x"] = here.y, here.x
+        # DECLARED: the lap that ended here, whose stops the walkable ground no longer draws.
+        memory.stops, memory.seen, memory.goal = (Position(*START), here), {Position(*START)}, here
+        laps = memory.laps
+        key = self.choose(policy, raw)
+        self.assertNotIn(here, memory.stops)
+        self.assertEqual(memory.laps, laps + 1)
+        self.assertEqual(policy.last_reason, search.LOOP_REASON)
+        self.assertIn(key, MOVES)
+        self.assertIn(memory.goal, memory.stops)
+        self.assertNotEqual(memory.goal, here)
+
     def test_a_fixed_quest_floor_and_a_released_floor_are_not_circled(self):
         policy, raw = self.policy(quest_id=2)
         self.choose(policy, raw)
