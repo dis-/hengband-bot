@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
+from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -9325,16 +9325,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return quest_regen
         floor_exit_locked = self._floor_navigation_exit_locked(snapshot)
         allow_descent = not self._descent_is_blocked(snapshot)
+        stair_goal = (
+            lambda g: not floor_exit_locked
+            and (
+                self._is_upstairs_target(g)
+                or (allow_descent and self._is_descent_target(snapshot, g))
+            )
+        )
+        if forgetting_maze and not floor_exit_locked:
+            # The maze forgets every cell out of view, so a remembered stair is no
+            # grid on the board: it is a goal by its cell (n1-c life-156, Labyrinth 10F).
+            goal_route.with_remembered_goals(
+                stair_goal, self._remembered_stair_goals(snapshot, allow_descent))
         self._claim_target_capture = []
         try:
-            step = self._nearest_goal_step(
-                snapshot,
-                lambda g: not floor_exit_locked
-                and (
-                    self._is_upstairs_target(g)
-                    or (allow_descent and self._is_descent_target(snapshot, g))
-                ),
-            )
+            step = self._nearest_goal_step(snapshot, stair_goal)
         finally:
             step_target = self._take_claim_target()
         # The stair underfoot comes first: the route never ends on this cell, so
@@ -9348,6 +9353,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self.last_reason = "stuck:seek-stairs"
             self._declare_reach(step_target)
             return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
+        # Owner 2026-11-06 「先にその敵を倒す」: a never-moving monster's ring is what
+        # blocks the way in a maze -- shoot it, else the enclosure ladder.
+        blocking = immobile_ranged_kill.blocking_key(self, snapshot)
+        if blocking is not None:
+            return blocking
 
         return self._town_producer_entry(
             "idle-fallback", lambda: self._town_idle_key(snapshot), family="idle")
@@ -9431,6 +9441,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             (UP_STAIRS_KEY, grid.position) in self._unverified_stairs
             or not self._nav_ledger.is_expired("ascend", grid.position)
         )
+
+    def _remembered_stair_goals(self, snapshot: Snapshot, allow_descent: bool) -> set[Position]:
+        """The remembered stairs a stuck walk may take: upstairs on the terms of
+        ``_is_upstairs_target`` for a stair out of view, and, when descent is allowed,
+        the downstairs the descent owner may still route to (``_usable_downstairs``)."""
+        goals = set()
+        if not self._up_stairs_exit_to_wilderness():
+            goals.update(
+                position for position in self._remembered_upstairs
+                if (UP_STAIRS_KEY, position) in self._unverified_stairs
+                or not self._nav_ledger.is_expired("ascend", position))
+        if allow_descent:
+            goals.update(self._usable_downstairs(snapshot))
+        return goals
 
     def _is_downstairs_expired(self, position: Position) -> bool:
         """Let a launch-snapshot stair receive its conclusive command test."""

@@ -70,8 +70,24 @@ def _blocked(pass_index: int, entrance_cells: set[Position]) -> set[Position]:
 
 
 def _is_goal(snapshot, position, predicate) -> bool:
+    """The board's grid satisfies ``predicate``; a cell the board does not show is a goal
+    when the predicate names it among its remembered goals (``with_remembered_goals``)."""
     grid = snapshot.grids.get(position)
-    return grid is not None and predicate(grid)
+    if grid is None:
+        return position in getattr(predicate, REMEMBERED_GOALS, ())
+    return predicate(grid)
+
+
+REMEMBERED_GOALS = "remembered_goals"
+
+
+def with_remembered_goals(predicate, cells):
+    """``predicate`` that also accepts ``cells`` while the board does not show them.
+
+    A forgetting maze (MAZE + FORGET) drops every cell out of view from the board, so a
+    stair remembered there is never a grid the predicate can read (n1-c life-156)."""
+    setattr(predicate, REMEMBERED_GOALS, frozenset(cells))
+    return predicate
 
 
 def nearest_goal_path(policy, snapshot, predicate, entrance_cells):

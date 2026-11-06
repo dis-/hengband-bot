@@ -244,6 +244,7 @@ LADDER = (
         *I("search", "seek-secret-wall"),
         *E("_start_kill_quest_regeneration"),
         *I("stuck:ascend", "stuck:seek-stairs"),
+        *D("immobile_ranged_kill.blocking_key"),
         *E("idle-fallback"),
     )),
 )

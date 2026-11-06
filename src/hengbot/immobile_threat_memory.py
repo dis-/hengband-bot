@@ -55,13 +55,25 @@ when the bot can kill it safely from range (immobile_ranged_kill).
 
 Owner 2026-11-05 (disenchant_avoid): a never-moving monster that disenchants an
 unresisting player is ringed as well.
+
+Owner 2026-11-06 「脅威が見えなくなったら消す」 (retreat_veto_life): a remembered
+monster is also forgotten when it died or changed shape -- its floor list index
+shows another race, or its kill or shape-change line follows a board it was shown
+on (``retreat_veto_life.seen_or_ended``).  Recorded n1-c life-156 (Labyrinth 10F,
+2026-11-06 23:0x): a レッド・ゼリー at (10,42) was shot dead from (13,42) (turn
+1033667, 「レッド・ゼリーは死んだ。」), but on the forgetting maze its cell three
+away stayed unlit, so the empty-cell test never certified it gone; its ring kept
+cutting the one-wide junction and sealed the explored east from every frontier and
+both known stairs (442 stuck:wander).  The retreat veto's third lifting condition
+(not shown for a while) is not applied here: a never-moving monster not shown is
+still where it was shown (owner 11-01 「その階の間覚えて」).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from hengbot import disenchant_avoid
+from hengbot import disenchant_avoid, retreat_veto_life
 from hengbot.model import MonsterState, Position
 from hengbot.monrace_knowledge import SUMMON_ABILITIES
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, ExplorationPathOutcome
@@ -96,6 +108,11 @@ class FloorVisit:
     walked_from: dict[Position, set[Position]] = field(default_factory=dict)
     walk_retired: set[Position] = field(default_factory=set)
     last_cell: Position | None = None
+    # Who each remembered monster is (its floor list index and race) and the
+    # board it was last shown on, for its kill or shape change; the previous
+    # observed board.
+    threats: dict[Position, tuple] = field(default_factory=dict)
+    last_turn: int | None = None
 
 
 def never_moves(policy, monster: MonsterState) -> bool:
@@ -181,6 +198,7 @@ def observe(policy, snapshot) -> None:
                  if never_moves(policy, monster)}
     visit.monsters.update(perceived)
     visit.unaimed.difference_update(perceived)
+    _forget_ended(visit, snapshot, perceived)
     for position, monster in list(visit.monsters.items()):
         if position not in perceived and policy._player_can_see_empty_cell(
                 snapshot, position, race_id=monster.race_id):
@@ -192,6 +210,30 @@ def observe(policy, snapshot) -> None:
         for cell in ring_cells(position)
     )
     _drop_committed_paths(policy, visit.cells)
+
+
+def _forget_ended(visit: FloorVisit, snapshot, perceived: dict) -> None:
+    """Forget the remembered monsters that died or changed shape (owner 2026-11-06)."""
+    threats = visit.__dict__.setdefault("threats", {})  # restored checkpoints predate it
+    last_turn = visit.__dict__.get("last_turn")
+    shown = retreat_veto_life.shown_by_index(snapshot)
+    for position, monster in list(visit.monsters.items()):
+        if position in perceived:
+            threats[position] = (
+                (monster.index, monster.race_id),
+                retreat_veto_life.Threat(monster.name, snapshot.turn))
+            continue
+        entry = threats.get(position)
+        if entry is None:
+            continue
+        key, threat = entry
+        if retreat_veto_life.seen_or_ended(snapshot, key, threat, shown, last_turn):
+            del visit.monsters[position]
+            del threats[position]
+            visit.unaimed.discard(position)
+    for position in set(threats) - set(visit.monsters):
+        del threats[position]
+    visit.last_turn = snapshot.turn
 
 
 def remembered(policy) -> tuple[MonsterState, ...]:

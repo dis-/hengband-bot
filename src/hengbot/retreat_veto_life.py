@@ -84,7 +84,19 @@ def _shows_shape_change(snapshot, name: str) -> bool:
     return any(message_text(message) in lines for message in snapshot.messages)
 
 
-def _gone(snapshot, key, threat: Threat, shown: dict, last_turn) -> bool:
+def shown_by_index(snapshot) -> dict:
+    """The board's monsters (in view, or shown by a detection) by their floor list index."""
+    return {monster.index: monster
+            for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)}
+
+
+def seen_or_ended(snapshot, key, threat: Threat, shown: dict, last_turn) -> bool | None:
+    """False: shown on this board (its last sighting moves to this board).  True: it
+    died or changed shape (its index shows another race, or its kill or shape-change
+    line follows a board it was shown on).  None: not shown, and no line ended it.
+
+    Shared with the never-moving monster memory (immobile_threat_memory), which keeps
+    a monster not shown -- it cannot have left its cell."""
     index, race = key
     monster = shown.get(index)
     if monster is not None:
@@ -95,6 +107,13 @@ def _gone(snapshot, key, threat: Threat, shown: dict, last_turn) -> bool:
     if threat.last_seen == last_turn and (
             shows_kill(snapshot, threat.name) or _shows_shape_change(snapshot, threat.name)):
         return True
+    return None
+
+
+def _gone(snapshot, key, threat: Threat, shown: dict, last_turn) -> bool:
+    ended = seen_or_ended(snapshot, key, threat, shown, last_turn)
+    if ended is not None:
+        return ended
     return snapshot.turn - threat.last_seen >= UNSEEN_GAME_TURNS
 
 
@@ -103,8 +122,7 @@ def observe(policy, snapshot) -> None:
     life = getattr(policy, MEMORY, None)
     if life is None or not life.threats:
         return
-    shown = {monster.index: monster
-             for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)}
+    shown = shown_by_index(snapshot)
     gone = {key for key, threat in life.threats.items()
             if _gone(snapshot, key, threat, shown, life.last_turn)}
     life.last_turn = snapshot.turn
