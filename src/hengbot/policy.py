@@ -469,8 +469,8 @@ from hengbot.quest_knowledge import (
     QuestInfo,
 )
 from hengbot.quest_strategies import (
-    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, heal_potion_sval,
-    torch_throw_output,
+    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, has_ability_or_alternative,
+    heal_potion_sval, torch_throw_output,
 )
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
@@ -14337,7 +14337,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         carry_status = self._quest_carry_status(snapshot, force)
         carries_ready = all(bool(item["ready"]) for item in carry_status.values())
         resists_ready = all(
-            self._profile_resistance_name(str(name)) in snapshot.player.abilities
+            has_ability_or_alternative(
+                force, self._profile_resistance_name(str(name)),
+                snapshot.player.abilities, snapshot.equipment)
             for name in force.get("resists", ())
         )
         speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)
