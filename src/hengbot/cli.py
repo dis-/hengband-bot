@@ -515,6 +515,30 @@ def _bookkeeping_retirement(policy, owners) -> bool:
             and reason.startswith(BOOKKEEPING_RETIREMENT_PREFIXES))
 
 
+# The game's own receipt of a completed store trade (store/purchase-order.cpp,
+# store/sell-order.cpp), Japanese and English builds.  n1-a life-487
+# 2026-11-06 00:02/00:09: Home round trips that identified, sold and stashed
+# (withdraw -> *Identify* -> deposit -> withdraw -> sell; buy -> deposit)
+# leave the pack as it was, so the owners' vectors repeated and three
+# retirements made owner-retired-burst although every cycle traded.  The
+# store visit's own effect flag never rose for these one-shot operations.
+# Each distinct receipt text is progress once per visit: repeating the same
+# purchase or sale (a buy/sell or withdraw/deposit ping-pong) earns nothing.
+TRADE_RECEIPT_PATTERNS = (
+    re.compile(r"を \$\d+で購入しました。"),
+    re.compile(r"を \$\d+で売却しました。"),
+    re.compile(r"You bought .+ for \d+ gold\."),
+    re.compile(r"You sold .+ for \d+ gold\."),
+)
+
+
+def _trade_receipts(snapshot) -> set:
+    return {("trade-receipt", message)
+            for message in (getattr(snapshot, "messages", None) or ())
+            if isinstance(message, str)
+            and any(pattern.search(message) for pattern in TRADE_RECEIPT_PATTERNS)}
+
+
 def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) -> None:
     """Settle bounded existing effect receipts and observed route minima.
 
@@ -538,7 +562,7 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
     if visit is None or (sequence is not None and state["sequence"] == sequence):
         return
     state["sequence"] = sequence
-    tokens = set()
+    tokens = _trade_receipts(snapshot)
     magic_receipt = getattr(policy, "_magic_staff_buy_receipt", None)
     if magic_receipt is not None:
         tokens.add(("magic-staff-buy", *magic_receipt))
