@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from hengbot import launcher_upgrade
+from hengbot import launcher_upgrade, quest25_druj_gear
 from hengbot.model import STORE_HOME
 from hengbot.policy_constants import FUNDRAISING_START_GOLD
 
@@ -119,6 +119,8 @@ def released(policy: Any, snapshot: Any, item: Any) -> bool:
         return False
     if _rearm_needed(snapshot, item) or _chosen_by_optimizer(policy, item):
         return False
+    if quest25_druj_gear.kept(policy, snapshot, item):
+        return False   # Q25 carries it in for the druj (phase7_druj)
     if snapshot is not None and launcher_upgrade.is_waiting(policy, snapshot, item):
         return False
     return policy._target_loadout_known() or policy._calibration_rejection is not None

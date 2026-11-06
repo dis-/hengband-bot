@@ -70,6 +70,7 @@ from hengbot import (
     me_powers,
     me_powers_refresh,
     once_quest_recall,
+    quest25_druj_gear,
     quest25_geometry as geo,
     quest_exposure,
     quest_find_exit,
@@ -110,6 +111,17 @@ _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
+# Owner 2026-11-06 wait_limits 「事実上上限無しになる、大きな値を取る。仮に5000にする。」: the ambush
+# (phase1) and the dreadmaster's wait (phase5), player actions without an arrival.
+LONG_WAIT_ACTIONS = 5000
+# Owner 2026-11-06 phase2 「当たらない撃ちで補う」: pen shots in a row with no hit or kill line.
+PEN_MISSES_TO_ESCAPED = 10
+# The game's lines that a shot found its mark (combat/shoot.cpp exec_shoot).
+_HIT_LINES = ("に命中した。", "が敵を捕捉した。", "finds a mark.")
+_HIT_LINES_EN = (" hits ",)
+# mspell-floor.cpp spell_RF6_TPORT, printed only while the caster is seen.
+_TELEPORT_LINE = "がテレポートした。"
+_TELEPORT_LINE_EN = " teleports away."
 # Owner 2026-11-06 「10回で打ち切る」: searches of a cell that may hold a trap.
 MAYBE_TRAP_SEARCHES = 10
 # The counted rest between phases (between_phases 「回数を指定して休み、回数を見て続けるかを
@@ -155,6 +167,12 @@ class Battle:
     patrol_stage: int = 0
     patrol_round: int = 0
     browsed: frozenset = frozenset()   # list kinds read since the last counted rest
+    teleports: int = 0             # 「〜がテレポートした。」 lines naming an Ipsissimus
+    pen_shot: bool = False         # the last key was a shot at the pen
+    pen_misses: int = 0            # pen shots in a row with no hit or kill line
+    assumed_escaped: int = 0       # 「当たらない撃ちで補う」: counted escaped after the misses
+    aimed_quyl: tuple | None = None    # the quylthulg cell the last shot was aimed at
+    displaced: tuple | None = None     # (slot, signature) the druj's anti-teleport piece displaced
     observed: tuple | None = None      # the board last read (key and walk_key share one)
 
 
@@ -167,7 +185,7 @@ def _memory(navigator) -> Battle:
 def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
-        "melted", "lit", "observed")}
+        "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -278,7 +296,39 @@ def _note_kills(ctx: _Ctx) -> None:
             race = ctx.battle.aimed_race
         if race is not None:
             kills[race] = kills.get(race, 0) + 1
+            if race == geo.QUYL and ctx.battle.aimed_quyl is not None:
+                ctx.battle.quyls_done = ctx.battle.quyls_done | {ctx.battle.aimed_quyl}
     ctx.battle.kills = kills
+    ipsissimus = _names(ctx.policy, geo.IPSISSIMUS)
+    for message in ctx.snapshot.messages:
+        text = message_text(message)
+        name = (text[:-len(_TELEPORT_LINE)] if text.endswith(_TELEPORT_LINE)
+                else text[:-len(_TELEPORT_LINE_EN)].removeprefix("The ") if text.endswith(_TELEPORT_LINE_EN)
+                else None)
+        if name is not None and name in ipsissimus:
+            ctx.battle.teleports += 1   # 「テレポートしたメッセージで判断」
+
+
+def sees_ipsissimus_unseen(snapshot) -> bool:
+    """Telepathy or evil ESP: an Ipsissimus is seen from [5,1] without a line (monster-update.cpp)."""
+    return "telepathy" in snapshot.player.abilities or any(
+        112 in item.known_flags for item in snapshot.equipment)   # TR_ESP_EVIL
+
+
+def _note_pen_shot(ctx: _Ctx) -> None:
+    """「[7,17] への撃ちで命中や倒したメッセージが10回続けて出なければ、まだ倒していない分は逃げたとみなす」,
+    only without telepathy or evil ESP."""
+    battle = ctx.battle
+    if not battle.pen_shot:
+        return
+    battle.pen_shot = False
+    texts = [message_text(message) for message in ctx.snapshot.messages]
+    answered = any(_killed_name(text) is not None or text.endswith(_HIT_LINES)
+                   or any(line in text for line in _HIT_LINES_EN) for text in texts)
+    battle.pen_misses = 0 if answered else battle.pen_misses + 1
+    if battle.pen_misses >= PEN_MISSES_TO_ESCAPED and not sees_ipsissimus_unseen(ctx.snapshot):
+        battle.assumed_escaped = max(0, geo.ROSTER[geo.IPSISSIMUS] - ctx.kills(geo.IPSISSIMUS)
+                                     - _escaped_count(ctx, assumed=False))
 
 
 def _note_arrivals(ctx: _Ctx) -> None:
@@ -313,8 +363,14 @@ def melee_is_fewer(policy, snapshot, race: int, *, steps: int = 0) -> bool:
 # -- walking ----------------------------------------------------------------------------
 
 
+def _escaped_count(ctx: _Ctx, *, assumed: bool = True) -> int:
+    """Seen out of the pen, or named teleporting; and, after the misses, the rest."""
+    return (max(len(ctx.battle.escaped), ctx.battle.teleports)
+            + (ctx.battle.assumed_escaped if assumed else 0))
+
+
 def _ipsissimus_alive(ctx: _Ctx) -> bool:
-    return ctx.kills(geo.IPSISSIMUS) + len(ctx.battle.escaped) < geo.ROSTER[geo.IPSISSIMUS]
+    return ctx.kills(geo.IPSISSIMUS) + _escaped_count(ctx) < geo.ROSTER[geo.IPSISSIMUS]
 
 
 def _avoided(ctx: _Ctx) -> set:
@@ -655,7 +711,7 @@ def _ambush(ctx: _Ctx) -> str | None:
 
 def _wall_passers_done(ctx: _Ctx) -> bool:
     return (ctx.kills(geo.SPECTRE) >= geo.ROSTER[geo.SPECTRE]
-            and ctx.kills(geo.SHADOW) >= geo.ROSTER[geo.SHADOW]) or ctx.battle.quiet >= QUIET_ACTIONS
+            and ctx.kills(geo.SHADOW) >= geo.ROSTER[geo.SHADOW])
 
 
 def _wall_passers(ctx: _Ctx) -> str | None:
@@ -703,21 +759,26 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
         # 「貫通可能な攻撃かつ脅威度が高くない場合は先にイプシシマスを倒し増援を断つ」
         threat = policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot))
         if not threat and _has_piercing(ctx, geo.IPSISSIMUS, aim):
-            return _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=True)
+            return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=True))
         scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
         if scroll is not None:
             battle.rallying = True
             policy.last_reason = TELEPORT_REASON
             return policy._read_key(snapshot, scroll)
         return _engage(ctx, others)
-    return _fire_at(ctx, aim, geo.IPSISSIMUS)
+    return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS))
+
+
+def _pen_shot(ctx: _Ctx, key: str | None) -> str | None:
+    ctx.battle.pen_shot = key is not None
+    return key
 
 
 def _stragglers_done(ctx: _Ctx) -> bool:
     left = (ctx.kills(geo.SPECTRE) < geo.ROSTER[geo.SPECTRE]
             or ctx.kills(geo.SHADOW) < geo.ROSTER[geo.SHADOW]
             or ctx.kills(geo.IPSISSIMUS) < geo.ROSTER[geo.IPSISSIMUS])
-    return not left or ctx.battle.quiet >= QUIET_ACTIONS
+    return not left
 
 
 def _stragglers(ctx: _Ctx) -> str | None:
@@ -729,17 +790,28 @@ def _stragglers(ctx: _Ctx) -> str | None:
 
 
 def _quyl_plan(ctx: _Ctx):
-    """(quyl cell, stand, centre) of the next quylthulg a ball catches from a safe stand."""
+    """(quyl cell, stand, centre) of the next quylthulg a ball catches from a safe stand; then,
+    with balls that catch none from there (owner 2026-11-06 「加速して直接撃つ」), (quyl cell,
+    None, None): it is shot directly from a cell with a line to it."""
     radii = sorted({row[1] for row in _balls(ctx, geo.QUYL)}, reverse=True)
-    for cell, race in ctx.navigator.battlefield.monster_placements:
-        if race != geo.QUYL or cell in ctx.battle.quyls_done:
-            continue
+    left = [cell for cell, race in ctx.navigator.battlefield.monster_placements
+            if race == geo.QUYL and cell not in ctx.battle.quyls_done]
+    for cell in left:
         for radius in radii:
             for stand in geo.QUYL_STANDS:
                 found = geo.ball_centre(ctx.terrain, stand, cell, radius)
                 if found is not None:
                     return cell, stand, found[1]
+    if radii and left:
+        return left[0], None, None
     return None
+
+
+def _quyl_line_cells(ctx: _Ctx, cell) -> set:
+    """Dry cells with a line of fire to ``cell`` (the projection port), within a shot's reach."""
+    return {spot for spot in geo.line_cells(ctx.terrain, cell)
+            if ctx.terrain.get(spot) == "floor"
+            and quest_exposure.game_distance(spot, cell) <= quest_exposure.MAX_SPELL_RANGE}
 
 
 def _note_quyls(ctx: _Ctx) -> None:
@@ -750,7 +822,6 @@ def _note_quyls(ctx: _Ctx) -> None:
     done = set(ctx.battle.quyls_done)
     if seen - set(placed):
         done |= {cell for cell in placed if cell not in seen}
-    done |= set(placed[:ctx.kills(geo.QUYL)])
     ctx.battle.quyls_done = frozenset(done)
 
 
@@ -759,11 +830,25 @@ def _quyls_done(ctx: _Ctx) -> bool:
     return _quyl_plan(ctx) is None
 
 
+_FACED = frozenset({geo.IPSISSIMUS, geo.DREADMASTER})
+
+
 def _quyls(ctx: _Ctx) -> str | None:
     plan = _quyl_plan(ctx)
     if plan is None:
         return None
+    # 「テレポート・アウェイを受けるとイプシシマスの残党やドリードマスターと相対する可能性がある。
+    # その場合は加速して討伐を試みる。」
+    faced = [monster for monster in ctx.in_view() if monster.race_id in _FACED]
+    if faced:
+        return _haste(ctx) or _engage(ctx, faced) or _hold(ctx)
     cell, stand, centre = plan
+    ctx.battle.aimed_quyl = cell
+    if stand is None:
+        lines = _quyl_line_cells(ctx, cell)
+        if ctx.here not in lines:
+            return _walk(ctx, lines)   # 「飛ばされたら戻って撃ち直す」
+        return _haste(ctx) or _fire_at(ctx, cell, geo.QUYL)
     if ctx.here != stand:
         return _walk(ctx, {stand})
     return _fire_at(ctx, centre, geo.QUYL, area_only=True)
@@ -1000,6 +1085,10 @@ def _can_melt(ctx: _Ctx) -> bool:
 def _druj(ctx: _Ctx) -> str | None:
     battle, druj = ctx.battle, next(cell for cell, race in ctx.navigator.battlefield.monster_placements
                                     if race == geo.DRUJ)
+    # 「反テレポート付きで他のデメリットがない装備…この戦闘でのみ使用する」
+    worn = quest25_druj_gear.wear_key(ctx.policy, ctx.snapshot, ctx.profile, battle)
+    if worn is not None:
+        return worn
     door = geo.DRUJ_DOOR
     grid = ctx.snapshot.grid_at(Position(*door))
     if grid is not None and grid.known and not grid.is_door:
@@ -1039,20 +1128,21 @@ class Phase:
     full_hp: bool          # 「全快にして」 before its first step
     done: Callable
     act: Callable          # the phase's own step
-    wait_at: tuple | None = None   # where its 50-action wait is counted
+    wait_at: tuple | None = None   # where its wait is counted (None: anywhere, once ready)
+    wait_limit: int | None = None  # player actions without an arrival that end it
 
 
 PHASES = (
-    Phase("ambush", "phase1", False, _ambush_done, _ambush),
+    Phase("ambush", "phase1", False, _ambush_done, _ambush, None, LONG_WAIT_ACTIONS),
     Phase("wall-passers", "phase1_wall_passers", True, _wall_passers_done, _wall_passers,
-          geo.WALL_PASSER_STAND),
+          geo.WALL_PASSER_STAND, QUIET_ACTIONS),
     Phase("ipsissimus", "phase2", True, _ipsissimus_done, _ipsissimus),
     Phase("stragglers", "phase1_wall_passers", False, _stragglers_done, _stragglers,
-          geo.STRAGGLER_STAND),
+          geo.STRAGGLER_STAND, QUIET_ACTIONS),
     Phase("quylthulgs", "phase3", False, _quyls_done, _quyls),
     Phase("tome", "phase3", True, _tome_done, _tome),
     Phase("corpse-masses", "phase4", False, _masses_done, _masses),
-    Phase("dreadmaster", "phase5", False, _dreadmaster_done, _dreadmaster),
+    Phase("dreadmaster", "phase5", False, _dreadmaster_done, _dreadmaster, None, LONG_WAIT_ACTIONS),
     Phase("sweep", "phase6_sweep", False, _sweep_done, _sweep),
     Phase("stairway", "phase6", True, _stairway_done, _stairway),
     Phase("druj", "phase7_druj", False, _druj_done, _druj),
@@ -1060,9 +1150,14 @@ PHASES = (
 PHASE_NAMES = tuple(phase.name for phase in PHASES)
 
 
+def _finished(ctx: _Ctx, phase: Phase) -> bool:
+    """Its own end, or its wait limit (wait_limits, phase1_wall_passers, phase2)."""
+    return phase.done(ctx) or (phase.wait_limit is not None and ctx.battle.quiet >= phase.wait_limit)
+
+
 def current_phase(ctx: _Ctx) -> Phase | None:
     """Advance over every finished phase; the one running, else None (all done)."""
-    while ctx.battle.phase < len(PHASES) and PHASES[ctx.battle.phase].done(ctx):
+    while ctx.battle.phase < len(PHASES) and _finished(ctx, PHASES[ctx.battle.phase]):
         _next_phase(ctx.battle)
     return PHASES[ctx.battle.phase] if ctx.battle.phase < len(PHASES) else None
 
@@ -1074,10 +1169,11 @@ def _observe(ctx: _Ctx) -> None:
         return
     ctx.battle.observed = board
     _note_kills(ctx)
+    _note_pen_shot(ctx)
     _note_arrivals(ctx)
     phase = current_phase(ctx)
-    if (phase is not None and phase.wait_at is not None and ctx.battle.ready
-            and ctx.here == phase.wait_at):
+    if (phase is not None and phase.wait_limit is not None and ctx.battle.ready
+            and phase.wait_at in (None, ctx.here)):
         ctx.battle.quiet += 1
 
 
@@ -1088,7 +1184,8 @@ def _phase_key(policy, snapshot) -> str | None:
         return None
     phase = current_phase(ctx)
     if phase is None:
-        return None
+        # The druj is dead: what the anti-teleport piece displaced goes back on.
+        return quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
     return _prepare(ctx, phase) or phase.act(ctx)
 
 

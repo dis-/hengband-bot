@@ -20,7 +20,7 @@ import unittest
 from dataclasses import replace
 
 from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo
-from hengbot import quest_exposure, quest_room_sweep
+from hengbot import quest25_druj_gear as druj_gear, quest_exposure, quest_optional_carry, quest_room_sweep, spare_gear
 from hengbot.me_device_attacks import DEVICE_REASON
 from hengbot.me_powers_refresh import REFRESH_REASON
 from hengbot.model import TVAL_ROD, TVAL_WAND, parse_snapshot
@@ -738,6 +738,197 @@ class Q25AcceptanceTest(unittest.TestCase):
         raw = self.blind_to_the_invisible()
         raw["equipment"][0]["known_flags"] = [*raw["equipment"][0]["known_flags"], 112]
         self.assertFalse(self.ready(raw))
+
+
+# -- the owner's answers of 2026-11-06 (phase2, phase3, wait_limits, phase7_druj) --------------
+
+IPSISSIMUS_NAME = RACES[geo.IPSISSIMUS].names[0]
+
+
+class Q25EscapeTest(unittest.TestCase):
+    """phase2 「テレポートしたメッセージで判断」 and 「当たらない撃ちで補う」."""
+
+    def pen(self, raw=None):
+        raw = raw or board((5, 1))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True
+        return policy, raw
+
+    def test_the_teleport_line_counts_an_escape(self):
+        policy, raw = self.pen()
+        at_phase(policy, raw, "ipsissimus", kills={geo.IPSISSIMUS: 2})
+        raw["messages"] = [IPSISSIMUS_NAME + "がテレポートした。"]
+        choose(policy, raw)
+        self.assertEqual(phase_of(policy, raw), "stragglers")
+
+    def test_ten_unanswered_pen_shots_count_the_rest_escaped(self):
+        policy, raw = self.pen()
+        for _ in range(battle.PEN_MISSES_TO_ESCAPED):
+            choose(policy, raw)
+            self.assertEqual(policy.last_reason, battle.SHOT_REASON)
+            self.assertEqual(phase_of(policy, raw), "ipsissimus")
+        choose(policy, raw)
+        self.assertEqual(phase_of(policy, raw), "stragglers")
+
+    def test_a_hit_line_restarts_the_count(self):
+        policy, raw = self.pen()
+        for turn in range(battle.PEN_MISSES_TO_ESCAPED + 3):
+            raw["messages"] = ["クロスボウの矢が何かに命中した。"] if turn == 5 else []
+            choose(policy, raw)
+        self.assertEqual(phase_of(policy, raw), "ipsissimus")
+
+    def test_with_evil_esp_the_misses_do_not_count(self):
+        raw = board((5, 1))
+        raw["equipment"][0]["known_flags"] = [*raw["equipment"][0]["known_flags"], 112]
+        policy, raw = self.pen(raw)
+        for _ in range(battle.PEN_MISSES_TO_ESCAPED + 2):
+            choose(policy, raw)
+        self.assertEqual(phase_of(policy, raw), "ipsissimus")
+
+
+class Q25DirectQuylTest(unittest.TestCase):
+    """phase3 「加速して直接撃つ」 and 「…相対する可能性がある。その場合は加速して討伐を試みる。」."""
+
+    def direct(self, position, **fields):
+        raw = with_wand_list(board(position), FIRE_BALL)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "quylthulgs", quyls_done=frozenset({(9, 13)}), **fields)
+        return policy, raw
+
+    def test_with_radius_2_balls_the_9_9_quyl_is_walked_to_a_line_cell(self):
+        policy, raw = self.direct((5, 2))
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, battle.WALK_REASON)
+        self.assertEqual(phase_of(policy, raw), "quylthulgs")
+
+    def test_on_a_line_cell_haste_then_the_shot(self):
+        policy, raw = self.direct((7, 9))
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, battle.HASTE_REASON)
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertIn(policy.last_reason, {battle.SHOT_REASON, DEVICE_REASON}, key)
+
+    def test_its_kill_marks_the_aimed_one_only(self):
+        policy, raw = self.direct((7, 9), aimed_race=geo.QUYL)
+        record = memory(policy, raw)
+        record.quyls_done = frozenset()
+        record.aimed_quyl = (9, 13)
+        raw["messages"] = ["何かを倒した。"]
+        choose(policy, raw)
+        self.assertIn((9, 13), memory(policy, raw).quyls_done)
+        self.assertNotIn((9, 9), memory(policy, raw).quyls_done)
+
+    def test_faced_with_the_dreadmaster_after_a_teleport_away_it_hastes_and_fights(self):
+        policy, raw = self.direct((12, 22))
+        raw["visible_monsters"] = [monster(geo.DREADMASTER, 12, 25, index=970)]
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, battle.HASTE_REASON)
+        policy._player_hasted = lambda snapshot: True
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, battle.WALK_REASON)
+
+
+class Q25WaitLimitTest(unittest.TestCase):
+    """wait_limits 「仮に5000にする」."""
+
+    def test_the_ambush_ends_after_5000_quiet_actions(self):
+        raw = without_melee(board((13, 1)))
+        open_door(raw, geo.WEST_DOOR)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ambush", quiet=battle.LONG_WAIT_ACTIONS - 2)
+        choose(policy, raw)
+        self.assertEqual(phase_of(policy, raw), "ambush")
+        choose(policy, raw)
+        self.assertEqual(phase_of(policy, raw), "wall-passers")
+
+    def test_the_dreadmasters_wait_ends_after_5000(self):
+        raw = without_melee(board((1, 9)))
+        open_door(raw, (1, 7))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "dreadmaster", quiet=battle.LONG_WAIT_ACTIONS - 1,
+                 cleared=frozenset({(1, 8), (1, 9)}))
+        choose(policy, raw)
+        self.assertEqual(phase_of(policy, raw), "sweep")
+
+
+ANTI_TELEPORT = 68
+
+
+def with_piece(raw, *, tval=45, sval=0, flags=(ANTI_TELEPORT,), **fields):
+    """CONSTRUCTED: an identified ring (or other piece) of anti-teleportation in the pack."""
+    row = copy.deepcopy(next(item for item in BASE["equipment"] if item["slot"] == "main_ring"))
+    row.update(tval=tval, sval=sval, slot="m", name="反テレポートの指輪", known_flags=list(flags), **fields)
+    raw["inventory"].append(row)
+    return raw
+
+
+class Q25DrujGearTest(unittest.TestCase):
+    """phase7_druj 「反テレポート付きで他のデメリットがない装備がもしあれば、持ち込んでこの戦闘でのみ使用する。」."""
+
+    def snapshot(self, raw):
+        return parse_snapshot(copy.deepcopy(raw), RACES)
+
+    def test_only_a_clean_piece_qualifies(self):
+        piece = lambda **fields: self.snapshot(with_piece(board(), **fields)).inventory[-1]
+        self.assertTrue(druj_gear.qualifies(piece()))
+        self.assertFalse(druj_gear.qualifies(piece(flags=(ANTI_TELEPORT, 91))))   # aggravation
+        self.assertFalse(druj_gear.qualifies(piece(pval=-2)))
+        self.assertFalse(druj_gear.qualifies(piece(flags=(91,))))
+        self.assertFalse(druj_gear.qualifies(piece(tval=22)))                      # a weapon
+
+    def test_the_slot_loses_no_required_ability(self):
+        raw = with_piece(board())
+        # CONSTRUCTED: see invisible only from the left ring.
+        for item in raw["equipment"]:
+            item["known_flags"] = [flag for flag in item["known_flags"] if flag != 78]
+            if item["slot"] == "main_ring":
+                item["known_flags"].append(78)
+        raw["player"]["ability_sources"]["see_invisible"] = {   # not the race's own sight
+            "equipment": True, "permanent": False, "temporary": False}
+        policy = new_policy(raw)
+        snapshot = self.snapshot(raw)
+        force = policy._strategy_force_for_snapshot(snapshot, APPROVED[25])
+        self.assertEqual(druj_gear.slot_for(policy, snapshot, force, snapshot.inventory[-1]), "sub_ring")
+
+    def test_worn_for_the_druj_and_put_back_after(self):
+        raw = with_piece(board((12, 24)))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "druj")
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, f"quest25:{druj_gear.WEAR_GOAL}", key)
+        self.assertTrue(key.startswith("w"), key)
+        self.assertEqual(memory(policy, raw).displaced[0], "main_ring")
+        # Worn; then the druj killed: the displaced ring goes back on.
+        ring = next(item for item in raw["equipment"] if item["slot"] == "main_ring")
+        piece = raw["inventory"].pop()
+        raw["inventory"].append(dict(ring, slot="m"))
+        raw["equipment"] = [dict(piece, slot="main_ring") if item["slot"] == "main_ring" else item
+                            for item in raw["equipment"]]
+        raw["messages"] = [RACES[geo.DRUJ].names[0] + "を倒した。"]
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, f"quest25:{druj_gear.RESTORE_GOAL}", key)
+        self.assertTrue(key.startswith("w"), key)
+
+    def test_kept_in_the_pack_and_wanted_from_home(self):
+        raw = with_piece(board((12, 24)))
+        policy = new_policy(raw)
+        snapshot = self.snapshot(raw)
+        self.assertTrue(druj_gear.kept(policy, snapshot, snapshot.inventory[-1]))
+        policy._target_loadout_known = lambda: True   # DECLARED: a target loadout, so spare gear is released
+        plain = self.snapshot(with_piece(board((12, 24)), flags=(50,)))   # control: a plain spare ring
+        self.assertTrue(spare_gear.released(policy, plain, plain.inventory[-1]))
+        self.assertFalse(spare_gear.released(policy, snapshot, snapshot.inventory[-1]))
+        # DECLARED: a current Home catalogue holding the piece.
+        bare = self.snapshot(board((12, 24)))
+        policy._home_knowledge_current = True
+        policy._home_knowledge_items = [snapshot.inventory[-1]]
+        policy._home_knowledge_valid_before = 1
+        self.assertIs(druj_gear.home_piece(policy, bare, APPROVED[25]), snapshot.inventory[-1])
+        self.assertIsNone(druj_gear.home_piece(policy, snapshot, APPROVED[25]))   # carried already
+        self.assertTrue(quest_optional_carry._missing(policy, bare, APPROVED[25]))
 
 
 if __name__ == "__main__":
