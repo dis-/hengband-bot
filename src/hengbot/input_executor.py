@@ -1138,6 +1138,17 @@ class OperationExecutor:
         # 2026-10-26, esp-threat:leave-recall n1-c life-103 2026-11-02 06:49).
         return feature.startswith(RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES)
 
+    @staticmethod
+    def _is_follow_teleport_confirm(feature: str) -> bool:
+        from hengbot.policy import FOLLOW_TELEPORT_PROMPT_MESSAGE_PREFIXES
+
+        # spells-teleport.cpp teleport_away_followable asks it during a
+        # monster's turn, so it can follow any posted command (n1-b lives
+        # 201/308/309/324, n1-a life-492: melee, ranged:fire(-target),
+        # summoner:ranged-kill:named-caster).  Owner decision 2026-11-06:
+        # answer n whoever's input raised it.
+        return feature.startswith(FOLLOW_TELEPORT_PROMPT_MESSAGE_PREFIXES)
+
     def _finish_board(self, state, screen_value, match, *, bootstrap: bool = False):
         started = time.perf_counter()
         records = self.drain()
@@ -1431,6 +1442,14 @@ class OperationExecutor:
                 return self._post_and_barrier(" ", deadline, role="auxiliary-request")
             if match.kind is ScreenKind.IDENTIFY_VIEWER_FINAL:
                 return self._post_and_barrier("\x1b", deadline, role="exit")
+        if (
+            match.kind is ScreenKind.CONFIRM
+            and self._is_follow_teleport_confirm(match.feature)
+        ):
+            # Answered ahead of the operation's own continuations: the
+            # question interrupts the command from a monster's turn and is
+            # never one of the prompts the operation scheduled answers for.
+            return self._post_and_barrier("n", deadline, role="answer")
         while self.active.continuations:
             continuation = self.active.continuations[0]
             expected_features = (

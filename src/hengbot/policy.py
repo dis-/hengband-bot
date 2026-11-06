@@ -739,6 +739,17 @@ RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES = (
     "Reset recall depth?",
 )
 
+# spells-teleport.cpp teleport_away_followable asks this during a MONSTER's
+# turn when a visible monster within MAX_PLAYER_SIGHT teleports away and the
+# player can follow (VTELEPORT mutation, Imitator, or an uncursed wielded
+# TR_TELEPORT item).  input_check_strict appends "[y/n]" (or, with the
+# roguelike keyset only, "[(O)k/(C)ancel]"), so the prompt is matched as a
+# prefix.  Owner decision 2026-11-06: answer n whoever's input raised it.
+FOLLOW_TELEPORT_PROMPT_MESSAGE_PREFIXES = (
+    "ついていきますか？",
+    "Do you follow it?",
+)
+
 # それならば一旦多少の非効率は許容する。訪問回数の最大値を300回まで緩和することを許可するのでまずは処理を
 # 完遂させること。効率化はその後。
 # Cash retained after buying every departure-blocking shortage on a cross-town

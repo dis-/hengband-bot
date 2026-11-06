@@ -1853,6 +1853,52 @@ class TcpBarrierPinTest(ProductionHarness):
                 self.assertEqual(result.outcome, "completed", result.reason)
                 self.assertEqual(game.accepted, ["re", "n"])
 
+    def test_follow_teleport_confirm_is_refused_for_any_owner(self):
+        # spells-teleport.cpp teleport_away_followable asks it on a monster's
+        # turn after any command.  n1-b life-324 13:11:01 control-at-stop row
+        # zero was 'ついていきますか？[y/n]' under ranged:fire; life-201/308
+        # melee, n1-a life-492 summoner:ranged-kill:named-caster.  Owner
+        # decision 2026-11-06: answer n whoever's input raised it.
+        cases = (
+            ("ranged:fire", "v1'", "ついていきますか？[y/n]"),
+            ("melee", "6", "ついていきますか？[y/n]"),
+            ("summoner:ranged-kill:named-caster", "f1'", "Do you follow it? [y/n]"),
+        )
+        for owner, keys, prompt in cases:
+            with self.subTest(owner=owner):
+                game, _client, executor = self.make()
+                game.screens = [prompt_screen(prompt), command_screen(3)]
+                executor.observe_boundary(deadline=9999999999)
+                result = executor.submit(
+                    Operation(4559, owner, keys, executor.ready_board),
+                    deadline=9999999999,
+                )
+                self.assertEqual(result.outcome, "completed", result.reason)
+                self.assertEqual(game.accepted, [keys, "n"])
+
+    def test_follow_teleport_confirm_is_refused_before_a_pending_continuation(self):
+        # The question comes from a monster's turn, never from the prompt the
+        # operation scheduled an answer for: refuse it, then let the
+        # continuation answer its own prompt.
+        game, _client, executor = self.make()
+        game.screens = [
+            prompt_screen("ついていきますか？[y/n]"),
+            prompt_screen("本当に実行しますか？ [y/n]"),
+            command_screen(3),
+        ]
+        executor.observe_boundary(deadline=9999999999)
+        result = executor.submit(
+            Operation(
+                4560, "melee", "6", executor.ready_board,
+                continuations=[Continuation(
+                    frozenset({ScreenKind.CONFIRM}), "y",
+                    "本当に実行しますか？ [y/n]")],
+            ),
+            deadline=9999999999,
+        )
+        self.assertEqual(result.outcome, "completed", result.reason)
+        self.assertEqual(game.accepted, ["6", "n", "y"])
+
     def test_recorded_recall_depth_shape_completes_through_sender_path(self):
         fixture = (
             Path(__file__).parent / "fixtures" / "classA-recall-depth-board.jsonl"
