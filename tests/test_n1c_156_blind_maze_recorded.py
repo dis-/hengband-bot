@@ -38,7 +38,7 @@ import json
 import unittest
 from pathlib import Path
 
-from hengbot.model import Position
+from hengbot.model import Position, parse_snapshot
 from tests import test_me_mining_death_recorded as mining_death
 from tests import test_n1c_deaths_1101_recorded as d57
 from tests.test_magic_eater_o3 import prompt
@@ -200,6 +200,33 @@ class AbsorbedCureLightRecordedTest(d57.PostedDeathKey):
     def test_control_without_the_power_nothing_is_cast(self):
         answers = self.drive(new_policy(), QUIET[0])
         self.assertNotEqual(answers[QUIET[0]][1], CLW_KEY)
+
+
+class DownStairsUnderfootRecordedTest(unittest.TestCase):
+    """Item 3: the '>' under the player before a WAIT."""
+
+    def afraid_answers(self):
+        # DECLARED CONSTRUCTED: afraid, so no blow can answer the attackers
+        # (cmd-attack.cpp refuses every blow) and the ladders reach their WAIT.
+        policy, answers = new_policy(), {}
+        for raw in boards():
+            raw["player"]["status"]["afraid"] = True
+            key = d57.loops.decide(policy, raw)
+            answers[raw["turn"]] = (key, policy.last_reason)
+            policy.confirm_key_posted(key)
+        return answers
+
+    def test_hit_on_the_stair_it_goes_down_instead_of_waiting(self):
+        answers = self.afraid_answers()
+        for turn in (PUNCHED, CLUBBED):
+            self.assertEqual(answers[turn], (">", "emergency:stairs-down"), turn)
+
+    def test_the_recorded_board_shows_the_stair_underfoot(self):
+        board = {raw["turn"]: raw for raw in CASE["boards"]}[CLUBBED]
+        policy = new_policy()
+        snapshot = parse_snapshot(copy.deepcopy(board), policy._monrace_knowledge)
+        self.assertTrue(snapshot.grid_at(STAIR).has_down_stairs)
+        self.assertEqual(snapshot.player.position, STAIR)
 
 
 if __name__ == "__main__":

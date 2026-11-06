@@ -3749,6 +3749,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy.py:HengbotPolicy._down_stairs_underfoot_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy.py:HengbotPolicy._effective_mining_run_target": {
     "classification": "data",
     "rows": [

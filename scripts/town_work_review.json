@@ -15244,5 +15244,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy.py:HengbotPolicy._down_stairs_underfoot_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 (n1-c life-156): in the dungeon, blind, hit or facing a hostile, standing on a board '>' that is no quest entrance, off a quest floor, not past the guardian floor, not into a held random-quest floor or a depth missing required abilities: DOWN_STAIRS_KEY with emergency:stairs-down, else None. Asked only in place of a WAIT (the emergency ladder, the low-HP walk gate and _forbid_wait_while_damaged); no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

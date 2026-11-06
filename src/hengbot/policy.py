@@ -217,6 +217,7 @@ from hengbot.policy_constants import (
     CHEST_SEARCH_KEY,
     DIRECTION_KEYS,
     DOWN_STAIRS_KEY,
+    DOWN_STAIRS_LAST_RESORT_REASON,
     DESTROY_COMMAND,
     EMERGENCY_ESCAPE_REASONS,
     EMERGENCY_POTION_CARRY_TARGET,
@@ -7150,6 +7151,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             self.last_reason = "rest"
             return REST_MACRO
+        # Owner 2026-11-07: the down staircase underfoot before the WAIT.
+        if (down := self._down_stairs_underfoot_key(
+                snapshot, DOWN_STAIRS_LAST_RESORT_REASON)) is not None:
+            return down
         self.last_reason = "emergency:wait"
         return WAIT_KEY
 
@@ -16445,6 +16450,40 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._defer_descent(snapshot)
             return UP_STAIRS_KEY
         return None
+
+    def _down_stairs_underfoot_key(self, snapshot: Snapshot, reason: str) -> str | None:
+        """The down staircase under the player, the last escape before a WAIT.
+
+        Owner 2026-11-07 「足元の下り階段を最後の逃げ道に入れる。」  n1-c life-156
+        (2026-11-07 23:08, 迷宮10階): the up-shaft from 12F landed it blind on a
+        '>' and it waited there, punched and clubbed by unseen attackers, from
+        HP 171 to death; ``_escape_by_stairs`` takes only an up-stair.  '>'
+        works blind (cmd-move.cpp do_cmd_go_down).  Only when the player is
+        blind, hit or facing a hostile; never on a quest floor, onto a quest
+        entrance, past the guardian floor, into a held random-quest floor or a
+        depth whose required abilities the character lacks.
+        """
+        player = snapshot.player
+        if (snapshot.in_town or snapshot.store is not None or snapshot.inside_arena
+                or snapshot.dungeon_level < 1
+                or not (player.blind or getattr(self, "_took_damage", False)
+                        or self._physical_hostiles(snapshot))
+                or self._quest_floor_exit_locked(snapshot)
+                or self._active_fixed_quest_id(snapshot) is not None):
+            return None
+        here = snapshot.grid_at(player.position)
+        if here is None or not here.has_down_stairs or here.has_quest_enter:
+            return None
+        destination = down_destination(snapshot.dungeon_level, here)
+        if (self._step_raises_unintended_confirm(snapshot, here.position)
+                or not self._kill_quest_descent_allowed(snapshot, here)
+                or random_quest_hold.crossing_held(
+                    self, snapshot, snapshot.floor_key[0], snapshot.dungeon_level, destination)
+                or self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination - 1)
+                or self._missing_required_abilities(snapshot, destination)):
+            return None
+        self.last_reason = reason
+        return DOWN_STAIRS_KEY
 
     def _defer_descent(self, snapshot: Snapshot) -> None:
         self._descent_blocked = True
