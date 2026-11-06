@@ -2687,6 +2687,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powerful_activation.py:awaits_identify": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powerful_activation.py:racial_key": {
     "classification": "data",
     "rows": [
