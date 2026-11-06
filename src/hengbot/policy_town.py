@@ -455,6 +455,11 @@ class TownMixin:
             # town fingerprint.  Admit each real step until the loot producer
             # picks up the target or clears it through a named blocker.
             goal = self._loot_target
+            store_goal = self._staged_store_route_goal() if goal is None else None
+            if store_goal is not None:
+                # The loot is picked up and a store walk staged on this
+                # decision carries the label on: measured as that walk.
+                return durable + (self._locomotion_part(snapshot, owner, store_goal),)
         elif owner == "cross-town" and (
             (
                 (

@@ -6080,11 +6080,23 @@ class ShopMixin(InStoreMixin):
         While the Home scan flag is up, a decision that already has a reason keeps
         it; only a walk left with none is named here.  n1-b life-319 2026-11-06
         walked to the Black Market unnamed after the browse refresh, under whose
-        label the walk stopped at the executor.
+        label the walk stopped at the executor.  A reason still standing from the
+        previous decision is none of this decision's: n1-b life-333 2026-11-07
+        03:27 walked back to Home after a gold pickup under the loot walk's
+        "seek-loot", owned by misc with no locomotion in its progress, and misc
+        retired three times in a burst.
         """
+        # Only a label no town owner arbitrates (misc) is taken as inherited:
+        # a Home scan's label standing from the previous decision still names
+        # the relief's walk, as before.
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        inherited = (self.last_reason == getattr(self, "_decision_entry_reason", None)
+                     and arbiter is not None
+                     and arbiter.owner_for_reason(self.last_reason) == "misc")
         return (writer_family == "store-router" and travel_reason.startswith("shop:")
                 and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
-                and (not self.last_reason or not self._home_knowledge_scan_requested))
+                and (not self.last_reason or inherited
+                     or not self._home_knowledge_scan_requested))
 
     @claims(ClaimOwner.STORE_ROUTER)
     def _shopping_approach_key(

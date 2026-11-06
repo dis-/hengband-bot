@@ -609,9 +609,10 @@ def _observe_owner_retired_progress(policy, snapshot, key, observed_visit=None) 
             goal = Position(*goal)
         elif owner in {"store-router", "equipment-txn", "survival"}:
             goal = getattr(policy, "_shopping_approach_goal", None)
-        elif owner == "detectors" and hasattr(policy, "_staged_store_route_goal"):
+        elif owner in {"detectors", "misc"} and hasattr(policy, "_staged_store_route_goal"):
             # A store walk staged on this decision under another label (the
-            # progress seam's redirect) earns the router's route credit.
+            # progress seam's redirect, a loot label left standing) earns the
+            # router's route credit.
             goal = policy._staged_store_route_goal()
         route_method = getattr(policy, "_town_map_goal_route", None)
         route = (route_method(snapshot, goal)

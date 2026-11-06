@@ -2603,6 +2603,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # name the key of the next producer that sets no reason of its own.
         if (self.last_reason or "").startswith("periodic:"):
             self.last_reason = ""
+        # The label this decision starts with is the previous decision's; a
+        # producer that returns a key without naming it must not inherit it
+        # (_home_relief_names_approach).
+        self._decision_entry_reason = self.last_reason
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
         self._home_full_relief = getattr(self, "_home_full_relief", None)
