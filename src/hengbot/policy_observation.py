@@ -1198,6 +1198,7 @@ class ObservationMixin:
         self._position_changed = (
             self._last_position is not None and position != self._last_position
         )
+        self._release_chest_left_by_jump(snapshot)
         if position != self._last_position:
             self._visit_counts[position] += 1
             self._last_position = position
