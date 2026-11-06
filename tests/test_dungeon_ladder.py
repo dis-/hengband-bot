@@ -66,7 +66,7 @@ class OwnerRulePlacesTest(unittest.TestCase):
     def test_each_rule_sits_above_or_inside_every_plan(self):
         names = [rung.name for rung in ladder.rows()]
         inside = {plan.rung for plan in ladder.FLOOR_PLANS}
-        self.assertEqual(inside, {'quest_find_exit.key', 'quest_room_sweep.key'})
+        self.assertEqual(inside, {'quest_find_exit.key', 'quest25_battle.key', 'quest_room_sweep.key'})
         for rule in ladder.OWNER_RULES:
             with self.subTest(rule=rule.name):
                 self.assertEqual(rule.below_rule, ('navigator.decide',))

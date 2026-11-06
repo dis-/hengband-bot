@@ -121,15 +121,23 @@ UNSEEN_ATTACK_SIGHT = 20  # MAX_SIGHT, the reach of a monster's spell
 
 
 def _plan(policy, snapshot) -> dict | None:
-    """The plan of the TAKEN quest on this floor; a completed one has left it."""
+    """The plan of the TAKEN quest on this floor; a completed one has left it.  A floor the
+    phase battle runs (quest25_battle, Q25's revised plan) is not walked room by room."""
+    from hengbot import quest25_battle  # it reads this module's walk helpers
+
     quest_id = policy._active_fixed_quest_id(snapshot)
     profile = None if quest_id is None else policy.approved_quest_strategy(quest_id)
-    return None if profile is None else profile.engagement_plan.get("room_sweep")
+    if profile is None or quest25_battle.applies(policy, snapshot):
+        return None
+    return profile.engagement_plan.get("room_sweep")
 
 
 def walks_over_traps(policy, snapshot) -> bool:
-    """This floor's walks do not go round a trap: the stops lie behind them (2026-10-23)."""
-    return _plan(policy, snapshot) is not None
+    """This floor's walks do not go round a trap: the stops lie behind them (2026-10-23).
+    The phase battle answers its traps itself (quest25_battle)."""
+    from hengbot import quest25_battle
+
+    return _plan(policy, snapshot) is not None or quest25_battle.walks_over_traps(policy, snapshot)
 
 
 def holds(policy, snapshot) -> bool:
