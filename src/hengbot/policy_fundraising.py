@@ -1074,6 +1074,7 @@ class FundraisingMixin:
                 cell is not None
                 and diggable(cell)
                 and cell.position not in self._mining_unmarkable_grids
+                and not tunnel_feasibility.not_dug(self, snapshot, cell)
             ):
                 return self._mining_tunnel_key(snapshot, cell.position)
         return None
@@ -1095,7 +1096,7 @@ class FundraisingMixin:
             return None
         grid = snapshot.grids.get(grid_position)
         if (grid is None or not grid.tunnel or grid.enterable
-                or tunnel_feasibility.never_dug(snapshot, grid)):
+                or tunnel_feasibility.not_dug(self, snapshot, grid)):
             self._offer_execution_no_step(
                 producer="fundraising", work_id="fundraise:tunnel",
                 cause="no-diggable-wall",
@@ -1222,7 +1223,8 @@ class FundraisingMixin:
                 if neighbor not in walkable:
                     # Digging is permitted diagonally (do_cmd_tunnel takes any
                     # of the eight directions).
-                    if grid is None or not grid.known or not diggable(grid):
+                    if (grid is None or not grid.known or not diggable(grid)
+                            or tunnel_feasibility.not_dug(self, snapshot, grid)):
                         continue
                     dug = 1
                 heappush(frontier, (digs + dug, steps + 1, next(order), neighbor,
@@ -1276,6 +1278,8 @@ class FundraisingMixin:
                     if grid.permanent or grid.has_monster:
                         continue
                     if not (grid.enterable or grid.tunnel):
+                        continue
+                    if not grid.enterable and tunnel_feasibility.not_dug(self, snapshot, grid):
                         continue
                     if grid.is_closed_door and (
                         snapshot.floor_key, (neighbor.y, neighbor.x)

@@ -22,7 +22,7 @@ Fixture: tests/extract_n1b_claim_return_search_1102_fixture.py.
 DECLARED RECONSTRUCTED: the escape owner (return:seek-secret-wall) is the
 capture's policy-state.json value; the wall search counts are not in it
 (fresh counts).
-DECLARED CONSTRUCTED: the boards after the take-off and after the wield
+DECLARED CONSTRUCTED: the boards after the take-off and after the wield (its digging skill set to calc_skill_dig's value)
 (test_barehand_mining_recorded's ``taken_off`` / ``wielded``), and the
 no-digger board (the recorded board without its two diggers).
 """
@@ -145,6 +145,11 @@ class ClaimReturnWallSearchTest(executor_pins.ProductionHarness):
                 self.assertEqual(key, "w" + shovel)
                 self.post(policy, board, bare, key)
                 digging = wielded(bare, SHOVEL, "main_hand")
+                # calc_skill_dig of the constructed board: the recorded 55 less
+                # the Broad Sword (weight 150) plus the Shovel (pval 1, weight
+                # 60); the granite ahead takes 1600 / (66 - 40) tries on average
+                # (tunnel_feasibility, owner 2026-11-06 「見込み100回を超えたら掘らない」).
+                digging["player"]["skill_ratings"]["digging"]["value"] = 55 - 15 + 20 + 6
                 board, key = self.decide(policy, digging)
                 self.assertEqual(policy.last_reason, DIG_FRONTIER)
                 self.assertTrue(key.startswith(TUNNEL_KEY), key)

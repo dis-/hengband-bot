@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, unseen_strike, wilderness_exit
+from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -2519,7 +2519,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._remembered_grid_signatures = {}
             self._remembered_grid_sources = {}
         self._scope_terrain_to_town(snapshot)
-        from hengbot import tunnel_feasibility
         tunnel_feasibility.forget_dug_walls(self, snapshot)
 
         remembered = self._remembered_grids
@@ -2607,6 +2606,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         quest_target_search.observe(self, snapshot)
         destruction_use.observe(self, snapshot)
         summon_response.observe(self, snapshot)
+        tunnel_feasibility.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._complete_character_dump(snapshot)
@@ -3109,6 +3109,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # A candidate can be discarded by town arbitration and retried on the
             # same board. Only the final envelope has a posted stair identity.
             self._remember_stair_command(snapshot, key)
+            tunnel_feasibility.remember_post(self, snapshot, key)
             if getattr(self, "_crossarea_fundraising_enforced", False):
                 if key and key[0] == UP_STAIRS_KEY and self.last_reason == "fundraise:ascend":
                     self._post_fundraising_transport(snapshot, "return")
@@ -7474,11 +7475,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if esp_threat_hunt is not None:
             return esp_threat_hunt
-        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) or summon_response.action_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
-            snapshot, emergency_hostiles
-        ))
-        if summoner_ranged is not None:
-            return summoner_ranged
         emergency = self._town_producer_entry("_emergency_item", lambda: self._emergency_item(snapshot, emergency_hostiles))
         if emergency is not None:
             if self._choke_plan_active(snapshot):
@@ -7520,6 +7516,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if paralyzer_prevention is not None:
             return paralyzer_prevention
+
+        # Owner 2026-11-06 「命に関わる時の後へ回す」: the emergency ladder above
+        # answers first, then the last shots at a summoner.
+        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) or summon_response.action_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
+            snapshot, emergency_hostiles
+        ))
+        if summoner_ranged is not None:
+            return summoner_ranged
 
         if not snapshot.in_town:
             # Owner 2026-11-04: the answer to the summons of this floor visit.
@@ -9506,8 +9510,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ]
         if not candidates:
             return None
-        # Direct damage that can kill before the three-shot finish retains the
-        # ordinary emergency escape priority.
+        # Not while the hostiles can kill within the three shots.
         if self._predicted_damage(snapshot, hostiles, turns=3) >= snapshot.player.hp:
             return None
         # The quickest kill with a clear shot: a body on another's bolt path

@@ -1791,8 +1791,6 @@ _RUNGS: tuple[Rung, ...] = (
             owns_transaction=True),                                    # 5799
     _decide("_town_order_step4_key", "quest-request"),                 # 5883
     _decide("_esp_threat_hunt_key", "esp-threat", ordinary=True),      # 5986
-    _decide("_summoner_ranged_kill_key", "combat",
-            "summoner:ranged-kill"),                                   # 5991
     _decide("_emergency_item", "escape",
             "emergency:", "unseen-recall:", "guardian:teleport-to-cover",
             marked=False),                                             # 5996
@@ -1803,6 +1801,8 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_paralyzer_prevention_key", "positioning",
             "threat:paralyzer-avoid", "paralyzer-guard:",
             marked=False),                                             # 6015
+    _decide("_summoner_ranged_kill_key", "combat",
+            "summoner:ranged-kill"),
     # The census-only immobile-summoner dispatcher's own step out of the
     # summoner's line-of-fire zone (its exits rank at the exit rung below).
     _decide("_immobile_summoner_key", "explore",
