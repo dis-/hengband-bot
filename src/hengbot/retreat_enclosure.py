@@ -138,6 +138,15 @@ def enclosed_key(policy, snapshot) -> str | None:
     return _ladder(policy, snapshot, _sides(policy, snapshot), teleport_first=False)
 
 
+def sealed_in_key(policy, snapshot) -> str | None:
+    """The idle fallback before its wander: while the vetoes wall the player's side off
+    from known ground, ``_ladder`` from the openers, as for the enclosed player.  The
+    wander only walked the sealed pocket: n1-c life-153 (Labyrinth 13F, 2026-11-06 20:50)
+    stood between (2,35) and (2,36), one cell past the vetoes, until the loop guard."""
+    walled = walled_off(policy, snapshot)
+    return None if walled is None else _ladder(policy, snapshot, walled, teleport_first=False)
+
+
 def walled_off_key(policy, snapshot) -> str | None:
     """While vetoes hold known ground from a hunt or search: ``_ladder`` from the floor's
     first Teleportation (owner 2026-11-04; the openers once walled off again, 2026-11-06)."""

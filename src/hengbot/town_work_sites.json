@@ -6565,6 +6565,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_home.py:HomeMixin._release_errand_take_refused_by_pack_budget": {
+    "classification": "producer",
+    "rows": [
+      "home-executor"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_home.py:HomeMixin._retention_reservation": {
     "classification": "data",
     "rows": [
@@ -10591,6 +10598,13 @@
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "retreat_enclosure.py:ring_ladder_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:sealed_in_key": {
     "classification": "action",
     "rows": [
       "positioning"

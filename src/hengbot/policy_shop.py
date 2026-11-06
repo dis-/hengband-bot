@@ -1222,6 +1222,8 @@ class ShopMixin(InStoreMixin):
         # fundraising plan (notably scavenge's [Alchemist, General] plan).
         # Keep Home first until the take posts, confirms, or its bounded
         # failure path visibly abandons it to the purchase fallback.
+        if snapshot.in_town:
+            self._release_unservable_home_latches()
         if snapshot.in_town and (
             self._home_digger_withdraw_pending
             or (
@@ -1232,7 +1234,12 @@ class ShopMixin(InStoreMixin):
                 getattr(self, "_home_procurement_batch_active", False)
                 and self._home_pending_batch
             )
-        ):
+        ) and not self._home_latch_route_spent():
+            # A latch whose take Home can no longer serve is released first,
+            # and the stay's Home bounds hold for it as for any Home claim:
+            # an early return past them re-entered Home once per pass (n1-c
+            # life-157 2026-11-06 23:38, 244 entries at 30 passes of 3).
+            #
             # The departure latch is itself an authoritative Home claim.  A
             # failed/recovered boundary can lose the page-relative item
             # address before the next open Home observation recreates it; do

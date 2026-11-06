@@ -20,7 +20,7 @@ from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot import consumable_policy
 from hengbot.home_disposal import HomeDisposalCandidate
-from hengbot.home_errand import HomeErrandRequest
+from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitRequest as PhysicalHomeVisitRequest, HomeVisitState
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_RESISTANCE, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
@@ -3520,6 +3520,10 @@ class HomeMixin:
                 selecting_branch = "equipment-transaction"
                 transaction_identity = action.item_identity
                 reason = "equipment-transaction:atomic-withdraw"
+        if not survival and not transaction_withdraw_pending:
+            self._release_errand_take_refused_by_pack_budget(
+                snapshot, tuple(item for _, item in address_slots)
+            )
         if (
             not survival and not transaction_withdraw_pending and self._home_errand.active and (self._home_errand.request is not None)
         ):
@@ -3885,11 +3889,20 @@ class HomeMixin:
                 "home-errand-posted", owners=("home-errand",),
                 sources=("store-operation",),
             )
+        # The queued Home identity is ended only by its own take.  Another
+        # owner's take posted first (a filed errand selected ahead of it)
+        # leaves it queued: cleared here, item processing read the queued
+        # item's absence from the pack as a failed withdrawal and deferred it
+        # while its latch kept routing Home (n1-c life-157 2026-11-06 23:38:
+        # the catalogue errand's cloak was taken, the queued shovel deferred,
+        # the digger latch held and Home was re-entered 244 times).
+        own_queued_take = self._home_pending_item is None or self._home_pending_item == signature
         if not survival:
             self._home_pending_quantity = None
             getattr(self, "_home_pending_quantities", {}).pop(signature, None)
         self._home_candidate_waiting = False
-        self._home_withdrawal_queued = False
+        if own_queued_take:
+            self._home_withdrawal_queued = False
         self._home_entry_operation_posted = True
         self._home_history_inflight = None if batch_entries else (
             "withdraw",
@@ -4136,7 +4149,35 @@ class HomeMixin:
         if self._home_pending_item is None and not self._home_pending_batch:
             self._home_withdrawal_queued = False
             self._home_procurement_batch_active = False
+        self._release_errand_take_refused_by_pack_budget(snapshot, stocked_items)
         return bool(self._bound_home_take_signatures().intersection(stocked))
+
+    def _release_errand_take_refused_by_pack_budget(self, snapshot, stocked_items) -> bool:
+        """Withdraw a filed, unposted errand take the town pack budget refuses.
+
+        Filing already refuses such a take (``_file_home_errand``); a pack
+        that filled after the filing left it bound.  The outside composer
+        selected it ahead of the queued take, store_item_key refused it, and
+        the open Home page handed it off again (n1-c life-153 2026-11-06
+        20:35: the catalogue errand's sword did not fit a 19-item pack, the
+        queued crossbow bolts were never taken, Home was re-entered until
+        town:blocked:repetition).  Returns whether the errand was withdrawn.
+        """
+        errand = self._home_errand
+        request = errand.request if errand.active else None
+        if request is None or errand.state == HomeErrandState.POSTED:
+            return False
+        stocked = next((item for item in stocked_items
+                        if self._item_signature(item) == request.signature), None)
+        if stocked is None or home_take_fits(snapshot, stocked, request.quantity):
+            return False
+        errand.cancel_unposted()
+        self._offer_execution_no_step(
+            producer="home-errand",
+            work_id=f"home-request:{request.purpose}:{request.signature}",
+            cause="town-pack-budget",
+        )
+        return True
 
     def _bound_home_take_signatures(self, *, posted: bool = True) -> set:
         """Home takes an owner has bound: the queued item and batch, the
@@ -5132,6 +5173,70 @@ class HomeMixin:
         if not hasattr(self, "_deferred_home_item_sites"):
             self._deferred_home_item_sites = {}
         self._deferred_home_item_sites[signature] = site
+
+    def _release_unservable_home_latches(self) -> None:
+        """Clear the Home latches whose take Home can no longer serve.
+
+        A latch routes Home ahead of the town plan for one queued take
+        (``_next_required_store_type``).  Once that take's identity is
+        deferred for the town stay, or the complete catalogue holds no digger
+        the digger latch may take, no Home page composes it: the latch only
+        re-enters Home (n1-c life-157 2026-11-06 23:38, the deferred shovel
+        and the digger latch, 244 Home entries).
+        """
+        deferred = self._deferred_home_items
+        if self._home_pending_item is not None and self._home_pending_item in deferred:
+            self._home_pending_quantities.pop(self._home_pending_item, None)
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+        for signature in [entry for entry in self._home_pending_batch if entry in deferred]:
+            self._home_pending_batch.remove(signature)
+            self._home_pending_quantities.pop(signature, None)
+        if not self._home_pending_batch:
+            self._home_procurement_batch_active = False
+        if self._home_pending_item is None and not self._home_pending_batch:
+            self._home_withdrawal_queued = False
+        if (
+            self._home_digger_withdraw_pending
+            and self._home_atomic_withdraw_pending is None
+            and self._home_knowledge_current
+            and not self._home_knowledge_invalidated
+            and not any(
+                item.is_digging_tool
+                and self._item_signature(item) not in deferred
+                for item in self._home_knowledge_items
+            )
+        ):
+            self._home_digger_withdraw_pending = False
+
+    def _home_latch_route_spent(self) -> bool:
+        """Whether this stay's Home bounds refuse a latch's early Home route.
+
+        The ledger's visit bound stops every Home claim; the digger latch is
+        also spent by a Home pass closed after it was queued (the queue leaves
+        Home without closing the pass, and a failed take re-arms Home).
+        """
+        ledger = self._town_visit_ledger
+        if (
+            STORE_HOME in ledger.blocked_stores
+            and self._town_store_blocked_under_applicable_bound(STORE_HOME)
+        ) or ledger.approach_fails.get(STORE_HOME, 0) >= self._town_store_visit_limit(
+            STORE_HOME
+        ):
+            return True
+        return bool(
+            self._home_digger_withdraw_pending
+            and STORE_HOME in self._town_store_attempted
+            and not (
+                self._home_withdrawal_queued
+                and self._home_pending_item is not None
+            )
+            and not (
+                getattr(self, "_home_procurement_batch_active", False)
+                and self._home_pending_batch
+            )
+        )
 
     def _has_actionable_incomplete_home_item(self, snapshot: Snapshot) -> bool:
         """Whether the catalog contains incomplete Home gear usable this visit."""

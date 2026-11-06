@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
+from hengbot import combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
@@ -6135,6 +6135,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                                 self._defer_home_item(
                                     signature, "home-route-claim-unfulfilled"
                                 )
+                # This page could not serve the claim: a latch whose take it
+                # cannot compose must not route Home again.
+                self._release_unservable_home_latches()
                 self.last_reason = "home:route-claim-unfulfilled"
                 self._post_owner_expectation(
                     snapshot, self.last_reason, "store_type"
@@ -9076,8 +9079,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Preserve higher-priority concrete work such as safe loot recovery,
         # but retreat before descent, hunting, or generic exploration can
         # close into the engagement and alternate with the threat gate.
+        # A sleeping monster does not close in: retreating from it walked a
+        # one-wide maze corridor into a dead end (n1-c life-153 Labyrinth 13F,
+        # a giant spider asleep 7 cells away).
         if any(
             self._material_melee_engagement(snapshot, monster)
+            and not monster.asleep
             and not immobile_threat_memory.ringed(self, monster)
             for monster in strategic_hostiles
         ):
@@ -9391,6 +9398,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         last_way = trap_warning.last_way_key(self, snapshot)
         if last_way is not None:
             return last_way
+        # Retreat vetoes that wall this side off from known ground leave the
+        # wander nothing but the sealed pocket: the enclosure ladder answers
+        # first (owner 2026-11-04 maze-veto rule, 2026-11-06 openers).
+        if (
+            snapshot.floor_key[2] == 0
+            and not snapshot.player.recalling
+            and not snapshot.player.blind
+            and not snapshot.player.confused
+        ):
+            sealed = retreat_enclosure.sealed_in_key(self, snapshot)
+            if sealed is not None:
+                self._stuck_escape_streak = 0
+                return sealed
         step = self._least_visited_neighbor(snapshot)
         if step is not None:
             self.last_reason = "stuck:wander"
@@ -16960,9 +16980,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if step is None:
             return None
         # Treat the retreat as a navigation veto, not a one-turn move.
-        # A committed explore path otherwise walks straight back here.
-        self._claim_engagement_avoid_cells(
-            (snapshot.player.position,), snapshot=snapshot, threats=hostiles)
+        # A committed explore path otherwise walks straight back here --
+        # unless the veto would be the only way out of where the step goes
+        # (engagement_avoid_seal, n1-c life-153 Labyrinth 13F).
+        if not engagement_avoid_seal.seals(
+                self, snapshot, snapshot.player.position, step):
+            self._claim_engagement_avoid_cells(
+                (snapshot.player.position,), snapshot=snapshot, threats=hostiles)
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:avoid-engagement"
         self._declare_reach(step)
