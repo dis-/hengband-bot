@@ -24,6 +24,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+from hengbot import equipment_optimizer
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
@@ -123,7 +124,13 @@ class MagicEaterStopsRecordedTest(unittest.TestCase):
     @pre_digger_home_replay
     def test_travel_beside_the_sparrow_walks_a_step(self):
         visit = self.visit("sparrow-travel")
-        recorded, board = visit.replay_until_last(self)
+        # DECLARED: the visit predates owner 2026-11-06 「並で何も分からない品
+        # だけ…並でも鑑定する」; under it the Home's {並} jewellery adds one
+        # Identify scroll to the row-80 buy (pi5), so the replay keeps the
+        # recorded rule (test_ident_jewel_1106_recorded pins the new one).
+        with mock.patch.object(equipment_optimizer, "average_feeling_uninformative",
+                               lambda _item: False):
+            recorded, board = visit.replay_until_last(self)
         self.assertEqual((recorded["key"], recorded["reason"]),
                          ("\x1b`n332.", "me-staff:return-outpost"))
         sparrow = board.visible_monsters[0]

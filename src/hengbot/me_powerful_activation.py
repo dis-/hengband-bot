@@ -43,7 +43,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from hengbot import me_capability, me_powers
-from hengbot.equipment_optimizer import AMMUNITION_TVALS, average_hides_modifiers
+from hengbot.equipment_optimizer import AMMUNITION_TVALS, average_hides_modifiers, equipment_identity
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import (
     SV_STAFF_IDENTIFY, SV_STAFF_REMOVE_CURSE, item_requires_full_identification,
@@ -127,6 +127,7 @@ def pays_safely(policy, snapshot) -> bool:
 @dataclass
 class Memory:
     attempts: dict = field(default_factory=dict)   # (effect, signature) -> uses
+    takes: dict = field(default_factory=dict)      # signature -> Home takes for *Identify*
     pending: tuple | None = None                    # (effect, signature, turn)
 
 
@@ -147,21 +148,59 @@ def _uncurse_targets(policy, snapshot):
 
 
 def _identify_targets(policy, snapshot):
-    """Worn jewellery hiding its numbers, then gear that needs *Identify*."""
+    """Worn jewellery hiding its numbers, gear that needs *Identify*, then -
+    with time to spare - carried gear the equipment transaction will shelve."""
     yield from (item for item in snapshot.equipment if average_hides_modifiers(item))
     yield from (item for item in (*snapshot.equipment, *snapshot.inventory)
                 if item.known and not item.fully_known
                 and item_requires_full_identification(item))
+    if spare_identify_ready(policy, snapshot):
+        yield from _planned_deposits(policy, snapshot)
+
+
+def _planned_deposits(policy, snapshot):
+    """Carried gear not fully known that the equipment transaction deposits.
+
+    Owner 2026-11-06 「預ける前に＋自宅の品も — 預ける予定の装備は預ける前に
+    *鑑定* する」: n1-c life-146 10:58 shelved the Q31 ring 22 s before the
+    recall-read pass (``spare_identify_key``) began.  This town work runs
+    before the transaction's walk to Home, so the piece is *identified* before
+    it is deposited; without a charge or time to spare it is shelved as before.
+    """
+    plan = getattr(policy._equipment_transaction_session, "plan", None)
+    planned = {action.item_identity for action in getattr(plan, "actions", ())
+               if action.kind == "deposit"}
+    return (item for item in snapshot.inventory
+            if spare_identify_target(item) and equipment_identity(item) in planned)
+
+
+def spare_identify_target(item) -> bool:
+    """Gear not fully known (identify_fully's chooser: object_is_not_fully_identified).
+
+    Owner: 「装備品とは武器防具だけではない」 - every equipment tval but plain
+    ammunition.  lose_all_info (status/base-status.cpp) spares only a
+    FULL_KNOWN item.
+    """
+    return (item.is_equipment and not item.fully_known
+            and item.tval not in AMMUNITION_TVALS)
 
 
 def _spare_identify_targets(policy, snapshot):
-    """Gear not fully known (identify_fully's chooser: object_is_not_fully_identified).
-
-    lose_all_info (status/base-status.cpp) spares only a FULL_KNOWN item.
-    """
     return (item for item in (*snapshot.equipment, *snapshot.inventory)
-            if item.is_equipment and not item.fully_known
-            and item.tval not in AMMUNITION_TVALS)
+            if spare_identify_target(item))
+
+
+def spare_identify_ready(policy, snapshot) -> bool:
+    """The town has time to spare for *Identify* (owner 2026-11-04 「余裕」).
+
+    A safe town board with no hostile, the cost paid without reaching any
+    low-HP rung (``pays_safely``), and an absorbed *Identify* with a charge.
+    """
+    return (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+            and _safe(policy, snapshot) and not policy._physical_hostiles(snapshot)
+            and pays_safely(policy, snapshot)
+            and me_capability.has(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval)
+            and me_capability.charges(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval) > 0)
 
 
 TARGETS = {UNCURSE: _uncurse_targets, IDENTIFY: _identify_targets}
@@ -243,14 +282,50 @@ def spare_identify_key(policy, snapshot) -> str | None:
     first; without an enemy, HP to pay or a charge the rest waits for the next
     visit and the read goes on.
     """
-    if (snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER
-            or not _safe(policy, snapshot) or policy._physical_hostiles(snapshot)
-            or not pays_safely(policy, snapshot)
-            or not me_capability.has(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval)
-            or me_capability.charges(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval) <= 0):
+    if not spare_identify_ready(policy, snapshot):
         return None
     work = _first_open(policy, IDENTIFY, _spare_identify_targets(policy, snapshot))
-    return _use(policy, snapshot, *work) if work is not None else None
+    if work is not None:
+        return _use(policy, snapshot, *work)
+    return _home_take_key(policy, snapshot)
+
+
+def _home_take_key(policy, snapshot) -> str | None:
+    """Take one shelved piece of gear out for *Identify* (owner 2026-11-06).
+
+    「自宅にある *鑑定* されていない装備も、町で余裕がある時に取り出して *鑑定*
+    し、また仕舞う。」  Nothing is carried for *Identify* any more, so one Home
+    piece not fully known is filed as the catalogue take Home identification
+    already uses (home_identification); once carried, ``town_key`` *identifies*
+    it and the deposit flow shelves it again.  Each piece is taken at most
+    ``ATTEMPTS_PER_TARGET`` times, so a piece that never lands is left behind.
+    """
+    from hengbot import home_identification
+    from hengbot.home_errand import HomeErrandRequest
+    from hengbot.town_pack_budget import home_take_fits
+
+    # A Memory restored from an older checkpoint has no ``takes`` yet.
+    takes = _memory(policy).__dict__.setdefault("takes", {})
+    errand = policy._home_errand
+    if errand.active or policy._home_pending_batch:
+        return None
+    for owned in policy._equipment_catalog.items:
+        item = owned.item
+        signature = policy._item_signature(item)
+        if (owned.origin != "home" or not spare_identify_target(item)
+                or signature in policy._deferred_home_items
+                or takes.get(signature, 0) >= ATTEMPTS_PER_TARGET
+                or not home_take_fits(snapshot, item, 1)):
+            continue
+        if not policy._file_home_errand(
+                snapshot, HomeErrandRequest(signature, 1, "home-catalog",
+                                            home_identification.CATALOGUE_PURPOSE),
+                knowledge_current=policy._home_knowledge_current):
+            return None
+        takes[signature] = takes.get(signature, 0) + 1
+        policy._home_candidate_waiting = True
+        return home_identification.rearmed_home_route_key(policy, snapshot)
+    return None
 
 
 def observe(policy, snapshot) -> None:

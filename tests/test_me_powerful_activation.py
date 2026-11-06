@@ -206,6 +206,15 @@ class MagicEaterPowerfulActivationTest(executor_harness.ProductionHarness):
             with self.subTest(absorbed=[effect.name for effect in effects]):
                 policy, raw = self.board(level=9, effects=effects,
                                          worn={"is_ego": True, "known": True, "fully_known": False})
+                # DECLARED CONSTRUCTED: the recorded pack's two unaware {並}
+                # rings are left out (pack letters closed up).  Owner 2026-11-06
+                # identifies them first (test_ident_jewel_1106_recorded), which
+                # would ask for a plain Identify before this worn ego's *Identify*.
+                pack = [item for item in raw["inventory"]
+                        if not (item["tval"] == 45 and not item["aware"])]
+                self.assertEqual(len(raw["inventory"]) - len(pack), 2)
+                raw["inventory"] = [dict(item, slot=chr(ord("a") + index))
+                                    for index, item in enumerate(pack)]
                 # DECLARED CONSTRUCTED: the staff sequence's town work silent.
                 # Without the Identify staff absorbed, stage 1 is unfinished and
                 # its errand would take the board before any identification.

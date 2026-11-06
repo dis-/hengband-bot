@@ -3,6 +3,7 @@ import tests  # noqa: F401  -- live runtime-file isolation, also for bare module
 import gzip
 import json
 from pathlib import Path
+from dataclasses import replace
 import unittest
 
 from hengbot.equipment_optimizer import (
@@ -973,6 +974,10 @@ class EquipmentOptimizerTest(unittest.TestCase):
             fully_known=False,
             pseudo_feeling="average",
         )
+        # A sword kind has no flavor: it is aware while unidentified.  An
+        # unaware {average} item still awaits identification (owner
+        # 2026-11-06, test_ident_jewel_1106_recorded).
+        average = replace(average, item=replace(average.item, aware=True))
         result = optimize_loadout(
             [self.light, average], lambda loadout: metrics(1), depth=1
         )

@@ -26,7 +26,7 @@ from hengbot.home_visit import HomeVisitExecutor, HomeVisitKind, HomeVisitReques
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_WEAPON, SV_POTION_RESISTANCE, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_SCROLL_PHASE_DOOR, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, TVAL_FOOD, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, Position, Snapshot, StoreItem, item_requires_full_identification
 from hengbot.policy_types import StoreVisit, StoreVisitPhase, ProcurementHomeGate
 from hengbot.latch_onset_capture import assignment_provenance
-from hengbot.equipment_optimizer import AMMUNITION_TVALS, equipment_identity, equipment_move_identity
+from hengbot.equipment_optimizer import AMMUNITION_TVALS, awaits_identification, equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_session import observe_equipment_transactions
 from dataclasses import fields, replace
 from hengbot.baseitem_knowledge import item_base_cost
@@ -5154,10 +5154,7 @@ class HomeMixin:
                 # home:route-claim-unfulfilled until the pass bound blocked
                 # Home for the visit (n1-b life-291 2026-11-02 04:46/04:47).
                 continue
-            needs_normal_identification = (
-                not owned.item.known
-                and owned.item.pseudo_feeling != "average"
-            )
+            needs_normal_identification = awaits_identification(owned.item)
             if (
                 needs_normal_identification
                 and self._find_identification_source(

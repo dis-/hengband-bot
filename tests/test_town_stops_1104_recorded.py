@@ -428,9 +428,14 @@ class TownStops1104RecordedTest(executor_pins.ProductionHarness):
         the route projection said no work was outstanding.
 
         DECLARED: the departure dump is a prompt macro the test game does not
-        answer, so the decision is pinned without posting it.
+        answer, so the decision is pinned without posting it.  DECLARED: the
+        visit predates owner 2026-11-06 「預ける前に *鑑定*」; with time to spare
+        row 8 *identifies* the deposit-planned piece first (pinned in
+        test_ident_jewel_1106_recorded), so the spare *Identify* is off here.
         """
         self.publish_nothing()
+        self.enterContext(mock.patch.object(
+            powerful_activation, "spare_identify_ready", lambda *args: False))
         policy, recorded, steps = self.replay("closed-transaction", 1)
         with self.recorded_calibration("closed-transaction"):
             result = replay_window("closed-transaction", policy, iter(steps[1:20]))

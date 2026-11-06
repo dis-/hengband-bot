@@ -14830,5 +14830,23 @@
     "context": "Dungeon only: under sealed_pocket.key and melt_at_key (retreat_enclosure's Stone to Mud); never reached in town.",
     "evidence": "dungeon-only: one Stone to Mud use (wand, else the absorbed power) along a direction, counted against its wall (FAILURES_PER_PLACE); returns the key or None.",
     "delegation": "No independent success; existing Stone to Mud owner."
+  },
+  "me_powerful_activation.py:_home_take_key": {
+    "classification": "producer",
+    "rows": [
+      "identification"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-06 「自宅にある *鑑定* されていない装備も、町で余裕がある時に取り出して *鑑定* し、また仕舞う」: the Home leg of spare_identify_key at the recall read, reached only when no worn or carried gear is left for the spare *Identify*. Files one Home catalogue piece not fully known (ammunition excluded, not deferred, its take fitting the pack reserve, at most ATTEMPTS_PER_TARGET takes per piece) as the identification-catalog Home errand through _file_home_errand (deferred while another owner holds the town) and returns rearmed_home_route_key or None.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_powerful_activation.py:spare_identify_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure item predicate: equipment not fully known, plain ammunition excluded (identify_fully's chooser). No key, no state.",
+    "delegation": "selected child; no independent success"
   }
 }

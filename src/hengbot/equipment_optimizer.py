@@ -199,6 +199,31 @@ def average_hides_modifiers(item: EquipmentItem) -> bool:
             and item.tval in (TVAL_RING, TVAL_AMULET))
 
 
+def average_feeling_uninformative(item: EquipmentItem) -> bool:
+    """An unidentified item sensed {average} that the feeling tells nothing about.
+
+    A ring or amulet (average_hides_modifiers) or a kind still unaware (its
+    flavor not learnt): {average} reveals neither what it is nor its numbers.
+    Owner 2026-11-06 「並で何も分からない品だけ — 指輪・首飾りと、種類がまだ
+    分からない品は、並でも鑑定する」; a weapon, armour or light sensed
+    {average} stays read as having no modifier.  n1-c life-146 10:58: the Q31
+    reward ディリシウムの指輪 {並} and ダメージの指輪 {並} went to Home unidentified.
+    """
+    return (not item.known and item.pseudo_feeling == "average"
+            and (average_hides_modifiers(item) or not getattr(item, "aware", True)))
+
+
+def awaits_identification(item: EquipmentItem) -> bool:
+    """An unidentified item that plain Identify still has something to reveal.
+
+    The one {average} exemption every identification owner shares: an item
+    sensed {average} is not worth an Identify charge, unless the feeling is
+    uninformative (average_feeling_uninformative).
+    """
+    return not item.known and (item.pseudo_feeling != "average"
+                               or average_feeling_uninformative(item))
+
+
 def average_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
     """An unidentified item sensed {average}, read as having no modifier.
 
@@ -315,12 +340,13 @@ class OwnedEquipment:
 
     @property
     def identification_incomplete(self) -> bool:
-        # An average pseudo-ID is intentionally not worth an Identify charge.
+        # An average pseudo-ID is intentionally not worth an Identify charge,
+        # unless the feeling says nothing (awaits_identification).
         # It remains illegal for exploration and is handled by the ordinary
         # sale/destruction path, but must not block optimization forever.
         # An item the owner allows to be worn unidentified is evaluable.
         if not self.item.known:
-            return (self.item.pseudo_feeling != "average"
+            return (awaits_identification(self.item)
                     and not self.unidentified_wear_allowed)
         return (
             not self.item.fully_known

@@ -1012,7 +1012,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:average_feeling_uninformative": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:average_hides_modifiers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:awaits_identification": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2561,6 +2575,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powerful_activation.py:_home_take_key": {
+    "classification": "producer",
+    "rows": [
+      "identification"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_powerful_activation.py:_rest_key": {
     "classification": "producer",
     "rows": [
@@ -2595,6 +2616,13 @@
       "identification"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_powerful_activation.py:spare_identify_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "me_powerful_activation.py:town_key": {
     "classification": "producer",
