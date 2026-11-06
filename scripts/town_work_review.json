@@ -12053,12 +12053,13 @@
   "status_cure.py:wait_for_sight_key": {
     "classification": "producer",
     "rows": [
-      "fundraising"
+      "fundraising",
+      "departure"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "n1-b life-294 2026-11-02 13:14 (Yeek cave 1F): blind, in the dungeon, not hit this board, no physical hostile and a restable food state: REST_MACRO (R&, rests until is_fully_healthy which includes sight) under the caller's reason with the caller's producer, else None. Called only from FundraisingMixin._fundraising_key before the floor work (fundraise:wait-sight); a carried cure is quaffed upstream by status_cure_key; dungeon only; no independent progress.",
+    "evidence": "n1-b life-294 2026-11-02 13:14 (Yeek cave 1F): blind, in the dungeon, not hit this board, no physical hostile and a restable food state: REST_MACRO (R&, rests until is_fully_healthy which includes sight) under the caller's reason with the caller's producer, else None. Called from FundraisingMixin._fundraising_key before the floor work (fundraise:wait-sight) and from the latched return's _return_to_town_key before its stair and walks (return:wait-sight, owner 2026-11-07, n1-c life-156); a carried cure is quaffed upstream by status_cure_key; dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "status_cure.py:low_hp_heal": {

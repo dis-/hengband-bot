@@ -68,6 +68,9 @@ BLINDED = "目が見えなくなってしまった！"   # status/bad-status-set
 _PENDING = "_blind_cure_turn"         # (floor, turn) of the last blindness cure
 _LATCH = "_blind_cure_futile_floor"   # floor whose current blindness is not cured
 _LATCH_BLOW = "_blind_cure_futile_blow"  # the blow text that re-blinded it, if named
+_ATTACKER = "_blind_attacker_floor"   # floor whose unseen attacker no kill has followed
+# monster-damage.cpp show_kill_message (also after 「せっかくだから」).
+_KILL_ENDINGS = ("を殺した。", "を倒した。", "を葬り去った。")
 FIGHT_THROUGH_REASON = "blind:fight-through"
 # The absorbed Cure Light Wounds cast (absorbed_cure_key adds the cast suffix).
 ABSORBED_CURE_REASON = "item:cure-light"
@@ -83,8 +86,32 @@ _HEAVY_LOSS_DIVISOR = 3
 _HP_RECOVERY_CURES = (SV_POTION_HEALING, SV_POTION_STAR_HEALING, SV_POTION_LIFE)
 
 
+def _observe_attacker(policy, snapshot) -> None:
+    """Remember, per floor, an unseen attacker that hit the blind player and
+    that no kill has followed (the board's messages in their order)."""
+    player = snapshot.player
+    if not player.blind or getattr(policy, _ATTACKER, None) not in (None, snapshot.floor_key):
+        setattr(policy, _ATTACKER, None)
+    if not player.blind:
+        return
+    for message in snapshot.messages:
+        text = unseen_strike.message_text(message)
+        if text.endswith(unseen_strike.JA_BLOW_ACTS) or (
+                getattr(policy, "_took_damage", False) and policy._is_unseen_attack_message(text)):
+            setattr(policy, _ATTACKER, snapshot.floor_key)
+        elif text.endswith(_KILL_ENDINGS):
+            setattr(policy, _ATTACKER, None)
+
+
+def attacker_gone(policy, snapshot) -> bool:
+    """No unseen attacker is left on this floor as far as the blind player
+    knows: none hit it since it went blind, or a kill followed the last blow."""
+    return getattr(policy, _ATTACKER, None) != snapshot.floor_key
+
+
 def observe(policy, snapshot) -> None:
     """Latch the blindness when the board after a cure shows it again."""
+    _observe_attacker(policy, snapshot)
     player = snapshot.player
     if not player.blind or getattr(policy, _LATCH, None) != snapshot.floor_key:
         setattr(policy, _LATCH, None)

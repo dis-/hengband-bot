@@ -5,7 +5,7 @@ from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import guardian_rumor, home_pass_charge, town_end_mining, town_travel
-from hengbot import unseen_strike, walkout_dig
+from hengbot import status_cure, unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -30,6 +30,8 @@ from hengbot.town_hold import GOAL_REACH as CLAIM_GOAL_REACH
 # Round 4 (F4): the escape ledger key that keeps the up-stairs target beside
 # the cached ``return:upstairs-step`` (for the town hold; cleared with the ledger).
 CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
+# A blind latched return rests until it sees (owner 2026-11-07).
+RETURN_WAIT_SIGHT_REASON = "return:wait-sight"
 _town_store_position_indices = WeakKeyDictionary()
 # The grids mapping and emitted window the retained town facts were last
 # refreshed from (decision caches only; held outside checkpointed state).
@@ -8065,6 +8067,19 @@ class TownMixin:
             )
             return None
 
+        # Owner 2026-11-07 「敵がいなくなったら目が見えるまで休む。」  n1-c life-156
+        # (迷宮12階): its attacker dead, the blind player walked the latched return
+        # 21 cells and took an up-shaft to 10F blind, landing beside the unseen
+        # attackers that killed it.  Blind, with no unseen attacker left (none hit
+        # it since it went blind, or a kill followed the last blow:
+        # status_cure.attacker_gone) and nothing hitting or in sight, rest until
+        # it sees (status_cure.wait_for_sight_key) before any walk or stair; a
+        # biter between its blows keeps the walk and its strikes (n1-a life-466,
+        # n1-b life-299).  A running Recall keeps its own wait.
+        if (not player.recalling and status_cure.attacker_gone(self, snapshot)
+                and (sight := status_cure.wait_for_sight_key(
+                    self, snapshot, RETURN_WAIT_SIGHT_REASON, producer="departure")) is not None):
+            return sight
         here = snapshot.grid_at(player.position)
         if here is not None and self._is_upstairs_target(here):
             self.last_reason = "return:ascend"

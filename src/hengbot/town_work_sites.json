@@ -10822,7 +10822,8 @@
   "status_cure.py:wait_for_sight_key": {
     "classification": "producer",
     "rows": [
-      "fundraising"
+      "fundraising",
+      "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },

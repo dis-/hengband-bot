@@ -229,5 +229,55 @@ class DownStairsUnderfootRecordedTest(unittest.TestCase):
         self.assertEqual(snapshot.player.position, STAIR)
 
 
+def with_up_stair_underfoot(raw):
+    """DECLARED CONSTRUCTED: the 12F '<' (the up-shaft it took blind, decision
+    2744) under the player: its palette entry's terrain bits name UP_STAIRS
+    instead of DOWN_STAIRS (model._GRID_TERRAIN_NAMES)."""
+    raw = copy.deepcopy(raw)
+    palette = raw["grid_map"]["palette"]
+    here = next(run for run in raw["grid_map"]["runs"] if (run[0], run[1]) == (STAIR.y, STAIR.x))
+    feat, symbol, bits, known = palette[here[3]]
+    palette[here[3]] = [feat, symbol, bits - (1 << 3) + (1 << 16), known]
+    return raw
+
+
+class RestUntilSightRecordedTest(unittest.TestCase):
+    """Item 4: nothing left hitting, the blind return rests until it sees."""
+
+    def test_quiet_blind_boards_rest_instead_of_waiting(self):
+        policy, answers = new_policy(), {}
+        for raw in boards():
+            key = d57.loops.decide(policy, raw)
+            answers[raw["turn"]] = (key, policy.last_reason)
+            policy.confirm_key_posted(key)
+        for turn in QUIET:
+            self.assertEqual(recorded()[turn], ("return:wait", "5"))
+            self.assertEqual(answers[turn], ("R&\r", "return:wait-sight"), turn)
+
+    def test_blind_on_an_up_stair_rests_instead_of_climbing(self):
+        policy = new_policy()
+        rows = [with_up_stair_underfoot(raw) for raw in boards()]
+        quiet = next(raw for raw in rows if raw["turn"] == QUIET[0])
+        for raw in rows:
+            key = d57.loops.decide(policy, raw)
+            policy.confirm_key_posted(key)
+            if raw is quiet:
+                break
+        self.assertEqual((key, policy.last_reason), ("R&\r", "return:wait-sight"))
+        snapshot = parse_snapshot(copy.deepcopy(quiet), policy._monrace_knowledge)
+        self.assertTrue(snapshot.grid_at(STAIR).has_up_stairs)
+
+    def test_control_hit_on_the_stair_it_still_climbs(self):
+        # A blow on the board: the '<' underfoot is the escape, not a rest.
+        policy = new_policy()
+        rows = [with_up_stair_underfoot(raw) for raw in boards()]
+        for raw in rows:
+            key = d57.loops.decide(policy, raw)
+            policy.confirm_key_posted(key)
+            if raw["turn"] == PUNCHED:
+                break
+        self.assertEqual(key, "<", policy.last_reason)
+
+
 if __name__ == "__main__":
     unittest.main()
