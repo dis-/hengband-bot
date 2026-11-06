@@ -1149,6 +1149,19 @@ class OperationExecutor:
         # answer n whoever's input raised it.
         return feature.startswith(FOLLOW_TELEPORT_PROMPT_MESSAGE_PREFIXES)
 
+    @staticmethod
+    def _is_point_selector(screen_value) -> bool:
+        from hengbot.policy import POINT_SELECTOR_PROMPTS
+
+        lines = screen_value.get("lines", ()) if isinstance(screen_value, Mapping) else ()
+        return bool(lines) and str(lines[0]).strip().startswith(POINT_SELECTOR_PROMPTS)
+
+    @staticmethod
+    def _state_hallucinated(state) -> bool:
+        player = state.get("player") if isinstance(state, Mapping) else None
+        status = player.get("status") if isinstance(player, Mapping) else None
+        return isinstance(status, Mapping) and bool(status.get("hallucinated", False))
+
     def _finish_board(self, state, screen_value, match, *, bootstrap: bool = False):
         started = time.perf_counter()
         records = self.drain()
@@ -1450,6 +1463,22 @@ class OperationExecutor:
             # question interrupts the command from a monster's turn and is
             # never one of the prompts the operation scheduled answers for.
             return self._post_and_barrier("n", deadline, role="answer")
+        if (
+            not self.active.continuations
+            and self._is_point_selector(screen_value)
+        ):
+            # n1-c life-146: native travel under hallucination left the point
+            # selector open (tgt_pt_prepare offers only the player's grid, so
+            # the landmark and '.' select nothing).  Owner decision
+            # 2026-11-06: no place-specified movement while hallucinated, so
+            # close the selector; the policy walks from the next board.
+            prompt_state = self._request("state", deadline, map=True)
+            if prompt_state is None:
+                return self._terminal(
+                    self.active, "state", "prompt binding failed", match, outcome)
+            if self._state_hallucinated(prompt_state):
+                self.active.business_outcome = "failed:point-hallucinated"
+                return self._post_and_barrier("\x1b", deadline, role="exit")
         while self.active.continuations:
             continuation = self.active.continuations[0]
             expected_features = (

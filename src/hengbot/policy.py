@@ -750,6 +750,14 @@ FOLLOW_TELEPORT_PROMPT_MESSAGE_PREFIXES = (
     "Do you follow it?",
 )
 
+# grid-selector.cpp tgt_pt: the point selector of native travel (`).  Under
+# hallucination tgt_pt_prepare offers only the player's own grid, so neither a
+# landmark symbol nor '.' can select anything and the prompt stays open.
+POINT_SELECTOR_PROMPTS = (
+    "場所を選んでスペースキーを押して下さい。",
+    "Select a point and press space.",
+)
+
 # それならば一旦多少の非効率は許容する。訪問回数の最大値を300回まで緩和することを許可するのでまずは処理を
 # 完遂させること。効率化はその後。
 # Cash retained after buying every departure-blocking shortage on a cross-town

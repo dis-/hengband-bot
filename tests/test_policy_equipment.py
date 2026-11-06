@@ -1400,6 +1400,17 @@ class EntranceTravelTest(unittest.TestCase):
         self.assertEqual(key, "\x1b`n>.")
         self.assertEqual(pol.last_reason, "town:travel-entrance")
 
+    def test_hallucinated_player_walks_instead_of_entrance_travel(self):
+        # Owner decision 2026-11-06: no place-specified movement while
+        # hallucinated (tgt_pt_prepare offers only the player's own grid, so
+        # the selector's > jump finds nothing; n1-c life-146).
+        pol = HengbotPolicy()
+        set_completed_equipment_optimization(pol)
+        snap = self._surface_snap()
+        snap = replace(snap, player=replace(snap.player, hallucinated=True))
+        self.assertIsNone(self._travel(pol, snap))
+        self.assertIsNone(pol._town_travel_state)
+
     def test_native_entrance_travel_binds_on_entry_depth(self):
         pol = HengbotPolicy()
         pol._dungeon_knowledge[DUNGEON_YEEK_CAVE] = SimpleNamespace(

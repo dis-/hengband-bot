@@ -5101,6 +5101,15 @@ class TownMixin:
             self._offer_execution_no_step(
                 producer=family, work_id=work_id, cause=cause,
             )
+        if snapshot.player.hallucinated:
+            # grid-selector.cpp tgt_pt_prepare offers only the player's own
+            # grid while hallucinated: the landmark finds nothing, '.' on the
+            # own grid is ignored and the point prompt stays open (n1-c
+            # life-146 shop:travel).  Owner decision 2026-11-06: walk instead
+            # of place-specified movement while hallucinated.  Every native
+            # travel macro is issued through this method.
+            no_route("hallucinated")
+            return None
         if not native_travel_fits(snapshot):
             no_route("pack-budget-floor-pickup")
             return None

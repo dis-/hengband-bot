@@ -1899,6 +1899,44 @@ class TcpBarrierPinTest(ProductionHarness):
         self.assertEqual(result.outcome, "completed", result.reason)
         self.assertEqual(game.accepted, ["6", "n", "y"])
 
+    @staticmethod
+    def _status_state(turn, *, hallucinated):
+        return {"turn": turn, "grid_map": {"runs": []},
+                "player": {"status": {"hallucinated": hallucinated}}}
+
+    def test_point_selector_left_open_under_hallucination_is_escaped(self):
+        # n1-c life-146 shop:travel: native travel posted while hallucinated;
+        # tgt_pt_prepare offers only the player's grid, so the landmark and
+        # '.' select nothing and the selector stays open.  Owner decision
+        # 2026-11-06: no place-specified movement while hallucinated.
+        for prompt in ("場所を選んでスペースキーを押して下さい。",
+                       "Select a point and press space."):
+            with self.subTest(prompt=prompt):
+                game, _client, executor = self.make()
+                game.screens = [prompt_screen(prompt), command_screen(3)]
+                game.states = [self._status_state(2, hallucinated=True),
+                               self._status_state(3, hallucinated=True)]
+                executor.observe_boundary(deadline=9999999999)
+                result = executor.submit(
+                    Operation(4561, "shop:travel", "\x15", executor.ready_board),
+                    deadline=9999999999,
+                )
+                self.assertEqual(result.outcome, "completed", result.reason)
+                self.assertEqual(game.accepted, ["\x15", "\x1b"])
+                self.assertEqual(result.operation.business_outcome,
+                                 "failed:point-hallucinated")
+
+    def test_point_selector_without_hallucination_is_not_escaped(self):
+        game, _client, executor = self.make()
+        game.screens = [prompt_screen("場所を選んでスペースキーを押して下さい。")]
+        game.states = [self._status_state(2, hallucinated=False)]
+        executor.observe_boundary(deadline=9999999999)
+        executor.submit(
+            Operation(4562, "shop:travel", "\x15", executor.ready_board),
+            deadline=9999999999,
+        )
+        self.assertEqual(game.accepted, ["\x15"])
+
     def test_recorded_recall_depth_shape_completes_through_sender_path(self):
         fixture = (
             Path(__file__).parent / "fixtures" / "classA-recall-depth-board.jsonl"
