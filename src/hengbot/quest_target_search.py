@@ -33,7 +33,11 @@ floor's Teleportation, then the owner's dig, disarm and strike, then Teleportati
 Recall).  There is no cap on laps.
 
 The secret doors (``_door_search_key``).  Owner the same day: 「周辺感知をもたない場合に限り何周か
-ごとに隠し扉を探す」.  With no usable 周辺感知 (area_mapping.means_held), every DOOR_SEARCH_LAPS laps
+ごとに隠し扉を探す」, and 2026-11-06 (n1-b lapped one floor for two hours with Magic Mapping
+absorbed): 「魔法の地図を持っていても隠し扉は見えないので、クエストの標的探しで隠し扉の探索を行う」.
+map_area memorizes the MIMIC terrain (spell-kind/spells-floor.cpp), so a secret door still maps
+as wall; only detect_doors (spells-detection.cpp, disclose_grid) or a search shows it.  So,
+whatever 周辺感知 is held, every DOOR_SEARCH_LAPS laps
 the bot goes to the nearest dead end it can walk to and spends the search rounds there
 (SEARCH_LIMIT, the corridor dead-end rung answers on arrival), until every dead end had them; an
 absorbed Detect Doors is asked first (me_powers.SECRET_SEARCH, its own spacing).  Each round of
@@ -200,9 +204,6 @@ def _walk_key(policy, snapshot: Snapshot, routes: dict, goal: Position, reason: 
 
 def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> str | None:
     """This decision's part of the secret door search (the module docstring), else None."""
-    if area_mapping.means_held(policy, snapshot):
-        memory.door_search = False
-        return None
     ends = _dead_ends(policy, snapshot, routes)
     if not memory.door_search and memory.laps - memory.door_lap >= DOOR_SEARCH_LAPS:
         memory.door_lap, memory.door_search = memory.laps, True
