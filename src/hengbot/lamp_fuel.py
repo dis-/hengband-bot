@@ -53,8 +53,10 @@ from hengbot.town_arbiter import HENGBAND_TURNS_PER_TICK
 LAMP_FULL_MESSAGES = frozenset({"ランプの油は一杯だ。", "Your lamp is full."})
 LIGHT_DIMS_MESSAGES = frozenset({"明かりが暗くなってしまった。", "Your light dims."})
 LIGHT_OUT_MESSAGES = frozenset({"明かりが消えてしまった！", "Your light has gone out!"})
+LAMP_FUELED_MESSAGES = frozenset({"ランプに油を注いだ。", "You fuel your lamp."})
 EAT_LITE_MAX_FUEL = 500  # monster-eating.cpp process_eat_lite: 250 + randint1(250)
 _MEMORY = "_lamp_full_memory"
+_SEEN_OUT = "_lamp_seen_out_identity"
 _REPEAT_SUFFIX = re.compile(r" <x([1-9]\d*)>$")
 _INSCRIPTION = re.compile(r"\s*\{[^{}]*\}\s*$")
 
@@ -82,6 +84,7 @@ def _counted(messages, texts) -> int:
 def observe(policy, snapshot) -> None:
     """Remember the turn of the last 「ランプの油は一杯だ。」 for the worn lantern,
     and the fuel the board's messages say was taken since."""
+    _observe_seen_out(policy, snapshot)
     lantern = _worn_lantern(snapshot)
     memory = getattr(policy, _MEMORY, None)
     if lantern is None or lantern.known:
@@ -102,6 +105,50 @@ def observe(policy, snapshot) -> None:
 
 def _taken(memory) -> int:
     return memory[2] if len(memory) > 2 else 0
+
+
+def _observe_seen_out(policy, snapshot) -> None:
+    """Remember the unidentified lantern the board showed out while worn.
+
+    n1-b life-330 (2026-11-06 21:53-21:54): the worn {並, Q34} lantern went out
+    in town (「明かりが消えてしまった！」); wield-light put a torch on, and the
+    equipment optimizer, which reads an unidentified lantern's fuel as unknown
+    rather than empty, took the torch off for the dark lantern again, 26 times
+    until town:blocked:owner-retired-burst.  Once the lantern is in the pack
+    the board no longer shows it, so the sight is kept until a refill reaches
+    it (cmd-refill.cpp: 「ランプに油を注いだ。」) or it is seen lit again.
+    """
+    remembered = getattr(policy, _SEEN_OUT, None)
+    if remembered is not None and _counted(
+        snapshot.messages, LAMP_FUELED_MESSAGES | LAMP_FULL_MESSAGES
+    ):
+        remembered = None
+    lantern = _worn_lantern(snapshot)
+    if lantern is not None and not lantern.known:
+        out = unidentified_lantern_out(snapshot)
+        identity = _lantern_identity(lantern)
+        if out is True:
+            remembered = identity
+        elif out is False and remembered == identity:
+            remembered = None
+    if remembered != getattr(policy, _SEEN_OUT, None):
+        setattr(policy, _SEEN_OUT, remembered)
+
+
+def unidentified_lantern_seen_out(policy, item) -> bool:
+    """Whether ``item`` is an unidentified lantern the board last showed out.
+
+    A known empty lantern is already excluded by its fuel
+    (equipment_optimizer.operational_equipment_candidate); this is the same
+    fact for the lantern whose fuel the player is not shown.
+    """
+    remembered = getattr(policy, _SEEN_OUT, None)
+    return (
+        remembered is not None
+        and getattr(item, "is_lantern", False)
+        and not getattr(item, "known", True)
+        and _lantern_identity(item) == remembered
+    )
 
 
 def known_fuel_floor(policy, snapshot) -> int | None:

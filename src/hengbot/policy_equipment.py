@@ -9,7 +9,7 @@ from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import consumable_policy, mining_loadout
+from hengbot import consumable_policy, lamp_fuel, mining_loadout
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -957,10 +957,18 @@ class EquipmentMixin:
         oil_carried = self._first_item(
             snapshot, lambda item: item.is_oil and item.fuel > 0
         ) is not None
+        # An unidentified lantern the board showed out is as empty as a known
+        # one at 0 turns: without carried oil it is no light to choose (n1-b
+        # life-330, the optimizer took the torch off for it 26 times).
         operational_catalog = tuple(
             item
             for item in self._equipment_catalog.items
             if operational_equipment_candidate(item, oil_carried=oil_carried)
+            and not (
+                not oil_carried
+                and item.origin in {"pack", "equipped"}
+                and lamp_fuel.unidentified_lantern_seen_out(self, item.item)
+            )
         )
         eligible_catalog = tuple(
             item
