@@ -16,6 +16,13 @@ DECLARED CONSTRUCTED: the live map-area cast of turn 1031502 (the bot notes it f
 command, which an open-loop replay does not see) is added to the exploration ledger as the live
 bot had it: centre (18,55), radius 30.  The controls drop the kill line from board 1033667 (the
 jelly alive) or show index 11 with another race on a later board.
+
+The stuck walk to a remembered stair (``RememberedStairOnForgettingMaze``): the recorded upstairs
+(14,28) leads to the wilderness from 10F, the Labyrinth's top (wilderness_exit), and the
+recorded downstairs (4,38) was expired, so on the recorded floor nothing named a stair to take.
+DECLARED CONSTRUCTED there: every board on 11F (its '<' leads to 10F), and on the stall board
+every remembered frontier given up and the mapped corridor (14,29..31) between the frontier
+(14,32) and the upstairs remembered as walked floor -- the floor nothing is left to explore on.
 """
 from __future__ import annotations
 
@@ -28,7 +35,7 @@ from pathlib import Path
 
 from test_floor_dwell_seen_floor_recorded import EDIT, _Replay
 
-from hengbot import immobile_threat_memory
+from hengbot import goal_route, immobile_threat_memory
 from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
@@ -115,6 +122,43 @@ class ImmobileKillReplay(unittest.TestCase):
         _replay, _reasons, remembered = self.replay(edit, until=later)
         self.assertIn(JELLY, remembered[KILL_TURN])
         self.assertNotIn(JELLY, remembered[later])
+
+
+UPSTAIRS = Position(14, 28)
+CORRIDOR = {(14, 29), (14, 30), (14, 31)}
+
+
+def on_11f(raw):
+    """DECLARED: the Labyrinth's 11F, whose '<' leads to 10F."""
+    raw["floor"]["level"] = 11
+
+
+class RememberedStairOnForgettingMaze(ImmobileKillReplay):
+    """Nothing to explore on a forgetting maze: the walk takes a remembered stair out of view."""
+
+    def test_the_stuck_walk_routes_to_the_remembered_upstairs(self):
+        replay, _reasons, _remembered = self.replay(on_11f, until=STALL_TURN - 1)
+        raw = json.loads(self.lines[-1])
+        self.assertEqual(raw["turn"], STALL_TURN)
+        on_11f(raw)
+        line = json.dumps(raw, ensure_ascii=False)
+        board = replay.board(line)
+        policy = replay.policy
+        self.assertTrue(policy._is_forgetting_maze(board))
+        self.assertNotIn(UPSTAIRS, board.grids)
+        self.assertIn(UPSTAIRS, policy._remembered_upstairs)
+        corridor = {Position(*cell) for cell in CORRIDOR}
+        policy._remembered_floor_t.update(CORRIDOR)
+        policy._remembered_known_t.update(CORRIDOR)
+        policy._remembered_marked_t.update(CORRIDOR)
+        ground = [*board.grids, *(Position(*cell) for cell in policy._floor_t), *corridor]
+        policy._probed_frontiers.update(ground)
+        policy._visit_counts.update(ground)
+        board, _key, reason = replay.decide(line)
+        self.assertEqual(reason, "stuck:seek-stairs")
+        routes = [commitment.path for commitment in goal_route._commitments(policy).values()
+                  if commitment.turn == STALL_TURN]
+        self.assertIn(UPSTAIRS, [path[-1] for path in routes])
 
 
 if __name__ == "__main__":
