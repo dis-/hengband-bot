@@ -15944,7 +15944,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         per_turn_cap = monster_energy // player_energy + 1
         return max(1, min(ratio_actions + 1, turns * per_turn_cap))
 
-    def _summoner_cover_in_one_step(self, snapshot: Snapshot) -> bool:
+    def _summoner_cover_in_one_step(
+        self, snapshot: Snapshot, summoners: Iterable[MonsterState] = ()
+    ) -> bool:
+        """One step reaches a cell where no summoner may summon at the player.
+
+        Owner 2026-11-06 「壁の隣で召喚の緊急が消える点も直す」: n1-b life-325
+        (城33階) stood at (17,56) beside the wall row y=18, so a neighbour
+        "touched a wall" and the summoner emergency was dropped with the
+        hasted 智天使 in view.  A neighbour beside a wall is cover only when
+        none of ``summoners`` could summon at the player standing there before
+        the player's next action (``_summoner_may_summon_at``: projection to
+        the cell or a cell next to it, after the summoner's own moves).  The
+        caller names the summoners only below the low-HP line; with none named
+        the wall beside the step alone is the cover, as before.
+        """
+        summoners = list(summoners)
         for neighbor in self._walkable_neighbors(snapshot, snapshot.player.position):
             # A clipped visibility/snapshot edge can look artificially narrow.
             # Count it as cover only when an observed wall or closed door creates
@@ -15954,6 +15969,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 is not None
                 and (grid.wall or grid.is_closed_door)
                 for dy, dx in NEIGHBOR_OFFSETS
+            ) and not any(
+                self._summoner_may_summon_at(snapshot, summoner, neighbor)
+                for summoner in summoners
             ):
                 return True
         return False

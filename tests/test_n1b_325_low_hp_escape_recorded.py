@@ -90,6 +90,32 @@ class SecondEmergencyReturnTest(unittest.TestCase):
         self.assertIsNone(policy._last_return_trigger)
 
 
+class SummonerCoverTest(unittest.TestCase):
+    def test_a_wall_beside_the_step_is_no_cover_from_the_summoner_in_view(self):
+        policy, _raw, key = replay(until=RETREAT)
+        self.assertEqual((key, policy.last_reason), ("rd", "emergency:teleport"))
+        # The summoner emergency of _emergency_item answered, not the walk gate.
+        self.assertTrue(policy._emergency_escape_pending)
+        self.assertEqual(policy._last_return_trigger, "emergency-summoner")
+
+    def test_control_above_the_low_hp_line_the_wall_stays_the_cover(self):
+        # DECLARED CONSTRUCTED: the recorded board at HP 300/386 (the line is 193).
+        def healthy(raw):
+            raw["player"]["hp"] = 300
+        policy, _raw, key = replay(until=RETREAT, change=healthy)
+        self.assertEqual((key, policy.last_reason), ("6", "summoner:retreat"))
+        self.assertFalse(policy._emergency_escape_pending)
+
+    def test_control_no_summoner_counted_keeps_the_wall_cover(self):
+        policy, raw, _key = replay(until=READ)
+        board = next(copy.deepcopy(r) for r in CASE["boards"] if r["turn"] == RETREAT)
+        snapshot = parse_snapshot(board, policy._monrace_knowledge)
+        policy._build_grid_index(snapshot)
+        self.assertTrue(policy._summoner_cover_in_one_step(snapshot))
+        cherub = [m for m in snapshot.visible_monsters if m.race_id == CHERUB]
+        self.assertFalse(policy._summoner_cover_in_one_step(snapshot, cherub))
+
+
 class LowHpRetreatStepTest(unittest.TestCase):
     def test_the_retreat_step_becomes_the_teleport_read(self):
         # DECLARED CONSTRUCTED: the cover judged as recorded, so the producer posts the
