@@ -18,10 +18,11 @@ import copy
 import gzip
 import json
 import unittest
+from collections import deque
 from pathlib import Path
 from unittest.mock import patch
 
-from hengbot import once_quest_recall, quest_exposure, quest_find_exit, quest_force_rows, quest_no_teleport
+from hengbot import cli, once_quest_recall, quest_exposure, quest_find_exit, quest_force_rows, quest_no_teleport
 from hengbot.model import Position, SV_POTION_HEALING, SV_POTION_SPEED, TVAL_POTION, TVAL_SCROLL, parse_snapshot
 from hengbot.model import _GRID_TERRAIN_NAMES
 from hengbot.monrace_knowledge import _strip_jsonc, find_monrace_definitions, load_monrace_knowledge
@@ -641,6 +642,41 @@ class Q18FarEnemyThatDoesNotComeTest(unittest.TestCase):
         start = rows.index(moved[0])
         self.assertNotIn(DIG_REASON, [row[2] for row in rows[start:]], rows)
         self.assertNotIn(WALK_REASON, [row[2] for row in rows[start:]], rows)
+
+
+class Q18RestLoopGuardTest(unittest.TestCase):
+    """Owner 2026-11-06 「休憩中の止まり判定の誤りも直す」.  n1-a life 490 (floor (0,35,18)):
+    on the choke (1,12) the rest was cut after one turn each time (the sealed Greater kraken
+    775 stepping (18,14) <-> (18,15) in the ESP range), HP 550 -> 604 of 716 over 40 rests,
+    and the cell guard stopped the bot.  DECLARED CONSTRUCTED from that decision log."""
+
+    def run_rests(self, hp_of):
+        policy = new_policy(board((1, 12), hp=550, max_hp=716))
+        recent = deque(maxlen=cli.MULTIPLIER_COMBAT_LOOP_WINDOW)
+        last_position = last_player = None
+        for tick in range(cli.LOOP_WINDOW + 5):
+            raw = board((1, 12), hp=hp_of(tick), max_hp=716)
+            raw["detected_monsters"] = [detected(KRAKEN, 18, 14 + tick % 2, index=55)]
+            raw["turn"] += 10 * (tick + 1)
+            snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+            key = str(policy.choose_key(snapshot))
+            self.assertEqual((key, policy.last_reason), (REST_MACRO, "rest"), tick)
+            previous_position, last_position = last_position, snapshot.player.position
+            previous_player, last_player = last_player, snapshot.player
+            if not cli._cell_loop_guard_applies(snapshot, policy.last_reason, previous_position,
+                                                previous_player):
+                recent.clear()
+                continue
+            recent.append((snapshot.floor_key, snapshot.player.position.y, snapshot.player.position.x))
+            if cli._is_looping(recent):
+                return tick
+        return None
+
+    def test_a_rest_that_recovers_is_no_cell_loop(self):
+        self.assertIsNone(self.run_rests(lambda tick: 550 + tick))
+
+    def test_control_a_rest_that_recovers_nothing_still_trips_the_guard(self):
+        self.assertIsNotNone(self.run_rests(lambda tick: 550))
 
 
 class Q18PlaythroughTest(unittest.TestCase):

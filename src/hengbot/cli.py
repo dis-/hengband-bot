@@ -822,19 +822,47 @@ def _policy_final_stop_banner(reason: str) -> str:
 assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < TOWN_RESIDENCE_STOP_LIMIT
 
 
+def _rest_recovering(previous_player, player) -> bool:
+    """The rest sent on the previous board restored something: HP or MP rose, or an
+    ailment the rest wears off eased."""
+    if previous_player is None:
+        return False
+    ailments = ("blind", "confused", "afraid", "poisoned", "stunned", "cut",
+                "paralyzed", "hallucinated")
+    eased = sum(getattr(previous_player, name) for name in ailments) > sum(
+        getattr(player, name) for name in ailments)
+    ranks = any(
+        before is not None and after is not None and after < before
+        for before, after in ((previous_player.cut_rank, player.cut_rank),
+                              (previous_player.stun_rank, player.stun_rank)))
+    return player.hp > previous_player.hp or player.mp > previous_player.mp or eased or ranks
+
+
 def _cell_loop_guard_applies(
-    snapshot, reason: str, previous_position=None
+    snapshot, reason: str, previous_position=None, previous_player=None
 ) -> bool:
     """Leave town repetition to the policy's bounded repair path.
 
     Town deliberately has its own cycle/no-progress counters and a visible
     blocked-state stop.  Feeding the same decisions to the generic dungeon
     cell guard can stop the bot before ``town:cycle-break`` is emitted.
+
+    A rest on the same cell that is recovering (``previous_player`` is the
+    player of the previous guarded board) is no loop: a monster moving in
+    view or in the ESP range disturbs it after one turn, and n1-a life 490
+    (2026-11-06, Q18) stopped after 40 rests on (1,12) with HP 550 -> 604
+    of 716.  A rest that restores nothing still counts.
     """
     if snapshot.inside_arena:
         return False  # a closed room with one fight: arena.py
     if previous_position is None:
         previous_position = snapshot.player.position
+    if (
+        reason == "rest"
+        and previous_position == snapshot.player.position
+        and _rest_recovering(previous_player, snapshot.player)
+    ):
+        return False
     return (
         not snapshot.in_town
         and not (
@@ -4530,6 +4558,7 @@ def _run_follow(
         starving_streak = 0
         starving_last_position = None
         cell_guard_last_position = None
+        cell_guard_last_player = None
         last_snapshot_floor_key = (
             initial_snapshot.floor_key if initial_snapshot is not None else None
         )
@@ -5387,8 +5416,10 @@ def _run_follow(
                     # window on its own.
                     previous_position = cell_guard_last_position
                     cell_guard_last_position = snapshot.player.position
+                    previous_player = cell_guard_last_player
+                    cell_guard_last_player = snapshot.player
                     if not _cell_loop_guard_applies(
-                        snapshot, policy.last_reason, previous_position
+                        snapshot, policy.last_reason, previous_position, previous_player
                     ):
                         # Exempt actions break positional continuity.  Keeping
                         # old route cells across hundreds of intentional hold or
