@@ -40,10 +40,12 @@ bought or required (the ``me_capability.REPLACES`` rows of the *Identify* and
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from hengbot import me_capability, me_powers
-from hengbot.equipment_optimizer import AMMUNITION_TVALS, average_hides_modifiers, equipment_identity
+from hengbot.equipment_optimizer import (
+    AMMUNITION_TVALS, average_hides_modifiers, equipment_identity, equipment_move_identity,
+)
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import (
     SV_STAFF_IDENTIFY, SV_STAFF_REMOVE_CURSE, item_requires_full_identification,
@@ -129,6 +131,7 @@ class Memory:
     attempts: dict = field(default_factory=dict)   # (effect, signature) -> uses
     takes: dict = field(default_factory=dict)      # signature -> Home takes for *Identify*
     pending: tuple | None = None                    # (effect, signature, turn)
+    rekey: tuple | None = None                      # the planned deposit the pending use names
 
 
 def _memory(policy) -> Memory:
@@ -167,11 +170,15 @@ def _planned_deposits(policy, snapshot):
     before the transaction's walk to Home, so the piece is *identified* before
     it is deposited; without a charge or time to spare it is shelved as before.
     """
-    plan = getattr(policy._equipment_transaction_session, "plan", None)
-    planned = {action.item_identity for action in getattr(plan, "actions", ())
-               if action.kind == "deposit"}
+    planned = _planned_deposit_identities(policy)
     return (item for item in snapshot.inventory
             if spare_identify_target(item) and equipment_identity(item) in planned)
+
+
+def _planned_deposit_identities(policy) -> set:
+    plan = getattr(policy._equipment_transaction_session, "plan", None)
+    return {action.item_identity for action in getattr(plan, "actions", ())
+            if action.kind == "deposit"}
 
 
 def spare_identify_target(item) -> bool:
@@ -270,6 +277,10 @@ def _use(policy, snapshot, effect, target, signature) -> str:
     memory = _memory(policy)
     memory.attempts[(effect.name, signature)] = memory.attempts.get((effect.name, signature), 0) + 1
     memory.pending = (effect, signature, snapshot.turn)
+    memory.rekey = ((equipment_identity(target), target.tval, target.sval)
+                    if effect.name == IDENTIFY.name
+                    and equipment_identity(target) in _planned_deposit_identities(policy)
+                    else None)
     policy.last_reason = effect.reason
     return effect.key + (_address(target) if effect.targeted else "")
 
@@ -315,7 +326,8 @@ def _home_take_key(policy, snapshot) -> str | None:
         if (owned.origin != "home" or not spare_identify_target(item)
                 or signature in policy._deferred_home_items
                 or takes.get(signature, 0) >= ATTEMPTS_PER_TARGET
-                or not home_take_fits(snapshot, item, 1)):
+                or not home_take_fits(snapshot, item, 1)
+                or not _take_fits_weight(policy, snapshot, item)):
             continue
         if not policy._file_home_errand(
                 snapshot, HomeErrandRequest(signature, 1, "home-catalog",
@@ -326,6 +338,17 @@ def _home_take_key(policy, snapshot) -> str | None:
         policy._home_candidate_waiting = True
         return home_identification.rearmed_home_route_key(policy, snapshot)
     return None
+
+
+def _take_fits_weight(policy, snapshot, item) -> bool:
+    """One more ``item`` keeps the pack within the weight limit Home deposits use.
+
+    A take above it is shelved again at once by ``home:weight-overload-deposit``
+    before *Identify* can run (n1-c life-150 19:09: 二重鎖かたびら and
+    重鎖かたびら taken and put back in turn, eight owner retirements).
+    """
+    limit = policy._inventory_weight_limit(snapshot)
+    return limit is None or policy._inventory_weight(snapshot) + max(0, item.weight) <= limit
 
 
 def observe(policy, snapshot) -> None:
@@ -342,6 +365,9 @@ def observe(policy, snapshot) -> None:
     if snapshot.turn == turn:
         return
     memory.pending = None
+    rekey, memory.rekey = getattr(memory, "rekey", None), None
+    if rekey is not None:
+        _rekey_planned_deposit(policy, snapshot, *rekey)
     refusal = (snapshot.completed_operation_receipt or {}).get("refusal")
     if (snapshot.completed_operation_owner != effect.reason
             or (isinstance(refusal, str) and refusal.startswith("failed"))):
@@ -350,3 +376,60 @@ def observe(policy, snapshot) -> None:
         for item in snapshot.equipment:
             if item.is_cursed and policy._item_signature(item) == signature:
                 policy.__dict__.setdefault("_permanent_cursed_items", set()).add(signature)
+
+
+def _rekey_planned_deposit(policy, snapshot, identity, tval, sval) -> None:
+    """Name a planned deposit by what the player sees of it after *Identify*.
+
+    The plan names its items by their player-visible identity
+    (equipment_identity: the name, fully_known and the known flags), which
+    *Identify* changes.  Kept as it was, the deposit no longer finds its item
+    in the pack and the transaction closes for the visit as
+    ``deposit-missing`` (n1-c life-150 18:05, life-151 19:49 and 19:59: Home
+    unavailable, owner retirements).  The one carried piece of that kind now
+    fully known and named by no planned action is the identified one; the
+    plan's actions on it take its new identities and the plan otherwise goes
+    on, so the next planned deposit is still *identified* before the walk to
+    Home.  When that piece cannot be told apart the plan is derived again from
+    the live board.  A use that changed nothing (the item still carries its
+    old identity) and a plan already preparing or posting a command are left
+    alone.
+    """
+    from hengbot.equipment_transaction_planner import EquipmentTransactionPlan
+
+    session = policy._equipment_transaction_session
+    if (session is None or session.complete
+            or session.pending_action is not None or session.prepared_action is not None):
+        return
+    pack = [item for item in snapshot.inventory if item.is_equipment]
+    if any(equipment_identity(item) == identity for item in pack):
+        return
+    claimed = {action.item_identity for action in session.plan.actions}
+    identified = [item for item in pack
+                  if (item.tval, item.sval) == (tval, sval) and item.fully_known
+                  and equipment_identity(item) not in claimed]
+    if len(identified) != 1:
+        if snapshot.in_town:
+            policy._replan_equipment_transaction(snapshot)
+        return
+    new_identity = equipment_identity(identified[0])
+    new_move = equipment_move_identity(identified[0])
+    # The pack catalogue id (OwnedEquipmentCatalog.refresh_carried) is built
+    # from the same digest and the copy's occurrence among equal pack items.
+    occurrence = sum(1 for item in pack[:pack.index(identified[0])]
+                     if equipment_identity(item) == new_identity)
+    new_id = f"pack:{new_identity}:{occurrence}"
+
+    def rekeyed(plan):
+        return replace(plan, actions=tuple(
+            replace(action, item_identity=new_identity,
+                    move_identity=new_move if action.move_identity else "",
+                    item_id=new_id if action.item_id.startswith("pack:") else action.item_id)
+            if action.item_identity == identity else action
+            for action in plan.actions))
+
+    session.plan = rekeyed(session.plan)
+    preparation = policy._equipment_optimization_preparation
+    if isinstance(getattr(preparation, "transaction", None), EquipmentTransactionPlan):
+        policy._equipment_optimization_preparation = replace(
+            preparation, transaction=rekeyed(preparation.transaction))

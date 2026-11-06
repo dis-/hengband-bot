@@ -11535,6 +11535,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._equipment_transaction_failed_items.update(
             self._equipment_action_memory_keys(action)
         )
+        self._replan_equipment_transaction(snapshot)
+        self.last_reason = (
+            "equipment-transaction:stale-identity-invalidated:"
+            f"{action.kind}:{observed_identity or 'missing'}"
+        )
+
+    def _replan_equipment_transaction(self, snapshot: Snapshot) -> None:
+        """Drop the open plan and derive it again from the live board.
+
+        Nothing is quarantined: the caller knows why the plan's identities no
+        longer name the carried items (a *Identify* that changed what the
+        player sees of a planned deposit, me_powerful_activation).
+        """
         self._equipment_transaction_route_terminal_pending = False
         self._discard_unposted_equipment_transaction_command()
         self._set_equipment_transaction_session(None)
@@ -11542,10 +11555,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._equipment_optimization_preparation = None
         self._equipment_optimization_pack_items = None
         self._prepare_equipment_optimization(snapshot)
-        self.last_reason = (
-            "equipment-transaction:stale-identity-invalidated:"
-            f"{action.kind}:{observed_identity or 'missing'}"
-        )
 
     @staticmethod
     def _temporary_status_clear(snapshot: Snapshot) -> bool:
