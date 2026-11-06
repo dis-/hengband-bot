@@ -15233,5 +15233,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:absorbed_cure_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 (n1-c life-156): blind Magic-Eater with the absorbed Cure Light Wounds staff displayed with a charge, not confused/hallucinated/paralyzed, not in a store and the m command not refused: the cast key m A q under the caller's reason plus the absorbed-power suffix, in the cheap cure potion's place (a heavy loss with an HP recovery potion keeps the potion). Called from status_cure_key (item:cure-light) and the emergency ladder (emergency:cure-light); dungeon only; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

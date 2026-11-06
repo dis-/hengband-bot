@@ -39,7 +39,10 @@ import unittest
 from pathlib import Path
 
 from hengbot.model import Position
+from tests import test_me_mining_death_recorded as mining_death
 from tests import test_n1c_deaths_1101_recorded as d57
+from tests.test_magic_eater_o3 import prompt
+from tests.test_me_device_attacks import power_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "death-n1c-156-1107.json.gz"
@@ -51,6 +54,10 @@ UNKNOWN = Position(8, 21)     # the one neighbour the forgotten board does not s
 STRIKE_WEST = "+4"
 PUNCHED, CLUBBED = 1044327, 1044354   # return:wait / emergency:wait, hit from (8,21)
 QUIET = (1044293, 1044302, 1044316)   # blind, nothing hits: return:wait
+CLW_ROW = {"name": "軽傷の治癒", "current": 7, "max": 7, "fail": 5, "success": 95}
+LIST_TURN = 1039920           # the first recorded decision row's turn (12F)
+CLW_KEY = "mAq"              # m, [A] staff, I2A(16) (cmd-magiceat.cpp)
+TYPE_PROMPT = "[A] 杖, [B] 魔法棒, [C] ロッド:"
 VLASTA_BITE = ["ヴラスタに噛まれた。", "目が見えなくなってしまった！", "噛まれた。"]
 CURED_AND_REBLINDED = ["まだ 8服の 致命傷の治癒の薬を持っている。", "とても気分が良くなった。",
                        "やっと目が見えるようになった。", "ヴラスタに噛まれた。",
@@ -133,6 +140,66 @@ class UnknownNeighbourStrikeRecordedTest(d57.PostedDeathKey):
         reblinded = scene(base, turn=1043250, hp=207, messages=CURED_AND_REBLINDED, cures=8)
         key = d57.loops.decide(policy, reblinded)
         self.assertEqual((key, policy.last_reason), (STRIKE_WEST, "blind:fight-through"))
+
+
+class AbsorbedCureLightRecordedTest(d57.PostedDeathKey):
+    """Item 2: the absorbed Cure Light Wounds cures the blindness."""
+
+    post_power = mining_death.MagicEaterMiningDeathRecordedTest.post
+
+    def clw_policy(self):
+        # DECLARED RECONSTRUCTED: the displayed staff list of the death report.
+        policy = new_policy()
+        # Displayed before the 12F scenes (a list from a later turn is another life's).
+        policy._me_device_lists = {"staff": (LIST_TURN, (dict(CLW_ROW),))}
+        return policy
+
+    def drive(self, policy, until):
+        answers = {}
+        for raw in boards():
+            if raw["turn"] > until:
+                break
+            key = d57.loops.decide(policy, raw)
+            answers[raw["turn"]] = (raw, key, policy.last_reason)
+            policy.confirm_key_posted(key)
+        return answers
+
+    def test_blind_board_casts_the_cure_through_the_executor(self):
+        policy = self.clw_policy()
+        answers = self.drive(policy, QUIET[0])
+        raw, key, reason = answers[QUIET[0]]
+        self.assertEqual((key, reason), (CLW_KEY, "item:cure-light:absorbed-power"))
+        game, _ = self.post_power(policy, raw, key, [
+            prompt(TYPE_PROMPT), power_screen("staff", [("q", "軽傷の治癒", 7, 7, 5)])])
+        self.assertEqual(game.accepted, ["m", "A", "q"])
+
+    def test_the_emergency_ladder_casts_it_before_its_last_answers(self):
+        answers = self.drive(self.clw_policy(), CLUBBED)
+        self.assertEqual(answers[CLUBBED][1:], (CLW_KEY, "emergency:cure-light:absorbed-power"))
+
+    def test_it_goes_before_the_cure_critical_potion(self):
+        # DECLARED CONSTRUCTED: the 12F pack's Cure Critical Wounds on a quiet blind board.
+        policy = self.clw_policy()
+        raw = with_cure_potions(boards()[3])
+        self.assertEqual((d57.loops.decide(policy, raw), policy.last_reason),
+                         (CLW_KEY, "item:cure-light:absorbed-power"))
+
+    def test_blinded_again_right_after_the_cast_fights_through(self):
+        # DECLARED CONSTRUCTED: the 12F re-blinding scene after a cast.
+        base, policy = boards()[5], self.clw_policy()
+        d57.loops.decide(policy, scene(base, turn=1043230, hp=210, messages=[]))
+        policy.confirm_key_posted("5")
+        key = d57.loops.decide(policy, scene(base, turn=1043240, hp=196, messages=VLASTA_BITE))
+        self.assertEqual(key, CLW_KEY, policy.last_reason)
+        policy.confirm_key_posted(key)
+        reblinded = scene(base, turn=1043250, hp=207, messages=[
+            "とても気分が良くなった。", "やっと目が見えるようになった。", *VLASTA_BITE])
+        self.assertEqual((d57.loops.decide(policy, reblinded), policy.last_reason),
+                         (STRIKE_WEST, "blind:fight-through"))
+
+    def test_control_without_the_power_nothing_is_cast(self):
+        answers = self.drive(new_policy(), QUIET[0])
+        self.assertNotEqual(answers[QUIET[0]][1], CLW_KEY)
 
 
 if __name__ == "__main__":

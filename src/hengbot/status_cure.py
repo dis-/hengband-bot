@@ -1,5 +1,9 @@
 """Status treatment: Cure Critical Wounds (or Healing) for blindness, confusion, cuts.
 
+A Magic-Eater casts its absorbed Cure Light Wounds for blindness before the
+cheap cure potion (owner 2026-11-07, ``absorbed_cure_key``); a cast counts as
+a cure for the re-blind latch below.
+
 Cure Critical Wounds is status treatment, never an HP-response potion
 (_find_status_cure_potion keeps it ahead of Healing).  Blindness also hides
 every monster and forbids reading, so the unseen-attacker branch cures it
@@ -47,8 +51,9 @@ HP recovery potion goes before the Speed dose (owner 2026-11-04 「低い時は�
 回復が先」).
 """
 
-from hengbot import blind_strike, unseen_strike
+from hengbot import blind_strike, me_absorbed_substitutes, me_capability, unseen_strike
 from hengbot.item_reservation import reserved_item_command
+from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
     SV_POTION_CURE_CRITICAL,
     SV_POTION_HEALING,
@@ -64,6 +69,9 @@ _PENDING = "_blind_cure_turn"         # (floor, turn) of the last blindness cure
 _LATCH = "_blind_cure_futile_floor"   # floor whose current blindness is not cured
 _LATCH_BLOW = "_blind_cure_futile_blow"  # the blow text that re-blinded it, if named
 FIGHT_THROUGH_REASON = "blind:fight-through"
+# The absorbed Cure Light Wounds cast (absorbed_cure_key adds the cast suffix).
+ABSORBED_CURE_REASON = "item:cure-light"
+EMERGENCY_ABSORBED_CURE_REASON = "emergency:cure-light"
 # Food states in which a long rest does not starve the player (the rest gate
 # of the survival ladder uses the same three).
 _REST_FOOD_STATES = frozenset({"normal", "full", "gorged"})
@@ -198,14 +206,52 @@ def speed_first_key(policy, snapshot) -> str | None:
     return unseen_strike.spell_speed_key(policy, snapshot)
 
 
+def _hp_recovery_first(policy, snapshot) -> bool:
+    """Blind and heavily hurt with an HP recovery potion carried: that potion
+    is the cure (owner 2026-11-04)."""
+    player = snapshot.player
+    return (player.blind and _heavy_loss(player.max_hp - player.hp, player.max_hp)
+            and _hp_recovery_cure(policy, snapshot) is not None)
+
+
 def cure_potion(policy, snapshot):
     """The potion for the treated status: blind and heavily hurt, the cheapest
     carried HP recovery potion; otherwise the cheap cure first."""
-    player = snapshot.player
-    if player.blind and _heavy_loss(player.max_hp - player.hp, player.max_hp):
-        if (potion := _hp_recovery_cure(policy, snapshot)) is not None:
-            return potion
+    if _hp_recovery_first(policy, snapshot):
+        return _hp_recovery_cure(policy, snapshot)
     return policy._find_status_cure_potion(snapshot)
+
+
+def _absorbed_cure_castable(policy, snapshot) -> bool:
+    """The Magic-Eater's absorbed Cure Light Wounds can clear this blindness now.
+
+    cure_light_wounds sets blindness 0 (spell/spells-status.cpp), and the ``m``
+    command refuses only confusion among the statuses (cmd-magiceat.cpp
+    do_cmd_magic_eater; input-key-processor.cpp adds NO_MAGIC, anti-magic and
+    berserk, magic_eater_devices.power_command_refused), so it is cast blind.
+    Confusion, which it does not cure, is left to the potion."""
+    player = snapshot.player
+    power = me_absorbed_substitutes.CURE_LIGHT
+    return (player.blind and not (player.confused or player.hallucinated or player.paralyzed)
+            and snapshot.store is None and not power_command_refused(snapshot)
+            and me_capability.has(policy, snapshot, *power)
+            and me_capability.charges(policy, snapshot, *power) > 0)
+
+
+def absorbed_cure_key(policy, snapshot, reason: str) -> str | None:
+    """Blind: cast the absorbed Cure Light Wounds before a potion, else None.
+
+    Owner 2026-11-07 「取り込んだ軽傷の治癒で盲目を治す。」  n1-c life-156
+    (迷宮12階) drank its ten Cure Critical Wounds and its Healing into the
+    ヴラスタ's bites with the staff's seven charges absorbed and never cast.
+    It takes the cheap cure's place: a heavy loss still drinks the HP recovery
+    potion first (``cure_potion``), and the callers keep the low-HP heal and
+    the Speed dose ahead of it.  ``last_reason`` is ``reason`` with the cast
+    suffix, which admits the device key (me_device_attacks_input)."""
+    if _hp_recovery_first(policy, snapshot) or not _absorbed_cure_castable(policy, snapshot):
+        return None
+    policy.last_reason = reason + me_absorbed_substitutes.CAST_SUFFIX
+    return me_absorbed_substitutes.POWERS[me_absorbed_substitutes.CURE_LIGHT].key
 
 
 def blind_missile_supply_key(policy, snapshot, hostiles) -> str | None:
@@ -217,6 +263,7 @@ def blind_missile_supply_key(policy, snapshot, hostiles) -> str | None:
     None lets the walk go on.  A melee blow is answered by unseen_strike instead.
     """
     if (not snapshot.player.blind or cure_potion(policy, snapshot) is not None
+            or _absorbed_cure_castable(policy, snapshot)
             or unseen_strike.hit_in_melee(policy, snapshot)):
         return None
     loss = policy._attributable_observed_loss(snapshot)
@@ -237,6 +284,9 @@ def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None
         return None
     if (speed := speed_first_key(policy, snapshot)) is not None:
         return speed
+    if (cast := absorbed_cure_key(policy, snapshot, ABSORBED_CURE_REASON)) is not None:
+        note_cure(policy, snapshot)
+        return cast
     potion = cure_potion(policy, snapshot)
     if potion is None:
         return None
