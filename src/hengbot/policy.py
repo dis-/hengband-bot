@@ -15650,6 +15650,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self, snapshot: Snapshot, item: InventoryItem, reason: str
     ) -> str:
         self._emergency_return_active = True
+        self._latch_repeat_emergency_return(snapshot, reason)
         signature = self._item_signature(item)
         pre_use_count = sum(
             candidate.count
@@ -15676,6 +15677,29 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             snapshot, reason, "inventory", "position", "recalling", "floor"
         )
         return self._read_key(snapshot, item)
+
+    def _latch_repeat_emergency_return(self, snapshot: Snapshot, reason: str) -> None:
+        """The dive's EMERGENCY_RETURN_COUNT-th emergency escape read starts the
+        town return, whichever rung reads it.
+
+        The observation counts every read under an EMERGENCY_ESCAPE_REASONS
+        reason (``_dive_emergencies``), but only ``_emergency_item`` latched the
+        return before its read.  n1-b life-325 (2026-11-06, 城33階): the low-HP
+        walk gate read Teleportation as the dive's second emergency, no return
+        was latched, and the next board walked one summoner:retreat step at HP
+        155/386 (owner 2026-11-06 「2回目の緊急で町へ戻る判断が付かない点…も直す」).
+        A return already running keeps its own trigger.
+        """
+        if (
+            snapshot.in_town
+            or reason not in EMERGENCY_ESCAPE_REASONS
+            or self._dive_emergencies + 1 < EMERGENCY_RETURN_COUNT
+            or getattr(self, "_returning_to_town", False)
+        ):
+            return
+        self._note_return_start("emergency-repeat")
+        self._returning_to_town = True
+        self._last_return_trigger = "emergency-repeat"
 
 
     def _unresisted_melee_status_threats(
