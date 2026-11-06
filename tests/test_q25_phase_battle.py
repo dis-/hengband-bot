@@ -778,6 +778,26 @@ class Q25EscapeTest(unittest.TestCase):
             choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "ipsissimus")
 
+    def test_pain_lines_of_the_unseen_target_count_as_hits_for_a_ball_too(self):
+        # The game's forms (monster-pain-describer.cpp, the common table of a 'p'), under the unseen
+        # name: deal_effect_damage_from_player prints them within MAX_PLAYER_SIGHT, seen or not.
+        for lines in (["何かは痛みで絶叫した。"], ["It shrugs off the attack."]):
+            with self.subTest(lines=lines):
+                policy, raw = self.pen(with_wand_list(board((5, 1)), FIRE_BALL))
+                for _ in range(battle.PEN_MISSES_TO_ESCAPED + 3):
+                    key = choose(policy, raw)
+                    self.assertEqual((key, policy.last_reason), ("mBw@7,17", DEVICE_REASON))
+                    raw["messages"] = list(lines)
+                self.assertEqual(phase_of(policy, raw), "ipsissimus")
+
+    def test_the_unseen_kill_line_counts_a_kill(self):
+        policy, raw = self.pen()
+        at_phase(policy, raw, "ipsissimus", kills={geo.IPSISSIMUS: 2}, aimed_race=geo.IPSISSIMUS)
+        raw["messages"] = ["何かを殺した。"]   # monster-damage.cpp show_kill_message, !monster.ml
+        choose(policy, raw)
+        self.assertEqual(memory(policy, raw).kills[geo.IPSISSIMUS], 3)
+        self.assertEqual(phase_of(policy, raw), "stragglers")
+
     def test_with_evil_esp_the_misses_do_not_count(self):
         raw = board((5, 1))
         raw["equipment"][0]["known_flags"] = [*raw["equipment"][0]["known_flags"], 112]
@@ -911,6 +931,60 @@ class Q25DrujGearTest(unittest.TestCase):
         key = choose(policy, raw)
         self.assertEqual(policy.last_reason, f"quest25:{druj_gear.RESTORE_GOAL}", key)
         self.assertTrue(key.startswith("w"), key)
+
+    @staticmethod
+    def wearing(position, *, hp, monsters=()):
+        """CONSTRUCTED: the anti-teleport ring worn (left ring), the druj's door open."""
+        raw = board(position, hp=hp, monsters=monsters)
+        for item in raw["equipment"]:
+            if item["slot"] == "main_ring":
+                item["known_flags"] = [*item["known_flags"], ANTI_TELEPORT]
+        open_door(raw, geo.DRUJ_DOOR)
+        return raw
+
+    def druj_policy(self, raw):
+        policy = new_policy(raw)
+        at_phase(policy, raw, "druj")
+        policy._player_hasted = lambda snapshot: True
+        return policy
+
+    def test_below_the_line_with_it_worn_the_walk_leaves_the_druj_line(self):
+        # Owner 2026-11-07 「歩いてドルジの射線から外れる。」: no Teleportation, no potion in the line.
+        # The stand was reached from the dreadmaster's room door [10,24] over [11,23] (searched and cleared).
+        raw = self.wearing((12, 22), hp=300, monsters=[monster(geo.DRUJ, 11, 18)])
+        policy = self.druj_policy(raw)
+        at_phase(policy, raw, "druj", cleared=frozenset({(11, 23)}))
+        key = choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), (step((12, 22), (11, 23)), battle.RETREAT_REASON))
+        self.assertTrue(memory(policy, raw).retreating)
+        raw["player"].update(y=11, x=23)
+        self.assertEqual((choose(policy, raw), policy.last_reason), ("o9", battle.RETREAT_REASON))  # its door
+        self.assertNotIn((10, 24), geo.line_cells(geo.opened(TERRAIN, [geo.DRUJ_DOOR]), (11, 18)))
+
+    def test_out_of_the_line_it_rests_and_drinks_only_when_the_rest_did_not_heal(self):
+        raw = self.wearing((13, 21), hp=300)
+        policy = self.druj_policy(raw)
+        at_phase(policy, raw, "druj", retreating=True, cleared=frozenset({(13, 21)}))
+        self.assertEqual((choose(policy, raw), policy.last_reason), (REST_MACRO, battle.RETREAT_REST_REASON))
+        key = choose(policy, raw)    # the rest gave nothing (HP unchanged): 「必要なら…薬を飲む」
+        self.assertEqual(policy.last_reason, battle.RETREAT_HEAL_REASON, key)
+        self.assertTrue(key.startswith("q"), key)
+
+    def test_full_again_the_fight_goes_on(self):
+        raw = self.wearing((13, 21), hp=q25.FULL_HP)
+        policy = self.druj_policy(raw)
+        at_phase(policy, raw, "druj", retreating=True, cleared=frozenset({(13, 21)}))
+        choose(policy, raw)
+        self.assertNotIn(policy.last_reason, {battle.RETREAT_REASON, battle.RETREAT_REST_REASON})
+        self.assertFalse(memory(policy, raw).retreating)
+
+    def test_control_without_the_piece_the_old_line_reads_teleportation(self):
+        raw = board((12, 22), hp=300, monsters=[monster(geo.DRUJ, 11, 18)])
+        open_door(raw, geo.DRUJ_DOOR)
+        policy = self.druj_policy(raw)
+        at_phase(policy, raw, "druj", cleared=frozenset({(11, 23)}))
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, q25.TELEPORT_REASON, key)
 
     def test_kept_in_the_pack_and_wanted_from_home(self):
         raw = with_piece(board((12, 24)))

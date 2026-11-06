@@ -310,11 +310,14 @@ FLOOR_PLANS = (
     # Q25's revised plan: on its phase 2 and on the stairway the phase's own summons rule
     # (owner 2026-11-06) stands in the summons' place (``_summons``).
     FloorPlan("quest25_battle.key", "quest25_battle", (
+        # Owner 2026-11-07: below the line with the druj's anti-teleport piece on, out of its
+        # line and rest (``_druj_retreat``): Teleportation cannot be read then.
         Branch("no enemy", (
-            ("_summons", SUMMONS), ("resist_potion.key", OWN), ("quest_room_sweep._restore", OWN),
-            ("_phase_key", OWN)), enemy=False),
+            ("_druj_retreat", SURVIVAL), ("_summons", SUMMONS), ("resist_potion.key", OWN),
+            ("quest_room_sweep._restore", OWN), ("_phase_key", OWN)), enemy=False),
         Branch("an enemy", (
-            ("quest_find_exit._cure", SURVIVAL), ("quest_room_sweep._give_up", SURVIVAL),
+            ("quest_find_exit._cure", SURVIVAL), ("_druj_retreat", SURVIVAL),
+            ("quest_room_sweep._give_up", SURVIVAL),
             ("quest_room_sweep._below_line", SURVIVAL), ("quest_find_exit._heal", SURVIVAL),
             ("quest_find_exit._speed", SURVIVAL), ("_summons", SUMMONS),
             ("resist_potion.key", OWN), ("_phase_key", OWN))),

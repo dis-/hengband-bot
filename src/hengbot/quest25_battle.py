@@ -106,8 +106,11 @@ TELEPORT_REASON = f"{REASON}:teleport"
 DETECT_REASON = f"{me_powers.REASON}:quest25-sweep"
 MELT_REASON = f"{REASON}:melt-door{CAST_SUFFIX}"
 ENGAGE_REASON = f"{REASON}:engage"
+RETREAT_REASON = f"{REASON}:druj-out-of-line"
+RETREAT_REST_REASON = f"{REASON}:druj-rest-out-of-line"
+RETREAT_HEAL_REASON = f"{REASON}:druj-heal-out-of-line"
 BLOCKED_REASON = "quest:blocked:quest25-patrol-rounds"
-_PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON})
+_PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -119,6 +122,50 @@ PEN_MISSES_TO_ESCAPED = 10
 # The game's lines that a shot found its mark (combat/shoot.cpp exec_shoot).
 _HIT_LINES = ("に命中した。", "が敵を捕捉した。", "finds a mark.")
 _HIT_LINES_EN = (" hits ",)
+# The pain line of a monster a shot or a ball hurt (monster-pain-describer.cpp, every table):
+# deal_effect_damage_from_player and exec_shoot print it whenever the monster is within
+# MAX_PLAYER_SIGHT (em_ptr->known), seen or not, under monster_desc's name -- 何か / it when unseen.
+# [7,17] is 17 from [5,1].  An unseen kill prints 「…を殺した。」 (monster-damage.cpp
+# show_kill_message), a _KILL_LINES line.
+_PAIN_LINES_JA = frozenset((
+    "はうなった。", "はうめいた。", "はうるさく鳴いた。", "はかすかにうめいた。", "はくしゃくしゃになった。",
+    "はぐにゃぐにゃと痙攣した。", "はさえずった。", "はしり込みした。", "はのたうち回った。",
+    "はほとんど気にとめていない。", "はよろめいた。", "はカタカタと笑った。", "はカタカタ言った。",
+    "はガタガタ言った。", "はキーキーと鳴き叫んだ。", "はキーキー鳴いた。", "はギャーギャー鳴いた。",
+    "はギャーギャー鳴きわめいた。", "はシーッと鳴いた。", "はピクピクひきつった。", "はピーピー鳴いた。",
+    "はヨロヨロ逃げ回った。", "は吠えた。", "は哀れな鳴き声を出した。", "は弱々しくうなった。",
+    "は弱々しくうめいた。", "は弱々しく叫んだ。", "は弱々しく吠えた。", "は怒って吠えた。",
+    "は怒って頭を上げた。", "は攻撃に肩をすくめた。", "は攻撃を気にとめていない。", "は泣きわめいた。",
+    "は猛然と威嚇した。", "は痛みでうなった。", "は痛みでキャンキャン吠えた。", "は痛みでシーッと鳴いた。",
+    "は痛みで叫んだ。", "は痛みで弱々しく鳴いた。", "は痛みで絶叫した。", "は痛みで鳴きわめいた。",
+    "は痛みに吠えた。", "は痛みに痙攣した。", "は痛みに震えた。", "は縮こまった。", "は苦しげにうめいた。",
+    "は苦しげに叫んだ。", "は苦しげに吠えた。", "は苦しんだ。", "は苦痛でもだえ苦しんだ。", "は苦痛で痙攣した。",
+    "は苦痛で身もだえした。", "は苦痛にうめいた。", "は苦痛のあまり絶叫した。", "は苦痛のあまり鳴きわめいた。",
+    "は躊躇した。", "は身もだえした。", "は雷鳴のように吠えた。",
+))
+_PAIN_LINES_EN = frozenset((
+    " grunts.", " groans.", " moans.", " twitters.", " sighs.", " crumples.", " jerks limply.", " chirps.",
+    " flinches.", " flutters about.", " barely notices.", " staggers.", " stumbles.", " rattles.",
+    " clatters.", " squeaks.", " chitters.", " squawks.", " chatters.", " hisses.", " twitches.",
+    " scuttles about.", " howls.", " roars.", " mewls pitifully.", " snarls feebly.", " moans softly.",
+    " cries out feebly.", " yelps feebly.", " growls angrily.", " rears up in anger.",
+    " shrugs off the attack.", " ignores the attack.", " wails.", " hisses furiously.", " grunts with pain.",
+    " snarls with pain.", " yelps in pain.", " hisses in pain.", " hisses with pain.", " cries out in pain.",
+    " squeals in pain.", " mewls in pain.", " screams in pain.", " shrieks in pain.", " howls in pain.",
+    " roars with pain.", " jerks in pain.", " quivers in pain.", " squelches.", " gasps.", " rumbles.",
+    " jeers.", " writhes in agony.", " jerks in agony.", " hisses in agony.", " screams in agony.",
+    " shrieks in agony.", " howls in agony.", " hesitates.", " writhes about.", " roars thunderously.",
+))
+
+
+def _pain_of(text: str, names) -> bool:
+    """A pain line of a monster called one of ``names`` (or the unseen 何か / It)."""
+    for name in (*names, *_UNSEEN):
+        if text.startswith(name):
+            rest = text[len(name):]
+            if rest in _PAIN_LINES_JA or rest in _PAIN_LINES_EN:
+                return True
+    return False
 # mspell-floor.cpp spell_RF6_TPORT, printed only while the caster is seen.
 _TELEPORT_LINE = "がテレポートした。"
 _TELEPORT_LINE_EN = " teleports away."
@@ -173,6 +220,8 @@ class Battle:
     assumed_escaped: int = 0       # 「当たらない撃ちで補う」: counted escaped after the misses
     aimed_quyl: tuple | None = None    # the quylthulg cell the last shot was aimed at
     displaced: tuple | None = None     # (slot, signature) the druj's anti-teleport piece displaced
+    retreating: bool = False       # below the line with the anti-teleport piece on: out of the line
+    retreat_rest_hp: int | None = None  # HP when the last rest out of the line was keyed
     observed: tuple | None = None      # the board last read (key and walk_key share one)
 
 
@@ -323,8 +372,10 @@ def _note_pen_shot(ctx: _Ctx) -> None:
         return
     battle.pen_shot = False
     texts = [message_text(message) for message in ctx.snapshot.messages]
+    names = _names(ctx.policy, geo.IPSISSIMUS)
     answered = any(_killed_name(text) is not None or text.endswith(_HIT_LINES)
-                   or any(line in text for line in _HIT_LINES_EN) for text in texts)
+                   or any(line in text for line in _HIT_LINES_EN) or _pain_of(text, names)
+                   for text in texts)
     battle.pen_misses = 0 if answered else battle.pen_misses + 1
     if battle.pen_misses >= PEN_MISSES_TO_ESCAPED and not sees_ipsissimus_unseen(ctx.snapshot):
         battle.assumed_escaped = max(0, geo.ROSTER[geo.IPSISSIMUS] - ctx.kills(geo.IPSISSIMUS)
@@ -1192,6 +1243,49 @@ def _phase_key(policy, snapshot) -> str | None:
 # -- the summons ------------------------------------------------------------------------
 
 
+def _druj_retreat(policy, snapshot) -> str | None:
+    """Owner 2026-11-07 (phase7_druj) 「歩いてドルジの射線から外れる。安全に休憩可能なはずである。
+    必要なら歩いて射線から外れた後薬を飲む。」
+
+    With the anti-teleport piece worn on the druj phase, Teleportation cannot be read
+    (teleport_player refuses under NO_TELE), so below the plan's line (``abort_conditions.hp_ratio``,
+    the line ``_below_line`` reads Teleportation at) the walk leaves the druj's direct line (it never
+    moves and every spell of it needs that line), then rests there until HP is full.  A rest that
+    did not raise HP (refused or broken off) is followed by a Healing potion -- out of the line only.
+    Back at full HP the phase walks back to its stand.
+    """
+    ctx = _ctx(policy, snapshot)
+    if (ctx is None or ctx.battle.phase >= len(PHASES) or PHASES[ctx.battle.phase].name != "druj"
+            or quest25_druj_gear.worn_piece(snapshot) is None):
+        if ctx is not None:
+            ctx.battle.retreating, ctx.battle.retreat_rest_hp = False, None
+        return None
+    battle, player = ctx.battle, snapshot.player
+    if not battle.retreating:
+        if player.hp_ratio > float(ctx.profile.abort_conditions["hp_ratio"]):
+            return None
+        battle.retreating = True
+    if player.hp >= player.max_hp:
+        battle.retreating, battle.retreat_rest_hp = False, None
+        return None
+    druj = next(cell for cell, race in ctx.navigator.battlefield.monster_placements if race == geo.DRUJ)
+    lines = geo.line_cells(ctx.open_terrain(), druj) | {druj}
+    if ctx.here in lines:
+        battle.retreat_rest_hp = None
+        out = {cell for cell, kind in ctx.terrain.items()
+               if kind in {"floor", "door"} and cell not in lines}
+        return _walk(ctx, out, RETREAT_REASON)
+    if battle.retreat_rest_hp is not None and player.hp <= battle.retreat_rest_hp:
+        potion = quest_find_exit._healing_potion(policy, snapshot)
+        if potion is not None:
+            battle.retreat_rest_hp = None
+            policy.last_reason = RETREAT_HEAL_REASON
+            return reserved_item_command(policy, snapshot, "quaff", potion)
+    battle.retreat_rest_hp = player.hp
+    policy.last_reason = RETREAT_REST_REASON
+    return REST_MACRO
+
+
 def _summons(policy, snapshot) -> str | None:
     """Owner 2026-11-06: on phase 2 the reinforcements are answered by the phase's own rule
     (its fire on the pen or the teleport, ``_ipsissimus``); on the stairway 「致死的でなければ
@@ -1222,13 +1316,15 @@ def key(policy, snapshot) -> str | None:
     board = quest_room_sweep._Board(policy, snapshot, profile, navigator, {**plan, "left_alone_races": ()})
     if not board.enemy:
         return (
-            _summons(policy, snapshot)
+            _druj_retreat(policy, snapshot)
+            or _summons(policy, snapshot)
             or resist_potion.key(policy, snapshot)
             or quest_room_sweep._restore(policy, snapshot)
             or _phase_key(policy, snapshot)
         )
     return (
         quest_find_exit._cure(policy, snapshot)
+        or _druj_retreat(policy, snapshot)
         or quest_room_sweep._give_up(policy, snapshot, profile)
         or quest_room_sweep._below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
