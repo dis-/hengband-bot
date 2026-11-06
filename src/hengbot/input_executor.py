@@ -1138,6 +1138,30 @@ class OperationExecutor:
         # 2026-10-26, esp-threat:leave-recall n1-c life-103 2026-11-02 06:49).
         return feature.startswith(RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES)
 
+    @staticmethod
+    def _is_follow_teleport_confirm(feature: str) -> bool:
+        from hengbot.policy import FOLLOW_TELEPORT_PROMPT_MESSAGE_PREFIXES
+
+        # spells-teleport.cpp teleport_away_followable asks it during a
+        # monster's turn, so it can follow any posted command (n1-b lives
+        # 201/308/309/324, n1-a life-492: melee, ranged:fire(-target),
+        # summoner:ranged-kill:named-caster).  Owner decision 2026-11-06:
+        # answer n whoever's input raised it.
+        return feature.startswith(FOLLOW_TELEPORT_PROMPT_MESSAGE_PREFIXES)
+
+    @staticmethod
+    def _is_point_selector(screen_value) -> bool:
+        from hengbot.policy import POINT_SELECTOR_PROMPTS
+
+        lines = screen_value.get("lines", ()) if isinstance(screen_value, Mapping) else ()
+        return bool(lines) and str(lines[0]).strip().startswith(POINT_SELECTOR_PROMPTS)
+
+    @staticmethod
+    def _state_hallucinated(state) -> bool:
+        player = state.get("player") if isinstance(state, Mapping) else None
+        status = player.get("status") if isinstance(player, Mapping) else None
+        return isinstance(status, Mapping) and bool(status.get("hallucinated", False))
+
     def _finish_board(self, state, screen_value, match, *, bootstrap: bool = False):
         started = time.perf_counter()
         records = self.drain()
@@ -1430,6 +1454,30 @@ class OperationExecutor:
                 # screen_object() owns an arbitrary number of attribute pages.
                 return self._post_and_barrier(" ", deadline, role="auxiliary-request")
             if match.kind is ScreenKind.IDENTIFY_VIEWER_FINAL:
+                return self._post_and_barrier("\x1b", deadline, role="exit")
+        if (
+            match.kind is ScreenKind.CONFIRM
+            and self._is_follow_teleport_confirm(match.feature)
+        ):
+            # Answered ahead of the operation's own continuations: the
+            # question interrupts the command from a monster's turn and is
+            # never one of the prompts the operation scheduled answers for.
+            return self._post_and_barrier("n", deadline, role="answer")
+        if (
+            not self.active.continuations
+            and self._is_point_selector(screen_value)
+        ):
+            # n1-c life-146: native travel under hallucination left the point
+            # selector open (tgt_pt_prepare offers only the player's grid, so
+            # the landmark and '.' select nothing).  Owner decision
+            # 2026-11-06: no place-specified movement while hallucinated, so
+            # close the selector; the policy walks from the next board.
+            prompt_state = self._request("state", deadline, map=True)
+            if prompt_state is None:
+                return self._terminal(
+                    self.active, "state", "prompt binding failed", match, outcome)
+            if self._state_hallucinated(prompt_state):
+                self.active.business_outcome = "failed:point-hallucinated"
                 return self._post_and_barrier("\x1b", deadline, role="exit")
         while self.active.continuations:
             continuation = self.active.continuations[0]
