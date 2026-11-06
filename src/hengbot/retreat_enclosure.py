@@ -145,6 +145,13 @@ def walled_off_key(policy, snapshot) -> str | None:
     return None if walled is None else _ladder(policy, snapshot, walled, teleport_first=True)
 
 
+def ring_ladder_key(policy, snapshot, walled: WalledOff) -> str | None:
+    """A never-moving monster's ring that blocks the way in a maze and cannot be shot
+    away (immobile_ranged_kill ``blocking_key``, owner 2026-11-06 「倒せない時だけ 11-04 の
+    決まりに進む」): ``_ladder`` from the openers, as for the enclosed player."""
+    return _ladder(policy, snapshot, walled, teleport_first=False)
+
+
 def _ladder(policy, snapshot, walled, *, teleport_first: bool) -> str | None:
     """With ``teleport_first``, the floor's first Teleportation; then the owner's
     openers, then Teleportation (again) or Recall at or below the reserve."""

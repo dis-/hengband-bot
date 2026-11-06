@@ -23,6 +23,11 @@ recorded downstairs (4,38) was expired, so on the recorded floor nothing named a
 DECLARED CONSTRUCTED there: every board on 11F (its '<' leads to 10F), and on the stall board
 every remembered frontier given up and the mapped corridor (14,29..31) between the frontier
 (14,32) and the upstairs remembered as walked floor -- the floor nothing is left to explore on.
+
+The jelly alive (``RingBlockingTheWay``), owner 2026-11-06 「先にその敵を倒す」: its ring blocks the
+way in the maze, so the bot goes to shoot it (four bolts: beyond the ordinary three-shot plan).
+DECLARED CONSTRUCTED for the ladder: the stall board's bolts removed, so it cannot be shot, and
+the enclosure ladder answers (the recorded shovel digs first).
 """
 from __future__ import annotations
 
@@ -35,12 +40,14 @@ from pathlib import Path
 
 from test_floor_dwell_seen_floor_recorded import EDIT, _Replay
 
-from hengbot import goal_route, immobile_threat_memory
+from hengbot import goal_route, immobile_ranged_kill, immobile_threat_memory, retreat_enclosure
 from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy_constants import SUMMONER_RANGED_KILL_SHOTS
 
 FIXTURE = Path(__file__).parent / "fixtures" / "immobile-kill-1106.jsonl.xz"
 JELLY = Position(10, 42)
+SHOOTING_CELL = Position(13, 42)
 JELLY_INDEX, JELLY_RACE = 11, 131
 KILL_TURN = 1033667
 KILL_LINE = "レッド・ゼリーは死んだ。"
@@ -159,6 +166,46 @@ class RememberedStairOnForgettingMaze(ImmobileKillReplay):
         routes = [commitment.path for commitment in goal_route._commitments(policy).values()
                   if commitment.turn == STALL_TURN]
         self.assertIn(UPSTAIRS, [path[-1] for path in routes])
+
+
+def without_bolts(raw):
+    """DECLARED: the stall board's crossbow bolts gone."""
+    raw["inventory"] = [item for item in raw["inventory"] if "クロスボウの矢" not in item["name"]]
+
+
+class RingBlockingTheWay(ImmobileKillReplay):
+    def at_the_stall(self, edit=None):
+        replay, _reasons, _remembered = self.replay(without_the_kill, until=STALL_TURN - 1)
+        raw = json.loads(self.lines[-1])
+        self.assertEqual(raw["turn"], STALL_TURN)
+        if edit is not None:
+            edit(raw)
+        line = json.dumps(raw, ensure_ascii=False)
+        board = replay.board(line)
+        jelly = next(monster for monster in immobile_threat_memory.remembered(replay.policy)
+                     if monster.position == JELLY)
+        return replay, line, board, jelly
+
+    def test_the_bot_goes_to_shoot_the_jelly_that_blocks_the_way(self):
+        replay, line, board, jelly = self.at_the_stall()
+        policy = replay.policy
+        board, _key, reason = replay.decide(line)
+        self.assertEqual(reason, immobile_ranged_kill.APPROACH_REASON)
+        # The ring blocks the way, and four bolts kill the jelly -- past the ordinary plan's
+        # three.  The walk heads for (13,42), where the live bot did shoot it.
+        self.assertTrue(immobile_ranged_kill.blocks_the_way(policy, board, jelly))
+        self.assertEqual(policy._summoner_shots_to_kill(board, jelly), 4)
+        self.assertGreater(4, SUMMONER_RANGED_KILL_SHOTS)
+        routes = [commitment.path for kind, commitment in goal_route._commitments(policy).items()
+                  if commitment.turn == STALL_TURN and "immobile_ranged_kill" in kind]
+        self.assertEqual([path[-1] for path in routes], [SHOOTING_CELL])
+
+    def test_without_a_way_to_shoot_it_the_enclosure_ladder_answers(self):
+        replay, line, _board, jelly = self.at_the_stall(without_bolts)
+        board, _key, reason = replay.decide(line)
+        self.assertEqual(reason, retreat_enclosure.DIG_REASON)
+        self.assertTrue(immobile_ranged_kill.blocks_the_way(replay.policy, board, jelly))
+        self.assertIsNone(replay.policy._matching_ammo(board))
 
 
 if __name__ == "__main__":

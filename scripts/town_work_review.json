@@ -852,6 +852,39 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "immobile_ranged_kill.py:blocking_key": {
+    "classification": "producer",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon-only: returns None in town and outside a MAZE dungeon, and immobile_threat_memory.observe clears the remembered never-moving monsters in town.",
+    "evidence": "Owner 2026-11-06 「先にその敵を倒す」 (n1-c life-156 Labyrinth 10F): after the stuck walk to stairs found none, for a remembered never-moving monster whose ring leaves no remembered frontier and no stair reachable in a maze, steps toward a shooting cell or fires through _ranged_attack_key (plan without the three-shot bound); when it cannot be killed so, retreat_enclosure.ring_ladder_key; None otherwise.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "immobile_ranged_kill.py:_carry_out": {
+    "classification": "action",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: under key and blocking_key, which return None in town.",
+    "evidence": "Shared by key and blocking_key: the step toward the plan's shooting cell (immobile-threat:approach-to-shoot) or the shot through _ranged_attack_key; None and the monster marked unaimed when it is not in view from the shooting cell.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "immobile_ranged_kill.py:_blocked_sides": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: read by blocking_key and blocks_the_way, which return None or False in town.",
+    "evidence": "Pure reading: the player's side and the ground past a ringed never-moving monster's ring (retreat_enclosure.WalledOff) when the ring is what leaves no remembered frontier and no stair reachable; never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "immobile_threat_memory.py:step_out_key": {
     "classification": "producer",
     "rows": [
@@ -12942,6 +12975,17 @@
     "context": "Dungeon only: read by enclosed_key and walled_off; never reached in town.",
     "evidence": "dungeon-only: pure reading of the player's side of the retreat vetoes and the known ground past them; no key.",
     "delegation": "No independent success; pure reading."
+  },
+  "retreat_enclosure.py:ring_ladder_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon only: under immobile_ranged_kill.blocking_key, which returns None in town; never reached in town.",
+    "evidence": "dungeon-only: owner 2026-11-06 「倒せない時だけ 11-04 の決まりに進む」: a never-moving monster's ring that blocks the way in a maze and cannot be shot away takes _ladder from the openers (dig, disarm, weak-enemy strike, then Teleportation again or Recall at or below the reserve); returns the key or None.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "combat_answer.py:adjacent_attack": {
     "classification": "producer",

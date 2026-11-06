@@ -9353,6 +9353,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self.last_reason = "stuck:seek-stairs"
             self._declare_reach(step_target)
             return self._town_producer_entry("_step_toward:detectors", lambda: self._step_toward(snapshot, step), family="detectors")
+        # Owner 2026-11-06 「先にその敵を倒す」: a never-moving monster's ring is what
+        # blocks the way in a maze -- shoot it, else the enclosure ladder.
+        blocking = immobile_ranged_kill.blocking_key(self, snapshot)
+        if blocking is not None:
+            return blocking
 
         return self._town_producer_entry(
             "idle-fallback", lambda: self._town_idle_key(snapshot), family="idle")

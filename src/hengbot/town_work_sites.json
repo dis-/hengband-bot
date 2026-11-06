@@ -1678,6 +1678,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "immobile_ranged_kill.py:_blocked_sides": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "immobile_ranged_kill.py:_carry_out": {
+    "classification": "action",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "immobile_ranged_kill.py:blocking_key": {
+    "classification": "producer",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "immobile_ranged_kill.py:key": {
     "classification": "producer",
     "rows": [
@@ -1693,6 +1714,13 @@
     "delegation": "selected child; no independent success"
   },
   "immobile_threat_memory.py:never_moves": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "immobile_threat_memory.py:ring_cells": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -10430,6 +10458,13 @@
     "delegation": "No independent success; pure reading."
   },
   "retreat_enclosure.py:enclosed_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:ring_ladder_key": {
     "classification": "action",
     "rows": [
       "positioning"

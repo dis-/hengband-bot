@@ -54,6 +54,20 @@ decide there.
 Owner 2026-11-05 (disenchant_avoid.left_alone): a disenchanting one with a breath is
 not shot; an awake one whose touch alone disenchants is, as above; a sleeping one only
 when its ring closes the way on (``closes_the_way``, 「通路をふさぐ時だけ撃つ」).
+
+Owner 2026-11-06 「先にその敵を倒す」 (``blocking_key``): 「ふさいでいる動かない敵を、離れた所から
+撃って倒しに行く。倒せない時だけ 11-04 の決まりに進む。」  In a maze (a dungeon with MAZE),
+when a live remembered monster's ring is what leaves no frontier and no known stair
+reachable (``blocks_the_way``, over the remembered floor: a forgetting maze shows only the
+cells in view), the bot walks to a cell outside the ring and shoots it -- the plan above
+without its three-shot bound, since only a ranged attack that cannot hurt it or no
+reachable shooting cell with a line to it makes it unkillable.  The plan's other refusals
+stay (the player surviving the walk and the shots, another hostile present, a monster not
+in view from a reached shooting cell, a walk that came back).  When it cannot be killed so,
+the ring takes the enclosure ladder (retreat_enclosure ``ring_ladder_key``: dig, disarm,
+strike a weak enemy, then Teleportation, or Recall at or below the reserve).  Recorded
+n1-c life-156 (Labyrinth 10F, 2026-11-06): a レッド・ゼリー's ring cut the one-wide junction;
+four bolts kill it, so the ordinary plan refused it and the bot wandered.
 """
 
 from __future__ import annotations
@@ -61,7 +75,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 
-from hengbot import disenchant_avoid, immobile_threat_memory
+from hengbot import disenchant_avoid, immobile_threat_memory, retreat_enclosure
 from hengbot.model import MonsterState, Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, SUMMONER_RANGED_KILL_SHOTS
 
@@ -94,8 +108,10 @@ def _others_present(policy, snapshot, target: MonsterState) -> bool:
                for monster in snapshot.visible_monsters if monster.hostile)
 
 
-def plan(policy, snapshot, monster: MonsterState) -> KillPlan | None:
-    """The safe ranged kill of ``monster`` (module docstring), else None."""
+def plan(policy, snapshot, monster: MonsterState,
+         shot_limit: int | None = SUMMONER_RANGED_KILL_SHOTS) -> KillPlan | None:
+    """The safe ranged kill of ``monster`` (module docstring), else None.  ``shot_limit``
+    None: any number of shots (a ring that blocks the way, ``blocking_key``)."""
     player = snapshot.player
     if (snapshot.in_town or player.blind or player.confused
             or policy._floor_navigation_exit_locked(snapshot)
@@ -104,7 +120,7 @@ def plan(policy, snapshot, monster: MonsterState) -> KillPlan | None:
             or immobile_threat_memory.unaimed(policy, monster.position)):
         return None
     shots = policy._summoner_shots_to_kill(snapshot, monster)
-    if shots is None or shots > SUMMONER_RANGED_KILL_SHOTS:
+    if shots is None or (shot_limit is not None and shots > shot_limit):
         return None
     here = snapshot.grid_at(player.position)
     if here is not None and _shooting_cell(policy, snapshot, monster, here):
@@ -164,6 +180,60 @@ def closes_the_way(policy, snapshot, monster: MonsterState) -> bool:
             and _way_on_reached(policy, snapshot, through))
 
 
+def _in_maze(policy, snapshot) -> bool:
+    info = policy._dungeon_knowledge.get(snapshot.floor_key[0])
+    return info is not None and "MAZE" in getattr(info, "flags", frozenset())
+
+
+def _ring_through(policy, monster: MonsterState) -> frozenset:
+    """The remembered walkable cells of ``monster``'s ring (its own cell too)."""
+    floor = policy._remembered_floor_t
+    return frozenset(key for cell in immobile_threat_memory.ring_cells(monster.position)
+                     if (key := (cell.y, cell.x)) in floor)
+
+
+def _remembered_way_on(policy, snapshot, through: frozenset) -> tuple[bool, frozenset]:
+    """Whether a walk over the routes (and ``through``) reaches a remembered frontier or a
+    stair the stuck walk would take, and the cells it reached."""
+    stairs = policy._remembered_stair_goals(snapshot, not policy._descent_is_blocked(snapshot))
+    start = snapshot.player.position
+    seen = {start}
+    queue = deque([start])
+    found = False
+    while queue:
+        position = queue.popleft()
+        if position != start and (position in stairs
+                                  or policy._is_remembered_frontier(snapshot, position)):
+            found = True
+        for neighbor in policy._walkable_neighbors(snapshot, position, through=through):
+            if neighbor not in seen and neighbor not in policy._engagement_avoid_cells:
+                seen.add(neighbor)
+                queue.append(neighbor)
+    return found, frozenset(seen)
+
+
+def _blocked_sides(policy, snapshot, monster: MonsterState):
+    """The player's side and the ground past ``monster``'s ring when the ring is what
+    leaves no frontier and no stair reachable (``retreat_enclosure.WalledOff``), else None."""
+    if not immobile_threat_memory.ringed(policy, monster):
+        return None
+    reached, reach = _remembered_way_on(policy, snapshot, frozenset())
+    if reached:
+        return None
+    through = _ring_through(policy, monster)
+    reached, beyond = _remembered_way_on(policy, snapshot, through)
+    if not reached:
+        return None
+    ring = immobile_threat_memory.ring_cells(monster.position)
+    return retreat_enclosure.WalledOff(reach, frozenset(beyond - reach - ring))
+
+
+def blocks_the_way(policy, snapshot, monster: MonsterState) -> bool:
+    """In a maze, ``monster``'s ring leaves no remembered frontier and no stair reachable,
+    and they would be with it gone (owner 2026-11-06)."""
+    return _in_maze(policy, snapshot) and _blocked_sides(policy, snapshot, monster) is not None
+
+
 def killable(policy, snapshot, monster: MonsterState) -> bool:
     """The immobile summoner owner keeps no zone for a monster killed this way."""
     return plan(policy, snapshot, monster) is not None
@@ -184,16 +254,49 @@ def key(policy, snapshot) -> str | None:
         found = plan(policy, snapshot, monster)
         if found is None:
             continue
-        if found.step is not None:
-            policy.last_reason = APPROACH_REASON
-            immobile_threat_memory.note_walk(policy, monster.position, snapshot.player.position)
-            policy._declare_reach(found.step)
-            return policy._step_toward(snapshot, found.step)
-        target = visible.get(monster.position)
-        if target is None:
-            # Out of sight from the shooting cell: nothing to aim at until
-            # it is perceived again.
-            immobile_threat_memory.mark_unaimed(policy, monster.position)
+        answer = _carry_out(policy, snapshot, found, visible)
+        if answer is not None:
+            return answer
+    return None
+
+
+def _carry_out(policy, snapshot, found: KillPlan, visible: dict) -> str | None:
+    """Step toward the shooting cell, or shoot from here; None when the monster is not
+    in view from the shooting cell."""
+    monster = found.target
+    if found.step is not None:
+        policy.last_reason = APPROACH_REASON
+        immobile_threat_memory.note_walk(policy, monster.position, snapshot.player.position)
+        policy._declare_reach(found.step)
+        return policy._step_toward(snapshot, found.step)
+    target = visible.get(monster.position)
+    if target is None:
+        # Out of sight from the shooting cell: nothing to aim at until
+        # it is perceived again.
+        immobile_threat_memory.mark_unaimed(policy, monster.position)
+        return None
+    return policy._ranged_attack_key(snapshot, [target], [])
+
+
+def blocking_key(policy, snapshot) -> str | None:
+    """Owner 2026-11-06 「先にその敵を倒す」 (module docstring): with nothing left to explore
+    and no stair to take, shoot the never-moving monster whose ring blocks the way in a
+    maze, any number of shots; when it cannot be killed so, the enclosure ladder."""
+    if (snapshot.in_town or not _in_maze(policy, snapshot)
+            or policy._floor_navigation_exit_locked(snapshot)):
+        return None
+    visible = {monster.position: monster for monster in snapshot.visible_monsters}
+    for monster in sorted(immobile_threat_memory.remembered(policy),
+                          key=lambda monster: snapshot.player.position.distance_to(
+                              monster.position)):
+        sides = _blocked_sides(policy, snapshot, monster)
+        if sides is None:
             continue
-        return policy._ranged_attack_key(snapshot, [target], [])
+        if not disenchant_avoid.left_alone(policy, snapshot, monster, blocks_the_way):
+            found = plan(policy, snapshot, monster, shot_limit=None)
+            if found is not None:
+                answer = _carry_out(policy, snapshot, found, visible)
+                if answer is not None:
+                    return answer
+        return retreat_enclosure.ring_ladder_key(policy, snapshot, sides)
     return None
