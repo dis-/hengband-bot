@@ -457,6 +457,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "bm_destruction_fund.py:_shelf": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "bm_destruction_fund.py:shortfall": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "breeder_area_attack.py:_options": {
     "classification": "producer",
     "rows": [
@@ -1996,6 +2010,13 @@
     "delegation": "selected child; no independent success"
   },
   "item_fate.py:sale_value": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_fate.py:sweep_ware": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -6189,6 +6210,13 @@
     "classification": "adapter",
     "rows": [
       "home-withdraw"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._can_add_item_without_overweight": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
