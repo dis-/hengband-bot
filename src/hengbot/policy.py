@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
+from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -11239,6 +11239,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     budget_ref=declaration.budget_ref,
                 )
         self._confirm_staged_shopping_approach(key)
+        # The Magic-Eater staff sequence counts an attempt only once posted.
+        me_staff_sequence.confirm_posted(self, key)
         disposal = self._overweight_surplus_disposal
         pending_disposal = disposal.get("pending") if disposal else None
         if pending_disposal and pending_disposal.get("key") == key:

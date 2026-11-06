@@ -150,6 +150,9 @@ class MeStaffSequence:
     rumor_batches: int = 0
     attempts: dict = field(default_factory=dict)   # (step, record key) -> count
     pending: tuple | None = None                   # (step, ((record key, charges), ...))
+    # The key this decision chose and what it counts once posted:
+    # (decision sequence, key, ((step, record key), ...), pending).  See _stage.
+    staged: tuple | None = None
     empty_turn: dict = field(default_factory=dict)  # record key -> turn seen empty
     progress: tuple | None = None
     positions: dict = field(default_factory=dict)
@@ -720,10 +723,43 @@ def _give_up_town(policy, snapshot, supplies: int, unlocked: bool) -> str:
 
 
 def _attempt(policy, step: str, sval: int) -> bool:
-    record = state(policy)
-    count = record.attempts.get((step, sval), 0) + 1
-    record.attempts[(step, sval)] = count
-    return count <= ATTEMPT_LIMIT
+    """Whether one more posted attempt stays within ATTEMPT_LIMIT.
+
+    The count itself grows only when the key reaches the game (_stage,
+    confirm_posted).
+    """
+    return state(policy).attempts.get((step, sval), 0) < ATTEMPT_LIMIT
+
+
+def _stage(policy, key: str, attempts, pending=None) -> str:
+    """Count ``attempts`` and arm ``pending`` only once ``key`` is posted.
+
+    A later rung of choose_key may replace the sequence's key (the
+    spectator's Magic-Eater list refresh, the periodic save or dump) and the
+    owner retirement may hold it; that key never reaches the game, so it is
+    no attempt and its board settles nothing.  n1-b life-320 2026-11-06
+    01:38 and life-329 20:30: the absorb's G under bA, bB and bC counted
+    three absorbs that did not happen and stopped the sequence as
+    absorb-no-progress.
+    """
+    state(policy).staged = (policy._decision_sequence, key, tuple(attempts), pending)
+    return key
+
+
+def confirm_posted(policy, key: str) -> None:
+    """The CLI posted ``key`` (policy.confirm_key_posted): commit its stage."""
+    record = getattr(policy, "_me_staff_sequence", None)
+    staged = getattr(record, "staged", None)
+    if staged is None:
+        return
+    record.staged = None
+    sequence, staged_key, attempts, pending = staged
+    if sequence != policy._decision_sequence or staged_key != key:
+        return
+    for attempt in attempts:
+        record.attempts[attempt] = record.attempts.get(attempt, 0) + 1
+    if pending is not None:
+        record.pending = pending
 
 
 def _settle_pending(policy, snapshot) -> None:
@@ -813,9 +849,12 @@ def _recharge_key(policy, snapshot) -> str:
     for key, _charges in before:
         if not _attempt(policy, "recharge", key):
             return _stop(policy, f"recharge-no-progress:{key}")
-    state(policy).pending = ("recharge", tuple(before))
     policy.last_reason = RECHARGE_ALL_REASON
-    return policy._step_toward(snapshot, step, tail=RECHARGE_ALL_TAIL)
+    key = policy._step_toward(snapshot, step, tail=RECHARGE_ALL_TAIL)
+    if key:
+        _stage(policy, key, (("recharge", record_key) for record_key, _ in before),
+               ("recharge", tuple(before)))
+    return key
 
 
 def _absorbable(policy, snapshot) -> list:
@@ -834,9 +873,9 @@ def _absorb_key(policy, snapshot) -> str:
     key, item = _absorbable(policy, snapshot)[0]
     if not _attempt(policy, "absorb", key):
         return _stop(policy, f"absorb-no-progress:{key}")
-    state(policy).pending = ("absorb", ((key, item.charges),))
     policy.last_reason = ABSORB_REASON
-    return "G" + item.slot
+    return _stage(policy, "G" + item.slot, (("absorb", key),),
+                  ("absorb", ((key, item.charges),)))
 
 
 def _no_progress(policy, snapshot, phase) -> bool:
@@ -874,7 +913,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         if not _attempt(policy, "read-powers", 0):
             return _stop(policy, "power-list-unavailable")
         policy.last_reason = SEQUENCE_READ_REASON
-        return "b" + KIND_LETTER["staff"]
+        return _stage(policy, "b" + KIND_LETTER["staff"], (("read-powers", 0),))
     announced = set(record.completed_stages)
     _settle_pending(policy, snapshot)
     stage = current_stage(policy)
