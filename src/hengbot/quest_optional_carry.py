@@ -17,12 +17,17 @@ buys nothing, blocks no departure, and the quest is accepted without it.
    Home deposit, the weight relief and the sales (the one retention authority), so the withdrawal is not
    undone.  ``wanted_kind`` keeps the stored one out of the Home disposal.
 
+``consumable_plan.optional_carry_gear`` (Q25 owner 2026-11-06 「反テレポート付きで他のデメリットがない装備が
+もしあれば、持ち込んでこの戦闘でのみ使用する。」) is filed the same way for one piece of gear
+(quest25_druj_gear.home_piece); spare_gear keeps it in the pack (quest25_druj_gear.kept).
+
 The readiness chain reads retention (policy_quest._quest_strategy_for_errand_or_floor), so nothing here
 but ``before_acceptance``, which the rung calls after its own readiness, may ask readiness.
 """
 
 from __future__ import annotations
 
+from hengbot import quest25_druj_gear
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import TVAL_POTION
 from hengbot.policy_constants import PACK_CAPACITY, QUEST_POTION_SVALS
@@ -97,11 +102,18 @@ def _file(policy, snapshot, profile) -> bool:
                 snapshot,
                 HomeErrandRequest(policy._item_signature(stored), min(missing, stored.count), "home-catalog", PURPOSE),
                 knowledge_current=policy._home_knowledge_current)
+    piece = quest25_druj_gear.home_piece(policy, snapshot, profile)
+    if piece is not None:
+        return policy._file_home_errand(
+            snapshot, HomeErrandRequest(policy._item_signature(piece), 1, "home-catalog", PURPOSE),
+            knowledge_current=policy._home_knowledge_current)
     return False
 
 
 def _missing(policy, snapshot, profile) -> bool:
-    return any(count > _carried(snapshot, sval) for sval, count in _wanted(profile).items())
+    gear = (quest25_druj_gear.wanted(profile) and quest25_druj_gear.carried_piece(snapshot) is None
+            and quest25_druj_gear.worn_piece(snapshot) is None)
+    return gear or any(count > _carried(snapshot, sval) for sval, count in _wanted(profile).items())
 
 
 def scan_key(policy, snapshot, quest_id: int) -> str | None:

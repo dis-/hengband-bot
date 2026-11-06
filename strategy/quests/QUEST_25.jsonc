@@ -69,6 +69,9 @@
     // 自宅にあれば受注の前に持ち出す。受ける条件ではなく、買わない（2026-11-05 ユーザー決定「Q25の必須要件に啓蒙の薬は入れていないが、自宅にある場合は受注前に持ち出して」）。
     // 1本: 階全体を明るくし続けるので2本目の用がない。
     "optional_carry": {"enlightenment": 1},
+    // 反テレポートの装備（2026-11-06 ユーザー「反テレポート付きで他のデメリットがない装備がもしあれば、持ち込んでこの戦闘でのみ使用する。」、
+    // revised_plan_draft.phase7_druj）: 自宅か持ち物にあれば持ち込み、手のドルジとの戦闘の間だけ身に着ける。受ける条件ではなく、買わない。
+    "optional_carry_gear": {"anti_teleport": 1},
     "speed_potion": "conditional",
     "speed_potion_use_when": {"expected_damage_hp_ratio_min": 0.5, "note": "条件1では3ターンの想定被害が現在HPの半分以上の時に飲む。条件2は常時加速の計算なので、敵が起きている間は切らさない。"},
     "heal_threshold_ratio": 0.70,
