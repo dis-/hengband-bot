@@ -75,7 +75,7 @@ LADDER = (
     )),
     Layer("plan-above-survival", "the emergency ladder and everything below; each answers "
           "survival and the summons inside itself (FLOOR_PLANS)", (
-        *E("quest_find_exit.key", "quest_room_sweep.key"),
+        *E("quest_find_exit.key", "quest25_battle.key", "quest_room_sweep.key"),
     )),
     Layer("above-emergency", "the emergency ladder and everything below", (
         *E("_esp_threat_hunt_key"),
@@ -305,6 +305,18 @@ FLOOR_PLANS = (
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_fight", OWN),
             ("_advance", OWN))),
     )),
+    # Q25's revised plan: on its phase 2 and on the stairway the phase's own summons rule
+    # (owner 2026-11-06) stands in the summons' place (``_summons``).
+    FloorPlan("quest25_battle.key", "quest25_battle", (
+        Branch("no enemy", (
+            ("_summons", SUMMONS), ("resist_potion.key", OWN), ("quest_room_sweep._restore", OWN),
+            ("_phase_key", OWN)), enemy=False),
+        Branch("an enemy", (
+            ("quest_find_exit._cure", SURVIVAL), ("quest_room_sweep._give_up", SURVIVAL),
+            ("quest_room_sweep._below_line", SURVIVAL), ("quest_find_exit._heal", SURVIVAL),
+            ("quest_find_exit._speed", SURVIVAL), ("_summons", SUMMONS),
+            ("resist_potion.key", OWN), ("_phase_key", OWN))),
+    )),
     FloorPlan("quest_room_sweep.key", "quest_room_sweep", (
         Branch("no enemy", (
             # The plan's potion when due; the light may show the summons their caster.
@@ -340,6 +352,7 @@ class OwnerRule(NamedTuple):
 _ABOVE_EMERGENCY = {
     "_wilderness_survival_key": "the global map's own survival rung",
     "quest_find_exit.key": "a plan answers survival inside itself (FLOOR_PLANS)",
+    "quest25_battle.key": "a plan answers survival inside itself (FLOOR_PLANS)",
     "quest_room_sweep.key": "a plan answers survival inside itself (FLOOR_PLANS)",
     "_esp_threat_hunt_key": "a committed hunt drinks by its own estimate (owner 2026-09-22); "
                             "whether it stays here is the review's open question",

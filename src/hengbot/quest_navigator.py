@@ -96,6 +96,8 @@ class QuestFloorNavigator:
     sweep_light_read = frozenset()  # rooms read and not yet seen lit (quest_room_light)
     sweep_potion_carried = 0  # the plan's potion, last counted (quest_room_light)
     sweep_potion_due = False
+    # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
+    phase_battle = None
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -142,6 +144,7 @@ class QuestFloorNavigator:
         self.sweep_light_read = frozenset()
         self.sweep_potion_carried = 0
         self.sweep_potion_due = False
+        self.phase_battle = None
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:
         """Inscribe ``Q34`` on unidentified equipment picked up on the Q34 floor.

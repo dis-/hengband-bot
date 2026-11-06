@@ -37,7 +37,13 @@ having no flags and the reference armour):
 
 from __future__ import annotations
 
+import math
+import re
+
 from hengbot import me_device_attacks
+from hengbot.equipment_encounters import melee_multiplier
+from hengbot.launcher_damage import launcher_average_damage
+from hengbot.model import TVAL_ROD, TVAL_WAND
 from hengbot.policy_constants import USE_DEVICE_MIN
 from hengbot.warrior_equipment_evaluator import AC_REFERENCE
 
@@ -206,3 +212,132 @@ def carried_wand(policy, snapshot, target, wand) -> float:
     power = me_device_attacks.POWERS[("wand", wand.sval)]
     return (device_use_success(snapshot.player.device_skill, power.level)
             * me_device_attacks.optimistic_score(policy, snapshot, power, target))
+
+
+# -- per race, before the monster is in view (actions to kill) ---------------------------
+#
+# Q25 owner 2026-11-06 「DPSで比較。幽体ティラノサウルスを倒すのに必要な行動回数で計測する。
+# 命中率や武器のスレイも考慮。」 and 「松明では絶対ダメージが足りないのでQ25では除外して良い」:
+# the plan chooses between melee and ranged before the target comes into view, so these
+# weigh a race, not a monster on the board.
+#
+# - A melee blow's slay multiplies the dice only (player-attack.cpp calc_attack_damage,
+#   mult_slaying/mult_brand), so the hand's expected damage per action at the race's armour
+#   (``_main_hand_dps``/``_sub_hand_dps``: blows x max(1, dice + to_d) x hit chance) is
+#   rescaled to blows x hit chance x max(1, dice x mult / 10 + to_d).
+# - A shot (combat/shoot.cpp exec_shoot): (dice + ammo to_d + bow to_d) x the bow's
+#   multiplier, then calc_shot_damage_with_slay multiplies the whole by the slay of the
+#   arrow's and the bow's flags together.  The game prints the unslain average and the
+#   shots per player turn on the ammunition's name, "(68/shot 121/turn)"
+#   (flavor-describer.cpp), so the turn figure times mult / 10 is the slain one.  It hits
+#   by test_hit_fire, chance = skill_thb + (to_h_b + bow to_h + arrow to_h) x 3 - distance
+#   (``_throw_hit_chance``; to_h_b is not on the board and is taken as TO_H_B_FLOOR).
+# - A device: the best absorbed attack power's displayed success x its expected damage
+#   (me_device_attacks), or a carried attack wand or rod at its use chance.
+
+_SHOT_DISPLAY = re.compile(r"\((\d+)/shot (\d+)/turn\)")
+
+
+def race_knowledge(policy, race_id):
+    return policy._monrace_knowledge.get(race_id)
+
+
+def _race_flags(policy, race_id) -> frozenset:
+    knowledge = race_knowledge(policy, race_id)
+    return knowledge.flags if knowledge is not None else frozenset()
+
+
+def _race_armour(policy, race_id) -> int:
+    knowledge = race_knowledge(policy, race_id)
+    return knowledge.armor_class if knowledge is not None else AC_REFERENCE
+
+
+def _slay(policy, race_id, flags) -> int:
+    knowledge = race_knowledge(policy, race_id)
+    return melee_multiplier(frozenset(flags), knowledge) if knowledge is not None else 10
+
+
+def _slain_hand(snapshot, weapon, base: float, to_d, multiplier: int) -> float:
+    if base <= 0 or to_d is None:
+        return 0.0
+    dice = weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
+    hits = base / max(1.0, dice + to_d)          # blows x hit chance
+    return hits * max(1.0, dice * multiplier / 10 + to_d)
+
+
+def melee_against(policy, snapshot, race_id) -> float:
+    """Melee's expected damage per player action against ``race_id``, slays counted."""
+    if melee_refused(policy, snapshot):
+        return 0.0
+    flags = _race_flags(policy, race_id)
+    if flags & TOUCH_AURAS:
+        return 0.0
+    ac, player, damage = _race_armour(policy, race_id), snapshot.player, 0.0
+    main = _hand_weapon(snapshot, "main_hand")
+    if main is not None and player.main_hand_blows > 0:
+        damage += _slain_hand(snapshot, main, policy._main_hand_dps(snapshot, main, ac=ac),
+                              player.main_hand_to_d, _slay(policy, race_id, main.known_flags))
+    sub = _hand_weapon(snapshot, "sub_hand")
+    if sub is not None and player.sub_hand_blows > 0:
+        damage += _slain_hand(snapshot, sub, policy._sub_hand_dps(snapshot, sub, ac=ac),
+                              player.sub_hand_to_d, _slay(policy, race_id, sub.known_flags))
+    return damage
+
+
+def launcher_against(policy, snapshot, race_id, distance: int) -> float:
+    """The worn launcher's best stack: expected damage per player action against ``race_id``."""
+    launcher = policy._equipped_launcher(snapshot)
+    if launcher is None or snapshot.player.blind or snapshot.player.confused:
+        return 0.0
+    best = 0.0
+    for ammo in snapshot.inventory:
+        if ammo.tval != launcher.ammo_tval or ammo.count <= 0:
+            continue
+        shown = _SHOT_DISPLAY.search(ammo.name)
+        turn = float(shown.group(2)) if shown else launcher_average_damage(launcher, ammo)
+        multiplier = _slay(policy, race_id, ammo.known_flags | launcher.known_flags)
+        chance = (snapshot.player.shooting_skill
+                  + (TO_H_B_FLOOR + launcher.to_h + ammo.to_h) * BTH_PLUS_ADJ - distance)
+        best = max(best, turn * multiplier / 10
+                   * _throw_hit_chance(chance, _race_armour(policy, race_id)))
+    return best
+
+
+def devices_against(policy, snapshot, race_id, *, area_only: bool = False) -> float:
+    """The best absorbed attack power or carried attack wand/rod against ``race_id``."""
+    flags = race_knowledge(policy, race_id)
+    flags = flags.flags if flags is not None else None
+    level, best = snapshot.player.level, 0.0
+    if me_device_attacks.can_use_powers(snapshot):
+        for power, success in me_device_attacks.usable_powers(policy):
+            if power.group_only or power.shape == "sight" or (
+                    area_only and power.shape not in me_device_attacks.TARGETABLE_SHAPES):
+                continue
+            best = max(best, success * me_device_attacks.expected_damage(power, level, flags))
+    if snapshot.player.blind or snapshot.player.confused:
+        return best
+    for item in snapshot.inventory:
+        if item.tval == TVAL_WAND and item.known and item.charges > 0:
+            kind, chance = "wand", device_use_success
+        elif item.tval == TVAL_ROD and item.known and not item.charging:
+            kind, chance = "rod", rod_use_success
+        else:
+            continue
+        power = me_device_attacks.POWERS.get((kind, item.sval))
+        if power is None or power.group_only or power.shape == "sight" or (
+                area_only and power.shape not in me_device_attacks.TARGETABLE_SHAPES):
+            continue
+        best = max(best, chance(snapshot.player.device_skill, power.level)
+                   * me_device_attacks.expected_damage(power, level, flags))
+    return best
+
+
+def ranged_against(policy, snapshot, race_id, distance: int) -> float:
+    """The larger of the launcher's and the devices' figure (one action each)."""
+    return max(launcher_against(policy, snapshot, race_id, distance),
+               devices_against(policy, snapshot, race_id))
+
+
+def actions_to_kill(hit_points: float, per_action: float) -> float:
+    """Player actions to deal ``hit_points``; infinite without any damage."""
+    return math.ceil(hit_points / per_action) if per_action > 0 else math.inf

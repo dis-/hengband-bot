@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
+from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
 
 from collections import Counter, deque
 import random
@@ -469,8 +469,8 @@ from hengbot.quest_knowledge import (
     QuestInfo,
 )
 from hengbot.quest_strategies import (
-    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, heal_potion_sval,
-    torch_throw_output,
+    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, has_ability_or_alternative,
+    heal_potion_sval, torch_throw_output,
 )
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
@@ -7014,7 +7014,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             return key
         target = self._walk_step_target(snapshot, key)
-        if target is None or quest_find_exit.planned_step(self, snapshot) or quest_room_sweep.planned_step(self, snapshot):
+        if (target is None or quest_find_exit.planned_step(self, snapshot)
+                or quest_room_sweep.planned_step(self, snapshot)
+                or quest25_battle.planned_step(self, snapshot)):
             return key
         active, low = self._low_hp_walk_gate_active(snapshot)
         if not active:
@@ -7468,6 +7470,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             "quest_find_exit.key", lambda: quest_find_exit.key(self, snapshot), family="quest-request")
         if find_exit is not None:
             return find_exit
+        # Q25's revised plan, phase by phase (it answers survival and the summons itself).
+        phase_battle = self._town_producer_entry(
+            "quest25_battle.key", lambda: quest25_battle.key(self, snapshot), family="quest-request")
+        if phase_battle is not None:
+            return phase_battle
         room_sweep = self._town_producer_entry(
             "quest_room_sweep.key", lambda: quest_room_sweep.key(self, snapshot), family="quest-request")
         if room_sweep is not None:
@@ -14356,7 +14363,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         carry_status = self._quest_carry_status(snapshot, force)
         carries_ready = all(bool(item["ready"]) for item in carry_status.values())
         resists_ready = all(
-            self._profile_resistance_name(str(name)) in snapshot.player.abilities
+            has_ability_or_alternative(
+                force, self._profile_resistance_name(str(name)),
+                snapshot.player.abilities, snapshot.equipment)
             for name in force.get("resists", ())
         )
         speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)

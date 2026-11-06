@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +47,11 @@ class QuestBattlefield:
     searchable: tuple[tuple[int, int], ...] = ()
     reward_tile: tuple[int, int] | None = None
     chokepoints: tuple[tuple[int, int], ...] = ()
+    # A legend ``trap: {random: true}`` (fixed-map-generator.cpp): without a random
+    # object the cell always gets a trap (place_trap_at, hidden by its mimic); with
+    # one, a trap one time in four and the object otherwise.
+    trap_cells: tuple[tuple[int, int], ...] = ()
+    maybe_trap_cells: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -304,9 +309,13 @@ def _json_battlefield(
     features = dict(inherited_terrain)
     reward_glyphs: set[str] = set()
     monster_glyphs: dict[str, int] = {}
+    trap_glyphs: set[str] = set()
+    maybe_trap_glyphs: set[str] = set()
     for glyph, entry in legend.items():
         if not isinstance(glyph, str) or len(glyph) != 1 or not isinstance(entry, dict):
             continue
+        if isinstance(entry.get("trap"), dict) and entry["trap"].get("random"):
+            (maybe_trap_glyphs if "object" in entry else trap_glyphs).add(glyph)
         terrain = entry.get("terrain")
         if isinstance(terrain, str):
             features[glyph] = terrain
@@ -332,8 +341,15 @@ def _json_battlefield(
             player_start = (int(raw_start["y"]), int(raw_start["x"]))
         except (KeyError, TypeError, ValueError):
             pass
-    return _legacy_battlefield(
+    battlefield = _legacy_battlefield(
         rows, features, placements, player_start, reward_glyphs
+    )
+    return replace(
+        battlefield,
+        trap_cells=tuple((y, x) for y, row in enumerate(rows)
+                         for x, glyph in enumerate(row) if glyph in trap_glyphs),
+        maybe_trap_cells=tuple((y, x) for y, row in enumerate(rows)
+                               for x, glyph in enumerate(row) if glyph in maybe_trap_glyphs),
     )
 
 

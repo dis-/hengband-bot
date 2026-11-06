@@ -80,6 +80,27 @@ def lower_carries(force: dict[str, Any], lowered: dict[str, int]) -> dict[str, A
     return force
 
 
+# ``required_force.resist_alternatives``: a required ability another one stands in for.
+# Telepathy is a player ability; the ESP kinds are an identified worn item's flags only
+# (bot-json-output.cpp ability_sources names no ESP kind): object-enchant/tr-types.h.
+ESP_ALTERNATIVE_FLAGS = {"esp_undead": 105, "esp_evil": 112}
+
+
+def has_ability_or_alternative(force: dict[str, Any], name: str, abilities, equipment) -> bool:
+    """``name`` (a resolved ability name) is had, or one of its reviewed alternatives.
+
+    QUEST_25 owner 2026-11-06 「どれか1つでよい」: See Invisible, telepathy, undead ESP or
+    evil ESP each lets the plan see the invisible dreadmaster."""
+    if name in abilities:
+        return True
+    for alternative in force.get("resist_alternatives", {}).get(name, ()):
+        flag = ESP_ALTERNATIVE_FLAGS.get(alternative)
+        if alternative in abilities or (flag is not None and any(
+                flag in item.known_flags for item in equipment)):
+            return True
+    return False
+
+
 def valid_force_alternatives(force: dict[str, Any]) -> bool:
     """The schema of ``force_alternatives`` (quest_force_rows reads the rows)."""
     rows = force.get("force_alternatives", [])
@@ -146,6 +167,11 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
             raise ValueError(
                 "launcher min_average_damage must be a non-negative number"
             )
+    alternatives = force.get("resist_alternatives", {})
+    if not isinstance(alternatives, dict) or not all(
+            isinstance(names, list) and all(isinstance(name, str) for name in names)
+            for names in alternatives.values()):
+        raise ValueError("resist_alternatives must map an ability to a list of ability names")
     if not valid_force_alternatives(force):
         raise ValueError("force_alternatives rows must give min_hp, min_expected_dps, "
                          "heal_potions and speed_potions as non-negative numbers")
