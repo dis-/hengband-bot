@@ -15222,5 +15222,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A disarming power or carried device aimed at a Q25 trap cell. No independent progress."
+  },
+  "policy_home.py:HomeMixin._release_errand_take_refused_by_pack_budget": {
+    "classification": "producer",
+    "rows": [
+      "home-executor"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed: offers only a no-step (town-pack-budget) when it withdraws a filed, unposted Home errand take the pack budget refuses; it composes no key; callers are the outside Home withdraw composer and the open-page hand-off check.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

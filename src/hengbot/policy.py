@@ -6135,6 +6135,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                                 self._defer_home_item(
                                     signature, "home-route-claim-unfulfilled"
                                 )
+                # This page could not serve the claim: a latch whose take it
+                # cannot compose must not route Home again.
+                self._release_unservable_home_latches()
                 self.last_reason = "home:route-claim-unfulfilled"
                 self._post_owner_expectation(
                     snapshot, self.last_reason, "store_type"
