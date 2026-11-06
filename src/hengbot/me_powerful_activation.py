@@ -371,6 +371,8 @@ def _home_take_key(policy, snapshot) -> str | None:
     errand = policy._home_errand
     if errand.active or policy._home_pending_batch:
         return None
+    if _taken_out(policy, snapshot):
+        return None  # one piece at a time: the last one goes back first
     for owned in policy._equipment_catalog.items:
         item = owned.item
         signature = policy._item_signature(item)
@@ -389,6 +391,25 @@ def _home_take_key(policy, snapshot) -> str | None:
         policy._home_candidate_waiting = True
         return home_identification.rearmed_home_route_key(policy, snapshot)
     return None
+
+
+def _taken_out(policy, snapshot) -> bool:
+    """A piece a Home take brought out is still carried, not yet put back.
+
+    「取り出して *鑑定* し、また仕舞う」 one piece at a time: n1-c life-158 02:20
+    took weapons out, *identified* them and departed with them; at 02:33 a
+    further take held Home while eight of them were carried and the town
+    stopped with no legal disposal.  A piece still waiting for its *Identify*,
+    or released as spare gear (spare_gear.released) after it, keeps the next
+    take back; one the loadout now uses does not.
+    """
+    from hengbot import spare_gear
+    takes = _memory(policy).__dict__.get("takes", {})
+    taken = spare_gear.taken_from_home(policy)
+    return any((signature in takes or signature in taken)
+               and (spare_identify_target(item) or spare_gear.released(policy, snapshot, item))
+               for item in snapshot.inventory
+               for signature in (policy._item_signature(item),))
 
 
 def _take_fits_weight(policy, snapshot, item) -> bool:

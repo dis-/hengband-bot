@@ -185,6 +185,39 @@ class MeTakeBounce1107RecordedTest(unittest.TestCase):
         policy.choose_key(board)
         self.assertFalse(policy._identification_flow_owns(self.sling_of(board)))
 
+    def test_no_second_take_while_the_taken_piece_is_out(self):
+        """「取り出して *鑑定* し、また仕舞う」 one piece at a time: while the taken
+        スリング is carried - waiting for its *Identify*, or identified and not
+        yet put back - no other Home piece is taken (n1-c life-158 02:33)."""
+        policy = self.restore()
+        board, key = self.take_sling(policy, PLAIN_SLING)
+        self.post(policy, key)
+        self.assertIsNone(me_powerful_activation._home_take_key(policy, board))
+        board, _key = self.identified_board(policy, 14)
+        self.assertTrue(me_powerful_activation.spare_identify_ready(policy, board))
+        self.assertIsNone(me_powerful_activation.spare_identify_key(policy, board))
+        self.assertFalse(policy._home_errand.active)
+
+    def test_identified_take_rearms_an_attempted_home(self):
+        """n1-c life-158 02:20: gear a take brought out was *identified* after the
+        Home pass had ended, so ``stow_pending`` was false and it left town.
+        Home is re-armed once for it, so the stow can delay the departure but
+        not stop it (DECLARED: this visit's Home pass already ended)."""
+        policy = self.restore()
+        board, key = self.take_sling(policy)
+        self.assertEqual(spare_gear.taken_from_home(policy), frozenset({(SLING, 19, 2)}))
+        self.post(policy, key)
+        policy._set_town_store_attempted(STORE_HOME, board.turn, "constructed-pass-ended")
+        board, _key = self.identified_board(policy, 14)
+        self.assertNotIn(STORE_HOME, policy._town_store_attempted)
+        self.assertTrue(spare_gear.stow_pending(policy, board))
+        # Once only: a pass that ended again does not hold the departure.
+        policy._set_town_store_attempted(STORE_HOME, board.turn, "constructed-pass-ended")
+        board = self.deliver(policy, self.board_state(16, carried=True, identified=True))
+        policy.choose_key(board)
+        self.assertIn(STORE_HOME, policy._town_store_attempted)
+        self.assertFalse(spare_gear.stow_pending(policy, board))
+
     def test_last_charge_spent_files_no_take(self):
         """The staff list is read at the power prompt, before the use pays: row 1
         recorded 鑑定 53/53 on the board after the row-0 *Identify*.  DECLARED:
