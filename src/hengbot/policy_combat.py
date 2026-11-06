@@ -2297,7 +2297,14 @@ class CombatMixin:
             and not committed_summoner_engagement
             and self._open_neighbor_count(snapshot, player.position)
             >= SUMMONER_EXPOSED_NEIGHBORS
-            and not self._summoner_cover_in_one_step(snapshot)
+            # Below the low-HP line the cover must also put the player out of
+            # the summoners' reach (owner 2026-11-06, n1-b life-325); above it
+            # the wall beside the step stays the cover the summon answers of
+            # 2026-11-04/05 (counter shots, the plan floor's leave) build on.
+            and not self._summoner_cover_in_one_step(snapshot, [
+                monster for monster in summoners
+                if self._summoner_may_summon_next_turn(snapshot, monster)
+            ] if player.hp < self._low_hp_walk_threshold(player.max_hp) else ())
             and not any(
                 (shots := self._summoner_shots_to_kill(snapshot, monster))
                 is not None and shots <= SUMMONER_RANGED_KILL_SHOTS
@@ -4458,11 +4465,19 @@ class CombatMixin:
           spent walking (unknown grids and doors open; PASS_WALL / KILL_WALL
           through anything; NEVER_MOVE not at all).
         """
+        return self._summoner_may_summon_at(
+            snapshot, monster, snapshot.player.position
+        )
+
+    def _summoner_may_summon_at(
+        self, snapshot: Snapshot, monster: MonsterState, player: Position
+    ) -> bool:
+        """``_summoner_may_summon_next_turn`` with the player standing on
+        ``player``: the cell one step away is judged by the same rules."""
         if (snapshot.floor_key, monster.index) in getattr(
             self, "_summoner_counter_targets", frozenset()
         ):
             return True
-        player = snapshot.player.position
         targets = [player] + [
             cell
             for dy, dx in NEIGHBOR_OFFSETS

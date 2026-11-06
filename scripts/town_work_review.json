@@ -2506,6 +2506,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy.py:HengbotPolicy._low_hp_teleport_or_recall": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The low-HP walk gate's escape read (owner 2026-11-06, n1-b life-325): destruction_use, a Teleportation read through _issue_emergency_consumable or once_quest_recall.read_key; returns their key or None, no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy.py:HengbotPolicy._low_hp_walk_gate": {
     "classification": "producer",
     "rows": [

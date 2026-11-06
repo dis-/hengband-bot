@@ -7005,6 +7005,40 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         here = snapshot.player.position
         return Position(here.y + delta[0], here.x + delta[1])
 
+    def _low_hp_step_cannot_outrun(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """An awake hostile in view that one retreat step does not escape: a
+        summoner, a TELE_TO caster (it pulls the player back), or a monster
+        faster than the player (owner 2026-11-06 「召喚する敵・引き寄せる敵・
+        速い敵」).  A monster's speed is its race speed, +10 while hasted and
+        -10 while slowed (MonsterEntity::get_temporary_speed)."""
+        player_speed = snapshot.player.speed
+        for monster in hostiles:
+            if monster.asleep:
+                continue
+            if monster.can_summon:
+                return True
+            knowledge = self._monrace_knowledge.get(monster.race_id)
+            if knowledge is not None and "TELE_TO" in knowledge.abilities:
+                return True
+            speed = monster.speed + (10 if monster.fast else 0) - (10 if monster.slow else 0)
+            if speed > player_speed:
+                return True
+        return False
+
+    def _low_hp_teleport_or_recall(self, snapshot: Snapshot) -> str | None:
+        """The read that replaces the retreat step: *Destruction* where it stands
+        in for a teleport (destruction_use), Teleportation, else Word of Recall
+        (once_quest_recall's floor rules).  A phase door is no replacement
+        (owner 2026-11-02 「ショートテレポートはテレポートの代替にならない」)."""
+        if (used := destruction_use.key(self, snapshot)) is not None:
+            return used
+        scroll = self._escape_scroll(snapshot, teleport_only=True)
+        if scroll is not None:
+            return self._issue_emergency_consumable(snapshot, scroll, "emergency:teleport")
+        return once_quest_recall.read_key(self, snapshot)
+
     def _low_hp_walk_gate(self, snapshot: Snapshot, key: str | None) -> str | None:
         if (
             snapshot.in_town
@@ -7030,6 +7064,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         adjacent = [
             m for m in hostiles if m.position.distance_to(player.position) <= 1
         ]
+        # Owner 2026-11-06 「HP が低い時、召喚する敵・引き寄せる敵・速い敵が見えて
+        # いれば、退却の1歩で済まさずテレポートか帰還を読む。」  n1-b life-325
+        # (城33階): at HP 155/386 one summoner:retreat step was let through with
+        # a hasted 智天使 (summoner), hasted jackals and a セイレーン (TELE_TO) in
+        # view; the siren pulled the player back and it died.  The checked step
+        # below only weighs the adjacent monsters, so with such a monster in
+        # view the escape read comes first; without a read the step stays.
+        if (
+            low
+            and key in DIRECTION_KEYS.values()
+            and self.last_reason in self.LOW_HP_CHECKED_STEP_REASONS
+            and self._low_hp_step_cannot_outrun(snapshot, hostiles)
+            and (escape := self._low_hp_teleport_or_recall(snapshot)) is not None
+        ):
+            return escape
         # An unseen attacker's melee blow on this board is an adjacent attacker
         # the step cannot be checked against: it is struck back below (追加決定2,
         # unseen_strike).  n1-a life-466 (2026-11-03 02:31, オークの洞窟14階):
@@ -15652,6 +15701,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self, snapshot: Snapshot, item: InventoryItem, reason: str
     ) -> str:
         self._emergency_return_active = True
+        self._latch_repeat_emergency_return(snapshot, reason)
         signature = self._item_signature(item)
         pre_use_count = sum(
             candidate.count
@@ -15678,6 +15728,29 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             snapshot, reason, "inventory", "position", "recalling", "floor"
         )
         return self._read_key(snapshot, item)
+
+    def _latch_repeat_emergency_return(self, snapshot: Snapshot, reason: str) -> None:
+        """The dive's EMERGENCY_RETURN_COUNT-th emergency escape read starts the
+        town return, whichever rung reads it.
+
+        The observation counts every read under an EMERGENCY_ESCAPE_REASONS
+        reason (``_dive_emergencies``), but only ``_emergency_item`` latched the
+        return before its read.  n1-b life-325 (2026-11-06, 城33階): the low-HP
+        walk gate read Teleportation as the dive's second emergency, no return
+        was latched, and the next board walked one summoner:retreat step at HP
+        155/386 (owner 2026-11-06 「2回目の緊急で町へ戻る判断が付かない点…も直す」).
+        A return already running keeps its own trigger.
+        """
+        if (
+            snapshot.in_town
+            or reason not in EMERGENCY_ESCAPE_REASONS
+            or self._dive_emergencies + 1 < EMERGENCY_RETURN_COUNT
+            or getattr(self, "_returning_to_town", False)
+        ):
+            return
+        self._note_return_start("emergency-repeat")
+        self._returning_to_town = True
+        self._last_return_trigger = "emergency-repeat"
 
 
     def _unresisted_melee_status_threats(
@@ -15873,7 +15946,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         per_turn_cap = monster_energy // player_energy + 1
         return max(1, min(ratio_actions + 1, turns * per_turn_cap))
 
-    def _summoner_cover_in_one_step(self, snapshot: Snapshot) -> bool:
+    def _summoner_cover_in_one_step(
+        self, snapshot: Snapshot, summoners: Iterable[MonsterState] = ()
+    ) -> bool:
+        """One step reaches a cell where no summoner may summon at the player.
+
+        Owner 2026-11-06 「壁の隣で召喚の緊急が消える点も直す」: n1-b life-325
+        (城33階) stood at (17,56) beside the wall row y=18, so a neighbour
+        "touched a wall" and the summoner emergency was dropped with the
+        hasted 智天使 in view.  A neighbour beside a wall is cover only when
+        none of ``summoners`` could summon at the player standing there before
+        the player's next action (``_summoner_may_summon_at``: projection to
+        the cell or a cell next to it, after the summoner's own moves).  The
+        caller names the summoners only below the low-HP line; with none named
+        the wall beside the step alone is the cover, as before.
+        """
+        summoners = list(summoners)
         for neighbor in self._walkable_neighbors(snapshot, snapshot.player.position):
             # A clipped visibility/snapshot edge can look artificially narrow.
             # Count it as cover only when an observed wall or closed door creates
@@ -15883,6 +15971,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 is not None
                 and (grid.wall or grid.is_closed_door)
                 for dy, dx in NEIGHBOR_OFFSETS
+            ) and not any(
+                self._summoner_may_summon_at(snapshot, summoner, neighbor)
+                for summoner in summoners
             ):
                 return True
         return False
