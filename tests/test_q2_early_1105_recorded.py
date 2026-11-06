@@ -166,8 +166,20 @@ class PlanFloorWindowTest(swarm.PostedSwarmKey):
         self.assertIsNone(policy._breeder_engagement_start_count)
         self.assertIsNone(policy._breeder_breakthrough_floor)
 
-    def test_a_floor_without_a_plan_keeps_the_rule(self):
+    def test_a_floor_without_a_plan_also_counts_from_the_first_attack(self):
+        # Owner 2026-11-07 「クエストの無い階でも、20回は増える敵に攻撃を始めてから数える。」:
+        # masses coming into view and growing, never attacked, open no window there either.
         boards = [rats_board(0, 1 + action // 2, action=action, quest_id=0) for action in range(23)]
+        policy = self.run_boards(boards)
+        self.assertIsNone(policy._breeder_engagement_start_count)
+        self.assertIsNone(policy._breeder_breakthrough_floor)
+
+    def test_a_floor_without_a_plan_counts_every_breeder_after_the_attack(self):
+        # The 11-03 comparison once the window is open: every perceived breeder, no race.
+        boards = [rats_board(2, 1, quest_id=0),
+                  rats_board(1, 1, action=1, exp=1, quest_id=0),
+                  *(rats_board(1, 2 + action, action=action, exp=1, quest_id=0)
+                    for action in range(2, 22))]
         policy = self.run_boards(boards)
         self.assertIsNotNone(policy._breeder_breakthrough_floor)
         self.assertIsNone(policy._breeder_engagement_race)
