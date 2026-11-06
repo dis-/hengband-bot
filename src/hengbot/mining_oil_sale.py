@@ -10,7 +10,7 @@ The sale serves only an identified lantern that needs oil.  A torch takes no oil
 need yet, and an unidentified lantern shows no fuel to say it needs any.  The one
 exception is the Q34 lantern worn in town (owner 2026-11-06: 「財宝感知の巻物を売って
 油を足す決まりも、このランタンに使います」): it needs oil once the player sees it
-out (lamp_fuel.q34_town_lantern_out).  One scroll
+out (lamp_fuel.q34_worn_lantern_out).  One scroll
 per town visit; the set keeps the scrolls its remaining runs read.  No sale price is
 exported for pack items, so the sale is not predicted: if the proceeds still do not
 buy oil the visit goes on as it would have without this module.
@@ -37,8 +37,8 @@ def _burnt_low(policy, snapshot, item):
     """A fuel-using light the player sees low: known below the dim warning, or the
     worn Q34 lantern out."""
     if not item.known:
-        return (item is lamp_fuel.q34_town_lantern(snapshot)
-                and lamp_fuel.q34_town_lantern_out(policy, snapshot))
+        return (item is lamp_fuel.q34_worn_lantern(snapshot)
+                and lamp_fuel.q34_worn_lantern_out(policy, snapshot))
     return item.sval <= SV_LITE_LANTERN and item.fuel < LANTERN_DIM_WARNING_FUEL
 
 

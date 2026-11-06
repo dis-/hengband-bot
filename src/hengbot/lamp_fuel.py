@@ -30,12 +30,16 @@ Every refill producer reaches an unidentified lantern through
 ``_light_refill_item`` or ``_unknown_lantern_departure_refill_item``, and both
 ask here.
 
-The Q34 lantern worn in town (owner 2026-11-06, 「燃料があれば出発してよい」:
+The worn Q34 lantern (owner 2026-11-06, 「燃料があれば出発してよい」:
 「ランタンに燃料が残っていれば、油が5本に届かなくても出発します。財宝感知の巻物を
 売って油を足す決まりも、このランタンに使います。」) departs on the fuel these
 facts show it holds, and an out one is the oil sale's lantern
-(``q34_town_lantern_lit`` / ``q34_town_lantern_out``).  Other lanterns keep
-the five flasks.
+(``q34_worn_lantern_lit`` / ``q34_worn_lantern_out``).  Other lanterns keep
+the five flasks.  Town and floor read it by the same facts: the run the town
+let leave on a lit lantern is not sent back up for oil on its arrival (n1-b
+lives 326-328 2026-11-06 19:27-19:40, n1-c 148 and 152:
+fundraising-run-exhausted on Yeek cave 1F every run until fundraise-limit),
+and a lantern seen out there still ends the run.
 """
 
 from __future__ import annotations
@@ -126,25 +130,34 @@ def unidentified_lantern_out(snapshot) -> bool | None:
     return snapshot.light_radius == 0 or snapshot.can_see_own_grid is False
 
 
-def q34_town_lantern(snapshot):
-    """The worn unidentified Q34 lantern while in town (policy_supply._town_q34_lantern wears it)."""
+def q34_worn_lantern(snapshot):
+    """The worn unidentified Q34 lantern, in town or on a floor
+    (policy_supply._town_q34_lantern wears it in town)."""
     lantern = _worn_lantern(snapshot)
-    if (not snapshot.in_town or lantern is None or lantern.known
-            or not q34_item_tagged(lantern)):
+    if lantern is None or lantern.known or not q34_item_tagged(lantern):
         return None
     return lantern
 
 
-def q34_town_lantern_lit(policy, snapshot) -> bool:
-    """Whether the player sees fuel in the worn Q34 lantern: it lights them, or a
-    「ランプの油は一杯だ。」 since leaves some."""
-    if q34_town_lantern(snapshot) is None:
+def q34_worn_lantern_lit(policy, snapshot) -> bool:
+    """Whether the player sees fuel in the worn Q34 lantern: it lights them, or,
+    on a board without the light facts, a 「ランプの油は一杯だ。」 since leaves some.
+
+    A board that shows the lantern out wins over the remembered refill: on a
+    floor a light-eating monster empties it unseen by the burn count (n1-c
+    life-085's red jelly, tests/test_survival2_1101_recorded.py), and the walk
+    home must not take the dark lantern for a lit one.
+    """
+    if q34_worn_lantern(snapshot) is None:
         return False
+    out = unidentified_lantern_out(snapshot)
+    if out is not None:
+        return not out
     floor = known_fuel_floor(policy, snapshot)
-    return unidentified_lantern_out(snapshot) is False or (floor is not None and floor > 0)
+    return floor is not None and floor > 0
 
 
-def q34_town_lantern_out(policy, snapshot) -> bool:
+def q34_worn_lantern_out(policy, snapshot) -> bool:
     """Whether the worn Q34 lantern shows no fuel: the oil sale's lantern."""
-    return (q34_town_lantern(snapshot) is not None
-            and not q34_town_lantern_lit(policy, snapshot))
+    return (q34_worn_lantern(snapshot) is not None
+            and not q34_worn_lantern_lit(policy, snapshot))

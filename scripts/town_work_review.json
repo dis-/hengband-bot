@@ -10914,6 +10914,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_staff_sequence.py:_stage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns the key its caller (_absorb_key, _recharge_key, town_key's read-powers browse) chose, unchanged; records the attempts and pending settle that confirm_posted commits only when policy.confirm_key_posted posts that key (n1-b life-320/329 2026-11-06: refresh boards replacing G were counted as absorbs). Emits no key of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "me_ranged_first.py:attack_key": {
     "classification": "producer",
     "rows": [

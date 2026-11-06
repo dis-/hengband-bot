@@ -259,6 +259,13 @@ def unseen_walk_boards(*, arrow=False):
         raw = hit.constructed(raw, unseen=True)
         raw["inventory"] = [item for item in raw["inventory"]
                             if (item["tval"], item["sval"]) != (TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL)]
+        # DECLARED CONSTRUCTED: an ordinary unidentified lantern, not the Q34
+        # one: the walk home is the five-flask oil shortage of an unidentified
+        # lantern, which a lit Q34 lantern does not end a run for
+        # (lamp_fuel.q34_worn_lantern_lit, owner 2026-11-06).
+        for item in raw["equipment"]:
+            if item["slot"] == "light":
+                item.update(name="真鍮のランタン {並}", inscription="")
         if arrow:
             raw["messages"] = [owner15.ARROW]
         rows.append(raw)
