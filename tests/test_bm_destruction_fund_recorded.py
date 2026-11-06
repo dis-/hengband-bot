@@ -39,7 +39,8 @@ RESERVE = 6657
 # fifth (rank 5), and an artifact of the same slot.
 RANK_ONE = "(パターン)パイク (2d5) (+9,+7) (+2) {+腕耐r呪;麻視経/邪デ死}"
 RANK_FIVE = "(聖戦者)ロッホアーバー・アックス (3d8) (+12,+8) [+2] (+1攻撃) {+攻賢r恐;視祝/邪デ死(賢}"
-TAKE_FOR_SALE = "home-errand:atomic-withdraw:full-home-sale"
+RANK_ONE_LAUNCHER = "強力射のショート・ボウ (x3) (0.55turn) (+10,+17) {r破;倍}"
+TAKE_FOR_SALE ="home-errand:atomic-withdraw:full-home-sale"
 ARTIFACT = "★ブロード・ソード『ノートゥング』 (2d5) (+12,+16) (+4) {+腕探r電火毒恐;遅明|電/X龍/オ~竜}"
 
 
@@ -126,7 +127,7 @@ class BlackMarketDestructionRecordedTest(_test_input_executor.ProductionHarness)
         self.assertEqual((key, policy.last_reason),
                          (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
         visit.post(key)
-        # DECLARED CONSTRUCTED: the answer's melee weapons and body armour only.
+        # DECLARED CONSTRUCTED: the answer's melee weapons, launchers and body armour only.
         # Home's junk (a Curse Weapon scroll and more) is destroyed by the
         # sweep before any sale (#70); the fund's takes follow it.
         policy.consume_home_knowledge(tuple(
@@ -183,13 +184,13 @@ class BlackMarketDestructionRecordedTest(_test_input_executor.ProductionHarness)
         board = self.census_answered(visit, census)
         rank_five = self.home_row(policy, RANK_FIVE)
         # DECLARED CONSTRUCTED: every melee piece of a higher rank number than
-        # 5 and every body piece was refused by its buyer earlier
+        # 5 and every launcher and body piece was refused by its buyer earlier
         # (_unsellable_items), so the cheapest-to-lose order reaches the rank 5
         # weapon first; the census and every rank are unchanged.
         policy._unsellable_items.update(
             policy._item_signature(item) for item in policy._home_knowledge_items
             if (item_fate.gear_rank(policy, board, item) or 0) > 5
-            or item_fate.SLOT_BY_TVAL[item.tval] == "body")
+            or item_fate.SLOT_BY_TVAL[item.tval] in ("launcher", "body"))
         rank_one = self.home_row(policy, RANK_ONE)
         self.assertEqual(item_fate.gear_rank(policy, board, rank_five), 5)
         self.assertEqual(item_fate.gear_rank(policy, board, rank_one), 1)
@@ -235,13 +236,20 @@ class BlackMarketDestructionRecordedTest(_test_input_executor.ProductionHarness)
                              if item.name in names))
         self.assertTrue(all(item_fate.gear_rank(policy, board, self.home_row(policy, name)) >= 2
                             for name in names))
-        # Only melee weapons and body armour.
+        # Melee weapons, launchers (2026-11-07 「射撃武器も入れる」) and body
+        # armour only: no digger, no other slot.
         self.assertEqual({item_fate.SLOT_BY_TVAL[tval] for _name, tval, _sval in plan},
-                         {"melee", "body"})
-        # 30,000 poorer, ranks 2+ no longer cover it (their estimates total
-        # 464,983): the rank 1 pieces are not counted in, so nothing is sold.
-        poorer = replace(board, player=replace(board.player, gold=board.player.gold - 30000))
-        self.assertEqual(bm_destruction_fund.shortfall(policy, poorer), 470000)
+                         {"melee", "launcher", "body"})
+        # Home's six spare launchers: ranks 2-6 are in, the rank 1 bow is not.
+        launcher_ranks = sorted(item_fate.gear_rank(policy, board, self.home_row(policy, name))
+                                for name, tval, _sval in plan
+                                if item_fate.SLOT_BY_TVAL[tval] == "launcher")
+        self.assertEqual(launcher_ranks, [2, 3, 4, 5, 6])
+        self.assertNotIn(RANK_ONE_LAUNCHER, names)
+        # 60,000 poorer, ranks 2+ no longer cover it (their estimates total
+        # about 472,700): the rank 1 pieces are not counted in, so nothing is sold.
+        poorer = replace(board, player=replace(board.player, gold=board.player.gold - 60000))
+        self.assertEqual(bm_destruction_fund.shortfall(policy, poorer), 500000)
         self.assertEqual(bm_destruction_fund.plan(policy, poorer), ())
 
     def test_spares_short_of_the_staff_sell_nothing(self):

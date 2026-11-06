@@ -7,7 +7,7 @@ Owner 2026-11-07: 「BMの買い物優先度について。*破壊*の杖の優�
 the Black Market's optional picks (``_black_market_optional_purchase``).
 
 When the optional reserve (owner 2026-10-08 「必需品1回分の補充代を残す」) leaves the
-staff out of reach, Home's spare melee weapons and body armour pay for it: the
+staff out of reach, Home's spare melee weapons, launchers and body armour pay for it: the
 existing junk sweep (item_fate.sweep_ware, the full-Home relief's take and sale)
 takes them out and sells them one at a time, rank 21+ first, then 11-20, then
 10..2, cheapest first within a rank.  Rank 1 of each slot stays, artifacts and
@@ -27,8 +27,9 @@ from hengbot import item_fate
 from hengbot.item_reservation import decision_memo
 from hengbot.model import STORE_BLACK
 
-# 「予備の武器と予備の胴防具」: item_fate's melee and body slots.
-FUND_SLOTS = frozenset({"melee", "body"})
+# 「予備の武器と予備の胴防具」: item_fate's melee and body slots; 2026-11-07
+# 「射撃武器も入れる」: and launchers (bows, crossbows, slings).  Diggers stay.
+FUND_SLOTS = frozenset({"melee", "launcher", "body"})
 # store/store-owners.cpp: every non-Black-Market owner's purse limit (max_cost).
 STORE_PURSE_LIMIT = 30000
 # store/pricing.cpp calc_store_price (PLAYER_SELLS): value * min(400 - markup,
