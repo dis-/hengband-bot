@@ -583,9 +583,10 @@ class SupplyMixin:
 
     def _departure_oil_short(self, snapshot: Snapshot) -> bool:
         """Oil below the departure's five flasks, unless the worn Q34 lantern shows
-        fuel in town (lamp_fuel.q34_town_lantern_lit, owner 2026-11-06)."""
+        fuel (lamp_fuel.q34_worn_lantern_lit, owner 2026-11-06); the town and the
+        floor ask the same question."""
         return (self._oil_below_departure_target(snapshot)
-                and not lamp_fuel.q34_town_lantern_lit(self, snapshot))
+                and not lamp_fuel.q34_worn_lantern_lit(self, snapshot))
 
     def _light_ready(self, snapshot: Snapshot) -> bool:
         if self._planned_depth() >= 2 and not self._owns_lantern(snapshot):
