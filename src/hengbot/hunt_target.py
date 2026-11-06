@@ -168,8 +168,8 @@ def route_key(policy, snapshot, hostiles) -> str | None:
     the walk goes to the nearest exploration frontier closer to it than the
     player (``_is_frontier``, the explore walk's own goal test); with neither,
     the cell is given up and the next search follows the me_powers spacing
-    rule.  When the floor's retreat vetoes are what closes the way, the
-    Teleportation of retreat_enclosure is read first."""
+    rule.  When the floor's retreat vetoes are what closes the way,
+    retreat_enclosure.walled_off_key answers first."""
     visit = _visit(policy, snapshot)
     if (visit is None or visit.position is None
             or any(monster.race_id != visit.race for monster in hostiles)
@@ -192,7 +192,7 @@ def route_key(policy, snapshot, hostiles) -> str | None:
         visit.spent_frontiers |= {position for position, grid in snapshot.grids.items()
                                   if policy._is_frontier(snapshot, grid)}
         visit.position = None
-        return retreat_enclosure.walled_off_teleport_key(policy, snapshot)
+        return retreat_enclosure.walled_off_key(policy, snapshot)
     policy.last_reason = REASON
     policy._declare_reach(goal)
     return policy._step_toward(snapshot, step)

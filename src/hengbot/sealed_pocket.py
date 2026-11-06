@@ -222,15 +222,51 @@ def _memory(policy, snapshot: Snapshot) -> Memory:
     return memory
 
 
-def _melt_key(policy, snapshot: Snapshot, direction: str) -> tuple[str, str] | None:
+def _melt_key(policy, snapshot: Snapshot, direction: str,
+              reason: str = REASON) -> tuple[str, str] | None:
     """(key, reason) of the wand, else of the absorbed power, as the quest breach aims them."""
     wand = policy._stone_to_mud_wand(snapshot)
     if wand is not None:
         used = reserved_item_command(policy, snapshot, "wand", wand, suffix=direction)
         if used is not None:
-            return used, REASON
+            return used, reason
     cast = carry_cast_key(policy, snapshot, "utility_tools", "wall_breach", direction)
-    return None if cast is None else (cast, REASON + CAST_SUFFIX)
+    return None if cast is None else (cast, reason + CAST_SUFFIX)
+
+
+def can_melt(policy, snapshot: Snapshot) -> bool:
+    """A charged Stone to Mud wand, or the absorbed power with a charge."""
+    return (policy._stone_to_mud_wand(snapshot) is not None
+            or carry_cast_key(policy, snapshot, "utility_tools", "wall_breach") is not None)
+
+
+def worn_out(policy, snapshot: Snapshot, wall: Position) -> bool:
+    """``wall`` stayed after me_powers.FAILURES_PER_PLACE uses on this floor visit."""
+    return _memory(policy, snapshot).uses[(wall.y, wall.x)] >= me_powers.FAILURES_PER_PLACE
+
+
+def _spend_melt(policy, snapshot: Snapshot, direction: str, wall: Position, reason: str) -> str | None:
+    """One use along ``direction`` at ``wall``, counted against it, else None."""
+    melt = _melt_key(policy, snapshot, direction, reason)
+    if melt is None:
+        return None
+    _memory(policy, snapshot).uses[(wall.y, wall.x)] += 1
+    # As the Teleportation rung: the next decisions rebuild their progress budget.
+    policy._nav_exhausted = False
+    policy._nav_stall_count = 0
+    policy.last_reason = melt[1]
+    return melt[0]
+
+
+def melt_at_key(policy, snapshot: Snapshot, wall: Position, reason: str) -> str | None:
+    """One use aimed at ``wall`` on a straight line from the player, else None.
+
+    For an asker that chose the wall itself (retreat_enclosure's way to walled-off ground)."""
+    player = snapshot.player
+    if player.blind or player.confused or player.recalling:
+        return None
+    direction = me_powers.beam_direction(policy, snapshot, player.position, wall)
+    return None if direction is None else _spend_melt(policy, snapshot, direction, wall, reason)
 
 
 def after_destruction_key(policy, snapshot: Snapshot) -> str | None:
@@ -259,12 +295,4 @@ def key(policy, snapshot: Snapshot) -> str | None:
     if aim is None:
         return None
     direction, wall = aim
-    melt = _melt_key(policy, snapshot, direction)
-    if melt is None:
-        return None
-    memory.uses[(wall.y, wall.x)] += 1
-    # As the Teleportation rung: the next decisions rebuild their progress budget.
-    policy._nav_exhausted = False
-    policy._nav_stall_count = 0
-    policy.last_reason = melt[1]
-    return melt[0]
+    return _spend_melt(policy, snapshot, direction, wall, REASON)

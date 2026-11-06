@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, return_yield, town_pack_headroom, walkout_dig
+from hengbot import combat_answer, damaging_ground, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, arena, armor_smith, ability_gear, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, once_quest_recall, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
@@ -198,6 +198,7 @@ from hengbot.policy_constants import (
     SUMMONER_CHOKE_NEIGHBORS,
     SUPPLY_STORES,
     TELEPORT_REQUIRED_DEPTH,
+    TELEPORT_RETURN_THRESHOLD,
     TORCH_REFILL_FUEL,
     BUY_KEY,
     BUY_CONFIRM_SUFFIX,
@@ -1104,7 +1105,6 @@ TELEPORT_SCROLL_TARGET = 3
 # Deep runs (10F+) escape far more often, so carry a big teleport buffer and only
 # head back to restock once it is drawn down to the low reserve.
 TELEPORT_SCROLL_DEEP_TARGET = 15
-TELEPORT_RETURN_THRESHOLD = 3
 # Once the character has reached this dungeon depth, returning to the dungeon
 # from town uses Word of Recall (which lands at the deepest level reached) rather
 # than walking to the wilderness entrance and re-descending from level 1.
@@ -7399,6 +7399,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return key
 
         self._build_grid_index(snapshot)
+        retreat_veto_life.observe(self, snapshot)
         self._refresh_warning_avoidance(snapshot)
         giveup_plan = self._choke_engagement_plan
         if (
@@ -7610,6 +7611,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 or (
                     self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure") is None
                     and not walkout_dig.has_route(self, snapshot)
+                    and not retreat_enclosure.dig_has_route(self, snapshot)
                 )
             )
         ):
@@ -7912,9 +7914,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # same unsafe drop from several different directions.
                 for threat in status_threats:
                     self._claim_engagement_avoid_cells(
-                        grid.position
-                        for grid in snapshot.grids.values()
-                        if grid.position.distance_to(threat.position) <= 1
+                        (grid.position
+                         for grid in snapshot.grids.values()
+                         if grid.position.distance_to(threat.position) <= 1),
+                        snapshot=snapshot, threats=(threat,),
                     )
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "status-threat:retreat"
@@ -7978,7 +7981,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # of view, producing a seek-loot/flee two-cell oscillation.
                 if self._is_material_threat(snapshot, strategic_hostiles):
                     self._claim_engagement_avoid_cells(
-                        (snapshot.player.position,)
+                        (snapshot.player.position,),
+                        snapshot=snapshot, threats=strategic_hostiles,
                     )
                     self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "flee"
@@ -8051,7 +8055,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # straight back into this square -- summoner:retreat '3' /
                 # seek-loot '7' between (23,115)/(24,116) until the loop
                 # detector stopped the bot (Castle 20F, 2026-10-02 15:14-15:16).
-                self._claim_engagement_avoid_cells((snapshot.player.position,))
+                self._claim_engagement_avoid_cells(
+                    (snapshot.player.position,), snapshot=snapshot, threats=corridor_threats)
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "summoner:retreat"
                 return self._town_producer_entry("_step_toward:escape", lambda: self._step_toward(snapshot, step), family="escape")
@@ -8153,7 +8158,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # below.  Without persisting the abandoned square, generic
                 # secret-wall exploration can immediately reverse this retreat
                 # and alternate with it forever.
-                self._claim_engagement_avoid_cells((snapshot.player.position,))
+                self._claim_engagement_avoid_cells(
+                    (snapshot.player.position,), snapshot=snapshot, threats=strategic_hostiles)
                 self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "threat:reposition"
                 self._declare_reach(step)
@@ -9310,7 +9316,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not snapshot.player.blind
             and not snapshot.player.confused
         ):
-            teleport = retreat_enclosure.teleport_key(self, snapshot)
+            teleport = retreat_enclosure.enclosed_key(self, snapshot)
             if teleport is not None:
                 self._stuck_escape_streak = 0
                 return teleport
@@ -16627,9 +16633,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         hostiles = self._physical_hostiles(snapshot)
         candidates = [
             monster for monster in hostiles
-            if monster.distance <= 1
-            and monster.max_ranged_damage <= 0
-            and self._escape_blocker_is_easy_kill(snapshot, hostiles, monster)
+            if monster.distance <= 1 and self._weak_blocker(snapshot, hostiles, monster)
         ]
         best: tuple[int, MonsterState] | None = None
         for monster in candidates:
@@ -16658,12 +16662,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                             ),
                             None,
                         )
-                        if (
-                            occupant is None
-                            or occupant.max_ranged_damage > 0
-                            or not self._escape_blocker_is_easy_kill(
-                                snapshot, hostiles, occupant
-                            )
+                        if occupant is None or not self._weak_blocker(
+                            snapshot, hostiles, occupant
                         ):
                             continue
                     seen.add(neighbor)
@@ -16675,6 +16675,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if best is None or not self._can_fight_in_dungeon(snapshot.floor_key[0]):
             return None
         return self._direction_key(player.position, best[1].position)
+
+    def _weak_blocker(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+        monster: MonsterState,
+    ) -> bool:
+        """A blocker the walk-out bumps: no ranged attack, and an easy kill.
+
+        Also retreat_enclosure's reading of a weak enemy in walled-off ground."""
+        return (
+            monster.max_ranged_damage <= 0
+            and self._escape_blocker_is_easy_kill(snapshot, hostiles, monster)
+        )
 
     def _escape_blocker_is_easy_kill(
         self,
@@ -16775,7 +16789,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return None
         # Treat the retreat as a navigation veto, not a one-turn move.
         # A committed explore path otherwise walks straight back here.
-        self._claim_engagement_avoid_cells((snapshot.player.position,))
+        self._claim_engagement_avoid_cells(
+            (snapshot.player.position,), snapshot=snapshot, threats=hostiles)
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:avoid-engagement"
         self._declare_reach(step)
@@ -17388,16 +17403,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         )
 
     def _claim_engagement_avoid_cells(
-        self, cells: Iterable[Position]
+        self, cells: Iterable[Position], *, snapshot: Snapshot | None = None,
+        threats: Iterable[MonsterState] = (),
     ) -> None:
         """Record an engagement/status-threat avoidance claim with ownership.
 
         The engagement owner's claims are tracked separately so the warning
         owner's exhaustion withdrawal can never remove them from the shared
-        routing set."""
+        routing set.  A retreat names the ``threats`` it fled, and the claim
+        is lifted once they are gone (retreat_veto_life); without them it
+        stays for the floor visit."""
         owned = set(cells)
         self._engagement_owned_avoid_cells |= owned
         self._engagement_avoid_cells |= owned
+        retreat_veto_life.claim(self, snapshot, owned, tuple(threats))
 
 
     def _warning_prompt_response_key(self, snapshot: Snapshot) -> str | None:

@@ -12,6 +12,7 @@ import lzma
 import unittest
 from pathlib import Path
 
+from hengbot import retreat_enclosure
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_state import normalize_policy_state
@@ -106,7 +107,20 @@ class RetreatVetoesEncloseTheMazePlayer(ItemCommandBoards):
     every way out of a corridor pocket after the threats had died, and it waited
     with '5' at one cell until the loop guard stopped the bot.  Owner 2026-11-04:
     「一旦テレポートで離脱を試みる。同じフロアで二度同じ形で動けなくなったら帰還。」
+    Owner 2026-11-06: 「閉じ込められた時はどちらも、掘る（岩石溶解を含む）・罠の解除・弱い敵を倒す
+    を先に試し、駄目ならテレポート、巻物が規定数以下なら帰還。判定を1つにまとめる。」: the ladder of
+    retreat_enclosure from its openers (dig, disarm, weak enemy, then Teleportation or Recall at or
+    below the reserve, TELEPORT_RETURN_THRESHOLD 3 off a quest floor), with no leading
+    Teleportation.  Both boards carry two shovels and a Stone to Mud wand: the dig comes first.
     """
+
+    def without_diggers(self, raw: dict, teleportation: int) -> dict:
+        """DECLARED: no shovel and no Stone to Mud, ``teleportation`` scrolls."""
+        raw = copy.deepcopy(raw)
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if item["tval"] != 20 and "岩石溶解" not in item["name"]]
+        next(item for item in raw["inventory"] if "テレポートの巻物" in item["name"])["count"] = teleportation
+        return raw
 
     def enclosed(self, case: dict):
         policy = self.fresh_policy(case["boards"][0], case["terrain"])
@@ -119,41 +133,58 @@ class RetreatVetoesEncloseTheMazePlayer(ItemCommandBoards):
         self.assertIsNone(policy._least_visited_neighbor(snapshot))
         return policy
 
-    def assert_teleport_then_recall(self, name: str):
+    def enclosed_board(self, name: str, change=None):
+        """The stop's board (``change`` applied) decided on the enclosed policy."""
         case = fixture(name)
         policy = self.enclosed(case)
-        first, second = case["boards"][-2:]
+        board = case["boards"][-2]
+        if change is not None:
+            board = change(board)
         vetoes = set(policy._engagement_owned_avoid_cells)
-        key = self.decide(policy, first)
-        self.assertEqual(policy.last_reason, "stuck:enclosed-teleport")
-        self.post_item_command(policy, first, key, "どの巻物を読みますか? ")
-        # The same game turn decided again is still the first enclosure.
-        self.assertEqual(self.decide(policy, first), key)
-        self.assertEqual(policy.last_reason, "stuck:enclosed-teleport")
-        self.assertTrue(vetoes <= policy._engagement_owned_avoid_cells)
-        # A restart keeps the floor's count.
-        normalize_policy_state(policy, restart=True)
-        self.assertIsNotNone(policy._enclosure_teleport_read)
-        recall = self.decide(policy, second)
-        self.assertEqual(policy.last_reason, "stuck:recall-escape")
-        self.assertNotEqual(recall, key)
-        self.post_item_command(policy, second, recall, "どの巻物を読みますか? ")
+        key = self.decide(policy, board)
+        self.assertTrue(vetoes <= policy._engagement_owned_avoid_cells)  # every veto is kept
+        return policy, board, key
 
     def test_d15(self):
-        self.assert_teleport_then_recall("enclosed-d15.json.xz")
+        policy, _board, _key = self.enclosed_board("enclosed-d15.json.xz")
+        self.assertEqual(policy.last_reason, retreat_enclosure.DIG_WIELD_REASON)
 
     def test_d18(self):
-        self.assert_teleport_then_recall("enclosed-d18.json.xz")
+        policy, _board, _key = self.enclosed_board("enclosed-d18.json.xz")
+        self.assertEqual(policy.last_reason, retreat_enclosure.DIG_WIELD_REASON)
 
-    def test_unanswered_hostile_in_view_still_takes_the_teleport(self):
+    def test_with_nothing_to_dig_teleportation_is_read_each_time(self):
+        policy, board, key = self.enclosed_board(
+            "enclosed-d15.json.xz", lambda raw: self.without_diggers(raw, 4))
+        self.assertEqual((key[0], policy.last_reason), ("r", retreat_enclosure.TELEPORT_REASON))
+        self.post_item_command(policy, board, key, "どの巻物を読みますか? ")
+        # The same game turn decided again is the same read (the executor refused it).
+        self.assertEqual(self.decide(policy, board), key)
+        # A restart keeps the floor's read; enclosed again, Teleportation over the reserve.
+        normalize_policy_state(policy, restart=True)
+        self.assertIsNotNone(policy._enclosure_teleport_read)
+        again = self.without_diggers(fixture("enclosed-d15.json.xz")["boards"][-1], 4)
+        self.assertEqual((self.decide(policy, again)[0], policy.last_reason),
+                         ("r", retreat_enclosure.TELEPORT_REASON))
+
+    def test_at_the_reserve_recall_is_read(self):
+        """At 15F the ordinary supply return (it returns below 4 scrolls) reads the
+        Recall above the idle fallback; the ladder's own Recall at the reserve is the
+        same _leave_key the walled-off pin reads on the quest floor."""
+        policy, board, key = self.enclosed_board(
+            "enclosed-d15.json.xz", lambda raw: self.without_diggers(raw, 3))
+        self.assertEqual((key[0], policy.last_reason), ("r", "return:recall"))
+        self.post_item_command(policy, board, key, "どの巻物を読みますか? ")
+
+    def test_unanswered_hostile_in_view_still_takes_the_enclosure_ladder(self):
         """No rung answered this board (recorded: 'wait', melee on the next board),
-        so the enclosure owns it: a hostile in view does not hold the read back."""
+        so the enclosure owns it: a hostile in view does not hold the ladder back."""
         case = fixture("enclosed-d18.json.xz")
         raw = case["hostile_in_view"]
         self.assertTrue(raw["visible_monsters"])
         policy = self.enclosed(case)
         self.decide(policy, raw)
-        self.assertEqual(policy.last_reason, "stuck:enclosed-teleport")
+        self.assertEqual(policy.last_reason, retreat_enclosure.DIG_REASON)  # the openers first
 
     def test_no_teleportation_reads_recall(self):
         case = fixture("enclosed-d15.json.xz")

@@ -40,16 +40,20 @@ def _covered(policy, snapshot, quest_id: int) -> bool:
             or policy._runtime_random_quest(snapshot, quest_id))
 
 
+def floor_reserve(policy, snapshot) -> int | None:
+    """RANDOM_QUEST_TELEPORT_RESERVE on a covered kill quest's floor, else None."""
+    if snapshot.in_town:
+        return None
+    quest_id = policy._active_kill_quest_id(snapshot)
+    if quest_id is None or not _covered(policy, snapshot, quest_id):
+        return None
+    return RANDOM_QUEST_TELEPORT_RESERVE
+
+
 def teleport_reserve_spent(policy, snapshot) -> bool:
     """This floor's covered kill quest has drawn teleports below the reserve."""
-    if snapshot.in_town:
-        return False
-    quest_id = policy._active_kill_quest_id(snapshot)
-    return (
-        quest_id is not None
-        and _covered(policy, snapshot, quest_id)
-        and policy._count_teleport_scrolls(snapshot) < RANDOM_QUEST_TELEPORT_RESERVE
-    )
+    reserve = floor_reserve(policy, snapshot)
+    return reserve is not None and policy._count_teleport_scrolls(snapshot) < reserve
 
 
 def departure_requirement(policy, snapshot) -> int:

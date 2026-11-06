@@ -28,8 +28,9 @@ again.  A lap with no stop left to walk to answers nothing, and the ladder below
 
 A loop step is progress: new ground is not what it is for, so the no-progress and stuck
 counts restart on each (as sealed_pocket's use does).  So a loop whose ground a retreat's veto
-walls off would circle one side for ever: the floor's Teleportation is read first
-(retreat_enclosure.walled_off_teleport_key).  There is no cap on laps.
+walls off would circle one side for ever: retreat_enclosure.walled_off_key answers first (the
+floor's Teleportation, then the owner's dig, disarm and strike, then Teleportation again or
+Recall).  There is no cap on laps.
 
 The secret doors (``_door_search_key``).  Owner the same day: 「周辺感知をもたない場合に限り何周か
 ごとに隠し扉を探す」.  With no usable 周辺感知 (area_mapping.means_held), every DOOR_SEARCH_LAPS laps
@@ -228,7 +229,7 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     """The next step of the lap or of its door search, else None."""
     if not searching(policy, snapshot):
         return None
-    walled_off = retreat_enclosure.walled_off_teleport_key(policy, snapshot)
+    walled_off = retreat_enclosure.walled_off_key(policy, snapshot)
     if walled_off is not None:
         return walled_off
     memory, routes = _memory(policy, snapshot), _routes(policy, snapshot)
