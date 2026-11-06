@@ -1038,7 +1038,7 @@ class Phase:
     spec_key: str          # the draft's key that says it
     full_hp: bool          # 「全快にして」 before its first step
     done: Callable
-    run: Callable
+    act: Callable          # the phase's own step
     wait_at: tuple | None = None   # where its 50-action wait is counted
 
 
@@ -1089,7 +1089,7 @@ def _phase_key(policy, snapshot) -> str | None:
     phase = current_phase(ctx)
     if phase is None:
         return None
-    return _prepare(ctx, phase) or phase.run(ctx)
+    return _prepare(ctx, phase) or phase.act(ctx)
 
 
 # -- the summons ------------------------------------------------------------------------
