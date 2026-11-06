@@ -35,6 +35,11 @@ known, the walk goes on at once.  An enemy that does not come does not freeze th
 is shot from the choke when it stands in the way, otherwise passed.  A sleeper stays asleep
 unless it is in the way or beside the next choke.
 
+Owner 2026-11-06 「来ない遠くの敵を理由に隘路へ戻らないようにし」: a far (ESP-detected only)
+mover sends the walk to a choke, or stops a dig, only once it is seen to close in
+(``approaching``) or stands beside the walk ahead; a walk to a choke, once begun, goes on
+while that reason holds instead of turning back to the exit cell by cell.
+
 ``find_exit.dig_cells`` are veins the walk opens.  Owner 2026-11-04 「簡単に掘れるので道具が
 なくても必ず掘る。」.  Game: exe_tunnel (tunnel-execution.cpp:53) on a vein without CAN_DIG
 succeeds when skill_dig > power + randint0(40 * power), power 10 for magma on water, one
@@ -92,6 +97,11 @@ SIDESTEP_LIMIT = 2
 VEIN_DIG_POWER = 10  # TerrainDefinitions MAGMA_VEIN_ON_DEEP_WATER tunnel power
 PERMANENT_HASTE_SPEED = 120
 DEFAULT_SPEED_RATIO = 0.5
+# A far (detected only) monster comes when, within this many game turns (20 player turns
+# at normal speed), it has closed APPROACH_CELLS on the player; a step back and forth
+# never does.
+APPROACH_WINDOW = 200
+APPROACH_CELLS = 2
 
 
 def _plan(policy, snapshot) -> dict | None:
@@ -212,6 +222,41 @@ def comes_for_player(policy, navigator, snapshot, monster) -> bool:
                                     _cell(monster.position), _cell(snapshot.player.position))
 
 
+def _track(navigator, snapshot, known) -> None:
+    """Each known monster's cells over the last APPROACH_WINDOW game turns of this floor."""
+    turn = snapshot.turn
+    tracks = {}
+    for index, (race, history) in navigator.exit_tracks.items():
+        history = tuple(row for row in history if turn - APPROACH_WINDOW <= row[0] <= turn)
+        if history:
+            tracks[index] = (race, history)
+    for monster in known:
+        race, history = tracks.get(monster.index, (monster.race_id, ()))
+        if race != monster.race_id:
+            history = ()  # the index went to another monster
+        tracks[monster.index] = (monster.race_id, history + ((turn, _cell(monster.position)),))
+    navigator.exit_tracks = tracks
+
+
+def approaching(navigator, snapshot, monster) -> bool:
+    """Seen to close in: over its track of the window, nearer the player by APPROACH_CELLS.
+
+    Owner 2026-11-06 「来ない遠くの敵を理由に隘路へ戻らないようにし」: whether a far
+    monster comes is what it did, not a static walk to the player.  Both cells are measured
+    to where the player is now, so the player's own walk does not count as its approach;
+    a monster stepping back and forth one cell (n1-a life 490, seahorse 443 at (9,6) and
+    (10,6) the whole time) never does.  A monster first known on this board has done
+    nothing yet.
+    """
+    _, history = navigator.exit_tracks.get(monster.index, (monster.race_id, ()))
+    if not history:
+        return False
+    player = _cell(snapshot.player.position)
+    farthest = max(quest_exposure.game_distance(cell, player) for _, cell in history)
+    now = quest_exposure.game_distance(_cell(monster.position), player)
+    return farthest - now >= APPROACH_CELLS
+
+
 def _rank(profile, monster) -> tuple[int, int]:
     targets = profile.priority_targets
     index = targets.index(monster.race_id) if monster.race_id in targets else len(targets)
@@ -228,12 +273,23 @@ class _Board:
                  if monster.hostile and monster.race_id not in sealed]
         self.in_view = [monster for monster in known if monster.perception != "detected"]
         self.occupied = {monster.position for monster in known}
+        _track(navigator, snapshot, known)
         # A monster that cannot come is no reason to hold a choke; one beside the player
         # is left behind by walking on (a siren's pull ends beside it, 840 HP unfought).
-        self.mobile_awake = [monster for monster in known
-                             if comes_for_player(policy, navigator, snapshot, monster)]
-        self.coming_in_view = [monster for monster in self.mobile_awake
+        self.reachable_awake = [monster for monster in known
+                                if comes_for_player(policy, navigator, snapshot, monster)]
+        self.coming_in_view = [monster for monster in self.reachable_awake
                                if monster.perception != "detected"]
+        # What sends the walk to a choke or stops a dig: one in view, a far one seen to
+        # close in, or one beside the walk ahead (in the way, moving or not).  A far one
+        # that does not come is no reason (owner 2026-11-06).
+        far = [monster for monster in self.reachable_awake if monster.perception == "detected"]
+        leg = (_next_leg(navigator, _plan_of(profile), position)
+               if any(not approaching(navigator, snapshot, monster) for monster in far) else [])
+        self.mobile_awake = [*self.coming_in_view, *(
+            monster for monster in far
+            if approaching(navigator, snapshot, monster)
+            or any(monster.position.distance_to(cell) <= 1 for cell in leg))]
         self.adjacent_mobile = [monster for monster in self.coming_in_view
                                 if monster.position.distance_to(position) <= 1]
         # A never-moving puller (a siren's TELE_TO) in view: no place to rest, and an
@@ -407,6 +463,7 @@ def _clear_the_way_key(policy, snapshot, navigator, plan, board, path) -> str | 
 def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     """Stand on the nearest choke still worth waiting on; None when there is none."""
     position = snapshot.player.position
+    navigator.exit_choke_goal = None
     chokes = _chokes(navigator, plan)
     if position in chokes:
         held = _hold(policy, snapshot, navigator, plan, position, board)
@@ -416,9 +473,29 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     path = _least_exposed(navigator, plan, position, chokes, board.occupied, as_it_is=True)
     if len(path) < 2:
         return None
+    navigator.exit_choke_goal = path[-1]
     policy.last_reason = TO_CHOKE_REASON
     policy._declare_reach(path[-1])
     return policy._step_toward(snapshot, path[1])
+
+
+def _choke_walk_under_way(policy, snapshot, navigator, plan, board) -> str | None:
+    """The walk to a choke goes on over cells that would otherwise walk to the exit.
+
+    n1-a life 490 (2026-11-06): (1,8) stepped to the choke, the shouted (2,7) stepped to
+    the exit, one cell each, until the loop guard stopped it; life 491 did the same between
+    (5,23) and the dig at (5,25).  While what sent it there still holds, a shouted cell or a
+    board with no enemy to strike goes on to the choke; it stops when that reason is gone.
+    """
+    goal = navigator.exit_choke_goal
+    # A pulled player takes the way back by name (_advance); a floor that needs clearing has
+    # its own answer to what comes and its own end (_clear_key, clear_turn_limit).
+    if (goal is None or not board.mobile_awake or snapshot.player.position == goal
+            or _cell(snapshot.player.position) in pull_cells(navigator, plan)
+            or _floor_needs_clearing(navigator, plan)):
+        navigator.exit_choke_goal = None
+        return None
+    return _to_choke(policy, snapshot, navigator, plan, board)
 
 
 def _least_exposed(navigator, plan, start: Position, goals, blocked=(), *,
@@ -674,6 +751,8 @@ def key(policy, snapshot) -> str | None:
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
     board = _Board(policy, snapshot, profile, navigator)
+    if not board.mobile_awake:
+        navigator.exit_choke_goal = None  # what sent the walk to a choke is gone
     exposed = _exposure(navigator, plan).exposed(_cell(snapshot.player.position))
     stepped = _step_on_exit(policy, snapshot, navigator, board)
     if stepped is not None:
@@ -685,6 +764,7 @@ def key(policy, snapshot) -> str | None:
             or (_heal(policy, snapshot, profile) if board.engaged else None)
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
+            or _choke_walk_under_way(policy, snapshot, navigator, plan, board)
             or _advance(policy, snapshot, navigator, plan, board)
         )
     if not board.enemy_for_the_line:
@@ -703,6 +783,7 @@ def key(policy, snapshot) -> str | None:
         or summon_response.key(policy, snapshot)
         or resist_potion.key(policy, snapshot)
         or (_fight(policy, snapshot, profile, navigator, plan, board) if board.engaged else None)
+        or _choke_walk_under_way(policy, snapshot, navigator, plan, board)
         or _advance(policy, snapshot, navigator, plan, board)
     )
 
