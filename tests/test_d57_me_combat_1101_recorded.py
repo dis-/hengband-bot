@@ -50,7 +50,7 @@ DECLARED RECONSTRUCTED: the life-083 displayed wand list carries the absorbed
 (bot_test2_Autodump_2026-11-01_064803.txt); the fail percentages are
 constructed (10%, 5%).
 DECLARED CONSTRUCTED: the life-084 controls start the drive blind (nothing
-remembered) or lower the latched board's HP below the low-HP threshold; the
+remembered; one also afraid) or lower the latched board's HP below the low-HP threshold; the
 life-085 melee cases raise both hands' displayed
 to-hit by 30 (an off hand that hits, as me-dual-wield-1101 pursues), and the
 aura case gives the jelly's race AURA_FIRE.
@@ -195,11 +195,24 @@ class BlindedAgainAfterTheCureRecordedTest(d57.PostedDeathKey):
         # One sighted board between the cure and the gaze: not right after.
         self.assertEqual(answers[CURED_TURN][1:], ("qc", "item:cure-critical"))
 
-    def test_control_nothing_remembered_keeps_the_cure(self):
+    def test_nothing_remembered_strikes_an_unknown_neighbour(self):
+        # Owner 2026-11-07 「盲目で周りが分からない時は分からない隣のマスにも攻撃
+        # する。」 (n1-c life-156): with nothing remembered the board beside the
+        # blind player is unknown, and an unknown neighbour is struck instead of
+        # the cure (this control kept the cure before that decision).
         answers = self.answers(first=CURED_TURN, last=REBLINDED_TURN,
                                policy=d57.new_policy(dict(CASE_084, boards=d57.boards(
                                    CASE_084, CURED_TURN, REBLINDED_TURN))))
-        self.assertEqual(answers[REBLINDED_TURN][1:], ("qc", "item:cure-critical"))
+        key, reason = answers[REBLINDED_TURN][1:]
+        self.assertEqual((key[:1], reason), ("+", "blind:fight-through"))
+
+    def test_control_afraid_with_nothing_remembered_keeps_the_cure(self):
+        # Fear refuses every blow (cmd-attack.cpp): nothing can be fought.
+        rows = d57.boards(CASE_084, CURED_TURN, REBLINDED_TURN)
+        for raw in rows:
+            raw["player"]["status"]["afraid"] = True
+        answers = decide_all(d57.new_policy(dict(CASE_084, boards=rows)), copy.deepcopy(rows))
+        self.assertEqual(answers[-1][1:], ("qc", "item:cure-critical"))
 
     def test_control_low_hp_is_the_survival_ladders(self):
         rows = d57.boards(CASE_084, 1287774, REBLINDED_TURN)

@@ -110,13 +110,19 @@ def cure_futile(policy, snapshot) -> bool:
     """Whether this blindness came back right after a cure and its attacker
     can be fought instead (no cure for it): the blow that re-blinded the player
     still lands, and that attacker is remembered beside the player, or an
-    unseen one whose melee blow landed on this board has a free neighbour to
-    strike it in."""
+    unseen one whose melee blow landed on this board has a neighbour to
+    strike it in (an unknown one counts while blind, unseen_strike).
+
+    The blow is read from the board, not from an HP loss: n1-c life-156
+    (2026-11-07 23:08, 迷宮12階) drank Cure Critical Wounds into five re-blinding
+    ヴラスタ bites in a row because each cure's heal outweighed the bite (HP
+    196 -> 207 -> 225 -> 229), so no HP loss showed a melee hit."""
     return (getattr(policy, _LATCH, None) == snapshot.floor_key
             and _blinder_still_hitting(policy, snapshot)
             and (bool(blind_strike.remembered_cells(policy, snapshot))
-                 or unseen_strike.strike_cell(policy, snapshot,
-                                              policy._physical_hostiles(snapshot)) is not None))
+                 or unseen_strike.strike_cell(
+                     policy, snapshot, policy._physical_hostiles(snapshot),
+                     blow_landed=unseen_strike.blow_on_board(snapshot)) is not None))
 
 
 def fight_through_key(policy, snapshot) -> str | None:
@@ -128,7 +134,8 @@ def fight_through_key(policy, snapshot) -> str | None:
         return None
     return (blind_strike.strike_key(policy, snapshot, FIGHT_THROUGH_REASON)
             or unseen_strike.key(policy, snapshot, policy._physical_hostiles(snapshot),
-                                 FIGHT_THROUGH_REASON))
+                                 FIGHT_THROUGH_REASON,
+                                 blow_landed=unseen_strike.blow_on_board(snapshot)))
 
 
 def treats(policy, snapshot, *, blind_only: bool = False) -> bool:

@@ -11684,6 +11684,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "unseen_strike.py:_neighbours": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "unseen_strike.py:_open_neighbour": {
     "classification": "data",
     "rows": [
@@ -11695,6 +11702,13 @@
     "classification": "producer",
     "rows": [
       "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "unseen_strike.py:blow_on_board": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -11713,6 +11727,13 @@
     "delegation": "selected child; no independent success"
   },
   "unseen_strike.py:message_text": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "unseen_strike.py:sightless": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

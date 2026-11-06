@@ -15222,5 +15222,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A disarming power or carried device aimed at a Q25 trap cell. No independent progress."
+  },
+  "unseen_strike.py:blow_on_board": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: whether a blind board shows a melee blow text (JA_BLOW_ACTS), whatever the HP did; read by status_cure's re-blind latch (cure_futile, fight_through_key) because a cure's heal can outweigh the bite (n1-c life-156, owner 2026-11-07).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
