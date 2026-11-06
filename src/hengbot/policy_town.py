@@ -440,6 +440,16 @@ class TownMixin:
                     pending = getattr(self, "_pending_one_step_explore", None)
                     if pending is not None:
                         goal = pending[1]
+        elif (owner == "detectors"
+              and (reason or self.last_reason or "").startswith(
+                  "town-progress-invariant:defect:")):
+            # The progress seam hands this decision to another errand's walk
+            # (_town_procurement_progress_key) under the detector's label.  A
+            # store route that walk staged on this decision is measured like
+            # the router's own: n1-a life-492 (2026-11-06 16:25:16-18) walked
+            # back toward the Alchemist and Home under such labels, every step
+            # scored no progress and the detectors retired twice in a burst.
+            goal = self._staged_store_route_goal()
         elif owner == "misc" and (reason or self.last_reason) == "seek-loot":
             # A committed town-loot walk is locomotion, not a repeated durable
             # town fingerprint.  Admit each real step until the loot producer
@@ -530,6 +540,17 @@ class TownMixin:
         return durable + (
             self._locomotion_part(snapshot, owner, goal),
         )
+
+    def _staged_store_route_goal(self) -> Position | None:
+        """The store entrance a shopping approach staged on this decision.
+
+        _stage_shopping_approach_key records the decision it staged on; a label
+        given afterwards (the progress seam's) does not change the walk.
+        """
+        staged = getattr(self, "_staged_shop_approach", None)
+        if staged is None or staged[1] != self._decision_sequence:
+            return None
+        return self._shopping_approach_goal
 
     def _town_equipment_home_route(
         self, snapshot, reason,
