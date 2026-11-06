@@ -173,7 +173,9 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
             _engagement_avoid_cells=set(),
             _in_unseen_attack_area=lambda _board, cell: cell.x <= 5,
         )
-        board = SimpleNamespace(player=SimpleNamespace(position=Position(5, 6)))
+        # The stops leave out ground that hurts (damaging_ground.hurts_at): none here.
+        board = SimpleNamespace(player=SimpleNamespace(position=Position(5, 6)),
+                                grid_at=lambda cell: None)
         self.assertEqual(HengbotPolicy._secret_wall_search_step(finder, board), Position(5, 7))
 
     def test_restarted_process_still_knows_the_attack(self):

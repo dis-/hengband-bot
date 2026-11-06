@@ -10,6 +10,11 @@ its two Healing potions on deep acid, then shot energy hounds from (8,166) with
 floor beside it, HP 427 -> 292 -> 71 -> dead (hp-mp-processor.cpp deals the terrain's
 damage every 10 game turns to whoever stands there).
 
+A wall search is never chosen on such ground, and a cell of it is no secret-wall stop
+(``hurts_at``): the step that replaced the search walked back off it, the walk out
+stepped onto it again, and each replaced search was counted as made (n1-a life-492,
+Orc cave 23F, 2026-11-06 23:55, HEAVY_ELECTRICAL_ZONE around a pocket).
+
 An immune player takes no such damage, and a levitating one does not stand in it.
 Deep water is not in the table: it only drowns an overloaded player.  Town decisions
 stay with the town arbiter.
@@ -30,8 +35,13 @@ STANDSTILLS = frozenset({REST, SEARCH_KEY, WAIT_KEY, FIRE, THROW, AIM, USE, ZAP,
 
 def hurts_here(policy, snapshot) -> bool:
     """The player's own cell damages this player now."""
+    return hurts_at(policy, snapshot, snapshot.player.position)
+
+
+def hurts_at(policy, snapshot, position) -> bool:
+    """Standing on ``position`` would damage this player now."""
     player = snapshot.player
-    grid = snapshot.grid_at(player.position)
+    grid = snapshot.grid_at(position)
     if grid is None or "levitation" in player.abilities:
         return False
     elements = getattr(policy, "_damaging_terrain_elements", {})
