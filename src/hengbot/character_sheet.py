@@ -14,6 +14,24 @@ class CharacterSheetUnavailable(ValueError):
     """A reason to skip optimization and wait for another periodic observation."""
 
 
+# The artifact sets that add AC (player-status.cpp calc_ac: set_quick_and_tiny
+# +10, set_musasi +10, set_icing_and_twinkle +5).  Each is complete only with
+# the first FixedArtifactId in INVEN_MAIN_HAND and the second in INVEN_SUB_HAND
+# (set_quick_and_tiny / set_musasi / set_icing_and_twinkle).
+AC_SETS = (
+    (174, 175),  # QUICKTHORN, TINYTHORN
+    (171, 172),  # MUSASI_KATANA, MUSASI_WAKIZASI
+    (259, 260),  # ICINGDEATH, TWINKLE
+)
+
+
+def completed_ac_set(equipment) -> tuple[int, int] | None:
+    """The AC set the worn hands complete, by fixed artifact id, or None."""
+    hands = {item.slot: item.artifact_id for item in equipment if item.is_equipment}
+    pair = (hands.get("main_hand", 0), hands.get("sub_hand", 0))
+    return pair if pair in AC_SETS else None
+
+
 @dataclass(frozen=True)
 class StatRow:
     base: int
@@ -373,10 +391,9 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     worn = current_loadout(catalog.items)
     if worn.flags & {134, 141}:
         raise CharacterSheetUnavailable("unsupported-ac-interaction")
-    # Known named sets have non-additive AC and require a separate set model.
-    if any(any(name in item.name for name in ("クイック", "タイニー", "武蔵", "二天", "アイシング", "つらぬき",
-                                              "Quick", "Tiny", "Musashi", "Icing", "Twinkle"))
-           for item in snapshot.equipment):
+    # A complete AC set adds a flat AC the loadout model does not carry; the
+    # constant derived below would absorb it.  One piece alone has no effect.
+    if completed_ac_set(snapshot.equipment) is not None:
         raise CharacterSheetUnavailable("unsupported-ac-set")
     printed = tuple(row.race + row.profession + row.personality for row in sheet.rows)
     # The mutation bonus is in stat_add with race, class and personality,
