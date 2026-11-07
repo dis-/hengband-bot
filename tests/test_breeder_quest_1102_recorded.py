@@ -4,7 +4,8 @@ Recorded: n1-c life-098 on 鉄獄24階, random quest 41 (RANDOM, target race
 1329, never perceived on these boards), 2026-11-02 00:10-00:14
 (tests/fixtures/breeder-swarm-20261102.json.gz, the breeder-swarm-1102
 fixture).  breeder_stalemate latches the floor after the 20th player action
-without a reduction (turn 2199871); the quest exit lock then left the
+without a reduction, counted from the first attack (owner 2026-11-07; turn
+2199896); the quest exit lock then left the
 breakthrough no exit, and the recorded process searched and broke out
 beside the growing Software bug swarm.
 
@@ -13,7 +14,7 @@ Owner 2026-11-02 (verbatim): 「20ターンの数え方はそれで良い。　�
 テレポートで距離を取り、増殖モンスターの近くを避けて続行」 (breeder_quest):
 
 * the target quest reads a Scroll of Teleportation on the first board of the
-  latch (turn 2199883: _update_combat_outcome latches after the 20th
+  latch (turn 2199905: _update_combat_outcome latches after the 20th
   action's decision), keeps the floor, and routes clear of the bite ring of
   every perceived breeder;
 * without a Scroll of Teleportation the floor keeps the breakthrough's
@@ -47,7 +48,7 @@ from tests import test_breeder_swarm_1102_recorded as swarm
 CASE = swarm.CASE
 QUEST_FLOOR = swarm.QUEST_FLOOR
 FLEE_TURN = swarm.FLEE_TURN
-LATCHED_TURN = 2199883  # the first board after the 20th action's decision
+LATCHED_TURN = 2199905  # the first board after the 20th action's decision (the last board)
 TARGET_RACE = 1329
 KILL_ALL_QUEST = 28
 SV_TELEPORT, SV_RECALL, TVAL_SCROLL = 9, 11, 70
@@ -154,21 +155,21 @@ class BreederQuestRecordedTest(swarm.PostedSwarmKey):
         # owner 2026-11-01 「テレポートが残り少なくなったら帰る」) and the
         # breakthrough reads Recall, as before this change.
         boards = [without_teleport(raw) for raw in CASE["engage"]]
-        policy, rows = self.drive_engagement(boards[:-2])
+        policy, rows = self.drive_engagement(boards)
         self.assertEqual(rows[LATCHED_TURN],
                          ("r" + slot(boards[0], SV_RECALL), "breeder-breakthrough:recall"))
         self.assertTrue(policy._returning_to_town)
 
     def test_kill_all_quest_floor_is_abandoned_by_recall(self):
         boards = [kill_all(raw) for raw in CASE["engage"]]
-        policy, rows = self.drive_engagement(boards[:-2])
+        policy, rows = self.drive_engagement(boards)
         self.assertEqual(rows[LATCHED_TURN],
                          ("r" + slot(boards[0], SV_RECALL), "breeder-breakthrough:recall"))
         self.assertTrue(policy._returning_to_town)
         self.assertEqual(policy._active_fixed_quest_id(swarm.board(policy, boards[0])),
                          KILL_ALL_QUEST)
         # The stairs answer 「本当にこの階を去りますか？」 there too.
-        latched = swarm.board(policy, boards[-3])
+        latched = swarm.board(policy, boards[-1])
         self.assertTrue(policy.quest_leave_confirmation_owned(latched, UP_STAIRS_KEY))
 
 

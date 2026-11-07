@@ -14,8 +14,15 @@ tests/fixtures/arena-live-1105.json.gz):
   as a town.  ``parse_snapshot`` gives it its own key and takes it out of town, so the
   way back is a floor change: the town visit starts over by itself (``is_fresh_visit``),
   after a win and after a loss.  That is 「街の処理を最初からやり直す」.
-* The player stands on the gate; the opponent is 5 cells below.  The floor is lit, so a
-  monster not in view is dead or invisible.  Scrolls, potions, staffs, wands, rods,
+* The player stands on the gate; the opponent is 5 cells below.  The floor is lit, but the
+  gate is set into the room's north wall (build_arena: the gate is (y_height+5, xval) and
+  rows y_height..y_height+5 are permanent wall), so from the gate the cells along the
+  side walls are out of view.  A monster known only by telepathy or detection
+  (``detected_monsters``) is walked to, off the gate into the room, until it is in view
+  (owner 2026-11-07 「テレパシーや感知で場所が分かる相手には、入口から部屋の中へ歩いて
+  近づき、射線を通して戦う。」; n1-c life-157 held on the gate for 1,390 actions while a
+  frightened 『らいおんはーと』 stood at the west wall).  A monster neither in view nor
+  detected, with the gate still shut, is invisible.  Scrolls, potions, staffs, wands, rods,
   activation and throwing are refused without a turn (cmd_limit_arena); absorbed powers,
   spells and the launcher work.  Summons and TELE_LEVEL are off for the monster.
 * A character at HP below 0 in the arena does not die: HP 0, back on the building's cell in
@@ -69,6 +76,7 @@ ENTER_KEY_PATTERN = rf"[1-9]{ENTER_KEY}"
 
 MELEE_REASON = "arena:melee"
 WALK_REASON = "arena:walk"
+DETECTED_WALK_REASON = "arena:walk-detected"
 HOLD_REASON = "arena:hold"
 STRIKE_REASON = "arena:unseen-strike"
 BLIND_STRIKE_REASON = "arena:blind-strike"
@@ -514,7 +522,26 @@ def fight_key(policy, snapshot) -> str:
             return speed
         target = min(hostiles, key=lambda monster: (here.distance_to(monster.position), monster.index))
         return _attack_key(policy, snapshot, target)
-    if (player.blind or player.hallucinated or snapshot.detected_monsters
-            or record.gate_attempts >= GATE_ATTEMPTS):
+    if player.blind or player.hallucinated:
+        return _unseen_key(policy, snapshot)
+    if snapshot.detected_monsters:
+        return _detected_key(policy, snapshot)
+    if record.gate_attempts >= GATE_ATTEMPTS:
         return _unseen_key(policy, snapshot)
     return _won_key(policy, snapshot, record)
+
+
+def _detected_key(policy, snapshot) -> str:
+    """A monster known by telepathy or detection but out of view: walk to it until it is in
+    view, where the visible-monster rules above fight it (owner 2026-11-07).
+
+    Only the view stands between them on this lit floor; a detected monster beside the
+    player is not out of view, so that one is not seen for another reason (_unseen_key)."""
+    here = snapshot.player.position
+    known = [monster for monster in snapshot.detected_monsters if monster.hostile]
+    if not known:
+        return _unseen_key(policy, snapshot)
+    target = min(known, key=lambda monster: (here.distance_to(monster.position), monster.index))
+    if here.distance_to(target.position) <= 1:
+        return _unseen_key(policy, snapshot)
+    return _walk_toward(policy, snapshot, target.position, DETECTED_WALK_REASON)

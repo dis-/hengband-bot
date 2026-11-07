@@ -153,6 +153,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "arena.py:_detected_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "arena.py:_entry_key": {
     "classification": "producer",
     "rows": [

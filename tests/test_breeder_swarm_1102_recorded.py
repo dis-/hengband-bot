@@ -22,7 +22,10 @@ n1-c life-098 (Magic-Eater, Lv31, 412 max HP) on 鉄獄24階, random quest 41
     at 2199751, the five-kill growth switch).  Now the floor is latched when
     20 player actions (boards whose game turn advanced) end with no fewer
     breeders than the window began with (breeder_stalemate), and the window
-    survives a restart.
+    survives a restart.  Owner 2026-11-07 「クエストの無い階でも、20回は増える敵に
+    攻撃を始めてから数える。」: the window opens on the board that shows the first
+    attack landed (turn 2199693, the first bug killed, two bugs on the board
+    before), not on the first bug seen, so the floor latches at turn 2199896.
 
 Fixture: tests/fixtures/breeder-swarm-20261102.json.gz
 (tests/extract_breeder_swarm_1102_fixture.py).  Every decision is the public
@@ -186,7 +189,8 @@ class RestartKeepsTheLatchRecordedTest(RecordedRestart):
         self.assertEqual(policy._breeder_breakthrough_floor, QUEST_FLOOR)
 
 
-ENGAGED_TURN, RECORDED_LATCH_TURN, FLEE_TURN = 2199675, 2199751, 2199871
+ENGAGED_TURN, RECORDED_LATCH_TURN = 2199675, 2199751
+FIRST_KILL_TURN, FLEE_TURN = 2199693, 2199896  # owner 2026-11-07: counted from the first attack
 
 
 class TwentyActionFlightRecordedTest(RecordedRestart):
@@ -197,7 +201,10 @@ class TwentyActionFlightRecordedTest(RecordedRestart):
         turns = [raw["turn"] for raw in CASE["engage"]]
         self.assertEqual(turns[0], ENGAGED_TURN)
         self.assertEqual(turns.index(RECORDED_LATCH_TURN), 8)
-        self.assertEqual(turns.index(FLEE_TURN), 20)
+        self.assertEqual(turns.index(FIRST_KILL_TURN), 2)
+        self.assertEqual(turns.index(FLEE_TURN), 22)
+        exp = [raw["player"]["exp"] for raw in CASE["engage"]]
+        self.assertEqual(exp[:3], [exp[0], exp[0], exp[0] + 3])  # the first kill's experience
         self.assertEqual(rows[RECORDED_LATCH_TURN], ("search", "s"))
         counts = [sum(m["race_id"] == SOFTWARE_BUG for m in raw["visible_monsters"])
                   for raw in CASE["engage"]]
@@ -226,7 +233,7 @@ class TwentyActionFlightRecordedTest(RecordedRestart):
         policy = new_policy(CASE["engage"])
         turns = self.latched_turns(policy, CASE["engage"])
         self.assert_flight_at_the_twentieth_action(turns)
-        rows = self.drive(new_policy(CASE["engage"]), CASE["engage"][:20])
+        rows = self.drive(new_policy(CASE["engage"]), CASE["engage"][:22])
         for raw, key, reason in rows:
             self.assertIn(reason, {"melee", "ranged:fire"}, (raw["turn"], key))
 

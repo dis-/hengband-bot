@@ -20,8 +20,8 @@ action differ with speed while the boards between actions do not).  Only the
 counts at the two ends of a window matter: boards in between neither reset
 nor extend it, including boards that show no breeder at all.  A window that
 ends with no breeder perceived ends the engagement instead of opening a window
-at zero, which could never show a reduction; the next breeder seen opens a new
-one.  An abandoned window's verdict stands until ``forget``.
+at zero, which could never show a reduction; the next attack on a breeder opens a
+new one.  An abandoned window's verdict stands until ``forget``.
 
 This replaces the earlier flight triggers (five kills with more breeders
 than at engagement; 3,000 game turns without a reduction).
@@ -45,6 +45,17 @@ FEW_BREEDERS, a window with a kill of that race goes on although it did not redu
 without one it is abandoned as before.  n1-b life-316 left Q2 at full HP on a window
 that went from two blue icky things to three while it killed eleven.  Floors without
 a plan keep the rule of 11-03: the question was about Q2's window.
+
+Floors without a quest plan (owner 2026-11-07 「クエストの無い階でも、20回は増える敵に
+攻撃を始めてから数える。感知だけで見えて攻撃していない増える敵では帰還しない。」): the
+first window opens on the same first attack, so a breeder only perceived (telepathy,
+detection, a glimpse) and never attacked opens nothing and cannot end in the
+breakthrough's Recall.  There a kill line of a breeder race perceived on the board
+before is an attack too: a breeder far below the character's level gives no
+experience point, and without the line such a fight would never open a window.  n1-c life-155 recalled from short dives on one distant
+telepathy-only 緑イモムシの大群 and a never-moving スライムモルド it never attacked.
+What the window counts there is unchanged (every perceived breeder, from the count on
+the board before the attack, no race and no kill rule).
 
 A kill is the game's own line for a monster of the window's race, by its name:
 「…は死んだ。」 (shots, spells: get_died_message), 「…を葬り去った。」 and 「…を倒した。」
@@ -103,8 +114,15 @@ def _counts_from_first_attack(policy, snapshot) -> bool:
     return quest_id is not None and policy.approved_quest_strategy(quest_id) is not None
 
 
-def _attacked_race(policy, snapshot, breeders: list) -> tuple[int, int] | None:
-    """(race, its count on the last board) of a breeder the last action hit."""
+def _attacked_race(policy, snapshot, breeders: list,
+                   kill_lines: bool = False) -> tuple[int, int, int] | None:
+    """(race, its count on the last board, every breeder's count on the last board) of a
+    breeder the last action hit.
+
+    ``kill_lines`` (floors without a plan) also takes this board's kill line of a breeder
+    race perceived on the last board as the attack: a character far above the breeder's
+    level gains no experience point from it (n1-c life-120 at Lv21 put down nether worms
+    with 「冥界イモムシの大群を葬り去った。」 and its experience unchanged)."""
     last = policy._breeder_last_board
     sighted = {monster.index: monster for monster in snapshot.visible_monsters
                if monster.hostile and monster.can_multiply}
@@ -124,7 +142,12 @@ def _attacked_race(policy, snapshot, breeders: list) -> tuple[int, int] | None:
         hurt = now is not None and now.race_id == race and now.hp < hp
         killed = now is None and snapshot.player.exp > last.exp
         if hurt or killed:
-            return race, last.counts.get(race, 1)
+            return race, last.counts.get(race, 1), max(sum(last.counts.values()), 1)
+    if kill_lines:
+        for race, count in last.counts.items():
+            name = last.names.get(race)
+            if name and shows_kill(snapshot, name):
+                return race, count, max(sum(last.counts.values()), 1)
     return None
 
 
@@ -163,14 +186,16 @@ def _open_window(policy, snapshot, count: int, race: int | None = None) -> None:
 
 def flee_due(policy, snapshot, breeders: list) -> bool:
     """Count this board's action; True once a window ended without a reduction."""
-    attacked = _attacked_race(policy, snapshot, breeders)
+    planned = _counts_from_first_attack(policy, snapshot)
+    attacked = _attacked_race(policy, snapshot, breeders, kill_lines=not planned)
     if policy._breeder_engagement_start_count is None:
-        if _counts_from_first_attack(policy, snapshot):
-            if attacked is not None:
-                _open_window(policy, snapshot, attacked[1], attacked[0])
-                _note_kill(policy, snapshot)
-        elif breeders:
-            _open_window(policy, snapshot, len(breeders))
+        if attacked is None:
+            return False
+        if planned:
+            _open_window(policy, snapshot, attacked[1], attacked[0])
+            _note_kill(policy, snapshot)
+        else:
+            _open_window(policy, snapshot, attacked[2])
         return False
     race = policy._breeder_engagement_race
     if race is not None:

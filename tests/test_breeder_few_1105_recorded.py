@@ -186,11 +186,21 @@ class FewBreedersEdgesTest(swarm.PostedSwarmKey):
         self.assertIsNone(policy._breeder_breakthrough_floor)
 
     def test_a_floor_without_a_plan_keeps_the_comparison(self):
-        # The 11-03 rule: no plan, three in view at both ends, with a kill.
+        # The 11-03 rule: no plan, three in view at both ends, with a kill.  The window opens
+        # on the first attack there too (owner 2026-11-07): a blue hurt on the second board
+        # (the recorded blue is "wounded": unhurt before, badly wounded after).
         first = blues(3, 1)
         first["floor"]["quest_id"] = 0
+        for monster in first["visible_monsters"]:
+            monster["health"] = "unhurt"
         policy = new_policy({"board": first})
-        for action in range(1, 2 + FLEE_AFTER_PLAYER_ACTIONS):
+        hit = blues(3, 2)
+        hit["floor"]["quest_id"] = 0
+        next(m for m in hit["visible_monsters"] if m["index"] == 800)["health"] = "badly_wounded"
+        for raw in (first, hit):
+            loops.decide(policy, raw)
+        self.assertIsNotNone(policy._breeder_engagement_start_count)
+        for action in range(3, 3 + FLEE_AFTER_PLAYER_ACTIONS):
             raw = blues(3, action, (KILL,))
             raw["floor"]["quest_id"] = 0
             loops.decide(policy, raw)

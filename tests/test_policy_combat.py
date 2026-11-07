@@ -361,7 +361,9 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
         self.assertTrue(policy._is_weak_breeder(snapshot, weak))
         self.assertFalse(policy._is_weak_breeder(snapshot, strong))
-        self.assertEqual(policy._breeder_engagement_start_count, 2)
+        self.assertEqual(len(policy._engagement_breeder_population(snapshot)), 2)
+        # Owner 2026-11-07: detected and never attacked, they open no 20-action window.
+        self.assertIsNone(policy._breeder_engagement_start_count)
         self.assertEqual(
             {row["position"]["x"] for row in prediction["monsters"]},
             {12, 13},
@@ -397,7 +399,8 @@ class DetectedMonsterChannelTest(unittest.TestCase):
         policy._update_combat_outcome(snapshot)
 
         self.assertEqual([monster.index for monster in perceived], [7])
-        self.assertEqual(policy._breeder_engagement_start_count, 1)
+        self.assertEqual(len(policy._engagement_breeder_population(snapshot)), 1)
+        self.assertIsNone(policy._breeder_engagement_start_count)  # not attacked (owner 11-07)
 
     def test_detected_breeder_prepares_choke_without_targeting_it(self):
         breeder = replace(
@@ -741,12 +744,22 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             replay.append((snapshot, key, policy.last_reason))
         return policy, knowledge, replay, recorded_decisions
 
-    def test_recorded_hold_expiry_reads_the_carried_recall(self):
-        _policy, _knowledge, replay, _recorded = self._recorded_hold_rearm_replay(recall=True)
+    def test_recorded_telepathy_only_breeder_reads_no_breakthrough_recall(self):
+        # The only breeder on these boards is a 緑イモムシの大群 known by telepathy, never
+        # attacked.  The build of the recording latched the floor on it and read the carried
+        # Recall at 3820208; owner 2026-11-07 「感知だけで見えて攻撃していない増える敵では
+        # 帰還しない。」 (the n1-c life-155 short dives).
+        policy, _knowledge, replay, _recorded = self._recorded_hold_rearm_replay(recall=True)
+        breeders = {(monster.name, monster.perception) for snapshot, _key, _reason in replay
+                    for monster in snapshot.visible_monsters + snapshot.detected_monsters
+                    if monster.can_multiply}
+        self.assertEqual(breeders, {("緑イモムシの大群", "detected")})
         released = next(row for row in replay if row[2] not in {
             DETECTED_HOLD, "detected:prepare-choke"})
-        self.assertEqual((released[0].turn, released[1], released[2]),
-                         (3820208, "rg", "breeder-breakthrough:recall"))
+        self.assertEqual(released[0].turn, 3820208)
+        self.assertFalse([row[0].turn for row in replay if row[2].startswith("breeder-breakthrough")])
+        self.assertIsNone(policy._breeder_engagement_start_count)
+        self.assertIsNone(policy._breeder_breakthrough_floor)
 
     def test_recorded_unexported_monster_is_answered_on_its_two_boards(self):
         fixture = (
@@ -861,6 +874,14 @@ class DetectedMonsterChannelTest(unittest.TestCase):
             any(monster.perception != "detected" for monster in visible.visible_monsters)
         )
 
+        # DECLARED CONSTRUCTED: no walk home.  The build of the recording latched the floor
+        # as a breeder breakthrough on the telepathy-only 緑イモムシの大群, whose flight owned
+        # these boards; since owner 2026-11-07 that latches nothing, and the Recall-less
+        # replay (_without_recall) starts the walk home, which owns a contested decision
+        # ahead of this channel by design (_detected_threat_preparation_key's call site).
+        # This test pins the channel itself.
+        self.assertTrue(policy._returning_to_town)
+        policy._returning_to_town = False
         policy.choose_key(visible)
         key = policy.choose_key(detected_again)
 
@@ -894,6 +915,17 @@ class DetectedMonsterChannelTest(unittest.TestCase):
 
         self.assertEqual(step, fallback)
         flee.assert_called_once_with(snapshot, [threat])
+
+def _open_breeder_window_by_attack(policy, board):
+    """Owner 2026-11-07 「20回は増える敵に攻撃を始めてから数える」: the board one action
+    before ``board``, then ``board`` with its first breeder hurt (the attack landed)."""
+    policy._update_combat_outcome(replace(board, turn=board.turn - 10))
+    first = board.visible_monsters[0]
+    assert first.hp > 1
+    policy._update_combat_outcome(replace(
+        board, visible_monsters=[replace(first, hp=first.hp - 1), *board.visible_monsters[1:]]))
+    assert policy._breeder_engagement_start_count == len(board.visible_monsters)
+
 
 class CombatTest(unittest.TestCase):
     def test_9f_water_capture_does_not_reposition_for_choke(self):
@@ -2633,7 +2665,7 @@ class CombatTest(unittest.TestCase):
             return replace(base, turn=turn, visible_monsters=breeders)
 
         policy = HengbotPolicy()
-        policy._update_combat_outcome(observed(100, 3))
+        _open_breeder_window_by_attack(policy, observed(100, 3))
         for action in range(1, FLEE_AFTER_PLAYER_ACTIONS):
             policy._update_combat_outcome(observed(100 + 10 * action, 3))
             # A board of the same game turn is not another action.
@@ -2645,7 +2677,7 @@ class CombatTest(unittest.TestCase):
         self.assertEqual(policy._breeder_breakthrough_floor, grown.floor_key)
 
         regrown = HengbotPolicy()
-        regrown._update_combat_outcome(observed(100, 3))
+        _open_breeder_window_by_attack(regrown, observed(100, 3))
         for action in range(1, FLEE_AFTER_PLAYER_ACTIONS + 1):
             # Below the window's start once, back at the end: no reduction.
             count = 2 if action == 10 else 3
@@ -2669,7 +2701,10 @@ class CombatTest(unittest.TestCase):
         policy._fundraising_mode = "mine"
         for action in range(FLEE_AFTER_PLAYER_ACTIONS):
             count = (4, 6, 7, 4, 5)[action % 5]
-            policy._update_combat_outcome(observed(100 + 10 * action, count))
+            if action == 0:
+                _open_breeder_window_by_attack(policy, observed(100, count))
+            else:
+                policy._update_combat_outcome(observed(100 + 10 * action, count))
             self.assertIsNone(policy._breeder_breakthrough_floor)
 
         timed_out = observed(100 + 10 * FLEE_AFTER_PLAYER_ACTIONS, 6)
