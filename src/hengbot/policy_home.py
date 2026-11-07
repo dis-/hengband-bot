@@ -1941,6 +1941,9 @@ class HomeMixin:
         self._home_knowledge_items = tuple(items)
         self._home_knowledge_valid_before = len(items)
         self._home_knowledge_current = True
+        # Read by _home_settled_this_visit; the ledger is per town visit.
+        self._town_visit_ledger.__dict__["home_scan_adopted_at_pass"] = (
+            self._town_visit_ledger.store_visits[STORE_HOME])
         self._claim_home_knowledge_observed = True
         self._complete_observed_effect(
             "home-knowledge-current", owners=("home-scan",),

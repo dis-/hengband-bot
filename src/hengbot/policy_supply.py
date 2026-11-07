@@ -218,13 +218,19 @@ class SupplyMixin:
         if not equipped.known:
             if (
                 not equipped.is_lantern
-                or snapshot.dungeon_level < 1
                 or snapshot.player.blind
                 or lamp_fuel.refill_known_unneeded(self, snapshot)
             ):
                 return None
             out = lamp_fuel.unidentified_lantern_out(snapshot)
             if out is None:
+                # The own grid's lighting says nothing about the lantern in a
+                # daylit town.  The light facts do (light_radius is the
+                # player's own light, torch.cpp update_lite_radius): n1-b
+                # life-330 stood in town with the Q34 lantern out and four
+                # flasks of oil while a torch and the lantern swapped places.
+                if snapshot.dungeon_level < 1:
+                    return None
                 # Older boards export neither light fact: the own grid's lighting.
                 here = snapshot.grid_at(snapshot.player.position)
                 out = snapshot.grids_observed if here is None else not here.lit

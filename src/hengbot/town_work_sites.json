@@ -5668,6 +5668,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._equipment_curse_pinned_ids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_curse_refused_keys": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._equipment_departure_destination_depth": {
     "classification": "data",
     "rows": [

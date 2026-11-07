@@ -1934,10 +1934,48 @@ class ShopMixin(InStoreMixin):
             self._home_latch_active = entry
             self._home_latch_history = [*self._home_latch_history, entry][-8:]
 
+    def _home_first_served(self) -> dict[tuple[int, int], int]:
+        """Procurement classes sent to Home first this visit, with the Home
+        pass count at that moment (the ledger is per town visit)."""
+        return self._town_visit_ledger.__dict__.setdefault("home_first_served", {})
+
+    def _home_settled_this_visit(self, item_class: tuple[int, int]) -> bool:
+        """Whether this visit's Home work already answered the ware's Home-first.
+
+        A Home list adopted this visit and a Home pass finished after it, or a
+        Home pass since this ware was first sent to Home this visit.  The list
+        then goes stale by the bot's own Home operations (a junk sweep's take),
+        which do not bring the ware to Home.
+        """
+        ledger = self._town_visit_ledger
+        passes = ledger.store_visits[STORE_HOME]
+        scanned_at = ledger.__dict__.get("home_scan_adopted_at_pass")
+        served_at = self._home_first_served().get(item_class)
+        return ((scanned_at is not None and passes > scanned_at)
+                or (served_at is not None and passes > served_at))
+
     def _purchase_has_fresh_home_absence(
         self, snapshot: Snapshot, item: StoreItem
     ) -> ProcurementHomeGate:
-        """Release a buy only for fresh absence or a statically Home-less town."""
+        """Release a buy only for fresh absence or a statically Home-less town.
+
+        Home first is asked once per ware and visit (_home_settled_this_visit):
+        n1-a life-492 (2026-11-06 16:24-16:25) was sent to Home for a 賢さ復活の
+        薬, read the Home list and passed Home, whose junk sweep then left the
+        list stale; at the Alchemist the stale list sent it to Home again, and
+        that second trip ended in town:blocked:owner-retired-burst.
+        """
+        gate = self._purchase_home_gate(snapshot, item)
+        if gate is ProcurementHomeGate.HOME_FIRST:
+            self._home_first_served().setdefault(
+                self._procurement_class(item),
+                self._town_visit_ledger.store_visits[STORE_HOME],
+            )
+        return gate
+
+    def _purchase_home_gate(
+        self, snapshot: Snapshot, item: StoreItem
+    ) -> ProcurementHomeGate:
         if self._opening_q1_shopping(snapshot) and self._opening_q1_purchase(snapshot) == item:
             return self._record_home_gate(
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
@@ -1961,6 +1999,14 @@ class ShopMixin(InStoreMixin):
         self._home_procurement_fallthrough_equivalence = (
             self._procurement_equivalence(item_class)
         )
+        if not self._home_knowledge_current and self._home_settled_this_visit(item_class):
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = "home-settled-this-visit"
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "wrapper-home-settled-this-visit",
+                wrapper_fallthrough="home-settled-this-visit",
+            )
         if not self._home_knowledge_current:
             self._home_procurement_probe = item_class
             if not self._current_town_has_home(snapshot):
@@ -6034,11 +6080,23 @@ class ShopMixin(InStoreMixin):
         While the Home scan flag is up, a decision that already has a reason keeps
         it; only a walk left with none is named here.  n1-b life-319 2026-11-06
         walked to the Black Market unnamed after the browse refresh, under whose
-        label the walk stopped at the executor.
+        label the walk stopped at the executor.  A reason still standing from the
+        previous decision is none of this decision's: n1-b life-333 2026-11-07
+        03:27 walked back to Home after a gold pickup under the loot walk's
+        "seek-loot", owned by misc with no locomotion in its progress, and misc
+        retired three times in a burst.
         """
+        # Only a label no town owner arbitrates (misc) is taken as inherited:
+        # a Home scan's label standing from the previous decision still names
+        # the relief's walk, as before.
+        arbiter = getattr(self, "_town_turn_arbiter", None)
+        inherited = (self.last_reason == getattr(self, "_decision_entry_reason", None)
+                     and arbiter is not None
+                     and arbiter.owner_for_reason(self.last_reason) == "misc")
         return (writer_family == "store-router" and travel_reason.startswith("shop:")
                 and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
-                and (not self.last_reason or not self._home_knowledge_scan_requested))
+                and (not self.last_reason or inherited
+                     or not self._home_knowledge_scan_requested))
 
     @claims(ClaimOwner.STORE_ROUTER)
     def _shopping_approach_key(

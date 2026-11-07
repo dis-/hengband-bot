@@ -9,7 +9,7 @@ from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import consumable_policy, mining_loadout
+from hengbot import consumable_policy, lamp_fuel, mining_loadout
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -422,6 +422,15 @@ from hengbot.model import (
     StoreItem,
     item_requires_full_identification,
 )
+
+
+# cmd-equipment.cpp do_cmd_takeoff: the answer to taking off a cursed item.
+CURSED_TAKEOFF_REFUSALS = frozenset({
+    "ふーむ、どうやら呪われているようだ。", "Hmmm, it seems to be cursed.",
+})
+# The feelings item-entity.cpp is_cursed_feeling() counts as a curse, which
+# sense_curse() gives a worn item the game found cursed.
+CURSED_PSEUDO_FEELINGS = frozenset({"cursed", "terrible", "worthless"})
 
 
 class EquipmentMixin:
@@ -957,10 +966,18 @@ class EquipmentMixin:
         oil_carried = self._first_item(
             snapshot, lambda item: item.is_oil and item.fuel > 0
         ) is not None
+        # An unidentified lantern the board showed out is as empty as a known
+        # one at 0 turns: without carried oil it is no light to choose (n1-b
+        # life-330, the optimizer took the torch off for it 26 times).
         operational_catalog = tuple(
             item
             for item in self._equipment_catalog.items
             if operational_equipment_candidate(item, oil_carried=oil_carried)
+            and not (
+                not oil_carried
+                and item.origin in {"pack", "equipped"}
+                and lamp_fuel.unidentified_lantern_seen_out(self, item.item)
+            )
         )
         eligible_catalog = tuple(
             item
@@ -1040,10 +1057,14 @@ class EquipmentMixin:
                     keys = self._equipment_memory_keys(item)
                     self._equipment_transaction_failed_items.difference_update(keys)
                     self._equipment_quarantine_second_chance_ids.update(keys)
+        # A worn item seen cursed stays in the view however its takeoff failed:
+        # left out, the search would plan the same refused takeoff again.
+        curse_pinned = self._equipment_curse_pinned_ids()
         catalog = tuple(
             item
             for item in eligible_catalog
-            if not self._equipment_memory_contains(
+            if item.id in curse_pinned
+            or not self._equipment_memory_contains(
                 self._equipment_transaction_failed_items, item
             )
         )
@@ -1232,7 +1253,7 @@ class EquipmentMixin:
                 self._item_signature(item)
                 for item in self._obtainable_launcher_ammunition(snapshot)
             )),
-        )
+        ) + ((("curse-pinned", tuple(sorted(curse_pinned))),) if curse_pinned else ())
         if (
             signature == self._equipment_optimization_signature
             and self._equipment_optimization_pack_items == len(snapshot.inventory)
@@ -1324,6 +1345,7 @@ class EquipmentMixin:
                         preparation.current,
                         preparation.result.best.loadout,
                     ),
+                    curse_pinned_item_ids=curse_pinned,
                 )
                 preparation = replace(
                     preparation,
@@ -1354,6 +1376,7 @@ class EquipmentMixin:
                 identification_exempt_item_ids=identification_exempt,
                 calibration=calibration,
                 knowledge_key=self._equipment_optimizer_knowledge_key,
+                curse_pinned_item_ids=curse_pinned,
             )
             self._offer_optimizer_result(
                 self._equipment_optimization_preparation,
@@ -1376,6 +1399,7 @@ class EquipmentMixin:
             identification_exempt_item_ids=identification_exempt,
             calibration=calibration,
             knowledge_key=self._equipment_optimizer_knowledge_key,
+            curse_pinned_item_ids=curse_pinned,
         )
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
@@ -1457,6 +1481,7 @@ class EquipmentMixin:
             evaluator_cache=self._warrior_evaluator_cache,
             calibration=calibration,
             obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
+            curse_pinned_item_ids=curse_pinned,
         )
         result = getattr(preparation, "result", None)
         if result is not None:
@@ -1542,6 +1567,7 @@ class EquipmentMixin:
                 retain_item_identities=self._transaction_retain_identities(
                     snapshot, preparation.current, loadout
                 ),
+                curse_pinned_item_ids=curse_pinned,
             )
             preparation = replace(
                 preparation, transaction=transaction, blockers=transaction.blockers
@@ -1725,6 +1751,55 @@ class EquipmentMixin:
         self, memory: set[str], item: OwnedEquipment
     ) -> bool:
         return not memory.isdisjoint(self._equipment_memory_keys(item))
+
+    def _equipment_curse_refused_keys(self) -> set[str]:
+        """Worn items whose takeoff the game refused as cursed this visit."""
+        return self.__dict__.setdefault("_equipment_curse_refused_ids", set())
+
+    def _observe_equipment_curse_refusal(self, snapshot: Snapshot) -> bool:
+        """Settle a posted takeoff the game answered 「呪われているようだ」.
+
+        cmd-equipment.cpp do_cmd_takeoff refuses a cursed item with 「ふーむ、
+        どうやら呪われているようだ。」 and changes nothing; n1-c life-154
+        (2026-11-06 20:53) waited out the confirmation budget for that takeoff
+        four times until town:blocked:owner-retired-burst.  The item is
+        remembered for the visit (it stays pinned in its slot) and the
+        transaction is abandoned at once.
+        """
+        session = self._equipment_transaction_session
+        action = None if session is None else session.pending_action
+        if (
+            action is None
+            or action.kind != "takeoff"
+            or not any(message in CURSED_TAKEOFF_REFUSALS
+                       for message in snapshot.messages)
+        ):
+            return False
+        self._equipment_curse_refused_keys().update(
+            self._equipment_action_memory_keys(action)
+        )
+        self._abandon_blocked_equipment_transaction(snapshot)
+        return True
+
+    def _equipment_curse_pinned_ids(self) -> frozenset[str]:
+        """Worn catalog items seen cursed although the board's is_cursed is unset.
+
+        The emitter reports is_cursed only for an identified item
+        (bot-json-output.cpp); for an unidentified one the player sees a cursed
+        pseudo feeling (sense_curse marks it {呪われている} once the game
+        refuses to take it off) or the refusal itself.
+        """
+        refused = self._equipment_curse_refused_keys()
+        return frozenset(
+            item.id
+            for item in self._equipment_catalog.items
+            if item.origin == "equipped"
+            and not item.item.known
+            and (
+                getattr(item.item, "pseudo_feeling", None) in CURSED_PSEUDO_FEELINGS
+                or self._equipment_memory_contains(refused, item)
+            )
+        )
 
     def _prepare_equipment_transaction_command(
         self,
@@ -2684,6 +2759,9 @@ class EquipmentMixin:
             return self._equipment_town_outcome(
                 None, label="deferred-by-town-holder",
             )
+        # A takeoff the game refused as cursed changes nothing however long
+        # it is awaited: settle it now and plan again with the item pinned.
+        self._observe_equipment_curse_refusal(snapshot)
         if self._release_stalled_equipment_transaction(snapshot):
             # The abandoned operation has no next-action continuation. Any
             # restoration plan is separate work, derived from observed gear.
