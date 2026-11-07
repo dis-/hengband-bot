@@ -15876,6 +15876,83 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-07 (threat tiers answer 11) 「作戦が先・即死だけ例外」: when the 1-turn 即死 test holds, the emergency ladder's escape through policy._emergency_item(instant_death=True); no independent progress."
   },
+  "oneshot_breath.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Dungeon-only: policy._choose_key asks oneshot_breath only when not in town; _applies also refuses town, stores, the arena and the surface.",
+    "evidence": "Owner 2026-11-08 「感知で見えたら備える」: while a monster known on the floor has a breath or ball at or above the max HP, the resistance drink that makes the floor survivable, else the ESP-threat leave; None otherwise."
+  },
+  "oneshot_breath.py:_drink": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Dungeon-only: policy._choose_key asks oneshot_breath only when not in town; _applies also refuses town, stores, the arena and the surface.",
+    "evidence": "Selects the carried resistance potion that key quaffs (reason oneshot-breath:quaff); None when no carried potion makes every known monster survivable. Read only by key."
+  },
+  "oneshot_breath.py:_leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Dungeon-only: policy._choose_key asks oneshot_breath only when not in town; _applies also refuses town, stores, the arena and the surface.",
+    "evidence": "The leave of key: policy._esp_threat_leave_key (stair underfoot, Word of Recall, walk to the up stair; reason esp-threat:leave-*). Read only by key."
+  },
+  "oneshot_breath.py:_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Dungeon-only: policy._choose_key asks oneshot_breath only when not in town; _applies also refuses town, stores, the arena and the surface.",
+    "evidence": "Pure lookup: the carried identified potion of one sval; read only by oneshot_breath._drink."
+  },
+  "monster_ranged_evaluator.py:_attribute_rates": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat prediction and from oneshot_breath; no town or store context of its own.",
+    "evidence": "Pure table: the game's damage rates of an attribute for a set of player flags (player-status-resist.cpp)."
+  },
+  "monster_ranged_evaluator.py:maximum_ability_base_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat prediction and from oneshot_breath; no town or store context of its own.",
+    "evidence": "Pure arithmetic: the maximum pre-resistance damage of one monster ability (mspell-damage-calculator.cpp)."
+  },
+  "monster_ranged_evaluator.py:maximum_ability_hp_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat prediction and from oneshot_breath; no town or store context of its own.",
+    "evidence": "Pure arithmetic: maximum_ability_base_damage through _attribute_rates; no key, no state."
+  },
   "me_loadout_offense.py:offense_inputs": {
     "classification": "data",
     "rows": [

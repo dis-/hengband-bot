@@ -94,7 +94,7 @@ LADDER = (
     )),
     Layer("floor-avoidance", "light, the approved quest floor, combat and all below", (
         *D("summon_response.key", "destruction_use.sight_trigger_key", "resist_potion.ladder_key",
-           exempt=ANSWERS_DANGER),
+           "oneshot_breath.key", exempt=ANSWERS_DANGER),
         *D("immobile_ranged_kill.key", exempt=NOT_DECIDED),
         *E("_immobile_summoner_key", exempt=NOT_DECIDED),
         *D("immobile_threat_memory.step_out_key", exempt=NOT_DECIDED),
