@@ -6016,6 +6016,14 @@ class PredictiveEscapeTest(unittest.TestCase):
                 3: 40,
                 1: 20,
             }[turns],
+        ), patch.object(
+            # The same constructed premise for the 1-turn 即死 (threat tiers step 5): the next
+            # turn costs the stubbed 20, not the real projection of this synthetic caster.
+            policy_combat_module.threat_tiers,
+            "instant_death",
+            lambda *_args, **_kwargs: policy_combat_module.threat_tiers.InstantDeath(
+                (), 20, 0
+            ),
         ):
             self.assertIsNone(
                 policy._emergency_item(snapshot, snapshot.visible_monsters)
@@ -9008,6 +9016,17 @@ class UniqueCombatConsumableTest(unittest.TestCase):
 
         self.assertIsNotNone(plan)
         self.assertEqual(plan["healing_uses"], 2)
+        # HP 80 against the next action's p95 118: the 1-turn 即死 aborts the supplied fight
+        # (threat tiers step 5, OQ-2) and the emergency ladder's low-HP heal-first rule drinks.
+        self.assertEqual(policy.choose_key(snapshot), "qh")
+        self.assertEqual(policy.last_reason, "item:heal")
+        # The fight's own drinks beneath the 1-turn test (DECLARED CONSTRUCTED: it answers "no").
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        self._below_instant_death = patch.object(
+            policy_combat_module.threat_tiers, "instant_death",
+            lambda *_args, **_kwargs: policy_combat_module.threat_tiers.InstantDeath())
+        self._below_instant_death.start()
+        self.addCleanup(self._below_instant_death.stop)
         self.assertEqual(policy.choose_key(snapshot), "qh")
         self.assertEqual(policy.last_reason, "unique:quaff-healing")
 

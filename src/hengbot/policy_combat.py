@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, threat_tiers, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -2029,8 +2029,9 @@ class CombatMixin:
         instant_death: bool = False,
     ) -> str | None:
         """The emergency ladder.  ``instant_death``: a quest plan's 即死 rung asks for the
-        escape (threat_tiers.instant_death_key, answer 11): ``lethal`` holds whatever else
-        would exempt the board, and no supplied unique fight is drunk for first."""
+        escape (threat_tiers.instant_death_key, answer 11); on the shared ladder the 1-turn
+        test is read here (step 5).  While it holds ``lethal`` holds whatever else would
+        exempt the board, and no supplied unique fight is drunk for first."""
         player = snapshot.player
 
         issue_watch = self._emergency_consumable_issue_watch
@@ -2187,6 +2188,13 @@ class CombatMixin:
             self._unseen_recall_damage_streak = 0
 
         predicted = self._predicted_damage(snapshot, hostiles, turns=3)
+        # Threat tiers step 5 (OQ-2, 「作戦中と物資を使って倒しに行くときは次の1手のみ。それ以外は
+        # 3ターン基準も使う」): the 1-turn 即死 (threat_tiers.instant_death, the next action's p95
+        # at the monsters' adjusted speed plus the observed unseen loss) joins ``lethal`` here,
+        # beside the 3-turn ``predicted >= hp`` and the other conditions, which stay.  Like the
+        # plans' rung it holds whatever exempts the board (a Q31 hold, a committed unique fight).
+        if not instant_death and hostiles:
+            instant_death = threat_tiers.instant_death(self, snapshot, hostiles).next_action
         unseen_spell_hit = (
             self._unseen_attack_evidence is not None
             and self._is_unseen_spell_message(self._unseen_attack_evidence)
