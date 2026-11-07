@@ -7,12 +7,12 @@ vetoed (2,33) and (2,34), the only way out of the three-cell dead end (2,34..36)
 descent and stair routes refused the vetoes; the idle fallback walked (2,35)<->(2,36)
 (stuck:wander) until the loop guard, and the vetoes rode the checkpoint into the restart.
 
-A sleeping monster does not act until it wakes (monster/monster-processor.cpp awake_monster),
-so it is not retreated from.  DECLARED CONSTRUCTED for the retreat itself: the spider awake and
-no ammunition carried on the boards from 889573 (``awake_spider``).  The retreat then still vetoes (2,33) -- the far end
-of the pocket was a frontier when it stepped -- but not (2,34), which the pocket's end, seen by
-then, shows would seal it (engagement_avoid_seal); and in the pocket the idle fallback takes
-the enclosure ladder (retreat_enclosure ``sealed_in_key``) instead of the wander.
+The spider is strong enough that its melee is a material engagement, so it is retreated from
+asleep as well (owner 2026-11-07: 「眠っていても強い敵（勝てない・脅威が高い）からは、これまでどおり
+離れる。弱い敵だけ逃げない。」).  The retreat then still vetoes (2,33) -- the far end of the pocket
+was a frontier when it stepped -- but not (2,34), which the pocket's end, seen by then, shows would
+seal it (engagement_avoid_seal); and in the pocket the idle fallback takes the enclosure ladder
+(retreat_enclosure ``sealed_in_key``) instead of the wander.  All boards are as recorded.
 
 Fixture: tests/extract_maze_seal_1106_fixture.py.
 """
@@ -25,7 +25,7 @@ import lzma
 import unittest
 from pathlib import Path
 
-from test_floor_dwell_seen_floor_recorded import EDIT, _Replay
+from test_floor_dwell_seen_floor_recorded import EDIT, _Replay, choose_past_junk_key
 
 from hengbot import retreat_enclosure
 from hengbot.model import Position
@@ -42,19 +42,6 @@ LADDER_REASONS = {
     retreat_enclosure.DISARM_REASON, retreat_enclosure.STRIKE_REASON,
     retreat_enclosure.RECALL_REASON,
 }
-
-
-AMMO_TVALS = {16, 17, 18}  # shots, arrows, bolts
-
-
-def awake_spider(raw):
-    """DECLARED: the spider awake from the first retreat's board on, and no ammunition
-    carried there (awake, it would be shot at instead)."""
-    if raw["turn"] >= FIRST_RETREAT_TURN:
-        for monster in raw["visible_monsters"]:
-            if (monster["index"], monster["race_id"]) == (SPIDER_INDEX, SPIDER_RACE):
-                monster["asleep"] = False
-        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in AMMO_TVALS]
 
 
 class MazeSealReplay(unittest.TestCase):
@@ -76,22 +63,29 @@ class MazeSealReplay(unittest.TestCase):
             vetoes[board.turn] = set(replay.policy._engagement_owned_avoid_cells)
         return replay, reasons, vetoes
 
-    def test_the_sleeping_spider_is_not_retreated_from(self):
-        _replay, reasons, vetoes = self.replay()
-        # Recorded: threat:avoid-engagement on both boards, then stuck:wander.
-        self.assertNotEqual(reasons[FIRST_RETREAT_TURN], "threat:avoid-engagement")
-        self.assertNotEqual(reasons[SECOND_RETREAT_TURN], "threat:avoid-engagement")
-        self.assertFalse(vetoes[STALL_TURNS[-1]])
+    def test_the_sleeping_spider_is_strong_and_retreated_from(self):
+        replay = _Replay(self, self.monrace)
+        for line in self.lines:
+            board = replay.board(line)
+            if board.turn == FIRST_RETREAT_TURN:
+                break
+            choose_past_junk_key(replay.policy, board)
+        spider = next(monster for monster in board.visible_monsters
+                      if (monster.index, monster.race_id) == (SPIDER_INDEX, SPIDER_RACE))
+        self.assertTrue(spider.asleep)
+        self.assertTrue(replay.policy._material_melee_engagement(board, spider))
+        choose_past_junk_key(replay.policy, board)
+        self.assertEqual(replay.policy.last_reason, "threat:avoid-engagement")
 
     def test_the_retreat_does_not_veto_the_pockets_last_way_out(self):
-        _replay, reasons, vetoes = self.replay(awake_spider)
+        _replay, reasons, vetoes = self.replay()
         self.assertEqual(reasons[FIRST_RETREAT_TURN], "threat:avoid-engagement")
         self.assertEqual(reasons[SECOND_RETREAT_TURN], "threat:avoid-engagement")
         self.assertEqual(vetoes[SECOND_RETREAT_TURN], {FIRST_VETO})
         self.assertNotIn(SECOND_VETO, vetoes[STALL_TURNS[-1]])
 
     def test_the_sealed_pocket_takes_the_enclosure_ladder_not_the_wander(self):
-        _replay, reasons, vetoes = self.replay(awake_spider)
+        _replay, reasons, vetoes = self.replay()
         self.assertIn(FIRST_VETO, vetoes[STALL_TURNS[0]])
         for turn in STALL_TURNS:
             self.assertNotEqual(reasons[turn], "stuck:wander", turn)

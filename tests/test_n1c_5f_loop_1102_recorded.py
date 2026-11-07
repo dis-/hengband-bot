@@ -49,18 +49,6 @@ def staff_screen_case():
     return dict(CASE, sequence=dict(CASE["sequence"], absorbed=absorbed))
 
 
-NAGA_RACE = 94
-
-
-def awake_naga(raw):
-    """DECLARED: a copy of ``raw`` with the green naga awake."""
-    raw = json.loads(json.dumps(raw))
-    for monster in (*raw["visible_monsters"], *raw.get("detected_monsters", [])):
-        if monster["race_id"] == NAGA_RACE:
-            monster["asleep"] = False
-    return raw
-
-
 def recorded():
     return {row["turn"]: (row["reason"], row["key"]) for row in CASE["decisions"]}
 
@@ -80,11 +68,7 @@ class FiveFloorLoopRecordedTest(nav.RecordedDrive):
         self.assertEqual(stand[RETURN_TURN], RETREAT_CELL)
 
     def test_descent_never_steps_back_onto_the_vetoed_cell(self):
-        # DECLARED CONSTRUCTED: the naga awake.  Asleep, as recorded, it is no
-        # longer retreated from (a sleeping monster does not close in; n1-c
-        # life-153, tests/test_maze_seal_1106_recorded), and the retreat's veto
-        # is what this test routes the descent around.
-        boards = [awake_naga(raw) for raw in CASE["boards"] if raw["turn"] <= RETURN_TURN]
+        boards = [raw for raw in CASE["boards"] if raw["turn"] <= RETURN_TURN]
         policy = nav.new_policy(CASE, boards)
         rows = self.drive_boards(staff_screen_case(), boards, policy)
         by_turn = {raw["turn"]: (key, reason) for raw, key, reason in rows}
