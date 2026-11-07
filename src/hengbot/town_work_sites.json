@@ -3288,6 +3288,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "model.py:_shared_grid_template": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "model.py:item_requires_full_identification": {
     "classification": "data",
     "rows": [

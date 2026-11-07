@@ -1153,11 +1153,20 @@ def _grid_states_from_grid_map(
     palette entry and give each cell a copy of its field values.  Sidecar
     cells go through the record path unchanged.  The result (keys, insertion
     order, every field value) is the one the per-record loop produced.
+
+    A plain cell whose position and field values are those of the previous
+    parse's plain cell there is that same (frozen) GridState object: most of a
+    large floor is unchanged from one board to the next, and the floor memory
+    (``_with_grid_memory``) skips an identical cell object without re-deriving
+    its terrain signature.  Equal values make the reuse unobservable except
+    through ``is``, which only that memory uses.
     """
     sidecars = {
         (int(cell["y"]), int(cell["x"])): cell
         for cell in grid_map.get("cells", [])
     }
+    previous = _plain_grid_cells.previous
+    current: dict[tuple[int, int], tuple[dict[str, Any], GridState]] = {}
     templates: dict[int, dict[str, Any]] = {}
     grids: dict[Position, GridState] = {}
     new_state = object.__new__
@@ -1170,19 +1179,49 @@ def _grid_states_from_grid_map(
                 grid = _grid_state_from_record(_grid_record_at(record, y, x, cell))
             else:
                 if template is None:
-                    template = dict(
+                    template = _shared_grid_template(dict(
                         _grid_state_from_record(_grid_record_at(record, y, x)).__dict__
-                    )
+                    ))
                     templates[palette_index] = template
-                # The template's field values in field order (``position``
-                # replaced in place); the frozen dataclass __init__ would only
-                # set the same values one by one.
-                values = template.copy()
-                values["position"] = Position(y, x)
-                grid = new_state(GridState)
-                set_state(grid, "__dict__", values)
+                key = (y, x)
+                reused = previous.get(key)
+                if reused is not None and reused[0] is template:
+                    grid = reused[1]
+                else:
+                    # The template's field values in field order (``position``
+                    # replaced in place); the frozen dataclass __init__ would
+                    # only set the same values one by one.
+                    values = template.copy()
+                    values["position"] = Position(y, x)
+                    grid = new_state(GridState)
+                    set_state(grid, "__dict__", values)
+                current[key] = (template, grid)
             grids[grid.position] = grid
+    _plain_grid_cells.previous = current
     return grids
+
+
+class _PlainGridCells:
+    """The last grid_map parse's plain cells: (y, x) -> (template, state)."""
+
+    previous: dict[tuple[int, int], tuple[dict[str, Any], GridState]] = {}
+
+
+_plain_grid_cells = _PlainGridCells()
+# One template object per distinct set of field values (position aside), so a
+# template identity test is a value test across parses.
+_GRID_TEMPLATES: dict[tuple[Any, ...], dict[str, Any]] = {}
+_GRID_TEMPLATE_LIMIT = 4096
+
+
+def _shared_grid_template(template: dict[str, Any]) -> dict[str, Any]:
+    key = tuple(value for name, value in template.items() if name != "position")
+    shared = _GRID_TEMPLATES.get(key)
+    if shared is None:
+        if len(_GRID_TEMPLATES) >= _GRID_TEMPLATE_LIMIT:
+            _GRID_TEMPLATES.clear()
+        _GRID_TEMPLATES[key] = shared = template
+    return shared
 
 
 # Stand-in HP/max-HP for a monster whose identity is hidden by hallucination:
