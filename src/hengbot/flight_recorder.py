@@ -217,6 +217,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_q2_tower_recharge",
         # The armour smith's attempts and trip of this stay in town (owner 2026-11-04).
         "_armor_smith_stay",
+        # The Zul trip: the global-map walk to the mutation cure (owner 2026-11-07).
+        "_zul_trip",
         # The arena's trip, judgement and standing of this stay (owner 2026-11-05).
         "_arena_stay",
         "_arena_defeated",

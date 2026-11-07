@@ -2297,6 +2297,9 @@ class HomeMixin:
         from hengbot.me_staff_sequence import retains as staff_sequence_retains
         if staff_sequence_retains(self, snapshot, item):
             return item.count, "me-staff:absorb"
+        from hengbot import zul_trip
+        if zul_trip.retains(self, snapshot, item):
+            return 1, "zul-trip:levitation"
         from hengbot.magic_eater_devices import WONDER_HOLD_LIMIT, is_staple_food, staple_food
         staple = staple_food(snapshot)
         if staple is not None and is_staple_food(item):

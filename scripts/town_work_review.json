@@ -15333,5 +15333,217 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:cure_price": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: building 14's price for the character (Chaos realm owner or not, lib/edit/towns/05_Zul.jsonc).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:gold_needed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cures, the inn fare when the walk starts elsewhere, and the departure supplies.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:is_levitation_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: a Ring of Levitation the player recognises.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the global-map route by the TERRAIN table (fewest shallow-water cells, then steps).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:start_town": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the reachable town nearest Zul by its levitated route.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. record accessor: the trip's own facts.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:_town_routes": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: each inn town's levitated route to Zul from the static map.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:_levitation_offer": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cheapest Ring of Levitation seen this stay within the spare gold.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the ring row of the open page the trip buys, or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "fundraising",
+      "store-approach",
+      "home-withdraw",
+      "equipment-transaction",
+      "quest-service"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: in town: fundraising, levitation, the inn's teleport to the start town, '<' to the global map, the cures in Zul and the end of the walk; None for the other owners.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_cure_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: the walk to building 14 and the entry carrying one 'm' per cure; observed_input answers each on the building menu.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_enter_global_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: '<' to the global map from the start town or Zul; refused boards (a monster near, weak with hunger) leave the board to the others.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_fundraise": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: a short purse hands one explicit-target run to the existing fundraising owners (start_fundraising_run).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_levitation_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "home-withdraw",
+      "equipment-transaction"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: worn levitation goes on; a carried ring is put on; one in Home is taken out; otherwise the Magic shop or the Black Market is visited; none closes the trip for the stay.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_wear_key": {
+    "classification": "producer",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: puts the carried Ring of Levitation on through the equipment mutation (a free ring slot first).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:global_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: on the global map while the trip is under way: eat when hungry, the next step of the route, '>' on the goal town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:ambush_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "combat"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: on an ambush's local map: None with an awake monster in view (the ordinary combat rules), else '<' or the walk off the nearest edge.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_prepare_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "home-withdraw",
+      "equipment-transaction"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 「Lv.30以上のキャラクタが突然変異を得た場合、ズルに直しに行く処理を作る」: levitation, then the inn's teleport to the start town, then '<' from it with the trip's facts recorded.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

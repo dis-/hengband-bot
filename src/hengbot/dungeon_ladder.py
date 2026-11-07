@@ -71,6 +71,7 @@ NOT_DECIDED = "walks or shoots while attacked: not refused, and no rule decided 
 
 LADDER = (
     Layer("global-map", "everything: the global map is a distinct command space", (
+        *D("zul_trip.global_key"),
         *E("_wilderness_survival_key"),
     )),
     Layer("plan-above-survival", "the emergency ladder and everything below; each answers "
@@ -122,6 +123,7 @@ LADDER = (
     Layer("pre-combat", "the flee, melee and ranged rungs and all below", (
         *E("_mining_loadout_rollback_key", exempt=FIGHTS),
         *D("speed_dose.key", exempt=QUEST_FLOOR),
+        *D("zul_trip.ambush_key", exempt=NO_ATTACKER),
         *E("_wilderness_survival_key", exempt=ANSWERS_DANGER),
         *E("_town_kill_mob_key", exempt=TOWN_ONLY),
         *I("confused:wait", exempt=NO_ATTACKER),
@@ -356,6 +358,8 @@ class OwnerRule(NamedTuple):
 
 
 _ABOVE_EMERGENCY = {
+    "zul_trip.global_key": "the Zul trip's global-map walk (owner 2026-11-07): the global map "
+                           "shows no monster; an ambush leaves it for a local map",
     "_wilderness_survival_key": "the global map's own survival rung",
     "quest_find_exit.key": "a plan answers survival inside itself (FLOOR_PLANS)",
     "quest25_battle.key": "a plan answers survival inside itself (FLOOR_PLANS)",

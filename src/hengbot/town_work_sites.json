@@ -11993,5 +11993,173 @@
       "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_cure_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_enter_global_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_fundraise": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_levitation_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "home-withdraw",
+      "equipment-transaction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_levitation_offer": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:_prepare_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "home-withdraw",
+      "equipment-transaction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_town_routes": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:_wear_key": {
+    "classification": "producer",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:ambush_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:curable_mutations": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:cure_price": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:global_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:gold_needed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:has_levitation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:is_levitation_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:start_town": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:town_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "fundraising",
+      "store-approach",
+      "home-withdraw",
+      "equipment-transaction",
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   }
 }
