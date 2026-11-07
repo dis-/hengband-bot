@@ -46,6 +46,7 @@ from hengbot import (
     quest_no_teleport,
     return_yield,
     speed_dose,
+    survival_preemption,
     unseen_strike,
 )
 from hengbot.launcher_damage import launcher_average_damage
@@ -242,8 +243,16 @@ def _with_adjusted_speed(monster):
 
 
 def engagement(policy, snapshot) -> list:
-    """The strategic hostiles in view plus the awake detected ones (design 3)."""
-    visible = policy._strategic_hostiles(snapshot)
+    """The strategic hostiles in view plus the awake detected ones (design 3), with the suppressed
+    attackers in view once they endanger the player (D46, survival_preemption.emergency_hostiles).
+
+    One set for every reader of 即死: the telemetry (``facts``), the plans' rung and the shared
+    ladder's 1-turn test in ``_emergency_item``.  That ladder's own ``hostiles`` differ in two
+    ways that change no 1-turn damage: they leave out the awake detected ones (out of view), and
+    an approved strategy drops its distant never-moving races with no ranged damage, summons,
+    breeding or TELE_TO (``_quest_strategy_emergency_hostiles``), which deal nothing from there."""
+    visible = survival_preemption.emergency_hostiles(
+        policy, snapshot, policy._strategic_hostiles(snapshot), policy._physical_hostiles(snapshot))
     seen = {monster.index for monster in visible}
     detected = [monster for monster in policy._strategic_subset(snapshot, snapshot.detected_monsters)
                 if not monster.asleep and monster.index not in seen]

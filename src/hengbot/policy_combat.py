@@ -2193,8 +2193,10 @@ class CombatMixin:
         # at the monsters' adjusted speed plus the observed unseen loss) joins ``lethal`` here,
         # beside the 3-turn ``predicted >= hp`` and the other conditions, which stay.  Like the
         # plans' rung it holds whatever exempts the board (a Q31 hold, a committed unique fight).
+        # Its hostiles are threat_tiers.engagement, the set the plans' rung and the telemetry
+        # read (see there why it may differ from ``hostiles``).
         if not instant_death and hostiles:
-            instant_death = threat_tiers.instant_death(self, snapshot, hostiles).next_action
+            instant_death = threat_tiers.instant_death(self, snapshot).next_action
         unseen_spell_hit = (
             self._unseen_attack_evidence is not None
             and self._is_unseen_spell_message(self._unseen_attack_evidence)
