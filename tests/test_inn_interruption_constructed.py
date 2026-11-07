@@ -21,6 +21,7 @@ from hengbot.model import Position
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_types import CrossTownShoppingExpedition
+from policy_fixtures import grid
 from test_surface_map_walks import _board, _town_maps
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -40,8 +41,8 @@ def policy_for(town):
     return policy
 
 
-def emit(policy, town, at, reason, key=None):
-    board = _board(town, at, turn=1000 + policy._decision_sequence)
+def emit(policy, town, at, reason, key=None, grids=()):
+    board = _board(town, at, grids, turn=1000 + policy._decision_sequence)
     policy.prime(board)
     if key is None:
         destination = 0 if town == 1 else 1
@@ -280,6 +281,42 @@ class InnInterruptionTest(unittest.TestCase):
                 receipt = policy._town_inn_route_receipt(board, reason, "9", consume=True)
                 self.assertFalse(receipt["rebaseline"])
                 self.assertFalse(receipt["productive"])
+
+    def test_long_detour_after_a_moving_monster_rebaselines_the_q2_walk(self):
+        # n1-a life 492 2026-11-07 10:38: after an arena win the Q2 walk left
+        # the arena (18,22) and reached (21,26) at rank 30; a starving horse
+        # came into view and town:kill-mob-approach dragged the player west
+        # for 16 steps to (22,12), melee at (21,11).  The horse's cell is
+        # removed from the walkable floor, so every board of the chase had a
+        # different "topology" and recorded no displacement; once it died the
+        # floor matched again, the stale rank-30 minimum came back and the
+        # walk east from (21,11) was charged 3/3 twice (owner-retired-burst).
+        policy = policy_for(1)
+        for at in [(18, 22), (18, 23), (19, 24), (20, 25), (21, 26)]:
+            emit(policy, 1, at, Q2)
+        self.assertEqual(policy._town_inn_accounting["receipt"]["minimum_after"], 30)
+        detour = [(22, 27), (21, 26), (20, 25), (19, 24), (20, 23), (21, 22),
+                  (22, 21), (22, 20), (22, 19), (21, 18), (20, 17), (19, 16),
+                  (20, 15), (21, 14), (22, 13), (22, 12)]
+        for at, ahead, key in zip(detour, detour[1:] + [(21, 11)], "7771114477711147"):
+            # The horse always on the next cell of the chase (it flees west).
+            horse = grid(*ahead, monster=True)
+            emit(policy, 1, at, "town:kill-mob-approach", key, grids=(horse,))
+        emit(policy, 1, (21, 11), "melee", "1", grids=(grid(22, 10, monster=True),))
+        arbiter = policy._town_turn_arbiter
+        key, _, telemetry = emit(policy, 1, (21, 11), Q2)
+        self.assertTrue(policy._town_inn_accounting["receipt"]["rebaseline"])
+        self.assertFalse(telemetry["retired"])
+        at = (21, 11)
+        for _ in range(12):
+            board = _board(1, at)
+            policy.prime(board)
+            route = policy._town_teleport_building_route(
+                board, policy._town_teleport_building_positions(board))
+            at = (route.first_step.y, route.first_step.x)
+            key, _, telemetry = emit(policy, 1, at, Q2)
+            self.assertTrue(telemetry["progress"], at)
+            self.assertNotIn("quest-request", arbiter._retired)
 
     def test_no_closing_resumption_retires_at_existing_own_bound(self):
         for town, reason, bound in [(1, Q2, 3), (0, SHOP, 8)]:
