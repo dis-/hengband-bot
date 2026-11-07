@@ -54,7 +54,7 @@ from unittest import mock
 from hengbot.cli import _ExecutorInputPort, _consume_response_sequence, _send_new_decision_key
 from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
 from hengbot.input_executor import ScreenKind, classify_screen
-from hengbot.model import parse_snapshot
+from hengbot.model import STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.runtime_paths import RUNTIME_DIR_ENV
 from hengbot.town_arrival_checkpoint import POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST
@@ -273,6 +273,19 @@ class N1bTownStops1108RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(self.journal[256]["reason"], "me-staff:return-outpost")
         self.assertEqual((key, policy.last_reason), ("9", "town:kill-mob-approach"))
         self.assertEqual(policy._town_hunt_target, drunk.position)
+
+    # D ------------------------------------------------------------------
+
+    def test_d_alchemist_shelf_without_the_wanted_ware_is_not_re_entered(self):
+        policy = self.restore("d")
+        forced = set(range(75)) - {0, 2, 4, 6, 7} - set(range(23, 36)) - {41, 42, 43, 47}
+        self.replay(policy, range(75), forced=forced)
+        self.assertEqual(self.journal[74]["reason"], "shop:observe-and-leave")
+        # Recorded row 75: '7' shop:approach, stepping off to re-enter it.
+        _board, key = self.decide(policy, 75)
+        self.assertIn(STORE_ALCHEMIST, policy._town_visit_ledger.nonhome_attempted_without_effect)
+        self.assertNotEqual(policy._shopping_approach_store_type, STORE_ALCHEMIST)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n$.", "shop:travel"))
 
 
 if __name__ == "__main__":

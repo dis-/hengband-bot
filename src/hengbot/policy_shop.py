@@ -1037,6 +1037,8 @@ class ShopMixin(InStoreMixin):
                 purchase = self._next_purchase(replace(snapshot, store=remembered))
                 if purchase is not None and purchase.price <= snapshot.player.gold:
                     self._town_store_attempted.pop(store_type, None)
+                    self._town_visit_ledger.nonhome_attempted_without_effect.pop(
+                        store_type, None)
                     return store_type
         self._town_restock_waiting_for = store_types
         if self._town_restock_wait_until is None:
@@ -1046,7 +1048,11 @@ class ShopMixin(InStoreMixin):
             return None
         self._town_restock_wait_until = None
         for store_type in store_types:
+            # A completed stock turnover is new shelf evidence: it releases
+            # an observed nothing-wanted refusal as well as the visit latch.
             self._town_store_attempted.pop(store_type, None)
+            self._town_visit_ledger.nonhome_attempted_without_effect.pop(
+                store_type, None)
         return store_types[0]
 
     @claims(ClaimOwner.STORE_ROUTER)
@@ -1104,6 +1110,10 @@ class ShopMixin(InStoreMixin):
         # check each released supplier itself before declaring all of them
         # unreachable.
         for store_type in self._order_town_stops(snapshot, list(store_types)):
+            if store_type in self._town_visit_ledger.nonhome_attempted_without_effect:
+                # Its shelf was observed with nothing wanted and nothing has
+                # changed since (_atomic_shop_transaction_key's settlement).
+                continue
             step = self._shopping_approach_step(
                 snapshot, store_type, router_plan_stop=True
             )
@@ -6629,6 +6639,21 @@ class ShopMixin(InStoreMixin):
                 "town:blocked:procurement-home-unroutable",
             }
         )
+        # The shop handler's own nothing-to-do leave (_shop "shop:leave") on a
+        # shelf without a ware this character wants is an observed no-op as
+        # well: the supplier is out of what the need asks this visit.  Without
+        # it settled here (plan cursor moved or no plan), the router re-chose
+        # the same shelf on the next board and the visit stepped off and on
+        # the entrance until loop-detected (n1-b life-339 2026-11-08 02:30,
+        # the Alchemist with Word of Recall at 9 of 11 and none on its shelf).
+        # The settlement's refusal releases once the game state changes.
+        observed_nothing_wanted = (
+            inner == LEAVE_STORE_KEY
+            and composition_refusal == "shop:leave"
+            and store_type != STORE_HOME
+            and self._next_purchase_unreserved(
+                replace(snapshot, store=observed_store)) is None
+        )
         observed_no_operation = (
             inner == LEAVE_STORE_KEY
             and (not composition_refusal or terminal_refusal)
@@ -6639,7 +6664,7 @@ class ShopMixin(InStoreMixin):
             and plan.index < len(plan.stops)
             and plan.stops[plan.index] == store_type
         )
-        if terminal_refusal:
+        if terminal_refusal or observed_nothing_wanted:
             stop_resolved = self._resolve_observed_uncomposable_stop(
                 snapshot, observed_no_operation=True,
                 settle_moved_cursor=True,
@@ -6653,7 +6678,7 @@ class ShopMixin(InStoreMixin):
         if stop_resolved:
             # No operation was bound. Resume the next owner on this outside
             # board; WAIT on a store entrance would start another empty visit.
-            key = None if terminal_refusal else WAIT_KEY
+            key = None if terminal_refusal or observed_nothing_wanted else WAIT_KEY
             offer_outcome(key, "uncomposable-stop-advanced")
             return key
         if composition_refusal in {
