@@ -84,7 +84,8 @@
     "level_guideline": 48,
     // 幽体ティラノサウルス r_idx 705 の実 AC。近接で倒す相手のうち最も硬く HP も最大（3000）。
     "reference_ac": 120,
-    "resists": ["see_invisible", "free_action", "confusion", "blindness", "nether", "poison"],
+    // 盲目の耐性は外す（2026-11-07 ユーザーの選択「外す」。7-17 の下書きからあった条件で、決定の記録が無かった）。
+    "resists": ["see_invisible", "free_action", "confusion", "nether", "poison"],
     // 透明なものを見る手段（2026-11-06 ユーザーの選択「どれか1つでよい」、revised_plan_draft.phase5）:
     // 透明視のほか、テレパシー・アンデッド感知・邪悪感知のどれか1つがあれば see_invisible を満たす。
     "resist_alternatives": {"see_invisible": ["telepathy", "esp_undead", "esp_evil"]},
