@@ -62,6 +62,8 @@ from hengbot.policy import (
     required_depth_gates,
     staged_prompt_chain_matches,
 )
+# After hengbot.policy: threat_tiers' dependencies import through it (a cycle otherwise).
+from hengbot import threat_tiers
 from hengbot.town_hold import SURVIVAL_REASON_PREFIXES
 from hengbot.policy_constants import (
     DIRECTION_DELTAS,
@@ -1873,6 +1875,7 @@ def _empty_decision_facts() -> dict:
     return {
         "requirements": [], "abandoned_quest_carries": {},
         "over_extension": {}, "depth_safety": {}, "threat_prediction": {},
+        "threat_tiers": {},
         "equipment_optimization": {}, "loot": {}, "mining": {},
         "fundraising": {}, "town_plan": {}, "fixedquest_readiness": {},
         "departure_block": {}, "cross_town_shopping": {},
@@ -2049,6 +2052,8 @@ def _capture_decision_facts_unchecked(snapshot, policy) -> dict:
             snapshot,
             [monster for monster in snapshot.visible_monsters if monster.hostile],
         ),
+        # Threat tiers, plan step 1 (docs/threat-tiers-design.md): observe only.
+        "threat_tiers": threat_tiers.facts(policy, snapshot),
         "equipment_optimization": policy.equipment_optimization_state(snapshot),
         "loot": policy.loot_state(snapshot),
         "mining": _mining_state(policy),
@@ -2315,6 +2320,8 @@ def _write_decision(
                         else None
                     ),
                 )
+            if facts.get("threat_tiers"):
+                record["threat_tiers"] = facts["threat_tiers"]
             if facts.get("carried_spare_gear"):
                 record["carried_spare_gear"] = facts["carried_spare_gear"]
             if policy is not None:
