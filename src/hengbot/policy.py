@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit
+from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip
 
 from collections import Counter, deque
 import random
@@ -2625,6 +2625,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         me_powerful_activation.observe(self, snapshot)
         spare_gear.observe(self, snapshot)
         armor_smith.observe(self, snapshot)
+        zul_trip.observe(self, snapshot)
         arena.observe(self, snapshot)
         speed_dose.observe(self, snapshot)
         area_mapping.observe(self, snapshot)
@@ -7532,6 +7533,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # repetition, and fundraising commands are not valid here.  Route or
         # enter the town before allowing any of those owners to select again.
         if self._on_global_wilderness_map(snapshot):
+            # Owner 2026-11-07: the Zul trip is the one exception to the
+            # never-the-wilderness rule, and only while it is under way.
+            zul = zul_trip.global_key(self, snapshot)
+            if zul is not None:
+                return zul
             return self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
         self._update_mining_combat_streaks(
             snapshot, physical_hostiles, physical_adjacent
@@ -7815,7 +7821,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         #     onto by crossing a map border. It spawns out-of-depth monsters (a
         #     Cyclops killed a clvl-4 bot here). Survival is the ONLY goal: flee,
         #     recall to safety, never shop/explore/fight for XP.
-        if snapshot.on_open_wilderness:
+        if snapshot.on_open_wilderness and zul_trip.trip_active(self):
+            # The Zul trip's ambush (owner 2026-11-07 「ふつうに戦い全体地図へ戻る」):
+            # an awake monster in view is fought by the ordinary rules below.
+            ambush = zul_trip.ambush_key(self, snapshot, physical_hostiles)
+            if ambush is not None:
+                return ambush
+        elif snapshot.on_open_wilderness:
             return self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
 
         # Town is cleared before errands resume.  Unlike dungeon hunting every

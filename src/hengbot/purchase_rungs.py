@@ -66,6 +66,8 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "tail:identify-staff": "identify-staff-cap",
     # Worn or stored by the equipment comparison (ability_gear).
     "ability-gear:buy": "equipment-catalogue",
+    # Worn by the Zul trip before it leaves for the global map (zul_trip).
+    "zul:levitation": "zul-trip:levitation",
     "black-market:speed": "emergency-potion",
     "black-market:healing": "emergency-potion",
     "black-market:resistance": "resistance-potion",

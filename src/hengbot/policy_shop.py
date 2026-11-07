@@ -39,7 +39,7 @@ from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
 from hengbot import launcher_upgrade
 from hengbot import quest_optional_carry
-from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence
+from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
 from hengbot import mining_loadout, mining_oil_sale
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.town_hold import hold_claims, offered_steps
@@ -2898,6 +2898,16 @@ class ShopMixin(InStoreMixin):
                 return PurchaseMatch(rung_id, stage, self._purchase_item_identity(item),
                                      shortage=quantity, rationale="opening-q1:" + stage)
             return (PurchaseRung(rung_id, stage, match, purchase_rung_retention(rung_id)),)
+        if zul_trip.shopping(self, context.snapshot):
+            # Owner 2026-11-07 「無ければ指輪を買う」: the Zul trip's Ring of Levitation.
+            ware = zul_trip.purchase(self, context.snapshot)
+            def match(ctx, item):
+                if self._purchase_item_identity(item) != self._purchase_item_identity(ware):
+                    return None
+                return PurchaseMatch(zul_trip.BUY_RUNG, "levitation", self._purchase_item_identity(item),
+                                     shortage=1, rationale="zul:levitation")
+            return (PurchaseRung(zul_trip.BUY_RUNG, "levitation", match,
+                                 purchase_rung_retention(zul_trip.BUY_RUNG)),)
         if me_staff_sequence.shopping(self, context.snapshot):
             ware = me_staff_sequence.purchase(self, context.snapshot)
             if ware is None:
@@ -3013,6 +3023,7 @@ class ShopMixin(InStoreMixin):
             ),
         ))
         add(rung("ability-gear:buy", "ability-gear", lambda: True, lambda i: ability_gear.rung_matches(self, snapshot, i)))
+        add(rung("zul:levitation", "levitation", lambda: True, lambda i: zul_trip.rung_matches(self, snapshot, i)))
         black_market_pick = self._black_market_optional_purchase(snapshot)
         add(rung("black-market:destruction", "destruction", lambda: black_market_pick is not None and self._is_destruction_staff(black_market_pick), lambda i: self._is_destruction_staff(i)))
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))

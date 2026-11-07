@@ -605,6 +605,12 @@ class QuestMixin(OpeningRouteMixin):
         # The class sequences that travel wait while the report or the
         # pickup holds the town; the room-making owners take the board.
         if not town_quest_reward.holds_town(self, snapshot):
+            # Owner 2026-11-07 「次に町へ戻った時」: the Zul trip comes before the
+            # other town errands, and holds the board while it is under way.
+            from hengbot import zul_trip
+            zul = zul_trip.town_key(self, snapshot, hostiles)
+            if zul is not None:
+                return zul
             # Started at the recall read, when the sequences below had nothing to
             # do; away from the Outpost they would take it straight back.
             from hengbot import armor_smith

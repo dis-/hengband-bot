@@ -434,6 +434,10 @@ class SupplyMixin:
         and price knowledge, so only an affordable matching ware counts.
         """
         mana_food = snapshot.player.food_type == FOOD_TYPE_MANA
+        # Owner 2026-11-07 「普段より多くの食料を確保する」: the Zul trip's
+        # round trip, doubled, on top of the usual departure amount.
+        from hengbot import zul_trip
+        trip_food = zul_trip.extra_food_items(self, snapshot)
         counts = {
             "recall": self._count_recall_scrolls(snapshot),
             "teleport": self._count_teleport_scrolls(snapshot),
@@ -442,10 +446,10 @@ class SupplyMixin:
             "food": (
                 min(
                     self._count_mana_food_uses(snapshot),
-                    MANA_FOOD_CHARGE_TARGET
+                    MANA_FOOD_CHARGE_TARGET + trip_food
                     if self._count_mana_food_devices(snapshot)
                     >= self._mana_food_device_target(snapshot)
-                    else MANA_FOOD_CHARGE_TARGET - 1,
+                    else MANA_FOOD_CHARGE_TARGET + trip_food - 1,
                 )
                 if mana_food
                 else self._count_food(snapshot)
@@ -535,6 +539,8 @@ class SupplyMixin:
                 required_return = required_departure = 0
             elif kind == "food" and mana_food:
                 required_return = required_departure = MANA_FOOD_CHARGE_TARGET
+            if kind == "food":
+                required_departure += trip_food
             statuses[kind] = SupplyStatus(
                 kind, count_value, required_return, required_departure,
                 obtainable, status_stores,

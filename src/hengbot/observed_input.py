@@ -18,6 +18,7 @@ from hengbot.input_executor import (
     BUILDING_ENCHANT_PROMPTS, Continuation, RECALL_DUNGEON_PROMPTS, ScreenKind,
 )
 from hengbot.morivant_tower import RECHARGE_ALL_REASONS
+from hengbot.zul_trip import CURE_KEY, CURE_KEY_PATTERN, CURE_REASON
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
 from hengbot.policy_constants import (
     ALTER_KEY, CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO, STORE_HOME,
@@ -185,6 +186,13 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
         # ceremony (the owner stops before it).  A refused entry leaves the menu up, and
         # the executor closes a menu with no answer left.
         return key[0], [_answer(ScreenKind.BUILDING, ENTER_KEY, optional=True), *continuations]
+    if owner == CURE_REASON and re.fullmatch(CURE_KEY_PATTERN, key):
+        # cmd-building.cpp BACT_LOSE_MUTATION: no question; each 'm' cures one
+        # mutation and prints its message over the kept menu (a short purse or
+        # no mutation left prints its refusal instead).  Every answer is
+        # released only on the observed building menu.
+        cures = [_answer(ScreenKind.BUILDING, CURE_KEY, optional=True) for _ in key[1:-1]]
+        return key[0], [*cures, _answer(ScreenKind.BUILDING, "", optional=True), *continuations]
     if owner == RAISE_REASON and re.fullmatch(RAISE_KEY_PATTERN, key):
         raises = [step for label in key[3::3] for step in _building_raise(label)]
         return key[0], [*raises, _answer(ScreenKind.BUILDING, "\x1b"), *continuations]
