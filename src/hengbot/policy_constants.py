@@ -561,7 +561,13 @@ ESP_THREAT_POTION_RESERVE = 2
 # quaff when the 3-turn predicted damage is at least half the current HP.
 STRONG_FIGHT_SPEED_HP_RATIO = 0.5
 UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
-HEAL_POTION_SVALS = frozenset({35, 37, 38, 39})
+# The potions that recover HP: Healing, *Healing*, Life (sv-potion-types.h 37-39).
+# Owner 2026-11-03 「致命傷の治癒は HP の回復の手段に数えない」 and 2026-11-07
+# (threat tiers OQ-7): Cure Light and Cure Serious Wounds are not HP recovery
+# either.  The one exception is a quest strategy whose heal potion is Cure
+# Critical Wounds (QUEST_14, owner 2026-10-31 「致命傷の治癒でよい」), added on
+# that floor by policy._quest_floor_heal_svals.
+HEAL_POTION_SVALS = frozenset({37, 38, 39})
 
 QUEST_STATUS_TAKEN = 1
 

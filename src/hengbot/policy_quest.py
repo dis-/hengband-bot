@@ -296,7 +296,7 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
-from hengbot.quest_strategies import StrategyProfile
+from hengbot.quest_strategies import StrategyProfile, heal_potion_sval
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.quest_final_room import (
     door_gates,
@@ -5240,11 +5240,19 @@ class QuestMixin(OpeningRouteMixin):
         # One potion consumes one player action.  Across the three-turn threat
         # window, no more than THREAT_TURNS doses are realizable; value the best
         # available doses first instead of crediting the entire carried stock.
+        # Cure Critical Wounds is no HP recovery (owner 2026-11-03 「致命傷の治癒は
+        # HP の回復の手段に数えない」) except for the strategy that names it as its
+        # heal potion (QUEST_14, owner 2026-10-31 「致命傷の治癒でよい」).
+        strategy_cure_critical = (
+            profile is not None
+            and heal_potion_sval(profile.required_force) == SV_POTION_CURE_CRITICAL
+        )
         healing_doses = (
             [HEALING_POTION_HP]
             * self._exact_potion_count(snapshot, SV_POTION_HEALING)
             + [FIXED_QUEST_CURE_CRITICAL_HP]
-            * self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
+            * (self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
+               if strategy_cure_critical else 0)
         )
         hasted = speed_dose.available(self, snapshot)
         modeled_speed = snapshot.player.speed + (SPEED_POTION_BONUS if hasted else 0)
@@ -6063,14 +6071,11 @@ class QuestMixin(OpeningRouteMixin):
         if attacks > UNIQUE_COMBAT_MAX_ATTACKS:
             return None
 
-        healing_doses = sorted(
-            (
-                [HEALING_POTION_HP]
-                * self._exact_potion_count(snapshot, SV_POTION_HEALING)
-                + [FIXED_QUEST_CURE_CRITICAL_HP]
-                * self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
-            ),
-            reverse=True,
+        # Only Healing recovers HP here: Cure Critical Wounds does not (owner
+        # 2026-11-03 「致命傷の治癒は HP の回復の手段に数えない」).
+        healing_doses = (
+            [HEALING_POTION_HP]
+            * self._exact_potion_count(snapshot, SV_POTION_HEALING)
         )
         reserve = max(1, ceil(snapshot.player.max_hp * UNIQUE_COMBAT_HP_RESERVE_RATIO))
         speed_snapshot = replace(
@@ -6166,10 +6171,8 @@ class QuestMixin(OpeningRouteMixin):
             target,
             player_speed=player.speed,
         )
-        healing_count = (
-            self._exact_potion_count(snapshot, SV_POTION_HEALING)
-            + self._exact_potion_count(snapshot, SV_POTION_CURE_CRITICAL)
-        )
+        # Cure Critical Wounds is no HP recovery (owner 2026-11-03).
+        healing_count = self._exact_potion_count(snapshot, SV_POTION_HEALING)
         speed_plan = None
         if (
             speed_dose.available(self, snapshot)
@@ -6207,35 +6210,12 @@ class QuestMixin(OpeningRouteMixin):
             return None
 
         next_one = self._predicted_damage(snapshot, hostiles, turns=1)
-        healing = next(
-            (
-                potion
-                for potion in (
-                    self._find_exact_potion(snapshot, SV_POTION_HEALING),
-                    self._find_exact_potion(
-                        snapshot, SV_POTION_CURE_CRITICAL
-                    ),
-                )
-                if potion is not None
-                and (
-                    HEALING_POTION_HP
-                    if potion.sval == SV_POTION_HEALING
-                    else FIXED_QUEST_CURE_CRITICAL_HP
-                )
-                >= next_one
-            ),
-            None,
-        )
+        healing = self._find_exact_potion(snapshot, SV_POTION_HEALING)
+        if healing is not None and HEALING_POTION_HP < next_one:
+            healing = None
         if chosen_plan["healing_uses"] > 0 and healing is not None:
             missing_hp = player.max_hp - player.hp
-            heal_amount = min(
-                (
-                    HEALING_POTION_HP
-                    if healing.sval == SV_POTION_HEALING
-                    else FIXED_QUEST_CURE_CRITICAL_HP
-                ),
-                player.max_hp,
-            )
+            heal_amount = min(HEALING_POTION_HP, player.max_hp)
             if (
                 missing_hp > 0
                 and (
@@ -6244,11 +6224,7 @@ class QuestMixin(OpeningRouteMixin):
                 )
             ):
                 self._unique_combat_committed_race_id = target.race_id
-                self.last_reason = (
-                    "unique:quaff-healing"
-                    if healing.sval == SV_POTION_HEALING
-                    else "unique:quaff-cure-critical"
-                )
+                self.last_reason = "unique:quaff-healing"
                 return reserved_item_command(self, snapshot, "quaff", healing)
 
         speed = (speed_dose.key(self, snapshot, "unique:quaff-speed",

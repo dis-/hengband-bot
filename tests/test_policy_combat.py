@@ -5709,7 +5709,9 @@ class ConsumableTest(unittest.TestCase):
 
     def test_quaffs_healing_potion_when_hurt_in_a_fight(self):
         grids = self._open_room()
-        inv = [item("c", POTION, 35)]  # Potion of Cure Serious Wounds
+        # Threat tiers C-7 (owner 2026-11-07, OQ-7): Cure Serious Wounds is no HP
+        # recovery, so the potion here is Healing (it was Cure Serious Wounds).
+        inv = [item("c", POTION, 37)]  # Potion of Healing
         threat = hostile(1, 10, 13, hp=30, max_hp=30, distance=3)  # a monster is near
         snap = Snapshot(player(10, 10, hp=20, max_hp=100), grids, [threat], inventory=inv)
         self.assertEqual(HengbotPolicy().choose_key(snap), "qc")
@@ -5762,12 +5764,15 @@ class ConsumableTest(unittest.TestCase):
         # 「次に受けるダメージ予測で判断する。基本的には回復を優先するが、
         # 回復量を上回るならテレポートを優先する。」  DECLARED CONSTRUCTED: a
         # non-lethal fight (3-turn 0 < HP 20) at HP 20 of 100 (threshold 50)
-        # where the next turn's expected damage (25) exceeds the only potion,
-        # Cure Serious Wounds (4d8, 18): read the teleport before any heal.
-        # (Clarified 08:5x: the next turn is the one-turn operational p95;
-        # both one-turn values are 25 here.)
+        # where the next turn's expected damage exceeds what the only potion
+        # can heal: read the teleport before any heal.  (Clarified 08:5x: the
+        # next turn is the one-turn operational p95; both one-turn values are
+        # equal here.)  Threat tiers C-7 (owner 2026-11-07, OQ-7): the potion was Cure
+        # Serious Wounds (18), which is no HP recovery any more; it is now a
+        # Potion of Healing, capped by the missing HP (80), against a next turn
+        # of 90.
         grids = self._open_room()
-        weak = item("c", POTION, 35)
+        weak = item("c", POTION, 37)
         scroll = item("t", SCROLL, SV_SCROLL_TELEPORT)
         threat = hostile(1, 10, 11, hp=30, max_hp=30, distance=1)
         snap = Snapshot(
@@ -5779,7 +5784,7 @@ class ConsumableTest(unittest.TestCase):
         with patch.object(
             policy, "_predicted_damage",
             side_effect=lambda *_args, **kwargs: (
-                25 if kwargs.get("turns") == 1 else 0
+                90 if kwargs.get("turns") == 1 else 0
             ),
         ):
             self.assertEqual(policy.choose_key(snap), "rt")
@@ -8901,7 +8906,9 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             policy._committed_unique_fight_viable(snapshot, [monster])
         )
 
-    def test_cure_critical_sustains_weaker_unique(self):
+    def test_cure_critical_does_not_sustain_weaker_unique(self):
+        # Owner 2026-11-03 「致命傷の治癒は HP の回復の手段に数えない」 (threat tiers
+        # C-7): a dose that would cover the unique's turn is still no healing dose.
         snapshot, monster, knowledge = self._cure_critical_guardian(
             hp=100, monster_speed=110, blow_sides=4
         )
@@ -8914,11 +8921,8 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         plan = policy._unique_fight_projection(
             snapshot, [monster], monster, player_speed=snapshot.player.speed
         )
-        self.assertIsNotNone(plan)
-        self.assertGreater(plan["healing_uses"], 0)
-        self.assertEqual(
-            policy._unique_combat_consumable(snapshot, [monster]), "qc"
-        )
+        self.assertIsNone(plan)
+        self.assertIsNone(policy._unique_combat_consumable(snapshot, [monster]))
 
     def test_guardian_without_healing_doses_remains_nonviable(self):
         snapshot, _, knowledge = self._cure_critical_guardian(cure_count=0)

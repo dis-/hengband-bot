@@ -1227,13 +1227,14 @@ DESCENT_BLOCK_DECISIONS = 200
 # fail-safe (40 decisions).  Hazardous landings still use the full cooldown.
 RESUME_DESCENT_BLOCK_DECISIONS = 16
 
-# Potion svals that restore HP (cure wounds / healing / life), from sv-potion-types.h.
-# Expected raw HP restored by the combat-healing potions.  Cure Serious is
-# 4d8; Healing and *Healing* are fixed in quaff-effects.cpp; Life restores to
-# full and is therefore capped dynamically by the current missing HP.  Cure
-# Critical Wounds (6d8) heals only where a quest strategy names it as its
-# heal potion (_quest_floor_heal_svals).
-HEAL_POTION_EXPECTED_HP = {35: 18, 36: FIXED_QUEST_CURE_CRITICAL_HP, 37: 300, 38: 1200}
+# Expected raw HP restored by the HP-recovery potions (HEAL_POTION_SVALS).
+# Healing and *Healing* are fixed in quaff-effects.cpp; Life restores to full
+# and is therefore capped dynamically by the current missing HP.  Cure Light
+# and Cure Serious Wounds are no HP recovery (owner 2026-11-07, OQ-7).  Cure
+# Critical Wounds (6d8) is none either (owner 2026-11-03) except where an
+# approved quest strategy names it as its heal potion (QUEST_14,
+# _quest_floor_heal_svals): only that path ever offers sval 36 here.
+HEAL_POTION_EXPECTED_HP = {36: FIXED_QUEST_CURE_CRITICAL_HP, 37: 300, 38: 1200}
 TELEPORT_SCROLL_SVALS = frozenset({9, 10})  # teleport, teleport level
 
 

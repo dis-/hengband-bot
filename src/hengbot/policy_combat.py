@@ -3094,7 +3094,7 @@ class CombatMixin:
         bot-json-output.cpp:480 and 509-511).  At least the observed one-move
         loss counts (a blindness-cure carry included).  The heal amount is
         the potion's expected heal capped by the missing HP
-        (_healing_potion_effective_hp: Cure Serious 4d8, Healing 300,
+        (_healing_potion_effective_hp: Healing 300,
         *Healing* 1200, Life to full -- quaff-effects.cpp:124-133).  Heal
         first with the smallest potion whose heal is at least that damage;
         none -> teleport first."""
