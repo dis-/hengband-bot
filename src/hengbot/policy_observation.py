@@ -1026,6 +1026,7 @@ class ObservationMixin:
             self._choke_outcome_floor = snapshot.floor_key
             self._choke_outcome_budgets.clear()
             self._breeder_choke_attempt_ended_floor = None
+            self._choke_stall_released = None
         if guardian_terminal:
             self._town_blocked_reason = "guardian-bounce-no-alternate"
 

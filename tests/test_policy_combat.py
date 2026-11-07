@@ -3549,6 +3549,48 @@ class CombatTest(unittest.TestCase):
             ("release", "engagement-stall-bound"),
         )
 
+    def test_stall_released_pack_memory_ends_with_the_floor_visit(self):
+        # n1-c life-162, Orc cave 19F 2026-11-08: a stall-released choke is
+        # not re-planned for the same pack on that floor (the recorded pin is
+        # test_choke_stall_recreate_1108_recorded).  The memory is per floor
+        # visit: another floor, and a later visit to the same depth (a freshly
+        # generated level with reused monster indices), plan anew.
+        adjacent = [
+            hostile(1, 10, 11, distance=1, max_melee_damage=20, race_id=500),
+            hostile(2, 10, 9, distance=1, max_melee_damage=20, race_id=500),
+        ]
+        far = [
+            hostile(1, 10, 12, distance=2, max_melee_damage=20, race_id=500),
+            hostile(2, 10, 8, distance=2, max_melee_damage=20, race_id=500),
+        ]
+        policy = HengbotPolicy()
+        armed = self._stationary_choke_snapshot(adjacent)
+        policy.prime(armed)
+        policy.choose_key(armed)
+        turn = 2
+        while policy.choke_engagement_state()["release_cause"] is None:
+            policy.choose_key(self._stationary_choke_snapshot(far, turn=turn))
+            turn += 1
+        self.assertEqual(
+            policy.choke_engagement_state()["release_cause"], "engagement-stall-bound"
+        )
+        self.assertEqual(
+            policy._choke_stall_released, (armed.floor_key, frozenset({1, 2}))
+        )
+
+        next_floor = replace(
+            self._stationary_choke_snapshot(adjacent, turn=turn + 1),
+            floor_key=(DUNGEON_YEEK_CAVE, 11, 0),
+        )
+        policy.choose_key(next_floor)
+        self.assertEqual(policy.last_reason, "melee:choke")
+        self.assertEqual(policy.choke_engagement_state()["phase"], "hold")
+        # A later visit to the same depth is a freshly generated level.
+        revisit = self._stationary_choke_snapshot(adjacent, turn=turn + 2)
+        policy.choose_key(revisit)
+        self.assertEqual(policy.last_reason, "melee:choke")
+        self.assertEqual(policy.choke_engagement_state()["phase"], "hold")
+
     def test_choke_hold_adjacent_breeder_swarm_hits_outcome_bound(self):
         adjacent = [
             hostile(

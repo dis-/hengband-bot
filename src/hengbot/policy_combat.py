@@ -3764,6 +3764,8 @@ class CombatMixin:
                     if exit_key is not None:
                         return exit_key
                     return None
+                if self._choke_stall_released_for(snapshot, melee_hostiles):
+                    return None
                 destination, step = route
                 self._choke_engagement_plan = ChokeEngagementPlan(
                     floor=snapshot.floor_key,
@@ -3811,6 +3813,8 @@ class CombatMixin:
                     if exit_key is not None:
                         return exit_key
                     return None
+                if self._choke_stall_released_for(snapshot, melee_hostiles):
+                    return None
                 self._choke_engagement_plan = ChokeEngagementPlan(
                     floor=snapshot.floor_key,
                     phase="hold",
@@ -3840,6 +3844,23 @@ class CombatMixin:
             self.last_reason = "melee:choke-hold"
             return WAIT_KEY
         return None
+    def _choke_stall_released_for(
+        self, snapshot: Snapshot, melee_hostiles: list[MonsterState]
+    ) -> bool:
+        """Whether the stall bound already released a choke for this pack.
+
+        The released plan proved the pack will not come to the choke (pack
+        animals keep out of a corridor-like cell while the player's HP is
+        high: HidingMoveGridDecider, monster-sweep-grid.cpp:190-230, 479-483).
+        Re-planning for any of its triggers on the same floor only walks the
+        player off its attackers again; the ordinary ladder fights them.
+        """
+        released = getattr(self, "_choke_stall_released", None)
+        return (
+            released is not None
+            and released[0] == snapshot.floor_key
+            and any(monster.index in released[1] for monster in melee_hostiles)
+        )
     def _choke_predicted_damage(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> int:

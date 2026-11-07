@@ -2056,6 +2056,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._choke_outcome_floor: tuple[int, int, int] | None = None
         self._choke_outcome_budgets: dict[Position, tuple[int, tuple[int, ...]]] = {}
         self._breeder_choke_attempt_ended_floor: tuple[int, int, int] | None = None
+        # The floor and the trigger indices of choke plans the stall bound
+        # released.  The non-breeder analogue of the breeder attempt above: a
+        # pack that will not follow into the choke is not re-planned for on
+        # this floor, so the adjacent attackers are fought where they stand
+        # (n1-c life-162, Orc cave 19F, 2026-11-08 01:46).
+        self._choke_stall_released: tuple[
+            tuple[int, int, int], frozenset[int]
+        ] | None = None
         self._cross_decision_latches["_choke_engagement_plan"] = CrossDecisionLatch(
             "melee-engagement",
             "_release_invalid_choke_plan",
@@ -16172,6 +16180,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return
         if plan.start_breeder_count > 0:
             self._breeder_choke_attempt_ended_floor = plan.floor
+        if cause == "engagement-stall-bound":
+            released = getattr(self, "_choke_stall_released", None)
+            triggers = frozenset(plan.trigger_last_seen)
+            if released is not None and released[0] == plan.floor:
+                triggers |= released[1]
+            self._choke_stall_released = (plan.floor, triggers)
         # S2b.1b, for the town hold: the plan's reposition walk (``melee:choke-
         # reposition``, a Reach on ``plan.destination``) ends with the plan.
         self._release_claim_goal(
