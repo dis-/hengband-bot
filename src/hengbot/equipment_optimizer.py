@@ -502,6 +502,10 @@ class LoadoutMetrics:
     # equipment_utility.utility_value: the telepathy / stealth bonus already
     # folded into combat_margin, kept for the tie-breaks.
     utility_value: float = 0.0
+    # me_loadout_offense: the Magic-Eater's best absorbed attack power per
+    # player turn under this loadout's INT (owner 2026-11-08); 0 for every
+    # other class.  Compared like ranged_dps, right after it.
+    device_dps: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -1169,6 +1173,7 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
     no_worse = (
         lm.expected_dps >= rm.expected_dps
         and lm.ranged_dps >= rm.ranged_dps
+        and lm.device_dps >= rm.device_dps
         and lm.survival_turns >= rm.survival_turns
         and lm.combat_margin >= rm.combat_margin
         and lm.speed_bonus >= rm.speed_bonus
@@ -1179,6 +1184,7 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
     strictly_better = (
         lm.expected_dps > rm.expected_dps
         or lm.ranged_dps > rm.ranged_dps
+        or lm.device_dps > rm.device_dps
         or lm.survival_turns > rm.survival_turns
         or lm.combat_margin > rm.combat_margin
         or lm.speed_bonus > rm.speed_bonus
@@ -1322,6 +1328,8 @@ def _prefer(
             return cm.expected_dps > im.expected_dps
         if cm.ranged_dps != im.ranged_dps:
             return cm.ranged_dps > im.ranged_dps
+        if cm.device_dps != im.device_dps:
+            return cm.device_dps > im.device_dps
     if not isfinite(cm.combat_margin) or not isfinite(im.combat_margin):
         if cm.combat_margin != im.combat_margin:
             return cm.combat_margin > im.combat_margin
@@ -1374,6 +1382,12 @@ def _prefer(
     if ranged_difference > ranged_threshold:
         return True
     if ranged_difference < -ranged_threshold:
+        return False
+    device_threshold = abs(im.device_dps) * 0.05
+    device_difference = cm.device_dps - im.device_dps
+    if device_difference > device_threshold:
+        return True
+    if device_difference < -device_threshold:
         return False
     if cm.secondary_value != im.secondary_value:
         return cm.secondary_value > im.secondary_value
@@ -1570,6 +1584,7 @@ def _stable_operational_best(
         pool,
         key=lambda entry: (
             entry.metrics.ranged_dps,
+            entry.metrics.device_dps,
             entry.metrics.secondary_value,
             entry.metrics.utility_value,
             entry.metrics.speed_bonus,

@@ -10,6 +10,8 @@ from hengbot.town_hold import open_execution_delegation as town_open_execution_d
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import consumable_policy, lamp_fuel, mining_loadout
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.me_loadout_offense import held_magic_eater_powers
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -1059,6 +1061,13 @@ class EquipmentMixin:
         # A worn item seen cursed stays in the view however its takeoff failed:
         # left out, the search would plan the same refused takeoff again.
         curse_pinned = self._equipment_curse_pinned_ids()
+        # Class 16's held absorbed attack and survival powers
+        # (me_loadout_offense, owner 2026-11-08); empty for every other class.
+        me_powers = (
+            held_magic_eater_powers(getattr(self, "_me_device_lists", None))
+            if snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+            else ()
+        )
         catalog = tuple(
             item
             for item in eligible_catalog
@@ -1252,7 +1261,8 @@ class EquipmentMixin:
                 self._item_signature(item)
                 for item in self._obtainable_launcher_ammunition(snapshot)
             )),
-        ) + ((("curse-pinned", tuple(sorted(curse_pinned))),) if curse_pinned else ())
+        ) + ((("curse-pinned", tuple(sorted(curse_pinned))),) if curse_pinned else ()) + (
+            (("magic-eater-powers", me_powers),) if me_powers else ())
         if (
             signature == self._equipment_optimization_signature
             and self._equipment_optimization_pack_items == len(snapshot.inventory)
@@ -1376,6 +1386,7 @@ class EquipmentMixin:
                 calibration=calibration,
                 knowledge_key=self._equipment_optimizer_knowledge_key,
                 curse_pinned_item_ids=curse_pinned,
+                magic_eater_powers=me_powers,
             )
             self._offer_optimizer_result(
                 self._equipment_optimization_preparation,
@@ -1399,6 +1410,7 @@ class EquipmentMixin:
             calibration=calibration,
             knowledge_key=self._equipment_optimizer_knowledge_key,
             curse_pinned_item_ids=curse_pinned,
+            magic_eater_powers=me_powers,
         )
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
@@ -1481,6 +1493,7 @@ class EquipmentMixin:
             calibration=calibration,
             obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
             curse_pinned_item_ids=curse_pinned,
+            magic_eater_powers=me_powers,
         )
         result = getattr(preparation, "result", None)
         if result is not None:
