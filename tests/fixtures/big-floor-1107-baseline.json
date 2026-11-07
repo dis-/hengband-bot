@@ -3,239 +3,239 @@
   [
    "~f\u001b",
    "periodic:skill-exp-knowledge",
-   "01f8c59f08e53c66"
+   "a198b89cfb660ceb"
   ],
   [
    "8",
    "seek-loot",
-   "e47b54f5863a769c"
+   "d6e2d00e5e603e1e"
   ],
   [
    "8",
    "seek-loot",
-   "e47b54f5863a769c"
+   "d6e2d00e5e603e1e"
   ],
   [
    "8",
    "seek-loot",
-   "d69b2eb96cd46842"
+   "204459126d6eb9ff"
   ],
   [
    "8",
    "seek-loot",
-   "72b4e8860c45abc2"
+   "639caf8c51c64fbf"
   ],
   [
    "ft*t5\u001b",
    "ranged:fire-target",
-   "b403abb2de0cf077"
+   "c41df657708a5ea2"
   ],
   [
    "4",
    "seek-loot",
-   "524befd7e31efa71"
+   "b09ce6f5605351f6"
   ],
   [
    "4",
    "seek-loot",
-   "524befd7e31efa71"
+   "b09ce6f5605351f6"
   ],
   [
    "4",
    "seek-loot",
-   "524befd7e31efa71"
+   "b09ce6f5605351f6"
   ],
   [
    "1",
    "seek-loot",
-   "cf09f7250820e99d"
+   "ee201cd588e69a69"
   ],
   [
    "7",
    "explore",
-   "da4620df5c216ff0"
+   "1f9885dbb06b17b2"
   ],
   [
    "7",
    "explore",
-   "da4620df5c216ff0"
+   "1f9885dbb06b17b2"
   ],
   [
    "7",
    "explore",
-   "da4620df5c216ff0"
+   "1f9885dbb06b17b2"
   ],
   [
    "s",
    "search",
-   "da4620df5c216ff0"
+   "1f9885dbb06b17b2"
   ],
   [
    "s",
    "search",
-   "da4620df5c216ff0"
+   "1f9885dbb06b17b2"
   ],
   [
    "s",
    "search",
-   "da4620df5c216ff0"
+   "1f9885dbb06b17b2"
   ],
   [
    "s",
    "search",
-   "da4620df5c216ff0"
+   "1f9885dbb06b17b2"
   ],
   [
    "s",
    "search",
-   "da4620df5c216ff0"
+   "a45790514c9a4a7f"
   ],
   [
    "s",
    "search",
-   "da4620df5c216ff0"
+   "a45790514c9a4a7f"
   ],
   [
    "s",
    "search",
-   "a59a75eaff62893f"
+   "ff0289efe5bda3dd"
   ]
  ],
  "town": [
   [
    "~f\u001b",
    "periodic:skill-exp-knowledge",
-   "f0c03d4f30eba26c"
+   "538c3b314c745795"
   ],
   [
    "5",
    "return:wait-recall",
-   "2df31a0d8c985fbf"
+   "6df79ab684292dcd"
   ],
   [
    "5",
    "return:wait-recall",
-   "2df31a0d8c985fbf"
+   "6df79ab684292dcd"
   ],
   [
    "5",
    "return:wait-recall",
-   "2df31a0d8c985fbf"
+   "6df79ab684292dcd"
   ],
   [
    "5",
    "return:wait-recall",
-   "2df31a0d8c985fbf"
+   "6df79ab684292dcd"
   ],
   [
    "~9\u001b\u001b",
    "home:request-knowledge-scan",
-   "94ff90a4ed7a77a0"
+   "aae037a201a758b6"
   ],
   [
    "~f\u001b",
    "periodic:skill-exp-knowledge",
-   "94ff90a4ed7a77a0"
+   "aae037a201a758b6"
   ],
   [
    "~9\u001b\u001b",
    "home:request-knowledge-scan",
-   "94ff90a4ed7a77a0"
+   "aae037a201a758b6"
   ],
   [
    "~9\u001b\u001b",
    "home:request-knowledge-scan",
-   "2c0de8ab45188dda"
+   "1ee19a006fb2cace"
   ],
   [
    "bA",
    "me-staff:read-powers",
-   "fd6b890d05561933"
+   "0603fffff1b21e7d"
   ],
   [
    "\u001b",
    "town-progress-invariant:continue-observed-shop",
-   "51736ab9e7e600ee"
+   "2186915b4e0ac24c"
   ],
   [
    "bA",
    "me-staff:read-powers",
-   "fd6b890d05561933"
+   "0603fffff1b21e7d"
   ],
   [
    "bA",
    "me-staff:read-powers",
-   "202c25af3f1c8b14"
+   "8ce4f4486ba14be1"
   ],
   [
    "~9\u001b\u001b",
    "home:request-knowledge-scan",
-   "1f1c2d039d07aeb2"
+   "e7420b9232fc08f7"
   ],
   [
    "~9\u001b\u001b",
    "home:request-knowledge-scan",
-   "1f1c2d039d07aeb2"
+   "e7420b9232fc08f7"
   ],
   [
    "~9\u001b\u001b",
    "home:request-knowledge-scan",
-   "1f1c2d039d07aeb2"
+   "e7420b9232fc08f7"
   ],
   [
    "bA",
    "me-staff:read-powers",
-   "202c25af3f1c8b14"
+   "8ce4f4486ba14be1"
   ],
   [
    "~9\u001b",
    "home:request-knowledge-scan",
-   "891f3a5066a4091d"
+   "601d77ba4908a245"
   ],
   [
    "~9\u001b",
    "home:request-knowledge-scan",
-   "2c2f378cf90b9ca0"
+   "ff68f6682f2c4150"
   ],
   [
    "bA",
    "me-staff:read-powers",
-   "0e7fd18a28667570"
+   "42ace39f8434ed39"
   ],
   [
    "bA",
    "me-staff:read-powers",
-   "0e7fd18a28667570"
+   "42ace39f8434ed39"
   ],
   [
    "~9\u001b",
    "home:request-knowledge-scan",
-   "2c2f378cf90b9ca0"
+   "ff68f6682f2c4150"
   ],
   [
    "~9\u001b",
    "home:request-knowledge-scan",
-   "60f546da3feb5c4e"
+   "c62a65f3cc17fd4e"
   ],
   [
    "bA",
    "me-staff:read-powers",
-   "07dd2fbbfc01d8dc"
+   "915eef44b6e12bdf"
   ],
   [
    "bA",
    "me-staff:read-powers",
-   "07dd2fbbfc01d8dc"
+   "915eef44b6e12bdf"
   ],
   [
    "~9\u001b",
    "home:request-knowledge-scan",
-   "60f546da3feb5c4e"
+   "c62a65f3cc17fd4e"
   ],
   [
    "~9\u001b",
    "home:request-knowledge-scan",
-   "60f546da3feb5c4e"
+   "c62a65f3cc17fd4e"
   ]
  ]
 }
