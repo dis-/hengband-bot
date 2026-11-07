@@ -15589,5 +15589,170 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_adjacent_mass_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-07 「隣に来たら倒す」: from the dreadmaster phase on, a corpse mass beside the player is struck through _engage's adjacent attack, else shot by _fire_at; None otherwise. Called only by _phase_key before the phase's preparation and step; no independent progress."
+  },
+  "quest25_battle.py:_engage": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The phase battle's blow at a target beside the player (combat_answer.adjacent_attack under MELEE_REASON), else a shot at the first target that can be shot (quest_room_sweep._shot); None otherwise. Called only by the Q25 phases and _adjacent_mass_key; no independent progress."
+  },
+  "quest25_battle.py:_fire_at": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The strongest attack aimed at a grid (an absorbed ball or beam, else the launcher at the grid); None when none can be keyed. Called only by the Q25 phases and _adjacent_mass_key; no independent progress."
+  },
+  "quest25_battle.py:_carried_grid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "A carried device aimed at a grid by the targeting cursor (reserved_item_command); None when the reservation refuses. Called only by _ball_powers' senders and _melt_key; no independent progress."
+  },
+  "quest25_battle.py:_launcher_grid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The fired launcher aimed at a grid by the targeting cursor under SHOT_REASON; None without ammunition. Called only by _fire_at; no independent progress."
+  },
+  "quest25_battle.py:_cursor_suffix": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure keys of the targeting cursor moved to a grid; no command."
+  },
+  "resist_potion.py:_verdict": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure judgement: the held Potion of Resistance and whether the fight is winnable after the drink, when an awake such enemy is in view at a material threat; None otherwise. No command."
+  },
+  "resist_potion.py:_winnable_after_the_drink": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure judgement: _engagement_is_winnable of the board with the opposition on; no command."
+  },
+  "resist_potion.py:_drink": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The Potion of Resistance quaffed (reserved_item_command) under QUAFF_REASON. Called only by key and drink_key; no independent progress."
+  },
+  "resist_potion.py:drink_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "key's drink alone (owner 2026-11-07 「Q25内部でのテレポートの優先度を下げる」): the drink when the fight is winnable after it, else None; asked by quest25_battle.key where key stood."
+  },
+  "resist_potion.py:leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "key's leave alone: *Destruction* or Teleportation when the fight is not winnable even after the drink, else None; asked by quest25_battle.key after the phase's own step (owner 2026-11-07)."
+  },
+  "attack_expectation.py:melee": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure estimate of the expected melee damage per action against a race; no command."
+  },
+  "me_ranged_first.py:_adjacent_options": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure list of the ranged answers beside a target with their expected damage and their senders; the senders are reviewed producers (me_device_attacks.device_key, _fire_missile, _use). No command of its own."
+  },
+  "me_ranged_first.py:best_expected": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure estimate: the best expected damage per action against a monster; no command."
+  },
+  "policy_combat.py:CombatMixin._engagement_is_winnable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure judgement: the turns to clear the hostiles at the player's best attack against the operational prediction over those turns and the current HP; no command."
   }
 }

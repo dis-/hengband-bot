@@ -39,6 +39,9 @@ quoted there with its date); this module is their executor.  The phases, in orde
     opened and the druj shot from a trapless cell in its line.  Teleported away, the walk
     comes back; the Magic-Eater hastes out of the druj's line only.
 
+From phase 5 on (owner 2026-11-07 「隣に来たら倒す」), a corpse mass beside the player is struck
+(else shot) before the phase's own step (``_adjacent_mass_key``); one farther off is left alone.
+
 Between phases (between_phases): a Magic-Eater rests a counted rest until every absorbed
 attack power is full, reading the lists turn-free (``b``) to decide (R& does not wait for
 them, player-processor.cpp is_fully_healthy).
@@ -54,7 +57,10 @@ name, an unseen one (何か) as the race the last grid shot was aimed at.
 
 Survival and the summons answer first (dungeon_ladder FLOOR_PLANS): the room sweep's own
 survival rungs, then ``_summons`` -- the phase-2 and stairway rules on those phases, the
-shared rules (summon_response) elsewhere.
+shared rules (summon_response) elsewhere.  The Resistance potion's drink stands there too, but
+its no-chance leave (Teleportation or *Destruction*) comes after the phase's own step (owner
+2026-11-07 「Q25内部でのテレポートの優先度を下げる」: n1-c life-159 read six Scrolls of Teleportation
+in phase 1, the first beside the spectral tyrannosaurus on [10,1]).
 """
 
 from __future__ import annotations
@@ -1199,6 +1205,30 @@ PHASES = (
     Phase("druj", "phase7_druj", False, _druj_done, _druj),
 )
 PHASE_NAMES = tuple(phase.name for phase in PHASES)
+# Owner 2026-11-07 「隣に来たら倒す」: from phase 5 (the dreadmaster) on, a corpse mass beside the
+# player is struck down before the phase's step; one farther off is still left alone.
+_MASS_STRIKE_FROM = PHASE_NAMES.index("dreadmaster")
+
+
+def _adjacent_mass_key(ctx: _Ctx) -> str | None:
+    """Owner 2026-11-07 「第5段以降でも、隣のマスの死体の塊は殴るか撃って倒す。離れた所の死体の塊は
+    今のまま相手にしない。」: the blow (``_engage``'s adjacent attack), else the strongest shot at it.
+
+    The masses breed (MULTIPLY) along the north corridor up to the dreadmaster's melee stand and
+    drain CON by touch (n1-c life-159 2026-11-07: max HP 766 -> 446 while it held on [1,18])."""
+    if ctx.battle.phase < _MASS_STRIKE_FROM:
+        return None
+    beside = sorted((monster for monster in ctx.in_view()
+                     if monster.race_id == geo.MASS and monster.distance <= 1),
+                    key=lambda monster: monster.index)
+    if not beside:
+        return None
+    if (key := _engage(ctx, beside)) is not None:
+        return key
+    for monster in beside:
+        if (key := _fire_at(ctx, (monster.position.y, monster.position.x), geo.MASS)) is not None:
+            return key
+    return None
 
 
 def _finished(ctx: _Ctx, phase: Phase) -> bool:
@@ -1237,7 +1267,7 @@ def _phase_key(policy, snapshot) -> str | None:
     if phase is None:
         # The druj is dead: what the anti-teleport piece displaced goes back on.
         return quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
-    return _prepare(ctx, phase) or phase.act(ctx)
+    return _adjacent_mass_key(ctx) or _prepare(ctx, phase) or phase.act(ctx)
 
 
 # -- the summons ------------------------------------------------------------------------
@@ -1318,9 +1348,10 @@ def key(policy, snapshot) -> str | None:
         return (
             _druj_retreat(policy, snapshot)
             or _summons(policy, snapshot)
-            or resist_potion.key(policy, snapshot)
+            or resist_potion.drink_key(policy, snapshot)
             or quest_room_sweep._restore(policy, snapshot)
             or _phase_key(policy, snapshot)
+            or resist_potion.leave_key(policy, snapshot)
         )
     return (
         quest_find_exit._cure(policy, snapshot)
@@ -1330,8 +1361,9 @@ def key(policy, snapshot) -> str | None:
         or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
-        or resist_potion.key(policy, snapshot)
+        or resist_potion.drink_key(policy, snapshot)
         or _phase_key(policy, snapshot)
+        or resist_potion.leave_key(policy, snapshot)
     )
 
 

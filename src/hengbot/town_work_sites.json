@@ -415,6 +415,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "attack_expectation.py:melee": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:race_knowledge": {
     "classification": "data",
     "rows": [
@@ -2822,6 +2829,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_ranged_first.py:_adjacent_options": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_ranged_first.py:_aim": {
     "classification": "data",
     "rows": [
@@ -2877,6 +2891,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:best_expected": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "me_ranged_first.py:melee_refused_key": {
     "classification": "producer",
@@ -5341,6 +5362,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_combat.py:CombatMixin._engagement_is_winnable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_combat.py:CombatMixin._esp_threat_end_hunt": {
     "classification": "adapter",
@@ -9556,6 +9584,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_battle.py:_adjacent_mass_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_attack_kinds": {
     "classification": "data",
     "rows": [
@@ -9570,7 +9605,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_battle.py:_carried_grid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_ctx": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_cursor_suffix": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9598,6 +9647,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_engage": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_fire_at": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_full_hp_key": {
     "classification": "producer",
     "rows": [
@@ -9611,6 +9674,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_launcher_grid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest25_battle.py:_memory": {
     "classification": "data",
@@ -10625,6 +10695,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "resist_potion.py:_drink": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "resist_potion.py:_held": {
     "classification": "data",
     "rows": [
@@ -10639,6 +10716,27 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "resist_potion.py:_verdict": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "resist_potion.py:_winnable_after_the_drink": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "resist_potion.py:drink_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "resist_potion.py:key": {
     "classification": "producer",
     "rows": [
@@ -10650,6 +10748,13 @@
     "classification": "producer",
     "rows": [
       "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "resist_potion.py:leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },

@@ -101,18 +101,48 @@ def _leave_key(policy, snapshot) -> str | None:
     return policy._read_key(snapshot, scroll)
 
 
-def key(policy, snapshot) -> str | None:
-    """The drink, the leave when the drink would not save the fight, else None."""
+def _verdict(policy, snapshot):
+    """(the potion, winnable after the drink) when the rule applies to the board, else None."""
     potion = _held(snapshot)
     if potion is None or not _such_enemy_in_view(policy, snapshot):
         return None
     hostiles = policy._physical_hostiles(snapshot)
     if not policy._is_material_threat(snapshot, hostiles):
         return None
-    if not _winnable_after_the_drink(policy, snapshot, hostiles):
-        return _leave_key(policy, snapshot)
+    return potion, _winnable_after_the_drink(policy, snapshot, hostiles)
+
+
+def _drink(policy, snapshot, potion) -> str | None:
     policy.last_reason = QUAFF_REASON
     return reserved_item_command(policy, snapshot, "quaff", potion)
+
+
+def key(policy, snapshot) -> str | None:
+    """The drink, the leave when the drink would not save the fight, else None."""
+    verdict = _verdict(policy, snapshot)
+    if verdict is None:
+        return None
+    potion, winnable = verdict
+    return _drink(policy, snapshot, potion) if winnable else _leave_key(policy, snapshot)
+
+
+def drink_key(policy, snapshot) -> str | None:
+    """``key``'s drink alone: a plan whose own order goes before the leave asks the leave after it
+    (``leave_key``).  Owner 2026-11-07 on Quest 25: 「Q25内部でのテレポートの優先度を下げる。少なくとも
+    幽体ティラノサウルスとの単独戦闘から逃げることは避けなければ絶対にクリアできない」."""
+    verdict = _verdict(policy, snapshot)
+    if verdict is None or not verdict[1]:
+        return None
+    return _drink(policy, snapshot, verdict[0])
+
+
+def leave_key(policy, snapshot) -> str | None:
+    """``key``'s leave alone (*Destruction* or Teleportation when the drink would not save the
+    fight), for a plan that asks it below its own order."""
+    verdict = _verdict(policy, snapshot)
+    if verdict is None or verdict[1]:
+        return None
+    return _leave_key(policy, snapshot)
 
 
 def ladder_key(policy, snapshot, strategic_hostiles, strategic_adjacent, physical_hostiles) -> str | None:
