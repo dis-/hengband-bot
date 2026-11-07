@@ -49,6 +49,46 @@ class TownStops1107RecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
         self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
 
+    def test_second_digger_take_is_made_before_the_mining_descent(self):
+        """n1-b life 335 05:34:25 town:blocked:unmet:digger_withdrawal_resolved.
+
+        The checkpoint is taken before journal row 77 (the deployed code,
+        9f72905e4, decided rows 70-73 differently from the journal: the CLI's
+        own rewrites are not journalled; ``replay.json`` lists them).  One
+        shovel had been taken ('5pu1', row 73); row 77 queued the second for
+        the mining set's two-digger target.  At the entrance the atomic
+        composer took the queued batch's スピードの薬 instead ('5pa1': the
+        shovel's address lay beyond the prefix the first take shortened), and
+        that post ended the queued Home identity although it was not the
+        shovel's take: the visit left Home (row 80) and walked the mining
+        departure to the stairs, where _home_digger_withdraw_pending stopped
+        it.  Covered on main by 76187c52a0 (the atomic post ends the queued
+        identity only on its own take): the Home page rescans after the
+        foreign take and the entrance board composes the shovel's take
+        instead of the descent walk.
+        """
+        rows = fx.journal("digger-requeue")
+        self.assertEqual([row["reason"] for row in rows[:5]], [
+            "home:queue-digging-tool-withdraw", "home:atomic-withdraw",
+            "shop:travel:await-entry", "home:scan-complete-from-open-page", "seek-downstairs"])
+        policy = fx.restore("digger-requeue", self.scratch)
+        decided = []
+        for entry in rows[:5]:
+            board = fx.board(policy, entry, self.scratch)
+            decided.append((policy.choose_key(board), policy.last_reason))
+            fx.post(policy, entry["key"])
+        shovel = ("シャベル (1d2) (+0,+0) (+1) {+掘}", 20, 1)
+        # Row 78: the foreign batch take the deployed code made too.
+        self.assertEqual(decided[1], ("5pa1\r\x1b", "home:atomic-withdraw"))
+        self.assertEqual(policy._home_pending_item, shovel)
+        self.assertTrue(policy._home_digger_withdraw_pending)
+        # Row 81 (the recorded board on Home's entrance): the shovel is
+        # taken, not the walk to the down staircase.
+        key, reason = decided[4]
+        self.assertEqual(reason, "home:atomic-withdraw")
+        self.assertNotEqual(reason, "seek-downstairs")
+        self.assertEqual(policy._home_atomic_withdraw_pending[0], shovel)
+
     def test_refused_in_home_takeoff_abandons_the_transaction_instead_of_idling(self):
         """n1-b life 337 09:55 owner-retired-burst: the Home transaction loop.
 
