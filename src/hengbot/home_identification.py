@@ -85,17 +85,23 @@ def release_stale_take(policy: Any, board: Any) -> None:
 def filed_take_route_key(policy: Any, board: Any) -> str | None:
     """Route Home for a filed catalogue take this visit can do.
 
-    The town end is reached with the take filed but Home already tried this
-    visit (its pass did another operation and was charged).  Home is re-armed
-    within its pass bound (``_rearm_town_store_for_new_work``) and the router
-    walks there, as ``overweight_home_key`` does for an overload; with the
-    bound used up nothing is returned and the named stop stands.
+    The town end is reached with the take filed and no owner walking to Home:
+    Home already tried this visit (its pass did another operation and was
+    charged), or its tried latch expired and nothing else claimed it.  Home is
+    re-armed within its pass bound (``_rearm_town_store_for_new_work``) and the
+    router walks there, as ``overweight_home_key`` does for an overload; with
+    the bound used up nothing is returned and the named stop stands.
+
+    n1-a life 492 (2026-11-07 09:42): four catalogued Home items, four
+    *Identify* carried and the take filed, but the attempted set was {6} only
+    (Home's latch had expired); requiring a tried Home returned nothing and
+    the visit stopped under home_candidate_resolved.  The restarted process
+    took 闇の陣笠 on its first Home entry.
     """
     from hengbot.model import STORE_HOME
     errand = policy._home_errand
     request = errand.request
     if (not errand.active or request is None or request.purpose != CATALOGUE_PURPOSE
-            or STORE_HOME not in policy._town_store_attempted
             or not any(policy._item_signature(item) == request.signature
                        for item in candidates(policy, board))):
         return None
