@@ -15599,7 +15599,7 @@
     "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "Owner 2026-11-07 「隣に来たら倒す」: from the dreadmaster phase on, a corpse mass beside the player is struck through _engage's adjacent attack, else shot by _fire_at; None otherwise. Called only by _phase_key before the phase's preparation and step; no independent progress."
+    "evidence": "Owner 2026-11-07 「隣に来たら倒す」, widened to every phase the same day: a corpse mass beside the player is struck through _engage's adjacent attack, else shot by _fire_at; None otherwise. Called only by _phase_key before the phase's preparation and step; no independent progress."
   },
   "quest25_battle.py:_engage": {
     "classification": "producer",
