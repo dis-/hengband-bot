@@ -165,6 +165,12 @@ FLOOR_PICKUP_PROMPT_PATTERN = (
 # format "どのダンジョン{}しますか:" / "Which dungeon do you {}?: ".
 BUILDING_ENCHANT_PROMPTS = ("どのアイテムを改良しますか？", "Improve which item?")
 RECALL_DUNGEON_PROMPTS = ("どのダンジョンに帰還しますか:", "Which dungeon do you recall?:")
+# cmd-item/cmd-equipment.cpp do_cmd_wield: the second chooser of a wield.  A
+# ring with both ring slots filled asks "Replace which ring? " instead of the
+# hand question (n1-c life-160); both take the same equipment labels and
+# '(' / ')' (floor-item-getter.cpp, select_ring_slot).  Row 0 is compared
+# right-stripped, so the English trailing space is dropped here.
+WIELD_SLOT_PROMPTS = ("どちらの手に装備しますか?", "どちらの指輪と取り替えますか?", "Replace which ring?")
 # A recall read whose destination chooser had no owned, listed answer: the
 # executor cancels the chooser with ESC and stops under this name (D22).
 RECALL_DESTINATION_UNCHOSEN = "failed:recall-destination-unchosen"
@@ -314,8 +320,9 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     # rows "      a) ...".  input_kind command_char.
     if row0.startswith(RECALL_DUNGEON_PROMPTS):
         return ScreenMatch(ScreenKind.DUNGEON_CHOICE, row0, 0, 0)
-    # cap-16/57/59: choosing a ring opens a separate hand chooser.
-    if row0.endswith("どちらの手に装備しますか?"):
+    # cap-16/57/59: choosing a ring opens a separate hand chooser; with both
+    # ring slots filled it is the replace-ring chooser (n1-c life-160).
+    if row0.endswith(WIELD_SLOT_PROMPTS):
         return ScreenMatch(ScreenKind.ITEM_TARGET, row0, 0, 0)
     if re.fullmatch(FLOOR_PICKUP_PROMPT_PATTERN, row0):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, row0, 0, 0)
