@@ -87,6 +87,7 @@ from hengbot import (
     resist_potion,
     speed_dose,
     summon_response,
+    threat_tiers,
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -1373,7 +1374,9 @@ def key(policy, snapshot) -> str | None:
             or resist_potion.leave_key(policy, snapshot)
         )
     return (
-        quest_find_exit._cure(policy, snapshot)
+        # Owner 2026-11-07 「作戦が先・即死だけ例外」: only the 1-turn 即死 pre-empts the plan.
+        threat_tiers.instant_death_key(policy, snapshot)
+        or quest_find_exit._cure(policy, snapshot)
         or _druj_retreat(policy, snapshot)
         or quest_room_sweep._give_up(policy, snapshot, profile)
         or quest_room_sweep._below_line(policy, snapshot, profile, navigator)

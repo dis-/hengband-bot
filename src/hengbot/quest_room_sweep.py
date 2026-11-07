@@ -93,6 +93,7 @@ from hengbot import (
     quest_room_light,
     resist_potion,
     summon_response,
+    threat_tiers,
     unseen_strike,
 )
 from hengbot.item_reservation import reserved_item_command
@@ -655,7 +656,9 @@ def key(policy, snapshot) -> str | None:
             or (_advance(policy, snapshot, navigator, plan, board.occupied) if board.left_alone else None)
         )
     return (
-        quest_find_exit._cure(policy, snapshot)
+        # Owner 2026-11-07 「作戦が先・即死だけ例外」: only the 1-turn 即死 pre-empts the plan.
+        threat_tiers.instant_death_key(policy, snapshot)
+        or quest_find_exit._cure(policy, snapshot)
         or _leave_by_exit(policy, snapshot, navigator, plan, board)
         or _give_up(policy, snapshot, profile)
         or _below_line(policy, snapshot, profile, navigator)

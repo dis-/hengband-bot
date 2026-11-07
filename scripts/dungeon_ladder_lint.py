@@ -225,6 +225,13 @@ def _branch_findings(plan, branch) -> list[str]:
         findings.append(f'{where}: a survival rung stands below the summon rules')
     if branch.enemy and ladder.SURVIVAL not in roles:
         findings.append(f'{where}: an enemy is on this board and no survival rung answers it')
+    # Owner 2026-11-07 「作戦が先・即死だけ例外」: the 1-turn 即死 heads every enemy board.
+    head = next(((name, role) for name, role in branch.rungs if role != ladder.FIRST), None)
+    if branch.enemy and head != (ladder.INSTANT_DEATH, ladder.SURVIVAL):
+        findings.append(f'{where}: an enemy is on this board and the 1-turn instant-death rung '
+                        f'({ladder.INSTANT_DEATH}) does not head it')
+    if not branch.enemy and ladder.INSTANT_DEATH in [name for name, _ in branch.rungs]:
+        findings.append(f'{where}: the instant-death rung on a board without an enemy')
     return findings
 
 

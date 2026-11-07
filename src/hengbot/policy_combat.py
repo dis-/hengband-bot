@@ -2025,8 +2025,12 @@ class CombatMixin:
         )["operational_total"]
         return incoming < snapshot.player.hp
     def _emergency_item(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
+        self, snapshot: Snapshot, hostiles: list[MonsterState], *,
+        instant_death: bool = False,
     ) -> str | None:
+        """The emergency ladder.  ``instant_death``: a quest plan's 即死 rung asks for the
+        escape (threat_tiers.instant_death_key, answer 11): ``lethal`` holds whatever else
+        would exempt the board, and no supplied unique fight is drunk for first."""
         player = snapshot.player
 
         issue_watch = self._emergency_consumable_issue_watch
@@ -2339,7 +2343,7 @@ class CombatMixin:
         if q22_healing is not None:
             self.last_reason = "quest-strategy:q22-reposition-heal"
             return reserved_item_command(self, snapshot, "quaff", q22_healing)
-        if not summoner_open and not q22_reposition_active:
+        if not summoner_open and not q22_reposition_active and not instant_death:
             unique_consumable = self._unique_combat_consumable(snapshot, hostiles)
             if unique_consumable is not None:
                 return unique_consumable
@@ -2397,7 +2401,8 @@ class CombatMixin:
             and return_yield.awake_hostile_in_view(self, snapshot)
         )
         lethal = (
-            unseen_lethal
+            instant_death
+            or unseen_lethal
             or (
                 (
                     unseen_caster_in_combat

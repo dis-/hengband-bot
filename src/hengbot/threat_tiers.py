@@ -2,9 +2,10 @@
 
 Owner 2026-11-07: 「敵の脅威度の判断をもう少し作り込む。『即死の危険がある』『物資を全て使っても
 倒しきれない』『物資を使えば勝てる』『物資を使わなくても勝てる』この段階に分ける。」  The answers
-(design section 0, 7 and 7.1) are implemented here as a pure classifier, ``assess``; in step 1 its
-only reader is the decision-row telemetry (cli ``_capture_decision_facts``, next to
-``threat_prediction``), which runs inside the observer scope, so no decision changes.
+(design section 0, 7 and 7.1) are implemented here as a pure classifier, ``assess``; its reader is
+the decision-row telemetry (cli ``_capture_decision_facts``, next to ``threat_prediction``), which
+runs inside the observer scope.  Plan step 4 acts on 3.1 alone (``instant_death``, the same code
+``assess`` runs): ``instant_death_key`` is the quest plans' 即死 rung (answer 11).
 
 What ``assess`` computes (the design's section numbers):
 
@@ -874,6 +875,71 @@ def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
             return
 
 
+@dataclass(frozen=True)
+class InstantDeath:
+    """3.1 即死 on one board: why it holds, and the next-action damage it read."""
+    reasons: tuple = ()
+    next_action_p95: int = 0
+    unseen_correction: int = 0
+
+    @property
+    def holds(self) -> bool:
+        return bool(self.reasons)
+
+    @property
+    def next_action(self) -> bool:
+        """The 1-turn p95 test (answer 2 「次の1手の95%で判定」), the one the ladders act on."""
+        return NEXT_ACTION_P95 in self.reasons
+
+
+NEXT_ACTION_P95 = "next-action-p95"
+
+
+def _instant_death(policy, snapshot, hostiles) -> tuple[InstantDeath, dict]:
+    """3.1 on hostiles already at their adjusted speed; also the 1-turn prediction it read."""
+    player = snapshot.player
+    hp = player.hp
+    one_turn = policy.threat_prediction(snapshot, hostiles, 1)
+    next_action_p95 = one_turn["operational_total"]
+    correction = unseen_correction(policy, snapshot, hostiles)
+    reasons = []
+    if next_action_p95 + correction >= hp:
+        reasons.append(NEXT_ACTION_P95)
+    if any(not monster.asleep and paralyzer_contact.in_contact(policy, snapshot, monster)
+           for monster in policy._paralyzing_monsters(snapshot, hostiles)):
+        reasons.append("paralyzer-contact")
+    if (player.hallucinated and hp < policy._low_hp_walk_threshold(player.max_hp)
+            and return_yield.awake_hostile_in_view(policy, snapshot)):
+        reasons.append("hallucination")
+    return InstantDeath(tuple(reasons), next_action_p95, correction), one_turn
+
+
+def instant_death(policy, snapshot, hostiles=None) -> InstantDeath:
+    """3.1 alone, the part of ``assess`` that is never past the cost cap (one action ahead)."""
+    if hostiles is None:
+        hostiles = engagement(policy, snapshot)
+    hostiles = [_with_adjusted_speed(monster) for monster in hostiles]
+    if not hostiles:
+        return InstantDeath()
+    return _instant_death(policy, snapshot, hostiles)[0]
+
+
+def instant_death_key(policy, snapshot) -> str | None:
+    """A quest plan's 即死 rung (answer 11 「作戦が先・即死だけ例外」, OQ-2).
+
+    Inside a plan (dungeon_ladder.FLOOR_PLANS) the plan's own order goes first; the one label
+    that pre-empts it is the 1-turn 即死: the next player action's p95 damage, each monster at
+    its adjusted speed, plus the observed unseen loss, reaches the HP.  The answer is the
+    existing escape as the emergency ladder chooses it (stairs, the blindness/confusion cure that
+    owes the escape, the low-HP heal-first rule, *Destruction*, Teleportation, Recall, the walk
+    to the stairs, the last stand), the escape ``_emergency_item`` runs when ``lethal`` holds.
+    """
+    hostiles = engagement(policy, snapshot)
+    if not instant_death(policy, snapshot, hostiles).next_action:
+        return None
+    return policy._emergency_item(snapshot, hostiles, instant_death=True)
+
+
 def assess(policy, snapshot, hostiles=None) -> Assessment:
     """Classify the engagement on ``snapshot`` (design 3 and 4); pure."""
     memoised = _path_memo(policy)
@@ -897,20 +963,11 @@ def _assess(policy, snapshot, hostiles) -> Assessment:
     hp, max_hp = player.hp, max(1, player.max_hp)
 
     # 3.1 即死
-    one_turn = policy.threat_prediction(snapshot, hostiles, 1)
-    result.next_action_p95 = one_turn["operational_total"]
-    result.unseen_correction = unseen_correction(policy, snapshot, hostiles)
-    reasons = []
-    if result.next_action_p95 + result.unseen_correction >= hp:
-        reasons.append("next-action-p95")
-    if any(not monster.asleep and paralyzer_contact.in_contact(policy, snapshot, monster)
-           for monster in policy._paralyzing_monsters(snapshot, hostiles)):
-        reasons.append("paralyzer-contact")
-    if (player.hallucinated and hp < policy._low_hp_walk_threshold(player.max_hp)
-            and return_yield.awake_hostile_in_view(policy, snapshot)):
-        reasons.append("hallucination")
-    result.instant_death = bool(reasons)
-    result.instant_death_reasons = tuple(reasons)
+    death, one_turn = _instant_death(policy, snapshot, hostiles)
+    result.next_action_p95 = death.next_action_p95
+    result.unseen_correction = death.unseen_correction
+    result.instant_death = death.holds
+    result.instant_death_reasons = death.reasons
 
     # 3.2-3.4 the tier
     projection = Projection(policy, snapshot, hostiles, one_turn)

@@ -16,9 +16,10 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import unittest
+from unittest.mock import patch
 from dataclasses import replace
 
-from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo
+from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo, threat_tiers
 from hengbot import quest25_druj_gear as druj_gear, quest_exposure, quest_optional_carry, quest_room_sweep, spare_gear
 from hengbot.me_device_attacks import DEVICE_REASON
 from hengbot.me_powers_refresh import REFRESH_REASON
@@ -408,8 +409,16 @@ class Q25IpsissimusTest(unittest.TestCase):
         policy._player_hasted = lambda snapshot: True
         snapshot = parse_snapshot(copy.deepcopy(raw), RACES)
         self.assertTrue(policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot)))
-        key = choose(policy, raw)
+        # The plan's order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ例外」):
+        # the spectral tyrannosaur's next action reaches HP 480, so the rung now answers first.
+        with patch.object(threat_tiers, "instant_death_key", lambda policy, snapshot: None):
+            key = choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.TELEPORT_REASON, key)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, "emergency:teleport", key)
 
     def test_after_the_teleport_a_choke_is_taken_before_contact(self):
         # A landing in the east room, nothing in view: the nearest choke out of the summons is

@@ -11212,6 +11212,27 @@
     ],
     "delegation": "No independent success; the emergency ladder selects the command."
   },
+  "threat_tiers.py:engagement": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:instant_death_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_tiers.py:need_not_fight": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_arbiter.py:TownArbiterMixin._emission_item_state": {
     "classification": "data",
     "rows": [

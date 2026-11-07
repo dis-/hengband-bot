@@ -23,7 +23,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot import policy_quest as policy_quest_module
-from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_optional_carry, quest_room_light, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, trap_warning
+from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_optional_carry, quest_room_light, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, threat_tiers, trap_warning
 from hengbot.cli import _cell_loop_guard_applies
 from hengbot.model import (
     Position, STORE_ALCHEMIST, STORE_HOME, STORE_TEMPLE, StoreItem, StoreState,
@@ -619,7 +619,14 @@ class Q25QuylLastTest(unittest.TestCase):
         self.assertEqual(navigator_of(policy).sweep_stage, 4)
 
 
+# The plan's own order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ例外」,
+# threat tiers plan step 4): on these constructed boards the next action's p95 reaches the HP, so the
+# rung now answers first with the emergency ladder's escape; these pins keep the order beneath it.
+BELOW_INSTANT_DEATH = patch.object(threat_tiers, "instant_death_key", lambda policy, snapshot: None)
+
+
 class Q25EmergencyTest(unittest.TestCase):
+    @BELOW_INSTANT_DEATH
     def test_below_the_line_teleport_and_no_recall(self):
         raw = board((8, 19), hp=300, monsters=[monster(TYRANNOSAUR, 8, 20)])
         key, reason, _ = decide(raw)
@@ -627,6 +634,7 @@ class Q25EmergencyTest(unittest.TestCase):
         self.assertTrue(key.startswith("r"))
         self.assertNotEqual(reason, RECALL_REASON)
 
+    @BELOW_INSTANT_DEATH
     def test_an_enemy_still_on_the_player_after_the_teleport_gets_the_potion(self):
         raw = board((8, 19), hp=300, monsters=[monster(TYRANNOSAUR, 8, 20)])
         policy = new_policy(raw)
@@ -657,17 +665,20 @@ class Q25EmergencyTest(unittest.TestCase):
         snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         self.assertTrue(once_quest_recall.held(policy, snapshot))
 
+    @BELOW_INSTANT_DEATH
     def test_recall_read_the_fight_goes_on_with_scrolls_and_potions(self):
         raw = board((8, 19), hp=300, teleports=4, recalling=True, monsters=[monster(TYRANNOSAUR, 8, 20)])
         _, reason, _ = decide(raw)
         self.assertEqual(reason, TELEPORT_REASON)
 
+    @BELOW_INSTANT_DEATH
     def test_cure_critical_is_no_hp_recovery(self):
         raw = board((8, 19), hp=300, healing=0, speed=0, teleports=0, recall=0, ccw=9,
                     monsters=[monster(TYRANNOSAUR, 8, 20)])
         key, reason, _ = decide(raw)
         self.assertEqual((key, reason), (step_key((8, 19), (8, 20)), MELEE_REASON))
 
+    @BELOW_INSTANT_DEATH
     def test_healing_above_the_line_below_the_plans_threshold(self):
         raw = board((8, 19), hp=500, speed=0, monsters=[monster(TYRANNOSAUR, 8, 20)])
         _, reason, _ = decide(raw)
@@ -680,6 +691,7 @@ class Q25EmergencyTest(unittest.TestCase):
         key, reason, _ = decide(board((10, 1), hp=100, healing=0, speed=0, monsters=[monster(SPECTRE, 9, 1)]))
         self.assertEqual((key, reason), (step_key((10, 1), (11, 1)), EXIT_WALK_REASON))
 
+    @BELOW_INSTANT_DEATH
     def test_controls_the_stair_is_not_taken(self):
         enemy = [monster(TYRANNOSAUR, 12, 2)]
         for raw, expected in (

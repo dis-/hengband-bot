@@ -13,7 +13,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
-from hengbot import consumable_policy, destruction_use, quest25_battle, quest_room_sweep, resist_potion
+from hengbot import consumable_policy, destruction_use, quest25_battle, quest_room_sweep, resist_potion, threat_tiers
 from hengbot.model import (
     STORE_BLACK, SV_POTION_RESISTANCE, SV_POTION_SPEED, TVAL_POTION, StoreState, parse_snapshot,
 )
@@ -132,8 +132,13 @@ class PlanFloorTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("resist-potion"), policy.last_reason)
 
     def test_the_plans_survival_rung_goes_first(self):
-        policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
+        # The plan's order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ例外」):
+        # at HP 300 the tyrannosaur's next action reaches the HP, so the rung answers first now.
+        with patch.object(threat_tiers, "instant_death_key", lambda policy, snapshot: None):
+            policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
         self.assertEqual(policy.last_reason, "quest-strategy:sweep-teleport")
+        policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
+        self.assertEqual(policy.last_reason, "emergency:teleport")
 
     def test_a_race_with_no_such_breath_and_an_immune_player(self):
         race = next(monster["race_id"] for board in q25_boards.CASE["boards"] if board["turn"] == TYRANNOSAUR
