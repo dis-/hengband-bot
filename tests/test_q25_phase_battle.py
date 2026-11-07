@@ -971,6 +971,24 @@ class Q25DrujGearTest(unittest.TestCase):
         self.assertEqual((choose(policy, raw), policy.last_reason), ("o9", battle.RETREAT_REASON))  # its door
         self.assertNotIn((10, 24), geo.line_cells(geo.opened(TERRAIN, [geo.DRUJ_DOOR]), (11, 18)))
 
+    def test_instant_death_over_the_line_takes_the_druj_retreat(self):
+        # Owner 2026-11-07 「作戦の逃げ方を使う」: with the piece worn the plan's escape is the walk out
+        # of the druj's line, also over the plan's HP line.  DECLARED CONSTRUCTED: the 1-turn 即死
+        # forced on the board; without it the plan does not retreat at this HP.
+        raw = self.wearing((12, 22), hp=q25.FULL_HP - 1, monsters=[monster(geo.DRUJ, 11, 18)])
+        policy = self.druj_policy(raw)
+        at_phase(policy, raw, "druj", cleared=frozenset({(11, 23)}))
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, battle.RETREAT_REASON)
+        self.assertFalse(memory(policy, raw).retreating)
+        forced = threat_tiers.InstantDeath((threat_tiers.NEXT_ACTION_P95,), q25.FULL_HP, 0)
+        policy = self.druj_policy(raw)
+        at_phase(policy, raw, "druj", cleared=frozenset({(11, 23)}))
+        with patch.object(threat_tiers, "instant_death", lambda *args, **kwargs: forced):
+            key = choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), (step((12, 22), (11, 23)), battle.RETREAT_REASON))
+        self.assertTrue(memory(policy, raw).retreating)
+
     def test_out_of_the_line_it_rests_and_drinks_only_when_the_rest_did_not_heal(self):
         raw = self.wearing((13, 21), hp=300)
         policy = self.druj_policy(raw)
