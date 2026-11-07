@@ -180,13 +180,18 @@ class BlindedAgainAfterTheCureRecordedTest(d57.PostedDeathKey):
         return {raw["turn"]: (raw, key, reason) for raw, key, reason in decide_all(
             policy or d57.new_policy(CASE_084), rows)}
 
-    def test_blinded_again_strikes_the_remembered_eye_through_the_executor(self):
+    def test_blinded_again_fires_at_the_remembered_eye_through_the_executor(self):
+        # Owner 2026-11-08 「盲目でも、...隣で殴ってくる敵には取り込んだ攻撃の力を
+        # 使う。」: the remembered eye beside the player and the blows landing, the
+        # fight-through answer is the absorbed Magic Missile at its cell, which
+        # outscores the blow (me_ranged_first's adjacent chooser; it struck +6
+        # before that decision).
         answers = self.answers()
         for turn in (REBLINDED_TURN, 1287827, 1287840, 1287848):
-            self.assertEqual(answers[turn][1:], ("+6", "blind:fight-through"), turn)
+            self.assertEqual(answers[turn][1:], ("mBp6", MISSILE_REASON), turn)
         raw, key, _reason = answers[REBLINDED_TURN]
         policy = d57.new_policy(CASE_084)
-        policy.last_reason = "blind:fight-through"
+        policy.last_reason = MISSILE_REASON
         self.post(policy, raw, key)
 
     def test_control_the_first_blinding_is_still_cured(self):
@@ -228,8 +233,10 @@ class BlindedAgainAfterTheCureRecordedTest(d57.PostedDeathKey):
         for raw in rows:
             raw["inventory"] = [item for item in raw["inventory"]
                                 if item["name"] != d57.SPEED_POTION]
+        # The emergency ladder's blind strike at the remembered eye is the
+        # absorbed Magic Missile while its blows land (owner 2026-11-08).
         self.assertEqual(decide_all(d57.new_policy(CASE_084), rows)[-1][1:],
-                         ("+6", "emergency:blind-strike"))
+                         ("mBp6", MISSILE_REASON))
 
 
 class TeleportAwayRecordedTest(d57.PostedDeathKey):

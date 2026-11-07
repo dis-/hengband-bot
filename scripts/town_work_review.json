@@ -11515,6 +11515,17 @@
     "evidence": "The alter ('+' and a direction) toward the remembered adjacent attacker under the caller's reason, else None; shared by blind_strike.key and blind_strike.emergency_key, dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "blind_strike.py:absorbed_power_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-08 「盲目でも、テレパシーや感知で位置が分かる敵、隣で殴ってくる敵には取り込んだ攻撃の力を使う。位置が分からなければ今のまま使わない。」: blind Magic-Eater, powers usable (me_device_attacks.can_use_powers), a remembered adjacent attacker (blind_strike.remembered_cells and the monster remembered by observe) and a blow on this board (unseen_strike.hit_in_melee or blow_on_board): me_ranged_first.attack_key at that monster (an absorbed attack power 'm'+kind+power+direction, or None for the caller's blow), else None; asked first by blind_strike.strike_key and unseen_strike.key, dungeon only; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "lamp_fuel.py:_lantern_identity": {
     "classification": "data",
     "rows": [

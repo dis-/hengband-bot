@@ -36,7 +36,7 @@ after a cure is fought through on this evidence (status_cure; n1-b life-299).
 import random
 import re
 
-from hengbot import speed_dose
+from hengbot import blind_strike, speed_dose
 from hengbot.model import Position
 from hengbot.policy_constants import ALTER_KEY, DIRECTION_KEYS
 
@@ -234,9 +234,15 @@ def _speed_dose_key(policy, snapshot) -> str | None:
 
 def key(policy, snapshot, hostiles, reason: str = REASON, *,
         blow_landed: bool = False) -> str | None:
-    """Attack one random free neighbour after an unseen melee hit, else None."""
+    """Attack one random free neighbour after an unseen melee hit, else None.
+
+    A blind Magic-Eater whose attacker was seen beside it before the blindness
+    answers it with an absorbed attack power instead, when that beats the blow
+    (blind_strike.absorbed_power_key, owner 2026-11-08): its position is known."""
     target = strike_cell(policy, snapshot, hostiles, blow_landed=blow_landed)
     if target is None:
         return None
+    if (device := blind_strike.absorbed_power_key(policy, snapshot)) is not None:
+        return device
     policy.last_reason = reason
     return ALTER_KEY + policy._direction_key(snapshot.player.position, target)

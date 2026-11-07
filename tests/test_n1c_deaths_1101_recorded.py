@@ -206,8 +206,12 @@ class BlindEmergencyStrikeRecordedTest(PostedDeathKey):
             raw["inventory"] = [item for item in raw["inventory"] if item["name"] != SPEED_POTION]
         answers = {raw["turn"]: (key, reason)
                    for raw, key, reason in self.drive(new_policy(CASE_084), rows)}
+        # Owner 2026-11-08 「盲目でも、...隣で殴ってくる敵には取り込んだ攻撃の力を
+        # 使う。」: at the remembered attacker, while the blows land, the absorbed
+        # Magic Missile outscores the strike (+6 before that decision); each key
+        # was posted through the executor by ``drive``.
         for turn in (1287976, 1287988, 1287997, 1288008):
-            self.assertEqual(answers[turn], ("+6", "emergency:blind-strike"), turn)
+            self.assertEqual(answers[turn], ("mBp6", MISSILE_REASON), turn)
 
     def test_blind_emergency_takes_the_carried_speed_before_the_strike(self):
         rows = self.drive(new_policy(CASE_084), boards(CASE_084, 1287920, 1287976))

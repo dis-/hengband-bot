@@ -26,11 +26,23 @@ died, and 「何もない空中を攻撃した。」 (cmd-others.cpp exe_alter) 
 strike after strike at it while unseen attackers on another side took HP 355 ->
 231, until the loop guard stopped the bot.  A strike that met nothing retires
 its cell; the unseen_strike and cure answers behind this memory then apply.
+
+A Magic-Eater answers the remembered attacker that is still hitting it with an
+absorbed attack power when that beats the blow (owner 2026-11-08 「盲目でも、
+テレパシーや感知で位置が分かる敵、隣で殴ってくる敵には取り込んだ攻撃の力を使う。
+位置が分からなければ今のまま使わない。」): the remembered monster is scored
+beside the player by the adjacent chooser (me_ranged_first) and the power is
+aimed at its cell by direction, which get_aim_dir takes while blind
+(target-getter.cpp) and whose bolt stops at the first monster on the ray, seen
+or not.  Without a blow on this board (unseen_strike.hit_in_melee or
+blow_on_board) the cell is struck as before.
 """
 
 from hengbot.policy_constants import ALTER_KEY, WAIT_KEY
 
 _MEMORY = "_blind_strike_memory"
+# The remembered attackers themselves, by cell, for the Magic-Eater's powers.
+_MONSTERS = "_blind_strike_monsters"
 EMERGENCY_REASON = "emergency:blind-strike"
 _EMPTY_AIR = frozenset({"何もない空中を攻撃した。", "You attack the empty air."})
 
@@ -51,6 +63,7 @@ def observe(policy, snapshot) -> None:
             monster.position for monster in adjacent if monster is not weakest
         ]
     setattr(policy, _MEMORY, (snapshot.floor_key, tuple(cells)))
+    setattr(policy, _MONSTERS, {monster.position: monster for monster in adjacent})
 
 
 def _forget_empty_cell(policy, snapshot) -> None:
@@ -81,8 +94,26 @@ def strike_key(policy, snapshot, reason: str) -> str | None:
     cells = remembered_cells(policy, snapshot)
     if not cells:
         return None
+    if (device := absorbed_power_key(policy, snapshot)) is not None:
+        return device
     policy.last_reason = reason
     return ALTER_KEY + policy._direction_key(snapshot.player.position, cells[0])
+
+
+def absorbed_power_key(policy, snapshot) -> str | None:
+    """A Magic-Eater's absorbed attack power at the remembered attacker (the
+    cell ``strike_key`` strikes) while a blow lands on the blind player, when
+    it beats the blow; else None."""
+    from hengbot import me_device_attacks, me_ranged_first, unseen_strike
+
+    cells = remembered_cells(policy, snapshot)
+    monster = getattr(policy, _MONSTERS, {}).get(cells[0]) if cells else None
+    if (monster is None or not snapshot.player.blind
+            or not me_device_attacks.can_use_powers(snapshot)
+            or not (unseen_strike.hit_in_melee(policy, snapshot)
+                    or unseen_strike.blow_on_board(snapshot))):
+        return None
+    return me_ranged_first.attack_key(policy, snapshot, monster)
 
 
 def emergency_key(policy, snapshot) -> str | None:
