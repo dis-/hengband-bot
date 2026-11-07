@@ -66,11 +66,20 @@ on a board before the race's name was seen.  A monster killed by another monster
 prints the same line and counts.  The kill on the board that opens a first window
 is the attack the window counts from; the one on the board that ends a window
 belongs to that window, not to the next.
+
+Quest 25's corpse masses (owner 2026-11-08, verbatim: 「Q25の死体の塊では帰らない。」): on the
+Q25 floor 死体の塊 (race 202) neither opens, counts in, nor ends a window, so they can never latch
+the breakthrough whose Recall fails the PRESET+ONCE quest (quest.cpp leave_quest_check).  The
+quest's own plan handles them (phase 4 shoots them from [1,6]; every phase strikes one beside the
+player).  n1-c life-164 (2026-11-08 03:29) struck two masses beside it on [1,18], held, and read
+Recall 41 decisions later on a window that went from five masses to six.  Any other breeder on
+that floor, and every other floor, keeps the rules above.
 """
 from __future__ import annotations
 
 from typing import NamedTuple
 
+from hengbot import quest25_geometry
 from hengbot.unseen_strike import message_text
 
 
@@ -114,8 +123,16 @@ def _counts_from_first_attack(policy, snapshot) -> bool:
     return quest_id is not None and policy.approved_quest_strategy(quest_id) is not None
 
 
+def _exempt_races(policy, snapshot) -> frozenset:
+    """Breeder races this floor's windows leave out: Q25's corpse masses (owner 2026-11-08)."""
+    if policy._active_fixed_quest_id(snapshot) == quest25_geometry.QUEST_ID:
+        return frozenset({quest25_geometry.MASS})
+    return frozenset()
+
+
 def _attacked_race(policy, snapshot, breeders: list,
-                   kill_lines: bool = False) -> tuple[int, int, int] | None:
+                   kill_lines: bool = False,
+                   exempt: frozenset = frozenset()) -> tuple[int, int, int] | None:
     """(race, its count on the last board, every breeder's count on the last board) of a
     breeder the last action hit.
 
@@ -125,7 +142,7 @@ def _attacked_race(policy, snapshot, breeders: list,
     with 「冥界イモムシの大群を葬り去った。」 and its experience unchanged)."""
     last = policy._breeder_last_board
     sighted = {monster.index: monster for monster in snapshot.visible_monsters
-               if monster.hostile and monster.can_multiply}
+               if monster.hostile and monster.can_multiply and monster.race_id not in exempt}
     counts: dict[int, int] = {}
     for monster in breeders:
         counts[monster.race_id] = counts.get(monster.race_id, 0) + 1
@@ -187,7 +204,10 @@ def _open_window(policy, snapshot, count: int, race: int | None = None) -> None:
 def flee_due(policy, snapshot, breeders: list) -> bool:
     """Count this board's action; True once a window ended without a reduction."""
     planned = _counts_from_first_attack(policy, snapshot)
-    attacked = _attacked_race(policy, snapshot, breeders, kill_lines=not planned)
+    exempt = _exempt_races(policy, snapshot)
+    if exempt:
+        breeders = [monster for monster in breeders if monster.race_id not in exempt]
+    attacked = _attacked_race(policy, snapshot, breeders, kill_lines=not planned, exempt=exempt)
     if policy._breeder_engagement_start_count is None:
         if attacked is None:
             return False
