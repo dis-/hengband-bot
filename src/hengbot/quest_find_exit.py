@@ -40,6 +40,13 @@ mover sends the walk to a choke, or stops a dig, only once it is seen to close i
 (``approaching``) or stands beside the walk ahead; a walk to a choke, once begun, goes on
 while that reason holds instead of turning back to the exit cell by cell.
 
+Owner 2026-11-08 「見えていても移動経路があるとは限らない。50行動で来なければ経路がないと判断
+する。」: a monster in view with a walk to the player gets IN_VIEW_WAIT_ACTIONS player actions to
+come (beside the player, or nearer); spent, it is no longer coming until it does
+(``_in_view_waits``).  Within its wait it keeps a walk to a choke and the choke's wait going
+when the walk takes the player out of its sight.  ``choke_enemy_wait_turns`` stays the bound
+on one that keeps coming without contact.
+
 ``find_exit.dig_cells`` are veins the walk opens.  Owner 2026-11-04 「簡単に掘れるので道具が
 なくても必ず掘る。」.  Game: exe_tunnel (tunnel-execution.cpp:53) on a vein without CAN_DIG
 succeeds when skill_dig > power + randint0(40 * power), power 10 for magma on water, one
@@ -103,6 +110,9 @@ DEFAULT_SPEED_RATIO = 0.5
 # never does.
 APPROACH_WINDOW = 200
 APPROACH_CELLS = 2
+# Owner 2026-11-08 「見えていても移動経路があるとは限らない。50行動で来なければ経路がないと判断
+# する。」: player actions an awake monster in view gets to come (beside the player, or nearer).
+IN_VIEW_WAIT_ACTIONS = 50
 
 
 def _plan(policy, snapshot) -> dict | None:
@@ -258,6 +268,66 @@ def approaching(navigator, snapshot, monster) -> bool:
     return farthest - now >= APPROACH_CELLS
 
 
+def _count_action(navigator, snapshot) -> None:
+    """One player action per board (``key`` and ``walk_key`` may both read one)."""
+    if navigator.exit_action_turn != snapshot.turn:
+        navigator.exit_action_turn = snapshot.turn
+        navigator.exit_actions += 1
+
+
+def _seen_gone(snapshot, cell: tuple[int, int]) -> bool:
+    """The cell a monster was last seen on is in the player's view now with nobody on it."""
+    grid = snapshot.grid_at(Position(*cell))
+    return (grid is not None and grid.visibility_flags_present and grid.in_view
+            and not grid.has_monster)
+
+
+def _in_view_waits(navigator, snapshot, coming, known) -> tuple[list, list]:
+    """Owner 2026-11-08 「見えていても移動経路があるとは限らない。50行動で来なければ経路がない
+    と判断する。」 (n1-a life 495, floor (0,35,18): the swordfish 88 on (10,13), seen from
+    (3,20) only, never moved; (3,20) stepped to the choke (1,19) and (2,20), out of its
+    sight, stepped back to the exit, until the loop guard stopped the bot three times).
+
+    A monster in view with a static walk to the player (``comes_for_player``) has
+    IN_VIEW_WAIT_ACTIONS player actions from first being seen to come: beside the player,
+    or on a cell nearer the player than the one its wait began on (both measured to where
+    the player is now, so the player's own walk does not count).  Either starts its wait
+    again; spent, it has no route and comes no more until it does.  The detected-only rule
+    (``approaching``, owner 2026-11-06) is not touched.
+
+    Returns the monsters in view still within their wait, and the ones within their wait
+    out of sight now: never beside the player, last seen at their cell and not seen gone
+    from it.  These keep a walk to a choke and its wait going, so the choke the walk went
+    to out of their sight is not left for the cell they are seen from, one step each
+    (``mobile_awake``); they are no enemy in view (``coming_in_view``).
+    """
+    player = _cell(snapshot.player.position)
+    now = navigator.exit_actions
+    entries = dict(navigator.exit_in_view)
+    waiting = []
+    for monster in coming:
+        cell = _cell(monster.position)
+        distance = quest_exposure.game_distance(cell, player)
+        race, began, origin, _, far = entries.get(monster.index, (None, now, cell, None, True))
+        if (race != monster.race_id or distance <= 1
+                or distance < quest_exposure.game_distance(origin, player)):
+            began, origin = now, cell
+        entries[monster.index] = (monster.race_id, began, origin, monster, far and distance > 1)
+        if now - began < IN_VIEW_WAIT_ACTIONS:
+            waiting.append(monster)
+    known_indices = {monster.index for monster in known}
+    remembered = []
+    for index, (_, began, _, last, far) in list(entries.items()):
+        if index in known_indices:
+            continue
+        if not far or _seen_gone(snapshot, _cell(last.position)):
+            del entries[index]  # met, or gone from where it stood: seen again, it starts anew
+        elif now - began < IN_VIEW_WAIT_ACTIONS:
+            remembered.append(last)
+    navigator.exit_in_view = entries
+    return waiting, remembered
+
+
 def _rank(profile, monster) -> tuple[int, int]:
     targets = profile.priority_targets
     index = targets.index(monster.race_id) if monster.race_id in targets else len(targets)
@@ -275,12 +345,15 @@ class _Board:
         self.in_view = [monster for monster in known if monster.perception != "detected"]
         self.occupied = {monster.position for monster in known}
         _track(navigator, snapshot, known)
+        _count_action(navigator, snapshot)
         # A monster that cannot come is no reason to hold a choke; one beside the player
         # is left behind by walking on (a siren's pull ends beside it, 840 HP unfought).
         self.reachable_awake = [monster for monster in known
                                 if comes_for_player(policy, navigator, snapshot, monster)]
-        self.coming_in_view = [monster for monster in self.reachable_awake
-                               if monster.perception != "detected"]
+        self.coming_in_view, remembered = _in_view_waits(
+            navigator, snapshot,
+            [monster for monster in self.reachable_awake if monster.perception != "detected"],
+            known)
         # What sends the walk to a choke or stops a dig: one in view, a far one seen to
         # close in, or one beside the walk ahead (in the way, moving or not).  A far one
         # that does not come is no reason (owner 2026-11-06).
@@ -290,7 +363,7 @@ class _Board:
         self.mobile_awake = [*self.coming_in_view, *(
             monster for monster in far
             if approaching(navigator, snapshot, monster)
-            or any(monster.position.distance_to(cell) <= 1 for cell in leg))]
+            or any(monster.position.distance_to(cell) <= 1 for cell in leg)), *remembered]
         self.adjacent_mobile = [monster for monster in self.coming_in_view
                                 if monster.position.distance_to(position) <= 1]
         # A never-moving puller (a siren's TELE_TO) in view: no place to rest, and an

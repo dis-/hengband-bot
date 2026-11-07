@@ -83,6 +83,12 @@ class QuestFloorNavigator:
     exit_clearing_done = False
     exit_tracks = {}  # monster index -> (race, ((turn, (y, x)), ...)); replaced, never mutated
     exit_choke_goal = None  # the choke a walk is under way to (quest_find_exit._to_choke)
+    # The in-view wait (quest_find_exit, owner 2026-11-08): player actions on this floor, the
+    # board they were last counted on, and per monster index (race, action, cell, last seen
+    # MonsterState, judged) since it was first seen in view or last came.  Replaced, never mutated.
+    exit_actions = 0
+    exit_action_turn = None
+    exit_in_view = {}
     # The room sweep of a KILL_ALL plan (quest_room_sweep): same rule.
     sweep_stage = 0
     sweep_round = 0
@@ -134,6 +140,9 @@ class QuestFloorNavigator:
         self.exit_clearing_done = False
         self.exit_tracks = {}
         self.exit_choke_goal = None
+        self.exit_actions = 0
+        self.exit_action_turn = None
+        self.exit_in_view = {}
         self.sweep_stage = 0
         self.sweep_round = 0
         self.sweep_meet_turns = 0
