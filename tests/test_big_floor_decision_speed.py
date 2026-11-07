@@ -140,10 +140,15 @@ class GridMapFastPathTest(unittest.TestCase):
         protocol = model.snapshot_protocol_version(data)
         parsed = parse_snapshot(data, _monrace())
         expected = _reference_grids(data, protocol)
-        self.assertEqual(list(parsed.grids), list(expected))
-        self.assertEqual(list(parsed.grids.values()), list(expected.values()))
+        # Report the first differing cell: a whole-list diff of ~12,000
+        # GridStates would take minutes.
+        self.assertEqual(len(parsed.grids), len(expected))
+        for got, wanted in zip(parsed.grids.items(), expected.items()):
+            if got != wanted:
+                self.fail(f"first differing cell: {got!r} != {wanted!r}")
         for grid in parsed.grids.values():
-            self.assertEqual(list(vars(grid)), GRID_FIELDS)
+            if list(vars(grid)) != GRID_FIELDS:
+                self.fail(f"field order differs at {grid.position}: {list(vars(grid))}")
         return parsed
 
     def test_recorded_large_boards_parse_as_the_record_path(self):
