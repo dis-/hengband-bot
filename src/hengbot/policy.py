@@ -1227,14 +1227,20 @@ DESCENT_BLOCK_DECISIONS = 200
 # fail-safe (40 decisions).  Hazardous landings still use the full cooldown.
 RESUME_DESCENT_BLOCK_DECISIONS = 16
 
-# Potion svals that restore HP (cure wounds / healing / life), from sv-potion-types.h.
-# Expected raw HP restored by the combat-healing potions.  Cure Serious is
-# 4d8; Healing and *Healing* are fixed in quaff-effects.cpp; Life restores to
-# full and is therefore capped dynamically by the current missing HP.  Cure
-# Critical Wounds (6d8) heals only where a quest strategy names it as its
-# heal potion (_quest_floor_heal_svals).
-HEAL_POTION_EXPECTED_HP = {35: 18, 36: FIXED_QUEST_CURE_CRITICAL_HP, 37: 300, 38: 1200}
+# Expected raw HP restored by the HP-recovery potions (HEAL_POTION_SVALS).
+# Healing and *Healing* are fixed in quaff-effects.cpp; Life restores to full
+# and is therefore capped dynamically by the current missing HP.  Cure Light
+# and Cure Serious Wounds are no HP recovery (owner 2026-11-07, OQ-7).  Cure
+# Critical Wounds (6d8) is none either (owner 2026-11-03) except where an
+# approved quest strategy names it as its heal potion (QUEST_14,
+# _quest_floor_heal_svals): only that path ever offers sval 36 here.
+HEAL_POTION_EXPECTED_HP = {36: FIXED_QUEST_CURE_CRITICAL_HP, 37: 300, 38: 1200}
 TELEPORT_SCROLL_SVALS = frozenset({9, 10})  # teleport, teleport level
+# The scrolls a worn NO_TELE piece makes the game refuse (phase door, teleport,
+# teleport level): _anti_teleport_takeoff_key.
+RELOCATION_SCROLL_SVALS = frozenset({SV_SCROLL_PHASE_DOOR, *TELEPORT_SCROLL_SVALS})
+ANTI_TELEPORT_TAKEOFF_GOAL = "escape-anti-teleport-takeoff"
+ANTI_TELEPORT_TAKEOFF_REASON = "escape:take-off-anti-teleport"
 
 
 # Food svals that actually nourish (rations/biscuits/…); lower svals are mushrooms.
@@ -10189,14 +10195,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         )
 
     def _find_teleport_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
-        if quest_no_teleport.forbids(self, snapshot):
+        if quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot):
             return None
         return self._first_item(
             snapshot, lambda it: it.is_scroll and it.aware and it.sval in TELEPORT_SCROLL_SVALS
         )
 
     def _find_phase_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
-        if quest_no_teleport.forbids(self, snapshot):
+        if quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot):
             return None
         return self._first_item(
             snapshot,
@@ -12038,6 +12044,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self, snapshot: Snapshot, item: InventoryItem, suffix: str = ""
     ) -> str:
         """Compose a read while retaining the selected scroll's identity."""
+        if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
+            return takeoff
         if not suffix and item.is_recall_scroll and snapshot.dungeon_level == 0 \
                 and not snapshot.player.recalling:
             # D22: a surface recall read asks which dungeon (choose_dungeon).
@@ -12258,6 +12266,62 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         recall hazard.
         """
         return any(self._blocks_teleport(item) for item in snapshot.equipment)
+
+    def _anti_teleport_takeoff_slot(self, snapshot: Snapshot) -> str | None:
+        """The worn NO_TELE piece to take off before a relocation read, or None.
+
+        A worn NO_TELE piece makes the game refuse Teleportation and Phase Door
+        (teleport_player_aux, spells-teleport.cpp:286-289) and Teleport Level
+        (teleport_level, spells-world.cpp:80-83) with 「不思議な力がテレポートを防いだ！」;
+        Word of Recall is not refused.  Owner 2026-11-07 (threat tiers, answer 8)
+        「逃げる手段を取り戻すのが先」: in the dungeon a removable piece comes off
+        first, then the escape is read.  Not removable: a cursed piece
+        (do_cmd_takeoff, cmd-equipment.cpp:372-389).  On a floor an approved quest
+        plan runs, the plan decides (answer 11): Q25 wears its piece on purpose
+        (quest25_druj_gear) and a no_teleport floor reads no relocation scroll.
+        """
+        pieces = [item for item in snapshot.equipment if self._blocks_teleport(item)]
+        if (
+            not pieces
+            or snapshot.dungeon_level < 1
+            or self.approved_quest_strategy(snapshot.floor_key[2]) is not None
+            or any(item.is_cursed for item in pieces)
+        ):
+            return None
+        return pieces[0].slot
+
+    def _relocation_refused(self, snapshot: Snapshot) -> bool:
+        """A relocation scroll read now is refused by the game and no take-off lifts it.
+
+        The escape finders answer None then, so a rung falls to its next answer
+        instead of reading a scroll the game refuses.
+        """
+        return (
+            self._teleport_blocked_by_equipment(snapshot)
+            and self._anti_teleport_takeoff_slot(snapshot) is None
+        )
+
+    def _anti_teleport_takeoff_key(
+        self, snapshot: Snapshot, item: InventoryItem
+    ) -> str | None:
+        """Take the anti-teleport piece off in place of reading relocation ``item``.
+
+        Every relocation read goes through here (``_read_key``,
+        ``_issue_emergency_consumable`` and the rungs that compose the read
+        themselves), so the rung that chose the escape reads it on the next
+        decision, once the piece is off.
+        """
+        if not (item.tval == TVAL_SCROLL and item.sval in RELOCATION_SCROLL_SVALS):
+            return None
+        slot = self._anti_teleport_takeoff_slot(snapshot)
+        if slot is None:
+            return None
+        key = self._equipment_takeoff(
+            snapshot, ANTI_TELEPORT_TAKEOFF_GOAL, EQUIPMENT_SLOT_KEY[slot]
+        )
+        if key is not None:
+            self.last_reason = ANTI_TELEPORT_TAKEOFF_REASON
+        return key
 
     def _equipped_weapon_high_grade(self, snapshot: Snapshot) -> bool:
         weapon = next(
@@ -15795,6 +15859,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _issue_emergency_consumable(
         self, snapshot: Snapshot, item: InventoryItem, reason: str
     ) -> str:
+        if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
+            # The piece first: no escape is read (or counted) on this decision.
+            return takeoff
         self._emergency_return_active = True
         self._latch_repeat_emergency_return(snapshot, reason)
         signature = self._item_signature(item)
