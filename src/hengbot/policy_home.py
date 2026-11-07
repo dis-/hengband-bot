@@ -135,6 +135,9 @@ class HomeMixin:
         with self._overweight_surplus_record_path.open("a", encoding="utf8") as stream:
             stream.write(json.dumps(record, ensure_ascii=False)+"\n")
         self._overweight_surplus_ledger.setdefault("sold", []).append(pending["identity"])
+        # The carried count left by this sale: only a rise above it is a rebuy.
+        self._overweight_surplus_ledger.setdefault("sold_counts", []).append(
+            [list(pending["identity"]), count])
         self._overweight_surplus_ledger.pop("pending", None)
         self._save_overweight_surplus_ledger()
         state.pop("pending", None)
@@ -145,6 +148,28 @@ class HomeMixin:
                                   kinds=("Observe",), sources=("effect", "store-operation"))
         self.last_reason = reason
         return True
+
+    def _overweight_surplus_rebought(self, snapshot, item) -> bool:
+        """Whether the identity sold this visit is carried in greater number again.
+
+        Only a carried count above the one its sale left is a sell/rebuy loop.
+        A partial sale leaves the rest carried: n1-a life-492 2026-11-07
+        12:30:22 sold 12 of 35 クロスボウの矢 (+0,+0); a later take overloaded
+        the pack again and the producer, picking the 23 left, stopped as a
+        rebuy loop though nothing had been bought.  A sale recorded without
+        its count (a ledger written before the count was kept) still stops.
+        """
+        identity = self._sale_item_identity(item)
+        ledger = self._overweight_surplus_ledger
+        if identity not in ledger.get("sold", []):
+            return False
+        after = [count for recorded, count in ledger.get("sold_counts", [])
+                 if tuple(recorded) == identity]
+        if not after:
+            return True
+        carried = sum(i.count for i in snapshot.inventory
+                      if self._sale_item_identity(i) == identity)
+        return carried > min(after)
 
     def _save_overweight_surplus_ledger(self) -> None:
         path = self._overweight_surplus_ledger_path
@@ -229,7 +254,7 @@ class HomeMixin:
             return self._town_blocked_key(snapshot)
         _, signature, item, count, stores = chosen
         if pending is None:
-            if self._sale_item_identity(item) in self._overweight_surplus_ledger.get("sold", []):
+            if self._overweight_surplus_rebought(snapshot, item):
                 self._town_blocked_reason = "overweight-surplus-rebuy-loop"
                 return self._town_blocked_key(snapshot)
             pending = dict(signature=signature, identity=self._sale_item_identity(item),
@@ -2898,6 +2923,11 @@ class HomeMixin:
             return AMMO_CARRY_TARGET
         return min(AMMO_CARRY_TARGET, count + max(0, room) // unit_weight)
 
+    def _identify_staff_take_overloads(self, snapshot: Snapshot, item, quantity: int = 1) -> bool:
+        """An Identify staff Home take that would put the pack over the limit."""
+        return (item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+                and not self._can_add_item_without_overweight(snapshot, item, quantity=quantity))
+
     def _can_add_item_without_overweight(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem,
         *, quantity: int | None = None,
@@ -3784,6 +3814,24 @@ class HomeMixin:
             self._home_withdrawal_queued = False
             return self._town_entrance_step_off_key(
                 snapshot, "home:atomic-withdraw-no-longer-needed"
+            )
+        if (
+            selecting_branch == "home-pending-item"
+            and self._identify_staff_take_overloads(snapshot, item, take_quantity)
+        ):
+            # The Identify staff reserve was queued while the pack was already
+            # over the limit (its take could not add an overload then); the
+            # overweight sales since then left too little room for it.  n1-a
+            # life-492 2026-11-07 12:30:39 took the 鑑定の杖 (+50) anyway and
+            # the overweight producer stopped on the arrows it had partly sold.
+            # Release the queue; the reserve owner queues it again once it fits.
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_pending_quantities.pop(signature, None)
+            self._home_withdrawal_queued = False
+            return self._town_entrance_step_off_key(
+                snapshot, "home:atomic-withdraw-identify-staff-overweight"
             )
         observed_address = self._home_observed_addresses.get(signature)
         self._home_withdraw_page_probe = None

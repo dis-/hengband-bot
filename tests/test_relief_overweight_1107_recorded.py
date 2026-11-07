@@ -210,6 +210,34 @@ class ReliefOverweight1107RecordedTest(unittest.TestCase):
         self.assertNotIn((SWORD, 23, 28), relief.get("settled_home_counts", {}))
         self.assertNotEqual((relief["sale"] or ((None,),))[0][0], SWORD)
 
+    # B1 -----------------------------------------------------------------
+
+    def test_b1_identify_staff_take_that_overloads_the_pack_is_released(self):
+        policy = self.restore("b1")
+        self.replay_unchanged(policy, range(57))
+        self.assertEqual(self.journal[57]["key"], "5pU\x1b")  # recorded: the staff taken
+        _board, key = self.decide(policy, 57)
+        self.assertEqual(policy.last_reason,
+                         "town:entrance-step-off:home:atomic-withdraw-identify-staff-overweight")
+        self.assertIsNone(policy._home_pending_item)
+        self.assertFalse(policy._home_withdrawal_queued)
+
+    def test_b1_partly_sold_arrows_are_not_a_rebuy_loop(self):
+        policy = self.restore("b1")
+        # DECLARED CONSTRUCTED: the staff take admitted as recorded (its
+        # release is pinned above), so row 58 is the recorded overloaded board.
+        with mock.patch.object(HengbotPolicy, "_identify_staff_take_overloads",
+                               lambda self, snapshot, item, quantity=1: False):
+            self.replay_unchanged(policy, range(58))
+        self.assertEqual(self.journal[58]["reason"], "town:blocked:overweight-surplus-rebuy-loop")
+        board, key = self.decide(policy, 58)
+        self.assertNotEqual(policy.last_reason, "town:blocked:overweight-surplus-rebuy-loop")
+        self.assertIsNone(policy._town_blocked_reason)
+        pending = policy._overweight_surplus_disposal["pending"]
+        self.assertEqual(pending["identity"], PLAIN_ARROWS)
+        self.assertEqual(pending["before_count"], 23)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n#.", "shop:travel"))
+
 
 if __name__ == "__main__":
     unittest.main()
