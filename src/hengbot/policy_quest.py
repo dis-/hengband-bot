@@ -2656,6 +2656,20 @@ class QuestMixin(OpeningRouteMixin):
                     ] = route_target
                     self.last_reason = reason
                     return phase_step(path[1])
+            # Every vantage is spent and a placement is still unseen (n1-b
+            # life-338: the white crocodile's deep-water cell [19,11] beyond
+            # light radius 1).  Light the room once from here, as the vantage
+            # rung above does, before the phase waits.
+            for placement in unsurveyed:
+                light_phase = (snapshot.floor_key, race_id, placement)
+                if light_phase in self._q2_phase_light_attempted:
+                    continue
+                light = quest_light_areas.key(
+                    self, snapshot, profile, f"quest-strategy:q2-light-phase-{race_id}"
+                )
+                if light is not None:
+                    self._q2_phase_light_attempted.add(light_phase)
+                    return light
             self.last_reason = f"quest:blocked:{reason.removeprefix('quest-strategy:')}"
             return WAIT_KEY
 

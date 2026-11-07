@@ -9527,6 +9527,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "q2_kill_credit.py:_killed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "q2_tower_recharge.py:_fundraise": {
     "classification": "producer",
     "rows": [
