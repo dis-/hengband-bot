@@ -2390,11 +2390,30 @@ class EquipmentMixin:
                     WAIT_KEY, label="takeoff-stale",
                     effect="transaction-replanned",
                 )
+            # A refusal before the mutation request (a reservation) leaves no
+            # report: never name an earlier mutation's.
+            self._equipment_mutation_result = EquipmentMutationResult(None)
             key = self._equipment_takeoff(snapshot, "transaction-apply", slot_key)
             if key is None:
-                return self._equipment_home_outcome(
-                    None, label="takeoff-key-unavailable",
+                # A takeoff the town composes no command for (the pack budget
+                # left no room once a foreign Home take filled the slot the
+                # plan counted on) names its refusal and blocks the session,
+                # as an uncomposable equip does: the abandonment/restoration
+                # path answers it.  Returning None left Home idle and the next
+                # board re-entered for the same takeoff (n1-b life 337
+                # 2026-11-07 09:55, takeoff of 'outer' at 19/23 slots, a
+                # Home entry/exit loop until owner-retired-burst).
+                refusal = getattr(self._equipment_mutation_result, "report", None)
+                self._block_equipment_transaction(
+                    f"takeoff-refused:{refusal or 'unavailable'}"
                 )
+                if session.executable:
+                    return self._equipment_home_outcome(
+                        None, label="takeoff-key-unavailable",
+                    )
+                # The blocked session leaves Home through its abandonment on
+                # this board (the not-executable branch above).
+                return self._equipment_transaction_home_key(snapshot)
             if not self._prepare_equipment_transaction_command(
                 session, action, observation, key,
                 ("home", snapshot.turn, action.target_slot, action.item_identity),

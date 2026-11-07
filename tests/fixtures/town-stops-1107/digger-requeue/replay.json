@@ -1,0 +1,50 @@
+{
+ "capture": "20261107-053425-town-blocked-unmet-digger_withdrawal_resolved",
+ "row": 77,
+ "diverged": [
+  {
+   "row": 70,
+   "recorded": [
+    "5",
+    "equipment-transaction:atomic-deposit"
+   ],
+   "deployed": [
+    "~9\u001b",
+    "home:request-knowledge-scan"
+   ]
+  },
+  {
+   "row": 71,
+   "recorded": [
+    "dk\u001b",
+    "home:atomic-deposit"
+   ],
+   "deployed": [
+    "\u001b",
+    "home:scan-complete-from-open-page"
+   ]
+  },
+  {
+   "row": 72,
+   "recorded": [
+    "~9\u001b",
+    "home:request-knowledge-scan"
+   ],
+   "deployed": [
+    "5pt1\r\u001b",
+    "home:atomic-withdraw"
+   ]
+  },
+  {
+   "row": 73,
+   "recorded": [
+    "5pu1\r\u001b",
+    "home:atomic-withdraw"
+   ],
+   "deployed": [
+    "",
+    "store:entry-await-observation"
+   ]
+  }
+ ]
+}

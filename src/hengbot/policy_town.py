@@ -584,6 +584,26 @@ class TownMixin:
         return (("equipment-home", session.target_loadout_id, session.index,
                  action.kind, action.item_identity, action.target_slot), goal)
 
+    def _town_route_topology(self, snapshot):
+        """The town map a retained route child is measured on, without monsters.
+
+        _build_grid_index takes every cell a monster stands on out of the
+        walkable floor/door/rubble sets.  A monster moving in view is not a
+        change of the map: when it made the "topology" differ, a whole
+        kill-mob chase recorded no displacement, and after the kill the floor
+        matched the child again and its stale minimum came back (n1-a life 492
+        2026-11-07 10:38, owner-retired-burst of the Q2 walk).  Occupied cells
+        whose remembered terrain is floor/door/rubble are counted as such.
+        """
+        occupied = {(pos.y, pos.x) for pos, cell in snapshot.grids.items() if cell.has_monster}
+        occupied.update((monster.position.y, monster.position.x)
+                        for monster in snapshot.detected_monsters)
+        floor = self._floor_t | (occupied & self._remembered_floor_t)
+        door = self._door_t | (occupied & (self._remembered_door_t - self._blocked_doors))
+        rubble = self._rubble_t | (occupied & (self._remembered_rubble_t - self._blocked_rubble))
+        return (frozenset(floor), frozenset(door), frozenset(rubble),
+                frozenset(self._town_entrance_cells(snapshot)))
+
     def _town_inn_route_receipt(self, snapshot, reason, key, *, consume=False):
         """Preview/settle retained INN and physical Home route children.
 
@@ -617,9 +637,7 @@ class TownMixin:
                     and reason == f"town:cross-town-shopping:travel-{expedition.target_town_id}"):
                 operation = ("shopping", expedition.trigger_town_id,
                              expedition.target_town_id, expedition.candidate_order)
-        topology = ((frozenset(self._floor_t), frozenset(self._door_t),
-                     frozenset(self._rubble_t),
-                     frozenset(self._town_entrance_cells(snapshot)))
+        topology = (self._town_route_topology(snapshot)
                     if operation is not None or state["routes"] else None)
         receipt = {"owner": None, "qualified": False, "progress": None,
                    "productive": False, "minimum_before": None,
