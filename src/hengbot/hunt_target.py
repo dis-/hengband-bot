@@ -35,6 +35,19 @@ at the first sight, nothing else approached, seek-loot stepped back out of
 sight, and the walk stepped in again until the loop detector stopped the bot.
 So the walk asks the same question in and out of view (``_walk_ends_in_refusal``),
 and one that would end in a refusal gives the cell up where it stands.
+
+Recorded n1-b life-335 (Angband 24F, RANDOM quest 41, 2026-11-07 09:00 and 09:03):
+the target 『アルベリヒ』 (race 419, INVISIBLE, TPORT) vanished beside the player.
+The goal "a cell within 1 of the shown cell" never counts the player's own cell
+(goal_route), so the walk stepped between two cells beside it until the loop
+detector stopped the bot, and no board certified the cell empty: an INVISIBLE race
+is never seen gone (``_player_can_see_empty_cell``).  So a walk that is already
+beside the shown cell is done: it waits one turn there (``SEARCH_KEY``) and then
+gives the cell up.  Recorded n1-b life-334 04:57 and life-335 09:03: two sleeping
+Black ogres 8-9 away, or a Yeek 14 away, sent the walk back to seek-loot, which
+stepped out of their sight, and the walk stepped in again.  A hostile the combat
+rungs passed over that sleeps, or stands beyond ``HUNT_RANGE``, no longer stops the
+walk -- unless its melee is one the engagement retreat keeps away from.
 """
 
 from __future__ import annotations
@@ -43,11 +56,12 @@ from dataclasses import dataclass
 
 from hengbot import retreat_enclosure
 from hengbot.model import Position, game_distance
-from hengbot.policy_constants import HUNT_RANGE
+from hengbot.policy_constants import HUNT_RANGE, SEARCH_KEY
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_RANDOM
 
 MEMORY = "_hunt_target_memory"
 REASON = "hunt:detected-target"
+ARRIVED_REASON = "hunt:detected-target-arrived"
 # The quest types whose target race is hunted on the quest floor (owner 2026-11-02).
 HUNTED_QUEST_TYPES = frozenset({QUEST_TYPE_RANDOM, QUEST_TYPE_KILL_LEVEL})
 # The monsters each detection effect marks (spell-kind/spells-detection.cpp:
@@ -68,6 +82,8 @@ class FloorVisit:
     # however often a detection shows the target again (n1-a life-485: one step back made
     # the same frontier "closer", and seek-loot and the walk traded (21,121) and (22,121)).
     spent_frontiers: frozenset = frozenset()
+    # The shown cell the walk already waited beside: the next board there gives it up.
+    waited_beside: Position | None = None
 
 
 def _quest_race(policy, snapshot) -> int | None:
@@ -159,11 +175,23 @@ def _walk_ends_in_refusal(policy, snapshot, target) -> bool:
         or policy._hunt_would_close(snapshot, target))
 
 
+def _holds_the_walk(policy, snapshot, monster, race) -> bool:
+    """Another hostile in sight that the combat rungs own: awake within HUNT_RANGE, or,
+    awake or asleep, one whose melee the engagement retreat keeps away from (owner
+    2026-11-07 「眠っていても強い敵からは離れる」: ``_material_melee_fight``), so the
+    walk never steps toward the retreat's own threat."""
+    if monster.race_id == race:
+        return False
+    if not monster.asleep and monster.distance <= HUNT_RANGE:
+        return True
+    return policy._material_melee_fight(snapshot, monster)
+
+
 def route_key(policy, snapshot, hostiles) -> str | None:
     """The step toward the cell the target was last shown on, else None.
 
-    Only while no other hostile is in sight and the character was not just hit (the
-    combat rungs own those boards) and no town return is running.  A detection
+    Only while no other hostile in sight holds the walk (``_holds_the_walk``) and the
+    character was not just hit (the combat rungs own those boards) and no town return is running.  A detection
     reaches past the explored ground, so when no known route reaches the cell
     the walk goes to the nearest exploration frontier closer to it than the
     player (``_is_frontier``, the explore walk's own goal test); with neither,
@@ -172,14 +200,25 @@ def route_key(policy, snapshot, hostiles) -> str | None:
     retreat_enclosure.walled_off_key answers first."""
     visit = _visit(policy, snapshot)
     if (visit is None or visit.position is None
-            or any(monster.race_id != visit.race for monster in hostiles)
+            or any(_holds_the_walk(policy, snapshot, monster, visit.race) for monster in hostiles)
             or getattr(policy, "_took_damage", False) or policy._returning_to_town):
         return None
-    if hostiles and _walk_ends_in_refusal(
-            policy, snapshot, min(hostiles, key=lambda monster: monster.distance)):
+    targets = [monster for monster in hostiles if monster.race_id == visit.race]
+    if targets and _walk_ends_in_refusal(
+            policy, snapshot, min(targets, key=lambda monster: monster.distance)):
         visit.position = None
         return None
     goal = visit.position
+    if snapshot.player.position.distance_to(goal) <= 1:
+        # Beside the shown cell the walk is done: one turn's wait for what is
+        # there to show itself, then the cell is given up.
+        if visit.waited_beside == goal:
+            visit.position = None
+            visit.waited_beside = None
+            return None
+        visit.waited_beside = goal
+        policy.last_reason = ARRIVED_REASON
+        return SEARCH_KEY
     step = policy._nearest_goal_step(
         snapshot, lambda grid: grid.position.distance_to(goal) <= 1)
     if step is None:

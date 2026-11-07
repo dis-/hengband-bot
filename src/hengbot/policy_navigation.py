@@ -1191,7 +1191,17 @@ class NavigationMixin:
             floor.discard(key)
             door.discard(key)
             rubble.discard(key)
+        # A monster shown only by telepathy or detection (out of view) keeps its
+        # cell in the route unless it stands beside the player: ESP reaches
+        # MAX_PLAYER_SIGHT (monster-update.cpp), so at that edge one step showed
+        # and hid a far monster, its cell dropped out of the floor and back, and
+        # loot and explore flipped their shortest routes on every board (n1-a
+        # life-492 2026-11-07 06:06, seek-loot '4'/'6' between (27,113) and
+        # (27,112) while a 洞窟オーク 18-20 away came and went; n1-b life-335
+        # 06:51, Labyrinth 18F).  A walk that reaches it meets it in view.
         for monster in snapshot.detected_monsters:
+            if player.distance_to(monster.position) > 1:
+                continue
             key = (monster.position.y, monster.position.x)
             floor.discard(key)
             door.discard(key)
@@ -1591,7 +1601,7 @@ class NavigationMixin:
         """The cells of hostiles in view that a walk may meet and fight on the way.
 
         ``_build_grid_index`` drops a monster's cell from the floor index only
-        while it is in view.  A corridor it stands in then ends every frontier
+        while it is in view (or, detected, beside the player).  A corridor it stands in then ends every frontier
         beyond it on this board and on no board out of its sight, so the two
         answers took turns stepping in and out of view (n1-c life-128 2026-11-04,
         18F: two 日光猿 19 squares along).  A hostile the engagement retreat would

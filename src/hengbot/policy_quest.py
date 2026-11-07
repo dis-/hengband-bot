@@ -5921,13 +5921,17 @@ class QuestMixin(OpeningRouteMixin):
         return self._duel_fight_viable(snapshot, guardian, snapshot.player.max_hp)
 
     def _duel_fight_viable(
-        self, snapshot: Snapshot, opponent: MonsterState, player_hp: int
+        self, snapshot: Snapshot, opponent: MonsterState, player_hp: int,
+        *, ranged_order: bool = False,
     ) -> bool:
         """Whether ``_unique_fight_projection`` clears ``opponent`` in a duel.
 
         The duel is a two-cell board: the player at ``player_hp`` and the
         opponent adjacent, so its melee counts from the first turn.  A held
-        Speed potion is credited as in the unique fight rung.
+        Speed potion is credited as in the unique fight rung.  With
+        ``ranged_order`` each action deals the larger of the main hand and the
+        answer the adjacent chooser would use (me_ranged_first.best_expected:
+        the Magic-Eater's absorbed powers, Magic Missile, wands and torches).
         """
         player_position = Position(10, 10)
         target_position = Position(10, 11)
@@ -5951,12 +5955,17 @@ class QuestMixin(OpeningRouteMixin):
             visible_monsters=[opponent],
             store=None,
         )
+        damage_per_attack = None
+        if ranged_order:
+            from hengbot import me_ranged_first
+            damage_per_attack = me_ranged_first.best_expected(self, fight_snapshot, opponent)
         if (
             self._unique_fight_projection(
                 fight_snapshot,
                 [opponent],
                 opponent,
                 player_speed=fight_snapshot.player.speed,
+                damage_per_attack=damage_per_attack,
             )
             is not None
         ):
@@ -5970,6 +5979,7 @@ class QuestMixin(OpeningRouteMixin):
                 opponent,
                 player_speed=fight_snapshot.player.speed + SPEED_POTION_BONUS,
                 extra_turns=1,
+                damage_per_attack=damage_per_attack,
             )
             is not None
         )
@@ -6036,14 +6046,17 @@ class QuestMixin(OpeningRouteMixin):
         *,
         player_speed: int,
         extra_turns: int = 0,
+        damage_per_attack: float | None = None,
     ) -> dict[str, int] | None:
+        """``damage_per_attack``: another answer's damage per action, used when
+        it beats the main hand (``_duel_fight_viable``'s ``ranged_order``)."""
         weapon = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"),
             None,
         )
-        if weapon is None or snapshot.player.main_hand_blows <= 0:
-            return None
-        damage_per_attack = self._main_hand_dps(snapshot, weapon)
+        melee = (self._main_hand_dps(snapshot, weapon)
+                 if weapon is not None and snapshot.player.main_hand_blows > 0 else 0.0)
+        damage_per_attack = max(melee, damage_per_attack or 0.0)
         if damage_per_attack <= 0:
             return None
         attacks = max(1, ceil(target.hp / damage_per_attack))
