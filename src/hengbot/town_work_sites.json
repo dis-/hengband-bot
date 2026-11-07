@@ -9514,6 +9514,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_battle.py:_adjacent_mass_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_attack_kinds": {
     "classification": "data",
     "rows": [
@@ -9528,7 +9535,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_battle.py:_carried_grid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_ctx": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_cursor_suffix": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9556,6 +9577,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_engage": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_fire_at": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_full_hp_key": {
     "classification": "producer",
     "rows": [
@@ -9569,6 +9604,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_launcher_grid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest25_battle.py:_memory": {
     "classification": "data",

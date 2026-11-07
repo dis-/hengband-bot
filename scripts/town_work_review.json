@@ -15556,5 +15556,71 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_adjacent_mass_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-07 「隣に来たら倒す」: from the dreadmaster phase on, a corpse mass beside the player is struck through _engage's adjacent attack, else shot by _fire_at; None otherwise. Called only by _phase_key before the phase's preparation and step; no independent progress."
+  },
+  "quest25_battle.py:_engage": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The phase battle's blow at a target beside the player (combat_answer.adjacent_attack under MELEE_REASON), else a shot at the first target that can be shot (quest_room_sweep._shot); None otherwise. Called only by the Q25 phases and _adjacent_mass_key; no independent progress."
+  },
+  "quest25_battle.py:_fire_at": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The strongest attack aimed at a grid (an absorbed ball or beam, else the launcher at the grid); None when none can be keyed. Called only by the Q25 phases and _adjacent_mass_key; no independent progress."
+  },
+  "quest25_battle.py:_carried_grid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "A carried device aimed at a grid by the targeting cursor (reserved_item_command); None when the reservation refuses. Called only by _ball_powers' senders and _melt_key; no independent progress."
+  },
+  "quest25_battle.py:_launcher_grid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The fired launcher aimed at a grid by the targeting cursor under SHOT_REASON; None without ammunition. Called only by _fire_at; no independent progress."
+  },
+  "quest25_battle.py:_cursor_suffix": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure keys of the targeting cursor moved to a grid; no command."
   }
 }
