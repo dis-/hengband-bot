@@ -78,12 +78,10 @@ def _battle_of(policy, snapshot):
 
 def observe(policy, snapshot) -> None:
     """The first decision of the process: read the previous process's record once."""
-    if getattr(policy, "_q25_battle_record_read", False):
+    path = getattr(policy, "_q25_battle_record_path", None)
+    if path is None or getattr(policy, "_q25_battle_record_read", False):
         return
     policy._q25_battle_record_read = True
-    path = getattr(policy, "_q25_battle_record_path", None)
-    if path is None:
-        return
     from hengbot.quest25_battle import Battle
     try:
         record = json.loads(Path(path).read_text(encoding="utf-8"))
