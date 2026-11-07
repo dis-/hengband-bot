@@ -44,9 +44,12 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 
-from hengbot import area_mapping, me_powers
+# me_absorbed_substitutes is read through the module at call time: importing
+# hengbot.arena first loads me_absorbed_substitutes -> me_powers -> hunt_target
+# -> retreat_enclosure -> this module while me_absorbed_substitutes is still
+# initializing, so a from-import of its names fails (circular import).
+from hengbot import area_mapping, me_absorbed_substitutes, me_powers
 from hengbot.item_reservation import reserved_item_command
-from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key
 from hengbot.model import Position, Snapshot, game_distance
 from hengbot.policy_constants import NEIGHBOR_OFFSETS
 
@@ -230,14 +233,15 @@ def _melt_key(policy, snapshot: Snapshot, direction: str,
         used = reserved_item_command(policy, snapshot, "wand", wand, suffix=direction)
         if used is not None:
             return used, reason
-    cast = carry_cast_key(policy, snapshot, "utility_tools", "wall_breach", direction)
-    return None if cast is None else (cast, reason + CAST_SUFFIX)
+    cast = me_absorbed_substitutes.carry_cast_key(policy, snapshot, "utility_tools", "wall_breach", direction)
+    return None if cast is None else (cast, reason + me_absorbed_substitutes.CAST_SUFFIX)
 
 
 def can_melt(policy, snapshot: Snapshot) -> bool:
     """A charged Stone to Mud wand, or the absorbed power with a charge."""
     return (policy._stone_to_mud_wand(snapshot) is not None
-            or carry_cast_key(policy, snapshot, "utility_tools", "wall_breach") is not None)
+            or me_absorbed_substitutes.carry_cast_key(
+                policy, snapshot, "utility_tools", "wall_breach") is not None)
 
 
 def worn_out(policy, snapshot: Snapshot, wall: Position) -> bool:
