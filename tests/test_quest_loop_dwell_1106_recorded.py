@@ -65,22 +65,6 @@ def shown(raw):
     raw["detected_monsters"] = [*raw.get("detected_monsters", []), dict(HALF_GIANT)]
 
 
-AMMO_TVALS = {16, 17, 18}  # shots, arrows, bolts
-
-
-def half_giant_awake(line: str) -> str:
-    """DECLARED: the half-giant (index 76, race 1301) awake on this board, and, where it is
-    in view, no ammunition carried (awake, it would be shot at instead of retreated from)."""
-    raw = json.loads(line)
-    for monster in (*raw["visible_monsters"], *raw.get("detected_monsters", [])):
-        if (monster["index"], monster["race_id"]) == (HALF_GIANT["index"], HALF_GIANT["race_id"]):
-            monster["asleep"] = False
-    if any((monster["index"], monster["race_id"]) == (HALF_GIANT["index"], HALF_GIANT["race_id"])
-           for monster in raw["visible_monsters"]):
-        raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in AMMO_TVALS]
-    return json.dumps(raw, ensure_ascii=False)
-
-
 def without_stone_to_mud(raw):
     """DECLARED: the recorded kit without its two Stone to Mud wands (slot h)."""
     raw["inventory"] = [item for item in raw["inventory"] if "岩石溶解" not in item["name"]]
@@ -95,17 +79,10 @@ class WalledOffBoards(loops.ItemCommandBoards):
         cls.boards = json.loads(lzma.decompress(FIXTURE.read_bytes()))
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
-    def replay(self, until=None, *, awake=True):
-        """The recorded entry through choose_key, as far as ``until`` answers True.
-
-        DECLARED CONSTRUCTED (``awake``): the half-giant awake on the entry's boards.  It
-        lay asleep through the five recorded retreats, and a sleeping monster is no longer
-        retreated from (n1-c life-153, tests/test_maze_seal_1106_recorded); awake, the
-        recorded retreats and their column are what these tests start from."""
+    def replay(self, until=None):
+        """The recorded entry through choose_key, as far as ``until`` answers True."""
         replay = _Replay(self, self.monrace)
         for line in self.boards["entry"]:
-            if awake:
-                line = half_giant_awake(line)
             try:
                 board, key, reason = replay.decide(line)
             except IndexError:  # the same board again: no new decision
@@ -140,13 +117,10 @@ class WalledOffBoards(loops.ItemCommandBoards):
 
 class WalledOffHuntAndSearch(WalledOffBoards):
     def test_the_retreats_leave_the_recorded_column(self):
+        # The half-giant lay asleep through the five retreats: a strong monster is retreated
+        # from asleep too (owner 2026-11-07).
         replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)
         self.assertEqual(replay.policy._engagement_owned_avoid_cells, COLUMN)
-
-    def test_the_recorded_sleeping_half_giant_is_not_retreated_from(self):
-        replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN,
-                                 awake=False)
-        self.assertFalse(replay.policy._engagement_owned_avoid_cells)
 
     def test_a_hunt_walled_off_by_the_column_reads_teleportation_once(self):
         replay, line, key, reason = self.replay(

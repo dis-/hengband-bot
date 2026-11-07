@@ -9091,12 +9091,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Preserve higher-priority concrete work such as safe loot recovery,
         # but retreat before descent, hunting, or generic exploration can
         # close into the engagement and alternate with the threat gate.
-        # A sleeping monster does not close in: retreating from it walked a
-        # one-wide maze corridor into a dead end (n1-c life-153 Labyrinth 13F,
-        # a giant spider asleep 7 cells away).
+        # A sleeping monster is retreated from too when it is this strong
+        # (owner 2026-11-07: only a weak one, which is not a material melee
+        # engagement, is not); the dead end that retreat walked into (n1-c
+        # life-153 Labyrinth 13F) is answered by engagement_avoid_seal.
         if any(
             self._material_melee_engagement(snapshot, monster)
-            and not monster.asleep
             and not immobile_threat_memory.ringed(self, monster)
             for monster in strategic_hostiles
         ):
