@@ -982,10 +982,13 @@ class IdentificationMixin:
         self, item: InventoryItem | StoreItem
     ) -> bool:
         signature = self._item_signature(item)
+        from hengbot import me_powerful_activation
         return (
             self._identification_flow_candidate(item)
             or signature == self._home_pending_item
             or signature in self._home_pending_batch
+            # A Magic-Eater's Home take waiting for its spare *Identify*.
+            or me_powerful_activation.awaits_identify(self, item)
         )
 
     def _find_identification_source(

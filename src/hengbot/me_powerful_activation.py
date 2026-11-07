@@ -132,6 +132,8 @@ class Memory:
     takes: dict = field(default_factory=dict)      # signature -> Home takes for *Identify*
     pending: tuple | None = None                    # (effect, signature, turn)
     rekey: tuple | None = None                      # the planned deposit the pending use names
+    spent: dict = field(default_factory=dict)      # (kind, sval) -> (list turn, uses since)
+    awaiting: frozenset = frozenset()              # carried takes waiting for *Identify*
 
 
 def _memory(policy) -> Memory:
@@ -158,7 +160,34 @@ def _identify_targets(policy, snapshot):
                 if item.known and not item.fully_known
                 and item_requires_full_identification(item))
     if spare_identify_ready(policy, snapshot):
+        yield from _taken_pieces(policy, snapshot)
         yield from _planned_deposits(policy, snapshot)
+
+
+def _taken_pieces(policy, snapshot):
+    """Carried gear a Home take brought out for *Identify* (``_home_take_key``).
+
+    n1-b life-333 02:59:23-31: the piece the take brought out was planned as
+    an unused deposit by the next decision and shelved again before any
+    *Identify* ran, piece after piece, until the owner retirements stopped the
+    town.  It is *identified* first; ``awaits_identify`` keeps the deposits
+    off it meanwhile.
+    """
+    takes = _memory(policy).__dict__.get("takes", {})
+    return (item for item in snapshot.inventory
+            if spare_identify_target(item) and policy._item_signature(item) in takes)
+
+
+def awaits_identify(policy, item) -> bool:
+    """A taken piece the spare *Identify* will still serve: no deposit takes it.
+
+    The set is read on every decision (``observe``) from the last town board
+    outside a store: with no charge, no time to spare or its uses spent the
+    piece is not held, so the deposit flow shelves it again as before.
+    """
+    memory = getattr(policy, MEMORY, None)
+    awaiting = getattr(memory, "awaiting", frozenset()) if memory is not None else frozenset()
+    return bool(awaiting) and policy._item_signature(item) in awaiting
 
 
 def _planned_deposits(policy, snapshot):
@@ -207,7 +236,29 @@ def spare_identify_ready(policy, snapshot) -> bool:
             and _safe(policy, snapshot) and not policy._physical_hostiles(snapshot)
             and pays_safely(policy, snapshot)
             and me_capability.has(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval)
-            and me_capability.charges(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval) > 0)
+            and charges_left(policy, snapshot, IDENTIFY) > 0)
+
+
+def charges_left(policy, snapshot, effect) -> int:
+    """The power's charges less the uses made since its list was displayed.
+
+    The list is read at the power prompt (me_menu ``keep_list``), before the
+    use pays its charge, and nothing reads it again until the next use or
+    browse; the last charge therefore still read as one after it was spent,
+    and a Home take was filed that no *Identify* could serve.
+    """
+    charges = me_capability.charges(policy, snapshot, effect.kind, effect.sval)
+    spent = getattr(_memory(policy), "spent", None) or {}
+    turn, uses = spent.get((effect.kind, effect.sval), (None, 0))
+    if uses and turn == _list_turn(policy, effect.kind):
+        charges -= uses
+    return max(0, charges)
+
+
+def _list_turn(policy, kind):
+    """The turn of the last displayed list of ``kind`` (me_device_attacks.observe_lists)."""
+    lists = getattr(policy, "_me_device_lists", None) or {}
+    return lists[kind][0] if kind in lists else None
 
 
 TARGETS = {UNCURSE: _uncurse_targets, IDENTIFY: _identify_targets}
@@ -266,7 +317,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if work is None or snapshot.player.level < MIN_LEVEL:
         return None
     effect, target, signature = work
-    if me_capability.charges(policy, snapshot, effect.kind, effect.sval) <= 0:
+    if charges_left(policy, snapshot, effect) <= 0:
         return None  # the absorbed power regenerates; nothing is bought
     if snapshot.player.hp <= cost(snapshot.player.level):
         return _rest_key(policy, snapshot, hostiles)
@@ -320,6 +371,8 @@ def _home_take_key(policy, snapshot) -> str | None:
     errand = policy._home_errand
     if errand.active or policy._home_pending_batch:
         return None
+    if _taken_out(policy, snapshot):
+        return None  # one piece at a time: the last one goes back first
     for owned in policy._equipment_catalog.items:
         item = owned.item
         signature = policy._item_signature(item)
@@ -338,6 +391,25 @@ def _home_take_key(policy, snapshot) -> str | None:
         policy._home_candidate_waiting = True
         return home_identification.rearmed_home_route_key(policy, snapshot)
     return None
+
+
+def _taken_out(policy, snapshot) -> bool:
+    """A piece a Home take brought out is still carried, not yet put back.
+
+    「取り出して *鑑定* し、また仕舞う」 one piece at a time: n1-c life-158 02:20
+    took weapons out, *identified* them and departed with them; at 02:33 a
+    further take held Home while eight of them were carried and the town
+    stopped with no legal disposal.  A piece still waiting for its *Identify*,
+    or released as spare gear (spare_gear.released) after it, keeps the next
+    take back; one the loadout now uses does not.
+    """
+    from hengbot import spare_gear
+    takes = _memory(policy).__dict__.get("takes", {})
+    taken = spare_gear.taken_from_home(policy)
+    return any((signature in takes or signature in taken)
+               and (spare_identify_target(item) or spare_gear.released(policy, snapshot, item))
+               for item in snapshot.inventory
+               for signature in (policy._item_signature(item),))
 
 
 def _take_fits_weight(policy, snapshot, item) -> bool:
@@ -359,7 +431,10 @@ def observe(policy, snapshot) -> None:
     does (policy ``_observe_remove_curse``).
     """
     memory = getattr(policy, MEMORY, None)
-    if memory is None or memory.pending is None:
+    if memory is None:
+        return
+    _observe_awaiting(policy, snapshot, memory)
+    if memory.pending is None:
         return
     effect, signature, turn = memory.pending
     if snapshot.turn == turn:
@@ -372,10 +447,40 @@ def observe(policy, snapshot) -> None:
     if (snapshot.completed_operation_owner != effect.reason
             or (isinstance(refusal, str) and refusal.startswith("failed"))):
         return
+    _count_use(policy, memory, effect)
     if effect is UNCURSE:
         for item in snapshot.equipment:
             if item.is_cursed and policy._item_signature(item) == signature:
                 policy.__dict__.setdefault("_permanent_cursed_items", set()).add(signature)
+
+
+def _count_use(policy, memory, effect) -> None:
+    """One more use since the displayed list of the power's kind (``charges_left``)."""
+    spent = memory.__dict__.setdefault("spent", {})
+    key = (effect.kind, effect.sval)
+    turn = _list_turn(policy, effect.kind)
+    last_turn, uses = spent.get(key, (None, 0))
+    spent[key] = (turn, uses + 1 if last_turn == turn else 1)
+
+
+def _observe_awaiting(policy, snapshot, memory) -> None:
+    """The carried takes ``awaits_identify`` holds for this decision.
+
+    Read on a town board outside a store; a store screen keeps the last
+    verdict (a Home deposit composed outside is posted through it), and
+    leaving town drops it.
+    """
+    if not snapshot.in_town:
+        memory.awaiting = frozenset()
+        return
+    if snapshot.store is not None:
+        return
+    awaiting = frozenset(
+        signature for item in _taken_pieces(policy, snapshot)
+        for signature in (policy._item_signature(item),)
+        if memory.attempts.get((IDENTIFY.name, signature), 0) < ATTEMPTS_PER_TARGET)
+    memory.awaiting = (awaiting if awaiting and spare_identify_ready(policy, snapshot)
+                       else frozenset())
 
 
 def _rekey_planned_deposit(policy, snapshot, identity, tval, sval) -> None:

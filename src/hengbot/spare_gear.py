@@ -17,6 +17,9 @@ by their Home executors:
 * ``digger_stays_carried``: a digging tool is carried only for mining.
 * ``stow_pending``: the departure leaf.  True only while Home can still take
   the gear this visit, so it can delay a departure but never stop one.
+* ``observe``: gear a Home take brought out this visit (``note_taken``) and
+  nothing now uses re-arms an attempted Home once per piece, so it is put
+  back before the departure (n1-c life-158 2026-11-07).
 
 Gear picked up during a dive is not touched: it comes home on the next visit.
 """
@@ -128,17 +131,73 @@ def released(policy: Any, snapshot: Any, item: Any) -> bool:
 
 def stow_pending(policy: Any, snapshot: Any) -> bool:
     """Spare gear in the pack that a Home visit can still shelve this visit."""
-    if (not snapshot.in_town
-            or policy._fundraising_mode in MINING_MODES
-            or policy._identification_need is not None
-            or not policy._home_available(snapshot)
-            or STORE_HOME in policy._town_store_attempted
-            or policy._town_store_blocked_under_applicable_bound(STORE_HOME)
-            or policy._home_is_full(snapshot)):
+    if STORE_HOME in policy._town_store_attempted or not _home_can_stow(policy, snapshot):
         return False
     deposit = policy._find_home_deposit(snapshot)
     return deposit is not None and (
         released(policy, snapshot, deposit) or deposit.is_digging_tool)
+
+
+def _home_can_stow(policy: Any, snapshot: Any) -> bool:
+    return not (not snapshot.in_town
+                or policy._fundraising_mode in MINING_MODES
+                or policy._identification_need is not None
+                or not policy._home_available(snapshot)
+                or policy._town_store_blocked_under_applicable_bound(STORE_HOME)
+                or policy._home_is_full(snapshot))
+
+
+# Per town visit: (visit epoch, signatures of gear Home takes brought out,
+# signatures Home was re-armed for).
+TAKEN = "_spare_gear_taken"
+
+
+def _taken_record(policy: Any) -> tuple[set, set]:
+    epoch = getattr(policy, "_town_visit_epoch", None)
+    record = getattr(policy, TAKEN, None)
+    if record is None or record[0] != epoch:
+        record = (epoch, set(), set())
+        setattr(policy, TAKEN, record)
+    return record[1], record[2]
+
+
+def note_taken(policy: Any, item: Any) -> None:
+    """A Home take of this visit brought ``item`` (equipment) into the pack."""
+    if item.is_equipment and not item.is_ammo:
+        _taken_record(policy)[0].add(policy._item_signature(item))
+
+
+def taken_from_home(policy: Any) -> frozenset:
+    """Signatures of the gear Home takes brought out on this visit."""
+    return frozenset(_taken_record(policy)[0])
+
+
+def observe(policy: Any, snapshot: Any) -> None:
+    """Re-arm Home once for gear a take brought out and nothing now uses.
+
+    n1-c life-158 02:20: Home takes (full-home-sale, identification-catalog)
+    brought weapons out; once *identified* they were spare gear, but Home was
+    already attempted, so ``stow_pending`` was false and the character left
+    with all of them; at 02:33 the pack had no room for the town work and the
+    town stopped (overflow-no-legal-disposal).  Gear brought out of Home goes
+    back unless the loadout uses it: the Home stop is released once per piece
+    and visit (_rearm_town_store_for_new_work keeps its own Home visit bound),
+    so the stow can still delay a departure but never stop one.
+    """
+    if not snapshot.in_town or snapshot.store is not None:
+        return
+    if STORE_HOME not in policy._town_store_attempted:
+        return
+    taken, rearmed = _taken_record(policy)
+    if not taken or not _home_can_stow(policy, snapshot):
+        return
+    for item in snapshot.inventory:
+        signature = policy._item_signature(item)
+        if (signature in taken and signature not in rearmed
+                and released(policy, snapshot, item)):
+            rearmed.add(signature)
+            policy._rearm_town_store_for_new_work(STORE_HOME)
+            return
 
 
 def carried_names(policy: Any, snapshot: Any) -> list[str]:
