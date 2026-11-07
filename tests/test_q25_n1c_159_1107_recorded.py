@@ -8,8 +8,8 @@ the boards, so the Magic-Eater's device shots come out as other keys in the repl
 tests read are the ones the replay reproduces.
 
 Where a test sets the phase plan's memory on a recorded board (``at_phase``), it says so: the
-recording held on [1,18] in the ambush (phase 1), and the owner's corpse-mass rule of 2026-11-07
-is for phase 5 on.
+recording held on [1,18] in the ambush (phase 1); the owner's corpse-mass rule of 2026-11-07 holds
+in every phase.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -97,8 +97,8 @@ def beside(raw):
 
 
 class Q25MassBesideTest(unittest.TestCase):
-    """Owner 2026-11-07 「隣に来たら倒す」: 「第5段以降でも、隣のマスの死体の塊は殴るか撃って倒す。
-    離れた所の死体の塊は今のまま相手にしない。」"""
+    """Owner 2026-11-07 「隣に来たら倒す」, widened the same day 「全部の段に広げる」: 「第1段から最後の段
+    まで、隣のマスの死体の塊は殴るか撃って倒す。離れた塊は今のまま相手にしない。」"""
 
     def setUp(self):
         self.raw, self.recorded = copy.deepcopy(BY_SEQUENCE[MASS_BESIDE][0]), BY_SEQUENCE[MASS_BESIDE][1]
@@ -106,8 +106,8 @@ class Q25MassBesideTest(unittest.TestCase):
         self.assertEqual(beside(self.raw), [(geo.MASS, 1, 17)])
         self.assertEqual((self.recorded["key"], self.recorded["reason"]), ("5", HOLD_REASON))
 
-    def test_from_phase_5_on_the_mass_beside_is_struck(self):
-        for name in battle.PHASE_NAMES[battle.PHASE_NAMES.index("dreadmaster"):]:
+    def test_in_every_phase_the_mass_beside_is_struck(self):
+        for name in battle.PHASE_NAMES:
             with self.subTest(phase=name):
                 policy = new_policy(self.raw)
                 at_phase(policy, self.raw, name, style="melee")   # CONSTRUCTED memory
@@ -126,11 +126,18 @@ class Q25MassBesideTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, MELEE_REASON, key)
         self.assertNotIn(battle.SHOT_REASON, policy.last_reason or "")
 
-    def test_the_corpse_mass_phase_and_earlier_are_unchanged(self):
-        # The recording itself: phase 1 (the ambush) held beside the mass, and still does.
-        policy = new_policy(self.raw)
-        at_phase(policy, self.raw, "ambush", style="melee")   # CONSTRUCTED memory, the replay's phase
-        self.assertEqual((choose(policy, self.raw), policy.last_reason), ("5", HOLD_REASON))
+    def test_the_recorded_ambush_hold_beside_the_mass_strikes_it(self):
+        # The replay itself (no memory set): the recording held on [1,18] in the ambush from 384
+        # on; from 425 a mass stood beside it on [1,17], and every one of those boards strikes it.
+        rows = [row for row in CASE["recorded"] if 384 <= row["sequence"] <= 431]
+        self.assertTrue(all(row["reason"] == HOLD_REASON for row in rows if row["sequence"] >= 400))
+        besides = [row["sequence"] for row in rows if beside(BY_SEQUENCE[row["sequence"]][0])
+                   and all(race == geo.MASS for race, _y, _x in beside(BY_SEQUENCE[row["sequence"]][0]))]
+        self.assertEqual(besides, list(range(425, 432)))
+        for sequence in besides:
+            with self.subTest(sequence=sequence):
+                self.assertEqual(BY_SEQUENCE[sequence][1]["key"], "5")
+                self.assertEqual(answer(sequence), (WEST, MELEE_REASON))
 
 
 class Q25NoChanceLeaveTest(unittest.TestCase):
