@@ -256,9 +256,17 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     # cmd-building/cmd-building.cpp:342: logical 80x24 is centered both ways.
     if isinstance(width, int) and isinstance(height, int) and width >= 80 and height >= 24:
         ox, oy = (width - 80) // 2, (height - 24) // 2
+        # The building's header (row 2) is the menu's mark, but choose_item's
+        # list overlays it: view/display-inventory.cpp:86,122-124 prints item j
+        # at row j + 1 and clears row j + 1 after the last one (from column
+        # col - 2, col 0 for a long name).  A one-item list is row 1 and a
+        # blank row 2, so under the enchant prompt that listed row stands in.
+        enchant_listing = oy + 1 < len(lines) and \
+            _text_at_cell(lines[oy], ox).rstrip().endswith(BUILDING_ENCHANT_PROMPTS) \
+            and re.match(r" *[a-z]\) ", lines[oy + 1][ox:]) is not None
         if oy + 23 < len(lines) and lines[oy + 23][ox:].startswith((
                 " ESC) Exit building", " ESC) 建物を出る")) \
-                and lines[oy + 2][ox:].strip() \
+                and (lines[oy + 2][ox:].strip() or enchant_listing) \
                 and any(") " in lines[y][ox:] for y in range(oy + 19, oy + 23)):
             # The building's centered offset remains active in exchange_cash
             # and input_check_strict (cmd-building.cpp:342-389). Its menu stays
