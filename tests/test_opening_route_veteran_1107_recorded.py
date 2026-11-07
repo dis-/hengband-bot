@@ -56,6 +56,9 @@ class OpeningRouteVeteranRecordedTest(unittest.TestCase):
         self.assertEqual((veteran.distance, veteran.fearful), (2, True))
         self.assertLess(self.board.player.hp, self.board.player.max_hp)
 
+    def test_the_ranged_answer_beats_the_veteran(self):
+        self.assertFalse(self.policy._town_monster_unbeatable(self.board, self.veteran()))
+
     def test_the_route_goes_on_after_the_fleeing_veteran(self):
         key = self.policy.choose_key(self.board)
         self.assertNotEqual(self.policy.last_reason, STOP)

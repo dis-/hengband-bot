@@ -5236,7 +5236,13 @@ class TownMixin:
         """Whether this character cannot defeat ``monster`` in a duel now.
 
         The same race-lore duel projection as ``_town_friendly_unbeatable``,
-        for any town monster that is not a pet.
+        for any town monster that is not a pet.  Each action is the stronger of
+        the main hand and the adjacent chooser's answer (me_ranged_first): the
+        town fights use that order (owner 2026-10-31 「近接以外の攻撃手段も街で
+        使う」), and melee alone judged a Battle-scarred veteran unbeatable for a
+        Lv7 Magic-Eater whose Q34 halberd dealt 0.3 an action, after its Magic
+        Missile had already sent the veteran fleeing (n1-b life-336 2026-11-07
+        09:05, quest:blocked:opening-route recovery-hostile-unreachable).
         """
         if monster.pet:
             return False
@@ -5250,7 +5256,9 @@ class TownMixin:
                                      knowledge.max_melee_damage),
             )
         return not self._duel_fight_viable(
-            snapshot, replace(opponent, friendly=False), snapshot.player.hp
+            snapshot, replace(opponent, friendly=False), snapshot.player.hp,
+            # A friendly is attacked by the blow alone ("+" + direction).
+            ranged_order=not monster.friendly,
         )
 
     @claims(ClaimOwner.SURVIVAL)
