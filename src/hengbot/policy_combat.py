@@ -26,6 +26,7 @@ from hengbot.monster_melee_evaluator import (
 from hengbot.projection_path import projection_path
 from hengbot.policy_types import ChokeEngagementPlan
 from hengbot.policy_constants import (
+    DOWN_STAIRS_LAST_RESORT_REASON,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
     CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO,
@@ -795,6 +796,10 @@ class CombatMixin:
             target = min(hostiles, key=lambda monster: monster.distance)
             self.last_reason = "no-wait:attack"
             return self._direction_key(snapshot.player.position, target.position)
+        # Owner 2026-11-07: the down staircase underfoot before the WAIT.
+        if (down := self._down_stairs_underfoot_key(
+                snapshot, DOWN_STAIRS_LAST_RESORT_REASON)) is not None:
+            return down
 
         return key
     @claims(ClaimOwner.ESCAPE)
@@ -2447,15 +2452,21 @@ class CombatMixin:
             if status_cure.treats(self, snapshot):
                 if (speed := status_cure.speed_first_key(self, snapshot)) is not None:
                     return speed  # the cure, and the escape it owes, on the next board
-                potion = (status_cure.low_hp_heal(self, snapshot, hostiles,
-                                                  observed_loss=observed_loss)
-                          or status_cure.cure_potion(self, snapshot))
-                if potion is not None:
-                    self.last_reason = (
-                        "emergency:cure-critical"
-                        if potion.sval == SV_POTION_CURE_CRITICAL
-                        else "emergency:cure-status-healing"
-                    )
+                potion = status_cure.low_hp_heal(self, snapshot, hostiles,
+                                                 observed_loss=observed_loss)
+                # Owner 2026-11-07: the absorbed Cure Light Wounds before the
+                # cheap cure potion (status_cure.absorbed_cure_key).
+                cast = None if potion is not None else status_cure.absorbed_cure_key(
+                    self, snapshot, status_cure.EMERGENCY_ABSORBED_CURE_REASON)
+                if potion is None and cast is None:
+                    potion = status_cure.cure_potion(self, snapshot)
+                if potion is not None or cast is not None:
+                    if potion is not None:
+                        self.last_reason = (
+                            "emergency:cure-critical"
+                            if potion.sval == SV_POTION_CURE_CRITICAL
+                            else "emergency:cure-status-healing"
+                        )
                     if lethal and (player.blind or player.confused):
                         # The scroll could not be read; the escape is still
                         # owed (death 2026-10-03: the cured board 06036437 at
@@ -2475,7 +2486,7 @@ class CombatMixin:
                             snapshot.floor_key, loss, deadline,
                         )
                     status_cure.note_cure(self, snapshot)
-                    return reserved_item_command(self, snapshot, "quaff", potion)
+                    return cast or reserved_item_command(self, snapshot, "quaff", potion)
 
             if lethal or summoner_open:
                 # USER DECISION 2026-10-03 06:0x (heal-vs-teleport): below the
@@ -2585,6 +2596,9 @@ class CombatMixin:
                     lambda: unseen_strike.key(self, snapshot, hostiles, unseen_strike.EMERGENCY_REASON))
                 if strike is not None:
                     return strike
+                if (down := self._down_stairs_underfoot_key(
+                        snapshot, DOWN_STAIRS_LAST_RESORT_REASON)) is not None:
+                    return down
                 self.last_reason = "emergency:wait"
                 return WAIT_KEY
 

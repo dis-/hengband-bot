@@ -12053,12 +12053,13 @@
   "status_cure.py:wait_for_sight_key": {
     "classification": "producer",
     "rows": [
-      "fundraising"
+      "fundraising",
+      "departure"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "n1-b life-294 2026-11-02 13:14 (Yeek cave 1F): blind, in the dungeon, not hit this board, no physical hostile and a restable food state: REST_MACRO (R&, rests until is_fully_healthy which includes sight) under the caller's reason with the caller's producer, else None. Called only from FundraisingMixin._fundraising_key before the floor work (fundraise:wait-sight); a carried cure is quaffed upstream by status_cure_key; dungeon only; no independent progress.",
+    "evidence": "n1-b life-294 2026-11-02 13:14 (Yeek cave 1F): blind, in the dungeon, not hit this board, no physical hostile and a restable food state: REST_MACRO (R&, rests until is_fully_healthy which includes sight) under the caller's reason with the caller's producer, else None. Called from FundraisingMixin._fundraising_key before the floor work (fundraise:wait-sight) and from the latched return's _return_to_town_key before its stair and walks (return:wait-sight, owner 2026-11-07, n1-c life-156); a carried cure is quaffed upstream by status_cure_key; dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "status_cure.py:low_hp_heal": {
@@ -15277,5 +15278,38 @@
     "context": "Dungeon idle fallback only (_town_idle_key returns town_end_key in town first); never reached in town.",
     "evidence": "dungeon-only: n1-c life-153 Labyrinth 13F, a retreat's vetoes sealed a dead end and the idle wander walked the pocket until the loop guard; while the vetoes wall the player's side off from known ground the idle fallback takes _ladder from the openers (dig, disarm, weak-enemy strike, then Teleportation or Recall at or below the reserve; owner 2026-11-04 maze-veto rule, 2026-11-06 openers) before its wander; returns the key or None.",
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "unseen_strike.py:blow_on_board": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: whether a blind board shows a melee blow text (JA_BLOW_ACTS), whatever the HP did; read by status_cure's re-blind latch (cure_futile, fight_through_key) because a cure's heal can outweigh the bite (n1-c life-156, owner 2026-11-07).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:absorbed_cure_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 (n1-c life-156): blind Magic-Eater with the absorbed Cure Light Wounds staff displayed with a charge, not confused/hallucinated/paralyzed, not in a store and the m command not refused: the cast key m A q under the caller's reason plus the absorbed-power suffix, in the cheap cure potion's place (a heavy loss with an HP recovery potion keeps the potion). Called from status_cure_key (item:cure-light) and the emergency ladder (emergency:cure-light); dungeon only; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy.py:HengbotPolicy._down_stairs_underfoot_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-07 (n1-c life-156): in the dungeon, blind, hit or facing a hostile, standing on a board '>' that is no quest entrance, off a quest floor, not past the guardian floor, not into a held random-quest floor or a depth missing required abilities: DOWN_STAIRS_KEY with emergency:stairs-down, else None. Asked only in place of a WAIT (the emergency ladder, the low-HP walk gate and _forbid_wait_while_damaged); no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

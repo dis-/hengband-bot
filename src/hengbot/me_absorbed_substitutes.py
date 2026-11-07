@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from hengbot import me_capability, me_powers
 from hengbot.me_staff_sequence import cast_blocked
+from hengbot.model import SV_STAFF_CURE_LIGHT
 
 
 # The reason suffix of a quest's absorbed-power cast (me_device_attacks_input).
@@ -43,6 +44,9 @@ def _cast_power(ident: tuple) -> me_powers.Power:
 
 # The powers cast in place of an item (me_device_attacks_input answers them).
 POWERS = {ident: _cast_power(ident) for ident in me_capability.substitute_powers()}
+# Cure Light Wounds, the blindness cure a blind player casts (status_cure.absorbed_cure_key).
+CURE_LIGHT = ("staff", SV_STAFF_CURE_LIGHT)
+POWERS[CURE_LIGHT] = _cast_power(CURE_LIGHT)
 # Healing in the arena, where no potion works (arena.py); neither asks for a direction.
 for _kind, _sval in (("rod", 9), ("staff", 18)):
     POWERS[(_kind, _sval)] = me_powers.BY_KEY.get((_kind, _sval)) or me_powers.Power(

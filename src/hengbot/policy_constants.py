@@ -88,6 +88,8 @@ STARVING_FOOD_STATES = frozenset({"weak", "fainting"})
 HEAVY_CURSE_TAG = "HEAVY_CURSE"
 UP_STAIRS_KEY = "<"
 DOWN_STAIRS_KEY = ">"
+# The down staircase underfoot taken in place of a WAIT (owner 2026-11-07).
+DOWN_STAIRS_LAST_RESORT_REASON = "emergency:stairs-down"
 SELL_KEY = "d"
 BUY_KEY = "p"
 BUY_CONFIRM_SUFFIX = "\r"

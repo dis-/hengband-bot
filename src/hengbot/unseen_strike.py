@@ -108,7 +108,32 @@ def hit_in_melee(policy, snapshot) -> bool:
     )
 
 
-def _open_neighbour(policy, snapshot, cell) -> bool:
+def blow_on_board(snapshot) -> bool:
+    """A blind board shows a melee blow (「噛まれた。」, 「何かに噛まれた。」, 「ヴラスタ
+    に噛まれた。」), whatever the HP did: a cure drunk on the same turn can raise
+    the HP above the last board's, so ``hit_in_melee`` (an HP loss) misses it."""
+    return snapshot.player.blind and any(
+        message_text(m).endswith(JA_BLOW_ACTS) for m in snapshot.messages)
+
+
+def _neighbours(here):
+    return sorted((Position(here.y + dy, here.x + dx) for dy, dx in DIRECTION_KEYS),
+                  key=lambda cell: (cell.y, cell.x))
+
+
+def sightless(snapshot) -> bool:
+    """Blind, or no neighbour of the player is on the board.
+
+    The Labyrinth (MAZE + FORGET) forgets the floor on every move
+    (player-move.cpp: ``wiz_dark`` in a FORGET dungeon), and a blind player's
+    board is not redrawn, so the board around the player is empty."""
+    if snapshot.player.blind:
+        return True
+    return all((grid := snapshot.grid_at(cell)) is None or not grid.known
+               for cell in _neighbours(snapshot.player.position))
+
+
+def _open_neighbour(policy, snapshot, cell, unknown_open: bool = False) -> bool:
     """A passable, non-door neighbour: the board's cell, or, where the board
     shows none, the floor the player remembers from its sighted boards (the
     walk home routes over the same memory).
@@ -116,27 +141,41 @@ def _open_neighbour(policy, snapshot, cell) -> bool:
     n1-a life-466 (2026-11-03 02:31, オークの洞窟14階): blind, bitten by a
     ヴラスタ on almost every step, the board drew only the walls beside it, so
     no neighbour was free to strike and the walk home went on to the death.
+
+    ``unknown_open`` (the player is ``sightless``): a neighbour neither the
+    board nor the memory knows is a strike candidate too.  Owner 2026-11-07
+    「盲目で周りが分からない時は分からない隣のマスにも攻撃する。」  n1-c life-156
+    (2026-11-07 23:08, 迷宮10階): blind on an empty Labyrinth board, punched and
+    kicked from the one unknown cell beside it, it waited to the death.  A cell
+    remembered as wall, rubble or door stays out.
     """
     grid = snapshot.grid_at(cell)
-    if grid is None:
-        return (cell.y, cell.x) in policy._remembered_floor_t
+    point = (cell.y, cell.x)
+    if grid is None or not grid.known:
+        if point in policy._remembered_floor_t:
+            return True
+        if unknown_open:
+            return not (point in policy._remembered_wall_t
+                        or point in policy._remembered_rubble_t
+                        or point in policy._remembered_door_t)
+        if grid is None:
+            return False
     return grid.passable and not grid.is_door
 
 
-def strike_cell(policy, snapshot, hostiles) -> Position | None:
-    """The random free neighbour struck after an unseen melee hit, else None."""
-    if not hit_in_melee(policy, snapshot):
+def strike_cell(policy, snapshot, hostiles, *, blow_landed: bool = False) -> Position | None:
+    """The random free neighbour struck after an unseen melee hit, else None.
+
+    ``blow_landed``: the caller has seen the blow on the board itself (the
+    re-blinding latch of status_cure), so no HP loss is asked for."""
+    if not (blow_landed or hit_in_melee(policy, snapshot)):
         return None
     if snapshot.player.afraid or not policy._can_fight_in_dungeon(snapshot.floor_key[0]):
         return None
-    here = snapshot.player.position
-    cells = sorted(
-        (Position(here.y + dy, here.x + dx) for dy, dx in DIRECTION_KEYS),
-        key=lambda cell: (cell.y, cell.x),
-    )
+    unknown_open = sightless(snapshot)
     candidates = [
-        cell for cell in cells
-        if _open_neighbour(policy, snapshot, cell)
+        cell for cell in _neighbours(snapshot.player.position)
+        if _open_neighbour(policy, snapshot, cell, unknown_open)
         and not any(m.position == cell for m in hostiles)
     ]
     if not candidates:
@@ -193,9 +232,10 @@ def _speed_dose_key(policy, snapshot) -> str | None:
     return speed_dose.key(policy, snapshot, SPEED_REASON)
 
 
-def key(policy, snapshot, hostiles, reason: str = REASON) -> str | None:
+def key(policy, snapshot, hostiles, reason: str = REASON, *,
+        blow_landed: bool = False) -> str | None:
     """Attack one random free neighbour after an unseen melee hit, else None."""
-    target = strike_cell(policy, snapshot, hostiles)
+    target = strike_cell(policy, snapshot, hostiles, blow_landed=blow_landed)
     if target is None:
         return None
     policy.last_reason = reason
