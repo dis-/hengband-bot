@@ -16,7 +16,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_FINISHED,
 )
 from hengbot.item_reservation import decision_memo
-from hengbot import combat_answer, me_capability
+from hengbot import combat_answer, me_capability, me_ranged_first
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import (
     acceptance_dps_floor, acceptance_hp_floor, carry_floor, is_heal_potion_for,
@@ -343,6 +343,20 @@ class OpeningRouteMixin:
         手段も街で使う」), else melee."""
         return combat_answer.strike_key(self, snapshot, self._weakest(adjacent), "melee")
 
+    def _opening_q1_shot(self, snapshot, hostiles):
+        """The ranged answer (me_ranged_first) to the nearest hostile on a clear
+        row, column or diagonal in view, else None."""
+        here = snapshot.player.position
+        for monster in sorted(hostiles, key=lambda each: each.distance):
+            dy, dx = abs(monster.position.y - here.y), abs(monster.position.x - here.x)
+            if not (dy == 0 or dx == 0 or dy == dx) or not self._line_of_sight_over_known_grids(
+                    snapshot, here, monster.position):
+                continue
+            key = me_ranged_first.attack_key(self, snapshot, monster)
+            if key is not None:
+                return key
+        return None
+
     @claims(ClaimOwner.QUEST_REQUEST, census_only=True)
     def _opening_q1_stop(self, detail):
         self._opening_q1_failure = detail
@@ -465,20 +479,30 @@ class OpeningRouteMixin:
             key = self._equipment_wield(snapshot, "light-loadout", light, "light")
             return key if key is not None else self._opening_q1_stop("light-equip-unavailable")
         if snapshot.player.hp < snapshot.player.max_hp:
-            if hostiles:
-                combat = self._town_kill_mob_key(snapshot)
-                if combat is not None:
-                    return combat
-                adjacent = [monster for monster in hostiles
-                            if snapshot.player.position.distance_to(monster.position) <= 1
-                            and not self._step_raises_unintended_confirm(snapshot, monster.position)]
-                if adjacent:
-                    if not self._can_fight_in_dungeon(0):
-                        return self._opening_q1_stop("recovery-hostile-unreachable")
-                    return self._opening_q1_strike(snapshot, adjacent)
+            if not hostiles:
+                self.last_reason = "town:recover"
+                return REST_MACRO
+            combat = self._town_kill_mob_key(snapshot)
+            if combat is not None:
+                return combat
+            adjacent = [monster for monster in hostiles
+                        if snapshot.player.position.distance_to(monster.position) <= 1
+                        and not self._step_raises_unintended_confirm(snapshot, monster.position)]
+            if adjacent and self._can_fight_in_dungeon(0):
+                return self._opening_q1_strike(snapshot, adjacent)
+            # A hostile in view, not beside the player, that the hunt does not
+            # walk to never stops the route (n1-b life-336 2026-11-07 09:05: a
+            # veteran fled from the Magic Missile to 2 cells, and every board
+            # after the restart stopped as recovery-hostile-unreachable).  A
+            # clear shot is taken; else the walk to the Q1 entrance goes on
+            # (owner 2026-10-26).
+            shot = self._opening_q1_shot(snapshot, hostiles)
+            if shot is not None:
+                return shot
+            if adjacent:
+                # Beside the player where the town refuses melee (NO_MELEE): the
+                # walk would pass it on every step (test_opening_route_r3_recorded).
                 return self._opening_q1_stop("recovery-hostile-unreachable")
-            self.last_reason = "town:recover"
-            return REST_MACRO
         # Taken quests are checked at the entrance by the same safety gate,
         # rather than rebuilding their combat model on every town step.
         if (head is None or head.status != QUEST_STATUS_TAKEN) and not self._fixed_quest_ready(snapshot, 1):

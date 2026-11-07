@@ -11701,6 +11701,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_opening.py:OpeningRouteMixin._opening_q1_shot": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The opening route's ranged answer (me_ranged_first.attack_key) to the nearest hostile in view on a clear row, column or diagonal. Called only from _opening_q1_town_key's recovery branch when the hunt does not walk to the hostile and none is adjacent (n1-b life-336 2026-11-07: a veteran fled from the Magic Missile and every board stopped as recovery-hostile-unreachable); without a shot the route goes on to the Q1 entrance. Town combat arbitrates as survival.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_strategies.py:heal_potion_sval": {
     "classification": "data",
     "rows": [
