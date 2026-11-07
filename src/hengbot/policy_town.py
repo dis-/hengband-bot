@@ -7066,6 +7066,9 @@ class TownMixin:
                 # dive, so the human can review stats/resistances/equipment per dive.
                 self._char_dump_done_this_visit = True
                 self.last_reason = "town:character-dump"
+                # The dump is read for calibration like the periodic one; its
+                # own baseline, not an older dump's, proves the file is new.
+                self._prepare_character_sheet_dump()
                 self._offer_execution(
                     CHARACTER_DUMP_MACRO, producer="bookkeeping",
                     work_id="town:departure-character-dump",

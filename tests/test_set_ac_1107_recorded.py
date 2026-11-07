@@ -19,10 +19,14 @@ Row 42 posts the departure character dump; row 43 decides on its C response.
 DECLARED CONSTRUCTED: (1) the dump file the game wrote at row 42 is not
 recorded; the character dump captured at the arrival (same worn gear, same
 level, the row-43 C response agrees with it) is written in its place.  (2) The
-live process still held the preparation of its previous dump
-(``_calibration_dump_prepared``, transient, dropped by the checkpoint); it is
-restored from the recorded rejection's pending record.  (3) The full-set pins
-change only the worn hands' ``artifact_id`` on the row-43 inputs and board.
+full-set pins change only the worn hands' ``artifact_id`` on the row-43 inputs
+and board.
+
+The departure dump (row 42) once relied on the preparation an older periodic
+dump left in ``_calibration_dump_prepared``.  The checkpoint drops that
+transient, so after a restore every departure dump was refused as
+unprepared-character-dump; the departure dump now prepares its own
+(test_departure_dump_is_prepared_after_restore).
 """
 
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -105,11 +109,7 @@ class SetAc1107RecordedTest(unittest.TestCase):
     def to_dump_row(self, transform=lambda state: state):
         """Replay rows 0-42 unchanged, then decide row 43 on the dump."""
         policy = self.restore()
-        pending, reason = policy._calibration_rejection
-        self.assertEqual(reason, "unsupported-ac-set")
-        # DECLARED CONSTRUCTED (2): the live process's dump preparation.
-        policy._calibration_dump_prepared = {
-            "baseline": pending["baseline"], "started_ns": pending["started_ns"]}
+        self.assertEqual(policy._calibration_rejection[1], "unsupported-ac-set")
         for row in range(DUMP_ROW):
             _board, key = self.decide(policy, row)
             self.assertEqual((key, policy.last_reason),
@@ -160,6 +160,30 @@ class SetAc1107RecordedTest(unittest.TestCase):
         worn = dict((slot, owned.item.name) for slot, owned in preparation.result.best.loadout.slots)
         self.assertTrue(worn["body"].startswith(ROHIRRIM), worn["body"])
         self.assertIn("宮本武蔵の脇差し", worn["main_hand"])
+
+    def test_departure_dump_is_prepared_after_restore(self):
+        """The restored policy has no dump preparation; the row-42 departure
+        dump prepares its own, so its dump is read, not refused as
+        unprepared-character-dump."""
+        policy = self.restore()
+        self.assertIsNone(policy._calibration_dump_prepared)
+        for row in range(DUMP_ROW):
+            _board, key = self.decide(policy, row)
+            self.assertEqual((key, policy.last_reason),
+                             (self.journal[row]["key"], self.journal[row]["reason"]), row)
+            if row == DUMP_ROW - 1:
+                self.assertEqual(policy.last_reason, "town:character-dump")
+                self.assertIsNotNone(policy._calibration_dump_prepared)
+                self.assertIsNotNone(policy._calibration_dump_prepared["baseline"])
+            self.post(policy, key)
+        self.assertIsNotNone(policy._calibration_dump_pending["started_ns"])
+        time.sleep(0.01)
+        policy._character_dump_path.write_bytes(
+            self.sidecars["files"]["_character_dump_path"].encode("latin-1"))
+        self.decide(policy, DUMP_ROW)
+        self.assertNotEqual(policy._calibration_unavailable_reason, "unprepared-character-dump")
+        self.assertIsNotNone(policy._character_calibration,
+                             policy._calibration_unavailable_reason)
 
     def test_complete_musashi_set_still_refuses_calibration(self):
         """Katana in main_hand and wakizashi in sub_hand complete set_musasi."""
