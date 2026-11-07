@@ -931,14 +931,15 @@ def instant_death_key(policy, snapshot) -> str | None:
     """A quest plan's 即死 rung (answer 11 「作戦が先・即死だけ例外」, OQ-2).
 
     Inside a plan (dungeon_ladder.FLOOR_PLANS) the plan's own order goes first; the one label
-    that pre-empts it is the 1-turn 即死: the next player action's p95 damage, each monster at
-    its adjusted speed, plus the observed unseen loss, reaches the HP.  The answer is the
+    that pre-empts it is 即死 (3.1): the next player action's p95 damage, each monster at its
+    adjusted speed, plus the observed unseen loss, reaches the HP; or an awake unresisted
+    paralyser in contact; or the hallucination rule.  The answer is the
     existing escape as the emergency ladder chooses it (stairs, the blindness/confusion cure that
     owes the escape, the low-HP heal-first rule, *Destruction*, Teleportation, Recall, the walk
     to the stairs, the last stand), the escape ``_emergency_item`` runs when ``lethal`` holds.
     """
     hostiles = engagement(policy, snapshot)
-    if not instant_death(policy, snapshot, hostiles).next_action:
+    if not instant_death(policy, snapshot, hostiles).holds:
         return None
     return policy._emergency_item(snapshot, hostiles, instant_death=True)
 

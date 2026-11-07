@@ -56,7 +56,7 @@ def decide(policy, raw):
     return board, str(policy.choose_key(board)), policy.last_reason
 
 
-def decided_with_and_without(new_policy, raws):
+def decided_with_and_without(new_policy, raws, fires=lambda death: death.holds):
     """turn -> (without, with, the InstantDeath read) on every board whose decision asked the test
     and got it holding.  Pass 1 decides with the test answering "no" and notes where its real value
     held; pass 2 copies the policy before those boards and decides the copy with the test on."""
@@ -65,7 +65,7 @@ def decided_with_and_without(new_policy, raws):
 
     def noting(policy, snapshot, hostiles=None):
         death = real(policy, snapshot, hostiles)
-        if death.next_action:
+        if fires(death):
             fired.setdefault(snapshot.turn, death)
         return OFF
 
@@ -190,6 +190,15 @@ class QuestFindExitWiringTest(unittest.TestCase):
             key, reason, _policy = q18.decide(self.board())
         self.assertTrue(reason.startswith("emergency:"), (key, reason))
         self.assertNotEqual(reason, quest_find_exit.MELEE_REASON)
+
+    def test_the_paralyser_and_hallucination_labels_answer_too(self):
+        # Design 3.1 defines both as 即死; the HP model cannot see them (forced here).
+        for label in ("paralyzer-contact", "hallucination"):
+            with self.subTest(label=label):
+                forced = threat_tiers.InstantDeath((label,), 0, 0)
+                with patch.object(threat_tiers, "instant_death", lambda *args, **kwargs: forced):
+                    key, reason, _policy = q18.decide(self.board())
+                self.assertNotEqual(reason, quest_find_exit.MELEE_REASON, (key, reason))
 
 
 class EmergencyEscapeTest(unittest.TestCase):

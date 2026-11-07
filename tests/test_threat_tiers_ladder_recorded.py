@@ -34,6 +34,12 @@ for _name in LIVES:
     recorded.CASES.setdefault(_name, recorded.load(_name))
 
 
+def ONE_TURN(death):
+    """The shared ladder acts on the 1-turn p95 test (the paralyser and hallucination labels
+    have their own rungs there)."""
+    return death.next_action
+
+
 def life(name):
     case = recorded.CASES[name]
     raws = recorded.boards(case)
@@ -51,7 +57,7 @@ class AcceptanceTest(unittest.TestCase):
     def test_no_recorded_death_board_changes_outside_the_plans(self):
         for name, fired in LIVES.items():
             with self.subTest(life=name):
-                answers = decided_with_and_without(*life(name))
+                answers = decided_with_and_without(*life(name), fires=ONE_TURN)
                 self.assertEqual(len(answers), fired)
                 for turn, (before, after, death) in answers.items():
                     self.assertTrue(death.next_action, turn)
@@ -65,7 +71,7 @@ class CommittedFightTest(unittest.TestCase):
 
     def answers(self, name):
         with committed():
-            return decided_with_and_without(*life(name))
+            return decided_with_and_without(*life(name), fires=ONE_TURN)
 
     def test_the_committed_fight_gives_way_on_the_n1c_099_boards(self):
         answers = self.answers("death-n1c-099-1102.json.gz")
