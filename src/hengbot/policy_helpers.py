@@ -552,7 +552,22 @@ class PolicyHelpersMixin:
         required-ability checks below still apply, and the bounced dungeon
         itself is never a candidate (its guardian verdict can depend on
         consumables and read differently on the arrival board).
+
+        Owner decision 2026-11-07 (n1-c life-159 bounced off the Castle and was
+        sent to the Orc cave 23F): 「鉄獄の帰還の階が条件を満たすなら鉄獄へ行き、
+        だめな時だけほかのダンジョンから選ぶ。」  The guardian valve therefore
+        takes Angband first whenever its recall landing passes every check
+        (``_guardian_valve_angband_acceptable``), and only otherwise chooses
+        among the other entered dungeons.  The other alternate paths
+        (over-extension, no depth progress, safe fallback) are unchanged.
         """
+        if (
+            guardian_bounced_dungeon is not None
+            and self._guardian_valve_angband_acceptable(
+                snapshot, guardian_bounced_dungeon
+            )
+        ):
+            return DUNGEON_ANGBAND
         # The deepest already-unlocked dungeon — excluding the over-deep main one
         # and the Yeek Cave reserved for fundraising — whose floor is SHALLOWER
         # than the depth we could not loot at. Deepest-that-still-fits is the most
@@ -607,21 +622,36 @@ class PolicyHelpersMixin:
                 best = info
         if best is not None:
             return best.id
-        # Owner decision 2026-10-27 (#47): when the guardian valve has
-        # exhausted the entered alternatives, open Angband via inn rumors.
-        # Keep ordinary over-extension choices unchanged, and never send a
-        # bounced Angband dive straight back to its refused landing.
-        if (
-            guardian_bounced_dungeon is not None
-            and guardian_bounced_dungeon != DUNGEON_ANGBAND
+        # Owner decision 2026-10-27 (#47) sent the guardian valve to Angband
+        # (via inn rumors when locked) once the entered alternatives were
+        # exhausted; since 2026-11-07 Angband is asked first above, so an
+        # acceptable Angband never reaches this point.
+        return None
+
+    def _guardian_valve_angband_acceptable(
+        self, snapshot: Snapshot, guardian_bounced_dungeon: int
+    ) -> bool:
+        """Whether the guardian valve may send the character to Angband.
+
+        Angband's recall landing must pass the same checks as any other
+        destination: not a guardian floor the kit cannot pass and the
+        required abilities for that depth (``_recall_destination_safe``, on
+        the landing ``_dungeon_entry_depth`` expects -- the saved Angband depth,
+        or its entry floor when it is still shut and an inn rumor opens it,
+        store/rumor.cpp ``set_max_level(dungeon.mindepth)``), a dungeon this
+        character can fight in, and not refused by the random-quest hold.  A
+        bounced Angband dive is never sent straight back to its refused
+        landing, nor is an Angband alternate re-picked when it is the one
+        being left.
+        """
+        return (
+            guardian_bounced_dungeon != DUNGEON_ANGBAND
             and self._alternate_dungeon != DUNGEON_ANGBAND
             and DUNGEON_ANGBAND in self._dungeon_knowledge
             and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
             and self._can_fight_in_dungeon(DUNGEON_ANGBAND)
             and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
-        ):
-            return DUNGEON_ANGBAND
-        return None
+        )
     def _fallback_destination_allowed(self, dungeon_id: int) -> bool:
         """Whether ``dungeon_id`` can ever be the fallback of ``_pick_alternate_dungeon``.
 
