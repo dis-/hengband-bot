@@ -644,6 +644,103 @@ class Q18FarEnemyThatDoesNotComeTest(unittest.TestCase):
         self.assertNotIn(WALK_REASON, [row[2] for row in rows[start:]], rows)
 
 
+with gzip.open(ROOT / "tests" / "fixtures" / "q18-life495-20261108.json.gz", "rt", encoding="utf-8",
+               errors="surrogateescape") as _stream:
+    LIFE_495 = {(row["player"]["y"], row["player"]["x"]): row for row in json.load(_stream)["boards"]}
+SWORDFISH = 88
+
+
+class Q18InViewThatDoesNotComeTest(unittest.TestCase):
+    """Owner 2026-11-08 「見えていても移動経路があるとは限らない。50行動で来なければ経路がないと
+    判断する。」.
+
+    n1-a life 495 (2026-11-08 00:15, floor (0,35,18)): from (3,20) the swordfish 88 on (10,13)
+    (and the shrieker 40, which never moves) was in view, from (2,20) and (1,19) nothing.  The
+    swordfish never moved.  (3,20) stepped to the choke (1,19), (2,20) stepped back to the exit,
+    until the loop guard stopped the bot; after each restart it did the same at once.
+
+    The boards are the recorded ones (tests/fixtures/q18-life495-20261108.json.gz,
+    tests/extract_q18_life495_fixture.py: turns 1413514 on (3,20), 1413519 on (2,20), 1413558
+    on (1,19)).  DECLARED CONSTRUCTED: HP full and fed (the recorded 534/627 and hungry
+    answer with the rest and the meal first, which the live bot did not take there); a cell the
+    recording has no board for is the (2,20) board with the player moved and nothing in view.
+    """
+
+    def raw_at(self, position, turn):
+        raw = copy.deepcopy(LIFE_495.get(position) or LIFE_495[(2, 20)])
+        if position not in LIFE_495:
+            raw["player"].update(y=position[0], x=position[1])
+            raw["visible_monsters"], raw["detected_monsters"] = [], []
+        raw["player"].update(hp=raw["player"]["max_hp"], food_state="normal")
+        raw["turn"] = turn
+        return raw
+
+    def walk(self, decisions):
+        """The player moves by each step key, as the game would; the cell loop guard of the
+        CLI is run beside it.  Returns the rows and the decision the guard tripped on."""
+        start = LIFE_495[(3, 20)]
+        policy = new_policy(self.raw_at((3, 20), start["turn"]))
+        position, turn, rows, tripped = (3, 20), start["turn"], [], None
+        recent = deque(maxlen=cli.MULTIPLIER_COMBAT_LOOP_WINDOW)
+        last_position = last_player = None
+        for decision in range(decisions):
+            turn += 10
+            snapshot = parse_snapshot(self.raw_at(position, turn), policy._monrace_knowledge)
+            key = str(policy.choose_key(snapshot))
+            rows.append((position, key, policy.last_reason))
+            previous_position, last_position = last_position, snapshot.player.position
+            previous_player, last_player = last_player, snapshot.player
+            if cli._cell_loop_guard_applies(snapshot, policy.last_reason, previous_position,
+                                            previous_player):
+                recent.append((snapshot.floor_key, position[0], position[1]))
+                if tripped is None and cli._is_looping(recent):
+                    tripped = decision
+            else:
+                recent.clear()
+            delta = next((offset for offset, value in DIRECTION.items() if value == key), None)
+            if delta is not None:
+                position = (position[0] + delta[0], position[1] + delta[1])
+        return rows, tripped
+
+    def test_life_495_the_swordfish_that_does_not_come_does_not_rock_the_walk(self):
+        rows, tripped = self.walk(80)
+        self.assertIsNone(tripped, rows)
+        cells = [cell for cell, _, _ in rows]
+        rocks = [index for index in range(2, len(cells))
+                 if cells[index] == cells[index - 2] != cells[index - 1]]
+        self.assertEqual(rocks, [], rows)
+        # It waits for it on the choke it went to, then goes on to the exit side.
+        self.assertEqual(rows[0], ((3, 20), step_key((3, 20), (2, 20)), TO_CHOKE_REASON), rows)
+        self.assertEqual(rows[2][:1] + rows[2][2:], ((1, 19), HOLD_REASON), rows)
+        self.assertGreater(max(x for _, x in cells), 22, rows)
+
+    def stay(self, swordfish_cells):
+        """The player kept on (3,20) (DECLARED CONSTRUCTED), one decision per entry with the
+        swordfish on that cell."""
+        policy = new_policy(self.raw_at((3, 20), LIFE_495[(3, 20)]["turn"]))
+        rows = []
+        for decision, cell in enumerate(swordfish_cells):
+            raw = self.raw_at((3, 20), LIFE_495[(3, 20)]["turn"] + 10 * (decision + 1))
+            for row in raw["visible_monsters"]:
+                if row["race_id"] == SWORDFISH:
+                    row.update(y=cell[0], x=cell[1])
+            policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
+            rows.append(policy.last_reason)
+        return rows
+
+    def test_in_view_fifty_actions_without_coming_it_has_no_route(self):
+        wait = quest_find_exit.IN_VIEW_WAIT_ACTIONS
+        rows = self.stay([(10, 13)] * (wait + 1))
+        self.assertEqual(rows[:wait], [TO_CHOKE_REASON] * wait, rows)
+        self.assertEqual(rows[wait], WALK_REASON, rows)
+
+    def test_control_one_that_comes_nearer_counts_again(self):
+        wait = quest_find_exit.IN_VIEW_WAIT_ACTIONS
+        cells = [(10, 13)] * (wait - 5) + [(9, 16)] * 10
+        rows = self.stay(cells)
+        self.assertEqual(rows, [TO_CHOKE_REASON] * len(cells), rows)
+
+
 class Q18RestLoopGuardTest(unittest.TestCase):
     """Owner 2026-11-06 「休憩中の止まり判定の誤りも直す」.  n1-a life 490 (floor (0,35,18)):
     on the choke (1,12) the rest was cut after one turn each time (the sealed Greater kraken
@@ -735,19 +832,23 @@ class Q18PlaythroughTest(unittest.TestCase):
         self.assertEqual((key, reason), (WAIT_KEY, HOLD_REASON))
 
     def test_the_quiet_bound_does_not_push_past_an_enemy_in_view(self):
+        """Owner 2026-11-08 「50行動で来なければ経路がないと判断する」: the shark that stays in
+        view on its cell is waited for IN_VIEW_WAIT_ACTIONS actions, then the quiet wait of the
+        choke it was waited on (choke_hold_turns) runs, then the walk goes on."""
         shark = monster(SHARK, 4, 7)
         raw = board((1, 5), monsters=[shark], speed=0, ammo=False)
         policy = new_policy(raw)
         plan = STRATEGIES[18].engagement_plan["find_exit"]
+        wait = quest_find_exit.IN_VIEW_WAIT_ACTIONS
+        held = wait + plan["choke_hold_turns"]
         reasons = []
-        for _ in range(plan["choke_enemy_wait_turns"] + 2):
+        for _ in range(held + 2):
             raw["turn"] += 10
             policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
             reasons.append(policy.last_reason)
-        self.assertGreater(plan["choke_enemy_wait_turns"], plan["choke_hold_turns"])
-        self.assertEqual(reasons[:plan["choke_enemy_wait_turns"]],
-                         [HOLD_REASON] * plan["choke_enemy_wait_turns"])
-        self.assertNotEqual(reasons[plan["choke_enemy_wait_turns"]], HOLD_REASON)
+        self.assertGreater(plan["choke_enemy_wait_turns"], wait)
+        self.assertEqual(reasons[:held], [HOLD_REASON] * held)
+        self.assertEqual(reasons[held], WALK_REASON)
 
     def test_a_choke_fight_strikes_the_adjacent_enemy(self):
         raw = board((1, 3), monsters=[monster(SQUID, 1, 4)], speed=0)
