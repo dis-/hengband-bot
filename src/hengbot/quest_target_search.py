@@ -47,6 +47,31 @@ exploration, which is asked before the loop, walks it.  The walk is not ``seek-s
 that reason counts to STUCK_ESCAPE_LIMIT, which releases the exit lock, and no leave rule changes
 here.  A walk between dead ends restarts that count, as any loop step does.
 
+The sealed pocket (owner 2026-11-08, n1-a life-496: Angband 6F, RANDOM quest 49, two hours of
+laps over x 78-131 of a 132-wide floor, no dead end hiding the way on): 「感知手段があるならそれを
+用いる。感知手段のないキャラクタの場合、扉になりうる場所の探索を追加する。」.  The places a door can
+be (``door_walls``): a tunnel through a room's outer wall is a secret door one time in five
+(floor/cave-generator.cpp make_walls, place_random_door(..., true); grid/door.cpp: randint0(1000)
+400-599 places a closed door that mimics dungeon.outer_wall), and a corridor junction's door
+(grid/feature-generator.cpp try_door) mimics a wall terrain; so, from inside, a door reads as a
+remembered wall.  A wall is such a place when a walkable grid lies beside it orthogonally and the
+grid straight beyond is not known and inside the outer wall (a tunnel never runs on the boundary).
+ - With a means (``door_means_key``): a door detection (spell-kind/spells-detection.cpp
+   detect_doors, disclose_grid, DETECT_RAD_DEFAULT, a third in a DARKNESS dungeon) is cast where a
+   place no cast has covered lies within its radius: the absorbed Detect Doors first
+   (me_powers.SECRET_SEARCH, its row's own spacing), then the carried Rod of Door/Stair Location,
+   Rod of Detection (detect_all, cmd-zaprod.cpp), Staff of Detect Doors (cmd-usestaff.cpp) and
+   Scroll of Door/Stair Location (scroll-read-executor.cpp).  So a pocket is covered once, and
+   again only where a new area brings places no cast reached.  A Rod of Detection the target
+   search zapped (``detection_key``) and the absorbed Detect Doors or Detection the rows cast
+   cover too.  Magic Mapping and Enlightenment do not: map_area and wiz_lite memorize the MIMIC
+   terrain.  *Enlightenment* would, but its self-knowledge screen is not answered
+   (consumable_policy.USE_UNSUPPORTED).
+ - Without one (``door_means_held`` false): each door search round also walks to the walkable
+   grids beside the places no cast covered, nearest first, after the dead ends, and searches each
+   SEARCH_LIMIT times as a dead end (player/player-move.cpp search: the 8 neighbours).
+Nothing is given up: the laps go on with no cap.
+
 The detection (``detection_key``, on the dungeon's safe decision, under me_powers' own rows,
 which cast an absorbed power first): only a means that can show this race
 (hunt_target.REVEALS), the carried Rod of Detection before the Staff of Detect Evil.  Again
@@ -60,26 +85,39 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from hengbot import area_mapping, hunt_target, me_powers, retreat_enclosure
+from hengbot import area_mapping, hunt_target, me_capability, me_powers, retreat_enclosure
 from hengbot.item_reservation import reserved_item_command
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
-    SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_STAFF, Position, Snapshot, game_distance,
+    SV_ROD_DETECT_DOOR, SV_ROD_DETECTION, SV_SCROLL_DETECT_DOOR, SV_STAFF_DETECT_DOOR,
+    SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, Position, Snapshot, game_distance,
 )
-from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY
+from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT
 
 
 LOOP_REASON = "quest-search:loop"
 DETECT_REASON = "quest-search:detect"
 DOOR_REASON = "quest-search:seek-door"
+DOOR_MEANS_REASON = "quest-search:detect-doors"
 SEARCH_REASON = "search"  # the corridor dead-end rung's own reason
 DOOR_SEARCH_LAPS = 3  # the owner's 「何周か」: the target's healing is why the loop hurries
 MEMORY = "_quest_target_search"
+MONSTERS, DOORS, BOTH = "monsters", "doors", "both"  # what a carried use detects
 MAX_SIGHT = 20  # define.h
 # (tval, sval): (the command kind, hunt_target.REVEALS's effect), the fuller search first.
 CARRIED_DETECTION = {
     (TVAL_ROD, SV_ROD_DETECTION): ("rod", "detect-all"),
     (TVAL_STAFF, SV_STAFF_DETECT_EVIL): ("staff", "detect-evil"),
 }
+# (tval, sval): the command kind of a carried door detection, the recharging rods first.
+CARRIED_DOOR_MEANS = {
+    (TVAL_ROD, SV_ROD_DETECT_DOOR): "rod",
+    (TVAL_ROD, SV_ROD_DETECTION): "rod",
+    (TVAL_STAFF, SV_STAFF_DETECT_DOOR): "staff",
+    (TVAL_SCROLL, SV_SCROLL_DETECT_DOOR): "read",
+}
+# The absorbed powers (me_powers rows) whose cast discloses doors.
+ABSORBED_DOOR_MEANS = (("staff", SV_STAFF_DETECT_DOOR), ("rod", SV_ROD_DETECTION))
 
 
 @dataclass
@@ -94,6 +132,8 @@ class Memory:
     laps: int = 0                              # laps finished on this floor visit
     door_lap: int = 0                          # the lap the last door search began at
     door_search: bool = False                  # the dead ends are being searched now
+    door_casts: list = field(default_factory=list)  # (position, radius) a carried door detection covered
+    pending_shows: str = "monsters"            # what the pending use detects: MONSTERS, DOORS or BOTH
 
 
 def _memory(policy, snapshot: Snapshot) -> Memory:
@@ -207,12 +247,112 @@ def _walk_key(policy, snapshot: Snapshot, routes: dict, goal: Position, reason: 
     return policy._step_toward(snapshot, step)
 
 
+def _known(policy, snapshot: Snapshot, cell: Position) -> bool:
+    key = (cell.y, cell.x)
+    if key in policy._remembered_floor_t or key in policy._remembered_wall_t:
+        return True
+    grid = snapshot.grid_at(cell)
+    return grid is not None and grid.known
+
+
+def door_walls(policy, snapshot: Snapshot, routes: dict) -> set:
+    """The remembered walls a door can be in (the module docstring): beside a walkable grid
+    orthogonally, with the grid straight beyond unknown and inside the outer wall."""
+    walls = set()
+    for cell in routes:
+        for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            wall = Position(cell.y + dy, cell.x + dx)
+            if (wall.y, wall.x) not in policy._remembered_wall_t or wall in walls:
+                continue
+            beyond = Position(wall.y + dy, wall.x + dx)
+            if (0 < beyond.y < snapshot.height - 1 and 0 < beyond.x < snapshot.width - 1
+                    and not _known(policy, snapshot, beyond)):
+                walls.add(wall)
+    return walls
+
+
+def _beside(cell: Position, walls: set) -> list:
+    """The ``walls`` among the 8 grids a search at ``cell`` covers."""
+    return [wall for dy, dx in NEIGHBOR_OFFSETS if (wall := Position(cell.y + dy, cell.x + dx)) in walls]
+
+
+def _absorbed_door_casts(policy, snapshot: Snapshot, radius: int) -> list:
+    floor = getattr(policy, me_powers.MEMORY, None)
+    if floor is None or floor.floor != snapshot.floor_key:
+        return []
+    return [(use.position, radius) for use in floor.uses if use.used in ABSORBED_DOOR_MEANS]
+
+
+def _uncovered(policy, snapshot: Snapshot, memory: Memory, walls: set) -> set:
+    """The places no door detection of this floor visit reached."""
+    casts = [*memory.door_casts,
+             *_absorbed_door_casts(policy, snapshot, me_powers.map_radius(policy, snapshot))]
+    return {wall for wall in walls
+            if not any(game_distance(centre, wall) <= radius for centre, radius in casts)}
+
+
+def _carried_door_means(snapshot: Snapshot):
+    """(item, kind) of each carried door detection, in CARRIED_DOOR_MEANS's order."""
+    held = []
+    for kind_key, kind in CARRIED_DOOR_MEANS.items():
+        item = next((each for each in snapshot.inventory
+                     if (each.tval, each.sval) == kind_key and each.known and each.aware), None)
+        if item is not None:
+            held.append((item, kind))
+    return held
+
+
+def door_means_held(policy, snapshot: Snapshot) -> bool:
+    """A door detection to use: an absorbed one with a charge, a rod, a staff with a charge
+    or a scroll (a charging rod is still held)."""
+    if snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER and any(
+            me_capability.charges(policy, snapshot, kind, sval) > 0
+            for kind, sval in ABSORBED_DOOR_MEANS):
+        return True
+    return any(kind != "staff" or item.charges > 0 for item, kind in _carried_door_means(snapshot))
+
+
+def door_means_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> str | None:
+    """A door detection where a place no cast covered lies within its radius, else None."""
+    radius = me_powers.map_radius(policy, snapshot)
+    here = snapshot.player.position
+    uncovered = _uncovered(policy, snapshot, memory, door_walls(policy, snapshot, routes))
+    if not any(game_distance(here, wall) <= radius for wall in uncovered):
+        return None
+    power = me_powers.power_key(policy, snapshot, me_powers.SECRET_SEARCH)
+    if power is not None:
+        return power
+    if (memory.failed.get(here, 0) >= me_powers.FAILURES_PER_PLACE
+            or not area_mapping.device_usable_now(policy, snapshot)):
+        return None
+    for item, kind in _carried_door_means(snapshot):
+        if kind == "read":
+            if not policy._can_read_scrolls(snapshot):
+                continue
+            used = policy._read_key(snapshot, item)
+        elif area_mapping.device_ready(item, kind):
+            used = reserved_item_command(policy, snapshot, kind, item)
+        else:
+            continue
+        if used is None:
+            continue
+        policy.last_reason = DOOR_MEANS_REASON
+        memory.pending = (snapshot.turn, here, radius)
+        memory.pending_shows = BOTH if (item.tval, item.sval) == (TVAL_ROD, SV_ROD_DETECTION) else DOORS
+        return used
+    return None
+
+
 def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> str | None:
     """This decision's part of the secret door search (the module docstring), else None."""
     ends = _dead_ends(policy, snapshot, routes)
+    spots, uncovered = [], set()
+    if not door_means_held(policy, snapshot):
+        uncovered = _uncovered(policy, snapshot, memory, door_walls(policy, snapshot, routes))
+        spots = [cell for cell in routes if cell not in ends and _beside(cell, uncovered)]
     if not memory.door_search and memory.laps - memory.door_lap >= DOOR_SEARCH_LAPS:
         memory.door_lap, memory.door_search = memory.laps, True
-        for cell in ends:
+        for cell in (*ends, *spots):
             policy._forget_wall_search(cell)
     if not memory.door_search:
         return None
@@ -220,6 +360,13 @@ def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -
     if power is not None:
         return power
     left = [cell for cell in ends if policy._undersearched_walls(cell)]
+    if not left:
+        # The dead ends first (the likelier place), then the walls a door can be in: a grid
+        # beside one whose search rounds are not spent, from there or a neighbour.
+        left = [cell for cell in spots
+                if policy._search_counts[(cell.y, cell.x)] < SEARCH_LIMIT
+                and any(policy._wall_search_counts[(wall.y, wall.x)] < SEARCH_LIMIT
+                        for wall in _beside(cell, uncovered))]
     if not left:
         memory.door_search = False
         return None
@@ -239,6 +386,9 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     if walled_off is not None:
         return walled_off
     memory, routes = _memory(policy, snapshot), _routes(policy, snapshot)
+    means = door_means_key(policy, snapshot, memory, routes)
+    if means is not None:
+        return means
     door = _door_search_key(policy, snapshot, memory, routes)
     if door is not None:
         return door
@@ -262,10 +412,13 @@ def observe(policy, snapshot: Snapshot) -> None:
             or snapshot.turn == memory.pending[0]):
         return
     turn, position, radius = memory.pending
-    memory.pending = None
+    shown, memory.pending, memory.pending_shows = memory.pending_shows, None, MONSTERS
     if any(message in area_mapping.FAILED for message in snapshot.messages):
         memory.failed[position] = memory.failed.get(position, 0) + 1
-    else:
+        return
+    if shown in (DOORS, BOTH):
+        memory.door_casts.append((position, radius))
+    if shown in (MONSTERS, BOTH):
         memory.casts.append((position, radius, turn))
 
 
@@ -299,4 +452,6 @@ def detection_key(policy, snapshot: Snapshot) -> str | None:
         return None
     policy.last_reason = DETECT_REASON
     memory.pending = (snapshot.turn, here, me_powers.map_radius(policy, snapshot))
+    # detect_all discloses the doors too (spells-detection.cpp).
+    memory.pending_shows = BOTH if carried[1] == "rod" else MONSTERS
     return used
