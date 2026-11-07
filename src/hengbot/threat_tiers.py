@@ -251,10 +251,13 @@ def engagement(policy, snapshot) -> list:
 
 
 def unseen_correction(policy, snapshot, hostiles) -> int:
-    """The last attributable loss under ``observed_loss_lethal``'s gating, counted once."""
+    """The last attributable loss under ``observed_loss_lethal``'s gating, counted once, and only
+    when an unseen attacker is evidenced (design 3.1): a loss the visible monsters dealt is in the
+    p95 already, so adding it again would count it twice."""
     player = snapshot.player
     attributable = (
         policy._took_damage
+        and policy._unseen_attack_evidence is not None
         and not policy._took_curse_damage
         and not policy._took_trap_or_terrain_damage
         and not snapshot.in_town

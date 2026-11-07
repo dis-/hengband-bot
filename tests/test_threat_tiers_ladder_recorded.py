@@ -9,8 +9,8 @@ the 1-turn test does.
 
 Acceptance (design step 5): over the recorded death lives no board that escaped before now stays,
 and no board that fought before now flees unless the 1-turn test holds there.  Recorded: the death
-lives of n1-c 077, 099, 103 and 123 and n1-a 475's summons, the ones the 1-turn test fires on (18
-boards); on each the decision with the test equals the decision without it.
+lives of n1-c 077, 099, 103 and 123 and n1-a 475's summons, the ones the 1-turn test fires on (12
+boards in all); on each the decision with the test equals the decision without it.
 ``decided_with_and_without`` (tests/test_threat_tiers_plans_recorded.py) decides a copy of the
 policy with the test on every board where its read held inside the recorded decision.
 DECLARED CONSTRUCTED where a test makes the recorded fight a committed unique fight (it says so).
@@ -25,8 +25,9 @@ from tests import test_threat_tiers_recorded as recorded
 from tests.test_threat_tiers_plans_recorded import EMERGENCY_TELEPORT, decided_with_and_without
 
 LIVES = {
-    "death-n1c-077-1101.json.gz": 3, "death-n1c-099-1102.json.gz": 9,
-    "death-n1c-103-1102.json.gz": 1, "death-n1c-123-1104.json.gz": 3,
+    # The observed loss counts only with an unseen attacker evidenced (design 3.1).
+    "death-n1c-077-1101.json.gz": 3, "death-n1c-099-1102.json.gz": 5,
+    "death-n1c-103-1102.json.gz": 1, "death-n1c-123-1104.json.gz": 1,
     "summon-response-n1a-475-1104.json.gz": 2,
 }
 for _name in LIVES:
@@ -75,7 +76,7 @@ class CommittedFightTest(unittest.TestCase):
         self.assertEqual(after[1], EMERGENCY_TELEPORT)
         self.assertGreaterEqual(death.next_action_p95, 77)
         changed = {turn for turn, (before, after, _death) in answers.items() if before != after}
-        self.assertEqual(changed, {691548, 691696, 691704, 691716, 691725})
+        self.assertEqual(changed, {691696, 691704, 691716, 691725})
         for turn in changed:
             self.assertEqual(answers[turn][1][1], EMERGENCY_TELEPORT, turn)
 

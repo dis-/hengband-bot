@@ -197,6 +197,12 @@ class ThreatTiersTest(unittest.TestCase):
         p95 = self.assess(snapshot).next_action_p95
         self.policy._took_damage = True
         self.policy._last_damage_amount = 200 - p95
+        # A loss with no unseen attacker evidenced is the visible duelist's, in the p95 already.
+        self.policy._unseen_attack_evidence = None
+        result = self.assess(snapshot)
+        self.assertEqual(result.unseen_correction, 0)
+        self.assertFalse(result.instant_death)
+        self.policy._unseen_attack_evidence = "何かに攻撃された。"
         result = self.assess(snapshot)
         self.assertEqual(result.unseen_correction, 200 - p95)
         self.assertTrue(result.instant_death)
