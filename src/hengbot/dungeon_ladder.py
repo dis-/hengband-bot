@@ -291,13 +291,18 @@ class FloorPlan(NamedTuple):
     branches: tuple[Branch, ...]
 
 
+# The one survival rung of the threat tiers inside a plan (owner 2026-11-07, answer 11
+# 「作戦が先・即死だけ例外」, OQ-2): the 1-turn 即死 heads every board with an enemy, after
+# the FIRST rungs of a branch only (quest_find_exit's ``_step_on_exit`` is a branch of its own).
+INSTANT_DEATH = "threat_tiers.instant_death_key"
+
 # A plan rung returns above the emergency ladder, so the owner's rules must be asked inside it.
 FLOOR_PLANS = (
     FloorPlan("quest_find_exit.key", "quest_find_exit", (
         # Leaving is the plan's end: "the quest is done and the danger behind".
         Branch("the exit is beside the player", (("_step_on_exit", FIRST),)),
         Branch("on a cell the casters reach", (
-            ("_below_line_recall", SURVIVAL), ("_heal", SURVIVAL),
+            (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), ("_heal", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
             # A walk to a choke under way goes on before the exit walk (owner 2026-11-06).
             ("_choke_walk_under_way", OWN), ("_advance", OWN))),
@@ -306,7 +311,7 @@ FLOOR_PLANS = (
             ("_to_choke", OWN),
             ("_wait_after_fight", OWN), ("_advance", OWN)), enemy=False),
         Branch("an enemy for the line", (
-            ("_below_line_recall", SURVIVAL), ("_engaged_survival", SURVIVAL),
+            (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), ("_engaged_survival", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_fight", OWN),
             ("_choke_walk_under_way", OWN), ("_advance", OWN))),
     )),
@@ -320,6 +325,7 @@ FLOOR_PLANS = (
             ("quest_room_sweep._restore", OWN), ("_phase_key", OWN),
             ("resist_potion.leave_key", OWN)), enemy=False),
         Branch("an enemy", (
+            (INSTANT_DEATH, SURVIVAL),
             ("quest_find_exit._cure", SURVIVAL), ("_druj_retreat", SURVIVAL),
             ("quest_room_sweep._give_up", SURVIVAL),
             ("quest_room_sweep._below_line", SURVIVAL), ("quest_find_exit._heal", SURVIVAL),
@@ -337,6 +343,7 @@ FLOOR_PLANS = (
             ("_out_of_line", OWN),
             ("quest_find_exit._rest", OWN), ("_ambush_key", OWN), ("_advance", OWN)), enemy=False),
         Branch("an enemy", (
+            (INSTANT_DEATH, SURVIVAL),
             ("quest_find_exit._cure", SURVIVAL), ("_leave_by_exit", SURVIVAL),
             ("_give_up", SURVIVAL), ("_below_line", SURVIVAL), ("quest_find_exit._heal", SURVIVAL),
             ("quest_find_exit._speed", SURVIVAL), ("quest_room_light.floor_potion_key", FIRST),

@@ -87,6 +87,7 @@ from hengbot import (
     resist_potion,
     speed_dose,
     summon_response,
+    threat_tiers,
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -1292,7 +1293,7 @@ def _phase_key(policy, snapshot) -> str | None:
 # -- the summons ------------------------------------------------------------------------
 
 
-def _druj_retreat(policy, snapshot) -> str | None:
+def _druj_retreat(policy, snapshot, *, line=True) -> str | None:
     """Owner 2026-11-07 (phase7_druj) 「歩いてドルジの射線から外れる。安全に休憩可能なはずである。
     必要なら歩いて射線から外れた後薬を飲む。」
 
@@ -1301,7 +1302,8 @@ def _druj_retreat(policy, snapshot) -> str | None:
     the line ``_below_line`` reads Teleportation at) the walk leaves the druj's direct line (it never
     moves and every spell of it needs that line), then rests there until HP is full.  A rest that
     did not raise HP (refused or broken off) is followed by a Healing potion -- out of the line only.
-    Back at full HP the phase walks back to its stand.
+    Back at full HP the phase walks back to its stand.  ``line=False``: the plan's escape asked by
+    its 即死 rung, whatever the HP (threat_tiers.instant_death_key).
     """
     ctx = _ctx(policy, snapshot)
     if (ctx is None or ctx.battle.phase >= len(PHASES) or PHASES[ctx.battle.phase].name != "druj"
@@ -1311,7 +1313,7 @@ def _druj_retreat(policy, snapshot) -> str | None:
         return None
     battle, player = ctx.battle, snapshot.player
     if not battle.retreating:
-        if player.hp_ratio > float(ctx.profile.abort_conditions["hp_ratio"]):
+        if line and player.hp_ratio > float(ctx.profile.abort_conditions["hp_ratio"]):
             return None
         battle.retreating = True
     if player.hp >= player.max_hp:
@@ -1373,7 +1375,13 @@ def key(policy, snapshot) -> str | None:
             or resist_potion.leave_key(policy, snapshot)
         )
     return (
-        quest_find_exit._cure(policy, snapshot)
+        # Owner 2026-11-07 「作戦が先・即死だけ例外」: only the 1-turn 即死 pre-empts the plan.
+        # The plan's escape: with the druj's anti-teleport piece worn the walk out of its line
+        # (owner 2026-11-07 phase7_druj), else the below-line Teleportation.
+        threat_tiers.instant_death_key(policy, snapshot, lambda: (
+            _druj_retreat(policy, snapshot, line=False)
+            or quest_room_sweep._below_line(policy, snapshot, profile, navigator, line=False)))
+        or quest_find_exit._cure(policy, snapshot)
         or _druj_retreat(policy, snapshot)
         or quest_room_sweep._give_up(policy, snapshot, profile)
         or quest_room_sweep._below_line(policy, snapshot, profile, navigator)

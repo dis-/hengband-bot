@@ -18,7 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hengbot import quest_find_exit, quest_force_rows, quest_room_light, quest_room_sweep, summon_response
+from hengbot import quest_find_exit, quest_force_rows, quest_room_light, quest_room_sweep, summon_response, threat_tiers
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, SV_POTION_RESISTANCE, TVAL_POTION, _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
@@ -138,26 +138,33 @@ class Q25RecordedTest(nokey.PostedKey):
         self.post_recorded(SECOND_UNSEEN_CAST)
 
     def test_the_plans_survival_rung_goes_first(self):
-        _raw, _key, reason, _ = answer(BELOW_THE_LINE)
-        self.assertEqual(reason, quest_room_sweep.TELEPORT_REASON)
+        with below_instant_death():
+            policy, _raw, _key = replay_until(BELOW_THE_LINE)
+        self.assertEqual(policy.last_reason, quest_room_sweep.TELEPORT_REASON)
 
     def test_the_named_caster_is_shot_past_the_monster_beside_the_player(self):
-        raw, key, reason, _ = answer(CASTER_PAST_THE_ADJACENT)
+        with below_instant_death():
+            policy, raw, key = replay_until(CASTER_PAST_THE_ADJACENT)
+        reason = policy.last_reason
         here = raw["player"]
         self.assertTrue(any(max(abs(m["y"] - here["y"]), abs(m["x"] - here["x"])) <= 1
                             for m in raw["visible_monsters"]))
         self.assertEqual(reason, summon_response.CASTER_SHOT_REASON)
         self.assertTrue(key.startswith("f") and key.endswith("4"), key)
         self.assertEqual(first_on_the_row_west(raw)["name"], BALROG)
-        self.post_recorded(CASTER_PAST_THE_ADJACENT)
+        self.post(SimpleNamespace(last_reason=reason, _decision_sequence=policy._decision_sequence),
+                  raw, key, screens=[prompt_screen(text) for command, text in COMMAND_PROMPTS.items()
+                                     if key.startswith(command)])
 
     def test_a_body_in_the_bolts_way_leaves_the_plans_blow(self):
-        policy, raw, _key = replay_until(CASTER_BEHIND_A_BODY, without_resistance_potions)
+        with below_instant_death():
+            policy, raw, _key = replay_until(CASTER_BEHIND_A_BODY, without_resistance_potions)
         self.assertNotEqual(first_on_the_row_west(raw)["name"], BALROG)
         self.assertEqual(policy.last_reason, quest_find_exit.MELEE_REASON)
 
     def test_a_named_caster_beside_the_player_is_struck_before_the_plans_first(self):
-        policy, raw, key = replay_until(CASTER_BESIDE, without_resistance_potions)
+        with below_instant_death():
+            policy, raw, key = replay_until(CASTER_BESIDE, without_resistance_potions)
         self.assertEqual(policy.last_reason, quest_find_exit.MELEE_REASON)
         here = raw["player"]
         struck = next(m for m in raw["visible_monsters"]
@@ -198,6 +205,13 @@ def replay_until(turn, change=None):
             return policy, raw, key
         policy.confirm_key_posted(key)
     raise AssertionError(turn)
+
+
+def below_instant_death():
+    """The plan's own order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ
+    例外」, threat tiers plan step 4).  On the boards that use it the rung now answers first, with
+    the emergency escape: tests/test_threat_tiers_plans_recorded.py pins that answer."""
+    return patch.object(threat_tiers, "instant_death_key", lambda *args: None)
 
 
 def predicted(policy, raw):
@@ -246,7 +260,8 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
 
     def test_the_recorded_high_threat_leaves(self):
         # Its summoners two and three cells away also stand behind bodies: 魔王の使い, レッサー・バルログ.
-        policy, raw, key = replay_until(SUMMONERS_IN_REACH_IN_A_HIGH_THREAT)
+        with below_instant_death():
+            policy, raw, key = replay_until(SUMMONERS_IN_REACH_IN_A_HIGH_THREAT)
         self.assertGreaterEqual(predicted(policy, raw) * 2, raw["player"]["hp"])
         self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON)
         self.assertTrue(key.startswith("r"), key)

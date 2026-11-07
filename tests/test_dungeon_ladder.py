@@ -103,6 +103,33 @@ class OwnerRulePlacesTest(unittest.TestCase):
             with self.subTest(rungs=rungs):
                 self.assertTrue(lint._branch_findings(ladder.FLOOR_PLANS[0], ladder.Branch('board', rungs)))
 
+    def test_the_instant_death_rung_heads_every_enemy_board(self):
+        # Owner 2026-11-07 「作戦が先・即死だけ例外」 (threat tiers answer 11, plan step 4).
+        boards = [(plan, branch) for plan in ladder.FLOOR_PLANS for branch in plan.branches
+                  if branch.enemy and ladder.OWN in [role for _, role in branch.rungs]]
+        self.assertEqual(len(boards), 4)
+        for plan, branch in boards:
+            with self.subTest(plan=plan.rung, board=branch.board):
+                self.assertEqual(branch.rungs[0], (ladder.INSTANT_DEATH, ladder.SURVIVAL))
+                self.assertEqual(lint._branch_findings(plan, branch), [])
+
+    def test_the_instant_death_rung_missing_or_moved_fails(self):
+        for rungs in (
+            (('_heal', ladder.SURVIVAL), ('summon_response.key', ladder.SUMMONS), ('_fight', ladder.OWN)),
+            (('_heal', ladder.SURVIVAL), (ladder.INSTANT_DEATH, ladder.SURVIVAL),
+             ('summon_response.key', ladder.SUMMONS), ('_fight', ladder.OWN)),
+        ):
+            with self.subTest(rungs=rungs):
+                findings = lint._branch_findings(ladder.FLOOR_PLANS[0], ladder.Branch('board', rungs))
+                self.assertTrue(any('instant-death rung' in finding for finding in findings), findings)
+
+    def test_the_instant_death_rung_dropped_from_a_plan_module_fails(self):
+        findings = analyze_with(plan=lambda source: source.replace(
+            '        threat_tiers.instant_death_key(\n            policy, snapshot, lambda: '
+            '_below_line_recall(policy, snapshot, profile, line=False))\n        or ', '        ', 1))
+        self.assertTrue(any('quest_find_exit.key: the table says' in finding for finding in findings),
+                        findings)
+
     def test_a_new_rung_above_a_rule_needs_a_reason(self):
         names = [rung.name for rung in ladder.rows()]
         at = names.index('summon_response.key')

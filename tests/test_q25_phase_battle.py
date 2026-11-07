@@ -16,9 +16,10 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import unittest
+from unittest.mock import patch
 from dataclasses import replace
 
-from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo
+from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo, threat_tiers
 from hengbot import quest25_druj_gear as druj_gear, quest_exposure, quest_optional_carry, quest_room_sweep, spare_gear
 from hengbot.me_device_attacks import DEVICE_REASON
 from hengbot.me_powers_refresh import REFRESH_REASON
@@ -408,8 +409,17 @@ class Q25IpsissimusTest(unittest.TestCase):
         policy._player_hasted = lambda snapshot: True
         snapshot = parse_snapshot(copy.deepcopy(raw), RACES)
         self.assertTrue(policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot)))
-        key = choose(policy, raw)
+        # The plan's order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ例外」):
+        # the spectral tyrannosaur's next action reaches HP 480, so the rung now answers first,
+        # with the plan's own escape (quest_room_sweep._below_line's Teleportation).
+        with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
+            key = choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.TELEPORT_REASON, key)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, quest_room_sweep.TELEPORT_REASON, key)  # the plan's escape
 
     def test_after_the_teleport_a_choke_is_taken_before_contact(self):
         # A landing in the east room, nothing in view: the nearest choke out of the summons is
@@ -960,6 +970,24 @@ class Q25DrujGearTest(unittest.TestCase):
         raw["player"].update(y=11, x=23)
         self.assertEqual((choose(policy, raw), policy.last_reason), ("o9", battle.RETREAT_REASON))  # its door
         self.assertNotIn((10, 24), geo.line_cells(geo.opened(TERRAIN, [geo.DRUJ_DOOR]), (11, 18)))
+
+    def test_instant_death_over_the_line_takes_the_druj_retreat(self):
+        # Owner 2026-11-07 「作戦の逃げ方を使う」: with the piece worn the plan's escape is the walk out
+        # of the druj's line, also over the plan's HP line.  DECLARED CONSTRUCTED: the 1-turn 即死
+        # forced on the board; without it the plan does not retreat at this HP.
+        raw = self.wearing((12, 22), hp=q25.FULL_HP - 1, monsters=[monster(geo.DRUJ, 11, 18)])
+        policy = self.druj_policy(raw)
+        at_phase(policy, raw, "druj", cleared=frozenset({(11, 23)}))
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, battle.RETREAT_REASON)
+        self.assertFalse(memory(policy, raw).retreating)
+        forced = threat_tiers.InstantDeath((threat_tiers.NEXT_ACTION_P95,), q25.FULL_HP, 0)
+        policy = self.druj_policy(raw)
+        at_phase(policy, raw, "druj", cleared=frozenset({(11, 23)}))
+        with patch.object(threat_tiers, "instant_death", lambda *args, **kwargs: forced):
+            key = choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), (step((12, 22), (11, 23)), battle.RETREAT_REASON))
+        self.assertTrue(memory(policy, raw).retreating)
 
     def test_out_of_the_line_it_rests_and_drinks_only_when_the_rest_did_not_heal(self):
         raw = self.wearing((13, 21), hp=300)

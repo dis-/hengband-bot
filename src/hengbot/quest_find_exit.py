@@ -70,6 +70,7 @@ the navigator.
 from __future__ import annotations
 
 from hengbot import combat_answer, once_quest_recall, quest_exposure, resist_potion, speed_dose, status_cure, summon_response
+from hengbot import threat_tiers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, TUNNEL_KEY, WAIT_KEY
@@ -330,9 +331,11 @@ def _healing_potion(policy, snapshot):
         and item.sval > SV_POTION_HEALING)
 
 
-def _below_line_recall(policy, snapshot, profile) -> str | None:
-    line = profile.abort_conditions.get("hp_ratio")
-    if line is None or snapshot.player.hp_ratio > float(line):
+def _below_line_recall(policy, snapshot, profile, *, line=True) -> str | None:
+    """Recall below the strategy's line.  ``line=False``: the plan's escape asked by its 即死
+    rung, whatever the HP (threat_tiers.instant_death_key)."""
+    ratio = profile.abort_conditions.get("hp_ratio")
+    if line and (ratio is None or snapshot.player.hp_ratio > float(ratio)):
         return None
     if snapshot.player.blind or snapshot.player.confused:
         return _cure(policy, snapshot)  # the scroll cannot be read until it is cured
@@ -759,8 +762,11 @@ def key(policy, snapshot) -> str | None:
         return stepped
     if exposed:
         # Survival first, then out of their reach: no hold, rest or chosen fight here.
+        # Owner 2026-11-07 「作戦が先・即死だけ例外」: the 1-turn 即死 heads each enemy board.
         return (
-            (_below_line_recall(policy, snapshot, profile) if board.enemy_for_the_line else None)
+            threat_tiers.instant_death_key(
+                policy, snapshot, lambda: _below_line_recall(policy, snapshot, profile, line=False))
+            or (_below_line_recall(policy, snapshot, profile) if board.enemy_for_the_line else None)
             or (_heal(policy, snapshot, profile) if board.engaged else None)
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
@@ -777,7 +783,9 @@ def key(policy, snapshot) -> str | None:
             or (_advance(policy, snapshot, navigator, plan, board) if board.in_view else None)
         )
     return (
-        _below_line_recall(policy, snapshot, profile)
+        threat_tiers.instant_death_key(
+            policy, snapshot, lambda: _below_line_recall(policy, snapshot, profile, line=False))
+        or _below_line_recall(policy, snapshot, profile)
         or (_engaged_survival(policy, snapshot, profile, board) if board.engaged else None)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
         or summon_response.key(policy, snapshot)

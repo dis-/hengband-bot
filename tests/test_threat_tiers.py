@@ -191,12 +191,46 @@ class ThreatTiersTest(unittest.TestCase):
         duel = replace(monster(1, DUELIST, 10, 11), slow=True)
         self.assertEqual(self.assess(board([duel])).per_monster[1].speed, 100)
 
+    def test_one_hostile_set_for_every_reader(self):
+        # The suppressed attacker the emergency ladder weighs once it endangers the player (D46)
+        # is in the engagement too (DECLARED CONSTRUCTED: survival_preemption's choice stubbed).
+        duel = monster(1, DUELIST, 10, 11)
+        suppressed = monster(2, BRUTE, 10, 9)
+        snapshot = board([duel, suppressed])
+        with patch.object(type(self.policy), "_strategic_hostiles",
+                          lambda policy, snapshot: [m for m in snapshot.visible_monsters
+                                                    if m.index == 1]):
+            with patch.object(threat_tiers.survival_preemption, "endangering",
+                              lambda *args: False):
+                self.assertEqual([m.index for m in threat_tiers.engagement(self.policy, snapshot)],
+                                 [1])
+            with patch.object(threat_tiers.survival_preemption, "endangering",
+                              lambda *args: True):
+                self.assertEqual([m.index for m in threat_tiers.engagement(self.policy, snapshot)],
+                                 [1, 2])
+                # The shared ladder's 1-turn read reads that same set, not its own ``hostiles``.
+                read = []
+                real = threat_tiers.instant_death
+
+                def spy(policy, snapshot, hostiles=None):
+                    read.append(hostiles)
+                    return real(policy, snapshot, hostiles)
+                with patch.object(threat_tiers, "instant_death", spy):
+                    self.policy._emergency_item(snapshot, [duel])
+                self.assertEqual(read, [None])
+
     def test_the_observed_loss_counts_once(self):
         duel = monster(1, DUELIST, 10, 11)
         snapshot = board([duel], hp=200, max_hp=300)
         p95 = self.assess(snapshot).next_action_p95
         self.policy._took_damage = True
         self.policy._last_damage_amount = 200 - p95
+        # A loss with no unseen attacker evidenced is the visible duelist's, in the p95 already.
+        self.policy._unseen_attack_evidence = None
+        result = self.assess(snapshot)
+        self.assertEqual(result.unseen_correction, 0)
+        self.assertFalse(result.instant_death)
+        self.policy._unseen_attack_evidence = "何かに攻撃された。"
         result = self.assess(snapshot)
         self.assertEqual(result.unseen_correction, 200 - p95)
         self.assertTrue(result.instant_death)

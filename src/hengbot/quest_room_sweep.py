@@ -93,6 +93,7 @@ from hengbot import (
     quest_room_light,
     resist_potion,
     summon_response,
+    threat_tiers,
     unseen_strike,
 )
 from hengbot.item_reservation import reserved_item_command
@@ -567,9 +568,10 @@ def _quaff_recovery(policy, snapshot) -> str | None:
     return reserved_item_command(policy, snapshot, "quaff", potion)
 
 
-def _below_line(policy, snapshot, profile, navigator) -> str | None:
-    """Teleportation; after one that left an enemy on the player, a potion."""
-    if snapshot.player.hp_ratio > float(profile.abort_conditions["hp_ratio"]):
+def _below_line(policy, snapshot, profile, navigator, *, line=True) -> str | None:
+    """Teleportation; after one that left an enemy on the player, a potion.  ``line=False``:
+    the plan's escape asked by its 即死 rung, whatever the HP (threat_tiers.instant_death_key)."""
+    if line and snapshot.player.hp_ratio > float(profile.abort_conditions["hp_ratio"]):
         navigator.sweep_heal_next = False
         return None
     scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
@@ -655,7 +657,10 @@ def key(policy, snapshot) -> str | None:
             or (_advance(policy, snapshot, navigator, plan, board.occupied) if board.left_alone else None)
         )
     return (
-        quest_find_exit._cure(policy, snapshot)
+        # Owner 2026-11-07 「作戦が先・即死だけ例外」: only the 1-turn 即死 pre-empts the plan.
+        threat_tiers.instant_death_key(policy, snapshot, lambda: _below_line(
+            policy, snapshot, profile, navigator, line=False))
+        or quest_find_exit._cure(policy, snapshot)
         or _leave_by_exit(policy, snapshot, navigator, plan, board)
         or _give_up(policy, snapshot, profile)
         or _below_line(policy, snapshot, profile, navigator)
