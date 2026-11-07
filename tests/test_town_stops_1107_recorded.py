@@ -49,6 +49,44 @@ class TownStops1107RecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
         self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
 
+    def test_refused_in_home_takeoff_abandons_the_transaction_instead_of_idling(self):
+        """n1-b life 337 09:55 owner-retired-burst: the Home transaction loop.
+
+        The checkpoint is taken before journal row 8 (the deployed code and
+        this code decide rows 0-7 as recorded): in Home, step 2 (takeoff of
+        the main ring) is done and step 3 is the takeoff of 'outer'; a
+        Magic-Eater catalogue take (row 5) filled the slot the plan counted
+        on, so the pack holds 19 of 23 and the town pack budget refuses the
+        takeoff.  The step composed nothing: policy:none-store-exit, then
+        equipment-transaction:approach-home re-entered Home for the same step
+        (rows 8-46) until the owner retirements stopped the town.
+        """
+        self.assertEqual(fx.replay_facts("takeoff-refused")["diverged"], [])
+        policy = fx.restore("takeoff-refused", self.scratch)
+        rows = fx.journal("takeoff-refused")
+        self.assertEqual([row["reason"] for row in rows[:3]], [
+            "policy:none-store-exit", "equipment-transaction:approach-home",
+            "equipment-transaction:approach-home"])
+        board = fx.board(policy, rows[0], self.scratch)
+        self.assertEqual(board.store.store_type, STORE_HOME)
+        self.assertEqual(len(board.inventory), 19)
+        actions = policy._equipment_transaction_session.plan.actions
+        self.assertEqual((actions[3].kind, actions[3].target_slot), ("takeoff", "outer"))
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("\x1b", "equipment-transaction:abandon-blocked-home"))
+        fx.post(policy, key)
+        # The recorded next board is the same one: outside on Home's entrance.
+        board = fx.board(policy, rows[1], self.scratch)
+        self.assertIsNone(board.store)
+        key = policy.choose_key(board)
+        self.assertNotEqual(policy.last_reason, "equipment-transaction:approach-home")
+        # The abandonment restores the ring the transaction had taken off.
+        session = policy._equipment_transaction_session
+        self.assertEqual(policy.last_reason, "equipment-transaction:equip")
+        self.assertEqual([(action.kind, action.target_slot) for action in session.plan.actions],
+                         [("equip", "main_ring")])
+
 
 if __name__ == "__main__":
     unittest.main()

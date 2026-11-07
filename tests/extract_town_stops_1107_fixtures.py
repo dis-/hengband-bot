@@ -3,6 +3,8 @@
 Sources (viewing server, 2026-11-07, copied read-only):
 - ``home-take-route``: n1-a life 492 incident capture
   20261107-094214-town-blocked-unmet-home_candidate_resolved (build 4d670ecd6).
+- ``takeoff-refused``: n1-b life 337 incident capture
+  20261107-095500-town-blocked-owner-retired-burst (build 4d670ecd6).
 
 A capture's ``town-arrival/`` holds the policy pickled before the visit's
 first decision and the visit's journal (tests/replay_town_arrival.py).  The
@@ -34,6 +36,7 @@ OUTPUT = Path(__file__).with_name("fixtures") / "town-stops-1107"
 CASES = {
     # The row each checkpoint is taken before.
     "home-take-route": 55,   # town:blocked:unmet:home_candidate_resolved
+    "takeoff-refused": 8,    # the first policy:none-store-exit in Home
 }
 
 
