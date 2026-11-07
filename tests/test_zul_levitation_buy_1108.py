@@ -102,6 +102,34 @@ class ZulLevitationBuyRecordedTest(unittest.TestCase):
         # Both ring slots filled: wield pack slot m, ')' at 「どちらの指輪と取り替えますか?」.
         self.assertEqual((key, policy.last_reason), ("wm)", zul_trip.WEAR_REASON))
 
+    def test_a_visit_that_left_without_the_ring_closes_the_trip(self):
+        policy = self.policy(self.capture["entrance_board"])
+        outside = self.board(self.capture["entrance_board"])
+        policy.choose_key(outside)
+        record = zul_trip.state(policy)
+        self.assertIsNone(record.failure)
+        # DECLARED CONSTRUCTED: a later visit of the same shop saw the ring and
+        # came out without it (as every live visit did before the selector fix).
+        page = self.board(self.capture["store_board"]).store
+        later = outside.turn + 10
+        policy._town_supplier_stock[STORE_MAGIC] = page
+        policy._town_supplier_stock_observations[STORE_MAGIC] = (0, later - 5)
+        raw = copy.deepcopy(self.capture["entrance_board"])
+        raw["turn"] = later
+        key = policy.choose_key(self.board(raw))
+        self.assertEqual(record.failure, f"levitation-shop-left-without-ring:{STORE_MAGIC}")
+        self.assertEqual(record.closed_epoch, policy._town_visit_epoch)
+        self.assertNotEqual(policy.last_reason, zul_trip.SHOP_REASON, key)
+        # The trip's food rows close with it: the visit departs as usual.
+        self.assertEqual(zul_trip.extra_food_items(policy, self.board(raw)), 0)
+
+    def test_the_walk_itself_is_not_closed_before_a_visit(self):
+        policy = self.policy(self.capture["entrance_board"])
+        outside = self.board(self.capture["entrance_board"])
+        for _ in range(2):
+            policy.choose_key(outside)
+        self.assertIsNone(zul_trip.state(policy).failure)
+
 
 if __name__ == "__main__":
     unittest.main()
