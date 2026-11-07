@@ -15667,6 +15667,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Pure keys of the targeting cursor moved to a grid; no command."
   },
+  "quest25_battle_record.py:take": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: called from quest25_battle._memory, reached through quest25_battle._ctx on the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "Data/selector result; no independent command or effect credit. Hands the Q25 phase battle a previous bot process recorded for the same floor visit back to the navigator's memory; returns a Battle or None, never a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "resist_potion.py:_verdict": {
     "classification": "data",
     "rows": [

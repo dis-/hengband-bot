@@ -79,6 +79,7 @@ from hengbot import (
     me_powers_refresh,
     once_quest_recall,
     quest25_druj_gear,
+    quest25_battle_record,
     quest25_geometry as geo,
     quest_exposure,
     quest_find_exit,
@@ -236,9 +237,13 @@ class Battle:
     enlightened: bool = False      # the ambush's Potion of Enlightenment was drunk this visit
 
 
-def _memory(navigator) -> Battle:
+def _memory(navigator, policy=None, snapshot=None) -> Battle:
     if navigator.phase_battle is None:
-        navigator.phase_battle = Battle()
+        # A restart on the same floor visit resumes the previous process's battle
+        # (quest25_battle_record); else this visit starts one.
+        restored = (None if policy is None or snapshot is None
+                    else quest25_battle_record.take(policy, snapshot))
+        navigator.phase_battle = restored if restored is not None else Battle()
     return navigator.phase_battle
 
 
@@ -321,7 +326,7 @@ def _ctx(policy, snapshot):
     if profile is None:
         return None
     navigator = quest_room_sweep._navigator(policy, snapshot, geo.QUEST_ID)
-    return _Ctx(policy, snapshot, profile, navigator, _memory(navigator))
+    return _Ctx(policy, snapshot, profile, navigator, _memory(navigator, policy, snapshot))
 
 
 # -- what the board says ----------------------------------------------------------------
