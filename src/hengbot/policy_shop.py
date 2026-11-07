@@ -1981,6 +1981,12 @@ class ShopMixin(InStoreMixin):
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
                 "opening-q1-current-shelf",
             )
+        if zul_trip.shopping(self, snapshot) and zul_trip.purchase(self, snapshot) == item:
+            # _levitation_key asked the Home first (its knowledge holds no ring).
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "zul-levitation-current-shelf",
+            )
         if me_staff_sequence.shopping(self, snapshot) and me_staff_sequence.purchase(self, snapshot) == item:
             return self._record_home_gate(
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
@@ -2239,6 +2245,12 @@ class ShopMixin(InStoreMixin):
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
                 "opening-q1-current-shelf",
             )
+        if zul_trip.shopping(self, snapshot) and zul_trip.purchase(self, snapshot) == item:
+            # _levitation_key asked the Home first (its knowledge holds no ring).
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "zul-levitation-current-shelf",
+            )
         if me_staff_sequence.shopping(self, snapshot) and me_staff_sequence.purchase(self, snapshot) == item:
             return self._record_home_gate(
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
@@ -2459,6 +2471,13 @@ class ShopMixin(InStoreMixin):
             return None
         if self._opening_q1_shopping(snapshot):
             item = self._opening_q1_purchase(snapshot)
+            return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
+        if zul_trip.shopping(self, snapshot):
+            # The Zul trip's Ring of Levitation (owner 2026-11-07 「無ければ指輪を買う」):
+            # the trip walks to this shelf, so the page buys its ring.  Without this
+            # row the selector saw nothing wanted and the walk re-entered the shop
+            # until the owner-retired burst (n1-c life-164 2026-11-08 03:50).
+            item = zul_trip.purchase(self, snapshot)
             return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
         if me_staff_sequence.shopping(self, snapshot):
             item = me_staff_sequence.purchase(self, snapshot)
@@ -3956,6 +3975,8 @@ class ShopMixin(InStoreMixin):
             if ware is not None and snapshot.store is not None and store == snapshot.store.store_type and ware == item:
                 return quantity
             return 0
+        if zul_trip.shopping(self, snapshot):
+            return int(zul_trip.purchase(self, snapshot) == item)
         if me_staff_sequence.shopping(self, snapshot):
             return int(me_staff_sequence.purchase(self, snapshot) == item)
         ledger = self._supply_ledger(snapshot, self._planned_depth())
