@@ -16,6 +16,7 @@ from hengbot.arena import ENTER_KEY, ENTER_KEY_PATTERN, ENTER_REASON, POSTER_KEY
 from hengbot.armor_smith import RAISE_KEY_PATTERN, RAISE_REASON
 from hengbot.input_executor import (
     BUILDING_ENCHANT_PROMPTS, Continuation, RECALL_DUNGEON_PROMPTS, ScreenKind,
+    WIELD_SLOT_PROMPTS,
 )
 from hengbot.morivant_tower import RECHARGE_ALL_REASONS
 from hengbot.zul_trip import CURE_KEY, CURE_KEY_PATTERN, CURE_REASON
@@ -29,7 +30,7 @@ from hengbot.policy_constants import (
 _QUAFF = ("どの薬を飲みますか?",)
 _WIELD = ("どれを装備しますか?",)
 _TAKEOFF = ("どれを装備からはずしますか?",)
-_HAND = ("どちらの手に装備しますか?",)
+_HAND = WIELD_SLOT_PROMPTS
 _GET = ("どのアイテムを取りますか?",)
 _PUT = ("どのアイテムを置きますか?",)
 _BUY = ("どの品物が欲しいんだい?",)
