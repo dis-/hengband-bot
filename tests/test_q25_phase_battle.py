@@ -2,9 +2,8 @@
 
 Owner 2026-11-06 「作り直すまで外す」: the plan is the draft
 ``engagement_plan.revised_plan_draft`` of strategy/quests/QUEST_25.jsonc, each owner
-decision quoted there.  The file stays unapproved until the owner reviews the executor, so
-every test here runs it with ``approved`` forced on (``APPROVED``); one test pins that the
-shipped file does not run it.
+decision quoted there.  The owner restored approval on 2026-11-07 (「承認を戻す」); the tests still run it with
+``approved`` forced on (``APPROVED``), and one test pins that the shipped file runs it.
 
 DECLARED CONSTRUCTED, as tests/test_q25_haunted_house.py (whose board builder this reuses):
 the recorded n1-c Q31 board (a Lv25 Magic-Eater with a crossbow and bolts, a Stone to Mud
@@ -185,12 +184,13 @@ class Q25GeometryTest(unittest.TestCase):
 
 
 class Q25WiringTest(unittest.TestCase):
-    def test_the_shipped_file_stays_unapproved_and_does_not_run_the_plan(self):
-        self.assertFalse(FILE_STRATEGIES[25].approved)
+    def test_the_shipped_file_is_approved_and_runs_the_plan(self):
+        # Owner 2026-11-07 「承認を戻す」: the shipped file runs the phase battle.
+        self.assertTrue(FILE_STRATEGIES[25].approved)
         raw = board()
         policy = new_policy(raw, FILE_STRATEGIES)
         choose(policy, raw)
-        self.assertFalse((policy.last_reason or "").startswith(battle.REASON), policy.last_reason)
+        self.assertTrue((policy.last_reason or "").startswith(battle.REASON), policy.last_reason)
 
     def test_approved_the_phase_battle_runs_and_the_room_sweep_steps_aside(self):
         raw = board()
