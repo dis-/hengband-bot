@@ -7897,6 +7897,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_shop.py:ShopMixin._drop_batch_sale_off_store_page": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_shop.py:ShopMixin._enumerate_live_store_claims": {
     "classification": "data",
     "rows": [

@@ -142,6 +142,74 @@ class ReliefOverweight1107RecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason),
                          ("5    pb\x1b", "home-errand:atomic-withdraw:full-home-sale"))
 
+    # A2 -----------------------------------------------------------------
+
+    def test_a2_sale_left_on_the_store_page_ends_and_the_held_sword_is_skipped(self):
+        policy = self.restore("a2")
+        self.replay_unchanged(policy, range(71))
+        # Row 70 left the Weapon Smith page with the tagged sale never sent.
+        self.assertEqual(policy._batch_sell_pending["phase"], "await-inscription")
+        self.assertEqual(self.journal[71]["reason"], "equipment:suppress-random-teleport")
+        _board, key = self.decide(policy, 71)
+        self.assertIsNone(policy._batch_sell_pending)
+        self.assertEqual(policy.last_reason,
+                         "town:entrance-step-off:home:full-skip:sale-item-held")
+        relief = policy._home_full_relief
+        self.assertIsNone(relief["sale"])
+        self.assertEqual(relief["skipped"][(SWORD, 23, 28)], "sale-item-held")
+        self.assertEqual(relief["remaining"], 2)
+
+    def test_a2_sword_shelved_again_on_the_home_page_ends_the_entry(self):
+        policy = self.restore("a2")
+        # DECLARED CONSTRUCTED: the stale sale record kept as in the recorded
+        # run (the drop is pinned above), so rows 71-73 replay the recorded
+        # random-teleport inscription and the equipment deposit of the sword.
+        with mock.patch.object(HengbotPolicy, "_drop_batch_sale_off_store_page",
+                               lambda self, snapshot: None):
+            self.replay_unchanged(policy, range(74))
+        policy._batch_sell_pending = None
+        self.assertEqual(policy._home_full_relief["sale"][0][0], SWORD)
+        self.assertTrue(policy._home_full_relief["withdrawn"])
+        # Recorded row 74: the deposit read as the sale (remaining 2 -> 1) and
+        # row 75 took the sword out of Home again.
+        self.assertEqual(self.journal[74]["reason"], "home:request-knowledge-scan")
+        _board, key = self.decide(policy, 74)
+        self.assertEqual(policy.last_reason, "home:full-skip:surplus-put-back")
+        relief = policy._home_full_relief
+        self.assertEqual(relief["remaining"], 2)
+        self.assertEqual(relief["skipped"][(SWORD, 23, 28)], "surplus-put-back")
+        self.assertEqual(relief["skipped_home_counts"][(SWORD, 23, 28)], 1)
+
+    def test_a2_sword_shelved_again_off_the_home_page_is_found_by_the_census(self):
+        policy = self.restore("a2")
+        with mock.patch.object(HengbotPolicy, "_drop_batch_sale_off_store_page",
+                               lambda self, snapshot: None):
+            self.replay_unchanged(policy, range(74))
+        policy._batch_sell_pending = None
+        # DECLARED CONSTRUCTED: row 74's board seen outside the Home page (as
+        # after an atomic deposit '5…d…\x1b'), where the departure reads as
+        # the sale; then row 75's recorded census answers the scan.
+        entry = self.journal[74]
+        _consume_response_sequence([line + "\n" for line in entry["inputs"]], policy,
+                                   lambda _key: True, policy._monrace_knowledge,
+                                   parse_snapshots=False,
+                                   knowledge_ledger_path=self.scratch / "knowledge.jsonl")
+        line = json.loads(entry["line"] if entry["line"] is not None else entry["inputs"][-1])
+        line["store"] = None
+        outside = parse_snapshot(line, policy._monrace_knowledge)
+        policy.observe_store_screen(False)
+        key = policy.choose_key(outside)
+        relief = policy._home_full_relief
+        self.assertEqual(relief["remaining"], 1)
+        self.assertEqual(relief["settled_home_counts"], {(SWORD, 23, 28): 0})
+        self.post(policy, key)
+        _board, key = self.decide(policy, 75)
+        relief = policy._home_full_relief
+        self.assertEqual(relief["skipped"][(SWORD, 23, 28)], "surplus-put-back")
+        self.assertEqual(relief["remaining"], 2)
+        self.assertNotIn((SWORD, 23, 28), relief.get("settled_home_counts", {}))
+        self.assertNotEqual((relief["sale"] or ((None,),))[0][0], SWORD)
+
 
 if __name__ == "__main__":
     unittest.main()

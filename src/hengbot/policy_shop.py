@@ -4348,6 +4348,23 @@ class ShopMixin(InStoreMixin):
                 and item_available(self, snapshot, item, "shop-sell", "sell")]
 
     @claims(ClaimOwner.SHOP_SELL)
+    def _drop_batch_sale_off_store_page(self, snapshot: Snapshot) -> None:
+        """End an inscription-bound sale whose store page is gone.
+
+        Its tag and its 'd' are posted on one store page, and only that page
+        verifies it: off every store page it can no longer complete.  Left
+        set, it closed the full-Home relief's gate (``_batch_sell_pending`` is
+        None): n1-a life-492 2026-11-07 12:33:09, the Weapon Smith page was
+        left after the {@2} tag of the taken (トランプ)首切りソード
+        (observed-page-nothing-wanted); the equipment transaction re-inscribed
+        and shelved the sword, item processing deferred the relief's next
+        take, and the town walked between the Weapon Smith and the Alchemist
+        into an owner burst.
+        """
+        if (snapshot.in_town and snapshot.store is None
+                and self._batch_sell_pending is not None):
+            self._batch_sell_pending = None
+
     def _batch_sell_key(
         self,
         snapshot: Snapshot,

@@ -7246,8 +7246,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 family="identification")
             if junk_key is not None:
                 return junk_key
+        self._drop_batch_sale_off_store_page(snapshot)
         if snapshot.in_town and self._overweight_surplus_disposal is not None:
-            surplus_key = self._town_producer_entry("_overweight_surplus_sale_key",
+            surplus_key =self._town_producer_entry("_overweight_surplus_sale_key",
                 lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
             if surplus_key is not None:
                 return surplus_key
