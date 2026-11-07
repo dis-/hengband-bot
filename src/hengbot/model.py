@@ -494,6 +494,10 @@ class PlayerState:
     exp_drained: bool | None = None
     max_level: int | None = None
     level_drained: bool | None = None
+    # The exp total that reaches the next level (bot-json-output.cpp
+    # calc_exp_to_advance: player_exp[lev-1] * expfact / 100); None at the
+    # top level (the screen shows "*****") or from an older emitter.
+    exp_to_advance: int | None = None
     status_bar: tuple[str, ...] | None = None
     cut_rank: int | None = None
     stun_rank: int | None = None
@@ -1400,6 +1404,7 @@ def parse_snapshot(
         exp_drained=_optional_bool(player_data.get("exp_drained")),
         max_level=_optional_int(player_data.get("max_level")),
         level_drained=_optional_bool(player_data.get("level_drained")),
+        exp_to_advance=_optional_int(player_data.get("exp_to_advance")),
         status_bar=(
             tuple(
                 str(entry.get("key"))
