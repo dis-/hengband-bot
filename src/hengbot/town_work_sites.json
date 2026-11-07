@@ -2598,6 +2598,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_loadout_offense.py:held_attack_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_loadout_offense.py:offense_inputs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_menu.py:MagicEaterMenu._post_answer": {
     "classification": "driver",
     "rows": [

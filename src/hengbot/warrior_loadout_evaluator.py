@@ -10,6 +10,11 @@ from hengbot.equipment_encounters import melee_multiplier
 from hengbot.equipment_optimizer import Loadout, LoadoutMetrics, SLOT_BOW
 from hengbot.equipment_utility import utility_value
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, STORE_AMMO_AVERAGE_DAMAGE
+from hengbot.me_loadout_offense import (
+    TR_INT,
+    MagicEaterOffenseInputs,
+    magic_eater_device_dps,
+)
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
     WarriorRangedDefenseResult,
@@ -119,6 +124,9 @@ class WarriorLoadoutInputs:
     base_hp: int | None = None
     intrinsic_con: int = 0
     hp_floor: int = 1
+    # Class 16 only (me_loadout_offense, owner 2026-11-08): the held absorbed
+    # attack powers whose INT-dependent fail rate scores ``device_dps``.
+    magic_eater: MagicEaterOffenseInputs | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +136,7 @@ class WarriorLoadoutResult:
     defense: WarriorDefenseResult
     ranged: WarriorRangedDefenseResult
     ranged_offense_dps: float = 0.0
+    device_dps: float = 0.0
 
 
 def _pval_total(loadout: Loadout, flag: int) -> int:
@@ -216,6 +225,7 @@ class CachedWarriorLoadoutEvaluator:
             tuple[frozenset[int], int], WarriorRangedDefenseResult
         ] = {}
         self._weapon_multipliers: dict[str, tuple[tuple[int, float], ...]] = {}
+        self._device: dict[tuple[int, frozenset[int]], float] = {}
         self._average_target_hp = sum(
             encounter.weight * encounter.knowledge.average_hp
             for encounter in encounters
@@ -276,7 +286,19 @@ class CachedWarriorLoadoutEvaluator:
             )
             self._ranged[ranged_key] = ranged
 
-        return _combine_warrior_results(loadout, self.inputs, melee, defense, ranged)
+        device_key = (_pval_total(loadout, TR_INT), flags)
+        # setdefault: an evaluator restored from a checkpoint pickled before
+        # this cache existed has no ``_device``.
+        device_cache = self.__dict__.setdefault("_device", {})
+        device = device_cache.get(device_key)
+        if device is None:
+            device = magic_eater_device_dps(
+                getattr(self.inputs, "magic_eater", None), device_key[0],
+                flags, self.encounters)
+            device_cache[device_key] = device
+
+        return _combine_warrior_results(
+            loadout, self.inputs, melee, defense, ranged, device)
 
 
 def _speed_bonus(loadout: Loadout) -> int:
@@ -327,7 +349,9 @@ def evaluate_warrior_loadout(
         encounters=encounters,
         selection_context=inputs.spell_selection,
     )
-    return _combine_warrior_results(loadout, inputs, melee, defense, ranged)
+    device = magic_eater_device_dps(
+        inputs.magic_eater, _pval_total(loadout, TR_INT), flags, encounters)
+    return _combine_warrior_results(loadout, inputs, melee, defense, ranged, device)
 
 
 def _combine_warrior_results(
@@ -336,6 +360,7 @@ def _combine_warrior_results(
     melee: WarriorMeleeResult,
     defense: WarriorDefenseResult,
     ranged: WarriorRangedDefenseResult,
+    device_dps: float = 0.0,
 ) -> WarriorLoadoutResult:
     player_energy = speed_energy(inputs.defense.base_speed + _speed_bonus(loadout))
     incoming = (
@@ -377,5 +402,7 @@ def _combine_warrior_results(
         secondary_value=secondary_value,
         utility_value=utility,
         evaluation_complete=complete,
+        device_dps=device_dps,
     )
-    return WarriorLoadoutResult(metrics, melee, defense, ranged, ranged_offense_dps)
+    return WarriorLoadoutResult(
+        metrics, melee, defense, ranged, ranged_offense_dps, device_dps)

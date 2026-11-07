@@ -32,6 +32,7 @@ from hengbot.equipment_transaction_planner import (
     plan_equipment_transactions,
 )
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
+from hengbot.me_loadout_offense import offense_inputs as magic_eater_offense_inputs
 from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
@@ -318,6 +319,7 @@ def warrior_optimizer_input_key(
     identification_exempt_item_ids: frozenset[str] = frozenset(),
     knowledge_key: str | None = None,
     curse_pinned_item_ids: frozenset[str] = frozenset(),
+    magic_eater_powers: tuple[tuple[str, int], ...] = (),
 ) -> str:
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
@@ -359,6 +361,10 @@ def warrior_optimizer_input_key(
     if curse_pinned_item_ids:
         # Only present when set, so every key without a pin stays as it was.
         inputs["curse_pinned_item_ids"] = curse_pinned_item_ids
+    if magic_eater_powers and player.class_id == 16:
+        # Class 16 scores its held attack powers (me_loadout_offense); only
+        # present then, so every other key stays as it was.
+        inputs["magic_eater_powers"] = tuple(magic_eater_powers)
     encoded = json.dumps(
         _canonical_optimizer_input(inputs),
         ensure_ascii=False,
@@ -692,8 +698,13 @@ def prepare_warrior_optimization(
     calibration: CharacterCalibration | None = None,
     obtainable_ammunition: tuple[InventoryItem | StoreItem, ...] | None = None,
     curse_pinned_item_ids: frozenset[str] = frozenset(),
+    magic_eater_powers: tuple[tuple[str, int], ...] = (),
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command.
+
+    ``magic_eater_powers`` are the (kind, sval) of the held absorbed attack
+    powers (me_loadout_offense.held_attack_powers); class 16 scores their
+    INT-dependent fail rate as ``device_dps`` (owner 2026-11-08).
 
     ``curse_pinned_item_ids`` are worn items the player saw cursed although
     the board does not say ``is_cursed`` (an unidentified item: a cursed
@@ -818,6 +829,9 @@ def prepare_warrior_optimization(
         intrinsic_con=adjustments[4],
         hp_floor=calibration.hp_floor,
         base_hp=base_hp,
+        magic_eater=magic_eater_offense_inputs(
+            player.class_id, player.level, stats[1], adjustments[1],
+            calibration.personality_id, magic_eater_powers),
     )
     evaluator = (
         evaluator_cache.get(inputs, encounters)
@@ -971,6 +985,7 @@ def _append_loadout_report(
             },
             "score": {
                 "melee_output": entry.metrics.expected_dps,
+                "device_output": entry.metrics.device_dps,
                 "ac": loadout_armor_class(entry.loadout, defense_inputs),
                 "resist_coverage": resistances,
                 "resist_coverage_count": len(resistances),
