@@ -440,7 +440,8 @@ class CombatMixin:
             teleport_level=self._first_item(
                 snapshot, lambda item: item.is_scroll and item.aware
                 and item.sval == SV_SCROLL_TELEPORT_LEVEL,
-            ) if can_read and not quest_no_teleport.forbids(self, snapshot) else None,
+            ) if (can_read and not quest_no_teleport.forbids(self, snapshot)
+                  and not self._relocation_refused(snapshot)) else None,
             recall=self._find_recall_scroll(snapshot) if can_read else None,
             recalling=snapshot.player.recalling,
         )
@@ -507,7 +508,8 @@ class CombatMixin:
             return self._step_toward(snapshot, exits.route.first_step)
         if exits.teleport_level is not None and not exits.recalling:
             self.last_reason = "summoner:teleport-level"
-            return reserved_item_command(self, snapshot, "read", exits.teleport_level)
+            return (self._anti_teleport_takeoff_key(snapshot, exits.teleport_level)
+                    or reserved_item_command(self, snapshot, "read", exits.teleport_level))
         if exits.recall is not None and not exits.recalling:
             self.last_reason = "summoner:recall"
             return self._read_dungeon_recall_scroll_key(snapshot, exits.recall)
@@ -555,7 +557,8 @@ class CombatMixin:
 
         if not self._can_read_scrolls(snapshot):
             return None
-        relocation_allowed = not quest_no_teleport.forbids(self, snapshot)
+        relocation_allowed = not (quest_no_teleport.forbids(self, snapshot)
+                                  or self._relocation_refused(snapshot))
         teleport_level = relocation_allowed and self._first_item(
             snapshot,
             lambda item: (
@@ -564,7 +567,8 @@ class CombatMixin:
         )
         if teleport_level:
             self.last_reason = "breeder-item-damage:teleport-level"
-            return reserved_item_command(self, snapshot, "read", teleport_level)
+            return (self._anti_teleport_takeoff_key(snapshot, teleport_level)
+                    or reserved_item_command(self, snapshot, "read", teleport_level))
 
         if not snapshot.player.recalling:
             recall = self._find_recall_scroll(snapshot)
@@ -578,7 +582,8 @@ class CombatMixin:
         )
         if teleport:
             self.last_reason = "breeder-item-damage:teleport"
-            return reserved_item_command(self, snapshot, "read", teleport)
+            return (self._anti_teleport_takeoff_key(snapshot, teleport)
+                    or reserved_item_command(self, snapshot, "read", teleport))
         return None
 
     def _forbid_wait_on_town_entrance(

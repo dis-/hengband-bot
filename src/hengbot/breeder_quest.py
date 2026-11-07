@@ -119,11 +119,13 @@ def teleport_key(policy, snapshot) -> str | None:
     player = snapshot.player
     if player.blind or player.confused or not policy._can_read_scrolls(snapshot):
         return None
-    if quest_no_teleport.forbids(policy, snapshot):
+    if quest_no_teleport.forbids(policy, snapshot) or policy._relocation_refused(snapshot):
         return None
     scroll = policy._first_item(snapshot, lambda item: item.is_teleport_scroll)
     if scroll is None:
         return None
+    if (takeoff := policy._anti_teleport_takeoff_key(snapshot, scroll)) is not None:
+        return takeoff    # the stalemate stands: the read comes on the next decision
     breeder_stalemate.forget(policy)
     breeder_floor_record.record(policy, snapshot)
     policy.last_reason = TELEPORT_REASON
