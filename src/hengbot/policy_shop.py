@@ -6169,7 +6169,8 @@ class ShopMixin(InStoreMixin):
                            or self._can_compose_shop_observation(snapshot) else None)
             if atomic_shop is not None:
                 return atomic_shop
-            atomic_withdrawal = (None if acquisition_waits(self, snapshot) else
+            atomic_withdrawal = (None if acquisition_waits(self, snapshot)
+                                 and not self._home_full_relief_take_filed() else
                                  self._atomic_home_withdraw_key(snapshot, step))
             if atomic_withdrawal is not None:
                 return atomic_withdrawal

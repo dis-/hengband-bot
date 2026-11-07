@@ -749,6 +749,27 @@ class HomeMixin:
             return False
         return bool(self._departure_blocking_page_operation(snapshot))
 
+    def _home_full_relief_take_filed(self) -> bool:
+        """The relief's filed Home take of its chosen sale/destroy ware.
+
+        That take is disposal, not an acquisition: the pack headroom pass
+        (``town_pack_headroom.acquisition_waits``) holds unstarted purchases
+        and Home takes behind its own sales, but the relief already left Home
+        for this take and the entrance's atomic take is its only way to it.
+        Held there, the route walked straight back into Home, where the
+        relief left again: n1-a life-492 2026-11-07 12:59:21-24, the sweep's
+        flail take while the pass wanted to sell the spare Identify staves,
+        home:junk-sweep-withdraw -> shop:approach '9' '1' x4 ->
+        owner-retired-burst.
+        """
+        relief = self._home_full_relief
+        request = self._home_errand.request
+        return bool(relief is not None and relief.get("sale") is not None
+                    and not relief.get("withdrawn")
+                    and self._home_errand.active and request is not None
+                    and request.purpose in {"full-home-sale", "full-home-discard"}
+                    and request.signature == relief["sale"][0])
+
     def _home_full_leave_key(self, reason: str) -> str:
         self.last_reason = reason
         self._offer_execution(LEAVE_STORE_KEY, producer="home-visit",
