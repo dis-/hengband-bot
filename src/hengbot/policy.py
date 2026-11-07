@@ -17224,6 +17224,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 Position(monster.position.y + dy, monster.position.x + dx)
                 for dy in range(-HUNT_RANGE, HUNT_RANGE + 1)
                 for dx in range(-HUNT_RANGE, HUNT_RANGE + 1))
+        # A kept-away disenchanter out of sight keeps its area for the window
+        # (disenchant_avoid.remembered_cells, n1-b life-339 Angband 30F: one
+        # step out of sight the explore walked straight back).
+        cells |= disenchant_avoid.remembered_cells(
+            self, snapshot, immobile_threat_memory.ringed)
         return frozenset(cells)
 
     def _material_melee_damage(

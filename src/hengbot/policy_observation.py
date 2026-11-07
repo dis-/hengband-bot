@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import destruction_use, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, retreat_veto_life, status_cure, summon_response, summoner_wait, town_end_mining
+from hengbot import destruction_use, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, over_extension, retreat_enclosure, retreat_veto_life, status_cure, summon_response, summoner_wait, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -1055,6 +1055,7 @@ class ObservationMixin:
         immobile_threat_memory.observe(self, snapshot)
         hunt_target.observe(self, snapshot)
         q2_kill_credit.observe(self, snapshot)
+        disenchant_avoid.observe(self, snapshot)
         self._took_curse_damage = self._took_damage and any(
             " drains HP from you!" in message
             or " drains life from you!" in message

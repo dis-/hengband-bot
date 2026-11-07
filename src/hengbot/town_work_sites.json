@@ -814,6 +814,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "disenchant_avoid.py:_race_disenchants": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "disenchant_avoid.py:exposes_gear": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "disenchant_avoid.py:fought": {
     "classification": "data",
     "rows": [
@@ -821,7 +835,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "disenchant_avoid.py:kept_away": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "disenchant_avoid.py:not_avoided": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "disenchant_avoid.py:remembered": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
