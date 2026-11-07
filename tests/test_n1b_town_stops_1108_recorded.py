@@ -55,7 +55,7 @@ from hengbot.cli import _ExecutorInputPort, _consume_response_sequence, _send_ne
 from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
 from hengbot.input_executor import ScreenKind, classify_screen
 from hengbot.model import parse_snapshot
-from hengbot.policy import staged_prompt_chain_matches
+from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.runtime_paths import RUNTIME_DIR_ENV
 from hengbot.town_arrival_checkpoint import POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST
 from replay_town_arrival import restore
@@ -248,8 +248,12 @@ class N1bTownStops1108RecordedTest(executor_pins.ProductionHarness):
         # The arrival policy carries the suppression latch armed on an
         # earlier visit (the recorded 21:06 take and re-deposit).
         self.assertEqual(policy._home_random_teleport_withdrawal[0], SPEAR)
-        self.replay(policy, range(19))
-        board, _key = self.decide(policy, 19)
+        # DECLARED: the town hunt is held off (the recorded visit never hunted
+        # the horse and drunk in view on its way to the inn; with C's repair
+        # the staff sequence yields to that hunt, which is not this pin).
+        with mock.patch.object(HengbotPolicy, "_town_kill_mob_key", lambda self, snapshot: None):
+            self.replay(policy, range(19))
+            board, _key = self.decide(policy, 19)
         # Recorded row 19 stepped off toward Home for the take.
         self.assertNotEqual(policy.last_reason, self.journal[19]["reason"])
         self.assertIsNone(policy._home_random_teleport_withdrawal)
@@ -257,6 +261,18 @@ class N1bTownStops1108RecordedTest(executor_pins.ProductionHarness):
         self.assertFalse(any(
             owned.origin == "home" and owned.item.name == SPEAR
             for owned in policy._random_teleport_suppression_pending(board)))
+
+    # C ------------------------------------------------------------------
+
+    def test_c_staff_sequence_yields_to_the_town_hunt_beside_a_visible_drunk(self):
+        policy = self.restore("c")
+        for row in range(256):
+            self.consume(policy, row)
+        board, key = self.decide(policy, 256)
+        drunk = next(m for m in board.visible_monsters if m.race_id == 15)
+        self.assertEqual(self.journal[256]["reason"], "me-staff:return-outpost")
+        self.assertEqual((key, policy.last_reason), ("9", "town:kill-mob-approach"))
+        self.assertEqual(policy._town_hunt_target, drunk.position)
 
 
 if __name__ == "__main__":
