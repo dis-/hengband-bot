@@ -130,6 +130,23 @@ class PurchaseTest(harness.ProductionHarness):
         board = parse_snapshot(raw, policy._monrace_knowledge)
         self.assertFalse(table.purchase_wanted(policy, board, shelf))
 
+    def test_absorbing_every_copy_leaves_the_buy_rules(self):
+        """Owner 2026-11-07: buying stays 「1本目だけ買う」 for Stone to Mud."""
+        policy, raw = self.boundary("life-033")
+        shelf_row = next(it for it in raw["store"]["items"]
+                         if (it["tval"], it["sval"]) == (TVAL_STAFF, REMOVE_CURSE))
+        shelf_row.update(tval=TVAL_WAND, sval=SV_WAND_STONE_TO_MUD, name="岩石溶解の魔法棒 (8回分)",
+                         charges=8, pval=8)
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        shelf = next(it for it in board.store.items
+                     if (it.tval, it.sval) == (TVAL_WAND, SV_WAND_STONE_TO_MUD))
+        self.assertTrue(table.purchase_wanted(policy, board, shelf))
+        sequence.state(policy).absorbed = {**sequence.state(policy).absorbed,
+                                           f"wand:{SV_WAND_STONE_TO_MUD}": 12}
+        self.assertFalse(table.purchase_wanted(policy, board, shelf))
+        # ... while a carried copy is still absorbed at the Tower.
+        self.assertTrue(table.charge_first(policy, board, table.device(shelf)))
+
     def test_spare_gold_bounds_the_purchase(self):
         policy, raw = self.boundary("life-033")
         board = parse_snapshot(raw, policy._monrace_knowledge)
@@ -202,20 +219,113 @@ class AfterChargeTowerTest(harness.ProductionHarness):
         self.assertEqual(steps[-2:], ["me-staff:stage2-complete", ("absorb", TVAL_STAFF, SPEED, full)])
         self.assertEqual(sequence.state(policy).absorbed[f"staff:{SPEED}"], full)
 
-    def absorb_after_stage(self, sval, name):
+    @staticmethod
+    def wand_rows(sval, name, counts, charges):
+        """DECLARED CONSTRUCTED: carried identified stacks of wand ``sval``
+        (the D24 Sleep Monster row renamed), one per count, each stack after
+        the first inscribed so the game keeps them apart."""
+        rows = []
+        for index, count in enumerate(counts):
+            row = d24_row(TVAL_WAND, 8)
+            inscription = f" {{#{index}}}" if index else ""
+            row.update(sval=sval, count=count, charges=charges, pval=charges,
+                       name=f"{count}本の{name} ({charges}回分){inscription}")
+            rows.append(row)
+        return rows
+
+    def wand_visit(self, sval, name, counts, recorded, *, check=None):
+        key = f"wand:{sval}"
+        policy, _, steps = self.absorb_after_stage(
+            None, None, rows=self.wand_rows(sval, name, counts, 4),
+            absorbed={key: recorded}, check=check)
+        return policy, steps
+
+    def test_absorbed_stone_to_mud_copies_are_recharged_and_absorbed(self):
+        """Owner 2026-11-07 「2本目以降も充填して取り込み、上限を増やす」: n1-c
+        life-159 carried six Stone to Mud wands (buy_more not set) beside an
+        absorbed Stone to Mud and the Tower only recharged them every trip."""
+        full = sequence.morivant_tower.device_definitions()[(TVAL_WAND, SV_WAND_STONE_TO_MUD)][0] * 6
+
+        def kept_for_the_sequence(policy, raw):
+            # 「岩石溶解の全部持つ決まりは、取り込む分だけ外す」: the wand the
+            # sequence absorbs is held by the sequence, not by the keep-all rule.
+            board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+            wand = next(it for it in board.inventory
+                        if (it.tval, it.sval) == (TVAL_WAND, SV_WAND_STONE_TO_MUD))
+            # Unfixed: (6, "utility:stone-to-mud").
+            self.assertEqual(policy._retention_reservation_baseline_detail(board, wand),
+                             (6, "me-staff:absorb"))
+
+        policy, steps = self.wand_visit(SV_WAND_STONE_TO_MUD, "岩石溶解の魔法棒", [6], 10,
+                                        check=kept_for_the_sequence)
+        # Unfixed: the stage ends the visit and the wands ride home unabsorbed.
+        self.assertEqual(steps[0], "me-staff:recharge-all")
+        self.assertEqual(steps[-2:], ["me-staff:stage2-complete",
+                                      ("absorb", TVAL_WAND, SV_WAND_STONE_TO_MUD, full)])
+        self.assertEqual(sequence.state(policy).absorbed[f"wand:{SV_WAND_STONE_TO_MUD}"], full)
+
+    def test_every_stack_of_an_absorbed_kind_is_absorbed(self):
+        """Four stacks: one 'G' each, none counted as an absorb without progress."""
+        policy, steps = self.wand_visit(SV_WAND_STONE_TO_MUD, "岩石溶解の魔法棒", [1, 1, 1, 1], 20)
+        absorbs = [step for step in steps if isinstance(step, tuple)
+                   and step[1:3] == (TVAL_WAND, SV_WAND_STONE_TO_MUD)]
+        # Unfixed (settle by "no copy left"): the fourth 'G' stops the bot as
+        # me-staff absorb-no-progress:wand:6.
+        self.assertEqual(len(absorbs), 4, steps)
+        self.assertIsNone(sequence.state(policy).failure)
+        # A copy's 12 charges never lower the count the record already holds
+        # (the game only adds to it).
+        self.assertEqual(sequence.state(policy).absorbed[f"wand:{SV_WAND_STONE_TO_MUD}"], 20)
+
+    def test_absorbed_teleport_other_copy_is_recharged_and_absorbed(self):
+        from hengbot.model import SV_WAND_TELEPORT_AWAY
+
+        full = sequence.morivant_tower.device_definitions()[(TVAL_WAND, SV_WAND_TELEPORT_AWAY)][0]
+        policy, steps = self.wand_visit(SV_WAND_TELEPORT_AWAY, "テレポート・アウェイの魔法棒", [1], 10)
+        # Unfixed: no absorption of the wand.
+        self.assertEqual(steps[-2:], ["me-staff:stage2-complete",
+                                      ("absorb", TVAL_WAND, SV_WAND_TELEPORT_AWAY, full)])
+
+    def test_a_power_at_its_count_cap_takes_no_more_copies(self):
+        """mind-magic-eater.cpp caps the count at 99: another copy adds nothing."""
+        key = f"wand:{SV_WAND_STONE_TO_MUD}"
+        policy, steps = self.wand_visit(SV_WAND_STONE_TO_MUD, "岩石溶解の魔法棒", [6],
+                                        table.POWER_COUNT_CAP)
+        self.assertFalse(any(isinstance(step, tuple) and step[1] == TVAL_WAND for step in steps),
+                         steps)
+        self.assertEqual(steps[-1], "me-staff:stage2-complete")
+        self.assertEqual(sequence.state(policy).absorbed[key], table.POWER_COUNT_CAP)
+        # The displayed list's count is the evidence as well.
+        stone = table.devices()[(TVAL_WAND, SV_WAND_STONE_TO_MUD)]
+        policy._me_device_lists = {"wand": (0, ({"name": stone.names[0], "current": 50, "max": 99},))}
+        sequence.state(policy).absorbed = {key: 10}
+        board = parse_snapshot(copy.deepcopy(self.board()), self.knowledge)
+        self.assertFalse(table.charge_first(policy, board, stone))
+        policy._me_device_lists["wand"] = (0, ({"name": stone.names[0], "current": 50, "max": 98},))
+        self.assertTrue(table.charge_first(policy, board, stone))
+
+    def absorb_after_stage(self, sval, name, *, rows=None, absorbed=None, check=None):
         """(policy, the board after the return step, steps) of one Tower visit
-        that carries the D24 Identify row as staff ``sval`` with 3 charges."""
+        that carries the D24 Identify row as staff ``sval`` with 3 charges
+        (or the given pack ``rows``), the record holding ``absorbed`` first;
+        ``check(policy, raw)`` looks at the first board."""
         from hengbot.policy_constants import WAIT_KEY
         from tests.test_me_tower_recharge_recorded import DIRECTIONS, recharge_all_screens
 
         raw = self.board()
-        speed = d24_row(TVAL_STAFF, IDENTIFY)
-        speed.update(sval=sval, name=name, charges=3, pval=3)
-        raw["inventory"].append(speed)
+        if rows is None:
+            speed = d24_row(TVAL_STAFF, IDENTIFY)
+            speed.update(sval=sval, name=name, charges=3, pval=3)
+            rows = [speed]
+        raw["inventory"].extend(rows)
         raw["inventory"].sort(key=lambda it: (-it["tval"], it["sval"]))
         for index, item in enumerate(raw["inventory"]):
             item["slot"] = chr(ord("a") + index)
         policy = self.policy(raw)
+        if absorbed:
+            sequence.state(policy).absorbed = dict(absorbed)
+        if check is not None:
+            check(policy, raw)
         steps = []
         for _ in range(24):
             key = self.decide(policy, raw)

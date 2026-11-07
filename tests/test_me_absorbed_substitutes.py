@@ -418,11 +418,14 @@ class StoneToMudBreachTownTest(TownBoards):
     def test_absorbed_charges_meet_the_q2_wall_breach(self):
         raw = self.me_board("outpost_board")
         policy = self.policy(raw)
-        all_stages_absorbed(policy, **{"wand:6": 12})
+        # DECLARED CONSTRUCTED: the power at the count cap, so the carried
+        # wand takes no Tower trip of its own first (owner 2026-11-07: a copy
+        # below the cap is charged and absorbed).
+        all_stages_absorbed(policy, **{"wand:6": 99})
         _, _, status = self.carry(policy, raw)
-        # The recorded wand's one charge and the absorbed 12: 13 // 2 walls.
+        # The recorded wand's one charge and the absorbed 99: 100 // 2 walls.
         self.assertEqual(status["utility_tools.wall_breach"],
-                         {"measured": 6, "required": 1, "ready": True})
+                         {"measured": 50, "required": 1, "ready": True})
         key = self.decide(policy, raw)
         # Unfixed: the wall_breach carry is short and the Q2 travel waits.
         self.assertEqual(policy.last_reason.removesuffix("-step-off"), "fixedquest:q2-travel")

@@ -82,8 +82,9 @@ class Q14HealCureCriticalRecordedTest(executor_harness.ProductionHarness):
         record.absorbed = {int(sval): count for sval, count in recorded["absorbed"].items()}
         # DECLARED CONSTRUCTED: the carried Stone to Mud wand as already
         # absorbed, so its own Tower trip (another owner) does not take the
-        # board (test_me_nokey_1031_recorded does the same).
-        record.absorbed["wand:6"] = 12
+        # board (test_me_nokey_1031_recorded does the same); at the count cap,
+        # since owner 2026-11-07 a copy below it is absorbed as well.
+        record.absorbed["wand:6"] = 99
         policy.consume_skill_knowledge(dict(self.case["skill"], turn=raw["turn"]))
         policy.consume_home_knowledge(
             _parse_items(self.case["home"]["knowledge"]["items"], protocol=3))

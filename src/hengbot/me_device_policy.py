@@ -16,7 +16,9 @@ Owner answers (2026-10-31 night) that bind the reading:
  2. 「食料を先にする」: until the Wand of Wonder staple is held, the food rule
     (magic_eater_devices) stands, absorption waiting or not.
  3. Stone to Mud 「1本目だけ買う」: bought only while not absorbed; every
-    picked-up wand is still kept (policy_home's keep-all rule).
+    picked-up wand is still kept (policy_home's keep-all rule), but a
+    carried copy the staff sequence absorbs (owner 2026-11-07
+    「岩石溶解の全部持つ決まりは、取り込む分だけ外す。」).
  4. Identify 「段階1の1本だけ」: the ``stage`` staffs are bought only by the
     staff sequence (me_staff_sequence), never by this table.
 
@@ -31,8 +33,9 @@ Who acts on a row:
    usable ``absorb_now`` device when safe on a dungeon or quest floor (the
    floor rung after the survival rungs); in town only the birth Magic Missile
    wand of the opening (O3) -- 「その場で」 is where it was found.
- * ``charge_first``: the staff sequence carries an ``absorb_after_charge``
-   device (and the first copy of a ``stage`` kind) home, recharges it at
+ * ``charge_first``: the staff sequence carries every ``absorb_after_charge``
+   device below the count cap, its kind absorbed already or not (owner
+   2026-11-07), and the first copy of a ``stage`` kind home, recharges it at
    Morivant's Tower when the spare gold pays the trip, then absorbs it
    (me_staff_sequence extras).
  * ``never``: nothing here acts; sale, food and keep rules decide.
@@ -52,6 +55,9 @@ from hengbot.model import TVAL_ROD, TVAL_STAFF, TVAL_WAND
 TABLE = Path(__file__).with_name("me_device_policy.json")
 KINDS = {TVAL_STAFF: "staff", TVAL_WAND: "wand", TVAL_ROD: "rod"}
 FLAGS = ("buy_first", "buy_more", "absorb_now", "absorb_after_charge", "never")
+# mind-magic-eater.cpp import_magic_device: a power's count never exceeds 99;
+# another copy absorbed at 99 adds nothing to it.
+POWER_COUNT_CAP = 99
 
 
 @dataclass(frozen=True)
@@ -101,12 +107,30 @@ def _first_stage_copy(policy, snapshot, row: Device) -> bool:
     return row.stage is not None and not _absorbed(policy, snapshot, row)
 
 
+def _below_cap(policy, snapshot, row: Device) -> bool:
+    """Another copy still raises the power's count (``POWER_COUNT_CAP``).
+
+    The count is the displayed list's ``max`` (cmd-magiceat.cpp prints the
+    power's count), else the absorption record: a lower bound, so an
+    unread list never stops the absorption early.
+    """
+    from hengbot import me_capability
+
+    return me_capability.count(policy, snapshot, row.kind, row.sval) < POWER_COUNT_CAP
+
+
 def charge_first(policy, snapshot, row: Device | None) -> bool:
-    """Carried home and recharged at the Tower before it is absorbed."""
+    """Carried home and recharged at the Tower before it is absorbed.
+
+    Owner 2026-11-07 「「持ち帰って充填してから取り込む」の行は2本目以降も充填して
+    取り込み、上限を増やす。」: every identified copy of an ``absorb_after_charge``
+    kind, absorbed already or not, until the count is at its cap.  Buying a
+    copy stays ``buy_first`` / ``buy_more`` (``purchase_wanted``).
+    """
     if row is None or row.never:
         return False
     if row.absorb_after_charge:
-        return row.buy_more or not _absorbed(policy, snapshot, row)
+        return _below_cap(policy, snapshot, row)
     return _first_stage_copy(policy, snapshot, row)
 
 

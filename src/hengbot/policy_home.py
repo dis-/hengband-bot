@@ -2610,6 +2610,10 @@ class HomeMixin:
             # the number of wands, so they are never sold, destroyed or
             # offered to the Home-full relief.  The MANA branch above keeps
             # its own labels; whatever it leaves falls here, not to surplus.
+            # Owner 2026-11-07 「岩石溶解の全部持つ決まりは、取り込む分だけ外す。」:
+            # a carried wand the Magic-Eater's staff sequence absorbs is held
+            # by the sequence instead (``me-staff:absorb`` at the top of this
+            # function), up to the 'G' that takes it.
             return item.count, "utility:stone-to-mud"
 
         if strategy is not None:

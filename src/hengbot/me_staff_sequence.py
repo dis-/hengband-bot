@@ -67,7 +67,11 @@ on any Tower visit (recharged to its maximum by the same 'a' and absorbed
 after the stage's staffs), and starts a Tower trip of its own only when the
 gold above what the stage still needs (``spare_gold``: ``_stockout_target``,
 or the unmet supplies once every stage is complete) pays the expedition
-(``_extras_spare``); it never starts a fundraising run.
+(``_extras_spare``); it never starts a fundraising run.  Owner 2026-11-07
+「「持ち帰って充填してから取り込む」の行は2本目以降も充填して取り込み、上限を増やす。」:
+an ``absorb_after_charge`` kind's later copies ride along as well (each one
+raises the power's count, mind-magic-eater.cpp, up to 99), one 'G' per
+carried stack.
 """
 
 from __future__ import annotations
@@ -769,18 +773,23 @@ def _settle_pending(policy, snapshot) -> None:
         return
     step, before = record.pending
     record.pending = None
-    for key, charges in before:
+    for key, charges, *copies in before:
         item = (staple_food(snapshot) if key == STAPLE
                 else dict(_absorbable(policy, snapshot)).get(key))
         if step == "recharge" and item is not None and item.charges > charges:
             record.attempts.pop(("recharge", key), None)
-        if step == "absorb" and item is None:
+        # 'G' takes the whole stack (vary_item -999): no carried copy is left,
+        # or fewer than before when another stack of the kind is carried
+        # (owner 2026-11-07: every copy of an absorb_after_charge kind).
+        if step == "absorb" and (item is None or (
+                copies and _copies(policy, snapshot, key) < copies[0])):
             # ATTEMPT_LIMIT counts absorptions that did not happen, not every
             # staff of the kind a life takes in (n1-c life-128 2026-11-04 12:18:
             # the fourth Staff of Speed, 17919 gold, stopped the bot).
             record.attempts.pop(("absorb", key), None)
             stage = current_stage(policy)
-            record.absorbed = {**record.absorbed, key: charges}
+            record.absorbed = {**record.absorbed,
+                               key: max(charges, record.absorbed.get(key, 0))}
             if stage is not None and stage_complete(policy, stage):
                 # The next stage gets its own fundraising run budget.
                 record.completed_stages = {**record.completed_stages,
@@ -875,7 +884,20 @@ def _absorb_key(policy, snapshot) -> str:
         return _stop(policy, f"absorb-no-progress:{key}")
     policy.last_reason = ABSORB_REASON
     return _stage(policy, "G" + item.slot, (("absorb", key),),
-                  ("absorb", ((key, item.charges),)))
+                  ("absorb", ((key, item.charges, _copies(policy, snapshot, key)),)))
+
+
+def _copies(policy, snapshot, key: str) -> int:
+    """Carried known devices of the record key's kind (every stack)."""
+    return sum(item.count for item in snapshot.inventory
+               if item.aware and item.known and _kind_record_key(item) == key)
+
+
+def _kind_record_key(item) -> str | None:
+    from hengbot import me_device_policy
+
+    row = me_device_policy.device(item)
+    return me_capability.record_key(row.kind, row.sval) if row is not None else None
 
 
 def _no_progress(policy, snapshot, phase) -> bool:

@@ -95,7 +95,9 @@ class TownDefinedEndHomeLoopTest(_test_n1c_town_wander_1101_recorded.TownWanderR
         sequence = self.case["me_staff_sequence"]
         record = me_staff_sequence.state(policy)
         record.absorbed = dict(sequence["absorbed"])
-        record.absorbed[me_capability.record_key("wand", 6)] = 1
+        # The carried Stone to Mud kind at the count cap, so its Tower trip
+        # (owner 2026-11-07: copies below the cap are absorbed) stays out.
+        record.absorbed[me_capability.record_key("wand", 6)] = 99
         record.stage = sequence["stage"]
         record.powers_read = True
         return policy, raw
