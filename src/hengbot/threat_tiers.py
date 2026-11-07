@@ -80,6 +80,12 @@ SV_SCROLL_TELEPORT_LEVEL = 10
 SV_STAFF_TELEPORTATION = 4
 SCROLL_BALL_RADIUS = 4
 
+# The projection's cost cap (``Projection``).  One monster's p95 convolutions cost about
+# 45 ns x actions^2 x its largest damage per action on the recorded boards (n1-a life-475's
+# ウートガルザ・ロキ, 453 per action: 24 actions 12 ms, 47 actions 65 ms; ミッド・タイタン, 324:
+# 47 actions 25 ms); a projection is computed while that sum stays within the budget (~15 ms).
+PROJECTION_COST_BUDGET = 330_000
+
 
 @dataclass(frozen=True)
 class AttackScroll:
@@ -177,7 +183,10 @@ class Assessment:
     tier: str | None = None          # None: no hostile in the engagement
     free_turns: int | None = None    # T3 turns to clear (None: some target has no free attack)
     free_incoming: int | None = None
+    free_incoming_bounds: tuple | None = None  # (low, high) where the projection was not computed
     supply_plan: SupplyPlan | None = None
+    skipped: str | None = None       # "cost": the tier needs a projection past the cost cap
+    free_damage: dict = field(default_factory=dict)
     cannot_escape: bool = False
     escape_means: tuple = ()
     escape_restorable: bool = False
@@ -207,7 +216,10 @@ class Assessment:
             "tier": self.tier,
             "free_turns": self.free_turns,
             "free_incoming": self.free_incoming,
+            "free_incoming_bounds": (None if self.free_incoming_bounds is None
+                                     else list(self.free_incoming_bounds)),
             "supply_plan": None if self.supply_plan is None else self.supply_plan.as_dict(),
+            "skipped": self.skipped,
             "flags": self.flags(),
             "escape_means": list(self.escape_means),
             "escape_restorable": self.escape_restorable,
@@ -235,13 +247,6 @@ def engagement(policy, snapshot) -> list:
     detected = [monster for monster in policy._strategic_subset(snapshot, snapshot.detected_monsters)
                 if not monster.asleep and monster.index not in seen]
     return [*visible, *detected]
-
-
-def _operational(policy, snapshot, hostiles, turns, *, player_speed=None) -> int:
-    if not hostiles or turns <= 0:
-        return 0
-    return policy.threat_prediction(
-        snapshot, hostiles, turns, player_speed=player_speed)["operational_total"]
 
 
 def unseen_correction(policy, snapshot, hostiles) -> int:
@@ -460,17 +465,117 @@ def _resistance_after(snapshot):
     return replace(snapshot, player=replace(player, abilities=player.abilities | added))
 
 
-def _incoming(policy, snapshot, hostiles, turns, *, hasted_turns, player_speed) -> int:
-    """Operational damage over ``turns`` with the first ``hasted_turns`` at +10 speed."""
-    hasted_turns = min(hasted_turns, turns)
-    hasted = _operational(policy, snapshot, hostiles, hasted_turns,
-                          player_speed=player_speed + SPEED_BONUS)
-    return hasted + _operational(policy, snapshot, hostiles, turns - hasted_turns,
-                                 player_speed=player_speed)
+class CostExceeded(Exception):
+    """The answer needs a projection beyond the cost cap and no bound decides it."""
 
 
-def _plan(policy, snapshot, hostiles, allowed, free, reserve, next_p95, hp, max_hp):
-    """The cheapest win with the ``allowed`` categories (each used only where it helps), or None."""
+class Projection:
+    """The operational projections of one engagement, memoised and cost-capped.
+
+    The prediction's cost grows with the horizon: the per-monster p95 convolutions are about
+    quadratic in the monster's action count (n1-a life-475's ウートガルザ・ロキ: 16 actions 14 ms,
+    137 actions 870 ms).  A horizon is affordable while ``cost`` stays within
+    ``PROJECTION_COST_BUDGET``.  Past that the projection is bracketed instead of computed:
+
+    - low: the projection over the longest affordable horizon (the operational total does not fall
+      as turns are added, nor as the player gets slower);
+    - high: each monster's actions over the horizon times its largest damage per action (the
+      ``total`` columns of the one-turn projection: the reduced maximum blow, the largest spell),
+      which no p95 exceeds.
+
+    A comparison the bracket does not decide raises ``CostExceeded`` rather than spending the time.
+    """
+
+    def __init__(self, policy, snapshot, hostiles, one_turn):
+        self.policy, self.hostiles = policy, hostiles
+        self.memo: dict = {}
+        self.rows = one_turn["monsters"]
+        self.melee_max = [self._melee_max(snapshot, monster, row)
+                          for monster, row in zip(hostiles, self.rows)]
+        self.ranged_max = [row["ranged_prediction"] / row["actions"] if row["actions"] > 0 else 0
+                           for row in self.rows]
+        self.per_action = [max(melee, ranged)
+                           for melee, ranged in zip(self.melee_max, self.ranged_max)]
+
+    def _melee_max(self, snapshot, monster, row) -> float:
+        if row["melee_attacks"] > 0:
+            return row["melee_prediction"] / row["melee_attacks"]
+        knowledge = self.policy._monrace_knowledge.get(monster.race_id)
+        if knowledge is not None and knowledge.blows:
+            return sum(max(damage for damage, _ in distribution) for _, distribution
+                       in self.policy._melee_blow_distributions(snapshot, knowledge, monster.stunned))
+        return monster.max_melee_damage
+
+    def cost(self, turns: int, speed: int) -> float:
+        """The convolution work of one projection: actions^2 x the largest damage per action of
+        each monster that can deal the damage in the window (its path and line of fire as the
+        one-turn projection found them)."""
+        total = 0.0
+        for monster, row, melee, ranged in zip(self.hostiles, self.rows, self.melee_max,
+                                               self.ranged_max):
+            actions = self.policy._monster_actions(monster.speed, speed, turns)
+            if ranged > 0:
+                total += actions * actions * ranged
+            path = row["path_distance"]
+            if melee > 0 and path is not None:
+                attacks = (actions if path <= 1 else 0 if row["never_moves"]
+                           else max(0, actions - (path - 1)))
+                if row["can_teleport_player_to"]:
+                    attacks = max(attacks, actions - 1)
+                total += attacks * attacks * melee
+        return total
+
+    def affordable(self, turns: int, speed: int) -> bool:
+        return turns <= 0 or self.cost(turns, speed) <= PROJECTION_COST_BUDGET
+
+    def capped(self, turns: int, speed: int) -> int:
+        """The longest affordable horizon up to ``turns`` (at least one turn)."""
+        low, high = 1, turns
+        while low < high:  # the cost grows with the horizon
+            middle = (low + high + 1) // 2
+            if self.affordable(middle, speed):
+                low = middle
+            else:
+                high = middle - 1
+        return low
+
+    def operational(self, board, turns: int, speed: int) -> int:
+        if turns <= 0:
+            return 0
+        key = (id(board), turns, speed)
+        if key not in self.memo:
+            self.memo[key] = (board, self.policy.threat_prediction(
+                board, self.hostiles, turns, player_speed=speed)["operational_total"])
+        return self.memo[key][1]
+
+    def upper_bound(self, turns: int, speed: int) -> int:
+        if turns <= 0:
+            return 0
+        return ceil(sum(self.policy._monster_actions(monster.speed, speed, turns) * most
+                        for monster, most in zip(self.hostiles, self.per_action)))
+
+    def incoming(self, board, turns: int, *, hasted_turns: int, speed: int) -> tuple[int, int]:
+        """(low, high) of the operational damage over ``turns`` with the first ``hasted_turns``
+        at +10 speed; low == high when computed."""
+        hasted_turns = min(hasted_turns, turns)
+        if (self.affordable(hasted_turns, speed + SPEED_BONUS)
+                and self.affordable(turns - hasted_turns, speed)):
+            exact = (self.operational(board, hasted_turns, speed + SPEED_BONUS)
+                     + self.operational(board, turns - hasted_turns, speed))
+            return exact, exact
+        fastest = speed + SPEED_BONUS if hasted_turns else speed
+        low = self.operational(board, self.capped(turns, fastest), fastest)
+        high = (self.upper_bound(hasted_turns, speed + SPEED_BONUS)
+                + self.upper_bound(turns - hasted_turns, speed))
+        return low, max(low, high)
+
+
+def _plan(policy, snapshot, projection, allowed, free, reserve, next_p95, hp, max_hp):
+    """The cheapest win with the ``allowed`` categories (each used only where it helps), or None.
+
+    Raises ``CostExceeded`` when a candidate needs an unaffordable horizon whose bound does not
+    already rule it out."""
+    hostiles = projection.hostiles
     schedule = _attack_schedule(policy, snapshot, hostiles, allowed, free)
     if schedule is None:
         return None
@@ -501,20 +606,62 @@ def _plan(policy, snapshot, hostiles, allowed, free, reserve, next_p95, hp, max_
         for board, resisted in boards:
             for heals in range(len(heal_doses) + 1):
                 turns = attack_turns + doses + resisted + heals
-                incoming = _incoming(policy, board, hostiles, turns,
-                                     hasted_turns=doses * SPEED_DOSE_TURNS,
-                                     player_speed=player_speed) + self_damage
-                capacity = hp + sum(heal_doses[:heals])
-                if incoming <= capacity - reserve:
-                    plan = SupplyPlan(
-                        categories=tuple(name for name in PLAN_ORDER if name in allowed),
-                        turns=turns, incoming=incoming, capacity=capacity, reserve=reserve,
-                        speed_doses=doses, good_ammo=ammo, charges=charges, scrolls=scrolls,
-                        resistance=resisted, heals=tuple(heal_doses[:heals]))
-                    if best is None or plan.turns < best.turns:
-                        best = plan
+                if best is not None and turns >= best.turns:
                     break
+                low, high = projection.incoming(
+                    board, turns, hasted_turns=doses * SPEED_DOSE_TURNS, speed=player_speed)
+                capacity = hp + sum(heal_doses[:heals])
+                if low + self_damage > capacity - reserve:
+                    continue
+                if high + self_damage > capacity - reserve:
+                    raise CostExceeded
+                incoming = high + self_damage  # the projection itself, or its upper bound
+                best = SupplyPlan(
+                    categories=tuple(name for name in PLAN_ORDER if name in allowed),
+                    turns=turns, incoming=incoming, capacity=capacity, reserve=reserve,
+                    speed_doses=doses, good_ammo=ammo, charges=charges, scrolls=scrolls,
+                    resistance=resisted, heals=tuple(heal_doses[:heals]))
+                break
     return best
+
+
+def _supplies_held(policy, snapshot) -> set:
+    """The plan categories with something to spend; a prefix adding none repeats the last one."""
+    held = set()
+    if speed_dose.spare(policy, snapshot) > 0 and not _hasted(policy, snapshot):
+        held.add("speed")
+    launcher = policy._equipped_launcher(snapshot)
+    if launcher is not None and any(item.tval == launcher.ammo_tval and item.count > 0
+                                    and (item.is_ego or item.is_artifact)
+                                    for item in snapshot.inventory):
+        held.add("good_ammo")
+    if any(item.tval in (TVAL_WAND, TVAL_STAFF) and item.known and item.charges > 0
+           and (("wand" if item.tval == TVAL_WAND else "staff"), item.sval) in me_device_attacks.POWERS
+           for item in snapshot.inventory):
+        held.add("charges")
+    if _scroll_reads(snapshot):
+        held.add("scrolls")
+    if _resistance_after(snapshot) is not None:
+        held.add("resistance")
+    if any(policy._exact_potion_count(snapshot, sval) > 0 for sval in HEAL_AMOUNTS):
+        held.add("healing")
+    return held
+
+
+def _path_memo(policy):
+    """Memoise ``_monster_path_distance`` (a pure BFS on the board) for one assessment."""
+    if "_monster_path_distance" in vars(policy):
+        return None
+    method = policy._monster_path_distance
+    cache: dict = {}
+
+    def memoised(snapshot, origin):
+        key = (id(snapshot), origin)
+        if key not in cache:
+            cache[key] = (snapshot, method(snapshot, origin))
+        return cache[key][1]
+
+    return memoised
 
 
 # ---------------------------------------------------------------- flags
@@ -688,8 +835,58 @@ def reward_reasons(policy, snapshot, monster) -> tuple:
 
 # ---------------------------------------------------------------- assess
 
+def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
+    """3.2-3.4: T3, else the shortest winning prefix of the owner's order (T2), else T1."""
+    hostiles, speed = projection.hostiles, snapshot.player.speed
+    free = result.free_damage
+    if all(damage > 0 for damage in free.values()):
+        turns = sum(max(1, ceil(monster.hp / free[monster.index])) for monster in hostiles)
+        result.free_turns = turns
+        low, high = projection.incoming(snapshot, turns, hasted_turns=0, speed=speed)
+        result.free_incoming = high if low == high else None
+        result.free_incoming_bounds = None if low == high else (low, high)
+        if high < hp:
+            result.tier = T3
+            return
+        if low < hp:
+            raise CostExceeded  # the bracket cannot tell T3 from the rest
+    reserve = max(ceil(max_hp * RESERVE_HP_RATIO), result.next_action_p95)
+    held = _supplies_held(policy, snapshot)
+    # T1 first: every supply.  Only when that wins is the cheapest prefix looked for (D7).
+    every = _plan(policy, snapshot, projection, frozenset(PLAN_ORDER), free, reserve,
+                  result.next_action_p95, hp, max_hp)
+    if every is None:
+        result.tier = T1
+        return
+    result.tier = T2
+    for length in range(1, len(PLAN_ORDER) + 1):
+        if PLAN_ORDER[length - 1] not in held and length < len(PLAN_ORDER):
+            continue  # the same supplies as the shorter prefix: the same answer
+        try:
+            plan = (every if length == len(PLAN_ORDER) else _plan(
+                policy, snapshot, projection, frozenset(PLAN_ORDER[:length]), free, reserve,
+                result.next_action_p95, hp, max_hp))
+        except CostExceeded:
+            result.skipped = "cost"  # T2 holds (every supply wins); which prefix is not known
+            return
+        if plan is not None:
+            result.supply_plan = plan
+            return
+
+
 def assess(policy, snapshot, hostiles=None) -> Assessment:
     """Classify the engagement on ``snapshot`` (design 3 and 4); pure."""
+    memoised = _path_memo(policy)
+    if memoised is not None:
+        policy._monster_path_distance = memoised
+    try:
+        return _assess(policy, snapshot, hostiles)
+    finally:
+        if memoised is not None:
+            del policy._monster_path_distance
+
+
+def _assess(policy, snapshot, hostiles) -> Assessment:
     if hostiles is None:
         hostiles = engagement(policy, snapshot)
     hostiles = [_with_adjusted_speed(monster) for monster in hostiles]
@@ -715,24 +912,15 @@ def assess(policy, snapshot, hostiles=None) -> Assessment:
     result.instant_death = bool(reasons)
     result.instant_death_reasons = tuple(reasons)
 
-    # 3.3 T3
-    free = {monster.index: free_damage(policy, snapshot, monster) for monster in hostiles}
-    if all(damage > 0 for damage in free.values()):
-        turns = sum(max(1, ceil(monster.hp / free[monster.index])) for monster in hostiles)
-        result.free_turns = turns
-        result.free_incoming = _operational(policy, snapshot, hostiles, turns)
-    if result.free_turns is not None and result.free_incoming < hp:
-        result.tier = T3
-    else:
-        # 3.4 T2 / 3.2 T1: the owner's order as prefixes (D7), the shortest that wins.
-        reserve = max(ceil(max_hp * RESERVE_HP_RATIO), result.next_action_p95)
-        for length in range(1, len(PLAN_ORDER) + 1):
-            plan = _plan(policy, snapshot, hostiles, frozenset(PLAN_ORDER[:length]), free,
-                         reserve, result.next_action_p95, hp, max_hp)
-            if plan is not None:
-                result.supply_plan = plan
-                break
-        result.tier = T2 if result.supply_plan is not None else T1
+    # 3.2-3.4 the tier
+    projection = Projection(policy, snapshot, hostiles, one_turn)
+    result.free_damage = {monster.index: free_damage(policy, snapshot, monster)
+                          for monster in hostiles}
+
+    try:
+        _tier(policy, snapshot, projection, result, hp, max_hp)
+    except CostExceeded:
+        result.tier, result.supply_plan, result.skipped = None, None, "cost"
 
     # 4.2 逃げられるか
     result.escape_means = escape_means(policy, snapshot, hostiles)
@@ -747,7 +935,7 @@ def assess(policy, snapshot, hostiles=None) -> Assessment:
     for monster in hostiles:
         entry = MonsterAssessment(index=monster.index, race_id=monster.race_id,
                                   name=monster.name, speed=monster.speed,
-                                  free_damage=free[monster.index])
+                                  free_damage=result.free_damage[monster.index])
         entry.irreversible = irreversible_kinds(policy, snapshot, monster)
         entry.worsens_with_time = worsens_kinds(policy, monster)
         selected = []

@@ -316,6 +316,32 @@ class ThreatTiersTest(unittest.TestCase):
         self.assertEqual(self.rewards(SAGE, exp=1000, exp_to_advance=2260, max_level=10), ())
         self.assertEqual(self.rewards(SAGE, exp=1000, exp_to_advance=None, max_level=10), ())
 
+    # -- the cost cap ------------------------------------------------------------
+
+    def test_the_bracket_decides_without_the_long_projection(self):
+        # DECLARED CONSTRUCTED budget: no horizon past one turn is computed.
+        with patch.object(threat_tiers, "PROJECTION_COST_BUDGET", 0):
+            brute = self.assess(board([monster(1, BRUTE, 10, 11)]))
+            weak = self.assess(board([monster(1, WEAK, 10, 11, hp=40)]))
+        self.assertEqual(brute.tier, threat_tiers.T1)  # one turn already outdamages the HP
+        self.assertEqual(weak.tier, threat_tiers.T3)   # every blow at its maximum stays below it
+        self.assertIsNone(weak.free_incoming)
+        low, high = weak.free_incoming_bounds
+        self.assertLess(high, 300)
+        exact = self.assess(board([monster(1, WEAK, 10, 11, hp=40)])).free_incoming
+        self.assertLessEqual(low, exact)
+        self.assertLessEqual(exact, high)
+
+    def test_an_undecided_bracket_is_skipped_not_computed(self):
+        duel = [monster(1, DUELIST, 10, 11, hp=150)]
+        with patch.object(threat_tiers, "PROJECTION_COST_BUDGET", 0):
+            result = self.assess(board(duel, inventory=[potion("a", SV_POTION_HEALING, 5)]))
+        self.assertIsNone(result.tier)
+        self.assertEqual(result.skipped, "cost")
+        self.assertIsNone(result.supply_plan)
+        self.assertFalse(result.instant_death)  # 即死 and the flags are still recorded
+        self.assertEqual(threat_tiers.facts(self.policy, board(duel))["skipped"], None)
+
     # -- telemetry ---------------------------------------------------------------
 
     def test_facts_are_json_shaped_and_empty_without_hostiles(self):

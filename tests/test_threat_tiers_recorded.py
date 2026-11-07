@@ -22,6 +22,7 @@ import copy
 import gzip
 import json
 import tempfile
+import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -43,7 +44,8 @@ def load(name):
 
 CASES = {name: load(name) for name in (
     "death-n1a-475-1104.json.gz", "death-n1a-450-1101.json.gz", "death-n1c-123-1104.json.gz",
-    "n1b-325-low-hp-escape-1106.json.gz", "town-end-purchase-only-1102.json.gz")}
+    "n1b-325-low-hp-escape-1106.json.gz", "town-end-purchase-only-1102.json.gz",
+    "summon-response-n1a-475-1104.json.gz", "death-n1c-099-1102.json.gz")}
 
 
 def boards(case):
@@ -77,7 +79,11 @@ class RecordedTiersTest(unittest.TestCase):
         self.assertEqual(result.tier, threat_tiers.T1)
         self.assertIsNone(result.supply_plan)
         self.assertFalse(result.instant_death)
-        self.assertGreater(result.free_incoming, board.player.hp)
+        # The 22-turn free horizon is past the cost cap: its bracket's low end already exceeds HP.
+        self.assertIsNone(result.free_incoming)
+        low, high = result.free_incoming_bounds
+        self.assertGreater(low, board.player.hp)
+        self.assertGreaterEqual(high, low)
         self.assertTrue(any(row.worsens_with_time for row in result.per_monster.values()))
 
     def test_t2_q25_speed_first(self):
@@ -133,6 +139,41 @@ class RecordedTiersTest(unittest.TestCase):
         between = replace(hasted, player=replace(hasted.player, hp=hp))
         self.assertFalse(assess(policy, replace(board, player=between.player)).instant_death)
         self.assertTrue(assess(policy, between).instant_death)
+
+
+class CostTest(unittest.TestCase):
+    """The capture runs every decision: the slowest recorded boards stay cheap.
+
+    Before the cost cap these took 811 ms (summon-response-n1a-475 at 2038858) and 207 ms
+    (death-n1c-099 at 691696); with it about 10 and 25 ms.  The bound is generous for slow
+    machines but far below the uncapped cost."""
+    LIMIT_MS = 150
+
+    def timed(self, policy, board):
+        with _PolicyObserverScope(policy):
+            started = time.perf_counter()
+            facts = threat_tiers.facts(policy, board)
+            return facts, (time.perf_counter() - started) * 1000
+
+    def test_the_slowest_recorded_boards(self):
+        for name, turn in (("summon-response-n1a-475-1104.json.gz", 2038858),
+                           ("death-n1c-099-1102.json.gz", 691696)):
+            with self.subTest(name=name):
+                policy, board = replay_to(name, turn)
+                facts, elapsed = self.timed(policy, board)
+                self.assertEqual(facts["tier"], threat_tiers.T1)
+                self.assertLess(elapsed, self.LIMIT_MS)
+
+    def test_the_slowest_quest_25_board(self):
+        policy = q25.new_policy(q25.CASE["boards"][0])
+        for raw, row in zip(q25.CASE["boards"], q25.CASE["recorded"]):
+            board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+            if row["sequence"] == 275:
+                break
+            policy.confirm_key_posted(str(policy.choose_key(board)))
+        facts, elapsed = self.timed(policy, board)
+        self.assertEqual(facts["tier"], threat_tiers.T1)
+        self.assertLess(elapsed, self.LIMIT_MS)
 
 
 class DecisionRowTest(unittest.TestCase):
