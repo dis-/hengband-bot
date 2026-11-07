@@ -135,6 +135,9 @@ class HomeMixin:
         with self._overweight_surplus_record_path.open("a", encoding="utf8") as stream:
             stream.write(json.dumps(record, ensure_ascii=False)+"\n")
         self._overweight_surplus_ledger.setdefault("sold", []).append(pending["identity"])
+        # The carried count left by this sale: only a rise above it is a rebuy.
+        self._overweight_surplus_ledger.setdefault("sold_counts", []).append(
+            [list(pending["identity"]), count])
         self._overweight_surplus_ledger.pop("pending", None)
         self._save_overweight_surplus_ledger()
         state.pop("pending", None)
@@ -145,6 +148,28 @@ class HomeMixin:
                                   kinds=("Observe",), sources=("effect", "store-operation"))
         self.last_reason = reason
         return True
+
+    def _overweight_surplus_rebought(self, snapshot, item) -> bool:
+        """Whether the identity sold this visit is carried in greater number again.
+
+        Only a carried count above the one its sale left is a sell/rebuy loop.
+        A partial sale leaves the rest carried: n1-a life-492 2026-11-07
+        12:30:22 sold 12 of 35 クロスボウの矢 (+0,+0); a later take overloaded
+        the pack again and the producer, picking the 23 left, stopped as a
+        rebuy loop though nothing had been bought.  A sale recorded without
+        its count (a ledger written before the count was kept) still stops.
+        """
+        identity = self._sale_item_identity(item)
+        ledger = self._overweight_surplus_ledger
+        if identity not in ledger.get("sold", []):
+            return False
+        after = [count for recorded, count in ledger.get("sold_counts", [])
+                 if tuple(recorded) == identity]
+        if not after:
+            return True
+        carried = sum(i.count for i in snapshot.inventory
+                      if self._sale_item_identity(i) == identity)
+        return carried > min(after)
 
     def _save_overweight_surplus_ledger(self) -> None:
         path = self._overweight_surplus_ledger_path
@@ -229,7 +254,7 @@ class HomeMixin:
             return self._town_blocked_key(snapshot)
         _, signature, item, count, stores = chosen
         if pending is None:
-            if self._sale_item_identity(item) in self._overweight_surplus_ledger.get("sold", []):
+            if self._overweight_surplus_rebought(snapshot, item):
                 self._town_blocked_reason = "overweight-surplus-rebuy-loop"
                 return self._town_blocked_key(snapshot)
             pending = dict(signature=signature, identity=self._sale_item_identity(item),
@@ -683,7 +708,7 @@ class HomeMixin:
         relief["withdrawn"] = False
         pack_only = relief.get("pack_only", False)
         for field in ("identifying", "identification_counts", "mode", "destroy_posted", "destroy_pending_key",
-                      "destroy_before_count", "destroy_work_id", "pack_only", "stock_count"):
+                      "destroy_before_count", "destroy_work_id", "pack_only", "stock_count", "taken"):
             relief.pop(field, None)
         self._release_claim_goal(
             reason, owners=("identification",), kinds=("Observe",),
@@ -748,6 +773,27 @@ class HomeMixin:
         if visit.operation_posted or self._store_buy_inflight is not None:
             return False
         return bool(self._departure_blocking_page_operation(snapshot))
+
+    def _home_full_relief_take_filed(self) -> bool:
+        """The relief's filed Home take of its chosen sale/destroy ware.
+
+        That take is disposal, not an acquisition: the pack headroom pass
+        (``town_pack_headroom.acquisition_waits``) holds unstarted purchases
+        and Home takes behind its own sales, but the relief already left Home
+        for this take and the entrance's atomic take is its only way to it.
+        Held there, the route walked straight back into Home, where the
+        relief left again: n1-a life-492 2026-11-07 12:59:21-24, the sweep's
+        flail take while the pass wanted to sell the spare Identify staves,
+        home:junk-sweep-withdraw -> shop:approach '9' '1' x4 ->
+        owner-retired-burst.
+        """
+        relief = self._home_full_relief
+        request = self._home_errand.request
+        return bool(relief is not None and relief.get("sale") is not None
+                    and not relief.get("withdrawn")
+                    and self._home_errand.active and request is not None
+                    and request.purpose in {"full-home-sale", "full-home-discard"}
+                    and request.signature == relief["sale"][0])
 
     def _home_full_leave_key(self, reason: str) -> str:
         self.last_reason = reason
@@ -889,6 +935,8 @@ class HomeMixin:
                     lambda: self._home_full_skip_key("identification-effect-unresolved"))
             if count > before_count:
                 relief["withdrawn"] = True
+                if relief.get("taken", (None,))[0] != signature:
+                    relief["taken"] = (signature, count - before_count)
                 if self._home_pending_item == signature:
                     self._home_pending_item = None
                     self._home_pending_slot = None
@@ -989,11 +1037,13 @@ class HomeMixin:
                     return self._town_producer_entry("_home_full_skip_key",
                         lambda: self._home_full_skip_key("sale-refused-item-protected"))
                 if not item_available(self, snapshot, target, "home-visit", "home-full-sale"):
-                    relief["sale"] = None
-                    relief["withdrawn"] = False
-                    relief.pop("mode", None)
-                    self._home_errand.finish()
-                    return self._home_full_relief_key(snapshot)
+                    # Another owner holds the taken ware (n1-a life-492
+                    # 2026-11-07 12:33:10: the random-teleport inscription of
+                    # the taken (トランプ)首切りソード, then its equipment deposit).
+                    # The entry ends retained and skipped: re-selecting at
+                    # once took the next Trump weapon to the same fate.
+                    return self._town_producer_entry("_home_full_skip_key",
+                        lambda: self._home_full_skip_key("sale-item-held"))
                 if (not target.known or self._disposal_protected_by_identification(target)
                         or self._retention_reservation(snapshot, target) > 0
                         ):
@@ -1010,6 +1060,17 @@ class HomeMixin:
                             and self._store_visit is not None):
                         return self._in_store_commit_operation(snapshot, key)
                     return key
+            elif (relief["withdrawn"] and relief.get("mode") == "sale"
+                    and snapshot.store is not None
+                    and snapshot.store.store_type == STORE_HOME):
+                # The taken ware left the pack on the Home page: only a deposit
+                # removes it there, never its sale.  Another owner shelved it
+                # again (n1-a life-492 2026-11-07 12:33:11: the equipment
+                # transaction put the taken (トランプ)首切りソード back), so this
+                # entry ends retained, without counting a freed slot, and the
+                # shelf ware is not taken out again this relief.
+                return self._town_producer_entry("_home_full_skip_key",
+                    lambda: self._home_full_skip_key("surplus-put-back"))
             elif relief["withdrawn"]:
                 if relief.get("mode") == "destroy":
                     self._complete_claim_goal(
@@ -1026,6 +1087,15 @@ class HomeMixin:
                 pack_only = relief.pop("pack_only", False)
                 if not pack_only:
                     relief["remaining"] -= 1
+                taken = relief.pop("taken", None)
+                if (not pack_only and relief.get("mode") == "sale"
+                        and taken is not None and taken[0] == signature
+                        and "stock_count" in relief):
+                    # Off the Home page the departure reads as the sale.  The
+                    # next census tells a deposit from it: the shelf count
+                    # must stay below its count before the take.
+                    relief.setdefault("settled_home_counts", {})[signature] = max(
+                        0, relief["stock_count"] - taken[1])
                 relief["sale"] = None
                 relief["withdrawn"] = False
                 relief.pop("destroy_posted", None)
@@ -1149,6 +1219,16 @@ class HomeMixin:
             for item in self._home_knowledge_items:
                 sig = self._item_signature(item)
                 counts[sig] = counts.get(sig, 0) + item.count
+            settled = relief.get("settled_home_counts", {})
+            for sig, expected in tuple(settled.items()):
+                if counts.get(sig, 0) > expected:
+                    # Taken and then shelved again by another owner (a weight
+                    # or equipment deposit off the Home page), not sold: the
+                    # entry freed no slot and the ware stays on the shelf.
+                    settled.pop(sig)
+                    relief["remaining"] += 1
+                    relief.setdefault("skipped", {})[sig] = "surplus-put-back"
+                    relief.setdefault("skipped_home_counts", {})[sig] = counts[sig]
             carry_count = sum(staff.count for staff in
                               self._carried_identify_staves(snapshot))
             ready = bool(self._identify_staff_ready(snapshot))
@@ -2843,6 +2923,11 @@ class HomeMixin:
             return AMMO_CARRY_TARGET
         return min(AMMO_CARRY_TARGET, count + max(0, room) // unit_weight)
 
+    def _identify_staff_take_overloads(self, snapshot: Snapshot, item, quantity: int = 1) -> bool:
+        """An Identify staff Home take that would put the pack over the limit."""
+        return (item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
+                and not self._can_add_item_without_overweight(snapshot, item, quantity=quantity))
+
     def _can_add_item_without_overweight(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem,
         *, quantity: int | None = None,
@@ -3729,6 +3814,24 @@ class HomeMixin:
             self._home_withdrawal_queued = False
             return self._town_entrance_step_off_key(
                 snapshot, "home:atomic-withdraw-no-longer-needed"
+            )
+        if (
+            selecting_branch == "home-pending-item"
+            and self._identify_staff_take_overloads(snapshot, item, take_quantity)
+        ):
+            # The Identify staff reserve was queued while the pack was already
+            # over the limit (its take could not add an overload then); the
+            # overweight sales since then left too little room for it.  n1-a
+            # life-492 2026-11-07 12:30:39 took the 鑑定の杖 (+50) anyway and
+            # the overweight producer stopped on the arrows it had partly sold.
+            # Release the queue; the reserve owner queues it again once it fits.
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_pending_quantities.pop(signature, None)
+            self._home_withdrawal_queued = False
+            return self._town_entrance_step_off_key(
+                snapshot, "home:atomic-withdraw-identify-staff-overweight"
             )
         observed_address = self._home_observed_addresses.get(signature)
         self._home_withdraw_page_probe = None

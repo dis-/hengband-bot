@@ -5968,9 +5968,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     expected_effect="outside-store",
                 )
             elif (
-                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None)
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) and not self._identify_staff_take_overloads(snapshot, item)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None)
             ):
                 # The Home entry owner, unlike _shop(), is on the live path.
+                # The take must fit the weight limit: n1-a life-492 2026-11-07
+                # 12:30:39 took a 鑑定の杖 (+50) right after the overweight
+                # sales, overloaded the pack again and the surplus producer
+                # stopped on the arrows it had partly sold.
                 # Bind the catalogue item here so the outside owner can compose
                 # the complete withdrawal on the following decision.
                 _catalogue_index, identify_staff = identify_staff
@@ -7250,8 +7254,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 family="identification")
             if junk_key is not None:
                 return junk_key
+        self._drop_batch_sale_off_store_page(snapshot)
         if snapshot.in_town and self._overweight_surplus_disposal is not None:
-            surplus_key = self._town_producer_entry("_overweight_surplus_sale_key",
+            surplus_key =self._town_producer_entry("_overweight_surplus_sale_key",
                 lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
             if surplus_key is not None:
                 return surplus_key

@@ -44,7 +44,8 @@ class ObservationMixin:
             self._town_visit_epoch = ledger.get("epoch") or turn
             self._equipment_transaction_visit_closure = None
             self._overweight_surplus_ledger = {
-                "epoch": self._town_visit_epoch, "sold": ledger.get("sold", [])}
+                "epoch": self._town_visit_epoch, "sold": ledger.get("sold", []),
+                "sold_counts": ledger.get("sold_counts", [])}
             pending = ledger.get("pending")
             if pending is not None:
                 pending["signature"] = tuple(pending["signature"])
