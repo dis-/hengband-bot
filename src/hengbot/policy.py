@@ -1653,7 +1653,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._remembered_wall_t: set[tuple[int, int]] = set()
         self._remembered_known_t: set[tuple[int, int]] = set()
         self._remembered_marked_t: set[tuple[int, int]] = set()
-        self._emitted_t: set[tuple[int, int]] = set()
+        self._emitted_t: frozenset[tuple[int, int]] = frozenset()
         self._window_edge_goals: set[Position] = set()
         self._window_edge_fallback_pending = False
         self._remembered_downstairs: set[Position] = set()
@@ -4884,10 +4884,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._escape_speed_attempted = False
         latest_snapshot = snapshot
         self._decision_input_snapshot = latest_snapshot
-        self._emitted_t = {
+        # Immutable, so the decision-row observer scope (cli
+        # _PolicyObserverScope) shares it instead of copying it: the town
+        # fact refresh recognizes this board's emitted window by identity, and
+        # a copy made every telemetry capture rerun its full-map pass.
+        self._emitted_t = frozenset(
             (position.y, position.x)
             for position in getattr(snapshot, "grids", {})
-        }
+        )
         snapshot = self._with_grid_memory(snapshot)
         _town_fact_views[self] = (
             getattr(latest_snapshot, "grids", None), snapshot.grids, self._emitted_t,
