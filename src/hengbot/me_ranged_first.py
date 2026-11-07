@@ -50,13 +50,21 @@ SV_LIGHT_TORCH = 0
 
 
 def applies(snapshot) -> bool:
+    """The absorbed Magic Missile rung: a class-16 character off quest floors.
+
+    Blindness does not refuse it (owner 2026-11-08, me_device_attacks.can_use_powers);
+    the carried wand and the thrown torch below it keep their sight rule (``_sighted``)."""
     player = snapshot.player
     return (
         player.class_id == PLAYER_CLASS_MAGIC_EATER
         and snapshot.floor_key[2] == 0
-        and not player.blind
         and not player.confused
     )
+
+
+def _sighted(snapshot) -> bool:
+    """The carried wand's and the thrown torch's rule: not blind."""
+    return not snapshot.player.blind
 
 
 def _throwable_torch(policy, snapshot):
@@ -156,6 +164,8 @@ def _first_key(policy, snapshot, target, direction) -> str | None:
         return None
     if _missile_ready(policy, snapshot):
         return _fire_missile(policy, direction)
+    if not _sighted(snapshot):
+        return None
     wand = _attack_wand(policy, snapshot, target, direction)
     if wand is not None and (key := _use(policy, snapshot, "wand", wand, direction, WAND_REASON)):
         return key
@@ -178,6 +188,8 @@ def _adjacent_options(policy, snapshot, target, direction) -> list:
         seen = me_device_attacks.seen_missile_score(policy, snapshot, target, direction)
         options.append((me_device_attacks.missile_score(policy, snapshot, target) if seen is None else seen,
                         lambda: _fire_missile(policy, direction)))
+    if not _sighted(snapshot):
+        return options
     wand = _attack_wand(policy, snapshot, target, direction)
     if wand is not None:
         options.append((attack_expectation.carried_wand(policy, snapshot, target, wand),

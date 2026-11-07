@@ -263,10 +263,22 @@ def race_flags(policy, monster):
 
 
 def can_use_powers(snapshot) -> bool:
-    """A class-16 character able to aim and tell its targets apart."""
+    """A class-16 character able to aim and tell its targets apart.
+
+    Blindness does not refuse the powers (owner 2026-11-08 「盲目でも、テレパシー
+    や感知で位置が分かる敵、隣で殴ってくる敵には取り込んだ攻撃の力を使う。位置が
+    分からなければ今のまま使わない。」).  The game refuses the ``m`` command only
+    while confused (cmd-magiceat.cpp do_cmd_magic_eater cmd_limit_confused;
+    input-key-processor.cpp asks no sight); get_aim_dir takes a direction or a
+    target while blind (target-getter.cpp asks no sight, target_able needs only
+    ``ml``, which telepathy and detection give), and a projection hits the
+    monsters on its path whether the player sees them or not.  A blind board
+    lists only the monsters the game perceives (bot-json-output.cpp: ``ml``),
+    so every target these scores are asked for has a known position; the
+    remembered attacker of a blind strike is blind_strike's."""
     player = snapshot.player
     return (player.class_id == PLAYER_CLASS_MAGIC_EATER
-            and not (player.blind or player.confused or player.hallucinated
+            and not (player.confused or player.hallucinated
                      or power_command_refused(snapshot)))
 
 
