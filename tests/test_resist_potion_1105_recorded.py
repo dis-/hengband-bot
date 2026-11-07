@@ -13,7 +13,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
-from hengbot import consumable_policy, destruction_use, quest_room_sweep, resist_potion
+from hengbot import consumable_policy, destruction_use, quest25_battle, quest_room_sweep, resist_potion
 from hengbot.model import (
     STORE_BLACK, SV_POTION_RESISTANCE, SV_POTION_SPEED, TVAL_POTION, StoreState, parse_snapshot,
 )
@@ -96,9 +96,15 @@ class PlanFloorTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, resist_potion.QUAFF_REASON)
         self.assertTrue(_is_drink(raw, key), key)
 
-    def test_no_chance_even_with_the_drink_reads_the_teleport(self):
+    def test_no_chance_even_with_the_drink_the_leave_stands_below_the_q25_phase(self):
+        # Owner 2026-11-07 「Q25内部でのテレポートの優先度を下げる」: on the Q25 floor the phase's own
+        # step (the ambush's hold) answers before the leave; with no step, the leave still reads it.
         policy, raw, key = q25_boards.replay_until(NO_CHANCE)
-        self.assertEqual(policy.last_reason, resist_potion.LEAVE_REASON)
+        self.assertNotEqual(policy.last_reason, resist_potion.LEAVE_REASON, key)
+        self.assertFalse(_is_drink(raw, key))
+        with patch.object(quest25_battle, "_phase_key", lambda policy, snapshot: None):
+            policy, raw, key = q25_boards.replay_until(NO_CHANCE)
+        self.assertEqual(policy.last_reason, resist_potion.LEAVE_REASON, key)
         self.assertTrue(key.startswith("r"), key)
         self.assertFalse(_is_drink(raw, key))
 

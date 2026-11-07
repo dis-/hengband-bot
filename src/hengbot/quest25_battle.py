@@ -57,7 +57,10 @@ name, an unseen one (何か) as the race the last grid shot was aimed at.
 
 Survival and the summons answer first (dungeon_ladder FLOOR_PLANS): the room sweep's own
 survival rungs, then ``_summons`` -- the phase-2 and stairway rules on those phases, the
-shared rules (summon_response) elsewhere.
+shared rules (summon_response) elsewhere.  The Resistance potion's drink stands there too, but
+its no-chance leave (Teleportation or *Destruction*) comes after the phase's own step (owner
+2026-11-07 「Q25内部でのテレポートの優先度を下げる」: n1-c life-159 read six Scrolls of Teleportation
+in phase 1, the first beside the spectral tyrannosaurus on [10,1]).
 """
 
 from __future__ import annotations
@@ -1345,9 +1348,10 @@ def key(policy, snapshot) -> str | None:
         return (
             _druj_retreat(policy, snapshot)
             or _summons(policy, snapshot)
-            or resist_potion.key(policy, snapshot)
+            or resist_potion.drink_key(policy, snapshot)
             or quest_room_sweep._restore(policy, snapshot)
             or _phase_key(policy, snapshot)
+            or resist_potion.leave_key(policy, snapshot)
         )
     return (
         quest_find_exit._cure(policy, snapshot)
@@ -1357,8 +1361,9 @@ def key(policy, snapshot) -> str | None:
         or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
-        or resist_potion.key(policy, snapshot)
+        or resist_potion.drink_key(policy, snapshot)
         or _phase_key(policy, snapshot)
+        or resist_potion.leave_key(policy, snapshot)
     )
 
 

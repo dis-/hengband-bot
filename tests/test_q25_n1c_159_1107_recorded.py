@@ -18,9 +18,10 @@ import gzip
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import quest25_battle as battle, quest25_geometry as geo, quest_room_sweep
+from hengbot import quest25_battle as battle, quest25_geometry as geo, quest_room_sweep, resist_potion
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
 from tests import test_q25_haunted_house as q25
@@ -34,6 +35,10 @@ BY_SEQUENCE = {row["sequence"]: (board, row) for board, row in zip(CASE["boards"
 # [1,18], 死体の塊 on [1,17] beside the player, the recording's hold.
 MASS_BESIDE = 425
 WEST = "4"
+# [10,1] at full HP (766/766), 幽体ティラノサウルス (705) alone in view on [9,1]: the first
+# Scroll of Teleportation the Resistance potion's leave read.
+TYRANNOSAUR_ALONE = 276
+SPECTRAL_T = 705
 
 
 def new_policy(first):
@@ -46,6 +51,26 @@ def new_policy(first):
         player=dict(CASE["skill"]["player"], level=first["player"]["level"])))
     policy.consume_home_knowledge(tuple(_parse_items(CASE["home"]["knowledge"]["items"], protocol=3)))
     return policy
+
+
+def replay():
+    """sequence -> (key, reason): one policy deciding every recorded board in order."""
+    policy = new_policy(CASE["boards"][0])
+    answers = {}
+    for raw, row in zip(CASE["boards"], CASE["recorded"]):
+        key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+        answers[row["sequence"]] = (key, policy.last_reason)
+        policy.confirm_key_posted(key)
+    return answers
+
+
+ANSWERS = {}
+
+
+def answer(sequence):
+    if not ANSWERS:
+        ANSWERS.update(replay())
+    return ANSWERS[sequence]
 
 
 def choose(policy, raw):
@@ -106,6 +131,40 @@ class Q25MassBesideTest(unittest.TestCase):
         policy = new_policy(self.raw)
         at_phase(policy, self.raw, "ambush", style="melee")   # CONSTRUCTED memory, the replay's phase
         self.assertEqual((choose(policy, self.raw), policy.last_reason), ("5", HOLD_REASON))
+
+
+class Q25NoChanceLeaveTest(unittest.TestCase):
+    """Owner 2026-11-07: 「Q25内部でのテレポートの優先度を下げる。少なくとも幽体ティラノサウルスとの
+    単独戦闘から逃げることは避けなければ絶対にクリアできない」."""
+
+    LEAVES = [row["sequence"] for row in CASE["recorded"] if row["reason"] == resist_potion.LEAVE_REASON]
+
+    def test_the_recording_read_six_scrolls_the_first_one_on_one_with_the_tyrannosaur(self):
+        self.assertEqual(self.LEAVES, [276, 289, 310, 321, 355, 359])
+        raw = BY_SEQUENCE[TYRANNOSAUR_ALONE][0]
+        self.assertEqual((raw["player"]["y"], raw["player"]["x"]), (10, 1))
+        self.assertEqual(raw["player"]["hp"], raw["player"]["max_hp"])
+        self.assertEqual([(m["race_id"], m["y"], m["x"]) for m in raw["visible_monsters"]], [(SPECTRAL_T, 9, 1)])
+
+    def test_one_on_one_with_the_tyrannosaur_the_phase_fights_it(self):
+        self.assertEqual(answer(TYRANNOSAUR_ALONE), ("8", MELEE_REASON))
+
+    def test_no_recorded_leave_board_reads_the_scroll(self):
+        for sequence in self.LEAVES:
+            with self.subTest(sequence=sequence):
+                self.assertNotEqual(answer(sequence)[1], resist_potion.LEAVE_REASON)
+
+    def test_control_the_rule_still_says_leave_and_answers_below_the_phase(self):
+        raw = BY_SEQUENCE[TYRANNOSAUR_ALONE][0]
+        policy = new_policy(raw)
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertIsNone(resist_potion.drink_key(policy, snapshot))
+        self.assertEqual(resist_potion.key(policy, snapshot)[:1], "r")
+        self.assertEqual(policy.last_reason, resist_potion.LEAVE_REASON)
+        policy = new_policy(raw)
+        with patch.object(battle, "_phase_key", lambda policy, snapshot: None):
+            key = choose(policy, raw)
+        self.assertEqual((key[:1], policy.last_reason), ("r", resist_potion.LEAVE_REASON))
 
 
 if __name__ == "__main__":
