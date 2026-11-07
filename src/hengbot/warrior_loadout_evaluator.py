@@ -14,6 +14,7 @@ from hengbot.me_loadout_offense import (
     TR_INT,
     MagicEaterOffenseInputs,
     magic_eater_device_dps,
+    survival_factor,
 )
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
@@ -225,7 +226,7 @@ class CachedWarriorLoadoutEvaluator:
             tuple[frozenset[int], int], WarriorRangedDefenseResult
         ] = {}
         self._weapon_multipliers: dict[str, tuple[tuple[int, float], ...]] = {}
-        self._device: dict[tuple[int, frozenset[int]], float] = {}
+        self._device: dict[tuple[int, frozenset[int]], tuple[float, float]] = {}
         self._average_target_hp = sum(
             encounter.weight * encounter.knowledge.average_hp
             for encounter in encounters
@@ -290,15 +291,17 @@ class CachedWarriorLoadoutEvaluator:
         # setdefault: an evaluator restored from a checkpoint pickled before
         # this cache existed has no ``_device``.
         device_cache = self.__dict__.setdefault("_device", {})
-        device = device_cache.get(device_key)
-        if device is None:
-            device = magic_eater_device_dps(
-                getattr(self.inputs, "magic_eater", None), device_key[0],
-                flags, self.encounters)
-            device_cache[device_key] = device
+        cached = device_cache.get(device_key)
+        if not isinstance(cached, tuple):
+            magic_eater = getattr(self.inputs, "magic_eater", None)
+            cached = (
+                magic_eater_device_dps(magic_eater, device_key[0], flags, self.encounters),
+                survival_factor(magic_eater, device_key[0], flags, self.encounters),
+            )
+            device_cache[device_key] = cached
 
         return _combine_warrior_results(
-            loadout, self.inputs, melee, defense, ranged, device)
+            loadout, self.inputs, melee, defense, ranged, *cached)
 
 
 def _speed_bonus(loadout: Loadout) -> int:
@@ -349,9 +352,11 @@ def evaluate_warrior_loadout(
         encounters=encounters,
         selection_context=inputs.spell_selection,
     )
-    device = magic_eater_device_dps(
-        inputs.magic_eater, _pval_total(loadout, TR_INT), flags, encounters)
-    return _combine_warrior_results(loadout, inputs, melee, defense, ranged, device)
+    int_pval = _pval_total(loadout, TR_INT)
+    device = magic_eater_device_dps(inputs.magic_eater, int_pval, flags, encounters)
+    factor = survival_factor(inputs.magic_eater, int_pval, flags, encounters)
+    return _combine_warrior_results(
+        loadout, inputs, melee, defense, ranged, device, factor)
 
 
 def _combine_warrior_results(
@@ -361,6 +366,7 @@ def _combine_warrior_results(
     defense: WarriorDefenseResult,
     ranged: WarriorRangedDefenseResult,
     device_dps: float = 0.0,
+    me_survival_factor: float = 1.0,
 ) -> WarriorLoadoutResult:
     player_energy = speed_energy(inputs.defense.base_speed + _speed_bonus(loadout))
     incoming = (
@@ -371,6 +377,10 @@ def _combine_warrior_results(
     survival_turns = (
         player_hp / incoming if incoming > 0 else float("inf")
     )
+    # Class 16 (me_loadout_offense.survival_factor, owner 2026-11-08): the
+    # absorbed powers' success under this loadout's INT and the escape
+    # reliability lost to blindness scale the survival side; 1.0 otherwise.
+    survival_turns *= me_survival_factor
     kill_turns = melee.expected_kill_turns
     # User decision 2026-10-02 (verbatim: 「指輪で優先度が低いのはどう見ても守りの
     # 指輪。ACの評価が高すぎる。」 -> 「生存÷撃破の比で比べる」): the combat

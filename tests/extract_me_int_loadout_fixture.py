@@ -5,8 +5,10 @@ checkpoint jsonlog/town-arrival/20261108-010513.686659623-turn2112580
 (Magic-Eater Lv29, ☆『ラバー・コート』 worn, ★『ホルヘンネス』 (+2 INT) on the
 Home shelf since the 00:48 home:weight-overload-deposit).
 - ``policy.pkl.xz``: the arrival checkpoint.
-- ``journal.jsonl.xz``: its journal cut to rows 0-17 (rows 9-15 scan the
-  Home; the equipment optimizer then runs on the complete catalog).
+- ``journal.jsonl.xz``: its journal cut to rows 0-44 (rows 9-15 scan the
+  Home and the optimizer runs on the complete catalog; rows 26-41 carry out
+  the recorded boots / lamp transaction, row 42 re-runs the optimizer from the
+  new worn set and row 44 is the next town decision).
 - ``sidecars.json.xz``: its runtime sidecars with their manifest.
 
     python tests/extract_me_int_loadout_fixture.py <town-arrival-visit-dir>
@@ -18,7 +20,7 @@ import sys
 from pathlib import Path
 
 OUTPUT = Path(__file__).with_name("fixtures") / "me-int-loadout-1108"
-JOURNAL_ROWS = 18
+JOURNAL_ROWS = 45
 
 
 def main() -> None:

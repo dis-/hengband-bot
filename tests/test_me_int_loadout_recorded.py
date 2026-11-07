@@ -10,7 +10,12 @@ the shared warrior evaluator never read INT.  With +2 INT (16 -> 18/00) every
 absorbed power's fail floor drops from 8% to 6% and the Dragon's Flame wand
 from 46% to 43% (cmd-magiceat.cpp:255-275, 476-490).
 
-Recorded: the town-arrival checkpoint and its first 18 journal rows
+Owner, on the 3-AC result: 「ACの評価が高すぎる。知力と盲目耐性の方を重くみる
+計算式を考えて。」 -> 「魔法成功率は生存に貢献する別枠で評価。盲目耐性は逃走手段の
+確実化ということで別枠で評価。点数の付け方は任せるが、AC3という微差よりは大きく
+評価すること。」 (me_loadout_offense.survival_factor).
+
+Recorded: the town-arrival checkpoint and its first 45 journal rows
 (tests/extract_me_int_loadout_fixture.py), decided through the public
 chooser; rows 9-15 scan the Home and the optimizer runs on the full catalog.
 """
@@ -179,13 +184,75 @@ class MeIntLoadoutRecordedTest(unittest.TestCase):
         self.assertAlmostEqual(rubber.device_dps, 62.717, places=2)
         self.assertAlmostEqual(holhenneth.device_dps, 65.721, places=2)
         self.assertGreater(holhenneth.device_dps, rubber.device_dps)
-        # DECLARED (the honest outcome, not a goal): survival / kill still
-        # favours the Rubber Coat by more than the 1% band (AC 18 vs 15 and
-        # fear resistance; 1.4091 vs 1.3942, 1.06%), so the device output,
-        # compared after it like the launcher's, does not change the pick here.
-        self.assertAlmostEqual(rubber.combat_margin, 1.40907, places=4)
-        self.assertAlmostEqual(holhenneth.combat_margin, 1.39419, places=4)
+        # Owner 2026-11-08 「魔法成功率は生存に貢献する別枠で評価。盲目耐性は逃走手段の
+        # 確実化ということで別枠で評価。…AC3という微差よりは大きく評価すること。」
+        # Without the two survival terms the 3 AC of the Rubber Coat won by
+        # 1.06% (1.40907 vs 1.39419).  Rubber: power success x1 (INT 16) and
+        # 30.3% of the set can blind it (x0.9697); Holhenneth: x1.0294 (INT
+        # 18/00) and blind-proof.
+        self.assertAlmostEqual(rubber.combat_margin, 1.36640, places=4)
+        self.assertAlmostEqual(holhenneth.combat_margin, 1.43520, places=4)
+        self.assertGreater(holhenneth.combat_margin / rubber.combat_margin, 1.05)
+        # DECLARED: this first search varies one slot from the worn set (the
+        # catalog crossed the incremental threshold), so it pairs Holhenneth
+        # with the old boots and lamp and picks the Rubber Coat with the speed
+        # boots; the next search (row 42) wears Holhenneth: see
+        # test_the_next_search_fetches_holhenneth_from_home.
         self.assertTrue(best.loadout.item_at("head").item.name.startswith(RUBBER_COAT))
+
+    def test_each_survival_term_alone_outweighs_three_ac(self):
+        policy, _board = self.scanned()
+        evaluator = policy._warrior_evaluator_cache.evaluator
+        worn, swapped = self.helmets(policy)
+        rubber = worn.item_at("head")
+        holhenneth = swapped.item_at("head")
+
+        def head(base, **changes):
+            flags = changes.pop("flags", base.item.known_flags)
+            item = replace(base.item, known_flags=flags, **changes)
+            loadout = Loadout(tuple(sorted(
+                ((slot, replace(base, id=base.id + "-v", item=item) if slot == "head" else owned)
+                 for slot, owned in worn.slots), key=lambda entry: entry[0])), worn.hand_mode)
+            return evaluator(loadout).metrics.combat_margin
+
+        base = evaluator(worn).metrics.combat_margin
+        three_ac = 1.40907 / 1.39433  # the Rubber Coat's AC 18 -> 15 alone (1.06%)
+        # DECLARED CONSTRUCTED variants of the worn Rubber Coat.
+        # +2 INT only (its WIS/CHR replaced): the power-success term alone.
+        int_only = head(rubber, pval=2, flags=(rubber.flags - {2, 5}) | {1})
+        self.assertAlmostEqual(int_only / base, 1.0294, places=3)
+        self.assertGreater(int_only / base, three_ac)
+        # Resist blindness only: the escape-reliability term alone.
+        blind_only = head(rubber, flags=rubber.flags | {56})
+        self.assertAlmostEqual(blind_only / base, 1 / (1 - 0.10 * 0.3028), places=3)
+        self.assertGreater(blind_only / base, three_ac)
+        # No absurd trade: +1 INT (16 -> 17, one fail-floor step) is less than
+        # the 3 AC, and Holhenneth stripped of 15 AC loses to the Rubber Coat.
+        plus_one = head(rubber, pval=1, flags=(rubber.flags - {2, 5}) | {1})
+        self.assertLess(plus_one / base, three_ac)
+        self.assertLess(head(holhenneth, ac=0, to_a=0), base)
+
+    def test_the_next_search_fetches_holhenneth_from_home(self):
+        """Rows 17-41 replay the recorded boots / lamp transaction; the search
+        that follows from the new worn set now wears Holhenneth, so row 44
+        walks back to Home (recorded: the old evaluator left for the shops)."""
+        policy = self.restore()
+        for row in range(42):
+            _board, key = self.decide(policy, row)
+            self.assertEqual((key, policy.last_reason),
+                             (self.journal[row]["key"], self.journal[row]["reason"]), row)
+            self.post(policy, key)
+        _board, key = self.decide(policy, 42)
+        self.assertEqual(key, self.journal[42]["key"])
+        best = policy._equipment_optimization_preparation.result.best
+        self.assertTrue(best.loadout.item_at("head").item.name.startswith(HOLHENNETH))
+        self.post(policy, key)
+        _board, key = self.decide(policy, 43)
+        self.assertEqual(key, self.journal[43]["key"])
+        self.post(policy, key)
+        _board, key = self.decide(policy, 44)
+        self.assertEqual(self.journal[44]["reason"], "shop:travel")
+        self.assertEqual(policy.last_reason, "town:entrance-step-off:equipment-transaction:approach-home")
 
     def test_device_output_breaks_a_tie_toward_int_and_spares_other_classes(self):
         policy, _board = self.scanned()
@@ -196,12 +263,16 @@ class MeIntLoadoutRecordedTest(unittest.TestCase):
             replace(evaluator.inputs, magic_eater=None), evaluator.encounters)
         self.assertEqual(warrior(worn).metrics.device_dps, 0.0)
         self.assertEqual(warrior(swapped).metrics.device_dps, 0.0)
+        # ... and no survival terms: the 3-AC Rubber Coat keeps its margin.
+        self.assertAlmostEqual(warrior(worn).metrics.combat_margin, 1.40907, places=4)
+        self.assertAlmostEqual(warrior(swapped).metrics.combat_margin, 1.39419, places=4)
         self.assertIsNone(offense_inputs(0, 29, 55, -6, MIGHTY, (("wand", 26),)))
         # DECLARED CONSTRUCTED: the two helmets with equal non-INT metrics --
         # the optimizer's comparison then prefers the INT one.
         from hengbot.equipment_optimizer import EvaluatedLoadout, _stable_operational_best
         rubber = evaluator(worn).metrics
         tied = replace(evaluator(swapped).metrics, survival_turns=rubber.survival_turns,
+                       utility_value=rubber.utility_value,
                        combat_margin=rubber.combat_margin, secondary_value=rubber.secondary_value)
         chosen = _stable_operational_best(
             [EvaluatedLoadout(worn, rubber), EvaluatedLoadout(swapped, tied)], worn.item_ids)

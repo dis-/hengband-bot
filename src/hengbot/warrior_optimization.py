@@ -362,7 +362,7 @@ def warrior_optimizer_input_key(
         # Only present when set, so every key without a pin stays as it was.
         inputs["curse_pinned_item_ids"] = curse_pinned_item_ids
     if magic_eater_powers and player.class_id == 16:
-        # Class 16 scores its held attack powers (me_loadout_offense); only
+        # Class 16 scores its held powers (me_loadout_offense); only
         # present then, so every other key stays as it was.
         inputs["magic_eater_powers"] = tuple(magic_eater_powers)
     encoded = json.dumps(
@@ -703,8 +703,9 @@ def prepare_warrior_optimization(
     """Evaluate and plan without emitting any game command.
 
     ``magic_eater_powers`` are the (kind, sval) of the held absorbed attack
-    powers (me_loadout_offense.held_attack_powers); class 16 scores their
-    INT-dependent fail rate as ``device_dps`` (owner 2026-11-08).
+    and survival powers (me_loadout_offense.held_magic_eater_powers); class 16
+    scores their INT-dependent fail rate as ``device_dps`` and on the survival
+    side, with the escape reliability lost to blindness (owner 2026-11-08).
 
     ``curse_pinned_item_ids`` are worn items the player saw cursed although
     the board does not say ``is_cursed`` (an unidentified item: a cursed

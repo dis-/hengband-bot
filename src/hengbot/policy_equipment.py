@@ -11,7 +11,7 @@ from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import consumable_policy, lamp_fuel, mining_loadout
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.me_loadout_offense import held_attack_powers
+from hengbot.me_loadout_offense import held_magic_eater_powers
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -1061,10 +1061,10 @@ class EquipmentMixin:
         # A worn item seen cursed stays in the view however its takeoff failed:
         # left out, the search would plan the same refused takeoff again.
         curse_pinned = self._equipment_curse_pinned_ids()
-        # Class 16's held absorbed attack powers (me_loadout_offense, owner
-        # 2026-11-08); empty for every other class.
+        # Class 16's held absorbed attack and survival powers
+        # (me_loadout_offense, owner 2026-11-08); empty for every other class.
         me_powers = (
-            held_attack_powers(getattr(self, "_me_device_lists", None))
+            held_magic_eater_powers(getattr(self, "_me_device_lists", None))
             if snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
             else ()
         )

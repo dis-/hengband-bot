@@ -2605,6 +2605,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_loadout_offense.py:held_magic_eater_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_loadout_offense.py:held_survival_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_loadout_offense.py:offense_inputs": {
     "classification": "data",
     "rows": [
