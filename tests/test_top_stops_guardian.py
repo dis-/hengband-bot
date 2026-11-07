@@ -181,9 +181,25 @@ class TopStopsGuardianTest(executor_harness.ProductionHarness):
         self.assertEqual(policy.last_reason, "town:rumor")
         self.send(board, key, policy.last_reason)
 
-    def test_public_entered_alternative_keeps_priority_over_angband(self):
+    def test_public_angband_takes_priority_over_entered_alternative(self):
+        # CHANGED 2026-11-07 by owner decision 「鉄獄の帰還の階が条件を満たすなら
+        # 鉄獄へ行き、だめな時だけほかのダンジョンから選ぶ。」 (was: the entered
+        # Orc cave kept priority over Angband, owner 2026-10-27).  Angband's
+        # rumor-opened landing (its entry floor 1) passes, so the valve takes it.
         policy, board = self.scene()
         board = replace(board, entered_dungeon_ids=(2, 3), dungeon_recall_depths={2: 13, 3: 10})
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:unsafe-recall-fallback")
+        self.assertEqual(policy._target_dungeon_id, 1)
+        self.assertTrue(policy._rumor_unlock_pending)
+        self.send(board, key, policy.last_reason)
+
+    def test_public_entered_alternative_when_angband_is_shut(self):
+        # The old choice stays when Angband does not pass: here it is shut
+        # before Q2 (random_quest_hold, DECLARED CONSTRUCTED quest rows).
+        policy, board = self.scene()
+        board = replace(board, entered_dungeon_ids=(2, 3), dungeon_recall_depths={2: 13, 3: 10},
+                        quests=BEFORE_Q2)
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "town:unsafe-recall-fallback")
         self.assertEqual(policy._target_dungeon_id, 3)
@@ -204,7 +220,10 @@ class TopStopsGuardianTest(executor_harness.ProductionHarness):
 
     def test_public_forced_departure_other_alternative_keeps_its_recall(self):
         policy, board = self.scene()
-        board = replace(board, entered_dungeon_ids=(2, 3), dungeon_recall_depths={2: 13, 3: 10})
+        # DECLARED CONSTRUCTED: Angband shut before Q2, so the guardian valve's
+        # choice is the entered Orc cave (owner 2026-11-07 asks Angband first).
+        board = replace(board, entered_dungeon_ids=(2, 3), dungeon_recall_depths={2: 13, 3: 10},
+                        quests=BEFORE_Q2)
         policy._town_blocked_reason = "repetition"
         # DECLARED CONSTRUCTED: an older quest rumor request is still pending;
         # it must not make a different guardian alternate release departure.

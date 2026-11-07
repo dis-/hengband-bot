@@ -203,7 +203,10 @@ class ObservedAlternateReasonTest(unittest.TestCase):
             self.source._guardian_bounce(policy, "guardian-kit-insufficient")
         town = self.source._town(conquered=(3, 7, 14), angband_unlocked=False)
         destination = _destination(policy, town)
-        self.assertEqual(destination["dungeon_id"], 3)
+        # CHANGED 2026-11-07 by owner decision 「鉄獄の帰還の階が条件を満たすなら
+        # 鉄獄へ行き、だめな時だけほかのダンジョンから選ぶ。」 (was the Orc cave, 3):
+        # Angband's landing passes, so the guardian valve takes it first.
+        self.assertEqual(destination["dungeon_id"], DUNGEON_ANGBAND)
         self.assertEqual(destination["reason"], "guardian_bounce_valve")
 
     def test_looted_dives_without_new_depth_switch_for_no_depth_progress(self):
