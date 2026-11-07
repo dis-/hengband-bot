@@ -161,6 +161,9 @@ class ZulTrip:
     failure: str | None = None
     progress: tuple | None = None
     positions: dict = field(default_factory=dict)
+    # (town visit epoch, store) -> the store's page observation when the walk to
+    # it was first issued: a newer one is a visit that left without the ring.
+    shop_walks: dict = field(default_factory=dict)
 
 
 def state(policy) -> ZulTrip:
@@ -495,6 +498,15 @@ def _levitation_key(policy, snapshot, record) -> str | None:
         # Both shelves seen this stay, neither sells one within the gold.
         _close(policy, record, "no-levitation")
         return None
+    observed = policy._town_supplier_stock_observations.get(store)
+    walk = (policy._town_visit_epoch, store)
+    if walk in record.shop_walks and record.shop_walks[walk] != observed:
+        # The walk reached the shop, its page was seen and the visit came out
+        # without the ring (n1-c life-164 2026-11-08: the selector bought
+        # nothing and the walk re-entered until the owner-retired burst).
+        _close(policy, record, f"levitation-shop-left-without-ring:{store}")
+        return None
+    record.shop_walks.setdefault(walk, observed)
     step = policy._shopping_approach_step(snapshot, store_type=store, requester=PRODUCER)
     if step is None:
         _close(policy, record, f"store-{store}-route-unavailable")
