@@ -49,6 +49,21 @@ def _build_town_store_position_index(policy):
     return index
 
 
+def _emitted_cells(grids, emitted_window):
+    """(position, grid) of each emitted cell present in ``grids``, in window order.
+
+    One Position per cell: a large floor emits ~12,000 cells every decision.
+    """
+    for y, x in emitted_window:
+        position = Position(y, x)
+        grid = grids.get(position, _ABSENT_GRID)
+        if grid is not _ABSENT_GRID:
+            yield position, grid
+
+
+_ABSENT_GRID = object()
+
+
 def _town_store_position_index(policy):
     index = _town_store_position_indices.get(policy)
     if index is None:
@@ -164,12 +179,7 @@ class TownMixin:
                 _town_store_position_indices[self] = {}
             emitted = getattr(snapshot, "grids", {}).items()
         else:
-            grids = getattr(snapshot, "grids", {})
-            emitted = (
-                (Position(y, x), grids[Position(y, x)])
-                for y, x in self._emitted_t
-                if Position(y, x) in grids
-            )
+            emitted = _emitted_cells(getattr(snapshot, "grids", {}), self._emitted_t)
         changed = False
         store_seen = False
         position_index = (
