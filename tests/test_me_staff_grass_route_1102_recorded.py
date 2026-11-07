@@ -49,7 +49,9 @@ TRAVEL_PREFIX = "\x1b`n"
 
 def recorded_case():
     """The inn-leg boards with the reconstructed staff sequence record."""
-    absorbed = dict(CASE["sequence"]["absorbed"], **{"wand:6": 12})
+    # The count at the cap (me_device_policy.POWER_COUNT_CAP): since owner
+    # 2026-11-07 a carried copy below it is absorbed before the inn leg too.
+    absorbed = dict(CASE["sequence"]["absorbed"], **{"wand:6": 99})
     return dict(CASE, sequence=dict(CASE["sequence"], absorbed=absorbed))
 
 

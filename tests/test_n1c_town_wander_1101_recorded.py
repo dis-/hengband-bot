@@ -78,11 +78,13 @@ class TownWanderRecordedTest(recorded.UnidentifiedDepositRecordedTest):
         # staff sequence's absorption record and the power list read in this
         # process.  The carried Stone to Mud wands are recorded as absorbed:
         # the visit made no staff-sequence (Tower) decision, which with the
-        # wand not absorbed it would have (me_device_policy charge_first).
+        # wand not absorbed it would have (me_device_policy charge_first; since
+        # owner 2026-11-07 also with the kind absorbed below the count cap, so
+        # the count is declared at the cap).
         sequence = self.case["me_staff_sequence"]
         record = me_staff_sequence.state(policy)
         record.absorbed = {int(sval): count for sval, count in sequence["absorbed"].items()}
-        record.absorbed[me_capability.record_key("wand", 6)] = 1
+        record.absorbed[me_capability.record_key("wand", 6)] = 99
         record.stage = sequence["stage"]
         record.powers_read = True
         return policy, raw

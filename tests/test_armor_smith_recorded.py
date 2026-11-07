@@ -36,7 +36,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import armor_smith
+from hengbot import armor_smith, me_staff_sequence
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import _strip_jsonc
@@ -373,7 +373,12 @@ class ArmorSmithRecordedTest(executor_pins.ProductionHarness):
             _policy, recorded, _steps = self.load("ring-departure")
         index = next(i for i, row in enumerate(recorded) if str(row["reason"]).startswith("home"))
         shutil.rmtree(self.scratch / "ring-departure")
-        with self.rings_already_repaired(), self.line_at(1):
+        # DECLARED: the recorded visit predates owner 2026-11-07 (every copy of
+        # an absorb_after_charge kind is absorbed): its carried Teleport Other
+        # and Stone to Mud wands, both kinds absorbed, would now take the board
+        # for their own Tower trip first (me_staff_sequence extras).
+        no_extras = mock.patch.object(me_staff_sequence, "carried_extras", lambda *_args: {})
+        with self.rings_already_repaired(), self.line_at(1), no_extras:
             policy, recorded, steps = self.replay("ring-departure", index)
             key = policy.choose_key(steps[index][1]())
         self.assertEqual((key, policy.last_reason), (recorded[index]["key"], recorded[index]["reason"]))
