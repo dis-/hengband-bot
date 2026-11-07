@@ -5601,19 +5601,30 @@ class TownMixin:
         )
         return key
 
-    def _random_teleport_suppression_target(self, snapshot: Snapshot):
-        """The first (owned, action) a suppression producer can emit, or None."""
+    def _random_teleport_suppression_pending(self, snapshot: Snapshot) -> tuple:
+        """The catalogued items the suppression producer would inscribe."""
         # choose_key normally performs this synchronization before dispatch,
         # but keeping the action self-contained ensures its catalog predicate
         # is evaluated against this exact observation.
         self._refresh_carried_equipment_catalog(snapshot)
         preparation = self._prepare_equipment_optimization(snapshot)
         selected_ids = self._equipment_preparation_selected_ids(preparation)
-        pending = tuple(
+        # Only a wielded item teleports (player-status-flags.cpp
+        # update_curses walks INVEN_WIELDING_SLOTS), so a Home item is worth
+        # taking out to inscribe only when the loadout will wear it.  An
+        # unselected one would be taken and put straight back by the spare
+        # gear rule (spare_gear.note_taken, owner 2026-11-04), every visit
+        # (n1-b life-338 2026-11-07 21:52, owner-retired-burst).
+        return tuple(
             owned
             for owned in self._equipment_catalog.items
             if self._needs_random_teleport_suppression(owned, selected_ids)
+            and (owned.origin != "home" or owned.id in selected_ids)
         )
+
+    def _random_teleport_suppression_target(self, snapshot: Snapshot):
+        """The first (owned, action) a suppression producer can emit, or None."""
+        pending = self._random_teleport_suppression_pending(snapshot)
         targets = (
             (owned, self._random_teleport_suppression_producer_action(
                 snapshot, owned
@@ -5699,6 +5710,24 @@ class TownMixin:
                 expected_effect="item-withdrawn",
             )
             return None
+        latched = self._home_random_teleport_withdrawal
+        if (
+            latched is not None
+            and snapshot.store is None
+            and self._home_atomic_withdraw_pending is None
+            and not any(
+                owned.origin == "home" and self._item_signature(owned.item) == latched
+                for owned in self._random_teleport_suppression_pending(snapshot)
+            )
+        ):
+            # A Home take this producer armed for an item it no longer
+            # targets (the loadout stopped selecting it, or it was armed
+            # before only worn items were targets) is released here, before
+            # the entrance composes it.
+            if self._home_pending_item == latched:
+                self._home_pending_item = None
+                self._home_pending_slot = None
+            self._home_random_teleport_withdrawal = None
         self._offer_execution_no_step(
             producer="equipment-txn", work_id="suppress-random-teleport",
             cause="no-suppression-target",

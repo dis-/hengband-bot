@@ -62,6 +62,7 @@ from replay_town_arrival import restore
 from tests import test_input_executor as executor_pins
 
 FIXTURES = Path(__file__).with_name("fixtures") / "n1b-town-stops-1108"
+SPEAR = "(トランプ)ブロード・スピア (1d9) (+7,+10) (+1探索) {+探r轟因;麻遅活瞬/邪デ}"
 RAISE_KEY = "3a/ka/ba/ka/l\x1b"
 
 
@@ -239,6 +240,23 @@ class N1bTownStops1108RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(port.last_result.outcome, "completed")
         self.assertEqual("".join(game.posted), RAISE_KEY)
         self.assertEqual(game.phase, "command")
+
+    # B ------------------------------------------------------------------
+
+    def test_b_unworn_home_spear_is_not_taken_out_to_inscribe(self):
+        policy = self.restore("b")
+        # The arrival policy carries the suppression latch armed on an
+        # earlier visit (the recorded 21:06 take and re-deposit).
+        self.assertEqual(policy._home_random_teleport_withdrawal[0], SPEAR)
+        self.replay(policy, range(19))
+        board, _key = self.decide(policy, 19)
+        # Recorded row 19 stepped off toward Home for the take.
+        self.assertNotEqual(policy.last_reason, self.journal[19]["reason"])
+        self.assertIsNone(policy._home_random_teleport_withdrawal)
+        self.assertNotEqual((policy._home_pending_item or ("",))[0], SPEAR)
+        self.assertFalse(any(
+            owned.origin == "home" and owned.item.name == SPEAR
+            for owned in policy._random_teleport_suppression_pending(board)))
 
 
 if __name__ == "__main__":
