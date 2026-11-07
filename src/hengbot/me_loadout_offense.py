@@ -104,10 +104,10 @@ _SURVIVAL_BY_NAME = {(key[0], name): key for key, (_c, _l, names) in SURVIVAL_PO
 # Weight of the escape-reliability term (owner 2026-11-08 「盲目耐性は逃走手段の確実化
 # ということで別枠で評価。点数の付け方は任せるが、AC3という微差よりは大きく評価すること。」).
 # A blinded character cannot read Teleportation, Word of Recall or *Destruction*
-# (cmd-item/cmd-read.cpp:37) and this bot casts no absorbed power while blind
-# (me_powers / me_device_attacks), so against a monster that can blind it the
-# loadout's escape is unreliable.  The modelled blind turns themselves are tiny
-# (n1-b life-339: 0.0023 status turns per turn), so the weight is the owner's
+# scrolls (cmd-item/cmd-read.cpp:37 refuses reading while blind), so against a
+# monster that can blind it the loadout's scroll escape is unreliable.  The
+# modelled blind turns themselves are tiny (n1-b life-339: 0.0023 status turns
+# per turn), so the weight is the owner's
 # judgement, not a derived rate: an unprotected loadout loses 10% of its survival
 # per unit share of the encounter set that can blind it.  On the recorded n1-b
 # visit (30% of the set can blind) that is 3.0% of the main score, about three
