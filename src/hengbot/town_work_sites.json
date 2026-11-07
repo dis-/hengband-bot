@@ -3232,14 +3232,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "model.py:_decode_grid_map": {
+  "model.py:_exported_fields": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
-  "model.py:_exported_fields": {
+  "model.py:_grid_map_runs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "model.py:_grid_record_at": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3268,6 +3275,13 @@
     "delegation": "selected child; no independent success"
   },
   "model.py:_optional_int": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "model.py:_palette_record": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9360,6 +9374,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_types.py:in_flight_clause": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "protocol.py:grid_lighting": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

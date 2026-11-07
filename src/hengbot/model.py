@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from itertools import chain
 from typing import Any, Iterator, Mapping
 
 from hengbot.monrace_knowledge import MonraceKnowledge
@@ -67,63 +68,104 @@ _GRID_SIDECAR_NAMES = {
 def _decode_grid_map(
     grid_map: Mapping[str, Any], protocol: int = PROTOCOL_LEGACY
 ) -> list[dict[str, Any]]:
-    palette = grid_map.get("palette", [])
     sidecars = {
         (int(cell["y"]), int(cell["x"])): cell
         for cell in grid_map.get("cells", [])
     }
     grids: list[dict[str, Any]] = []
+    for y, x0, length, _palette_index, record in _grid_map_runs(grid_map, protocol):
+        for x in range(x0, x0 + length):
+            grids.append(_grid_record_at(record, y, x, sidecars.get((y, x), {})))
+    return grids
+
+
+def _grid_record_at(
+    record: Mapping[str, Any], y: int, x: int,
+    cell: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """A run's shared record at one cell, with that cell's sidecar fields."""
+    grid_data: dict[str, Any] = {
+        "y": y,
+        "x": x,
+        "terrain_id": int(record["terrain_id"]),
+        "known": record["known"],
+        "flags": record["flags"],
+        "terrain": record["terrain"],
+        "monster_index": 0,
+        "object_count": 0,
+        "object_tvals": [],
+        "visibility_flags_present": record["visibility_flags_present"],
+        "lighting": record["lighting"],
+    }
+    if cell:
+        for encoded, decoded in _GRID_SIDECAR_NAMES.items():
+            if encoded in cell:
+                grid_data[decoded] = cell[encoded]
+    return grid_data
+
+
+def _grid_map_runs(
+    grid_map: Mapping[str, Any], protocol: int
+) -> Iterator[tuple[int, int, int, int, dict[str, Any]]]:
+    """Each run's (y, x0, length, palette index, record without y/x/sidecar).
+
+    A record depends only on its palette entry, so runs sharing an index share
+    one record (a large floor has ~6,000 runs over a few dozen entries).
+    """
+    palette = grid_map.get("palette", [])
+    visibility_flags_present = "found_items" in grid_map
+    records: dict[int, dict[str, Any]] = {}
     for y_value, x0_value, length_value, palette_index_value in grid_map.get("runs", []):
         y = int(y_value)
         x0 = int(x0_value)
         length = int(length_value)
-        terrain_id, flag_bits, terrain_bits, known_value = palette[
-            int(palette_index_value)
-        ]
-        if protocol >= PROTOCOL_SCREEN_PARITY:
-            # Protocol 3: slot 1 is a display symbol index (0/1/2). Newer
-            # emitters merge identical symbols; it is not actual lighting.
-            # Never decode as CAVE bits; that would read a lit
-            # tile as ``mark`` and a dark one as ``cave_known``.  Protocol 2
-            # always sent 0 here, so every CAVE flag stays false as before.
-            lighting: int | None = grid_lighting(flag_bits)
-            flags = {name: False for name in _GRID_FLAG_NAMES}
-        else:
-            lighting = None
-            flags = {
-                name: bool(int(flag_bits) & (1 << index))
-                for index, name in enumerate(_GRID_FLAG_NAMES)
-            }
-        terrain = {
-            name: bool(int(terrain_bits) & (1 << index))
-            for index, name in enumerate(_GRID_TERRAIN_NAMES)
+        palette_index = int(palette_index_value)
+        record = records.get(palette_index)
+        if record is None:
+            record = _palette_record(
+                palette[palette_index], protocol, visibility_flags_present
+            )
+            records[palette_index] = record
+        yield y, x0, length, palette_index, record
+
+
+def _palette_record(
+    entry: Any, protocol: int, visibility_flags_present: bool
+) -> dict[str, Any]:
+    terrain_id, flag_bits, terrain_bits, known_value = entry
+    if protocol >= PROTOCOL_SCREEN_PARITY:
+        # Protocol 3: slot 1 is a display symbol index (0/1/2). Newer
+        # emitters merge identical symbols; it is not actual lighting.
+        # Never decode as CAVE bits; that would read a lit
+        # tile as ``mark`` and a dark one as ``cave_known``.  Protocol 2
+        # always sent 0 here, so every CAVE flag stays false as before.
+        lighting: int | None = grid_lighting(flag_bits)
+        flags = {name: False for name in _GRID_FLAG_NAMES}
+    else:
+        lighting = None
+        flags = {
+            name: bool(int(flag_bits) & (1 << index))
+            for index, name in enumerate(_GRID_FLAG_NAMES)
         }
-        # grid_map only contains map-visible terrain.  Hengband's display gate
-        # requires CAVE_MARK for REMEMBER terrain, and every tunnel-action
-        # terrain in TerrainDefinitions.jsonc is REMEMBER, so an emitted cell
-        # carrying the TUNNEL terrain bit is necessarily marked.
-        if terrain["tunnel"]:
-            flags["mark"] = True
-        for x in range(x0, x0 + length):
-            grid_data: dict[str, Any] = {
-                "y": y,
-                "x": x,
-                "terrain_id": int(terrain_id),
-                "known": bool(known_value),
-                "flags": flags,
-                "terrain": terrain,
-                "monster_index": 0,
-                "object_count": 0,
-                "object_tvals": [],
-                "visibility_flags_present": "found_items" in grid_map,
-                "lighting": lighting,
-            }
-            for encoded, decoded in _GRID_SIDECAR_NAMES.items():
-                cell = sidecars.get((y, x), {})
-                if encoded in cell:
-                    grid_data[decoded] = cell[encoded]
-            grids.append(grid_data)
-    return grids
+    terrain = {
+        name: bool(int(terrain_bits) & (1 << index))
+        for index, name in enumerate(_GRID_TERRAIN_NAMES)
+    }
+    # grid_map only contains map-visible terrain.  Hengband's display gate
+    # requires CAVE_MARK for REMEMBER terrain, and every tunnel-action
+    # terrain in TerrainDefinitions.jsonc is REMEMBER, so an emitted cell
+    # carrying the TUNNEL terrain bit is necessarily marked.
+    if terrain["tunnel"]:
+        flags["mark"] = True
+    return {
+        # Converted per cell (_grid_record_at): an empty run converts nothing.
+        "terrain_id": terrain_id,
+        "known": bool(known_value),
+        "flags": flags,
+        "terrain": terrain,
+        "visibility_flags_present": visibility_flags_present,
+        "lighting": lighting,
+    }
 
 
 # order=True: positions sort by row, then column. Without it, sorted() on two or more quest building /
@@ -1030,6 +1072,119 @@ def _as_bool(value: Any) -> bool:
     return bool(value)
 
 
+# A grid_map.unsafe_rows hex digit's four columns, lowest bit first.
+_HEX_DIGIT_BITS = {
+    digit: tuple(bool((int(digit, 16) >> bit) & 1) for bit in range(4))
+    for digit in "0123456789abcdef"
+}
+
+
+def _grid_state_from_record(grid_data: Mapping[str, Any]) -> GridState:
+    """One decoded grid record (``_decode_grid_map`` / ``nearby_grids``)."""
+    pos = Position(int(grid_data["y"]), int(grid_data["x"]))
+    terrain = grid_data.get("terrain", {})
+    flags = grid_data.get("flags", {})
+    known = bool(grid_data.get("known", flags.get("known", False)))
+    monster_index = int(grid_data.get("monster_index", 0))
+    move = known and _as_bool(terrain.get("move", False))
+    allows_los = known and _as_bool(
+        terrain.get("los", terrain.get("move", False))
+    )
+    door = known and _as_bool(terrain.get("door", False))
+    return GridState(
+        position=pos,
+        known=known,
+        passable=move,
+        wall=known and _as_bool(terrain.get("wall", False)),
+        has_monster=known and monster_index > 0,
+        has_down_stairs=known and _as_bool(terrain.get("down_stairs", False)),
+        has_up_stairs=known and _as_bool(terrain.get("up_stairs", False)),
+        unsafe=known and _as_bool(flags.get("unsafe", False)),
+        terrain_id=int(grid_data.get("terrain_id", -1)),
+        is_closed_door=door and not move,
+        is_door=door,
+        trap=known and _as_bool(terrain.get("trap", False)),
+        object_count=int(grid_data.get("object_count", 0)),
+        object_tvals=tuple(int(value) for value in grid_data.get("object_tvals", [])),
+        has_entrance=known and _as_bool(terrain.get("entrance", False)),
+        store_number=int(grid_data.get("store_number", -1)) if known else -1,
+        can_dig=known
+        and (
+            _as_bool(terrain.get("can_dig", False))
+            or _as_bool(terrain.get("has_gold", False))
+        ),
+        tunnel=known and _as_bool(terrain.get("tunnel", False)),
+        permanent=known and _as_bool(terrain.get("permanent", False)),
+        monster_index=monster_index if known else 0,
+        has_gold=known and _as_bool(terrain.get("has_gold", False)),
+        entrance_dungeon_id=(
+            int(grid_data.get("entrance_dungeon_id", -1)) if known else -1
+        ),
+        building_type=int(grid_data.get("building_type", -1)) if known else -1,
+        has_quest_enter=known and _as_bool(terrain.get("quest_enter", False)),
+        has_quest_exit=known and _as_bool(terrain.get("quest_exit", False)),
+        quest_id=int(grid_data.get("quest_id", -1)) if known else -1,
+        building_special=(
+            int(grid_data.get("building_special", -1)) if known else -1
+        ),
+        lit=known and _as_bool(flags.get("lite", False)),
+        in_view=known and _as_bool(flags.get("view", False)),
+        glow=known and _as_bool(flags.get("glow", False)),
+        mnlt=known and _as_bool(flags.get("mnlt", False)),
+        mndk=known and _as_bool(flags.get("mndk", False)),
+        visibility_flags_present=bool(
+            grid_data.get("visibility_flags_present", False)
+        ),
+        map_lighting=grid_data.get("lighting"),
+        marked=_as_bool(flags.get("mark", False)),
+        allows_los=allows_los,
+    )
+
+
+def _grid_states_from_grid_map(
+    grid_map: Mapping[str, Any], protocol: int
+) -> dict[Position, GridState]:
+    """``_grid_state_from_record`` over ``_decode_grid_map``, without its cost.
+
+    A large floor emits ~12,000 cells, nearly all of them plain palette cells
+    without a sidecar.  Such a cell's record differs from its palette entry's
+    only in y/x, which feed nothing but ``position``, so its GridState is the
+    palette entry's state at another position: build that state once per
+    palette entry and give each cell a copy of its field values.  Sidecar
+    cells go through the record path unchanged.  The result (keys, insertion
+    order, every field value) is the one the per-record loop produced.
+    """
+    sidecars = {
+        (int(cell["y"]), int(cell["x"])): cell
+        for cell in grid_map.get("cells", [])
+    }
+    templates: dict[int, dict[str, Any]] = {}
+    grids: dict[Position, GridState] = {}
+    new_state = object.__new__
+    set_state = object.__setattr__
+    for y, x0, length, palette_index, record in _grid_map_runs(grid_map, protocol):
+        template = templates.get(palette_index)
+        for x in range(x0, x0 + length):
+            cell = sidecars.get((y, x)) if sidecars else None
+            if cell is not None:
+                grid = _grid_state_from_record(_grid_record_at(record, y, x, cell))
+            else:
+                if template is None:
+                    template = dict(
+                        _grid_state_from_record(_grid_record_at(record, y, x)).__dict__
+                    )
+                    templates[palette_index] = template
+                # The template's field values in field order (``position``
+                # replaced in place); the frozen dataclass __init__ would only
+                # set the same values one by one.
+                values = template.copy()
+                values["position"] = Position(y, x)
+                grid = new_state(GridState)
+                set_state(grid, "__dict__", values)
+            grids[grid.position] = grid
+    return grids
+
+
 # Stand-in HP/max-HP for a monster whose identity is hidden by hallucination:
 # large enough that the hunt heuristic treats it as "not clearly beatable" (so
 # the bot does not chase an unidentified threat) while melee/flee, which key off
@@ -1232,75 +1387,17 @@ def parse_snapshot(
     floor_data = data.get("floor", {})
     width = int(floor_data.get("width", 0))
     height = int(floor_data.get("height", 0))
-    grids: dict[Position, GridState] = {}
     grid_map = data.get("grid_map")
     grid_map_valid = isinstance(grid_map, Mapping) and not grid_map.get(
         "schema_error", False
     )
-    grid_records = (
-        _decode_grid_map(grid_map, protocol)
-        if grid_map_valid
-        else data.get("nearby_grids", [])
-    )
-    for grid_data in grid_records:
-        pos = Position(int(grid_data["y"]), int(grid_data["x"]))
-        terrain = grid_data.get("terrain", {})
-        flags = grid_data.get("flags", {})
-        known = bool(grid_data.get("known", flags.get("known", False)))
-        monster_index = int(grid_data.get("monster_index", 0))
-        move = known and _as_bool(terrain.get("move", False))
-        allows_los = known and _as_bool(
-            terrain.get("los", terrain.get("move", False))
-        )
-        door = known and _as_bool(terrain.get("door", False))
-        grids[pos] = GridState(
-            position=pos,
-            known=known,
-            passable=move,
-            wall=known and _as_bool(terrain.get("wall", False)),
-            has_monster=known and monster_index > 0,
-            has_down_stairs=known and _as_bool(terrain.get("down_stairs", False)),
-            has_up_stairs=known and _as_bool(terrain.get("up_stairs", False)),
-            unsafe=known and _as_bool(flags.get("unsafe", False)),
-            terrain_id=int(grid_data.get("terrain_id", -1)),
-            is_closed_door=door and not move,
-            is_door=door,
-            trap=known and _as_bool(terrain.get("trap", False)),
-            object_count=int(grid_data.get("object_count", 0)),
-            object_tvals=tuple(int(value) for value in grid_data.get("object_tvals", [])),
-            has_entrance=known and _as_bool(terrain.get("entrance", False)),
-            store_number=int(grid_data.get("store_number", -1)) if known else -1,
-            can_dig=known
-            and (
-                _as_bool(terrain.get("can_dig", False))
-                or _as_bool(terrain.get("has_gold", False))
-            ),
-            tunnel=known and _as_bool(terrain.get("tunnel", False)),
-            permanent=known and _as_bool(terrain.get("permanent", False)),
-            monster_index=monster_index if known else 0,
-            has_gold=known and _as_bool(terrain.get("has_gold", False)),
-            entrance_dungeon_id=(
-                int(grid_data.get("entrance_dungeon_id", -1)) if known else -1
-            ),
-            building_type=int(grid_data.get("building_type", -1)) if known else -1,
-            has_quest_enter=known and _as_bool(terrain.get("quest_enter", False)),
-            has_quest_exit=known and _as_bool(terrain.get("quest_exit", False)),
-            quest_id=int(grid_data.get("quest_id", -1)) if known else -1,
-            building_special=(
-                int(grid_data.get("building_special", -1)) if known else -1
-            ),
-            lit=known and _as_bool(flags.get("lite", False)),
-            in_view=known and _as_bool(flags.get("view", False)),
-            glow=known and _as_bool(flags.get("glow", False)),
-            mnlt=known and _as_bool(flags.get("mnlt", False)),
-            mndk=known and _as_bool(flags.get("mndk", False)),
-            visibility_flags_present=bool(
-                grid_data.get("visibility_flags_present", False)
-            ),
-            map_lighting=grid_data.get("lighting"),
-            marked=_as_bool(flags.get("mark", False)),
-            allows_los=allows_los,
-        )
+    if grid_map_valid:
+        grids = _grid_states_from_grid_map(grid_map, protocol)
+    else:
+        grids = {}
+        for grid_data in data.get("nearby_grids", []):
+            grid = _grid_state_from_record(grid_data)
+            grids[grid.position] = grid
 
     positions = {
         grid.monster_index: grid.position
@@ -1504,11 +1601,9 @@ def parse_snapshot(
                 for row in raw_unsafe_rows
             )
         ):
+            # Digit x // 4, bit x % 4 of each validated row, per column.
             unsafe_rows = tuple(
-                tuple(
-                    bool((int(row[x // 4], 16) >> (x % 4)) & 1)
-                    for x in range(width)
-                )
+                tuple(chain.from_iterable([_HEX_DIGIT_BITS[digit] for digit in row]))[:width]
                 for row in raw_unsafe_rows
             )
         else:
