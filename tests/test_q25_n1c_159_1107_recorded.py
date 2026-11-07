@@ -39,6 +39,11 @@ WEST = "4"
 # Scroll of Teleportation the Resistance potion's leave read.
 TYRANNOSAUR_ALONE = 276
 SPECTRAL_T = 705
+# The arrival on [13,1]: nothing in view, 18 monsters detected out of sight, 啓蒙の薬 carried.
+ARRIVAL = 191
+# [11,1] with one hostile in view.
+ONE_IN_VIEW = 193
+SV_POTION_ENLIGHTENMENT = 56
 
 
 def new_policy(first):
@@ -84,6 +89,11 @@ def at_phase(policy, raw, name, **fields):
     record.__dict__.update(battle.Battle(phase=battle.PHASE_NAMES.index(name), ready=True,
                                          **fields).__dict__)
     return record
+
+
+def memory_of(policy, raw):
+    snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+    return battle._memory(quest_room_sweep._navigator(policy, snapshot, geo.QUEST_ID))
 
 
 def phase_of(policy, raw):
@@ -172,6 +182,39 @@ class Q25NoChanceLeaveTest(unittest.TestCase):
         with patch.object(battle, "_phase_key", lambda policy, snapshot: None):
             key = choose(policy, raw)
         self.assertEqual((key[:1], policy.last_reason), ("r", resist_potion.LEAVE_REASON))
+
+
+def enlightenment_letter(raw):
+    return next(chr(ord("a") + index) for index, item in enumerate(raw["inventory"])
+                if item["tval"] == 75 and item["sval"] == SV_POTION_ENLIGHTENMENT)
+
+
+class Q25AmbushEnlightenmentTest(unittest.TestCase):
+    """Owner 2026-11-07 「Q25の段階1、待ち伏せ中に安全で啓蒙の薬を持っているなら飲むを追加」; 安全:
+    「攻撃が届く範囲に=視界内に敵がいない」."""
+
+    def test_the_arrival_with_none_in_view_drinks_it(self):
+        raw = BY_SEQUENCE[ARRIVAL][0]
+        self.assertEqual((len(raw["visible_monsters"]), len(raw["detected_monsters"])), (0, 18))
+        self.assertEqual(BY_SEQUENCE[ARRIVAL][1]["reason"], battle.WALK_REASON)   # the recording walked on
+        self.assertEqual(answer(ARRIVAL), ("q" + enlightenment_letter(raw), battle.ENLIGHTEN_REASON))
+
+    def test_it_is_drunk_once_on_the_floor(self):
+        # The recording never drank it, so every later board still carries it.
+        self.assertTrue(all(any(item["tval"] == 75 and item["sval"] == SV_POTION_ENLIGHTENMENT
+                                for item in board["inventory"]) for board in CASE["boards"]))
+        answer(ARRIVAL)
+        drunk = [sequence for sequence, (_key, reason) in ANSWERS.items() if reason == battle.ENLIGHTEN_REASON]
+        self.assertEqual(drunk, [ARRIVAL])
+
+    def test_with_a_hostile_in_view_it_is_not_drunk(self):
+        raw = BY_SEQUENCE[ONE_IN_VIEW][0]
+        self.assertEqual(len(raw["visible_monsters"]), 1)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ambush")   # CONSTRUCTED memory: the ambush, nothing drunk yet
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, battle.ENLIGHTEN_REASON)
+        self.assertFalse(memory_of(policy, raw).enlightened)
 
 
 if __name__ == "__main__":

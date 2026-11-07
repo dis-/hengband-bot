@@ -10,7 +10,8 @@ quoted there with its date); this module is their executor.  The phases, in orde
     spectral tyrannosaur by ranged attacks and by melee (attack_expectation, slays and hit
     chance in, the torch out) decide the stand: ranged waits on [13,1] with the door [9,1]
     open, melee waits on [10,1] with it closed and closes in the turn it is opened.
-    「どちらにせよ加速を使用する」: hasted while a target is in view.
+    「どちらにせよ加速を使用する」: hasted while a target is in view.  With no hostile in view, a carried
+    Potion of Enlightenment is drunk first, once (owner 2026-11-07, ``_ambush_enlightenment``).
  2. ``wall-passers`` (phase1_wall_passers): full HP, then [7,1]; what comes is fought; 50
     player actions without a new arrival end it.
  3. ``ipsissimus`` (phase2): full HP, [7,1], haste, [6,1], [5,1], then the strongest attack
@@ -116,6 +117,7 @@ ENGAGE_REASON = f"{REASON}:engage"
 RETREAT_REASON = f"{REASON}:druj-out-of-line"
 RETREAT_REST_REASON = f"{REASON}:druj-rest-out-of-line"
 RETREAT_HEAL_REASON = f"{REASON}:druj-heal-out-of-line"
+ENLIGHTEN_REASON = f"{REASON}:ambush-enlightenment"
 BLOCKED_REASON = "quest:blocked:quest25-patrol-rounds"
 _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON})
 
@@ -230,6 +232,7 @@ class Battle:
     retreating: bool = False       # below the line with the anti-teleport piece on: out of the line
     retreat_rest_hp: int | None = None  # HP when the last rest out of the line was keyed
     observed: tuple | None = None      # the board last read (key and walk_key share one)
+    enlightened: bool = False      # the ambush's Potion of Enlightenment was drunk this visit
 
 
 def _memory(navigator) -> Battle:
@@ -241,7 +244,7 @@ def _memory(navigator) -> Battle:
 def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
-        "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced")}
+        "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -733,8 +736,27 @@ def _ambush_done(ctx: _Ctx) -> bool:
                for race in (geo.HOUND, geo.SKELETAL_T, geo.VAMPIRE, geo.SPECTRAL_T))
 
 
+def _ambush_enlightenment(ctx: _Ctx) -> str | None:
+    """Owner 2026-11-07 「Q25の段階1、待ち伏せ中に安全で啓蒙の薬を持っているなら飲むを追加」, 安全 being
+    「攻撃が届く範囲に=視界内に敵がいない」: no hostile in view (a detected one out of sight does not
+    count), the carried Potion of Enlightenment is drunk, once per floor visit.  The game:
+    quaff-effects.cpp wiz_lite maps and lights the whole level and shows no monster."""
+    if ctx.battle.enlightened or ctx.in_view():
+        return None
+    potion = quest_room_light.carried_potion(ctx.policy, ctx.snapshot, quest_room_light.ROOM_LIGHT_POTION)
+    if potion is None:
+        return None
+    key = reserved_item_command(ctx.policy, ctx.snapshot, "quaff", potion)
+    if key is not None:
+        ctx.battle.enlightened = True
+        ctx.policy.last_reason = ENLIGHTEN_REASON
+    return key
+
+
 def _ambush(ctx: _Ctx) -> str | None:
     battle = ctx.battle
+    if (potion := _ambush_enlightenment(ctx)) is not None:
+        return potion
     if battle.style is None:
         battle.style = "melee" if melee_is_fewer(ctx.policy, ctx.snapshot, geo.SPECTRAL_T) else "ranged"
     targets = _fight_targets(ctx)
