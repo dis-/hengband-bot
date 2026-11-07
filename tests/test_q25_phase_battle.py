@@ -410,15 +410,16 @@ class Q25IpsissimusTest(unittest.TestCase):
         snapshot = parse_snapshot(copy.deepcopy(raw), RACES)
         self.assertTrue(policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot)))
         # The plan's order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ例外」):
-        # the spectral tyrannosaur's next action reaches HP 480, so the rung now answers first.
-        with patch.object(threat_tiers, "instant_death_key", lambda policy, snapshot: None):
+        # the spectral tyrannosaur's next action reaches HP 480, so the rung now answers first,
+        # with the plan's own escape (quest_room_sweep._below_line's Teleportation).
+        with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
             key = choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.TELEPORT_REASON, key)
         policy = new_policy(raw)
         at_phase(policy, raw, "ipsissimus")
         policy._player_hasted = lambda snapshot: True
         key = choose(policy, raw)
-        self.assertEqual(policy.last_reason, "emergency:teleport", key)
+        self.assertEqual(policy.last_reason, quest_room_sweep.TELEPORT_REASON, key)  # the plan's escape
 
     def test_after_the_teleport_a_choke_is_taken_before_contact(self):
         # A landing in the east room, nothing in view: the nearest choke out of the summons is

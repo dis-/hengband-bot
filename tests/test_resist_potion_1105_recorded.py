@@ -133,12 +133,13 @@ class PlanFloorTest(unittest.TestCase):
 
     def test_the_plans_survival_rung_goes_first(self):
         # The plan's order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ例外」):
-        # at HP 300 the tyrannosaur's next action reaches the HP, so the rung answers first now.
-        with patch.object(threat_tiers, "instant_death_key", lambda policy, snapshot: None):
+        # at HP 300 the tyrannosaur's next action reaches the HP, so the rung answers first now,
+        # with the plan's own escape: the same Teleportation.
+        with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
             policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
         self.assertEqual(policy.last_reason, "quest-strategy:sweep-teleport")
         policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
-        self.assertEqual(policy.last_reason, "emergency:teleport")
+        self.assertEqual(policy.last_reason, "quest-strategy:sweep-teleport")  # the plan's escape
 
     def test_a_race_with_no_such_breath_and_an_immune_player(self):
         race = next(monster["race_id"] for board in q25_boards.CASE["boards"] if board["turn"] == TYRANNOSAUR

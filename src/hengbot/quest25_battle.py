@@ -1375,7 +1375,8 @@ def key(policy, snapshot) -> str | None:
         )
     return (
         # Owner 2026-11-07 「作戦が先・即死だけ例外」: only the 1-turn 即死 pre-empts the plan.
-        threat_tiers.instant_death_key(policy, snapshot)
+        threat_tiers.instant_death_key(policy, snapshot, lambda: quest_room_sweep._below_line(
+            policy, snapshot, profile, navigator, line=False))
         or quest_find_exit._cure(policy, snapshot)
         or _druj_retreat(policy, snapshot)
         or quest_room_sweep._give_up(policy, snapshot, profile)

@@ -620,13 +620,15 @@ class Q25QuylLastTest(unittest.TestCase):
 
 
 # The plan's own order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ例外」,
-# threat tiers plan step 4): on these constructed boards the next action's p95 reaches the HP, so the
-# rung now answers first with the emergency ladder's escape; these pins keep the order beneath it.
-BELOW_INSTANT_DEATH = patch.object(threat_tiers, "instant_death_key", lambda policy, snapshot: None)
+# threat tiers plan step 4): on these constructed boards the next action's p95 reaches the HP.  The
+# rung answers with the plan's own escape (「作戦の逃げ方を使う」): the below-line Teleportation of
+# ``_below_line`` at any HP, so the boards that pinned it pass as they are; the two pins below
+# (the plan's heal at HP 500, its blow with nothing to escape by) keep the order beneath the rung,
+# and ``test_instant_death_answers_with_the_plans_escape`` pins the rung's answers there.
+BELOW_INSTANT_DEATH = patch.object(threat_tiers, "instant_death_key", lambda *args: None)
 
 
 class Q25EmergencyTest(unittest.TestCase):
-    @BELOW_INSTANT_DEATH
     def test_below_the_line_teleport_and_no_recall(self):
         raw = board((8, 19), hp=300, monsters=[monster(TYRANNOSAUR, 8, 20)])
         key, reason, _ = decide(raw)
@@ -634,7 +636,6 @@ class Q25EmergencyTest(unittest.TestCase):
         self.assertTrue(key.startswith("r"))
         self.assertNotEqual(reason, RECALL_REASON)
 
-    @BELOW_INSTANT_DEATH
     def test_an_enemy_still_on_the_player_after_the_teleport_gets_the_potion(self):
         raw = board((8, 19), hp=300, monsters=[monster(TYRANNOSAUR, 8, 20)])
         policy = new_policy(raw)
@@ -665,7 +666,6 @@ class Q25EmergencyTest(unittest.TestCase):
         snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         self.assertTrue(once_quest_recall.held(policy, snapshot))
 
-    @BELOW_INSTANT_DEATH
     def test_recall_read_the_fight_goes_on_with_scrolls_and_potions(self):
         raw = board((8, 19), hp=300, teleports=4, recalling=True, monsters=[monster(TYRANNOSAUR, 8, 20)])
         _, reason, _ = decide(raw)
@@ -677,6 +677,20 @@ class Q25EmergencyTest(unittest.TestCase):
                     monsters=[monster(TYRANNOSAUR, 8, 20)])
         key, reason, _ = decide(raw)
         self.assertEqual((key, reason), (step_key((8, 19), (8, 20)), MELEE_REASON))
+
+    def test_instant_death_answers_with_the_plans_escape(self):
+        # HP 500, over the line: the plan's escape reads Teleportation before the plan's heal.
+        raw = board((8, 19), hp=500, speed=0, monsters=[monster(TYRANNOSAUR, 8, 20)])
+        key, reason, _ = decide(raw)
+        self.assertEqual(reason, TELEPORT_REASON)
+        self.assertTrue(key.startswith("r"), key)
+        # Nothing to escape by (no Teleportation, Healing or Recall): the emergency ladder's
+        # cornered blow, the same step as the plan's.
+        raw = board((8, 19), hp=300, healing=0, speed=0, teleports=0, recall=0, ccw=9,
+                    monsters=[monster(TYRANNOSAUR, 8, 20)])
+        key, reason, _ = decide(raw)
+        self.assertEqual(key, step_key((8, 19), (8, 20)))
+        self.assertNotEqual(reason, MELEE_REASON)
 
     @BELOW_INSTANT_DEATH
     def test_healing_above_the_line_below_the_plans_threshold(self):
@@ -691,7 +705,6 @@ class Q25EmergencyTest(unittest.TestCase):
         key, reason, _ = decide(board((10, 1), hp=100, healing=0, speed=0, monsters=[monster(SPECTRE, 9, 1)]))
         self.assertEqual((key, reason), (step_key((10, 1), (11, 1)), EXIT_WALK_REASON))
 
-    @BELOW_INSTANT_DEATH
     def test_controls_the_stair_is_not_taken(self):
         enemy = [monster(TYRANNOSAUR, 12, 2)]
         for raw, expected in (

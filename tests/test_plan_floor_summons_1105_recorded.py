@@ -211,7 +211,7 @@ def below_instant_death():
     """The plan's own order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ
     例外」, threat tiers plan step 4).  On the boards that use it the rung now answers first, with
     the emergency escape: tests/test_threat_tiers_plans_recorded.py pins that answer."""
-    return patch.object(threat_tiers, "instant_death_key", lambda policy, snapshot: None)
+    return patch.object(threat_tiers, "instant_death_key", lambda *args: None)
 
 
 def predicted(policy, raw):
