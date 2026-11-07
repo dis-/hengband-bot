@@ -8,6 +8,7 @@ the fixed decision is posted through the production executor port.
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -219,11 +220,44 @@ class TownStops1105RecordedTest(executor_pins.ProductionHarness):
         the take was filed for; town:blocked:unmet:home_candidate_resolved."""
         policy, recorded, steps = self.load("filed-take")
         self.assertEqual(recorded[57]["reason"], "town:blocked:unmet:home_candidate_resolved")
+        # Row 55 is the Black Market page, recorded observe-and-leave.  It shelves a
+        # Staff of *Destruction* (3 charges, 53,714 gold; 734,508 carried), which
+        # the owner's later rule buys (2026-11-07 「*破壊*の杖の優先度を上げる」
+        # 「何本でも買う」, BM-DESTRUCTION-1107).
+        recorded_page = steps[55][1]()
+        staff = next(ware for ware in recorded_page.store.items
+                     if policy._is_destruction_staff(ware))
+        self.assertEqual((staff.letter, staff.price), ("K", 53714))
+        # DECLARED WALL: the record predates that rule; the pin is the filed take,
+        # so the replay's Black Market pages show the shelf without the staff and
+        # the recorded leave stands.  The staff's purchase on this page is pinned
+        # in test_the_recorded_black_market_page_buys_its_destruction_staff.
+        steps = [(step[0], self.without_destruction_staff(policy, step[1]))
+                 for step in steps]
         board, _, _, key = self.replay_to(policy, recorded, steps, 57)
         self.assertEqual((key, policy.last_reason), ("\x1b`n(.", "shop:travel"))
         self.assert_posts(policy, recorded[57], board, key)
 
-    def test_the_departure_walks_on_after_a_hit_on_its_way(self):
+    @staticmethod
+    def without_destruction_staff(policy, supply):
+        def board():
+            snapshot = supply()
+            store = snapshot.store
+            if store is None or not any(policy._is_destruction_staff(ware) for ware in store.items):
+                return snapshot
+            return replace(snapshot, store=replace(store, items=[
+                ware for ware in store.items if not policy._is_destruction_staff(ware)]))
+        return board
+
+    def test_the_recorded_black_market_page_buys_its_destruction_staff(self):
+        """n1-a life-487 19:30, row 55: the Black Market shelved a Staff of
+        *Destruction* the record left (it predates the rule).  Owner 2026-11-07
+        「*破壊*の杖の優先度を上げる」「何本でも買う」: it is the first optional pick."""
+        policy, recorded, steps = self.load("filed-take")
+        self.assertEqual((recorded[55]["key"], recorded[55]["reason"]),
+                         ("\x1b", "shop:observe-and-leave"))
+        _, chosen, reason, _ = self.replay_to(policy, recorded, steps, 55)
+        self.assertEqual((chosen, reason), ("pK\r", "shop:in-store-buy"))
         """n1-a life-487 13:39: one melee from the entrance on the way to a mining run,
         the hold kept the departure out of its own route:
         town:blocked:survival:cure_critical_ready."""
