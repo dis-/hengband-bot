@@ -65,7 +65,8 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import REST_MACRO, UP_STAIRS_KEY, HengbotPolicy
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
-from hengbot.terrain_knowledge import load_damaging_terrain_elements, load_damaging_terrain_ids
+from hengbot.terrain_knowledge import (
+    load_damaging_terrain_elements, load_damaging_terrain_ids, load_deep_damaging_terrain_ids)
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 from recorded_junk_scope import choose_past_destroyed_junk, pre_home_junk_sweep_replay
@@ -112,6 +113,7 @@ def _policy(directory: Path, monrace) -> HengbotPolicy:
         monrace_knowledge=monrace,
         damaging_terrain_ids=load_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc"),
         damaging_terrain_elements=load_damaging_terrain_elements(EDIT / "TerrainDefinitions.jsonc"),
+        deep_damaging_terrain_ids=load_deep_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc"),
         quest_knowledge=load_quest_knowledge(
             find_quest_definitions(GAME_ROOT / "bot-client" / "state.jsonl")
         ),

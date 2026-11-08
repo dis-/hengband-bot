@@ -23,8 +23,11 @@ in again until the loop guard stopped it.  The ground left is the safe region of
 last safe cell the player stood on this floor (``_hazard_entry``); the far side is the
 nearest safe cell outside it, reached over the hazard only.
 
-An immune player takes no such damage, and a levitating one does not stand in it.
-Deep water is not in the table: it only drowns an overloaded player.  Town decisions
+An immune or invulnerable player takes no such damage.  A levitating one takes none
+from shallow ground but a fifth of deep ground's (hp-mp-processor.cpp
+deal_damege_by_feat: DEEP terrain hurts whoever is over it, other damaging terrain only
+whoever stands in it), and at least 1 point, since no rate short of immunity is below
+12%.  Deep water is not in the table: it only drowns an overloaded player.  Town decisions
 stay with the town arbiter.
 """
 
@@ -36,6 +39,9 @@ from functools import wraps
 from hengbot.policy_constants import SEARCH_KEY, WAIT_KEY
 
 STEP_REASON = "hazard:step-off"
+# The status bar's BAR_INVULN key, set exactly when is_invuln() holds
+# (main-window-stat-poster.cpp), which hp-mp-processor.cpp exempts from every puddle.
+INVULNERABILITY = "invulnerability"
 LEADING_ESCAPE = "\x1b"
 REST, FIRE, THROW, AIM, USE, ZAP, ACTIVATE, ABSORBED_POWER, QUAFF = "RfvauzAmq"
 STANDSTILLS = frozenset({REST, SEARCH_KEY, WAIT_KEY, FIRE, THROW, AIM, USE, ZAP,
@@ -51,11 +57,15 @@ def hurts_at(policy, snapshot, position) -> bool:
     """Standing on ``position`` would damage this player now."""
     player = snapshot.player
     grid = snapshot.grid_at(position)
-    if grid is None or "levitation" in player.abilities:
-        return False
     elements = getattr(policy, "_damaging_terrain_elements", {})
-    return (grid.terrain_id in elements
-            and elements[grid.terrain_id] not in player.immunities)
+    if grid is None or grid.terrain_id not in elements:
+        return False
+    if INVULNERABILITY in (player.status_bar or ()):
+        return False
+    if ("levitation" in player.abilities
+            and grid.terrain_id not in getattr(policy, "_deep_damaging_terrain_ids", ())):
+        return False
+    return elements[grid.terrain_id] not in player.immunities
 
 
 def _safe(policy, grid) -> bool:

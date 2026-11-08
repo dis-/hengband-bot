@@ -41,6 +41,19 @@ def load_damaging_terrain_elements(path: Path) -> dict[int, str]:
     }
 
 
+def load_deep_damaging_terrain_ids(path: Path) -> frozenset[int]:
+    """Damaging terrain that still hurts a levitating player: deal_damege_by_feat
+    (hp-mp-processor.cpp) deals DEEP terrain's damage to everyone, a fifth of it while
+    levitating, and other damaging terrain's only to a player standing in it."""
+    data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
+    return frozenset(
+        int(terrain["id"])
+        for terrain in data.get("terrains", [])
+        if "DEEP" in terrain.get("flags", [])
+        and STANDING_DAMAGE_ELEMENTS.keys() & set(terrain.get("flags", []))
+    )
+
+
 def find_terrain_definitions(state_file: Path) -> Path | None:
     configured = os.environ.get("HENGBAND_TERRAIN_DEFINITIONS")
     if configured:

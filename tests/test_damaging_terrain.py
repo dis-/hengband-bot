@@ -4,7 +4,7 @@ from pathlib import Path
 
 from hengbot.model import Position, Snapshot
 from hengbot.policy import HengbotPolicy
-from hengbot.terrain_knowledge import load_damaging_terrain_ids
+from hengbot.terrain_knowledge import load_damaging_terrain_ids, load_deep_damaging_terrain_ids
 
 from tests.test_policy import grid, player
 
@@ -96,6 +96,12 @@ class DamagingTerrainKnowledgeTest(unittest.TestCase):
             self.assertEqual(
                 load_damaging_terrain_ids(path), frozenset({1, 2, 3, 4, 5, 6})
             )
+
+    def test_deep_damaging_terrain_is_what_hurts_while_levitating(self):
+        # Deep water drowns no levitating player (hp-mp-processor.cpp), so it is not here.
+        path = Path("C:/hengband/lib/edit/TerrainDefinitions.jsonc")
+        self.assertEqual(load_deep_damaging_terrain_ids(path),
+                         frozenset({85, 227, 229, 231, 233}))
 
 
 if __name__ == "__main__":

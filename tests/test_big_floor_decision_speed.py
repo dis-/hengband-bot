@@ -32,7 +32,7 @@ from hengbot.policy import ConservativePolicy
 from hengbot.quest_knowledge import load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.terrain_knowledge import (
-    load_damaging_terrain_elements, load_damaging_terrain_ids)
+    load_damaging_terrain_elements, load_damaging_terrain_ids, load_deep_damaging_terrain_ids)
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 
@@ -92,6 +92,8 @@ def _policy(directory):
         monrace_knowledge=_monrace(),
         damaging_terrain_ids=load_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc"),
         damaging_terrain_elements=load_damaging_terrain_elements(
+            EDIT / "TerrainDefinitions.jsonc"),
+        deep_damaging_terrain_ids=load_deep_damaging_terrain_ids(
             EDIT / "TerrainDefinitions.jsonc"),
         quest_knowledge=load_quest_knowledge(EDIT / "quests"),
         quest_strategies=load_quest_strategies(ROOT / "strategy" / "quests"),

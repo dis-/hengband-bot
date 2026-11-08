@@ -1288,6 +1288,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         monrace_knowledge: "dict[int, MonraceKnowledge] | None" = None,
         damaging_terrain_ids: frozenset[int] | None = None,
         damaging_terrain_elements: dict[int, str] | None = None,
+        deep_damaging_terrain_ids: frozenset[int] | None = None,
         quest_knowledge: "dict[int, QuestInfo] | None" = None,
         quest_strategies: "dict[int, StrategyProfile] | None" = None,
         home_disposal_state: HomeDisposalState | None = None,
@@ -1309,6 +1310,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._monrace_knowledge = monrace_knowledge or {}
         self._damaging_terrain_ids = damaging_terrain_ids or frozenset()
         self._damaging_terrain_elements = damaging_terrain_elements or {}
+        self._deep_damaging_terrain_ids = deep_damaging_terrain_ids or frozenset()
         self._quest_knowledge = quest_knowledge or {}
         self._quest_strategies = quest_strategies or {}
         self._baseitem_costs = dict(baseitem_costs or {})
