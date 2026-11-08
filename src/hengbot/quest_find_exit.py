@@ -100,6 +100,21 @@ SPEED_REASON = "quest-strategy:quaff-speed"
 _PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON,
                            PULLED_BACK_REASON, CLEAR_REASON, PULL_WALK_REASON})
 STARVING = frozenset({"weak", "fainting"})
+
+
+def steps_aside_for_food(policy, snapshot) -> bool:
+    """A floor plan leaves the board to the survival rungs: starving, or a meal is due.
+
+    Weak-or-worse leaves by the exit stairs when nothing is edible (_survival_gate_key).
+    Merely hungry, the plan keeps the floor only when nothing is edible
+    (_starvation_lets_quest_finish); with something edible and no hostile near, the gate's
+    rule 「Hungry with something edible: eat now」 holds on a plan floor too.  n1-c life-178
+    (2026-11-09, Q25 ambush hold): hungry with a charged wand, the hold answered '5' until
+    weak, twice.
+    """
+    return snapshot.player.food_state in STARVING or policy._hunger_meal_due(snapshot)
+
+
 # Going round a monster on the way costs at most this many steps, else it is fought.
 SIDESTEP_LIMIT = 2
 VEIN_DIG_POWER = 10  # TerrainDefinitions MAGMA_VEIN_ON_DEEP_WATER tunnel power
@@ -821,7 +836,7 @@ def key(policy, snapshot) -> str | None:
     """The board with an enemy about, or with HP to rest back, or on a cell the casters
     reach; None leaves it shared."""
     plan = _plan(policy, snapshot)
-    if plan is None or snapshot.player.food_state in STARVING:
+    if plan is None or steps_aside_for_food(policy, snapshot):
         return None
     quest_id = snapshot.floor_key[2]
     profile = policy.approved_quest_strategy(quest_id)
