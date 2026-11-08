@@ -57,8 +57,9 @@ them, player-processor.cpp is_fully_healthy).
 Traps (phase4, phase5): a corridor cell the map always traps is searched from beside it
 until the trap is found, a cell that may hold one (``!``) ten times; a disarming power or
 device is aimed first when there is one, the disarm command (``_step_toward``) answers a
-found trap.  Walks cross the fewest summon cells while the Ipsissimus live and the fewest
-uncleared traps.
+found trap.  A disarming beam that went off (the game's flash) answers every trap cell of its
+line, and a cell that holds an item holds no trap (``_settle_beam``, ``_trap_key``).  Walks cross
+the fewest summon cells while the Ipsissimus live and the fewest uncleared traps.
 
 Kills are read from the game's kill lines (monster-damage.cpp): the seen ones by the race's
 name, an unseen one (何か) as the race the last grid shot was aimed at.
@@ -247,6 +248,7 @@ class Battle:
     retreat_rest_hp: int | None = None  # HP when the last rest out of the line was keyed
     observed: tuple | None = None      # the board last read (key and walk_key share one)
     enlightened: bool = False      # the ambush's Potion of Enlightenment was drunk this visit
+    beam: tuple | None = None      # (turn, origin, step) of the last answer aimed at a trap cell
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -262,7 +264,8 @@ def _memory(navigator, policy=None, snapshot=None) -> Battle:
 def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
-        "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened")}
+        "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
+        "beam")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -532,14 +535,22 @@ def _trap_key(ctx: _Ctx, cell) -> str | None:
     grid = ctx.snapshot.grid_at(Position(*cell))
     if grid is not None and grid.trap:
         battle.found = battle.found | {cell}
+        _note_beam(ctx, cell)
         ctx.policy.last_reason = DISARM_REASON
         return ctx.policy._step_toward(ctx.snapshot, Position(*cell))   # the disarm command
     if cell in battle.found:   # seen with its trap, now without: disarmed
         battle.cleared = battle.cleared | {cell}
         return None
+    if grid is not None and grid.object_count:
+        # An item lies there, so no trap does: a trap terrain has no DROP (TerrainDefinitions),
+        # an item is dropped only where Grid::can_drop_item, and a trap is placed only on a
+        # clean grid (FloorType::place_trap_at, Grid::is_clean).  Searching would never find one.
+        battle.cleared = battle.cleared | {cell}
+        return None
     device = _disarm_device_key(ctx, cell)
     if device is not None:
         battle.cleared = battle.cleared | {cell}
+        _note_beam(ctx, cell)
         return device
     searched = battle.searches.get(cell, 0)
     if maybe and searched >= MAYBE_TRAP_SEARCHES:
@@ -548,6 +559,45 @@ def _trap_key(ctx: _Ctx, cell) -> str | None:
     battle.searches = {**battle.searches, cell: searched + 1}
     ctx.policy.last_reason = SEARCH_REASON
     return SEARCH_KEY
+
+
+# The line KILL_TRAP prints for each trap it destroys on a known grid (effect-feature.cpp).
+_FLASH_LINES = ("まばゆい閃光が走った！", "There is a bright flash of light!")
+
+
+def _note_beam(ctx: _Ctx, cell) -> None:
+    """An answer aimed from beside at the trap cell ``cell``: a disarming power or device goes
+    on along the line past it (spells-beam.cpp disarm_trap, PROJECT_BEAM)."""
+    here = ctx.here
+    step = ((cell[0] > here[0]) - (cell[0] < here[0]), (cell[1] > here[1]) - (cell[1] < here[1]))
+    ctx.battle.beam = (int(ctx.snapshot.turn), here, step)
+
+
+def _settle_beam(ctx: _Ctx) -> None:
+    """The board after the aimed answer: when the game printed KILL_TRAP's flash, the beam went
+    off, and every trap on its line is gone (cave_alter_feat DISARM on each grid of the path, the
+    hidden ones too: has_trap_at reads the terrain, not the mimic).  n1-c life-174 (2026-11-09):
+    one beam from [1,18] destroyed the ten traps of [1,8]-[1,17] (「まばゆい閃光が走った！ <x10>」),
+    the plan counted only [1,17] answered, and searched [1,10] for a trap that was gone until the
+    loop guard stopped it."""
+    battle = ctx.battle
+    if battle.beam is None or ctx.snapshot.turn <= battle.beam[0]:
+        return
+    _turn, origin, step = battle.beam
+    battle.beam = None
+    if not any(message_text(message) in _FLASH_LINES for message in ctx.snapshot.messages):
+        return
+    terrain = ctx.open_terrain()
+    bf = ctx.navigator.battlefield
+    traps = {*bf.trap_cells, *bf.maybe_trap_cells}
+    line = set()
+    cell = tuple(origin)
+    for _ in range(geo.MAX_SPELL_RANGE):
+        cell = (cell[0] + step[0], cell[1] + step[1])
+        if terrain.get(cell) not in geo.PROJECTING_KINDS:
+            break
+        line.add(cell)
+    battle.cleared = battle.cleared | (line & traps)
 
 
 # -- attacks ----------------------------------------------------------------------------
@@ -1323,6 +1373,7 @@ def _observe(ctx: _Ctx) -> None:
     if ctx.battle.observed == board:
         return
     ctx.battle.observed = board
+    _settle_beam(ctx)
     _note_kills(ctx)
     _note_pen_shot(ctx)
     _note_arrivals(ctx)
