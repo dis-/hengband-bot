@@ -29,6 +29,12 @@ the detection rows below cast on their own spacing (search_coverage.plan, held_c
 Without telepathy (owner 2026-11-08 21:5x 「感知を使った範囲だけ数える」) only the casts count: the
 lap is cast stops until every grid is within a cast's radius; with no such means, the grids in view
 count and the lap is its sight stops (``_reach_now``).
+Cut-off floor (owner 2026-11-08 21:5x, on a blocked passage: 「掘るか岩石溶解で通す」, n1-b life-348
+Angband 62F: an earthquake turned (28,65), the only passage, into a magma vein): remembered floor
+the walk does not reach is opened toward with the existing openers (retreat_enclosure
+``open_toward_key``: a held digger's route bounded by tunnel_feasibility, else Stone to Mud, the
+wand or the absorbed power, sealed_pocket's counted uses), after the locks and before the secret
+doors and the lap; with no means, the door search and the lap as before.
 Before the lap (and the secret doors below), a closed door the three-pick cap wrote off, that the
 game answered as a lock and that opens onto ground the walk does not reach, is walked to and
 picked (locked_doors.pick_key): a failed pick is progress, and the rest of the floor can be behind
@@ -380,6 +386,21 @@ def _known(policy, snapshot: Snapshot, cell: Position) -> bool:
     return grid is not None and grid.known
 
 
+def _cut_off_floor(policy, snapshot: Snapshot, routes: dict) -> set:
+    """Remembered floor inside the outer ring that no walk reaches, not even over damaging
+    ground or past a veto (those have their own owners): the ground only an opener reaches."""
+    start = snapshot.player.position
+    reached, queue = {start}, deque([start])
+    while queue:
+        for neighbour in policy._walkable_neighbors(snapshot, queue.popleft(), allow_damaging=True):
+            if neighbour not in reached:
+                reached.add(neighbour)
+                queue.append(neighbour)
+    height, width = snapshot.height, snapshot.width
+    return {cell for y, x in policy._floor_t
+            if 0 < y < height - 1 and 0 < x < width - 1 and (cell := Position(y, x)) not in reached}
+
+
 def door_walls(policy, snapshot: Snapshot, routes: dict) -> set:
     """The remembered walls a door can be in (the module docstring): beside a walkable grid
     orthogonally, with the grid straight beyond inside the outer wall and unknown, or
@@ -521,6 +542,11 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
         lambda goal, reason: _walk_key(policy, snapshot, routes, goal, reason))
     if lock is not None:
         return lock
+    cut_off = _cut_off_floor(policy, snapshot, routes)
+    if cut_off:
+        opened = retreat_enclosure.open_toward_key(policy, snapshot, routes.keys(), cut_off)
+        if opened is not None:
+            return opened
     means = door_means_key(policy, snapshot, memory, routes)
     if means is not None:
         return means

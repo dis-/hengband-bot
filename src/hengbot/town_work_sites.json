@@ -10954,6 +10954,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:_cut_off_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_target_search.py:_dead_ends": {
     "classification": "data",
     "rows": [
@@ -11087,6 +11094,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "retreat_enclosure.py:_dig_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_dig_route": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
   "retreat_enclosure.py:_ladder": {
     "classification": "action",
     "rows": [
@@ -11100,6 +11121,13 @@
       "positioning"
     ],
     "delegation": "No independent success; existing teleport or recall owner."
+  },
+  "retreat_enclosure.py:_melt_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "retreat_enclosure.py:_read_teleport": {
     "classification": "action",
@@ -11116,6 +11144,13 @@
     "delegation": "No independent success; pure reading."
   },
   "retreat_enclosure.py:enclosed_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:open_toward_key": {
     "classification": "action",
     "rows": [
       "positioning"
@@ -11207,6 +11242,13 @@
     "delegation": "selected child; no independent success"
   },
   "sealed_pocket.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:melt_at_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

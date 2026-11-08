@@ -154,6 +154,15 @@ def walled_off_key(policy, snapshot) -> str | None:
     return None if walled is None else _ladder(policy, snapshot, walled, teleport_first=True)
 
 
+def open_toward_key(policy, snapshot, reach, ground) -> str | None:
+    """The openers' dig (the digger's route, else Stone to Mud) toward known ``ground`` the walk
+    from ``reach`` does not reach, for an asker with no veto of its own: the quest search's cut-off
+    floor (owner 2026-11-08 21:5x 「掘るか岩石溶解で通す」, quest_target_search)."""
+    if snapshot.player.recalling:
+        return None
+    return _dig_key(policy, snapshot, WalledOff(frozenset(reach), frozenset(ground)))
+
+
 def ring_ladder_key(policy, snapshot, walled: WalledOff) -> str | None:
     """A never-moving monster's ring that blocks the way in a maze and cannot be shot
     away (immobile_ranged_kill ``blocking_key``, owner 2026-11-06 「倒せない時だけ 11-04 の

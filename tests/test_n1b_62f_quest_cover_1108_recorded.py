@@ -41,6 +41,8 @@ from tests.test_input_executor import FaithfulHookGame, ProductionHarness, comma
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-62f-quest-cover-1108.json.xz"
 SEALED = Position(28, 65)
+STONE_TO_MUD = (65, 6)  # tval, sval: the recorded 岩石溶解の魔法棒 (12回分), slot m
+MELT = "stuck:walled-off-stone-to-mud"
 MOVES = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1),
          "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 
@@ -61,8 +63,14 @@ class N1b62fQuestCoverRecordedTest(ProductionHarness):
     def choose(self, policy, raw):
         return str(policy.choose_key(self.snapshot(policy, raw)))
 
-    def policy(self):
+    def policy(self, stone_to_mud=False):
+        """The recorded board; unless ``stone_to_mud``, DECLARED: the carried wand spent, so the
+        lap answers as recorded (owner 「掘るか岩石溶解で通す」 has no means then)."""
         raw = copy.deepcopy(self.pin["board"])
+        if not stone_to_mud:
+            for item in raw["inventory"]:
+                if (item["tval"], item["sval"]) == STONE_TO_MUD:
+                    item["charges"] = 0
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         policy = _policy(Path(directory.name), self.monrace)
@@ -273,6 +281,74 @@ class N1b62fQuestCoverRecordedTest(ProductionHarness):
         self.assertEqual(getattr(policy, search.MEMORY).sweeps.count, 1)
         self.assertTrue(policy._quest_floor_exit_locked(board))
         self.assertEqual(policy._exploration_ledger.search_sweeps, 1)
+
+    def test_the_cut_off_floor_is_opened_with_the_wand_before_the_door_search(self):
+        """Owner 2026-11-08 21:5x 「掘るか岩石溶解で通す」: the recorded wand opens the way."""
+        policy, raw = self.policy(stone_to_mud=True)
+        rows = []
+        for _ in range(80):
+            policy._recent.clear()
+            policy._move_repeat = 0
+            key = self.choose(policy, raw)
+            rows.append((key, policy.last_reason, (raw["player"]["y"], raw["player"]["x"])))
+            if policy.last_reason == "explore":
+                policy._exploration_ledger.probed_frontiers.add(policy._explore_goal_identity.position)
+                policy._clear_explore_path(None)
+                policy._explore_goal_identity = None
+                continue
+            if key.startswith("a"):
+                break
+            following = copy.deepcopy(raw)
+            following["turn"] += 10
+            following["messages"] = []
+            if key in MOVES:
+                following["player"]["y"] += MOVES[key][0]
+                following["player"]["x"] += MOVES[key][1]
+            if policy.last_reason == MELT and len(rows) == 1 + sum(r[1] == "explore" for r in rows):
+                self.post(policy, raw, key, following)  # the first walk of the opener
+            raw = following
+        reasons = [reason for _, reason, _ in rows if reason != "explore"]
+        self.assertTrue(reasons and set(reasons) == {MELT}, reasons)
+        key, _, here = rows[-1]
+        self.assertTrue(key.startswith("am"), rows[-3:])  # the wand (slot m) aimed
+        # Aimed at a remembered wall beside floor the walk does not reach.
+        step = MOVES[key[2]]
+        wall = (here[0] + step[0], here[1] + step[1])
+        self.assertIn(list(wall), self.pin["terrain"]["wall_t"])
+        board = self.snapshot(policy, raw)
+        cut_off = search._cut_off_floor(policy, board, search._routes(policy, board))
+        self.assertIn(Position(29, 65), cut_off)
+
+    def test_at_the_sealed_passage_the_wand_is_aimed_through_it(self):
+        policy, raw = self.policy(stone_to_mud=True)
+        raw["player"]["y"], raw["player"]["x"] = 27, 65  # DECLARED: walked to the passage
+        aimed = None
+        for _ in range(60):
+            policy._recent.clear()
+            policy._move_repeat = 0
+            key = self.choose(policy, raw)
+            if policy.last_reason == "explore":
+                policy._exploration_ledger.probed_frontiers.add(policy._explore_goal_identity.position)
+                policy._clear_explore_path(None)
+                policy._explore_goal_identity = None
+                continue
+            if key.startswith("a"):
+                aimed = (key, policy.last_reason)
+                break
+            self.assertEqual(policy.last_reason, "search")  # the dead end's own rounds first
+            raw = copy.deepcopy(raw)
+            raw["turn"] += 10
+            raw["messages"] = []
+        self.assertIsNotNone(aimed)
+        self.assertEqual(aimed[1], MELT)
+        step = MOVES[aimed[0][2]]
+        self.assertIn((27 + step[0], 65 + step[1]), {(28, 64), (28, 65), (28, 66)})
+
+    def test_with_no_opener_the_door_search_and_lap_go_on(self):
+        policy, raw = self.policy()
+        self.to_the_lap(policy, raw)
+        self.assertNotEqual(policy.last_reason, MELT)
+        self.assertTrue(policy.last_reason.startswith("quest-search"))
 
     def test_the_sealed_passage_is_a_place_a_door_can_be(self):
         policy, raw = self.policy()

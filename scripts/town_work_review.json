@@ -16283,5 +16283,71 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "retreat_enclosure.py:open_toward_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: the quest search's cut-off floor (owner 2026-11-08 21:5x 「掘るか岩石溶解で通す」, n1-b life-348 Angband 62F, an earthquake turned the passage (28,65) into a magma vein); the digger's route or Stone to Mud (wand or absorbed power) toward remembered floor the walk does not reach, after the locks and before the door search; returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_dig_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: the quest search's cut-off floor (owner 2026-11-08 21:5x 「掘るか岩石溶解で通す」, n1-b life-348 Angband 62F, an earthquake turned the passage (28,65) into a magma vein); the digger's route or Stone to Mud (wand or absorbed power) toward remembered floor the walk does not reach, after the locks and before the door search; returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_dig_route": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: the quest search's cut-off floor (owner 2026-11-08 21:5x 「掘るか岩石溶解で通す」, n1-b life-348 Angband 62F, an earthquake turned the passage (28,65) into a magma vein); the digger's route or Stone to Mud (wand or absorbed power) toward remembered floor the walk does not reach, after the locks and before the door search; returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_melt_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: the quest search's cut-off floor (owner 2026-11-08 21:5x 「掘るか岩石溶解で通す」, n1-b life-348 Angband 62F, an earthquake turned the passage (28,65) into a magma vein); the digger's route or Stone to Mud (wand or absorbed power) toward remembered floor the walk does not reach, after the locks and before the door search; returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "sealed_pocket.py:melt_at_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached from retreat_enclosure's openers (the walled-off ladder and the quest search's cut-off floor); dungeon only; one counted Stone to Mud use aimed at the chosen wall through the shared device composer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_cut_off_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search.loop_key on a runtime RANDOM quest floor; reads the board and the remembered floor (a walk's reach); posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
