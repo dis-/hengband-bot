@@ -135,9 +135,12 @@ def _blinding_blow(messages) -> str | None:
 
 
 def _blinder_still_hitting(policy, snapshot) -> bool:
-    """The re-blinding blow landed on this board (always, when none was named)."""
+    """The re-blinding blow landed on this board.  No blow named is a blindness
+    no blow set (a spell: n1-c life-171, 城65階, 皇帝『レイザーク』's darkness
+    storm blinded it again right after the cure): nothing to fight through, so
+    the cure is not futile."""
     blow = getattr(policy, _LATCH_BLOW, None)
-    return blow is None or any(
+    return blow is not None and any(
         unseen_strike.message_text(message).endswith(blow) for message in snapshot.messages)
 
 

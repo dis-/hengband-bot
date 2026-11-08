@@ -25,19 +25,24 @@ show no staff use), so:
 import tests  # noqa: F401 -- isolate live runtime files
 
 import copy
+import dataclasses
+import json
 import unittest
 
-from hengbot import destruction_use
+from hengbot import destruction_use, threat_tiers
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import Position, game_distance, parse_snapshot
+from hengbot.monrace_knowledge import MonsterBlow
 from hengbot.policy_constants import EMERGENCY_ESCAPE_REASONS
 from tests import test_n1c_death_1102_recorded as q31
 from tests import test_paralyzer_contact_recorded as paralyzer
 from tests import test_rq_teleport_reserve_recorded as rq
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_list, power_screen, row
+# Fixture helpers, not a TestCase (test_policy_structure forbids re-collecting one).
+from tests.test_policy_combat import PARALYZER_ESCAPE_FIXTURE, PARALYZER_ESCAPE_KNOWLEDGE
 
 HELD_TURN = 1662215
 TELEPORT = ("rc", "emergency:teleport")
@@ -254,7 +259,15 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
 
     def test_unhurt_target_beside_other_threats_is_no_bar(self):
         raw = self.as_target(with_staff(copy.deepcopy(self.raw)), wounded=False)
-        self.assertEqual(self.answer(raw)[0], STAFF_KEY)
+        (key, reason), policy = self.answer(raw)
+        board = parse_snapshot(copy.deepcopy(raw), self.monraces)
+        # The target's race makes this board 即死 (the next action's p95 1233 >= HP 277), and
+        # there owner 2026-11-08 reads the Teleportation scroll before *Destruction*
+        # (「即死の危険があるときは成功率の高いものを使うべきなので巻物によるテレポートを優先」);
+        # the unhurt target is still no bar to the use.
+        self.assertTrue(threat_tiers.instant_death(policy, board).next_action)
+        self.assertEqual((key, reason), TELEPORT)
+        self.assertTrue(destruction_use.usable(policy, board))
 
     def test_wounded_target_within_seventeen_reads_teleport(self):
         raw = self.as_target(with_staff(copy.deepcopy(self.raw)), wounded=True, distance=17)
@@ -382,6 +395,76 @@ class StatusThreatRungTest(paralyzer.ParalyzerContactRecordedTest):
         self.assertEqual((keys[1], policy.last_reason), ("us", destruction_use.REASON))
         self.assertEqual(self.post(policy, self.raw(paralyzer.DEATH_TURN), keys[1], USE_PROMPT),
                          ["u", "s"])
+
+    def test_blind_the_paralyzer_rung_still_uses_the_staff(self):
+        """Owner 2026-11-08 「盲目でも使う」 (「盲目でも、ふだんの *破壊* の決まり（脅威が範囲内に
+        見える時）で使う。混乱の時は今のまま使わない。」).  DECLARED CONSTRUCTED: the death board
+        blind with no potion carried (a cure would be drunk first), its monsters kept on the
+        board as telepathy would show them; then also confused."""
+        original = self.raw
+        def blind(turn, *, scrolls=True, confused=False):
+            raw = original(turn, scrolls=scrolls)
+            if turn == paralyzer.DEATH_TURN:
+                raw["player"]["status"]["blind"] = True
+                raw["player"]["status"]["confused"] = confused
+                raw["player"]["can_see_own_grid"] = False
+                raw["inventory"] = [item for item in raw["inventory"] if item.get("tval") != 75]
+            return raw
+        self.raw = blind
+        try:
+            policy, keys = self.decide()
+            self.assertEqual((keys[1], policy.last_reason), ("us", destruction_use.REASON))
+            self.raw = lambda turn, *, scrolls=True: blind(turn, scrolls=scrolls, confused=True)
+            policy, keys = self.decide()
+            self.assertNotEqual(policy.last_reason, destruction_use.REASON)
+            self.assertFalse(str(keys[1]).startswith("u"))
+        finally:
+            self.raw = original
+
+
+class BlindStatusThreatRungTest(unittest.TestCase):
+    """Owner 2026-11-08 「盲目でも使う」 on the status-threat rung (policy.py: an adjacent
+    confusion or paralysis attacker, before its blow lands).
+
+    The recorded adjacent-attacker board of test_policy_combat (turn 3305879, recorded
+    ``status-threat:scroll`` ``re``).  DECLARED CONSTRUCTED: the race 280's paralyzing blow
+    made a confusing one (so this rung answers, not the paralyzer rung of policy_combat), a
+    reliable *Destruction* staff in the pack with magic device 60, and for the blind board
+    no potion (a cure would be drunk first) and the own grid unseen."""
+
+    def board(self, *, blind, confused=False):
+        knowledge = dict(PARALYZER_ESCAPE_KNOWLEDGE)
+        knowledge[280] = dataclasses.replace(knowledge[280], blows=(
+            MonsterBlow("HIT", "CONFUSE", 1, 2), MonsterBlow("HIT", "HURT", 1, 10)))
+        rows = (json.loads(line) for line in
+                PARALYZER_ESCAPE_FIXTURE.read_text(encoding="utf-8").splitlines())
+        raw = copy.deepcopy(next(row for row in rows if row["turn"] == 3305879))
+        raw["player"].setdefault("skills", {})["device"] = RELIABLE_SKILL
+        raw["inventory"].append(dict(copy.deepcopy(raw["inventory"][0]), slot="s", tval=55, sval=29,
+                                     count=1, known=True, aware=True, fully_known=True,
+                                     charging=False, charges=5, pval=5,
+                                     name="*破壊*の杖 (5回分)", weight=50))
+        status = raw["player"]["status"]
+        status["blind"], status["confused"] = blind, confused
+        if blind:
+            raw["player"]["can_see_own_grid"] = False
+            raw["inventory"] = [item for item in raw["inventory"] if item.get("tval") != 75]
+        return knowledge, raw
+
+    def answer(self, **kwargs):
+        knowledge, raw = self.board(**kwargs)
+        policy = rq.HengbotPolicy(monrace_knowledge=knowledge)
+        key = policy.choose_key(parse_snapshot(raw, knowledge))
+        return str(key), policy.last_reason
+
+    def test_seeing_the_staff_is_used(self):
+        self.assertEqual(self.answer(blind=False), STAFF_KEY)
+
+    def test_blind_the_staff_is_still_used(self):
+        self.assertEqual(self.answer(blind=True), STAFF_KEY)
+
+    def test_blind_and_confused_it_is_not(self):
+        self.assertNotEqual(self.answer(blind=True, confused=True)[1], destruction_use.REASON)
 
 
 if __name__ == "__main__":

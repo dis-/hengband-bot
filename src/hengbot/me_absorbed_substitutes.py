@@ -21,8 +21,9 @@ that owner's prompts from ``POWERS`` exactly like a me_powers use.
 from __future__ import annotations
 
 from hengbot import me_capability, me_powers
+from hengbot.magic_eater_devices import power_command_refused
 from hengbot.me_staff_sequence import cast_blocked
-from hengbot.model import SV_STAFF_CURE_LIGHT
+from hengbot.model import SV_STAFF_CURE_LIGHT, SV_STAFF_TELEPORTATION
 
 
 # The reason suffix of a quest's absorbed-power cast (me_device_attacks_input).
@@ -44,12 +45,15 @@ def _cast_power(ident: tuple) -> me_powers.Power:
 
 # Cure Light Wounds, the blindness cure a blind player casts (status_cure.absorbed_cure_key).
 CURE_LIGHT = ("staff", SV_STAFF_CURE_LIGHT)
+# Teleportation, the escape a blind player casts (threat_tiers.blind_teleport_key).
+TELEPORTATION = ("staff", SV_STAFF_TELEPORTATION)
 
 
 def _build_powers() -> dict:
     """The powers cast in place of an item (me_device_attacks_input answers them)."""
     powers = {ident: _cast_power(ident) for ident in me_capability.substitute_powers()}
     powers[CURE_LIGHT] = _cast_power(CURE_LIGHT)
+    powers[TELEPORTATION] = _cast_power(TELEPORTATION)
     # Healing in the arena, where no potion works (arena.py); neither asks for a direction.
     for kind, sval in (("rod", 9), ("staff", 18)):
         powers[(kind, sval)] = me_powers.BY_KEY.get((kind, sval)) or me_powers.Power(
@@ -79,9 +83,20 @@ def owns(owner) -> bool:
     return isinstance(owner, str) and owner.endswith(CAST_SUFFIX)
 
 
-def cast_key(policy, snapshot, power, direction: str = "") -> str | None:
-    """``m`` + kind + letter (+ direction) when the power has a charge here."""
-    if (not me_capability.has(policy, snapshot, power.kind, power.sval) or cast_blocked(snapshot)
+def blind_castable(snapshot) -> bool:
+    """Blind, and nothing else stops the ``m`` command: the game refuses only confusion
+    (cmd-magiceat.cpp:463 cmd_limit_confused); the rest is ``cast_blocked``'s."""
+    player = snapshot.player
+    return (player.blind and snapshot.store is None
+            and not (player.confused or player.hallucinated or player.paralyzed)
+            and not power_command_refused(snapshot))
+
+
+def cast_key(policy, snapshot, power, direction: str = "", *, blind_ok: bool = False) -> str | None:
+    """``m`` + kind + letter (+ direction) when the power has a charge here.
+    ``blind_ok``: a power the caller casts blind too (``blind_castable``)."""
+    blocked = cast_blocked(snapshot) and not (blind_ok and blind_castable(snapshot))
+    if (not me_capability.has(policy, snapshot, power.kind, power.sval) or blocked
             or me_capability.charges(policy, snapshot, power.kind, power.sval) <= 0):
         return None
     return power.key + (direction if power.aimed else "")

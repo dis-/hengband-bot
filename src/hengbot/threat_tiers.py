@@ -41,6 +41,7 @@ from hengbot import (
     disenchant_avoid,
     haste_read,
     hunt_target,
+    me_absorbed_substitutes,
     me_capability,
     me_device_attacks,
     me_ranged_first,
@@ -60,6 +61,7 @@ from hengbot.model import (
     SV_POTION_RESIST_COLD,
     SV_POTION_RESISTANCE,
     SV_POTION_STAR_HEALING,
+    SV_STAFF_TELEPORTATION,
     TVAL_ROD,
     TVAL_SCROLL,
     TVAL_STAFF,
@@ -83,8 +85,9 @@ RESERVE_HP_RATIO = 0.10             # D7 「余裕は最大HPの1割と、95%被
 
 # scroll-read-executor.cpp:380-400: fire_ball at the player's own cell, radius 4.
 SV_SCROLL_TELEPORT_LEVEL = 10
-SV_STAFF_TELEPORTATION = 4
 SCROLL_BALL_RADIUS = 4
+# The reason suffix of a carried Staff of Teleportation used blind (blind_teleport_key).
+STAFF_REASON_SUFFIX = "-staff"
 
 # The projection's cost cap (``Projection``).  One monster's p95 convolutions cost about
 # 45 ns x actions^2 x its largest damage per action on the recorded boards (n1-a life-475's
@@ -813,6 +816,54 @@ def escape_means(policy, snapshot, hostiles) -> tuple:
     return tuple(means)
 
 
+def blind_teleport_key(policy, snapshot, reason: str) -> str | None:
+    """Blind and not confused: the absorbed Teleportation, else a carried Staff of
+    Teleportation, the means ``escape_means`` counts; None otherwise.
+
+    The scroll a rung reads cannot be read blind (cmd-read.cpp:37 cmd_limit_blind), but the
+    ``m`` command refuses only confusion (cmd-magiceat.cpp:463 cmd_limit_confused) and the
+    staff refuses neither (cmd-usestaff.cpp do_cmd_use_staff, use-execution.cpp
+    ObjectUseEntity::execute: confusion halves the skill, stun may refuse it), and
+    SV_STAFF_TELEPORTATION is teleport_player 100 (cmd-usestaff.cpp:101-105).  n1-c life-171
+    (2026-11-08 20:08, 城65階): blind at HP 259/993 in the one-shot tier beside ハスター with
+    the absorbed staff at 24/24, 98%, the ladder found no readable escape and fired a rocket.
+    The rungs that read a relocation scroll ask this in the scroll's place when blind: design
+    3.1 即死→逃げる, owner 2026-11-06 「低HPで召喚・引き寄せ・速い敵が見えたら…テレポート/帰還」,
+    owner 2026-11-08 「その敵の感知範囲内なら早急に離脱する」.  ``last_reason`` is ``reason``
+    (with the cast suffix for the absorbed power, which admits the device key)."""
+    means = blind_teleport_means(policy, snapshot)
+    if means is None:
+        return None
+    if means == ABSORBED:
+        policy.last_reason = reason + me_absorbed_substitutes.CAST_SUFFIX
+        return me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION].key
+    key = reserved_item_command(policy, snapshot, "staff", means)
+    if key is not None:
+        policy.last_reason = reason + STAFF_REASON_SUFFIX
+    return key
+
+
+ABSORBED = "absorbed"
+
+
+def blind_teleport_means(policy, snapshot):
+    """``blind_teleport_key``'s means: ``ABSORBED``, the carried staff, else None."""
+    player = snapshot.player
+    if (not player.blind or player.confused or snapshot.store is not None
+            or policy._teleport_blocked_by_equipment(snapshot)
+            or quest_no_teleport.forbids(policy, snapshot)):
+        return None
+    power = me_absorbed_substitutes.TELEPORTATION
+    # The menu walk of the blind cast is the one status_cure.absorbed_cure_key uses.
+    if (me_absorbed_substitutes.blind_castable(snapshot)
+            and me_capability.has(policy, snapshot, *power)
+            and me_capability.charges(policy, snapshot, *power) > 0):
+        return ABSORBED
+    return next((item for item in snapshot.inventory
+                 if item.tval == TVAL_STAFF and item.sval == SV_STAFF_TELEPORTATION
+                 and item.aware and item.charges > 0), None)
+
+
 def escape_restorable(policy, snapshot) -> bool:
     """4.2 restore: a cure for blindness / confusion, or a removable anti-teleport item."""
     player = snapshot.player
@@ -1175,6 +1226,19 @@ def inside_sensing(policy, snapshot, monster) -> bool:
     return knowledge is not None and sensing_distance(snapshot, monster) <= knowledge.vision
 
 
+def cannot_win(assessment, hp: int) -> bool:
+    """T1, or a tier the projection's cost cap left undecided (``skipped`` "cost") whose
+    no-supply incoming damage is known to reach the HP: its lower bound is at least ``hp``
+    (``free_incoming_bounds``), so T3 fails.  Owner 2026-11-08 (question 1 of the n1-c
+    life-171 report, verbatim 「勝てないと分かれば離脱」): treated exactly as T1.  皇帝
+    『レイザーク』 on 城65階 read None with bounds (1345, 19270) against HP 993."""
+    if assessment.tier == T1:
+        return True
+    bounds = assessment.free_incoming_bounds
+    return (assessment.tier is None and assessment.skipped == "cost"
+            and bounds is not None and bounds[0] >= hp)
+
+
 def sensed_t1_leave_key(policy, snapshot) -> str | None:
     """Owner 2026-11-08 (question 「感知で、起きている強い敵（倒しきれない段階の敵）が見えている時に
     休みますか？」, answer 「その敵の感知範囲内なら早急に離脱する」): an awake hostile, in view or
@@ -1192,7 +1256,7 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
     # would otherwise read T3 only because it has not come yet).
     strong = [monster for monster in sensing
-              if tiered(policy, snapshot, [monster], contact=True).tier == T1]
+              if cannot_win(tiered(policy, snapshot, [monster], contact=True), snapshot.player.hp)]
     if not strong:
         return None
     stairs = policy._escape_by_stairs(snapshot)
@@ -1202,6 +1266,9 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     used = destruction_use.key(policy, snapshot)
     if used is not None:
         return used
+    # Blind: the teleport no scroll can give (blind_teleport_key), in the scroll's place.
+    if (blind := blind_teleport_key(policy, snapshot, SENSED_LEAVE_PREFIX + "teleport")) is not None:
+        return blind
     scroll = policy._escape_scroll(snapshot)
     if scroll is not None:
         policy.last_reason = SENSED_LEAVE_PREFIX + (

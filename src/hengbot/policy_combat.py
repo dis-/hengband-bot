@@ -2469,7 +2469,17 @@ class CombatMixin:
                 )
                 return stairs
 
-            if status_cure.treats(self, snapshot):
+            # A blind player whose escape needs no scroll (blind_teleport_key) escapes
+            # before the cure; cure-then-escape is for a scroll as the only escape.
+            # Owner 2026-11-08 「盲目でも使う」: *Destruction* by its own rules is
+            # such an escape too.
+            blind_escape = bool(
+                (lethal or summoner_open) and not guardian_reposition
+                and player.blind and not player.confused
+                and (threat_tiers.blind_teleport_means(self, snapshot) is not None
+                     or destruction_use.usable(self, snapshot))
+            )
+            if not blind_escape and status_cure.treats(self, snapshot):
                 if (speed := status_cure.speed_first_key(self, snapshot)) is not None:
                     return speed  # the cure, and the escape it owes, on the next board
                 potion = status_cure.low_hp_heal(self, snapshot, hostiles,
@@ -2522,17 +2532,31 @@ class CombatMixin:
                         # taken on this board.
                         self.last_reason = "item:heal"
                         return reserved_item_command(self, snapshot, "quaff", potion)
+                # The guardian reposition needs a real teleport: owner
+                # 2026-11-02 「そもそもショートテレポートでは十分な距離が
+                # 稼げないため代替にならない。」 Without one it falls through
+                # to the rungs below unchanged.
+                scroll = self._escape_scroll(
+                    snapshot, teleport_only=guardian_reposition
+                )  # None while blind or confused
+                # Owner 2026-11-08 「即死の危険があるときは成功率の高いものを使う
+                # べきなので巻物によるテレポートを優先」: on the 即死 board (the
+                # next action's p95 reaches the HP, threat tiers 3.1) the
+                # Teleportation scroll is read before *Destruction*.
+                # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」).
+                scroll_first = bool(
+                    instant_death and scroll is not None and scroll.is_teleport_scroll
+                )
+                if not guardian_reposition and not scroll_first and (
+                        used := destruction_use.key(self, snapshot)) is not None:
+                    return used
+                if blind_escape and (
+                        blind := self._blind_teleport_escape(snapshot)) is not None:
+                    if self._fundraising_mode in {"mine", "scavenge"}:
+                        self._note_return_start(self._last_return_trigger)
+                        self._returning_to_town = True
+                    return blind
                 if not player.blind and not player.confused:
-                    # The guardian reposition needs a real teleport: owner
-                    # 2026-11-02 「そもそもショートテレポートでは十分な距離が
-                    # 稼げないため代替にならない。」 Without one it falls through
-                    # to the rungs below unchanged.
-                    if not guardian_reposition and (
-                            used := destruction_use.key(self, snapshot)) is not None:
-                        return used
-                    scroll = self._escape_scroll(
-                        snapshot, teleport_only=guardian_reposition
-                    )
                     if scroll is not None:
                         if guardian_reposition:
                             self.last_reason = "guardian:teleport-to-cover"
@@ -2812,12 +2836,12 @@ class CombatMixin:
             return None
         if (
             any(not monster.asleep for monster in adjacent)
-            and not snapshot.player.blind
             and not snapshot.player.confused
         ):
+            # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」); the scroll needs sight.
             if (used := destruction_use.key(self, snapshot)) is not None:
                 return used
-            scroll = self._escape_scroll(snapshot)
+            scroll = None if snapshot.player.blind else self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "status-threat:scroll"
                 return self._read_key(snapshot, scroll)
@@ -3187,13 +3211,27 @@ class CombatMixin:
             snapshot, perceived, 1, observed_loss=observed_loss
         )
 
+    def _blind_teleport_escape(self, snapshot: Snapshot) -> str | None:
+        """The blind teleport (threat_tiers.blind_teleport_key) as the
+        ladder's emergency escape: it counts as the scroll's read does
+        (EMERGENCY_ESCAPE_REASONS, _latch_repeat_emergency_return)."""
+        key = threat_tiers.blind_teleport_key(self, snapshot, "emergency:teleport")
+        if key is None:
+            return None
+        self._emergency_return_active = True
+        self._latch_repeat_emergency_return(snapshot, self.last_reason)
+        return key
+
     def _low_hp_escape_read(self, snapshot: Snapshot) -> str | None:
         """Teleport (or phase), else Word of Recall: the low-HP ladder's
-        second rung."""
+        second rung.  Blind, the teleport no scroll gives comes first."""
         player = snapshot.player
+        # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」).
+        if (used := destruction_use.key(self, snapshot)) is not None:
+            return used
+        if (blind := self._blind_teleport_escape(snapshot)) is not None:
+            return blind
         if not player.blind and not player.confused:
-            if (used := destruction_use.key(self, snapshot)) is not None:
-                return used
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 return self._issue_emergency_consumable(
@@ -3268,7 +3306,8 @@ class CombatMixin:
                 else self._monster_path_distance(snapshot, monster.position)
             )
             in_line_of_fire = contact or self._has_line_of_fire(
-                snapshot, monster.position, snapshot.player.position
+                snapshot, monster.position, snapshot.player.position,
+                remembered=self._remembered_grids,
             )
             knowledge = self._monrace_knowledge.get(monster.race_id)
             never_moves = bool(
@@ -4446,7 +4485,13 @@ class CombatMixin:
         return reaches and self._predicted_damage(snapshot, [monster], turns=1) > 0
 
     @staticmethod
-    def _has_line_of_fire(snapshot: Snapshot, origin: Position, target: Position) -> bool:
+    def _has_line_of_fire(snapshot: Snapshot, origin: Position, target: Position, *,
+                          remembered: dict | None = None) -> bool:
+        """``remembered``: the map memory read for a grid the board does not
+        know (the incoming-damage estimate; n1-c life-171, 城65階: after the
+        darkness storm two floor grids the player had walked between it and
+        皇帝『レイザーク』 were off the board and read as walls, so the
+        emperor's spells counted 0 while they landed)."""
         y0, x0 = origin.y, origin.x
         y1, x1 = target.y, target.x
         dy, dx = abs(y1 - y0), abs(x1 - x0)
@@ -4463,6 +4508,9 @@ class CombatMixin:
             if (y0, x0) == (y1, x1):
                 return True
             grid = snapshot.grid_at(Position(y0, x0))
+            if (remembered is not None and (grid is None or not grid.known)
+                    and (memory := remembered.get(Position(y0, x0))) is not None):
+                grid = memory
             if grid is None or not grid.allows_los:
                 return False
         return True

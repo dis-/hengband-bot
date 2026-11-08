@@ -8061,12 +8061,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     or paralyzer_contact.follows_walk(self, snapshot, monster)
                     for monster in status_threats
                 )
-                and not player.blind
                 and not player.confused
             ):
+                # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」); the scroll needs sight.
                 if (used := destruction_use.key(self, snapshot)) is not None:
                     return used
-                scroll = self._escape_scroll(snapshot)
+                scroll = None if player.blind else self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "status-threat:scroll"
                     return self._read_key(snapshot, scroll)
@@ -8090,10 +8090,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self.last_reason = "status-threat:retreat"
                 self._declare_reach(step)
                 return self._town_producer_entry("_step_toward:survival", lambda: self._step_toward(snapshot, step), family="survival")
-            if not player.blind and not player.confused:
+            if not player.confused:
+                # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」); the scroll needs sight.
                 if (used := destruction_use.key(self, snapshot)) is not None:
                     return used
-                scroll = self._escape_scroll(snapshot)
+                scroll = None if player.blind else self._escape_scroll(snapshot)
                 if scroll is not None:
                     self.last_reason = "status-threat:scroll"
                     return self._read_key(snapshot, scroll)
@@ -15651,10 +15652,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # damage: break contact first and let the existing countdown keep
             # running at the landing position.
             if snapshot.player.recalling and breeders and nearby_threat:
-                if not snapshot.player.blind and not snapshot.player.confused:
+                if not snapshot.player.confused:
+                    # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」); the scroll needs sight.
                     if (used := destruction_use.key(self, snapshot)) is not None:
                         return used
-                    scroll = self._escape_scroll(snapshot)
+                    scroll = None if snapshot.player.blind else self._escape_scroll(snapshot)
                     if scroll is not None:
                         reason = (
                             "emergency:teleport"
