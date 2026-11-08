@@ -36,9 +36,13 @@ so after a recall every dungeon post was judged on the town state.  The same sta
 made a backpressure retry after any completed operation a terminal ("prompt changed before
 retry").  DECLARED CONSTRUCTED: the recorded town board (A row 3) is followed by the recorded
 dungeon board (B, [22,80]) as if a recall had activated on a wait.
+The follow loop's floor-change Escape on arriving in town (cli ``_run_follow``) was posted
+with no work record (its site was missing from the driver-owned sends): the two unmapped
+lines right after each process start.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
+import ast
 import copy
 import gzip
 import itertools
@@ -50,6 +54,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+from hengbot import cli
 from hengbot.cli import PostingContract, SendResult, _ExecutorInputPort, _send_new_decision_key
 from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
 from hengbot.home_errand import HomeErrandState
@@ -262,6 +267,22 @@ class TownWorkReceiptsRecordedTest(executor_pins.ProductionHarness):
         sent, port, _receipts = self.after_recall(faults=["backpressure"])
         self.assertEqual(sent, SendResult.SENT, port.last_result.reason)
         self.assertEqual(port.last_result.outcome, "completed")
+
+
+    def test_every_cli_sender_through_the_port_has_its_work_named(self):
+        """A cli function posting through the input port is a decision sender (its
+        decision's record) or a driver (driver work): none posts unmapped work."""
+        tree = ast.parse(Path(cli.__file__).read_text(encoding="utf-8"))
+        senders = {f"cli.py:{function.name}" for function in tree.body
+                   if isinstance(function, ast.FunctionDef)
+                   and any(isinstance(node, ast.Call)
+                           and (isinstance(node.func, ast.Name) and node.func.id == "send"
+                                or isinstance(node.func, ast.Attribute)
+                                and node.func.attr == "submit_operation")
+                           for node in ast.walk(function))}
+        self.assertIn("cli.py:_run_follow", senders)
+        self.assertEqual(senders - cli.DECISION_SEGMENT_SITES - cli.DRIVER_OWNED_SEND_SITES, set())
+        self.assertEqual(cli.DECISION_SEGMENT_SITES & cli.DRIVER_OWNED_SEND_SITES, set())
 
 
 if __name__ == "__main__":
