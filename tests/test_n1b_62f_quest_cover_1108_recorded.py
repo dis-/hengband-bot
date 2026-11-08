@@ -2,7 +2,8 @@
 
 Owner 2026-11-08: 「n1-bがまたクエストフロアで無為に放浪している」, and 「62Fのループもフロア全体を探索
 できず、一定範囲をループしてしまっている。クエストターゲットを探すには少なくとも感知範囲がフロア全域を
-網羅するように歩かなければならない。」 (search_coverage).
+網羅するように歩かなければならない。」, then 「半端な定義は許可しない。外周マス以外の全てを感知する必要
+がある。」 (search_coverage: every grid but the outer ring, walls included).
 
 Recorded (tests/extract_n1b_62f_quest_cover_1108_fixture.py): the bot walked from the east side
 through (28,65) into the west corridor at game turn 3217357; back east, a 石の宝箱 (race 1368, BITE
@@ -31,6 +32,7 @@ from hengbot import quest_target_search as search
 from hengbot import search_coverage
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.exploration_ledger import ExplorationLedger
+from hengbot.me_staff_sequence import MeStaffSequence
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from test_esp_threat_rest_recorded import EDIT, _policy
@@ -93,11 +95,13 @@ class N1b62fQuestCoverRecordedTest(ProductionHarness):
             policy._explore_goal_identity = None
         self.fail("the quest search never answered")
 
-    def coverage(self, policy, raw, stops):
+    def coverage(self, policy, raw, stops, radii=None):
+        """(the grids to cover, those within each stop's reach: ``radii`` or telepathy's)."""
         board = self.snapshot(policy, raw)
-        floor = search_coverage.floor_grids(policy, board)
+        floor = search_coverage.floor_grids(board)
         radius = search_coverage.walk_radius(policy, board)
-        covered = search_coverage.covered(floor.shape, (((stop.y, stop.x), radius) for stop in stops))
+        covered = search_coverage.covered(floor.shape, (
+            ((stop.y, stop.x), (radii or {}).get(stop, radius)) for stop in stops))
         return floor, covered & floor
 
     # -- the recording -------------------------------------------------------
@@ -136,6 +140,50 @@ class N1b62fQuestCoverRecordedTest(ProductionHarness):
         self.assertGreater(int(np.count_nonzero(covered)), int(np.count_nonzero(old)) + 200)
         self.assertEqual(memory.unreached, int(np.count_nonzero(floor & ~reach)))
         self.assertGreater(memory.unreached, 0)
+
+    def test_every_grid_inside_the_outer_ring_is_to_be_covered(self):
+        """Owner 2026-11-08 「半端な定義は許可しない。外周マス以外の全てを感知する必要がある。」"""
+        policy, raw = self.policy()
+        self.to_the_lap(policy, raw)
+        memory = getattr(policy, search.MEMORY)
+        floor, covered = self.coverage(policy, raw, memory.stops)
+        self.assertEqual(int(np.count_nonzero(floor)), 42 * 196)
+        self.assertFalse(floor[0, :].any() or floor[-1, :].any() or floor[:, 0].any() or floor[:, -1].any())
+        # A remembered wall inside the ring is a grid to cover, and the lap covers it.
+        self.assertIn([28, 65], self.pin["terrain"]["wall_t"])
+        self.assertTrue(floor[28, 65])
+        self.assertTrue(covered[28, 65])
+        # Every remembered wall grid that telepathy from a walkable cell reaches is reached by a
+        # stop (revert to the walls-left-out grids: some are not).
+        board = self.snapshot(policy, raw)
+        _, reach = self.coverage(policy, raw, list(search._routes(policy, board)))
+        walls = np.zeros(floor.shape, dtype=bool)
+        for y, x in policy._remembered_wall_t:
+            walls[y, x] = True
+        self.assertGreater(int(np.count_nonzero(walls & reach)), 1000)
+        self.assertEqual(int(np.count_nonzero(walls & reach & ~covered)), 0)
+
+    def test_a_held_detection_covers_what_telepathy_cannot(self):
+        policy, raw = self.policy()
+        self.to_the_lap(policy, raw)
+        # DECLARED: n1-b's absorbed Detection and Detect Evil with charges (the recorded casts;
+        # given after the lap began, so their own new-floor rows do not answer first), and the
+        # lap drawn again (the door round toward the sealed west answers first on this board).
+        policy._me_staff_sequence = MeStaffSequence(absorbed={"rod:6": 10, "staff:15": 10})
+        memory = getattr(policy, search.MEMORY)
+        board = self.snapshot(policy, raw)
+        memory.stops = search._draw(policy, board, memory, search._routes(policy, board))
+        self.assertEqual(search.held_cast_radius(policy, board), 30)
+        casts = [stop for stop in memory.stops if memory.stop_radius[stop] == 30]
+        self.assertTrue(casts)
+        routes = search._routes(policy, board)
+        floor, covered = self.coverage(policy, raw, memory.stops, memory.stop_radius)
+        _, reach = self.coverage(policy, raw, list(routes), {cell: 30 for cell in routes})
+        self.assertEqual(int(np.count_nonzero(reach & ~covered)), 0)
+        self.assertEqual(memory.unreached, int(np.count_nonzero(floor & ~reach)))
+        # Telepathy alone leaves grids out that the casts reach.
+        _, telepathy = self.coverage(policy, raw, list(routes))
+        self.assertGreater(int(np.count_nonzero(reach & ~telepathy)), 0)
 
     def test_the_sealed_passage_is_a_place_a_door_can_be(self):
         policy, raw = self.policy()

@@ -22,8 +22,10 @@ player can walk to, what the bot remembers and what a mapping left as corridor (
    the game shows anything).
 With telepathy, the coverage stops after them (owner 2026-11-08, n1-b life-348 Angband 62F:
 「クエストターゲットを探すには少なくとも感知範囲がフロア全域を網羅するように歩かなければならない。」):
-every floor grid, known or not, that some walkable grid has within telepathy's reach is within
-reach of a stop (search_coverage.plan).
+every grid but the outer ring (owner, binding: 「半端な定義は許可しない。外周マス以外の全てを感知する
+必要がある。」), wall or not, that some walkable grid has within telepathy's reach is within reach of
+a stop, and the grids only a held detection reaches are within its radius of a cast stop, where
+the detection rows below cast on their own spacing (search_coverage.plan, held_cast_radius).
 Before the lap (and the secret doors below), a closed door the three-pick cap wrote off, that the
 game answered as a lock and that opens onto ground the walk does not reach, is walked to and
 picked (locked_doors.pick_key): a failed pick is progress, and the rest of the floor can be behind
@@ -148,6 +150,7 @@ class Memory:
     laps: int = 0                              # laps finished on this floor visit
     door_lap: int = 0                          # the lap the last door search began at
     door_search: bool = False                  # the dead ends are being searched now
+    stop_radius: dict = field(default_factory=dict)  # stop -> the reach it was drawn for
     door_casts: list = field(default_factory=list)  # (position, radius) a carried door detection covered
     pending_shows: str = "monsters"            # what the pending use detects: MONSTERS, DOORS or BOTH
     cover: search_coverage.Coverage = field(default_factory=search_coverage.Coverage)
@@ -249,20 +252,35 @@ def _lap_left(policy, snapshot: Snapshot, memory: Memory):
     shape = (snapshot.height, snapshot.width)
     done = memory.cover.mask(shape) | search_coverage.covered(
         shape, _cast_centres(policy, snapshot, memory))
-    return search_coverage.floor_grids(policy, snapshot) & ~done
+    return search_coverage.floor_grids(snapshot) & ~done
+
+
+def held_cast_radius(policy, snapshot: Snapshot) -> int:
+    """The largest plain radius of a held means that can show the unseen target: an absorbed
+    row with a charge (me_powers.revealing_radius) or a carried CARRIED_DETECTION device
+    (me_powers.map_radius, as its casts are recorded), else 0."""
+    race = hunt_target.unseen_race(policy, snapshot)
+    if race is None:
+        return 0
+    flags = hunt_target.race_flags(policy, race)
+    held = {(item.tval, item.sval) for item in snapshot.inventory}
+    carried = any(kind_key in held and hunt_target.REVEALS[effect](flags)
+                  for kind_key, (_, effect) in CARRIED_DETECTION.items())
+    return max(me_powers.revealing_radius(policy, snapshot, flags),
+               me_powers.map_radius(policy, snapshot) if carried else 0)
 
 
 def _draw(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> tuple:
     """A new lap: the room and sight stops, then the coverage stops (search_coverage.plan);
     the lap's coverage starts again here."""
     stops, radius = draw_stops(snapshot, set(routes)), search_coverage.walk_radius(policy, snapshot)
-    memory.unreached, memory.lap_turn = 0, snapshot.turn
+    memory.unreached, memory.lap_turn, memory.stop_radius = 0, snapshot.turn, {}
     memory.cover.clear()
     if not radius:
         return stops
-    plan = search_coverage.plan(
-        snapshot, search_coverage.floor_grids(policy, snapshot), routes, stops, radius)
-    memory.unreached = plan.unreachable
+    plan = search_coverage.plan(snapshot, search_coverage.floor_grids(snapshot), routes, stops,
+                                radius, held_cast_radius(policy, snapshot))
+    memory.unreached, memory.stop_radius = plan.unreachable, plan.radius
     memory.cover.note(snapshot.player.position, radius)
     return plan.stops
 
@@ -284,8 +302,8 @@ def _next_goal(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> Posi
     radius = search_coverage.walk_radius(policy, snapshot)
     if memory.stops:
         left = _lap_left(policy, snapshot, memory) if radius else None
-        memory.seen.update(stop for stop in memory.stops
-                           if stop not in memory.seen and _seen_now(snapshot, stop, left, radius))
+        memory.seen.update(stop for stop in memory.stops if stop not in memory.seen and _seen_now(
+            snapshot, stop, left, radius and memory.stop_radius.get(stop, radius)))
     # The player's own cell is reached, not a goal: routes holds it with no first step.
     if (memory.goal in routes and memory.goal not in memory.seen
             and memory.goal != snapshot.player.position):
