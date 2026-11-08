@@ -226,5 +226,47 @@ class SleeperInViewKeepsTheChokeRetreatRecordedTest(RecordedHarness):
             self.assertEqual(reasons[-1], "detected:hold-choke")
 
 
+L173 = case("l5-173")
+
+
+class MazeBearAreaRecordedTest(RecordedHarness):
+    """L5, n1-c life-173 (Magic-Eater Lv22, Labyrinth 15F, 2026-11-08 21:12 loop-detected,
+    build bot-234f9fd): an awake 凶熊 (race 1028, material melee: the engagement retreat
+    keeps away from it) stood 19 cells west along the one-cell corridor of row 2.  In view at
+    (2,55) its area was the routes' veto (and its cell out of the route,
+    ``_explore_past_monster_cells``), so the explore had no frontier past it and
+    stuck:seek-stairs stepped '3' to (3,56); out of view there the veto was empty and the explore
+    stepped '7' straight back, until the loop detector.  life-128's rule (the same answer in
+    and out of view) held only for sleepers.  The L1 memory (owner 2026-11-09
+    「起きた敵も最後の位置を覚える」) keeps the awake bear's area out of view.
+    DECLARED RECONSTRUCTION: the fresh policy knows the Labyrinth as the two boards show it, so
+    its explore goal differs from the live one (which had probed the frontiers south-east);
+    the pin is the veto both boards route under."""
+
+    def test_recorded_rows(self):
+        rows = recorded(L173)
+        self.assertEqual(rows[870856], ("3", "stuck:seek-stairs"))
+        self.assertEqual(rows[870867], ("7", "explore"))
+        self.assertEqual([(m["race_id"], m["y"], m["x"], m["asleep"])
+                          for m in board(L173, 870856)["visible_monsters"]], [(1028, 2, 37, False)])
+        self.assertEqual(board(L173, 870867)["visible_monsters"], [])
+
+    def test_the_bears_area_is_the_same_veto_out_of_view(self):
+        policy = HengbotPolicy(monrace_knowledge=knowledge(L173))
+        policy.prime(parse_snapshot(board(L173, 870856), policy._monrace_knowledge))
+        vetoes = []
+        for turn in (870856, 870867):
+            raw = board(L173, turn)
+            key = decide(policy, copy.deepcopy(raw))
+            if key:
+                policy.confirm_key_posted(key)
+            snapshot = policy._with_grid_memory(
+                parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+            vetoes.append(policy._engagement_route_veto(snapshot))
+        # bot-234f9fd and 47982d326: empty out of view.
+        self.assertEqual(vetoes[1], vetoes[0])
+        self.assertIn(Position(2, 45), vetoes[1])
+
+
 if __name__ == "__main__":
     unittest.main()

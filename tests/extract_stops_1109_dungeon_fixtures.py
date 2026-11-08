@@ -7,9 +7,7 @@ C:/hengband-backups/pdca/captures/stops-1109/dungeon/<inst>_life-NNN_<kind>_<sta
 - ``l1-346``: n1-b life-346 incident-captures/20261108-105147-loop-detected (Angband 18F):
   the snapshot ring snapshots-current, decision-tail.jsonl and policy-state.json.
 - ``l1-356``: n1-b life-356 captures/20261109-044429-loop-detected (Yeek cave 5F).
-- ``l2-350``: n1-b life-350 incident-captures/20261108-203634-loop-detected (Yeek cave 1F).
 - ``l3-355``: n1-b life-355 captures/20261109-040109-loop-detected (Angband 71F).
-- ``l4-165``: n1-c life-165 captures/20261108-074736-loop-detected (dungeon 3, 23F).
 - ``l5-173``: n1-c life-173 captures/20261108-211203-loop-detected (dungeon 4, 15F).
 
 Each fixture holds the boards of its turns, their decision rows (turn, sequence, key,
@@ -36,16 +34,13 @@ TERRAIN = ("known_t", "marked_t", "floor_t", "wall_t", "door_t", "rubble_t",
 STATES = {
     "l1-356": "n1-b_life-356_incident-captures_20261109-044427-loop-detected",
     "l3-355": "n1-b_life-355_incident-captures_20261109-040108-loop-detected",
-    "l4-165": "n1-c_life-165_incident-captures_20261108-074735-loop-detected",
     "l5-173": "n1-c_life-173_incident-captures_20261108-211201-loop-detected",
 }
 CASES = {
     # name: (directory, first turn, last turn)
     "l1-346": ("n1-b_life-346_incident-captures_20261108-105147-loop-detected", 1301035, 1301200),
     "l1-356": ("n1-b_life-356_captures_20261109-044429-loop-detected", 0, 1 << 62),
-    "l2-350": ("n1-b_life-350_incident-captures_20261108-203634-loop-detected", 823021, 829230),
     "l3-355": ("n1-b_life-355_captures_20261109-040109-loop-detected", 0, 1 << 62),
-    "l4-165": ("n1-c_life-165_captures_20261108-074736-loop-detected", 0, 1 << 62),
     "l5-173": ("n1-c_life-173_captures_20261108-211203-loop-detected", 0, 1 << 62),
 }
 DECISION_FIELDS = ("decision_sequence", "turn", "key", "reason", "position")
