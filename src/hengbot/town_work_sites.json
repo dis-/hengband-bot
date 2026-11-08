@@ -2479,6 +2479,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_absorbed_substitutes.py:_build_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_absorbed_substitutes.py:_cast_power": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_absorbed_substitutes.py:_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_absorbed_substitutes.py:carry_cast_key": {
     "classification": "data",
     "rows": [
@@ -2557,6 +2578,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_capability.py:replacing_power": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:substitute_powers": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

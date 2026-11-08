@@ -11668,6 +11668,28 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "me_absorbed_substitutes.py:_cast_power": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure table row: the me_powers.BY_KEY row of an absorbed power, else a Power built from its list name (aimed for a wand); read only while building POWERS, which cast_key composes keys from.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_absorbed_substitutes.py:_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure lazy table: POWERS built on first use and cached in the module (no import-time read of me_powers.BY_KEY); read by carry_cast_key, item_cast_key and the module attribute POWERS.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_quest.py:QuestMixin._quest_light_key": {
     "classification": "data",
     "rows": [
