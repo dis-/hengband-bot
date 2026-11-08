@@ -198,9 +198,11 @@ class WindowEdgesTest(WindowCase):
         self.assert_window(policy, 3, 0)
 
     def test_no_worm_inside_the_window_resets_nothing(self):
+        # Owner 2026-11-08 「実際に攻撃した手だけで数える」: the action after the board with no worm
+        # attacked none, so the window ends one board later.
         policy = new_policy()
-        latches = self.run_counts(policy, [10] * 10 + [0] + [10] * (WINDOW - 10))
-        self.assertEqual(latches, [None] * WINDOW + [QUEST_FLOOR])
+        latches = self.run_counts(policy, [10] * 10 + [0] + [10] * (WINDOW - 9))
+        self.assertEqual(latches, [None] * (WINDOW + 1) + [QUEST_FLOOR])
 
     def test_a_restart_keeps_the_new_window(self):
         previous = new_policy()

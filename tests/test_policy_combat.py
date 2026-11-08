@@ -920,6 +920,9 @@ def _open_breeder_window_by_attack(policy, board):
     """Owner 2026-11-07 「20回は増える敵に攻撃を始めてから数える」: the board one action
     before ``board``, then ``board`` with its first breeder hurt (the attack landed)."""
     policy._update_combat_outcome(replace(board, turn=board.turn - 10))
+    # Owner 2026-11-08 「20回の判定は、実際に攻撃した手だけで数える。」: the opening board and every
+    # later board these tests feed _update_combat_outcome follow a decision that shot at the breeders.
+    policy.last_reason = "ranged:fire"
     first = board.visible_monsters[0]
     assert first.hp > 1
     policy._update_combat_outcome(replace(

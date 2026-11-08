@@ -82,9 +82,11 @@ class RecordedWindowTest(swarm.PostedSwarmKey):
     def test_window_3_does_not_latch_and_the_next_board_reads_no_recall(self):
         policy = self.run_recorded()
         self.assertIsNone(policy._breeder_breakthrough_floor)
-        # The next window opens at the three in view, with no kill of its own yet.
+        # Owner 2026-11-08 「20回の判定は、実際に攻撃した手だけで数える。」: the patrol steps and the
+        # Cure Critical Wounds potions on these boards are not attacks, so the window that the
+        # first attacks opened is still running at its 19th attack, with its kills noted.
         self.assertEqual((policy._breeder_engagement_start_count, policy._breeder_engagement_actions,
-                          policy._breeder_engagement_killed), (3, 0, False))
+                          policy._breeder_engagement_killed), (1, 19, True))
         key = loops.decide(policy, copy.deepcopy(AFTER["board"]))
         self.assertEqual(AFTER["reason"], RECALL)
         self.assertNotEqual(policy.last_reason, RECALL, key)

@@ -270,6 +270,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_breeder_engagement_last_turn", None)
     restored.__dict__.setdefault("_breeder_engagement_race", None)
     restored.__dict__.setdefault("_breeder_engagement_killed", False)
+    restored.__dict__.setdefault("_breeder_attack_sent", False)
     restored.__dict__.setdefault("_breeder_last_board", None)
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
