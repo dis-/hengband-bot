@@ -8912,6 +8912,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_supply.py:SupplyMixin._town_light_restore_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_supply.py:SupplyMixin._town_q34_lantern": {
     "classification": "data",
     "rows": [

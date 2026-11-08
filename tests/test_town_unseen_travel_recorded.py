@@ -56,6 +56,9 @@ def _rows(mode=None):
             continue
         if mode == "lit":
             row["player"]["can_see_own_grid"] = True
+            # n1-b life-343 (2026-11-08): a lit arrival lights with the
+            # player's own light too; radius 0 on a lit grid refuses travel.
+            row["player"]["light_radius"] = 1
         elif mode == "blind":
             row["player"]["status"]["blind"] = True
     return [json.dumps(row, ensure_ascii=False) + "\n" for row in rows]
@@ -215,7 +218,11 @@ class TownTravelEndsUnseenRecordedTest(unittest.TestCase):
         # #82, owner decision 2026-10-19 (light supply first): the Home lamp no
         # longer waives the lantern's oil, so the errand is the Home oil
         # withdrawal (Home holds the flasks); old TRAVEL_KEY (Alchemist), new HOME_TRAVEL_KEY.
-        self.assertEqual(decided[6], (HOME_TRAVEL_KEY, "shop:travel"))
+        # n1-b life-343 (2026-11-08): with the player's own light out (radius
+        # 0) no travel leaves the lit grid; the recorded travel was refused in
+        # the dark (below) and the walk toward Home replaces it.
+        self.assertEqual(boards[6].light_radius, 0)
+        self.assertEqual(decided[6], ("6", "shop:approach"))
         self.assertIs(boards[7].can_see_own_grid, False)
         self.assertEqual(boards[7].player.position.y, 34)
         self.assertEqual(boards[7].player.position.x, 107)
@@ -228,7 +235,9 @@ class TownTravelEndsUnseenRecordedTest(unittest.TestCase):
                 # #82, owner decision 2026-10-19 (light supply first): the Home lamp no
                 # longer waives the lantern's oil, so the errand is the Home oil
                 # withdrawal (Home holds the flasks); old step "7" (toward the Alchemist), new "3" (toward Home).
-                self.assertEqual(decided[7], ("3", "store:entry-interrupted-replan"))
+                # n1-b life-343 (2026-11-08): no travel was posted from the
+                # lit grid (radius 0), so the same step is the walk's own.
+                self.assertEqual(decided[7], ("3", "shop:approach"))
 
 
 if __name__ == "__main__":

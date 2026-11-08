@@ -7742,6 +7742,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         dark_locomotion = self._town_producer_entry("_dark_locomotion_key", lambda: self._dark_locomotion_key(snapshot))
         if dark_locomotion is not None:
             return dark_locomotion
+        # In town the light out comes before the class sequences' travels
+        # (n1-b life-343: the staff sequence's inn travel into the dark street).
+        town_light = self._town_producer_entry("_town_light_restore_key", lambda: self._town_light_restore_key(snapshot), family="survival")
+        if town_light is not None:
+            return town_light
 
         opening_q34 = self._town_producer_entry("_opening_q34_town_key", lambda: self._opening_q34_town_key(snapshot, strategic_hostiles), family="quest-request")
         if opening_q34 is not None:

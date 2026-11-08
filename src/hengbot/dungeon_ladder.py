@@ -107,6 +107,7 @@ LADDER = (
         *E("_darkness_recovery_key", exempt=ANSWERS_DANGER),
         *D("me_powers.power_key:DARK", exempt=NO_ATTACKER),
         *P("_dark_locomotion_key"),
+        *E("_town_light_restore_key", exempt=TOWN_ONLY),
     )),
     Layer("opening", "the approved quest floor, combat and all below", (
         *P("_opening_q34_town_key", "_dig_to_known_downstairs_key"),

@@ -5128,8 +5128,15 @@ class TownMixin:
         """Whether the game refuses every native-travel step on this board.
 
         travel-execution.cpp ``decide_travel_step_dir`` stops travel with
-        "目が見えない！" when blind or ``no_lite()``: the own grid is unseen."""
-        return not self._own_grid_visible(snapshot)
+        "目が見えない！" when blind or ``no_lite()``: the own grid is unseen.
+
+        A town board with no light of the player's own (radius 0) is refused
+        too: a lit cell (a store entrance at night) shows the own grid, the
+        travel's next step into the dark street is refused (n1-b life-343
+        2026-11-08 04:54, the inn travel from the lit Magic shop entrance), and
+        the walk serves where the travel cannot."""
+        return (not self._own_grid_visible(snapshot)
+                or self._town_light_out(snapshot))
 
     @staticmethod
     def _native_travel_refused_beside_monster(snapshot: Snapshot) -> bool:

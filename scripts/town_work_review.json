@@ -16029,5 +16029,16 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
     "evidence": "The one-target sender of _breeders_in_line_key: _fire_at at the breeder's grid. Called only through line_of_fire_key; no independent progress."
+  },
+  "policy_supply.py:SupplyMixin._town_light_restore_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress. The town light out (radius 0): refill-light, wield-light, else survival:shop-approach to the General Store once a stay.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
