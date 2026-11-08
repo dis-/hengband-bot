@@ -42,15 +42,37 @@ def _cast_power(ident: tuple) -> me_powers.Power:
                            (), darkness_scaled=False, aimed=kind == "wand")
 
 
-# The powers cast in place of an item (me_device_attacks_input answers them).
-POWERS = {ident: _cast_power(ident) for ident in me_capability.substitute_powers()}
 # Cure Light Wounds, the blindness cure a blind player casts (status_cure.absorbed_cure_key).
 CURE_LIGHT = ("staff", SV_STAFF_CURE_LIGHT)
-POWERS[CURE_LIGHT] = _cast_power(CURE_LIGHT)
-# Healing in the arena, where no potion works (arena.py); neither asks for a direction.
-for _kind, _sval in (("rod", 9), ("staff", 18)):
-    POWERS[(_kind, _sval)] = me_powers.BY_KEY.get((_kind, _sval)) or me_powers.Power(
-        _kind, _sval, (), "absorbed-power", 0, 0, (), darkness_scaled=False, aimed=False)
+
+
+def _build_powers() -> dict:
+    """The powers cast in place of an item (me_device_attacks_input answers them)."""
+    powers = {ident: _cast_power(ident) for ident in me_capability.substitute_powers()}
+    powers[CURE_LIGHT] = _cast_power(CURE_LIGHT)
+    # Healing in the arena, where no potion works (arena.py); neither asks for a direction.
+    for kind, sval in (("rod", 9), ("staff", 18)):
+        powers[(kind, sval)] = me_powers.BY_KEY.get((kind, sval)) or me_powers.Power(
+            kind, sval, (), "absorbed-power", 0, 0, (), darkness_scaled=False, aimed=False)
+    return powers
+
+
+def _powers() -> dict:
+    """``POWERS``, built on first use.  Building it at import time read
+    ``me_powers.BY_KEY`` while me_powers could still be initializing (importing
+    hengbot.destruction_use first: ... -> me_powers -> hunt_target ->
+    retreat_enclosure -> sealed_pocket -> this module), an AttributeError."""
+    powers = globals().get("POWERS")
+    if powers is None:
+        powers = globals()["POWERS"] = _build_powers()
+    return powers
+
+
+def __getattr__(name: str):
+    # ``me_absorbed_substitutes.POWERS`` and ``from ... import POWERS`` (PEP 562).
+    if name == "POWERS":
+        return _powers()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def owns(owner) -> bool:
@@ -69,7 +91,7 @@ def carry_cast_key(policy, snapshot, category: str, name: str,
                    direction: str = "") -> str | None:
     """The substitute power where a quest reads or aims this carry's item."""
     ident = me_capability.replacing_power(me_capability.Carry(category, name))
-    return None if ident is None else cast_key(policy, snapshot, POWERS[ident], direction)
+    return None if ident is None else cast_key(policy, snapshot, _powers()[ident], direction)
 
 
 def item_cast_key(policy, snapshot, target, direction: str = "") -> str | None:
@@ -77,4 +99,4 @@ def item_cast_key(policy, snapshot, target, direction: str = "") -> str | None:
     row whose condition holds (me_capability.waiving_rows), with a charge."""
     row = next((row for row in me_capability.waiving_rows(policy, snapshot, target)
                 if row.cast), None)
-    return None if row is None else cast_key(policy, snapshot, POWERS[row.power], direction)
+    return None if row is None else cast_key(policy, snapshot, _powers()[row.power], direction)

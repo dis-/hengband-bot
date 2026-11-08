@@ -8,6 +8,13 @@ module), so test_arena_recorded failed whenever it was the first module of a
 process to import hengbot.arena (the landing gate of 2026-11-08), and the
 half-loaded me_powers broke later tests in the same process
 (test_policy_combat's breeder walkout: no ``me_powers.power_key``).
+
+Importing hengbot.destruction_use first (2026-11-08 landing gate,
+test_destruction_use_1104_recorded) went destruction_use -> area_mapping ->
+me_powers -> hunt_target -> retreat_enclosure -> sealed_pocket ->
+me_absorbed_substitutes, whose import-time ``POWERS`` read ``me_powers.BY_KEY``
+on the half-initialized me_powers: AttributeError.  POWERS is now built on first
+use, so every module of the cycle imports first.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -18,7 +25,11 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIRST_IMPORTS = ("hengbot.arena", "hengbot.me_absorbed_substitutes", "hengbot.sealed_pocket")
+FIRST_IMPORTS = (
+    "hengbot.arena", "hengbot.me_absorbed_substitutes", "hengbot.sealed_pocket",
+    "hengbot.destruction_use", "hengbot.area_mapping", "hengbot.hunt_target",
+    "hengbot.retreat_enclosure", "hengbot.me_powers", "hengbot.me_device_attacks_input",
+)
 
 
 class ImportOrderTest(unittest.TestCase):
