@@ -25,6 +25,7 @@ from pathlib import Path
 
 from hengbot.control_client import raw_keys_to_macro_notation
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.spectator_threat import tier_rank
 from hengbot.spectator_tiles import spectator_player, spectator_tile_player, spectator_tiles
 
 # Owner request 2026-10-23: the last 20 messages,
@@ -84,9 +85,15 @@ def spectator_screen(screen_value: Mapping[str, object] | None) -> dict | None:
     }
 
 
-def spectator_details(state: Mapping[str, object], snapshot=None) -> dict:
-    """Small viewer-only projection; omitted emitter fields stay omitted."""
+def spectator_details(state: Mapping[str, object], snapshot=None, threat=None) -> dict:
+    """Small viewer-only projection; omitted emitter fields stay omitted.
+
+    ``threat``: ``spectator_threat.board_judgement`` of this board, or None (no judgement:
+    the monsters keep no ``threat`` field and the page shows 判定なし).  With it each judged
+    monster carries its ``threat`` and the list is ordered most dangerous first, then by
+    distance; ``threat_engagement`` is the board's engagement line."""
     details = {}
+    judged = (threat or {}).get("monsters", {})
     for field, columns in (("equipment", ("slot", "name")),
                            ("inventory", ("slot", "name", "count"))):
         if field in state:
@@ -121,9 +128,14 @@ def spectator_details(state: Mapping[str, object], snapshot=None) -> dict:
                                  row.get("max_hp") is not None else None)
                 if field == "detected_monsters":
                     monster["sensed"] = "esp" if row.get("esp") else "detected"
+                if index in judged:
+                    monster["threat"] = judged[index]
                 monsters.append(monster)
         details["monsters"] = sorted(
-            monsters, key=lambda row: row.get("distance", float("inf")))
+            monsters, key=lambda row: (tier_rank(row.get("threat")),
+                                       row.get("distance", float("inf"))))
+    if threat:
+        details["threat_engagement"] = threat["engagement"]
     player = state.get("player", {})
     if "speed" in player:
         details["speed"] = player["speed"]
@@ -273,17 +285,23 @@ class SpectatorWriter:
         self.last_error_report: float | None = None
         self.tile_panel_counts: dict[str, int] = {}
         self.magic_eater_powers: dict[str, object] = self._resume_magic_eater_powers()
+        # The board the last threat judgement was made on, and the judgement (one per board).
+        self.threat_board: tuple | None = None
 
     def observe(self, snapshot, key: str | None, reason: str | None,
                 decision_sequence: int | None,
                 screen_value: Mapping[str, object] | None, *,
                 state_line: str | None = None, screen_client=None,
                 policy=None, append_frame: bool = False,
-                defer_frame: bool = False) -> bool:
+                defer_frame: bool = False,
+                threat: Callable[[], dict] | None = None) -> bool:
         """Project a decision; refresh the snapshot at most every 0.25 seconds.
 
         append_frame requests colours even between snapshot writes. defer_frame
         holds that pre-action projection until the caller confirms a real post.
+        ``threat`` judges the board's monsters (``spectator_threat.board_judgement``,
+        run by the caller as an observer); it is called only when the monster list
+        is written, at most once per board.
         Returns True when the compatibility snapshot was replaced by this call.
         """
         if append_frame:
@@ -360,7 +378,8 @@ class SpectatorWriter:
             temporary = self.path.with_name(self.path.name + ".tmp")
             if state_line is not None:
                 state = json.loads(state_line)
-                content.update(spectator_details(state, snapshot))
+                content.update(spectator_details(
+                    state, snapshot, self._threat(snapshot, threat, now)))
                 content["player"] = spectator_player(state.get("player", {}))
                 if screen is not None:
                     tiles = spectator_tiles(state, screen, panel_counts=self.tile_panel_counts)
@@ -380,6 +399,20 @@ class SpectatorWriter:
             self._report(now, error)
             return False
         return snapshot_due
+
+    def _threat(self, snapshot, threat, now: float) -> dict | None:
+        """This board's threat judgement, computed once; None when it fails (判定なし)."""
+        if threat is None:
+            return None
+        if self.threat_board is not None and self.threat_board[0] is snapshot:
+            return self.threat_board[1]
+        try:
+            value = threat()
+        except Exception as error:
+            self._report(now, error)
+            value = None
+        self.threat_board = (snapshot, value)
+        return value
 
     def magic_eater_refresh_due(self, interval_seconds: float) -> bool:
         return magic_eater_refresh_due(self.magic_eater_powers, self.clock(), interval_seconds)
