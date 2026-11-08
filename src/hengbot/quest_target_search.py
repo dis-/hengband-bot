@@ -20,6 +20,10 @@ player can walk to, what the bot remembers and what a mapping left as corridor (
  - then, for ground out of every stop's sight (a cave, a long corridor), the grid farthest
    from the stops, until all walkable ground is within MAX_SIGHT of one (define.h, how far
    the game shows anything).
+Before the lap (and the secret doors below), a closed door the three-pick cap wrote off, that the
+game answered as a lock and that opens onto ground the walk does not reach, is walked to and
+picked (locked_doors.pick_key): a failed pick is progress, and the rest of the floor can be behind
+it (n1-b life-348, Angband 50F, 2026-11-08).
 A lap goes to the nearest stop not yet seen by walking distance, committed until seen: the
 greedy short tour.  A stop is seen when the player stands on it, holds it in view lit, or
 holds it in view inside the light radius.  With every stop seen the next lap draws them
@@ -85,7 +89,9 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from hengbot import area_mapping, hunt_target, me_capability, me_powers, retreat_enclosure
+from hengbot import (
+    area_mapping, hunt_target, locked_doors, me_capability, me_powers, retreat_enclosure,
+)
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
@@ -386,6 +392,11 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     if walled_off is not None:
         return walled_off
     memory, routes = _memory(policy, snapshot), _routes(policy, snapshot)
+    lock = locked_doors.pick_key(
+        policy, snapshot, routes,
+        lambda goal, reason: _walk_key(policy, snapshot, routes, goal, reason))
+    if lock is not None:
+        return lock
     means = door_means_key(policy, snapshot, memory, routes)
     if means is not None:
         return means

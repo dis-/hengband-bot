@@ -16107,5 +16107,16 @@
     "rows": [
       "survival"
     ]
+  },
+  "locked_doors.py:pick_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search.loop_key on a runtime RANDOM quest floor held for its target (owner 2026-11-05; n1-b life-348 Angband 50F, 2026-11-08); dungeon only; reads the board and the policy's door memory, posts the asker's walk or the shared step composer's door open.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

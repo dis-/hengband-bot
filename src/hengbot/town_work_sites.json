@@ -2399,6 +2399,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "locked_doors.py:pick_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "magic_eater.py:absorb_key": {
     "classification": "producer",
     "rows": [

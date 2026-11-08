@@ -308,6 +308,10 @@ Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT = Q34_FINAL_DOOR_ATTEMPT_LIMIT
 # picking that door past DOOR_OPEN_LIMIT.  Dungeon locks are LOCKED_DOOR_1..7
 # (the same powers as the Q34 locks), so the Q34 bound applies per door.
 FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT = Q34_OPENING_DOOR_ATTEMPT_LIMIT
+# n1-b life-348 (Angband 50F, RANDOM quest 40, 2026-11-08): the random quest search picks a
+# written-off lock that hides the rest of its held floor (locked_doors.pick_key); the Q34
+# bound, counted as Q34 counts it (picks not answered "failed to pick the lock").
+QUEST_SEARCH_DOOR_PICK_LIMIT = Q34_OPENING_DOOR_ATTEMPT_LIMIT
 # Gold is collected by walking onto it; 'g' is only a bounded fallback.
 POST_CLEAR_PICKUP_ATTEMPT_LIMIT = 3
 # Japanese monster-death messages (living, undead/nonliving, destroyed).
