@@ -966,6 +966,17 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if (policy._physical_adjacent_hostiles(snapshot)
             or policy._random_teleport_inscription_comes_first(snapshot)):
         return None
+    # Owner 2026-10-31: town is cleared before errands resume
+    # (policy._decide's global ``_town_kill_mob_key`` rung, which sits below
+    # this sequence's rung).  Without asking it here the sequence travelled
+    # past a visible town monster, the hunt walked back to where it was last
+    # seen once out of sight, and the sequence's position count stopped it
+    # (n1-b life-338 2026-11-07 17:34, quest:blocked:me-staff
+    # no-progress:return, a drunk near the Outpost inn).
+    hunt = policy._town_producer_entry(
+        "_town_kill_mob_key", lambda: policy._town_kill_mob_key(snapshot))
+    if hunt is not None:
+        return hunt
     key = _phase_key(policy, snapshot, phase, stage)
     if key is None:
         # Another owner takes the board (a quest errand holding the town

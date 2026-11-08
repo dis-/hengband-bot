@@ -12928,6 +12928,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 ):
                     stocked_stores.append(store_type)
                     self._town_store_attempted.pop(store_type, None)
+                    self._town_visit_ledger.nonhome_attempted_without_effect.pop(
+                        store_type, None)
             if stocked_stores:
                 return self._released_restock_store_key(
                     snapshot, tuple(stocked_stores)

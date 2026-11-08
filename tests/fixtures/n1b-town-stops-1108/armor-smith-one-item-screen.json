@@ -1,0 +1,31 @@
+{
+ "provenance": "n1-b life-338 captures/20261107-195042-stuck-prompt-town-armor-smith-raise/control-at-stop.json.gz screen (rows verbatim; blank rows dropped)",
+ "width": 213,
+ "height": 68,
+ "cursor": {
+  "visible": true,
+  "x": 132,
+  "y": 22
+ },
+ "input_context": {
+  "area": "inventory",
+  "areas": [
+   "inventory",
+   "equipment"
+  ],
+  "first_label": "h",
+  "force": false,
+  "kind": "item",
+  "last_label": "h",
+  "menu": false,
+  "prompt": "どのアイテムを改良しますか？"
+ },
+ "rows": {
+  "22": "                                                                  (持ち物:h-h,'(',')', '/' 装備品, ESC) どのアイテムを改良しますか？                                                                                 ",
+  "23": "                                                                  h) [ オログの二重鎖かたびら (+0,+3) [16,+10] (+3)                       12.5 kg                                                                    ",
+  "27": "                                                                  現在のあなたの技量だと、+6 まで改良できます。                                                                                                      ",
+  "29": "                                                                   改良の料金は一個につき＄440 です。                                                                                                                ",
+  "41": "                                                                   a) 防具を強化する ($440)           h) 治療家に会う ($100)                                                                                         ",
+  "45": "                                                                   ESC) 建物を出る                                     手持ちのお金:      58916                                                                      "
+ }
+}
