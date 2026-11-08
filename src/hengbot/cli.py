@@ -455,6 +455,10 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         "summoner:hold-choke",
         "detected:hold-choke",
         "quest-strategy:hold",
+        # Resting on a quest search's cast stop until the detection spacing comes
+        # (quest_target_search._redetect_wait): bounded by HUNT_REDETECT_GAME_TURNS
+        # from the latest cast, then the rows cast and the stop is covered.
+        "quest-search:wait-redetect",
         # Bounded by the plan's dig_attempt_limit (quest_find_exit).
         "quest-strategy:exit-dig",
         # Bounded per warned cell by SEARCH_LIMIT (trap_warning): a corridor of

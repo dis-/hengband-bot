@@ -43,7 +43,14 @@ A lap goes to the nearest stop not yet seen by walking distance, committed until
 greedy short tour.  A stop is seen when the player stands on it; with telepathy, when every
 floor grid within its reach was within reach of the walk (``observe`` notes each place, the
 floor's ledger keeps them across a restart) or of a cast this lap that can show the target;
-without it, when it is in view lit or inside the light radius.  With every stop seen the next
+without it, when it is in view lit or inside the light radius.  A cast stop (drawn for a cast's
+radius beyond telepathy's) is not seen by standing on it while the search spacing has not come
+(owner 2026-11-08, Q1 「待って唱える」: 「その地点で間隔が来るまで休んで待ち、唱えてから次の地点へ行く。」):
+the player rests there (``REDETECT_WAIT_REASON``) until it comes, the rows cast, and the cast
+covers the stop; a cast due but not made leaves it seen on arrival.  A cast's actual reach is what
+counts (owner the same day, Q2 「数えない」: 「今のまま半径30で地点を決める。安全で強力発動を使えた時は、
+覆えた分を後から済みに数える。」): the stops are drawn for the plain radius, and a powerful cast is
+credited at its own (me_powers._cast_radius, 3/2), so the stops it covered are seen.  With every stop seen the next
 lap draws them again.  Floor grids no walkable grid reaches start a door search round at once
 (``_door_search_key``), once for each reach, toward them; the places a door can be include a
 wall between the walk and remembered floor it does not reach (``door_walls``: 62F's corridor
@@ -131,6 +138,8 @@ from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT
 
 
 LOOP_REASON = "quest-search:loop"
+REDETECT_WAIT_REASON = "quest-search:wait-redetect"  # cli.STATIONARY_EXEMPT_REASONS
+GAME_TURNS_PER_REST = 10  # a player turn at normal speed (policy's R300 note)
 DETECT_REASON = "quest-search:detect"
 DOOR_REASON = "quest-search:seek-door"
 DOOR_MEANS_REASON = "quest-search:detect-doors"
@@ -350,6 +359,43 @@ def _seen_now(snapshot: Snapshot, stop: Position, left, radius: int) -> bool:
         grid.lit or game_distance(here, stop) <= (snapshot.light_radius or 0))
 
 
+def _redetect_wait(policy, snapshot: Snapshot, memory: Memory, left) -> int:
+    """The game turns to wait on the cast stop the player stands on before its cast is due, else 0.
+
+    Owner 2026-11-08 (Q1 「待って唱える」): 「その地点で間隔が来るまで休んで待ち、唱えてから次の地点へ
+    行く。覆いの抜けがなくなる。待ちの間に敵が来れば今の決まりで対処する。」  A stop drawn for a cast's
+    radius (beyond telepathy's) whose grids are not all covered yet, where a held means can show the
+    target and the search spacing (me_powers.redetect_due, the rows' and the carried casts) has not
+    come: the player waits there (``loop_key`` asks this before the stop is marked seen on
+    arrival).  Once the spacing has come the rows (or ``detection_key``) cast above the loop; a due cast that is not made (a failure, an unusable
+    device) leaves the stop seen on arrival as before, so the wait never outlives the spacing."""
+    here = snapshot.player.position
+    radius = memory.stop_radius.get(here, 0)
+    if (here not in memory.stops or here in memory.seen
+            or radius <= search_coverage.walk_radius(policy, snapshot)
+            or not search_coverage.disc_left(left, (here.y, here.x), radius)):
+        return 0
+    race = hunt_target.unseen_race(policy, snapshot)
+    if race is None or not held_cast_radius(policy, snapshot):
+        return 0
+    flags = hunt_target.race_flags(policy, race)
+    earlier = [*memory.casts, *me_powers.revealing_casts(policy, snapshot, flags)]
+    if me_powers.redetect_due(snapshot, here, earlier):
+        return 0
+    latest = max(turn for _, _, turn in earlier)
+    return max(1, me_powers.HUNT_REDETECT_GAME_TURNS - (snapshot.turn - latest))
+
+
+def _redetect_wait_key(policy, turns: int) -> str:
+    """Rest on the cast stop until the spacing comes (``_redetect_wait``); a rest is cut short
+    by a monster coming into view, and the ladder above answers it as ever."""
+    policy._nav_exhausted = False
+    policy._nav_stall_count = 0
+    policy._recent.clear()  # a search's standing still must not read as an oscillation
+    policy.last_reason = REDETECT_WAIT_REASON
+    return f"R{-(-turns // GAME_TURNS_PER_REST)}\r"
+
+
 def _next_goal(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> Position | None:
     radius = search_coverage.walk_radius(policy, snapshot)
     if memory.stops:
@@ -557,6 +603,10 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     door = _door_search_key(policy, snapshot, memory, routes)
     if door is not None:
         return door
+    if memory.stops and any(memory.stop_radius.values()):
+        wait = _redetect_wait(policy, snapshot, memory, _lap_left(policy, snapshot, memory))
+        if wait:
+            return _redetect_wait_key(policy, wait)
     goal = _next_goal(policy, snapshot, memory, routes)
     if goal is None:
         memory.laps += bool(memory.stops)

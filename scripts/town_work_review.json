@@ -16371,5 +16371,71 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_redetect_wait": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-08 Q1 「待って唱える」: reached only from quest_target_search.loop_key on a runtime RANDOM quest floor held for its target (searching(): not in town, dungeon level > 0); reads the lap's stops, the board and the casts' spacing (me_powers.redetect_due); no post.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_redetect_wait_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-08 Q1 「待って唱える」: reached only from quest_target_search.loop_key on a runtime RANDOM quest floor held for its target (searching(): not in town); returns a rest count key under quest-search:wait-redetect (cli.STATIONARY_EXEMPT_REASONS); dungeon only.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:revealing_casts": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached from quest_target_search (the lap's coverage, the detection spacing and the cast stop's wait) on a runtime RANDOM quest floor held for its target; dungeon only; reads me_powers' floor memory of landed uses; no post.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:_revealing_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached through me_powers.revealing_casts from quest_target_search on a runtime RANDOM quest floor held for its target, and from the rows' hunt spacing in the dungeon; reads the floor memory of landed uses; no post.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:_cast_radius": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached through me_powers._revealing_uses (quest_target_search on a runtime RANDOM quest floor, the rows' hunt spacing); dungeon only; a landed use's radius (powerful 3/2, owner 2026-11-08 Q2 「数えない」); no post.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:Context.radius": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached through me_powers._cast_radius and revealing_radius (quest_target_search on a runtime RANDOM quest floor, the rows in the dungeon); a detection's radius from the dungeon's DARKNESS flag; no post.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
