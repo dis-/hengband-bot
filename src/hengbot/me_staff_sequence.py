@@ -85,7 +85,7 @@ from hengbot.magic_eater_devices import (
 )
 from hengbot.me_powers_refresh import KIND_LETTER, SEQUENCE_READ_REASON
 from hengbot.model import (
-    STORE_BLACK, STORE_MAGIC, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_GOLD,
+    STORE_BLACK, STORE_HOME, STORE_MAGIC, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_GOLD,
     SV_STAFF_DETECT_TRAP, SV_STAFF_IDENTIFY, SV_STAFF_LITE, SV_STAFF_MAPPING, TVAL_STAFF,
 )
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
@@ -127,6 +127,9 @@ _FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200),
 RECHARGE_ALL_REASON = "me-staff:recharge-all"
 RUMOR_BATCH_LIMIT = 10  # 400 rumors: a visible stop instead of an endless inn
 FUNDRAISE_RUN_LIMIT = 6
+# The expedition's runs fund until the cost is reached (owner 2026-11-08):
+# FUNDRAISE_RUN_LIMIT does not count them (_fundraise).
+EXPEDITION_WHYS = frozenset({"rumor-travel-recharge", "travel-recharge"})
 ATTEMPT_LIMIT = 3
 
 REASON = "me-staff:"
@@ -150,6 +153,7 @@ class MeStaffSequence:
     fundraise_why: str | None = None               # the current run's objective
     target_reached: bool = False                   # the current run met its target
     reached_runs: int = 0                          # runs that met their target
+    expedition_runs: int = 0                       # expedition runs started (uncapped)
     shelf_after_turn: int = -1
     rumor_batches: int = 0
     attempts: dict = field(default_factory=dict)   # (step, record key) -> count
@@ -405,6 +409,50 @@ def retains(policy, snapshot, item) -> bool:
         or me_device_policy.awaits_absorption(policy, snapshot, item))
 
 
+def stows(policy, snapshot, item) -> bool:
+    """A staff that waits at Home while stage 1 is worked.
+
+    Owner 2026-11-08 (n1-b life-340: an unidentified 檜の杖 priced as the
+    dearest staff made the Tower's recharge 51,145 of a 57,099 gold
+    expedition): 「一旦他の杖を自宅に仕舞って鑑定の杖と財宝感知の杖だけ取り込んで、
+    鑑定してから再度考える。」  Until stage 1 is complete every staff but
+    the Staff of Identify and the Staff of Detect Treasure (unidentified ones
+    included) is shelved at Home, so the Tower's 'a' prices only those two.
+    Once stage 1 is complete the absorbed Identify is a carried
+    identification source and the ordinary Home rules take the stored
+    staffs up again (``_identification_waiting_deposit``).
+    """
+    if item.tval != TVAL_STAFF or item.is_equipment or not applies(policy, snapshot):
+        return False
+    stage = current_stage(policy)
+    return stage is STAGES[0] and not (item.aware and item.sval in stage.svals)
+
+
+def stowed_staffs(policy, snapshot) -> list:
+    """The carried staffs ``stows`` sends to Home."""
+    return [item for item in snapshot.inventory if stows(policy, snapshot, item)]
+
+
+def _stow_pending(policy, snapshot) -> bool:
+    """A carried staff Home can still take this visit (the expedition waits).
+
+    Home's own rules decide: Home must not be attempted already, unavailable
+    or blocked this visit, and its deposit finder must have work (the staff
+    is one of its candidates, ``_home_deposit_candidate``; a full Home is the
+    full-Home relief's).  Otherwise the expedition is priced with the staff
+    carried.
+    """
+    if not snapshot.in_town or not any(
+            policy._item_signature(item) not in policy._home_rejected_deposits
+            and policy._home_deposit_quantity(snapshot, item) > 0
+            for item in stowed_staffs(policy, snapshot)):
+        return False
+    if (STORE_HOME in policy._town_store_attempted or not policy._home_available(snapshot)
+            or policy._town_store_blocked_under_applicable_bound(STORE_HOME)):
+        return False
+    return policy._find_home_deposit(snapshot) is not None
+
+
 # -- the shop: same hook points as the opening route's purchase ------------
 
 def _fresh_pages(policy, snapshot) -> dict:
@@ -574,14 +622,26 @@ def _fundraise(policy, snapshot, target: int, why: str) -> str:
     shelf's restock (``mines_floor_out``), not for gold: it is in neither
     count (owner 2026-10-31, #47 n1-c life-054/057: six restocks without
     Detect Evil ended the sequence).
+
+    The expedition's own gold (``EXPEDITION_WHYS``: the rumors, fares and
+    the Tower's recharge) is funded until it is reached, with no run limit
+    (owner 2026-11-08, 「資金集めの回数の上限を外し、届くまで資金集めを続ける。」;
+    n1-b life-340 Lv8, 28,189 of 57,099 gold, stopped as fundraise-limit after
+    six runs that each brought gold home).  Such a run is in neither count
+    while it is short; one that met its target counts as a met run in both
+    (``town_key``), so the target-drift stop still ends a target that keeps
+    moving and the staff purchase keeps its own failure count.
     """
     record = state(policy)
     stockout = why == STOCKOUT_WHY
-    if not stockout and record.fundraise_runs - record.reached_runs >= FUNDRAISE_RUN_LIMIT:
+    expedition = why in EXPEDITION_WHYS
+    if (not stockout and not expedition
+            and record.fundraise_runs - record.reached_runs >= FUNDRAISE_RUN_LIMIT):
         return _stop(policy, f"fundraise-limit:{why}:{target}")
     if not stockout and record.reached_runs >= FUNDRAISE_RUN_LIMIT:
         return _stop(policy, f"fundraise-target-drift:{why}:{target}")
-    record.fundraise_runs += 0 if stockout else 1
+    record.fundraise_runs += 0 if stockout or expedition else 1
+    record.expedition_runs += 1 if expedition else 0
     record.fundraise_target = target
     record.fundraise_why = why
     record.shelf_after_turn = snapshot.turn
@@ -794,7 +854,7 @@ def _settle_pending(policy, snapshot) -> None:
                 # The next stage gets its own fundraising run budget.
                 record.completed_stages = {**record.completed_stages,
                                            stage.number: snapshot.turn}
-                record.fundraise_runs = record.reached_runs = 0
+                record.fundraise_runs = record.reached_runs = record.expedition_runs = 0
 
 
 def _quest_holds_town(policy, snapshot) -> bool:
@@ -961,6 +1021,10 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         if (record.fundraise_why != STOCKOUT_WHY
                 and (record.target_reached or gold >= record.fundraise_target)):
             record.reached_runs += 1
+            # An expedition run counts only once it met its target, as a met
+            # run in both counts (_fundraise): the drift stop sees it, the
+            # staff purchase's failure count does not.
+            record.fundraise_runs += 1 if record.fundraise_why in EXPEDITION_WHYS else 0
         record.fundraise_target = None
         record.target_reached = False
     if (policy._physical_adjacent_hostiles(snapshot)
@@ -1034,6 +1098,11 @@ def _phase_key(policy, snapshot, phase: str, stage) -> str | None:
         policy.last_reason = "shop:approach"
         key = policy._shopping_approach_key(snapshot, step, "shop:travel")
         return key if key is not None else _stop(policy, "shop-operation-unavailable")
+    if phase in {"rumor", "travel", "recharge"} and _stow_pending(policy, snapshot):
+        # The staffs ``stows`` names go to Home first, by Home's own deposit
+        # flow; the expedition is priced without them (owner 2026-11-08).
+        policy.last_reason = f"{REASON}stow-staffs"
+        return None
     expedition = _expedition_cost(snapshot, supplies)
     if phase == "rumor":
         needed = _rumor_expedition_cost(snapshot, supplies)

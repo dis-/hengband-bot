@@ -1,0 +1,106 @@
+[
+ {
+  "decision_sequence": 5111,
+  "time": "2026-11-08T02:51:09+0900",
+  "turn": 413051,
+  "reason": "fundraise:ascend",
+  "key": "<",
+  "gold": 22558
+ },
+ {
+  "decision_sequence": 5120,
+  "time": "2026-11-08T02:51:10+0900",
+  "turn": 413483,
+  "reason": "town:entrance-step-off:me-staff:fundraise:rumor-travel-recharge:55895",
+  "key": "7",
+  "gold": 21368
+ },
+ {
+  "decision_sequence": 5644,
+  "time": "2026-11-08T02:52:16+0900",
+  "turn": 448109,
+  "reason": "fundraise:ascend",
+  "key": "<",
+  "gold": 24385
+ },
+ {
+  "decision_sequence": 5645,
+  "time": "2026-11-08T02:52:17+0900",
+  "turn": 448110,
+  "reason": "town:entrance-step-off:me-staff:fundraise:rumor-travel-recharge:57010",
+  "key": "1",
+  "gold": 24385
+ },
+ {
+  "decision_sequence": 5688,
+  "time": "2026-11-08T02:52:23+0900",
+  "turn": 449300,
+  "reason": "fundraise:ascend",
+  "key": "<",
+  "gold": 24402
+ },
+ {
+  "decision_sequence": 5689,
+  "time": "2026-11-08T02:52:23+0900",
+  "turn": 449301,
+  "reason": "town:entrance-step-off:me-staff:fundraise:rumor-travel-recharge:57010",
+  "key": "1",
+  "gold": 24402
+ },
+ {
+  "decision_sequence": 5855,
+  "time": "2026-11-08T02:52:43+0900",
+  "turn": 456193,
+  "reason": "fundraise:ascend",
+  "key": "<",
+  "gold": 25903
+ },
+ {
+  "decision_sequence": 6162,
+  "time": "2026-11-08T02:53:23+0900",
+  "turn": 473419,
+  "reason": "fundraise:ascend",
+  "key": "<",
+  "gold": 27826
+ },
+ {
+  "decision_sequence": 6163,
+  "time": "2026-11-08T02:53:23+0900",
+  "turn": 473420,
+  "reason": "town:entrance-step-off:me-staff:fundraise:rumor-travel-recharge:57075",
+  "key": "1",
+  "gold": 27826
+ },
+ {
+  "decision_sequence": 6365,
+  "time": "2026-11-08T02:53:48+0900",
+  "turn": 482505,
+  "reason": "fundraise:ascend",
+  "key": "<",
+  "gold": 28189
+ },
+ {
+  "decision_sequence": 6366,
+  "time": "2026-11-08T02:53:49+0900",
+  "turn": 482506,
+  "reason": "town:entrance-step-off:me-staff:fundraise:rumor-travel-recharge:57075",
+  "key": "1",
+  "gold": 28189
+ },
+ {
+  "decision_sequence": 6445,
+  "time": "2026-11-08T02:53:59+0900",
+  "turn": 488941,
+  "reason": "fundraise:ascend",
+  "key": "<",
+  "gold": 28209
+ },
+ {
+  "decision_sequence": 6446,
+  "time": "2026-11-08T02:53:59+0900",
+  "turn": 488942,
+  "reason": "quest:blocked:me-staff",
+  "key": "",
+  "gold": 28209
+ }
+]

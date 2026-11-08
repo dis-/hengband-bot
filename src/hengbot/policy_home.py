@@ -3199,6 +3199,15 @@ class HomeMixin:
         # block the explicitly owned reserve transfer that selected this item.
         if self._home_reserve_deposit_item(item):
             return min(item.count, 1)
+        # A staff stage 1 keeps at Home (me_staff_sequence.stows) goes whole
+        # when only the sequence's own absorption hold keeps it; that hold
+        # still keeps it from every sale and destroy.  Any other reservation
+        # (the mana food) keeps its count.
+        from hengbot.me_staff_sequence import stows as staff_sequence_stows
+        if staff_sequence_stows(self, snapshot, item):
+            _reserved, branch = self._retention_reservation_baseline_detail(snapshot, item)
+            if branch in (None, "me-staff:absorb"):
+                return item.count
         return min(item.count, self._retention_surplus(snapshot, item))
 
     def _identification_waiting_deposit(
@@ -3241,6 +3250,11 @@ class HomeMixin:
         # Junk is destroyed, never shelved (#95 step 1b, owner 2026-10-20).
         if snapshot is not None and self._junk_class(snapshot, item) is not None:
             return False
+        # Owner 2026-11-08: the Magic-Eater's other staffs wait at Home while
+        # stage 1 is worked, identified or not (me_staff_sequence.stows).
+        from hengbot.me_staff_sequence import stows as staff_sequence_stows
+        if snapshot is not None and staff_sequence_stows(self, snapshot, item):
+            return True
         full = bool(
             item.known
             and item_requires_full_identification(item)
@@ -4137,9 +4151,14 @@ class HomeMixin:
         # Devices shelved while they waited are not in the equipment catalog
         # (owner 2026-11-01 「魔法道具も自宅に預ける」: shelve, buy the source,
         # then withdraw and identify them).
+        from hengbot.me_staff_sequence import stows as staff_sequence_stows
         for item in self._home_knowledge_items[: self._home_knowledge_valid_before]:
             signature = self._item_signature(item)
             if (item.is_equipment or not self._identification_waiting_item(item)
+                    # A staff stage 1 keeps at Home stays there until stage 1
+                    # is complete (owner 2026-11-08, me_staff_sequence.stows):
+                    # no take that its deposit would put back at once.
+                    or staff_sequence_stows(self, snapshot, item)
                     or signature not in observed or signature in self._deferred_home_items
                     or self._find_identification_source(
                         snapshot, full=False, reliable_only=True,
