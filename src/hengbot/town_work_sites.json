@@ -3653,6 +3653,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._activate_safe_recall_fallback": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._active_dungeon_target": {
     "classification": "data",
     "rows": [
@@ -8965,6 +8972,20 @@
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_supply.py:SupplyMixin._wilderness_edge_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_supply.py:SupplyMixin._wilderness_recall_selection": {
+    "classification": "adapter",
+    "rows": [
+      "survival"
     ],
     "delegation": "selected child; no independent success"
   },

@@ -8605,7 +8605,10 @@ class WildernessSafetyTest(unittest.TestCase):
         self.assertTrue(snap.in_town)
         self.assertFalse(snap.on_open_wilderness)
 
-    def test_flees_a_wilderness_monster_instead_of_fighting(self):
+    def test_fights_a_nearby_wilderness_monster(self):
+        # Owner 2026-11-08 「近くの敵を倒すか、敵から離れて荒野の端へ歩き、全体
+        # 地図へ出る」 replaces the flight: the awake neighbour is the combat
+        # rules' (it was wilderness:flee).
         grids = self._wild_grids()
         grids[Position(10, 11)] = grid(10, 11, monster=True)
         mon = hostile(1, 10, 11, hp=40, max_hp=40)
@@ -8618,8 +8621,7 @@ class WildernessSafetyTest(unittest.TestCase):
         )
         pol = HengbotPolicy()
         key = pol.choose_key(snap)
-        self.assertEqual(pol.last_reason, "wilderness:flee")
-        self.assertNotEqual(key, "6")  # never step east INTO the adjacent monster
+        self.assertEqual((key, pol.last_reason), ("6", "melee"))
 
     def test_distant_or_sleeping_monsters_do_not_block_global_map(self):
         distant = replace(hostile(1, 10, 30), distance=21)

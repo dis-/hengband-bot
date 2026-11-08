@@ -370,10 +370,11 @@ class AmbushTest(unittest.TestCase):
         policy.choose_key(self.board(Position(10, 10), [monster]))
         self.assertNotIn(policy.last_reason, {"wilderness:flee", zul_trip.EDGE_REASON,
                                               zul_trip.ENTER_GLOBAL_REASON})
-        # Without the trip the usual survival flees it.
+        # Without the trip the same (owner 2026-11-08 「敵を倒すか離れてから
+        # 出る」; the usual survival fled it before).
         usual = HengbotPolicy()
         usual.choose_key(self.board(Position(10, 10), [monster]))
-        self.assertEqual(usual.last_reason, "wilderness:flee")
+        self.assertFalse(usual.last_reason.startswith("wilderness:"), usual.last_reason)
 
     def test_quiet_board_returns_to_the_global_map(self):
         policy = self.policy()
