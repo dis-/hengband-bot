@@ -12599,6 +12599,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "zul_trip.py:rewear_key": {
+    "classification": "producer",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "zul_trip.py:route": {
     "classification": "data",
     "rows": [

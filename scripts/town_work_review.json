@@ -16063,5 +16063,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:rewear_key": {
+    "classification": "producer",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-08 「旅の後に付け直す」: after the trip, in a town other than Zul, the remembered ring the levitation ring replaced goes back in its slot (the wield and the replace-ring chooser); the memory ends once it is worn or no longer carried.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

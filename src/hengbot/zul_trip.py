@@ -103,6 +103,8 @@ EAT_REASON = REASON + "eat"
 APPROACH_REASON = REASON + "approach-tower"
 CURE_REASON = REASON + "cure"
 EDGE_REASON = REASON + "ambush-edge"
+REWEAR_REASON = REASON + "rewear-ring"
+REPLACED_RING_ATTR = "_zul_replaced_ring"
 HOME_PURPOSE = "zul-levitation"
 CURE_KEY_PATTERN = rf"[1-9](?:{CURE_KEY})+\x1b"
 BUY_RUNG = "zul:levitation"
@@ -473,7 +475,60 @@ def _wear_key(policy, snapshot, item) -> str | None:
     slot = next((slot for slot in RING_SLOTS if slot not in worn), RING_SLOTS[-1])
     key = policy._equipment_wield(snapshot, "zul-levitation", item, slot)
     if key is not None:
+        _remember_replaced(policy, snapshot, slot)
         policy.last_reason = WEAR_REASON
+    return key
+
+
+# -- the replaced ring (owner 2026-11-08 「旅の後に付け直す」) -------------------
+#
+# 「外した指輪は旅の間持ち歩き、ズルで治療を終えて町に戻ったら付け直す（浮遊の指輪は外す）。」
+# The memory is a policy attribute read with a default, outside the trip record
+# (which a dungeon floor or the trip's end replaces): a checkpoint restored from
+# before it simply has none.
+
+def replaced_ring(policy):
+    """(item signature, ring slot) of the ring the levitation ring replaced, or None."""
+    return getattr(policy, REPLACED_RING_ATTR, None)
+
+
+def _remember_replaced(policy, snapshot, slot: str) -> None:
+    worn = next((piece for piece in snapshot.equipment if piece.slot == slot), None)
+    if worn is not None and not is_levitation_item(worn):
+        setattr(policy, REPLACED_RING_ATTR, (policy._item_signature(worn), slot))
+
+
+def retains_replaced_ring(policy, item) -> bool:
+    """The replaced ring is carried through the trip: no sale, deposit or destruction."""
+    memory = replaced_ring(policy)
+    return memory is not None and policy._item_signature(item) == memory[0]
+
+
+def rewear_key(policy, snapshot) -> str | None:
+    """After the trip, in a town other than Zul: the replaced ring back in its slot."""
+    memory = replaced_ring(policy)
+    if memory is None or not snapshot.in_town or snapshot.store is not None:
+        return None
+    record = getattr(policy, "_zul_trip", None)
+    if trip_active(policy) or policy._effective_town_id(snapshot) == ZUL_TOWN_ID:
+        return None
+    if wanted(policy, snapshot) and not (
+            record is not None and record.closed_epoch == policy._town_visit_epoch):
+        return None  # the trip is still due this stay: the levitation ring stays on
+    signature, slot = memory
+    if any(policy._item_signature(piece) == signature for piece in snapshot.equipment):
+        setattr(policy, REPLACED_RING_ATTR, None)  # back on: the memory ends
+        return None
+    ring = next((item for item in snapshot.inventory
+                 if policy._item_signature(item) == signature), None)
+    if ring is None:
+        setattr(policy, REPLACED_RING_ATTR, None)  # no longer carried: nothing to put back
+        return None
+    if not _board_allows(policy, snapshot):
+        return None
+    key = policy._equipment_wield(snapshot, "zul-ring-restore", ring, slot)
+    if key is not None:
+        policy.last_reason = REWEAR_REASON
     return key
 
 
@@ -701,6 +756,9 @@ def town_key(policy, snapshot, hostiles=None) -> str | None:
         return None
     record = state(policy)
     town = policy._effective_town_id(snapshot)
+    rewear = None if record.active else rewear_key(policy, snapshot)
+    if rewear is not None:
+        return rewear
     if record.active:
         if town == ZUL_TOWN_ID and not record.returning:
             if not _board_allows(policy, snapshot):
