@@ -17333,17 +17333,23 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         「眠っている敵でも強い敵からは離れる」)."""
         player = snapshot.player.position
         cells: set[Position] = set()
-        # A sleeper out of sight is judged at its last shown cell (sleeper_reach_memory,
-        # n1-b life-348 Orc cave 23F: one step out of sight the explore walked back).
-        for monster in (*self._strategic_hostiles(snapshot),
-                        *sleeper_reach_memory.remembered(self, snapshot)):
+        # A hostile out of sight is judged at its last shown cell as a sleeper is
+        # (sleeper_reach_memory, n1-b life-348 Orc cave 23F: one step out of sight the
+        # explore walked back; owner 2026-11-09 「起きた敵も最後の位置を覚える」: an awake one
+        # too, also a latched status threat, n1-b life-346 Angband 18F's ゲイザー).
+        remembered = sleeper_reach_memory.remembered(self, snapshot)
+        unseen = {id(monster) for monster in remembered}
+        for monster in (*self._strategic_hostiles(snapshot), *remembered):
+            out_of_sight = id(monster) in unseen
             if (immobile_threat_memory.ringed(self, monster)
                     or immobile_threat_memory.fought_normally(self, snapshot, monster)
-                    or not self._material_melee_damage(snapshot, monster)):
+                    or not (self._material_melee_damage(snapshot, monster)
+                            or out_of_sight and sleeper_reach_memory.status_latched(
+                                self, snapshot, monster))):
                 continue
             distance = player.distance_to(monster.position)
             if distance <= HUNT_RANGE:
-                if not monster.asleep:
+                if not monster.asleep and not out_of_sight:
                     return frozenset()
                 reach = distance - 1
                 cells.update(

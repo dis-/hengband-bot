@@ -16,6 +16,16 @@ were in view.  A sleeper does not move: it is forgotten on the floor's change, w
 shown awake, elsewhere or with another race on its index, killed, its cell seen empty
 (sleeper_loot_block ``sleeper_gone``), or after the retreat veto's window with it not shown
 (retreat_veto_life.UNSEEN_GAME_TURNS).  No new number.
+
+Owner 2026-11-09 「起きた敵も最後の位置を覚える」(眠る敵と同じく、起きた脅威も最後に見えたマスを期限まで
+覚え、見えない間も拾いの阻止と避けるマスに残す): every awake strategic hostile shown is remembered
+at its last shown cell too and judged there out of sight as a sleeper is (the cells nearer it
+than the player inside its area, all of its area outside), when its melee is material or it is
+a status threat the survival rung latched on the floor (``_status_threat_latch``: n1-b life-346,
+Angband 18F, an awake ゲイザー whose retreat's next board out of its sight walked back).  An
+awake one moves, so its last cell seen empty does not forget it: it is forgotten when shown
+again (then remembered where shown), killed, on the floor's change or after the window
+(sleeper_loot_block ``remembered_gone``).
 """
 
 from __future__ import annotations
@@ -23,13 +33,13 @@ from __future__ import annotations
 from dataclasses import replace
 
 from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
-from hengbot.sleeper_loot_block import sleeper_gone
+from hengbot.sleeper_loot_block import remembered_gone
 
 MEMORY = "_sleeper_reach_memory"  # (floor_key, {(index, race): (MonsterState, last shown turn)})
 
 
 def observe(policy, snapshot) -> None:
-    """Every board: remember the sleepers in view, forget the ones that are gone."""
+    """Every board: remember the hostiles in view, forget the ones that are gone."""
     if snapshot.in_town or snapshot.dungeon_level <= 0:
         setattr(policy, MEMORY, None)
         return
@@ -37,15 +47,21 @@ def observe(policy, snapshot) -> None:
     seen = memory[1] if memory is not None and memory[0] == snapshot.floor_key else {}
     seen = {key: (monster, turn) for key, (monster, turn) in seen.items()
             if snapshot.turn - turn <= UNSEEN_GAME_TURNS
-            and not sleeper_gone(policy, snapshot, monster)}
+            and not remembered_gone(policy, snapshot, monster)}
     for monster in policy._strategic_hostiles(snapshot):
-        if monster.asleep:
-            seen[(monster.index, monster.race_id)] = (monster, snapshot.turn)
+        seen[(monster.index, monster.race_id)] = (monster, snapshot.turn)
     setattr(policy, MEMORY, (snapshot.floor_key, seen))
 
 
+def status_latched(policy, snapshot, monster) -> bool:
+    """Whether the survival rung latched ``monster`` as a status threat on this floor."""
+    latch = getattr(policy, "_status_threat_latch", None)
+    return (latch is not None and latch[0] == snapshot.floor_key
+            and (monster.index, monster.race_id) in latch[1])
+
+
 def remembered(policy, snapshot) -> list:
-    """The remembered sleepers out of sight, at their last shown cell."""
+    """The remembered hostiles out of sight, at their last shown cell."""
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory[0] != snapshot.floor_key:
         return []
