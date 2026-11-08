@@ -5991,9 +5991,9 @@
     "delegation": "selected child; no independent success"
   },
   "policy_equipment.py:EquipmentMixin._equipment_home_outcome": {
-    "classification": "data",
+    "classification": "adapter",
     "rows": [
-      "data/no-independent-credit"
+      "equipment-transaction"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -6047,9 +6047,9 @@
     "delegation": "selected child; no independent success"
   },
   "policy_equipment.py:EquipmentMixin._equipment_town_outcome": {
-    "classification": "data",
+    "classification": "adapter",
     "rows": [
-      "data/no-independent-credit"
+      "equipment-transaction"
     ],
     "delegation": "selected child; no independent success"
   },

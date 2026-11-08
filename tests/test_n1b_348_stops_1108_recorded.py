@@ -39,6 +39,10 @@ dungeon board (B, [22,80]) as if a recall had activated on a wait.
 The follow loop's floor-change Escape on arriving in town (cli ``_run_follow``) was posted
 with no work record (its site was missing from the driver-owned sends): the two unmapped
 lines right after each process start.
+The one unmapped offer in A's decision rows came from
+policy_equipment ``_equipment_town_outcome``, which makes the equipment transaction's keyed
+offer but was hand-reviewed as ``data`` (no work record): the manifest check accepted a data
+review of a site making a keyed offer.  It refuses one now.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -49,6 +53,7 @@ import itertools
 import json
 import lzma
 import os
+import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -64,6 +69,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HUNT_RANGE
 from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
 from hengbot.runtime_paths import RUNTIME_DIR_ENV
+from hengbot.town_work import OFFER_SEAMS
 from hengbot.town_arrival_checkpoint import (
     JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST)
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
@@ -71,7 +77,12 @@ from tests import test_input_executor as executor_pins
 from tests.test_dungeon_1031_recorded import RecordedHarness, decide
 from town_work_corpus import replay_window
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import town_work_manifest as generator  # noqa: E402
+
 FIXTURES = Path(__file__).with_name("fixtures") / "n1b-348-stops-1108"
+OFFER_ADAPTERS = ("policy_equipment.py:EquipmentMixin._equipment_home_outcome",
+                  "policy_equipment.py:EquipmentMixin._equipment_town_outcome")
 STALE_TAKE = ("耐電のアミュレット", 40, 30)
 SHELVED = ("耐電のアミュレット {r電}", 40, 30)
 with gzip.open(FIXTURES / "b.json.gz", "rt", encoding="utf-8") as _stream:
@@ -283,6 +294,23 @@ class TownWorkReceiptsRecordedTest(executor_pins.ProductionHarness):
         self.assertIn("cli.py:_run_follow", senders)
         self.assertEqual(senders - cli.DECISION_SEGMENT_SITES - cli.DRIVER_OWNED_SEND_SITES, set())
         self.assertEqual(cli.DECISION_SEGMENT_SITES & cli.DRIVER_OWNED_SEND_SITES, set())
+
+
+
+class KeyedOfferReviewTest(unittest.TestCase):
+    def test_a_data_review_of_a_keyed_offer_site_fails_the_manifest_check(self):
+        self.assertEqual(generator.OFFER_SEAMS, OFFER_SEAMS)
+        reviewed = json.loads(generator.REVIEW.read_text(encoding="utf-8"))
+        self.assertEqual({site: reviewed[site]["classification"] for site in OFFER_ADAPTERS},
+                         dict.fromkeys(OFFER_ADAPTERS, "adapter"))
+        # As reviewed on the recorded build: data, so its offers had no work record.
+        recorded = dict(reviewed, **{site: dict(reviewed[site], classification="data",
+                                                rows=["data/no-independent-credit"])
+                                     for site in OFFER_ADAPTERS})
+        with self.assertRaisesRegex(ValueError, "keyed offers") as raised:
+            generator.generate(generator.sources(), recorded)
+        for site in OFFER_ADAPTERS:
+            self.assertIn(site, str(raised.exception))
 
 
 if __name__ == "__main__":
