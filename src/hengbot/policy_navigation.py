@@ -1780,7 +1780,9 @@ class NavigationMixin:
         queue: deque[Position] = deque([start])
         parent: dict[Position, Position | None] = {start: None}
         unseen_veto = False
-        remembered_danger = disenchant_avoid.remembered_cells(
+        # The area the engagement retreat would fire in again (as
+        # _plan_explore_path_pass), with a kept-away disenchanter out of sight.
+        danger = self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
             self, snapshot, immobile_threat_memory.ringed)
         while queue:
             position = queue.popleft()
@@ -1805,10 +1807,9 @@ class NavigationMixin:
                 )
                 if not walkable and not diggable:
                     continue
-                if (self._in_unseen_attack_area(snapshot, neighbor)
-                        or neighbor in remembered_danger):
-                    # Both areas lift (the attack ends, the window passes):
-                    # a route they cut writes no goal off.
+                if self._in_unseen_attack_area(snapshot, neighbor) or neighbor in danger:
+                    # Both areas lift (the attack ends, the window passes, the
+                    # monster leaves or is killed): a route they cut writes no goal off.
                     unseen_veto = True
                     continue
                 parent[neighbor] = position
@@ -1850,10 +1851,16 @@ class NavigationMixin:
         best_cost = {start: 0}
         parent: dict[Position, Position | None] = {start: None}
         goal: Position | None = None
-        # A kept-away disenchanter out of sight (disenchant_avoid.remembered_cells).
-        remembered_danger = disenchant_avoid.remembered_cells(
+        # The area the engagement retreat would fire in again, as the committed
+        # route honours it (_explore_step's ``avoided``): planned through, the
+        # next step's route check dropped the plan and the retreat stepped
+        # back out (n1-b life-341 Angband 49F, a sleeping 混沌の落とし子).  A
+        # kept-away disenchanter out of sight keeps its area too
+        # (disenchant_avoid.remembered_cells), also while the danger cells are
+        # empty inside an awake one's area.
+        danger = self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
             self, snapshot, immobile_threat_memory.ringed)
-    
+
         while queue:
             cost, _, pos = heappop(queue)
             if cost != best_cost.get(pos):
@@ -1889,7 +1896,7 @@ class NavigationMixin:
             ):
                 if (
                     neighbor in self._engagement_avoid_cells
-                    or neighbor in remembered_danger
+                    or neighbor in danger
                     or self._in_unseen_attack_area(snapshot, neighbor)
                 ):
                     continue

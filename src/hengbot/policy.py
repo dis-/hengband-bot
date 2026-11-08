@@ -17236,10 +17236,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         exploration and descent route around it instead of walking back
         in and retreating again (n1-c life-103: step back, re-approach,
         step back, until its own vetoed cells boxed it in).  Empty while
-        the player is inside an area: the retreat owns that board.  A
+        the player is inside an awake one's area: the retreat owns that board.  A
         never-moving monster whose ring already leaves the routes is passed
         around by the ring alone, and one no avoidance applies to is fought
-        (immobile_threat_memory)."""
+        (immobile_threat_memory).
+
+        Inside the area of a sleeping one the retreat owns no board it cannot
+        step farther from (it does not close in), so the cells nearer it than
+        the player are the routes' veto there: n1-b life-341 (Angband 49F,
+        2026-11-08 04:18) stood 5 cells from a sleeping 混沌の落とし子 (race 574)
+        with no step farther, and the explore stepped to 4, the retreat back
+        to 5, until the loop detector stopped the bot (owner 2026-11-07
+        「眠っている敵でも強い敵からは離れる」)."""
         player = snapshot.player.position
         cells: set[Position] = set()
         for monster in self._strategic_hostiles(snapshot):
@@ -17247,8 +17255,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     or immobile_threat_memory.fought_normally(self, snapshot, monster)
                     or not self._material_melee_damage(snapshot, monster)):
                 continue
-            if player.distance_to(monster.position) <= HUNT_RANGE:
-                return frozenset()
+            distance = player.distance_to(monster.position)
+            if distance <= HUNT_RANGE:
+                if not monster.asleep:
+                    return frozenset()
+                reach = distance - 1
+                cells.update(
+                    Position(monster.position.y + dy, monster.position.x + dx)
+                    for dy in range(-reach, reach + 1)
+                    for dx in range(-reach, reach + 1))
+                continue
             cells.update(
                 Position(monster.position.y + dy, monster.position.x + dx)
                 for dy in range(-HUNT_RANGE, HUNT_RANGE + 1)
