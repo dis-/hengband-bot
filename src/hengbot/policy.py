@@ -16434,7 +16434,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if route is not None and route[0] != snapshot.floor_key:
             self._release_claim_goal("choke-floor-changed", route[1], owners=("positioning",))
             self._detected_threat_route = route = None
-        if visible_hostiles:
+        # A hostile in view hands the episode to the visible-monster channel.  A
+        # sleeper does not: it does not converge, the visible channel owns no
+        # board of it the walkers do not (its reach is the routes' veto in and
+        # out of sight, sleeper_reach_memory), and its sight's edge flipped the
+        # owner every step.  n1-b life-355 (Angband 71F, 2026-11-09 04:01): a
+        # sleeping 石ドラゴン (race 1048) shown at (35,118) released the retreat
+        # from a detected pack of フローラのアイリッシュ犬 and seek-loot stepped
+        # '3' to (36,119), out of its sight, where the retreat stepped '7' back,
+        # until the loop detector -- the fourth stop of this owner-pair shape
+        # (09-23 committed, 10-02 quest plan, 10-23 no covered cell below).
+        if any(not monster.asleep for monster in visible_hostiles):
             self._detected_threat_hold = None
             self._detected_threat_hold_position = None
             if route is not None:

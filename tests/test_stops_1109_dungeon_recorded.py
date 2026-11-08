@@ -20,6 +20,18 @@ Now an awake hostile out of sight is remembered at its last shown cell for the r
 window (sleeper_reach_memory) and the loot block it made holds (sleeper_loot_block).
 DECLARED CONSTRUCTED (356): the recorded loot (6,95) lies past cells the stop's remembered
 terrain does not join, so the pile is at (6,82), on the live route inside the ワーグ's area.
+
+L3, n1-b life-355 (Magic-Eater Lv38, Angband 71F, 2026-11-09 04:01 loop-detected, build
+bot-ab000a523): a pack of フローラのアイリッシュ犬 (race 254) was detected south.  At (36,119)
+``detected:prepare-choke`` stepped '7' to (35,118) on its committed retreat; there a sleeping
+石ドラゴン (race 1048) 5 cells away came into view, the preparation released its retreat for the
+visible-monster channel (which had nothing to do with a sleeper) and seek-loot stepped '3' back
+to (36,119), out of the dragon's sight, until the loop detector.  The fourth stop of this
+owner pair (09-23, 10-02, 10-23); a sleeper in view no longer releases the episode.
+DECLARED RECONSTRUCTION (355): nothing is missing for the floor's abilities, as the recorded
+depth_safety (the live process knew its absorbed powers, a fresh policy has not read the power
+list).  DECLARED COUNTERFACTUAL: from (35,118) the player follows the decided moves with the
+dragon in view and the pack detected as on that board, four game turns a decision.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -28,6 +40,7 @@ import gzip
 import json
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from hengbot import sleeper_loot_block, sleeper_reach_memory
 from hengbot.model import Position, parse_snapshot
@@ -76,6 +89,8 @@ def step(raw, key):
 
 
 L346 = case("l1-346")
+L355 = case("l3-355")
+DRAGON = Position(34, 113)
 L356 = case("l1-356")
 GAZER, GAZER_SEEN = (2, 218), Position(25, 19)
 WARG_SEEN, WARG_PILE = Position(6, 88), Position(6, 82)
@@ -162,6 +177,53 @@ class AwakeThreatOutOfSightRecordedTest(RecordedHarness):
         self.assertEqual([(m.race_id, m.position) for m in
                           sleeper_reach_memory.remembered(policy, snapshot)], [(257, WARG_SEEN)])
         self.assertIn(WARG_PILE, policy._engagement_route_veto(snapshot))
+
+
+class SleeperInViewKeepsTheChokeRetreatRecordedTest(RecordedHarness):
+    def test_recorded_rows(self):
+        rows = recorded(L355)
+        self.assertEqual(rows[4072513], ("7", "detected:prepare-choke"))
+        self.assertEqual(rows[4072518], ("3", "seek-loot"))
+        self.assertEqual(rows[4072522], ("7", "detected:prepare-choke"))
+        shown = board(L355, 4072518)
+        self.assertEqual(here(shown), Position(35, 118))
+        self.assertEqual([(m["race_id"], m["y"], m["x"], m["asleep"]) for m in shown["visible_monsters"]],
+                         [(1048, 34, 113, True)])
+        self.assertEqual(board(L355, 4072522)["visible_monsters"], [])
+        self.assertEqual({m["race_id"] for m in shown["detected_monsters"]} - {1048}, {254})
+
+    def test_the_retreat_reaches_its_choke_with_the_sleeper_in_view(self):
+        with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
+                               lambda self, *args, **kwargs: frozenset()):
+            policy = fresh(L355, 4072421)
+            for raw in L355["boards"]:
+                if raw["turn"] < 4072421:
+                    continue
+                if raw["turn"] == 4072518:
+                    break
+                key = decide(policy, copy.deepcopy(raw))
+                if key:
+                    policy.confirm_key_posted(key)
+            self.assertEqual(policy.last_reason, "detected:prepare-choke")
+            raw = copy.deepcopy(raw)
+            distance, reasons = here(raw).distance_to(DRAGON), []
+            for index in range(8):
+                key = decide(policy, copy.deepcopy(raw))
+                reasons.append(policy.last_reason)
+                if key:
+                    policy.confirm_key_posted(key)
+                if index == 0:
+                    # bot-ab000a523 and 47982d326: ('3', 'seek-loot') to (36,119), as recorded.
+                    self.assertEqual(policy.last_reason, "detected:prepare-choke")
+                    self.post(policy, raw, key, [], self.later(raw, 4))
+                if key in MOVES:
+                    moved = step(raw, key)
+                    self.assertGreaterEqual(moved.distance_to(DRAGON), distance, (raw["turn"], key))
+                    raw["player"]["y"], raw["player"]["x"] = moved.y, moved.x
+                raw["turn"] += 4
+                raw["messages"] = []
+            self.assertNotIn("seek-loot", reasons)
+            self.assertEqual(reasons[-1], "detected:hold-choke")
 
 
 if __name__ == "__main__":
