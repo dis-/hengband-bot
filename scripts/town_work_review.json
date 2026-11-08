@@ -16261,5 +16261,60 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-08 「その敵の感知範囲内なら早急に離脱する」: inside the sensing radius (monrace vision / aaf) of an awake T1 hostile, seen or detected, the leave: stairs underfoot, *Destruction*, a relocation scroll, Word of Recall, a walk only when none is faster and none reaches at range; None otherwise."
+  },
+  "threat_tiers.py:_held_reading": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. tiered's computation: assess, then the decided side held where the reading is the engagement's own (owner 2026-11-08 「境に余裕を持たせる」); not an independently selected game action"
+  },
+  "threat_tiers.py:decided": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. the engagement's reading with its decided side held and the per-monster memory updated (owner 2026-11-08 「境に余裕を持たせる」); lifts the retreat veto of a side turned to fight; no command, no key"
+  },
+  "threat_tiers.py:held_tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the tier after a reading, each tier boundary crossed only by the reading's reserve (the hold's band); read by decided only, never a key"
+  },
+  "threat_tiers.py:_as_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the reading with the held tier (a T2 held over a T3 reading spends nothing); read by decided only, never a key"
+  },
+  "threat_tiers.py:_tier_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the floor visit's decided-side memory (created on a new floor key); read by decided only, never a key"
   }
 }

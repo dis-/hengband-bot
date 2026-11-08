@@ -1627,6 +1627,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # another owner's claim (see _refresh_warning_avoidance).
         self._engagement_avoid_cells: set[Position] = set()
         self._engagement_owned_avoid_cells: set[Position] = set()
+        # The threat tiers' decided side per monster for this floor visit (owner 2026-11-08
+        # 「境に余裕を持たせる」, threat_tiers.decided); created on the first reading.
+        self._threat_tier_memory = None
         # Floor-visit memory for monsters whose blows can paralyze. Both
         # stationary and moving threats retain their last observed cell while
         # unseen, and observation of that cell without the monster retires it.
@@ -7533,6 +7536,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
         self._build_grid_index(snapshot)
         retreat_veto_life.observe(self, snapshot)
+        threat_tiers.observe(self, snapshot)
         oneshot_breath.observe(self, snapshot)
         self._refresh_warning_avoidance(snapshot)
         giveup_plan = self._choke_engagement_plan
@@ -8138,8 +8142,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # Threat tiers step 6 (design 3.2): a leave the tiers decide walks only while no awake
             # hostile is faster and none reaches at range; else the relocation below (n1-c
             # life-168: 闇の審判『デス』, speed 120 against 110, walked to its death).
-            tiers_walk = not threat_tiers.leave_due(self, snapshot, strategic_hostiles) or (
-                threat_tiers.walk_leaves(self, snapshot, strategic_hostiles))
+            tiers_leave = threat_tiers.leave_due(self, snapshot, strategic_hostiles)
+            tiers_walk = not tiers_leave or threat_tiers.walk_leaves(
+                self, snapshot, strategic_hostiles)
             step = (self._town_producer_entry("_flee_step#2", lambda: self._flee_step(snapshot, strategic_hostiles))
                     if tiers_walk else None)
             if step is not None:
@@ -8148,7 +8153,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # square here as well, otherwise a remembered loot target can
                 # immediately route back into it when the monster flickers out
                 # of view, producing a seek-loot/flee two-cell oscillation.
-                if self._is_material_threat(snapshot, strategic_hostiles):
+                # A leave the threat tiers decided is such a square too (owner 2026-11-08
+                # 「境に余裕を持たせる」: the decided side holds while the pack is out of sight,
+                # threat_tiers.decided; n1-b's bear pack, T2 by 3 HP, was walked back to).
+                if tiers_leave or self._is_material_threat(snapshot, strategic_hostiles):
                     self._claim_engagement_avoid_cells(
                         (snapshot.player.position,),
                         snapshot=snapshot, threats=strategic_hostiles,

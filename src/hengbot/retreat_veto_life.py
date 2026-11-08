@@ -110,7 +110,9 @@ def seen_or_ended(snapshot, key, threat: Threat, shown: dict, last_turn) -> bool
     return None
 
 
-def _gone(snapshot, key, threat: Threat, shown: dict, last_turn) -> bool:
+def gone(snapshot, key, threat: Threat, shown: dict, last_turn) -> bool:
+    """Died, changed shape, or not shown for UNSEEN_GAME_TURNS (shared with the decided side of
+    the threat tiers, threat_tiers.observe)."""
     ended = seen_or_ended(snapshot, key, threat, shown, last_turn)
     if ended is not None:
         return ended
@@ -123,16 +125,28 @@ def observe(policy, snapshot) -> None:
     if life is None or not life.threats:
         return
     shown = shown_by_index(snapshot)
-    gone = {key for key, threat in life.threats.items()
-            if _gone(snapshot, key, threat, shown, life.last_turn)}
+    ended = {key for key, threat in life.threats.items()
+             if gone(snapshot, key, threat, shown, life.last_turn)}
     life.last_turn = snapshot.turn
-    if not gone:
+    _lift(policy, snapshot, life, ended)
+
+
+def release(policy, snapshot, keys) -> None:
+    """Lift the vetoes set for the monsters ``keys`` (index, race), as if they were gone: the
+    threat tiers' decided side for them turned from leave to fight (threat_tiers.decided)."""
+    life = getattr(policy, MEMORY, None)
+    if life is not None:
+        _lift(policy, snapshot, life, set(keys) & set(life.threats))
+
+
+def _lift(policy, snapshot, life: Life, ended: set) -> None:
+    if not ended:
         return
-    for key in gone:
+    for key in ended:
         del life.threats[key]
     lifted = set()
     for cell, keys in list(life.owners.items()):
-        keys -= gone
+        keys -= ended
         if not keys:
             del life.owners[cell]
             lifted.add(cell)
