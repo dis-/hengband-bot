@@ -52,7 +52,9 @@ hostile that acts keeps the phase's step; the phase's own fights and every survi
 
 Between phases (between_phases): a Magic-Eater rests a counted rest until every absorbed
 attack power is full, reading the lists turn-free (``b``) to decide (R& does not wait for
-them, player-processor.cpp is_fully_healthy).
+them, player-processor.cpp is_fully_healthy).  While a sensed moving hostile cuts that rest
+short, the phase walks to its post instead and the rest goes on once none is sensed (owner
+2026-11-09, ``_prepare``).
 
 Traps (phase4, phase5): a corridor cell the map always traps is searched from beside it
 until the trap is found, a cell that may hold one (``!``) ten times; a disarming power or
@@ -193,6 +195,8 @@ MAYBE_TRAP_SEARCHES = 10
 # The counted rest between phases (between_phases 「回数を指定して休み、回数を見て続けるかを
 # 決める」); the count is the Q34 recharge's (q34_recharge, LUNA-REPORT-me-rest-recharge).
 RECHARGE_REST_KEY = "R100\r"
+# Game turns under which a counted recharge rest was cut short (``_note_rest_cut``).
+REST_CUT_GAME_TURNS = 100
 # The rest that ends at full HP/MP (player-processor.cpp).
 FULL_HP_REST_KEY = REST_MACRO
 # Distances the draft weighs the ranged hit chance at: 「[4,1] で距離9」 for the spectral
@@ -249,6 +253,8 @@ class Battle:
     observed: tuple | None = None      # the board last read (key and walk_key share one)
     enlightened: bool = False      # the ambush's Potion of Enlightenment was drunk this visit
     beam: tuple | None = None      # (turn, origin, step) of the last answer aimed at a trap cell
+    recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
+    rest_cut: bool = False         # a sensed moving hostile cut that rest short
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -773,8 +779,42 @@ def _recharge_key(ctx: _Ctx) -> str | None:
     if not short:
         return None
     ctx.battle.browsed = frozenset()
+    ctx.battle.recharge_rest_turn = int(ctx.snapshot.turn)
     ctx.policy.last_reason = RECHARGE_REASON
     return RECHARGE_REST_KEY
+
+
+def _sensed_movers(ctx: _Ctx) -> list:
+    """Awake hostiles known only by sensing (ESP, detection) whose race can move."""
+    seen = {monster.index for monster in ctx.in_view()}
+    found = []
+    for monster in ctx.hostiles():
+        if monster.index in seen or monster.asleep:
+            continue
+        knowledge = attack_expectation.race_knowledge(ctx.policy, monster.race_id)
+        if knowledge is None or "NEVER_MOVE" not in knowledge.flags:
+            found.append(monster)
+    return found
+
+
+def _note_rest_cut(ctx: _Ctx) -> None:
+    """The board after a counted recharge rest: cut short while a sensed hostile moves.
+
+    A sensed (ml) hostile that moves disturbs the player when it is of the player's level or
+    above, or of a race never killed (monster-move.cpp, disturb_high and disturb_unknown on by
+    default in option-types-table.cpp), and a disturbance ends the rest.  ``R100`` is 100 player
+    turns, at least 200 game turns even at the fastest speed (speed_to_energy caps at 49 of the
+    100 a turn needs), so a rest that ended in fewer than ``REST_CUT_GAME_TURNS`` was cut.
+    n1-c life-174 (2026-11-09 03:16:46): on [2,24] every rest ended after 3-13 game turns while
+    the Dreadmaster, sensed undead, came through the walls, and the read-and-rest cycle repeated
+    until the loop guard stopped the bot."""
+    battle = ctx.battle
+    if battle.recharge_rest_turn is None or ctx.snapshot.turn <= battle.recharge_rest_turn:
+        return
+    elapsed = int(ctx.snapshot.turn) - battle.recharge_rest_turn
+    battle.recharge_rest_turn = None
+    if elapsed < REST_CUT_GAME_TURNS and _sensed_movers(ctx):
+        battle.rest_cut = True
 
 
 def _full_hp_key(ctx: _Ctx) -> str | None:
@@ -786,11 +826,21 @@ def _full_hp_key(ctx: _Ctx) -> str | None:
 
 
 def _prepare(ctx: _Ctx, phase) -> str | None:
-    """On a quiet board, before the phase's first step: the recharge, then full HP."""
+    """On a quiet board, before the phase's first step: the recharge, then full HP.
+
+    Owner 2026-11-09 「持ち場へ歩き静まれば休む」: 「感知した動く敵が休みを切る間は、見えている敵が
+    いる時と同じに扱い、その段の持ち場へ歩いて備える。静かになったら充填の休みを続ける。」  After a
+    recharge rest a sensed moving hostile cut short (``_note_rest_cut``), the board is not quiet
+    while such a hostile is sensed: the phase's step runs, as with a hostile in view; once none
+    is sensed the preparation goes on."""
     if ctx.battle.ready:
         return None
     if ctx.in_view():
         return None
+    if ctx.battle.rest_cut:
+        if _sensed_movers(ctx):
+            return None
+        ctx.battle.rest_cut = False
     key = (_recharge_key(ctx) if ctx.battle.phase else None) or (
         _full_hp_key(ctx) if phase.full_hp else None)
     if key is None:
@@ -1374,6 +1424,7 @@ def _observe(ctx: _Ctx) -> None:
         return
     ctx.battle.observed = board
     _settle_beam(ctx)
+    _note_rest_cut(ctx)
     _note_kills(ctx)
     _note_pen_shot(ctx)
     _note_arrivals(ctx)
