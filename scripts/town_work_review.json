@@ -10900,7 +10900,7 @@
       "store-approach"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), delegated by the existing _opening_q34_town_key owner. Starts one existing fundraising run whose gold objective is the explicit target; bounded by FUNDRAISE_RUN_LIMIT. Staff-stockout runs (restock waits) are counted by neither limit (#47, owner 2026-10-31).",
+    "evidence": "Owner 2026-10-30 class-16 staff sequence (fund -> buy one Identify and one Detect Treasure staff -> rumors until Morivant -> recharge to base pval -> absorb -> return), delegated by the existing _opening_q34_town_key owner. Starts one existing fundraising run whose gold objective is the explicit target; staff-purchase runs bounded by FUNDRAISE_RUN_LIMIT. Staff-stockout runs (restock waits) are counted by neither limit (#47, owner 2026-10-31); the expedition's rumor/travel-recharge runs fund until the cost is reached with no run limit (owner 2026-11-08, n1-b life-340), the target-drift limit and the standstill stop (_no_progress) still apply.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

@@ -127,6 +127,9 @@ _FALLBACK_BASE = {SV_STAFF_IDENTIFY: (21, 400), SV_STAFF_DETECT_GOLD: (19, 200),
 RECHARGE_ALL_REASON = "me-staff:recharge-all"
 RUMOR_BATCH_LIMIT = 10  # 400 rumors: a visible stop instead of an endless inn
 FUNDRAISE_RUN_LIMIT = 6
+# The expedition's runs fund until the cost is reached (owner 2026-11-08):
+# FUNDRAISE_RUN_LIMIT does not count them (_fundraise).
+EXPEDITION_WHYS = frozenset({"rumor-travel-recharge", "travel-recharge"})
 ATTEMPT_LIMIT = 3
 
 REASON = "me-staff:"
@@ -150,6 +153,7 @@ class MeStaffSequence:
     fundraise_why: str | None = None               # the current run's objective
     target_reached: bool = False                   # the current run met its target
     reached_runs: int = 0                          # runs that met their target
+    expedition_runs: int = 0                       # expedition runs started (uncapped)
     shelf_after_turn: int = -1
     rumor_batches: int = 0
     attempts: dict = field(default_factory=dict)   # (step, record key) -> count
@@ -574,14 +578,26 @@ def _fundraise(policy, snapshot, target: int, why: str) -> str:
     shelf's restock (``mines_floor_out``), not for gold: it is in neither
     count (owner 2026-10-31, #47 n1-c life-054/057: six restocks without
     Detect Evil ended the sequence).
+
+    The expedition's own gold (``EXPEDITION_WHYS``: the rumors, fares and
+    the Tower's recharge) is funded until it is reached, with no run limit
+    (owner 2026-11-08, 「資金集めの回数の上限を外し、届くまで資金集めを続ける。」;
+    n1-b life-340 Lv8, 28,189 of 57,099 gold, stopped as fundraise-limit after
+    six runs that each brought gold home).  Such a run is in neither count
+    while it is short; one that met its target counts as a met run in both
+    (``town_key``), so the target-drift stop still ends a target that keeps
+    moving and the staff purchase keeps its own failure count.
     """
     record = state(policy)
     stockout = why == STOCKOUT_WHY
-    if not stockout and record.fundraise_runs - record.reached_runs >= FUNDRAISE_RUN_LIMIT:
+    expedition = why in EXPEDITION_WHYS
+    if (not stockout and not expedition
+            and record.fundraise_runs - record.reached_runs >= FUNDRAISE_RUN_LIMIT):
         return _stop(policy, f"fundraise-limit:{why}:{target}")
     if not stockout and record.reached_runs >= FUNDRAISE_RUN_LIMIT:
         return _stop(policy, f"fundraise-target-drift:{why}:{target}")
-    record.fundraise_runs += 0 if stockout else 1
+    record.fundraise_runs += 0 if stockout or expedition else 1
+    record.expedition_runs += 1 if expedition else 0
     record.fundraise_target = target
     record.fundraise_why = why
     record.shelf_after_turn = snapshot.turn
@@ -794,7 +810,7 @@ def _settle_pending(policy, snapshot) -> None:
                 # The next stage gets its own fundraising run budget.
                 record.completed_stages = {**record.completed_stages,
                                            stage.number: snapshot.turn}
-                record.fundraise_runs = record.reached_runs = 0
+                record.fundraise_runs = record.reached_runs = record.expedition_runs = 0
 
 
 def _quest_holds_town(policy, snapshot) -> bool:
@@ -961,6 +977,10 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         if (record.fundraise_why != STOCKOUT_WHY
                 and (record.target_reached or gold >= record.fundraise_target)):
             record.reached_runs += 1
+            # An expedition run counts only once it met its target, as a met
+            # run in both counts (_fundraise): the drift stop sees it, the
+            # staff purchase's failure count does not.
+            record.fundraise_runs += 1 if record.fundraise_why in EXPEDITION_WHYS else 0
         record.fundraise_target = None
         record.target_reached = False
     if (policy._physical_adjacent_hostiles(snapshot)
