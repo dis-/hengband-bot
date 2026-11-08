@@ -16239,5 +16239,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Threat tiers plan step 7 (owner answer 4, OQ-4, D3, D4, D7): the selected T2 fight's supplies in the owner's order (Speed first, the Healing when due, the planned resistance, then good ammo, charges, attack scrolls); in _unique_combat_consumable's slot of _emergency_item."
+  },
+  "threat_tiers.py:tier_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. the engagement's threat tier where the tiers act (None elsewhere), read by _strong_fight_speed_key (threat tiers step 8); not an independently selected game action"
   }
 }

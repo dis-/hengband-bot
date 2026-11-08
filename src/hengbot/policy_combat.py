@@ -3025,6 +3025,11 @@ class CombatMixin:
             snapshot, hostiles, [m for m in hostiles if m.distance <= 1]
         ):
             return None
+        # Threat tiers plan step 8 (owner OQ-5, C-5): no Potion of Speed in a fight the free
+        # attacks win (T3); the Magic-Eater's absorbed haste of 11-04 (me_powers FIGHT) is
+        # its own rung and still fires there.
+        if threat_tiers.tier_of(self, snapshot, hostiles) == threat_tiers.T3:
+            return None
         self._strong_fight_speed_floor = snapshot.floor_key
         if self._player_hasted(snapshot):
             return None

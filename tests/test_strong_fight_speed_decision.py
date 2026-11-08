@@ -155,6 +155,17 @@ class StrongFightSpeedConstructedTest(unittest.TestCase):
         self.assertEqual(key, "q" + SPEED_SLOT)
         self.assertEqual(policy.last_reason, "item:strong-fight-speed")
 
+    def test_no_potion_in_a_t3_fight(self):
+        # Threat tiers step 8 (owner OQ-5, C-5): the free attacks win, so no Potion of Speed;
+        # the run does not start either, so a later strong board that is not T3 still drinks.
+        with patch.object(threat_tiers, "tier_of", return_value=threat_tiers.T3):
+            policy, key = self._key(self._snap())
+        self.assertIsNone(key)
+        self.assertIsNone(getattr(policy, "_strong_fight_speed_floor", None))
+        with patch.object(threat_tiers, "tier_of", return_value=threat_tiers.T2):
+            _policy, key = self._key(self._snap())
+        self.assertEqual(key, "q" + SPEED_SLOT)
+
     def test_below_half_hp_does_not_quaff(self):
         _policy, key = self._key(self._snap(), three_turns=49)
         self.assertIsNone(key)
