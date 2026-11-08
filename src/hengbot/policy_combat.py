@@ -2540,11 +2540,12 @@ class CombatMixin:
                     snapshot, teleport_only=guardian_reposition
                 )  # None while blind or confused
                 # Owner 2026-11-08 「即死の危険があるときは成功率の高いものを使う
-                # べきなので巻物によるテレポートを優先」: a lethal board reads
-                # the Teleportation scroll before *Destruction*.  *Destruction*
-                # is used blind too (owner 2026-11-08 「盲目でも使う」).
+                # べきなので巻物によるテレポートを優先」: on the 即死 board (the
+                # next action's p95 reaches the HP, threat tiers 3.1) the
+                # Teleportation scroll is read before *Destruction*.
+                # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」).
                 scroll_first = bool(
-                    lethal and scroll is not None and scroll.is_teleport_scroll
+                    instant_death and scroll is not None and scroll.is_teleport_scroll
                 )
                 if not guardian_reposition and not scroll_first and (
                         used := destruction_use.key(self, snapshot)) is not None:

@@ -27,7 +27,7 @@ import tests  # noqa: F401 -- isolate live runtime files
 import copy
 import unittest
 
-from hengbot import destruction_use
+from hengbot import destruction_use, threat_tiers
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.me_device_attacks import observe_lists
@@ -254,7 +254,15 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
 
     def test_unhurt_target_beside_other_threats_is_no_bar(self):
         raw = self.as_target(with_staff(copy.deepcopy(self.raw)), wounded=False)
-        self.assertEqual(self.answer(raw)[0], STAFF_KEY)
+        (key, reason), policy = self.answer(raw)
+        board = parse_snapshot(copy.deepcopy(raw), self.monraces)
+        # The target's race makes this board 即死 (the next action's p95 1233 >= HP 277), and
+        # there owner 2026-11-08 reads the Teleportation scroll before *Destruction*
+        # (「即死の危険があるときは成功率の高いものを使うべきなので巻物によるテレポートを優先」);
+        # the unhurt target is still no bar to the use.
+        self.assertTrue(threat_tiers.instant_death(policy, board).next_action)
+        self.assertEqual((key, reason), TELEPORT)
+        self.assertTrue(destruction_use.usable(policy, board))
 
     def test_wounded_target_within_seventeen_reads_teleport(self):
         raw = self.as_target(with_staff(copy.deepcopy(self.raw)), wounded=True, distance=17)
