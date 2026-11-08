@@ -2724,13 +2724,16 @@ class CombatMixin:
     ) -> list[MonsterState]:
         if self._has_state_based_free_action(snapshot):
             return []
+        # Owner 2026-11-09 E: a HOLD / BRAIN_SMASH caster is a paralyser too
+        # (paralyzer_contact.paralyses_by_spell).
         return [
             monster
             for monster in hostiles
             if (
                 (knowledge := self._monrace_knowledge.get(monster.race_id))
                 is not None
-                and any(blow.effect == "PARALYZE" for blow in knowledge.blows)
+                and (any(blow.effect == "PARALYZE" for blow in knowledge.blows)
+                     or paralyzer_contact.paralyses_by_spell(knowledge))
             )
         ]
     def _refresh_paralyzer_avoidance(
@@ -2832,16 +2835,21 @@ class CombatMixin:
         threats: list[MonsterState],
         physical_adjacent: list[MonsterState],
     ) -> str | None:
-        """Refuse melee and walk away whenever a paralyzer is in contact (D55)."""
+        """Refuse melee and walk away whenever a paralyzer is in contact (D55).
+        A spell paralyser is in contact once it has the player in sight (owner
+        2026-11-09 E 「視線が通れば 09-18 の決まりで離れる」, paralyzer_contact.spell_contact)."""
         adjacent = [
             monster
             for monster in threats
-            if paralyzer_contact.in_contact(self, snapshot, monster)
-            and (
-                monster.asleep
-                or "NEVER_MOVE"
-                not in self._monrace_knowledge[monster.race_id].flags
+            if (
+                paralyzer_contact.in_contact(self, snapshot, monster)
+                and (
+                    monster.asleep
+                    or "NEVER_MOVE"
+                    not in self._monrace_knowledge[monster.race_id].flags
+                )
             )
+            or paralyzer_contact.spell_contact(self, snapshot, monster)
         ]
         if not adjacent:
             return None

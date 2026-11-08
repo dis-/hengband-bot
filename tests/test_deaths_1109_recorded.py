@@ -49,7 +49,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use, status_cure
+from hengbot import destruction_use, sent_away_t1, status_cure
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import (
@@ -319,6 +319,69 @@ class ConfusedAgainRecordedTest(DeathsRecordedHarness):
         raw, key, reason = answers[970258]
         self.assertEqual(reason, status_cure.RELAPSE_SPEED_REASON)
         self.assertEqual(key, "q" + letter(raw, TVAL_POTION, SV_POTION_SPEED))
+
+
+class SpellParalyserRecordedTest(DeathsRecordedHarness):
+    """E: a HOLD / BRAIN_SMASH caster is a paralyser; in sight it is left by the 09-18 rung."""
+
+    def test_the_chthonian_beside_the_player_is_left_by_scroll(self):
+        recorded = self.recorded("life-346")
+        self.assertEqual(recorded[1623935]["reason"], "me-power:unbeatable-in-range:teleport-away")
+        policy, answers = self.replay("life-346", 1623935)
+        raw, key, reason = answers[1623935]
+        self.assertEqual(reason, "status-threat:scroll")
+        self.assertEqual(key, "r" + letter(raw, *TELEPORT))
+
+    def test_in_line_of_sight_two_cells_away_it_is_left_too(self):
+        # DECLARED CONSTRUCTED: the クトーニアン two cells down the corridor, a clear line, not
+        # in melee reach (speed +20 against +16: one action, two cells).
+        policy, answers = self.replay("life-346", 1623935,
+                                      at_turn(1623935, move_monster(CHTHONIAN, 28, 101)))
+        raw, key, reason = answers[1623935]
+        self.assertEqual(reason, "status-threat:scroll")
+        self.assertEqual(key, "r" + letter(raw, *TELEPORT))
+
+    def test_behind_the_wall_it_is_not(self):
+        # DECLARED CONSTRUCTED: the クトーニアン past the corridor's wall, no clear line.
+        policy, answers = self.replay("life-346", 1623935,
+                                      at_turn(1623935, move_monster(CHTHONIAN, 24, 104)))
+        self.assertEqual(answers[1623935][2], "melee")
+
+    def test_free_action_keeps_it_no_paralyser(self):
+        policy, answers = self.replay("life-346", 1623935, from_turn(1623935, free_action))
+        self.assertNotEqual(answers[1623935][2], "status-threat:scroll")
+
+
+class SentAwayT1RecordedTest(DeathsRecordedHarness):
+    """E: a T1 sent away by Teleport Away returns to town outside quests."""
+
+    VANISHED = "天上界ドレイクが消え去った！"
+
+    def test_a_t1_sent_away_returns(self):
+        # DECLARED CONSTRUCTED: Free Action (so the クトーニアン of 1623935 is no paralyser and
+        # the floor goes on as recorded); the board after the beam prints its vanishing.
+        def vanished(raw):
+            raw["messages"] = [self.VANISHED]
+
+        def change(raw):
+            from_turn(1623935, free_action)(raw)
+            at_turn(1623951, vanished)(raw)
+        policy, answers = self.replay("life-346", 1623951, change)
+        raw, key, reason = answers[1623943]
+        self.assertEqual(reason, sent_away_t1.THREAT_REASON)
+        target = next(m for m in raw["visible_monsters"] if m["race_id"] == 504)
+        self.assertFalse(target["asleep"])
+        raw, key, reason = answers[1623951]
+        self.assertEqual(policy._last_return_trigger, sent_away_t1.TRIGGER)
+        # The town return takes the up staircase underfoot (the board's [26,101]).
+        self.assertEqual((key, reason), ("<", "return:ascend"))
+
+    def test_no_vanishing_no_return(self):
+        # The recorded board after the beam: the drake was killed in melee, nothing vanished.
+        policy, answers = self.replay("life-346", 1623951, from_turn(1623935, free_action))
+        self.assertEqual(answers[1623943][2], sent_away_t1.THREAT_REASON)
+        self.assertNotEqual(policy._last_return_trigger, sent_away_t1.TRIGGER)
+        self.assertFalse(answers[1623951][2].startswith("return:"), answers[1623951][1:])
 
 
 if __name__ == "__main__":
