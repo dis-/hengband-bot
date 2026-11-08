@@ -2399,6 +2399,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "locked_doors.py:pick_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "magic_eater.py:absorb_key": {
     "classification": "producer",
     "rows": [
@@ -10961,6 +10968,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:_lap_left": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_target_search.py:_next_goal": {
     "classification": "data",
     "rows": [
@@ -11198,6 +11212,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "search_coverage.py:floor_grids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no emission; observational data for the quest search's lap"
   },
   "shop_purchase_dispatch.py:next_purchase_key": {
     "classification": "operation",

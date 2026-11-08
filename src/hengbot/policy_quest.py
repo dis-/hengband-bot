@@ -9,7 +9,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -224,7 +224,6 @@ from hengbot.policy_constants import (
     Q34_FINAL_DOOR_ATTEMPT_LIMIT,
     Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT,
     Q34_OPENING_DOOR_ATTEMPT_LIMIT,
-    LOCK_PICK_FAILED_MESSAGE_FRAGMENTS,
     FIXED_TARGET_DEFEAT_VERBS,
     RUBBLE_DIG_LIMIT,
     RUBBLE_REJECT_LIMIT,
@@ -447,19 +446,8 @@ QUEST_LAUNCHER_AMMO_CARRIES = frozenset({
 
 
 
-def _unanswered_pick(snapshot: Snapshot) -> int:
-    """1 unless the game answered the previous pick "failed to pick the lock".
-
-    Snapshot messages are the lines new since the previous board.  That answer
-    proves the door is a lock with at least the 2% floor chance per pick
-    (open-close-execution.cpp exe_open), so it is progress; the Q34 door
-    bounds count only picks without it.
-    """
-    return 0 if any(
-        fragment in message
-        for message in snapshot.messages
-        for fragment in LOCK_PICK_FAILED_MESSAGE_FRAGMENTS
-    ) else 1
+# The Q34 door bounds count only picks the game did not answer as a failed pick.
+_unanswered_pick = locked_doors.unanswered_pick
 
 class QuestMixin(OpeningRouteMixin):
     def _derived_home_visit_request(

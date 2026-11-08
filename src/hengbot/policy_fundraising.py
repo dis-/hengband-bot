@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import damaging_ground, me_capability, mining_loadout, status_cure, tunnel_feasibility, walkout_dig
+from hengbot import damaging_ground, locked_doors, me_capability, mining_loadout, status_cure, tunnel_feasibility, walkout_dig
 from hengbot.item_reservation import reserved_item_command
 
 from collections import deque
@@ -950,10 +950,7 @@ class FundraisingMixin:
         start = snapshot.player.position
         if not goals or start in goals:
             return None
-        stuck = {
-            yx for floor, yx in getattr(self, "_stuck_doors", ())
-            if floor == snapshot.floor_key
-        }
+        stuck = locked_doors.stuck(self, snapshot)
         attempts = self._fundraising_upstairs_door_attempts
         doors = {
             yx for yx in self._remembered_door_t
