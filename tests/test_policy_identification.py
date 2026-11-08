@@ -262,6 +262,7 @@ from hengbot.policy import (
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
+from hengbot import threat_tiers
 
 REAL_QUEST_DEFINITIONS = find_quest_definitions(
     Path(__file__)
@@ -344,6 +345,10 @@ class PickupTest(unittest.TestCase):
         policy._build_grid_index(snapshot)
         self.assertIsNone(policy._mana_food_loot_key(snapshot, []))
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_distant_weak_hostile_does_not_block_safe_loot(self):
         monster = hostile(1, 10, 13, distance=3, max_melee_damage=2)
         grids = {
@@ -432,6 +437,10 @@ class PickupTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, "seek-loot")
         self.assertEqual(policy.loot_state(snapshot)["blocker"], "material-threat")
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_material_pack_repositions_instead_of_exploring_into_surround(self):
         grids = {
             Position(y, x): grid(y, x)
@@ -612,6 +621,10 @@ class PickupTest(unittest.TestCase):
         self.assertEqual(policy.choose_key(snapshot), "6")
         self.assertEqual(policy.last_reason, "return:seek-loot")
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_emergency_return_does_not_resume_routine_loot_sweep(self):
         grids = {
             Position(10, 10): grid(10, 10, upstairs=True),
@@ -1234,6 +1247,10 @@ class ChestProcessingTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("chest:"))
         self.assertIn(chest_position, policy._processed_chest_positions)
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_teleport_away_from_an_opened_chest_ends_its_claim(self):
         # n1-b life-332 (Angband 30F, 11-07 00:42): Teleportation read beside the
         # opened chest at (16,50) landed at (49,100); the kept claim walked back as

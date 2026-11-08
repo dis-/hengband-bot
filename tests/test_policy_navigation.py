@@ -265,6 +265,7 @@ from hengbot.policy import (
     TOWN_NO_PROGRESS_LIMIT,
     WAIT_KEY,
 )
+from hengbot import threat_tiers
 
 REAL_QUEST_DEFINITIONS = find_quest_definitions(
     Path(__file__)
@@ -1225,6 +1226,10 @@ class DescendTest(unittest.TestCase):
         }
         self.assertEqual(HengbotPolicy().choose_key(Snapshot(player(10, 10), grids, [])), "6")
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_clears_a_visible_monster_blocking_the_only_stair_route(self):
         # Live dl5 failure: west leads to the stairs, but a monster at x=34
         # blocks the one-cell corridor. Moving east hides it and makes the bot
@@ -2231,6 +2236,10 @@ class DescentBlockCooldownTest(unittest.TestCase):
         self.assertFalse(pol._descent_is_blocked(snap))
 
 class SummonerMeleeTest(unittest.TestCase):
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_resume_landing_does_not_use_open_neighbor_summoner_gate(self):
         snapshot = Snapshot(
             player(10, 10, hp=100, max_hp=100),
@@ -2385,6 +2394,10 @@ class SummonerMeleeTest(unittest.TestCase):
             )
         self.assertEqual(policy.last_reason, "ranged:fire")
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_distant_summoner_without_ranged_attack_is_not_chased(self):
         grids = {
             Position(y, x): grid(y, x, monster=(y, x) == (10, 14))
@@ -2403,6 +2416,10 @@ class SummonerMeleeTest(unittest.TestCase):
             self.assertEqual(policy.choose_key(snapshot), "5", policy.last_reason)
         self.assertEqual(policy.last_reason, "summoner:hold-choke")
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_summoner_within_two_cells_may_be_approached(self):
         grids = {
             Position(10, 10): grid(10, 10),

@@ -11,6 +11,7 @@ last ration and reached food_state "weak" with an empty pack.
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import json
 import unittest
+from unittest.mock import patch
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
@@ -36,6 +37,7 @@ from hengbot.policy import (
     WAIT_KEY,
     HengbotPolicy,
 )
+from hengbot import threat_tiers
 from test_policy import FOOD, SCROLL, grid, hostile, item, player
 
 from hengbot.model import SV_SCROLL_TELEPORT, SV_SCROLL_WORD_OF_RECALL
@@ -1528,6 +1530,10 @@ class NavigationInvariantTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("combat:disengage"))
         self.assertEqual(policy._fruitless_disengage_decisions, 13)
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_normal_fight_is_unchanged_without_disengage_latch(self):
         base = self._quiet_room()
         fighting = replace(base, visible_monsters=[hostile(1, 10, 11)])
@@ -1868,6 +1874,10 @@ class SurvivalGateTest(unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith("survival:"))
         self.assertNotEqual(policy._last_return_trigger, "food-hungry")
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_gate_defers_to_combat_unless_fainting(self):
         snap = self._dungeon(
             food=1500,
@@ -1902,6 +1912,10 @@ class SurvivalGateTest(unittest.TestCase):
         # either path must put food in the character's mouth this turn.
         self.assertIn("E", key)
 
+    # Threat tiers step 6 (DECLARED CONSTRUCTED): this board's player carries no weapon and no
+    # blow (main_hand_blows 0), so no attack reaches and the engagement reads T1 and is left; the
+    # rule pinned here is judged with the tiers not acting, as on boards they do not decide.
+    @patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
     def test_gate_ignores_a_distant_spectator_monster(self):
         # A hostile merely visible across the floor must not indefinitely
         # defer eating — only a NEARBY threat does.
