@@ -14260,6 +14260,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:door_means_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-08 「感知手段があるならそれを用いる。」: reached only from quest_target_search.loop_key on a runtime RANDOM quest floor held for its target (owner 2026-11-05) when a wall a door can be in and no door detection covered lies within the detection radius; dungeon only; reads the board and the policy's memory, posts the absorbed Detect Doors through me_powers.power_key or a carried rod, staff or scroll through the shared item and read composers.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "quest_target_search.py:loop_key": {
     "classification": "data",
     "rows": [
