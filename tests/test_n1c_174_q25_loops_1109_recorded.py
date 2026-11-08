@@ -159,5 +159,109 @@ class Q25CorridorTrapSearchTest(unittest.TestCase):
         self.assertEqual(answers["third", 1], ("4", battle.WALK_REASON))
 
 
+# -- stop 1: the counted recharge rest on [2,24] -----------------------------------------------
+#
+# Teleported to [2,24] out of the Ipsissimus fight (decision 1060), the plan prepared the
+# stragglers' phase: read the three lists ('bC','bA','bB') and rested 'R100\r' while an attack
+# power was short.  Each rest ended 3-13 game turns later: the Dreadmaster (race 690, Lv44),
+# sensed undead (the amulet's ESP), came through the walls from [11,24] to [8,25], and each of its
+# moves disturbed the rest (monster-move.cpp; disturb_high / disturb_unknown).  The cycle repeated
+# until the loop guard stopped the bot (decision 1099).  Owner 2026-11-09 「持ち場へ歩き静まれば休む」.
+#
+# DECLARED CONSTRUCTED: the boards after each recorded 'b' carry the list the executor would
+# have read off the screen (``_magic_eater_power_list``): the town-arrival list of that kind with
+# the Acid Bolts wand short (the recorded rests repeated because some attack power stayed short;
+# the ring's boards hold no list).  Only boards from STOP1_FIRST on carry one.  The "quiet" board
+# is the board after the first cut rest with the sensed movers removed (turn + 5, no message).
+STOP1_FIRST = 1061      # the first board on [2,24]: 'bC'
+STOP1_REST = 1064       # the first 'R100\r'
+STOP1_CUT = 1065        # the board after it: 13 game turns later, the Dreadmaster sensed
+SHORT_WAND = "アシッド・ボルト"
+KIND_OF = {"bA": "staff", "bB": "wand", "bC": "rod"}
+
+
+def listed(kind):
+    turn, rows = CASE["lists"][kind]
+    rows = [dict(row) for row in rows]
+    if kind == "wand":
+        for row in rows:
+            if row["name"] == SHORT_WAND:
+                row["current"] = 3
+    return {"kind": kind, "rows": rows}
+
+
+def stop1(through=STOP1_CUT, *, quiet=False):
+    """(policy, {sequence: (key, reason)}) of the first process through ``through``; ``quiet``
+    then decides the constructed quiet board after it."""
+    answers = {}
+    with TemporaryDirectory() as directory:
+        boards = CASE["first"]["boards"]
+        policy = new_policy(boards[0], lists=True, record=Path(directory) / "q25-battle.json")
+        previous = None
+        for raw, row in zip(boards, CASE["first"]["recorded"]):
+            if row["sequence"] > through:
+                break
+            raw = copy.deepcopy(raw)
+            if row["sequence"] >= STOP1_FIRST and previous in KIND_OF:
+                raw["_magic_eater_power_list"] = listed(KIND_OF[previous])
+            snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+            key = str(policy.choose_key(snapshot))
+            answers[row["sequence"]] = (key, policy.last_reason)
+            policy.confirm_key_posted(key)
+            previous, last = key, raw
+        if quiet:
+            raw = copy.deepcopy(last)
+            raw["turn"] += 5
+            raw["messages"] = []
+            raw.pop("_magic_eater_power_list", None)
+            raw["detected_monsters"] = [m for m in raw["detected_monsters"] if m["race_id"] not in MOVERS]
+            snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+            key = str(policy.choose_key(snapshot))
+            answers["quiet"] = (key, policy.last_reason)
+    return policy, answers
+
+
+DREADMASTER, NIGHTMARE = 690, 622
+MOVERS = (DREADMASTER, NIGHTMARE)
+
+
+class Q25RechargeRestCutTest(unittest.TestCase):
+
+    def test_the_recording(self):
+        rows = {row["sequence"]: row for row in CASE["first"]["recorded"]}
+        self.assertEqual([rows[s]["key"] for s in range(STOP1_FIRST, STOP1_FIRST + 4)],
+                         ["bC", "bA", "bB", "R100\r"])
+        self.assertEqual(rows[STOP1_REST]["reason"], battle.RECHARGE_REASON)
+        # Every recorded rest was followed by the next read within 13 game turns.
+        rests = [s for s, row in rows.items() if row["reason"] == battle.RECHARGE_REASON and s >= STOP1_FIRST]
+        self.assertEqual(len(rests), 9)
+        for sequence in rests:
+            self.assertLessEqual(rows[sequence + 1]["turn"] - rows[sequence]["turn"], 13)
+            self.assertEqual(rows[sequence + 1]["key"], "bC")
+        raw = board("first", STOP1_CUT)[0]
+        self.assertEqual(raw["visible_monsters"], [])
+        sensed = {m["race_id"]: (m["y"], m["x"]) for m in raw["detected_monsters"]}
+        self.assertIn(DREADMASTER, sensed)
+        self.assertEqual((raw["player"]["y"], raw["player"]["x"]), (2, 24))
+
+    def test_the_first_rest_is_still_keyed(self):
+        _, answers = stop1(STOP1_REST)
+        self.assertEqual([answers[s][0] for s in range(STOP1_FIRST, STOP1_REST + 1)],
+                         ["bC", "bA", "bB", "R100\r"])
+        self.assertEqual(answers[STOP1_REST][1], battle.RECHARGE_REASON)
+
+    def test_a_rest_the_sensed_mover_cut_walks_to_the_post(self):
+        _, answers = stop1()
+        key, reason = answers[STOP1_CUT]
+        self.assertEqual(reason, battle.WALK_REASON, key)
+        self.assertNotEqual(key[:1], "b")
+
+    def test_the_recharge_rest_goes_on_once_no_mover_is_sensed(self):
+        _, answers = stop1(quiet=True)
+        self.assertEqual(answers[STOP1_CUT][1], battle.WALK_REASON)
+        key, reason = answers["quiet"]
+        self.assertIn(key, ("bA", "bB", "bC", "R100\r"), reason)
+
+
 if __name__ == "__main__":
     unittest.main()
