@@ -34,22 +34,25 @@ def _material(policy, snapshot, monsters) -> bool:
         snapshot.player.hp * LOOT_THREAT_DAMAGE_RATIO)
 
 
+def sleeper_gone(policy, snapshot, monster) -> bool:
+    """Whether the ``monster`` remembered asleep at its cell is no longer there: shown awake,
+    elsewhere or with another race on its index, killed, or its cell seen empty."""
+    now = next((shown for shown in snapshot.visible_monsters
+                if shown.index == monster.index), None)
+    if now is not None:
+        return (now.race_id != monster.race_id or not now.asleep
+                or now.position != monster.position)
+    return (shows_kill(snapshot, monster.name)
+            or policy._player_can_see_empty_cell(
+                snapshot, monster.position, race_id=monster.race_id))
+
+
 def _gone(policy, snapshot, memory) -> bool:
     """Whether a remembered sleeper is no longer where it slept, or the window passed."""
     floor, sleepers, turn = memory
     if floor != snapshot.floor_key or snapshot.turn - turn > UNSEEN_GAME_TURNS:
         return True
-    shown = {monster.index: monster for monster in snapshot.visible_monsters}
-    for (index, race), monster in sleepers.items():
-        now = shown.get(index)
-        if now is not None:
-            if now.race_id != race or not now.asleep or now.position != monster.position:
-                return True
-        elif (shows_kill(snapshot, monster.name)
-              or policy._player_can_see_empty_cell(
-                  snapshot, monster.position, race_id=monster.race_id)):
-            return True
-    return False
+    return any(sleeper_gone(policy, snapshot, monster) for monster in sleepers.values())
 
 
 def observe(policy, snapshot) -> None:

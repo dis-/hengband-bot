@@ -64,6 +64,7 @@ from hengbot.policy import (
 )
 # After hengbot.policy: threat_tiers' dependencies import through it (a cycle otherwise).
 from hengbot import threat_tiers
+from hengbot import spectator_threat
 from hengbot.town_hold import SURVIVAL_REASON_PREFIXES
 from hengbot.policy_constants import (
     DIRECTION_DELTAS,
@@ -126,6 +127,19 @@ KNOWLEDGE_RESPONSE_LEDGER_PATH = CAPTURE_LEDGER_ROOT / "knowledge-responses.json
 # right after descending). Escape (0x1B) clears any such prompt and is a harmless
 # no-op if the game has already returned to the command loop.
 NUDGE_KEY = "\x1b"
+
+# Who may post through the input port (_ExecutorInputPort.submit_operation)
+# for the town-work receipts.  A decision sender posts the decided key's
+# compiled prefix or tail under that decision's mapped record; a driver
+# function's own sends (floor-change and stall clears, look barriers,
+# stuck-prompt probes) are driver work (town_work.driver_record).  n1-b
+# life-348: the follow loop's floor-change Escape on arriving in town was a
+# town:blocked:work-contract:unmapped-producer.
+DECISION_SEGMENT_SITES = frozenset({
+    "cli.py:_send_new_decision_key", "cli.py:_send_prompt_gated_decision_key",
+    "cli.py:_release_prompt_gated_tail"})
+DRIVER_OWNED_SEND_SITES = frozenset({
+    "cli.py:main", "cli.py:_run_follow", "cli.py:_send_stall_recovery_nudge"})
 
 # After issuing a rest, the game runs many turns without emitting a snapshot;
 # hold off the stall nudge this long so it does not cut the rest short.
@@ -2005,22 +2019,37 @@ def _capture_decision_facts(snapshot, policy) -> dict:
     """
     if policy is None:
         return _empty_decision_facts()
-    # Protocol 3: read the board the policy decided on (the ~f skill list
-    # values filled in); while they are unknown every evaluator reports its
-    # result as unknown/blocked rather than raising.
-    known_board = getattr(policy, "with_known_skill_exp", None)
-    if known_board is not None:
-        snapshot = known_board(snapshot)
+    posted_board, snapshot = snapshot, _decided_board(policy, snapshot)
     # The capture reads the supply ledger of this board hundreds of times in
     # town; those reads share results (keyed on the ledger inputs the capture
     # itself can write) and the memo is dropped with the scope.
     with _PolicyObserverScope(policy), supply_ledger_observer_memo():
         try:
-            return _capture_decision_facts_unchecked(snapshot, policy)
+            facts = _capture_decision_facts_unchecked(snapshot, policy)
         except RecursionError as exc:
             facts = _empty_decision_facts()
             facts["capture_error"] = f"{type(exc).__name__}: {exc}"
             return facts
+    spectator_threat.note_engagement(posted_board, facts["threat_tiers"])
+    return facts
+
+
+def _decided_board(policy, snapshot):
+    """Protocol 3: the board the policy decided on (the ~f skill list values filled in);
+    while they are unknown every evaluator reports its result as unknown/blocked."""
+    known_board = getattr(policy, "with_known_skill_exp", None)
+    return known_board(snapshot) if known_board is not None else snapshot
+
+
+def _spectator_threat(policy, snapshot) -> dict:
+    """Viewer-only: the threat tiers of the listed monsters (spectator_threat), judged as an
+    observer on the board the policy decided on, like the decision row's facts."""
+    if policy is None:
+        return {}
+    board = _decided_board(policy, snapshot)
+    with _PolicyObserverScope(policy):
+        return spectator_threat.board_judgement(
+            policy, board, spectator_threat.noted_engagement(snapshot))
 
 
 def _timed_decision_facts(snapshot, policy, timing: dict) -> dict:
@@ -2755,14 +2784,11 @@ class _ExecutorInputPort:
         if work is None:
             parent = (current_record(self.policy, decision.get('key'))
                       if self.policy is not None else None)
-            if parent and site in {
-                    'cli.py:_send_new_decision_key',
-                    'cli.py:_send_prompt_gated_decision_key',
-                    'cli.py:_release_prompt_gated_tail'}:
+            if parent and site in DECISION_SEGMENT_SITES:
                 # The exact mapped parent authorizes its compiled prefix/tail.
                 work = dict(parent, key=key, segment_producer=site,
                             segment_line=frame.f_lineno)
-            elif site in {'cli.py:main', 'cli.py:_send_stall_recovery_nudge'}:
+            elif site in DRIVER_OWNED_SEND_SITES:
                 # Only actual driver-owned clears/probes synthesize cleanup
                 # work. Normal policy sends cannot hide an unmapped producer.
                 work = driver_record(self.policy, key, site=site,
@@ -4476,6 +4502,7 @@ def _run_follow(
                 state_line=post_args[1],
                 screen_client=executor.client if executor is not None else None,
                 policy=policy, append_frame=True, defer_frame=True,
+                threat=lambda: _spectator_threat(policy, post_kwargs["snapshot"]),
             )
         post_at = time.monotonic()
         remaining = (args.min_action_seconds - (post_at - last_action_post_at)
@@ -4927,6 +4954,7 @@ def _run_follow(
                             state_line=snapshot_line,
                             screen_client=executor.client if executor is not None else None,
                             policy=policy,
+                            threat=lambda: _spectator_threat(policy, snapshot),
                         )
                     _add_phase_ms(
                         decision_timing, "validate_emit_ms", phase_started_at

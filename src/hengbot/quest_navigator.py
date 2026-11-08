@@ -8,7 +8,7 @@ from enum import Enum
 import re
 from typing import Any
 
-from hengbot import breeder_quest
+from hengbot import breeder_quest, locked_doors
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, Snapshot, TVAL_CHEST, TVAL_GOLD
@@ -531,10 +531,7 @@ class QuestFloorNavigator:
         # Static terrain regards every door as walkable. Honour the ordinary
         # movement owner's bounded open failures instead of retrying forever.
         blocked.update(Position(*yx) for yx in owner._blocked_doors)
-        blocked.update(
-            Position(*yx) for floor, yx in getattr(owner, "_stuck_doors", ())
-            if floor == snapshot.floor_key
-        )
+        blocked.update(Position(*yx) for yx in locked_doors.stuck(owner, snapshot))
         return blocked
 
     def route_to_static_goals(

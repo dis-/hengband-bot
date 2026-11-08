@@ -499,6 +499,15 @@ def _revealing_uses(ctx, flags) -> list:
             if (reveals := hunt_target.REVEALS.get(BY_KEY[use.used].effect)) and reveals(flags)]
 
 
+def revealing_radius(policy, snapshot, flags) -> int:
+    """The largest plain radius of an absorbed power with a charge whose cast can show such a
+    race (its powerful reach depends on the moment, so it is not counted), else 0."""
+    ctx = Context(policy, snapshot, FLOOR, None)
+    return max((ctx.radius(power, unknown_is_dark=True) for power in POWERS
+                if (reveals := hunt_target.REVEALS.get(power.effect)) and reveals(flags)
+                and _charges(ctx, power) > 0), default=0)
+
+
 def revealing_casts(policy, snapshot, flags) -> list:
     """``_revealing_uses`` of this floor visit, for a search outside the rows."""
     memory = getattr(policy, MEMORY, None)

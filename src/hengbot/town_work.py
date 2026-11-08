@@ -20,6 +20,9 @@ import threading
 from weakref import WeakKeyDictionary
 
 UNMAPPED = 'town:blocked:work-contract:unmapped-producer'
+# The policy's offer seams: observe_offer credits an offer to the frame that
+# called one (scripts/town_work_manifest.py OFFER_SEAMS reviews those sites).
+OFFER_SEAMS = frozenset({'_offer_execution', '_offer_execution_awaiting'})
 _active = ContextVar('town_work_coverage', default=None)
 _receipts = WeakKeyDictionary()
 _records = WeakKeyDictionary()
@@ -119,8 +122,8 @@ def observe_offer(policy, key, work_id):
     if not active or active['policy'] is not policy:
         return
     frame = sys._getframe(1)
-    while frame and frame.f_code.co_name in {
-            '_offer_execution', '_offer_execution_awaiting', 'observe_offer'}:
+    while frame and (frame.f_code.co_name in OFFER_SEAMS
+                     or frame.f_code.co_name == 'observe_offer'):
         frame = frame.f_back
     site = frame_site(frame) if frame else None
     record = work_record(site, key, sequence=getattr(policy, '_decision_sequence', None),

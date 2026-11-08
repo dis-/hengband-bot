@@ -55,6 +55,14 @@ class ExplorationLedger:
         # (y, x, radius) of each magic mapping of this floor (mapped_area's
         # discs; owner 2026-11-01 「階の記録に残す」).
         self.mapped_areas: set[tuple[int, int, int]] = set()
+        # (y, x, radius) of what the current quest-search lap covered
+        # (search_coverage.Coverage; a restart resumes the lap).
+        self.search_cover: set[tuple[int, int, int]] = set()
+        # The quest search's complete coverages (search_coverage.Sweeps): the one being made,
+        # the game turn it began, and how many were completed on this floor.
+        self.search_sweep: set[tuple[int, int, int]] = set()
+        self.search_sweep_turn = 0
+        self.search_sweeps = 0
         self.marked_high = 0
         self._dirty_decisions = 0
         self._loaded = False
@@ -62,6 +70,10 @@ class ExplorationLedger:
     def __setstate__(self, state: dict) -> None:
         # A checkpoint pickled before the mapped areas were kept.
         state.setdefault("mapped_areas", set())
+        state.setdefault("search_cover", set())
+        state.setdefault("search_sweep", set())
+        state.setdefault("search_sweep_turn", 0)
+        state.setdefault("search_sweeps", 0)
         self.__dict__.update(state)
 
     def _clear(self, floor_key: tuple[int, int, int] | None = None) -> None:
@@ -73,6 +85,10 @@ class ExplorationLedger:
         self.wall_search_counts.clear()
         self.blocked_unknown.clear()
         self.mapped_areas.clear()
+        self.search_cover.clear()
+        self.search_sweep.clear()
+        self.search_sweep_turn = 0
+        self.search_sweeps = 0
         self.marked_high = 0
         self._dirty_decisions = 0
 
@@ -124,6 +140,16 @@ class ExplorationLedger:
             (int(y), int(x), int(radius))
             for y, x, radius in data.get("mapped_areas", ())
         }
+        self.search_cover = {
+            (int(y), int(x), int(radius))
+            for y, x, radius in data.get("search_cover", ())
+        }
+        self.search_sweep = {
+            (int(y), int(x), int(radius))
+            for y, x, radius in data.get("search_sweep", ())
+        }
+        self.search_sweep_turn = int(data.get("search_sweep_turn", 0))
+        self.search_sweeps = int(data.get("search_sweeps", 0))
         self.marked_high = int(data.get("marked_high", 0))
         return True
 
@@ -199,6 +225,10 @@ class ExplorationLedger:
             ],
             "blocked_unknown": [list(item) for item in self.blocked_unknown],
             "mapped_areas": [list(item) for item in sorted(self.mapped_areas)],
+            "search_cover": [list(item) for item in sorted(self.search_cover)],
+            "search_sweep": [list(item) for item in sorted(self.search_sweep)],
+            "search_sweep_turn": self.search_sweep_turn,
+            "search_sweeps": self.search_sweeps,
             "marked_high": self.marked_high,
         }
         try:

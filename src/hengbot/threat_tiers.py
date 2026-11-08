@@ -1621,9 +1621,14 @@ def supply_fight_key(policy, snapshot, hostiles) -> str | None:
     return None
 
 
+def outside_design(snapshot) -> bool:
+    """Town, a store and the arena: the boards the tiers' telemetry judges nothing on."""
+    return snapshot.in_town or snapshot.store is not None or snapshot.inside_arena
+
+
 def facts(policy, snapshot) -> dict:
     """The decision-row telemetry: the assessment, {} where the design does not apply."""
-    if snapshot.in_town or snapshot.store is not None or snapshot.inside_arena:
+    if outside_design(snapshot):
         return {}
     try:
         hostiles = engagement(policy, snapshot)

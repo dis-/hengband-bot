@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dungeon_shop, combat_answer, dark_recall, disenchant_avoid, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, locked_doors, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -194,7 +194,6 @@ from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.town_hold import standing_claim
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
-    STUCK_DOOR_MESSAGE_FRAGMENTS,
     NAV_ESCAPE_STEP_LIMIT, OPEN_KEY, RUBBLE_DIG_LIMIT, RUBBLE_REJECT_LIMIT,
     STAIR_OBSERVATION_WAIT_LIMIT, STUCK_WINDOW, VISIT_PENALTY,
 )
@@ -1353,7 +1352,7 @@ class NavigationMixin:
         # retreat just left and alternates with it (n1c-5f-loop-1102).  The
         # area the retreat would fire in again is routed around as well
         # (_engagement_danger_cells, shoot-immobile-sleeper-1102).
-        vetoed = self._engagement_avoid_cells | self._engagement_danger_cells(snapshot)
+        vetoed = self._engagement_avoid_cells | self._engagement_route_veto(snapshot)
         self._nav_ledger.advance_descent_route(origin)
         route = self._nav_ledger.descent_path
         if route:
@@ -1492,7 +1491,7 @@ class NavigationMixin:
             self._engagement_avoid_cells
             | self._warning_refused_cells
             | self._unseen_attack_area_cells(snapshot)
-            | self._engagement_danger_cells(snapshot)
+            | self._engagement_route_veto(snapshot)
         )
         oscillating = self._is_oscillating()
         identity = self._explore_goal_identity
@@ -1782,8 +1781,7 @@ class NavigationMixin:
         unseen_veto = False
         # The area the engagement retreat would fire in again (as
         # _plan_explore_path_pass), with a kept-away disenchanter out of sight.
-        danger = self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
-            self, snapshot, immobile_threat_memory.ringed)
+        danger = self._engagement_route_veto(snapshot)
         while queue:
             position = queue.popleft()
             if position == goal:
@@ -1858,8 +1856,7 @@ class NavigationMixin:
         # kept-away disenchanter out of sight keeps its area too
         # (disenchant_avoid.remembered_cells), also while the danger cells are
         # empty inside an awake one's area.
-        danger = self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
-            self, snapshot, immobile_threat_memory.ringed)
+        danger = self._engagement_route_veto(snapshot)
 
         while queue:
             cost, _, pos = heappop(queue)
@@ -2083,18 +2080,12 @@ class NavigationMixin:
             self._floor_trap_disarm_attempts.pop((step.y, step.x), None)
         if grid is not None and grid.is_closed_door:
             yx = (step.y, step.x)
-            if self._door_attempts[yx] and any(
-                fragment in message
-                for message in snapshot.messages
-                for fragment in STUCK_DOOR_MESSAGE_FRAGMENTS
-            ):
-                # The previous 'o' on this door was answered "appears to be
-                # stuck".  Routers that keep retrying locked doors past
-                # DOOR_OPEN_LIMIT (the mining sweep) must not retry this one.
-                stuck = getattr(self, "_stuck_doors", None)
-                if stuck is None:
-                    stuck = self._stuck_doors = set()
-                stuck.add((snapshot.floor_key, yx))
+            if self._door_attempts[yx]:
+                # The board answers the previous 'o' on this door: "appears to
+                # be stuck" (routers that keep retrying locked doors past
+                # DOOR_OPEN_LIMIT, the mining sweep, must not retry it) or
+                # "failed to pick the lock" (a lock, locked_doors).
+                locked_doors.note_answer(self, snapshot, yx)
             self._door_attempts[yx] += 1
             if self._door_attempts[yx] >= DOOR_OPEN_LIMIT:
                 self._blocked_doors.add(yx)

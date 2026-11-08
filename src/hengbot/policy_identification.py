@@ -1444,12 +1444,14 @@ class IdentificationMixin:
             self._loot_target = None
             return None
         target = self._loot_target
+        # The routes' engagement veto, as the explore and descent walks keep it.
+        veto = self._engagement_route_veto(snapshot)
         if (
             max_path_distance is None
             and target is not None
             and target in candidates
         ):
-            step = self._position_target_step(snapshot, target, through=through)
+            step = self._position_target_step(snapshot, target, through=through, avoid=veto)
             if step is not None:
                 return step
 
@@ -1472,6 +1474,7 @@ class IdentificationMixin:
                 if (
                     neighbor in seen
                     or neighbor in self._engagement_avoid_cells
+                    or neighbor in veto
                     or self._in_unseen_attack_area(snapshot, neighbor)
                 ):
                     continue
