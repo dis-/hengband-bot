@@ -255,9 +255,28 @@ class MeleeRefusedRangedRecordedTest(_test_me_nokey_1031_recorded.PostedKey):
             self.assert_fires_at_adjacent(raw, board, policy, key, reason)
 
     def test_control_an_ordinary_adjacent_fight_stays_melee(self):
+        # Owner 2026-11-08 「その敵の感知範囲内なら早急に離脱する」: the first line also has an awake
+        # デイドラ・レッド・ドラゴン detected 8 cells off (vision 40, T1 judged from contact), which
+        # is left (test_control_awake_t1_in_its_sensing_radius_is_left); the melee control is pinned
+        # with that rung not acting.
+        sensed_off = patch.object(threat_tiers, "sensed_t1_leave_key", new=lambda *args, **kwargs: None)
+        sensed_off.start()
+        self.addCleanup(sensed_off.stop)
         for line, (turn, recorded_key) in zip(self.lines, anti_melee.RECORDED):
             _raw, _board, _policy, key, reason = self.decide(line, melee_allowed=True)
             self.assertEqual((key, reason), (recorded_key, "melee"), turn)
+
+    def test_control_awake_t1_in_its_sensing_radius_is_left(self):
+        # Owner 2026-11-08: the line with the awake detected dragon inside its sensing radius is
+        # left by the sensed-T1 rung; the lines whose T1 (ヴェノム・ワイアーム) sleeps stay melee.
+        decided = []
+        for line, (turn, recorded_key) in zip(self.lines, anti_melee.RECORDED):
+            _raw, _board, _policy, key, reason = self.decide(line, melee_allowed=True)
+            decided.append((turn, key, reason))
+        self.assertTrue(decided[0][2].startswith(threat_tiers.SENSED_LEAVE_PREFIX), decided)
+        self.assertEqual([(turn, key, reason) for turn, key, reason in decided[1:]],
+                         [(turn, recorded_key, "melee")
+                          for turn, recorded_key in anti_melee.RECORDED[1:len(decided)]], decided)
 
     def test_control_afraid_and_faster_than_the_attackers_flees(self):
         _raw, _board, _policy, key, reason = self.decide(
