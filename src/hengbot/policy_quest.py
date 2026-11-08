@@ -9,7 +9,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -6131,6 +6131,12 @@ class QuestMixin(OpeningRouteMixin):
     def _unique_combat_consumable(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> str | None:
+        """The supplied fight's consumable.  Threat tiers plan step 7 (owner answer 4, OQ-4,
+        D3, D4, D7): where the tiers act, the selected T2 fight's supplies
+        (``threat_tiers.supply_fight_key``); being UNIQUE alone selects nothing there.
+        Elsewhere (quest plan floors) today's supplied unique / kill-quest fight."""
+        if threat_tiers.supply_fight_applies(self, snapshot):
+            return threat_tiers.supply_fight_key(self, snapshot, hostiles)
         player = snapshot.player
         unique_hostiles = [
             monster

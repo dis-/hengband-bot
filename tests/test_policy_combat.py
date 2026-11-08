@@ -8500,6 +8500,13 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         return per_turn * turns
 
     def test_active_quest_target_commits_speed_and_suppresses_lethal_escape(self):
+        # Threat tiers step 7 (DECLARED CONSTRUCTED): this pins today's supplied unique fight,
+        # which the quest plan floors keep; the patched damage stub is not what the tiers read
+        # (they read threat_prediction, by which the target falls to the free attacks: T3), so
+        # the fight is judged where the tiers do not act.
+        tiers_off = patch.object(threat_tiers, "supply_fight_applies", new=lambda *args, **kwargs: False)
+        tiers_off.start()
+        self.addCleanup(tiers_off.stop)
         snapshot, monster, knowledge = self._snapshot(
             hp=528,
             max_hp=528,

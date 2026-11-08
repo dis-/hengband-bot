@@ -112,7 +112,15 @@ class FightSpeedRecordedTest(nav.RecordedDrive):
         self.assertEqual(recorded[combat.BEETLE_TURN], ("melee", "4"))
         policy = combat.d57.new_policy(combat.CASE_083)
         show(policy, rows[0], 10, 20)
-        self.assertEqual((loops.decide(policy, rows[0]), policy.last_reason), (SPEED_KEY, REASON))
+        # Threat tiers step 7: with the absorbed Speed listed the beetle is a selected T2 (a reward
+        # race, T2 by the Speed dose), so the supply fight casts the same absorbed haste first
+        # (D7 「加速を先に」); the 11-04 rung's own cast is pinned with the tiers not acting.
+        self.assertEqual((loops.decide(policy, copy.deepcopy(rows[0])), policy.last_reason),
+                         (SPEED_KEY, "supply-fight:quaff-speed:absorbed-power"))
+        policy = combat.d57.new_policy(combat.CASE_083)
+        show(policy, rows[0], 10, 20)
+        with patch.object(threat_tiers, "acts_here", return_value=False):
+            self.assertEqual((loops.decide(policy, rows[0]), policy.last_reason), (SPEED_KEY, REASON))
 
     def test_failed_cast_retries_under_the_table_rule_then_attacks(self):
         policy, raw, key = self.fight()

@@ -15799,6 +15799,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _committed_unique_fight_viable(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> bool:
+        """Whether a committed supplied fight is still on (it is not fled, nor left by the
+        3-turn lethal).  Where the tiers act it is the selected supply fight of threat tiers
+        plan step 7 (``threat_tiers.committed_supply_fight_viable``); elsewhere today's
+        supplied unique fight."""
+        if threat_tiers.supply_fight_applies(self, snapshot):
+            return threat_tiers.committed_supply_fight_viable(self, snapshot, hostiles)
         race_id = self._unique_combat_committed_race_id
         if race_id is None:
             return False
