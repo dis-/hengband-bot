@@ -378,6 +378,19 @@ class ThreatTiersTest(unittest.TestCase):
 
     # -- telemetry ---------------------------------------------------------------
 
+    def test_the_absorbed_magic_missile_is_a_free_attack(self):
+        # Design 3.3 (OQ-6): normal use of absorbed powers, e.g. the absorbed Magic Missile
+        # (me_ranged_first), is a free attack; with no displayed power row it is scored as
+        # me_ranged_first fires it (optimistic).  The wand type unlearned (-1) or empty (0): none.
+        target = monster(1, DUELIST, 10, 11)
+        eater = board([target], equipment=(), class_id=16)
+        for charges, expected in ((5, True), (None, True), (-1, False), (0, False)):
+            with self.subTest(charges=charges):
+                shown = replace(eater, magic_eater_wand_charges=charges)
+                self.assertEqual(threat_tiers.free_damage(self.policy, shown, target) > 0, expected)
+        warrior = replace(board([target], equipment=()), magic_eater_wand_charges=5)
+        self.assertEqual(threat_tiers.free_damage(self.policy, warrior, target), 0.0)
+
     def test_facts_are_json_shaped_and_empty_without_hostiles(self):
         self.assertEqual(threat_tiers.facts(self.policy, board([])), {})
         facts = threat_tiers.facts(self.policy, board([monster(1, WEAK, 10, 11)]))

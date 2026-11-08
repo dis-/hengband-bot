@@ -274,9 +274,12 @@ class TeleportAwayRecordedTest(d57.PostedDeathKey):
         self.assertEqual(game.accepted, ["m", "B", "d", "4"])
 
     def test_control_without_the_power_the_missile_answers(self):
+        # Threat tiers step 6 (answer 6): without the power listed the beetle is T1 (not even
+        # every supply wins at HP 118/171) and faster than the player, so the flee rung reads
+        # Teleportation where the missile fired (design 3.2: a faster monster is not walked from).
         raw, key, reason = decide_all(self.beetle_policy(listed=False),
                                            copy.deepcopy(CASE_083["boards"]))[-1]
-        self.assertEqual((key, reason), ("mBp4", MISSILE_REASON))
+        self.assertEqual((key, reason), ("rb", "flee:scroll"))
 
     def test_control_a_beatable_beetle_is_fought(self):
         # DECLARED CONSTRUCTED: the beetle is nearly dead (one missile).

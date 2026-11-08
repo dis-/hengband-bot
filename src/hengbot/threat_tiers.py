@@ -37,6 +37,7 @@ from math import ceil
 from hengbot import (
     attack_expectation,
     destruction_use,
+    disenchant_avoid,
     haste_read,
     hunt_target,
     me_capability,
@@ -49,6 +50,7 @@ from hengbot import (
     survival_preemption,
     unseen_strike,
 )
+from hengbot.item_reservation import decision_memo, reserved_item_command
 from hengbot.launcher_damage import launcher_average_damage
 from hengbot.model import (
     SV_POTION_HEALING,
@@ -313,14 +315,29 @@ def _race_flags(policy, target):
     return knowledge.flags if knowledge is not None else None
 
 
+def _missile_ready(policy, snapshot) -> bool:
+    """me_ranged_first's Magic Missile rung would fire (its ``_missile_ready`` without the notes it
+    writes): a Magic-Eater off quest floors, the wand type learned and not seen empty."""
+    observed = snapshot.magic_eater_wand_charges
+    return (me_ranged_first.applies(snapshot) and observed not in (-1, 0)
+            and getattr(policy, "_me_missile_unlearned_floor", None) != snapshot.floor_key
+            and getattr(policy, "_me_missile_empty_turn", None) != snapshot.turn)
+
+
 def _free_devices(policy, snapshot, target) -> float:
     """Absorbed powers' normal use and rods (OQ-6: free attacks)."""
     flags, level, best = _race_flags(policy, target), snapshot.player.level, 0.0
     if me_device_attacks.can_use_powers(snapshot):
+        seen_missile = False
         for power, success in me_device_attacks.usable_powers(policy):
+            seen_missile = seen_missile or (power.kind, power.sval) == me_device_attacks.MISSILE
             if power.group_only or power.shape == "sight":
                 continue
             best = max(best, success * me_device_attacks.expected_damage(power, level, flags))
+        if not seen_missile and _missile_ready(policy, snapshot):
+            # Design 3.3 names the absorbed Magic Missile (me_ranged_first) a free attack; with
+            # no displayed row it is scored as me_ranged_first fires it (optimistic, 100%).
+            best = max(best, me_device_attacks.missile_score(policy, snapshot, target))
     if not _ranged_ready(snapshot):
         return best
     for item in snapshot.inventory:
@@ -499,8 +516,9 @@ class Projection:
     A comparison the bracket does not decide raises ``CostExceeded`` rather than spending the time.
     """
 
-    def __init__(self, policy, snapshot, hostiles, one_turn):
-        self.policy, self.hostiles = policy, hostiles
+    def __init__(self, policy, snapshot, hostiles, one_turn, melee_slots=None, contact=False):
+        self.policy, self.hostiles, self.melee_slots = policy, hostiles, melee_slots
+        self.contact = contact
         self.memo: dict = {}
         self.rows = one_turn["monsters"]
         self.melee_max = [self._melee_max(snapshot, monster, row)
@@ -558,7 +576,8 @@ class Projection:
         key = (id(board), turns, speed)
         if key not in self.memo:
             self.memo[key] = (board, self.policy.threat_prediction(
-                board, self.hostiles, turns, player_speed=speed)["operational_total"])
+                board, self.hostiles, turns, player_speed=speed,
+                melee_slots=self.melee_slots, contact=self.contact)["operational_total"])
         return self.memo[key][1]
 
     def upper_bound(self, turns: int, speed: int) -> int:
@@ -907,11 +926,13 @@ class InstantDeath:
 NEXT_ACTION_P95 = "next-action-p95"
 
 
-def _instant_death(policy, snapshot, hostiles) -> tuple[InstantDeath, dict]:
+def _instant_death(policy, snapshot, hostiles, melee_slots=None,
+                   contact=False) -> tuple[InstantDeath, dict]:
     """3.1 on hostiles already at their adjusted speed; also the 1-turn prediction it read."""
     player = snapshot.player
     hp = player.hp
-    one_turn = policy.threat_prediction(snapshot, hostiles, 1)
+    one_turn = policy.threat_prediction(snapshot, hostiles, 1, melee_slots=melee_slots,
+                                        contact=contact)
     next_action_p95 = one_turn["operational_total"]
     correction = unseen_correction(policy, snapshot, hostiles)
     reasons = []
@@ -959,19 +980,24 @@ def instant_death_key(policy, snapshot, plan_escape=None) -> str | None:
     return policy._emergency_item(snapshot, hostiles, instant_death=True)
 
 
-def assess(policy, snapshot, hostiles=None) -> Assessment:
-    """Classify the engagement on ``snapshot`` (design 3 and 4); pure."""
+def assess(policy, snapshot, hostiles=None, *, melee_slots=None, contact=False) -> Assessment:
+    """Classify the engagement on ``snapshot`` (design 3 and 4); pure.
+
+    ``melee_slots`` counts the melee slots elsewhere than at the player's cell, as
+    ``threat_prediction`` does (the choke's origin, inventory 2.7).  ``contact``: every hostile
+    judged as already beside the player (``threat_prediction(contact=True)``, as the detected-threat
+    tiers judge a far monster "from contact")."""
     memoised = _path_memo(policy)
     if memoised is not None:
         policy._monster_path_distance = memoised
     try:
-        return _assess(policy, snapshot, hostiles)
+        return _assess(policy, snapshot, hostiles, melee_slots, contact)
     finally:
         if memoised is not None:
             del policy._monster_path_distance
 
 
-def _assess(policy, snapshot, hostiles) -> Assessment:
+def _assess(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Assessment:
     if hostiles is None:
         hostiles = engagement(policy, snapshot)
     hostiles = [_with_adjusted_speed(monster) for monster in hostiles]
@@ -982,14 +1008,14 @@ def _assess(policy, snapshot, hostiles) -> Assessment:
     hp, max_hp = player.hp, max(1, player.max_hp)
 
     # 3.1 即死
-    death, one_turn = _instant_death(policy, snapshot, hostiles)
+    death, one_turn = _instant_death(policy, snapshot, hostiles, melee_slots, contact)
     result.next_action_p95 = death.next_action_p95
     result.unseen_correction = death.unseen_correction
     result.instant_death = death.holds
     result.instant_death_reasons = death.reasons
 
     # 3.2-3.4 the tier
-    projection = Projection(policy, snapshot, hostiles, one_turn)
+    projection = Projection(policy, snapshot, hostiles, one_turn, melee_slots, contact)
     result.free_damage = {monster.index: free_damage(policy, snapshot, monster)
                           for monster in hostiles}
 
@@ -1007,7 +1033,8 @@ def _assess(policy, snapshot, hostiles) -> Assessment:
     quest_races = _quest_races(policy, snapshot)
     hunted = hunt_target.target_race(policy, snapshot)
     rows = {row_monster.index: row for row_monster, row in zip(
-        hostiles, policy.threat_prediction(snapshot, hostiles, 3)["monsters"])}
+        hostiles, policy.threat_prediction(snapshot, hostiles, 3, melee_slots=melee_slots,
+                                           contact=contact)["monsters"])}
     for monster in hostiles:
         entry = MonsterAssessment(index=monster.index, race_id=monster.race_id,
                                   name=monster.name, speed=monster.speed,
@@ -1031,6 +1058,364 @@ def _assess(policy, snapshot, hostiles) -> Assessment:
                            or (hunted is not None and monster.race_id == hunted)))
         result.per_monster[monster.index] = entry
     return result
+
+
+# ---------------------------------------------------------------- acting on the tiers (steps 6-8)
+
+def acts_here(policy, snapshot) -> bool:
+    """Where the tiers act: a dungeon floor of the shared ladder.
+
+    Not in town, a store, the arena or the wilderness (outside the design, as ``facts``), and not
+    on a floor an approved quest strategy runs: inside a quest plan the plan's action goes first and
+    only 即死 pre-empts it (answer 11, 2.5), so there every judgement keeps today's meaning (Q2's
+    ``_q2_encounter_key`` reads ``_should_flee`` as today, inventory 2.7)."""
+    return (snapshot.dungeon_level > 0 and not snapshot.in_town and snapshot.store is None
+            and not snapshot.inside_arena
+            and policy.approved_quest_strategy(snapshot.floor_key[2]) is None)
+
+
+def tiered(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Assessment:
+    """``assess`` memoised for the decision (one assessment per hostile set and slot count)."""
+    key = (tuple(monster.index for monster in hostiles), melee_slots, contact)
+    return decision_memo(policy, "threat_tiers.assess", snapshot, key,
+                         lambda: assess(policy, snapshot, hostiles, melee_slots=melee_slots,
+                                        contact=contact))
+
+
+def leave_decided_here(policy, snapshot) -> bool:
+    """Where the tiers decide leaving: ``acts_here``, and not a floor that leaving fails the
+    quest (a fixed quest, or a taken kill quest whose exit is locked,
+    ``_floor_navigation_exit_locked``): there the quest's own rules decide (design 3.2 「On a
+    quest floor where leaving fails the quest the plan decides」; the random quest's give-up)."""
+    return acts_here(policy, snapshot) and not policy._floor_navigation_exit_locked(snapshot)
+
+
+def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
+    """Plan step 6 (answer 6, 3.2, 3.4): whether the tiers say leave this engagement.
+
+    True: T1 (「物資を全て使っても倒しきれない」), or T2 with no selected target (answer 4: only the
+    quest target, the hunted guardian, a monster the player cannot escape and the reward races
+    are fought with supplies).  False: T2 with a selected target, which is not left.  None: the
+    tiers do not decide here (T3, the tier past the cost cap, ``leave_decided_here`` false), and
+    the caller keeps today's judgement."""
+    if not hostiles or not leave_decided_here(policy, snapshot):
+        return None
+    if any(disenchant_avoid.exposes_gear(policy, snapshot, monster) for monster in hostiles):
+        # OQ-3 「全部 11-05 のとおり」: an engagement with an unresisted disenchanter is the 11-05
+        # rule's (it keeps away, and fights one striking from beside the player).
+        return None
+    result = tiered(policy, snapshot, hostiles, melee_slots)
+    if result.tier == T1:
+        return True
+    if result.tier == T2:
+        return not result.selected
+    return None
+
+
+def walk_leaves(policy, snapshot, hostiles) -> bool:
+    """Design 3.2's leave: 「walk while the monster is not faster and no ranged contact; else
+    stairs / *Destruction* / Teleport / Recall in today's order」.  False when an awake hostile
+    that can come to the player is faster (``speed + 10*fast - 10*slow`` against the player's
+    speed) or one deals ranged damage before the player's next action."""
+    speed = snapshot.player.speed
+    awake = [monster for monster in hostiles if not monster.asleep]
+    if any(adjusted_speed(monster) > speed and policy._monster_can_approach(snapshot, monster)
+           for monster in awake):
+        return False
+    rows = policy.threat_prediction(
+        snapshot, [_with_adjusted_speed(monster) for monster in awake], 1)["monsters"] if awake else []
+    return not any(row.get("operational_ranged_prediction", 0) > 0 for row in rows)
+
+
+SENSED_LEAVE_PREFIX = "sensed-t1:"
+
+
+def sensing_distance(snapshot, monster) -> int:
+    """The game's ``cdis`` (monster-update.cpp:193-204): max(dy, dx) + min(dy, dx) / 2, at least 1."""
+    here, there = snapshot.player.position, monster.position
+    dy, dx = abs(here.y - there.y), abs(here.x - there.x)
+    return max(1, max(dy, dx) + min(dy, dx) // 2)
+
+
+def inside_sensing(policy, snapshot, monster) -> bool:
+    """The player stands inside the monster's sensing radius (``vision``, monrace.aaf): there it
+    acts toward the player whatever the line of sight (monster-processor.cpp:708-710)."""
+    knowledge = policy._monrace_knowledge.get(monster.race_id)
+    return knowledge is not None and sensing_distance(snapshot, monster) <= knowledge.vision
+
+
+def sensed_t1_leave_key(policy, snapshot) -> str | None:
+    """Owner 2026-11-08 (question 「感知で、起きている強い敵（倒しきれない段階の敵）が見えている時に
+    休みますか？」, answer 「その敵の感知範囲内なら早急に離脱する」): an awake hostile, in view or
+    detected, that is T1 on its own, with the player inside its sensing radius: leave now by step
+    6's leave, never rest there.  The order is design 3.2's for a faster monster or one reaching at
+    range: stairs underfoot, *Destruction*, a relocation scroll, Word of Recall; a walk only while
+    no awake hostile is faster and none reaches at range.  Outside the radius nothing changes.
+    Where the tiers do not decide leaving (``leave_decided_here``: quest plans keep their order,
+    only 即死 pre-empts it; a floor that leaving fails the quest; town) it does not apply."""
+    if not leave_decided_here(policy, snapshot):
+        return None
+    hostiles = engagement(policy, snapshot)
+    sensing = [monster for monster in hostiles
+               if not monster.asleep and inside_sensing(policy, snapshot, monster)]
+    # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
+    # would otherwise read T3 only because it has not come yet).
+    strong = [monster for monster in sensing
+              if tiered(policy, snapshot, [monster], contact=True).tier == T1]
+    if not strong:
+        return None
+    stairs = policy._escape_by_stairs(snapshot)
+    if stairs is not None:
+        policy.last_reason = SENSED_LEAVE_PREFIX + "stairs"
+        return stairs
+    used = destruction_use.key(policy, snapshot)
+    if used is not None:
+        return used
+    scroll = policy._escape_scroll(snapshot)
+    if scroll is not None:
+        policy.last_reason = SENSED_LEAVE_PREFIX + (
+            "teleport" if scroll.is_teleport_scroll else "phase")
+        return policy._read_key(snapshot, scroll)
+    if not snapshot.player.recalling and not (snapshot.player.blind or snapshot.player.confused):
+        recall = next((item for item in snapshot.inventory if item.is_recall_scroll), None)
+        if recall is not None and policy._can_read_scrolls(snapshot):
+            policy.last_reason = SENSED_LEAVE_PREFIX + "recall"
+            return policy._read_key(snapshot, recall)
+    if walk_leaves(policy, snapshot, hostiles):
+        step = policy._flee_step(snapshot, hostiles)
+        if step is not None:
+            policy.last_reason = SENSED_LEAVE_PREFIX + "walk"
+            return policy._step_toward(snapshot, step)
+    return None
+
+
+def tier_of(policy, snapshot, hostiles) -> str | None:
+    """The engagement's tier where the tiers act, else None."""
+    if not hostiles or not acts_here(policy, snapshot):
+        return None
+    return tiered(policy, snapshot, hostiles).tier
+
+
+# The selected supply fight (plan step 7, 3.4, D3, D4, D7): the reasons it answers with.
+SUPPLY_SPEED_REASON = "supply-fight:quaff-speed"
+SUPPLY_HEAL_REASON = "supply-fight:quaff-healing"
+SUPPLY_RESIST_REASON = "supply-fight:quaff-resistance"
+SUPPLY_AMMO_REASON = "supply-fight:fire-good-ammo"
+SUPPLY_WAND_REASON = "supply-fight:aim-wand"
+SUPPLY_STAFF_REASON = "supply-fight:use-staff"
+SUPPLY_SCROLL_REASON = "supply-fight:read-attack-scroll"
+# The cheapest healing potion first (each credited as in the projection).
+HEAL_ORDER = (SV_POTION_HEALING, SV_POTION_STAR_HEALING, SV_POTION_LIFE)
+
+
+def supply_fight_applies(policy, snapshot) -> bool:
+    """Where the selected supply fight replaces today's supplied unique fight (step 7): the
+    tiers' floors (``acts_here``); elsewhere the unique fight stays as it is."""
+    return acts_here(policy, snapshot)
+
+
+def _fight_target(policy, hostiles, result):
+    """The selected monster the fight is for: the committed race while it is in view, else the
+    nearest selected one."""
+    selected = [monster for monster in hostiles if monster.index in result.selected]
+    committed = policy._unique_combat_committed_race_id
+    for monster in selected:
+        if monster.race_id == committed:
+            return monster
+    return min(selected, key=lambda monster: (monster.distance, monster.index), default=None)
+
+
+def supply_fight_stopped(snapshot, hostiles, target) -> bool:
+    """D4: today's stop conditions of the committed unique fight: the player afraid, blind,
+    confused or paralysed, a breeder in view, or another summoner in view."""
+    player = snapshot.player
+    return bool(
+        player.afraid or player.blind or player.confused or player.paralyzed
+        or any(monster.can_multiply for monster in hostiles)
+        or any(monster.can_summon and monster.index != target.index for monster in hostiles))
+
+
+def ranged_plan(policy, snapshot, result, target) -> bool:
+    """D4 「the adjacency requirement is dropped for ranged plans」: the plan spends an attack
+    supply (good ammo, charges, scrolls), or its free attack on the target is not melee."""
+    plan = result.supply_plan
+    if plan is not None and (plan.good_ammo or plan.charges or plan.scrolls):
+        return True
+    free = result.free_damage.get(target.index, 0.0)
+    return free > 0 and free > attack_expectation.melee(policy, snapshot, target)
+
+
+def committed_supply_fight_viable(policy, snapshot, hostiles) -> bool:
+    """Plan step 7 (3.4, OQ-2, D4): a committed selected fight is not left while the projection
+    with the remaining supplies still wins (T2, or T3: it wins with none), its target is still
+    selected and in reach of the plan, and none of today's stop conditions holds.  Only the
+    1-turn 即死 aborts it otherwise (``_emergency_item``'s ``lethal``)."""
+    race = policy._unique_combat_committed_race_id
+    if race is None:
+        return False
+    targets = [monster for monster in hostiles if monster.race_id == race]
+    if len(targets) != 1 or supply_fight_stopped(snapshot, hostiles, targets[0]):
+        return False
+    target = targets[0]
+    result = tiered(policy, snapshot, hostiles)
+    if result.tier not in (T2, T3) or target.index not in result.selected:
+        return False
+    return target.distance <= 1 or ranged_plan(policy, snapshot, result, target)
+
+
+def _aim(policy, snapshot, target) -> str | None:
+    """A direction key that reaches ``target``: beside it, or on a clear ray (``_ranged_target``)."""
+    if target.distance <= 1 or policy._ranged_target(snapshot, [target]) is target:
+        return policy._direction_key(snapshot.player.position, target.position)
+    return None
+
+
+def _spend(policy, snapshot, target, verb, item, reason, suffix=""):
+    key = reserved_item_command(policy, snapshot, verb, item, suffix=suffix)
+    if key is not None:
+        policy.last_reason = reason
+        policy._unique_combat_committed_race_id = target.race_id
+    return key
+
+
+def _heal_key(policy, snapshot, result, target):
+    """Today's rule of the supplied fight (``_unique_combat_consumable``): drink when HP is
+    missing and the next action could breach the reserve, or three quarters of the dose are
+    missing; only a dose that out-heals the next action (the projection's credit)."""
+    player, plan = snapshot.player, result.supply_plan
+    missing = player.max_hp - player.hp
+    if missing <= 0:
+        return None
+    for sval in HEAL_ORDER:
+        potion = policy._find_exact_potion(snapshot, sval)
+        amount = min(HEAL_AMOUNTS[sval], player.max_hp)
+        if potion is None or amount <= result.next_action_p95:
+            continue
+        if result.next_action_p95 >= player.hp - plan.reserve or missing * 4 >= amount * 3:
+            return _spend(policy, snapshot, target, "quaff", potion, SUPPLY_HEAL_REASON)
+        return None
+    return None
+
+
+def _resistance_key(policy, snapshot, target):
+    if _resistance_after(snapshot) is None:
+        return None
+    for sval in (SV_POTION_RESISTANCE, SV_POTION_RESIST_HEAT, SV_POTION_RESIST_COLD):
+        potion = policy._find_exact_potion(snapshot, sval)
+        if potion is not None:
+            return _spend(policy, snapshot, target, "quaff", potion, SUPPLY_RESIST_REASON)
+    return None
+
+
+def _good_ammo_key(policy, snapshot, result, target):
+    launcher = policy._equipped_launcher(snapshot)
+    if launcher is None or not _ranged_ready(snapshot):
+        return None
+    direction = _aim(policy, snapshot, target)
+    if direction is None:
+        return None
+    free = result.free_damage.get(target.index, 0.0)
+    for good, damage, number in (
+            (good, damage, number) for number, (good, damage, _rounds)
+            in enumerate(_launcher_stacks(policy, snapshot, target))):
+        if good and damage > free:
+            stacks = [item for item in snapshot.inventory
+                      if item.tval == launcher.ammo_tval and item.count > 0]
+            return _spend(policy, snapshot, target, "fire", stacks[number], SUPPLY_AMMO_REASON,
+                          direction)
+    return None
+
+
+def _charge_key(policy, snapshot, result, target):
+    if not _ranged_ready(snapshot) or snapshot.inside_arena:
+        return None
+    flags, level = _race_flags(policy, target), snapshot.player.level
+    free = result.free_damage.get(target.index, 0.0)
+    direction = _aim(policy, snapshot, target)
+    best = None
+    for item in snapshot.inventory:
+        kind = "wand" if item.tval == TVAL_WAND else "staff" if item.tval == TVAL_STAFF else None
+        if kind is None or not item.known or item.charges <= 0 or item.charging:
+            continue
+        power = me_device_attacks.POWERS.get((kind, item.sval))
+        if power is None or power.group_only or (kind == "wand" and direction is None):
+            continue
+        damage = (attack_expectation.device_use_success(snapshot.player.device_skill, power.level)
+                  * me_device_attacks.expected_damage(power, level, flags))
+        if damage > free and (best is None or damage > best[0]):
+            best = (damage, kind, item)
+    if best is None:
+        return None
+    _damage, kind, item = best
+    if kind == "wand":
+        return _spend(policy, snapshot, target, "wand", item, SUPPLY_WAND_REASON, direction)
+    return _spend(policy, snapshot, target, "staff", item, SUPPLY_STAFF_REASON)
+
+
+def _scroll_key(policy, snapshot, result, target):
+    reads = _scroll_reads(snapshot)
+    free = result.free_damage.get(target.index, 0.0)
+    if not reads or scroll_damage_at(reads[0], target.distance) <= free:
+        return None
+    sval = next(sval for sval, scroll in ATTACK_SCROLLS.items() if scroll == reads[0])
+    item = next((item for item in snapshot.inventory
+                 if item.tval == TVAL_SCROLL and item.sval == sval and item.aware), None)
+    if item is None:
+        return None
+    key = policy._read_key(snapshot, item)
+    if key is not None:
+        policy.last_reason = SUPPLY_SCROLL_REASON
+        policy._unique_combat_committed_race_id = target.race_id
+    return key
+
+
+def supply_fight_key(policy, snapshot, hostiles) -> str | None:
+    """Plan step 7: spend the supplies of a selected T2 fight (answer 4, 3.4, D7).
+
+    The engagement is T2 and holds a selected target (the active quest's target, the hunted
+    guardian (D3), a monster the player cannot escape, a reward race; being UNIQUE alone is not
+    one, OQ-4).  The cheapest winning plan (the shortest prefix of the owner's order 「加速を
+    先に」 against the reserve max(10% max HP, the next-action p95), ``assess``) is spent: Speed
+    first; Healing when today's supplied-fight rule says the dose is due; the planned
+    resistance while its opposition is not on; then the attack supplies in the owner's order,
+    good ammo, wand / staff charges, attack scrolls, each only where it out-damages the free
+    attack.  A melee plan needs the target beside the player; a ranged plan does not (D4).  The
+    fight is committed on the first supply spent (``_committed_unique_fight_viable``)."""
+    if not hostiles:
+        return None
+    committed = policy._unique_combat_committed_race_id
+    if committed is not None and not any(monster.race_id == committed for monster in hostiles):
+        policy._unique_combat_committed_race_id = committed = None
+    if committed is None and getattr(policy, "_returning_to_town", False):
+        # The floor is being left (a latched return: the escape it reads is no fight to stay
+        # for).  No new supply fight opens then; the design is silent here, and the acceptance
+        # is that no escape becomes a stay (n1-c life-083's return:recall beside an ogre).
+        return None
+    result = tiered(policy, snapshot, hostiles)
+    if result.tier != T2 or result.supply_plan is None:
+        return None
+    target = _fight_target(policy, hostiles, result)
+    if target is None or supply_fight_stopped(snapshot, hostiles, target):
+        return None
+    if target.distance > 1 and not ranged_plan(policy, snapshot, result, target):
+        return None
+    plan = result.supply_plan
+    if plan.speed_doses > 0 and not _hasted(policy, snapshot):
+        key = speed_dose.key(policy, snapshot, SUPPLY_SPEED_REASON)
+        if key is not None:
+            policy._unique_combat_committed_race_id = target.race_id
+            return key
+    if plan.heals and (key := _heal_key(policy, snapshot, result, target)) is not None:
+        return key
+    if plan.resistance and (key := _resistance_key(policy, snapshot, target)) is not None:
+        return key
+    if plan.good_ammo and (key := _good_ammo_key(policy, snapshot, result, target)) is not None:
+        return key
+    if plan.charges and (key := _charge_key(policy, snapshot, result, target)) is not None:
+        return key
+    if plan.scrolls and (key := _scroll_key(policy, snapshot, result, target)) is not None:
+        return key
+    return None
 
 
 def facts(policy, snapshot) -> dict:
