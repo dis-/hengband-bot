@@ -3456,7 +3456,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "monster_ranged_evaluator.py:_attribute_rates": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "monster_ranged_evaluator.py:_castable_abilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:_layered_rate": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3478,6 +3492,20 @@
     "delegation": "selected child; no independent success"
   },
   "monster_ranged_evaluator.py:ability_selection_probabilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:maximum_ability_base_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:maximum_ability_hp_damage": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3561,6 +3589,69 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "oneshot_breath.py:_attacks": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "oneshot_breath.py:_drink": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "oneshot_breath.py:_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "oneshot_breath.py:_lasting_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "oneshot_breath.py:_leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "oneshot_breath.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "oneshot_breath.py:known": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "oneshot_breath.py:largest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "oneshot_breath.py:opposed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._active_dungeon_target": {
     "classification": "data",
