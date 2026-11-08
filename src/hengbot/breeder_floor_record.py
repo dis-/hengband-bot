@@ -30,6 +30,7 @@ _ENGAGEMENT_FIELDS = (
     "_breeder_engagement_last_turn",
     "_breeder_engagement_race",
     "_breeder_engagement_killed",
+    "_breeder_attack_sent",
 )
 
 
@@ -57,7 +58,7 @@ def _restore(policy, snapshot, path) -> None:
         engagement = carried["engagement"]
         if engagement is not None:
             # A record written before the race field counts every breeder.
-            count, start_turn, actions, last_turn, race, killed = (
+            count, start_turn, actions, last_turn, race, killed, sent = (
                 None if value is None else int(value)
                 for value in (*engagement, None, None)[:len(_ENGAGEMENT_FIELDS)]
             )
@@ -77,6 +78,7 @@ def _restore(policy, snapshot, path) -> None:
         policy._breeder_engagement_last_turn = last_turn
         policy._breeder_engagement_race = race
         policy._breeder_engagement_killed = bool(killed)
+        policy._breeder_attack_sent = bool(sent)
 
 
 def carry(policy, snapshot, first_board: bool) -> None:

@@ -148,6 +148,8 @@ class Q2LatchedFloorRecordedTest(swarm.PostedSwarmKey):
         policy._breeder_engagement_start_turn = first["turn"] - 190
         policy._breeder_engagement_actions = 19
         policy._breeder_engagement_last_turn = first["turn"] - 10
+        # Owner 2026-11-08 「実際に攻撃した手だけで数える」: the action before ``first`` shot at them.
+        policy._breeder_attack_sent = True
         self.assertEqual(loops.decide(policy, first), "fj6")
         self.assertEqual(policy._breeder_breakthrough_floor, QUEST_FLOOR)
         self.assertEqual((loops.decide(policy, second), policy.last_reason),

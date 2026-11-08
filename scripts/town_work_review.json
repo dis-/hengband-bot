@@ -15864,5 +15864,71 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "breeder_area_attack.py:_means": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The usable attack means of breeder_area_attack (absorbed powers through me_device_attacks.device_key / device_target_key, carried wands/rods/staffs and the Dispel Undead scroll through _use); builds senders only, sends nothing itself; called by key, line_of_fire_key and the test probes; no independent progress."
+  },
+  "breeder_area_attack.py:_mass_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-08 「範囲攻撃は一番多く倒せるマスを狙い、2体以上巻き込めるなら単体攻撃より先に使う」: among the aims of _options that catch two or more visible hostile breeders, the one with the most expected kills (falloff and HP estimate, _tally) is sent through its sender (device_key / device_target_key / _use); None otherwise. Called only by key and line_of_fire_key; no independent progress."
+  },
+  "breeder_area_attack.py:line_of_fire_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-08 「射線にいれば範囲で撃つ」: with a visible hostile breeder in the line of fire and no more dangerous hostile acting, _mass_key, else the caller's one-target sender at the nearest breeder; None otherwise. Called only by quest25_battle._breeders_in_line_key; no independent progress."
+  },
+  "quest25_battle.py:_act": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "The running phase's own step (phase.act); where it holds or walks (or has none), _breeders_in_line_key first (owner 2026-11-08 「どの段でも…射線にいる増える敵を撃つ」). Called only by _phase_key; no independent progress."
+  },
+  "quest25_battle.py:_breeders_in_line_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "Owner 2026-11-08 「射線にいれば範囲で撃つ」: breeder_area_attack.line_of_fire_key with _fire_at as the one-target answer; records the aimed race. Called only by _act and _masses; no independent progress."
+  },
+  "quest25_battle.py:_breeders_in_line_key.single": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "The one-target sender of _breeders_in_line_key: _fire_at at the breeder's grid. Called only through line_of_fire_key; no independent progress."
   }
 }

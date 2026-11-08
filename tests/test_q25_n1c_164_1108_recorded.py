@@ -22,9 +22,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import breeder_stalemate, quest25_geometry as geo
+from hengbot import breeder_stalemate, quest25_battle as battle, quest25_geometry as geo
 from hengbot.model import _parse_items, parse_snapshot
-from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
+from hengbot.quest_find_exit import MELEE_REASON
 from tests import test_q25_haunted_house as q25
 
 
@@ -90,8 +90,11 @@ class Q25MassNoRecallTest(unittest.TestCase):
                          [("4", MELEE_REASON), ("1", MELEE_REASON)])
 
     def test_the_recall_board_answers_with_the_plan(self):
-        # The recording held on every board around it; the plan's key, not Word of Recall.
-        self.assertEqual(answer(RECALL)[:2], ("5", HOLD_REASON))
+        # The recording held on every board around it; the plan's key, not Word of Recall.  Owner
+        # 2026-11-08 「射線にいれば範囲で撃つ」: the plan now shoots the masses in its line of fire
+        # instead of holding (quest25_battle._breeders_in_line_key; no absorbed list on these boards,
+        # so the crossbow at the nearest one, two grids west).
+        self.assertEqual(answer(RECALL)[:2], ("fp*p44t5", battle.SHOT_REASON))
 
     def test_no_board_latches_the_floor_or_reads_recall(self):
         for raw, row in zip(CASE["boards"], CASE["recorded"]):

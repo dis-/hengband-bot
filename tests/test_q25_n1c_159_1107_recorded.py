@@ -125,7 +125,9 @@ class Q25MassBesideTest(unittest.TestCase):
                 key = choose(policy, self.raw)
                 self.assertEqual((key, policy.last_reason), (WEST, MELEE_REASON))
 
-    def test_a_mass_farther_off_is_still_left_alone(self):
+    def test_a_mass_farther_off_in_the_line_of_fire_is_shot(self):
+        # Owner 2026-11-08 「射線にいれば範囲で撃つ」 replaces 「離れた塊は今のまま相手にしない」:
+        # 「どの段でも、もっと危ない敵が動いていなければ、射線にいる増える敵を撃つ。」
         raw = copy.deepcopy(self.raw)
         raw["visible_monsters"] = [m for m in raw["visible_monsters"] if (m["y"], m["x"]) != (1, 17)]
         self.assertEqual(beside(raw), [])
@@ -133,8 +135,8 @@ class Q25MassBesideTest(unittest.TestCase):
         at_phase(policy, raw, "dreadmaster", style="melee")   # CONSTRUCTED memory
         policy._player_hasted = lambda snapshot: True
         key = choose(policy, raw)
-        self.assertNotEqual(policy.last_reason, MELEE_REASON, key)
-        self.assertNotIn(battle.SHOT_REASON, policy.last_reason or "")
+        self.assertEqual(policy.last_reason, battle.SHOT_REASON, key)
+        self.assertEqual(phase_of(policy, raw), "dreadmaster")
 
     def test_the_recorded_ambush_hold_beside_the_mass_strikes_it(self):
         # The replay itself (no memory set): the recording held on [1,18] in the ambush from 384

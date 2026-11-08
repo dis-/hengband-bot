@@ -492,6 +492,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "breeder_area_attack.py:_mass_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "breeder_area_attack.py:_means": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "breeder_area_attack.py:_options": {
     "classification": "producer",
     "rows": [
@@ -514,6 +528,13 @@
     "delegation": "selected child; no independent success"
   },
   "breeder_area_attack.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "breeder_area_attack.py:line_of_fire_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -9668,6 +9689,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_battle.py:_act": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_adjacent_mass_key": {
     "classification": "producer",
     "rows": [
@@ -9688,6 +9716,20 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_breeders_in_line_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_breeders_in_line_key.single": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest25_battle.py:_carried_grid_key": {
     "classification": "producer",
