@@ -20,7 +20,7 @@ from hengbot.model import (
     SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_WAND_TELEPORT_AWAY,
     SV_POTION_HEALING, SV_POTION_SPEED, TVAL_ARROW, TVAL_BOLT,
     TVAL_DIGGING, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL,
-    TVAL_SHOT, TVAL_STAFF, TVAL_WAND,
+    TVAL_SHOT, TVAL_STAFF, TVAL_WAND, DUNGEON_YEEK_CAVE,
     InventoryItem, MonsterState, Position, Snapshot, StoreItem,
 )
 from hengbot.policy_constants import (
@@ -1972,9 +1972,44 @@ class SupplyMixin:
             and not player.blind and not player.confused and self._can_read_scrolls(snapshot)
         ):
             self.last_reason = "wilderness:recall"
-            return self._read_key(snapshot, recall)
+            return self._read_key(
+                snapshot, recall, self._wilderness_recall_selection(snapshot) or "")
         self.last_reason = "wilderness:enter-global"
         return UP_STAIRS_KEY
+
+    def _wilderness_recall_selection(self, snapshot: Snapshot) -> str | None:
+        """The choose_dungeon letter a wilderness Recall read answers.
+
+        On the surface spells-world.cpp recall_player asks which dungeon to
+        recall *to*; world-movement-processor.cpp execute_recall then lands
+        the player on that dungeon's recall floor.  The established
+        destination answers when it is safe (D22).  When its landing fails
+        the depth gates, the departure read point's rule applies: the safe
+        fallback landing (``_activate_safe_recall_fallback``, the shallowest
+        entered dungeon below the refused landing).  With no such landing the
+        owner's no-safe-destination place answers (USER DECISION 2026-10-02
+        「帰還先が全部条件不足の時は止めず ... イークの洞穴へ」): the Yeek cave,
+        when entered and its own landing passes the same gates.
+        n1-c life-166 2026-11-08 09:35: on the Zul trip the levitation ring
+        and the mining shovels had replaced the resist-chaos ring and
+        Gungnir, Angband 80 and every fallback failed their gates, the read
+        carried no letter and the executor cancelled the chooser three times
+        (stuck-prompt:wilderness:recall).  None leaves that named stop.
+        """
+        letter = self._surface_recall_selection(snapshot)
+        if letter is not None:
+            return letter
+        destination, dungeon_id = self._town_recall_destination(
+            snapshot, guardian_gate=False, safety_gate=False)
+        if destination is not None:
+            depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
+            fallback = self._activate_safe_recall_fallback(snapshot, depth)
+            if fallback is not None:
+                return self._recall_selection_key(snapshot, fallback)
+        if (DUNGEON_YEEK_CAVE in (snapshot.entered_dungeon_ids or ())
+                and self._recall_destination_safe(snapshot, DUNGEON_YEEK_CAVE)):
+            return self._recall_selection_key(snapshot, DUNGEON_YEEK_CAVE)
+        return None
 
     def _unseen_reverse_choke_step(self, snapshot: Snapshot) -> Position | None:
         origin = snapshot.player.position

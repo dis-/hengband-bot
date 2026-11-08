@@ -15952,5 +15952,27 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
     "evidence": "The one-target sender of _breeders_in_line_key: _fire_at at the breeder's grid. Called only through line_of_fire_key; no independent progress."
+  },
+  "policy_supply.py:SupplyMixin._wilderness_recall_selection": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "adapter",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "delegation": "selected child; no independent success",
+    "evidence": "n1-c life-166 2026-11-08 (stuck-prompt:wilderness:recall): returns the choose_dungeon letter the wilderness:recall read of _wilderness_survival_key carries -- the established destination (_surface_recall_selection), else the safe fallback landing (_activate_safe_recall_fallback, as at the departure read point), else the Yeek cave when its landing passes the same gates (USER DECISION 2026-10-02 no-safe-destination place); None leaves the D22 cancel and named stop. Selected child inherits work; no independent effect credit.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "survival"
+    ]
+  },
+  "policy.py:HengbotPolicy._activate_safe_recall_fallback": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "data",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "delegation": "selected child; no independent success",
+    "evidence": "Selects the shallowest entered dungeon below an unsafe recall landing (_pick_alternate_dungeon) and records it as the alternate/target dungeon (safe_fallback or guardian_valve); returns a dungeon ID or None. Called by the departure recall read point, the guardian bounce switch and the wilderness recall selection; issues no command and grants no independent progress.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "data/no-independent-credit"
+    ]
   }
 }
