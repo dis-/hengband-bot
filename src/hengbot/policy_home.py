@@ -2897,6 +2897,14 @@ class HomeMixin:
         kept = [(next(i for i in snapshot.inventory if i.slot == slot), count)
                 for slot, count in plan.reservations]
         weight = self._inventory_weight(snapshot)
+        if not for_retention and not self._inventory_overweight(snapshot):
+            # The fit the weight relief keeps (the retention branch below):
+            # the ordinary surplus it would shed before any ammunition does
+            # not crowd the rounds out.  An overweight pack sheds first and
+            # asks again.  n1-b life-354 2026-11-09: an unreserved second
+            # breach digger (200) held the Home bolts at Home (1645/1700,
+            # take of 18), and the Q2 carry of 99 never filled.
+            weight -= self._ordinary_weight_relief_surplus(snapshot)
         if for_retention:
             # Ordinary retention surplus goes first; ammunition clears only
             # the residual overload, rather than displacing the other excess.
@@ -2926,6 +2934,33 @@ class HomeMixin:
             return AMMO_CARRY_TARGET
         return min(AMMO_CARRY_TARGET, count + max(0, room) // unit_weight)
 
+    def _ordinary_weight_relief_surplus(self, snapshot: Snapshot) -> int:
+        """Weight of the non-ammunition surplus the weight relief deposits first.
+
+        The deposit candidates of ``_weight_deposit_candidates`` without
+        ammunition, as if the pack were over the limit (the procurement fit
+        asks what an added round would make the relief shed).  A nested ask
+        from inside that selection answers 0.
+        """
+        if getattr(self, "_ordinary_weight_relief_surplus_active", False):
+            return 0
+        return reservation_query_memo(
+            self, "ordinary-weight-relief-surplus", snapshot, None,
+            lambda: self._compute_ordinary_weight_relief_surplus(snapshot))
+
+    def _compute_ordinary_weight_relief_surplus(self, snapshot: Snapshot) -> int:
+        """Sum the surplus weight on a memo miss (the nested-ask guard set)."""
+        self._ordinary_weight_relief_surplus_active = True
+        try:
+            return sum(
+                max(0, item.weight) * self._retention_surplus(snapshot, item)
+                for item in self._weight_relief_selection(
+                    snapshot, include_ammo=False, plan=False,
+                    assume_overweight=True).deposits
+            )
+        finally:
+            self._ordinary_weight_relief_surplus_active = False
+
     def _identify_staff_take_overloads(self, snapshot: Snapshot, item, quantity: int = 1) -> bool:
         """An Identify staff Home take that would put the pack over the limit."""
         return (item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY
@@ -2949,11 +2984,12 @@ class HomeMixin:
         return current_weight + added_weight <= limit
 
     def _weight_deposit_candidates(
-        self, snapshot: Snapshot, *, include_ammo: bool = True
+        self, snapshot: Snapshot, *, include_ammo: bool = True,
+        assume_overweight: bool = False,
     ) -> list[InventoryItem]:
         if (
             self._equipment_mutation.state.name != "IDLE"
-            or not self._inventory_overweight(snapshot)
+            or not (assume_overweight or self._inventory_overweight(snapshot))
         ):
             return []
 
@@ -3000,6 +3036,13 @@ class HomeMixin:
                 and self._quest_carry_target_for_item(
                     snapshot, item, strategy.required_force
                 ) is not None
+                # The carry keeps what its retention reserves for it (the
+                # ``carry-strategy`` branch, same strategy); a copy beyond the
+                # required count is surplus.  n1-b life-354 2026-11-09: the
+                # second breach digger (Q2 wall_breach 1, reserved 0) stayed
+                # while the weight relief shed the Q2 bolts instead.
+                and str(self._retention_reservation_detail(snapshot, item)[1]
+                        or "").startswith("carry-strategy:")
             ):
                 categories.update(
                     category
@@ -3057,20 +3100,24 @@ class HomeMixin:
 
     def _weight_relief_selection(
         self, snapshot: Snapshot, *, include_ammo: bool = True, plan: bool = True,
+        assume_overweight: bool = False,
     ) -> WeightRelief:
         """Select what every town site sheds to get under the weight limit.
 
         ``plan=False`` returns only the Home deposit order (the retention
         callers need no route).  The sale/destroy order is the Home-full one.
+        ``assume_overweight`` (with ``plan=False``) asks what the relief
+        would deposit once an addition put the pack over the limit.
         """
         limit = self._inventory_weight_limit(snapshot)
         weight = self._inventory_weight(snapshot)
         excess = 0 if limit is None else weight - limit
         # The overweight test is the one the deposit candidates own.
-        if not self._inventory_overweight(snapshot):
+        if not (assume_overweight and not plan) and not self._inventory_overweight(snapshot):
             return WeightRelief(weight, limit, 0, (), (), False, "none", ())
         deposits = tuple(self._weight_deposit_candidates(
-            snapshot, include_ammo=include_ammo))
+            snapshot, include_ammo=include_ammo,
+            assume_overweight=assume_overweight and not plan))
         if not plan:
             return WeightRelief(weight, limit, excess, deposits, (), False,
                                 "unplanned", ())
