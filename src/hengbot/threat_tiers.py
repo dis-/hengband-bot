@@ -313,14 +313,29 @@ def _race_flags(policy, target):
     return knowledge.flags if knowledge is not None else None
 
 
+def _missile_ready(policy, snapshot) -> bool:
+    """me_ranged_first's Magic Missile rung would fire (its ``_missile_ready`` without the notes it
+    writes): a Magic-Eater off quest floors, the wand type learned and not seen empty."""
+    observed = snapshot.magic_eater_wand_charges
+    return (me_ranged_first.applies(snapshot) and observed not in (-1, 0)
+            and getattr(policy, "_me_missile_unlearned_floor", None) != snapshot.floor_key
+            and getattr(policy, "_me_missile_empty_turn", None) != snapshot.turn)
+
+
 def _free_devices(policy, snapshot, target) -> float:
     """Absorbed powers' normal use and rods (OQ-6: free attacks)."""
     flags, level, best = _race_flags(policy, target), snapshot.player.level, 0.0
     if me_device_attacks.can_use_powers(snapshot):
+        seen_missile = False
         for power, success in me_device_attacks.usable_powers(policy):
+            seen_missile = seen_missile or (power.kind, power.sval) == me_device_attacks.MISSILE
             if power.group_only or power.shape == "sight":
                 continue
             best = max(best, success * me_device_attacks.expected_damage(power, level, flags))
+        if not seen_missile and _missile_ready(policy, snapshot):
+            # Design 3.3 names the absorbed Magic Missile (me_ranged_first) a free attack; with
+            # no displayed row it is scored as me_ranged_first fires it (optimistic, 100%).
+            best = max(best, me_device_attacks.missile_score(policy, snapshot, target))
     if not _ranged_ready(snapshot):
         return best
     for item in snapshot.inventory:
