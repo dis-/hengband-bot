@@ -1420,6 +1420,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Set at every assignment of the alternate; no decision reads it.
         self._alternate_dungeon_reason: str | None = None
         self._pending_recall_dungeon_id: int | None = None
+        # Owner 2026-11-08: a refused global map walks off the wilderness
+        # tile's edge (_wilderness_survival_key / _wilderness_edge_key).
+        self._wilderness_global_refused = False
+        self._wilderness_edge_last_position: Position | None = None
+        self._wilderness_edge_tries: dict = {}
         # destination, command turn, and pre-read stack count.  JSON snapshots
         # can redraw several times at the same game turn before ``recalling`` is
         # exported; without an issue watch each stale redraw consumes another
@@ -7859,7 +7864,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if ambush is not None:
                 return ambush
         elif snapshot.on_open_wilderness:
-            return self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
+            # Owner 2026-11-08 「敵を倒すか離れてから出る」: None with an awake
+            # monster in view leaves the board to the ordinary combat rules.
+            wilderness = self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
+            if wilderness is not None:
+                return wilderness
 
         # Town is cleared before errands resume.  Unlike dungeon hunting every
         # visible non-pet monster is a target regardless of range or the
@@ -12067,7 +12076,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # D22: a surface recall read asks which dungeon (choose_dungeon).
             # Every reader carries the established destination's letter; with
             # none the executor cancels the chooser under a named stop.
-            suffix = self._surface_recall_selection(snapshot) or ""
+            # On the open wilderness the landing chain of the owner's
+            # 2026-11-08 rule (「条件を満たす帰還先へ読む」) answers.
+            suffix = (self._wilderness_recall_selection(snapshot)
+                      if snapshot.on_open_wilderness
+                      else self._surface_recall_selection(snapshot)) or ""
         composed_item = next(
             (candidate for candidate in snapshot.inventory if candidate.slot == item.slot),
             None,
@@ -15871,8 +15884,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         player on that dungeon's deepest floor: never an escape (D22,
         n1-c life-010 2026-10-30 08:28 read it beside a town monster at
         HP 14/129).
+
+        Owner 2026-11-08 for the open wilderness: 「帰還は命が危ない時だけ、
+        条件を満たす帰還先へ読む。」  There the emergency read is allowed and
+        lands on a gated destination (``_wilderness_recall_selection``); the
+        town keeps the D22 refusal.
         """
-        return snapshot.dungeon_level >= 1
+        return snapshot.dungeon_level >= 1 or bool(snapshot.on_open_wilderness)
 
     def _issue_emergency_consumable(
         self, snapshot: Snapshot, item: InventoryItem, reason: str

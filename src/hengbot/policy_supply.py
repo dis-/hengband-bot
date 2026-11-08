@@ -1912,19 +1912,18 @@ class SupplyMixin:
 
     def _wilderness_survival_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
-    ) -> str:
-        """Reach a town through local and global wilderness without fighting.
+    ) -> str | None:
+        """Reach a town through local and global wilderness.
 
-        The bot only reaches here by straying off a town border, so it is likely
-        under-levelled for whatever roams this tile. Nearby monsters are fled;
-        when safe, '<' opens the global map and a road-biased route reaches town.
-        stall trips the loop detector, which stops the bot for investigation —
-        far better than marching deeper or trading blows with an out-of-depth
-        monster).
+        On a local tile '<' opens the global map and a road-biased route
+        reaches town.  An awake monster in view is left to the ordinary
+        combat rules (None); a refused '<' walks off the tile's edge.
         """
         player = snapshot.player
         global_map = self._wilderness_map
         if self._on_global_wilderness_map(snapshot):
+            self._wilderness_global_refused = False
+            self._wilderness_edge_tries = {}
             key = global_map.next_key_to_town(player.position.y, player.position.x)
             if key == DOWN_STAIRS_KEY:
                 # The global-map walk's own arrival test: a town is underfoot.
@@ -1946,36 +1945,94 @@ class SupplyMixin:
             )
             return WAIT_KEY
 
-        nearby_hostiles = [
-            monster
-            for monster in hostiles
-            if not monster.asleep and monster.distance <= 20
-        ]
-        if nearby_hostiles:
-            step = self._flee_step(snapshot, nearby_hostiles)
-            if step is not None:
-                self.last_reason = "wilderness:flee"
-                return self._step_toward(snapshot, step)
-            if not player.blind and not player.confused:
-                scroll = self._escape_scroll(snapshot)
-                if scroll is not None:
-                    self.last_reason = "wilderness:escape-scroll"
-                    return self._read_key(snapshot, scroll)
-        # Owner 2026-10-31 「帰還を読む」 (loop 6, #47, n1-c life-059): a refused
-        # global map is not retried; Recall is read, then its countdown awaited.
+        # Owner 2026-11-08 (replaces 10-31 「帰還を読む」, whose premise was
+        # wrong: Recall on the surface goes to a dungeon, spells-world.cpp
+        # recall_player): 「近くの敵を倒すか、敵から離れて荒野の端へ歩き、全体
+        # 地図へ出る（Zul の旅の「ふつうに戦い全体地図へ戻る」と同じ）。帰還は
+        # 命が危ない時だけ、条件を満たす帰還先へ読む。」  An awake monster in
+        # view is the ordinary combat rules' (None; the emergency ladder above
+        # keeps the survival escapes, Recall among them).  A refused '<'
+        # (change_wild_mode: an awake hostile within MAX_PLAYER_SIGHT, seen or
+        # not) walks away from the detected monsters off the nearest edge to
+        # the next tile, then '<' again.
+        if any(not monster.asleep and monster.distance <= 20 for monster in hostiles):
+            # MAX_PLAYER_SIGHT, the range change_wild_mode refuses for.
+            return None
         if player.recalling:
             self.last_reason = "wilderness:wait-recall"
             return WAIT_KEY
-        recall = self._find_recall_scroll(snapshot)
-        if (
-            wilderness_exit.global_map_refused(snapshot) and recall is not None
-            and not player.blind and not player.confused and self._can_read_scrolls(snapshot)
-        ):
-            self.last_reason = "wilderness:recall"
-            return self._read_key(
-                snapshot, recall, self._wilderness_recall_selection(snapshot) or "")
-        self.last_reason = "wilderness:enter-global"
-        return UP_STAIRS_KEY
+        here = player.position
+        last = self._wilderness_edge_last_position
+        if last is not None and max(abs(last.y - here.y), abs(last.x - here.x)) > 1:
+            # movement-execution.cpp: the border step placed the player on
+            # the next tile's opposite edge.
+            self._wilderness_global_refused = False
+            self._wilderness_edge_tries = {}
+        self._wilderness_edge_last_position = here
+        if wilderness_exit.global_map_refused(snapshot):
+            self._wilderness_global_refused = True
+        if not self._wilderness_global_refused:
+            self.last_reason = "wilderness:enter-global"
+            return UP_STAIRS_KEY
+        return self._wilderness_edge_key(snapshot)
+
+    def _wilderness_edge_key(self, snapshot: Snapshot) -> str | None:
+        """One step toward the map edge, away from the detected awake monsters.
+
+        The border step itself changes the wilderness tile.  Unseen ground
+        (the tile is mostly unexplored) is walked by heading: the orthogonal
+        directions ordered by the awake detected hostiles each one walks
+        toward, then by the distance to that edge; a step that left the
+        player where it was tries the next heading.  None when no heading is
+        left (the ordinary rules have the board).
+        """
+        height, width = snapshot.height, snapshot.width
+        here = snapshot.player.position
+
+        def on_edge(position: Position) -> bool:
+            return position.y in (0, height - 1) or position.x in (0, width - 1)
+
+        if not on_edge(here):
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                border = Position(here.y + dy, here.x + dx)
+                grid = snapshot.grid_at(border)
+                if on_edge(border) and (grid is None or not grid.known or grid.passable):
+                    self.last_reason = "wilderness:edge-exit"
+                    return self._direction_key(here, border)
+        awake = [monster.position for monster in snapshot.detected_monsters
+                 if monster.hostile and not monster.asleep]
+        headings = sorted(
+            ((sum(1 for spot in awake if (spot.y - here.y) * dy + (spot.x - here.x) * dx > 0),
+              distance, (dy, dx))
+             for distance, (dy, dx) in (
+                 (here.y, (-1, 0)), (height - 1 - here.y, (1, 0)),
+                 (here.x, (0, -1)), (width - 1 - here.x, (0, 1)))),
+            key=lambda entry: (entry[0], entry[1]))
+        usable = []
+        for _toward, _distance, (dy, dx) in headings:
+            cell = Position(here.y + dy, here.x + dx)
+            grid = snapshot.grid_at(cell)
+            if grid is None or (grid.known and not grid.passable) or grid.has_monster:
+                continue
+            usable.append(cell)
+        attempt = self._wilderness_edge_tries.get(here, 0)
+        if attempt >= len(usable):
+            step = self._nearest_goal_step(
+                snapshot, lambda grid: grid.passable and not on_edge(grid.position) and (
+                    grid.position.y in (1, height - 2) or grid.position.x in (1, width - 2)))
+            if step is not None:
+                self.last_reason = "wilderness:edge-route"
+                return self._step_toward(snapshot, step)
+            # No way toward an edge is known: wait for the monsters to come
+            # (fought by the combat rules) or to leave, then '<' again.  Never
+            # the ordinary rules' stuck escapes, which read Recall here.
+            self._wilderness_global_refused = False
+            self._wilderness_edge_tries.pop(here, None)
+            self.last_reason = "wilderness:edge-blocked"
+            return WAIT_KEY
+        self._wilderness_edge_tries[here] = attempt + 1
+        self.last_reason = "wilderness:edge-walk"
+        return self._direction_key(here, usable[attempt])
 
     def _wilderness_recall_selection(self, snapshot: Snapshot) -> str | None:
         """The choose_dungeon letter a wilderness Recall read answers.

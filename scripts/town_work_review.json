@@ -15958,7 +15958,7 @@
     "classification": "adapter",
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "delegation": "selected child; no independent success",
-    "evidence": "n1-c life-166 2026-11-08 (stuck-prompt:wilderness:recall): returns the choose_dungeon letter the wilderness:recall read of _wilderness_survival_key carries -- the established destination (_surface_recall_selection), else the safe fallback landing (_activate_safe_recall_fallback, as at the departure read point), else the Yeek cave when its landing passes the same gates (USER DECISION 2026-10-02 no-safe-destination place); None leaves the D22 cancel and named stop. Selected child inherits work; no independent effect credit.",
+    "evidence": "n1-c life-166 2026-11-08 (stuck-prompt:wilderness:recall); owner 2026-11-08 「帰還は命が危ない時だけ、条件を満たす帰還先へ読む」: returns the choose_dungeon letter _read_key appends to a Recall read on the open wilderness (the emergency ladder's) -- the established destination (_surface_recall_selection), else the safe fallback landing (_activate_safe_recall_fallback, as at the departure read point), else the Yeek cave when its landing passes the same gates (USER DECISION 2026-10-02 no-safe-destination place); None leaves the D22 cancel and named stop. Selected child inherits work; no independent effect credit.",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "rows": [
       "survival"
@@ -15969,10 +15969,21 @@
     "classification": "data",
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "delegation": "selected child; no independent success",
-    "evidence": "Selects the shallowest entered dungeon below an unsafe recall landing (_pick_alternate_dungeon) and records it as the alternate/target dungeon (safe_fallback or guardian_valve); returns a dungeon ID or None. Called by the departure recall read point, the guardian bounce switch and the wilderness recall selection; issues no command and grants no independent progress.",
+    "evidence": "Selects the shallowest entered dungeon below an unsafe recall landing (_pick_alternate_dungeon) and records it as the alternate/target dungeon (safe_fallback or guardian_valve); returns a dungeon ID or None. Called by the departure recall read point, the guardian bounce switch and the wilderness Recall letter selection; issues no command and grants no independent progress.",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "rows": [
       "data/no-independent-credit"
+    ]
+  },
+  "policy_supply.py:SupplyMixin._wilderness_edge_key": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "classification": "producer",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-08 (replaces 10-31 「帰還を読む」): after a refused '<' on a local wilderness tile, returns one step toward the map edge away from the awake detected hostiles (wilderness:edge-exit border step, wilderness:edge-walk heading, wilderness:edge-route known route), else WAIT_KEY as wilderness:edge-blocked after re-arming '<'; never reads Recall. Called only by _wilderness_survival_key.",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "rows": [
+      "survival"
     ]
   }
 }

@@ -288,7 +288,9 @@ class WildernessRecordedTest(RecordedHarness):
         stair = replace(board.grid_at(SHAFT), terrain_id=6)
         self.assertTrue(policy._is_upstairs_target(stair))
 
-    def test_refused_global_map_reads_recall_then_waits(self):
+    def test_refused_global_map_walks_toward_the_edge_then_waits_a_recall(self):
+        # Owner 2026-11-08 replaces 10-31 「帰還を読む」: a refused '<' walks
+        # away toward the map edge (it read Recall before).
         boards = self.boards("wilderness-refused")
         policy = self.policy(boards[0])
         self.assertEqual(decide(policy, boards[0]), UP_STAIRS_KEY)
@@ -296,19 +298,10 @@ class WildernessRecordedTest(RecordedHarness):
         refused = boards[1]
         self.assertTrue(refused["messages"][0].startswith("敵がすぐ近くにいるときは広域マップに入れない"))
         key = decide(policy, refused)
-        self.assertEqual(policy.last_reason, "wilderness:recall")
-        board = parse_snapshot(refused, policy._monrace_knowledge)
-        recall = next(item for item in board.inventory if item.is_recall_scroll)
-        self.assertTrue(key.startswith("r" + recall.slot))
-        letter = key[2:]
-        self.assertEqual(len(letter), 1)
-        rows = [f"{chr(ord('a') + index)}) dungeon {dungeon_id}"
-                for index, dungeon_id in enumerate(board.entered_dungeon_ids or (1,))]
-        accepted = self.post(policy, refused, key, [executor_pins.prompt_screen(READ_PROMPT),
-                                                    chooser_screen(rows)],
-                             self.later(refused, 1))
-        self.assertEqual(accepted, ["r", recall.slot, letter])
-        # DECLARED CONSTRUCTED: the next board with the recall active.
+        self.assertTrue(policy.last_reason.startswith("wilderness:edge-"), policy.last_reason)
+        self.assertFalse(key.startswith("r"), key)
+        # DECLARED CONSTRUCTED: the next board with a recall active (read by
+        # the emergency ladder) is waited out.
         recalling = copy.deepcopy(boards[2])
         recalling["turn"] += 1
         recalling["player"]["recalling"] = True

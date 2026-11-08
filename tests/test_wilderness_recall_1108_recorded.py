@@ -13,9 +13,13 @@ and the mining shovels had replaced the resist-chaos ring and Gungnir) and
 no fallback landing passed either.  The executor cancelled the chooser and
 stopped (D22) three times; the supervisor escalated.
 
-The read now carries the letter of a landing that passes the same gates:
-the established destination, else the safe fallback, else the owner's
-no-safe-destination place, the Yeek cave (USER DECISION 2026-10-02).
+Owner 2026-11-08 replaces the 10-31 rule: 「近くの敵を倒すか、敵から離れて
+荒野の端へ歩き、全体地図へ出る。帰還は命が危ない時だけ、条件を満たす帰還先へ
+読む。」  A refused '<' now walks away from the detected monsters toward the
+nearest edge; an awake monster in view is left to the combat rules; Recall is
+read only by the emergency ladder, carrying the letter of a landing that
+passes the gates: the established destination, else the safe fallback, else
+the Yeek cave (USER DECISION 2026-10-02 no-safe-destination place).
 
 Fixture: tests/fixtures/wilderness-recall-1108.json.gz
 (tests/extract_wilderness_recall_1108_fixture.py): the third session's first
@@ -27,7 +31,8 @@ DECLARED CONSTRUCTED: the capture holds only the screen after the cancelling
 ESC, so the chooser screen is built from choose_dungeon's layout
 (dungeon-service.cpp RECALL rows at prt(row, 2 + i, 14)) for the board's
 entered dungeons in DungeonId order; the skill knowledge is supplied before
-each decision (the capture holds no ~f reply).
+each decision (the capture holds no ~f reply); the later and danger boards
+are derived from the refusal board as each test declares.
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -76,15 +81,35 @@ class WildernessRecallRecordedTest(executor_pins.ProductionHarness):
     def boards(self):
         return [copy.deepcopy(board) for board in self.case["boards"]]
 
-    def read_on_refusal(self):
-        first, refused = self.boards()
+    def policy(self, first):
         policy = build_policy()
         policy.prime(parse_snapshot(first, policy._monrace_knowledge))
         self.assertEqual(decide(policy, first), UP_STAIRS_KEY)
         self.assertEqual(policy.last_reason, "wilderness:enter-global")
-        key = decide(policy, refused)
-        self.assertEqual(policy.last_reason, "wilderness:recall")
-        return policy, refused, key
+        return policy
+
+    @staticmethod
+    def later(raw, turns, **player):
+        board = copy.deepcopy(raw)
+        board["messages"] = []
+        board["turn"] += turns
+        board["player"].update(player)
+        return board
+
+    @staticmethod
+    def in_danger(raw):
+        # DECLARED CONSTRUCTED: the ogre the board detects stands beside the
+        # player in view, HP 60/783, and the pack holds no potion and no
+        # teleport or phase scroll (Recall, the rings, the gear and bolts stay).
+        board = copy.deepcopy(raw)
+        board["messages"] = []
+        board["player"]["hp"] = 60
+        ogre = dict(board["detected_monsters"][0])
+        ogre.update(x=board["player"]["x"] + 1, y=board["player"]["y"], esp=False)
+        board["visible_monsters"] = [ogre]
+        board["inventory"] = [item for item in board["inventory"]
+                              if item["slot"] in ("g", "l", "m", "n", "o")]
+        return board
 
     def post(self, policy, raw, key, screens):
         game = executor_pins.FaithfulHookGame()
@@ -119,17 +144,58 @@ class WildernessRecallRecordedTest(executor_pins.ProductionHarness):
         self.assertIsNone(policy._pick_alternate_dungeon(board, max_entry_depth=79))
         self.assertTrue(policy._recall_destination_safe(board, DUNGEON_YEEK_CAVE))
 
-    def test_refused_global_map_recall_answers_the_chooser_with_a_safe_landing(self):
-        policy, refused, key = self.read_on_refusal()
+    def test_refused_global_map_walks_away_toward_the_edge_without_recall(self):
+        first, refused = self.boards()
+        policy = self.policy(first)
+        key = decide(policy, refused)
+        # Was "rg" (wilderness:recall): owner 2026-11-08 「敵を倒すか離れてから出る」.
+        self.assertEqual((key, policy.last_reason), ("8", "wilderness:edge-walk"))
+        # The ogre and the panther the board detects are south-east, the
+        # apprentice north-west: north and west each walk toward one, and the
+        # top edge (y 10 of 66) is the nearer of the two.
         board = parse_snapshot(refused, policy._monrace_knowledge)
-        recall = next(item for item in board.inventory if item.is_recall_scroll)
-        letter = chr(ord("a") + board.entered_dungeon_ids.index(DUNGEON_YEEK_CAVE))
-        # Was "rg": no letter, the chooser cancelled and stuck-prompt:wilderness:recall.
+        here = board.player.position
+        self.assertEqual(sorted((monster.position.y > here.y, monster.position.x > here.x)
+                                for monster in board.detected_monsters),
+                         [(False, False), (True, True), (True, True)])
+        # The refusal is remembered on the next board (no message any more).
+        step = self.later(refused, 7, y=refused["player"]["y"] - 1)
+        self.assertEqual((decide(policy, step), policy.last_reason), ("8", "wilderness:edge-walk"))
+        # DECLARED CONSTRUCTED: the border step put the player on the next
+        # tile's opposite edge (movement-execution.cpp): '<' again.
+        crossed = self.later(refused, 14, y=refused["floor"]["height"] - 2)
+        self.assertEqual((decide(policy, crossed), policy.last_reason),
+                         (UP_STAIRS_KEY, "wilderness:enter-global"))
+
+    def test_an_awake_monster_in_view_is_fought_by_the_combat_rules(self):
+        # DECLARED CONSTRUCTED: the ogre three cells east in view, full HP,
+        # the recorded pack.  The wilderness rung leaves it to the ordinary
+        # rules, whose bolts shoot it (was wilderness:flee; a None returned
+        # from the branch itself would end in policy:none-wait).
+        first, refused = self.boards()
+        policy = self.policy(first)
+        board = self.in_danger(refused)
+        board["player"]["hp"] = board["player"]["max_hp"]
+        board["inventory"] = copy.deepcopy(refused["inventory"])
+        board["visible_monsters"][0]["x"] = board["player"]["x"] + 3
+        key = decide(policy, board)
+        self.assertEqual((key, policy.last_reason), ("fo6", "ranged:fire"))
+
+    def test_survival_recall_answers_the_chooser_with_a_safe_landing(self):
+        first, refused = self.boards()
+        policy = self.policy(first)
+        board = self.in_danger(refused)
+        key = decide(policy, board)
+        self.assertEqual(policy.last_reason, "emergency:recall")
+        snapshot = parse_snapshot(board, policy._monrace_knowledge)
+        recall = next(item for item in snapshot.inventory if item.is_recall_scroll)
+        letter = chr(ord("a") + snapshot.entered_dungeon_ids.index(DUNGEON_YEEK_CAVE))
+        # The recorded read was "rg": no letter, the chooser cancelled.
         self.assertEqual(key, "r" + recall.slot + letter)
         self.assertNotEqual(letter, "a")  # never Angband 80, whose gates fail
         result, last, accepted = self.post(
-            policy, refused, key,
-            [executor_pins.prompt_screen(READ_PROMPT), chooser_screen(refused)])
+            policy, board, key,
+            [executor_pins.prompt_screen(READ_PROMPT), chooser_screen(board)])
         self.assertEqual(result, SendResult.SENT, last.reason)
         self.assertEqual(last.outcome, "completed")
         self.assertEqual(accepted, ["r", recall.slot, letter])
@@ -144,17 +210,14 @@ class WildernessRecallRecordedTest(executor_pins.ProductionHarness):
             sources = board["player"]["ability_sources"]
             for name in ("resist_fire", "resist_conf"):
                 sources[name]["equipment"] = True
-        policy = build_policy()
-        policy.prime(parse_snapshot(first, policy._monrace_knowledge))
-        decide(policy, first)
-        key = decide(policy, refused)
-        self.assertEqual(policy.last_reason, "wilderness:recall")
+        policy = self.policy(first)
+        key = decide(policy, self.in_danger(refused))
+        self.assertEqual(policy.last_reason, "emergency:recall")
         board = parse_snapshot(refused, policy._monrace_knowledge)
         recall = next(item for item in board.inventory if item.is_recall_scroll)
         self.assertEqual(key, "r" + recall.slot + chr(ord("a") + board.entered_dungeon_ids.index(ORC_CAVE)))
         self.assertEqual(policy._target_dungeon_id, ORC_CAVE)
         self.assertEqual(policy._alternate_dungeon_reason, "safe_fallback")
-
 
 if __name__ == "__main__":
     unittest.main()
