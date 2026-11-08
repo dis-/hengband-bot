@@ -12,7 +12,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import me_powers
+from hengbot import me_powers, sleeper_loot_block
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -1737,6 +1737,11 @@ class IdentificationMixin:
         if hostiles and self._predicted_damage(snapshot, hostiles, turns=3) >= (
             snapshot.player.hp * LOOT_THREAT_DAMAGE_RATIO
         ):
+            return "material-threat"
+        # Sleepers that were the threat stay where they sleep out of sight
+        # (n1-b life-341 Angband 49F: three sleeping 青オクタロック at their
+        # sight's edge flipped the loot and the explore every step).
+        if sleeper_loot_block.holds(self, snapshot):
             return "material-threat"
         if (self._known_loot - self._deferred_loot) & self._paralyzer_avoid_cells:
             return "paralyzer-ring"

@@ -159,6 +159,34 @@ class StrongSleeperReachRecordedTest(RecordedHarness):
         self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
 
 
+class SleeperLootBlockRecordedTest(RecordedHarness):
+    def test_recorded_rows_alternate(self):
+        boards, rows = CASES["0420"]["boards"], recorded("0420")
+        self.assertEqual((here(boards[0]), rows[boards[0]["turn"]]), (Position(38, 75), ("1", "explore")))
+        self.assertEqual({row["race_id"] for row in boards[0]["visible_monsters"]}, {OCTOROK})
+        self.assertTrue(all(row["asleep"] for row in boards[0]["visible_monsters"]))
+        self.assertEqual((here(boards[1]), rows[boards[1]["turn"]]), (Position(39, 74), ("9", "seek-loot")))
+        self.assertEqual(boards[1]["visible_monsters"], [])
+
+    def test_out_of_their_sight_the_loot_stays_blocked(self):
+        policy = restored_0420()
+        boards = CASES["0420"]["boards"]
+        out_of_sight = 0
+        for index, raw in enumerate(boards):
+            key = decide(policy, copy.deepcopy(raw))
+            if index == 1:
+                self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
+            if key:
+                policy.confirm_key_posted(key)
+            if not raw["visible_monsters"]:
+                out_of_sight += 1
+                self.assertNotEqual(policy.last_reason, "seek-loot", (raw["turn"], key))
+                board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+                self.assertEqual(policy._loot_block_reason(
+                    policy._with_grid_memory(board), []), "material-threat")
+        self.assertGreater(out_of_sight, 10)
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()
