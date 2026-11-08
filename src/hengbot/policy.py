@@ -9508,7 +9508,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if teleport is not None:
                 self._stuck_escape_streak = 0
                 return teleport
-            recall = self._find_recall_scroll(snapshot)
+            # The Zul trip's ambush leaves by the map edge (zul_trip.holds_surface_recall).
+            recall = None if zul_trip.holds_surface_recall(self, snapshot) else self._find_recall_scroll(snapshot)
             if recall is not None and self._can_read_scrolls(snapshot):
                 self._stuck_escape_streak = 0
                 self._note_return_start(None)
@@ -17218,7 +17219,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             restore = self._town_producer_entry("_breakout_restore_weapon_key#2", lambda: self._breakout_restore_weapon_key(snapshot))
             if restore is not None:
                 return restore
-        recall = self._find_recall_scroll(snapshot)
+        # n1-b life-345 (2026-11-08 08:13:43): the Zul trip's ambush board read
+        # Recall here; the trip leaves an ambush by the map edge instead.
+        recall = None if zul_trip.holds_surface_recall(self, snapshot) else self._find_recall_scroll(snapshot)
         if recall is not None and self._can_read_scrolls(snapshot):
             self._stuck_escape_streak = 0
             self._note_return_start(None)

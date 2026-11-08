@@ -16040,5 +16040,28 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_edge_heading_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "n1-b life-345 2026-11-08: on the trip's ambush map with no known route to the edge (the dark), an orthogonal step toward the nearest edge, the next one where a step left the player in place; None when every heading was tried.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_zul_stay_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "n1-b life-345 2026-11-08: in Zul (no inn) without the trip under way: the cure walk when still wanted and paid for, else '<' to the global map toward the inn town nearest Zul (the trip's own walk).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

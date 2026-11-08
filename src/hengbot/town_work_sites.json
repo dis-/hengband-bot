@@ -12471,6 +12471,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "zul_trip.py:_edge_heading_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "zul_trip.py:_enter_global_key": {
     "classification": "producer",
     "rows": [
@@ -12524,6 +12531,14 @@
     "classification": "producer",
     "rows": [
       "equipment-transaction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_zul_stay_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },

@@ -415,6 +415,13 @@ class TownMixin:
             # teleport walks and Tower approach): measured by the remaining
             # route to that cell like every other walk here (D49).
             return durable + (walk,)
+        elif owner == "cross-town" and (
+            walk := self._declared_walk_part(snapshot, owner, reason)
+        ) is not None:
+            # The Zul trip's step-by-step walk over the mountains to the Chaos
+            # Tower (zul_trip._levitation_walk_step): without its distance the
+            # arbiter retired cross-town nine steps into the walk.
+            return durable + (walk,)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:
