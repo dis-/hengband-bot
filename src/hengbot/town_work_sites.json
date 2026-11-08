@@ -2871,6 +2871,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powers.py:Context.radius": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powers.py:Power.key": {
     "classification": "data",
     "rows": [
@@ -2886,6 +2893,20 @@
     "delegation": "selected child; no independent success"
   },
   "me_powers.py:_activation": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:_cast_radius": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:_revealing_uses": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2940,6 +2961,13 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_powers.py:revealing_casts": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "me_powers.py:threat_key": {
     "classification": "dungeon-only",
@@ -11011,6 +11039,20 @@
     "delegation": "selected child; no independent success"
   },
   "quest_target_search.py:_next_goal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_redetect_wait": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_redetect_wait_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

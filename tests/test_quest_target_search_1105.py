@@ -81,7 +81,9 @@ def _device(raw, tval, sval, name):
 
 def _next_board(raw, key=None):
     board = copy.deepcopy(raw)
-    board["turn"] += 10
+    # DECLARED: a rest with a count ran it out, 10 game turns a rest (normal speed).
+    rests = int(key[1:-1]) if key and key.startswith("R") and key[1:-1].isdigit() else 1
+    board["turn"] += 10 * rests
     board["messages"] = []
     if key in MOVES:
         board["player"]["y"] += MOVES[key][0]
@@ -349,9 +351,17 @@ class QuestTargetSearchTest(unittest.TestCase):
         radius = memory.casts[0][1]
         self.assertEqual(radius, me_powers.map_radius(
             policy, parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
-        self.assertGreaterEqual(game_distance(Position(*START), Position(*cast_at)), radius)
+        # Owner 2026-11-08 Q1 「待って唱える」: the walk reaches the cast stop (8,8) inside the first
+        # cast's radius; the player rests there until HUNT_REDETECT_GAME_TURNS have passed, and the
+        # rod is cast there, not on the way past the radius.
+        self.assertLess(game_distance(Position(*START), Position(*cast_at)), radius)
+        self.assertEqual(cast_at, (8, 8))
+        self.assertGreaterEqual(memory.casts[1][2] - memory.casts[0][2], me_powers.HUNT_REDETECT_GAME_TURNS)
+        waits = [row for row in rows[:casts[0]] if row[1] == search.REDETECT_WAIT_REASON]
+        self.assertTrue(waits)
+        self.assertEqual({position for _, _, position in waits}, {cast_at})
         for _, reason, position in rows[:casts[0]]:
-            self.assertEqual(reason, search.LOOP_REASON)
+            self.assertIn(reason, (search.LOOP_REASON, search.REDETECT_WAIT_REASON))
             self.assertLess(game_distance(Position(*START), Position(*position)), radius)
 
     def test_a_means_that_cannot_show_the_target_is_skipped(self):
