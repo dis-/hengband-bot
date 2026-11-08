@@ -250,6 +250,54 @@ class SupplyMixin:
             )
         return None
 
+    def _town_light_out(self, snapshot: Snapshot) -> bool:
+        """In town, the player's own light lights nothing (exported radius 0).
+
+        torch.cpp update_lite_radius: a lantern or torch without fuel adds no
+        radius.  Where the street is unlit the game then refuses every travel
+        step (travel-execution.cpp decide_travel_step_dir: blind or
+        ``no_lite`` 「目が見えない！」) and every scroll read.
+        """
+        return (snapshot.in_town and snapshot.light_radius == 0
+                and not snapshot.player.blind)
+
+    def _town_light_restore_key(self, snapshot: Snapshot) -> str | None:
+        """Restore the light in town before any errand travels.
+
+        n1-b life-343 (2026-11-08 04:54, Lv9, 50,284 gold): the lantern's last
+        flask was poured on the floor, the lantern went out in town and the
+        Magic-Eater staff sequence sent its inn travel from the lit Magic shop
+        entrance; the game refused the next step in the dark street, the town
+        progress invariant walked back to the shop and the travel went out
+        again until town:blocked:owner-retired-burst.  The light rules already
+        said the light was not ready (the supply ledger's oil row); the class
+        sequences ahead of the shopping never let it be bought.
+
+        Refuel from the pack, else a carried torch, else the walk to the
+        supply ledger's oil store, ahead of the travels.
+        """
+        if snapshot.store is not None or not self._town_light_out(snapshot):
+            return None
+        refill = self._light_refill_item(snapshot)
+        if refill is not None:
+            self.last_reason = "refill-light"
+            return reserved_item_command(self, snapshot, "refill", refill)
+        torch = self._darkness_torch(snapshot)
+        if torch is not None:
+            self.last_reason = "wield-light"
+            return self._equipment_wield(snapshot, "light-loadout", torch, "light")
+        # The supply ledger's oil row names the store (the General Store); the
+        # class sequences' travels wait until the walk has restored the light.
+        oil = self._supply_ledger(snapshot, self._planned_depth()).get("oil")
+        if (oil is None or not oil.obtainable or not oil.stores
+                or oil.count >= oil.required_departure):
+            return None
+        step = self._shopping_approach_step(snapshot, oil.stores[0], requester="survival")
+        if step is None:
+            return None
+        self.last_reason = "shop:approach"
+        return self._shopping_approach_key(snapshot, step, "shop:travel")
+
     def _unknown_light_last_resort(self, snapshot: Snapshot) -> bool:
         if snapshot.in_town:
             return self._town_q34_lantern(snapshot) is not None

@@ -415,6 +415,13 @@ class TownMixin:
             # teleport walks and Tower approach): measured by the remaining
             # route to that cell like every other walk here (D49).
             return durable + (walk,)
+        elif owner == "cross-town" and (
+            walk := self._declared_walk_part(snapshot, owner, reason)
+        ) is not None:
+            # The Zul trip's step-by-step walk over the mountains to the Chaos
+            # Tower (zul_trip._levitation_walk_step): without its distance the
+            # arbiter retired cross-town nine steps into the walk.
+            return durable + (walk,)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:
@@ -5128,8 +5135,15 @@ class TownMixin:
         """Whether the game refuses every native-travel step on this board.
 
         travel-execution.cpp ``decide_travel_step_dir`` stops travel with
-        "目が見えない！" when blind or ``no_lite()``: the own grid is unseen."""
-        return not self._own_grid_visible(snapshot)
+        "目が見えない！" when blind or ``no_lite()``: the own grid is unseen.
+
+        A town board with no light of the player's own (radius 0) is refused
+        too: a lit cell (a store entrance at night) shows the own grid, the
+        travel's next step into the dark street is refused (n1-b life-343
+        2026-11-08 04:54, the inn travel from the lit Magic shop entrance), and
+        the walk serves where the travel cannot."""
+        return (not self._own_grid_visible(snapshot)
+                or self._town_light_out(snapshot))
 
     @staticmethod
     def _native_travel_refused_beside_monster(snapshot: Snapshot) -> bool:

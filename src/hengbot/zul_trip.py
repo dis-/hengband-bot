@@ -50,12 +50,13 @@ price (cmd-building.cpp), with no question asked.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
 from heapq import heappop, heappush
 from math import ceil
 
-from hengbot import morivant_tower
+from hengbot import morivant_tower, town_travel
 from hengbot.model import STORE_BLACK, STORE_MAGIC, Position
 from hengbot.policy_constants import (
     DOWN_STAIRS_KEY, LEAVE_STORE_KEY, STORE_STUCK_LIMIT, TOWN_TELEPORT_BUILDING_TYPES,
@@ -82,8 +83,13 @@ FOOD_PER_ITEM = 5000  # a ration's pval; a device charge's set_food(+5000)
 FOOD_SAFETY_FACTOR = 2  # owner: 「2倍＋いつもの出発分」
 FUNDRAISE_RUN_LIMIT = 6
 CURE_ATTEMPTS_WITHOUT_EFFECT = 2
+# lib/edit/TerrainDefinitions.jsonc id 97 MOUNTAIN: WALL + CAN_FLY, no MOVE (Zul's ground).
+MOUNTAIN_TERRAIN_ID = 97
+TOWER_UNREACHABLE = "chaos-tower-unreachable"
+WALK_OUT = "walk-out"  # in Zul without the trip: the walk to the nearest inn town
 
 PRODUCER = "quest-request"  # the claim family of every town key of this owner
+WALK_FAMILY = "cross-town"  # town_hold's row family of town:zul:approach-tower
 REASON = "town:zul:"
 FUNDRAISE_REASON = REASON + "fundraise"
 TRAVEL_REASON = REASON + "travel"
@@ -97,6 +103,8 @@ EAT_REASON = REASON + "eat"
 APPROACH_REASON = REASON + "approach-tower"
 CURE_REASON = REASON + "cure"
 EDGE_REASON = REASON + "ambush-edge"
+REWEAR_REASON = REASON + "rewear-ring"
+REPLACED_RING_ATTR = "_zul_replaced_ring"
 HOME_PURPOSE = "zul-levitation"
 CURE_KEY_PATTERN = rf"[1-9](?:{CURE_KEY})+\x1b"
 BUY_RUNG = "zul:levitation"
@@ -164,6 +172,8 @@ class ZulTrip:
     # (town visit epoch, store) -> the store's page observation when the walk to
     # it was first issued: a newer one is a visit that left without the ring.
     shop_walks: dict = field(default_factory=dict)
+    # Ambush map position -> orthogonal edge headings tried there (None: none yet).
+    edge_tries: dict | None = None
 
 
 def state(policy) -> ZulTrip:
@@ -465,7 +475,60 @@ def _wear_key(policy, snapshot, item) -> str | None:
     slot = next((slot for slot in RING_SLOTS if slot not in worn), RING_SLOTS[-1])
     key = policy._equipment_wield(snapshot, "zul-levitation", item, slot)
     if key is not None:
+        _remember_replaced(policy, snapshot, slot)
         policy.last_reason = WEAR_REASON
+    return key
+
+
+# -- the replaced ring (owner 2026-11-08 「旅の後に付け直す」) -------------------
+#
+# 「外した指輪は旅の間持ち歩き、ズルで治療を終えて町に戻ったら付け直す（浮遊の指輪は外す）。」
+# The memory is a policy attribute read with a default, outside the trip record
+# (which a dungeon floor or the trip's end replaces): a checkpoint restored from
+# before it simply has none.
+
+def replaced_ring(policy):
+    """(item signature, ring slot) of the ring the levitation ring replaced, or None."""
+    return getattr(policy, REPLACED_RING_ATTR, None)
+
+
+def _remember_replaced(policy, snapshot, slot: str) -> None:
+    worn = next((piece for piece in snapshot.equipment if piece.slot == slot), None)
+    if worn is not None and not is_levitation_item(worn):
+        setattr(policy, REPLACED_RING_ATTR, (policy._item_signature(worn), slot))
+
+
+def retains_replaced_ring(policy, item) -> bool:
+    """The replaced ring is carried through the trip: no sale, deposit or destruction."""
+    memory = replaced_ring(policy)
+    return memory is not None and policy._item_signature(item) == memory[0]
+
+
+def rewear_key(policy, snapshot) -> str | None:
+    """After the trip, in a town other than Zul: the replaced ring back in its slot."""
+    memory = replaced_ring(policy)
+    if memory is None or not snapshot.in_town or snapshot.store is not None:
+        return None
+    record = getattr(policy, "_zul_trip", None)
+    if trip_active(policy) or policy._effective_town_id(snapshot) == ZUL_TOWN_ID:
+        return None
+    if wanted(policy, snapshot) and not (
+            record is not None and record.closed_epoch == policy._town_visit_epoch):
+        return None  # the trip is still due this stay: the levitation ring stays on
+    signature, slot = memory
+    if any(policy._item_signature(piece) == signature for piece in snapshot.equipment):
+        setattr(policy, REPLACED_RING_ATTR, None)  # back on: the memory ends
+        return None
+    ring = next((item for item in snapshot.inventory
+                 if policy._item_signature(item) == signature), None)
+    if ring is None:
+        setattr(policy, REPLACED_RING_ATTR, None)  # no longer carried: nothing to put back
+        return None
+    if not _board_allows(policy, snapshot):
+        return None
+    key = policy._equipment_wield(snapshot, "zul-ring-restore", ring, slot)
+    if key is not None:
+        policy.last_reason = REWEAR_REASON
     return key
 
 
@@ -538,6 +601,64 @@ def _enter_global_key(policy, snapshot, record) -> str | None:
     return UP_STAIRS_KEY
 
 
+def _levitation_walk_step(policy, snapshot, building: int):
+    """(first step, whether it enters) of the walk to ``building`` over mountains.
+
+    Zul is MOUNTAIN all round (lib/edit/towns/05_Zul.jsonc) and the game places
+    the player by the direction of the last global-map step
+    (movement-execution.cpp: a step up-right lands at (MAX_HGT - 2, 1)), on a
+    mountain cell.  MOUNTAIN (TerrainDefinitions.jsonc) is WALL + CAN_FLY without
+    MOVE: a levitating player walks onto it (grid.cpp player_can_enter;
+    movement-execution.cpp refuses it only without levitation), but the bot's
+    floor index keeps it a wall, and the game's travel treats every WALL as
+    unreachable (travel-execution.cpp travel_flow_aux).  n1-b life-345
+    (2026-11-08 08:11-08:13): three entries at (64,1), no step to building 14,
+    each left on the next decision without a cure.
+    """
+    if not has_levitation(snapshot):
+        return None, False
+    goals = {grid.position for grid in snapshot.grids.values() if grid.building_type == building}
+    if not goals:
+        return None, False
+    height, width = snapshot.height, snapshot.width
+    start = snapshot.player.position
+    # At night the unlit floor is not drawn: the static town map fills it in,
+    # as the floor index does (policy_navigation _build_grid_index).
+    town_map = policy._town_map if policy._town_map_active(snapshot) else None
+
+    def walkable(cell) -> bool:
+        if not (0 < cell.y < height - 1 and 0 < cell.x < width - 1):
+            return False  # the town's boundary walls
+        grid = snapshot.grid_at(cell)
+        if grid is None or not grid.known:
+            return (town_map is not None and town_map.is_walkable(cell)
+                    and cell not in town_map.buildings.values()
+                    and cell not in town_map.stores.values()
+                    and not any(cell in cells for cells in town_map.quest_entrances.values()))
+        if grid.has_monster:
+            return False
+        if cell in goals:
+            return True
+        if not town_travel.plain_cell(snapshot, cell):
+            return False  # no other building, store or quest entrance is entered
+        return grid.passable or grid.terrain_id == MOUNTAIN_TERRAIN_ID
+
+    first = {start: None}
+    queue = deque([start])
+    while queue:
+        cell = queue.popleft()
+        if cell in goals:
+            step = first[cell]
+            return step, step in goals
+        for dy, dx, _key in _DIRECTIONS:
+            nxt = Position(cell.y + dy, cell.x + dx)
+            if nxt in first or not walkable(nxt):
+                continue
+            first[nxt] = nxt if cell == start else first[cell]
+            queue.append(nxt)
+    return None, False
+
+
 def _cure_key(policy, snapshot, record) -> str | None:
     remaining = len(record.curable) - record.cured
     if remaining <= 0 or record.cure_misses >= CURE_ATTEMPTS_WITHOUT_EFFECT:
@@ -548,10 +669,28 @@ def _cure_key(policy, snapshot, record) -> str | None:
     if affordable <= 0:
         record.returning = True
         return _enter_global_key(policy, snapshot, record)
-    step, enters = morivant_tower.building_step(policy, snapshot, CHAOS_TOWER, family=PRODUCER)
+    # The Tower walk's Reach is the arbiter's owner of these reasons
+    # (town_hold's cross-town rows), so its progress is the walk's distance.
+    step, enters = morivant_tower.building_step(policy, snapshot, CHAOS_TOWER, family=WALK_FAMILY)
+    flying = False
     if step is None:
+        step, enters = _levitation_walk_step(policy, snapshot, CHAOS_TOWER)
+        flying = step is not None
+    if step is None:
+        # The Tower cannot be reached this stay: the trip walks back and is
+        # closed by name there (_finish), not taken for a finished trip.
+        record.failure = TOWER_UNREACHABLE
         record.returning = True
         return _enter_global_key(policy, snapshot, record)
+    if not enters and flying:
+        # Over the mountains the game's travel has no route: one step.  The
+        # walk declares the Tower as its reach (the town hold's progress).
+        tower = next(grid.position for grid in snapshot.grids.values()
+                     if grid.building_type == CHAOS_TOWER)
+        policy.last_reason = APPROACH_REASON
+        # The reason's own claim family (the town hold's cross-town row).
+        policy._declare_reach(tower)
+        return policy._step_toward(snapshot, step)
     if not enters:
         return morivant_tower.approach_key(policy, snapshot, CHAOS_TOWER, step, APPROACH_REASON)
     policy.last_reason = CURE_REASON
@@ -568,7 +707,47 @@ def _finish(policy, snapshot, record) -> None:
         policy._mutation_signature = tuple(
             m for m in (policy._mutation_signature or ()) if m not in cured)
     policy.request_character_dump()
-    policy._zul_trip = ZulTrip(closed_epoch=policy._town_visit_epoch)
+    policy._zul_trip = ZulTrip(closed_epoch=policy._town_visit_epoch, failure=record.failure)
+    if record.failure is not None:
+        # A named close: the Tower out of reach, or the walk out of Zul.
+        policy.last_reason = REASON + "skipped:" + record.failure
+
+
+def nearest_inn_town(policy, snapshot) -> int | None:
+    """The town with an inn nearest Zul by the levitated global-map route."""
+    wilderness_map = getattr(policy, "_wilderness_map", None)
+    if wilderness_map is None or not has_levitation(snapshot):
+        return None  # Zul's own cell is MOUNTAIN: no step leaves it without levitation
+    found = [(found.steps, found.shallow, town)
+             for town, found in _town_routes(wilderness_map).items() if found is not None]
+    return min(found)[2] if found else None
+
+
+def _zul_stay_key(policy, snapshot, record, hostiles) -> str | None:
+    """In Zul without the trip under way: cure there, else walk out.
+
+    Zul has no inn (TOWN_TELEPORT_BUILDING_TYPES), so the inn legs of the other
+    town owners have no route there and waited (n1-b life-345 2026-11-08
+    08:13:48: an ambush recall and the nearest-town walk-in left the character
+    in Zul; me-staff return-outpost-unavailable, then
+    fixedquest:prepare-return:route-unavailable WAIT x11 until the burst).  The
+    trip's own walk (owner 2026-11-07, the one exception to the
+    never-the-wilderness rule) is the way out: the cures first when they are
+    still wanted and paid for, then the global map to the inn town nearest Zul.
+    """
+    if record.closed_epoch is not None and record.closed_epoch == policy._town_visit_epoch:
+        return None
+    if not _board_allows(policy, snapshot):
+        return None
+    home = nearest_inn_town(policy, snapshot)
+    if home is None:
+        return None
+    curing = wanted(policy, snapshot) and snapshot.player.gold >= cure_price(policy)
+    policy._zul_trip = ZulTrip(
+        active=True, start_town=home, returning=not curing,
+        curable=curable_mutations(policy, snapshot) if curing else (),
+        failure=None if curing else WALK_OUT)
+    return town_key(policy, snapshot, hostiles)
 
 
 def town_key(policy, snapshot, hostiles=None) -> str | None:
@@ -577,6 +756,9 @@ def town_key(policy, snapshot, hostiles=None) -> str | None:
         return None
     record = state(policy)
     town = policy._effective_town_id(snapshot)
+    rewear = None if record.active else rewear_key(policy, snapshot)
+    if rewear is not None:
+        return rewear
     if record.active:
         if town == ZUL_TOWN_ID and not record.returning:
             if not _board_allows(policy, snapshot):
@@ -601,6 +783,8 @@ def town_key(policy, snapshot, hostiles=None) -> str | None:
         # Anywhere else the trip is over (a recall, an inn landing): ask again next stay.
         policy._zul_trip = ZulTrip(closed_epoch=policy._town_visit_epoch)
         return None
+    if town == ZUL_TOWN_ID:
+        return _zul_stay_key(policy, snapshot, record, hostiles)
     if record.closed_epoch is not None and record.closed_epoch == policy._town_visit_epoch:
         return None
     if town == ZUL_TOWN_ID or not wanted(policy, snapshot):
@@ -652,6 +836,7 @@ def global_key(policy, snapshot) -> str | None:
         return None
     wilderness_map = policy._wilderness_map
     player = snapshot.player
+    record.edge_tries = None  # off the ambush map
     if player.hungry:
         food = policy._find_edible(snapshot)
         if food is not None:
@@ -714,6 +899,51 @@ def ambush_key(policy, snapshot, hostiles) -> str | None:
         snapshot, lambda grid: grid.passable and not on_edge(grid.position) and (
             grid.position.y in (1, height - 2) or grid.position.x in (1, width - 2)))
     if step is None:
-        return None
+        return _edge_heading_key(policy, snapshot, record, height, width)
     policy.last_reason = EDGE_REASON
     return policy._step_toward(snapshot, step)
+
+
+def _edge_heading_key(policy, snapshot, record, height: int, width: int) -> str | None:
+    """Head for the nearest edge over ground the dark does not show.
+
+    n1-b life-345 (2026-11-08 08:13:43): the ambush at night showed 9 cells, no
+    route to the edge was known, and the board fell to the stuck escape, which
+    read Recall on the surface.  An orthogonal step toward the nearest edge, the
+    next nearest when a step left the player where it was.
+    """
+    here = snapshot.player.position
+    if record.edge_tries is None:
+        record.edge_tries = {}  # cleared when the ambush map is left (global_key)
+    tries = record.edge_tries
+    levitation = has_levitation(snapshot)
+    headings = sorted(
+        ((here.y, (-1, 0)), (height - 1 - here.y, (1, 0)),
+         (here.x, (0, -1)), (width - 1 - here.x, (0, 1))),
+        key=lambda entry: entry[0])
+    usable = []
+    for _distance, (dy, dx) in headings:
+        cell = Position(here.y + dy, here.x + dx)
+        grid = snapshot.grid_at(cell)
+        if grid is not None and grid.known and not (
+                grid.passable or (levitation and grid.terrain_id == MOUNTAIN_TERRAIN_ID)):
+            continue  # a known wall or water: not this way
+        if grid is not None and grid.has_monster:
+            continue
+        usable.append(cell)
+    attempt = tries.get(here, 0)
+    if attempt >= len(usable):
+        return None
+    tries[here] = attempt + 1
+    policy.last_reason = EDGE_REASON
+    return policy._direction_key(here, usable[attempt])
+
+
+def holds_surface_recall(policy, snapshot) -> bool:
+    """The trip under way on a surface map: no Recall as a stuck escape.
+
+    Owner 2026-11-07 「ふつうに戦い全体地図へ戻る」: an ambush is left by the map
+    edge; the survival ladder keeps its own escapes (the emergency items run
+    before any stuck escape).
+    """
+    return trip_active(policy) and snapshot.dungeon_level == 0 and not snapshot.in_town

@@ -2380,6 +2380,9 @@ class HomeMixin:
         from hengbot import zul_trip
         if zul_trip.retains(self, snapshot, item):
             return 1, "zul-trip:levitation"
+        if zul_trip.retains_replaced_ring(self, item):
+            # Owner 2026-11-08 「旅の後に付け直す」: carried through the trip.
+            return 1, "zul-trip:replaced-ring"
         from hengbot.magic_eater_devices import WONDER_HOLD_LIMIT, is_staple_food, staple_food
         staple = staple_food(snapshot)
         if staple is not None and is_staple_food(item):

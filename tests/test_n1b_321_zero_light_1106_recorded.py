@@ -35,7 +35,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import equipment_optimizer, me_powers, policy as policy_module, policy_supply
+from hengbot import equipment_optimizer, me_powers, policy as policy_module, policy_supply, town_travel
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import Position, STORE_HOME, parse_snapshot
 from hengbot.town_arrival_checkpoint import SIDECAR_DIRECTORY
@@ -92,7 +92,17 @@ class ZeroLightRecordedTest(executor_pins.ProductionHarness):
         for index in range(rows):
             board = steps[index][1]()
             chosen = policy.choose_key(board)
-            if strict:
+            if (strict and town_travel.is_travel_macro(recorded[index]["key"])
+                    and policy._town_light_out(board)):
+                # n1-b life-343 (2026-11-08): no native travel without the
+                # player's own light; the recorded travel was refused
+                # (「目が見えない！」 on the next board) and the walk replaces it.
+                self.assertFalse(town_travel.is_travel_macro(chosen), f"row {index}")
+            elif strict and recorded[index]["reason"] == "store:entry-interrupted-replan":
+                # The recorded reaction to that refused travel: the same step,
+                # now the walk's own (no travel was interrupted).
+                self.assertEqual(chosen, recorded[index]["key"], f"row {index}")
+            elif strict:
                 self.assertEqual((chosen, policy.last_reason),
                                  (recorded[index]["key"], recorded[index]["reason"]),
                                  f"row {index}")

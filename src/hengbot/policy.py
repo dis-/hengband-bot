@@ -7742,6 +7742,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         dark_locomotion = self._town_producer_entry("_dark_locomotion_key", lambda: self._dark_locomotion_key(snapshot))
         if dark_locomotion is not None:
             return dark_locomotion
+        # In town the light out comes before the class sequences' travels
+        # (n1-b life-343: the staff sequence's inn travel into the dark street).
+        town_light = self._town_producer_entry("_town_light_restore_key", lambda: self._town_light_restore_key(snapshot), family="survival")
+        if town_light is not None:
+            return town_light
 
         opening_q34 = self._town_producer_entry("_opening_q34_town_key", lambda: self._opening_q34_town_key(snapshot, strategic_hostiles), family="quest-request")
         if opening_q34 is not None:
@@ -9503,7 +9508,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if teleport is not None:
                 self._stuck_escape_streak = 0
                 return teleport
-            recall = self._find_recall_scroll(snapshot)
+            # The Zul trip's ambush leaves by the map edge (zul_trip.holds_surface_recall).
+            recall = None if zul_trip.holds_surface_recall(self, snapshot) else self._find_recall_scroll(snapshot)
             if recall is not None and self._can_read_scrolls(snapshot):
                 self._stuck_escape_streak = 0
                 self._note_return_start(None)
@@ -17213,7 +17219,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             restore = self._town_producer_entry("_breakout_restore_weapon_key#2", lambda: self._breakout_restore_weapon_key(snapshot))
             if restore is not None:
                 return restore
-        recall = self._find_recall_scroll(snapshot)
+        # n1-b life-345 (2026-11-08 08:13:43): the Zul trip's ambush board read
+        # Recall here; the trip leaves an ambush by the map edge instead.
+        recall = None if zul_trip.holds_surface_recall(self, snapshot) else self._find_recall_scroll(snapshot)
         if recall is not None and self._can_read_scrolls(snapshot):
             self._stuck_escape_streak = 0
             self._note_return_start(None)
