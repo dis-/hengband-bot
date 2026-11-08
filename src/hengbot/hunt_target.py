@@ -84,6 +84,8 @@ class FloorVisit:
     spent_frontiers: frozenset = frozenset()
     # The shown cell the walk already waited beside: the next board there gives it up.
     waited_beside: Position | None = None
+    # The guardian's contact tier when last shown was not T2 or T3 (``_guardian_beatable``).
+    guardian_declined: bool = False
 
 
 def _quest_race(policy, snapshot) -> int | None:
@@ -98,12 +100,27 @@ def _quest_race(policy, snapshot) -> int | None:
     return race if race is not None and race > 0 else None
 
 
-def _guardian_race(policy, snapshot) -> int | None:
+def _guardian_race(policy, snapshot, *, judged: bool = True) -> int | None:
+    """The guardian hunted here; ``judged`` False leaves out the tier verdict."""
     guardian_id = policy._target_guardian_floor_id(snapshot)
     if guardian_id is None or snapshot.floor_key[0] in snapshot.conquered_dungeon_ids:
         return None
+    visit = _visit(policy, snapshot)
+    if judged and visit is not None and visit.guardian_declined:
+        return None
     info = policy._dungeon_knowledge[snapshot.floor_key[0]]
     return guardian_id if policy._guardian_fight_viable(snapshot, info) else None
+
+
+def _guardian_beatable(policy, snapshot, guardian) -> bool:
+    """Owner 2026-11-08 (question 4 of the n1-c life-171 report, verbatim 「勝てる段の時だけ
+    追う」): the guardian is hunted only while its tier on its own, judged from contact, is T2
+    or T3; T1 or undecided (the projection's cost cap) is not hunted.  n1-c life-171 (城65階)
+    hunted 皇帝『レイザーク』 (Lv65, +25, contact tier undecided, no-supply damage at least 1345
+    against HP 993) to three cells and died to its summons."""
+    from hengbot import threat_tiers  # threat_tiers imports this module
+    tier = threat_tiers.tiered(policy, snapshot, [guardian], contact=True).tier
+    return tier in (threat_tiers.T2, threat_tiers.T3)
 
 
 def target_race(policy, snapshot) -> int | None:
@@ -134,6 +151,13 @@ def observe(policy, snapshot) -> None:
         visit = FloorVisit(snapshot.floor_key)
         setattr(policy, MEMORY, visit)
     # Re-decided every board: a killed target ends the quest, a kit change the guardian hunt.
+    # The guardian's tier is judged on each board that shows it; the verdict stands while
+    # it is not shown.
+    if _quest_race(policy, snapshot) is None and (
+            guardian := _guardian_race(policy, snapshot, judged=False)) is not None:
+        if shown_guardian := _perceived(policy, snapshot, guardian):
+            visit.guardian_declined = not _guardian_beatable(
+                policy, snapshot, min(shown_guardian, key=lambda monster: monster.distance))
     visit.race = target_race(policy, snapshot)
     if visit.race is None:
         visit.position = None

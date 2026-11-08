@@ -36,7 +36,7 @@ import lzma
 from pathlib import Path
 import unittest
 
-from hengbot import me_device_attacks_input, status_cure, threat_tiers
+from hengbot import hunt_target, me_device_attacks_input, status_cure, threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.model import TVAL_SCROLL, TVAL_STAFF, parse_snapshot
@@ -61,6 +61,7 @@ RECORDED = {
     4244027: ("mB37", "ranged:magic-eater-device"),
 }
 ARRIVAL = 4243941         # decision 20580, the first 65F board
+HUNTED = 4243978          # decision 20585, recorded hunt:detected-target toward the emperor
 SUMMONER_OPEN = 4244017   # decision 20589
 ONE_SHOT = 4244027        # decision 20590
 EMPEROR, HASTUR = 882, 757
@@ -275,6 +276,20 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
                       if item.tval == TVAL_SCROLL and item.sval == 9)
         self.assertEqual((key, reason), ("r" + scroll.slot, threat_tiers.SENSED_LEAVE_PREFIX + "teleport"))
         self.assertNotEqual(key, RECORDED[ARRIVAL][0])
+
+    # -- owner 2026-11-08 「勝てる段の時だけ追う」 (question 4) ---------------------------------
+
+    def test_the_guardian_undecided_from_contact_is_not_hunted(self):
+        """20585 hunted the emperor (the castle's guardian on 65F) to three cells; its contact
+        tier is undecided (the projection's cost cap), so it is no hunted race."""
+        policy, answers = self.replay(until=HUNTED)
+        snapshot = answers[HUNTED][2]
+        self.assertEqual(policy._target_guardian_floor_id(snapshot), EMPEROR)
+        emperor = next(m for m in snapshot.detected_monsters if m.race_id == EMPEROR)
+        self.assertIsNone(threat_tiers.tiered(policy, snapshot, [emperor], contact=True).tier)
+        self.assertIsNone(hunt_target.target_race(policy, snapshot))
+        self.assertIsNone(hunt_target.unseen_race(policy, snapshot))
+        self.assertNotEqual(answers[HUNTED][1], RECORDED[HUNTED][1])
 
 
 if __name__ == "__main__":
