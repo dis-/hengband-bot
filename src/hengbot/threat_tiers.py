@@ -1195,6 +1195,19 @@ def inside_sensing(policy, snapshot, monster) -> bool:
     return knowledge is not None and sensing_distance(snapshot, monster) <= knowledge.vision
 
 
+def cannot_win(assessment, hp: int) -> bool:
+    """T1, or a tier the projection's cost cap left undecided (``skipped`` "cost") whose
+    no-supply incoming damage is known to reach the HP: its lower bound is at least ``hp``
+    (``free_incoming_bounds``), so T3 fails.  Owner 2026-11-08 (question 1 of the n1-c
+    life-171 report, verbatim 「勝てないと分かれば離脱」): treated exactly as T1.  皇帝
+    『レイザーク』 on 城65階 read None with bounds (1345, 19270) against HP 993."""
+    if assessment.tier == T1:
+        return True
+    bounds = assessment.free_incoming_bounds
+    return (assessment.tier is None and assessment.skipped == "cost"
+            and bounds is not None and bounds[0] >= hp)
+
+
 def sensed_t1_leave_key(policy, snapshot) -> str | None:
     """Owner 2026-11-08 (question 「感知で、起きている強い敵（倒しきれない段階の敵）が見えている時に
     休みますか？」, answer 「その敵の感知範囲内なら早急に離脱する」): an awake hostile, in view or
@@ -1212,7 +1225,7 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
     # would otherwise read T3 only because it has not come yet).
     strong = [monster for monster in sensing
-              if tiered(policy, snapshot, [monster], contact=True).tier == T1]
+              if cannot_win(tiered(policy, snapshot, [monster], contact=True), snapshot.player.hp)]
     if not strong:
         return None
     stairs = policy._escape_by_stairs(snapshot)

@@ -60,6 +60,7 @@ RECORDED = {
     4244017: ("mAq", "emergency:cure-light:absorbed-power"),
     4244027: ("mB37", "ranged:magic-eater-device"),
 }
+ARRIVAL = 4243941         # decision 20580, the first 65F board
 SUMMONER_OPEN = 4244017   # decision 20589
 ONE_SHOT = 4244027        # decision 20590
 EMPEROR, HASTUR = 882, 757
@@ -255,6 +256,25 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         self.assertIsNone(threat_tiers.blind_teleport_means(policy, snapshot))
         key = str(policy.choose_key(snapshot))
         self.assertFalse(key.startswith("mA"), (key, policy.last_reason))
+
+    # -- owner 2026-11-08 「勝てないと分かれば離脱」 (question 1) -------------------------------
+
+    def test_the_sensed_emperor_that_cannot_be_beaten_is_left_on_arrival(self):
+        """20580: the emperor awake 13 away, the player inside its sensing radius; its
+        contact tier is undecided past the cost cap, but the no-supply incoming damage is at
+        least 1345 against HP 993, so it is T1 for the sensed leave (recorded: ``UCg``)."""
+        policy, answers = self.replay(until=ARRIVAL)
+        key, reason, snapshot = answers[ARRIVAL]
+        emperor = next(m for m in snapshot.detected_monsters if m.race_id == EMPEROR)
+        self.assertFalse(emperor.asleep)
+        self.assertTrue(threat_tiers.inside_sensing(policy, snapshot, emperor))
+        alone = threat_tiers.tiered(policy, snapshot, [emperor], contact=True)
+        self.assertEqual((alone.tier, alone.skipped), (None, "cost"))
+        self.assertGreaterEqual(alone.free_incoming_bounds[0], snapshot.player.hp)
+        scroll = next(item for item in snapshot.inventory
+                      if item.tval == TVAL_SCROLL and item.sval == 9)
+        self.assertEqual((key, reason), ("r" + scroll.slot, threat_tiers.SENSED_LEAVE_PREFIX + "teleport"))
+        self.assertNotEqual(key, RECORDED[ARRIVAL][0])
 
 
 if __name__ == "__main__":
