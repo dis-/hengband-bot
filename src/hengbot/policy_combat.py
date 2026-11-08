@@ -2836,12 +2836,12 @@ class CombatMixin:
             return None
         if (
             any(not monster.asleep for monster in adjacent)
-            and not snapshot.player.blind
             and not snapshot.player.confused
         ):
+            # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」); the scroll needs sight.
             if (used := destruction_use.key(self, snapshot)) is not None:
                 return used
-            scroll = self._escape_scroll(snapshot)
+            scroll = None if snapshot.player.blind else self._escape_scroll(snapshot)
             if scroll is not None:
                 self.last_reason = "status-threat:scroll"
                 return self._read_key(snapshot, scroll)
