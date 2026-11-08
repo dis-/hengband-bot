@@ -16118,5 +16118,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "search_coverage.py:floor_grids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search on a runtime RANDOM quest floor held for its target (owner 2026-11-08 coverage ruling, n1-b life-348 Angband 62F); dungeon only; reads the policy's remembered walls and caches the floor mask on the policy; posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; observational data for the quest search's lap"
   }
 }

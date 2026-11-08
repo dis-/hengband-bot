@@ -20,15 +20,24 @@ player can walk to, what the bot remembers and what a mapping left as corridor (
  - then, for ground out of every stop's sight (a cave, a long corridor), the grid farthest
    from the stops, until all walkable ground is within MAX_SIGHT of one (define.h, how far
    the game shows anything).
+With telepathy, the coverage stops after them (owner 2026-11-08, n1-b life-348 Angband 62F:
+「クエストターゲットを探すには少なくとも感知範囲がフロア全域を網羅するように歩かなければならない。」):
+every floor grid, known or not, that some walkable grid has within telepathy's reach is within
+reach of a stop (search_coverage.plan).
 Before the lap (and the secret doors below), a closed door the three-pick cap wrote off, that the
 game answered as a lock and that opens onto ground the walk does not reach, is walked to and
 picked (locked_doors.pick_key): a failed pick is progress, and the rest of the floor can be behind
 it (n1-b life-348, Angband 50F, 2026-11-08).
 A lap goes to the nearest stop not yet seen by walking distance, committed until seen: the
-greedy short tour.  A stop is seen when the player stands on it, holds it in view lit, or
-holds it in view inside the light radius.  With every stop seen the next lap draws them
-again.  A lap with no stop left to walk to answers nothing, and the ladder below it runs
-(the secret walls, the stall bound).
+greedy short tour.  A stop is seen when the player stands on it; with telepathy, when every
+floor grid within its reach was within reach of the walk (``observe`` notes each place, the
+floor's ledger keeps them across a restart) or of a cast this lap that can show the target;
+without it, when it is in view lit or inside the light radius.  With every stop seen the next
+lap draws them again.  Floor grids no walkable grid reaches start a door search round at once
+(``_door_search_key``), once for each reach, toward them; the places a door can be include a
+wall between the walk and remembered floor it does not reach (``door_walls``: 62F's corridor
+cell an earthquake turned to a magma vein).  A lap with no stop left to walk to answers
+nothing, and the ladder below it runs (the secret walls, the stall bound).
 
 A loop step is progress: new ground is not what it is for, so the no-progress and stuck
 counts restart on each (as sealed_pocket's use does).  So a loop whose ground a retreat's veto
@@ -91,6 +100,7 @@ from dataclasses import dataclass, field
 
 from hengbot import (
     area_mapping, hunt_target, locked_doors, me_capability, me_powers, retreat_enclosure,
+    search_coverage,
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -140,12 +150,20 @@ class Memory:
     door_search: bool = False                  # the dead ends are being searched now
     door_casts: list = field(default_factory=list)  # (position, radius) a carried door detection covered
     pending_shows: str = "monsters"            # what the pending use detects: MONSTERS, DOORS or BOTH
+    cover: search_coverage.Coverage = field(default_factory=search_coverage.Coverage)
+    lap_turn: int = 0                          # the game turn this lap was drawn on
+    unreached: int = 0                         # floor grids no walkable cell of this lap covers
+    toward_done: tuple | None = None           # the reach whose door round toward them was done
 
 
 def _memory(policy, snapshot: Snapshot) -> Memory:
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.floor != snapshot.floor_key:
         memory = Memory(snapshot.floor_key)
+        ledger = getattr(policy, "_exploration_ledger", None)
+        if ledger is not None and ledger.floor_key == snapshot.floor_key:
+            # The floor's ledger holds the lap's coverage across a bot restart.
+            memory.cover.centres = ledger.search_cover
         setattr(policy, MEMORY, memory)
     return memory
 
@@ -216,17 +234,58 @@ def draw_stops(snapshot: Snapshot, cells: set) -> tuple:
     return tuple(stops)
 
 
-def _seen_now(snapshot: Snapshot, stop: Position) -> bool:
+def _cast_centres(policy, snapshot: Snapshot, memory: Memory) -> list:
+    """((y, x), radius) of this lap's casts that could show the unseen target."""
+    race = hunt_target.unseen_race(policy, snapshot)
+    if race is None:
+        return []
+    flags = hunt_target.race_flags(policy, race)
+    casts = [*memory.casts, *me_powers.revealing_casts(policy, snapshot, flags)]
+    return [((centre.y, centre.x), radius) for centre, radius, turn in casts if turn >= memory.lap_turn]
+
+
+def _lap_left(policy, snapshot: Snapshot, memory: Memory):
+    """The floor grids this lap's walk and casts have not covered (search_coverage)."""
+    shape = (snapshot.height, snapshot.width)
+    done = memory.cover.mask(shape) | search_coverage.covered(
+        shape, _cast_centres(policy, snapshot, memory))
+    return search_coverage.floor_grids(policy, snapshot) & ~done
+
+
+def _draw(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> tuple:
+    """A new lap: the room and sight stops, then the coverage stops (search_coverage.plan);
+    the lap's coverage starts again here."""
+    stops, radius = draw_stops(snapshot, set(routes)), search_coverage.walk_radius(policy, snapshot)
+    memory.unreached, memory.lap_turn = 0, snapshot.turn
+    memory.cover.clear()
+    if not radius:
+        return stops
+    plan = search_coverage.plan(
+        snapshot, search_coverage.floor_grids(policy, snapshot), routes, stops, radius)
+    memory.unreached = plan.unreachable
+    memory.cover.note(snapshot.player.position, radius)
+    return plan.stops
+
+
+def _seen_now(snapshot: Snapshot, stop: Position, left, radius: int) -> bool:
+    """The player stands on the stop; with telepathy, every floor grid the stop covers was
+    covered (``left`` the grids not yet), else the stop is in view lit or in the light."""
     here = snapshot.player.position
     if stop == here:
         return True
+    if radius:
+        return search_coverage.disc_left(left, (stop.y, stop.x), radius) == 0
     grid = snapshot.grid_at(stop)
     return grid is not None and grid.in_view and (
         grid.lit or game_distance(here, stop) <= (snapshot.light_radius or 0))
 
 
-def _next_goal(snapshot: Snapshot, memory: Memory, routes: dict) -> Position | None:
-    memory.seen.update(stop for stop in memory.stops if _seen_now(snapshot, stop))
+def _next_goal(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> Position | None:
+    radius = search_coverage.walk_radius(policy, snapshot)
+    if memory.stops:
+        left = _lap_left(policy, snapshot, memory) if radius else None
+        memory.seen.update(stop for stop in memory.stops
+                           if stop not in memory.seen and _seen_now(snapshot, stop, left, radius))
     # The player's own cell is reached, not a goal: routes holds it with no first step.
     if (memory.goal in routes and memory.goal not in memory.seen
             and memory.goal != snapshot.player.position):
@@ -263,7 +322,8 @@ def _known(policy, snapshot: Snapshot, cell: Position) -> bool:
 
 def door_walls(policy, snapshot: Snapshot, routes: dict) -> set:
     """The remembered walls a door can be in (the module docstring): beside a walkable grid
-    orthogonally, with the grid straight beyond unknown and inside the outer wall."""
+    orthogonally, with the grid straight beyond inside the outer wall and unknown, or
+    remembered floor the walk does not reach (a mapped room past a secret door)."""
     walls = set()
     for cell in routes:
         for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
@@ -272,7 +332,8 @@ def door_walls(policy, snapshot: Snapshot, routes: dict) -> set:
                 continue
             beyond = Position(wall.y + dy, wall.x + dx)
             if (0 < beyond.y < snapshot.height - 1 and 0 < beyond.x < snapshot.width - 1
-                    and not _known(policy, snapshot, beyond)):
+                    and (not _known(policy, snapshot, beyond)
+                         or ((beyond.y, beyond.x) in policy._floor_t and beyond not in routes))):
                 walls.add(wall)
     return walls
 
@@ -356,7 +417,10 @@ def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -
     if not door_means_held(policy, snapshot):
         uncovered = _uncovered(policy, snapshot, memory, door_walls(policy, snapshot, routes))
         spots = [cell for cell in routes if cell not in ends and _beside(cell, uncovered)]
-    if not memory.door_search and memory.laps - memory.door_lap >= DOOR_SEARCH_LAPS:
+    # Ground no walkable cell covers is searched toward at once, once for each reach.
+    toward = (memory.unreached, len(routes)) if memory.unreached else None
+    if not memory.door_search and (memory.laps - memory.door_lap >= DOOR_SEARCH_LAPS
+                                   or toward not in (None, memory.toward_done)):
         memory.door_lap, memory.door_search = memory.laps, True
         for cell in (*ends, *spots):
             policy._forget_wall_search(cell)
@@ -374,7 +438,7 @@ def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -
                 and any(policy._wall_search_counts[(wall.y, wall.x)] < SEARCH_LIMIT
                         for wall in _beside(cell, uncovered))]
     if not left:
-        memory.door_search = False
+        memory.door_search, memory.toward_done = False, toward
         return None
     goal = min(left, key=lambda cell: (routes[cell][0], cell.y, cell.x))
     if goal != snapshot.player.position:
@@ -403,21 +467,24 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     door = _door_search_key(policy, snapshot, memory, routes)
     if door is not None:
         return door
-    goal = _next_goal(snapshot, memory, routes)
+    goal = _next_goal(policy, snapshot, memory, routes)
     if goal is None:
         memory.laps += bool(memory.stops)
-        stops = draw_stops(snapshot, set(routes))
+        stops = _draw(policy, snapshot, memory, routes)
         # One stop: all the ground is in sight of one place, so there is nothing to circle.
         # The last lap's goal is spent with it: a goal kept would outlive the redraw and be
         # walked to again, though the player stands on it (n1-b life-332, 11-07 00:25).
         memory.stops, memory.seen, memory.goal = (stops if len(stops) > 1 else ()), set(), None
-        goal = _next_goal(snapshot, memory, routes)
+        goal = _next_goal(policy, snapshot, memory, routes)
     memory.goal = goal
     return None if goal is None else _walk_key(policy, snapshot, routes, goal, LOOP_REASON)
 
 
 def observe(policy, snapshot: Snapshot) -> None:
-    """Every decision: settle the last use of a carried device."""
+    """Every decision: note what the player's place covers, and settle the last use of a
+    carried device."""
+    if searching(policy, snapshot) and (radius := search_coverage.walk_radius(policy, snapshot)):
+        _memory(policy, snapshot).cover.note(snapshot.player.position, radius)
     memory = getattr(policy, MEMORY, None)
     if (memory is None or memory.floor != snapshot.floor_key or memory.pending is None
             or snapshot.turn == memory.pending[0]):
