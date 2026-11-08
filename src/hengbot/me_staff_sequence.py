@@ -91,8 +91,8 @@ from hengbot.model import (
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
     FIXED_QUEST_TOWNS, MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
-    QUEST_STATUS_REWARDED, REST_MACRO, STORE_STUCK_LIMIT, TOWN_TELEPORT_COST,
-    WAIT_KEY,
+    QUEST_STATUS_REWARDED, REST_MACRO, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT,
+    TOWN_TELEPORT_COST, WAIT_KEY,
 )
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -365,8 +365,30 @@ def power_key(policy, snapshot, sval: int) -> str | None:
     return "mA" + POWER_LETTER[sval]
 
 
+def identify_power_reliable(policy, snapshot) -> bool:
+    """The absorbed Identify clears the carried staff's floor
+    (``STAFF_IDENTIFY_MIN_SUCCESS``).
+
+    The absorbed power serves what the staff would (owner 2026-10-30
+    「以降、鑑定と財宝感知は取り込みで賄う」), so it answers to the staff's own
+    rule: below the floor only a reliable scroll identifies
+    (``_carried_identification_source``).  Its rate is the success the game
+    lists for it (cmd-magiceat.cpp prints the fail percent; the last displayed
+    list, ``me_capability.observed_row``, which a cast's power prompt and the
+    power refresh read again); with no list read yet the power is used as before.
+    n1-b life-353 2026-11-08 23:20: INT drained to 7 (stat index 4,
+    adj_mag_fail 99) listed every absorbed power at 95% fail; the town
+    identify cast 'mAf' + slot eleven times in a row (「呪文をうまく唱えられな
+    かった！」) until three identification retirements made
+    town:blocked:owner-retired-burst, five Identify scrolls carried.
+    """
+    row = me_capability.observed_row(policy, "staff", SV_STAFF_IDENTIFY)
+    return row is None or int(row.get("success") or 0) >= STAFF_IDENTIFY_MIN_SUCCESS * 100
+
+
 def identify_power_available(policy, snapshot) -> bool:
-    return power_key(policy, snapshot, SV_STAFF_IDENTIFY) is not None
+    return (power_key(policy, snapshot, SV_STAFF_IDENTIFY) is not None
+            and identify_power_reliable(policy, snapshot))
 
 
 def identify_power_command(policy, snapshot, target, *, full: bool) -> str | None:
@@ -374,7 +396,9 @@ def identify_power_command(policy, snapshot, target, *, full: bool) -> str | Non
     if full or getattr(target, "slot", None) not in "abcdefghijklmnopqrstuvw":
         return None
     key = power_key(policy, snapshot, SV_STAFF_IDENTIFY)
-    return key + target.slot if key is not None else None
+    if key is None or not identify_power_reliable(policy, snapshot):
+        return None
+    return key + target.slot
 
 
 def _unread_sequence_staff(policy, snapshot, item) -> bool:
