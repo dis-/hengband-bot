@@ -72,6 +72,31 @@ character could not defeat once angered is dropped (owner 2026-10-31
 ``policy._town_friendly_unbeatable``).  The 20-action flight rule
 (breeder_stalemate) and the survival rungs above every combat rung are
 untouched.
+
+Owner 2026-11-08 (「20行動で減らせないのであれば倒すアルゴリズム側に問題がある。特に範囲攻撃の
+使い方など。」, the chosen option 「射線にいれば範囲で撃つ」): 「どの段でも、もっと危ない敵が動いて
+いなければ、射線にいる増える敵を撃つ。範囲攻撃は一番多く倒せるマスを狙い、2体以上巻き込めるなら
+単体攻撃より先に使う。道をふさがれたら待たずに撃って開ける。」
+
+- Kills (``_tally``): a breeder the option reaches dies when the damage after its
+  resistance and the falloff ``(dam + r) / (r + 1)`` (effect-monster.cpp:108) reaches its
+  HP: the race's dice average (monrace_knowledge ``average_hp``; FORCE_MAXHP the maximum),
+  or the health band's upper bound when that is lower (a hurt one).  The expected kills
+  are that count times the success chance.  The player's own projection never hurts the
+  player (effect-player.cpp:140-141), so no aim is barred for being near the player.
+- Two or more (``_mass_key``): when an aim catches at least two visible hostile breeders
+  and no more dangerous hostile acts (``more_dangerous_acting``), the aim with the most
+  expected kills is used before any one-target answer (then the larger group damage,
+  then the tie order above).  Otherwise the group-damage comparison above is unchanged.
+- In the line of fire (``line_of_fire_key``): a visible hostile breeder the projection
+  reaches from the player (projectable within ``MAX_RANGE``) is shot when no more
+  dangerous hostile acts: the two-or-more aim, else the caller's one-target shot at the
+  nearest one.  The quest plans call it where they would otherwise wait or walk (Q25:
+  quest25_battle ``_breeders_in_line_key``).
+- More dangerous (``more_dangerous_acting``): a visible awake hostile that does not
+  breed, whose largest blow or ranged damage (race knowledge) is above every breeder's in
+  view or that summons, and that reaches the player now: beside it, a race that moves,
+  or one that casts or summons within MONSTER_SPELL_MAX_RANGE.
 """
 
 from __future__ import annotations
@@ -82,7 +107,7 @@ from typing import Callable
 from hengbot import attack_expectation, me_device_attacks
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, Position, game_distance
-from hengbot.policy_constants import DIRECTION_KEYS
+from hengbot.policy_constants import DIRECTION_KEYS, MONSTER_SPELL_MAX_RANGE
 from hengbot.projection_path import projection_path
 
 
@@ -315,7 +340,7 @@ def _target_prompts(snapshot, grid) -> int:
 
 
 def _options(policy, snapshot, means):
-    """(group score, prompts, means, key sender) of every usable aim.
+    """(group score, prompts, means, key sender, aim) of every usable aim.
 
     Owner 2026-11-03 「群れの中心を狙う」: a ball or breath with a target
     sender is also scored on every burst grid (``_burst_grids``)."""
@@ -325,7 +350,8 @@ def _options(policy, snapshot, means):
         for offset, direction in aims:
             score = _group_score(policy, snapshot, each, offset, blocks)
             if score:
-                yield score, int(each.power.aimed), each, lambda e=each, d=direction: e.send(d)
+                yield (score, int(each.power.aimed), each, lambda e=each, d=direction: e.send(d),
+                       offset)
         if each.send_target is None or each.power.shape not in me_device_attacks.TARGETABLE_SHAPES:
             continue
         radius = me_device_attacks.AREA_RADIUS[each.power.shape]
@@ -333,7 +359,7 @@ def _options(policy, snapshot, means):
             score = _group_score(policy, snapshot, each, grid, blocks)
             if score:
                 yield (score, _target_prompts(snapshot, grid), each,
-                       lambda e=each, g=grid: e.send_target(g))
+                       lambda e=each, g=grid: e.send_target(g), grid)
 
 
 def engaged(engaged_hostiles) -> bool:
@@ -341,21 +367,125 @@ def engaged(engaged_hostiles) -> bool:
     return any(monster.hostile and monster.can_multiply for monster in engaged_hostiles)
 
 
+def _hp_estimate(policy, monster) -> int:
+    """The race's dice average, or the health band's upper bound when lower."""
+    knowledge = attack_expectation.race_knowledge(policy, monster.race_id)
+    average = getattr(knowledge, "average_hp", 0) if knowledge is not None else 0
+    return max(1, min(monster.hp, average) if average > 0 else monster.hp)
+
+
+def _visible_breeders(snapshot) -> list:
+    return [monster for monster in snapshot.visible_monsters
+            if monster.hostile and monster.can_multiply and monster.perception != "detected"]
+
+
+def _tally(policy, snapshot, means, aim, blocks) -> tuple[float, float]:
+    """(expected kills, breeders caught) of ``means`` at ``aim`` (``_hits``)."""
+    if means.power.shape == "bolt-or-beam":
+        beam = means.power.beam_percent / 100
+        parts = ((beam, replace(means.power, shape="beam", beam_percent=100)),
+                 (1 - beam, replace(means.power, shape="bolt", beam_percent=0)))
+    else:
+        parts = ((1.0, means.power),)
+    breeders = {monster.position: monster for monster in _visible_breeders(snapshot)}
+    kills = caught = 0.0
+    for weight, power in parts:
+        for pos, r in _hits(snapshot, power, aim, blocks).items():
+            monster = breeders.get(pos)
+            if monster is None:
+                continue
+            caught += weight
+            base = me_device_attacks.expected_damage(
+                power, snapshot.player.level, me_device_attacks.race_flags(policy, monster))
+            if (base + r) / (r + 1) >= _hp_estimate(policy, monster):
+                kills += weight
+    return means.success * kills, caught
+
+
+def _danger(monster) -> int:
+    return max(monster.max_melee_damage, monster.max_ranged_damage)
+
+
+def more_dangerous_acting(policy, snapshot) -> bool:
+    """A visible awake non-breeder more dangerous than the breeders in view reaches the player."""
+    breeders = _visible_breeders(snapshot)
+    floor = max((_danger(monster) for monster in breeders), default=0)
+    for monster in snapshot.visible_monsters:
+        if not monster.hostile or monster.can_multiply or monster.asleep:
+            continue
+        if _danger(monster) <= floor and not monster.can_summon:
+            continue
+        knowledge = attack_expectation.race_knowledge(policy, monster.race_id)
+        moves = knowledge is None or "NEVER_MOVE" not in knowledge.flags
+        reaches_from_afar = ((monster.max_ranged_damage > 0 or monster.can_summon)
+                             and monster.distance <= MONSTER_SPELL_MAX_RANGE)
+        if monster.distance <= 1 or moves or reaches_from_afar:
+            return True
+    return False
+
+
+def in_line_of_fire(policy, snapshot) -> list:
+    """Visible hostile breeders a projection from the player reaches, nearest first."""
+    blocks = _blocker(snapshot)
+    origin = snapshot.player.position
+    return sorted((monster for monster in _visible_breeders(snapshot)
+                   if game_distance(origin, monster.position) <= MAX_RANGE
+                   and _projectable(origin, monster.position, blocks)),
+                  key=lambda monster: (monster.distance, monster.index))
+
+
+def _mass_key(policy, snapshot, means) -> str | None:
+    """The aim with the most expected kills among those catching two or more breeders."""
+    blocks = _blocker(snapshot)
+    ranked = []
+    for score, prompts, each, send, aim in _options(policy, snapshot, means):
+        kills, caught = _tally(policy, snapshot, each, aim, blocks)
+        if caught >= 2:
+            ranked.append((-kills, -score, prompts, each.power.kind != "rod", each.power.level, send))
+    for *_order, send in sorted(ranked, key=lambda row: tuple(row[:5])):
+        if (sent := send()) is not None:
+            return sent
+    return None
+
+
+def line_of_fire_key(policy, snapshot, single: Callable[[object], str | None]) -> str | None:
+    """Owner 2026-11-08 「射線にいれば範囲で撃つ」: breeders in the line of fire are shot when no
+    more dangerous hostile acts: the two-or-more aim first, else ``single`` at the nearest
+    one that it answers.  None leaves the caller's order."""
+    player = snapshot.player
+    if player.blind or player.confused or player.hallucinated:
+        return None
+    targets = in_line_of_fire(policy, snapshot)
+    if not targets or more_dangerous_acting(policy, snapshot):
+        return None
+    means = _means(policy, snapshot)
+    if means and (mass := _mass_key(policy, snapshot, means)) is not None:
+        return mass
+    for target in targets:
+        if (shot := single(target)) is not None:
+            return shot
+    return None
+
+
 def key(policy, snapshot, engaged_hostiles) -> str | None:
-    """The area attack with the largest group damage when it beats every
-    one-target answer and a breeder is engaged, else None (the caller's order)."""
+    """Two or more breeders caught (``_mass_key``) when no more dangerous hostile acts; else
+    the area attack with the largest group damage when it beats every one-target answer
+    and a breeder is engaged; else None (the caller's order)."""
     if not engaged(engaged_hostiles):
         return None
     means = _means(policy, snapshot)
     if not means:
         return None
+    if (not more_dangerous_acting(policy, snapshot)
+            and (mass := _mass_key(policy, snapshot, means)) is not None):
+        return mass
     hostiles = [monster for monster in snapshot.visible_monsters if monster.hostile]
     baseline = _one_target_best(policy, snapshot, means, hostiles)
     # Ties: fewer prompts (a direction before a cursor walk), a rod, the lower level.
     ranked = sorted(_options(policy, snapshot, means),
                     key=lambda option: (-option[0], option[1], option[2].power.kind != "rod",
                                         option[2].power.level))
-    for score, _prompts, _each, send in ranked:
+    for score, _prompts, _each, send, _aim in ranked:
         if score <= baseline:
             return None
         if (sent := send()) is not None:

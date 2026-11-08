@@ -41,8 +41,14 @@ quoted there with its date); this module is their executor.  The phases, in orde
     comes back; the Magic-Eater hastes out of the druj's line only.
 
 In every phase (owner 2026-11-07 「隣に来たら倒す」, widened the same day 「全部の段に広げる」), a corpse
-mass beside the player is struck (else shot) before the phase's own step (``_adjacent_mass_key``);
-one farther off is left alone.
+mass beside the player is struck (else shot) before the phase's own step (``_adjacent_mass_key``).
+Owner 2026-11-08 「射線にいれば範囲で撃つ」 (it replaces 「離れた塊は今のまま相手にしない」): 「どの段でも、
+もっと危ない敵が動いていなければ、射線にいる増える敵を撃つ。範囲攻撃は一番多く倒せるマスを狙い、2体
+以上巻き込めるなら単体攻撃より先に使う。道をふさがれたら待たずに撃って開ける。」  Where the phase's own
+step would wait or walk (or has none), the masses in the line of fire are shot instead
+(``_breeders_in_line_key``, breeder_area_attack ``line_of_fire_key``): the aim with the most kills
+when it catches two or more, else the phase's strongest shot at the nearest.  A more dangerous
+hostile that acts keeps the phase's step; the phase's own fights and every survival rung come first.
 
 Between phases (between_phases): a Magic-Eater rests a counted rest until every absorbed
 attack power is full, reading the lists turn-free (``b``) to decide (R& does not wait for
@@ -72,6 +78,7 @@ from typing import Callable
 
 from hengbot import (
     attack_expectation,
+    breeder_area_attack,
     combat_answer,
     me_capability,
     me_device_attacks,
@@ -191,8 +198,13 @@ FULL_HP_REST_KEY = REST_MACRO
 # tyrannosaur; the stairway 「[13,27] から階段までは距離2」.  The dreadmaster's fight has
 # no distance in the draft: it is weighed at the same 9.
 COMPARE_DISTANCE = {geo.SPECTRAL_T: 9, geo.DREADMASTER: 9, geo.STAIRWAY: 2}
-# Never-moving casters left to their own phases: no shot, no wait for them elsewhere.
-_LATER_IMMOBILE = frozenset({geo.IPSISSIMUS, geo.TOME, geo.QUYL, geo.DRUJ, geo.STAIRWAY, geo.MASS})
+# Never-moving casters left to their own phases: no shot, no wait for them elsewhere.  The corpse
+# masses are not among them (owner 2026-11-08 「射線にいれば範囲で撃つ」): breeders are shot by
+# ``_breeders_in_line_key`` wherever a phase would wait or walk, not mixed into its own targets.
+_LATER_IMMOBILE = frozenset({geo.IPSISSIMUS, geo.TOME, geo.QUYL, geo.DRUJ, geo.STAIRWAY})
+# A phase step that leaves the board to the breeders in the line of fire (a hold, a walk and the
+# trap search or disarm on its way).
+_IDLE_REASONS = frozenset({HOLD_REASON, WALK_REASON, SEARCH_REASON, DISARM_REASON})
 _KILL_LINES = ("は死んだ。", "を葬り去った。", "を倒した。", "を殺した。")
 _KILL_LINES_EN = ("You have slain ", "You have destroyed ", "You have killed ")
 _UNSEEN = ("何か", "it", "It")
@@ -659,8 +671,10 @@ def _engage(ctx: _Ctx, targets) -> str | None:
 
 
 def _fight_targets(ctx: _Ctx) -> list:
-    """What this phase fights in view: every mover, not the immobile casters of later phases."""
-    return [monster for monster in ctx.in_view() if monster.race_id not in _LATER_IMMOBILE]
+    """What this phase fights in view: every mover, not the immobile casters of later phases
+    nor the breeders (``_breeders_in_line_key``)."""
+    return [monster for monster in ctx.in_view()
+            if monster.race_id not in _LATER_IMMOBILE and not monster.can_multiply]
 
 
 def _hold(ctx: _Ctx) -> str:
@@ -869,7 +883,7 @@ def _stragglers_done(ctx: _Ctx) -> bool:
 
 def _stragglers(ctx: _Ctx) -> str | None:
     targets = [monster for monster in ctx.in_view()
-               if monster.race_id not in _LATER_IMMOBILE - {geo.IPSISSIMUS}]
+               if monster.race_id not in _LATER_IMMOBILE - {geo.IPSISSIMUS} and not monster.can_multiply]
     if (key := _engage(ctx, targets)) is not None:
         return key
     return _walk(ctx, {geo.STRAGGLER_STAND}) or _hold(ctx)
@@ -983,6 +997,8 @@ def _masses(ctx: _Ctx) -> str | None:
             ctx.policy, ctx.snapshot, ctx.navigator, ctx.open_terrain(), quest_room_light.LIGHT_REASON)
         if light is not None:
             return light
+    if (key := _breeders_in_line_key(ctx)) is not None:
+        return key   # owner 2026-11-08: the aim with the most kills when it catches two or more
     for monster in sorted(_masses_seen(ctx), key=lambda each: each.distance):
         key = _fire_at(ctx, (monster.position.y, monster.position.x), geo.MASS)
         if key is not None:
@@ -1256,6 +1272,39 @@ def _adjacent_mass_key(ctx: _Ctx) -> str | None:
     return None
 
 
+def _breeders_in_line_key(ctx: _Ctx) -> str | None:
+    """Owner 2026-11-08 「射線にいれば範囲で撃つ」: the breeders in the line of fire, when no more
+    dangerous hostile acts (breeder_area_attack ``line_of_fire_key``); the one-target answer is
+    the phase's strongest shot at the nearest (``_fire_at``)."""
+    def single(target):
+        return _fire_at(ctx, (target.position.y, target.position.x), target.race_id)
+    key = breeder_area_attack.line_of_fire_key(ctx.policy, ctx.snapshot, single)
+    if key is not None:
+        ctx.battle.aimed_race = geo.MASS
+    return key
+
+
+def _act(ctx: _Ctx, phase: Phase) -> str | None:
+    """The phase's own step; where it waits or walks (or has none), the breeders in line first.
+
+    A step that names no reason of its own keeps the previous one, so the reason is read only
+    when the step set it."""
+    entry = ctx.policy.last_reason
+    ctx.policy.last_reason = ""
+    key = phase.act(ctx)
+    own = ctx.policy.last_reason
+    if not own:
+        ctx.policy.last_reason = entry
+    if key is None or own in _IDLE_REASONS:
+        if (shot := _breeders_in_line_key(ctx)) is not None:
+            return shot
+        if not own:
+            ctx.policy.last_reason = entry
+        elif key is not None:
+            ctx.policy.last_reason = own
+    return key
+
+
 def _finished(ctx: _Ctx, phase: Phase) -> bool:
     """Its own end, or its wait limit (wait_limits, phase1_wall_passers, phase2)."""
     return phase.done(ctx) or (phase.wait_limit is not None and ctx.battle.quiet >= phase.wait_limit)
@@ -1292,7 +1341,7 @@ def _phase_key(policy, snapshot) -> str | None:
     if phase is None:
         # The druj is dead: what the anti-teleport piece displaced goes back on.
         return quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
-    return _adjacent_mass_key(ctx) or _prepare(ctx, phase) or phase.act(ctx)
+    return _adjacent_mass_key(ctx) or _prepare(ctx, phase) or _act(ctx, phase)
 
 
 # -- the summons ------------------------------------------------------------------------
