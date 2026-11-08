@@ -15312,6 +15312,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A disarming power or carried device aimed at a Q25 trap cell. No independent progress."
   },
+  "quest25_battle.py:_trap_detect_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-09 trap detection of Q25's phase battle (the absorbed Detect Traps, else a carried staff or scroll) for a map trap cell; no independent progress."
+  },
   "bm_destruction_fund.py:_shelf": {
     "classification": "data",
     "rows": [

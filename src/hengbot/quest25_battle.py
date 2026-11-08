@@ -56,8 +56,9 @@ them, player-processor.cpp is_fully_healthy).  While a sensed moving hostile cut
 short, the phase walks to its post instead and the rest goes on once none is sensed (owner
 2026-11-09, ``_prepare``).
 
-Traps (phase4, phase5): a corridor cell the map always traps is searched from beside it
-until the trap is found, a cell that may hold one (``!``) ten times; a disarming power or
+Traps (phase4, phase5): a corridor cell the map always traps is settled by a trap detection
+when the character has one, else searched from beside it ten times (owner 2026-11-09), a cell
+that may hold one (``!``) ten times; a disarming power or
 device is aimed first when there is one, the disarm command (``_step_toward``) answers a
 found trap.  A disarming beam that went off (the game's flash) answers every trap cell of its
 line, and a cell that holds an item holds no trap (``_settle_beam``, ``_trap_key``).  Walks cross
@@ -104,8 +105,9 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key
 from hengbot.model import (
-    Position, SV_ROD_DETECTION, SV_ROD_DISARMING, SV_STAFF_DETECT_EVIL, SV_WAND_DISARMING,
-    SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_STAFF, TVAL_WAND,
+    Position, SV_ROD_DETECTION, SV_ROD_DISARMING, SV_SCROLL_DETECT_TRAP, SV_STAFF_DETECT_EVIL,
+    SV_STAFF_DETECT_TRAP, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_SCROLL,
+    TVAL_STAFF, TVAL_WAND,
 )
 from hengbot.policy_constants import DIRECTION_KEYS, REST_MACRO, SEARCH_KEY, WAIT_KEY
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
@@ -119,6 +121,7 @@ CLOSE_REASON = f"{REASON}:close-door"
 SHOT_REASON = f"{REASON}:shot"
 SEARCH_REASON = f"{REASON}:trap-search"
 DISARM_REASON = f"{REASON}:trap-disarm"
+TRAP_DETECT_REASON = f"{REASON}:trap-detect"
 HASTE_REASON = f"{REASON}:haste"
 FULL_HP_REASON = f"{REASON}:rest-full"
 RECHARGE_REASON = f"{REASON}:rest-recharge"
@@ -192,6 +195,9 @@ _TELEPORT_LINE = "がテレポートした。"
 _TELEPORT_LINE_EN = " teleports away."
 # Owner 2026-11-06 「10回で打ち切る」: searches of a cell that may hold a trap.
 MAYBE_TRAP_SEARCHES = 10
+# Owner 2026-11-09 「罠探知があるなら使用することで確定。そうでなければ10回で打ち切る。」 (it replaces
+# phase5's 2026-11-06 「見つかるまで探す」): searches of a cell the map always traps.
+TRAP_SEARCHES = 10
 # The counted rest between phases (between_phases 「回数を指定して休み、回数を見て続けるかを
 # 決める」); the count is the Q34 recharge's (q34_recharge, LUNA-REPORT-me-rest-recharge).
 RECHARGE_REST_KEY = "R100\r"
@@ -253,6 +259,8 @@ class Battle:
     observed: tuple | None = None      # the board last read (key and walk_key share one)
     enlightened: bool = False      # the ambush's Potion of Enlightenment was drunk this visit
     beam: tuple | None = None      # (turn, origin, step) of the last answer aimed at a trap cell
+    detection: tuple | None = None  # (turn, origin) of the last trap detection keyed for a cell
+    detect_asked: frozenset = frozenset()  # trap cells a trap detection was keyed for
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
 
@@ -271,7 +279,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam")}
+        "beam", "detection", "detect_asked")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -553,18 +561,91 @@ def _trap_key(ctx: _Ctx, cell) -> str | None:
         # clean grid (FloorType::place_trap_at, Grid::is_clean).  Searching would never find one.
         battle.cleared = battle.cleared | {cell}
         return None
+    if _settled_on_board(ctx, grid):
+        battle.cleared = battle.cleared | {cell}
+        return None
     device = _disarm_device_key(ctx, cell)
     if device is not None:
         battle.cleared = battle.cleared | {cell}
         _note_beam(ctx, cell)
         return device
+    if cell not in battle.detect_asked:
+        detect = _trap_detect_key(ctx)
+        if detect is not None:
+            battle.detect_asked = battle.detect_asked | {cell}
+            battle.detection = (int(ctx.snapshot.turn), ctx.here)
+            return detect
     searched = battle.searches.get(cell, 0)
-    if maybe and searched >= MAYBE_TRAP_SEARCHES:
+    if searched >= (MAYBE_TRAP_SEARCHES if maybe and not always else TRAP_SEARCHES):
         battle.cleared = battle.cleared | {cell}   # 「罠は無いとみなして通る」
         return None
     battle.searches = {**battle.searches, cell: searched + 1}
     ctx.policy.last_reason = SEARCH_REASON
     return SEARCH_KEY
+
+
+def _settled_on_board(ctx: _Ctx, grid) -> bool:
+    """The board's own record that the grid holds no hidden trap: known, no trap shown, and no
+    longer CAVE_UNSAFE (grid_map.unsafe_rows).  Every grid of a dungeon floor starts unsafe
+    (floor-generator.cpp wipe_generate_random_floor_flags); a trap detection clears it within its
+    range after disclosing every trap there (spells-detection.cpp detect_feat_flag), KILL_TRAP and
+    KILL_DOOR clear it on the grids of their path in sight after destroying the trap
+    (effect-feature.cpp), and a step clears it only in light or where no trap is (player-move.cpp
+    move_player_effect).  The flag is the game's, so it outlives a restart of the bot."""
+    return (grid is not None and grid.known and not grid.trap
+            and ctx.snapshot.unsafe_rows is not None and not ctx.snapshot.unsafe_rows_malformed
+            and not ctx.snapshot.unsafe_rows[grid.position.y][grid.position.x])
+
+
+def _trap_detect_key(ctx: _Ctx) -> str | None:
+    """Owner 2026-11-09 「罠探知があるなら使用することで確定」: the absorbed Detect Traps power,
+    else a carried Staff or Scroll of Detect Traps (detect_traps, DETECT_RAD_DEFAULT)."""
+    key = me_powers.power_key(ctx.policy, ctx.snapshot, me_powers.TRAP_CELL)
+    if key is not None:
+        return key
+    player = ctx.snapshot.player
+    if player.blind or player.confused or player.hallucinated:
+        return None
+    for tval, sval, verb in ((TVAL_STAFF, SV_STAFF_DETECT_TRAP, "staff"),
+                             (TVAL_SCROLL, SV_SCROLL_DETECT_TRAP, "read")):
+        item = next((item for item in ctx.snapshot.inventory if item.tval == tval and item.known
+                     and item.sval == sval and (tval != TVAL_STAFF or item.charges > 0)), None)
+        if item is not None:
+            key = reserved_item_command(ctx.policy, ctx.snapshot, verb, item)
+            if key is not None:
+                ctx.policy.last_reason = TRAP_DETECT_REASON
+                return key
+    return None
+
+
+# The lines of a use that went off without its effect (cmd-magiceat.cpp, use-execution.cpp).
+_USE_FAILED_LINES = ("呪文をうまく唱えられなかった！", "You failed to get the magic off!",
+                     "杖をうまく使えなかった。", "You failed to use the staff properly.")
+
+
+def _settle_detection(ctx: _Ctx) -> None:
+    """The board after a trap detection keyed for a cell: unless the use failed, every trap
+    within the detected area is shown (detect_feat_flag discloses each), so each map trap cell
+    within ``DETECT_RAD - 1`` of where it was used is answered: found when its trap is shown,
+    else cleared (no trap)."""
+    battle = ctx.battle
+    if battle.detection is None or ctx.snapshot.turn <= battle.detection[0]:
+        return
+    _turn, origin = battle.detection
+    battle.detection = None
+    if any(message_text(message) in _USE_FAILED_LINES for message in ctx.snapshot.messages):
+        return
+    bf = ctx.navigator.battlefield
+    for cell in {*bf.trap_cells, *bf.maybe_trap_cells}:
+        if quest_exposure.game_distance(origin, cell) > me_powers.DETECT_RAD - 1:
+            continue
+        grid = ctx.snapshot.grid_at(Position(*cell))
+        if grid is None:
+            continue
+        if grid.trap:
+            battle.found = battle.found | {cell}
+        else:
+            battle.cleared = battle.cleared | {cell}
 
 
 # The line KILL_TRAP prints for each trap it destroys on a known grid (effect-feature.cpp).
@@ -1424,6 +1505,7 @@ def _observe(ctx: _Ctx) -> None:
         return
     ctx.battle.observed = board
     _settle_beam(ctx)
+    _settle_detection(ctx)
     _note_rest_cut(ctx)
     _note_kills(ctx)
     _note_pen_shot(ctx)

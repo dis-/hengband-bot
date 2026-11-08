@@ -10095,6 +10095,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_trap_detect_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_trap_key": {
     "classification": "producer",
     "rows": [

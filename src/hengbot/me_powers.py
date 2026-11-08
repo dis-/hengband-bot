@@ -125,6 +125,7 @@ DARK = "dark"
 REST = "rest"
 SECRET_SEARCH = "secret-search"
 TRAP = "trap"            # asked with the trap the bot would disarm
+TRAP_CELL = "trap-cell"  # asked by quest25_battle for a map trap cell not yet settled
 THREAT = "threat"        # asked with each visible hostile (threat_key)
 QUEST_OPENING = "quest-opening"  # asked with a quest plan's opening target (quest_opening_away)
 FIGHT = "fight"          # asked in place of a decided attack (fight_key)
@@ -208,7 +209,7 @@ POWERS = (
     Power("rod", SV_ROD_DETECTION, devices()[(TVAL_ROD, SV_ROD_DETECTION)].names,
           "detect-all", DETECT_RAD, 10, ("hunt-target-unseen",), powerful="when-safe"),
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
-          "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area")),
+          "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
           MAP_AREA, DETECT_RAD, 30,
           ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket"),
@@ -581,6 +582,8 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("dark-room", frozenset({FLOOR}), _dark_room),
     Trigger("light-sensitive-adjacent", frozenset({FLOOR, DARK}), _light_sensitive_adjacent),
     Trigger("trap-to-disarm", frozenset({TRAP}), _trap_to_disarm),
+    # Owner 2026-11-09 「罠探知があるなら使用することで確定」: the caller asks once per cell.
+    Trigger("trap-cell-unsettled", frozenset({TRAP_CELL}), lambda ctx, power: True),
     Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
     Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
