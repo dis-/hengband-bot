@@ -29,6 +29,10 @@ path).  What no walkable cell covers even with that radius is ``unreachable``: t
 work goes toward it first (quest_target_search); only ground the door work found nothing toward
 falls back to the plain lap.
 
+``Sweeps`` counts complete coverages of the floor (owner 2026-11-08 21:5x: 「全域を2回覆ったら
+諦める」): each counted from empty, by the walk and the casts that can show the target, until no
+grid inside the outer ring is left; then the next one starts from empty.
+
 ``Coverage`` is the per-lap memory of what was covered (the centres, radius each), which
 quest_target_search keeps in the floor's exploration ledger so a bot restart on the same floor
 resumes the lap (ExplorationLedger.search_cover).
@@ -182,3 +186,22 @@ class Coverage:
             self._painted = (shape, len(self.centres), covered(
                 shape, (((y, x), radius) for y, x, radius in self.centres)))
         return self._painted[2]
+
+
+@dataclass
+class Sweeps:
+    """Complete coverages of the grids (the module docstring): the one being made and the count."""
+    cover: Coverage = field(default_factory=Coverage)
+    start_turn: int = 0   # the game turn the coverage being made began
+    count: int = 0
+
+    def update(self, grids: np.ndarray, casts, turn: int) -> bool:
+        """With this coverage's walk and ``casts`` (((y, x), radius) made since ``start_turn``):
+        whether it is complete now (counted, and the next begins from empty at ``turn``)."""
+        done = self.cover.mask(grids.shape) | covered(grids.shape, casts)
+        if (grids & ~done).any():
+            return False
+        self.count += 1
+        self.cover.clear()
+        self.start_turn = turn
+        return True

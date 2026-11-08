@@ -28,6 +28,7 @@ import unittest
 import numpy as np
 
 import hengbot.policy  # noqa: F401 -- loads the modules in their cycle-safe order
+from hengbot import me_powers
 from hengbot import quest_target_search as search
 from hengbot import search_coverage
 from hengbot.cli import _ExecutorInputPort, SendResult
@@ -209,6 +210,69 @@ class N1b62fQuestCoverRecordedTest(ProductionHarness):
         _, reach = self.coverage(policy, raw, list(routes), {cell: 30 for cell in routes})
         self.assertEqual(int(np.count_nonzero(reach & ~covered)), 0)
         self.assertEqual(memory.unreached, int(np.count_nonzero(floor & ~reach)))
+
+    def install_detections(self, policy, raw):
+        """DECLARED: the floor's 37 recorded detections (me_powers' floor memory at 16:18) cast
+        again at this board's game turn."""
+        board = self.snapshot(policy, raw)
+        memory = getattr(policy, me_powers.MEMORY, None)
+        if memory is None or memory.floor != board.floor_key:
+            memory = me_powers.FloorMemory(board.floor_key, raw["turn"])
+            setattr(policy, me_powers.MEMORY, memory)
+        for use in self.pin["detections"]:
+            memory.uses.append(me_powers.Use(
+                tuple(use["served"]), tuple(use["used"]), use["trigger"], Position(*use["position"]),
+                raw["turn"], reason=use["reason"]))
+
+    def following(self, raw):
+        board = copy.deepcopy(raw)
+        board["turn"] += 10
+        board["messages"] = []
+        return board
+
+    def test_the_recorded_detections_covered_every_inner_grid(self):
+        shape = (self.pin["board"]["floor"]["height"], self.pin["board"]["floor"]["width"])
+        floor = np.zeros(shape, dtype=bool)
+        floor[1:-1, 1:-1] = True
+        casts = search_coverage.covered(shape, (
+            (tuple(use["position"]), 45 if use["reason"].endswith(":powerful") else 30)
+            for use in self.pin["detections"]))
+        self.assertEqual(len(self.pin["detections"]), 37)
+        self.assertEqual(int(np.count_nonzero(floor & ~casts)), 0)
+
+    def test_the_floor_covered_twice_is_given_up(self):
+        """Owner 2026-11-08 21:5x 「全域を2回覆ったら諦める」."""
+        policy, raw = self.policy()
+        self.to_the_lap(policy, raw)
+        memory = getattr(policy, search.MEMORY)
+        self.assertTrue(policy._quest_floor_exit_locked(self.snapshot(policy, raw)))
+        self.assertEqual(memory.sweeps.count, 0)
+        for count in (1, 2):
+            raw = self.following(raw)
+            policy._recent.clear()
+            policy._move_repeat = 0
+            self.install_detections(policy, raw)
+            self.choose(policy, raw)
+            self.assertEqual(memory.sweeps.count, count)
+            board = self.snapshot(policy, raw)
+            self.assertEqual(search.coverage_given_up(policy, board), count == 2)
+        # The second coverage released the exit lock: the search mode is over.
+        self.assertFalse(policy._quest_floor_exit_locked(board))
+        self.assertFalse(search.searching(policy, board))
+        raw = self.following(raw)
+        self.choose(policy, raw)
+        self.assertFalse(policy.last_reason.startswith("quest-search"), policy.last_reason)
+
+    def test_one_coverage_is_not_enough(self):
+        policy, raw = self.policy()
+        self.to_the_lap(policy, raw)
+        raw = self.following(raw)
+        self.install_detections(policy, raw)
+        self.choose(policy, raw)
+        board = self.snapshot(policy, raw)
+        self.assertEqual(getattr(policy, search.MEMORY).sweeps.count, 1)
+        self.assertTrue(policy._quest_floor_exit_locked(board))
+        self.assertEqual(policy._exploration_ledger.search_sweeps, 1)
 
     def test_the_sealed_passage_is_a_place_a_door_can_be(self):
         policy, raw = self.policy()

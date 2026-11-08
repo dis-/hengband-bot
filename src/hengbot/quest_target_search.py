@@ -88,7 +88,15 @@ grid straight beyond is not known and inside the outer wall (a tunnel never runs
  - Without one (``door_means_held`` false): each door search round also walks to the walkable
    grids beside the places no cast covered, nearest first, after the dead ends, and searches each
    SEARCH_LIMIT times as a dead end (player/player-move.cpp search: the 8 neighbours).
-Nothing is given up: the laps go on with no cap.
+The laps themselves have no cap; the floor is given up by coverage (below).
+
+Giving up (owner 2026-11-08 21:5x, on the lap cap: 「全域を2回覆ったら諦める」): when every grid but
+the outer ring was covered by the target-showing reach twice (search_coverage.Sweeps, each from
+empty: the walk's ``_reach_now`` and the casts that can show the race) and the target was never
+seen, ``coverage_given_up`` is one more named release of the quest floor's exit lock
+(policy_quest ``_quest_floor_exit_locked``): the search mode ends and the floor is left as any
+released quest floor is (the quest fails).  Seeing the target resets nothing; while it is seen the
+search mode is not asked and nothing is counted.
 
 The detection (``detection_key``, on the dungeon's safe decision, under me_powers' own rows,
 which cast an absorbed power first): only a means that can show this race
@@ -122,6 +130,7 @@ DOOR_REASON = "quest-search:seek-door"
 DOOR_MEANS_REASON = "quest-search:detect-doors"
 SEARCH_REASON = "search"  # the corridor dead-end rung's own reason
 DOOR_SEARCH_LAPS = 3  # the owner's 「何周か」: the target's healing is why the loop hurries
+SWEEPS_TO_GIVE_UP = 2  # owner 2026-11-08 21:5x 「全域を2回覆ったら諦める」
 MEMORY = "_quest_target_search"
 MONSTERS, DOORS, BOTH = "monsters", "doors", "both"  # what a carried use detects
 MAX_SIGHT = 20  # define.h
@@ -154,6 +163,7 @@ class Memory:
     door_lap: int = 0                          # the lap the last door search began at
     door_search: bool = False                  # the dead ends are being searched now
     stop_radius: dict = field(default_factory=dict)  # stop -> the reach it was drawn for
+    sweeps: search_coverage.Sweeps = field(default_factory=search_coverage.Sweeps)
     door_casts: list = field(default_factory=list)  # (position, radius) a carried door detection covered
     pending_shows: str = "monsters"            # what the pending use detects: MONSTERS, DOORS or BOTH
     cover: search_coverage.Coverage = field(default_factory=search_coverage.Coverage)
@@ -166,12 +176,23 @@ def _memory(policy, snapshot: Snapshot) -> Memory:
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.floor != snapshot.floor_key:
         memory = Memory(snapshot.floor_key)
-        ledger = getattr(policy, "_exploration_ledger", None)
-        if ledger is not None and ledger.floor_key == snapshot.floor_key:
-            # The floor's ledger holds the lap's coverage across a bot restart.
-            memory.cover.centres = ledger.search_cover
         setattr(policy, MEMORY, memory)
+    _bind_ledger(policy, snapshot, memory)
     return memory
+
+
+def _bind_ledger(policy, snapshot: Snapshot, memory: Memory) -> None:
+    """The floor's ledger holds the lap's coverage and the sweeps across a bot restart; a memory
+    made before the ledger was bound to the floor is joined to it once it is."""
+    ledger = getattr(policy, "_exploration_ledger", None)
+    if (ledger is None or ledger.floor_key != snapshot.floor_key
+            or memory.cover.centres is ledger.search_cover):
+        return
+    ledger.search_cover |= memory.cover.centres
+    ledger.search_sweep |= memory.sweeps.cover.centres
+    memory.cover.centres, memory.sweeps.cover.centres = ledger.search_cover, ledger.search_sweep
+    memory.sweeps.start_turn = ledger.search_sweep_turn or memory.sweeps.start_turn
+    memory.sweeps.count = max(ledger.search_sweeps, memory.sweeps.count)
 
 
 def searching(policy, snapshot: Snapshot) -> bool:
@@ -240,14 +261,16 @@ def draw_stops(snapshot: Snapshot, cells: set) -> tuple:
     return tuple(stops)
 
 
-def _cast_centres(policy, snapshot: Snapshot, memory: Memory) -> list:
-    """((y, x), radius) of this lap's casts that could show the unseen target."""
+def _cast_centres(policy, snapshot: Snapshot, memory: Memory, since: int | None = None) -> list:
+    """((y, x), radius) of the casts since ``since`` (this lap by default) that could show the
+    unseen target."""
     race = hunt_target.unseen_race(policy, snapshot)
     if race is None:
         return []
     flags = hunt_target.race_flags(policy, race)
     casts = [*memory.casts, *me_powers.revealing_casts(policy, snapshot, flags)]
-    return [((centre.y, centre.x), radius) for centre, radius, turn in casts if turn >= memory.lap_turn]
+    since = memory.lap_turn if since is None else since
+    return [((centre.y, centre.x), radius) for centre, radius, turn in casts if turn >= since]
 
 
 def _lap_left(policy, snapshot: Snapshot, memory: Memory):
@@ -517,13 +540,38 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     return None if goal is None else _walk_key(policy, snapshot, routes, goal, LOOP_REASON)
 
 
+def _count_sweep(policy, snapshot: Snapshot, memory: Memory) -> None:
+    """Count a complete coverage (search_coverage.Sweeps), kept in the floor's ledger."""
+    sweeps = memory.sweeps
+    casts = [cast for cast in _cast_centres(policy, snapshot, memory, since=sweeps.start_turn)]
+    sweeps.update(search_coverage.floor_grids(snapshot), casts, snapshot.turn)
+    ledger = getattr(policy, "_exploration_ledger", None)
+    if ledger is not None and ledger.floor_key == snapshot.floor_key:
+        ledger.search_sweep_turn, ledger.search_sweeps = sweeps.start_turn, sweeps.count
+
+
+def coverage_given_up(policy, snapshot: Snapshot) -> bool:
+    """A runtime RANDOM quest floor whose grids were covered SWEEPS_TO_GIVE_UP times without the
+    target seen (the module docstring): a release of the exit lock."""
+    if snapshot.in_town or not policy._on_random_quest_floor(snapshot):
+        return False
+    return _memory(policy, snapshot).sweeps.count >= SWEEPS_TO_GIVE_UP
+
+
 def observe(policy, snapshot: Snapshot) -> None:
     """Every decision: note what the player's place covers, and settle the last use of a
     carried device."""
     if searching(policy, snapshot):
-        cover = _memory(policy, snapshot).cover
+        searched = _memory(policy, snapshot)
+        unseen = hunt_target.unseen_race(policy, snapshot) is not None
         for y, x, reach in _reach_now(policy, snapshot):
-            cover.note(Position(y, x), reach)
+            searched.cover.note(Position(y, x), reach)
+            if unseen:
+                searched.sweeps.cover.note(Position(y, x), reach)
+        if unseen:
+            if not searched.sweeps.start_turn:
+                searched.sweeps.start_turn = snapshot.turn  # the first coverage begins with the mode
+            _count_sweep(policy, snapshot, searched)
     memory = getattr(policy, MEMORY, None)
     if (memory is None or memory.floor != snapshot.floor_key or memory.pending is None
             or snapshot.turn == memory.pending[0]):
