@@ -21,6 +21,8 @@ DECLARED CONSTRUCTED / RESTORED (pin_vacuity):
    checkpoint's ``_me_device_lists``) are shown to ``observe_lists`` on boards before the floor,
    as the executor's menu reading would (the live policy held them; the capture has no menu board);
  * the carried-staff case: no absorbed staff list, and a Staff of Teleportation in the pack;
+ * the side-defect cases replay the floor without the absorbed staff list, so the recorded
+   blindness cure is drunk on 20589 (no teleport, no absorbed Cure Light Wounds);
  * the scroll-first case: the 20590 board with sight restored (the own grid seen) and the guardian 皇帝『レイザーク』
    taken off the board (a guardian in the circle refuses *Destruction*, destruction_use).
 """
@@ -32,7 +34,7 @@ import lzma
 from pathlib import Path
 import unittest
 
-from hengbot import me_device_attacks_input, threat_tiers
+from hengbot import me_device_attacks_input, status_cure, threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import TVAL_SCROLL, TVAL_STAFF, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -190,6 +192,35 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         scroll = next(item for item in raw["inventory"]
                       if item["tval"] == TVAL_SCROLL and item["sval"] == 9)
         self.assertEqual((key, policy.last_reason), ("r" + scroll["slot"], "emergency:teleport"))
+
+    # -- the side defects (REPORT proposal 3) --------------------------------------------------
+
+    def test_unknown_grids_do_not_hide_the_emperors_spells(self):
+        """After the darkness storm the grids (14,61) and (16,61) between the emperor at (13,61)
+        and the player at (17,61) are not on the board; the map memory of the boards before
+        (the player walked them) knows them as floor, so they are no wall for its spells."""
+        policy, answers = self.recorded_answers()
+        snapshot = answers[ONE_SHOT][2]
+        emperor = next(m for m in snapshot.visible_monsters if m.race_id == EMPEROR)
+        self.assertEqual((emperor.position.y, emperor.position.x), (13, 61))
+        between = [snapshot.grid_at(type(emperor.position)(y, 61)) for y in (14, 16)]
+        self.assertTrue(all(grid is None or not grid.known for grid in between))
+        remembered = [policy._remembered_grids.get(type(emperor.position)(y, 61)) for y in (14, 16)]
+        self.assertTrue(all(grid is not None and grid.allows_los for grid in remembered))
+        row = policy.threat_prediction(snapshot, [emperor], 1)["monsters"][0]
+        self.assertGreater(row["operational_ranged_prediction"], 0)
+        self.assertGreater(row["ranged_prediction"], 0)
+
+    def test_a_spell_that_blinds_again_after_the_cure_does_not_make_it_futile(self):
+        """20589 drinks the cure; the emperor's darkness storm blinds again (no blow named), so
+        on 20590 the blindness is still treated: the HP recovery potion that also cures it."""
+        policy, answers = self.replay(kinds=("wand", "rod"))
+        self.assertEqual(answers[SUMMONER_OPEN][1], "emergency:cure-critical")
+        key, reason, snapshot = answers[ONE_SHOT]
+        self.assertEqual(policy._blind_cure_futile_floor, snapshot.floor_key)  # cured, blind again
+        self.assertIsNone(policy._blind_cure_futile_blow)
+        self.assertFalse(status_cure.cure_futile(policy, snapshot))
+        self.assertEqual(reason, "emergency:cure-status-healing")
 
 
 if __name__ == "__main__":

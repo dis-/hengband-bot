@@ -3299,7 +3299,8 @@ class CombatMixin:
                 else self._monster_path_distance(snapshot, monster.position)
             )
             in_line_of_fire = contact or self._has_line_of_fire(
-                snapshot, monster.position, snapshot.player.position
+                snapshot, monster.position, snapshot.player.position,
+                remembered=self._remembered_grids,
             )
             knowledge = self._monrace_knowledge.get(monster.race_id)
             never_moves = bool(
@@ -4477,7 +4478,13 @@ class CombatMixin:
         return reaches and self._predicted_damage(snapshot, [monster], turns=1) > 0
 
     @staticmethod
-    def _has_line_of_fire(snapshot: Snapshot, origin: Position, target: Position) -> bool:
+    def _has_line_of_fire(snapshot: Snapshot, origin: Position, target: Position, *,
+                          remembered: dict | None = None) -> bool:
+        """``remembered``: the map memory read for a grid the board does not
+        know (the incoming-damage estimate; n1-c life-171, 城65階: after the
+        darkness storm two floor grids the player had walked between it and
+        皇帝『レイザーク』 were off the board and read as walls, so the
+        emperor's spells counted 0 while they landed)."""
         y0, x0 = origin.y, origin.x
         y1, x1 = target.y, target.x
         dy, dx = abs(y1 - y0), abs(x1 - x0)
@@ -4494,6 +4501,9 @@ class CombatMixin:
             if (y0, x0) == (y1, x1):
                 return True
             grid = snapshot.grid_at(Position(y0, x0))
+            if (remembered is not None and (grid is None or not grid.known)
+                    and (memory := remembered.get(Position(y0, x0))) is not None):
+                grid = memory
             if grid is None or not grid.allows_los:
                 return False
         return True
