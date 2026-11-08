@@ -14,9 +14,23 @@ open Home page handed it off to the entrance (policy.py home:leave-for-pending-w
 (policy_home ``_atomic_home_withdraw_dispatch_key`` home-errand:target-unobserved), the
 wait re-entered Home, until the owner-retired burst.  Now a take whose name nothing in the
 catalogue or the current Home catalogue carries gives way at once.
+
+B, 14:37 loop-detected (Orc cave 23F): a sleeping ダークエルフ・ロード (race 348) lay at
+[23,73].  At [23,79] (distance 6) it was in view and ``threat:avoid-engagement`` stepped '9'
+to [22,80] (owner 2026-11-07 「眠っている敵でも強い敵からは離れる」); there the wall hid it,
+``_engagement_danger_cells`` (monsters in view only) was empty, and the explore stepped '1'
+straight back, 40 times until the loop detector.  The retreat's veto of [23,79] was not
+claimed because every remembered frontier lay past the sleeper (engagement_avoid_seal).
+Now a sleeper out of sight is judged at its last shown cell (sleeper_reach_memory).
+DECLARED RECONSTRUCTION: a fresh policy decides the capture's first board ([23,79], the
+sleeper in view).  DECLARED COUNTERFACTUAL (the walk): from the next board ([22,80], out of
+sight) the player follows the decided moves with nothing in view, ten game turns a decision,
+for the retreat veto's window; the remembered frontiers beyond the sleeper's area are taken
+as already probed, so the frontiers left lie past it, where the live explore went.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
+import copy
 import gzip
 import itertools
 import json
@@ -30,16 +44,45 @@ from unittest import mock
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
 from hengbot.home_errand import HomeErrandState
+from hengbot.model import Position, parse_snapshot
+from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
+from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import HUNT_RANGE
+from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
 from hengbot.runtime_paths import RUNTIME_DIR_ENV
 from hengbot.town_arrival_checkpoint import (
     JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST)
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
 from tests import test_input_executor as executor_pins
+from tests.test_dungeon_1031_recorded import RecordedHarness, decide
 from town_work_corpus import replay_window
 
 FIXTURES = Path(__file__).with_name("fixtures") / "n1b-348-stops-1108"
 STALE_TAKE = ("耐電のアミュレット", 40, 30)
 SHELVED = ("耐電のアミュレット {r電}", 40, 30)
+with gzip.open(FIXTURES / "b.json.gz", "rt", encoding="utf-8") as _stream:
+    LOOP = json.load(_stream)
+RECORDED = {row["turn"]: (row["key"], row["reason"]) for row in LOOP["decisions"]}
+AVOID = "threat:avoid-engagement"
+SLEEPER, SLEEPER_RACE = Position(23, 73), 348
+MOVES = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+         "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
+
+
+def knowledge():
+    races = {}
+    for race, facts in LOOP["monraces"].items():
+        facts = copy.deepcopy(facts)
+        for name in ("flags", "abilities"):
+            facts[name] = frozenset(facts[name])
+        facts["blows"] = tuple(MonsterBlow(**row) for row in facts["blows"])
+        facts["names"] = tuple(facts["names"])
+        races[int(race)] = MonraceKnowledge(**facts)
+    return races
+
+
+def here(raw):
+    return Position(raw["player"]["y"], raw["player"]["x"])
 
 
 class StaleCatalogueTakeRecordedTest(executor_pins.ProductionHarness):
@@ -118,6 +161,55 @@ class StaleCatalogueTakeRecordedTest(executor_pins.ProductionHarness):
             decision={"sequence": policy._decision_sequence, "reason": policy.last_reason},
             snapshot=board, posting_contract=PostingContract())
         self.assertTrue(sent, port.last_result.stop_line)
+
+
+
+class SleeperOutOfSightRecordedTest(RecordedHarness):
+    def test_recorded_retreat_then_walk_back(self):
+        seen, hidden = LOOP["boards"][0], LOOP["boards"][1]
+        self.assertEqual(here(seen), Position(23, 79))
+        self.assertEqual([(m["race_id"], m["y"], m["x"], m["asleep"]) for m in seen["visible_monsters"]],
+                         [(SLEEPER_RACE, 23, 73, True)])
+        self.assertEqual(RECORDED[seen["turn"]], ("9", AVOID))
+        self.assertEqual(here(hidden), Position(22, 80))
+        self.assertEqual(hidden["visible_monsters"], [])
+        self.assertEqual(RECORDED[hidden["turn"]], ("1", "explore"))
+
+    def test_out_of_sight_no_walk_goes_into_the_sleepers_reach(self):
+        policy = HengbotPolicy(monrace_knowledge=knowledge())
+        seen = copy.deepcopy(LOOP["boards"][0])
+        policy.prime(parse_snapshot(copy.deepcopy(seen), policy._monrace_knowledge))
+        key = decide(policy, copy.deepcopy(seen))
+        self.assertEqual((key, policy.last_reason), ("9", AVOID))
+        self.post(policy, seen, key, [], self.later(seen))
+        policy.confirm_key_posted(key)
+        raw = copy.deepcopy(LOOP["boards"][1])
+        # DECLARED COUNTERFACTUAL (module docstring): only the frontiers past it left.
+        board = policy._with_grid_memory(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        beyond = {Position(y, x) for y, x in policy._remembered_floor_t
+                  if policy._is_remembered_frontier(board, Position(y, x))
+                  and Position(y, x).distance_to(SLEEPER) > HUNT_RANGE}
+        policy._probed_frontiers |= beyond
+        policy._exploration_ledger.probed_frontiers |= beyond
+        start, distance = raw["turn"], here(raw).distance_to(SLEEPER)
+        reasons = []
+        while raw["turn"] - start <= UNSEEN_GAME_TURNS:
+            key = decide(policy, copy.deepcopy(raw))
+            reasons.append(policy.last_reason)
+            if key:
+                policy.confirm_key_posted(key)
+            if key not in MOVES and key not in {"s", "5"}:
+                break
+            raw["turn"] += 10
+            raw["messages"] = []
+            if key in MOVES:
+                step = Position(here(raw).y + MOVES[key][0], here(raw).x + MOVES[key][1])
+                self.assertGreaterEqual(step.distance_to(SLEEPER), distance,
+                                        (raw["turn"], key, policy.last_reason))
+                raw["player"]["y"], raw["player"]["x"] = step.y, step.x
+        self.assertNotIn("explore", reasons)
+        # The floor whose way on lies past it is left by the existing stuck escape.
+        self.assertEqual(reasons[-1], "stuck:recall-escape")
 
 
 if __name__ == "__main__":
