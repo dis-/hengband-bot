@@ -21,6 +21,12 @@ The sequence prices the Tower's recharge from lib/edit/BaseitemDefinitions.jsonc
 51,145 of the recorded 57,099 target is the recharge, 50,050 of it for the
 unidentified 檜の杖 priced as the dearest staff kind (recharge_all_price), so
 the case needs the repository's lib/edit.
+
+Owner 2026-11-08 on that estimate: 「一旦他の杖を自宅に仕舞って鑑定の杖と財宝感知の杖
+だけ取り込んで、鑑定してから再度考える。」 (me_staff_sequence.stows): the board
+now shelves the 檜の杖 at Home first (StowStaffsTest).  The uncapped
+fundraising cases keep the staff carried by a Home that refused it this
+visit (DECLARED CONSTRUCTED in ``arrival``), which prices it as recorded.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -32,7 +38,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import me_staff_sequence as sequence
+from hengbot import me_capability, me_staff_sequence as sequence
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
@@ -47,8 +53,13 @@ EXPEDITION = f"me-staff:fundraise:rumor-travel-recharge:{RECORDED_TARGET}"
 
 
 class Arrival(unittest.TestCase):
-    def arrival(self):
-        """The restored arrival policy, the journal and the stop board."""
+    def arrival(self, *, staff_refused=False):
+        """The restored arrival policy, the journal and the stop board.
+
+        DECLARED CONSTRUCTED (``staff_refused``): Home refused the 檜の杖 this
+        visit (``_home_rejected_deposits``), so it stays carried
+        (me_staff_sequence._stow_pending).
+        """
         raw = Path(self.enterContext(TemporaryDirectory()))
         visit = raw / "town-arrival"
         visit.mkdir()
@@ -62,7 +73,11 @@ class Arrival(unittest.TestCase):
         rows = journal(visit)
         steps = list(decisions(policy, visit, scratch))
         self.assertEqual(len(steps), 1)
-        return policy, rows, steps[0][1]()
+        board = steps[0][1]()
+        if staff_refused:
+            policy._home_rejected_deposits.add(policy._item_signature(
+                next(item for item in board.inventory if item.name == "檜の杖")))
+        return policy, rows, board
 
     def decide(self, policy, raw):
         key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
@@ -96,7 +111,7 @@ class RecordedStopTest(Arrival):
 class FundraisingContinuesTest(Arrival):
 
     def test_stop_board_starts_the_next_rumor_expedition_run(self):
-        policy, _rows, board = self.arrival()
+        policy, _rows, board = self.arrival(staff_refused=True)
         key = policy.choose_key(board)
         record = sequence.state(policy)
         self.assertIsNone(record.failure, policy.last_reason)
@@ -117,7 +132,7 @@ class FundraisingContinuesTest(Arrival):
         # The record's count is the recorded one or larger.
         for extra in (1, 6, 18):
             with self.subTest(extra=extra):
-                policy, rows, _board = self.arrival()
+                policy, rows, _board = self.arrival(staff_refused=True)
                 record = sequence.state(policy)
                 record.fundraise_runs += extra
                 raw = json.loads(rows[-1]["line"])
@@ -128,7 +143,7 @@ class FundraisingContinuesTest(Arrival):
                 self.assertTrue(policy.last_reason.endswith(EXPEDITION), policy.last_reason)
                 self.assertEqual(policy._fundraising_mode, "prepare")
         # Reached: the rumor phase reads the inn's rumors.
-        policy, rows, _board = self.arrival()
+        policy, rows, _board = self.arrival(staff_refused=True)
         raw = json.loads(rows[-1]["line"])
         raw["player"]["gold"] = RECORDED_TARGET
         self.decide(policy, raw)
@@ -141,7 +156,7 @@ class FundraisingContinuesTest(Arrival):
         # ended at once without game time.  The existing standstill bound
         # (_no_progress, STORE_STUCK_LIMIT boards) ends it as a named stop;
         # the run limit no longer does.
-        policy, _rows, board = self.arrival()
+        policy, _rows, board = self.arrival(staff_refused=True)
         # The finished run's mode, as the recorded decision saw it (null).
         policy._fundraising_mode = None
         keys = []
@@ -176,12 +191,88 @@ class KeptLimitsTest(Arrival):
     def test_met_expedition_run_counts_as_met_in_both_counts(self):
         # DECLARED CONSTRUCTED: the sixth run came back with its target met
         # (and the gold went elsewhere before the next decision).
-        policy, _rows, board = self.arrival()
+        policy, _rows, board = self.arrival(staff_refused=True)
         record = sequence.state(policy)
         record.fundraise_runs, record.target_reached = 2, True
         policy.choose_key(board)
         self.assertEqual((record.fundraise_runs, record.reached_runs), (3, 1))
         self.assertIsNone(record.failure, policy.last_reason)
+
+
+class StowStaffsTest(Arrival):
+    """Owner 2026-11-08: the other staffs wait at Home while stage 1 is worked."""
+
+    def staff(self, board):
+        return next(item for item in board.inventory if item.name == "檜の杖")
+
+    def test_capture_carries_one_unidentified_staff(self):
+        _policy, _rows, board = self.arrival()
+        staff = self.staff(board)
+        self.assertEqual((staff.tval, staff.aware, staff.known), (55, False, False))
+        staves = sorted(item.name for item in board.inventory if item.tval == 55)
+        self.assertEqual(staves, sorted(["檜の杖", "財宝感知の杖 (15回分)", "鑑定の杖 (0回分)"]))
+        # The 'a' estimate the recorded stop priced: the unknown staff as the
+        # dearest staff kind.
+        self.assertEqual(sequence.recharge_cost(board), 51145)
+
+    def test_stop_board_shelves_the_unknown_staff_before_any_fundraising(self):
+        policy, _rows, board = self.arrival()
+        staff = self.staff(board)
+        key = policy.choose_key(board)
+        record = sequence.state(policy)
+        self.assertTrue(key, policy.last_reason)
+        self.assertIsNone(record.failure, policy.last_reason)
+        self.assertNotIn("me-staff:fundraise", policy.last_reason)
+        self.assertNotEqual(policy._fundraising_mode, "prepare")
+        self.assertEqual(record.expedition_runs, 0)
+        self.assertEqual([item.name for item in sequence.stowed_staffs(policy, board)], ["檜の杖"])
+        # Home's own deposit flow takes it, whole; it is no junk.
+        self.assertTrue(policy._home_deposit_candidate(staff, board))
+        self.assertEqual(policy._home_deposit_quantity(board, staff), 1)
+        self.assertIsNone(policy._junk_class(board, staff))
+
+    def test_home_finder_takes_the_staff_after_the_mining_scrolls(self):
+        # DECLARED CONSTRUCTED: the Treasure Detection scrolls (off duty,
+        # first in the pack) are shelved; the finder's next pick is the staff.
+        policy, rows, _board = self.arrival()
+        raw = json.loads(rows[-1]["line"])
+        raw["inventory"] = [item for item in raw["inventory"] if item["name"] != "財宝感知の巻物"]
+        board = parse_snapshot(raw, policy._monrace_knowledge)
+        self.assertEqual(policy._find_home_deposit(board).name, "檜の杖")
+
+    def test_after_the_deposit_the_expedition_goes_on(self):
+        # DECLARED CONSTRUCTED: the 檜の杖 shelved at Home, nothing else changed.
+        policy, rows, _board = self.arrival()
+        raw = json.loads(rows[-1]["line"])
+        raw["inventory"] = [item for item in raw["inventory"] if item["name"] != "檜の杖"]
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(sequence.recharge_cost(board), 1095)
+        self.decide(policy, raw)
+        self.assertIsNone(sequence.state(policy).failure, policy.last_reason)
+        self.assertEqual(policy.last_reason, "town:rumor")
+        cost = sequence._rumor_expedition_cost(board, sequence.supply_cost(policy, board))
+        self.assertLess(cost, board.player.gold)
+        self.assertLess(cost, 8000)
+
+    def test_refused_staff_is_priced_carried(self):
+        # DECLARED CONSTRUCTED: Home refused it this visit; the
+        # expedition is priced with it carried (uncapped fundraising).
+        policy, _rows, board = self.arrival(staff_refused=True)
+        policy.choose_key(board)
+        self.assertTrue(policy.last_reason.endswith(EXPEDITION), policy.last_reason)
+
+    def test_stage_one_staffs_are_not_stowed_and_stage_two_stows_nothing(self):
+        policy, _rows, board = self.arrival()
+        kept = [item for item in board.inventory if item.tval == 55 and item.aware]
+        self.assertEqual(len(kept), 2)
+        self.assertFalse(any(sequence.stows(policy, board, item) for item in kept))
+        # DECLARED CONSTRUCTED: stage 1 complete; the ordinary Home rules
+        # take the stored staff up again (the absorbed Identify).
+        record = sequence.state(policy)
+        record.absorbed = {**record.absorbed,
+                           **{me_capability.record_key("staff", sval): 1
+                              for sval in sequence.STAGES[0].svals}}
+        self.assertFalse(sequence.stows(policy, board, self.staff(board)))
 
 
 if __name__ == "__main__":

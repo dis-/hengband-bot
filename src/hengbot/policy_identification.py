@@ -1380,9 +1380,12 @@ class IdentificationMixin:
             count += 1
         if not full:
             # Devices shelved while they waited (owner 2026-11-01) are not in
-            # the equipment catalog; _find_home_candidate takes them back.
+            # the equipment catalog; _find_home_candidate takes them back
+            # (but a staff stage 1 keeps at Home, me_staff_sequence.stows).
+            from hengbot.me_staff_sequence import stows as staff_sequence_stows
             count += sum(max(1, item.count) for item in self._home_knowledge_items
                          if not item.is_equipment and self._identification_waiting_item(item)
+                         and not staff_sequence_stows(self, snapshot, item)
                          and self._item_signature(item) not in self._deferred_home_items)
         return count
 

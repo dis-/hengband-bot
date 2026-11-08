@@ -10884,7 +10884,7 @@
       "store-approach"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Split out of me_staff_sequence.town_key (n1-c life-112 2026-11-03 01:12 quest:blocked:me-staff no-progress:travel): this board's step of the staff sequence's phase (buy / rumor / travel / recharge / absorb / return), each a delegated shop approach, fundraising run, rumor flow, inn teleport, Tower recharge or absorption, or a named stop (''); None when the phase's leg yields (a quest errand holding the town, _travel). town_key counts its standstill guard only on the boards this returns a key for.",
+    "evidence": "Split out of me_staff_sequence.town_key (n1-c life-112 2026-11-03 01:12 quest:blocked:me-staff no-progress:travel): this board's step of the staff sequence's phase (buy / rumor / travel / recharge / absorb / return), each a delegated shop approach, fundraising run, rumor flow, inn teleport, Tower recharge or absorption, or a named stop (''); None when the phase's leg yields (a quest errand holding the town, _travel; or, in stage 1's rumor/travel/recharge phases, the other staffs still to be shelved by Home's own deposit flow, _stow_pending, owner 2026-11-08). town_key counts its standstill guard only on the boards this returns a key for.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
