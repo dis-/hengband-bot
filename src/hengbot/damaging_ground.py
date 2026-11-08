@@ -15,6 +15,14 @@ A wall search is never chosen on such ground, and a cell of it is no secret-wall
 stepped onto it again, and each replaced search was counted as made (n1-a life-492,
 Orc cave 23F, 2026-11-06 23:55, HEAVY_ELECTRICAL_ZONE around a pocket).
 
+A step off while crossing (owner 2026-11-09 「渡った先へ出る」) goes to the safe ground
+across, not back to the ground the crossing left: n1-c life-174 (Orc cave 23F, 11-09
+00:31 and 00:36) walked from a notch into a poison-puddle room, saw an orc crossbowman
+only from the puddle, had each shot replaced by the step back to the notch, and walked
+in again until the loop guard stopped it.  The ground left is the safe region of the
+last safe cell the player stood on this floor (``_hazard_entry``); the far side is the
+nearest safe cell outside it, reached over the hazard only.
+
 An immune player takes no such damage, and a levitating one does not stand in it.
 Deep water is not in the table: it only drowns an overloaded player.  Town decisions
 stay with the town arbiter.
@@ -22,6 +30,7 @@ stay with the town arbiter.
 
 from __future__ import annotations
 
+from collections import deque
 from functools import wraps
 
 from hengbot.policy_constants import SEARCH_KEY, WAIT_KEY
@@ -54,9 +63,60 @@ def _safe(policy, grid) -> bool:
             and not policy._is_avoidable_hazard_grid(grid))
 
 
+def _entry(policy, snapshot):
+    """The last safe cell the player stood on this floor, else None."""
+    entry = policy.__dict__.get("_hazard_entry")
+    if entry is None or entry[0] != snapshot.floor_key:
+        return None
+    return entry[1]
+
+
+def _left_ground(policy, snapshot, entry) -> set:
+    """The safe cells connected to ``entry`` without crossing a hazard."""
+    region = {entry}
+    queue = deque([entry])
+    while queue:
+        for cell in policy._walkable_neighbors(snapshot, queue.popleft(), allow_damaging=False):
+            grid = snapshot.grids.get(cell)
+            if cell not in region and grid is not None and _safe(policy, grid):
+                region.add(cell)
+                queue.append(cell)
+    return region
+
+
+def _far_side_step(policy, snapshot, left, *, adjacent_only: bool):
+    """The first step to the nearest safe cell outside ``left``, walking only hazard
+    cells on the way (never back through the ground the crossing left)."""
+    start = snapshot.player.position
+    parent = {start: None}
+    queue = deque([start])
+    while queue:
+        position = queue.popleft()
+        for cell in policy._walkable_neighbors(snapshot, position, allow_damaging=True):
+            if cell in parent or cell in left:
+                continue
+            grid = snapshot.grids.get(cell)
+            if grid is None or grid.has_monster:
+                continue
+            parent[cell] = position
+            if _safe(policy, grid):
+                while parent[cell] != start:
+                    cell = parent[cell]
+                return cell
+            if not adjacent_only and hurts_at(policy, snapshot, cell):
+                queue.append(cell)
+    return None
+
+
 def _step_off(policy, snapshot, *, adjacent_only: bool):
-    """The least visited safe cell beside the player (a walk across goes on rather
-    than back onto ground it must cross again), else the nearest safe cell's step."""
+    """The safe ground across a crossing (owner 2026-11-09 「渡った先へ出る」), else the
+    least visited safe cell beside the player, else the nearest safe cell's step."""
+    entry = _entry(policy, snapshot)
+    if entry is not None:
+        across = _far_side_step(policy, snapshot, _left_ground(policy, snapshot, entry),
+                                adjacent_only=adjacent_only)
+        if across is not None:
+            return across
     beside = [cell for cell in policy._walkable_neighbors(
                   snapshot, snapshot.player.position, allow_damaging=False)
               if (grid := snapshot.grids.get(cell)) is not None and _safe(policy, grid)]
@@ -90,6 +150,8 @@ def leave_first(decide):
     """Answer a decision's standstill with the step off damaging ground."""
     @wraps(decide)
     def wrapped(policy, snapshot):
+        if not snapshot.in_town and not hurts_here(policy, snapshot):
+            policy._hazard_entry = (snapshot.floor_key, snapshot.player.position)
         key = decide(policy, snapshot)
         return step_off_key(policy, snapshot, key) or key
     return wrapped
