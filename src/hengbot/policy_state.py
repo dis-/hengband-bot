@@ -272,6 +272,9 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_breeder_engagement_killed", False)
     restored.__dict__.setdefault("_breeder_attack_sent", False)
     restored.__dict__.setdefault("_breeder_last_board", None)
+    # The threat tiers' decided side (owner 2026-11-08 「境に余裕を持たせる」, threat_tiers.decided):
+    # a checkpoint from before it has decided nothing yet.
+    restored.__dict__.setdefault("_threat_tier_memory", None)
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         current_ledger.__dict__.setdefault(
