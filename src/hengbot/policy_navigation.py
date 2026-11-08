@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import dungeon_shop, combat_answer, dark_recall, disenchant_avoid, immobile_threat_memory, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1780,6 +1780,8 @@ class NavigationMixin:
         queue: deque[Position] = deque([start])
         parent: dict[Position, Position | None] = {start: None}
         unseen_veto = False
+        remembered_danger = disenchant_avoid.remembered_cells(
+            self, snapshot, immobile_threat_memory.ringed)
         while queue:
             position = queue.popleft()
             if position == goal:
@@ -1803,7 +1805,10 @@ class NavigationMixin:
                 )
                 if not walkable and not diggable:
                     continue
-                if self._in_unseen_attack_area(snapshot, neighbor):
+                if (self._in_unseen_attack_area(snapshot, neighbor)
+                        or neighbor in remembered_danger):
+                    # Both areas lift (the attack ends, the window passes):
+                    # a route they cut writes no goal off.
                     unseen_veto = True
                     continue
                 parent[neighbor] = position
@@ -1845,6 +1850,9 @@ class NavigationMixin:
         best_cost = {start: 0}
         parent: dict[Position, Position | None] = {start: None}
         goal: Position | None = None
+        # A kept-away disenchanter out of sight (disenchant_avoid.remembered_cells).
+        remembered_danger = disenchant_avoid.remembered_cells(
+            self, snapshot, immobile_threat_memory.ringed)
     
         while queue:
             cost, _, pos = heappop(queue)
@@ -1881,6 +1889,7 @@ class NavigationMixin:
             ):
                 if (
                     neighbor in self._engagement_avoid_cells
+                    or neighbor in remembered_danger
                     or self._in_unseen_attack_area(snapshot, neighbor)
                 ):
                     continue
