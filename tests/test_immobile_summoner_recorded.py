@@ -20,8 +20,9 @@ import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
-from hengbot import town_hold
+from hengbot import threat_tiers, town_hold
 from hengbot.cli import (
     PostingContract, STATIONARY_REASONS, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
 )
@@ -44,6 +45,10 @@ OFFSETS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
            "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 
 
+# Threat tiers step 6 (DECLARED CONSTRUCTED): these captures show no equipment and no blow, so
+# no attack counts and every engagement would read T1 and be left; the summoner rules pinned
+# here are judged with the tiers not acting.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
     @classmethod
     def setUpClass(cls):

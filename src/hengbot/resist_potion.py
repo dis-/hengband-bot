@@ -37,7 +37,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import NamedTuple
 
-from hengbot import destruction_use, me_ranged_first
+from hengbot import destruction_use, me_ranged_first, threat_tiers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_POTION_RESISTANCE, TVAL_POTION
 from hengbot.policy_constants import OPPOSITION_ABILITY
@@ -146,8 +146,33 @@ def leave_key(policy, snapshot) -> str | None:
 
 
 def ladder_key(policy, snapshot, strategic_hostiles, strategic_adjacent, physical_hostiles) -> str | None:
-    """``key`` on the shared ladder, whose flee and status-threat rungs come first."""
+    """``key`` on the shared ladder, whose flee and status-threat rungs come first.
+
+    Threat tiers plan step 6 (owner OQ-9, C-1; 3.4): outside the quest plans the potion is drunk
+    only as part of a selected supply fight, a T2 with a selected target whose supply plan
+    spends the resistance (or whose plan is past the cost cap, every supply winning); against
+    any other enemy the bot leaves: T1, and a T2 with no selected target, read the no-chance
+    leave.  A T3 fight is fought without supplies (no drink, no leave).  Where the tiers do not
+    act (a plan floor asks ``key``, unchanged by D1) or do not decide, ``key`` as on 11-05."""
     if (policy._unresisted_melee_status_threats(snapshot, physical_hostiles)
             or policy._should_flee(snapshot, strategic_hostiles, strategic_adjacent)):
+        return None
+    verdict = _verdict(policy, snapshot)
+    if verdict is None:
+        return None
+    hostiles = policy._physical_hostiles(snapshot)
+    if not threat_tiers.acts_here(policy, snapshot):
+        return key(policy, snapshot)
+    tiers = threat_tiers.tiered(policy, snapshot, hostiles)
+    if tiers.tier == threat_tiers.T1 or (tiers.tier == threat_tiers.T2 and not tiers.selected):
+        if not threat_tiers.leave_decided_here(policy, snapshot):
+            return None  # a floor that leaving fails the quest: the quest's rules decide
+        return _leave_key(policy, snapshot)
+    if tiers.tier == threat_tiers.T2:
+        plan = tiers.supply_plan
+        if plan is None or plan.resistance > 0:
+            return _drink(policy, snapshot, verdict[0])
+        return None
+    if tiers.tier == threat_tiers.T3:
         return None
     return key(policy, snapshot)

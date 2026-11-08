@@ -68,6 +68,9 @@ class MonraceKnowledge:
     symbol: str = ""
     female: bool = False
     names: tuple[str, ...] = ()  # the name fields of the definition (ja, en)
+    # "vision" (race-reader.cpp:131, monrace.aaf): the sensing radius; within it the monster
+    # wakes and acts toward the player (monster-status.cpp:124, monster-processor.cpp:708).
+    vision: int = 0
 
 
 def _strip_jsonc(text: str) -> str:
@@ -258,6 +261,7 @@ def load_monrace_knowledge(path: Path) -> dict[int, MonraceKnowledge]:
             powerful="POWERFUL" in flags,
             shoot_dice_num=shoot_num,
             shoot_dice_sides=shoot_sides,
+            vision=int(monster.get("vision", 0)),
         )
     return result
 

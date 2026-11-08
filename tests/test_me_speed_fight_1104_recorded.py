@@ -17,8 +17,9 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import unittest
+from unittest.mock import patch
 
-from hengbot import me_powers
+from hengbot import me_powers, threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import parse_snapshot
 from tests import test_d57_me_combat_1101_recorded as combat
@@ -51,7 +52,14 @@ class FightSpeedRecordedTest(nav.RecordedDrive):
     post_power = mining_death.MagicEaterMiningDeathRecordedTest.post
 
     def fight(self, *, charges=10, fail=20, edit=lambda raw: None):
-        """The policy after the recorded lead-in, and its answer on the fight board."""
+        """The policy after the recorded lead-in, and its answer on the fight board.
+
+        DECLARED CONSTRUCTED (threat tiers step 6): the three ogres and the king cobra are T1
+        (``test_the_recorded_fight_is_left_at_t1``), which is left; the 11-04 rule is pinned on
+        the board taken as a fight the tiers do not decide."""
+        tiers_off = patch.object(threat_tiers, "acts_here", return_value=False)
+        tiers_off.start()
+        self.addCleanup(tiers_off.stop)
         case = nav.CASE_083
         boards = [copy.deepcopy(raw) for raw in case["boards"] if raw["turn"] < TURN]
         policy = nav.new_policy(case, boards)
@@ -75,6 +83,21 @@ class FightSpeedRecordedTest(nav.RecordedDrive):
                 if row["turn"] == TURN]
         self.assertEqual(rows[0], tuple(reversed(MISSILE)))
 
+    def test_the_recorded_fight_is_left_at_t1(self):
+        # Threat tiers step 6 (answer 6 「倒しきれない -> leave」): three ogres and a king cobra at
+        # HP 122/171 are not won even with every supply; the flee rung reads Teleportation.
+        case = nav.CASE_083
+        boards = [copy.deepcopy(raw) for raw in case["boards"] if raw["turn"] < TURN]
+        policy = nav.new_policy(case, boards)
+        self.drive_boards(case, boards, policy)
+        show(policy, boards[-1], 10, 20)
+        raw = copy.deepcopy(next(raw for raw in case["boards"] if raw["turn"] == TURN))
+        self.assertEqual((loops.decide(policy, copy.deepcopy(raw)), policy.last_reason),
+                         ("re", "flee:scroll"))
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(threat_tiers.assess(policy, board, policy._strategic_hostiles(board)).tier,
+                         threat_tiers.T1)
+
     def test_ten_charges_at_eighty_percent_cast_before_the_attack_through_the_executor(self):
         policy, raw, key = self.fight()
         self.assertEqual((key, policy.last_reason), (SPEED_KEY, REASON))
@@ -89,7 +112,15 @@ class FightSpeedRecordedTest(nav.RecordedDrive):
         self.assertEqual(recorded[combat.BEETLE_TURN], ("melee", "4"))
         policy = combat.d57.new_policy(combat.CASE_083)
         show(policy, rows[0], 10, 20)
-        self.assertEqual((loops.decide(policy, rows[0]), policy.last_reason), (SPEED_KEY, REASON))
+        # Threat tiers step 7: with the absorbed Speed listed the beetle is a selected T2 (a reward
+        # race, T2 by the Speed dose), so the supply fight casts the same absorbed haste first
+        # (D7 「加速を先に」); the 11-04 rung's own cast is pinned with the tiers not acting.
+        self.assertEqual((loops.decide(policy, copy.deepcopy(rows[0])), policy.last_reason),
+                         (SPEED_KEY, "supply-fight:quaff-speed:absorbed-power"))
+        policy = combat.d57.new_policy(combat.CASE_083)
+        show(policy, rows[0], 10, 20)
+        with patch.object(threat_tiers, "acts_here", return_value=False):
+            self.assertEqual((loops.decide(policy, rows[0]), policy.last_reason), (SPEED_KEY, REASON))
 
     def test_failed_cast_retries_under_the_table_rule_then_attacks(self):
         policy, raw, key = self.fight()

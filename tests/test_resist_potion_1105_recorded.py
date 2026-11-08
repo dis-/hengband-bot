@@ -213,16 +213,27 @@ class PlacementOnThePlansBranchesTest(unittest.TestCase):
 class SharedLadderTest(unittest.TestCase):
     """The same boards on a floor with no plan (DECLARED CONSTRUCTED)."""
 
-    def test_the_drink_stands_before_the_attacks(self):
+    def test_a_t3_fight_is_fought_without_the_drink(self):
+        # Threat tiers step 6 (owner OQ-9, C-1): outside the plans the potion is drunk only in a
+        # selected supply fight.  Alone, the tyrannosaur falls to the free attacks (T3: 750 over
+        # the six turns to clear against HP 872), so it is shot, not drunk for (11-05 drank).
         policy, raw, key = _alone(TYRANNOSAUR)
-        self.assertEqual(policy.last_reason, resist_potion.QUAFF_REASON)
-        self.assertTrue(_is_drink(raw, key), key)
+        self.assertEqual(policy.last_reason, "ranged:fire")
+        self.assertFalse(_is_drink(raw, key), key)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(threat_tiers.assess(policy, board, policy._physical_hostiles(board)).tier,
+                         threat_tiers.T3)
 
     def test_no_chance_reads_the_teleport_where_the_prediction_is_below_the_hp(self):
-        # 1242 below the HP: the emergency ladder lets it pass, and no attack comes first.
+        # 1242 below the HP: the emergency ladder lets it pass, and no attack comes first.  The
+        # crowd is T1 (threat tiers step 6), so the flee rung above this rule reads the same
+        # Teleportation first (before step 6 the rule's own no-chance leave read it).
         policy, raw, key = _alone(CROWD, _with_hp(1300, 1300))
-        self.assertEqual(policy.last_reason, resist_potion.LEAVE_REASON)
+        self.assertEqual(policy.last_reason, "flee:scroll")
         self.assertTrue(key.startswith("r"), key)
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        self.assertEqual(threat_tiers.assess(policy, board, policy._physical_hostiles(board)).tier,
+                         threat_tiers.T1)
 
     def test_no_chance_uses_destruction_before_the_scroll(self):
         with patch.object(destruction_use, "_carried_key", return_value="uX"):
