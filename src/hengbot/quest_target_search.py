@@ -22,8 +22,19 @@ player can walk to, what the bot remembers and what a mapping left as corridor (
    the game shows anything).
 With telepathy, the coverage stops after them (owner 2026-11-08, n1-b life-348 Angband 62F:
 「クエストターゲットを探すには少なくとも感知範囲がフロア全域を網羅するように歩かなければならない。」):
-every floor grid, known or not, that some walkable grid has within telepathy's reach is within
-reach of a stop (search_coverage.plan).
+every grid but the outer ring (owner, binding: 「半端な定義は許可しない。外周マス以外の全てを感知する
+必要がある。」), wall or not, that some walkable grid has within telepathy's reach is within reach of
+a stop, and the grids only a held detection reaches are within its radius of a cast stop, where
+the detection rows below cast on their own spacing (search_coverage.plan, held_cast_radius).
+Without telepathy (owner 2026-11-08 21:5x 「感知を使った範囲だけ数える」) only the casts count: the
+lap is cast stops until every grid is within a cast's radius; with no such means, the grids in view
+count and the lap is its sight stops (``_reach_now``).
+Cut-off floor (owner 2026-11-08 21:5x, on a blocked passage: 「掘るか岩石溶解で通す」, n1-b life-348
+Angband 62F: an earthquake turned (28,65), the only passage, into a magma vein): remembered floor
+the walk does not reach is opened toward with the existing openers (retreat_enclosure
+``open_toward_key``: a held digger's route bounded by tunnel_feasibility, else Stone to Mud, the
+wand or the absorbed power, sealed_pocket's counted uses), after the locks and before the secret
+doors and the lap; with no means, the door search and the lap as before.
 Before the lap (and the secret doors below), a closed door the three-pick cap wrote off, that the
 game answered as a lock and that opens onto ground the walk does not reach, is walked to and
 picked (locked_doors.pick_key): a failed pick is progress, and the rest of the floor can be behind
@@ -83,7 +94,15 @@ grid straight beyond is not known and inside the outer wall (a tunnel never runs
  - Without one (``door_means_held`` false): each door search round also walks to the walkable
    grids beside the places no cast covered, nearest first, after the dead ends, and searches each
    SEARCH_LIMIT times as a dead end (player/player-move.cpp search: the 8 neighbours).
-Nothing is given up: the laps go on with no cap.
+The laps themselves have no cap; the floor is given up by coverage (below).
+
+Giving up (owner 2026-11-08 21:5x, on the lap cap: 「全域を2回覆ったら諦める」): when every grid but
+the outer ring was covered by the target-showing reach twice (search_coverage.Sweeps, each from
+empty: the walk's ``_reach_now`` and the casts that can show the race) and the target was never
+seen, ``coverage_given_up`` is one more named release of the quest floor's exit lock
+(policy_quest ``_quest_floor_exit_locked``): the search mode ends and the floor is left as any
+released quest floor is (the quest fails).  Seeing the target resets nothing; while it is seen the
+search mode is not asked and nothing is counted.
 
 The detection (``detection_key``, on the dungeon's safe decision, under me_powers' own rows,
 which cast an absorbed power first): only a means that can show this race
@@ -117,6 +136,7 @@ DOOR_REASON = "quest-search:seek-door"
 DOOR_MEANS_REASON = "quest-search:detect-doors"
 SEARCH_REASON = "search"  # the corridor dead-end rung's own reason
 DOOR_SEARCH_LAPS = 3  # the owner's 「何周か」: the target's healing is why the loop hurries
+SWEEPS_TO_GIVE_UP = 2  # owner 2026-11-08 21:5x 「全域を2回覆ったら諦める」
 MEMORY = "_quest_target_search"
 MONSTERS, DOORS, BOTH = "monsters", "doors", "both"  # what a carried use detects
 MAX_SIGHT = 20  # define.h
@@ -148,6 +168,8 @@ class Memory:
     laps: int = 0                              # laps finished on this floor visit
     door_lap: int = 0                          # the lap the last door search began at
     door_search: bool = False                  # the dead ends are being searched now
+    stop_radius: dict = field(default_factory=dict)  # stop -> the reach it was drawn for
+    sweeps: search_coverage.Sweeps = field(default_factory=search_coverage.Sweeps)
     door_casts: list = field(default_factory=list)  # (position, radius) a carried door detection covered
     pending_shows: str = "monsters"            # what the pending use detects: MONSTERS, DOORS or BOTH
     cover: search_coverage.Coverage = field(default_factory=search_coverage.Coverage)
@@ -160,12 +182,23 @@ def _memory(policy, snapshot: Snapshot) -> Memory:
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.floor != snapshot.floor_key:
         memory = Memory(snapshot.floor_key)
-        ledger = getattr(policy, "_exploration_ledger", None)
-        if ledger is not None and ledger.floor_key == snapshot.floor_key:
-            # The floor's ledger holds the lap's coverage across a bot restart.
-            memory.cover.centres = ledger.search_cover
         setattr(policy, MEMORY, memory)
+    _bind_ledger(policy, snapshot, memory)
     return memory
+
+
+def _bind_ledger(policy, snapshot: Snapshot, memory: Memory) -> None:
+    """The floor's ledger holds the lap's coverage and the sweeps across a bot restart; a memory
+    made before the ledger was bound to the floor is joined to it once it is."""
+    ledger = getattr(policy, "_exploration_ledger", None)
+    if (ledger is None or ledger.floor_key != snapshot.floor_key
+            or memory.cover.centres is ledger.search_cover):
+        return
+    ledger.search_cover |= memory.cover.centres
+    ledger.search_sweep |= memory.sweeps.cover.centres
+    memory.cover.centres, memory.sweeps.cover.centres = ledger.search_cover, ledger.search_sweep
+    memory.sweeps.start_turn = ledger.search_sweep_turn or memory.sweeps.start_turn
+    memory.sweeps.count = max(ledger.search_sweeps, memory.sweeps.count)
 
 
 def searching(policy, snapshot: Snapshot) -> bool:
@@ -238,14 +271,16 @@ def draw_stops(snapshot: Snapshot, cells: set) -> tuple:
     return tuple(stops)
 
 
-def _cast_centres(policy, snapshot: Snapshot, memory: Memory) -> list:
-    """((y, x), radius) of this lap's casts that could show the unseen target."""
+def _cast_centres(policy, snapshot: Snapshot, memory: Memory, since: int | None = None) -> list:
+    """((y, x), radius) of the casts since ``since`` (this lap by default) that could show the
+    unseen target."""
     race = hunt_target.unseen_race(policy, snapshot)
     if race is None:
         return []
     flags = hunt_target.race_flags(policy, race)
     casts = [*memory.casts, *me_powers.revealing_casts(policy, snapshot, flags)]
-    return [((centre.y, centre.x), radius) for centre, radius, turn in casts if turn >= memory.lap_turn]
+    since = memory.lap_turn if since is None else since
+    return [((centre.y, centre.x), radius) for centre, radius, turn in casts if turn >= since]
 
 
 def _lap_left(policy, snapshot: Snapshot, memory: Memory):
@@ -253,27 +288,58 @@ def _lap_left(policy, snapshot: Snapshot, memory: Memory):
     shape = (snapshot.height, snapshot.width)
     done = memory.cover.mask(shape) | search_coverage.covered(
         shape, _cast_centres(policy, snapshot, memory))
-    return search_coverage.floor_grids(policy, snapshot) & ~done
+    return search_coverage.floor_grids(snapshot) & ~done
+
+
+def held_cast_radius(policy, snapshot: Snapshot) -> int:
+    """The largest plain radius of a held means that can show the unseen target: an absorbed
+    row with a charge (me_powers.revealing_radius) or a carried CARRIED_DETECTION device
+    (me_powers.map_radius, as its casts are recorded), else 0."""
+    race = hunt_target.unseen_race(policy, snapshot)
+    if race is None:
+        return 0
+    flags = hunt_target.race_flags(policy, race)
+    held = {(item.tval, item.sval) for item in snapshot.inventory}
+    carried = any(kind_key in held and hunt_target.REVEALS[effect](flags)
+                  for kind_key, (_, effect) in CARRIED_DETECTION.items())
+    return max(me_powers.revealing_radius(policy, snapshot, flags),
+               me_powers.map_radius(policy, snapshot) if carried else 0)
 
 
 def _draw(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> tuple:
     """A new lap: the room and sight stops, then the coverage stops (search_coverage.plan);
     the lap's coverage starts again here."""
     stops, radius = draw_stops(snapshot, set(routes)), search_coverage.walk_radius(policy, snapshot)
-    memory.unreached, memory.lap_turn = 0, snapshot.turn
+    cast = held_cast_radius(policy, snapshot)
+    memory.unreached, memory.lap_turn, memory.stop_radius = 0, snapshot.turn, {}
     memory.cover.clear()
-    if not radius:
-        return stops
-    plan = search_coverage.plan(
-        snapshot, search_coverage.floor_grids(policy, snapshot), routes, stops, radius)
-    memory.unreached = plan.unreachable
-    memory.cover.note(snapshot.player.position, radius)
+    if not radius and not cast:
+        return stops  # nothing reaches beyond view: the sight stops and their view rule
+    plan = search_coverage.plan(snapshot, search_coverage.floor_grids(snapshot), routes, stops,
+                                radius, cast)
+    memory.unreached, memory.stop_radius = plan.unreachable, plan.radius
+    for y, x, reach in _reach_now(policy, snapshot):
+        memory.cover.note(Position(y, x), reach)
     return plan.stops
 
 
+def _reach_now(policy, snapshot: Snapshot) -> list:
+    """(y, x, radius) of what the player's place shows this decision: telepathy's reach; without
+    it, nothing (only the casts count, owner 「感知を使った範囲だけ数える」), unless no held means can
+    show the target, when the grids in view count (radius 0)."""
+    radius = search_coverage.walk_radius(policy, snapshot)
+    if radius:
+        here = snapshot.player.position
+        return [(here.y, here.x, radius)]
+    if held_cast_radius(policy, snapshot):
+        return []
+    return [(grid.position.y, grid.position.x, 0) for grid in snapshot.grids.values() if grid.in_view]
+
+
 def _seen_now(snapshot: Snapshot, stop: Position, left, radius: int) -> bool:
-    """The player stands on the stop; with telepathy, every floor grid the stop covers was
-    covered (``left`` the grids not yet), else the stop is in view lit or in the light."""
+    """The player stands on the stop; for a stop drawn with a reach (telepathy's or a cast's),
+    every grid within it was covered (``left`` the grids not yet), else the stop is in view lit
+    or in the light."""
     here = snapshot.player.position
     if stop == here:
         return True
@@ -287,9 +353,9 @@ def _seen_now(snapshot: Snapshot, stop: Position, left, radius: int) -> bool:
 def _next_goal(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> Position | None:
     radius = search_coverage.walk_radius(policy, snapshot)
     if memory.stops:
-        left = _lap_left(policy, snapshot, memory) if radius else None
-        memory.seen.update(stop for stop in memory.stops
-                           if stop not in memory.seen and _seen_now(snapshot, stop, left, radius))
+        left = _lap_left(policy, snapshot, memory) if any(memory.stop_radius.values()) else None
+        memory.seen.update(stop for stop in memory.stops if stop not in memory.seen and _seen_now(
+            snapshot, stop, left, memory.stop_radius.get(stop, radius)))
     # The player's own cell is reached, not a goal: routes holds it with no first step.
     if (memory.goal in routes and memory.goal not in memory.seen
             and memory.goal != snapshot.player.position):
@@ -322,6 +388,21 @@ def _known(policy, snapshot: Snapshot, cell: Position) -> bool:
         return True
     grid = snapshot.grid_at(cell)
     return grid is not None and grid.known
+
+
+def _cut_off_floor(policy, snapshot: Snapshot, routes: dict) -> set:
+    """Remembered floor inside the outer ring that no walk reaches, not even over damaging
+    ground or past a veto (those have their own owners): the ground only an opener reaches."""
+    start = snapshot.player.position
+    reached, queue = {start}, deque([start])
+    while queue:
+        for neighbour in policy._walkable_neighbors(snapshot, queue.popleft(), allow_damaging=True):
+            if neighbour not in reached:
+                reached.add(neighbour)
+                queue.append(neighbour)
+    height, width = snapshot.height, snapshot.width
+    return {cell for y, x in policy._floor_t
+            if 0 < y < height - 1 and 0 < x < width - 1 and (cell := Position(y, x)) not in reached}
 
 
 def door_walls(policy, snapshot: Snapshot, routes: dict) -> set:
@@ -465,6 +546,11 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
         lambda goal, reason: _walk_key(policy, snapshot, routes, goal, reason))
     if lock is not None:
         return lock
+    cut_off = _cut_off_floor(policy, snapshot, routes)
+    if cut_off:
+        opened = retreat_enclosure.open_toward_key(policy, snapshot, routes.keys(), cut_off)
+        if opened is not None:
+            return opened
     means = door_means_key(policy, snapshot, memory, routes)
     if means is not None:
         return means
@@ -484,11 +570,38 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     return None if goal is None else _walk_key(policy, snapshot, routes, goal, LOOP_REASON)
 
 
+def _count_sweep(policy, snapshot: Snapshot, memory: Memory) -> None:
+    """Count a complete coverage (search_coverage.Sweeps), kept in the floor's ledger."""
+    sweeps = memory.sweeps
+    casts = [cast for cast in _cast_centres(policy, snapshot, memory, since=sweeps.start_turn)]
+    sweeps.update(search_coverage.floor_grids(snapshot), casts, snapshot.turn)
+    ledger = getattr(policy, "_exploration_ledger", None)
+    if ledger is not None and ledger.floor_key == snapshot.floor_key:
+        ledger.search_sweep_turn, ledger.search_sweeps = sweeps.start_turn, sweeps.count
+
+
+def coverage_given_up(policy, snapshot: Snapshot) -> bool:
+    """A runtime RANDOM quest floor whose grids were covered SWEEPS_TO_GIVE_UP times without the
+    target seen (the module docstring): a release of the exit lock."""
+    if snapshot.in_town or not policy._on_random_quest_floor(snapshot):
+        return False
+    return _memory(policy, snapshot).sweeps.count >= SWEEPS_TO_GIVE_UP
+
+
 def observe(policy, snapshot: Snapshot) -> None:
     """Every decision: note what the player's place covers, and settle the last use of a
     carried device."""
-    if searching(policy, snapshot) and (radius := search_coverage.walk_radius(policy, snapshot)):
-        _memory(policy, snapshot).cover.note(snapshot.player.position, radius)
+    if searching(policy, snapshot):
+        searched = _memory(policy, snapshot)
+        unseen = hunt_target.unseen_race(policy, snapshot) is not None
+        for y, x, reach in _reach_now(policy, snapshot):
+            searched.cover.note(Position(y, x), reach)
+            if unseen:
+                searched.sweeps.cover.note(Position(y, x), reach)
+        if unseen:
+            if not searched.sweeps.start_turn:
+                searched.sweeps.start_turn = snapshot.turn  # the first coverage begins with the mode
+            _count_sweep(policy, snapshot, searched)
     memory = getattr(policy, MEMORY, None)
     if (memory is None or memory.floor != snapshot.floor_key or memory.pending is None
             or snapshot.turn == memory.pending[0]):

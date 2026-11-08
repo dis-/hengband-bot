@@ -9,7 +9,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -4907,6 +4907,10 @@ class QuestMixin(OpeningRouteMixin):
             )
             and self._stuck_escape_streak >= STUCK_ESCAPE_LIMIT
         ):
+            return False
+        # Owner 2026-11-08 「全域を2回覆ったら諦める」: a RANDOM quest's floor whose grids the
+        # search covered twice without the target seen (quest_target_search).
+        if quest_target_search.coverage_given_up(self, snapshot):
             return False
         return True
 
