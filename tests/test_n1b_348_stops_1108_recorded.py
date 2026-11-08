@@ -27,6 +27,15 @@ sleeper in view).  DECLARED COUNTERFACTUAL (the walk): from the next board ([22,
 sight) the player follows the decided moves with nothing in view, ten game turns a decision,
 for the retreat veto's window; the remembered frontiers beyond the sleeper's area are taken
 as already probed, so the frontiers left lie past it, where the live explore went.
+
+Receipts (both stops' bot-stderr.log are full of town:blocked:work-contract:unmapped-
+producer; the life's town-work-receipts.jsonl holds 11,486 of them, 99% at the executor-post
+seam, with the driver-submit receipt of the same key valid): an operation's completion set
+the executor's ready board but kept the screen/state bound by the last _observe_decidable,
+so after a recall every dungeon post was judged on the town state.  The same stale binding
+made a backpressure retry after any completed operation a terminal ("prompt changed before
+retry").  DECLARED CONSTRUCTED: the recorded town board (A row 3) is followed by the recorded
+dungeon board (B, [22,80]) as if a recall had activated on a wait.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -41,7 +50,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot.cli import PostingContract, SendResult, _ExecutorInputPort, _send_new_decision_key
 from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
 from hengbot.home_errand import HomeErrandState
 from hengbot.model import Position, parse_snapshot
@@ -210,6 +219,49 @@ class SleeperOutOfSightRecordedTest(RecordedHarness):
         self.assertNotIn("explore", reasons)
         # The floor whose way on lies past it is left by the existing stuck escape.
         self.assertEqual(reasons[-1], "stuck:recall-escape")
+
+
+
+def town_board():
+    """A's recorded town board of row 3 (turn 3000391)."""
+    rows = lzma.decompress((FIXTURES / "a" / "journal.jsonl.xz").read_bytes()).splitlines()
+    entry = json.loads(rows[3])
+    return json.loads(entry["line"] or entry["inputs"][-1])
+
+
+class TownWorkReceiptsRecordedTest(executor_pins.ProductionHarness):
+    def after_recall(self, faults=()):
+        """The port and receipts of a dungeon post following a completed town wait."""
+        town, dungeon = town_board(), copy.deepcopy(LOOP["boards"][1])
+        game = executor_pins.FaithfulHookGame()
+        game.state, game.screen = town, executor_pins.command_screen(town["turn"])
+        _game, _client, executor = self.make(game)
+        receipts = []
+        executor.work_receipt = receipts.append
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        game.states, game.screens = [dungeon], [executor_pins.command_screen(dungeon["turn"])]
+        self.assertEqual(port("5", decision={"reason": "town:wait-recall", "sequence": 1}),
+                         SendResult.SENT)
+        receipts.clear()
+        game.faults = list(faults)
+        following = dict(dungeon, turn=dungeon["turn"] + 10)
+        game.states, game.screens = [following], [executor_pins.command_screen(following["turn"])]
+        sent = port("6", decision={"reason": "explore", "sequence": 2})
+        return sent, port, receipts
+
+    def test_a_dungeon_post_after_a_recall_needs_no_town_work(self):
+        sent, port, receipts = self.after_recall()
+        self.assertEqual(sent, SendResult.SENT, port.last_result.reason)
+        self.assertEqual([(r["seam"], r["required"], r["reason"]) for r in receipts],
+                         [("executor-post", False, None)])
+
+    def test_a_backpressure_retry_compares_with_the_completed_observation(self):
+        # Refused once by backpressure, the sole retry compares the re-observed screen
+        # and state with the ones the operation was admitted on (the completed one's).
+        sent, port, _receipts = self.after_recall(faults=["backpressure"])
+        self.assertEqual(sent, SendResult.SENT, port.last_result.reason)
+        self.assertEqual(port.last_result.outcome, "completed")
 
 
 if __name__ == "__main__":
