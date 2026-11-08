@@ -819,7 +819,12 @@ def _prepare_key(policy, snapshot, record, town: int, start: int) -> str | None:
     if levitation != "":
         return levitation
     if town != start:
-        key = policy._town_teleport_key(snapshot, start, producer=PRODUCER, reason=TRAVEL_REASON)
+        # The arbiter files every town:zul: reason under cross-town
+        # (town_arbiter), and the progress vector measures a Reach walk only
+        # when its declaring family is that owner (_declared_walk_part): under
+        # quest-request every inn step scored no progress and cross-town was
+        # retired three times on the way to the inn (n1-c life-169 13:42).
+        key = policy._town_teleport_key(snapshot, start, producer=WALK_FAMILY, reason=TRAVEL_REASON)
         if key is None:
             _close(policy, record, "inn-unavailable")
         return key
