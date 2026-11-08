@@ -8172,6 +8172,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
+        # Owner 2026-11-08: inside the sensing radius of an awake T1 hostile, seen or detected,
+        # leave now (threat_tiers.sensed_t1_leave_key); never rest there.
+        if (sensed := threat_tiers.sensed_t1_leave_key(self, snapshot)) is not None:
+            return sensed
+
         # A summoner with room around the player can turn a manageable fight into
         # an irreversible surround. Leave open terrain before engaging, ideally
         # breaking into a corridor where only a few monsters can reach us. But an

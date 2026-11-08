@@ -11604,6 +11604,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:sensed_t1_leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "threat_tiers.py:supply_fight_key": {
     "classification": "producer",
     "rows": [

@@ -516,8 +516,9 @@ class Projection:
     A comparison the bracket does not decide raises ``CostExceeded`` rather than spending the time.
     """
 
-    def __init__(self, policy, snapshot, hostiles, one_turn, melee_slots=None):
+    def __init__(self, policy, snapshot, hostiles, one_turn, melee_slots=None, contact=False):
         self.policy, self.hostiles, self.melee_slots = policy, hostiles, melee_slots
+        self.contact = contact
         self.memo: dict = {}
         self.rows = one_turn["monsters"]
         self.melee_max = [self._melee_max(snapshot, monster, row)
@@ -576,7 +577,7 @@ class Projection:
         if key not in self.memo:
             self.memo[key] = (board, self.policy.threat_prediction(
                 board, self.hostiles, turns, player_speed=speed,
-                melee_slots=self.melee_slots)["operational_total"])
+                melee_slots=self.melee_slots, contact=self.contact)["operational_total"])
         return self.memo[key][1]
 
     def upper_bound(self, turns: int, speed: int) -> int:
@@ -925,11 +926,13 @@ class InstantDeath:
 NEXT_ACTION_P95 = "next-action-p95"
 
 
-def _instant_death(policy, snapshot, hostiles, melee_slots=None) -> tuple[InstantDeath, dict]:
+def _instant_death(policy, snapshot, hostiles, melee_slots=None,
+                   contact=False) -> tuple[InstantDeath, dict]:
     """3.1 on hostiles already at their adjusted speed; also the 1-turn prediction it read."""
     player = snapshot.player
     hp = player.hp
-    one_turn = policy.threat_prediction(snapshot, hostiles, 1, melee_slots=melee_slots)
+    one_turn = policy.threat_prediction(snapshot, hostiles, 1, melee_slots=melee_slots,
+                                        contact=contact)
     next_action_p95 = one_turn["operational_total"]
     correction = unseen_correction(policy, snapshot, hostiles)
     reasons = []
@@ -977,22 +980,24 @@ def instant_death_key(policy, snapshot, plan_escape=None) -> str | None:
     return policy._emergency_item(snapshot, hostiles, instant_death=True)
 
 
-def assess(policy, snapshot, hostiles=None, *, melee_slots=None) -> Assessment:
+def assess(policy, snapshot, hostiles=None, *, melee_slots=None, contact=False) -> Assessment:
     """Classify the engagement on ``snapshot`` (design 3 and 4); pure.
 
     ``melee_slots`` counts the melee slots elsewhere than at the player's cell, as
-    ``threat_prediction`` does (the choke's origin, inventory 2.7)."""
+    ``threat_prediction`` does (the choke's origin, inventory 2.7).  ``contact``: every hostile
+    judged as already beside the player (``threat_prediction(contact=True)``, as the detected-threat
+    tiers judge a far monster "from contact")."""
     memoised = _path_memo(policy)
     if memoised is not None:
         policy._monster_path_distance = memoised
     try:
-        return _assess(policy, snapshot, hostiles, melee_slots)
+        return _assess(policy, snapshot, hostiles, melee_slots, contact)
     finally:
         if memoised is not None:
             del policy._monster_path_distance
 
 
-def _assess(policy, snapshot, hostiles, melee_slots=None) -> Assessment:
+def _assess(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Assessment:
     if hostiles is None:
         hostiles = engagement(policy, snapshot)
     hostiles = [_with_adjusted_speed(monster) for monster in hostiles]
@@ -1003,14 +1008,14 @@ def _assess(policy, snapshot, hostiles, melee_slots=None) -> Assessment:
     hp, max_hp = player.hp, max(1, player.max_hp)
 
     # 3.1 即死
-    death, one_turn = _instant_death(policy, snapshot, hostiles, melee_slots)
+    death, one_turn = _instant_death(policy, snapshot, hostiles, melee_slots, contact)
     result.next_action_p95 = death.next_action_p95
     result.unseen_correction = death.unseen_correction
     result.instant_death = death.holds
     result.instant_death_reasons = death.reasons
 
     # 3.2-3.4 the tier
-    projection = Projection(policy, snapshot, hostiles, one_turn, melee_slots)
+    projection = Projection(policy, snapshot, hostiles, one_turn, melee_slots, contact)
     result.free_damage = {monster.index: free_damage(policy, snapshot, monster)
                           for monster in hostiles}
 
@@ -1028,8 +1033,8 @@ def _assess(policy, snapshot, hostiles, melee_slots=None) -> Assessment:
     quest_races = _quest_races(policy, snapshot)
     hunted = hunt_target.target_race(policy, snapshot)
     rows = {row_monster.index: row for row_monster, row in zip(
-        hostiles, policy.threat_prediction(snapshot, hostiles, 3,
-                                           melee_slots=melee_slots)["monsters"])}
+        hostiles, policy.threat_prediction(snapshot, hostiles, 3, melee_slots=melee_slots,
+                                           contact=contact)["monsters"])}
     for monster in hostiles:
         entry = MonsterAssessment(index=monster.index, race_id=monster.race_id,
                                   name=monster.name, speed=monster.speed,
@@ -1069,11 +1074,12 @@ def acts_here(policy, snapshot) -> bool:
             and policy.approved_quest_strategy(snapshot.floor_key[2]) is None)
 
 
-def tiered(policy, snapshot, hostiles, melee_slots=None) -> Assessment:
+def tiered(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Assessment:
     """``assess`` memoised for the decision (one assessment per hostile set and slot count)."""
-    key = (tuple(monster.index for monster in hostiles), melee_slots)
+    key = (tuple(monster.index for monster in hostiles), melee_slots, contact)
     return decision_memo(policy, "threat_tiers.assess", snapshot, key,
-                         lambda: assess(policy, snapshot, hostiles, melee_slots=melee_slots))
+                         lambda: assess(policy, snapshot, hostiles, melee_slots=melee_slots,
+                                        contact=contact))
 
 
 def leave_decided_here(policy, snapshot) -> bool:
@@ -1119,6 +1125,68 @@ def walk_leaves(policy, snapshot, hostiles) -> bool:
     rows = policy.threat_prediction(
         snapshot, [_with_adjusted_speed(monster) for monster in awake], 1)["monsters"] if awake else []
     return not any(row.get("operational_ranged_prediction", 0) > 0 for row in rows)
+
+
+SENSED_LEAVE_PREFIX = "sensed-t1:"
+
+
+def sensing_distance(snapshot, monster) -> int:
+    """The game's ``cdis`` (monster-update.cpp:193-204): max(dy, dx) + min(dy, dx) / 2, at least 1."""
+    here, there = snapshot.player.position, monster.position
+    dy, dx = abs(here.y - there.y), abs(here.x - there.x)
+    return max(1, max(dy, dx) + min(dy, dx) // 2)
+
+
+def inside_sensing(policy, snapshot, monster) -> bool:
+    """The player stands inside the monster's sensing radius (``vision``, monrace.aaf): there it
+    acts toward the player whatever the line of sight (monster-processor.cpp:708-710)."""
+    knowledge = policy._monrace_knowledge.get(monster.race_id)
+    return knowledge is not None and sensing_distance(snapshot, monster) <= knowledge.vision
+
+
+def sensed_t1_leave_key(policy, snapshot) -> str | None:
+    """Owner 2026-11-08 (question 「感知で、起きている強い敵（倒しきれない段階の敵）が見えている時に
+    休みますか？」, answer 「その敵の感知範囲内なら早急に離脱する」): an awake hostile, in view or
+    detected, that is T1 on its own, with the player inside its sensing radius: leave now by step
+    6's leave, never rest there.  The order is design 3.2's for a faster monster or one reaching at
+    range: stairs underfoot, *Destruction*, a relocation scroll, Word of Recall; a walk only while
+    no awake hostile is faster and none reaches at range.  Outside the radius nothing changes.
+    Where the tiers do not decide leaving (``leave_decided_here``: quest plans keep their order,
+    only 即死 pre-empts it; a floor that leaving fails the quest; town) it does not apply."""
+    if not leave_decided_here(policy, snapshot):
+        return None
+    hostiles = engagement(policy, snapshot)
+    sensing = [monster for monster in hostiles
+               if not monster.asleep and inside_sensing(policy, snapshot, monster)]
+    # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
+    # would otherwise read T3 only because it has not come yet).
+    strong = [monster for monster in sensing
+              if tiered(policy, snapshot, [monster], contact=True).tier == T1]
+    if not strong:
+        return None
+    stairs = policy._escape_by_stairs(snapshot)
+    if stairs is not None:
+        policy.last_reason = SENSED_LEAVE_PREFIX + "stairs"
+        return stairs
+    used = destruction_use.key(policy, snapshot)
+    if used is not None:
+        return used
+    scroll = policy._escape_scroll(snapshot)
+    if scroll is not None:
+        policy.last_reason = SENSED_LEAVE_PREFIX + (
+            "teleport" if scroll.is_teleport_scroll else "phase")
+        return policy._read_key(snapshot, scroll)
+    if not snapshot.player.recalling and not (snapshot.player.blind or snapshot.player.confused):
+        recall = next((item for item in snapshot.inventory if item.is_recall_scroll), None)
+        if recall is not None and policy._can_read_scrolls(snapshot):
+            policy.last_reason = SENSED_LEAVE_PREFIX + "recall"
+            return policy._read_key(snapshot, recall)
+    if walk_leaves(policy, snapshot, hostiles):
+        step = policy._flee_step(snapshot, hostiles)
+        if step is not None:
+            policy.last_reason = SENSED_LEAVE_PREFIX + "walk"
+            return policy._step_toward(snapshot, step)
+    return None
 
 
 def tier_of(policy, snapshot, hostiles) -> str | None:

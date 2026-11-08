@@ -193,8 +193,9 @@ class JudgeDeath168RecordedTest(unittest.TestCase):
             return key, policy.last_reason, result, board
 
     def test_the_recorded_rows(self):
-        self.assertEqual([(row["key"], row["reason"]) for row in self.case["decisions"]],
-                         [("9", "summoner:retreat"), ("re", "emergency:teleport")])
+        rows = {row["decision_sequence"]: (row["key"], row["reason"]) for row in self.case["decisions"]}
+        self.assertEqual((rows[3434], rows[3435]),
+                         (("9", "summoner:retreat"), ("re", "emergency:teleport")))
 
     def test_the_faster_t1_summoner_is_left_by_teleport(self):
         key, reason, result, board = self.decide()
@@ -208,8 +209,10 @@ class JudgeDeath168RecordedTest(unittest.TestCase):
         self.assertTrue(scroll.is_teleport_scroll)
 
     def test_without_the_step_it_walks_away(self):
+        # The 11-08 sensed-T1 leave (test_sensed_t1_leave_1108) would leave too; it is off here.
         key, reason, _result, _board = self.decide(
-            patch.object(threat_tiers, "leave_due", lambda *args, **kwargs: None))
+            patch.object(threat_tiers, "leave_due", lambda *args, **kwargs: None),
+            patch.object(threat_tiers, "sensed_t1_leave_key", lambda *args, **kwargs: None))
         self.assertEqual(reason, "summoner:retreat")
 
     def test_without_the_faster_rule_the_leave_walks(self):

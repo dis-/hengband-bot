@@ -16250,5 +16250,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. the engagement's threat tier where the tiers act (None elsewhere), read by _strong_fight_speed_key (threat tiers step 8); not an independently selected game action"
+  },
+  "threat_tiers.py:sensed_t1_leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: threat_tiers.leave_decided_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-08 「その敵の感知範囲内なら早急に離脱する」: inside the sensing radius (monrace vision / aaf) of an awake T1 hostile, seen or detected, the leave: stairs underfoot, *Destruction*, a relocation scroll, Word of Recall, a walk only when none is faster and none reaches at range; None otherwise."
   }
 }
