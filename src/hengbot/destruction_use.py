@@ -229,6 +229,27 @@ def _threat_in_range(policy, snapshot, target) -> bool:
     return game_distance(here, worst.position) <= GUARANTEED_RADIUS
 
 
+def _threat_in_reach(policy, snapshot, target, *, hostiles) -> bool:
+    """Owner 2026-11-09 (question B, life-355): 「即死はテレポートで逃げる。射線が通っていないなど
+    即死ではない場合は破壊による排除を優先する。」  Where a rung leaves ``hostiles`` and the board
+    is not 即死, the threat need not be awake in view: the most dangerous of them but the target,
+    seen or detected, awake or asleep, judged from contact (``threat_prediction(contact=True)``,
+    as the tiers judge a far monster), is in the guaranteed radius; or the 11-04 test holds.  An
+    attacker the board does not show still refuses the use (``_awake_in_view``'s rule)."""
+    if _threat_in_range(policy, snapshot, target):
+        return True
+    if getattr(policy, "_unseen_attack_evidence", None) is not None:
+        return False
+    candidates = [m for m in hostiles if m.hostile and m.race_id != target]
+    if not candidates:
+        return False
+    here = snapshot.player.position
+    rows = policy.threat_prediction(snapshot, candidates, 1, contact=True)["monsters"]
+    worst, _ = max(zip(candidates, rows), key=lambda pair: (
+        pair[1].get("operational_contribution", 0), -game_distance(here, pair[0].position)))
+    return game_distance(here, worst.position) <= GUARANTEED_RADIUS
+
+
 def _scene_holds(policy, snapshot, in_range=_threat_in_range) -> bool:
     if not _clear_headed(snapshot.player) or not _floor_destroyed(policy, snapshot):
         return False
@@ -248,8 +269,15 @@ def _falls_back(memory, snapshot) -> bool:
     return False
 
 
-def key(policy, snapshot, *, in_range=_threat_in_range, suffix="") -> str | None:
-    """The use before the rung's read, setting ``last_reason``; else None."""
+def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None) -> str | None:
+    """The use before the rung's read, setting ``last_reason``; else None.
+
+    ``leaving``: the hostiles a rung leaves on a board that is not 即死 (``_threat_in_reach``,
+    owner 2026-11-09 B): the sensed T1 leave, the emergency ladder's escape off the 即死 board,
+    the cornered flee of a leave the tiers decided.  On the 即死 board the ladder reads
+    Teleportation first (owner 2026-11-08, policy_combat ``scroll_first``)."""
+    if leaving is not None:
+        in_range = partial(_threat_in_reach, hostiles=list(leaving))
     if _falls_back(_memory(policy), snapshot):
         return None
     if not _scene_holds(policy, snapshot, in_range):

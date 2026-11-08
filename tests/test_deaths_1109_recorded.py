@@ -231,5 +231,41 @@ class EveryEscapeCountsRecordedTest(DeathsRecordedHarness):
         self.assertFalse(policy._returning_to_town)
 
 
+class TeleportOrDestructionRecordedTest(DeathsRecordedHarness):
+    """B: 即死 reads Teleportation; off the 即死 board *Destruction* removes the threat it
+    could not see awake (``destruction_use.leave_key``)."""
+
+    def test_the_instant_death_board_reads_teleportation_with_destruction_at_hand(self):
+        policy, answers = self.replay("life-355", 4229927)
+        raw = self.board("life-355", 4229931)
+        snapshot = self.snapshot(policy, raw)
+        # *Destruction* would serve this board (13 awake locusts in view inside the radius) ...
+        self.assertTrue(destruction_use.usable(policy, snapshot))
+        key, reason = self.decide(policy, raw)
+        # ... but 即死 (p95 1404 >= HP 587) reads the scroll (owner 2026-11-08 scroll_first).
+        self.assertEqual(reason, "emergency:teleport")
+        self.assertEqual(key, "r" + letter(raw, *TELEPORT))
+
+    def test_the_sensed_t1_leave_destroys_what_it_does_not_see_awake(self):
+        recorded = self.recorded("life-355")
+        self.assertEqual((recorded[4229938]["reason"], recorded[4229938]["instant_death"]),
+                         ("sensed-t1:teleport", False))
+        policy, answers = self.replay("life-355", 4229938)
+        raw = answers[4229938][0]
+        # Every awake monster of the board is detected only.
+        self.assertFalse([m for m in raw["visible_monsters"] if not m["asleep"]])
+        self.assertTrue([m for m in raw["detected_monsters"] if not m["asleep"]])
+        self.assertEqual(answers[4229938][2], DESTRUCTION_REASON)
+
+    def test_the_ladder_off_the_instant_death_board_destroys_the_sleeping_t1(self):
+        recorded = self.recorded("life-355")
+        self.assertEqual((recorded[4230087]["reason"], recorded[4230087]["tier"],
+                          recorded[4230087]["instant_death"]), ("emergency:teleport", "T1", False))
+        policy, answers = self.replay("life-355", 4230087)
+        raw = answers[4230087][0]
+        self.assertTrue(all(m["asleep"] for m in raw["visible_monsters"]))
+        self.assertEqual(answers[4230087][2], DESTRUCTION_REASON)
+
+
 if __name__ == "__main__":
     unittest.main()

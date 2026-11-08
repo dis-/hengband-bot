@@ -1263,7 +1263,9 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     if stairs is not None:
         policy.last_reason = SENSED_LEAVE_PREFIX + "stairs"
         return stairs
-    used = destruction_use.key(policy, snapshot)
+    # Owner 2026-11-09 B 「射線が通っていないなど即死ではない場合は破壊による排除を優先する」: the
+    # strong monster need not be awake in view for *Destruction* (destruction_use.key leaving).
+    used = destruction_use.key(policy, snapshot, leaving=strong)
     if used is not None:
         return used
     # Blind: the teleport no scroll can give (blind_teleport_key), in the scroll's place.

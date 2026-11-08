@@ -2547,8 +2547,13 @@ class CombatMixin:
                 scroll_first = bool(
                     instant_death and scroll is not None and scroll.is_teleport_scroll
                 )
+                # Owner 2026-11-09 B 「即死はテレポートで逃げる。射線が通っていないなど即死では
+                # ない場合は破壊による排除を優先する。」: off the 即死 board the threat need not
+                # be awake in view (destruction_use.key leaving: seen or detected, awake or asleep).
                 if not guardian_reposition and not scroll_first and (
-                        used := destruction_use.key(self, snapshot)) is not None:
+                        used := destruction_use.key(self, snapshot, leaving=None if instant_death
+                                                    else threat_tiers.engagement(self, snapshot))
+                ) is not None:
                     return used
                 if blind_escape and (
                         blind := self._blind_teleport_escape(snapshot)) is not None:

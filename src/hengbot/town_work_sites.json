@@ -11751,6 +11751,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:cannot_win": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:decided": {
     "classification": "data",
     "rows": [
@@ -11766,6 +11773,13 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:held_tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:inside_sensing": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

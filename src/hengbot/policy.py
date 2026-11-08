@@ -8167,8 +8167,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "flee"
                 return self._town_producer_entry("_step_toward:escape", lambda: self._step_toward(snapshot, step), family="escape")
-            # Cornered: try a relocation scroll before anything desperate.
-            if (used := destruction_use.key(self, snapshot)) is not None:
+            # Cornered: try a relocation scroll before anything desperate.  A leave the tiers
+            # decided (T1) is the owner's 2026-11-09 B case: *Destruction* need not see the
+            # threat awake (destruction_use.key leaving).
+            if (used := destruction_use.key(self, snapshot, leaving=threat_tiers.engagement(
+                    self, snapshot) if tiers_leave else None)) is not None:
                 return used
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
