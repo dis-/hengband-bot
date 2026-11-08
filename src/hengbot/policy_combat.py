@@ -835,6 +835,9 @@ class CombatMixin:
                 "emergency:destruction",
                 "emergency:stairs",
                 "emergency:cure",
+                # Owner 2026-11-09 D: the Speed dose on a confusion relapse is the board's own
+                # answer (status_cure.speed_first_key), not a dose this rule may turn into a heal.
+                status_cure.RELAPSE_SPEED_REASON,
                 "flee:scroll",
                 "flee:stairs",
             )
@@ -2480,7 +2483,10 @@ class CombatMixin:
                      or destruction_use.usable(self, snapshot))
             )
             if not blind_escape and status_cure.treats(self, snapshot):
-                if (speed := status_cure.speed_first_key(self, snapshot)) is not None:
+                # Owner 2026-11-09 D: confused again right after a cure on the 即死 board, the
+                # Speed dose first and the HP recovery potion when HP is down (status_cure).
+                if (speed := status_cure.speed_first_key(
+                        self, snapshot, instant_death=instant_death)) is not None:
                     return speed  # the cure, and the escape it owes, on the next board
                 potion = status_cure.low_hp_heal(self, snapshot, hostiles,
                                                  observed_loss=observed_loss)
@@ -2489,7 +2495,7 @@ class CombatMixin:
                 cast = None if potion is not None else status_cure.absorbed_cure_key(
                     self, snapshot, status_cure.EMERGENCY_ABSORBED_CURE_REASON)
                 if potion is None and cast is None:
-                    potion = status_cure.cure_potion(self, snapshot)
+                    potion = status_cure.cure_potion(self, snapshot, instant_death=instant_death)
                 if potion is not None or cast is not None:
                     if potion is not None:
                         self.last_reason = (

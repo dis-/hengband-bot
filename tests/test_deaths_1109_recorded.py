@@ -287,5 +287,39 @@ class T1LeavesTheSummonerRecordedTest(DeathsRecordedHarness):
         self.assertEqual(answers[970232][2], "summoner:ranged-kill")
 
 
+class ConfusedAgainRecordedTest(DeathsRecordedHarness):
+    """D: confused again right after a cure on the 即死 board: Speed first, Healing when HP is
+    down (a loss of at least 1/3 of max HP, status_cure._heavy_loss)."""
+
+    def test_the_recorded_relapse_cures_with_healing_once_hp_is_down(self):
+        recorded = self.recorded("life-350")
+        self.assertEqual([(recorded[turn]["reason"], recorded[turn]["key"])
+                          for turn in (970252, 970258, 970272)],
+                         [("emergency:cure-critical", "qb")] * 3)
+        policy, answers = self.replay("life-350", 970272)
+        # The first confusion: the cheap cure.
+        self.assertEqual(answers[970252][1:], ("qb", "emergency:cure-critical"))
+        # Confused again right after it, HP 168/243 (a loss below 1/3): no Speed carried, the
+        # cheap cure again.
+        raw = answers[970258][0]
+        self.assertIn("やっと混乱がおさまった。", raw["messages"])
+        self.assertEqual(answers[970258][1:], ("qb", "emergency:cure-critical"))
+        # HP 77/243: Healing, which also ends the confusion.
+        raw, key, reason = answers[970272]
+        self.assertEqual(reason, "emergency:cure-status-healing")
+        self.assertEqual(key, "q" + letter(raw, TVAL_POTION, SV_POTION_HEALING))
+
+    def test_a_carried_speed_potion_is_drunk_first_on_the_relapse(self):
+        policy, answers = self.replay("life-350", 970258, from_turn(970252, speed_potion))
+        # Not on the first confusion: no relapse yet.
+        raw, key, reason = answers[970252]
+        self.assertEqual((key, reason),
+                         ("q" + letter(raw, TVAL_POTION, SV_POTION_CURE_CRITICAL),
+                          "emergency:cure-critical"))
+        raw, key, reason = answers[970258]
+        self.assertEqual(reason, status_cure.RELAPSE_SPEED_REASON)
+        self.assertEqual(key, "q" + letter(raw, TVAL_POTION, SV_POTION_SPEED))
+
+
 if __name__ == "__main__":
     unittest.main()
