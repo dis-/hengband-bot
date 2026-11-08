@@ -36,6 +36,7 @@ from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.terrain_knowledge import (
     find_terrain_definitions,
     load_damaging_terrain_elements,
+    load_deep_damaging_terrain_ids,
     load_damaging_terrain_ids,
 )
 from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_knowledge
@@ -4173,11 +4174,13 @@ def main(argv: list[str] | None = None) -> int:
 
     damaging_terrain_ids: frozenset[int] = frozenset()
     damaging_terrain_elements: dict[int, str] = {}
+    deep_damaging_terrain_ids: frozenset[int] = frozenset()
     terrain_path = find_terrain_definitions(args.state_file)
     if terrain_path is not None:
         try:
             damaging_terrain_ids = load_damaging_terrain_ids(terrain_path)
             damaging_terrain_elements = load_damaging_terrain_elements(terrain_path)
+            deep_damaging_terrain_ids = load_deep_damaging_terrain_ids(terrain_path)
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             print(f"invalid terrain definitions: {exc}", file=sys.stderr)
             return 2
@@ -4262,6 +4265,7 @@ def main(argv: list[str] | None = None) -> int:
         monrace_knowledge=monrace_knowledge,
         damaging_terrain_ids=damaging_terrain_ids,
         damaging_terrain_elements=damaging_terrain_elements,
+        deep_damaging_terrain_ids=deep_damaging_terrain_ids,
         quest_knowledge=quest_knowledge,
         quest_strategies=quest_strategies,
         exploration_ledger_path=runtime_path(EXPLORATION_LEDGER_PATH.name),

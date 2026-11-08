@@ -1,8 +1,9 @@
 """Leaving damaging ground first (owner 2026-11-04 「先に出る」), on n1-a life-478's boards.
 
 Recorded: tests/extract_hazard_exit_1104_fixture.py.  The skill-exp cache is DECLARED
-CONSTRUCTED from the board's level; the immunity and levitation controls are DECLARED
-CONSTRUCTED on the recorded board.
+CONSTRUCTED from the board's level; the immunity, levitation and invulnerability controls
+are DECLARED CONSTRUCTED on the recorded board, and so is the shallow board, whose deep acid
+(231) is relabelled shallow acid (232) in the grid map's palette.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -22,6 +23,7 @@ from test_esp_threat_rest_recorded import EDIT, _policy
 FIXTURE = Path(__file__).with_name("fixtures") / "hazard-exit-1104.json.gz"
 STEP_REASON = "hazard:step-off"
 STEP_TO_9_165 = "1"
+DEEP_ACID, SHALLOW_ACID = 231, 232  # lib/edit/TerrainDefinitions.jsonc
 
 
 class HazardExit(unittest.TestCase):
@@ -61,13 +63,35 @@ class HazardExit(unittest.TestCase):
         self.assertEqual(reason, STEP_REASON)  # Recorded: ('R&\r', 'rest').
         self.assertEqual(self.decide(self.boards["heal_deep"]), ("qe", "item:heal"))
 
-    def test_immunity_and_levitation_keep_the_shot(self):
+    def test_immunity_and_invulnerability_keep_the_shot(self):
         immune = copy.deepcopy(self.boards["shot"])
         immune["player"]["immunities"]["acid"]["permanent"] = True
         self.assertTrue(self.decide(immune)[0].startswith("f"))
+        invulnerable = copy.deepcopy(self.boards["shot"])
+        invulnerable["player"]["status_bar"] = [{"key": "invulnerability"}]
+        self.assertTrue(self.decide(invulnerable)[0].startswith("f"))
+
+    def test_levitation_still_leaves_deep_acid(self):
+        # deal_damege_by_feat (hp-mp-processor.cpp): DEEP ground deals a fifth of its
+        # damage to a levitating player, so the shot is still the step off.
         floating = copy.deepcopy(self.boards["shot"])
         floating["player"]["ability_sources"]["levitation"]["temporary"] = True
-        self.assertTrue(self.decide(floating)[0].startswith("f"))
+        before = (self.boards["before_shot"],)
+        self.assertEqual(self.decide(floating, before), (STEP_TO_9_165, STEP_REASON))
+
+    def test_levitation_keeps_the_shot_over_shallow_acid(self):
+        shallow = copy.deepcopy(self.boards["shot"])
+        palette = shallow["grid_map"]["palette"]
+        self.assertEqual(sum(entry[0] == DEEP_ACID for entry in palette), 1)
+        for entry in palette:
+            if entry[0] == DEEP_ACID:
+                entry[0] = SHALLOW_ACID
+        before = (self.boards["before_shot"],)
+        # Standing in it hurts: the step off, as on deep acid.
+        self.assertEqual(self.decide(shallow, before), (STEP_TO_9_165, STEP_REASON))
+        floating = copy.deepcopy(shallow)
+        floating["player"]["ability_sources"]["levitation"]["temporary"] = True
+        self.assertTrue(self.decide(floating, before)[0].startswith("f"))
 
 
 if __name__ == "__main__":
