@@ -156,7 +156,10 @@ LADDER = (
         *D("destruction_use.key"),
         *I("flee:scroll"),
         *D("combat_answer.adjacent_attack"),
-        *I("flee:wait", "summoner:stairs-quest-fail|summoner:stairs", "summoner:retreat"),
+        *I("flee:wait"),
+        # Owner 2026-11-08: inside an awake T1 hostile's sensing radius, leave (never rest).
+        *D("threat_tiers.sensed_t1_leave_key"),
+        *I("summoner:stairs-quest-fail|summoner:stairs", "summoner:retreat"),
         *E("_fundraising_combat_equipment_key"),
         *D("combat_answer.adjacent_attack", "disenchant_avoid.retreat_key"),
         *E("_ranged_attack_key#2"),

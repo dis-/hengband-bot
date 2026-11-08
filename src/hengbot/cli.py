@@ -64,6 +64,7 @@ from hengbot.policy import (
 )
 # After hengbot.policy: threat_tiers' dependencies import through it (a cycle otherwise).
 from hengbot import threat_tiers
+from hengbot import spectator_threat
 from hengbot.town_hold import SURVIVAL_REASON_PREFIXES
 from hengbot.policy_constants import (
     DIRECTION_DELTAS,
@@ -2018,22 +2019,37 @@ def _capture_decision_facts(snapshot, policy) -> dict:
     """
     if policy is None:
         return _empty_decision_facts()
-    # Protocol 3: read the board the policy decided on (the ~f skill list
-    # values filled in); while they are unknown every evaluator reports its
-    # result as unknown/blocked rather than raising.
-    known_board = getattr(policy, "with_known_skill_exp", None)
-    if known_board is not None:
-        snapshot = known_board(snapshot)
+    posted_board, snapshot = snapshot, _decided_board(policy, snapshot)
     # The capture reads the supply ledger of this board hundreds of times in
     # town; those reads share results (keyed on the ledger inputs the capture
     # itself can write) and the memo is dropped with the scope.
     with _PolicyObserverScope(policy), supply_ledger_observer_memo():
         try:
-            return _capture_decision_facts_unchecked(snapshot, policy)
+            facts = _capture_decision_facts_unchecked(snapshot, policy)
         except RecursionError as exc:
             facts = _empty_decision_facts()
             facts["capture_error"] = f"{type(exc).__name__}: {exc}"
             return facts
+    spectator_threat.note_engagement(posted_board, facts["threat_tiers"])
+    return facts
+
+
+def _decided_board(policy, snapshot):
+    """Protocol 3: the board the policy decided on (the ~f skill list values filled in);
+    while they are unknown every evaluator reports its result as unknown/blocked."""
+    known_board = getattr(policy, "with_known_skill_exp", None)
+    return known_board(snapshot) if known_board is not None else snapshot
+
+
+def _spectator_threat(policy, snapshot) -> dict:
+    """Viewer-only: the threat tiers of the listed monsters (spectator_threat), judged as an
+    observer on the board the policy decided on, like the decision row's facts."""
+    if policy is None:
+        return {}
+    board = _decided_board(policy, snapshot)
+    with _PolicyObserverScope(policy):
+        return spectator_threat.board_judgement(
+            policy, board, spectator_threat.noted_engagement(snapshot))
 
 
 def _timed_decision_facts(snapshot, policy, timing: dict) -> dict:
@@ -4486,6 +4502,7 @@ def _run_follow(
                 state_line=post_args[1],
                 screen_client=executor.client if executor is not None else None,
                 policy=policy, append_frame=True, defer_frame=True,
+                threat=lambda: _spectator_threat(policy, post_kwargs["snapshot"]),
             )
         post_at = time.monotonic()
         remaining = (args.min_action_seconds - (post_at - last_action_post_at)
@@ -4937,6 +4954,7 @@ def _run_follow(
                             state_line=snapshot_line,
                             screen_client=executor.client if executor is not None else None,
                             policy=policy,
+                            threat=lambda: _spectator_threat(policy, snapshot),
                         )
                     _add_phase_ms(
                         decision_timing, "validate_emit_ms", phase_started_at

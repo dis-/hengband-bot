@@ -16108,6 +16108,182 @@
       "survival"
     ]
   },
+  "threat_tiers.py:assess": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure classifier: the threat tiers assessment of the engagement (design 3, 4); read by tiered, facts and the tests; not an independently selected game action"
+  },
+  "threat_tiers.py:_assess": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. assess's body (the instant death, tier, flags and selection); not an independently selected game action"
+  },
+  "threat_tiers.py:tiered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. assess memoised for the decision (decision_memo); read by leave_due, tier_of, the supply fight and resist_potion.ladder_key; not an independently selected game action"
+  },
+  "threat_tiers.py:_fight_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. the selected monster the supply fight is for (the committed race, else the nearest selected); not an independently selected game action"
+  },
+  "threat_tiers.py:_aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. a direction key reaching the target (beside it or on a clear ray); not an independently selected game action"
+  },
+  "threat_tiers.py:_spend": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: supply_fight_key is reached through _unique_combat_consumable only where threat_tiers.acts_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan on the floor).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Threat tiers plan step 7 (owner answer 4, D7): the item command of one planned supply (quaff, fire, wand, staff) through reserved_item_command, noting the committed race; read only by the supply fight's own keys."
+  },
+  "threat_tiers.py:_heal_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: supply_fight_key is reached through _unique_combat_consumable only where threat_tiers.acts_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan on the floor).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Threat tiers plan step 7: the planned Healing / *Healing* / Life dose when today's supplied-fight rule says it is due; None otherwise."
+  },
+  "threat_tiers.py:_resistance_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: supply_fight_key is reached through _unique_combat_consumable only where threat_tiers.acts_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan on the floor).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Threat tiers plan step 7 (OQ-9): the planned Resistance (or Resist Heat / Cold) drink while its opposition is not on; None otherwise."
+  },
+  "threat_tiers.py:_good_ammo_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: supply_fight_key is reached through _unique_combat_consumable only where threat_tiers.acts_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan on the floor).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Threat tiers plan step 7 (OQ-6, D7): fire the planned ego / artifact ammo at the selected target when it out-damages the free attack; None otherwise."
+  },
+  "threat_tiers.py:_charge_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: supply_fight_key is reached through _unique_combat_consumable only where threat_tiers.acts_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan on the floor).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Threat tiers plan step 7 (OQ-6, D7): aim the planned attack wand or use the planned attack staff at the selected target when it out-damages the free attack; None otherwise."
+  },
+  "threat_tiers.py:_scroll_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: supply_fight_key is reached through _unique_combat_consumable only where threat_tiers.acts_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan on the floor).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Threat tiers plan step 7 (OQ-6, D7): read the planned attack scroll (Fire / Ice / Logrus, a ball at the player's cell) when it out-damages the free attack at the target's distance; None otherwise."
+  },
+  "threat_tiers.py:supply_fight_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: supply_fight_key is reached through _unique_combat_consumable only where threat_tiers.acts_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan on the floor).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Threat tiers plan step 7 (owner answer 4, OQ-4, D3, D4, D7): the selected T2 fight's supplies in the owner's order (Speed first, the Healing when due, the planned resistance, then good ammo, charges, attack scrolls); in _unique_combat_consumable's slot of _emergency_item."
+  },
+  "threat_tiers.py:tier_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. the engagement's threat tier where the tiers act (None elsewhere), read by _strong_fight_speed_key (threat tiers step 8); not an independently selected game action"
+  },
+  "threat_tiers.py:sensed_t1_leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: threat_tiers.leave_decided_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-08 「その敵の感知範囲内なら早急に離脱する」: inside the sensing radius (monrace vision / aaf) of an awake T1 hostile, seen or detected, the leave: stairs underfoot, *Destruction*, a relocation scroll, Word of Recall, a walk only when none is faster and none reaches at range; None otherwise."
+  },
+  "locked_doors.py:pick_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search.loop_key on a runtime RANDOM quest floor held for its target (owner 2026-11-05; n1-b life-348 Angband 50F, 2026-11-08); dungeon only; reads the board and the policy's door memory, posts the asker's walk or the shared step composer's door open.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "search_coverage.py:floor_grids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search on a runtime RANDOM quest floor held for its target (owner 2026-11-08 coverage ruling, n1-b life-348 Angband 62F); dungeon only; reads the policy's remembered walls and caches the floor mask on the policy; posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; observational data for the quest search's lap"
+  },
   "policy.py:HengbotPolicy._engagement_route_veto": {
     "classification": "data",
     "rows": [

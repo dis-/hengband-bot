@@ -41,8 +41,9 @@ import json
 from pathlib import Path
 import time
 import unittest
+from unittest.mock import patch
 
-from hengbot import me_staff_sequence
+from hengbot import me_staff_sequence, threat_tiers
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import STORE_BLACK, STORE_TEMPLE, _parse_items, parse_snapshot
@@ -185,6 +186,12 @@ class SpeedStaffCastRecordedTest(nav.RecordedDrive):
     post_power = mining_death.MagicEaterMiningDeathRecordedTest.post
 
     def strong_board(self, fail=None):
+        # DECLARED CONSTRUCTED (threat tiers step 6): the board is T1 and is left
+        # (test_me_speed_fight_1104_recorded.test_the_recorded_fight_is_left_at_t1); the 11-01 rule
+        # is pinned on the board taken as a fight the tiers do not decide.
+        tiers_off = patch.object(threat_tiers, "acts_here", return_value=False)
+        tiers_off.start()
+        self.addCleanup(tiers_off.stop)
         case = nav.CASE_083
         boards = [copy.deepcopy(raw) for raw in case["boards"] if raw["turn"] < STRONG_TURN]
         policy = nav.new_policy(case, boards)

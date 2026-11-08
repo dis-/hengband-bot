@@ -531,10 +531,18 @@ def _sealed_pocket(ctx, power):
 
 
 def _unbeatable_in_range(ctx, power):
-    """A visible hostile on a beam's line that this character cannot beat."""
+    """A visible hostile on a beam's line that this character cannot beat.
+
+    Threat tiers plan step 6 (inventory 2.4): where the tiers act, it is a monster the tiers
+    leave, T1 or a T2 that is not a selected target (``threat_tiers.leave_due`` on it alone);
+    elsewhere, and where the tiers do not decide (T3, past the cost cap), today's winnability."""
     monster, policy = ctx.target_hostile, ctx.policy
     if monster is None or ctx.aim is None or _resists_teleport_surely(ctx, monster):
         return False
+    from hengbot import threat_tiers
+    leave = threat_tiers.leave_due(policy, ctx.snapshot, [monster])
+    if leave is not None:
+        return leave
     return not policy._engagement_is_winnable(
         ctx.snapshot, [monster],
         damage_against=lambda each: me_ranged_first.best_expected(policy, ctx.snapshot, each))

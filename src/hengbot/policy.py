@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip
+from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, threat_tiers, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip
 
 from collections import Counter, deque
 import random
@@ -8135,7 +8135,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return stand
             if (ranged := me_ranged_first.outpaced_afraid_key(self, snapshot, strategic_adjacent)) is not None:
                 return ranged  # a faster attacker follows every step away
-            step = self._town_producer_entry("_flee_step#2", lambda: self._flee_step(snapshot, strategic_hostiles))
+            # Threat tiers step 6 (design 3.2): a leave the tiers decide walks only while no awake
+            # hostile is faster and none reaches at range; else the relocation below (n1-c
+            # life-168: 闇の審判『デス』, speed 120 against 110, walked to its death).
+            tiers_walk = not threat_tiers.leave_due(self, snapshot, strategic_hostiles) or (
+                threat_tiers.walk_leaves(self, snapshot, strategic_hostiles))
+            step = (self._town_producer_entry("_flee_step#2", lambda: self._flee_step(snapshot, strategic_hostiles))
+                    if tiers_walk else None)
             if step is not None:
                 # A survival flee can pre-empt the material-threat gate below
                 # (notably for an over-level monster).  Persist the abandoned
@@ -8165,6 +8171,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return cornered.key
             self.last_reason = "flee:wait"
             return WAIT_KEY
+
+        # Owner 2026-11-08: inside the sensing radius of an awake T1 hostile, seen or detected,
+        # leave now (threat_tiers.sensed_t1_leave_key); never rest there.
+        if (sensed := threat_tiers.sensed_t1_leave_key(self, snapshot)) is not None:
+            return sensed
 
         # A summoner with room around the player can turn a manageable fight into
         # an irreversible surround. Leave open terrain before engaging, ideally
@@ -9849,7 +9860,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         snapshot: Snapshot,
         hostiles: list[MonsterState],
         adjacent: list[MonsterState],
+        *,
+        melee_slots: tuple[int, int] | None = None,
     ) -> bool:
+        """Whether to leave this engagement.
+
+        Threat tiers plan step 6 (docs/threat-tiers-design.md 3.2, 3.4, answer 6): on the
+        shared ladder's dungeon floors the tiers decide first: T1 (「物資を全て使っても倒しきれ
+        ない」) and a T2 with no selected target (answer 4) are left; a T2 with a selected
+        target is not left.  Where the tiers do not decide (T3, a tier past the cost cap, quest
+        plan floors, town) today's HP-below-40% winnability test stays.  The fear and swarm
+        clauses stay as inputs.  ``melee_slots``: the tiers judged with the melee slots of
+        another cell (the choke's origin)."""
         player = snapshot.player
         if not hostiles:
             return False
@@ -9862,7 +9884,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # generic threshold. The live 95% projection is rechecked every turn;
             # if it ceases to be viable, normal retreat immediately resumes.
             return False
-        if player.hp_ratio < FLEE_HP_RATIO:
+        tiers_leave = threat_tiers.leave_due(self, snapshot, hostiles, melee_slots)
+        if tiers_leave:
+            return True
+        if tiers_leave is None and player.hp_ratio < FLEE_HP_RATIO:
             return not self._engagement_is_winnable(snapshot, hostiles)
         # Surrounded: flee only if the swarm could take a big share of HP soon.
         # A raw adjacent count fled full-HP characters from weak (often sleeping)
@@ -15780,6 +15805,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _committed_unique_fight_viable(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> bool:
+        """Whether a committed supplied fight is still on (it is not fled, nor left by the
+        3-turn lethal).  Where the tiers act it is the selected supply fight of threat tiers
+        plan step 7 (``threat_tiers.committed_supply_fight_viable``); elsewhere today's
+        supplied unique fight."""
+        if threat_tiers.supply_fight_applies(self, snapshot):
+            return threat_tiers.committed_supply_fight_viable(self, snapshot, hostiles)
         race_id = self._unique_combat_committed_race_id
         if race_id is None:
             return False

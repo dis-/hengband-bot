@@ -1,0 +1,199 @@
+"""n1-b life-348, Angband 62F, RANDOM quest 46 (アーデンの森の主『ジュリアン』, race 794), 2026-11-08 16:12-16:18.
+
+Owner 2026-11-08: 「n1-bがまたクエストフロアで無為に放浪している」, and 「62Fのループもフロア全体を探索
+できず、一定範囲をループしてしまっている。クエストターゲットを探すには少なくとも感知範囲がフロア全域を
+網羅するように歩かなければならない。」 (search_coverage).
+
+Recorded (tests/extract_n1b_62f_quest_cover_1108_fixture.py): the bot walked from the east side
+through (28,65) into the west corridor at game turn 3217357; back east, a 石の宝箱 (race 1368, BITE
+SHATTER) bit it twice (3218303, 3218308) and its earthquake (monster-attack-switcher.cpp:492,
+radius 8) left (28,65) a MAGMA_VEIN (terrain 50, remembered from 3218746).  From 3218746 the
+decisions are ``quest-search:loop`` over the east side.  The lap's stops were drawn to cover the
+walkable cells only, so a part of the floor lay out of every stop's telepathy (MAX_PLAYER_SIGHT).
+
+DECLARED CONSTRUCTED: the checkpoint's remembered terrain and the ledger's mappings installed on
+the policy, and the east frontiers the replayed explore still names written off (the recorded
+explore answered nothing on this board: its rows are ``quest-search:loop``).
+"""
+import tests  # noqa: F401 -- isolate live runtime files
+
+import copy
+import json
+import lzma
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+
+import numpy as np
+
+import hengbot.policy  # noqa: F401 -- loads the modules in their cycle-safe order
+from hengbot import quest_target_search as search
+from hengbot import search_coverage
+from hengbot.cli import _ExecutorInputPort, SendResult
+from hengbot.exploration_ledger import ExplorationLedger
+from hengbot.model import Position, parse_snapshot
+from hengbot.monrace_knowledge import load_monrace_knowledge
+from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.test_input_executor import FaithfulHookGame, ProductionHarness, command_screen
+
+FIXTURE = Path(__file__).with_name("fixtures") / "n1b-62f-quest-cover-1108.json.xz"
+SEALED = Position(28, 65)
+MOVES = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1),
+         "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
+
+
+def _pin():
+    return json.loads(lzma.decompress(FIXTURE.read_bytes()).decode("utf-8", "surrogateescape"))
+
+
+class N1b62fQuestCoverRecordedTest(ProductionHarness):
+    @classmethod
+    def setUpClass(cls):
+        cls.pin = _pin()
+        cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def snapshot(self, policy, raw):
+        return parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+
+    def choose(self, policy, raw):
+        return str(policy.choose_key(self.snapshot(policy, raw)))
+
+    def policy(self):
+        raw = copy.deepcopy(self.pin["board"])
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        policy = _policy(Path(directory.name), self.monrace)
+        board = self.snapshot(policy, raw)
+        ledger = ExplorationLedger(None)
+        ledger.bind(board)
+        ledger.mapped_areas = {tuple(area) for area in self.pin["mapped_areas"]}
+        policy._exploration_ledger = ledger
+        policy.prime(board)
+        terrain = self.pin["terrain"]
+        for name in ("known", "marked", "floor", "wall", "door", "rubble"):
+            getattr(policy, f"_remembered_{name}_t").update(tuple(cell) for cell in terrain[f"{name}_t"])
+        policy._remembered_upstairs.update(Position(*cell) for cell in terrain["upstairs"])
+        policy.consume_skill_knowledge({
+            "player": {"level": raw["player"]["level"]},
+            "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
+        })
+        return policy, raw
+
+    def to_the_lap(self, policy, raw):
+        """Write off the frontiers the replayed explore names until the lap answers."""
+        for _ in range(60):
+            policy._recent.clear()  # the same board each time: no oscillation, no livelock
+            policy._move_repeat = 0
+            key = self.choose(policy, raw)
+            if policy.last_reason.startswith("quest-search"):
+                return key
+            self.assertEqual(policy.last_reason, "explore")
+            policy._exploration_ledger.probed_frontiers.add(policy._explore_goal_identity.position)
+            policy._clear_explore_path(None)
+            policy._explore_goal_identity = None
+        self.fail("the quest search never answered")
+
+    def coverage(self, policy, raw, stops):
+        board = self.snapshot(policy, raw)
+        floor = search_coverage.floor_grids(policy, board)
+        radius = search_coverage.walk_radius(policy, board)
+        covered = search_coverage.covered(floor.shape, (((stop.y, stop.x), radius) for stop in stops))
+        return floor, covered & floor
+
+    # -- the recording -------------------------------------------------------
+
+    def test_recorded_earthquake_seals_the_west(self):
+        floor = self.pin["board"]["floor"]
+        self.assertEqual((floor["dungeon_id"], floor["level"], floor["quest_id"]), (1, 62, 46))
+        rows = self.pin["decisions"]
+        walked = [row["turn"] for row in rows if (row["position"]["y"], row["position"]["x"]) == (28, 65)]
+        self.assertEqual(walked, [3217357])
+        bites = [row["turn"] for row in rows if any("石の宝箱に噛まれた" in m for m in row["messages"])]
+        self.assertTrue({3218303, 3218308} <= set(bites), bites)
+        # The same bite's earthquake was seen once in view (16:10:47, Angband 62F (5,160)).
+        quake = [row["turn"] for row in rows if "ダンジョンの壁が崩れた！" in row["messages"]]
+        self.assertEqual(quake[:1], [3212870])
+        self.assertIn(3212870, bites)
+        self.assertIn([28, 65], self.pin["terrain"]["wall_t"])
+        lap = [row for row in rows if row["reason"] == search.LOOP_REASON]
+        self.assertEqual(len(lap), 1717)
+        self.assertGreaterEqual(min(row["position"]["x"] for row in lap), 42)
+
+    # -- the fix -------------------------------------------------------------
+
+    def test_the_lap_covers_every_floor_grid_a_walkable_cell_covers(self):
+        policy, raw = self.policy()
+        self.to_the_lap(policy, raw)
+        memory = getattr(policy, search.MEMORY)
+        board = self.snapshot(policy, raw)
+        routes = search._routes(policy, board)
+        floor, covered = self.coverage(policy, raw, memory.stops)
+        _, reach = self.coverage(policy, raw, list(routes))
+        # Every floor grid any walkable cell covers is covered by a stop.
+        self.assertEqual(int(np.count_nonzero(reach & ~covered)), 0)
+        # The sight-only stops of the recorded lap covered less (revert: equal).
+        _, old = self.coverage(policy, raw, search.draw_stops(board, set(routes)))
+        self.assertGreater(int(np.count_nonzero(covered)), int(np.count_nonzero(old)) + 200)
+        self.assertEqual(memory.unreached, int(np.count_nonzero(floor & ~reach)))
+        self.assertGreater(memory.unreached, 0)
+
+    def test_the_sealed_passage_is_a_place_a_door_can_be(self):
+        policy, raw = self.policy()
+        self.to_the_lap(policy, raw)
+        board = self.snapshot(policy, raw)
+        routes = search._routes(policy, board)
+        self.assertIn(Position(27, 65), routes)
+        self.assertNotIn(Position(29, 65), routes)
+        self.assertIn(SEALED, search.door_walls(policy, board, routes))
+
+    def test_ground_out_of_reach_starts_the_door_round_at_once(self):
+        policy, raw = self.policy()
+        key = self.to_the_lap(policy, raw)
+        memory = getattr(policy, search.MEMORY)
+        self.assertEqual(memory.laps, 0)
+        following = copy.deepcopy(raw)
+        following["turn"] += 10
+        following["messages"] = []
+        if key in MOVES:
+            following["player"]["y"] += MOVES[key][0]
+            following["player"]["x"] += MOVES[key][1]
+        self.post(policy, raw, key, following)
+        self.choose(policy, following)
+        self.assertTrue(memory.door_search)
+        self.assertIn(policy.last_reason, (search.DOOR_REASON, search.SEARCH_REASON))
+
+    def test_the_lap_cover_survives_a_restart(self):
+        """The lap's coverage lives in the floor's ledger, which a restart on the floor reads."""
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "exploration-ledger.json"
+        policy, raw = self.policy()
+        board = self.snapshot(policy, raw)
+        before = ExplorationLedger(path)
+        before.bind(board)
+        policy._exploration_ledger = before
+        memory = search._memory(policy, board)
+        memory.cover.note(board.player.position, search_coverage.walk_radius(policy, board))
+        before.save(force=True)
+        after = ExplorationLedger(path)
+        self.assertTrue(after.bind(board))
+        self.assertEqual(after.search_cover, {(17, 132, 20)})
+
+    def post(self, policy, raw, key, following):
+        game = FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = command_screen(raw["turn"])
+        game.screens = [command_screen(following["turn"])]
+        game.states = [copy.deepcopy(following)]
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        self.assertEqual(port(key, decision={"reason": policy.last_reason,
+                                             "sequence": policy._decision_sequence}),
+                         SendResult.SENT, port.last_result.reason)
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertEqual("".join(game.accepted), key)
+
+
+if __name__ == "__main__":
+    unittest.main()

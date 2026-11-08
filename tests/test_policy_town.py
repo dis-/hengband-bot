@@ -19,6 +19,7 @@ import sys
 import textwrap
 
 import unittest
+from hengbot import threat_tiers
 
 from collections import Counter, deque
 
@@ -308,6 +309,10 @@ def _worn_plain_weapon():
                 damage_dice_num=2, damage_dice_sides=5, known=True)
 
 
+# Threat tiers step 6 (DECLARED CONSTRUCTED): these boards' player carries no weapon and no blow
+# (policy_fixtures.player), so no attack reaches and every engagement would read T1 and be left.
+# The rules pinned here are judged with the tiers not acting, as on boards they do not decide.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class ReturnToTownTest(unittest.TestCase):
     FLOOR = (1, 12, 0)
 
@@ -1154,6 +1159,10 @@ def _known_unaffordable_detection(policy, snapshot):
         policy._effective_town_id(snapshot), snapshot.turn)
 
 
+# Threat tiers step 6 (DECLARED CONSTRUCTED): these boards' player carries no weapon and no blow
+# (policy_fixtures.player), so no attack reaches and every engagement would read T1 and be left.
+# The rules pinned here are judged with the tiers not acting, as on boards they do not decide.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
     def test_recovered_home_entry_charges_an_evaporated_route_claim(self):
         inside = Snapshot(
@@ -8789,6 +8798,10 @@ class WildernessSafetyTest(unittest.TestCase):
         pol.choose_key(snap)
         self.assertTrue(pol.last_reason.startswith("wilderness"), pol.last_reason)
 
+# Threat tiers step 6 (DECLARED CONSTRUCTED): these boards' player carries no weapon and no blow
+# (policy_fixtures.player), so no attack reaches and every engagement would read T1 and be left.
+# The rules pinned here are judged with the tiers not acting, as on boards they do not decide.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class TownRecallReturnTest(unittest.TestCase):
     def _ready_town(
         self, deepest, target, recall_dungeon, angband_unlocked=False, recall_depth=0
@@ -12868,6 +12881,10 @@ class TownTravelProgressTest(unittest.TestCase):
         self.assertEqual(progress.record(10, 7), "fallback")
         self.assertEqual(progress.stalls, TOWN_TRAVEL_STALL_LIMIT)
 
+# Threat tiers step 6 (DECLARED CONSTRUCTED): these boards' player carries no weapon and no blow
+# (policy_fixtures.player), so no attack reaches and every engagement would read T1 and be left.
+# The rules pinned here are judged with the tiers not acting, as on boards they do not decide.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class RangedAttackTest(unittest.TestCase):
     """Direction-key firing at ray-aligned hostiles (no targeting UI)."""
 

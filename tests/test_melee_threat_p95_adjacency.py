@@ -54,6 +54,8 @@ from hengbot.monster_ranged_evaluator import (
     aggregate_ranged_damage_percentile,
 )
 from hengbot.policy import HengbotPolicy
+from hengbot import threat_tiers
+from unittest.mock import patch
 
 from policy_fixtures import grid, hostile, player
 from test_esp_threat_rest_recorded import EDIT, _policy
@@ -217,22 +219,34 @@ class RecordedTrollBoardTest(unittest.TestCase):
 
         key = policy.choose_key(snapshot)
 
-        # Live: operational 372 (six actions of every blow at maximum dice)
-        # >= HP 341 -> emergency:teleport.  Now the p95 is 210 < 341 and the
-        # adjacent troll is fought.  USER DECISION 2026-10-03 06:2x (Speed
-        # at a strong fight's start, 3-turn prediction >= HP x 0.5): 210 >=
-        # 170.5, so the fight opens with the carried Speed potion.
-        speed = policy._find_exact_potion(snapshot, SV_POTION_SPEED)
-        self.assertEqual(
-            (key, policy.last_reason),
-            ("q" + speed.slot, "item:strong-fight-speed"),
-        )
-        # DECLARED CONSTRUCTED state: a restarted bot whose strong run on
-        # this floor is already handled fights the troll.
-        policy, snapshot = self._fresh(TROLL_DECISION)
-        policy._strong_fight_speed_floor = snapshot.floor_key
-        key = policy.choose_key(snapshot)
-        self.assertEqual((key, policy.last_reason), ("6", "melee"))
+        # Threat tiers step 6 (owner answers 4 and 6): the free attacks do not win (729 over the
+        # 15 turns to clear against HP 341), every supply does with both Healing doses (T2), and
+        # the troll is no selected target, so the board is left; the troll is faster than the
+        # player, so the leave does not walk (design 3.2): the flee rung reads Teleportation.
+        hostiles = policy._strategic_hostiles(snapshot)
+        result = threat_tiers.assess(policy, snapshot, hostiles)
+        self.assertEqual((result.tier, result.selected), (threat_tiers.T2, []))
+        self.assertEqual((key, policy.last_reason), ("rf", "flee:scroll"))
+
+        # DECLARED CONSTRUCTED: with the tiers not deciding (today's core), the live operational
+        # 372 (six actions of every blow at maximum dice) >= HP 341 -> emergency:teleport is
+        # gone: the p95 is 210 < 341 and the adjacent troll is fought.  USER DECISION 2026-10-03
+        # 06:2x (Speed at a strong fight's start, 3-turn prediction >= HP x 0.5): 210 >= 170.5,
+        # so the fight opens with the carried Speed potion.
+        with patch.object(threat_tiers, "leave_due", return_value=None):
+            policy, snapshot = self._fresh(TROLL_DECISION)
+            key = policy.choose_key(snapshot)
+            speed = policy._find_exact_potion(snapshot, SV_POTION_SPEED)
+            self.assertEqual(
+                (key, policy.last_reason),
+                ("q" + speed.slot, "item:strong-fight-speed"),
+            )
+            # DECLARED CONSTRUCTED state: a restarted bot whose strong run on
+            # this floor is already handled fights the troll.
+            policy, snapshot = self._fresh(TROLL_DECISION)
+            policy._strong_fight_speed_floor = snapshot.floor_key
+            key = policy.choose_key(snapshot)
+            self.assertEqual((key, policy.last_reason), ("6", "melee"))
         prediction = policy.threat_prediction(snapshot, [troll], 3)
         self.assertEqual(
             (

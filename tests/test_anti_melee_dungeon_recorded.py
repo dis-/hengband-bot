@@ -30,6 +30,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+from hengbot import threat_tiers
 from hengbot.cli import _consume_response_sequence
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -113,6 +114,15 @@ class AntiMeleeDungeonRecordedTest(unittest.TestCase):
                 self.assertNotIn(key, self._attacked_cells(board))
 
     def test_control_recorded_boards_melee_when_the_dungeon_allows_it(self):
+        # Owner 2026-11-08 「その敵の感知範囲内なら早急に離脱する」: the first line also has an awake
+        # デイドラ・レッド・ドラゴン detected 8 cells off (vision 40, T1 judged from contact), which
+        # is left (test_survival2_1101_recorded.MeleeRefusedRangedRecordedTest.
+        # test_control_awake_t1_in_its_sensing_radius_is_left); the melee control is pinned with
+        # that rung not acting.
+        sensed_off = mock.patch.object(threat_tiers, "sensed_t1_leave_key",
+                                       new=lambda *args, **kwargs: None)
+        sensed_off.start()
+        self.addCleanup(sensed_off.stop)
         for line, (turn, recorded_key) in zip(self.lines, RECORDED):
             with self.subTest(turn=turn):
                 policy, board = self._board(line, melee_allowed=True)

@@ -28,6 +28,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
+from hengbot import threat_tiers
 from hengbot.model import Position, Snapshot, SV_POTION_SPEED, SV_SCROLL_TELEPORT
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
@@ -143,13 +144,27 @@ class StrongFightSpeedConstructedTest(unittest.TestCase):
         with patch.object(
             policy, "_predicted_damage",
             side_effect=lambda *_a, **kw: three_turns if kw.get("turns") == 3 else 0,
-        ), patch.object(policy, "_engagement_is_winnable", return_value=True):
+        ), patch.object(policy, "_engagement_is_winnable", return_value=True), \
+                patch.object(threat_tiers, "leave_due", return_value=None):
+            # Threat tiers step 6: the tiers do not decide on these boards (the hostile has no
+            # race, so no attack counts and the board would read T1, which is left).
             return policy, policy._strong_fight_speed_key(snap, hostiles, observed_loss)
 
     def test_strong_fight_quaffs(self):
         policy, key = self._key(self._snap())
         self.assertEqual(key, "q" + SPEED_SLOT)
         self.assertEqual(policy.last_reason, "item:strong-fight-speed")
+
+    def test_no_potion_in_a_t3_fight(self):
+        # Threat tiers step 8 (owner OQ-5, C-5): the free attacks win, so no Potion of Speed;
+        # the run does not start either, so a later strong board that is not T3 still drinks.
+        with patch.object(threat_tiers, "tier_of", return_value=threat_tiers.T3):
+            policy, key = self._key(self._snap())
+        self.assertIsNone(key)
+        self.assertIsNone(getattr(policy, "_strong_fight_speed_floor", None))
+        with patch.object(threat_tiers, "tier_of", return_value=threat_tiers.T2):
+            _policy, key = self._key(self._snap())
+        self.assertEqual(key, "q" + SPEED_SLOT)
 
     def test_below_half_hp_does_not_quaff(self):
         _policy, key = self._key(self._snap(), three_turns=49)

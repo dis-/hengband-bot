@@ -1,0 +1,213 @@
+観戦の「見えているモンスター」一覧に脅威度（色分け・並べ替え） 2026-11-08
+ブランチ spectate-threat-tiers-1108（main e436b3d5a から）
+
+オーナーの依頼（2026-11-08）:
+「脅威度の判定が入ったなら、観戦UIの見えているモンスター一覧にその判断を追記して。脅威度順に色分けと、
+脅威度でのソートも入れて」
+
+==================================================================== 1. 何を出すか
+
+bot 側（観戦の書き出し spectate.json とコマ spectate-frames.jsonl。決定は何も読まない）:
+
+- monsters[].threat（敵の各行）: そのモンスター1体だけを、隣にいるとして判定した結果。
+    tier（"T1"/"T2"/"T3"、計算の上限を超えたら null）、instant_death と instant_death_reasons、
+    skipped（"cost" なら上限超え＝不明）、irreversible（不可逆の害の種類）、worsens_with_time
+    （召喚・増殖・叫び）、need_not_fight（恐怖・届かない）、selected（クエストの標的・狙う守護者・
+    逃げられない・報酬）、reward（良い品・特別な品・経験値・落とし物が多い）。
+  近い順に8体を超えた敵は {"omitted": "bound"}（ページは「判定省略（遠い）」）。
+  ペット・友好的なモンスター、町・店・闘技場（脅威度の設計の外）は threat なし（「判定なし」）。
+- threat_engagement（盤面に1つ）: 決定の記録の threat_tiers（交戦全体、今の位置での判定）から
+  {"tier", "instant_death", "skipped", "hostiles"}。交戦が無ければ tier null・hostiles 0。
+- monsters の並び: 即死 → T1 → T2 → T3 → 不明 → 判定省略 → 判定なし、同じ段階の中は近い順。
+  threat が無い時（古い形・判定の失敗）は今までどおり近い順のまま。
+
+1体ずつの判定に使った入口と理由:
+  threat_tiers.tiered(policy, snapshot, [monster], contact=True)。
+  - 「1体だけで判定」は脅威度の設計が1体の相手を判定する形で、sensed_t1_leave_key（感知範囲の
+    T1 から離れる、11-08）と同じ呼び方・同じ memo の鍵。contact=True は「遠い敵がまだ来ていない
+    だけで T3 に見える」のを避けるため（sensed_t1_leave_key のコメントのとおり）。隣にいる敵では
+    contact=False と同じ判定になる。
+  - me_powers の leave_due([monster]) は contact=False だが、これは「今その敵と戦うか」の判断なので、
+    一覧の「その敵はどれくらい強いか」には contact=True の方が合う。
+  - そのため交戦全体（今の位置）が T3 でも、遠くの1体が T1 と出ることがある（n1b-325 の智天使:
+    交戦 T3、智天使だけなら T1）。ページの1行目に「各行は1体ずつ、隣にいるとして判定」と書いた。
+
+費用を抑えた仕組み:
+  - 1盤面1回: SpectatorWriter が盤面（snapshot オブジェクト）ごとに判定を1度だけ作る
+    （threat_board）。モンスター一覧を書く時（コマを足す時か 0.25 秒ごとの書き出し）だけ呼ぶ。
+    --spectate-file が無い bot では何も増えない。
+  - 交戦全体は決定の記録の facts["threat_tiers"] を使い回す（_capture_decision_facts が盤面ごとに
+    spectator_threat.note_engagement で覚える。盤面のオブジェクトが同じ時だけ使う）。ふつうの手番は
+    記録が先なので2度目の交戦判定はしない。incident の再判断の経路だけは記録が後なので、その時は
+    threat_tiers.facts を1回計算する。
+  - 上限は近い順に8体（SPECTATE_THREAT_MONSTERS）。8 は自分の隣のマスの数で、殴り合いになりうる
+    敵はいつも全部判定される。1体あたり 0.5〜3 ミリ秒（深い盤面の初回で最大 16 ミリ秒）。
+  - 計算の上限（PROJECTION_COST_BUDGET）を超えた1体は skipped="cost" のまま「不明」と出す
+    （それ以上計算しない）。
+  - 決定の memo（decision_memo）そのものは使い回せない: choose_key の境目で「盤面から出した答えは
+    決定の境目を越えて残さない」決まり（policy.py choose_key の冒頭）があり、protocol 3 では決定が
+    見る盤面が with_known_skill_exp で作り直した別のオブジェクトで外から引けないため。代わりに
+    同じ入口 tiered を使うので、同じ決定の中で呼べば memo に当たる形にしてある。
+  - 判定が例外を出したら、その盤面は threat なし（「判定なし」）で書き、stderr に1時間1回まで報告。
+    コマは止めない。
+  - 判定は _PolicyObserverScope の中で走らせる（決定の記録の facts と同じ観察者の扱い。policy の
+    状態はすべて元に戻る）。
+
+==================================================================== 2. 費用（記録の盤面）
+
+1盤面あたりの追加時間（_spectator_threat、facts の後、Windows の手元機）:
+
+  単独の盤面（5回の中央値）:
+    summon-response-n1a-475 2038858（49F、敵9、判定8）: 24.7 ms（最大 33.2）
+                                                          使い回し無しなら 43.1 ms
+    death-n1c-099 691696（Q31、敵15、判定8）:              10.5 ms（使い回し無し 48.2 ms）
+    death-n1a-475 2039000（49F、20体、判定8）:              5.4 ms（使い回し無し 12.8 ms）
+    n1b-325 2100397（城 33F、13体、判定8）:                12.5 ms
+    death-n1a-450 1268495（ふつうの盤面、1体）:             1.1 ms
+
+  記録の窓全体（各盤面で choose_key → facts → 判定）:
+    summon-response-n1a-475（74盤面、敵 中央値17）: 中央値 8.9 / p95 29.9 / 最大 56.1 ms
+                                                   （facts 中央値 54.0、choose_key 中央値 19.5）
+    death-n1c-099（64盤面）:                        中央値 3.0 / p95 12.7 / 最大 22.0 ms
+                                                   （facts 36.5、choose_key 12.5）
+    death-n1c-123（71盤面）:                        中央値 4.0 / p95 11.9 / 最大 17.3 ms
+                                                   （facts 281.9、choose_key 34.2）
+    n1b-325（7盤面）:                               中央値 2.2 / p95 9.6 / 最大 14.9 ms
+
+  観戦の bot はコマを数秒遅れで一定の速さ（0.125 秒に1コマ）で流し、たまりすぎた時にボットが待つ
+  ので、1手あたり数ミリ秒〜数十ミリ秒の追加はゲームの進みにはほぼ効かない。観戦なしの bot には
+  追加は無い。
+
+決定が変わらないこと:
+  - tests.test_spectator_threat_tiers.DecisionInvarianceTest: n1b-325（7盤面）と death-n1a-475
+    （29盤面）を、本番の SpectatorWriter.observe に判定ありとなしで通して choose_key の (turn, key,
+    reason) が全部同じ。
+  - FollowLoopTest: 本番の追従ループ（tests/test_spectator_frames.py の記録のやり取り、
+    esp-threat-rest-20260921 の盤面）で、観戦なしと観戦あり（判定あり）の post・key・reason が同じ。
+
+==================================================================== 3. 色
+
+ページの既存の色の変数だけを使った（明るい背景・暗い背景の両方で同じ変数が定義済み）:
+  即死: 行の背景 --bad 30%（--panel と混ぜる）、左の帯 --bad、段階の文字は --text の太字
+  T1:   行の背景 --bad 14%、左の帯 --bad、段階の文字 --bad
+  T2:   行の背景 --warn 14%、左の帯 --warn、段階の文字 --warn
+  T3:   背景なし、左の帯 --ok、段階の文字 --ok
+  判定なし・不明・判定省略: 背景なし、帯なし、段階の文字 --muted
+文字と背景のコントラスト比（WCAG の式で計算）:
+  明るい: 即死の文字 10.25、T1 4.50、T2 3.57、T3 4.38、判定なし 5.30
+  暗い:   即死の文字 7.98、T1 4.78、T2 5.58、T3 7.11、判定なし 5.83
+  （明るい背景の T2 の --warn は太字で 3.57。既存の --warn をそのまま使ったため。名前などの本文は
+  どの行も --text で 10 以上。）
+color-mix() を使う（Chrome 111・Firefox 113・Safari 16.2 以降）。
+
+==================================================================== 4. ページの差分（C:\hengband-backups\pdca\spectator-page-1108\index.html）
+
+index.html.server（元）は触っていない。変えたところ:
+  - <style> の .scroll の直後: .threat-line と #monsters tr.tier-* の色（約22行）。
+  - 見えているモンスターの <section>（もと 176 行目）: 表の上に
+    <div class="threat-line" id="monsters-engagement"></div> を1つ足した。
+  - fillTable: 行の配列に rowCls があれば <tr> の class にする（1行。他の表は rowCls が無いので
+    今までどおり）。
+  - renderPanels の手前: THREAT_KINDS（並び順・表示名・色の class）、THREAT_NOTE_NAMES（フラグの
+    日本語）、threatKind・sortedByThreat・threatNotes・renderEngagement を足した。
+  - renderPanels: 再描画の鍵に s.threat_engagement を足した。モンスターの表は sortedByThreat で並べ、
+    距離と名前の間に段階の列（「即死」「T1 倒しきれない」「T2 物資で勝てる」「T3 物資なしで勝てる」
+    「不明（計算の上限）」「判定省略（遠い）」「判定なし」）を入れ、備考の列の終わりに
+    「不可逆の害: 持ち物破壊」「時間で悪化: 召喚」「戦わなくてよい: 届かない」「倒す相手: クエストの
+    標的」「報酬: 良い品、経験値」「即死の理由: 次の1手で死ぬおそれ」「段階 T1 倒しきれない」を
+    今の備考と同じ「・」区切りで足した。
+  - 表の上の1行: 「交戦全体の脅威度 T1 倒しきれない（8体、今の位置で判定。各行は1体ずつ、隣に
+    いるとして判定）」。交戦の即死は「即死・T1 倒しきれない」。項目の無い古い bot は「判定なし」、
+    交戦が無ければ「判定なし（交戦なし）」。
+  - 古い bot（threat の無い一覧）: 全部の行が「判定なし」で、並びは今までどおり近い順。
+確かめ方: 内蔵ブラウザは file:// を開けないため、ページの <script> を node の vm で動かし、
+記録の盤面2つ（summon-response-n1a-475、n1b-325）の新しい形と古い形を renderPanels に渡して
+行・class・備考を確かめた（危ない順・同じ段階は近い順・古い形は近い順で全部「判定なし」）。
+画面の見た目（スクリーンショット）は確かめていない。
+
+==================================================================== 5. テスト
+
+tests/test_spectator_threat_tiers.py（12件、新規。単独で全部緑）:
+  RecordedBoardsTest
+    test_summoners_first_n1a_475: 交戦 T1・即死、T1 の召喚者3体 → T3 5体 → 判定省略1体、距離の並び。
+    test_a_far_t1_goes_before_a_near_t3_n1c_099: 距離 6 の T1 が距離 2 の T3 より先。
+    test_the_bound_is_the_nearest_eight_n1a_475: 20体のうち近い8体だけ判定、残りは遠い方。
+    test_each_monster_alone_n1b_325: 交戦 T3 でも智天使だけなら T1（召喚）、ジャッカル7体は T3。
+    test_the_engagement_is_the_decision_rows: 交戦の行は決定の記録の facts と同じもの・別の盤面には使わない。
+  NoJudgementTest
+    test_a_board_with_no_hostile_q25（q25-summons-n1b-312 の 11653365、何も見えていない）。
+    test_town_is_outside_the_design（town-end-purchase-only）。
+    test_the_old_format_without_the_field（判定なし: 項目なし・近い順）。
+  WriterTest.test_one_judgement_per_board_and_a_failure_is_no_judgement
+  FollowLoopTest.test_frames_carry_the_judgement（本番の追従ループ）
+  DecisionInvarianceTest.test_dungeon_windows
+  CostTest.test_the_deep_boards（150 ms 未満。threat_tiers の CostTest と同じ上限）
+
+revert-proof（本番の塊を1つずつ戻して流し、戻した）:
+  H1 一覧への threat の付与と並べ替え → RecordedBoardsTest 赤（failures=3, errors=1）
+  H1b threat_engagement の行 → RecordedBoardsTest 赤（errors=3）
+  H2 cli の note_engagement → test_the_engagement_is_the_decision_rows 赤
+  H3 書き出しの1盤面1回 → WriterTest 赤
+  H4 判定の失敗を「判定なし」にする → WriterTest 赤
+  H5 8体の上限 → RecordedBoardsTest 赤（failures=4）
+  H6 contact=True → RecordedBoardsTest 赤（failures=2）
+  H7 設計の外（町など）では判定しない → NoJudgementTest 赤
+  H8 追従ループの post_decision の呼び出し口 → FollowLoopTest 赤
+  本番の全部を戻す → import できず赤
+  専用のテストが無い塊: 追従ループの「キーなし」の時の observe の呼び出し口（H8 と同じ1行の形）。
+
+検査（前面で実行）:
+  PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK
+  scripts/town_work_manifest.py --write → 1616 candidates, 39615 sites, zero unmapped
+  scripts/town_work_manifest.py（検査）→ 0 violation(s)（town_work_sites.json は変わらず）
+  観戦のテスト（tests.test_spectator*、12モジュール）と脅威度のテスト（tests.test_threat_tiers*、
+  9モジュール）: 216 件、赤 5。
+    - tests.test_spectator_recall_destination の 4 件は main（e436b3d5a）でも同じ 4 件が赤
+      （11-05 の赤の一覧にもある）。差ではない。
+    - 残りの 1 件は新しい CostTest で、checks.json の4並列と同時に流した時に 198 ms になった。3回の
+      うち一番速い値で比べるように直し、負荷の下でも緑（直した後に単独で流して OK）。
+  checks.json の全部（511 件の名前、4並列で 5771 テスト）: ブランチで赤 412（failures 386・errors 26）。
+    赤の名前を一つずつ main（e436b3d5a、自分で作った一時の worktree、終わってから削除）で流し直すと、
+    ブランチだけで赤だったのは 7 件:
+      tests.test_n1b_322_walkout_dig_1106_recorded.MiningWalkOutDigTest.test_recorded_rows_wandered_with_no_route_and_a_digger_in_hand
+      tests.test_control_client.ControlClientTest の 4 件（disconnected_read_only / idle_connection_replaced /
+        send_keys_backpressure / shadow_record_shape）
+      tests.test_input_executor.AcceptedObservationRetryPins.test_screen_failure_through_deadline_is_same_visible_terminal
+      tests.test_equipment_homefull_step15a.EquipmentHomeFullStep15aTest.test_fresh_optimizer_and_rearm_reject_only_home_deposit_plan
+    どれも単独で流すとブランチと main で同じ結果（input_executor の 1 件は両方で赤、残り 6 件は両方で緑）。
+    4並列の負荷・順番によるもので、この変更による差は無い。main だけで赤のものも無い。
+
+==================================================================== 6. 保守性
+
+  - 新しい処理は1つのモジュール src/hengbot/spectator_threat.py に置いた（1体ずつの判定・上限・
+    並び順の表 TIER_RANK・交戦の使い回し）。観戦の書き出し（spectator.py）は並べ替えの鍵に
+    tier_rank を使うだけ、cli は観察者の範囲で呼ぶ口（_spectator_threat）だけ。
+  - 判定そのものは threat_tiers の既存の入口（tiered・facts・MonsterAssessment）をそのまま使い、
+    新しい判定・閾値は作っていない。
+  - threat_tiers.py には読み取りだけの小さな補助 outside_design(snapshot) を1つ足し、facts の
+    同じ条件をそれに置き換えた（町・店・闘技場の条件を2か所に書かないため。並行の
+    threat-tier-hysteresis-1108 とぶつかるとしたら facts の先頭の1行だけ）。
+  - cli の protocol 3 の盤面の作り直し（with_known_skill_exp）を _decided_board に切り出し、
+    facts と観戦の判定の両方で使う（同じ盤面を見る決まりを1か所に）。
+  - 書き出しの1盤面1回は SpectatorWriter の threat_board だけで持つ（policy には何も書かない）。
+  - ページ側は表示名・並び順・色の class を THREAT_KINDS の1つの表に、フラグの日本語を
+    THREAT_NOTE_NAMES の1つの表にまとめた。並び順は bot の TIER_RANK と同じ順で、JS と Python の
+    2か所にある（言語が違うため。片方を変えたら両方を変える。ページのコメントに書いた）。
+  - 壁にしたテスト: なし。既存のテストの期待値は変えていない。
+
+==================================================================== 7. checks.json の案（checks.json は編集していない）
+
+{"id":"SPECTATE-THREAT-TIERS","owner":"2026-11-08 観戦の見えているモンスター一覧に脅威度（色分け・並べ替え）","tests":["tests.test_spectator_threat_tiers","tests.test_spectator_frames","tests.test_spectator"]}
+
+==================================================================== 8. 未決の問い
+
+  1. 上限の8体: 混んだ盤面（death-n1a-475 は20体）では距離3の敵でも「判定省略」になる。12体や
+     16体に増やすか（1体あたり 0.5〜3 ミリ秒増える。深い盤面の最大は 8体で約 56 ミリ秒）。
+  2. 1体ずつの段階は「隣にいるとして」判定するので、交戦全体（今の位置）の段階より高く出ることが
+     ある（n1b-325: 交戦 T3、智天使だけなら T1）。この見せ方でよいか、または「今の位置で」1体ずつ
+     判定した段階も並べて出すか。
+  3. 1体ずつの即死も「隣にいるとして次の1手で」なので、遠い強敵にも「即死」と出うる（記録の
+     盤面では出なかった）。また幻覚の決まり（幻覚で低HP・起きた敵が見える）は盤面全体の条件なので、
+     その時はどの敵も「即死（幻覚で低HP）」になる。これでよいか。
+  4. ペット・友好的なモンスターは「判定なし」にした（threat_tiers は敵だけを判定するため）。
+  5. ページの見た目（スクリーンショット）は確かめていない。配置の後に一度見てほしい。
