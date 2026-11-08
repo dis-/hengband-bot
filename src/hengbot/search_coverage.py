@@ -11,8 +11,10 @@ detections reach through walls, so a wall grid is covered as any other.  With te
 the player stood on covers the grids within ``walk_radius`` of it (Grid::calc_distance,
 ``game_distance``): MAX_PLAYER_SIGHT (20), halved in a DARKNESS dungeon
 (monster/monster-update.cpp:437 ``in_darkness ? MAX_PLAYER_SIGHT / 2 : MAX_PLAYER_SIGHT``), through
-walls.  Without it the player shows only what is in view, which no disc describes: the radius is 0
-and the lap keeps its sight stops (quest_target_search.draw_stops) and their view rule.
+walls.  Without it (owner 2026-11-08 21:5x: 「感知を使った範囲だけ数える」) the walk covers nothing
+(the radius is 0): only the casts that can show the target count, and the lap's cast stops go on
+until every grid is covered; with no such means at all, the grids actually seen (in view) count as
+covered (quest_target_search._reach_now) and the lap keeps its sight stops and their view rule.
 A detection cast covers its own radius around where it was cast (me_powers.revealing_casts and
 the quest search's carried casts give (centre, radius) only for a cast that can show the race:
 DETECT_RAD_DEFAULT 30, the powerful rod's 45, a third in a DARKNESS dungeon).
@@ -143,9 +145,11 @@ def plan(snapshot: Snapshot, grids: np.ndarray, cells, stops, radius: int,
     shape = grids.shape
     walkable = [cell for cell in cells if 0 <= cell.y < shape[0] and 0 <= cell.x < shape[1]]
     stops, radii = list(stops), {stop: radius for stop in stops}
-    reach = covered(shape, (((cell.y, cell.x), radius) for cell in walkable))
-    _cover_from(walkable, grids & reach & ~covered(
-        shape, (((stop.y, stop.x), radius) for stop in stops)), radius, stops, radii)
+    reach = np.zeros(shape, dtype=bool)
+    if radius:
+        reach = covered(shape, (((cell.y, cell.x), radius) for cell in walkable))
+        _cover_from(walkable, grids & reach & ~covered(
+            shape, (((stop.y, stop.x), radius) for stop in stops)), radius, stops, radii)
     if cast_radius > radius:
         cast_reach = covered(shape, (((cell.y, cell.x), cast_radius) for cell in walkable))
         _cover_from(walkable, grids & cast_reach & ~reach, cast_radius, stops, radii)

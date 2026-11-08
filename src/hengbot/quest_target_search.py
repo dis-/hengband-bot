@@ -26,6 +26,9 @@ every grid but the outer ring (owner, binding: 「半端な定義は許可しな
 必要がある。」), wall or not, that some walkable grid has within telepathy's reach is within reach of
 a stop, and the grids only a held detection reaches are within its radius of a cast stop, where
 the detection rows below cast on their own spacing (search_coverage.plan, held_cast_radius).
+Without telepathy (owner 2026-11-08 21:5x 「感知を使った範囲だけ数える」) only the casts count: the
+lap is cast stops until every grid is within a cast's radius; with no such means, the grids in view
+count and the lap is its sight stops (``_reach_now``).
 Before the lap (and the secret doors below), a closed door the three-pick cap wrote off, that the
 game answered as a lock and that opens onto ground the walk does not reach, is walked to and
 picked (locked_doors.pick_key): a failed pick is progress, and the rest of the floor can be behind
@@ -274,20 +277,36 @@ def _draw(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> tuple:
     """A new lap: the room and sight stops, then the coverage stops (search_coverage.plan);
     the lap's coverage starts again here."""
     stops, radius = draw_stops(snapshot, set(routes)), search_coverage.walk_radius(policy, snapshot)
+    cast = held_cast_radius(policy, snapshot)
     memory.unreached, memory.lap_turn, memory.stop_radius = 0, snapshot.turn, {}
     memory.cover.clear()
-    if not radius:
-        return stops
+    if not radius and not cast:
+        return stops  # nothing reaches beyond view: the sight stops and their view rule
     plan = search_coverage.plan(snapshot, search_coverage.floor_grids(snapshot), routes, stops,
-                                radius, held_cast_radius(policy, snapshot))
+                                radius, cast)
     memory.unreached, memory.stop_radius = plan.unreachable, plan.radius
-    memory.cover.note(snapshot.player.position, radius)
+    for y, x, reach in _reach_now(policy, snapshot):
+        memory.cover.note(Position(y, x), reach)
     return plan.stops
 
 
+def _reach_now(policy, snapshot: Snapshot) -> list:
+    """(y, x, radius) of what the player's place shows this decision: telepathy's reach; without
+    it, nothing (only the casts count, owner 「感知を使った範囲だけ数える」), unless no held means can
+    show the target, when the grids in view count (radius 0)."""
+    radius = search_coverage.walk_radius(policy, snapshot)
+    if radius:
+        here = snapshot.player.position
+        return [(here.y, here.x, radius)]
+    if held_cast_radius(policy, snapshot):
+        return []
+    return [(grid.position.y, grid.position.x, 0) for grid in snapshot.grids.values() if grid.in_view]
+
+
 def _seen_now(snapshot: Snapshot, stop: Position, left, radius: int) -> bool:
-    """The player stands on the stop; with telepathy, every floor grid the stop covers was
-    covered (``left`` the grids not yet), else the stop is in view lit or in the light."""
+    """The player stands on the stop; for a stop drawn with a reach (telepathy's or a cast's),
+    every grid within it was covered (``left`` the grids not yet), else the stop is in view lit
+    or in the light."""
     here = snapshot.player.position
     if stop == here:
         return True
@@ -301,9 +320,9 @@ def _seen_now(snapshot: Snapshot, stop: Position, left, radius: int) -> bool:
 def _next_goal(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> Position | None:
     radius = search_coverage.walk_radius(policy, snapshot)
     if memory.stops:
-        left = _lap_left(policy, snapshot, memory) if radius else None
+        left = _lap_left(policy, snapshot, memory) if any(memory.stop_radius.values()) else None
         memory.seen.update(stop for stop in memory.stops if stop not in memory.seen and _seen_now(
-            snapshot, stop, left, radius and memory.stop_radius.get(stop, radius)))
+            snapshot, stop, left, memory.stop_radius.get(stop, radius)))
     # The player's own cell is reached, not a goal: routes holds it with no first step.
     if (memory.goal in routes and memory.goal not in memory.seen
             and memory.goal != snapshot.player.position):
@@ -501,8 +520,10 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
 def observe(policy, snapshot: Snapshot) -> None:
     """Every decision: note what the player's place covers, and settle the last use of a
     carried device."""
-    if searching(policy, snapshot) and (radius := search_coverage.walk_radius(policy, snapshot)):
-        _memory(policy, snapshot).cover.note(snapshot.player.position, radius)
+    if searching(policy, snapshot):
+        cover = _memory(policy, snapshot).cover
+        for y, x, reach in _reach_now(policy, snapshot):
+            cover.note(Position(y, x), reach)
     memory = getattr(policy, MEMORY, None)
     if (memory is None or memory.floor != snapshot.floor_key or memory.pending is None
             or snapshot.turn == memory.pending[0]):

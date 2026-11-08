@@ -185,6 +185,31 @@ class N1b62fQuestCoverRecordedTest(ProductionHarness):
         _, telepathy = self.coverage(policy, raw, list(routes))
         self.assertGreater(int(np.count_nonzero(reach & ~telepathy)), 0)
 
+    def test_without_telepathy_only_the_casts_count(self):
+        """Owner 2026-11-08 21:5x 「感知を使った範囲だけ数える」."""
+        policy, raw = self.policy()
+        self.to_the_lap(policy, raw)
+        raw = copy.deepcopy(raw)
+        del raw["player"]["ability_sources"]["telepathy"]  # DECLARED: no telepathy
+        board = self.snapshot(policy, raw)
+        memory = getattr(policy, search.MEMORY)
+        routes = search._routes(policy, board)
+        self.assertEqual(search_coverage.walk_radius(policy, board), 0)
+        # With no means at all: the grids in view count, and the lap is its sight stops.
+        in_view = {(grid.position.y, grid.position.x) for grid in board.grids.values() if grid.in_view}
+        self.assertEqual({(y, x) for y, x, r in search._reach_now(policy, board) if r == 0}, in_view)
+        self.assertEqual(search._draw(policy, board, memory, routes), search.draw_stops(board, set(routes)))
+        # DECLARED: the absorbed Detection and Detect Evil with charges.
+        policy._me_staff_sequence = MeStaffSequence(absorbed={"rod:6": 10, "staff:15": 10})
+        self.assertEqual(search._reach_now(policy, board), [])
+        stops = search._draw(policy, board, memory, routes)
+        casts = [stop for stop in stops if memory.stop_radius[stop] == 30]
+        self.assertTrue(casts)
+        floor, covered = self.coverage(policy, raw, stops, memory.stop_radius)
+        _, reach = self.coverage(policy, raw, list(routes), {cell: 30 for cell in routes})
+        self.assertEqual(int(np.count_nonzero(reach & ~covered)), 0)
+        self.assertEqual(memory.unreached, int(np.count_nonzero(floor & ~reach)))
+
     def test_the_sealed_passage_is_a_place_a_door_can_be(self):
         policy, raw = self.policy()
         self.to_the_lap(policy, raw)
