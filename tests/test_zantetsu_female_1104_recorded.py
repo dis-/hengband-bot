@@ -14,6 +14,9 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
+
+from hengbot import threat_tiers
 
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -24,6 +27,9 @@ FIXTURE = Path(__file__).with_name("fixtures") / "zantetsu-female-1104.json.gz"
 AMMUNITION_TVALS = (16, 17, 18, 19)
 
 
+# Threat tiers step 6 (DECLARED CONSTRUCTED): at HP 73 beside six hostiles the board is T1 and is
+# left (ZantetsuTiers below); the 11-04 landmine rule is pinned with the tiers not acting.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class ZantetsuFemale(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -53,6 +59,22 @@ class ZantetsuFemale(unittest.TestCase):
         raw = copy.deepcopy(self.raw)
         raw["player"]["status"].update(stunned=True, stun_rank=1)
         self.assertEqual(self.decide(raw), ("2", "melee"))
+
+
+class ZantetsuTiers(unittest.TestCase):
+    """With the tiers acting (step 6, answer 6): the recorded board is T1, read Teleportation."""
+
+    setUp = ZantetsuFemale.__dict__.get("setUp", lambda self: None)
+    decide = ZantetsuFemale.__dict__["decide"]
+
+    @classmethod
+    def setUpClass(cls):
+        setup = ZantetsuFemale.__dict__.get("setUpClass")
+        if setup is not None:
+            setup.__func__(cls)
+
+    def test_the_t1_board_is_left(self):
+        self.assertEqual(self.decide(self.raw), ("rb", "flee:scroll"))
 
 
 if __name__ == "__main__":

@@ -37,6 +37,7 @@ from math import ceil
 from hengbot import (
     attack_expectation,
     destruction_use,
+    disenchant_avoid,
     haste_read,
     hunt_target,
     me_capability,
@@ -49,6 +50,7 @@ from hengbot import (
     survival_preemption,
     unseen_strike,
 )
+from hengbot.item_reservation import decision_memo
 from hengbot.launcher_damage import launcher_average_damage
 from hengbot.model import (
     SV_POTION_HEALING,
@@ -514,8 +516,8 @@ class Projection:
     A comparison the bracket does not decide raises ``CostExceeded`` rather than spending the time.
     """
 
-    def __init__(self, policy, snapshot, hostiles, one_turn):
-        self.policy, self.hostiles = policy, hostiles
+    def __init__(self, policy, snapshot, hostiles, one_turn, melee_slots=None):
+        self.policy, self.hostiles, self.melee_slots = policy, hostiles, melee_slots
         self.memo: dict = {}
         self.rows = one_turn["monsters"]
         self.melee_max = [self._melee_max(snapshot, monster, row)
@@ -573,7 +575,8 @@ class Projection:
         key = (id(board), turns, speed)
         if key not in self.memo:
             self.memo[key] = (board, self.policy.threat_prediction(
-                board, self.hostiles, turns, player_speed=speed)["operational_total"])
+                board, self.hostiles, turns, player_speed=speed,
+                melee_slots=self.melee_slots)["operational_total"])
         return self.memo[key][1]
 
     def upper_bound(self, turns: int, speed: int) -> int:
@@ -922,11 +925,11 @@ class InstantDeath:
 NEXT_ACTION_P95 = "next-action-p95"
 
 
-def _instant_death(policy, snapshot, hostiles) -> tuple[InstantDeath, dict]:
+def _instant_death(policy, snapshot, hostiles, melee_slots=None) -> tuple[InstantDeath, dict]:
     """3.1 on hostiles already at their adjusted speed; also the 1-turn prediction it read."""
     player = snapshot.player
     hp = player.hp
-    one_turn = policy.threat_prediction(snapshot, hostiles, 1)
+    one_turn = policy.threat_prediction(snapshot, hostiles, 1, melee_slots=melee_slots)
     next_action_p95 = one_turn["operational_total"]
     correction = unseen_correction(policy, snapshot, hostiles)
     reasons = []
@@ -974,19 +977,22 @@ def instant_death_key(policy, snapshot, plan_escape=None) -> str | None:
     return policy._emergency_item(snapshot, hostiles, instant_death=True)
 
 
-def assess(policy, snapshot, hostiles=None) -> Assessment:
-    """Classify the engagement on ``snapshot`` (design 3 and 4); pure."""
+def assess(policy, snapshot, hostiles=None, *, melee_slots=None) -> Assessment:
+    """Classify the engagement on ``snapshot`` (design 3 and 4); pure.
+
+    ``melee_slots`` counts the melee slots elsewhere than at the player's cell, as
+    ``threat_prediction`` does (the choke's origin, inventory 2.7)."""
     memoised = _path_memo(policy)
     if memoised is not None:
         policy._monster_path_distance = memoised
     try:
-        return _assess(policy, snapshot, hostiles)
+        return _assess(policy, snapshot, hostiles, melee_slots)
     finally:
         if memoised is not None:
             del policy._monster_path_distance
 
 
-def _assess(policy, snapshot, hostiles) -> Assessment:
+def _assess(policy, snapshot, hostiles, melee_slots=None) -> Assessment:
     if hostiles is None:
         hostiles = engagement(policy, snapshot)
     hostiles = [_with_adjusted_speed(monster) for monster in hostiles]
@@ -997,14 +1003,14 @@ def _assess(policy, snapshot, hostiles) -> Assessment:
     hp, max_hp = player.hp, max(1, player.max_hp)
 
     # 3.1 即死
-    death, one_turn = _instant_death(policy, snapshot, hostiles)
+    death, one_turn = _instant_death(policy, snapshot, hostiles, melee_slots)
     result.next_action_p95 = death.next_action_p95
     result.unseen_correction = death.unseen_correction
     result.instant_death = death.holds
     result.instant_death_reasons = death.reasons
 
     # 3.2-3.4 the tier
-    projection = Projection(policy, snapshot, hostiles, one_turn)
+    projection = Projection(policy, snapshot, hostiles, one_turn, melee_slots)
     result.free_damage = {monster.index: free_damage(policy, snapshot, monster)
                           for monster in hostiles}
 
@@ -1022,7 +1028,8 @@ def _assess(policy, snapshot, hostiles) -> Assessment:
     quest_races = _quest_races(policy, snapshot)
     hunted = hunt_target.target_race(policy, snapshot)
     rows = {row_monster.index: row for row_monster, row in zip(
-        hostiles, policy.threat_prediction(snapshot, hostiles, 3)["monsters"])}
+        hostiles, policy.threat_prediction(snapshot, hostiles, 3,
+                                           melee_slots=melee_slots)["monsters"])}
     for monster in hostiles:
         entry = MonsterAssessment(index=monster.index, race_id=monster.race_id,
                                   name=monster.name, speed=monster.speed,
@@ -1046,6 +1053,79 @@ def _assess(policy, snapshot, hostiles) -> Assessment:
                            or (hunted is not None and monster.race_id == hunted)))
         result.per_monster[monster.index] = entry
     return result
+
+
+# ---------------------------------------------------------------- acting on the tiers (steps 6-8)
+
+def acts_here(policy, snapshot) -> bool:
+    """Where the tiers act: a dungeon floor of the shared ladder.
+
+    Not in town, a store, the arena or the wilderness (outside the design, as ``facts``), and not
+    on a floor an approved quest strategy runs: inside a quest plan the plan's action goes first and
+    only 即死 pre-empts it (answer 11, 2.5), so there every judgement keeps today's meaning (Q2's
+    ``_q2_encounter_key`` reads ``_should_flee`` as today, inventory 2.7)."""
+    return (snapshot.dungeon_level > 0 and not snapshot.in_town and snapshot.store is None
+            and not snapshot.inside_arena
+            and policy.approved_quest_strategy(snapshot.floor_key[2]) is None)
+
+
+def tiered(policy, snapshot, hostiles, melee_slots=None) -> Assessment:
+    """``assess`` memoised for the decision (one assessment per hostile set and slot count)."""
+    key = (tuple(monster.index for monster in hostiles), melee_slots)
+    return decision_memo(policy, "threat_tiers.assess", snapshot, key,
+                         lambda: assess(policy, snapshot, hostiles, melee_slots=melee_slots))
+
+
+def leave_decided_here(policy, snapshot) -> bool:
+    """Where the tiers decide leaving: ``acts_here``, and not a floor that leaving fails the
+    quest (a fixed quest, or a taken kill quest whose exit is locked,
+    ``_floor_navigation_exit_locked``): there the quest's own rules decide (design 3.2 「On a
+    quest floor where leaving fails the quest the plan decides」; the random quest's give-up)."""
+    return acts_here(policy, snapshot) and not policy._floor_navigation_exit_locked(snapshot)
+
+
+def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
+    """Plan step 6 (answer 6, 3.2, 3.4): whether the tiers say leave this engagement.
+
+    True: T1 (「物資を全て使っても倒しきれない」), or T2 with no selected target (answer 4: only the
+    quest target, the hunted guardian, a monster the player cannot escape and the reward races
+    are fought with supplies).  False: T2 with a selected target, which is not left.  None: the
+    tiers do not decide here (T3, the tier past the cost cap, ``leave_decided_here`` false), and
+    the caller keeps today's judgement."""
+    if not hostiles or not leave_decided_here(policy, snapshot):
+        return None
+    if any(disenchant_avoid.exposes_gear(policy, snapshot, monster) for monster in hostiles):
+        # OQ-3 「全部 11-05 のとおり」: an engagement with an unresisted disenchanter is the 11-05
+        # rule's (it keeps away, and fights one striking from beside the player).
+        return None
+    result = tiered(policy, snapshot, hostiles, melee_slots)
+    if result.tier == T1:
+        return True
+    if result.tier == T2:
+        return not result.selected
+    return None
+
+
+def walk_leaves(policy, snapshot, hostiles) -> bool:
+    """Design 3.2's leave: 「walk while the monster is not faster and no ranged contact; else
+    stairs / *Destruction* / Teleport / Recall in today's order」.  False when an awake hostile
+    that can come to the player is faster (``speed + 10*fast - 10*slow`` against the player's
+    speed) or one deals ranged damage before the player's next action."""
+    speed = snapshot.player.speed
+    awake = [monster for monster in hostiles if not monster.asleep]
+    if any(adjusted_speed(monster) > speed and policy._monster_can_approach(snapshot, monster)
+           for monster in awake):
+        return False
+    rows = policy.threat_prediction(
+        snapshot, [_with_adjusted_speed(monster) for monster in awake], 1)["monsters"] if awake else []
+    return not any(row.get("operational_ranged_prediction", 0) > 0 for row in rows)
+
+
+def tier_of(policy, snapshot, hostiles) -> str | None:
+    """The engagement's tier where the tiers act, else None."""
+    if not hostiles or not acts_here(policy, snapshot):
+        return None
+    return tiered(policy, snapshot, hostiles).tier
 
 
 def facts(policy, snapshot) -> dict:

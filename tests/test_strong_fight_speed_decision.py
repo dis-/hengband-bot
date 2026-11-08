@@ -28,6 +28,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
+from hengbot import threat_tiers
 from hengbot.model import Position, Snapshot, SV_POTION_SPEED, SV_SCROLL_TELEPORT
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
@@ -143,7 +144,10 @@ class StrongFightSpeedConstructedTest(unittest.TestCase):
         with patch.object(
             policy, "_predicted_damage",
             side_effect=lambda *_a, **kw: three_turns if kw.get("turns") == 3 else 0,
-        ), patch.object(policy, "_engagement_is_winnable", return_value=True):
+        ), patch.object(policy, "_engagement_is_winnable", return_value=True), \
+                patch.object(threat_tiers, "leave_due", return_value=None):
+            # Threat tiers step 6: the tiers do not decide on these boards (the hostile has no
+            # race, so no attack counts and the board would read T1, which is left).
             return policy, policy._strong_fight_speed_key(snap, hostiles, observed_loss)
 
     def test_strong_fight_quaffs(self):

@@ -36,6 +36,7 @@ except ModuleNotFoundError:
     from tests.trajectory_harness import drive_trajectory
 
 import hengbot.policy as policy_module
+from hengbot import threat_tiers
 import hengbot.equipment_mutation as equipment_mutation_module
 from test_policy import FOOD, POTION, SCROLL, STAFF
 import hengbot.policy_combat as policy_combat_module
@@ -930,6 +931,10 @@ def _open_breeder_window_by_attack(policy, board):
     assert policy._breeder_engagement_start_count == len(board.visible_monsters)
 
 
+# Threat tiers step 6 (DECLARED CONSTRUCTED): these boards' player carries no weapon and no blow
+# (policy_fixtures.player), so no attack reaches and every engagement would read T1 and be left.
+# The rules pinned here are judged with the tiers not acting, as on boards they do not decide.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class CombatTest(unittest.TestCase):
     def test_9f_water_capture_does_not_reposition_for_choke(self):
         origin = Position(13, 105)
@@ -5921,6 +5926,10 @@ class ConsumableTest(unittest.TestCase):
         inv = [item("d", STAFF, 0, charges=20)]  # normal race can't eat devices
         snap = Snapshot(player(10, 10, food=100, food_type=0), grids, [], inventory=inv)
         self.assertNotIn("E", HengbotPolicy().choose_key(snap))
+# Threat tiers step 6 (DECLARED CONSTRUCTED): these boards' player carries no weapon and no blow
+# (policy_fixtures.player), so no attack reaches and every engagement would read T1 and be left.
+# The rules pinned here are judged with the tiers not acting, as on boards they do not decide.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class PredictiveEscapeTest(unittest.TestCase):
     def _line_snapshot(self, monster, *, hp=30, inventory=None, upstairs=False):
         grids = {
@@ -8662,6 +8671,16 @@ class UniqueCombatConsumableTest(unittest.TestCase):
             ],
         )
         snapshot, knowledge = self._active_quest_target(snapshot, knowledge)
+        # Threat tiers step 6 (answer 6): a 100000-HP target is T1 and the floor may be left
+        # (its exit is not locked), so the flee rung leaves it, the 09-18 escape Speed first.
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        self.assertEqual((policy.choose_key(snapshot), policy.last_reason),
+                         ("qs", "emergency:quaff-speed"))
+
+        # DECLARED CONSTRUCTED: the tiers not acting, today's give-up latch as pinned before.
+        tiers_off = patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
+        tiers_off.start()
+        self.addCleanup(tiers_off.stop)
         policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
 
         key = policy.choose_key(snapshot)

@@ -29,7 +29,9 @@ import shutil
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+from hengbot import threat_tiers
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from test_esp_threat_rest_recorded import EDIT, _policy
@@ -49,6 +51,10 @@ DIRECTIONS = {
 }
 
 
+# Threat tiers step 6 (DECLARED CONSTRUCTED): the eight bears are T2 (the free attacks' 383 over
+# the 21 turns to clear against HP 380; the Speed dose wins) and no selected target, so the tiers
+# leave them (ChokeStallTiersRecorded below).  The 11-08 rule is pinned with the tiers not acting.
+@patch.object(threat_tiers, "acts_here", new=lambda *args, **kwargs: False)
 class ChokeStallRecreateRecorded(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -120,6 +126,32 @@ class ChokeStallRecreateRecorded(unittest.TestCase):
             with self.subTest(sequence=row["decision"]["decision_sequence"]):
                 snapshot, key, reason = self.decide(policy, row)
                 self.assert_strikes_adjacent_bear(snapshot, key, reason)
+
+
+class ChokeStallTiersRecorded(unittest.TestCase):
+    """With the tiers acting (step 6, answer 4): the bears are an unselected T2 and are left."""
+
+    @classmethod
+    def setUpClass(cls):
+        ChokeStallRecreateRecorded.setUpClass.__func__(cls)
+
+    policy = ChokeStallRecreateRecorded.__dict__["policy"]
+    decide = ChokeStallRecreateRecorded.__dict__["decide"]
+
+    def test_the_unselected_t2_pack_is_left(self):
+        policy = self.policy()
+        decided = []
+        for row in self.rows[:4]:
+            snapshot, key, reason = self.decide(policy, row)
+            decided.append((snapshot, key, reason))
+            policy.confirm_key_posted(key)
+        leaving = [(snapshot, key, reason) for snapshot, key, reason in decided
+                   if reason.startswith(("flee", "emergency:"))]
+        self.assertTrue(leaving, [(key, reason) for _snapshot, key, reason in decided])
+        snapshot, key, reason = leaving[0]
+        result = threat_tiers.assess(policy, snapshot, policy._strategic_hostiles(snapshot))
+        self.assertEqual((result.tier, result.selected), (threat_tiers.T2, []))
+        self.assertFalse(any(reason.startswith("melee:choke") for _s, _k, reason in decided))
 
 
 if __name__ == "__main__":

@@ -3874,21 +3874,24 @@ class CombatMixin:
         already standing at the choke (no origin recorded) K = 8.
         Emergency/flee decisions keep the current-cell prediction.
         """
+        return self.threat_prediction(
+            snapshot, hostiles, 3, melee_slots=self._choke_melee_slots(snapshot)
+        )["operational_total"]
+
+    def _choke_melee_slots(self, snapshot: Snapshot) -> tuple[int, int]:
+        """The (floor, wall) melee slots the choke's checks count: the active plan's origin
+        (unknown origin -> K = 8); with no active plan, open ground (K = 8)."""
         plan = self._choke_engagement_plan
         if plan is not None and self._choke_plan_active(snapshot):
             origin = getattr(plan, "origin", None)
-            slots = (
+            return (
                 self._melee_adjacency_slots(snapshot, origin)
                 if origin is not None
                 else (len(NEIGHBOR_OFFSETS), 0)
             )
-        else:
-            # No active plan: judge entry by open ground (K = 8), never by
-            # the cell the player happens to stand on.
-            slots = (len(NEIGHBOR_OFFSETS), 0)
-        return self.threat_prediction(
-            snapshot, hostiles, 3, melee_slots=slots
-        )["operational_total"]
+        # No active plan: judge entry by open ground (K = 8), never by
+        # the cell the player happens to stand on.
+        return (len(NEIGHBOR_OFFSETS), 0)
 
     def _choke_plan_active(self, snapshot: Snapshot) -> bool:
         plan = self._choke_engagement_plan
@@ -3959,7 +3962,9 @@ class CombatMixin:
         if (
             snapshot.player.hp_ratio < FLEE_HP_RATIO
             or predicted_damage >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO
-            or self._should_flee(snapshot, hostiles, adjacent)
+            # Threat tiers (inventory 2.7): the tiers judged at the choke's origin.
+            or self._should_flee(snapshot, hostiles, adjacent,
+                                 melee_slots=self._choke_melee_slots(snapshot))
         ):
             self._release_choke_plan("hp-authority")
             return None
