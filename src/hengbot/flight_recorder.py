@@ -165,6 +165,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_detected_threat_hold",
         "_detected_threat_route",
         "_engagement_avoid_cells",
+        # The threat tiers' decided side per monster (threat_tiers.decided).
+        "_threat_tier_memory",
         "_enclosure_teleport_read",
         "_paralyzer_avoid_cells",
         "_remembered_paralyzers",

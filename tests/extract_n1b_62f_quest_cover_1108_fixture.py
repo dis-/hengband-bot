@@ -22,6 +22,11 @@ def _rows(path: Path) -> list:
         return [json.loads(line) for line in stream if line.strip()]
 
 
+def _floor_uses(checkpoint) -> list:
+    memory = checkpoint["state"]["_me_power_floor"]
+    return (memory if isinstance(memory, dict) else json.loads(memory))["uses"]
+
+
 def extract(capture: Path) -> dict:
     checkpoint = json.loads((capture / "policy-state.json").read_text(encoding="utf-8"))
     ledger = json.loads((capture / "exploration-ledger-1630.json").read_text(encoding="utf-8"))
@@ -29,6 +34,9 @@ def extract(capture: Path) -> dict:
         "board": _rows(capture / "state-tail.jsonl.gz")[-1],
         "terrain": {name: checkpoint["terrain"][name] for name in TERRAIN},
         "mapped_areas": ledger["mapped_areas"],
+        # The absorbed detections cast on this floor visit (me_powers' floor memory at 16:18).
+        "detections": [use for use in _floor_uses(checkpoint)
+                       if ":detect-evil" in use["reason"] or ":detect-all" in use["reason"]],
         "decisions": [{name: row[name] for name in DECISION_FIELDS}
                       for row in _rows(capture / "decisions-tail.jsonl.gz")],
     }

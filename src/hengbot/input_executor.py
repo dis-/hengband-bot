@@ -1812,6 +1812,12 @@ class OperationExecutor:
         self.active = None
         self.ready_board, self.ready_screen, self.ready_screen_value, self.state = (
             board, match, screen_value, ExecutorState.READY)
+        # The next operation is admitted on this observation, as after
+        # _observe_decidable: its backpressure retry, absent-prompt history and
+        # town-work receipts compare with it, not with an older barrier's
+        # (n1-b life-348: the town state bound before a recall made every
+        # dungeon post a town:blocked:work-contract:unmapped-producer receipt).
+        self._bound_screen_value, self._bound_state_value = screen_value, state
         self.barrier_sequence += 1
         request_timings = self.client.take_request_timings() \
             if hasattr(self.client, "take_request_timings") else []

@@ -44,6 +44,13 @@ def _observed(policy: Any) -> set:
             policy._home_knowledge_items[:policy._home_knowledge_valid_before]}
 
 
+def _uncatalogued_in_home(policy: Any, signature: tuple) -> bool:
+    """The current Home catalogue (every catalogued shelf, also beyond a
+    take's shortened address prefix) holds nothing of ``signature``."""
+    return policy._home_knowledge_current and all(
+        policy._item_signature(item) != signature for item in policy._home_knowledge_items)
+
+
 def doable(policy: Any, board: Any, item: Any, observed: set | None = None) -> bool:
     """Whether this visit can take the Home ``item`` out and identify it."""
     signature = policy._item_signature(item)
@@ -75,6 +82,15 @@ def release_stale_take(policy: Any, board: Any) -> None:
     target = next((owned.item for owned in policy._equipment_catalog.items
                    if owned.origin == "home"
                    and policy._item_signature(owned.item) == request.signature), None)
+    if target is None and _uncatalogued_in_home(policy, request.signature):
+        # Nothing carries the take's name any more, so no source or slot can
+        # make it doable: it gives way at once.  n1-b life-348 2026-11-08 15:16:
+        # the *Identify* take of 耐電のアミュレット outlived the item's name (it
+        # became 耐電のアミュレット {r電} x9); Home handed the take off to the
+        # entrance, the entrance found it unobserved, and the visit alternated
+        # until town:blocked:owner-retired-burst.
+        errand.cancel_unposted()
+        return
     if target is not None and doable(policy, board, target):
         return
     if any(policy._item_signature(item) != request.signature

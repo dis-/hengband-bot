@@ -128,6 +128,19 @@ KNOWLEDGE_RESPONSE_LEDGER_PATH = CAPTURE_LEDGER_ROOT / "knowledge-responses.json
 # no-op if the game has already returned to the command loop.
 NUDGE_KEY = "\x1b"
 
+# Who may post through the input port (_ExecutorInputPort.submit_operation)
+# for the town-work receipts.  A decision sender posts the decided key's
+# compiled prefix or tail under that decision's mapped record; a driver
+# function's own sends (floor-change and stall clears, look barriers,
+# stuck-prompt probes) are driver work (town_work.driver_record).  n1-b
+# life-348: the follow loop's floor-change Escape on arriving in town was a
+# town:blocked:work-contract:unmapped-producer.
+DECISION_SEGMENT_SITES = frozenset({
+    "cli.py:_send_new_decision_key", "cli.py:_send_prompt_gated_decision_key",
+    "cli.py:_release_prompt_gated_tail"})
+DRIVER_OWNED_SEND_SITES = frozenset({
+    "cli.py:main", "cli.py:_run_follow", "cli.py:_send_stall_recovery_nudge"})
+
 # After issuing a rest, the game runs many turns without emitting a snapshot;
 # hold off the stall nudge this long so it does not cut the rest short.
 REST_STALL_GRACE = 20.0
@@ -2771,14 +2784,11 @@ class _ExecutorInputPort:
         if work is None:
             parent = (current_record(self.policy, decision.get('key'))
                       if self.policy is not None else None)
-            if parent and site in {
-                    'cli.py:_send_new_decision_key',
-                    'cli.py:_send_prompt_gated_decision_key',
-                    'cli.py:_release_prompt_gated_tail'}:
+            if parent and site in DECISION_SEGMENT_SITES:
                 # The exact mapped parent authorizes its compiled prefix/tail.
                 work = dict(parent, key=key, segment_producer=site,
                             segment_line=frame.f_lineno)
-            elif site in {'cli.py:main', 'cli.py:_send_stall_recovery_nudge'}:
+            elif site in DRIVER_OWNED_SEND_SITES:
                 # Only actual driver-owned clears/probes synthesize cleanup
                 # work. Normal policy sends cannot hide an unmapped producer.
                 work = driver_record(self.policy, key, site=site,

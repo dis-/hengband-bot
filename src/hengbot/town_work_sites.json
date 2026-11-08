@@ -884,6 +884,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "disenchant_avoid.py:remembered_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "disenchant_avoid.py:retreat_key": {
     "classification": "data",
     "rows": [
@@ -4106,6 +4113,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._engagement_route_veto": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._entrance_travel_key": {
     "classification": "producer",
     "rows": [
@@ -6019,9 +6033,9 @@
     "delegation": "selected child; no independent success"
   },
   "policy_equipment.py:EquipmentMixin._equipment_home_outcome": {
-    "classification": "data",
+    "classification": "adapter",
     "rows": [
-      "data/no-independent-credit"
+      "equipment-transaction"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -6075,9 +6089,9 @@
     "delegation": "selected child; no independent success"
   },
   "policy_equipment.py:EquipmentMixin._equipment_town_outcome": {
-    "classification": "data",
+    "classification": "adapter",
     "rows": [
-      "data/no-independent-credit"
+      "equipment-transaction"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -10968,6 +10982,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:_cut_off_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_target_search.py:_dead_ends": {
     "classification": "data",
     "rows": [
@@ -11101,6 +11122,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "retreat_enclosure.py:_dig_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_dig_route": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
   "retreat_enclosure.py:_ladder": {
     "classification": "action",
     "rows": [
@@ -11114,6 +11149,13 @@
       "positioning"
     ],
     "delegation": "No independent success; existing teleport or recall owner."
+  },
+  "retreat_enclosure.py:_melt_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "retreat_enclosure.py:_read_teleport": {
     "classification": "action",
@@ -11130,6 +11172,13 @@
     "delegation": "No independent success; pure reading."
   },
   "retreat_enclosure.py:enclosed_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:open_toward_key": {
     "classification": "action",
     "rows": [
       "positioning"
@@ -11221,6 +11270,13 @@
     "delegation": "selected child; no independent success"
   },
   "sealed_pocket.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:melt_at_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11555,6 +11611,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:_as_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:_assess": {
     "classification": "data",
     "rows": [
@@ -11590,6 +11653,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "threat_tiers.py:_held_reading": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:_resistance_key": {
     "classification": "producer",
     "rows": [
@@ -11610,6 +11680,13 @@
       "combat"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_tiers.py:_tier_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:assess": {
     "classification": "data",
@@ -11632,7 +11709,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:decided": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:engagement": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:held_tier": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

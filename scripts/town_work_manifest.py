@@ -37,6 +37,10 @@ SEAM_NAMES = {'_offer_execution', '_offer_execution_awaiting',
               # A driver rewrite of the decided key is an emission too.
               'bind_driver_override'}
 REGISTRIES = {'_town_need_registry', '_purchase_rungs'}
+# The offer seams (town_work.OFFER_SEAMS): town_work.observe_offer credits an offer to the
+# site that called one, so a site making an offer with a key needs a work record and cannot
+# be reviewed as data (n1-b life-348: _equipment_town_outcome's offers were unmapped).
+OFFER_SEAMS = frozenset({'_offer_execution', '_offer_execution_awaiting'})
 # The fields town_work.py reads at run time; the runtime index holds only these.
 RUNTIME_FIELDS = ('classification', 'rows', 'delegation')
 # What a hand review may leave out: it needs a classification and evidence (and rows unless data).
@@ -85,6 +89,16 @@ def kept_reviews(reviewed, proved):
     """The hand reviews the proof does not make redundant (it would write the same runtime row)."""
     return {site: review for site, review in reviewed.items() if site not in proved
             or {k: complete_review(review).get(k) for k in RUNTIME_FIELDS} != data_proof.DATA_REVIEW}
+
+
+def keyed_offer_lines(fn):
+    """The lines where ``fn`` calls an offer seam with a key that is not the literal None."""
+    def key(call):
+        return call.args[0] if call.args else next(
+            (keyword.value for keyword in call.keywords if keyword.arg == 'key'), None)
+    return [node.lineno for node in lint.local_nodes(fn)
+            if isinstance(node, ast.Call) and lint.name(node.func) in OFFER_SEAMS
+            and not (isinstance(key(node), ast.Constant) and key(node).value is None)]
 
 
 def registry_inventory(source):
@@ -154,6 +168,14 @@ def inventory(source):
 
 def generate(source, reviewed, registry_review=None):
     functions, selected, origins, names = inventory(source)
+    # The data proof never proves a site calling an offer seam, so the hand reviews decide.
+    keyed_data = sorted(site for site in selected & reviewed.keys()
+                        if reviewed[site].get('classification') == 'data'
+                        and keyed_offer_lines(functions[site]))
+    if keyed_data:
+        raise ValueError(f'data reviews of sites making keyed offers={keyed_data}; '
+                         'town_work.observe_offer credits their offers to them: review them '
+                         'as adapter or producer')
     proved = proved_data(functions, names, origins, selected)
     missing = sorted(selected - reviewed.keys() - proved)
     stale = sorted(reviewed.keys() - selected)

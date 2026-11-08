@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, town_pack_headroom, walkout_dig
+from hengbot import combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, threat_tiers, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip
@@ -1627,6 +1627,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # another owner's claim (see _refresh_warning_avoidance).
         self._engagement_avoid_cells: set[Position] = set()
         self._engagement_owned_avoid_cells: set[Position] = set()
+        # The threat tiers' decided side per monster for this floor visit (owner 2026-11-08
+        # 「境に余裕を持たせる」, threat_tiers.decided); created on the first reading.
+        self._threat_tier_memory = None
         # Floor-visit memory for monsters whose blows can paralyze. Both
         # stationary and moving threats retain their last observed cell while
         # unseen, and observation of that cell without the monster retires it.
@@ -7533,6 +7536,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
         self._build_grid_index(snapshot)
         retreat_veto_life.observe(self, snapshot)
+        threat_tiers.observe(self, snapshot)
         oneshot_breath.observe(self, snapshot)
         self._refresh_warning_avoidance(snapshot)
         giveup_plan = self._choke_engagement_plan
@@ -8139,8 +8143,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # Threat tiers step 6 (design 3.2): a leave the tiers decide walks only while no awake
             # hostile is faster and none reaches at range; else the relocation below (n1-c
             # life-168: 闇の審判『デス』, speed 120 against 110, walked to its death).
-            tiers_walk = not threat_tiers.leave_due(self, snapshot, strategic_hostiles) or (
-                threat_tiers.walk_leaves(self, snapshot, strategic_hostiles))
+            tiers_leave = threat_tiers.leave_due(self, snapshot, strategic_hostiles)
+            tiers_walk = not tiers_leave or threat_tiers.walk_leaves(
+                self, snapshot, strategic_hostiles)
             step = (self._town_producer_entry("_flee_step#2", lambda: self._flee_step(snapshot, strategic_hostiles))
                     if tiers_walk else None)
             if step is not None:
@@ -8149,7 +8154,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # square here as well, otherwise a remembered loot target can
                 # immediately route back into it when the monster flickers out
                 # of view, producing a seek-loot/flee two-cell oscillation.
-                if self._is_material_threat(snapshot, strategic_hostiles):
+                # A leave the threat tiers decided is such a square too (owner 2026-11-08
+                # 「境に余裕を持たせる」: the decided side holds while the pack is out of sight,
+                # threat_tiers.decided; n1-b's bear pack, T2 by 3 HP, was walked back to).
+                if tiers_leave or self._is_material_threat(snapshot, strategic_hostiles):
                     self._claim_engagement_avoid_cells(
                         (snapshot.player.position,),
                         snapshot=snapshot, threats=strategic_hostiles,
@@ -14429,6 +14437,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _position_target_step(
         self, snapshot: Snapshot, target: Position,
         *, through: frozenset[tuple[int, int]] = frozenset(),
+        avoid: frozenset[Position] = frozenset(),
     ) -> Position | None:
         start = snapshot.player.position
         seen = {start}
@@ -14438,7 +14447,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if pos == target:
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, pos, through=through):
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if neighbor in seen or neighbor in self._engagement_avoid_cells or neighbor in avoid:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -17286,6 +17295,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return self._read_key(snapshot, teleport)
         return None
 
+    def _engagement_route_veto(self, snapshot: Snapshot) -> frozenset[Position]:
+        """The cells every walker keeps off for the engagement retreat.
+
+        The danger cells (``_engagement_danger_cells``) with a kept-away disenchanter's
+        area out of sight (disenchant_avoid.remembered_cells), also while the danger cells
+        are empty inside an awake one's area.  One veto for the explore, descent and loot
+        walks: n1-c life-171 (Angband 80F, 2026-11-08 16:59) retreated '3' from a Warp
+        demon (race 812, UN_BONUS) remembered out of sight to [8,50], and the loot walk,
+        which kept off only the retreats' own vetoes, stepped '7' straight back to [7,49]
+        until the loop detector stopped the bot."""
+        return self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
+            self, snapshot, immobile_threat_memory.ringed)
+
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.
 
@@ -17309,7 +17331,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         「眠っている敵でも強い敵からは離れる」)."""
         player = snapshot.player.position
         cells: set[Position] = set()
-        for monster in self._strategic_hostiles(snapshot):
+        # A sleeper out of sight is judged at its last shown cell (sleeper_reach_memory,
+        # n1-b life-348 Orc cave 23F: one step out of sight the explore walked back).
+        for monster in (*self._strategic_hostiles(snapshot),
+                        *sleeper_reach_memory.remembered(self, snapshot)):
             if (immobile_threat_memory.ringed(self, monster)
                     or immobile_threat_memory.fought_normally(self, snapshot, monster)
                     or not self._material_melee_damage(snapshot, monster)):

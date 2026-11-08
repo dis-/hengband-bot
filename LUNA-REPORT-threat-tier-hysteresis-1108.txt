@@ -1,0 +1,225 @@
+LUNA-REPORT threat-tier-hysteresis-1108（脅威度の段の「境に余裕を持たせる」）
+=====================================================================
+
+作業場所: C:\hengband\bot-client\.worktrees\threat-tier-hysteresis-1108
+ブランチ: threat-tier-hysteresis-1108（main e436b3d5ac から。push していない・main には取り込んでいない）
+主の答え（2026-11-08、そのまま）: 「境に余裕を持たせる」＝一度決めた敵の段は、HP や見込みの小さな変化では
+変えない（境の近くで行き来しない）。戦うか離れるかは最初に決めた側に固定する。
+（「この階ではその群れに近寄らない」「階を離れる」は選ばれていない。どちらも入れていない。）
+診断: LUNA-DIAG-threat-tier-hysteresis-1108.txt（同じ場所）。
+
+1. つながり（往復の原因）
+---------------------------------------------------------------------
+  - 段は毎盤面まっさらに読み直していた。境（T3: 無料の攻撃の予測被害 < HP）に幅が無く、熊の群れは
+    HP 357〜380 に対して予測 380〜386 で T2（3〜29 HP の差）。選ばれた目標が無いので離れる（手順 6）。
+  - 持ち越しは手順 7 の選んだ T2 の約束（_unique_combat_committed_race_id）だけで、選ばれていない群れには無い。
+  - 逃げの段は離れたマスを避けるマスにするが、それは 3 ターンの予測被害が HP の 5 割以上の時だけ
+    （_is_material_threat）。熊は 68〜76 対 HP の半分 178〜190 で当たらず、(33,91) は避けるマスにならない。
+  - (32,92) では熊が隠れて見えず（群れの動物の隠れる動き）、段は何も決めない。seek-loot が '1' で
+    (33,91) に戻り、また見えて離れる。決定 508〜547 の 2 マスの往復（数字は DIAG の 3 章）。
+  - HP が上がれば同じ盤面が T3（戦う）になる（決定 511 の盤面で HP 400 なら余裕 +17）。
+
+2. 作ったもの（モデル）
+---------------------------------------------------------------------
+  1つのモデルを src/hengbot/threat_tiers.py の「the decided side (owner 2026-11-08)」の節に置いた。
+  呼び出し側ごとの条件は足していない。段を読む所はどれも tiered を通るので、そこで保持する。
+
+  (a) 読みの余裕（Assessment に足した値。assess は今までどおり何も書かない）
+      - reserve: D7 の max(最大HPの1割, 次の1手の p95)。T2 の作戦の余裕として既にあった値を常に記録。
+      - free_margin（T3/T2 の境）: HP − 無料の攻撃の予測被害（正なら T3）。予測が上下の幅で出た時は境に
+        近い方の端。無料の攻撃が無い目標がいれば None（T3 に届かない＝無限に遠い）。
+      - supply_margin（T2/T1 の境）: 全部の物資の作戦の余り（容量 − 余裕 − 予測、負なら T1）。T1 の時は
+        _plan の候補の中で一番足りなかった量の符号を反転したもの。T3 の時は「物資を使わない作戦」と読んで
+        free_margin − reserve。どの作戦も目標を倒しきれなければ None。
+      - raw_tier: 保持で段が読みと違う時の、読みそのものの段。
+  (b) 記憶（policy._threat_tier_memory = TierMemory）
+      階の訪問ごと（floor_key）・敵ごと（番号＋種族。retreat_veto_life と同じ鍵）に Decided:
+      決めた段・側（離れる = T1 か、選ばれた目標の無い T2）・決めた時の free_margin / supply_margin /
+      reserve・決めた時の速さ（adjusted_speed）・決めた交戦の仲間（鍵の集合）・最後に見えた盤面。
+  (c) 保持の決まり（decided / held_tier）
+      - 段を読み直した結果が覚えた段（交戦の中で一番悪い段）と違う時、間の境ごとに、読みがその境を
+        幅（その読みの reserve）以上越えている時だけ越える。越えなければ覚えた段のまま。
+        T1 から T3 へは2つの境を越えるので、T3 の読みでは free_margin が reserve の2倍以上要る。
+      - そのまま読む（幅なしで読みを取る）時: 1手の即死（3.1、instant_death）、手順 7 の止まりの条件
+        （D4: 怯え・盲目・混乱・麻痺、増える敵、召喚する敵。supply_fight_stopped を目標なしで共有）。
+      - 悪くなる読みを幅なしで取る時: 交戦に覚えていない敵が新しく入った時、覚えた敵が決めた時より
+        速くなった時（加速）。見込みのぶれではなく、交戦が強くなったため。
+      - 良くなる読みは、決めた交戦の仲間で、まだ覚えている（死んでも離れてもいない）敵が全員この交戦に
+        いる時だけ取る。見えない仲間は側を保つ（群れの見えている一部だけを相手に戦わない）。
+      - 側が「離れる」から「戦う」に変わったら、その敵のための避けるマスを外す（retreat_veto_life.release）。
+      - 読みが計算の上限を越えた（tier None）時は、決めも保持もしない（今までどおり）。
+      - T3 の読みを T2 に保持した時の作戦は「何も使わない作戦」（無料の攻撃で勝てる読みなので、
+        加速・耐性などを使わない）。
+  (d) どの読みを保持するか（engagement_reading）
+      見えている戦略上の敵を全部含む読みだけ。1体だけの読み（me_powers のテレポート・アウェイの引き金）、
+      隘路の起点の読み（melee_slots）、感知の段の「接触から見た1体」（contact）は、その部分についての
+      問いなので、記憶を読まず書かない。
+  (e) 忘れる時（observe / forget_floor_visit）
+      - 毎盤面（policy.py の retreat_veto_life.observe の隣）: 死んだ・変身した・UNSEEN_GAME_TURNS
+        （1,000 ゲームターン、狩りの決まり）見えていない敵を忘れる。retreat_veto_life の判定（gone）を共有。
+      - 階が変わったら全部忘れる（policy_observation の階の記憶を消す所に足した。新しい階は同じ floor_key
+        と敵の番号を使い回すため）。
+  (f) 見えない時に側を保つ（ルートの拒否）
+      逃げの段が離れたマスを避けるマスにする条件に「段が離れると決めた（leave_due が真）」を足した
+      （policy.py 逃げの段。既存の _claim_engagement_avoid_cells と retreat_veto_life の寿命のまま。
+      新しい拒否の集合は作っていない）。seek-loot と探索はそのマスへ戻らず、群れを忘れるか側が戦うに
+      変わるまで続く。
+  (g) チェックポイント: policy の __init__ と policy_state.normalize_policy_state に _threat_tier_memory の
+      既定値 None（新しい policy と復元した policy の属性の集合をそろえる）。
+      記憶は pickle できる dataclass で、復元しても残る（試験で確認）。flight_recorder の記録にも足した。
+  (h) 観測: facts（決定の行の threat_tiers）に "decided"（交戦の敵ごとの覚えた段と側、読むだけ）、
+      as_dict に reserve / free_margin / supply_margin / raw_tier。
+
+3. 定数と理由
+---------------------------------------------------------------------
+  新しい数は作っていない。
+  - 幅 = その読みの reserve = max(ceil(最大HP × RESERVE_HP_RATIO 0.10), 次の1手の p95)。
+    主の D7「余裕は最大HPの1割と、95%被害のうち大きい方」。設計が作戦と HP の間に置く「余裕」と同じもので、
+    主の今回の言葉も「余裕」。熊の盤面では 38〜48 HP（最大 HP 380 の1割 38、p95 31〜48）。
+    「決めた時の余裕の何割」にしなかった理由: 決めた時の余裕が小さい（熊は −3）ほど幅が小さくなり、
+    境の近くほど行き来しやすくなるので、主の答えと逆になる。
+  - 見えない敵を忘れる窓 = retreat_veto_life.UNSEEN_GAME_TURNS（= me_powers.HUNT_REDETECT_GAME_TURNS、
+    主の 11-02「1,000ゲームターン」）。離れたマスの避けるマスの寿命と同じなので、側と拒否が同時に終わる。
+  - TIER_ORDER / TIER_RANK は段の並び（T1 が一番悪い）で、数ではない。
+
+4. 試験（tests/test_threat_tier_hysteresis_1108.py、17 本）
+---------------------------------------------------------------------
+  盤面は記録のもの（choke-stall-recreate-1108、熊の盤面）。公開の choose_key で順に決め、決めた鍵は
+  全部本番の実行器（_ExecutorInputPort、_send_new_decision_key）で送る（飲む・読む・休むは本物の問いの
+  画面を挟む）。作り物（DECLARED CONSTRUCTED）は各試験に書いた: HP / 最大 HP の変更、熊の加速、
+  見えている熊を3体にする、別の階の盤面、送った後の次の盤面（実行器の命令の画面）。
+  BearPackHoldRecordedTest（記録の盤面）
+  - test_the_left_pack_is_not_walked_back_to: 決定 508〜519 を順に。(33,91) では毎回 T2 で離れる。
+    最初に離れた後、(32,92)・(31,92) では seek-loot にならず、(33,91) へ踏み込まない。熊 13 体は見えない間も
+    「離れる」のまま覚えられ、(33,91) は避けるマスのまま。決定の行の facts に 13 体の側が出る。
+    （記録では (32,92) の4回とも '1' seek-loot で戻っていた。今は '8' approach-descent で北へ離れる。）
+  - test_a_small_rise_across_t3_keeps_the_leave: 決定 509 で T2（離れる）と決めた後、決定 511 の盤面で
+    HP = 最大 HP 400（T3 に 17、幅 40 の内）→ T2 のまま離れる。保持した T2 は何も使わない作戦。
+    対照: 同じ盤面を最初に読むと T3 で離れない。
+  - test_a_decisive_rise_turns_the_pack_to_fight: HP = 最大 HP 440（T3 に 57、幅 44 を越える）→ T3 に変わり
+    離れない。13 体の側は「戦う」になり、(33,91) の避けるマスが外れる。
+  - test_the_fight_side_holds_through_a_small_drop_and_turns_on_a_decisive_one: 最大 HP 430。決定 509 の
+    盤面 HP 430 で T3（戦う）→ 決定 511 の盤面 HP 380（T2 に −3）でも T3 のまま戦う → 決定 513 の盤面
+    HP 330（−56、幅 43 を越える）で T2 になり離れる。
+  - test_a_hasted_pack_member_is_read_as_it_is: T3 と決めた後、HP 425/430 で熊1体が加速 → 読みは T2（−24、
+    幅 43 の内）だが、強くなった交戦なので幅なしで T2 → 離れる。
+  - test_instant_death_is_taken_as_read: T3 と決めた後の T2（−3）の読みは保持されるが、同じ読みが即死なら
+    そのまま T2 になる（決定 511 の盤面の読みに instant_death を立てた作り物）。
+  - test_the_visible_part_of_a_left_pack_is_not_fought_alone: 離れると決めた後、熊3体だけが見える盤面。
+    3体だけなら幅を越えて T3 の読みだが、見えない仲間が覚えられているので T2 のまま離れる。
+  - test_pack_mates_unseen_for_the_veto_window_are_forgotten: 同じ盤面が 1,000 ゲームターン後なら
+    見えない 10 体は忘れられ、3体は読みどおり T3 で離れない。
+  - test_a_new_floor_visit_forgets_the_decided_sides: 別の階の盤面を見て戻ると記憶は空で、HP 400 の盤面は
+    T3 で離れない。
+  - test_a_restored_checkpoint_keeps_the_decided_side: 離れると決めた後の checkpoint_bytes を
+    restore_checkpoint_bytes で戻すと記憶は同じで、HP 400 の盤面でも離れる。記憶の無い古い
+    チェックポイントは normalize_policy_state で None になり、まっさらに決める（T3 で離れない）。
+  HeldTierTest（境の決まりだけ、7 本）: T2→T3・T3→T2・T2→T1 の幅、見えない仲間、強くなった交戦、
+    T1→T3 と T3→T1 の2つの境。
+
+5. 元に戻すと落ちることの確認（revert-proof）
+---------------------------------------------------------------------
+  作業ブランチの worktree で、src の1か所だけをその場で戻し、その試験を流し、元のバイトに戻した
+  （手順は scratchpad の revert_proof.py。git stash は使っていない）。12 か所とも赤になった:
+  P1 tiered の保持（_held_reading → decided）: BearPackHoldRecordedTest 10 本中 8 本が赤
+     （加速と階の2本は保持が無くても読みどおりなので緑。この2本は P4・P11 が固定する）。
+  P2 余裕の記録（_tier の free_margin / supply_margin）: small_rise・decisive_rise・fight_side の 3 本が赤。
+  P3 即死と止まりの条件で読みを取る: test_instant_death_is_taken_as_read が赤。
+  P4 新しい敵・速くなった敵で悪い読みを取る: test_a_hasted_pack_member_is_read_as_it_is が赤。
+  P5 見えない仲間がいる間は良くならない: test_the_visible_part_of_a_left_pack_is_not_fought_alone が赤。
+  P6 T3 の読みを T2 に保持した時の何も使わない作戦: test_a_small_rise_across_t3_keeps_the_leave がエラー。
+  P7 側が戦うに変わった時に避けるマスを外す: test_a_decisive_rise_turns_the_pack_to_fight が赤。
+  P8 facts の "decided": test_the_left_pack_is_not_walked_back_to がエラー。
+  P9 policy.py の threat_tiers.observe: test_pack_mates_unseen_for_the_veto_window_are_forgotten が赤。
+  P10 逃げの段の避けるマス（tiers_leave or ...）: test_the_left_pack_is_not_walked_back_to が赤
+     （決定 510・512・514・516・518・519 で seek-loot が (33,91) へ戻る＝元の往復）。
+  P11 policy_observation の forget_floor_visit: test_a_new_floor_visit_forgets_the_decided_sides が赤。
+  P12 policy_state の既定値: test_a_restored_checkpoint_keeps_the_decided_side がエラー。
+  P13 policy の __init__ の既定値（検査の後で足した）: これが無い時に checks.json の
+     test_calibration_checkpoint の 2 本と test_policy_calibration の 1 本が赤だった（6 章）。
+  戻しの確認をしていないもの: retreat_veto_life の _gone → gone の改名と _lift への切り出し（振る舞いは同じ。
+  既存の試験で確かめた、6 章）、flight_recorder の記録の名前（観測だけ）、supply_fight_stopped の
+  target=None（既定値の追加。戻すと呼び出しが TypeError になる）。
+
+6. 検査
+---------------------------------------------------------------------
+  すべて前景のコマンドで流した。ただし長い実行は道具の決まりで約3分後に自動で裏に回ったので、
+  終わりの知らせを待ってから次へ進んだ（turn を終えて待ってはいない）。最後に自分で起こしたプロセスは残っていない
+  （止めたのは自分の runner 2つだけ）。
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": 通った（最終の HEAD）。
+  - 新しい試験 tests.test_threat_tier_hysteresis_1108: 17 本すべて合格（最終の HEAD）。
+  - python scripts/town_work_manifest.py --write: 「1621 candidates (260 proved data), 39657 sites,
+    zero unmapped」。続く確認: 「0 violation(s)」。scripts/town_work_review.json に新しい関数 5 つ
+    （_held_reading・decided・held_tier・_as_held・_tier_memory）の登録を足した。
+    途中で `TIER_RANK.__getitem__` という書き方が model.py の AbilitySources.__getitem__ と結び付けられて
+    未登録に出たので、その書き方をやめた（main 単独では未登録ゼロであることを確かめた）。
+  - checks.json の全モジュール（ドット形式とパス形式の両方を名前にそろえ、脅威度の段の試験のモジュールを足して
+    444 モジュール）をブランチで流した: 実行 5,758 本・飛ばし 22・赤のモジュール 94・赤の試験 304。
+    赤の 94 モジュールを main e436b3d5ac（一時の worktree、終わってから消した）で流して比べた:
+      ・90 モジュール（赤の試験 295 本）は main でも同じ試験が赤（11-05 の決定どおり手を付けていない）。
+        test_cli の 2 本（Stage2aFollowBarrierPin・StationaryReasonsTest、SimpleNamespace に inside_arena が
+        無い）は main でも同じエラー（モジュール全体は main で 20 分以上終わらず、2 本だけを両方で流した）。
+      ・ブランチだけで赤だった 4 モジュールのうち 3 つは本当の差で、直した:
+        - test_calibration_checkpoint の 2 本（新しく作った policy と復元した policy の属性の集合が同じこと）と
+          test_policy_calibration の 1 本: 新しい属性を normalize_policy_state にだけ足し、policy の __init__ に
+          足していなかった。__init__ に `self._threat_tier_memory = None` を足して 2 モジュール 21 本とも合格。
+        - test_big_floor_decision_speed の 1 本（盤面ごとの鍵・理由・facts の要約の固定）: 迷宮の 20 盤面の
+          facts の要約が、足した観測の欄（reserve・free_margin・supply_margin・raw_tier・decided）で変わった。
+          全盤面の鍵と理由は同じで、足した欄を外した要約は元の基準と全部一致することを確かめてから、
+          tests/fixtures/big-floor-1107-baseline.json の迷宮の要約を更新した（町の 27 盤面は変わらず）。合格。
+      ・test_control_client の 5 本は負荷の下の時間の揺れ（ブランチで単独に流すと1回目 4 本赤・2回目は全部合格、
+        main も単独で合格）。前の報告と同じ揺れ。
+    ブランチのせいで赤になる試験は、直した後 0 本。
+  - 全体テスト・preflight・mutation_check・fast_tier は流していない（指示どおり）。
+  - 注意: 流している間に main が a0c5ff93b0 へ進んだ（n1b-50f-quest-lap などが入った）。このブランチは
+    指示どおり e436b3d5ac の上にある。取り込む時は town_work_sites.json / town_work_review.json の
+    --write をやり直す必要があるかもしれない。
+
+7. 保守性
+---------------------------------------------------------------------
+  - 新しい判断は threat_tiers.py の1つの節（the decided side）にまとめた: 記憶の型（Decided / TierMemory）、
+    observe / forget_floor_visit、engagement_reading、held_tier（境の決まりだけの純粋な関数）、
+    _as_held、decided。呼び出し側（_should_flee、tier_of、resist_potion、supply fight、me_powers）は
+    変えていない。tiered を通る全員に同じ保持が効く。
+  - 幅は既存の reserve をそのまま使い、新しい数を作っていない。見えない敵の窓・敵の鍵・死や変身の判定は
+    retreat_veto_life のものを共有した（_gone を gone として公開し、observe の外し方を _lift に切り出して
+    release と共有。重複を作らないため）。止まりの条件も supply_fight_stopped を目標なしで共有。
+  - 見えない時の側は新しい拒否の集合を作らず、既存の避けるマスとその寿命に乗せた。逃げの段の1行の
+    条件を足しただけ（leave_due の値を変数にして、歩くかどうかの判定と共有）。
+  - 余裕（free_margin / supply_margin / reserve / raw_tier）を as_dict に出したので、決定の行で
+    境からの距離と保持の有無が読める（前の報告の「ログで区別が付きにくい」の改善）。
+  - 気になる点:
+    (1) 1つの決定の中で、見えている戦略上の敵の集合（_should_flee）と物理的な敵の集合
+        （resist_potion）は少し違う読みになり、どちらも保持の対象。先に読んだ方の段が後の読みに効く。
+        どちらも交戦全体の読みなので主の答えに沿うと考えたが、決まりとしては「最初に決めた側」。
+    (2) threat_tiers.py は 1,600 行を超えた。保持の節は別のモジュールにもできるが、T1/T2/T3 と
+        Assessment / SupplyPlan / supply_fight_stopped を使うので、循環を避けるには定数の置き場の移動が要る。
+        発注文の「threat_tiers の中に1つ」に従って今回は同じファイルにした。
+
+8. checks.json に足す項目の案（checks.json は編集していない）
+---------------------------------------------------------------------
+  {"id": "THREAT-TIER-HYSTERESIS", "owner": "2026-11-08 熊の群れの往復「境に余裕を持たせる」", "tests": ["tests.test_threat_tier_hysteresis_1108"]}
+
+9. 未決の点・主に聞きたいこと
+---------------------------------------------------------------------
+  (1) 保持した側の強さ: 「戦う」と決めた後は、読みが T2 に幅（38〜48 HP）未満しか入らない間は無料の攻撃で
+      戦い続ける（スピードの薬も飲まない）。止めるのは即死・止まりの条件・幅を越える悪化・新しい敵・加速と、
+      今までどおりの _emergency_item の3ターンの致死の判定と HP 40% の判定（T3 の時は段が決めないので、
+      今日の判定が残る）。主の答えどおりと考えたが、幅を「最大 HP の1割」だけにするなどの調整があり得る。
+  (2) 計算の上限を越えた読み（tier None）は保持しない（今までどおり今日の判定）。覚えた段を使うことも
+      できるが、新しい振る舞いになるので入れていない。
+  (3) 離れたマスの避けるマスは逃げの段が歩いて離れた時だけ付く。巻物・*破壊*・階段で離れた時は遠くへ
+      行くので付けていない。歩いて離れた群れに別の道から近づくことは止めない（「その群れに近寄らない」は
+      主が選ばなかった案）。見えれば側が保たれて、また離れる。
+  (4) 階を離れた後に同じ階へ戻ると（新しい階）まっさらに決める（敵の番号が使い回されるため）。
+  (5) 並行の実装役との重なり: policy.py は逃げの段（8130〜8165 付近）と observe の1行（7535 付近）だけを
+      変えた。n1b-348-stops-1108 の _avoid_engagement_key、n1b-50f-quest-lap-1108 の quest_target_search /
+      探索の前線には触れていない。scripts/town_work_review.json と src/hengbot/town_work_sites.json は
+      生成の都合で全員が触る（取り込み時に --write の再実行が要るかもしれない）。
+  (6) 前の報告の 8 章 (1) の案 c（境に余裕）が今回の答え。案 a・b は入れていない。
+
+10. コミット
+---------------------------------------------------------------------
+  2577335889 Hold the threat tiers' decided side across small changes near a boundary
+    （src・試験・索引・big-floor の基準の更新。1つの論理の変更として1コミット）
+  この報告と DIAG は次のコミット（報告のコミット）。
