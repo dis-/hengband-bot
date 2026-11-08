@@ -267,5 +267,25 @@ class TeleportOrDestructionRecordedTest(DeathsRecordedHarness):
         self.assertEqual(answers[4230087][2], DESTRUCTION_REASON)
 
 
+class T1LeavesTheSummonerRecordedTest(DeathsRecordedHarness):
+    """C: outside quests a T1 engagement leaves before the summoner's three shots."""
+
+    def test_the_t1_engagement_leaves_instead_of_shooting(self):
+        recorded = self.recorded("life-350")
+        self.assertEqual((recorded[970232]["reason"], recorded[970232]["tier"]),
+                         ("summoner:ranged-kill", "T1"))
+        policy, answers = self.replay("life-350", 970232)
+        raw, key, reason = answers[970232]
+        self.assertEqual(reason, "flee:scroll")
+        self.assertEqual(key, "r" + letter(raw, *TELEPORT))
+
+    def test_a_sturdier_player_still_shoots(self):
+        def sturdier(raw):
+            raw["player"]["hp"] = raw["player"]["max_hp"] = 2000
+        # DECLARED CONSTRUCTED: the HP of the last boards raised, so the engagement is no T1.
+        policy, answers = self.replay("life-350", 970232, from_turn(970187, sturdier))
+        self.assertEqual(answers[970232][2], "summoner:ranged-kill")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9756,6 +9756,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Not while the hostiles can kill within the three shots.
         if self._predicted_damage(snapshot, hostiles, turns=3) >= snapshot.player.hp:
             return None
+        # Owner 2026-11-09 C 「T1では撃たず離れる」 (n1-b life-350, 迷宮15階: three shots at a
+        # ミ=ゴウ in a T1 engagement, then the Umber hulk's gaze): outside quests, a T1 engagement
+        # (threat_tiers.cannot_win, the owner's 11-08 「勝てないと分かれば離脱」) is left by the
+        # tiers' leave below instead.  T2 and T3 shoot as before.
+        if snapshot.floor_key[2] == 0 and threat_tiers.leave_decided_here(self, snapshot):
+            engaged = threat_tiers.engagement(self, snapshot)
+            if engaged and threat_tiers.cannot_win(
+                    threat_tiers.tiered(self, snapshot, engaged), snapshot.player.hp):
+                return None
         # The quickest kill with a clear shot: a body on another's bolt path
         # takes the arrow instead (_ranged_attack_key refuses that shot).
         for _shots, target in sorted(
