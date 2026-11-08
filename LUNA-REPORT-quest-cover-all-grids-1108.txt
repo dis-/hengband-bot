@@ -92,3 +92,80 @@ LUNA-REPORT quest-cover-all-grids-1108（クエスト探索の「覆うマス」
 7. checks.json への提案
 ======================================================================
 {"id":"QUEST-COVER-ALL-GRIDS","owner":"2026-11-08 「半端な定義は許可しない。外周マス以外の全てを感知する必要がある。」","tests":["tests.test_n1b_62f_quest_cover_1108_recorded","tests.test_n1b_50f_quest_lap_1108_recorded","tests.test_quest_target_search_1105"]}
+
+======================================================================
+追加（所有者の答え 2026-11-08 21:5x、1つの答えに1コミット）
+======================================================================
+
+コミット
+ 3. 775255ce51 Count only the casts' reach for a quest search without telepathy（Q2）
+ 4. f59dd0c7aa Give a random quest floor up once its grids were covered twice（Q1）
+ 5. 0f195a14a8 Open the quest floor's cut-off ground with a digger or Stone to Mud（Q3）
+ 6. この追記のコミット
+ 覆うマスの定義は「外周マス以外の全て」のまま。所有者の答えは各モジュールの説明にそのまま書いた。
+
+Q2「感知を使った範囲だけ数える」（テレパシーのないキャラ）
+ - テレパシーがなければ、歩いた所は何も覆わない（quest_target_search._reach_now が空）。数えるのは、標的の種族を
+   見せられる感知を唱えた所の半径だけ。周回は視界の停止点に加えて感知の停止点を足し、外周以外の全マスが感知の
+   半径に入るまで回る（search_coverage.plan の radius 0 では、テレパシーの段を飛ばす）。
+ - そういう手段がまったくなければ、見えているマス（in_view）を覆ったとして数え、周回は今までの視界の停止点と
+   見え方の決まりのまま。
+ - テスト test_without_telepathy_only_the_casts_count（62F の盤面からテレパシーを外す、DECLARED）。
+   - 手段なし: 見えているマスだけを数え、停止点は draw_stops のまま。
+   - 取り込んだ全感知・邪悪感知あり: 歩きは何も数えず、半径 30 の停止点で歩けるマスから 30 で届くマスを全部覆う。
+ - revert-proof: テレパシーのない時に感知の停止点を引く条件を外すと落ちる。
+
+Q1「全域を2回覆ったら諦める」（周回の上限）
+ - search_coverage.Sweeps が全域の覆いの回数を数える。毎回空から数え、探索の開始から、歩きの届く所と標的を見せる
+   感知で覆う。外周以外のマスが1つも残らなければ1回と数え、次はまた空から始める。数と途中の覆いは探索台帳
+   （search_sweep / search_sweep_turn / search_sweeps）に置き、再起動しても続きから数える。
+ - quest_target_search.coverage_given_up を、policy_quest._quest_floor_exit_locked の解除の1つとして名前を付けて
+   足した。2回覆っても標的が見えなければ出口の鍵が外れ、探索をやめ、解除されたクエスト階として階を離れる
+   （クエストは失敗）。新しい離れ方は作っていない。標的が見えても数は戻さない。見えている間は数えない。
+ - 記録: 62F の階の訪問の 37回の感知（到着からの全部）は外周以外の 8,232 マスを全部覆っていた。ただし探索の開始
+   （16:12:22、turn 3218746）以後の 14回の感知と歩きでは、16:18 までに 1回も全域を覆っていない（残り 1,994 マス。
+   地震でふさがった西側）。この規則だけでは 62F はまだ諦めない。Q3 で通路を開けてから覆う。
+ - テスト:
+   - test_the_recorded_detections_covered_every_inner_grid（37回で 8,232 マス全部）
+   - test_the_floor_covered_twice_is_given_up（記録の 37回の感知を2回、DECLARED で唱え直す → 1回目は鍵のまま、
+     2回目で coverage_given_up が真、出口の鍵が外れ、次の判断はクエスト探索でない）
+   - test_one_coverage_is_not_enough（1回では鍵のまま、台帳に 1）
+ - revert-proof: 出口の鍵の解除を外す → 2回で諦めるテストが落ちる。数える処理を外す → 1回のテストが落ちる（0 != 1）。
+
+Q3「掘るか岩石溶解で通す」（ふさがった通路）
+ - どの歩きでも届かない覚えた床（外周の内側）があれば、鍵の扉の後、秘密のドアの探索と周回の前に、既存の開け方で
+   開ける: retreat_enclosure.open_toward_key → _dig_key。持っている掘る道具の経路（tunnel_feasibility の上限つき）、
+   無ければ岩石溶解（魔法棒か取り込んだ力。sealed_pocket の回数の数え方）。手段が無ければ扉探しと周回は今のまま。
+ - 記録: 62F の n1-b は岩石溶解の魔法棒（12回分、slot m）を持っていた。歩きでは届かない覚えた床は 924 マス（西側の
+   (29,65) を含む）。
+ - テスト:
+   - test_the_cut_off_floor_is_opened_with_the_wand_before_the_door_search（記録の盤面と記録の魔法棒で、扉探しや
+     周回の前に stuck:walled-off-stone-to-mud で歩き（最初の一歩を実行器に通す）、'am' で覚えた壁に向けて撃つ）
+   - test_at_the_sealed_passage_the_wand_is_aimed_through_it（(27,65) で行き止まりの探索の後、(28,64)〜(28,66) の
+     壁へ撃つ）
+   - test_with_no_opener_the_door_search_and_lap_go_on（魔法棒を使い切ったと DECLARED → 周回）
+   - 62F の既存のテストは「魔法棒を使い切った」と DECLARED して、記録どおりの周回を確かめる形にした。
+ - revert-proof: 開ける段を外す → 最初のテストが落ちる（扉探しと周回だけになる）。
+ - 50F の n1-b は掘る道具も岩石溶解も持っていないので、50F の振る舞いは変わらない。
+
+検査（すべて前面で実行）
+ - 読み込みの確認: OK。
+ - town_work_manifest --write: 1625 candidates（261 proved data）、39699 sites、zero unmapped。続く検査は 0 violation(s)。
+   新しく対象になった6つ（retreat_enclosure の open_toward_key・_dig_key・_dig_route・_melt_key、
+   sealed_pocket.melt_at_key、quest_target_search._cut_off_floor）の審査を足した。dungeon_ladder_lint: 0 violation(s)。
+ - テスト: 62F 14件、50F 6件、test_quest_target_search_1105 18件、test_quest_sealed_pocket_1108_recorded 5件。
+   全部通過、失敗 0。
+
+保守性（追加分）
+ - 全域の覆いの数え方は search_coverage.Sweeps の1つの型。覆い（Coverage）と半径の円の処理は周回と同じものを使う。
+ - 階を離れる道は既存の出口の鍵の解除だけ（名前を付けた解除を1つ足した）。
+ - 開け方は retreat_enclosure の既存の開け方の入口（open_toward_key）を1つ足しただけ。掘る経路・岩石溶解の回数・
+   狙いは既存の処理のまま。
+ - 「何が見えた所か」は quest_target_search._reach_now の1か所（テレパシー / 感知だけ / 見えているマス）で、周回の
+   済みの判定と全域の数えの両方がこれを使う。
+
+所有者への問い
+ - 新しい決まりが要るものはない。
+
+checks.json への提案（この枝全体で1項目）
+{"id":"QUEST-COVER-ALL-GRIDS","owner":"2026-11-08 「半端な定義は許可しない。外周マス以外の全てを感知する必要がある。」 / 21:5x 「全域を2回覆ったら諦める」「感知を使った範囲だけ数える」「掘るか岩石溶解で通す」","tests":["tests.test_n1b_62f_quest_cover_1108_recorded","tests.test_n1b_50f_quest_lap_1108_recorded","tests.test_quest_target_search_1105","tests.test_quest_sealed_pocket_1108_recorded"]}
