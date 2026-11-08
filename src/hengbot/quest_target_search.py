@@ -178,15 +178,19 @@ def searching(policy, snapshot: Snapshot) -> bool:
 
 
 def _routes(policy, snapshot: Snapshot) -> dict:
-    """Every walkable cell -> (walking distance, first step), breadth first."""
+    """Every walkable cell -> (walking distance, first step), breadth first.
+
+    The lap, the door search and the lock picks walk these routes, so they keep the routes'
+    engagement veto as every walker does (policy ``_engagement_route_veto``)."""
     start = snapshot.player.position
     routes = {start: (0, None)}
     queue = deque([start])
+    avoided = policy._engagement_avoid_cells | policy._engagement_route_veto(snapshot)
     while queue:
         here = queue.popleft()
         distance, first = routes[here]
         for neighbour in policy._walkable_neighbors(snapshot, here, allow_damaging=False):
-            if neighbour not in routes and neighbour not in policy._engagement_avoid_cells:
+            if neighbour not in routes and neighbour not in avoided:
                 routes[neighbour] = (distance + 1, neighbour if first is None else first)
                 queue.append(neighbour)
     return routes

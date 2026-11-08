@@ -4285,12 +4285,12 @@
     "delegation": "selected child; no independent success"
   },
   "policy_equipment.py:EquipmentMixin._equipment_home_outcome": {
-    "classification": "data",
+    "classification": "adapter",
     "rows": [
-      "data/no-independent-credit"
+      "equipment-transaction"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: Name a Home transaction exit that has no prepared action offer.",
+    "evidence": "Offer adapter of the equipment transaction (n1-b life-348, 2026-11-08): it makes the producer's keyed offer (_offer_execution) or its no-step and returns the key it was given; its callers (_equipment_transaction_home_key / _equipment_transaction_town_key) are the selected producers. No independent command or progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -4318,12 +4318,12 @@
     "delegation": "selected child; no independent success"
   },
   "policy_equipment.py:EquipmentMixin._equipment_town_outcome": {
-    "classification": "data",
+    "classification": "adapter",
     "rows": [
-      "data/no-independent-credit"
+      "equipment-transaction"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _equipment_town_outcome returns selector/diagnostic/state data, not an independently selected action",
+    "evidence": "Offer adapter of the equipment transaction (n1-b life-348, 2026-11-08): it makes the producer's keyed offer (_offer_execution) or its no-step and returns the key it was given; its callers (_equipment_transaction_home_key / _equipment_transaction_town_key) are the selected producers. No independent command or progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -16283,5 +16283,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "policy.py:HengbotPolicy._engagement_route_veto": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only the union of the engagement danger cells and the remembered disenchanter area, the routes' veto (n1-c life-171); never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "disenchant_avoid.py:remembered_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only the cells routes keep off for the remembered kept-away disenchanters (a frozenset of positions); never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dungeon_shop, combat_answer, dark_recall, disenchant_avoid, immobile_threat_memory, locked_doors, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, locked_doors, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1352,7 +1352,7 @@ class NavigationMixin:
         # retreat just left and alternates with it (n1c-5f-loop-1102).  The
         # area the retreat would fire in again is routed around as well
         # (_engagement_danger_cells, shoot-immobile-sleeper-1102).
-        vetoed = self._engagement_avoid_cells | self._engagement_danger_cells(snapshot)
+        vetoed = self._engagement_avoid_cells | self._engagement_route_veto(snapshot)
         self._nav_ledger.advance_descent_route(origin)
         route = self._nav_ledger.descent_path
         if route:
@@ -1491,7 +1491,7 @@ class NavigationMixin:
             self._engagement_avoid_cells
             | self._warning_refused_cells
             | self._unseen_attack_area_cells(snapshot)
-            | self._engagement_danger_cells(snapshot)
+            | self._engagement_route_veto(snapshot)
         )
         oscillating = self._is_oscillating()
         identity = self._explore_goal_identity
@@ -1781,8 +1781,7 @@ class NavigationMixin:
         unseen_veto = False
         # The area the engagement retreat would fire in again (as
         # _plan_explore_path_pass), with a kept-away disenchanter out of sight.
-        danger = self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
-            self, snapshot, immobile_threat_memory.ringed)
+        danger = self._engagement_route_veto(snapshot)
         while queue:
             position = queue.popleft()
             if position == goal:
@@ -1857,8 +1856,7 @@ class NavigationMixin:
         # kept-away disenchanter out of sight keeps its area too
         # (disenchant_avoid.remembered_cells), also while the danger cells are
         # empty inside an awake one's area.
-        danger = self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
-            self, snapshot, immobile_threat_memory.ringed)
+        danger = self._engagement_route_veto(snapshot)
 
         while queue:
             cost, _, pos = heappop(queue)
