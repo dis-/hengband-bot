@@ -14403,6 +14403,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _position_target_step(
         self, snapshot: Snapshot, target: Position,
         *, through: frozenset[tuple[int, int]] = frozenset(),
+        avoid: frozenset[Position] = frozenset(),
     ) -> Position | None:
         start = snapshot.player.position
         seen = {start}
@@ -14412,7 +14413,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if pos == target:
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, pos, through=through):
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if neighbor in seen or neighbor in self._engagement_avoid_cells or neighbor in avoid:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -17252,6 +17253,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self.last_reason = "stuck:teleport-escape"
             return self._read_key(snapshot, teleport)
         return None
+
+    def _engagement_route_veto(self, snapshot: Snapshot) -> frozenset[Position]:
+        """The cells every walker keeps off for the engagement retreat.
+
+        The danger cells (``_engagement_danger_cells``) with a kept-away disenchanter's
+        area out of sight (disenchant_avoid.remembered_cells), also while the danger cells
+        are empty inside an awake one's area.  One veto for the explore, descent and loot
+        walks: n1-c life-171 (Angband 80F, 2026-11-08 16:59) retreated '3' from a Warp
+        demon (race 812, UN_BONUS) remembered out of sight to [8,50], and the loot walk,
+        which kept off only the retreats' own vetoes, stepped '7' straight back to [7,49]
+        until the loop detector stopped the bot."""
+        return self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
+            self, snapshot, immobile_threat_memory.ringed)
 
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.

@@ -11,8 +11,12 @@ C:/hengband-backups/pdca/captures/n1b-348-1108/:
   state.jsonl.gz (the 38 boards of turns 2779359-2779728 at Orc cave 23F), the decision
   rows of those turns and the monster knowledge (lib/edit/MonraceDefinitions.jsonc) of
   every race on them.
+- ``c``: n1-c life-171 (Magic-Eater Lv46, build bot-206702cc9) captures of the 16:59:51
+  loop-detected stop at Angband 80F, copied to C:/hengband-backups/pdca/captures/
+  n1c-171-80f-loop-1108/: its 68 boards (turns 3660848-3661310), their decision rows and
+  the monster knowledge of every race on them.
 
-    python tests/extract_n1b_348_stops_1108_fixtures.py <copies-root>
+    python tests/extract_n1b_348_stops_1108_fixtures.py <copies-root> <n1c-171-copy>
 """
 import gzip
 import json
@@ -47,12 +51,13 @@ def extract_a(capture: Path) -> None:
 
 
 def rows(path: Path) -> list:
-    with gzip.open(path, "rt", encoding="utf-8") as stream:
+    with gzip.open(path, "rt", encoding="utf-8", errors="replace") as stream:
         return [json.loads(line) for line in stream if line.strip()]
 
 
-def extract_b(capture: Path) -> None:
-    boards = rows(capture / "state.jsonl.gz")
+def extract_loop(capture: Path, name: str) -> None:
+    boards = [board for board in rows(capture / "state.jsonl.gz")
+              if board.get("type") == "player_turn"]
     turns = {board["turn"] for board in boards}
     decisions = [{"turn": row["turn"], "reason": row["reason"], "key": row["key"]}
                  for row in rows(capture / "bot-decisions.jsonl.gz")
@@ -62,14 +67,15 @@ def extract_b(capture: Path) -> None:
            for field in ("visible_monsters", "detected_monsters") for row in board.get(field, [])}
     fixture = {"boards": boards, "decisions": decisions,
                "monraces": {key: asdict(races[key]) for key in sorted(ids)}}
-    with gzip.open(OUTPUT / "b.json.gz", "wt", encoding="utf-8", newline="\n") as stream:
+    with gzip.open(OUTPUT / f"{name}.json.gz", "wt", encoding="utf-8", newline="\n") as stream:
         json.dump(fixture, stream, ensure_ascii=False, default=sorted, separators=(",", ":"))
 
 
 def main() -> None:
     root = Path(sys.argv[1])
     extract_a(root / "incidentA")
-    extract_b(root / "20261108-143713-loop-detected")
+    extract_loop(root / "20261108-143713-loop-detected", "b")
+    extract_loop(Path(sys.argv[2]), "c")
     for path in sorted(OUTPUT.rglob("*")):
         if path.is_file():
             print(path.relative_to(OUTPUT), path.stat().st_size)

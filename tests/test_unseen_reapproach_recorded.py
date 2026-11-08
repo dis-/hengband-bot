@@ -245,6 +245,9 @@ class UnseenAttackAreaConsumersTest(unittest.TestCase):
             player=SimpleNamespace(position=position), floor_key=FLOOR,
             turn=self.TURN + 1, grids={}, in_town=False,
             in_bounds=lambda _position: True,
+            # Nothing in view or detected: the loot walk keeps the routes'
+            # engagement veto too (_engagement_route_veto), read from these.
+            visible_monsters=[], detected_monsters=[],
         )
 
     def test_loot_target_in_the_area_is_not_resumed(self):

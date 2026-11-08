@@ -16107,5 +16107,27 @@
     "rows": [
       "survival"
     ]
+  },
+  "policy.py:HengbotPolicy._engagement_route_veto": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only the union of the engagement danger cells and the remembered disenchanter area, the routes' veto (n1-c life-171); never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "disenchant_avoid.py:remembered_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only the cells routes keep off for the remembered kept-away disenchanters (a frozenset of positions); never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

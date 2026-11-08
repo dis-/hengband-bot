@@ -28,6 +28,21 @@ sight) the player follows the decided moves with nothing in view, ten game turns
 for the retreat veto's window; the remembered frontiers beyond the sleeper's area are taken
 as already probed, so the frontiers left lie past it, where the live explore went.
 
+C, the same shape on n1-c life-171 (Magic-Eater Lv46, Angband 80F, 2026-11-08 16:59
+loop-detected): a Warp demon (race 812, UN_BONUS: owner 2026-11-05 「劣化耐性がないときに
+劣化属性攻撃をするモンスターとの戦闘は可能であれば回避する」) was last shown at [7,41]
+before a *Destruction*; out of sight it is remembered (disenchant_avoid.remembered).  At
+[7,49] (distance 8) the retreat stepped '3' to [8,50]; there seek-loot, whose walk kept off
+only the retreats' own vetoes and not the routes' engagement veto the explore and descent
+keep, stepped '7' straight back, until the loop detector.  The step back is the loot walk's,
+so B's sleeper memory does not end it; every walker now keeps one veto
+(policy ``_engagement_route_veto``).  DECLARED RECONSTRUCTION: a fresh policy replays the
+capture's boards to [8,50] (turn 3661084) with nothing missing for the floor's abilities, as
+the recorded depth_safety (the live process knew its absorbed *Destruction*, a fresh policy
+has not read the power list).  DECLARED CONSTRUCTED: the recorded loot target [13,108] lies
+past map the fresh policy never saw, so the pile is at [6,48], the live route's next loop
+cell, inside the demon's remembered area.
+
 Receipts (both stops' bot-stderr.log are full of town:blocked:work-contract:unmapped-
 producer; the life's town-work-receipts.jsonl holds 11,486 of them, 99% at the executor-post
 seam, with the driver-submit receipt of the same key valid): an operation's completion set
@@ -59,7 +74,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from hengbot import cli
+from hengbot import cli, disenchant_avoid
 from hengbot.cli import PostingContract, SendResult, _ExecutorInputPort, _send_new_decision_key
 from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
 from hengbot.home_errand import HomeErrandState
@@ -88,15 +103,18 @@ SHELVED = ("耐電のアミュレット {r電}", 40, 30)
 with gzip.open(FIXTURES / "b.json.gz", "rt", encoding="utf-8") as _stream:
     LOOP = json.load(_stream)
 RECORDED = {row["turn"]: (row["key"], row["reason"]) for row in LOOP["decisions"]}
+with gzip.open(FIXTURES / "c.json.gz", "rt", encoding="utf-8") as _stream:
+    WARP = json.load(_stream)
+WARP_DEMON, WARP_SEEN, WARP_PILE = 812, Position(7, 41), Position(6, 48)
 AVOID = "threat:avoid-engagement"
 SLEEPER, SLEEPER_RACE = Position(23, 73), 348
 MOVES = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
          "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 
 
-def knowledge():
+def knowledge(case=None):
     races = {}
-    for race, facts in LOOP["monraces"].items():
+    for race, facts in (case or LOOP)["monraces"].items():
         facts = copy.deepcopy(facts)
         for name in ("flags", "abilities"):
             facts[name] = frozenset(facts[name])
@@ -311,6 +329,51 @@ class KeyedOfferReviewTest(unittest.TestCase):
             generator.generate(generator.sources(), recorded)
         for site in OFFER_ADAPTERS:
             self.assertIn(site, str(raised.exception))
+
+
+
+class RememberedDisenchanterLootRecordedTest(RecordedHarness):
+    def test_recorded_retreat_then_loot_walk_back(self):
+        rows = {row["turn"]: (row["key"], row["reason"]) for row in WARP["decisions"]}
+        boards = {board["turn"]: board for board in WARP["boards"]}
+        self.assertEqual((here(boards[3661088]), rows[3661088]), (Position(7, 49), ("3", AVOID)))
+        self.assertEqual((here(boards[3661092]), rows[3661092]), (Position(8, 50), ("7", "seek-loot")))
+        self.assertEqual(boards[3661088]["visible_monsters"], [])
+        shown = [(m["race_id"], m["y"], m["x"]) for m in boards[3660879]["visible_monsters"]]
+        self.assertIn((WARP_DEMON, 7, 41), shown)
+
+    def test_the_loot_walk_keeps_off_the_remembered_area(self):
+        with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
+                               lambda self, *args, **kwargs: frozenset()):
+            policy = HengbotPolicy(monrace_knowledge=knowledge(WARP))
+            boards = WARP["boards"]
+            policy.prime(parse_snapshot(copy.deepcopy(boards[0]), policy._monrace_knowledge))
+            for raw in boards:
+                if raw["turn"] == 3661084:
+                    break
+                key = decide(policy, copy.deepcopy(raw))
+                if key:
+                    policy.confirm_key_posted(key)
+            raw = copy.deepcopy(raw)
+            self.assertEqual(here(raw), Position(8, 50))
+            board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+            self.assertEqual([(m.race_id, m.position) for m in disenchant_avoid.remembered(policy, board)],
+                             [(WARP_DEMON, WARP_SEEN)])
+            # DECLARED CONSTRUCTED (module docstring): the pile inside its area.
+            policy._known_loot, policy._deferred_loot = {WARP_PILE}, set()
+            policy._loot_target = WARP_PILE
+            for _ in range(3):
+                key = decide(policy, copy.deepcopy(raw))
+                if key:
+                    policy.confirm_key_posted(key)
+                if key in MOVES:
+                    step = Position(here(raw).y + MOVES[key][0], here(raw).x + MOVES[key][1])
+                    self.assertGreater(step.distance_to(WARP_SEEN), HUNT_RANGE,
+                                       (raw["turn"], key, policy.last_reason))
+                    raw["player"]["y"], raw["player"]["x"] = step.y, step.x
+                self.assertNotEqual(policy.last_reason, "seek-loot")
+                raw = dict(raw, turn=raw["turn"] + 5, messages=[])
+            self.post(policy, raw, key, [], self.later(raw))
 
 
 if __name__ == "__main__":

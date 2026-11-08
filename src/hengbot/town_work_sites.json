@@ -877,6 +877,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "disenchant_avoid.py:remembered_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "disenchant_avoid.py:retreat_key": {
     "classification": "data",
     "rows": [
@@ -4086,6 +4093,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._engagement_danger_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._engagement_route_veto": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
