@@ -2469,7 +2469,13 @@ class CombatMixin:
                 )
                 return stairs
 
-            if status_cure.treats(self, snapshot):
+            # A blind player whose escape needs no scroll (blind_teleport_key) escapes
+            # before the cure; cure-then-escape is for a scroll as the only escape.
+            blind_teleport = bool(
+                (lethal or summoner_open) and not guardian_reposition
+                and threat_tiers.blind_teleport_means(self, snapshot) is not None
+            )
+            if not blind_teleport and status_cure.treats(self, snapshot):
                 if (speed := status_cure.speed_first_key(self, snapshot)) is not None:
                     return speed  # the cure, and the escape it owes, on the next board
                 potion = status_cure.low_hp_heal(self, snapshot, hostiles,
@@ -2522,17 +2528,29 @@ class CombatMixin:
                         # taken on this board.
                         self.last_reason = "item:heal"
                         return reserved_item_command(self, snapshot, "quaff", potion)
+                if blind_teleport and (
+                        blind := self._blind_teleport_escape(snapshot)) is not None:
+                    if self._fundraising_mode in {"mine", "scavenge"}:
+                        self._note_return_start(self._last_return_trigger)
+                        self._returning_to_town = True
+                    return blind
                 if not player.blind and not player.confused:
                     # The guardian reposition needs a real teleport: owner
                     # 2026-11-02 「そもそもショートテレポートでは十分な距離が
                     # 稼げないため代替にならない。」 Without one it falls through
                     # to the rungs below unchanged.
-                    if not guardian_reposition and (
-                            used := destruction_use.key(self, snapshot)) is not None:
-                        return used
                     scroll = self._escape_scroll(
                         snapshot, teleport_only=guardian_reposition
                     )
+                    # Owner 2026-11-08 「即死の危険があるときは成功率の高いものを使う
+                    # べきなので巻物によるテレポートを優先」: a lethal board reads
+                    # the Teleportation scroll before *Destruction*.
+                    scroll_first = bool(
+                        lethal and scroll is not None and scroll.is_teleport_scroll
+                    )
+                    if not guardian_reposition and not scroll_first and (
+                            used := destruction_use.key(self, snapshot)) is not None:
+                        return used
                     if scroll is not None:
                         if guardian_reposition:
                             self.last_reason = "guardian:teleport-to-cover"
@@ -3187,10 +3205,23 @@ class CombatMixin:
             snapshot, perceived, 1, observed_loss=observed_loss
         )
 
+    def _blind_teleport_escape(self, snapshot: Snapshot) -> str | None:
+        """The blind teleport (threat_tiers.blind_teleport_key) as the
+        ladder's emergency escape: it counts as the scroll's read does
+        (EMERGENCY_ESCAPE_REASONS, _latch_repeat_emergency_return)."""
+        key = threat_tiers.blind_teleport_key(self, snapshot, "emergency:teleport")
+        if key is None:
+            return None
+        self._emergency_return_active = True
+        self._latch_repeat_emergency_return(snapshot, self.last_reason)
+        return key
+
     def _low_hp_escape_read(self, snapshot: Snapshot) -> str | None:
         """Teleport (or phase), else Word of Recall: the low-HP ladder's
-        second rung."""
+        second rung.  Blind, the teleport no scroll gives comes first."""
         player = snapshot.player
+        if (blind := self._blind_teleport_escape(snapshot)) is not None:
+            return blind
         if not player.blind and not player.confused:
             if (used := destruction_use.key(self, snapshot)) is not None:
                 return used

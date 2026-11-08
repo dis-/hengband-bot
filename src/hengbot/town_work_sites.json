@@ -5517,6 +5517,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_combat.py:CombatMixin._blind_teleport_escape": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_combat.py:CombatMixin._breeder_breakthrough_escape_key": {
     "classification": "producer",
     "rows": [
@@ -11598,6 +11605,20 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "threat_tiers.py:assess": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:blind_teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_tiers.py:blind_teleport_means": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

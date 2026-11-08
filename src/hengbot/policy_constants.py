@@ -923,6 +923,9 @@ RUMOR_GOLD_RESERVE = 300
 EMERGENCY_ESCAPE_REASONS = frozenset(
     {
         "emergency:teleport",
+        # The blind teleport (threat_tiers.blind_teleport_key): the absorbed power, the staff.
+        "emergency:teleport:absorbed-power",
+        "emergency:teleport-staff",
         "emergency:phase",
         "emergency:recall",
         "emergency:stairs",

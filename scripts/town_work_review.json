@@ -16283,5 +16283,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "threat_tiers.py:blind_teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only in effect: the player is blind and not confused, outside a store; teleport not blocked by equipment nor forbidden by an approved quest plan.",
+    "evidence": "n1-c life-171 (2026-11-08, 城65階, blind one-shot death): the escape a blind player can take without a scroll -- the absorbed Teleportation (m A e, reason plus the absorbed-power suffix) else a carried Staff of Teleportation (u + slot, reason plus -staff); the m command refuses only confusion (cmd-magiceat.cpp:463), the staff neither (use-execution.cpp). Asked by the emergency ladder, the low-HP escape read and the sensed-T1 leave in the scroll's place; None when not blind; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_tiers.py:blind_teleport_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only in effect: the player is blind and not confused, outside a store; teleport not blocked by equipment nor forbidden by an approved quest plan.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: blind_teleport_key's means (the absorbed power marker, the carried staff, or None); read by the emergency ladder to put the escape before the blindness cure.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._blind_teleport_escape": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only in effect: the player is blind and not confused, outside a store; teleport not blocked by equipment nor forbidden by an approved quest plan.",
+    "evidence": "The emergency ladder's and the low-HP read's blind teleport (threat_tiers.blind_teleport_key, reason emergency:teleport...): marks the emergency return active and latches the dive's repeat-emergency return as the scroll read does (EMERGENCY_ESCAPE_REASONS); dungeon only; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
