@@ -1,0 +1,239 @@
+LUNA-REPORT n1b-348-stops-1108（n1-b life-348 の町の止まりとループ、2026-11-08）
+
+対象: 観戦用 n1-b（魔道具術師 Lv35）life-348、ビルド bot-206702cc9（= main 206702cc93）。
+ブランチ n1b-348-stops-1108（main 206702cc93 から）。記録はサーバから読み取りだけで
+C:\hengband-backups\pdca\captures\n1b-348-1108\ に写した（サーバには何も書いていない）。
+  captures/20261108-151646-town-blocked-owner-retired-burst/   止まり A
+  captures/20261108-143713-loop-detected/                      止まり B
+  incidentA/ incidentB/   incident-captures の要る部分（town-arrival、decision-tail、policy-state、B の snapshots-current）
+受領書の集計はサーバの jsonlog/town-work-receipts.jsonl を読み取りで数えた（写していない）。
+
+======================================================================
+1. 止まり A　15:16:48 town:blocked:owner-retired-burst（町、turn 3001733）
+======================================================================
+
+結論: 未登録の producer（unmapped-producer）が止まりの原因ではない。受領書は影の記録で
+キーの選択には使われない（town_work.py の冒頭の説明）。止まりの原因は、名前の変わった品を
+対象に残った自宅の取り出し（errand）で、自宅の中と入口の判断が食い違ったこと。
+
+流れ（incidentA/town-arrival の再生で確かめた。行は journal の行、ターンはゲームターン）:
+ 1) 前の訪問で、魔道具術師の「余裕がある時に *鑑定*」（me_powerful_activation.py:355
+    _home_take_key）が、自宅の「耐電のアミュレット」(tval 40, sval 30) の取り出しを
+    鑑定目録の take（purpose identification-catalog）として出した（takes の記録に 1 回）。
+ 2) その後この品の名前が「耐電のアミュレット {r電}」に変わり 9 個に重なった（*鑑定* 済み、
+    装備の目録でも fully_known）。take の署名（名前・tval・sval）は古い名前のまま。
+ 3) home_identification.py:71 release_stale_take は、対象が無くても「他に候補が無い」ので
+    take を残した（「元の手段を買うのを待つ take は枠を保つ」の決まりがここにも効いた）。
+    到着時の policy: errand は COMPOSABLE、署名 ('耐電のアミュレット', 40, 30)。
+ 4) 行 28（turn 3001290）shop:travel で自宅へ。行 29（turn 3001698）自宅の中:
+    policy.py:6051 home:leave-for-pending-withdraw（_bound_home_take_signatures
+    policy_home.py:4317 が errand の署名を入れるので「入口から取り出す」と ESC で出る）。
+ 5) 行 30（turn 3001705）入口: policy_home.py:3768（_atomic_home_withdraw_dispatch_key）
+    目録の 148 品に署名が無いので home-errand:target-unobserved:identification-catalog（ESC）。
+ 6) 行 31 policy:none-wait の '5' が入口の上で自宅に入り直し、4)〜6) を繰り返した
+    （turn 3001705, 3001718, 3001725, 3001733）。持ち主の失敗が重なり owner-retired-burst。
+    errand の entries_without_address_progress は 2 までしか進まず、自身の上限より先に止まった。
+
+直し（コミット c12b43110d）: home_identification.release_stale_take で、take の署名を
+装備の目録も現在の自宅の目録（取り出しで短くなった番地の先も含む全棚）も持たない時は、
+その take をすぐに取り消す（どの手段や空きでも実行できないため）。手段待ちの take は今までどおり。
+再生では到着直後（行 3）に take が消え、自宅への往復に入らない。
+
+======================================================================
+2. 止まり B　14:37:15 loop-detected（オークの洞窟 23 階、turn 2779716）
+======================================================================
+
+流れ（captures/…-loop-detected の state と判断の記録、incidentB の decision-tail と policy-state）:
+ - 眠っているダークエルフ・ロード（race 348、速度 +10）が [23,73]。
+ - [23,79]（距離 6、見えている）: policy.py:17178 threat:avoid-engagement が '9' で [22,80] へ
+   （持ち主の決定 11-07「眠っている敵でも強い敵からは離れる」）。
+ - [22,80]（距離 7、壁で見えない）: policy.py:17281 付近の _engagement_danger_cells は
+   見えている敵だけを数えるので空になり、explore が '1' で [23,79] に戻る。
+ - [23,79] の回避の拒否は engagement_avoid_seal.py:48 seals で付けられなかった（残りの
+   frontier がすべて眠る敵の先にあり、拒否すると先へ進めなくなるため）。policy-state の
+   _engagement_avoid_cells は [23,78] と [23,80] だけで [23,79] が無い。
+ - turn 2779181 から 2779716 まで約 40 回の往復でループ検出。nav:break-oscillation も 2 回効かず。
+同じ根（視界の端で回避の判断が切り替わる）は 3 件目: life-339 の劣化攻撃の敵
+（disenchant_avoid.remembered）、life-341 の眠る敵による拾い物の阻止（sleeper_loot_block）。
+
+直し（コミット f24d732e06）: 新しい部品 sleeper_reach_memory.py が、戦略上の敵として見えた
+眠る敵を最後に見えたマスに覚え、見えなくなったものを _engagement_danger_cells に渡す
+（見えている時と同じに判断される: 範囲の中ではプレイヤーより近いマスを拒否）。忘れる条件は
+sleeper_loot_block と同じ（起きて見えた・別の場所や別の種族・倒した・マスが空と見えた）で、
+その判定を sleeper_loot_block.sleeper_gone として共有にした。期限は回避の拒否と同じ
+retreat_veto_life.UNSEEN_GAME_TURNS。新しい数値は無い。
+先へ進めない階は既存の決まり（stuck:recall-escape、行き止まりからの帰還）で離れる
+（life-341 0418 と同じ結果）。
+
+======================================================================
+2b. 同じ形の追加の盤面: n1-c life-171（鉄獄 80 階、16:59:51 loop-detected、bot-206702cc9）
+======================================================================
+
+コーディネータから渡された記録（C:\hengband-backups\pdca\captures
+1c-171-80f-loop-1108\）。
+ - ワープ・デーモン（race 812、UN_BONUS の劣化攻撃。劣化耐性なし → 持ち主の決定 11-05
+   「可能であれば回避」）が turn 3660879 に [7,41] で見え、その場で *破壊* を使った後は見えない。
+   disenchant_avoid.remembered が最後に見えたマスで覚えている（*破壊* は倒した行を出さず、
+   マスも空と見えないので、期限まで残る）。
+ - [7,49]（距離 8）: 何も見えていないのに、覚えた敵の範囲なので threat:avoid-engagement '3'
+   （_flee_step#4）で [8,50] へ。
+ - [8,50]（距離 9、範囲の外）: seek-loot（_normal_loot_key#2）が '7' で [7,49] へ戻る
+   （目標は (13,108) の山、道が覚えた敵の範囲を通る）。turn 3661084〜3661300 で約 25 往復。
+B の直し（f24d732e06、眠る敵の記憶）では終わらない: 敵は起きていて既に覚えられており、
+戻る歩きが探索ではなく拾い物だから。根は同じ型（戻る歩きが経路の交戦の拒否を守らない）:
+探索・降りる道・目標の道は _engagement_danger_cells と disenchant_avoid.remembered_cells を
+守るが、拾い物の歩き（policy_identification.py _loot_step と、決めた目標への
+policy.py _position_target_step）は回避の拒否マス（_engagement_avoid_cells）だけを避けていた。
+直し（コミット 3a196b93b3）: policy._engagement_route_veto を「歩く全員の 1 つの拒否」
+（危険マス ∪ 覚えた劣化攻撃の敵の範囲）にし、経路の 4 か所（policy_navigation の降りる道、
+探索の確定した道、目標の BFS、探索の計画）と拾い物の歩きがそれを使う（各所で組み立てて
+いた式をまとめた）。新しく町の経路から届く 2 関数（_engagement_route_veto、
+disenchant_avoid.remembered_cells）は data として審査し、索引を作り直した。
+
+======================================================================
+3. 未登録の producer（unmapped-producer）の正体と、取り込みの検査が見逃した理由
+======================================================================
+
+life-348 の受領書 120,166 行のうち未登録 11,486 件:
+  executor-post（input_executor.py の OperationExecutor.submit / _after_post、me_menu の答え）11,281
+  driver-submit cli.py:_send_new_decision_key 132
+  driver-submit cli.py:_run_follow 73
+政策の producer の登録漏れではなかった（索引は全部登録済みで、検査も通っていた）。
+実行時の別々の 3 つの根で、うち 1 つは審査の穴。
+
+ (1) executor の束縛が古いまま（約 98%）: input_executor.py:1813 の操作の完了は ready_board を
+     新しくするが、_observe_decidable（1347 行）と違い _bound_screen_value/_bound_state_value を
+     更新していなかった。executor-post の受領書（1363 行）は束縛された state で町かを判断する
+     ので、帰還で町からダンジョンへ移った後は、ダンジョンの一歩ごとに「町なのに work が無い」
+     と記録された（同じキーの driver-submit は required=false で正しい）。
+     同じ古い束縛で、完了の後のバックプレッシャーの再送は必ず「prompt changed before retry」
+     の terminal（止まり）になり、プロンプトが出ない時の判定も古いメッセージ履歴と比べていた。
+     直し（コミット f36fa47171）: 完了時にも観測を束縛する（1820 行）。
+ (2) 追従ループの階の変化の ESC（cli.py:4865 _run_follow）: 町に着いた時の ESC に work が
+     付かなかった（driver の work を作る送信元が cli.py:main と _send_stall_recovery_nudge だけ）。
+     起動直後の stderr の未登録 2 行（driver-submit と executor-post）がこれ。
+     直し（コミット de18a0ff34）: 入口を使える送信元を 2 つの名前付きの集合
+     DECISION_SEGMENT_SITES / DRIVER_OWNED_SEND_SITES（cli.py:130-141）にし、_run_follow を
+     driver に入れた。cli で入力口を直接呼ぶ関数がどちらにも無いとテストが落ちる。
+ (3) 審査の穴: A の判断の記録に残った未登録の offer は 1 件、policy_equipment.py の
+     _equipment_town_outcome（turn 2999943、equipment-transaction:travel-home）。この関数は
+     装備の取引の key 付き offer（_offer_execution）を出すのに、手の審査で 'data'（work を
+     持たない）と分類されていた。town_work.observe_offer は offer を継ぎ目を呼んだ関数に
+     付けるので無効になる。取り込みの検査は「関数が審査されているか」だけを見て、分類と
+     中身の矛盾を見ていなかった。_equipment_home_outcome も同じ。
+     直し（コミット 210ef706d3）: scripts/town_work_manifest.py が、key（リテラルの None 以外）
+     付きで offer の継ぎ目（OFFER_SEAMS、town_work と共有）を呼ぶ関数の 'data' 審査を拒む。
+     2 関数は equipment-transaction の adapter として審査し直し、索引を作り直した
+     （--write: 1601 候補・zero unmapped、検査 0 件）。
+
+残る 132 件（町での driver-submit _send_new_decision_key、町の戦闘の 'mB02' 'mAw' など）は、
+その時間の判断の記録がサーバで回転済みで producer を特定できなかった（受領書のファイルには
+policy-final が残らない）。dungeon-only に分類された戦闘の関数が町の戦闘で選ばれた可能性が
+高いが、確かめていないので直していない。次に出たら判断の記録の town_work で特定できる。
+
+「save archive failed: CalledProcessError git add saves/BOT_PLAY」: 影響はない。サーバの
+保管先 jsonlog/save-archive が git の作業場所ではない（git rev-parse が not a git repository）
+ため git add が 128 で失敗する。save_archive.py:50 ArchiveRepository.archive は例外を握って
+記録するだけで、セーブのコピーはその前に済み、遊びには関係しない。履歴が残らないだけ。
+サーバ側は変えていない。
+
+======================================================================
+4. テストと取り消しの確認
+======================================================================
+
+追加: tests/test_n1b_348_stops_1108_recorded.py（材料 tests/fixtures/n1b-348-stops-1108/、
+抽出 tests/extract_n1b_348_stops_1108_fixtures.py）。判断はすべて公開の choose_key、キーは
+本番の executor（_ExecutorInputPort）で送る。
+ - StaleCatalogueTakeRecordedTest（A、到着時の policy と journal を再生）
+   test_recorded_arrival_carries_a_take_whose_item_was_renamed: 記録の証拠（古い署名の take、
+     目録と自宅の新しい名前）。
+   test_the_renamed_take_gives_way_and_no_home_hand_off_holds_it: 行 0〜2 は記録どおり、
+     行 3 で take が消え、自宅の引き渡しにも残らず、キーが本番の executor で送れる。
+   取り消し: home_identification の直しを外す → 「True is not false」（errand が残る）で失敗、戻した。
+ - SleeperOutOfSightRecordedTest（B、記録の盤面）
+   test_recorded_retreat_then_walk_back: 記録の証拠。
+   test_out_of_sight_no_walk_goes_into_the_sleepers_reach: [23,79] の回避を本番の executor で
+     送り、[22,80] から見えないまま期限の間歩かせても眠る敵に近づかず、explore も出ず、
+     既存の stuck:recall-escape で階を離れる。仮定（宣言済み）: 敵の範囲の外の frontier は
+     調べ済みとする（生の探索が向かったのと同じく、残りは敵の先だけ）。
+   取り消し: policy.py の差し込みを外す → 「6 not greater than or equal to 7 :
+     (2779388, '1', 'explore')」（記録と同じ '1' で範囲に入る）で失敗、戻した。
+ - RememberedDisenchanterLootRecordedTest（n1-c life-171、記録の盤面）
+   test_recorded_retreat_then_loot_walk_back: 記録の証拠（[7,49] で回避、[8,50] で拾い物 '7'、
+     その前にワープ・デーモンが [7,41] で見えた）。
+   test_the_loot_walk_keeps_off_the_remembered_area: 新しい policy で [8,50] まで盤面を流し、
+     覚えた敵が [7,41] にあることを確かめ、範囲の中の山へ向かう拾い物の歩きが範囲に入らず、
+     本番の executor でキーを送る。仮定（宣言済み）: 階の能力の不足なし（記録の depth_safety の
+     とおり。生は取り込んだ *破壊* を知っていたが新しい policy は力の一覧を読んでいない）、
+     記録の目標 (13,108) は新しい policy の地図の外なので、山を生の往復の次のマス [6,48]
+     （範囲の中）に置く。
+   取り消し: policy_identification の拒否を外す → 「8 not greater than 8 :
+     (3661084, '7', 'seek-loot')」（記録と同じ）で失敗、戻した。
+ - TownWorkReceiptsRecordedTest（受領書、記録の町の盤面 → 記録のダンジョンの盤面）
+   test_a_dungeon_post_after_a_recall_needs_no_town_work: 取り消し（input_executor の直しを外す）
+     → [('executor-post', True, 'town:blocked:work-contract:unmapped-producer')]（生と同じ）で失敗、戻した。
+   test_a_backpressure_retry_compares_with_the_completed_observation: 同じ取り消しで
+     「<stuck-prompt> owner=explore phase=backpressure … reason=prompt changed before retry」で失敗、戻した。
+   test_every_cli_sender_through_the_port_has_its_work_named: DRIVER_OWNED_SEND_SITES から
+     _run_follow を外す → 「Items in the first set but not the second」で失敗、戻した。
+ - KeyedOfferReviewTest
+   test_a_data_review_of_a_keyed_offer_site_fails_the_manifest_check: 記録時の 'data' 審査で
+     generate が 2 関数の名前つきで拒む。取り消し（検査の分岐を無効にする）→
+     「ValueError not raised」で失敗、戻した。
+
+検査（すべて前景）:
+ - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": OK
+ - scripts/town_work_manifest.py --write: 1601 candidates (259 proved data), 39296 sites, zero unmapped
+   scripts/town_work_manifest.py: 0 violation(s)
+ - checks.json の全モジュール（表記をそろえ重複を除いた 438 件）と追加のテストを、モジュールごとに
+   別の python で流した（3 並列、前景で終わりまで待った）。比較のため main 206702cc93 でも同じ一覧を流した。
+     最終の HEAD（src は 3a196b93b3 と同じ）: 439 件・4,589 本・失敗 310 本
+     main 206702cc93: 439 件・4,580 本・失敗 312 本（追加のモジュールが無い分 9 本少ない）
+   main に無い失敗は tests.test_unseen_reapproach_recorded の
+   test_loot_route_does_not_cross_the_area の 1 本だけで、拾い物の歩きが拒否を読むようになった
+   ため、テストの作り物の盤面（SimpleNamespace）に visible_monsters/detected_monsters が無かった
+   のが原因（AttributeError）。盤面に空の欄を足して直し（3a196b93b3 に含む）、そのモジュールは
+   13 本とも通過。ほかの失敗はすべて main と同じ既存の赤（持ち主の決定 11-05 で整理を止めている分）。
+   tests.test_control_client の時間のテストは負荷で揺れ、単独や main でも同じように落ちる。
+   追加のモジュール tests.test_n1b_348_stops_1108_recorded: 10 本 OK。
+   受領書に関係する tests.test_town_work_contract: 9 本 OK。
+ - 変えた executor の既存のモジュール tests.test_input_executor: 78 本 OK
+ - 既存のテストで直したもの: tests/test_unseen_reapproach_recorded.py の作り物の盤面（上記）。壁は作っていない。
+
+======================================================================
+5. 保守性
+======================================================================
+ - B の新しい判断は 1 つの部品 sleeper_reach_memory.py にまとめた（覚える・忘れる・渡すだけ）。
+   policy.py は _engagement_danger_cells の敵の並びに 1 行足しただけ、観測は既存の観測の並び
+   （policy_observation.py）に 1 行。眠る敵が「もういない」かの判定は sleeper_loot_block と
+   重複させず sleeper_gone として共有にした（同じ判定が 2 か所に分かれない）。
+   期限は既存の UNSEEN_GAME_TURNS を使い、新しい数値は無い。
+ - A の直しは鑑定目録の take の取り消しを決める唯一の場所（home_identification）に、名前の
+   付いた小さな述語 _uncatalogued_in_home として足した。強力発動にも目録の取り出しにも同じ
+   1 つの決まりが効く。
+ - 受領書: 入力口を使える送信元の集合を、関数の中の名前の無いリテラルから cli の名前付きの
+   定数 2 つにした。offer の継ぎ目の名前は town_work.OFFER_SEAMS にし、observe_offer と
+   マニフェストの検査が同じ集合を使う（テストで一致を確かめる）。次の同種の漏れは、生の
+   ボットではなく検査（マニフェストの生成と cli の構造のテスト）で落ちる。
+ - 3 件目になった「視界の端で切り替わる」根は、場面ではなく危険マスの入力側で直した。
+ - 経路ごとに組み立てていた交戦の拒否（危険マス ∪ 覚えた劣化攻撃の敵の範囲）を
+   _engagement_route_veto の 1 つにまとめ、拾い物の歩きも同じものを守る（n1-c life-171）。
+   次に戻る歩きが増えても、この 1 つを使えば同じ規則になる。
+   劣化攻撃の敵の記憶（disenchant_avoid）は起きている敵も覚えるので今回は統合していない
+   （下の問いに関係）。
+
+======================================================================
+6. checks.json の案（checks.json は編集していない）
+======================================================================
+{"id":"N1B-348-STOPS","owner":"2026-11-08 n1-b life-348 の町の止まりとループ","tests":["tests.test_n1b_348_stops_1108_recorded"]}
+
+======================================================================
+7. 持ち主への問い（新しい決まりが要るものだけ。実装していない）
+======================================================================
+ なし。A は「実行できない take は譲る」、B は既存の「眠っていても強い敵からは離れる」と
+ その範囲の拒否を見えない時にも同じに当てただけで、新しい振る舞いや閾値は入れていない。
+ 参考（決まりは要らないが知らせておく）: B の直しの後、先へ進めない階は既存の
+ stuck:recall-escape で帰還する（life-341 0418 と同じ）。
+
+並行の実装役の対象（threat_tiers.py、policy_combat.py、resist_potion.py）には触れていない。
+コミット: c12b43110d, f24d732e06, f36fa47171, de18a0ff34, 210ef706d3, 3a196b93b3（と、この報告）。push も main への取り込みもしていない。
