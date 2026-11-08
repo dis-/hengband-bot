@@ -26,7 +26,8 @@ Game (C:/hengband/src):
    (cmd-magiceat.cpp) refuses a confused player; a failure spends the turn and
    keeps the charge.
 
-Gates (``key``, asked by each rung before its read): the character is clear-headed; a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
+Gates (``key``, asked by each rung before its read): the character is clear-headed (blindness
+allowed, owner 2026-11-08 「盲目でも使う」); a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
 absorbed power first as in speed_dose); the floor is one the game destroys; the
 most dangerous awake visible hostile other than the quest target is in
 ``GUARANTEED_RADIUS``; and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
@@ -128,7 +129,7 @@ def _absorbed_key(policy, snapshot) -> str | None:
     """The reliable power (me_capability's counting row) with a charge here."""
     if me_capability.replacing_charges(policy, snapshot, STAFF) <= 0:
         return None
-    return substitutes.cast_key(policy, snapshot, substitutes.POWERS[POWER])
+    return substitutes.cast_key(policy, snapshot, substitutes.POWERS[POWER], blind_ok=True)
 
 
 def _reliable_staff(snapshot) -> bool:
@@ -171,7 +172,9 @@ def gap_here(policy, snapshot, missing) -> frozenset:
 # -- the scene ------------------------------------------------------------------
 
 def _clear_headed(player) -> bool:
-    return not (player.blind or player.confused or player.hallucinated or player.stunned)
+    """Owner 2026-11-08 「盲目でも使う」: blindness does not stop the use (neither the
+    staff nor the ``m`` command refuses it, above); confusion still does."""
+    return not (player.confused or player.hallucinated or player.stunned)
 
 
 def _floor_destroyed(policy, snapshot) -> bool:
@@ -258,6 +261,18 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="") -> str | None
     policy.last_reason = REASON + suffix + (substitutes.CAST_SUFFIX if cast else "")
     _memory(policy).pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
     return used
+
+
+def usable(policy, snapshot) -> bool:
+    """Whether ``key`` would use the means on this board (no state is changed)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is not None and (
+            (memory.pending is not None and memory.pending[:2] == (snapshot.floor_key, snapshot.turn))
+            or memory.fallback == snapshot.floor_key):
+        return False
+    if not _scene_holds(policy, snapshot):
+        return False
+    return _absorbed_key(policy, snapshot) is not None or _carried_key(policy, snapshot) is not None
 
 
 def sight_trigger_key(policy, snapshot) -> str | None:

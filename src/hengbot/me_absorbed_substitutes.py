@@ -92,9 +92,11 @@ def blind_castable(snapshot) -> bool:
             and not power_command_refused(snapshot))
 
 
-def cast_key(policy, snapshot, power, direction: str = "") -> str | None:
-    """``m`` + kind + letter (+ direction) when the power has a charge here."""
-    if (not me_capability.has(policy, snapshot, power.kind, power.sval) or cast_blocked(snapshot)
+def cast_key(policy, snapshot, power, direction: str = "", *, blind_ok: bool = False) -> str | None:
+    """``m`` + kind + letter (+ direction) when the power has a charge here.
+    ``blind_ok``: a power the caller casts blind too (``blind_castable``)."""
+    blocked = cast_blocked(snapshot) and not (blind_ok and blind_castable(snapshot))
+    if (not me_capability.has(policy, snapshot, power.kind, power.sval) or blocked
             or me_capability.charges(policy, snapshot, power.kind, power.sval) <= 0):
         return None
     return power.key + (direction if power.aimed else "")

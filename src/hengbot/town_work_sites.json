@@ -835,6 +835,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "disenchant_avoid.py:_race_disenchants": {
     "classification": "data",
     "rows": [

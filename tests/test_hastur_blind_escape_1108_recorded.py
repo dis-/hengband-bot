@@ -23,6 +23,8 @@ DECLARED CONSTRUCTED / RESTORED (pin_vacuity):
  * the carried-staff case: no absorbed staff list, and a Staff of Teleportation in the pack;
  * the side-defect cases replay the floor without the absorbed staff list, so the recorded
    blindness cure is drunk on 20589 (no teleport, no absorbed Cure Light Wounds);
+ * the blind *Destruction* cases: the 20590 board with the guardian taken off (and, for the
+   refusal, confusion added);
  * the scroll-first case: the 20590 board with sight restored (the own grid seen) and the guardian 皇帝『レイザーク』
    taken off the board (a guardian in the circle refuses *Destruction*, destruction_use).
 """
@@ -36,6 +38,7 @@ import unittest
 
 from hengbot import me_device_attacks_input, status_cure, threat_tiers
 from hengbot.me_device_attacks import observe_lists
+from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.model import TVAL_SCROLL, TVAL_STAFF, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -71,13 +74,15 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         cls.skill = payload["skill"]
         cls.lists = payload["lists"]
         cls.races = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        # The castle's guardian (皇帝『レイザーク』 on 65F) as the live bot knows it.
+        cls.dungeons = load_dungeon_knowledge(EDIT / "DungeonDefinitions.jsonc")
         # The last board of each recorded decision turn.
         cls.boards = {raw["turn"]: raw for raw in payload["boards"] if raw["turn"] in RECORDED}
         cls.answers = None
 
     def new_policy(self, kinds=("staff", "wand", "rod")):
         first = self.boards[min(self.boards)]
-        policy = HengbotPolicy(monrace_knowledge=self.races)
+        policy = HengbotPolicy(monrace_knowledge=self.races, dungeon_knowledge=dict(self.dungeons))
         policy.prime(parse_snapshot(copy.deepcopy(first), self.races))
         # RESTORED: the displayed lists, oldest first (observe_lists starts over on a turn
         # going backwards).
@@ -221,6 +226,35 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         self.assertIsNone(policy._blind_cure_futile_blow)
         self.assertFalse(status_cure.cure_futile(policy, snapshot))
         self.assertEqual(reason, "emergency:cure-status-healing")
+
+    # -- owner 2026-11-08 「盲目でも使う」 (*Destruction* while blind) ---------------------------
+
+    def without_emperor(self, raw):
+        """CONSTRUCTED: the guardian off the board (a guardian in the circle refuses the use)."""
+        raw["visible_monsters"] = [m for m in raw["visible_monsters"] if m["race_id"] != EMPEROR]
+        raw["detected_monsters"] = [m for m in raw["detected_monsters"] if m["race_id"] != EMPEROR]
+
+    def test_the_absorbed_destruction_is_used_blind_before_the_teleport(self):
+        policy, _answers = self.replay(until=SUMMONER_OPEN)
+        raw = copy.deepcopy(self.boards[ONE_SHOT])
+        self.without_emperor(raw)
+        snapshot = self.snapshot(policy, raw)
+        self.assertTrue(snapshot.player.blind)
+        key = str(policy.choose_key(snapshot))
+        self.assertEqual((key, policy.last_reason), ("mA3", "emergency:destruction:absorbed-power"))
+
+    def test_confusion_still_refuses_destruction_and_the_teleport(self):
+        """CONSTRUCTED: also confused (the m command refuses it, cmd-magiceat.cpp:463)."""
+        policy, _answers = self.replay(until=SUMMONER_OPEN)
+        raw = copy.deepcopy(self.boards[ONE_SHOT])
+        self.without_emperor(raw)
+        raw["player"]["status"]["confused"] = True
+        snapshot = self.snapshot(policy, raw)
+        from hengbot import destruction_use
+        self.assertFalse(destruction_use.usable(policy, snapshot))
+        self.assertIsNone(threat_tiers.blind_teleport_means(policy, snapshot))
+        key = str(policy.choose_key(snapshot))
+        self.assertFalse(key.startswith("mA"), (key, policy.last_reason))
 
 
 if __name__ == "__main__":

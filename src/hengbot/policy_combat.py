@@ -2471,11 +2471,15 @@ class CombatMixin:
 
             # A blind player whose escape needs no scroll (blind_teleport_key) escapes
             # before the cure; cure-then-escape is for a scroll as the only escape.
-            blind_teleport = bool(
+            # Owner 2026-11-08 「盲目でも使う」: *Destruction* by its own rules is
+            # such an escape too.
+            blind_escape = bool(
                 (lethal or summoner_open) and not guardian_reposition
-                and threat_tiers.blind_teleport_means(self, snapshot) is not None
+                and player.blind and not player.confused
+                and (threat_tiers.blind_teleport_means(self, snapshot) is not None
+                     or destruction_use.usable(self, snapshot))
             )
-            if not blind_teleport and status_cure.treats(self, snapshot):
+            if not blind_escape and status_cure.treats(self, snapshot):
                 if (speed := status_cure.speed_first_key(self, snapshot)) is not None:
                     return speed  # the cure, and the escape it owes, on the next board
                 potion = status_cure.low_hp_heal(self, snapshot, hostiles,
@@ -2528,29 +2532,30 @@ class CombatMixin:
                         # taken on this board.
                         self.last_reason = "item:heal"
                         return reserved_item_command(self, snapshot, "quaff", potion)
-                if blind_teleport and (
+                # The guardian reposition needs a real teleport: owner
+                # 2026-11-02 「そもそもショートテレポートでは十分な距離が
+                # 稼げないため代替にならない。」 Without one it falls through
+                # to the rungs below unchanged.
+                scroll = self._escape_scroll(
+                    snapshot, teleport_only=guardian_reposition
+                )  # None while blind or confused
+                # Owner 2026-11-08 「即死の危険があるときは成功率の高いものを使う
+                # べきなので巻物によるテレポートを優先」: a lethal board reads
+                # the Teleportation scroll before *Destruction*.  *Destruction*
+                # is used blind too (owner 2026-11-08 「盲目でも使う」).
+                scroll_first = bool(
+                    lethal and scroll is not None and scroll.is_teleport_scroll
+                )
+                if not guardian_reposition and not scroll_first and (
+                        used := destruction_use.key(self, snapshot)) is not None:
+                    return used
+                if blind_escape and (
                         blind := self._blind_teleport_escape(snapshot)) is not None:
                     if self._fundraising_mode in {"mine", "scavenge"}:
                         self._note_return_start(self._last_return_trigger)
                         self._returning_to_town = True
                     return blind
                 if not player.blind and not player.confused:
-                    # The guardian reposition needs a real teleport: owner
-                    # 2026-11-02 「そもそもショートテレポートでは十分な距離が
-                    # 稼げないため代替にならない。」 Without one it falls through
-                    # to the rungs below unchanged.
-                    scroll = self._escape_scroll(
-                        snapshot, teleport_only=guardian_reposition
-                    )
-                    # Owner 2026-11-08 「即死の危険があるときは成功率の高いものを使う
-                    # べきなので巻物によるテレポートを優先」: a lethal board reads
-                    # the Teleportation scroll before *Destruction*.
-                    scroll_first = bool(
-                        lethal and scroll is not None and scroll.is_teleport_scroll
-                    )
-                    if not guardian_reposition and not scroll_first and (
-                            used := destruction_use.key(self, snapshot)) is not None:
-                        return used
                     if scroll is not None:
                         if guardian_reposition:
                             self.last_reason = "guardian:teleport-to-cover"
@@ -3220,11 +3225,12 @@ class CombatMixin:
         """Teleport (or phase), else Word of Recall: the low-HP ladder's
         second rung.  Blind, the teleport no scroll gives comes first."""
         player = snapshot.player
+        # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」).
+        if (used := destruction_use.key(self, snapshot)) is not None:
+            return used
         if (blind := self._blind_teleport_escape(snapshot)) is not None:
             return blind
         if not player.blind and not player.confused:
-            if (used := destruction_use.key(self, snapshot)) is not None:
-                return used
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
                 return self._issue_emergency_consumable(
