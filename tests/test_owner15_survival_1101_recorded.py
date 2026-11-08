@@ -34,7 +34,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from hengbot import unseen_strike
+from hengbot import threat_tiers, unseen_strike
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.magic_eater import MISSILE_REASON
@@ -137,8 +137,16 @@ class AfraidOutpacedRangedRecordedTest(d57.PostedDeathKey):
         self.assertEqual({(key, reason) for _raw, key, reason in rows}, {("2", "flee")})
 
     def test_control_without_a_ranged_answer_flees(self):
+        # Threat tiers step 6 (answer 6, design 3.2): afraid with no ranged answer the jelly is T1
+        # and is left; it is faster (120 against 110), so the leave does not walk: the flee rung
+        # reads Teleportation (before step 6 it walked away, '2' flee).
         raw, key, reason = self.drive_afraid(missile_charges=0)[-1]
-        self.assertEqual((key, reason), ("2", "flee"))
+        self.assertEqual((key, reason), ("rf", "flee:scroll"))
+        policy = d57.lamp_policy()
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        hostiles = policy._strategic_hostiles(board)
+        self.assertEqual(threat_tiers.assess(policy, board, hostiles).tier, threat_tiers.T1)
+        self.assertFalse(threat_tiers.walk_leaves(policy, board, hostiles))
 
 
 def no_melee_policy():
