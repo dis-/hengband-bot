@@ -348,7 +348,7 @@ The design reuses the existing pack detection rather than inventing a new one. T
 | Tier | `threat_tiers.tier_of` / `assess`, `src/hengbot/threat_tiers.py:1535`, `:1069` | T1 / T2 / T3 and instant death |
 
 What Anaguma adds:
-- **The concealed pocket makes ranged followers acceptable.** Today the swarm rung declines any pack with a ranged member (`policy_combat.py:3839`). In a concealed pocket, followers can only breathe or ball at `M` for about half damage. A pack with ranged members becomes eligible when the half-damage reach, re-run through `threat_prediction` with `M` as the only melee slot, stays under the existing engagement ceiling (open question Q4).
+- **The concealed pocket makes ranged followers acceptable.** Today the swarm rung declines any pack with a ranged member (`policy_combat.py:3839`). In a concealed pocket, followers can only breathe or ball at `M` for about half damage. A pack with ranged members becomes eligible when the half-damage reach, re-run through `threat_prediction` with `M` as the only melee slot, is always used (decision 「常に使う」, section 9): high-damage individuals are left to the survival rungs above.
 - **Monster flags read** from `MonraceKnowledge.flags` / `abilities` (`src/hengbot/monrace_knowledge.py:46`, `:203`): `FRIENDS`, `ANIMAL`, `PASS_WALL`, `KILL_WALL`, `TELE_TO`, `S_*`, `BR_*`/`BA_*`, `MULTIPLY`.
 - **Hounds (`Z`) and other animal packs** (`ANIMAL` and `FRIENDS`, no wall-passing) need the long zigzag, L >= 4 (owner 2026-11-10, 1.7). They also need the close-in move for the last one (5.1).
   - A dig that cannot reach L = 4 in time, or with the available charges, is not started against them, because L <= 3 leaves them outside (1.7).
@@ -360,15 +360,13 @@ What Anaguma adds:
 |---|---|---|
 | Any pack member, or a visible or detected non-pack threat, has `PASS_WALL` or `KILL_WALL`, unless every wall touching `P` is permanent | they come through the 7 walls | 1.4 |
 | No Stone to Mud means, or a means whose `p_success` puts `walk + digs/p` over budget | time | 1.1, 3.3 |
-| Charges after the dig would fall below the reserve | escapes from sealed pockets and Q2 need them | Q3; owner 11-05 sealed-pocket rule |
+| Charges after the dig would fall below the reserve | the sealed-pocket escape needs one | decision: 1 kept, none for a Magic-Eater (section 9) |
 | The pack arrives before the minimum stage can finish: L = 2 for non-animal packs, L = 4 for animal packs | a half-dug notch is worse than the corridor; L <= 3 does not pull animals in | 3.3, 1.7 |
 | A follower-reach threat makes the half-damage prediction at least `ENGAGEMENT_AVOID_DAMAGE_RATIO` (0.5, `policy_constants.py:549`) or reaches instant death (`threat_tiers.instant_death`, `:1036`) | the pocket still takes about half of every breath | 1.2 |
 | Tier T1 (cannot win even with supplies) and the tiers say leave (`leave_due`, `threat_tiers.py:1186`) | a pocket does not change "cannot win"; the existing leave rules stay first | owner 11-07 tiers design |
 | Town, wilderness, surface | permanent buildings; the existing town rules | — |
 | Fixed-quest floors with an owner-approved plan (Q14, Q18, Q25, …) | "作戦が先" (the plan comes first), owner 11-07 | `quest_find_exit`, `quest25_battle` |
-| Random-quest floors | open question | Q9 |
 | Arena (闘技場) | no digging in the arena; separate rules | memory telmora-arena-facts |
-| A summoner is the pack's leader | open question; rules of 11-04 and 11-06 | Q6 |
 
 ### 3.3 Distance and time budget
 
@@ -377,14 +375,14 @@ What Anaguma adds:
 - **Start** when `min T_arrive > T_dig(minimum stage) + 1`:
   - for a non-animal pack the minimum stage is L = 2: 2 zaps and 2 steps;
   - for an animal pack it is L = 4: 4 zaps and 4 steps, about 8 player turns at p = 1.
-- **Keep digging** (the owner's 「長めに」) while `min T_arrive > T_dig(one more cell) + 1` and the charge budget allows (Q2, Q3). Then stand on the innermost cell.
+- **Keep digging** (the owner's 「長めに」) while `min T_arrive > T_dig(one more cell) + 1` and the terrain and charges allow, up to 8 cells (section 9). Then stand on the innermost cell.
   - Every extra cell lengthens the hidden queue.
   - In the simulation, L >= 4 already gave the N - 1 result (1.7). The benefit of extra length beyond 4 is buffer against arrival-time error and against the pack overflowing into the corridor, not a better pull-in.
 - **Detected packs** (ESP or detection) are the natural ambush case, since they give the most lead time. This is where the owner's 待ち伏せ fits best.
 
 ### 3.4 Quest, floor and level scope
 
-Default proposal: every ordinary dungeon floor, including random-quest floors, where the map is a normal cave. Fixed quests are excluded unless their plan adds Anaguma explicitly. See Q9.
+Default proposal: every ordinary dungeon floor, including random-quest floors, where the map is a normal cave. Fixed quests are excluded (decision 「ランダムクエストの階も使う」, section 9).
 
 ---
 
@@ -392,15 +390,15 @@ Default proposal: every ordinary dungeon floor, including random-quest floors, w
 
 | # | Existing rule or code | Interaction | Conflict / resolution |
 |---|---|---|---|
-| 1 | Owner 10-23 「隘路が無ければ後退しない」; `_detected_threat_preparation_key` returns None when no choke route exists (`src/hengbot/policy.py:16636-16643`), pinned by `tests/test_detected_pack_no_choke_recorded.py` | Anaguma *creates* a choke where none exists. It is a new action, not a retreat to a missing choke. | Insert Anaguma before that None. The pin still holds whenever Anaguma is not possible (no means, wall-passers, …). That pin is a pack of large kobolds behind a wall, so the pin will need a re-read (Q5). |
-| 2 | `_melee_swarm_combat_key` / `_choke_engagement_key` / `ChokeEngagementPlan` (`policy_combat.py:3792`, `:4042`; `policy_types.py:543`) | Same purpose. A pocket is a choke with openness 1. | Reuse `ChokeEngagementPlan` with new phases `dig` and `hold` and a `pocket` field, so the release rules (HP < 40%, damage ≥ 50%, 300-decision budget, ranged release) carry over. The ranged release must be relaxed for concealed pockets (Q4). |
+| 1 | Owner 10-23 「隘路が無ければ後退しない」; `_detected_threat_preparation_key` returns None when no choke route exists (`src/hengbot/policy.py:16636-16643`), pinned by `tests/test_detected_pack_no_choke_recorded.py` | Anaguma *creates* a choke where none exists. It is a new action, not a retreat to a missing choke. | Insert Anaguma before that None. The pin still holds whenever Anaguma is not possible (no means, wall-passers, …). That pin is a pack of large kobolds behind a wall, so the pin will need a re-read; the decision is 「掘れるなら掘る」 (section 9). |
+| 2 | `_melee_swarm_combat_key` / `_choke_engagement_key` / `ChokeEngagementPlan` (`policy_combat.py:3792`, `:4042`; `policy_types.py:543`) | Same purpose. A pocket is a choke with openness 1. | Reuse `ChokeEngagementPlan` with new phases `dig` and `hold` and a `pocket` field, so the release rules (HP < 40%, damage ≥ 50%, 300-decision budget, ranged release) carry over. Ranged packs are always taken (section 9). |
 | 3 | `_choke_stall_released_for` (`policy_combat.py:3970`) | Corridor chokes stall against animal packs (1.5). A zigzag of L >= 4 pulls them in (1.7); a shorter pocket stalls the same way. | The stall release stays for corridor chokes. For an Anaguma plan of L >= 4, the stall check is replaced by the last-one rule (5.1). |
-| 4 | Owner 10-20 keep-all Stone to Mud wands (`policy_home.py:2693-2703`) | Anaguma spends charges. Wands are never sold. | No conflict. Recharging uses the existing facility path (the quest-2 tower trip, `q2_tower_recharge.py`). Reserve: Q3. |
-| 5 | Owner 11-05 sealed pocket: melt out after *Destruction*, with Stone to Mud before Teleport (`sealed_pocket.py`) | Needs a charge left. Also, a pocket where the player stands is "all walls but one" and must not be mistaken for a sealed pocket. | `sealed_pocket.key` must ignore a pocket the bot dug itself while `M` is open. Keep a reserve (Q3). |
+| 4 | Owner 10-20 keep-all Stone to Mud wands (`policy_home.py:2693-2703`) | Anaguma spends charges. Wands are never sold. | No conflict. Recharging uses the existing facility path (the quest-2 tower trip, `q2_tower_recharge.py`). Reserve: section 9. |
+| 5 | Owner 11-05 sealed pocket: melt out after *Destruction*, with Stone to Mud before Teleport (`sealed_pocket.py`) | Needs a charge left. Also, a pocket where the player stands is "all walls but one" and must not be mistaken for a sealed pocket. | `sealed_pocket.key` must ignore a pocket the bot dug itself while `M` is open. Keep a reserve (section 9). |
 | 6 | `retreat_enclosure.py` (dig, then Stone to Mud, then Teleport when a retreat is boxed in) | Inside a pocket, "flee on foot" has no step. | In the pocket, flee means Teleport, Recall or *Destruction* (owner 11-04 rules: `destruction-use-decision`, `teleport-follower-decision`). `_flee_step` must not be asked. |
 | 7 | `_forbid_wait_while_damaged` (`policy_combat.py:643-712`) rewrites a bare WAIT after HP loss | A pocket hold is a WAIT while monsters queue. | Add an `anaguma:hold` reason ending in `:hold` (already allowed), plus `cli.STATIONARY_REASONS` (`cli.py:390`). |
 | 8 | Summoner rules: owner 11-04 (shoot the summoner first; 2 unseen summons means leave; 3 on a floor means recall); owner 11-06 (low HP plus a summoner means teleport or recall) | The front monster cannot summon (1.3); followers can summon into the queue. | Keep 11-04 and 11-06 as they are. Counting summons per floor still triggers recall. |
-| 9 | `summoner_wait.hold_key` (`summoner_wait.py:116`, 50 game turns) and the detected hold (500 game turns, `policy_constants.py:441`) | Waiting bounds | Q8 (how long to wait in the pocket). |
+| 9 | `summoner_wait.hold_key` (`summoner_wait.py:116`, 50 game turns) and the detected hold (500 game turns, `policy_constants.py:441`) | Waiting bounds | Decision: 50 game turns, then a detection if available (section 9). |
 | 10 | Threat tiers 11-07 (instant death first; T1 leave; T2 supply fight; `worsens_with_time`) | The pocket changes `melee_slots` to 1 and follower reach to half. | Call `threat_tiers.tiered(..., melee_slots=1)` as the choke release already does (`policy_combat.py:4089`). Add a "redirected blast" term: each follower-reach monster's ball or breath × about 0.5. Instant death stays first. |
 | 11 | Breeders: owner 11-08 and 11-09 (shoot breeders in the line with area attacks; a 100-action window) | The queue is a perfect area target at `M`. | Area attacks at `M` count kills per the 11-09 rule (total damage compared with single-target). No conflict. |
 | 12 | Owner 11-07 「眠っている敵でも強い敵からは離れる」 | Do not dig near a strong sleeper: digging makes noise. Each zap is a turn, and monsters wake. | Exclude a candidate within the wake radius of a T1 sleeper. |
@@ -437,7 +435,7 @@ Default proposal: every ordinary dungeon floor, including random-quest floors, w
 - Teleported or swapped out (`TELE_TO` from the monster on `M`): the plan is released by the existing floor and plan invalidation.
 
 **Leave when the pack is gone.**
-- Leave when no pack member has been seen or detected for the hold bound (Q8).
+- Leave when no pack member has been seen or detected for 50 game turns, then cast a detection if one is available (section 9).
 - Then resume exploring.
 - The pocket stays on the map and may be reused on the same floor at 0 digs.
 
@@ -467,7 +465,7 @@ Default proposal: every ordinary dungeon floor, including random-quest floors, w
 3. **Bounded chase.** Otherwise step out and follow it along the tunnel toward the corridor.
    - Melee whenever it is adjacent on the player's turn.
    - Use an area attack whenever one covers it.
-   - **Limit:** stop at the tunnel's corridor end, or after a bounded number of player turns (Q1). Never follow it into an unexplored area or toward other awake threats.
+   - **Limit:** stop at the tunnel's corridor end, or (decision 「出口まで追う」, section 9). Never follow it into an unexplored area or toward other awake threats.
 4. **Otherwise disengage.** Leave the pocket and resume. A lone pack animal is left to the ordinary ladder: hunt, flee, the tiers.
    - A lone hound can still breathe at the cells next to the player from hiding (1.2). The ordinary ranged and threat rules cover that.
 
@@ -488,7 +486,7 @@ Default proposal: every ordinary dungeon floor, including random-quest floors, w
 **Stock rules.**
 - Owner 10-20: keep every Stone to Mud wand, charged or empty (`policy_home.py:2693-2703`). Buying rungs exist (`policy_shop.py:218`, `:2863`, `:3078`).
 - Quest 2 (Q2) needs 2 charges (`Q2_BREACH_WALL_COUNT`, `policy_constants.py:741-746`).
-- Whether Anaguma should change how many charges the bot carries, or should buy wands or rods, is open question Q10.
+- Decision 「資金に余裕があるとき魔法棒を塔でチャージする」 (section 9): no new buying; the Tower recharges the carried wands.
 
 ---
 
@@ -527,13 +525,13 @@ Each stage is its own commit, and each passes the existing suite and lints.
 
 **Stage 4 — means.**
 - `SV_ROD_STONE_TO_MUD` aiming (`z` + letter + direction).
-- Charge reserve (Q3).
-- Optional stock changes (Q10).
+- Charge reserve (section 9).
+- The Tower recharge of carried wands (section 9).
 
 **Stage 5 — animal packs**, per the owner's answer (1.7):
 - minimum L = 4 for `ANIMAL FRIENDS` packs;
-- dig longer while time and charges allow (Q2, Q3);
-- the last-one close-in of 5.1 (Q1).
+- dig longer, up to 8, while terrain, time and charges allow;
+- the last-one close-in of 5.1 (section 9).
 
 ---
 
@@ -572,63 +570,29 @@ A **live check** through the control server (`tools/bot/hbctl.py`, debug `^A`) i
 
 ---
 
-## 9. Open owner questions (priority order)
+## 9. Owner decisions (2026-11-10, all questions answered; locked spec)
 
-Settled on 2026-11-10:
-- **Animal packs.** Owner: 「動物の群れにはジグザグの通路を長めに取る…最後の一匹は…こちらから詰める動きが別途必要」. Verified in 1.7; see 2.3 and 5.1.
-- **Shape.** The zigzag of the owner's diagram (2.3). This also absorbs the old shape question. The I-shape and the 1-cell notch are no longer candidates.
+Verbatim, with the reading the implementation follows:
 
-**Q1. Closing in on the last animal** (5.1). At equal speed it cannot be caught inside the tunnel, and only area attacks reach it while it hides.
-- (a) In order: an area attack from `P`; haste and strike; a chase bounded to the tunnel's corridor end; otherwise leave it to the ordinary ladder.
-- (b) Chase until it is killed, with no bound beyond the usual safety rules.
-- (c) Do not chase. Leave the pocket and let the ordinary ladder handle the lone animal.
-- **Recommendation: (a).**
+| Topic | Owner (verbatim) | Implementation |
+|---|---|---|
+| Animal packs | 「動物の群れにはジグザグの通路を長めに取る。すると、動物の後退する動きが後続に阻まれ順に近寄ってくる。最後の一匹は近寄ってこないのでこちらから詰める動きが別途必要になる。」 | The zigzag of 2.3; the minimum length for an `ANIMAL FRIENDS` pack is 4 (1.7) |
+| Last animal | 「範囲→加速→出口まで追う　を基本的には採用するが、加速は魔道具術師など消耗品を使用しない場合に限定する」 | 5.1 in this order: an area attack from `P` into `M`; haste only by a non-consumable means (the Magic-Eater's absorbed Speed, never a potion), then step to `M` and strike; chase up to the tunnel's exit; then the ordinary ladder |
+| Length | 「4マス/2マスを基本とし、地形と岩石溶解の回数が許すなら8マスまで伸ばす」 | Base 4 (animal packs) or 2 (others). Extend one cell at a time up to 8 while the terrain (known diggable rock, 2.4) and the charges allow. The arrival budget (3.3) decides when to stand on the innermost cell |
+| Charge reserve | 「魔道具術師の場合は自然回復するので残さなくて良い。それ以外なら1回残す。」 | Magic-Eater: no reserve. Every other class: 1 charge kept |
+| Ranged and breathers | 「常に使う。通路など、通常地形よりは明らかに被弾回数が減るからである。高威力攻撃を持つ個体は通常の生存ルーチンで対応する。」 | No damage gate of its own. The survival rungs above it (emergency, instant death, one-shot breath, resistance, summons, *Destruction*) answer the high-damage individuals |
+| vs an existing choke | 「掘れるなら掘る」 | Dig whenever the charges and the arrival budget allow; otherwise the existing choke rungs act as today |
+| Summoners | 「使う」 | Used; the summon rules (11-04, 11-06) stay above it |
+| Abandon line | 「今の基準のまま」 | The existing flee test (`_should_flee`) releases the plan. In the pocket the escape is *Destruction*, then the escape scroll; walking out is never chosen |
+| Waiting | 「50ゲームターン。待った後、可能なら感知を使って状況を把握する。」 | A hold with no pack member in view for 50 game turns ends. Then the bot casts a detection if it has one; otherwise the plan ends |
+| Floors | 「ランダムクエストの階も使う」 | Ordinary dungeon floors and random-quest floors. Not fixed quests, town or the wilderness |
+| Stock | 「資金に余裕があるとき魔法棒を塔でチャージする」 | No new buying. A non-Magic-Eater recharges carried Stone to Mud wands at Morivant's Tower when spare gold pays the trip, reusing the Tower steps (`morivant_tower`). The Magic-Eater's own staff sequence already charges and absorbs them |
 
-**Q2. How long the tunnel is.** The owner says 「長めに」. The simulation shows L = 4 is the shortest that pulls animals in. Every cell costs one charge and 2 turns.
-- (a) Dig while the arrival budget and charges allow, at least 4 for animal packs and at least 2 for non-animal packs. No upper cap.
-- (b) Exactly 4 for animal packs and 2 for others, saving charges.
-- (c) Scale with the pack size, for example `L = 4 + N/2`.
-- **Recommendation: (a).** It follows 「長めに」 without adding a cap, and every stage is usable.
-
-**Q3. Charge reserve.** This matters more now, at 4 or more charges per animal-pack tunnel.
-- (a) Keep at least 1 charge after the dig, for the 11-05 sealed-pocket escape.
-- (b) Keep 2.
-- (c) No reserve.
-- **Recommendation: (a).** Quest 2's 2 charges are handled by its own pre-quest check.
-
-**Q4. Packs with ranged members.** Today any ranged member blocks the swarm choke. In the long zigzag only `D` can breathe or ball at `M`, for about half damage.
-- (a) Allow them when the half-damage prediction from `D` stays under the 50% ceiling.
-- (b) Melee-only packs only.
-- **Recommendation: (a)**, because blocking followers' ranged attacks is the "なお良い" part of the request.
-
-**Q5. A pocket versus an existing natural choke** (openness 2, or a natural dead end).
-- (a) Dig when means and time allow. Otherwise use the existing choke.
-- (b) Use the existing choke first and dig only when none is reachable.
-- (c) Use a natural dead end first, even though a straight dead end leaves 2 animals out and lets the corridor line shoot (2.2, 1.7).
-- **Recommendation: (a).** A corridor choke lets 2 attackers in, and a straight dead end is exposed.
-
-**Q6. Packs that include summoners.** The front monster cannot summon; followers can summon into the tunnel.
-- (a) Allow, with the 11-04 and 11-06 summoner rules unchanged and first.
-- (b) Exclude.
-- **Recommendation: (a).**
-
-**Q7. Abandon line in the pocket.**
-- (a) The existing choke release (HP < 40%, damage ≥ 50%, tiers), escaping by Teleport, Recall or *Destruction* because walking out is impossible.
-- (b) A higher HP line, because walking out is impossible.
-- **Recommendation: (a).**
-
-**Q8. How long to wait in the pocket for a pack that does not come.** This is for a pack that never reaches the tunnel; the last animal is Q1.
-- (a) 500 game turns, the existing detected-hold bound.
-- (b) 50 game turns, the summoner wait.
-- (c) Until the pack is no longer seen or detected.
-- **Recommendation: (a).**
-
-**Q9. Floors.**
-- (a) Every ordinary dungeon floor, including random-quest floors; not fixed quests unless the plan adds it.
-- (b) Random-quest floors excluded as well, like the swarm choke today.
-- **Recommendation: (a).** Random-quest maps are normal caves.
-
-**Q10. Stock.** With 4 or more charges per animal-pack tunnel, a 2-charge wand, as in n1-a life-504, is not enough.
-- (a) No new buying: use what is carried, and add Rod of Stone to Mud aiming. A rod has no charges to spend.
-- (b) Buy Stone to Mud wands or rods when in stock, so that at least 4 + reserve charges are carried.
-- **Recommendation: (a)** for now. Measure in stage 1 how often charges were the veto, then decide (b).
+What follows from the decisions:
+- **No damage gate.** The pocket rung itself never declines a pack for its ranged damage (decision "常に使う"). It declines only for:
+  - a monster that passes or kills walls;
+  - no charge;
+  - no time;
+  - no diggable terrain;
+  - a fixed quest, town or the wilderness.
+- **One escape path.** The rungs above it still preempt it when they apply.
