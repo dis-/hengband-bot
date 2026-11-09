@@ -44,16 +44,12 @@ import copy
 import gzip
 import hashlib
 import json
-import shutil
 import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.cli import _consume_response_sequence
-from hengbot.dungeon_knowledge import load_dungeon_knowledge
-from hengbot.home_disposal import HomeDisposalState
 from hengbot.model import (
     SV_POTION_CURE_CRITICAL,
     SV_POTION_HEALING,
@@ -62,19 +58,13 @@ from hengbot.model import (
     Position,
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy import REST_MACRO, UP_STAIRS_KEY, HengbotPolicy
-from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
-from hengbot.quest_strategies import load_quest_strategies
-from hengbot.terrain_knowledge import (
-    load_damaging_terrain_elements, load_damaging_terrain_ids, load_deep_damaging_terrain_ids)
-from hengbot.town_maps import find_town_map, parse_town_map
-from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
+from hengbot.policy import REST_MACRO, UP_STAIRS_KEY
 from recorded_junk_scope import choose_past_destroyed_junk, pre_home_junk_sweep_replay
 from recorded_monster_scope import pre_exported_position_replay
+# Moved to tests/support/recorded.py; re-exported for importers.
+from tests.support.recorded import EDIT, GAME_ROOT, _policy  # noqa: F401
 
 
-GAME_ROOT = Path("C:/hengband")
-EDIT = GAME_ROOT / "lib" / "edit"
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "esp-threat-rest-20260921.jsonl.gz"
 CALIBRATION = FIXTURES / "esp-threat-rest-20260921.character-calibration.json"
@@ -97,41 +87,6 @@ PARALYSER = 311  # PARALYZE blow, no summons
 BREEDER = 680  # MULTIPLY, one turn 103 (was 529)
 WEAK_BREEDER = 1101  # MULTIPLY, per-action maximum 24
 CORRIDOR = Position(24, 28)  # unknown cell north of the 625 corridor
-
-
-def _policy(directory: Path, monrace) -> HengbotPolicy:
-    town_maps = {}
-    for town_index in range(1, 6):
-        path = find_town_map(town_index, GAME_ROOT)
-        if path is not None:
-            town_maps[town_index - 1] = parse_town_map(path)
-    policy = HengbotPolicy(
-        town_map=town_maps.get(0),
-        town_maps=town_maps,
-        wilderness_map=load_wilderness_map(find_wilderness_definition(GAME_ROOT)),
-        dungeon_knowledge=load_dungeon_knowledge(EDIT / "DungeonDefinitions.jsonc"),
-        monrace_knowledge=monrace,
-        damaging_terrain_ids=load_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc"),
-        damaging_terrain_elements=load_damaging_terrain_elements(EDIT / "TerrainDefinitions.jsonc"),
-        deep_damaging_terrain_ids=load_deep_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc"),
-        quest_knowledge=load_quest_knowledge(
-            find_quest_definitions(GAME_ROOT / "bot-client" / "state.jsonl")
-        ),
-        quest_strategies=load_quest_strategies(
-            Path(__file__).resolve().parents[1] / "strategy" / "quests"
-        ),
-        home_disposal_state=HomeDisposalState(
-            directory / "home-withdraw-history.jsonc",
-            directory / "home-disposal-decisions.jsonc",
-            directory / "home-disposal-queue.json",
-            directory / "events.jsonl",
-        ),
-        baseitem_costs=load_baseitem_costs(EDIT / "BaseitemDefinitions.jsonc"),
-    )
-    calibration = directory / "character-calibration.json"
-    shutil.copyfile(CALIBRATION, calibration)
-    policy._character_calibration_path = calibration
-    return policy
 
 
 class EspThreatRestTest(unittest.TestCase):
