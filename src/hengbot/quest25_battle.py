@@ -103,13 +103,15 @@ from hengbot import (
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key
+from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key, item_cast_key
 from hengbot.model import (
-    Position, SV_ROD_DETECTION, SV_ROD_DISARMING, SV_SCROLL_DETECT_TRAP, SV_STAFF_DETECT_EVIL,
+    Position, SV_POTION_HEALING, SV_ROD_DETECTION, SV_ROD_DISARMING, SV_SCROLL_DETECT_TRAP, SV_STAFF_DETECT_EVIL,
     SV_STAFF_DETECT_TRAP, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_SCROLL,
-    TVAL_STAFF, TVAL_WAND,
+    TVAL_POTION, TVAL_STAFF, TVAL_WAND,
 )
-from hengbot.policy_constants import DIRECTION_KEYS, REST_MACRO, SEARCH_KEY, WAIT_KEY
+from hengbot.policy_constants import (
+    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, REST_MACRO, SEARCH_KEY, UP_STAIRS_KEY, WAIT_KEY,
+)
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
 from hengbot.unseen_strike import message_text
 
@@ -134,7 +136,19 @@ RETREAT_REST_REASON = f"{REASON}:druj-rest-out-of-line"
 RETREAT_HEAL_REASON = f"{REASON}:druj-heal-out-of-line"
 ENLIGHTEN_REASON = f"{REASON}:ambush-enlightenment"
 BLOCKED_REASON = "quest:blocked:quest25-patrol-rounds"
-_PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON})
+SIGHT_REASON = f"{REASON}:walk-to-sight"
+WITHDRAW_REASON = f"{REASON}:withdraw"
+OUT_OF_FIRE_REASON = f"{REASON}:step-out-of-fire"
+FIRE_REST_REASON = f"{REASON}:rest-out-of-fire"
+FIRE_HOLD_REASON = f"{REASON}:hold-out-of-fire"
+RECALL_EXIT_WALK_REASON = f"{REASON}:recall-exit-walk"
+RECALL_EXIT_REASON = f"{REASON}:recall-exit"
+RECALL_OUT_REASON = f"{REASON}:recall-out-of-fire"
+RECALL_WAIT_REASON = f"{REASON}:recall-wait"
+ABSORBED_HEAL_REASON = f"{REASON}:heal{CAST_SUFFIX}"
+_PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
+                            OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON,
+                            RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -263,6 +277,8 @@ class Battle:
     detect_asked: frozenset = frozenset()  # trap cells a trap detection was keyed for
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
+    fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
+    blind_sights: frozenset = frozenset()  # sight cells reached where the target was not seen
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -492,7 +508,9 @@ def _path(ctx: _Ctx, goals) -> list[tuple[int, int]]:
     return []
 
 
-def _step(ctx: _Ctx, cell, reason: str = WALK_REASON) -> str:
+def _step(ctx: _Ctx, cell, reason: str = WALK_REASON, *, guard: bool = True) -> str:
+    if guard and (held := _fire_guard(ctx, cell)) is not None:
+        return held
     ctx.policy.last_reason = reason
     return ctx.policy._step_toward(ctx.snapshot, Position(*cell))
 
@@ -506,8 +524,109 @@ def _walk(ctx: _Ctx, goals, reason: str = WALK_REASON) -> str | None:
     trap = _trap_key(ctx, nxt)
     if trap is not None:
         return trap
+    if (held := _fire_guard(ctx, nxt)) is not None:
+        return held
     ctx.policy._declare_reach(Position(*path[-1]))
-    return _step(ctx, nxt, reason)
+    return _step(ctx, nxt, reason, guard=False)
+
+
+# -- the casters' fire (owner 2026-11-09) ------------------------------------------------
+#
+# Owner 2026-11-09 (n1-c life-178): 「第二に一歩で安全圏に移動して休息できるのに愚かにも戦闘を継続した
+# こと。」, the formation's 「傷ついて敵がいなければ射線の外まで歩いて休む」 and 「クイル・破壊集大成・
+# ドルジの射線のマスでは待たず、休まない」.  The fire is where a never-moving caster's spell reaches
+# (phase3_spell_ranges): the tome's and the druj's own lines and the cells beside them their balls
+# and breaths are aimed at, the quylthulgs' lines (their teleports need one).  Damaged is below the
+# plan's rest line (room_sweep ``rest_below_ratio``).  With no enemy in view, a damaged player
+# steps out of the fire when one step does it, and does not walk back into it: it rests first.
+
+
+def _fire(ctx: _Ctx) -> frozenset:
+    terrain = ctx.open_terrain()
+    quyls_left = ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]
+    cells = set()
+    for cell, race in ctx.navigator.battlefield.monster_placements:
+        if (race == geo.TOME and not _tome_done(ctx)) or (race == geo.DRUJ and not _druj_done(ctx)):
+            cells |= geo.fire_cells(terrain, (cell,))
+        elif race == geo.QUYL and quyls_left and cell not in ctx.battle.quyls_done:
+            cells |= geo.line_cells(terrain, cell)
+    return frozenset(cells)
+
+
+def _damaged(ctx: _Ctx) -> bool:
+    plan = ctx.profile.engagement_plan["room_sweep"]
+    return ctx.snapshot.player.hp_ratio < float(plan["rest_below_ratio"])
+
+
+def _rest_out_of_fire(ctx: _Ctx) -> str:
+    """Rest on a cell out of the fire; a rest keyed on the decision before that did not raise HP
+    is followed by one turn held (the game time passes either way)."""
+    battle, player = ctx.battle, ctx.snapshot.player
+    decision = int(getattr(ctx.policy, "_decision_sequence", 0))
+    last = battle.fire_rest
+    if ((last is not None and last[0] == decision - 1 and player.hp <= last[1]) or player.confused
+            or player.food_state not in {"normal", "full", "gorged", "hungry"}):
+        battle.fire_rest = None
+        ctx.policy.last_reason = FIRE_HOLD_REASON
+        return WAIT_KEY
+    battle.fire_rest = (decision, player.hp)
+    ctx.policy.last_reason = FIRE_REST_REASON
+    return REST_MACRO
+
+
+def _fire_guard(ctx: _Ctx, cell) -> str | None:
+    """A damaged player with no enemy in view does not step from out of the fire into it."""
+    if not _damaged(ctx) or ctx.in_view():
+        return None
+    fire = _fire(ctx)
+    if tuple(cell) not in fire or ctx.here in fire:
+        return None
+    return _rest_out_of_fire(ctx)
+
+
+def _safe_cells(ctx: _Ctx, fire) -> set:
+    cells = {cell for cell, kind in ctx.terrain.items() if kind in {"floor", "door"} and cell not in fire}
+    if _ipsissimus_alive(ctx):
+        cells -= geo.summon_cells(ctx.terrain)
+    return cells
+
+
+def _withdraw(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
+    """Out of the fire by the least exposed walk, then the rest there."""
+    fire = _fire(ctx)
+    if ctx.here not in fire:
+        return _rest_out_of_fire(ctx)
+    safe = _safe_cells(ctx, fire)
+    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+    terrain = quest_room_sweep._terrain_of(ctx.navigator, ctx.snapshot, water=False)
+    terrain[ctx.here] = "floor"
+    path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
+                                             ctx.here, safe, occupied - safe)
+    if len(path) < 2:
+        return None
+    trap = _trap_key(ctx, path[1])
+    if trap is not None:
+        return trap
+    return _step(ctx, path[1], reason, guard=False)
+
+
+def _out_of_fire_key(policy, snapshot) -> str | None:
+    """「一歩で安全圏に移動して休息できる」: damaged in the fire with no enemy in view, one step out."""
+    ctx = _ctx(policy, snapshot)
+    if ctx is None or not _damaged(ctx) or ctx.in_view():
+        return None
+    fire = _fire(ctx)
+    if ctx.here not in fire:
+        return None
+    occupied = {(monster.position.y, monster.position.x) for monster in ctx.hostiles()}
+    traps = {cell for cell in (*ctx.navigator.battlefield.trap_cells,
+                               *ctx.navigator.battlefield.maybe_trap_cells)
+             if cell not in ctx.battle.cleared}
+    beside = sorted(cell for cell in _safe_cells(ctx, fire) - occupied - traps
+                    if quest_exposure.game_distance(cell, ctx.here) == 1)
+    if not beside:
+        return None
+    return _step(ctx, beside[0], OUT_OF_FIRE_REASON, guard=False)
 
 
 def _direction(origin, cell) -> str:
@@ -761,20 +880,29 @@ def _beam_key(ctx: _Ctx, race: int, grid) -> tuple[float, Callable] | None:
     return best
 
 
-def _fire_at(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False) -> str | None:
-    """The strongest attack aimed at ``grid`` (「一番ダメージの出る攻撃」); ``piercing``: only one
-    that passes the bodies on the way (a beam, a ball or a breath aimed at the grid)."""
+def _fire_options(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False,
+                  missiles: bool = True) -> list:
+    """(expected damage, key maker) of every attack aimed at ``grid``; ``piercing``: only one that
+    passes the bodies on the way (a beam, a ball or a breath aimed at the grid); ``missiles``:
+    the launcher too."""
     options = [(damage, lambda make=make: make(grid))
                for damage, radius, shape, make in _ball_powers(ctx, race)
                if not area_only or shape == "ball"]
     if not area_only:
         if (beam := _beam_key(ctx, race, grid)) is not None:
             options.append(beam)
-        if not piercing:
+        if not piercing and missiles:
             distance = quest_exposure.game_distance(ctx.here, tuple(grid))
             launcher = attack_expectation.launcher_against(ctx.policy, ctx.snapshot, race, distance)
             if launcher > 0:
                 options.append((launcher, lambda: _launcher_grid_key(ctx, grid)))
+    return options
+
+
+def _fire_at(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False,
+             missiles: bool = True) -> str | None:
+    """The strongest attack aimed at ``grid`` (「一番ダメージの出る攻撃」), of ``_fire_options``."""
+    options = _fire_options(ctx, grid, race, piercing=piercing, area_only=area_only, missiles=missiles)
     for _damage, make in sorted(options, key=lambda row: -row[0]):
         key = make()
         if key is not None:
@@ -1149,12 +1277,51 @@ def _tome(ctx: _Ctx) -> str | None:
             if ctx.here != stand:
                 return _walk(ctx, {stand})
             return _haste(ctx) or _fire_at(ctx, found[1], geo.TOME, area_only=True)
+    # Owner 2026-11-09 Q1 「見えない時は矢を撃たない。マスを狙う範囲の攻撃（取り込んだボール・ブレス
+    # など）で削り、無ければ相手が見えるマスへ移って撃つ。」 and 「1に加え、倒しきれなければ下がる。
+    # 生存を優先させたはず」 (「数行動で倒しきる見込みが無ければ、射線の外へ下がって休み、やり直す。」).
+    # From [5,5] the tome is not in view (n1-c life-178: arrows at half the hit chance, ``geo.los``);
+    # an attack aimed at its grid does not need the sight, the launcher does.  The plan with the
+    # larger expected damage is taken: the near stands with the grid-aimed attacks, or a cell
+    # that sees it with the launcher too.  Damaged, a plan that needs more actions than the
+    # quest's kill horizon (FIXED_QUEST_TOUGHEST_KILL_TURNS) withdraws out of the fire and rests.
+    seen = any(monster.race_id == geo.TOME for monster in ctx.in_view())
+    hp = _race_hp(ctx.policy, geo.TOME)
     stands = [stand for stand in geo.TOME_NEAR_STANDS if _path(ctx, {stand}) or ctx.here == stand]
-    if not stands:
+    near = max((damage for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False)),
+               default=0.0)
+    sights = set(geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx))) - set(ctx.battle.blind_sights)
+    far = 0.0
+    if sights:
+        distance = min(quest_exposure.game_distance(cell, tome) for cell in sights)
+        far = max(near, attack_expectation.launcher_against(ctx.policy, ctx.snapshot, geo.TOME, distance))
+    if stands and near > 0 and near >= far:
+        if _hopeless(ctx, hp, near):
+            return _withdraw(ctx)
+        if ctx.here not in stands:
+            return _walk(ctx, {stands[0]})
+        return _haste(ctx) or _fire_at(ctx, tome, geo.TOME, missiles=seen)
+    if far <= 0:
         return None
-    if ctx.here not in stands:
-        return _walk(ctx, {stands[0]})
-    return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
+    if _hopeless(ctx, hp, far):
+        return _withdraw(ctx)
+    if seen:
+        return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
+    if ctx.here in sights:   # the line of sight was there, the tome was not shown: not this cell
+        ctx.battle.blind_sights = ctx.battle.blind_sights | {ctx.here}
+        sights.discard(ctx.here)
+    return _walk(ctx, sights, SIGHT_REASON)
+
+
+def _sight_radius(ctx: _Ctx) -> int:
+    """How far an unlit monster is shown: the player's light (a cold-blooded body gives no
+    infravision, monster-update.cpp); 1 when the board does not say."""
+    return max(int(ctx.snapshot.light_radius or 0), 1)
+
+
+def _hopeless(ctx: _Ctx, hit_points: float, per_action: float) -> bool:
+    return _damaged(ctx) and attack_expectation.actions_to_kill(
+        hit_points, per_action) > FIXED_QUEST_TOUGHEST_KILL_TURNS
 
 
 def _masses_seen(ctx: _Ctx) -> list:
@@ -1516,6 +1683,14 @@ def _observe(ctx: _Ctx) -> None:
         ctx.battle.quiet += 1
 
 
+def observe_board(policy, snapshot) -> None:
+    """Read a board the plan does not decide (a turn-free list read takes it): its kill lines
+    and arrivals count as on a decided board."""
+    ctx = _ctx(policy, snapshot)
+    if ctx is not None:
+        _observe(ctx)
+
+
 def _phase_key(policy, snapshot) -> str | None:
     """The running phase's own order: its preparation, then its step."""
     ctx = _ctx(policy, snapshot)
@@ -1606,9 +1781,12 @@ def key(policy, snapshot) -> str | None:
     if not board.enemy:
         return (
             _druj_retreat(policy, snapshot)
+            or _leave_by_exit(policy, snapshot, board)
             or _summons(policy, snapshot)
             or resist_potion.drink_key(policy, snapshot)
             or quest_room_sweep._restore(policy, snapshot)
+            or _out_of_fire_key(policy, snapshot)
+            or _recall_wait(policy, snapshot)
             or _phase_key(policy, snapshot)
             or resist_potion.leave_key(policy, snapshot)
         )
@@ -1621,15 +1799,78 @@ def key(policy, snapshot) -> str | None:
             or quest_room_sweep._below_line(policy, snapshot, profile, navigator, line=False)))
         or quest_find_exit._cure(policy, snapshot)
         or _druj_retreat(policy, snapshot)
+        or _leave_by_exit(policy, snapshot, board)
         or quest_room_sweep._give_up(policy, snapshot, profile)
         or quest_room_sweep._below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
+        or _absorbed_heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
+        or _out_of_fire_key(policy, snapshot)
+        or _recall_wait(policy, snapshot)
         or _phase_key(policy, snapshot)
         or resist_potion.leave_key(policy, snapshot)
     )
+
+
+def _absorbed_heal(policy, snapshot, profile) -> str | None:
+    """Owner 2026-11-09 Q3 「成功率が80%以上なら体力回復は使っても良い。テレポートは許可しない」: where the
+    plan would drink a Healing potion (its heal line) and none is carried, the absorbed Healing
+    whose displayed success rate is at least 80% (me_capability ``reliable``, the owner's one
+    number for absorbed powers in place of an item).  n1-c life-178 had 4 charges at 32%: none."""
+    threshold = profile.consumable_plan.get("heal_threshold_ratio")
+    if (threshold is None or snapshot.player.hp_ratio >= float(threshold)
+            or quest_find_exit._healing_potion(policy, snapshot) is not None):
+        return None
+    key = item_cast_key(policy, snapshot, (TVAL_POTION, SV_POTION_HEALING))
+    if key is not None:
+        policy.last_reason = ABSORBED_HEAL_REASON
+    return key
+
+
+def _recall_wait(policy, snapshot) -> str | None:
+    """Owner 2026-11-09 Q2 「段をやめ射線外で待つ」: 「段の動きをやめる。開始の階段へ行ければ踏み、
+    行けなければ動かない敵の射線の外へ下がって発動を待つ。」
+
+    Once Recall is active (read when the supplies ran out, once_quest_recall), no phase step: the
+    start stair when a walk reaches it without entering the casters' fire, taken there; else out
+    of the fire and the wait (a rest while damaged).  n1-c life-178: after the Recall of decision
+    5205 the phase walked back toward the tome twice at HP 14-18% and died before it took effect."""
+    ctx = _ctx(policy, snapshot)
+    if ctx is None or not snapshot.player.recalling:
+        return None
+    fire = _fire(ctx)
+    goal = tuple(ctx.navigator.battlefield.exit)
+    if ctx.here == goal:
+        policy.last_reason = RECALL_EXIT_REASON
+        return UP_STAIRS_KEY
+    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+    terrain = quest_room_sweep._terrain_of(ctx.navigator, snapshot, water=False)
+    terrain[ctx.here] = "floor"
+    path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
+                                             ctx.here, {goal}, occupied - {goal})
+    if len(path) >= 2 and not set(path[1:]) & fire:
+        return _trap_key(ctx, path[1]) or _step(ctx, path[1], RECALL_EXIT_WALK_REASON, guard=False)
+    if ctx.here in fire:
+        return _withdraw(ctx, RECALL_OUT_REASON)
+    if _damaged(ctx):
+        return _rest_out_of_fire(ctx)
+    policy.last_reason = RECALL_WAIT_REASON
+    return WAIT_KEY
+
+
+def _leave_by_exit(policy, snapshot, board) -> str | None:
+    """Owner 2026-11-04 (QUEST_25 room_sweep ``exit_when_out_of_healing``, 「薬を使い切っていたら
+    踏んで良い」): the Healing used up, HP at the panic line (PANIC_HP_RATIO) and the start stair
+    within a few steps: walk there and take it (quest_room_sweep ``_leave_by_exit``).  The room
+    sweep's own order holds it; the phase battle that replaced the sweep on this floor dropped it
+    (n1-c life-178 decision 5216: HP 81 of 503 on [11,1], no Healing, the stair [13,1] two steps
+    off, and the phase walked back to the tome).  On the quiet board too: the tome that hits
+    from out of sight leaves no enemy on the board between its breaths."""
+    ctx = _ctx(policy, snapshot)
+    plan = {**ctx.profile.engagement_plan["room_sweep"], "left_alone_races": ()}
+    return quest_room_sweep._leave_by_exit(policy, snapshot, ctx.navigator, plan, board)
 
 
 def walk_key(policy, snapshot) -> str | None:

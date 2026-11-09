@@ -147,6 +147,105 @@ def vision_cells(terrain: dict, source, vision: int, *, edge: bool = False) -> f
         game_distance(cell, source) == vision if edge else game_distance(cell, source) <= vision))
 
 
+def los(terrain: dict, source, target) -> bool:
+    """The game's line of sight from ``source`` to ``target`` (floor/line-of-sight.cpp los, a
+    port): every grid the line passes, but the two ends, lets a line pass (a projecting kind;
+    a closed door or a wall stops it).  It is not reflexive, and not ``projectable``: a monster
+    may cast on a player who does not see it (n1-c life-178: from [5,5] the tome [9,8] could
+    breathe on the player, yet it was never in view)."""
+    (y1, x1), (y2, x2) = tuple(source), tuple(target)
+
+    def passes(y, x):
+        return terrain.get((y, x)) in PROJECTING_KINDS
+
+    dy, dx = y2 - y1, x2 - x1
+    ay, ax = abs(dy), abs(dx)
+    if ax < 2 and ay < 2:
+        return True
+    if not dx:
+        step = 1 if dy > 0 else -1
+        return all(passes(y, x1) for y in range(y1 + step, y2, step))
+    if not dy:
+        step = 1 if dx > 0 else -1
+        return all(passes(y1, x) for x in range(x1 + step, x2, step))
+    sx, sy = (-1 if dx < 0 else 1), (-1 if dy < 0 else 1)
+    if ax == 1 and ay == 2 and passes(y1 + sy, x1):
+        return True
+    if ay == 1 and ax == 2 and passes(y1, x1 + sx):
+        return True
+    f2 = ax * ay
+    f1 = f2 << 1
+    if ax >= ay:
+        qy = ay * ay
+        m = qy << 1
+        ty, tx = y1, x1 + sx
+        if qy == f2:
+            ty += sy
+            qy -= f1
+        while x2 - tx:
+            if not passes(ty, tx):
+                return False
+            qy += m
+            if qy < f2:
+                tx += sx
+                continue
+            if qy > f2:
+                ty += sy
+                if not passes(ty, tx):
+                    return False
+                qy -= f1
+                tx += sx
+                continue
+            ty += sy
+            qy -= f1
+            tx += sx
+        return True
+    qx = ax * ax
+    m = qx << 1
+    ty, tx = y1 + sy, x1
+    if qx == f2:
+        tx += sx
+        qx -= f1
+    while y2 - ty:
+        if not passes(ty, tx):
+            return False
+        qx += m
+        if qx < f2:
+            ty += sy
+            continue
+        if qx > f2:
+            tx += sx
+            if not passes(ty, tx):
+                return False
+            qx -= f1
+            ty += sy
+            continue
+        tx += sx
+        qx -= f1
+        ty += sy
+    return True
+
+
+@lru_cache(maxsize=64)
+def _sight_cells(terrain_key: tuple, target: tuple, radius: int) -> frozenset:
+    terrain = dict(terrain_key)
+    return frozenset(cell for cell, kind in terrain.items()
+                     if kind in STANDABLE and cell != target
+                     and game_distance(cell, target) <= radius and los(terrain, cell, target))
+
+
+def sight_cells(terrain: dict, target, radius: int) -> frozenset:
+    """The standable cells within ``radius`` (the light that shows an unlit monster) that have
+    a line of sight to ``target``: where a cold-blooded, visible-bodied monster is seen."""
+    return _sight_cells(_key(terrain), tuple(target), int(radius))
+
+
+def fire_cells(terrain: dict, casters) -> frozenset:
+    """The standable cells a spell of one of the never-moving ``casters`` reaches (``casts_on``:
+    its own line, or a line to a cell beside: a ball or a breath aimed there)."""
+    return summon_cells(terrain, tuple(casters)) if casters else frozenset()
+
+
 def exposure_of(cells) -> quest_exposure.Exposure:
     """An Exposure whose ``shout`` is ``cells``: the least-exposed walk crosses the fewest."""
     return quest_exposure.Exposure({}, {tuple(cell): frozenset({(0, 0)}) for cell in cells})

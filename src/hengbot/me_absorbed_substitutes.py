@@ -55,7 +55,10 @@ def _build_powers() -> dict:
     powers[CURE_LIGHT] = _cast_power(CURE_LIGHT)
     powers[TELEPORTATION] = _cast_power(TELEPORTATION)
     # Healing in the arena, where no potion works (arena.py); neither asks for a direction.
+    # The staff's is also a ``cast`` row's (Q25, owner 2026-11-09), built above with its names.
     for kind, sval in (("rod", 9), ("staff", 18)):
+        if (kind, sval) in powers:
+            continue
         powers[(kind, sval)] = me_powers.BY_KEY.get((kind, sval)) or me_powers.Power(
             kind, sval, (), "absorbed-power", 0, 0, (), darkness_scaled=False, aimed=False)
     return powers
@@ -111,7 +114,6 @@ def carry_cast_key(policy, snapshot, category: str, name: str,
 
 def item_cast_key(policy, snapshot, target, direction: str = "") -> str | None:
     """The substitute power where a scene uses ``target``'s item: a ``cast``
-    row whose condition holds (me_capability.waiving_rows), with a charge."""
-    row = next((row for row in me_capability.waiving_rows(policy, snapshot, target)
-                if row.cast), None)
+    row whose condition holds (me_capability.cast_rows), with a charge."""
+    row = next(me_capability.cast_rows(policy, snapshot, target), None)
     return None if row is None else cast_key(policy, snapshot, _powers()[row.power], direction)

@@ -1863,8 +1863,23 @@ class QuestMixin(OpeningRouteMixin):
         a fleeing melee enemy must be followed before the post-wave light
         point is reached. Neither observation should reverse a sweep step.
         Active mobile or ranged threats still require the reviewed hold.
+
+        A sleeping enemy is not drawn to the hold either: seen only from the
+        first sweep step (n1-a life-498 Q22, the orc shaman at [11,38] seen
+        from [9,57] but not from the hold [9,58]), counting it as a re-sighted
+        enemy undid every sweep step.  Owner 2026-11-09 「眠る敵では戻らない」:
+        a sleeping enemy is no reason to retake the hold; the sweep goes on,
+        closes on it and kills it by the sweep's rules.  Awake enemies are
+        still a reason to retake the hold, and so is a strong sleeper (owner
+        2026-11-07: a strong monster is kept away from even asleep; the
+        strength judgment is the engagement retreat's own, independent of
+        the distance, so closing in does not flip it).
         """
         never_move_races = self._quest_never_move_races(profile)
+        hostiles = [
+            monster for monster in hostiles
+            if not monster.asleep or self._material_melee_fight(snapshot, monster)
+        ]
         return bool(
             profile.engagement_plan.get("placement_sweep")
             and initial_hold_complete

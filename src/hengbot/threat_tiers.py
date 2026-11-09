@@ -799,8 +799,8 @@ def escape_means(policy, snapshot, hostiles) -> tuple:
                 item.tval == TVAL_STAFF and item.sval == SV_STAFF_TELEPORTATION
                 and item.aware and item.charges > 0 for item in snapshot.inventory):
             means.append("teleport-staff")
-        if (not player.confused and me_capability.has(policy, snapshot, "staff",
-                                                      SV_STAFF_TELEPORTATION)
+        if (not player.confused and not quest_no_teleport.forbids_absorbed(policy, snapshot)
+                and me_capability.has(policy, snapshot, "staff", SV_STAFF_TELEPORTATION)
                 and me_capability.charges(policy, snapshot, "staff", SV_STAFF_TELEPORTATION) > 0):
             means.append("absorbed-teleport")
     if destruction_use.holds_means(policy, snapshot) and destruction_use._scene_holds(
@@ -856,6 +856,7 @@ def blind_teleport_means(policy, snapshot):
     power = me_absorbed_substitutes.TELEPORTATION
     # The menu walk of the blind cast is the one status_cure.absorbed_cure_key uses.
     if (me_absorbed_substitutes.blind_castable(snapshot)
+            and not quest_no_teleport.forbids_absorbed(policy, snapshot)
             and me_capability.has(policy, snapshot, *power)
             and me_capability.charges(policy, snapshot, *power) > 0):
         return ABSORBED
