@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from hengbot import immobile_threat_memory
 from hengbot.model import Position
+from hengbot.policy_constants import RANGED_MAX_DISTANCE
+from hengbot.projection_path import projection_path
 
 
 def touching_cells(policy, snapshot, cells) -> set[Position]:
@@ -34,3 +36,34 @@ def usable(policy, snapshot, target: Position, vantages: set[Position]) -> set[P
     """``vantages`` with a clear lane to ``target`` and out of reach of what does not move."""
     return {cell for cell in vantages - touching_cells(policy, snapshot, vantages)
             if _lane_is_clear(snapshot, cell, target)}
+
+
+def reach(snapshot, cell: Position, breeders) -> int:
+    """How many of ``breeders`` the Q2 shot reaches from ``cell``.
+
+    The shot's own model (policy_quest ``_q2_ranged_core_key``, policy_combat
+    ``_offset_fire_aim``): two grids or more away, and the projection path of
+    ``RANGED_MAX_DISTANCE`` ends on the breeder before a known grid that stops sight."""
+    def blocks(pos: Position) -> bool:
+        grid = snapshot.grids.get(pos)
+        return grid is not None and grid.known and not grid.allows_los
+
+    return sum(
+        1 for monster in breeders
+        if cell.distance_to(monster.position) >= 2
+        and monster.position in projection_path(cell, monster.position, RANGED_MAX_DISTANCE, blocks)
+    )
+
+
+def widest(snapshot, cells: set[Position], breeders) -> set[Position]:
+    """``cells`` from which the shot reaches the most of ``breeders`` (``reach``).
+
+    Owner 2026-11-08 「20行動で減らせないのであれば倒すアルゴリズム側に問題がある。」: n1-c life-181
+    (2026-11-09 12:53) took the nearest firing cell of the nearest corpse mass, at the far edge of
+    its reach, and walked again after each kill: the window that ended in Recall had 20 shots and
+    12 walks, 9 masses killed and 9 born (10 at both ends)."""
+    if not cells:
+        return set()
+    scores = {cell: reach(snapshot, cell, breeders) for cell in cells}
+    best = max(scores.values())
+    return {cell for cell, score in scores.items() if score == best}
