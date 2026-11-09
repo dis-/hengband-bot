@@ -28,9 +28,14 @@ from hengbot.model import (
     TVAL_AMULET,
     TVAL_ARROW,
     TVAL_BOLT,
+    TVAL_BOW,
+    TVAL_DIGGING,
+    TVAL_HAFTED,
     TVAL_LITE,
+    TVAL_POLEARM,
     TVAL_RING,
     TVAL_SHOT,
+    TVAL_SWORD,
     InventoryItem,
     StoreItem,
     flag_light_radius,
@@ -169,6 +174,10 @@ MUTATION_BAD_LUCK = 92
 # The bot's own in-game inscription on equipment it picked up on the Q34 floor
 # (owner 2026-10-31: 「Q34で拾った品を覚える必要があるなら銘を刻むこと」).
 Q34_ITEM_TAG = "Q34"
+# Weapons held in the hands (melee weapons, diggers and launchers): a Q34 one is
+# wielded only once identified (owner 2026-11-09 「Q34の武器は未鑑定で握らない」).
+Q34_WIELD_IDENTIFY_FIRST_TVALS = frozenset({
+    TVAL_BOW, TVAL_DIGGING, TVAL_HAFTED, TVAL_POLEARM, TVAL_SWORD})
 _Q34_TAG = re.compile(r"(?<![0-9A-Za-z])Q34(?![0-9A-Za-z])")
 
 
@@ -322,15 +331,19 @@ class OwnedEquipment:
 
         「並なら付けて良い。加えてQ34習得品も付けて良い。」: a light source
         sensed {average} while no bad luck is seen (Q-B), or an item inscribed
-        ``Q34`` on the Q34 floor that is not sensed cursed or broken.  Every
-        other unidentified item keeps the identify-first rule.
+        ``Q34`` on the Q34 floor that is not sensed cursed or broken and is
+        no weapon.  Owner 2026-11-09 「Q34の武器は未鑑定で握らない」 (Q34 で手に
+        入れた武器（光源以外）は未鑑定では握らない): n1-b life-349 (2026-11-08
+        20:02) wielded the unidentified Q34 タルワール, cursed (-4,-4), could
+        not mine with it and had no gold for Remove Curse.  Every other
+        unidentified item keeps the identify-first rule.
         """
         item = self.item
         if item.known or item.pseudo_feeling in BAD_PSEUDO_FEELINGS:
             return False
         if average_light_without_modifiers(item, self.average_feeling_trusted):
             return True
-        return q34_item_tagged(item)
+        return item.tval not in Q34_WIELD_IDENTIFY_FIRST_TVALS and q34_item_tagged(item)
 
     @property
     def evaluable(self) -> bool:

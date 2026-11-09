@@ -392,5 +392,71 @@ class RandomTeleportInscribedTest(RecordedVisit):
         self.assertNotEqual(reason, "town:blocked:unmet:equipment_departure_ready")
 
 
+class Q34WeaponIdentifyFirstTest(RecordedVisit):
+    """C. n1-b life-349 2026-11-08 20:02 town:blocked:owner-retired-burst x3.
+
+    The unidentified Q34 タルワール was wielded under the 10-31 rule
+    「Q34習得品も付けて良い」; it was cursed (-4,-4) (row 12 identified it), the
+    mining departure refuses a cursed main hand and 40 gold bought no Remove
+    Curse.  Owner 2026-11-09 「Q34の武器は未鑑定で握らない」 (Q34 で手に入れた
+    武器（光源以外）は未鑑定では握らない): the Q34 wear rule no longer covers a
+    weapon.  The wield happened before this record (the talwar arrives worn
+    and sensed cursed) and its optimizer is calibration-required (curse
+    marks), so the record pins the catalogue choose_key builds: the carried
+    unidentified Q34 swords are not wearable, the Q34 lantern still is.
+    """
+
+    fixture = "c349"
+
+    def test_unidentified_q34_weapons_are_not_wearable(self):
+        board = self.board(0)
+        self.policy.choose_key(board)
+        main = next(item for item in board.equipment if item.slot == "main_hand")
+        self.assertIn("Q34", main.name)
+        wearable = {owned.item.name: owned.unidentified_wear_allowed
+                    for owned in self.policy._equipment_catalog.items
+                    if "Q34" in owned.item.name and not owned.item.known}
+        self.assertEqual(wearable, {
+            "サーベル (1d7) {Q34}": False,
+            "ブロード・ソード (2d5) {Q34}": False,
+            "タルワール (2d4) {呪われている, Q34}": False,
+            "真鍮のランタン {並, Q34}": True,
+            "クローク [1] {呪われている, Q34}": False,
+        })
+
+
+from tests import test_unid_light_recorded as _unid_light  # noqa: E402
+
+
+class Q34WeaponNotWieldedTest(_unid_light.UnidentifiedLightRecordedTest):
+    """C. The optimizer does not wield an unidentified Q34 weapon.
+
+    Recorded: n1-c life-055 (tests/test_unid_light_recorded.py's fixture,
+    the calibration and C screen of that character), decided through the
+    public choose_key in Home.  DECLARED CONSTRUCTED: an unidentified カットラス
+    (3d8) inscribed Q34 carried beside the worn カットラス (1d7) (+0,+0); its
+    dice beat every known weapon, so the 10-31 rule wielded it unidentified,
+    as life-349 wielded its Q34 タルワール.
+    """
+
+    # Only this class's own tests run here.
+    locals().update({name: None for name in dir(_unid_light.UnidentifiedLightRecordedTest) if name.startswith("test_")})
+
+    def test_unidentified_q34_weapon_is_not_wielded(self):
+        import copy
+        raw = copy.deepcopy(self.data["boards"]["in-home"])
+        raw["inventory"].insert(7, {
+            "aware": True, "count": 1, "fully_known": False, "inscription": "Q34",
+            "is_bounty": False, "is_equipment": True, "known": False,
+            "name": "カットラス (3d8) {Q34}", "slot": "h", "sval": 12, "tval": 23,
+            "weight": 110, "damage_dice": {"num": 3, "sides": 8}})
+        for index, item in enumerate(raw["inventory"]):
+            item["slot"] = "abcdefghijklmnopqrstuvw"[index]
+        policy = self.policy(raw, mutations=None)
+        self.decide(policy, raw)
+        self.assertNotEqual(self.selected(policy).get("main_hand"), "カットラス (3d8) {Q34}")
+        self.assertNotIn("Q34", self.selected(policy).get("main_hand", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
