@@ -30,7 +30,9 @@ quoted there with its date); this module is their executor.  The phases, in orde
  6. ``tome`` (phase3 step 2): full HP, haste, then a ball from [5,1]/[5,2] where one reaches
     the tome, else the strongest ranged attack from [5,5], [4,5] or [5,6].
  7. ``corpse-masses`` (phase4): [1,6] by the walk that crosses no corridor trap, the door
-    [1,7] opened, the corridor lit when dark (the 11-05 rule), and every mass in view shot.
+    [1,7] opened, the corridor lit when dark (the 11-05 rule), and every mass in view shot --
+    from the cell that reaches the most of them (owner 2026-11-09 「一番多く届く位置へ」,
+    ``_walk_to_widest``), back to [1,6] when none is left to shoot.
  8. ``dreadmaster`` (phase5): ranged waits on the edge of its vision ([1,9]), melee on [1,17];
     hasted while it is in view.
  9. ``sweep`` (phase6_sweep): detection when the character has it, else the kill count
@@ -101,6 +103,7 @@ from hengbot import (
     quest25_geometry as geo,
     quest_exposure,
     quest_find_exit,
+    quest_firing_cells,
     quest_room_light,
     quest_room_sweep,
     resist_potion,
@@ -117,7 +120,8 @@ from hengbot.model import (
     TVAL_POTION, TVAL_STAFF, TVAL_WAND,
 )
 from hengbot.policy_constants import (
-    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, REST_MACRO, SEARCH_KEY, UP_STAIRS_KEY, WAIT_KEY,
+    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, RANGED_MAX_DISTANCE, REST_MACRO, SEARCH_KEY,
+    UP_STAIRS_KEY, WAIT_KEY,
 )
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
 from hengbot.unseen_strike import message_text
@@ -153,9 +157,10 @@ RECALL_EXIT_REASON = f"{REASON}:recall-exit"
 RECALL_OUT_REASON = f"{REASON}:recall-out-of-fire"
 RECALL_WAIT_REASON = f"{REASON}:recall-wait"
 ABSORBED_HEAL_REASON = f"{REASON}:heal{CAST_SUFFIX}"
+MASS_CELL_REASON = f"{REASON}:mass-firing-cell"
 _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
                             OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON,
-                            RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON})
+                            RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON, MASS_CELL_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -1518,7 +1523,8 @@ def _masses_done(ctx: _Ctx) -> bool:
 
 
 def _masses(ctx: _Ctx) -> str | None:
-    if ctx.here != geo.MASS_STAND:
+    opening = ctx.door_closed(geo.MASS_DOOR) or not ctx.battle.lit
+    if opening and ctx.here != geo.MASS_STAND:
         return _walk(ctx, {geo.MASS_STAND})
     if ctx.door_closed(geo.MASS_DOOR):
         ctx.policy.last_reason = OPEN_REASON
@@ -1529,11 +1535,63 @@ def _masses(ctx: _Ctx) -> str | None:
             ctx.policy, ctx.snapshot, ctx.navigator, ctx.open_terrain(), quest_room_light.LIGHT_REASON)
         if light is not None:
             return light
+    if (key := _walk_to_widest(ctx)) is not None:
+        return key
     if (key := _breeders_in_line_key(ctx)) is not None:
         return key   # owner 2026-11-08: the aim with the most kills when it catches two or more
     for monster in sorted(_masses_seen(ctx), key=lambda each: each.distance):
         key = _fire_at(ctx, (monster.position.y, monster.position.x), geo.MASS)
         if key is not None:
+            return key
+    if ctx.here != geo.MASS_STAND:
+        return _walk(ctx, {geo.MASS_STAND})   # none to shoot from here: the plan's cell looks again
+    return None
+
+
+def _mass_firing_cells(ctx: _Ctx) -> dict:
+    """reach -> the cells a shot at the masses in view reaches that many from (owner 2026-11-09
+    「一番多く届く位置へ」, quest_firing_cells ``reach``, the Q2 fix's measure), of the cells the plan
+    may stand on: floor through the doors as the board shows them, no trap not answered, out of
+    the casters' fire (``_fire``: the tome, the quylthulgs, the druj), out of the summons while the
+    Ipsissimus live, out of the dreadmaster's vision while it lives (phase4 「[1,6] には罠が無く、
+    ドリードマスターの感知範囲の外で、召喚も受けない」), not beside a mass (they drain by touch) nor on a
+    monster.  The plan's [1,6] is one of them."""
+    masses = _masses_seen(ctx)
+    if not masses:
+        return {}
+    bf = ctx.navigator.battlefield
+    avoid = set(_fire(ctx)) | {cell for cell in (*bf.trap_cells, *bf.maybe_trap_cells)
+                               if cell not in ctx.battle.cleared}
+    if _ipsissimus_alive(ctx):
+        avoid |= geo.summon_cells(ctx.terrain)
+    if not _dreadmaster_done(ctx):
+        dreadmaster = next((cell for cell, race in bf.monster_placements if race == geo.DREADMASTER), None)
+        if dreadmaster is not None:
+            avoid |= geo.vision_cells(ctx.terrain, dreadmaster, geo.DREADMASTER_VISION)
+    occupied = {(monster.position.y, monster.position.x) for monster in ctx.hostiles()}
+    near = {cell for cell, kind in ctx.open_terrain().items() if kind == "floor"
+            and any(quest_exposure.game_distance(cell, (monster.position.y, monster.position.x))
+                    <= RANGED_MAX_DISTANCE for monster in masses)}
+    cells = {Position(*cell) for cell in near - avoid - occupied}
+    cells -= quest_firing_cells.touching_cells(ctx.policy, ctx.snapshot, cells)
+    by_reach: dict = {}
+    for cell in cells:
+        count = quest_firing_cells.reach(ctx.snapshot, cell, masses)
+        if count:
+            by_reach.setdefault(count, set()).add((cell.y, cell.x))
+    return by_reach
+
+
+def _walk_to_widest(ctx: _Ctx) -> str | None:
+    """To the cells that reach the most masses (``_mass_firing_cells``), the most first among the
+    reachable; None when no cell reaches more than this one (a cell the plan may not stand on
+    reaches none) or none that does can be walked to."""
+    by_reach = _mass_firing_cells(ctx)
+    here = next((count for count, cells in by_reach.items() if ctx.here in cells), 0)
+    for count in sorted(by_reach, reverse=True):
+        if count <= here:
+            return None
+        if (key := _walk(ctx, by_reach[count], MASS_CELL_REASON)) is not None:
             return key
     return None
 
