@@ -157,5 +157,42 @@ class StoredDiggerTakeTest(RecordedVisit):
         self.assertNotEqual(key, self.journal[14]["key"])
 
 
+class HomeIdentificationBesideFullWaitTest(RecordedVisit):
+    """H. n1-a life-497 2026-11-09 03:58 town:blocked:unmet:home_candidate_resolved.
+
+    The carried 殺傷の矢 waited for *Identify* (identification need "full")
+    with no *Identify* on the Alchemist's shelf; the need's missing source
+    kept the Home identification-withdrawal out of the plan although two
+    Home items (the armour {average-unreliable} and the dwarven pick) were
+    identifiable with the carried Identify staff, and their catalogue take was
+    filed.  visit_can_identify stayed true for those Home items, so the wait
+    was not released either: the town end stopped (row 37).
+
+    Owner 2026-10-31 「鑑定の手段がある時に、預けた未鑑定の装備を…取り出して鑑定」,
+    11-03 「*鑑定* 待ちは鑑定できない訪問なら今の装備で出発」.  Fix: the Home
+    candidates a carried source identifies keep the Home withdrawal planned
+    beside a need whose source the visit lacks.
+    """
+
+    fixture = "h497"
+
+    def test_recorded_rows_replay_to_the_stop(self):
+        # Row 16 buys one more of its shelf stack once the unidentified Q34
+        # weapons wait for identification (C); every other row as recorded.
+        self.assertLessEqual(set(self.replay_to(37)), {16})
+        self.assertEqual(self.journal[37]["reason"], "town:blocked:unmet:home_candidate_resolved")
+        self.assertEqual(self.policy._identification_need, "full")
+
+    def test_home_candidates_are_taken_beside_the_full_wait(self):
+        self.replay_to(37)
+        _board, key, reason = self.decide(37)
+        self.assertEqual(reason, "shop:approach")
+        self.assertNotEqual(key, self.journal[37]["key"])
+        plan = self.policy._town_errand_plan
+        self.assertIn("identification-withdrawal", plan.need_categories[STORE_HOME])
+        self.assertEqual(self.policy._shopping_approach_store_type, STORE_HOME)
+        self.assertEqual(self.policy._home_errand.request.purpose, "identification-catalog")
+
+
 if __name__ == "__main__":
     unittest.main()

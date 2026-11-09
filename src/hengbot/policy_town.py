@@ -4,7 +4,7 @@ from hengbot import quest_optional_carry
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
-from hengbot import guardian_rumor, home_pass_charge, town_end_mining, town_travel
+from hengbot import guardian_rumor, home_identification, home_pass_charge, town_end_mining, town_travel
 from hengbot import status_cure, unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 
@@ -3480,10 +3480,21 @@ class TownMixin:
                 full=self._identification_need == "full",
                 reliable_only=self._identification_requires_reliable_source(snapshot),
             )
-            if source is None and STORE_ALCHEMIST not in self._town_store_attempted:
+            source_first = source is None and STORE_ALCHEMIST not in self._town_store_attempted
+            if source_first:
                 add(STORE_ALCHEMIST, "identification-source", "before-withdrawal")
-            elif (
-                self._home_candidate_waiting
+            if (
+                (not source_first
+                 # A need whose source this visit lacks does not hold the
+                 # Home candidates a carried source identifies now (owner
+                 # 2026-10-31 「鑑定の手段がある時に…取り出して鑑定」, 11-03
+                 # 「*鑑定* 待ちは鑑定できない訪問なら今の装備で出発」).
+                 # n1-a life-497 (2026-11-09 03:58): the carried 殺傷の矢
+                 # waited for *Identify* with none on the shelf; two Home
+                 # items an Identify staff identifies were never taken and
+                 # the visit stopped under home_candidate_resolved.
+                 or home_identification.candidates(self, snapshot))
+                and self._home_candidate_waiting
                 and home_identification_claim
                 and self._home_available(snapshot)
             ):
