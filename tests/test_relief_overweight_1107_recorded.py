@@ -23,7 +23,9 @@ closed the relief's gate; the random-teleport inscription replaced the tag and
 the equipment transaction shelved the sword again; the relief then counted
 the sword as sold, took it out of Home once more, item processing deferred
 that take, and the town walked between the Weapon Smith and the Alchemist into
-the burst.
+the burst.  Owner 2026-11-09 「直して預け戻さない」: a relief take is no failed
+identification withdrawal; row 64's step-off (the first such deferral) is now
+the entry into Home for the take (``assert_a2_relief_entry``).
 
 B1, 12:30:22-39 (town:blocked:overweight-surplus-rebuy-loop): the overweight
 sales sold 12 of 35 クロスボウの矢 (+0,+0), a 鑑定の巻物 and 23 クロスボウの矢
@@ -57,6 +59,7 @@ FIXTURES = Path(__file__).with_name("fixtures") / "relief-overweight-1107"
 FLAIL = "ドラゴンスレイヤーのヘヴィ・フレイル (3d6) (+8,+12) (+1) {+耐r電/X龍~竜}"
 SWORD = "(トランプ)首切りソード (4d5) (+17,+7) (+2探索) {+探r盲因;麻遅活瞬/邪, .}"
 PLAIN_ARROWS = ("クロスボウの矢 (1d5) (+0,+0) (49/shot 75/turn)", 18, 1)
+A2_RELIEF_ENTRY, A2_RELIEF_ENTRY_SKIPPED = 64, 65
 
 
 class ReliefOverweight1107RecordedTest(unittest.TestCase):
@@ -83,6 +86,7 @@ class ReliefOverweight1107RecordedTest(unittest.TestCase):
         self.addCleanup(no_zul.stop)
 
     def restore(self, name):
+        self.fixture = name
         source = FIXTURES / name
         self.journal = [json.loads(line) for line in
                         lzma.decompress((source / "journal.jsonl.xz").read_bytes()).splitlines()]
@@ -124,10 +128,35 @@ class ReliefOverweight1107RecordedTest(unittest.TestCase):
 
     def replay_unchanged(self, policy, rows):
         for row in rows:
+            if row == A2_RELIEF_ENTRY_SKIPPED and self.fixture == "a2":
+                continue
             _board, key = self.decide(policy, row)
+            if row == A2_RELIEF_ENTRY and self.fixture == "a2":
+                self.assert_a2_relief_entry(policy, key)
+                self.post(policy, key)
+                continue
             self.assertEqual((key, policy.last_reason),
                              (self.journal[row]["key"], self.journal[row]["reason"]), row)
             self.post(policy, key)
+
+    def assert_a2_relief_entry(self, policy, key):
+        """Row 64: the relief's filed take of the sword enters Home from the entrance.
+
+        Owner 2026-11-09 「直して預け戻さない」(town-stops-1109b question 2): the relief's
+        filed take is not an identification withdrawal, so the town-item processing
+        leaves it pending (bot 00c553cd8 deferred it as a failed withdrawal, and the
+        entrance's wait stepped off, row 64 '3', to walk back onto the entrance, row 65
+        '7').  The take keeps the Home approach, so the wait at the entrance is the
+        intentional entry into Home.  DECLARED: row 65's board, the recorded step-off
+        cell, is not reached; row 66's recorded Home page is the page the entry opens,
+        and the recorded relief from there (rows 66-73) follows unchanged.
+        """
+        sword = policy._home_full_relief["sale"][0]
+        self.assertEqual(sword[0], SWORD)
+        self.assertEqual((key, policy.last_reason), ("5", "policy:none-wait"))
+        self.assertEqual(policy._home_pending_item, sword)
+        self.assertNotIn(sword, policy._deferred_home_items)
+        self.assertTrue(policy._intentional_entrance_activation)
 
     # A1 -----------------------------------------------------------------
 

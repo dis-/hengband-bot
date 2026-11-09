@@ -17384,7 +17384,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if (immobile_threat_memory.ringed(self, monster)
                     or immobile_threat_memory.fought_normally(self, snapshot, monster)
                     or not (self._material_melee_damage(snapshot, monster)
-                            or out_of_sight and sleeper_reach_memory.status_latched(
+                            or out_of_sight and sleeper_reach_memory.avoided_out_of_sight(
                                 self, snapshot, monster))):
                 continue
             distance = player.distance_to(monster.position)
