@@ -1867,6 +1867,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "immobile_threat_memory.py:remembered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "immobile_threat_memory.py:ring_cells": {
     "classification": "data",
     "rows": [
@@ -3576,6 +3583,27 @@
     "delegation": "selected child; no independent success"
   },
   "monrace_knowledge.py:_strip_jsonc": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_memory.py:_one_turn_group": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_memory.py:entries": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_memory.py:remembered": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11513,6 +11541,13 @@
       "shop-buy"
     ],
     "delegation": "none"
+  },
+  "sleeper_reach_memory.py:remembered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "slow_decisions.py:SlowDecisionRecorder.choose_key": {
     "classification": "adapter",

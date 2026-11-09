@@ -19,7 +19,7 @@ What is computed (one implementation: the evaluator the combat prediction uses):
 - the monsters: every hostile the board shows, in view or by a detection or ESP, asleep or not
   (fair play: the game displayed them), with the static race data.  「その階では」: a monster once
   shown stays known for the floor visit, until its index shows another race or its kill or
-  shape-change line follows a board that showed it (retreat_veto_life.seen_or_ended); the floor
+  shape-change line follows a board that showed it (monster_memory.seen_or_ended); the floor
   change forgets them all.
 - the damage: the largest ``monster_ranged_evaluator.maximum_ability_hp_damage`` over the race's
   breaths (BR_*) and balls (BA_*), from the race's maximum HP (``MonraceKnowledge.max_hp`` is the
@@ -77,7 +77,8 @@ from hengbot.monster_ranged_evaluator import (
     maximum_ability_hp_damage,
 )
 from hengbot.policy_constants import OPPOSITION_FLAG, RESIST_FLAG_BY_ABILITY
-from hengbot.retreat_veto_life import Threat, seen_or_ended, shown_by_index
+from hengbot.monster_memory import seen_or_ended, shown_by_index
+from hengbot.retreat_veto_life import Threat
 
 QUAFF_REASON = "oneshot-breath:quaff"
 MEMORY = "_oneshot_breath_visit"

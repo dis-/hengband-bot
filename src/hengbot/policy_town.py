@@ -2561,6 +2561,24 @@ class TownMixin:
                 cause="no-device-target",
             )
             return None
+        # The absorbed Identify serves what a staff would (owner 2026-10-30
+        # 「以降、鑑定と財宝感知は取り込みで賄う」), first, as the carried
+        # equipment flow (_carried_identify_command) casts it; a target its
+        # failure watch gave up on asks a carried source instead.
+        if self._item_signature(target) not in self._unidentifiable_sigs:
+            absorbed = self._absorbed_identify_key(snapshot, target, full=False)
+            if absorbed is not None:
+                self._identification_need = None
+                self._device_identification_candidate = None
+                self.last_reason = "identify:device"
+                self._offer_execution(
+                    absorbed, producer="identification",
+                    work_id=f"identify:device:{self._item_signature(target)}",
+                    next_step="identification.use-absorbed-power",
+                    arguments=(self._item_signature(target),),
+                    expected_effect="device-identified",
+                )
+                return absorbed
         source = self._find_identification_source(
             snapshot, full=False, reliable_only=True
         )

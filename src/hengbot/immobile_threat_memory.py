@@ -59,7 +59,7 @@ unresisting player is ringed as well.
 Owner 2026-11-06 「脅威が見えなくなったら消す」 (retreat_veto_life): a remembered
 monster is also forgotten when it died or changed shape -- its floor list index
 shows another race, or its kill or shape-change line follows a board it was shown
-on (``retreat_veto_life.seen_or_ended``).  Recorded n1-c life-156 (Labyrinth 10F,
+on (``monster_memory.seen_or_ended``).  Recorded n1-c life-156 (Labyrinth 10F,
 2026-11-06 23:0x): a レッド・ゼリー at (10,42) was shot dead from (13,42) (turn
 1033667, 「レッド・ゼリーは死んだ。」), but on the forgetting maze its cell three
 away stayed unlit, so the empty-cell test never certified it gone; its ring kept
@@ -73,7 +73,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from hengbot import disenchant_avoid, retreat_veto_life
+from hengbot import disenchant_avoid, monster_memory, retreat_veto_life
 from hengbot.model import MonsterState, Position
 from hengbot.monrace_knowledge import SUMMON_ABILITIES
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, ExplorationPathOutcome
@@ -216,7 +216,7 @@ def _forget_ended(visit: FloorVisit, snapshot, perceived: dict) -> None:
     """Forget the remembered monsters that died or changed shape (owner 2026-11-06)."""
     threats = visit.__dict__.setdefault("threats", {})  # restored checkpoints predate it
     last_turn = visit.__dict__.get("last_turn")
-    shown = retreat_veto_life.shown_by_index(snapshot)
+    shown = monster_memory.shown_by_index(snapshot)
     for position, monster in list(visit.monsters.items()):
         if position in perceived:
             threats[position] = (
@@ -227,7 +227,7 @@ def _forget_ended(visit: FloorVisit, snapshot, perceived: dict) -> None:
         if entry is None:
             continue
         key, threat = entry
-        if retreat_veto_life.seen_or_ended(snapshot, key, threat, shown, last_turn):
+        if monster_memory.seen_or_ended(snapshot, key, threat, shown, last_turn):
             del visit.monsters[position]
             del threats[position]
             visit.unaimed.discard(position)
