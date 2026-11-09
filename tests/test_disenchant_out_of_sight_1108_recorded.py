@@ -39,7 +39,8 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HUNT_RANGE
 from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
 from tests.support import recorded as executor_pins
-from tests.test_dungeon_1031_recorded import RecordedHarness, decide
+from tests.support import recorded as _recorded
+from tests.support.recorded import decide
 
 FIXTURE = Path(__file__).with_name("fixtures") / "disenchant-out-of-sight-20261108.json.gz"
 with gzip.open(FIXTURE, "rt", encoding="utf-8") as _stream:
@@ -78,7 +79,7 @@ def replayed():
     return policy
 
 
-class DisenchanterOutOfSightRecordedTest(RecordedHarness):
+class DisenchanterOutOfSightRecordedTest(_recorded.RecordedHarness):
     def test_recorded_retreat_then_walk_back(self):
         seen, hidden = BOARDS[-2], BOARDS[-1]
         self.assertEqual((seen["player"]["y"], seen["player"]["x"]), (37, 84))

@@ -46,7 +46,8 @@ from hengbot import sleeper_loot_block, sleeper_reach_memory
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
-from tests.test_dungeon_1031_recorded import RecordedHarness, decide
+from tests.support import recorded as _recorded
+from tests.support.recorded import decide
 from tests.test_n1b_348_stops_1108_recorded import knowledge
 
 FIXTURES = Path(__file__).with_name("fixtures") / "stops-1109-dungeon"
@@ -96,7 +97,7 @@ GAZER, GAZER_SEEN = (2, 218), Position(25, 19)
 WARG_SEEN, WARG_PILE = Position(6, 88), Position(6, 82)
 
 
-class AwakeThreatOutOfSightRecordedTest(RecordedHarness):
+class AwakeThreatOutOfSightRecordedTest(_recorded.RecordedHarness):
     def test_recorded_rows(self):
         rows = recorded(L346)
         self.assertEqual(rows[1301140], ("9", "status-threat:retreat"))
@@ -196,7 +197,7 @@ class AwakeThreatOutOfSightRecordedTest(RecordedHarness):
         self.assertIn(WARG_PILE, policy._engagement_route_veto(snapshot))
 
 
-class SleeperInViewKeepsTheChokeRetreatRecordedTest(RecordedHarness):
+class SleeperInViewKeepsTheChokeRetreatRecordedTest(_recorded.RecordedHarness):
     def test_recorded_rows(self):
         rows = recorded(L355)
         self.assertEqual(rows[4072513], ("7", "detected:prepare-choke"))
@@ -246,7 +247,7 @@ class SleeperInViewKeepsTheChokeRetreatRecordedTest(RecordedHarness):
 L173 = case("l5-173")
 
 
-class MazeBearAreaRecordedTest(RecordedHarness):
+class MazeBearAreaRecordedTest(_recorded.RecordedHarness):
     """L5, n1-c life-173 (Magic-Eater Lv22, Labyrinth 15F, 2026-11-08 21:12 loop-detected,
     build bot-234f9fd): an awake 凶熊 (race 1028, material melee: the engagement retreat
     keeps away from it) stood 19 cells west along the one-cell corridor of row 2.  In view at

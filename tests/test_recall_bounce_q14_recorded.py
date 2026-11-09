@@ -34,7 +34,7 @@ from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE, RETURN_T
 from hengbot.town_arrival_checkpoint import POLICY_FILE
 from replay_town_arrival import restore
 from tests.support import recorded as executor_pins
-from tests.test_dungeon_1031_recorded import READ_PROMPT, skill
+from tests.support.recorded import READ_PROMPT, skill
 from tests.test_town_decision_speed_caches import EDIT
 
 

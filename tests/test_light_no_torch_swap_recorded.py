@@ -27,15 +27,15 @@ import json
 from pathlib import Path
 
 from hengbot.model import parse_snapshot
-from tests.test_dungeon_1031_recorded import decide
-from tests import test_dungeon_1031_recorded as _test_dungeon_1031_recorded
+from tests.support.recorded import decide
+from tests.support import recorded as _dungeon_support
 from tests.test_town_decision_speed_caches import build_policy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "light-no-torch-swap-1031.json.gz"
 BEFORE, SWAP, AFTER = 85521, 85529, 85534
 
 
-class FundraisingKeepsTheLanternTest(_test_dungeon_1031_recorded.RecordedHarness):
+class FundraisingKeepsTheLanternTest(_dungeon_support.RecordedHarness):
     @classmethod
     def setUpClass(cls):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:

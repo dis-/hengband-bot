@@ -39,7 +39,8 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HUNT_RANGE
 from tests.support import recorded as executor_pins
-from tests.test_dungeon_1031_recorded import READ_PROMPT, RecordedHarness, decide
+from tests.support import recorded as _recorded
+from tests.support.recorded import READ_PROMPT, decide
 from tests.test_town_decision_speed_caches import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-341-loops-20261108.json.gz"
@@ -96,7 +97,7 @@ def restored_0420():
             HengbotPolicy, base64.b64decode(CASES["0420"]["checkpoint"]))
 
 
-class StrongSleeperReachRecordedTest(RecordedHarness):
+class StrongSleeperReachRecordedTest(_recorded.RecordedHarness):
     def test_recorded_rows_step_nearer(self):
         for name, turn, cell, key in (("0400", 2377055, (36, 36), "8"),
                                       ("0418", 2472011, (29, 9), "2")):
@@ -159,7 +160,7 @@ class StrongSleeperReachRecordedTest(RecordedHarness):
         self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
 
 
-class SleeperLootBlockRecordedTest(RecordedHarness):
+class SleeperLootBlockRecordedTest(_recorded.RecordedHarness):
     def test_recorded_rows_alternate(self):
         boards, rows = CASES["0420"]["boards"], recorded("0420")
         self.assertEqual((here(boards[0]), rows[boards[0]["turn"]]), (Position(38, 75), ("1", "explore")))
