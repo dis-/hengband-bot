@@ -1,4 +1,8 @@
-"""breeder-window-1103: the 20-action rule compares the ends of each window.
+"""breeder-window-1103: the window rule compares the ends of each window.
+
+Owner 2026-11-09 「加えて判断の窓を長く取る。20回は短いようだ。」→「100回」: the window is 100
+attacks (``WINDOW``); the recorded series below ran under the 20-attack window
+(``RECORDED_WINDOW``) and is now one window still open.
 
 Owner 2026-11-03: 「20回の区切りの初めの数と終わりの数を比べ、減っていれば次の区切りへ
 進み、減っていなければ逃げます（Q2 などは放棄）。1体倒しても増えて元に戻るなら逃げます。
@@ -45,8 +49,8 @@ FIXTURE = Path(__file__).with_name("fixtures") / "breeder-window-20261103.json.g
 with gzip.open(FIXTURE, "rt", encoding="utf-8", errors="surrogateescape") as _stream:
     CASE = json.load(_stream)
 QUEST_FLOOR = (0, 15, 2)
-RECALL_SLOT = "e"
 WINDOW = FLEE_AFTER_PLAYER_ACTIONS
+RECORDED_WINDOW = 20    # the recorded build's window (owner 2026-11-03), replaced by 100 on 2026-11-09
 
 
 def new_policy(first_board=None):
@@ -128,30 +132,26 @@ class WindowCase(swarm.RecordedRestart):
 class RecordedSeriesTest(WindowCase):
     def test_recorded_counts_reduce_then_grow_at_the_window_ends(self):
         counts = [len(raw["visible_monsters"]) for raw in CASE["boards"]]
-        self.assertEqual((counts[0], counts[WINDOW], counts[2 * WINDOW]), (47, 25, 33))
+        self.assertEqual((counts[0], counts[RECORDED_WINDOW], counts[2 * RECORDED_WINDOW]), (47, 25, 33))
         self.assertTrue(all(count < 47 for count in counts[4:]))
 
-    def test_recorded_series_reduces_once_then_leaves_the_floor(self):
+    def test_recorded_series_is_one_window_still_open(self):
+        # Under the 20-attack window this series reduced once (47 -> 25) and left the floor at
+        # its 40th action (25 -> 33).  Under 100 it is one window, opened at 47, still running.
+        self.assertEqual(WINDOW, 100)
         policy = new_policy()
         boards = CASE["boards"]
-        for action, raw in enumerate(boards[:2 * WINDOW + 1]):
+        for action, raw in enumerate(boards[:2 * RECORDED_WINDOW + 1]):
             if action == 0:
                 open_by_attack(policy, raw)
             else:
                 loops.decide(policy, raw)
-            latched = policy._breeder_breakthrough_floor
-            self.assertEqual(latched, QUEST_FLOOR if action == 2 * WINDOW else None, raw["turn"])
-            if action == WINDOW - 1:
-                self.assert_window(policy, 47, WINDOW - 1)
-            if action == WINDOW:
-                self.assert_window(policy, 25, 0)
-        following = boards[2 * WINDOW + 1]
+            self.assertIsNone(policy._breeder_breakthrough_floor, raw["turn"])
+        self.assert_window(policy, 47, 2 * RECORDED_WINDOW)
+        following = boards[2 * RECORDED_WINDOW + 1]
         key = loops.decide(policy, following)
-        self.assertEqual((key, policy.last_reason), ("r" + RECALL_SLOT, "breeder-breakthrough:recall"))
-        self.post(policy, following, key)
-        # The verdict stands although this board shows fewer worms (31 < 33):
-        # the target quest's Teleportation reads the same stalemate.
-        self.assertTrue(breeder_stalemate.stalemate_standing(policy))
+        self.assertNotEqual(policy.last_reason, "breeder-breakthrough:recall", key)
+        self.assertFalse(breeder_stalemate.stalemate_standing(policy))
 
 
 class RecordedFirstKillTest(WindowCase):

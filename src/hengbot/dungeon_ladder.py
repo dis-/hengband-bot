@@ -325,18 +325,26 @@ FLOOR_PLANS = (
         # Owner 2026-11-07: below the line with the druj's anti-teleport piece on, out of its
         # line and rest (``_druj_retreat``): Teleportation cannot be read then.
         Branch("no enemy", (
-            ("_druj_retreat", SURVIVAL), ("_summons", SUMMONS), ("resist_potion.drink_key", OWN),
-            ("quest_room_sweep._restore", OWN), ("_phase_key", OWN),
+            # Owner 2026-11-04 「薬を使い切っていたら踏んで良い」 (``_leave_by_exit``).
+            ("_druj_retreat", SURVIVAL), ("_leave_by_exit", SURVIVAL), ("_summons", SUMMONS),
+            ("resist_potion.drink_key", OWN), ("quest_room_sweep._restore", OWN),
+            # Owner 2026-11-09 「一歩で安全圏に移動して休息できる」: damaged in the fire, one step out.
+            ("_out_of_fire_key", OWN),
+            # Owner 2026-11-09 「段をやめ射線外で待つ」: Recall read, no phase step.
+            ("_recall_wait", OWN), ("_phase_key", OWN),
             ("resist_potion.leave_key", OWN)), enemy=False),
         Branch("an enemy", (
             (INSTANT_DEATH, SURVIVAL),
             ("quest_find_exit._cure", SURVIVAL), ("_druj_retreat", SURVIVAL),
-            ("quest_room_sweep._give_up", SURVIVAL),
+            ("_leave_by_exit", SURVIVAL), ("quest_room_sweep._give_up", SURVIVAL),
             ("quest_room_sweep._below_line", SURVIVAL), ("quest_find_exit._heal", SURVIVAL),
+            # Owner 2026-11-09 「成功率が80%以上なら体力回復は使っても良い」.
+            ("_absorbed_heal", SURVIVAL),
             ("quest_find_exit._speed", SURVIVAL), ("_summons", SUMMONS),
             # Owner 2026-11-07 「Q25内部でのテレポートの優先度を下げる」: the Resistance potion's
             # no-chance leave goes below the phase's own step; its drink stays.
-            ("resist_potion.drink_key", OWN), ("_phase_key", OWN),
+            ("resist_potion.drink_key", OWN), ("_out_of_fire_key", OWN), ("_recall_wait", OWN),
+            ("_phase_key", OWN),
             ("resist_potion.leave_key", OWN))),
     )),
     FloorPlan("quest_room_sweep.key", "quest_room_sweep", (

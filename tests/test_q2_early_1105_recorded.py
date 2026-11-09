@@ -24,6 +24,7 @@ import json
 import unittest
 from pathlib import Path
 
+from hengbot.breeder_stalemate import FLEE_AFTER_PLAYER_ACTIONS
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from tests import test_breeder_swarm_1102_recorded as swarm
 from tests import test_me_staff_loops_1031_recorded as loops
@@ -123,6 +124,10 @@ def rats_board(rats, masses=0, *, action=0, exp=0, quest_id=None):
     return raw
 
 
+# The board after the window's last attack (owner 2026-11-09 「100回」: FLEE_AFTER_PLAYER_ACTIONS).
+END = 2 + FLEE_AFTER_PLAYER_ACTIONS
+
+
 class PlanFloorWindowTest(swarm.PostedSwarmKey):
     """Owner 2026-11-05 「攻撃を始めてから数える」, through the public choose_key."""
 
@@ -133,24 +138,24 @@ class PlanFloorWindowTest(swarm.PostedSwarmKey):
         return policy
 
     def attacked_then(self, later_rats, masses=0):
-        """Two rats, one killed (the attack), then 20 actions at ``later_rats``."""
+        """Two rats, one killed (the attack), then a window of actions at ``later_rats``."""
         return [rats_board(2, masses),
                 rats_board(1, masses, action=1, exp=1),
-                *(rats_board(later_rats, masses, action=action, exp=1) for action in range(2, 22))]
+                *(rats_board(later_rats, masses, action=action, exp=1) for action in range(2, END))]
 
     def test_the_attacked_race_keeps_growing_and_the_floor_is_left(self):
         boards = self.attacked_then(4)
         policy = self.run_boards(boards)
         self.assertEqual(policy._breeder_engagement_race, RAT)
         self.assertEqual(policy._breeder_breakthrough_floor, (0, 15, 2))
-        last = rats_board(4, action=22, exp=1)
+        last = rats_board(4, action=END, exp=1)
         key = loops.decide(policy, copy.deepcopy(last))
         self.assertEqual(policy.last_reason, RECALL_REASON)
         self.post(policy, last, key)
 
     def test_the_attacked_race_falls_and_the_floor_is_kept(self):
         policy = self.run_boards([rats_board(4), rats_board(3, action=1, exp=1),
-                                  *(rats_board(2, action=action, exp=1) for action in range(2, 22))])
+                                  *(rats_board(2, action=action, exp=1) for action in range(2, END))])
         self.assertIsNone(policy._breeder_breakthrough_floor)
         self.assertEqual(policy._breeder_engagement_start_count, 2)
 
@@ -178,8 +183,8 @@ class PlanFloorWindowTest(swarm.PostedSwarmKey):
         # The 11-03 comparison once the window is open: every perceived breeder, no race.
         boards = [rats_board(2, 1, quest_id=0),
                   rats_board(1, 1, action=1, exp=1, quest_id=0),
-                  *(rats_board(1, 2 + action, action=action, exp=1, quest_id=0)
-                    for action in range(2, 22))]
+                  *(rats_board(1, 2 + action // 10, action=action, exp=1, quest_id=0)
+                    for action in range(2, END))]
         policy = self.run_boards(boards)
         self.assertIsNotNone(policy._breeder_breakthrough_floor)
         self.assertIsNone(policy._breeder_engagement_race)

@@ -49,7 +49,8 @@ from hengbot import me_device_policy
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
     SV_SCROLL_DETECT_TREASURE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
-    SV_POTION_SPEED, SV_STAFF_DESTRUCTION, SV_STAFF_DETECT_GOLD, SV_STAFF_IDENTIFY,
+    SV_POTION_HEALING, SV_POTION_SPEED, SV_STAFF_DESTRUCTION, SV_STAFF_DETECT_GOLD, SV_STAFF_HEALING,
+    SV_STAFF_IDENTIFY,
     SV_STAFF_LITE, SV_STAFF_REMOVE_CURSE, SV_STAFF_SPEED, SV_WAND_STONE_TO_MUD,
     TVAL_POTION, TVAL_SCROLL, TVAL_STAFF,
 )
@@ -280,6 +281,11 @@ REPLACES = (
     # (the scenes' dose: speed_dose).
     Replacement(("staff", SV_STAFF_SPEED), Kind(TVAL_POTION, SV_POTION_SPEED),
                 when="reliable", cast=True),
+    # 2026-11-09 (n1-c life-178, Q25) 「成功率が80%以上なら体力回復は使っても良い。」: cast where
+    # the Q25 plan would drink a Healing potion it does not have (quest25_battle._absorbed_heal).
+    # It waives nothing (``uses`` empty): the potions are still bought and counted.
+    Replacement(("staff", SV_STAFF_HEALING), Kind(TVAL_POTION, SV_POTION_HEALING),
+                when="reliable", uses=frozenset(), cast=True),
     # 2026-10-30 「以降、鑑定と財宝感知は取り込みで賄う」.
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_STAFF, SV_STAFF_IDENTIFY),
                 uses=frozenset({NEED})),
@@ -321,6 +327,13 @@ def _rows(target):
 def waiving_rows(policy, snapshot, target, use: str = NEED):
     """The waiving rows for ``target`` that answer ``use`` and whose condition holds."""
     return (row for row in _rows(target) if row.amount is None and use in row.uses
+            and WHEN[row.when](policy, snapshot, row, target))
+
+
+def cast_rows(policy, snapshot, target):
+    """The ``cast`` rows for ``target`` (waiving, not counting) whose condition holds: what a
+    scene casts in place of the item, whatever the row waives."""
+    return (row for row in _rows(target) if row.cast and row.amount is None
             and WHEN[row.when](policy, snapshot, row, target))
 
 

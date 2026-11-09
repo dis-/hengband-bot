@@ -48,6 +48,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from hengbot.breeder_stalemate import FLEE_AFTER_PLAYER_ACTIONS
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
@@ -194,7 +195,7 @@ FIRST_KILL_TURN, FLEE_TURN = 2199693, 2199896  # owner 2026-11-07: counted from 
 
 
 class TwentyActionFlightRecordedTest(RecordedRestart):
-    """(c) no reduction in 20 player actions latches the floor for flight."""
+    """(c) the window counts from the first attack (now 100 attacks, owner 2026-11-09)."""
 
     def test_recorded_rows_latched_after_eight_actions(self):
         rows = recorded()
@@ -224,15 +225,20 @@ class TwentyActionFlightRecordedTest(RecordedRestart):
             self._latches.append(policy._breeder_breakthrough_floor)
         return rows
 
-    def assert_flight_at_the_twentieth_action(self, turns):
+    def assert_no_flight_inside_the_window(self, turns):
+        # Owner 2026-11-09 「加えて判断の窓を長く取る。20回は短いようだ。」→「100回」: under the
+        # 20-attack window these boards latched at FLEE_TURN (the window from two bugs ended at
+        # its 20th attack with more); under 100 that window is still open on the last board.
         for turn, latch in turns:
-            expected = QUEST_FLOOR if turn >= FLEE_TURN else None
-            self.assertEqual(latch, expected, turn)
+            self.assertIsNone(latch, turn)
 
-    def test_twenty_actions_without_reduction_latch_the_floor(self):
+    def test_the_recorded_boards_stay_inside_one_window(self):
+        self.assertEqual(FLEE_AFTER_PLAYER_ACTIONS, 100)
         policy = new_policy(CASE["engage"])
         turns = self.latched_turns(policy, CASE["engage"])
-        self.assert_flight_at_the_twentieth_action(turns)
+        self.assert_no_flight_inside_the_window(turns)
+        self.assertEqual((policy._breeder_engagement_start_count,
+                          policy._breeder_engagement_actions), (2, 21))
         rows = self.drive(new_policy(CASE["engage"]), CASE["engage"][:22])
         for raw, key, reason in rows:
             self.assertIn(reason, {"melee", "ranged:fire"}, (raw["turn"], key))
@@ -244,8 +250,9 @@ class TwentyActionFlightRecordedTest(RecordedRestart):
         before = self.latched_turns(previous, boards[:10])
         policy = self.restarted_policy(boards[10:])
         after = self.latched_turns(policy, boards[10:])
-        self.assert_flight_at_the_twentieth_action(before + after)
-
+        self.assert_no_flight_inside_the_window(before + after)
+        self.assertEqual((policy._breeder_engagement_start_count,
+                          policy._breeder_engagement_actions), (2, 21))
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,7 +17,7 @@ DECLARED CONSTRUCTED: the skill row is the n1-c life-098 row of the breeder-swar
 fixture (the capture holds player_turn rows only); ``_fixed_quest_speed_attempted``
 is true; the latch is set by hand where the test says so (the capture's process
 had it, the capture's diagnostic state does not hold it); the stalemate case sets
-the window to 19 actions at count 36; the recalling boards set ``recalling``
+the window to its last action but one at count 36; the recalling boards set ``recalling``
 (the recorded process never read the scroll).  The Pesticide case adds the rod
 list (``_magic_eater_power_list``: 害虫駆除, charged, fail 10%): whether life-120
 absorbed it is not in the capture.  The reply to the posted key is constructed
@@ -33,6 +33,7 @@ import unittest
 from pathlib import Path
 
 from hengbot import breeder_area_attack, me_device_attacks
+from hengbot.breeder_stalemate import FLEE_AFTER_PLAYER_ACTIONS
 from hengbot.me_device_attacks import DEVICE_REASON
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from tests import test_breeder_swarm_1102_recorded as swarm
@@ -140,13 +141,14 @@ class Q2LatchedFloorRecordedTest(swarm.PostedSwarmKey):
         self.assertEqual((loops.decide(policy, recalling(melee)), policy.last_reason),
                          ("6", "quest-strategy:melee"))
 
-    def test_twentieth_action_without_a_reduction_leaves(self):
+    def test_last_attack_of_the_window_without_a_reduction_leaves(self):
+        # Owner 2026-11-09 「100回」: the window's last attack (FLEE_AFTER_PLAYER_ACTIONS).
         policy = new_policy(latched=False)
         first, second = CASE["boards"][:2]
         policy._breeder_engagement_floor = QUEST_FLOOR
         policy._breeder_engagement_start_count = 36
-        policy._breeder_engagement_start_turn = first["turn"] - 190
-        policy._breeder_engagement_actions = 19
+        policy._breeder_engagement_start_turn = first["turn"] - 10 * (FLEE_AFTER_PLAYER_ACTIONS - 1)
+        policy._breeder_engagement_actions = FLEE_AFTER_PLAYER_ACTIONS - 1
         policy._breeder_engagement_last_turn = first["turn"] - 10
         # Owner 2026-11-08 「実際に攻撃した手だけで数える」: the action before ``first`` shot at them.
         policy._breeder_attack_sent = True
