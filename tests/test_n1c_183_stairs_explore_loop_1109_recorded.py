@@ -32,6 +32,12 @@ chest at [7,53].  The chest now yields to a remembered hostile out of sight, as 
 walk's block does (owner 2026-11-09 「起きた敵も最後の位置を覚える」).  DECLARED PHYSICS: from
 [4,38] the player follows the decided moves on the recorded board (the monsters as shown
 there), five game turns a decision.
+
+n1-c life-184 (Lv26, dungeon 3 18F, 2026-11-09 22:30, build b4dec292b), ``loot-2230``: from
+[40,38] a 巨大ドブネズミ (index 11, race 156, a breeder) was in view at [29,47], the loot was
+blocked (multiplier-visible) and approach-descent stepped '1' to [41,37]; there it was out of
+sight and seek-loot stepped '9' back.  The loot block of a summoner or breeder now holds out
+of sight at its last shown cell, as the chest's does.  DECLARED PHYSICS as above, from [41,37].
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -64,6 +70,8 @@ def case(name):
 
 STAIRS = case("stairs-2033")
 CHEST = case("chest-2045")
+LOOT = case("loot-2230")
+RAT = (11, 156)
 
 
 def here(raw):
@@ -210,6 +218,50 @@ class ChestYieldsOutOfSightTest(unittest.TestCase):
             decide(policy, raw)
             if raw["turn"] >= 2995300 and here(raw) == Position(4, 38):
                 self.assertNotEqual(policy.last_reason, "chest:approach", raw["turn"])
+
+
+class BreederLootBlockOutOfSightTest(unittest.TestCase):
+    def test_recorded_rows(self):
+        rows = recorded(LOOT)
+        self.assertEqual(rows[1621114], ("1", "approach-descent"))
+        self.assertEqual(rows[1621123], ("9", "seek-loot"))
+        shown = {raw["turn"]: [(m["index"], m["race_id"]) for m in raw["visible_monsters"]]
+                 for raw in boards(LOOT)}
+        self.assertEqual(shown[1621114], [RAT])
+        self.assertEqual(shown[1621123], [])
+
+    def test_out_of_sight_the_loot_does_not_walk_back(self):
+        policy = fresh(LOOT)
+        start = None
+        for raw in boards(LOOT):
+            if raw["turn"] >= 1621066 and here(raw) == Position(41, 37):
+                start = copy.deepcopy(raw)
+                break
+            decide(policy, raw)
+        self.assertIsNotNone(start)
+        self.assertIn(RAT, remembered(policy))
+        raw, visited, reasons = start, [here(start)], []
+        for _ in range(5):
+            key = decide(policy, raw)
+            reasons.append(policy.last_reason)
+            if key not in MOVES:
+                break
+            raw = copy.deepcopy(raw)
+            raw["player"]["y"] += MOVES[key][0]
+            raw["player"]["x"] += MOVES[key][1]
+            raw["turn"] += 5
+            visited.append(here(raw))
+        # bot-b4dec292b: ('9', 'seek-loot') back to [40,38] on the first board.
+        self.assertNotIn("seek-loot", reasons)
+        self.assertNotIn(Position(40, 38), visited)
+
+    def test_the_recorded_boards_out_of_sight_keep_the_descent(self):
+        policy = fresh(LOOT)
+        for raw in boards(LOOT):
+            decide(policy, raw)
+            if raw["turn"] >= 1621066 and here(raw) == Position(41, 37):
+                self.assertNotEqual(policy.last_reason, "seek-loot", raw["turn"])
+
 
 if __name__ == "__main__":
     unittest.main()
