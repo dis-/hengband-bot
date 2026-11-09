@@ -324,11 +324,13 @@ class Q25BetweenPhasesTest(unittest.TestCase):
 
 
 class Q25WallPassersTest(unittest.TestCase):
-    def test_fifty_actions_without_an_arrival_end_the_wait(self):
+    def test_a_hundred_actions_without_an_arrival_end_the_wait(self):
+        # Owner 2026-11-06 「50回来なければ終える」, doubled 2026-11-09 「待つターンを倍にしてみる」.
+        self.assertEqual(battle.WALL_PASSER_QUIET_ACTIONS, 100)
         raw = board((7, 1))
         policy = new_policy(raw)
         at_phase(policy, raw, "wall-passers")
-        for _ in range(battle.QUIET_ACTIONS - 1):
+        for _ in range(battle.WALL_PASSER_QUIET_ACTIONS - 1):
             self.assertEqual((choose(policy, raw), policy.last_reason), (WAIT_KEY, HOLD_REASON))
         self.assertEqual(phase_of(policy, raw), "wall-passers")
         choose(policy, raw)
