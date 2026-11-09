@@ -2746,6 +2746,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             identity=self._decision_sequence + 1,
         )
         snapshot = self._with_cached_skill_exp(snapshot)
+        snapshot = self._with_skill_request_board_messages(snapshot)
         # Protocol 3: before any evaluator needs the two-weapon / shield
         # skill_exp, read them off the ~f skill list.  Like the look probe
         # below, this observation-only key costs no game time and is not a
@@ -2770,6 +2771,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self.decision_attribution = arbiter.decision_owner_for_reason(
                     self.last_reason
                 )
+                # The board the request answers is never observed: its messages go
+                # to the board that follows it (_with_skill_request_board_messages).
+                self._skill_request_board_messages = (
+                    snapshot.floor_key, snapshot.turn, snapshot.messages)
                 key = skill_request
                 break
             self._refresh_carried_equipment_catalog(snapshot)
@@ -6596,6 +6601,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot.player, two_weapon_skill=two_weapon, shield_skill=shield
             ),
         )
+
+    def _with_skill_request_board_messages(self, snapshot: Snapshot) -> Snapshot:
+        """The board after a ~f request carries the messages of the board the request
+        answered, when the game shows none of its own on the same floor and turn.
+
+        The request returns before any observation (``choose_key``), and the game's
+        message line is spent by then, so a kill shown on that board was never read:
+        n1-c life-183 (Angband 49F, 2026-11-09 20:33) killed an 古代レッド・ドラゴン with
+        the blow that made it Lv38; the level-up asked ~f on that board, the next board
+        showed no message, and the dragon stayed remembered awake at [37,108] for the
+        routes' veto (sleeper_reach_memory) until the loop detector stopped the bot."""
+        held = self.__dict__.pop("_skill_request_board_messages", None)
+        if (held is None or snapshot.messages
+                or held[:2] != (snapshot.floor_key, snapshot.turn)):
+            return snapshot
+        return replace(snapshot, messages=held[2])
 
     @claims(ClaimOwner.BOOKKEEPING)
     def _skill_exp_request_key(self, snapshot: Snapshot) -> str | None:
