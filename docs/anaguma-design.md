@@ -132,26 +132,104 @@ The monster standing **on `M`** is adjacent, so it can use every attack directly
 `MonsterMoveGridDecidersFactory` (`monster-floor/monster-sweep-grid.cpp:479-487`) gives every hostile monster with `FRIENDS` (`HAS_FRIENDS`) **and** `ANIMAL`, and without `PASS_WALL`/`KILL_WALL`, the `HidingMoveGridDecider` first. The precondition is that the monster sees the player or is within 10 flow steps (`MAX_PLAYER_SIGHT / 2`, `system/gamevalue.h:19`).
 
 How it decides (`monster-sweep-grid.cpp:198-230`):
-- `room` = the number of the player's 8 neighbours the monster can enter.
+- `room` = the number of the **player's** 8 neighbours the monster can enter.
 - Subtract 2 if the player's grid is a room grid.
 - Subtract 2 if the monster has no spells at all.
 - The monster approaches only if `room >= 8 * (chp + csp) / (mhp + msp)` (integer division).
-- Otherwise it moves to the nearest cell at distance 2 or more from the player that is **not projectable from the player** (`find_hiding`, `monster-floor/monster-safety-hiding.cpp:114-162`).
+  - **`chp`, `csp`, `mhp`, `msp` are the PLAYER's** current and maximum HP and SP (`this->player_ptr->chp`…, `monster-sweep-grid.cpp:218-225`). The monster's own HP does not enter the test.
+- Otherwise it moves to a hiding cell (`find_hiding`, `monster-floor/monster-safety-hiding.cpp:114-162`). That is the cell that:
+  - is found in the first ring around the monster (distances 1 to 9, `DIST_OFFSETS`, `monster-floor/monster-dist-offsets.cpp`) that holds any candidate;
+  - is empty and enterable (`monster_can_enter` refuses a cell holding a monster or the player, `monster/monster-info.cpp:132-143`);
+  - is **not projectable from the player**;
+  - is reachable from the monster by a `clean_shot` (no monster on the line);
+  - lies at distance 2 or more from the player;
+  - and, among those, is closest to the player.
 
-Inside a pocket `room` is 1:
-- **Breathing hounds** (`Z`: fire, air and light hounds, all `ANIMAL FRIENDS` with a breath) close in only once `(HP+SP) / (maxHP+maxSP) < 25%`.
-- **Spell-less pack animals** (jackals, wolves: `ANIMAL FRIENDS`, no skills) have `room = -1` and **never** close in.
+Inside a pocket, `room` is 1 at the player's full HP and SP:
+- **Breathing hounds** (`Z`: fire, air and light hounds, all `ANIMAL FRIENDS` with a breath) close in only once the **player's** `(HP+SP) / (maxHP+maxSP)` is below 25%.
+- **Spell-less pack animals** (jackals, wolves: `ANIMAL FRIENDS`, no skills) have `room = -1` and **never** close in on their own.
 - Both kinds sit hidden just out of the player's projection, at distance 2. Hounds can then breathe at `M` from there (1.2).
+
+The owner's answer (1.7) uses the hiding rule against them.
 
 The bot already met this in corridors. See the docstring of `_choke_stall_released_for` (`src/hengbot/policy_combat.py:3970-3986`).
 
-Non-animal packs approach normally and queue up. They have `FRIENDS` without `ANIMAL`; for example cave orcs and snagas (checked in `lib/edit/MonraceDefinitions.jsonc`). They may use `SurroundingMoveGridDecider` when within 3, but in a pocket there is nothing to surround. **Anaguma works as the owner describes for these packs. Against animal packs it produces a stand-off** (open question Q1).
+Non-animal packs approach normally and queue up. They have `FRIENDS` without `ANIMAL`; for example cave orcs and snagas (checked in `lib/edit/MonraceDefinitions.jsonc`). They may use `SurroundingMoveGridDecider` when within 3, but in a pocket there is nothing to surround.
+
+Two results follow:
+- A *short* pocket works as described for non-animal packs.
+- Against animal packs a short pocket produces a stand-off. The owner's long zigzag (1.7) solves that.
 
 ### 1.6 Reachability, teleport-to and breeders
 
 - **Reachability.** `M` is reachable whenever the pocket was dug from a reachable cell. After the dig, flow is recalculated, so monsters path to it.
 - **Teleport-to.** `TELE_TO` is direct-only (1.2). Only the monster on `M`, or a follower that can project to `P` in a non-concealed pocket, can pull the player out.
 - **Breeders.** A breeder multiplies with probability 1/(8k), where `k` is the number of monsters in its 3×3 including itself. It never multiplies at `k >= 4` (`monster/monster-processor.cpp:498-538`; owner memo breeder-area-kill-decision-20261108). A 1-wide queue keeps `k` at 2-3, so breeders in the queue keep multiplying, but only into empty cells.
+
+### 1.7 Owner's answer for animal packs: a long zigzag (verified)
+
+Owner (2026-11-10, verbatim):
+
+> 動物の群れにはジグザグの通路を長めに取る。すると、動物の後退する動きが後続に阻まれ順に近寄ってくる。最後の一匹は近寄ってこないのでこちらから詰める動きが別途必要になる。
+
+In English: dig a long zigzag tunnel for animal packs. Their backing-off moves are blocked by the animals behind, so they come in one by one. The last one will not come, so a separate move to close in on it is needed.
+
+The owner's diagram (`C:/hengband-backups/pdca/anaguma/owner-zigzag-1110.png`) shows a long tunnel dug one cell per row, alternating between two columns (every step diagonal, each turn 90°), with `@` at the inner end.
+
+**Why this works, in C++:**
+
+1. **Pack-mates cannot swap.**
+   - A move into a cell holding another monster sets `do_move = false` (`monster-attack/monster-attack-processor.cpp:120-150`).
+   - It proceeds only by KILL_BODY, which needs a higher `mexp * level`, or by MOVE_BODY, which needs the flag and a strictly higher `mexp`.
+   - Same-race pack-mates have equal `mexp`, so neither applies.
+   - The movement loop then tries the remaining directions of the list (`monster-floor/monster-move.cpp:378-440`). Those are the primary direction, ±45° and ±90° (`monster/monster-processor-util.cpp:83-163`). In a 1-wide tunnel every other direction is a wall.
+
+2. **Hiding needs an empty cell on a clean line.**
+   - `find_hiding` only accepts empty cells (`monster-info.cpp:139`) that the monster can `clean_shot` (`monster-safety-hiding.cpp:129`).
+   - In a 1-wide zigzag, the walls at each 90° turn break every straight line along the tunnel. The tunnel cells two or more steps away are therefore not clean-shot targets.
+   - The next cell back is reachable but occupied by the follower.
+   - The search widens to rings 2 to 9. In a tunnel dug into rock those rings hold only walls and further tunnel cells, and those fail the clean line or are occupied. Corridor cells can be found only when the tunnel is short.
+   - So `find_hiding` returns nothing.
+
+3. **The fallback decider closes in.**
+   - With no hiding cell, the next decider is `SurroundingMoveGridDecider` (`monster-sweep-grid.cpp:239-273`). It is added when the flow distance is under 3 (`:486-488`).
+   - It moves the animal to a free neighbour of the player. In a pocket that can only be `M`.
+   - Once the animal stands on `M`, the same decider returns the player's own cell, so the animal attacks (`:258-261`; the attack is in `monster-attack-processor.cpp:32-...`).
+
+4. **The front animal is pinned; the last one is not.**
+   - When the front animal later tries to back off, its retreat is blocked by the follower that has stepped into `D`. So it stays on `M` and fights, and the player can melee it.
+   - The last animal has nobody behind it. Its retreat succeeds every time, so it sits hidden at distance 2 or more inside the tunnel, typically on `D`. This is exactly the owner's 「最後の一匹は近寄ってこない」.
+
+**Simulation.** I ported the decision chain to Python, reusing the bot's port of the projection path:
+- the hiding decider with the exact `DIST_OFFSETS` table, `Grid::calc_distance`, `clean_shot` and `monster_can_enter`;
+- the surrounding decider;
+- `get_moves_val`;
+- the movement loop with no swapping.
+
+Setup:
+- Corridor along row 0. Tunnel cells `c_k = (-k, k mod 2)`, as in the diagram.
+- The player sits at full HP on `P = c_L` and kills the monster on `M` after 1, 2, 3 or 6 player turns.
+- N = 3, 6 or 10 animals start in the corridor. 5 seeds, random turn order.
+
+| Tunnel | Animals that came to `M` and were killed | Left |
+|---|---|---|
+| zigzag L = 3 | N - 3 (the 3 closest stay out) | 3 |
+| **zigzag L >= 4 (tested 4, 5, 6, 8, 10, 12)** | **N - 1 in every run** | **1, the last one, hidden on `D` or nearby** |
+| straight L = 3 to 12 | N - 2 | 2 |
+
+The result is the same with and without spells (`room` 1 or -1), and at 50% player HP.
+
+**Why at least 4 cells.** `P`, `M`, `D` and the cell behind `D` (`B`) must all lie inside the 1-wide tunnel:
+- That gives `D` exactly 2 open neighbours, `M` and `B`.
+- So a single follower on `B` closes the front animal's retreat.
+- With L = 3, `D` touches the corridor, which has 4 open neighbours for `D`, so the retreat cannot be blocked.
+
+**Exposure of the long zigzag (L >= 4):**
+- Concealed: no cell projects to `P`.
+- **Only `D` can project to `M`** (computed for L = 4 to 8). So only the single animal on `D` can breathe or ball at `M`, for about half damage. That is the follower ranged attack the owner wanted to avoid, now reduced to one cell.
+- A ball centred on `M` reaches `P`, `M` and `D` only (radius 1 to 3). In this shape, the player's area attacks hit exactly the next animal in line.
+
+The simulator is in Claude's scratchpad, `anaguma_sim.py`. It is a port, not the game: section 8 asks for a live confirmation through the control server before stage 5 ships.
 
 ---
 
@@ -189,31 +267,49 @@ The numbers below come from an exhaustive search. It uses the bot's ports of the
 
 **Note on the owner's screenshot** (@ in a one-cell notch beside a corridor). Beside a *straight* corridor a one-cell notch has 3 open neighbours: the three corridor cells. It meets "7 walls" only when cut diagonally off a dead-end tip, or where the corridor bends. A straight corridor needs at least 2 digs.
 
-### 2.3 The proposed default: the zigzag (3 digs, staged)
+### 2.3 The default: the owner's long zigzag (at least 4 digs, staged)
+
+The shape follows the owner's diagram. Cells are `c_k = (-k, k mod 2)` from a corridor along row 0, and the player ends on `P = c_L`.
 
 ```
-row -4   # # #
-row -3   # P #        P = pocket (dig 3)
-row -2   # # M        M = mouth (dig 2)
-row -1   # D #        D = first dig, the queue cell
+row -6   # P #        P = c6 (last dig)
+row -5   # # M #      M = c5, the mouth
+row -4   # D #        D = c4, the next in line
+row -3   # # B #      B = c3
+row -2   # c #
+row -1   # # c #      c1 = first dig
 row  0   . . . . .    corridor
 ```
 
-How to dig it without stepping into the corridor's danger:
-1. From the corridor cell `(0,0)`, zap `8`: this melts `(-1,0)`. Step in.
-2. Zap `9`: this melts `(-2,1)`. **The basic pocket is now complete.** Standing on `(-2,1)`, it has 1 open neighbour and 2 cells that can project to it.
-3. Step in, zap `7`: this melts `(-3,0)`. Step in. **The pocket is now concealed.**
+How to dig it:
+1. From the corridor cell under `c1`, zap `8` to melt `c1`, and step in.
+2. From each `c_k`, zap the diagonal (`9` or `7`, alternating) to melt `c_{k+1}`, and step in.
+   - Each cell takes 1 zap and 1 step.
+   - Two cells can never be dug with one line of zaps, because consecutive cells are not on one straight line.
+3. Cost: L zaps plus L steps, which is `2L` player turns plus `L * (1/p - 1)` for device failures.
+   - L = 4: 8 turns. L = 6: 12 turns.
 
-Cost: 3 zaps and 3 steps, which is 6 player turns plus `3 * (1/p - 1)` for device failures. Every intermediate state is usable, so the dig can stop early when the pack arrives (section 3.3).
+**Every stage can be used:**
 
-**Properties of the finished zigzag:**
-- **One attacker.** Only `M` touches `P`, and the queue is single file: `M`'s only other open neighbour is `D`.
-- **Concealed.** No follower can bolt, paralyse, teleport-to, confuse, blind, mind-blast or brain-smash the player.
-- **Limited breath and ball exposure.** Only the 3 cells in follower reach can breath or ball `M`, and the player takes about half.
-- **No summons by the front monster** (1.3).
-- **Player's offence.** Melee on `M`. Balls aimed at `M` (an adjacent direction) cover `D` and `(0,-1)` at radius 2-3, so they hit the head of the queue. Bolts, arrows and beams reach only `M`.
+| Stage | What it is | Good against |
+|---|---|---|
+| after `c2` | a 7-wall pocket (`P = c2`) with 2 corridor shooters (2.2) | non-animal packs |
+| after `c3` | concealed, but follower reach is 3 cells | non-animal packs; animal packs stay out (1.7: 3 animals stay out) |
+| **`c4` and deeper** | concealed; follower reach is only `D`; animal packs come in one at a time | all packs (1.7) |
 
-**Mirror and rotation.** The shape works in all 4 orientations and both handednesses. The search runs on the real known map rather than a template.
+So the dig may stop at the stage the time budget allows (3.3). Stopping before L = 4 is useful only against non-animal packs.
+
+**Properties at L >= 4** (computed with the ports, 1.7):
+- **One attacker.** Only `M` touches `P`.
+- **Single-file queue.** `M`'s and `D`'s only open neighbours are the previous and next tunnel cells.
+- **Concealed.** No cell projects to `P`. So no follower can bolt, paralyse, teleport-to, confuse, blind, mind-blast or brain-smash the player.
+- **Follower breath and ball reach is `D` only**, at about half damage.
+- **No summons by the front monster** (1.3). Followers' summons land in the tunnel behind `M`.
+- **Player's offence.** Melee on `M`. A ball aimed in the direction of `M` hits `M` and `D` (radius 1 to 3). Bolts, arrows and beams reach `M` only.
+
+**Mirror and rotation.** The shape works in all 4 orientations and both handednesses. Tunnels into a room wall behave the same: only the tunnel cells matter, because the room cannot see down a zigzag. The search runs on the real known map rather than a template.
+
+The earlier 3-dig zigzag (`(-1,0),(-2,1),(-3,0)`) is the same shape at L = 3.
 
 ### 2.4 Requirements on the map (what the bot can see)
 
@@ -227,7 +323,7 @@ Cost: 3 zaps and 3 steps, which is 6 player turns plus `3 * (1/p - 1)` for devic
 ### 2.5 Choosing where to dig
 
 1. Search the cells reachable within a small walking budget, using the same BFS as `_validated_choke_route` (`src/hengbot/policy.py:16393`). Keep the rule that the destination is no closer to the hostiles than the player is now.
-2. For each wall face that borders a reachable open cell `S`, enumerate the templates of 2.2 (zigzag, I, dead-end variants) in all orientations.
+2. For each wall face that borders a reachable open cell `S`, enumerate the zigzag of 2.3 in all orientations, at every length from 2 up to the budget. Also enumerate the dead-end variants of 2.2. Every tunnel cell and every wall around it must be known rock (2.4).
 3. Score each candidate:
    - fewer digs and fewer walking turns (`walk + digs / p_success` must fit the time budget of 3.3);
    - concealed before basic;
@@ -252,9 +348,11 @@ The design reuses the existing pack detection rather than inventing a new one. T
 | Tier | `threat_tiers.tier_of` / `assess`, `src/hengbot/threat_tiers.py:1535`, `:1069` | T1 / T2 / T3 and instant death |
 
 What Anaguma adds:
-- **The concealed pocket makes ranged followers acceptable.** Today the swarm rung declines any pack with a ranged member (`policy_combat.py:3839`). In a concealed pocket, followers can only breathe or ball at `M` for about half damage. A pack with ranged members becomes eligible when the half-damage reach, re-run through `threat_prediction` with `M` as the only melee slot, stays under the existing engagement ceiling (open question Q5).
+- **The concealed pocket makes ranged followers acceptable.** Today the swarm rung declines any pack with a ranged member (`policy_combat.py:3839`). In a concealed pocket, followers can only breathe or ball at `M` for about half damage. A pack with ranged members becomes eligible when the half-damage reach, re-run through `threat_prediction` with `M` as the only melee slot, stays under the existing engagement ceiling (open question Q4).
 - **Monster flags read** from `MonraceKnowledge.flags` / `abilities` (`src/hengbot/monrace_knowledge.py:46`, `:203`): `FRIENDS`, `ANIMAL`, `PASS_WALL`, `KILL_WALL`, `TELE_TO`, `S_*`, `BR_*`/`BA_*`, `MULTIPLY`.
-- **Hounds (`Z`) and other animal packs** are a separate case because of 1.5 (open question Q1).
+- **Hounds (`Z`) and other animal packs** (`ANIMAL` and `FRIENDS`, no wall-passing) need the long zigzag, L >= 4 (owner 2026-11-10, 1.7). They also need the close-in move for the last one (5.1).
+  - A dig that cannot reach L = 4 in time, or with the available charges, is not started against them, because L <= 3 leaves them outside (1.7).
+  - Non-animal packs can use any stage from L = 2.
 
 ### 3.2 When not to dig
 
@@ -263,7 +361,7 @@ What Anaguma adds:
 | Any pack member, or a visible or detected non-pack threat, has `PASS_WALL` or `KILL_WALL`, unless every wall touching `P` is permanent | they come through the 7 walls | 1.4 |
 | No Stone to Mud means, or a means whose `p_success` puts `walk + digs/p` over budget | time | 1.1, 3.3 |
 | Charges after the dig would fall below the reserve | escapes from sealed pockets and Q2 need them | Q3; owner 11-05 sealed-pocket rule |
-| The pack arrives before the basic stage (2 digs) can finish | half-dug notches are worse than the corridor | 3.3 |
+| The pack arrives before the minimum stage can finish: L = 2 for non-animal packs, L = 4 for animal packs | a half-dug notch is worse than the corridor; L <= 3 does not pull animals in | 3.3, 1.7 |
 | A follower-reach threat makes the half-damage prediction at least `ENGAGEMENT_AVOID_DAMAGE_RATIO` (0.5, `policy_constants.py:549`) or reaches instant death (`threat_tiers.instant_death`, `:1036`) | the pocket still takes about half of every breath | 1.2 |
 | Tier T1 (cannot win even with supplies) and the tiers say leave (`leave_due`, `threat_tiers.py:1186`) | a pocket does not change "cannot win"; the existing leave rules stay first | owner 11-07 tiers design |
 | Town, wilderness, surface | permanent buildings; the existing town rules | — |
@@ -276,8 +374,12 @@ What Anaguma adds:
 
 - `T_dig = walk(S) + Σ (1 / p_success)` over the remaining digs, in player turns at the player's speed.
 - `T_arrive` for each awake, approaching member is its flow distance to `M` divided by its moves per player turn. Speeds come from `threat_tiers.adjusted_speed` (`threat_tiers.py:255`); detected monsters use the same.
-- **Start** when `min T_arrive > T_dig(basic) + 1`.
-- Dig the concealing third cell only if `min T_arrive > T_dig(concealed) + 1` still holds after stage 2. Otherwise stand on the basic pocket.
+- **Start** when `min T_arrive > T_dig(minimum stage) + 1`:
+  - for a non-animal pack the minimum stage is L = 2: 2 zaps and 2 steps;
+  - for an animal pack it is L = 4: 4 zaps and 4 steps, about 8 player turns at p = 1.
+- **Keep digging** (the owner's 「長めに」) while `min T_arrive > T_dig(one more cell) + 1` and the charge budget allows (Q2, Q3). Then stand on the innermost cell.
+  - Every extra cell lengthens the hidden queue.
+  - In the simulation, L >= 4 already gave the N - 1 result (1.7). The benefit of extra length beyond 4 is buffer against arrival-time error and against the pack overflowing into the corridor, not a better pull-in.
 - **Detected packs** (ESP or detection) are the natural ambush case, since they give the most lead time. This is where the owner's 待ち伏せ fits best.
 
 ### 3.4 Quest, floor and level scope
@@ -290,10 +392,10 @@ Default proposal: every ordinary dungeon floor, including random-quest floors, w
 
 | # | Existing rule or code | Interaction | Conflict / resolution |
 |---|---|---|---|
-| 1 | Owner 10-23 「隘路が無ければ後退しない」; `_detected_threat_preparation_key` returns None when no choke route exists (`src/hengbot/policy.py:16636-16643`), pinned by `tests/test_detected_pack_no_choke_recorded.py` | Anaguma *creates* a choke where none exists. It is a new action, not a retreat to a missing choke. | Insert Anaguma before that None. The pin still holds whenever Anaguma is not possible (no means, wall-passers, …). That pin is a pack of large kobolds behind a wall, so the pin will need a re-read (Q4). |
-| 2 | `_melee_swarm_combat_key` / `_choke_engagement_key` / `ChokeEngagementPlan` (`policy_combat.py:3792`, `:4042`; `policy_types.py:543`) | Same purpose. A pocket is a choke with openness 1. | Reuse `ChokeEngagementPlan` with new phases `dig` and `hold` and a `pocket` field, so the release rules (HP < 40%, damage ≥ 50%, 300-decision budget, ranged release) carry over. The ranged release must be relaxed for concealed pockets (Q5). |
-| 3 | `_choke_stall_released_for` (`policy_combat.py:3970`) | The animal-pack stall (1.5) will also happen in pockets. | The same release applies, unless Q1 is answered otherwise. |
-| 4 | Owner 10-20 keep-all Stone to Mud wands (`policy_home.py:2693-2703`) | Anaguma spends charges. Wands are never sold. | No conflict. Recharging uses the existing facility path (Q2 tower, `q2_tower_recharge.py`). Reserve: Q3. |
+| 1 | Owner 10-23 「隘路が無ければ後退しない」; `_detected_threat_preparation_key` returns None when no choke route exists (`src/hengbot/policy.py:16636-16643`), pinned by `tests/test_detected_pack_no_choke_recorded.py` | Anaguma *creates* a choke where none exists. It is a new action, not a retreat to a missing choke. | Insert Anaguma before that None. The pin still holds whenever Anaguma is not possible (no means, wall-passers, …). That pin is a pack of large kobolds behind a wall, so the pin will need a re-read (Q5). |
+| 2 | `_melee_swarm_combat_key` / `_choke_engagement_key` / `ChokeEngagementPlan` (`policy_combat.py:3792`, `:4042`; `policy_types.py:543`) | Same purpose. A pocket is a choke with openness 1. | Reuse `ChokeEngagementPlan` with new phases `dig` and `hold` and a `pocket` field, so the release rules (HP < 40%, damage ≥ 50%, 300-decision budget, ranged release) carry over. The ranged release must be relaxed for concealed pockets (Q4). |
+| 3 | `_choke_stall_released_for` (`policy_combat.py:3970`) | Corridor chokes stall against animal packs (1.5). A zigzag of L >= 4 pulls them in (1.7); a shorter pocket stalls the same way. | The stall release stays for corridor chokes. For an Anaguma plan of L >= 4, the stall check is replaced by the last-one rule (5.1). |
+| 4 | Owner 10-20 keep-all Stone to Mud wands (`policy_home.py:2693-2703`) | Anaguma spends charges. Wands are never sold. | No conflict. Recharging uses the existing facility path (the quest-2 tower trip, `q2_tower_recharge.py`). Reserve: Q3. |
 | 5 | Owner 11-05 sealed pocket: melt out after *Destruction*, with Stone to Mud before Teleport (`sealed_pocket.py`) | Needs a charge left. Also, a pocket where the player stands is "all walls but one" and must not be mistaken for a sealed pocket. | `sealed_pocket.key` must ignore a pocket the bot dug itself while `M` is open. Keep a reserve (Q3). |
 | 6 | `retreat_enclosure.py` (dig, then Stone to Mud, then Teleport when a retreat is boxed in) | Inside a pocket, "flee on foot" has no step. | In the pocket, flee means Teleport, Recall or *Destruction* (owner 11-04 rules: `destruction-use-decision`, `teleport-follower-decision`). `_flee_step` must not be asked. |
 | 7 | `_forbid_wait_while_damaged` (`policy_combat.py:643-712`) rewrites a bare WAIT after HP loss | A pocket hold is a WAIT while monsters queue. | Add an `anaguma:hold` reason ending in `:hold` (already allowed), plus `cli.STATIONARY_REASONS` (`cli.py:390`). |
@@ -324,7 +426,7 @@ Default proposal: every ordinary dungeon floor, including random-quest floors, w
 **Healing.**
 - Potions and the existing heal rungs work unchanged.
 - Rest (`R`) only when no pack member is awake within reach. Hounds in hiding are within reach, so this mostly means after the pack is gone.
-- With animals lurking (1.5), resting raises HP and SP, which makes them even less likely to come. See Q1.
+- The animals' approach test uses the player's HP and SP (1.5). The long zigzag pulls them in through blocked retreats regardless of HP (1.7), so resting does not change the pull-in. It only makes the last one stay out longer, which is handled by 5.1.
 
 **Abandon** (the existing release rules plus pocket-specific ones):
 - Instant death, or T1 leave: Teleport, Recall or *Destruction* (owner 11-04 order). Not `_flee_step`.
@@ -339,6 +441,40 @@ Default proposal: every ordinary dungeon floor, including random-quest floors, w
 - Then resume exploring.
 - The pocket stays on the map and may be reused on the same floor at 0 digs.
 
+### 5.1 Closing in on the last one (owner: 「最後の一匹は近寄ってこないのでこちらから詰める動きが別途必要」)
+
+**When it applies:**
+- An Anaguma plan of L >= 4 is holding.
+- Exactly one member of the pack is left, seen or detected.
+- That member has not stood on `M` for the last `K` of its own moves. A proposed `K` is 3; it could also be measured in stage 1.
+- It is within the tunnel or within the 10-step flow radius that keeps it in hiding mode (1.5).
+- The hiding mechanics put it at distance 2 or more and out of the player's projection, typically on `D`.
+
+**What the game allows (from 1.5 and 1.7):**
+- **No single-target ranged attack can reach it.** A hiding cell is by definition one the player cannot project to.
+- **An area attack can.**
+  - From `P`: a ball aimed in the direction of `M` explodes on `M` and covers `D` (1.7).
+  - From `M`: a ball aimed toward `D` explodes on `D`, or on the animal, and covers the next tunnel cell.
+- **At equal speed a melee chase does not catch it inside the tunnel.** Simulated with the same port: the player steps out and follows, at one move per animal move.
+  - The animal keeps backing off to distance 2 while hidden cells exist behind it.
+  - It was caught only once both reached the open corridor, where it had no hidden cell left and the surrounding decider took over.
+  - With 2 player moves per animal move, the player was adjacent on its first move.
+  - In a real map, corridors bend and offer hidden cells, so the chase may not end there.
+
+**Proposed close-in move, in order:**
+1. **Area attack from `P`**, when the last one is on `D` and the bot has an area attack: absorbed balls, ball wands or rods, *Destruction* excluded. It is chosen by total damage as in owner 11-09. No exposure is added.
+2. **Haste, then step out and strike.** If the player is faster than the animal, or can become faster with a speed source the tiers count as free (the owner's 11-04 Magic-Eater absorbed-speed rule): step to `M`, then attack the animal on `D` before it moves.
+3. **Bounded chase.** Otherwise step out and follow it along the tunnel toward the corridor.
+   - Melee whenever it is adjacent on the player's turn.
+   - Use an area attack whenever one covers it.
+   - **Limit:** stop at the tunnel's corridor end, or after a bounded number of player turns (Q1). Never follow it into an unexplored area or toward other awake threats.
+4. **Otherwise disengage.** Leave the pocket and resume. A lone pack animal is left to the ordinary ladder: hunt, flee, the tiers.
+   - A lone hound can still breathe at the cells next to the player from hiding (1.2). The ordinary ranged and threat rules cover that.
+
+**Safety while closing in:**
+- Once the player leaves `P`, the cell is no longer a pocket. The usual release rules apply: instant death, T1, HP 40%.
+- Other packs that arrive meanwhile restart the Anaguma plan at the existing pocket, which needs 0 digs.
+
 ---
 
 ## 6. Per class: means and stock
@@ -351,7 +487,7 @@ Default proposal: every ordinary dungeon floor, including random-quest floors, w
 
 **Stock rules.**
 - Owner 10-20: keep every Stone to Mud wand, charged or empty (`policy_home.py:2693-2703`). Buying rungs exist (`policy_shop.py:218`, `:2863`, `:3078`).
-- Q2 needs 2 charges (`Q2_BREACH_WALL_COUNT`, `policy_constants.py:741-746`).
+- Quest 2 (Q2) needs 2 charges (`Q2_BREACH_WALL_COUNT`, `policy_constants.py:741-746`).
 - Whether Anaguma should change how many charges the bot carries, or should buy wands or rods, is open question Q10.
 
 ---
@@ -368,7 +504,10 @@ Each stage is its own commit, and each passes the existing suite and lints.
   - `follower_reach(grids, m)`, via `projection_path.projection_path` and `quest25_geometry.los`;
   - `dig_order(...)`, the 8-direction zaps;
   - `candidates(snapshot, hostiles, budget)`.
-- Unit tests on constructed maps (marked DECLARED CONSTRUCTED). They pin the table of 2.2: notch = 3 open; I = 1 shooter; zigzag = 0 shooters with reach 3; room I = 40.
+- Unit tests on constructed maps (marked DECLARED CONSTRUCTED). They pin:
+  - the table of 2.2: notch = 3 open; I = 1 shooter; zigzag L = 3 = 0 shooters with reach 3; room I = 40;
+  - the zigzag at L = 4 to 8: 0 shooters, reach `{D}`, a ball on `M` covers `{P, M, D}`.
+- Port the hiding chain of 1.7 (`anaguma_sim.py` in the scratchpad) as a test helper, not as policy code. Pin "zigzag L >= 4: N - 1 animals reach `M`; L = 3: 3 stay out".
 
 **Stage 1 — record only.**
 - Compute the best candidate at every trigger from 3.1 and log `anaguma:candidate` (with digs, `T_dig`, `T_arrive`, concealed, and the veto reason) in the decision record.
@@ -391,7 +530,10 @@ Each stage is its own commit, and each passes the existing suite and lints.
 - Charge reserve (Q3).
 - Optional stock changes (Q10).
 
-**Stage 5 — animal packs**, per the owner's answer to Q1.
+**Stage 5 — animal packs**, per the owner's answer (1.7):
+- minimum L = 4 for `ANIMAL FRIENDS` packs;
+- dig longer while time and charges allow (Q2, Q3);
+- the last-one close-in of 5.1 (Q1).
 
 ---
 
@@ -405,7 +547,7 @@ Pack incidents found in `C:/hengband-backups/pdca/captures`:
 | Capture | Pack | Stone to Mud | Pin |
 |---|---|---|---|
 | `stops-1104-morning/n1-b/life-306/incident-captures/20261104-015401-player-death` (Angband 19F) | cave orcs, up to 10 at once (`FRIENDS`, not `ANIMAL`) | wand, 7 charges | **Main positive pin.** At the first frame with 4 or more orcs (turn 4830511), stage 1 logs a concealed candidate and stage 2 issues the first zap. Later frames: hold, one attacker. |
-| `n1a-504-death-1110/incident/20261110-011720-player-death` (Angband 24F, RQ41) | air hounds ×4 (turn 878346), light hounds (turn 882045), fire hounds ×10 plus phase spiders (turn 897005) | wand, 2 charges | Animal-pack pin. Its expectation depends on Q1. It also pins the reserve rule (only 2 charges; Q3). |
+| `n1a-504-death-1110/incident/20261110-011720-player-death` (Angband 24F, RQ41) | air hounds ×4 (turn 878346), light hounds (turn 882045), fire hounds ×10 plus phase spiders (turn 897005) | wand, 2 charges | Animal-pack pin. With only 2 charges, the minimum L = 4 for animals cannot be dug, so the expected decision is **no dig**: the existing behaviour, a veto with the reason `anaguma:charges`. A constructed variant with 6 charges (marked DECLARED CONSTRUCTED) expects a 4+ cell zigzag. |
 | `latest-12h-1031/n1-a/life-446/incident-captures/20261031-060729-player-death` (Angband 48F) | 窖に潜むもの ×17, Mirkwood spiders ×13, gargoyles, fire trolls | wand, 14 charges | Mixed pin. Check `PASS_WALL`/`KILL_WALL` and breathers in the pack; this checks the veto paths. |
 | `stops-1104-0750/n1-c/life-126/.../20261104-072847-player-death` (Yeek cave 1F) | jackals ×49-53 plus breeding mice | none | Negative pin: no means, so no dig and the existing behaviour is unchanged. Jackals are spell-less `ANIMAL FRIENDS` (1.5). |
 | `me-dual-wield-1101/n1-c/life-096/rest/.../20261101-173135-player-death` | jackals ×9 | none | Negative pin, as above. |
@@ -425,42 +567,47 @@ These existing pins must stay green:
 A **live check** through the control server (`tools/bot/hbctl.py`, debug `^A`) is needed for stage 2:
 - summon a cave-orc pack and a fire-hound pack next to a granite corridor;
 - confirm the dig order, the single-file queue, and the half-damage breath at `M`;
-- confirm the hounds' hiding behaviour in 1.5.
+- confirm the hounds' hiding behaviour in 1.5;
+- **confirm the owner's mechanism of 1.7 in the real game**: a jackal pack and a hound pack, a zigzag of L = 3 and of L = 6, and the count of animals that step onto `M` versus stay hidden. The Python port is not the game; for example, turn order and energy randomness are simplified.
 
 ---
 
 ## 9. Open owner questions (priority order)
 
-**Q1. Animal packs (hounds `Z`, jackals, wolves) do not enter the pocket** (1.5). Breathing hounds approach only below 25% (HP+SP); spell-less ones never approach. They lurk hidden at distance 2, and hounds breathe at the mouth for about half damage.
-- (a) Do not use Anaguma against `ANIMAL FRIENDS` packs. Use it for non-animal packs: orcs, kobolds, trolls, ogres, and so on.
-- (b) Use it anyway, bombard the queue with area attacks at `M`, and leave after a bounded wait.
-- (c) Use the pocket against them only as a shelter to heal, then leave.
-- **Recommendation: (a)**, with (b) as a later stage once the live check measures the stand-off. Of the three animal-pack deaths in the captures, the two jackal floors had no means at all.
+Settled on 2026-11-10:
+- **Animal packs.** Owner: 「動物の群れにはジグザグの通路を長めに取る…最後の一匹は…こちらから詰める動きが別途必要」. Verified in 1.7; see 2.3 and 5.1.
+- **Shape.** The zigzag of the owner's diagram (2.3). This also absorbs the old shape question. The I-shape and the 1-cell notch are no longer candidates.
 
-**Q2. Shape.**
-- (a) Always the concealed zigzag (3 digs) when time allows, else the basic pocket (2 digs).
-- (b) Always the basic pocket (cheaper).
-- (c) The I-shape when the bot wants to shoot down a corridor line.
-- **Recommendation: (a)**, staged as in 2.3.
+**Q1. Closing in on the last animal** (5.1). At equal speed it cannot be caught inside the tunnel, and only area attacks reach it while it hides.
+- (a) In order: an area attack from `P`; haste and strike; a chase bounded to the tunnel's corridor end; otherwise leave it to the ordinary ladder.
+- (b) Chase until it is killed, with no bound beyond the usual safety rules.
+- (c) Do not chase. Leave the pocket and let the ordinary ladder handle the lone animal.
+- **Recommendation: (a).**
 
-**Q3. Charge reserve.**
+**Q2. How long the tunnel is.** The owner says 「長めに」. The simulation shows L = 4 is the shortest that pulls animals in. Every cell costs one charge and 2 turns.
+- (a) Dig while the arrival budget and charges allow, at least 4 for animal packs and at least 2 for non-animal packs. No upper cap.
+- (b) Exactly 4 for animal packs and 2 for others, saving charges.
+- (c) Scale with the pack size, for example `L = 4 + N/2`.
+- **Recommendation: (a).** It follows 「長めに」 without adding a cap, and every stage is usable.
+
+**Q3. Charge reserve.** This matters more now, at 4 or more charges per animal-pack tunnel.
 - (a) Keep at least 1 charge after the dig, for the 11-05 sealed-pocket escape.
 - (b) Keep 2.
 - (c) No reserve.
-- **Recommendation: (a).** Q2's 2 charges are handled by its own pre-quest check.
+- **Recommendation: (a).** Quest 2's 2 charges are handled by its own pre-quest check.
 
-**Q4. A pocket versus an existing natural choke (openness 2).**
-- (a) Use a natural openness-1 cell first. Otherwise dig when means and time allow. Otherwise use the existing choke.
-- (b) Use the existing choke first and dig only when none is reachable.
-- (c) Always dig.
-- **Recommendation: (a)**, because a corridor choke lets 2 attackers in.
-
-**Q5. Packs with ranged members.** Today any ranged member blocks the swarm choke.
-- (a) Allow them when the pocket is concealed and the half-damage follower-reach prediction stays under the 50% ceiling.
+**Q4. Packs with ranged members.** Today any ranged member blocks the swarm choke. In the long zigzag only `D` can breathe or ball at `M`, for about half damage.
+- (a) Allow them when the half-damage prediction from `D` stays under the 50% ceiling.
 - (b) Melee-only packs only.
 - **Recommendation: (a)**, because blocking followers' ranged attacks is the "なお良い" part of the request.
 
-**Q6. Packs that include summoners.** The front monster cannot summon; followers can summon into the queue.
+**Q5. A pocket versus an existing natural choke** (openness 2, or a natural dead end).
+- (a) Dig when means and time allow. Otherwise use the existing choke.
+- (b) Use the existing choke first and dig only when none is reachable.
+- (c) Use a natural dead end first, even though a straight dead end leaves 2 animals out and lets the corridor line shoot (2.2, 1.7).
+- **Recommendation: (a).** A corridor choke lets 2 attackers in, and a straight dead end is exposed.
+
+**Q6. Packs that include summoners.** The front monster cannot summon; followers can summon into the tunnel.
 - (a) Allow, with the 11-04 and 11-06 summoner rules unchanged and first.
 - (b) Exclude.
 - **Recommendation: (a).**
@@ -470,7 +617,7 @@ A **live check** through the control server (`tools/bot/hbctl.py`, debug `^A`) i
 - (b) A higher HP line, because walking out is impossible.
 - **Recommendation: (a).**
 
-**Q8. How long to wait in the pocket for a pack that does not come.**
+**Q8. How long to wait in the pocket for a pack that does not come.** This is for a pack that never reaches the tunnel; the last animal is Q1.
 - (a) 500 game turns, the existing detected-hold bound.
 - (b) 50 game turns, the summoner wait.
 - (c) Until the pack is no longer seen or detected.
@@ -481,7 +628,7 @@ A **live check** through the control server (`tools/bot/hbctl.py`, debug `^A`) i
 - (b) Random-quest floors excluded as well, like the swarm choke today.
 - **Recommendation: (a).** Random-quest maps are normal caves.
 
-**Q10. Stock.**
-- (a) No new buying: use what is carried, and add Rod of Stone to Mud aiming.
-- (b) Buy Stone to Mud wands or rods when in stock, so at least N charges are carried.
-- **Recommendation: (a)** for now. Measure use in stage 1 first.
+**Q10. Stock.** With 4 or more charges per animal-pack tunnel, a 2-charge wand, as in n1-a life-504, is not enough.
+- (a) No new buying: use what is carried, and add Rod of Stone to Mud aiming. A rod has no charges to spend.
+- (b) Buy Stone to Mud wands or rods when in stock, so that at least 4 + reserve charges are carried.
+- **Recommendation: (a)** for now. Measure in stage 1 how often charges were the veto, then decide (b).
