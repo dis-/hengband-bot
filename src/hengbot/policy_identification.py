@@ -137,7 +137,9 @@ class IdentificationMixin:
         # loot walk's block does: n1-c life-183 (Angband 49F, 2026-11-09 20:44-20:45) yielded
         # at [5,39] to a ネクサス・クイルスルグ (race 480) in view at [4,58], and one step out of
         # its sight at [4,38] walked '3' back toward the chest at [7,53], three loop stops.
-        if quest_profile is None and sleeper_reach_memory.remembered(self, snapshot):
+        # On a quest floor too (owner 2026-11-09 「クエストの階にも当てる」, as 2026-11-03's
+        # quest chest opened when it is safe).
+        if sleeper_reach_memory.remembered(self, snapshot):
             return None
         floor_chests = [
             candidate.position

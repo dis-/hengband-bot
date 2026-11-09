@@ -3594,6 +3594,34 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "chest:search")
         self.assertEqual(policy._chest_position, chest_position)
 
+    def test_completed_q34_chest_waits_for_a_remembered_hostile_out_of_sight(self):
+        """Owner 2026-11-09 「クエストの階にも当てる」: on a quest floor too the chest waits while a
+        hostile shown awake is remembered out of sight at its last cell (n1-c life-183's
+        chest/loot loop on Angband 49F, 2026-11-09 20:44).  DECLARED CONSTRUCTED: the
+        completed Q34 floor of the test above with a hostile shown 6 cells away first."""
+        policy = self._q34_source_policy()
+        chest_position = Position(10, 8)
+        grids = {
+            Position(10, 9): grid(10, 9),
+            chest_position: grid(10, 8, objects=1, object_tvals=(TVAL_CHEST,)),
+            Position(10, 15): grid(10, 15, monster=True),
+        }
+        quests = {34: QuestState(id=34, status=QUEST_STATUS_COMPLETED, fixed=True, level=5)}
+        shown = Snapshot(
+            player(10, 9, hp=100, max_hp=100), grids,
+            [hostile(1, 10, 15, distance=6)],
+            floor_key=(0, 5, 34), quests=quests, turn=100,
+        )
+        policy.choose_key(shown)
+        out_of_sight = Snapshot(
+            player(10, 9, hp=100, max_hp=100),
+            {position: cell for position, cell in grids.items() if position != Position(10, 15)},
+            [], floor_key=(0, 5, 34), quests=quests, turn=110,
+        )
+        policy.choose_key(out_of_sight)
+        # Before: ('s', 'chest:search') -- the quest floor's chest took the board.
+        self.assertFalse((policy.last_reason or "").startswith("chest:"), policy.last_reason)
+
     def test_completed_q34_ignores_ruined_chests_for_wooden_chest(self):
         policy = self._q34_source_policy()
         wooden = Position(10, 8)
