@@ -110,7 +110,7 @@ from hengbot.model import (
     TVAL_STAFF, TVAL_WAND,
 )
 from hengbot.policy_constants import (
-    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, REST_MACRO, SEARCH_KEY, WAIT_KEY,
+    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, REST_MACRO, SEARCH_KEY, UP_STAIRS_KEY, WAIT_KEY,
 )
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
 from hengbot.unseen_strike import message_text
@@ -141,8 +141,13 @@ WITHDRAW_REASON = f"{REASON}:withdraw"
 OUT_OF_FIRE_REASON = f"{REASON}:step-out-of-fire"
 FIRE_REST_REASON = f"{REASON}:rest-out-of-fire"
 FIRE_HOLD_REASON = f"{REASON}:hold-out-of-fire"
+RECALL_EXIT_WALK_REASON = f"{REASON}:recall-exit-walk"
+RECALL_EXIT_REASON = f"{REASON}:recall-exit"
+RECALL_OUT_REASON = f"{REASON}:recall-out-of-fire"
+RECALL_WAIT_REASON = f"{REASON}:recall-wait"
 _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
-                            OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON})
+                            OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON,
+                            RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -585,7 +590,7 @@ def _safe_cells(ctx: _Ctx, fire) -> set:
     return cells
 
 
-def _withdraw(ctx: _Ctx) -> str | None:
+def _withdraw(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
     """Out of the fire by the least exposed walk, then the rest there."""
     fire = _fire(ctx)
     if ctx.here not in fire:
@@ -601,7 +606,7 @@ def _withdraw(ctx: _Ctx) -> str | None:
     trap = _trap_key(ctx, path[1])
     if trap is not None:
         return trap
-    return _step(ctx, path[1], WITHDRAW_REASON, guard=False)
+    return _step(ctx, path[1], reason, guard=False)
 
 
 def _out_of_fire_key(policy, snapshot) -> str | None:
@@ -1780,6 +1785,7 @@ def key(policy, snapshot) -> str | None:
             or resist_potion.drink_key(policy, snapshot)
             or quest_room_sweep._restore(policy, snapshot)
             or _out_of_fire_key(policy, snapshot)
+            or _recall_wait(policy, snapshot)
             or _phase_key(policy, snapshot)
             or resist_potion.leave_key(policy, snapshot)
         )
@@ -1800,9 +1806,41 @@ def key(policy, snapshot) -> str | None:
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
         or _out_of_fire_key(policy, snapshot)
+        or _recall_wait(policy, snapshot)
         or _phase_key(policy, snapshot)
         or resist_potion.leave_key(policy, snapshot)
     )
+
+
+def _recall_wait(policy, snapshot) -> str | None:
+    """Owner 2026-11-09 Q2 「段をやめ射線外で待つ」: 「段の動きをやめる。開始の階段へ行ければ踏み、
+    行けなければ動かない敵の射線の外へ下がって発動を待つ。」
+
+    Once Recall is active (read when the supplies ran out, once_quest_recall), no phase step: the
+    start stair when a walk reaches it without entering the casters' fire, taken there; else out
+    of the fire and the wait (a rest while damaged).  n1-c life-178: after the Recall of decision
+    5205 the phase walked back toward the tome twice at HP 14-18% and died before it took effect."""
+    ctx = _ctx(policy, snapshot)
+    if ctx is None or not snapshot.player.recalling:
+        return None
+    fire = _fire(ctx)
+    goal = tuple(ctx.navigator.battlefield.exit)
+    if ctx.here == goal:
+        policy.last_reason = RECALL_EXIT_REASON
+        return UP_STAIRS_KEY
+    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+    terrain = quest_room_sweep._terrain_of(ctx.navigator, snapshot, water=False)
+    terrain[ctx.here] = "floor"
+    path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
+                                             ctx.here, {goal}, occupied - {goal})
+    if len(path) >= 2 and not set(path[1:]) & fire:
+        return _trap_key(ctx, path[1]) or _step(ctx, path[1], RECALL_EXIT_WALK_REASON, guard=False)
+    if ctx.here in fire:
+        return _withdraw(ctx, RECALL_OUT_REASON)
+    if _damaged(ctx):
+        return _rest_out_of_fire(ctx)
+    policy.last_reason = RECALL_WAIT_REASON
+    return WAIT_KEY
 
 
 def _leave_by_exit(policy, snapshot, board) -> str | None:

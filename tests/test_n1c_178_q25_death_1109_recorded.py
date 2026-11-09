@@ -139,9 +139,10 @@ class OutOfTheFireTest(unittest.TestCase):
 
     def test_damaged_out_of_the_fire_it_rests_before_walking_in(self):
         answers = replay(answer_lists=lists())
-        for sequence in (5201, 5221):   # [6,2] at HP 161 and 90 of 503; recorded: '9' into [5,3]
-            self.assertEqual(recorded(sequence)[1]["key"], "9")
-            self.assertEqual(answers[sequence], (REST_MACRO, battle.FIRE_REST_REASON), sequence)
+        # [6,2] at HP 161 of 503, before the Recall (after it, decision 5221 walks to the stair:
+        # RecallReadStopsThePhaseTest); recorded: '9' into [5,3].
+        self.assertEqual(recorded(5201)[1]["key"], "9")
+        self.assertEqual(answers[5201], (REST_MACRO, battle.FIRE_REST_REASON))
 
     def test_damaged_in_the_fire_one_step_takes_it_out(self):
         answers = replay(answer_lists=lists())
@@ -179,6 +180,22 @@ class StartStairOutOfHealingTest(unittest.TestCase):
         answers = replay()
         for sequence in (5216, 5217, 5218, 5219):   # [11,1]..[8,1], 2 to 5 steps from [13,1]
             self.assertEqual(answers[sequence], ("2", quest_room_sweep.EXIT_WALK_REASON), sequence)
+
+
+
+class RecallReadStopsThePhaseTest(unittest.TestCase):
+    """Owner 2026-11-09 Q2 「段をやめ射線外で待つ」: 「段の動きをやめる。開始の階段へ行ければ踏み、
+    行けなければ動かない敵の射線の外へ下がって発動を待つ。」  Recall was read at decision 5205."""
+
+    def test_after_the_recall_the_walk_goes_to_the_start_stair_not_the_tome(self):
+        answers = replay()
+        for sequence, key in ((5220, "2"), (5221, "1"), (5223, "1")):   # [7,1], [6,2], [6,2]
+            self.assertIn(recorded(sequence)[1]["key"], {"9"})            # recorded: toward [5,3]
+            self.assertEqual(answers[sequence], (key, battle.RECALL_EXIT_WALK_REASON), sequence)
+        # From the east room the walk round by the north corridor crosses no cell of the fire.
+        self.assertEqual(answers[5209], ("8", battle.RECALL_EXIT_WALK_REASON))
+        # In the fire with no cell out one step off: out by the least exposed walk.
+        self.assertEqual(answers[5226], ("7", battle.RECALL_OUT_REASON))
 
 
 if __name__ == "__main__":

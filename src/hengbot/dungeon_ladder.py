@@ -329,7 +329,9 @@ FLOOR_PLANS = (
             ("_druj_retreat", SURVIVAL), ("_leave_by_exit", SURVIVAL), ("_summons", SUMMONS),
             ("resist_potion.drink_key", OWN), ("quest_room_sweep._restore", OWN),
             # Owner 2026-11-09 「一歩で安全圏に移動して休息できる」: damaged in the fire, one step out.
-            ("_out_of_fire_key", OWN), ("_phase_key", OWN),
+            ("_out_of_fire_key", OWN),
+            # Owner 2026-11-09 「段をやめ射線外で待つ」: Recall read, no phase step.
+            ("_recall_wait", OWN), ("_phase_key", OWN),
             ("resist_potion.leave_key", OWN)), enemy=False),
         Branch("an enemy", (
             (INSTANT_DEATH, SURVIVAL),
@@ -339,7 +341,8 @@ FLOOR_PLANS = (
             ("quest_find_exit._speed", SURVIVAL), ("_summons", SUMMONS),
             # Owner 2026-11-07 「Q25内部でのテレポートの優先度を下げる」: the Resistance potion's
             # no-chance leave goes below the phase's own step; its drink stays.
-            ("resist_potion.drink_key", OWN), ("_out_of_fire_key", OWN), ("_phase_key", OWN),
+            ("resist_potion.drink_key", OWN), ("_out_of_fire_key", OWN), ("_recall_wait", OWN),
+            ("_phase_key", OWN),
             ("resist_potion.leave_key", OWN))),
     )),
     FloorPlan("quest_room_sweep.key", "quest_room_sweep", (
