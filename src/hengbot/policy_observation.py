@@ -10,7 +10,7 @@ from hengbot.town_hold import (
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
-from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, STATUS_THREAT_RELOCATION_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
+from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot import bm_destruction_fund, launcher_upgrade, random_quest_hold
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
@@ -492,7 +492,7 @@ class ObservationMixin:
                 self._dive_loot += 1
             elif self.last_reason in EMERGENCY_ESCAPE_REASONS:
                 self._dive_emergencies += 1
-            elif self.last_reason in STATUS_THREAT_RELOCATION_REASONS and (
+            elif self.last_reason in RELOCATING_ESCAPE_REASONS and (
                 previous_floor != snapshot.floor_key
                 or (
                     self._last_position is not None
@@ -503,6 +503,8 @@ class ObservationMixin:
                 # threat teleport/phase read or stairs taken counts as an
                 # emergency once it relocated us; the second one of a dive
                 # returns to town whether or not the threat was lethal.
+                # Owner 2026-11-09 「全部の逃げを数える」: every relocating
+                # escape from enemies does (RELOCATING_ESCAPE_REASONS).
                 self._dive_emergencies += 1
                 if self._dive_emergencies >= EMERGENCY_RETURN_COUNT:
                     self._note_return_start("emergency-repeat")
