@@ -171,6 +171,8 @@ class UnseenReapproachRecordedTest(unittest.TestCase):
             _undersearched_walls=lambda cell: True,
             _walkable_neighbors=corridor,
             _engagement_avoid_cells=set(),
+            # Every walker's one veto (policy _walk_veto): none in this corridor.
+            _walk_veto=lambda _board: frozenset(),
             _in_unseen_attack_area=lambda _board, cell: cell.x <= 5,
         )
         # The stops leave out ground that hurts (damaging_ground.hurts_at): none here.
