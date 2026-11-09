@@ -245,5 +245,42 @@ class AbsorbedHealingNoTeleportTest(unittest.TestCase):
         self.assertNotIn("absorbed-teleport", found["escapes"])
         self.assertFalse(answers[5223][0].startswith("mA"), answers[5223])
 
+
+class AbsorbedHealingBeforePotionTest(unittest.TestCase):
+    """Owner 2026-11-09 「即死の危険がないときは薬より優先する」: at the plan's heal
+    line the absorbed Healing (success at least 80%) before the Healing potion, but at the instant
+    death the potion first.  Decision 5184: [5,5], HP 291 of 503, a Healing potion carried; the
+    recorded process drank it ('qc').  The 95% rows are DECLARED CONSTRUCTED (the life showed the
+    staff's at 32%)."""
+
+    def test_the_staff_healing_comes_before_the_potion(self):
+        self.assertEqual(recorded(5184)[1]["key"], "qc")
+        answers = replay(answer_lists=lists({HEALING: {"success": 95}}), through=5184)
+        self.assertEqual(answers[5184], ("mAs", battle.ABSORBED_HEAL_REASON))
+
+    def test_at_32_percent_the_potion_is_drunk(self):
+        answers = replay(answer_lists=lists(), through=5184)
+        self.assertEqual(answers[5184], ("qc", "quest-strategy:heal"))
+
+    def test_at_the_instant_death_the_potion_comes_first(self):
+        # DECLARED CONSTRUCTED: decision 5184's HP set to 30 and 33.  The unseen loss the life
+        # observed (32, threat_tiers unseen_correction) makes the next action lethal at 30, not at
+        # 33.  The plan's escape answers the board then (the HP line's Teleportation), so the
+        # rung itself is asked on the replayed policy and board.
+        found = {}
+        for hp in (30, 33):
+            def edit(sequence, raw, hp=hp):
+                if sequence == 5184:
+                    raw["player"]["hp"] = hp
+
+            def probe(policy, snapshot, sequence, hp=hp):
+                if sequence == 5184:
+                    found[hp] = (threat_tiers.instant_death(policy, snapshot).holds,
+                                 battle._absorbed_heal(policy, snapshot, battle._profile(policy, snapshot)))
+
+            replay(answer_lists=lists({HEALING: {"success": 95}}), edit=edit, probe=probe, through=5184)
+        self.assertEqual(found, {30: (True, None), 33: (False, "mAs")})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -281,9 +281,10 @@ REPLACES = (
     # (the scenes' dose: speed_dose).
     Replacement(("staff", SV_STAFF_SPEED), Kind(TVAL_POTION, SV_POTION_SPEED),
                 when="reliable", cast=True),
-    # 2026-11-09 (n1-c life-178, Q25) 「成功率が80%以上なら体力回復は使っても良い。」: cast where
-    # the Q25 plan would drink a Healing potion it does not have (quest25_battle._absorbed_heal).
-    # It waives nothing (``uses`` empty): the potions are still bought and counted.
+    # 2026-11-09 (n1-c life-178, Q25) 「成功率が80%以上なら体力回復は使っても良い。」, and the same
+    # day 「即死の危険がないときは薬より優先する」: cast at the Q25 plan's heal line before a Healing
+    # potion unless the instant death holds (quest25_battle._absorbed_heal).  It waives nothing
+    # (``uses`` empty): the potions are still bought and counted.
     Replacement(("staff", SV_STAFF_HEALING), Kind(TVAL_POTION, SV_POTION_HEALING),
                 when="reliable", uses=frozenset(), cast=True),
     # 2026-10-30 「以降、鑑定と財宝感知は取り込みで賄う」.

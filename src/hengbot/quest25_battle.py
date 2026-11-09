@@ -1842,8 +1842,8 @@ def key(policy, snapshot) -> str | None:
         or _leave_by_exit(policy, snapshot, board)
         or quest_room_sweep._give_up(policy, snapshot, profile)
         or quest_room_sweep._below_line(policy, snapshot, profile, navigator)
-        or quest_find_exit._heal(policy, snapshot, profile)
         or _absorbed_heal(policy, snapshot, profile)
+        or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
@@ -1855,13 +1855,19 @@ def key(policy, snapshot) -> str | None:
 
 
 def _absorbed_heal(policy, snapshot, profile) -> str | None:
-    """Owner 2026-11-09 Q3 「成功率が80%以上なら体力回復は使っても良い。テレポートは許可しない」: where the
-    plan would drink a Healing potion (its heal line) and none is carried, the absorbed Healing
-    whose displayed success rate is at least 80% (me_capability ``reliable``, the owner's one
-    number for absorbed powers in place of an item).  n1-c life-178 had 4 charges at 32%: none."""
+    """Owner 2026-11-09 Q3 「成功率が80%以上なら体力回復は使っても良い。テレポートは許可しない」, and the
+    same day 「即死の危険がないときは薬より優先する」: at the plan's heal line (where a
+    Healing potion is drunk), the absorbed Healing whose displayed
+    success rate is at least 80% (me_capability ``reliable``, the owner's one number for absorbed
+    powers in place of an item) comes before the potion, unless the instant death holds
+    (threat_tiers ``instant_death``: the next action's p95 reaches the HP); then a carried potion,
+    which does not fail, goes first.  Without a potion it is cast either way.  n1-c life-178 had
+    4 charges at 32%: none."""
     threshold = profile.consumable_plan.get("heal_threshold_ratio")
-    if (threshold is None or snapshot.player.hp_ratio >= float(threshold)
-            or quest_find_exit._healing_potion(policy, snapshot) is not None):
+    if threshold is None or snapshot.player.hp_ratio >= float(threshold):
+        return None
+    if (quest_find_exit._healing_potion(policy, snapshot) is not None
+            and threat_tiers.instant_death(policy, snapshot).holds):
         return None
     key = item_cast_key(policy, snapshot, (TVAL_POTION, SV_POTION_HEALING))
     if key is not None:
