@@ -207,6 +207,30 @@ def cure_futile(policy, snapshot) -> bool:
                      blow_landed=unseen_strike.blow_on_board(snapshot)) is not None))
 
 
+def outpacing_blinders(policy, snapshot) -> list:
+    """Blind with no resistance to blindness: the awake hostiles beside the player whose blows
+    blind and who are faster than the player (``threat_tiers.adjusted_speed``, the speed
+    comparison of the escape walk).  Such a monster acts again between the cure and the player's
+    next action, so the cure is undone before it buys anything (n1-a life-500, オークの洞窟23階:
+    禁断の護り手, speed +20 against +0, blinded the player again on the board right after Cure
+    Critical Wounds, 15769-15770).  The ``cure_futile`` latch learns this only after one wasted
+    cure; this reads it from the race beforehand.  Owner 2026-11-07 (design 4.2)
+    「逃げる手段を取り戻すのが先」 and the 11-08 blind escape (threat_tiers.blind_teleport_key)."""
+    from hengbot import teleport_follower, threat_tiers
+
+    player = snapshot.player
+    if not player.blind or "resist_blind" in player.abilities:
+        return []
+    blinders = []
+    for monster in teleport_follower.adjacent(snapshot):
+        knowledge = policy._monrace_knowledge.get(monster.race_id)
+        if (not monster.asleep and knowledge is not None
+                and any(blow.effect == "BLIND" for blow in knowledge.blows)
+                and threat_tiers.adjusted_speed(monster) > player.speed):
+            blinders.append(monster)
+    return blinders
+
+
 def fight_through_key(policy, snapshot) -> str | None:
     """Strike the attacker instead of the futile cure, else None."""
     player = snapshot.player

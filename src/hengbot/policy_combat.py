@@ -838,6 +838,9 @@ class CombatMixin:
                 # Owner 2026-11-09 D: the Speed dose on a confusion relapse is the board's own
                 # answer (status_cure.speed_first_key), not a dose this rule may turn into a heal.
                 status_cure.RELAPSE_SPEED_REASON,
+                # Teleport Other at a follower or a faster blinder is the board's own answer.
+                teleport_follower.AWAY_REASON,
+                teleport_follower.BLINDER_REASON,
                 "flee:scroll",
                 "flee:stairs",
             )
@@ -2481,12 +2484,18 @@ class CombatMixin:
             # Teleport Other at it (a wand or rod zaps blind), then the fight.
             followers = (teleport_follower.followers(self, snapshot)
                          if (lethal or summoner_open) and not guardian_reposition else [])
+            # Blind beside a faster monster whose blows blind, the cure is undone before the
+            # next action (status_cure.outpacing_blinders): an escape usable blind goes first,
+            # and Teleport Other at that monster is one (a wand or rod zaps blind).
+            blinders = (status_cure.outpacing_blinders(self, snapshot)
+                        if (lethal or summoner_open) and not guardian_reposition else [])
             blind_escape = bool(
                 (lethal or summoner_open) and not guardian_reposition
                 and player.blind and not player.confused
                 and (threat_tiers.blind_teleport_means(self, snapshot) is not None
                      or destruction_use.usable(self, snapshot)
-                     or (followers and teleport_follower.away_usable(self, snapshot)))
+                     or ((followers or blinders)
+                         and teleport_follower.away_usable(self, snapshot)))
             )
             if not blind_escape and status_cure.treats(self, snapshot):
                 # Owner 2026-11-09 D: confused again right after a cure on the 即死 board, the
@@ -2576,6 +2585,9 @@ class CombatMixin:
                         self._note_return_start(self._last_return_trigger)
                         self._returning_to_town = True
                     return blind
+                if blind_escape and blinders and (away := teleport_follower.away_key(
+                        self, snapshot, blinders, teleport_follower.BLINDER_REASON)) is not None:
+                    return away
                 if not player.blind and not player.confused:
                     if scroll is not None:
                         if guardian_reposition:

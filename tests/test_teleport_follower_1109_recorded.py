@@ -30,7 +30,7 @@ import lzma
 from pathlib import Path
 import unittest
 
-from hengbot import teleport_follower, threat_tiers
+from hengbot import status_cure, teleport_follower, threat_tiers
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.model import (
     SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, SV_STAFF_DESTRUCTION, SV_WAND_TELEPORT_AWAY,
@@ -50,6 +50,8 @@ SECOND_READ = 11910767    # decision 15773: the second read
 LAST = 11910775           # decision 15774: blind at HP 12, followed again
 FOLLOWED = (SUMMONED, 11910746, FIRST_READ, LANDED, SECOND_READ, LAST)
 AWAY = teleport_follower.AWAY_REASON
+# ディアボロ (id 1291): Lv66, speed +20, a blinding blow, no TPORT (does not follow).
+NON_FOLLOWING_BLINDER = 1291
 
 
 def skill(policy, raw):
@@ -225,6 +227,57 @@ class FollowerConstructedTest(TeleportFollowerHarness):
         policy, answers = self.replay(until=FIRST_READ, change=change)
         raw, key, reason, snapshot = answers[FIRST_READ]
         self.assertEqual(teleport_follower.followers(policy, snapshot), [])
+        self.assertEqual((key, reason), ("r" + letter(raw, TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                                         "emergency:teleport"))
+
+
+
+def blinder_in_place(raw):
+    """DECLARED CONSTRUCTED: from the summons on, 禁断の護り手 is ディアボロ (fast, blinding blows,
+    no TPORT): a blinder the teleport would leave behind."""
+    if raw["turn"] >= SUMMONED:
+        for monster in raw["visible_monsters"]:
+            if monster["race_id"] == GUARDIAN:
+                monster["race_id"] = NON_FOLLOWING_BLINDER
+
+
+def resists_blindness(raw):
+    """DECLARED CONSTRUCTED: resistance to blindness from the equipment."""
+    raw["player"]["ability_sources"]["resist_blind"] = {
+        "equipment": True, "permanent": False, "temporary": False}
+
+
+class FasterBlinderConstructedTest(TeleportFollowerHarness):
+    """Item 2 (design 4.2 「逃げる手段を取り戻すのが先」): blind beside a faster monster whose blows
+    blind, the cure is undone before the next action; an escape usable blind goes first, and
+    Teleport Other is one (zapwand-execution.cpp:122-129).  Live 15769 drank Cure Critical
+    Wounds and was blind again on 15770."""
+
+    def test_the_faster_blinder_is_sent_away_before_the_cure(self):
+        policy, answers = self.replay(until=SUMMONED, change=blinder_in_place)
+        raw, key, reason, snapshot = answers[SUMMONED]
+        self.assertTrue(snapshot.player.blind)
+        self.assertEqual(teleport_follower.followers(policy, snapshot), [])
+        self.assertEqual([m.race_id for m in status_cure.outpacing_blinders(policy, snapshot)],
+                         [NON_FOLLOWING_BLINDER])
+        self.assertEqual(self.recorded[SUMMONED]["reason"], "emergency:cure-critical")
+        self.assertEqual((key, reason), ("a" + letter(raw, TVAL_WAND, SV_WAND_TELEPORT_AWAY) + "8",
+                                         teleport_follower.BLINDER_REASON))
+
+    def test_with_resistance_to_blindness_nothing_changes(self):
+        """CONSTRUCTED also: resistance to blindness; the blindness is no blinder's, the cure stays."""
+        def change(raw):
+            blinder_in_place(raw)
+            resists_blindness(raw)
+        policy, answers = self.replay(until=SUMMONED, change=change)
+        _raw, _key, reason, snapshot = answers[SUMMONED]
+        self.assertEqual(status_cure.outpacing_blinders(policy, snapshot), [])
+        self.assertEqual(reason, "emergency:cure-critical")
+
+    def test_sighted_the_scroll_is_read_as_before(self):
+        """No follower: the sighted board reads Teleportation as live did (15771)."""
+        _policy, answers = self.replay(until=FIRST_READ, change=blinder_in_place)
+        raw, key, reason, _snapshot = answers[FIRST_READ]
         self.assertEqual((key, reason), ("r" + letter(raw, TVAL_SCROLL, SV_SCROLL_TELEPORT),
                                          "emergency:teleport"))
 

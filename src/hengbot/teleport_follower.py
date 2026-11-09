@@ -36,6 +36,8 @@ from hengbot.model import SV_ROD_TELEPORT_AWAY, SV_WAND_TELEPORT_AWAY, TVAL_ROD,
 
 
 AWAY_REASON = "emergency:teleport-follower:teleport-away"
+# The same Teleport Other at a faster blinder beside a blind player (status_cure.outpacing_blinders).
+BLINDER_REASON = "emergency:blinder:teleport-away"
 # The absorbed rod, then the absorbed wand, then the carried rod, then the carried wand: the
 # absorbed power first (destruction_use, speed_dose), the rod before the wand (it recharges,
 # me_powers' Teleport Away rows).
