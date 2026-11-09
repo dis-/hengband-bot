@@ -84,10 +84,12 @@ Owner 2026-11-08 (「20行動で減らせないのであれば倒すアルゴリ
   or the health band's upper bound when that is lower (a hurt one).  The expected kills
   are that count times the success chance.  The player's own projection never hurts the
   player (effect-player.cpp:140-141), so no aim is barred for being near the player.
-- Two or more (``_mass_key``): when an aim catches at least two visible hostile breeders
-  and no more dangerous hostile acts (``more_dangerous_acting``), the aim with the most
-  expected kills is used before any one-target answer (then the larger group damage,
-  then the tie order above).  Otherwise the group-damage comparison above is unchanged.
+- Two or more (``_mass_key``): when an aim catches at least two visible hostile breeders,
+  its group damage beats every one-target answer (owner 2026-11-09 「群れに対して与える合計
+  ダメージが単体攻撃より大きければ使う。」) and no more dangerous hostile acts
+  (``more_dangerous_acting``), the aim with the most expected kills is used (then the larger
+  group damage, then the tie order above).  Otherwise the group-damage comparison above is
+  unchanged.
 - In the line of fire (``line_of_fire_key``): a visible hostile breeder the projection
   reaches from the player (projectable within ``MAX_RANGE``) is shot when no more
   dangerous hostile acts: the two-or-more aim, else the caller's one-target shot at the
@@ -435,10 +437,21 @@ def in_line_of_fire(policy, snapshot) -> list:
 
 
 def _mass_key(policy, snapshot, means) -> str | None:
-    """The aim with the most expected kills among those catching two or more breeders."""
+    """The aim with the most expected kills among those catching two or more breeders whose
+    group damage beats every one-target answer (``_one_target_best``).
+
+    Owner 2026-11-09, verbatim: 「範囲攻撃を使うかどうかの判断基準は既に提示している。群れに対して
+    与える合計ダメージが単体攻撃より大きければ使う。」 (the 11-01 rule): catching two or more never
+    puts an area attack before a one-target answer that deals more.  n1-c life-181 (Q2,
+    2026-11-09 12:52) fired its Stinking Cloud about twenty times at blue icky things that are
+    IM_POIS (「かなり耐性がある！」) instead of 44-damage bolts, until it had no charge left."""
     blocks = _blocker(snapshot)
+    hostiles = [monster for monster in snapshot.visible_monsters if monster.hostile]
+    baseline = _one_target_best(policy, snapshot, means, hostiles)
     ranked = []
     for score, prompts, each, send, aim in _options(policy, snapshot, means):
+        if score <= baseline:
+            continue
         kills, caught = _tally(policy, snapshot, each, aim, blocks)
         if caught >= 2:
             ranked.append((-kills, -score, prompts, each.power.kind != "rod", each.power.level, send))
