@@ -112,7 +112,8 @@ class Q25MassNoRecallTest(unittest.TestCase):
     def test_control_without_the_exemption_the_replay_reads_the_recorded_recall(self):
         # The fixture reproduces the incident: with the masses counted as before, the window
         # latches on 42 and decision 43 reads Word of Recall as recorded.
-        with patch.object(breeder_stalemate, "_exempt_races", lambda policy, snapshot: frozenset()):
+        # DECLARED WALL: the recorded build's 20-attack window too (owner 2026-11-09 made it 100).
+        with patch.object(breeder_stalemate, "_exempt_races", lambda policy, snapshot: frozenset()),                 patch.object(breeder_stalemate, "FLEE_AFTER_PLAYER_ACTIONS", 20):
             answers = replay()
         self.assertEqual(answers[RECALL][:2], ("rk", RECALL_REASON))
         self.assertEqual([s for s, (_k, reason, _l) in answers.items() if reason == RECALL_REASON], [RECALL])

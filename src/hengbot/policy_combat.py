@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.policy_constants import ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
+from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
 from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, threat_tiers, town_last_stand, unseen_strike
 from collections import Counter, deque
@@ -1366,7 +1366,7 @@ class CombatMixin:
             return None
         if self.last_reason.startswith("return:"):
             self.last_reason = (
-                "esp-threat:leave-" + self.last_reason[len("return:"):]
+                ESP_THREAT_LEAVE_PREFIX + self.last_reason[len("return:"):]
             )
         self._escape_state.enter("return", self.last_reason)
         return key

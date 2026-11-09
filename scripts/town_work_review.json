@@ -12282,10 +12282,6 @@
     "classification": "data",
     "evidence": "Data/selector result; no independent command or effect credit. pure count: a required_force item count (speed_potions), 0 when a REPLACES row meets it; read by acceptance, entry, the purchase rungs and the town route."
   },
-  "me_capability.py:waiving_rows": {
-    "classification": "data",
-    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the REPLACES waiving rows for a target whose use and condition hold; read by replaced_by_absorbed and me_absorbed_substitutes.item_cast_key."
-  },
   "speed_dose.py:_cast_key": {
     "classification": "data",
     "evidence": "Data/selector result; no independent command or effect credit. pure selector: me_absorbed_substitutes.item_cast_key unless a cast failed on this floor; read by key and spare."
@@ -16569,5 +16565,105 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the strategic hostiles in view plus the awake detected ones (threat tiers design 3), read by assess, facts and instant_death_key; not an independently selected game action"
+  },
+  "quest25_battle.py:_absorbed_heal": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q25 enemy board below the heal line with no Healing potion: casts the absorbed Healing staff (me_absorbed_substitutes.item_cast_key) when its displayed success is at least 80% (owner 2026-11-09). No independent progress."
+  },
+  "quest25_battle.py:_fire_guard": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A Q25 phase step from out of the never-moving casters' fire into it while damaged with no enemy in view: the rest out of the fire instead (owner 2026-11-09). No independent progress."
+  },
+  "quest25_battle.py:_leave_by_exit": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q25 floor: the room sweep's out-of-Healing start-stair rule (quest_room_sweep._leave_by_exit) asked by the phase battle. No independent progress."
+  },
+  "quest25_battle.py:_out_of_fire_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q25 floor, damaged in the casters' fire with no enemy in view: the one step out (owner 2026-11-09). No independent progress."
+  },
+  "quest25_battle.py:_recall_wait": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q25 floor with Recall active: the walk to the start stair out of the fire and the stair, else out of the fire and the wait (owner 2026-11-09). No independent progress."
+  },
+  "quest25_battle.py:_rest_out_of_fire": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q25 floor: the rest (or one held turn) on a cell out of the casters' fire. No independent progress."
+  },
+  "quest25_battle.py:_withdraw": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q25 floor: the least exposed step out of the casters' fire, then the rest there (owner 2026-11-09 Q1). No independent progress."
+  },
+  "quest25_battle.py:_safe_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the floor and door cells out of the casters' fire (and the summon cells while the Ipsissimus live)."
+  },
+  "me_capability.py:cast_rows": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the REPLACES cast rows for a target whose condition holds; read by me_absorbed_substitutes.item_cast_key."
+  },
+  "me_powers_refresh.py:resume_read_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Class-16 bookkeeping at the head of a dungeon decision: the turn-free browse command b+kind (cmd-magiceat.cpp only_browse) of each list kind this process has not read, once per process, when the CLI turns it on (n1-c life-178 2026-11-09). Dungeon only (snapshot.in_town returns None).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

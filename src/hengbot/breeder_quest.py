@@ -3,7 +3,7 @@
 Owner, verbatim: 「全滅要求のクエストは達成できないので放棄。ランダムクエストなど
 ターゲット討伐要求の場合はテレポートで距離を取り、増殖モンスターの近くを避けて続行」
 
-When the 20-action rule (breeder_stalemate) latches a quest floor, the
+When the 100-attack rule (breeder_stalemate) latches a quest floor, the
 floor's quest type decides the response (``RESPONSE_BY_QUEST_TYPE``):
 
 * ABANDON -- the quest completes only when every hostile on the floor is
@@ -18,7 +18,7 @@ floor's quest type decides the response (``RESPONSE_BY_QUEST_TYPE``):
 * PURSUE -- the quest completes by killing its named target
   (complete_random: KILL_LEVEL / RANDOM count ``q_ptr->r_idx`` kills
   only).  While the quest exit lock holds, a Scroll of Teleportation
-  gains distance once per stalemate (the 20-action window restarts), and
+  gains distance once per stalemate (the 100-attack window restarts), and
   routing vetoes the cells within one step of every perceived breeder --
   the reach of a bite, the same ring the paralyzer avoidance uses
   (policy_combat._refresh_paralyzer_avoidance: NEIGHBOR_OFFSETS + (0, 0)).

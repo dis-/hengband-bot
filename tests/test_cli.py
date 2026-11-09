@@ -4791,6 +4791,77 @@ class StationaryReasonsTest(unittest.TestCase):
         ):
             self.assertEqual(guard_stop_sequence(), 40808)
 
+    def test_esp_threat_leave_relabels_every_return_hold(self):
+        # _esp_threat_leave_key relabels return:X as esp-threat:leave-X by
+        # concatenation, so the AST scan above never sees these names.
+        from hengbot.policy_constants import (
+            ESP_THREAT_LEAVE_PREFIX, RETURN_STATIONARY_REASONS,
+        )
+        relabelled = {
+            ESP_THREAT_LEAVE_PREFIX + reason[len("return:"):]
+            for reason in RETURN_STATIONARY_REASONS
+        }
+        self.assertIn("esp-threat:leave-wait-recall", relabelled)
+        self.assertEqual(relabelled - STATIONARY_REASONS, set())
+
+    def test_recorded_esp_threat_recall_wait_clears_the_cell_guard(self):
+        # Decisions 1442-1481 of n1-b life-357 (2026-11-09 14:06, Angband 48F,
+        # stopped as loop-detected): Recall read to leave an ESP-sensed threat,
+        # then 32 waits on (41,83) for it to fire.
+        # Source bot-decisions.jsonl.gz SHA256:
+        # 72757b747bf0d829303e90ece995d4dd7a27f20a3c900b5dd98e7a3c806ca416
+        fixture = (
+            Path(__file__).parent / "fixtures" /
+            "esp-threat-leave-wait-recall-loop-20261109.jsonl.gz"
+        )
+        self.assertEqual(
+            hashlib.sha256(fixture.read_bytes()).hexdigest(),
+            "77afa4e24286e65b9e2add6bc5db9686751704cd0c03d4fcff3f385b48db5a1a",
+        )
+        with gzip.open(fixture, "rt", encoding="utf-8") as stream:
+            rows = [json.loads(line) for line in stream]
+        self.assertEqual(len(rows), LOOP_WINDOW)
+        self.assertEqual(
+            (rows[0]["decision_sequence"], rows[-1]["decision_sequence"]),
+            (1442, 1481),
+        )
+        recall = [row["reason"] for row in rows].index("return:recall")
+        self.assertEqual(rows[recall]["key"], "rg")
+        self.assertEqual(
+            {(row["reason"], row["key"]) for row in rows[recall + 1:]},
+            {("esp-threat:leave-wait-recall", "5")},
+        )
+        self.assertEqual(len(rows) - recall - 1, 32)
+
+        def guard_stop_sequence():
+            recent = deque(maxlen=LOOP_WINDOW)
+            previous = None
+            for row in rows:
+                position = Position(row["position"]["y"], row["position"]["x"])
+                floor = row["floor"]
+                snapshot = SimpleNamespace(
+                    in_town=False,
+                    inside_arena=False,
+                    floor_key=(floor["dungeon_id"], floor["level"], floor["quest_id"]),
+                    player=SimpleNamespace(position=position),
+                )
+                if _cell_loop_guard_applies(snapshot, row["reason"], previous):
+                    recent.append((snapshot.floor_key, position.y, position.x))
+                    if _is_looping(recent):
+                        return row["decision_sequence"]
+                else:
+                    recent.clear()
+                previous = position
+            return None
+
+        self.assertIsNone(guard_stop_sequence())
+        # Without the relabelled registration the exact live stop returns.
+        with patch(
+            "hengbot.cli.STATIONARY_REASONS",
+            STATIONARY_REASONS - {"esp-threat:leave-wait-recall"},
+        ):
+            self.assertEqual(guard_stop_sequence(), 1481)
+
     def test_stationary_exemption_depends_on_observed_position(self):
         before = parse_snapshot(json.loads(_snap_line(1, 13, 104)), {})
         after_move = parse_snapshot(json.loads(_snap_line(1, 13, 105)), {})

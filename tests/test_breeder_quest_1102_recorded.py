@@ -39,7 +39,9 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import copy
 import unittest
 
-from hengbot import breeder_quest
+from unittest import mock
+
+from hengbot import breeder_quest, breeder_stalemate
 from hengbot.model import Position
 from hengbot.policy_constants import DIRECTION_KEYS, UP_STAIRS_KEY
 from tests import test_breeder_swarm_1102_recorded as swarm
@@ -48,6 +50,7 @@ from tests import test_breeder_swarm_1102_recorded as swarm
 CASE = swarm.CASE
 QUEST_FLOOR = swarm.QUEST_FLOOR
 FLEE_TURN = swarm.FLEE_TURN
+RECORDED_WINDOW = 20    # the recorded build's window (owner 2026-11-02/03)
 LATCHED_TURN = 2199905  # the first board after the 20th action's decision (the last board)
 TARGET_RACE = 1329
 KILL_ALL_QUEST = 28
@@ -90,6 +93,15 @@ def bite_ring(raw):
 
 
 class BreederQuestRecordedTest(swarm.PostedSwarmKey):
+    def setUp(self):
+        super().setUp()
+        # DECLARED WALL: the response to a latch is the subject here, so the swarm boards latch
+        # under the recorded build's 20-attack window (owner 2026-11-09 made it 100; under 100
+        # these boards stay in one window, test_breeder_swarm_1102_recorded).
+        patcher = mock.patch.object(breeder_stalemate, "FLEE_AFTER_PLAYER_ACTIONS", RECORDED_WINDOW)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def drive_engagement(self, boards):
         policy = swarm.new_policy(boards)
         rows = {raw["turn"]: (key, reason) for raw, key, reason in self.drive(policy, boards)}

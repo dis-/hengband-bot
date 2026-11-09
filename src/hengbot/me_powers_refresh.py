@@ -39,6 +39,57 @@ def request_refresh(policy) -> None:
     policy._me_power_refresh_pending = KINDS
 
 
+def resume_read_key(policy, snapshot):
+    """The first read of each list this process lacks, in the dungeon, on any board.
+
+    The lists live in the process only (me_device_attacks.observe_lists); the
+    periodic refresh above is the spectator's and waits for a safe filler, so a
+    restarted bot used no absorbed power until one came.  n1-c life-178
+    (2026-11-09 07:27-07:37, Q25): the restarted process posted 5227 keys and
+    no ``b``; with no list, the tome phase's strongest attack was the bow, and
+    it shot arrows at the unseen tome from [5,5] until it died, the absorbed
+    ドラゴンの火炎 (5 charges, the tome HURT_FIRE) unused.  Browsing takes no
+    game time (the module docstring), so it may take a board under fire: the
+    replaced key comes back on the next board.  Each kind is asked once per
+    process; a kind with nothing absorbed comes back as an empty list.
+
+    Asked at the head of the decision (``ConservativePolicy._choose_key``), before any
+    producer runs: a decision computed and then replaced would keep its side effects
+    (the Q25 trap search counted searches never posted).  The board is observed first
+    as a decided one would be: the lists it shows, and the Q25 battle's reading of it.
+    """
+    player = snapshot.player
+    if (not getattr(policy, "_me_power_resume_reads", False)
+            or player.class_id != PLAYER_CLASS_MAGIC_EATER or snapshot.in_town):
+        return None
+    from hengbot.me_device_attacks import observe_lists
+    observe_lists(policy, snapshot)
+    lists = getattr(policy, "_me_device_lists", None) or {}
+    asked = getattr(policy, "_me_power_resume_asked", frozenset())
+    missing = [kind for kind in KINDS if kind not in lists and kind not in asked]
+    if not missing:
+        return None
+    from hengbot.policy import WARNING_PROMPT_MESSAGE_PREFIXES, home_page_message_body
+    if (snapshot.store is not None
+            or getattr(snapshot, "protocol_version", 2) < 3
+            or player.confused or player.paralyzed or player.blind or player.hallucinated
+            or any(home_page_message_body(message).startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
+                   for message in snapshot.messages)):
+        return None
+    from hengbot import quest25_battle
+    quest25_battle.observe_board(policy, snapshot)
+    kind = missing[0]
+    policy._me_power_resume_asked = asked | {kind}
+    browse = "b" + KIND_LETTER[kind]
+    policy.last_reason = REFRESH_REASON
+    policy._offer_execution(
+        browse, producer="bookkeeping", work_id="resume-magic-eater-powers",
+        next_step="magic-eater.browse.send", arguments=(kind,),
+        expected_effect="magic-eater-power-list-observed",
+    )
+    return browse
+
+
 def periodic_magic_eater_powers_key(policy, snapshot, key):
     """Replace a safe filler with ``b`` + kind while a refresh is pending.
 

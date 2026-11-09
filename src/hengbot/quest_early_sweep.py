@@ -14,7 +14,7 @@ at [12,34]; the residual-multiplier rung walked the player to [7,27], off the no
 Undead masses act from the moment the player enters (race vision 70 over this 69-wide map,
 monster-processor.cpp decide_process_continue), so they are in view early.
 
-The survival rungs above the plan are not touched, and neither is the 20-action rule
+The survival rungs above the plan are not touched, and neither is the 100-attack rule
 (breeder_stalemate): its count still includes every perceived breeder.
 """
 

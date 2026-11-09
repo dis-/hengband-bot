@@ -9,7 +9,7 @@ the latch re-armed at 00:11:00.
 The record beside the decision log keeps the floor, its latch and its
 breeder engagement window (breeder_stalemate: the count and turn at the
 window's start and the player actions counted since), so a restart neither
-re-opens the 20-action window nor forgets the flight it decided.  Like the
+re-opens the 100-attack window nor forgets the flight it decided.  Like the
 unseen attack and the town visit's purchases (policy_identification,
 policy_home), the first board of a process restores it only on the same
 dungeon floor at the same or a later game turn: the game does not advance
