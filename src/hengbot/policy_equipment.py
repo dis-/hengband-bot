@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import launcher_upgrade, spare_gear
+from hengbot import home_pass_charge, launcher_upgrade, spare_gear
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import item_available
@@ -681,22 +681,38 @@ class EquipmentMixin:
             or (mining and self._digging_tool_count(snapshot) >= 2)
         ):
             return None
-        digger = max(
-            (
-                item
-                for item in store.items
-                if item.is_digging_tool
-                and (mining or self._is_quest_wall_breach_item(item))
-                and not self._equip_blocked_by_identification(item)
-                and self._item_signature(item) not in self._deferred_home_items
-            ),
-            key=lambda item: item.sval,
-            default=None,
-        )
+        def best(stock):
+            return max(
+                (
+                    item
+                    for item in stock
+                    if item.is_digging_tool
+                    and (mining or self._is_quest_wall_breach_item(item))
+                    and not self._equip_blocked_by_identification(item)
+                    and self._item_signature(item) not in self._deferred_home_items
+                ),
+                key=lambda item: item.sval,
+                default=None,
+            )
+
+        digger = best(store.items)
+        # A pass that found no digger in the whole Home tried the kit's digger
+        # take (home_pass_charge): only such a pass, or one binding the take,
+        # spends the claim's attempts.  The open page is only the first of the
+        # Home's: n1-c life-174 (2026-11-09 02:20) held nine diggers past it,
+        # and each pass that saw none spent the claim until it retired with
+        # the town stopped on survival:recall_departure_ready.  A take the
+        # pack budget refuses now is not tried either: the pass's other owner
+        # (a deposit) may make the room.
+        if digger is None and (
+                best(self._home_knowledge_items) is None if self._home_knowledge_current
+                else self._open_home_page_is_complete(snapshot)):
+            home_pass_charge.note_filed(self, home_pass_charge.DIGGER)
         # The outside composer takes it only through the town pack budget
         # (store_item_key); a take it refuses re-enters Home forever.
         if digger is None or not home_take_fits(snapshot, digger, digger.count):
             return None
+        home_pass_charge.note_filed(self, home_pass_charge.DIGGER)
         self._home_digger_seen_pages.clear()
         self._home_pending_item = self._item_signature(digger)
         self._requeue_home_withdrawal(self._home_pending_item)

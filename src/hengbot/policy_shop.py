@@ -39,6 +39,7 @@ from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
 from hengbot import launcher_upgrade
 from hengbot import quest_optional_carry
+from hengbot import home_pass_charge
 from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
 from hengbot import mining_loadout, mining_oil_sale
 from hengbot.magic_eater_devices import is_mana_food_ware
@@ -5163,6 +5164,7 @@ class ShopMixin(InStoreMixin):
                     None,
                 )
                 if scrolls_missing and stored_scrolls is not None:
+                    home_pass_charge.note_filed(self, home_pass_charge.DETECTION)
                     self._home_digger_seen_pages.clear()
                     signature = self._item_signature(stored_scrolls)
                     quantity = min(scrolls_missing, stored_scrolls.count)
@@ -5195,6 +5197,9 @@ class ShopMixin(InStoreMixin):
                             else "home:seek-digging-tool-page"
                         )
                         return " "
+                    home_pass_charge.note_filed(
+                        self, home_pass_charge.DETECTION if required_scrolls_missing
+                        else home_pass_charge.DIGGER)
                     self._home_digger_seen_pages.clear()
                     self._home_digger_withdraw_pending = False
                     self._set_town_store_attempted(STORE_HOME, snapshot.turn, "digger-withdraw-complete")
