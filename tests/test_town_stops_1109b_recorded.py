@@ -20,6 +20,7 @@ from unittest import mock
 
 from hengbot import equipment_optimizer
 from hengbot.model import STORE_HOME
+from hengbot.policy_types import in_flight_clause
 from tests.test_stops_1109_town_recorded import RecordedVisit
 
 FIXTURES = Path(__file__).with_name("fixtures") / "town-stops-1109b"
@@ -84,6 +85,48 @@ class JunkSweepTakeAtEntranceTest(Visit):
         self.assertEqual(self.policy._home_pending_item, dagger)
         self.decide(17)
         self.assertNotIn(dagger, self.policy._deferred_home_items)
+
+
+class RefusedDepositEndsTheWaitTest(Visit):
+    """n1-a life-497 2026-11-09 11:31 town:blocked:survival:identify_staff_ready.
+
+    Row 10 posted the Home deposit 'dr21\\rdpdd\\x1b' of the arrows, the
+    追加攻撃のモーニングスター and a potion; the game answered
+    「我が家にはもう置く場所がない。」 for the morning star (the arrows and the
+    potion stacked).  The pending deposit waited STORE_STUCK_LIMIT outside
+    boards for the missing effect while the Home visit stayed in flight, so
+    every store approach was refused (acquire_store_visit), the town end
+    stepped off (row 11) and stopped with the Identify staff short (14 of 20
+    charges, the Magic shop never visited, row 14).
+
+    Fix: the refusal of this deposit ends its wait on the first outside board
+    through the existing unobserved-deposit end (the full-Home relief of the
+    refused entry, the visit closed).
+    """
+
+    fixture = "j497"
+
+    def test_recorded_rows_replay_to_the_refusal(self):
+        self.assertEqual(self.replay_to(11), [])
+        self.assertEqual(self.journal[10]["key"], "dr21\rdpdd\x1b")
+        self.assertEqual(self.journal[11]["reason"], "town:entrance-step-off:town:end-step-off")
+        self.assertEqual(self.journal[14]["reason"], "town:blocked:survival:identify_staff_ready")
+
+    def test_the_refused_deposit_releases_the_visit(self):
+        self.replay_to(11)
+        _board, _key, reason = self.decide(11)
+        # Row 11's responses carry the refusal (「我が家にはもう置く場所がない。」).
+        self.assertTrue(self.policy._home_full_refused)
+        self.assertFalse(reason.startswith("town:entrance-step-off:town:end"), reason)
+        self.assertIsNone(self.policy._home_atomic_deposit_pending)
+        self.assertIsNone(in_flight_clause(self.policy._town_turn_arbiter.store_visit))
+        self.assertIsNotNone(self.policy._home_full_relief)
+
+    def test_the_visit_goes_on_past_the_recorded_stop(self):
+        self.replay_to(14)
+        _board, _key, reason = self.decide(14)
+        self.assertNotEqual(reason, self.journal[14]["reason"])
+        self.assertFalse(reason.startswith("town:blocked"), reason)
 
 
 if __name__ == "__main__":

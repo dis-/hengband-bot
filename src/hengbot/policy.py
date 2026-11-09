@@ -4580,6 +4580,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 or "Your home is full" in message for message in snapshot.messages)
         if self._home_atomic_deposit_pending is not None and home_full_message:
             self._home_full_refused = True
+            # The game refused part of this posted deposit: its outside board
+            # is the answer, not a page that lagged behind the mutation.
+            self._home_deposit_refused_posted_turn = (
+                self._home_atomic_deposit_pending[2])
         session = self._equipment_transaction_session
         if (home_full_message and session is not None
                 and session.pending_action is not None
@@ -4630,7 +4634,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._home_entry_operation_posted = False
                     self._home_atomic_deposit_pending = None
                     self._invalidate_home_observation()
-                elif unchanged_pages + 1 >= STORE_STUCK_LIMIT:
+                elif (unchanged_pages + 1 >= STORE_STUCK_LIMIT
+                      or getattr(self, "_home_deposit_refused_posted_turn",
+                                 None) == posted_turn):
+                    # A refusal of this deposit ("我が家にはもう置く場所がない")
+                    # ends the wait on its first outside board: the visit stayed
+                    # in flight meanwhile, no store could be approached and the
+                    # town end stopped (n1-a life-497 2026-11-09 11:31, the
+                    # 追加攻撃のモーニングスター beside the landed arrows and potion).
                     # A11r2 discipline: never recompose against the page that
                     # failed to show the mutation.  Terminate this visit
                     # visibly and reject that identity for this visit.  It may
