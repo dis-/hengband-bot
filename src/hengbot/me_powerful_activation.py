@@ -230,13 +230,28 @@ def spare_identify_ready(policy, snapshot) -> bool:
     """The town has time to spare for *Identify* (owner 2026-11-04 「余裕」).
 
     A safe town board with no hostile, the cost paid without reaching any
-    low-HP rung (``pays_safely``), and an absorbed *Identify* with a charge.
+    low-HP rung (``pays_safely``), and an absorbed *Identify* with a charge
+    that clears the staff's success floor (``identify_reliable``).
     """
     return (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
             and _safe(policy, snapshot) and not policy._physical_hostiles(snapshot)
             and pays_safely(policy, snapshot)
             and me_capability.has(policy, snapshot, IDENTIFY.kind, IDENTIFY.sval)
+            and identify_reliable(policy, snapshot)
             and charges_left(policy, snapshot, IDENTIFY) > 0)
+
+
+def identify_reliable(policy, snapshot) -> bool:
+    """The absorbed Identify's listed success clears STAFF_IDENTIFY_MIN_SUCCESS.
+
+    The same floor the ordinary absorbed Identify answers to (949ca43348,
+    me_staff_sequence ``identify_power_reliable``): the Powerful Activation
+    casts the same absorbed power (cmd-magiceat.cpp do_cmd_magic_eater, one
+    fail chance).  n1-c life-165 (2026-11-08 04:59) failed it sixteen times
+    while its takes went back and forth until the Home visits ran out.
+    """
+    from hengbot.me_staff_sequence import identify_power_reliable
+    return identify_power_reliable(policy, snapshot)
 
 
 def charges_left(policy, snapshot, effect) -> int:
@@ -282,11 +297,33 @@ def _first_open(policy, effect, targets):
 
 def _work(policy, snapshot):
     for effect in EFFECTS:
+        if effect is IDENTIFY and not identify_reliable(policy, snapshot):
+            continue
         if me_capability.has(policy, snapshot, effect.kind, effect.sval):
             work = _first_open(policy, effect, TARGETS[effect](policy, snapshot))
             if work is not None:
                 return work
     return None
+
+
+def own_cost(policy, snapshot) -> bool:
+    """The board right after a use, whose HP drop is no more than its cost.
+
+    racial_power_reduce_mana takes the cost from HP (``cost``), on a failed
+    cast too.  Counted as a hit it made ``_safe`` false and sent the town to
+    town:seek-shelter after every use, and the carried take lost its hold
+    (``awaits_identify``) so the deposit flow shelved it before its
+    *Identify*: n1-b life-351 (2026-11-08 21:09) and n1-c life-165 (04:59)
+    spent their Home visits that way until town:blocked:owner-retired-burst.
+    """
+    memory = getattr(policy, MEMORY, None)
+    paid = getattr(memory, "__dict__", {}).get("paid_from") if memory is not None else None
+    if paid is None or snapshot.turn == paid[0]:
+        return False
+    first_board = (memory.pending is not None and memory.pending[2] == paid[0]
+                   or memory.__dict__.get("paid_board") == snapshot.turn)
+    return (first_board and snapshot.in_town
+            and 0 <= paid[1] - snapshot.player.hp <= cost(snapshot.player.level))
 
 
 def _safe(policy, snapshot) -> bool:
@@ -328,6 +365,7 @@ def _use(policy, snapshot, effect, target, signature) -> str:
     memory = _memory(policy)
     memory.attempts[(effect.name, signature)] = memory.attempts.get((effect.name, signature), 0) + 1
     memory.pending = (effect, signature, snapshot.turn)
+    memory.__dict__["paid_from"] = (snapshot.turn, snapshot.player.hp)
     memory.rekey = ((equipment_identity(target), target.tval, target.sval)
                     if effect.name == IDENTIFY.name
                     and equipment_identity(target) in _planned_deposit_identities(policy)
@@ -440,6 +478,7 @@ def observe(policy, snapshot) -> None:
     if snapshot.turn == turn:
         return
     memory.pending = None
+    memory.__dict__["paid_board"] = snapshot.turn
     rekey, memory.rekey = getattr(memory, "rekey", None), None
     if rekey is not None:
         _rekey_planned_deposit(policy, snapshot, *rekey)
