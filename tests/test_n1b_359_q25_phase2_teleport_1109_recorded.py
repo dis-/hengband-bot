@@ -229,5 +229,37 @@ class HighThreatSummonsTeleportsTest(unittest.TestCase):
         self.assertEqual(answers[FIRST_TELEPORT], ("ri", battle.TELEPORT_REASON))
 
 
+def spent(kind):
+    """DECLARED CONSTRUCTED: the executor's read of ``kind``'s list with every power spent (a wand's
+    count 0, a rod's every charge charging); the recorded lists were full."""
+    rows = [dict(row) for row in CASE["lists"][kind][1]]
+    for row in rows:
+        if "current" in row:
+            row["current"] = 0
+        else:
+            row["charging"] = row["max"]
+    return {"kind": kind, "rows": rows}
+
+
+class UnseenPenNoArrowTest(unittest.TestCase):
+    """Owner 2026-11-09 「Q25 の全部の段に広げる」: 「見えない時は矢を撃たない。マスを狙う範囲の攻撃（取り込んだ
+    ボール・ブレスなど）で削り、無ければ相手が見えるマスへ移って撃つ。」 on the pen too.  On [5,1] the pen
+    [7,17] is not in view (no telepathy, no evil ESP shown); the recorded process burst its absorbed
+    balls there (decisions 816-832).  With the wand list read spent on 816 and the rod list on 817
+    (the real reads, ``_magic_eater_power_list``), the crossbow and its bolts are left."""
+
+    def test_spent_balls_walk_to_a_cell_that_sees_the_pen_not_the_bolt(self):
+        def edit(sequence, raw):
+            if sequence in (816, 817):
+                raw["_magic_eater_power_list"] = spent({816: "wand", 817: "rod"}[sequence])
+
+        answers = replay(edit=edit, through=820, recorded_wait=True)
+        self.assertEqual(answers[816][0], "mC1@7,17")           # the rod's ball, still charged
+        for sequence in (817, 818, 819, 820):
+            raw, row = recorded(sequence)
+            self.assertEqual(((raw["player"]["y"], raw["player"]["x"]), row["key"]), ((5, 1), "mB1@7,17"))
+            self.assertEqual(answers[sequence], ("6", battle.SIGHT_REASON), sequence)
+
+
 if __name__ == "__main__":
     unittest.main()

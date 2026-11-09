@@ -95,6 +95,8 @@ def with_wand_list(raw, *rows):
 
 FIRE_BALL = {"name": "ファイア・ボール", "fail": 10, "success": 90, "max": 5, "current": 5}
 FIRE_BALL_LETTER = "w"   # sval 22
+STINKING_CLOUD = {"name": "悪臭雲", "fail": 5, "success": 95, "max": 20, "current": 20}
+STINKING_CLOUD_LETTER = "o"   # sval 14
 
 
 def with_trap_shown(raw, cell):
@@ -349,7 +351,7 @@ class Q25IpsissimusTest(unittest.TestCase):
     """phase2: 「全快して(7,1)に移動、事前に加速して(6,1)(5,1)と移動。一番ダメージの出る攻撃をイプシシマスに放つ」."""
 
     def test_haste_on_7_1_then_the_walk_to_5_1(self):
-        raw = board((7, 1))
+        raw = with_wand_list(board((7, 1)), FIRE_BALL)   # an attack aimed at the pen's grid
         policy = new_policy(raw)
         at_phase(policy, raw, "ipsissimus")
         key = choose(policy, raw)
@@ -360,8 +362,43 @@ class Q25IpsissimusTest(unittest.TestCase):
         raw["player"].update(y=6, x=1)
         self.assertEqual(choose(policy, raw), step((6, 1), (5, 1)))
 
-    def test_on_5_1_the_unseen_pen_is_shot_by_its_grid(self):
+    def test_on_5_1_no_arrow_flies_at_the_unseen_pen(self):
+        # Owner 2026-11-09 「Q25 の全部の段に広げる」: 「見えない時は矢を撃たない。マスを狙う範囲の攻撃で
+        # 削り、無ければ相手が見えるマスへ移って撃つ。」  The crossbow only: the walk to a cell that sees
+        # [7,17] (within the light radius 2, its line clear), not the arrow at the grid.
         raw = board((5, 1))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, battle.SIGHT_REASON)
+        self.assertFalse(key.startswith("f"), key)
+
+    def test_from_7_1_the_walk_goes_to_the_sight_not_to_6_1(self):
+        raw = board((7, 1))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, battle.SIGHT_REASON)
+
+    def test_every_sight_reached_unseen_counts_the_rest_escaped(self):
+        # DECLARED CONSTRUCTED: the memory the walk leaves once it has stood on every cell that sees
+        # [7,17] with no Ipsissimus shown (``_walk_to_sight`` adds each).  None in the pen: they are
+        # out of it, as 「当たらない撃ちで補う」 reads the unanswered shots.
+        raw = board((5, 1))
+        policy = new_policy(raw)
+        sights = geo.sight_cells(TERRAIN, geo.IPSISSIMUS_AIM, 2)
+        at_phase(policy, raw, "ipsissimus", kills={geo.IPSISSIMUS: 1},
+                 blind_sights=frozenset((geo.IPSISSIMUS_AIM, cell) for cell in sights))
+        policy._player_hasted = lambda snapshot: True
+        choose(policy, raw)
+        self.assertEqual(memory(policy, raw).assumed_escaped, 2)
+        self.assertEqual(phase_of(policy, raw), "stragglers")
+
+    def test_the_pen_in_view_takes_the_arrow_at_its_cell(self):
+        # DECLARED CONSTRUCTED: an Ipsissimus shown on [7,17] (as telepathy shows it from [5,1]).
+        raw = board((5, 1), monsters=[monster(geo.IPSISSIMUS, 7, 17, index=950)])
         policy = new_policy(raw)
         at_phase(policy, raw, "ipsissimus")
         policy._player_hasted = lambda snapshot: True
@@ -653,13 +690,26 @@ class Q25StairwayTest(unittest.TestCase):
         policy._player_hasted = lambda snapshot: True
         self.assertEqual((choose(policy, raw), policy.last_reason), ("o6", battle.OPEN_REASON))
         open_door(raw, geo.STAIRWAY_DOOR)
+        raw["visible_monsters"] = [monster(geo.STAIRWAY, 13, 29, index=970)]   # seen from [13,27]
         key = choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.SHOT_REASON)
         self.assertTrue(key.endswith("*p66t5\x1b"), key)
 
+    def test_unseen_from_13_27_no_arrow_the_door_beside_it(self):
+        # Owner 2026-11-09 「Q25 の全部の段に広げる」: the stairway not shown on [13,27] (its line there,
+        # within the light radius 2): the door [13,28] that sees it, not the arrow at the grid.
+        raw = board((13, 27))
+        open_door(raw, geo.STAIRWAY_DOOR)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "stairway", style="ranged", cleared=frozenset({(13, 27)}))
+        policy._player_hasted = lambda snapshot: True
+        self.assertEqual((choose(policy, raw), policy.last_reason),
+                         (step((13, 27), (13, 28)), battle.SIGHT_REASON))
+
     def test_a_summons_that_is_not_lethal_does_not_stop_it(self):
         # The spectre named casting a summons: the shared rule 1 would shoot it first.
-        raw = board((13, 27), monsters=[monster(geo.SPECTRE, 12, 24, index=960)])
+        raw = board((13, 27), monsters=[monster(geo.SPECTRE, 12, 24, index=960),
+                                        monster(geo.STAIRWAY, 13, 29, index=970)])
         raw["messages"] = [raw["visible_monsters"][0]["name"] + "が魔法でアンデッドを召喚した。"]
         open_door(raw, geo.STAIRWAY_DOOR)
         policy = new_policy(raw)
@@ -695,13 +745,26 @@ class Q25DrujTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("mB" + FIRE_BALL_LETTER + "@11,19", DEVICE_REASON))
 
     def test_without_a_ball_the_door_is_opened_and_it_is_shot_from_a_trapless_line_cell(self):
-        raw = board((12, 21))
+        raw = board((12, 21), monsters=[monster(geo.DRUJ, 11, 18, index=980)])   # seen
         open_door(raw, geo.DRUJ_DOOR)
         policy = new_policy(raw)
         at_phase(policy, raw, "druj")
         policy._player_hasted = lambda snapshot: True
         choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.SHOT_REASON)
+
+    def test_unseen_without_a_ball_no_arrow_the_walk_to_a_cell_that_sees_it(self):
+        # Owner 2026-11-09 「Q25 の全部の段に広げる」: the druj not shown from [12,21] (distance 3, the
+        # light radius 2).  No trapless cell of its line sees it; [11,20] does (a trap cell: the trap
+        # rule answers it first, quest25_battle._walk).
+        raw = board((12, 21))
+        open_door(raw, geo.DRUJ_DOOR)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "druj")
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertFalse(key.startswith("f"), key)
+        self.assertEqual(policy.last_reason, battle.SEARCH_REASON)
 
     def test_the_magic_eater_hastes_out_of_its_line_only(self):
         raw = board((12, 21))
@@ -776,7 +839,8 @@ class Q25EscapeTest(unittest.TestCase):
     """phase2 「テレポートしたメッセージで判断」 and 「当たらない撃ちで補う」."""
 
     def pen(self, raw=None):
-        raw = raw or board((5, 1))
+        # The absorbed ball: an unseen pen takes no arrow (owner 2026-11-09 「Q25 の全部の段に広げる」).
+        raw = raw or with_wand_list(board((5, 1)), FIRE_BALL)
         policy = new_policy(raw)
         at_phase(policy, raw, "ipsissimus")
         policy._player_hasted = lambda snapshot: True
@@ -793,7 +857,7 @@ class Q25EscapeTest(unittest.TestCase):
         policy, raw = self.pen()
         for _ in range(battle.PEN_MISSES_TO_ESCAPED):
             choose(policy, raw)
-            self.assertEqual(policy.last_reason, battle.SHOT_REASON)
+            self.assertEqual(policy.last_reason, DEVICE_REASON)
             self.assertEqual(phase_of(policy, raw), "ipsissimus")
         choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "stragglers")
@@ -826,7 +890,7 @@ class Q25EscapeTest(unittest.TestCase):
         self.assertEqual(phase_of(policy, raw), "stragglers")
 
     def test_with_evil_esp_the_misses_do_not_count(self):
-        raw = board((5, 1))
+        raw = with_wand_list(board((5, 1)), FIRE_BALL)
         raw["equipment"][0]["known_flags"] = [*raw["equipment"][0]["known_flags"], 112]
         policy, raw = self.pen(raw)
         for _ in range(battle.PEN_MISSES_TO_ESCAPED + 2):
@@ -856,6 +920,29 @@ class Q25DirectQuylTest(unittest.TestCase):
         policy._player_hasted = lambda snapshot: True
         key = choose(policy, raw)
         self.assertIn(policy.last_reason, {battle.SHOT_REASON, DEVICE_REASON}, key)
+
+    def weak_ball(self):
+        # CONSTRUCTED: the absorbed Stinking Cloud alone (12 + level/4 poison, below the crossbow).
+        raw = with_wand_list(board((7, 9)), STINKING_CLOUD)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "quylthulgs", quyls_done=frozenset({(9, 13)}))
+        return policy, raw
+
+    def test_unseen_the_ball_at_its_grid_not_the_bolt(self):
+        # Owner 2026-11-09 「Q25 の全部の段に広げる」: the quylthulg [9,9] not shown (it is invisible;
+        # this board has no see-invisible): the ball burst on its grid, never the crossbow.
+        policy, raw = self.weak_ball()
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), ("mB" + STINKING_CLOUD_LETTER + "@9,9", DEVICE_REASON))
+
+    def test_seen_the_strongest_shot_the_bolt_too(self):
+        # DECLARED CONSTRUCTED: the quylthulg shown on [9,9] (seen invisible).
+        policy, raw = self.weak_ball()
+        raw["visible_monsters"] = [monster(geo.QUYL, 9, 9, index=990)]
+        policy._player_hasted = lambda snapshot: True
+        choose(policy, raw)
+        self.assertEqual(policy.last_reason, battle.SHOT_REASON)
 
     def test_its_kill_marks_the_aimed_one_only(self):
         policy, raw = self.direct((7, 9), aimed_race=geo.QUYL)

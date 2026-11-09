@@ -408,6 +408,7 @@ SV_ROD_DETECT_DOOR = 1       # sv-definition/sv-rod-types.h
 SV_ROD_IDENTIFY = 2
 SV_ROD_MAPPING = 5           # sv-definition/sv-rod-types.h
 SV_ROD_DETECTION = 6         # sv-definition/sv-rod-types.h
+SV_ROD_HEALING = 9           # sv-definition/sv-rod-types.h
 SV_ROD_TELEPORT_AWAY = 13     # sv-definition/sv-rod-types.h
 SV_ROD_DISARMING = 14       # sv-definition/sv-rod-types.h
 SV_ROD_LITE = 15

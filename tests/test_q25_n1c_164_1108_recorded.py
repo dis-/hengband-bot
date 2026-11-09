@@ -15,14 +15,16 @@ Owner 2026-11-08, verbatim: 「Q25の死体の塊では帰らない。」  One p
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+import dataclasses
 import gzip
 import json
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import breeder_stalemate, quest25_battle as battle, quest25_geometry as geo
+from hengbot import breeder_stalemate, quest25_battle as battle, quest25_battle_record, quest25_geometry as geo
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.quest_find_exit import MELEE_REASON
 from tests import test_q25_haunted_house as q25
@@ -117,6 +119,49 @@ class Q25MassNoRecallTest(unittest.TestCase):
             answers = replay()
         self.assertEqual(answers[RECALL][:2], ("rk", RECALL_REASON))
         self.assertEqual([s for s, (_k, reason, _l) in answers.items() if reason == RECALL_REASON], [RECALL])
+
+
+def mass_phase_decide(sequence, position):
+    """(key, reason) of board ``sequence`` decided by a fresh policy restarted in the corpse-mass
+    phase.  DECLARED CONSTRUCTED: the previous process's battle record (quest25_battle_record, read
+    by the real restore at the first decision) in phase4 with the corridor lit, as a visit that
+    reached it leaves it; the player moved to ``position`` (the recorded masses as they stood)."""
+    raw = copy.deepcopy(BY_SEQUENCE[sequence][0])
+    raw["player"]["y"], raw["player"]["x"] = position
+    fresh = battle.Battle(phase=battle.PHASE_NAMES.index("corpse-masses"), ready=True, lit=True)
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "q25-battle.json"
+        path.write_text(json.dumps({
+            "version": quest25_battle_record.VERSION, "floor": [0, 48, geo.QUEST_ID], "turn": raw["turn"],
+            "battle": {field.name: quest25_battle_record._encode(getattr(fresh, field.name))
+                       for field in dataclasses.fields(fresh) if field.name != "observed"},
+            "board": None}), encoding="utf-8")
+        policy = new_policy(raw)
+        policy._q25_battle_record_path = path
+        key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+    return key, policy.last_reason
+
+
+class MassWidestFiringCellTest(unittest.TestCase):
+    """Owner 2026-11-09 「一番多く届く位置へ」: in the corpse-mass phase the shot is taken from the cell
+    that reaches the most masses (quest_firing_cells ``reach``, the Q2 fix's measure) of the cells
+    the plan may stand on, not from the fixed [1,6].  Board 1: seven masses at [1,14]-[1,17],
+    [2,14], [2,16], [2,17]; the crossbow reaches 10, so [1,6] reaches five, the open door [1,7]
+    all seven (trapless, out of every caster's fire and the dreadmaster's vision, beside none)."""
+
+    def test_from_1_6_one_step_to_the_door_that_reaches_all_seven(self):
+        self.assertEqual(mass_phase_decide(1, (1, 6)), ("6", battle.MASS_CELL_REASON))
+
+    def test_on_1_7_the_shot(self):
+        key, reason = mass_phase_decide(1, (1, 7))
+        self.assertEqual(reason, battle.SHOT_REASON)
+        self.assertTrue(key.startswith("f"), key)
+
+    def test_when_1_6_reaches_them_all_it_stays_and_shoots(self):
+        # Board 43: six masses within [1,14]-[2,16], all within reach of [1,6] as of [1,7].
+        key, reason = mass_phase_decide(43, (1, 6))
+        self.assertEqual(reason, battle.SHOT_REASON)
+        self.assertTrue(key.startswith("f"), key)
 
 
 if __name__ == "__main__":
