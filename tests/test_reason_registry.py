@@ -4,7 +4,9 @@ Maintainability review 2026-11-09, step 1 (owner 「手順1から始める」): 
 policy_constants are derived from the registry with the membership they had as literals, frozen
 here as they stood at 7e4d87ab2f (policy_constants.py:923-997)."""
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+import ast
 from functools import lru_cache
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -18,7 +20,6 @@ from hengbot import policy_constants, reasons  # noqa: E402
 def repository_shapes() -> dict:
     """Every reason shape the package sends (the lint's scan), computed once."""
     return lint.shapes()
-
 
 # policy_constants.EMERGENCY_ESCAPE_REASONS at 7e4d87ab2f.
 OLD_EMERGENCY_ESCAPE_REASONS = frozenset({
@@ -175,6 +176,76 @@ class LintTest(unittest.TestCase):
                 continue
             modules = {module for module, _ in shapes.get(row.pattern, [])}
             self.assertTrue(modules & set(row.producers), (row.pattern, row.producers, sorted(modules)))
+
+
+# breeder_stalemate's word guess as it stood at 7e4d87ab2f (breeder_stalemate.py:99-103, 129-133).
+OLD_ATTACK_REASON_WORDS = ("ranged", "fire", "shot", "melee", "attack", "strike", "throw", "kill",
+                           "magic-eater-device", "breeder-area", "aim-wand")
+OLD_NOT_ATTACK_WORDS = ("hold", "approach", "reposition", "retreat", "recover", "survey", "unreachable",
+                        "blocked", "disengage", "-point", "shop:", "periodic:", "immune:")
+
+
+def old_is_attack_reason(reason):
+    reason = reason or ""
+    return (any(word in reason for word in OLD_ATTACK_REASON_WORDS)
+            and not any(word in reason for word in OLD_NOT_ATTACK_WORDS))
+
+
+def recorded_reasons() -> list[str]:
+    path = Path(__file__).resolve().parent / "fixtures" / "reason-registry-recorded-reasons-1109.json"
+    return json.loads(path.read_text(encoding="utf-8"))["reasons"]
+
+
+def built_reasons() -> set[str]:
+    """The reasons the source builds from values the scan leaves as ``*``, from their tables."""
+    from hengbot import me_powers, policy_constants as constants
+    out = set()
+    for power in me_powers.POWERS:
+        for trigger in power.triggers:
+            base = f"{me_powers.REASON}:{trigger}:{power.effect}"
+            out |= {base, base + me_powers.POWERFUL_SUFFIX}
+    out |= {f"ranged:breeder-area:{kind}" for kind in ("wand", "rod", "staff", "read")}
+    labels = sorted(set().union(*(constants.required_depth_gates(depth) for depth in range(128))))
+    for mask in range(1, 1 << len(labels)):
+        missing = ",".join(label for index, label in enumerate(labels) if mask >> index & 1)
+        gate = f"depth-gate:destination-50:missing-{missing}"
+        out |= {gate, f"fundraising:no-safe-destination:{gate}"}
+    readiness = {"unready"}
+    for node in ast.walk(ast.parse((lint.POLICY_ROOT / "policy_quest.py").read_text(encoding="utf-8"))):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "reject"
+                and node.args and isinstance(node.args[0], ast.Constant)):
+            readiness.add(node.args[0].value)
+    out |= {f"quest:readiness:{label}" for label in readiness}
+    out |= {f"esp-threat:hunt-{tier}" for tier in ("weak", "medium", "strong")}
+    returns = [shape for shape in repository_shapes() if shape.startswith("return:") and "*" not in shape]
+    out |= {"esp-threat:leave-" + shape[len("return:"):] for shape in returns}
+    return out
+
+
+class AttackAttributeTest(unittest.TestCase):
+    """The registry's ``attack`` classifies every reason exactly as the word guess it replaced."""
+
+    def assert_same(self, universe):
+        differ = sorted(reason for reason in universe
+                        if reasons.is_attack(reason) != old_is_attack_reason(reason))
+        self.assertEqual(differ, [])
+
+    def test_every_reason_the_source_sends(self):
+        self.assert_same(repository_shapes())
+
+    def test_every_reason_the_recordings_show(self):
+        self.assert_same(recorded_reasons())
+
+    def test_the_reasons_built_from_tables(self):
+        self.assert_same(built_reasons())
+
+    def test_breeder_stalemate_reads_the_registry(self):
+        from hengbot import breeder_stalemate
+        self.assertFalse(hasattr(breeder_stalemate, "ATTACK_REASON_WORDS"))
+        self.assertTrue(breeder_stalemate.is_attack_reason("ranged:fire"))
+        self.assertTrue(breeder_stalemate.is_attack_reason("quest25:shot"))
+        self.assertFalse(breeder_stalemate.is_attack_reason("summoner:hold-choke"))
+        self.assertFalse(breeder_stalemate.is_attack_reason(None))
 
 
 if __name__ == "__main__":
