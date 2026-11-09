@@ -1,0 +1,121 @@
+"""n1-b life-362 2026-11-10 08:01: the over-extension switch takes the deepest fit.
+
+Owner request 2026-11-10: 「n1-bの帰還先選定ロジックを確認。61Fが厳しいとき、
+50Fとか40Fくらいで探索してほしいのだが23Fで長時間過ごしているようだ。」
+Asked how to choose, the owner answered 「収まる中で一番深い所へ」: 「切り替え先を
+一番浅いダンジョンではなく、行き過ぎた深さより浅い中で一番深いダンジョンにする
+（今なら城の32階）。鉄獄の階は下げない。」
+
+Recorded (tests/extract_n1b_362_alternate_1110_fixture.py): the town arrival
+after the third over-extended Angband dive in a row (Angband 70F, two
+emergency escapes each, Lv40 warrior).  The arrival policy is restored and
+every decision is the public ``choose_key``; the observation of the arrival
+board is the real producer of the switch (``over_extension.judge_dive`` then
+the valve in ``policy_observation._observe``).  Entered dungeons and recall
+landings on the board: Angband 70, Yeek cave 13 (reserved), Orc cave 23
+(conquered), the conquered forgetting maze (4) 18, Forest 15 (excluded),
+Castle 32, Mountain 50, Anti-melee cave 40, Chameleon cave 30.  The live bot
+(shallowest rule) recalled to the Orc cave 23F (row 11 ``rgc``) and stayed
+there; the same Mountain/Angband -> Orc cave cycle had repeated since
+2026-11-09 22:04 (each restart forgets the alternate).  The deepest landing
+that fits: the Mountain's 50 needs *Destruction* the kit lacks, the
+Anti-melee cave refuses melee, the Chameleon cave is never a fallback, so
+the Castle 32.
+
+The arrival checkpoint (20261110-080128.560636743) holds the policy pickled
+before the arrival board was observed; row 0 observes it and runs the switch,
+row 11 is the recall read.  DECLARED: a row whose decision differs from the
+recorded one is posted with the recorded key (``RecordedVisit.decide``).
+Row 0 is the one such row before the read, on the unfixed code as on the
+fixed one (periodic:character-dump replayed, town:recover recorded); rows
+1-10 replay as recorded on both.  The step-down case asks the valve's
+question again on the restored policy with the depth and the alternate the
+next streak would leave (DECLARED CONSTRUCTED, no further dive is recorded).
+"""
+
+import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+
+import unittest
+from pathlib import Path
+
+from hengbot.model import DUNGEON_ANGBAND
+from tests.test_stops_1109_town_recorded import RecordedVisit
+
+FIXTURES = Path(__file__).with_name("fixtures") / "alternate-deepest-1110"
+ORC_CAVE, CASTLE, MOUNTAIN, ANTI_MELEE, CHAMELEON_CAVE = 3, 12, 14, 17, 18
+LANDINGS = {1: 70, 2: 13, 3: 23, 4: 18, 7: 15, 12: 32, 14: 50, 17: 40, 18: 30}
+RECALL_ROW = 11
+ORC_LETTER, CASTLE_LETTER = "c", "f"
+
+
+class AlternateDeepestVisit(RecordedVisit):
+    fixtures = FIXTURES
+    fixture = "visit"
+
+    def replay(self, last):
+        """Rows 0..``last`` decided on the restored arrival policy."""
+        return [(row, *self.decide(row)) for row in range(last + 1)]
+
+
+class OverExtensionDeepestTest(AlternateDeepestVisit):
+    """Answer 「収まる中で一番深い所へ」: the deepest landing that still fits."""
+
+    def test_arrival_policy_is_the_third_over_extended_dive(self):
+        # The streak and the dive the arrival judges, as the live process
+        # pickled them (two over-extended dives; the third ends on row 0).
+        policy = self.policy
+        self.assertEqual(policy._target_empty_dives, 2)
+        self.assertEqual(policy._dive_dungeon, DUNGEON_ANGBAND)
+        self.assertGreaterEqual(policy._dive_emergencies, 2)
+        self.assertEqual(self.journal[RECALL_ROW]["key"], "rg" + ORC_LETTER)
+        self.assertEqual(self.journal[RECALL_ROW]["reason"], "town:recall-to-alt-dungeon")
+
+    def test_switch_takes_the_castle_not_the_orc_cave(self):
+        (_row, board, _key, _reason), = self.replay(0)
+        policy = self.policy
+        self.assertEqual(policy._alternate_dungeon_reason, "over_extended_dives")
+        self.assertEqual(policy._last_overextended_depth, 70)
+        self.assertEqual(dict(board.dungeon_recall_depths), LANDINGS)
+        # Unfixed (live): the Orc cave, the shallowest landing below 70.
+        self.assertEqual(policy._alternate_dungeon, CASTLE)
+        self.assertEqual(policy._target_dungeon_id, CASTLE)
+
+    def test_recall_read_lands_in_the_castle(self):
+        rows = self.replay(RECALL_ROW)
+        _row, board, key, reason = rows[-1]
+        self.assertEqual(board.entered_dungeon_ids.index(CASTLE), ord(CASTLE_LETTER) - ord("a"))
+        self.assertEqual(board.entered_dungeon_ids.index(ORC_CAVE), ord(ORC_LETTER) - ord("a"))
+        # Unfixed (live, and replayed on the unfixed code): 'rgc', the Orc cave.
+        self.assertEqual((key, reason), ("rg" + CASTLE_LETTER, "town:recall-to-alt-dungeon"))
+
+    def test_deeper_landings_that_do_not_fit_are_passed_over(self):
+        (_row, board, _key, _reason), = self.replay(0)
+        policy = self.policy
+        # The Mountain's landing 50 needs *Destruction*, which this kit lacks;
+        # the Anti-melee cave (40) refuses a melee character and the Chameleon
+        # cave (30) is never a fallback.
+        self.assertEqual(policy._missing_required_abilities(board, LANDINGS[MOUNTAIN]),
+                         frozenset({"destruction"}))
+        self.assertFalse(policy._fallback_destination_allowed(ANTI_MELEE))
+        self.assertFalse(policy._can_fight_in_dungeon(ANTI_MELEE))
+        self.assertFalse(policy._fallback_destination_allowed(CHAMELEON_CAVE))
+        self.assertEqual(policy._missing_required_abilities(board, LANDINGS[CASTLE]), frozenset())
+        # Angband's recall depth is never lowered (「鉄獄の階は下げない」).
+        self.assertEqual(board.dungeon_recall_depths[DUNGEON_ANGBAND], 70)
+
+    def test_another_streak_steps_down_from_the_castle(self):
+        # The re-run after another empty streak on the Castle, as the valve
+        # asks it (``_last_overextended_depth`` the Castle's landing, the
+        # Castle itself the alternate being left): the next deepest fit, the
+        # Orc cave 23; below it nothing fits (the Yeek cave is reserved, the
+        # conquered forgetting maze and the Forest are never fallbacks).
+        (_row, board, _key, _reason), = self.replay(0)
+        policy = self.policy
+        policy._last_overextended_depth = LANDINGS[CASTLE]
+        self.assertEqual(policy._pick_alternate_dungeon(board, prefer_deepest=True), ORC_CAVE)
+        policy._alternate_dungeon = ORC_CAVE
+        policy._last_overextended_depth = LANDINGS[ORC_CAVE]
+        self.assertIsNone(policy._pick_alternate_dungeon(board, prefer_deepest=True))
+
+if __name__ == "__main__":
+    unittest.main()

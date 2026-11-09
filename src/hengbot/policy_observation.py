@@ -583,8 +583,15 @@ class ObservationMixin:
                 judged_dungeon if judged_dungeon is not None else pursued_target
             )
             self._last_overextended_depth = snapshot.recall_depth
+            # Owner 2026-11-10 (n1-b life-362, over-extended in Angband 70F and
+            # the Mountain 50F, sent to the Orc cave 23F): 「収まる中で一番深い
+            # 所へ」 -- an over-extended streak takes the deepest entered landing
+            # shallower than the depth that was too hard (the Castle 32F there),
+            # not the shallowest.  The guardian valve was never over-extended by
+            # depth and keeps its own order (Angband first, then the shallowest).
             alt = self._pick_alternate_dungeon(
                 snapshot,
+                prefer_deepest=not guardian_bounces_only,
                 guardian_bounced_dungeon=(
                     bounced_dungeon if guardian_bounces_only else None
                 ),

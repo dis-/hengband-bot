@@ -11998,7 +11998,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self, snapshot: Snapshot, unsafe_depth: int, *,
         guardian_bounced_dungeon: int | None = None,
     ) -> int | None:
-        """Select the shallowest entered dungeon below an unsafe destination.
+        """Select the deepest entered dungeon below an unsafe destination.
 
         ``unsafe_depth`` is the arrival depth the caller refused, not
         ``snapshot.recall_depth``.  The two differ whenever the objective's
@@ -12020,9 +12020,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot, guardian_bounced_dungeon=guardian_bounced_dungeon
             )
         else:
+            # Owner 2026-11-10 「収まる中で一番深い所へ」: the refused landing was
+            # too deep for the kit, so the deepest entered landing below it.
             alternate = self._pick_alternate_dungeon(
                 snapshot,
                 max_entry_depth=max(1, unsafe_depth - 1),
+                prefer_deepest=True,
             )
         if alternate is None:
             return None

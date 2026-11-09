@@ -543,7 +543,18 @@ class PolicyHelpersMixin:
         require_shallower: bool = True,
         guardian_bounced_dungeon: int | None = None,
     ) -> int | None:
-        """Choose the shallowest safe dungeon already available to Recall.
+        """Choose a safe dungeon already available to Recall.
+
+        ``prefer_deepest`` takes the deepest landing that passes every check,
+        else the shallowest one is taken.  Owner decision 2026-11-10 (n1-b
+        life-362, Lv40, switched from the Mountain 50F to the Orc cave 23F and
+        farmed it for hours): 「収まる中で一番深い所へ」 -- every switch made
+        because a depth was too hard (the over-extended streak, the
+        no-depth-progress valve, the unsafe-recall fallback) passes it, so the
+        landing is the deepest entered one still shallower than that depth;
+        Angband's recall depth is never lowered (「鉄獄の階は下げない」).
+        The guardian valve and the excluded-destination fallback were not sent
+        by a too-hard depth and keep the shallowest.
 
         ``guardian_bounced_dungeon``: the empty-dive valve fired on guardian
         bounces only, off this dungeon.  The depth was never the problem, so
@@ -568,12 +579,13 @@ class PolicyHelpersMixin:
             )
         ):
             return DUNGEON_ANGBAND
-        # The deepest already-unlocked dungeon — excluding the over-deep main one
-        # and the Yeek Cave reserved for fundraising — whose floor is SHALLOWER
-        # than the depth we could not loot at. Deepest-that-still-fits is the most
-        # rewarding available fallback;
+        # An already-unlocked dungeon — excluding the over-deep main one and the
+        # Yeek Cave reserved for fundraising — whose floor is SHALLOWER than the
+        # depth we could not loot at.  With ``prefer_deepest`` the
+        # deepest-that-still-fits, the most rewarding available fallback;
         # re-running after another empty streak (with _last_overextended_depth now
-        # the switched dungeon's depth) steps down to a shallower one.
+        # the switched dungeon's depth, and the switched dungeon itself never
+        # re-picked) steps down to the next shallower one.
         best: DungeonInfo | None = None
         for did in snapshot.entered_dungeon_ids:
             info = self._dungeon_knowledge.get(did)

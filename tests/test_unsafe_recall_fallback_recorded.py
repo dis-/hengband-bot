@@ -205,6 +205,32 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
             policy._alternate_dungeon, policy._target_dungeon_id
         )
 
+    def test_f2b_the_fallback_is_the_deepest_landing_that_fits(self):
+        # Owner 2026-11-10 (n1-b life-362): 「収まる中で一番深い所へ」 -- 「切り替え
+        # 先を一番浅いダンジョンではなく、行き過ぎた深さより浅い中で一番深い
+        # ダンジョンにする」.  Below the refused 50 the recorded board offers
+        # the Castle 22 and the Mountain 25 (the Orc cave's 23 is its guardian
+        # floor, the conquered forgetting maze, the Forest and the Chameleon
+        # cave are never fallbacks, the Yeek cave is reserved).
+        policy = self._independent()
+        board = self.board
+        self.assertEqual(
+            {did: board.dungeon_recall_depths[did] for did in (12, 14)},
+            {12: 22, 14: 25},
+        )
+        for did in (12, 14):
+            self.assertTrue(policy._fallback_destination_allowed(did))
+            self.assertTrue(policy._fallback_landing_allowed(
+                board, did, board.dungeon_recall_depths[did]))
+        self.assertFalse(policy._fallback_landing_allowed(board, 3, 23))
+
+        key = policy._town_special_key(board)
+
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, FALLBACK_REASON))
+        # Unfixed: 12, the Castle 22, the shallowest landing that fits.
+        self.assertEqual(policy._alternate_dungeon, 14)
+        self.assertEqual(policy._target_dungeon_id, 14)
+
     def test_f3_gate_and_fallback_still_refuse_when_nothing_is_safe(self):
         policy = self._independent()
         # The same board with no entered dungeon other than the refused one.
