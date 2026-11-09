@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, survival_preemption, threat_tiers, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -838,6 +838,9 @@ class CombatMixin:
                 # Owner 2026-11-09 D: the Speed dose on a confusion relapse is the board's own
                 # answer (status_cure.speed_first_key), not a dose this rule may turn into a heal.
                 status_cure.RELAPSE_SPEED_REASON,
+                # Teleport Other at a follower or a faster blinder is the board's own answer.
+                teleport_follower.AWAY_REASON,
+                teleport_follower.BLINDER_REASON,
                 "flee:scroll",
                 "flee:stairs",
             )
@@ -2338,6 +2341,9 @@ class CombatMixin:
                 and self._summoner_ranged_attack_available(snapshot, monster)
                 for monster in summoners
             )
+            # Design 4.4 / 2.3 (plan step 11): above the low-HP line a summoner that dies
+            # 被害無く is killed (worsens_kill), not escaped from (OQ-10).
+            and not worsens_kill.kill_first(self, snapshot, summoners)
         )
         guardian_reposition = (
             summoner_open
@@ -2476,11 +2482,23 @@ class CombatMixin:
             # before the cure; cure-then-escape is for a scroll as the only escape.
             # Owner 2026-11-08 「盲目でも使う」: *Destruction* by its own rules is
             # such an escape too.
+            # Owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」: beside a monster that follows
+            # the teleport (teleport_follower) no teleport is an escape; *Destruction*, then
+            # Teleport Other at it (a wand or rod zaps blind), then the fight.
+            followers = (teleport_follower.followers(self, snapshot)
+                         if (lethal or summoner_open) and not guardian_reposition else [])
+            # Blind beside a faster monster whose blows blind, the cure is undone before the
+            # next action (status_cure.outpacing_blinders): an escape usable blind goes first,
+            # and Teleport Other at that monster is one (a wand or rod zaps blind).
+            blinders = (status_cure.outpacing_blinders(self, snapshot)
+                        if (lethal or summoner_open) and not guardian_reposition else [])
             blind_escape = bool(
                 (lethal or summoner_open) and not guardian_reposition
                 and player.blind and not player.confused
                 and (threat_tiers.blind_teleport_means(self, snapshot) is not None
-                     or destruction_use.usable(self, snapshot))
+                     or destruction_use.usable(self, snapshot)
+                     or ((followers or blinders)
+                         and teleport_follower.away_usable(self, snapshot)))
             )
             if not blind_escape and status_cure.treats(self, snapshot):
                 # Owner 2026-11-09 D: confused again right after a cure on the 即死 board, the
@@ -2561,12 +2579,18 @@ class CombatMixin:
                                                     else threat_tiers.engagement(self, snapshot))
                 ) is not None:
                     return used
+                if followers and (
+                        away := teleport_follower.away_key(self, snapshot, followers)) is not None:
+                    return away
                 if blind_escape and (
                         blind := self._blind_teleport_escape(snapshot)) is not None:
                     if self._fundraising_mode in {"mine", "scavenge"}:
                         self._note_return_start(self._last_return_trigger)
                         self._returning_to_town = True
                     return blind
+                if blind_escape and blinders and (away := teleport_follower.away_key(
+                        self, snapshot, blinders, teleport_follower.BLINDER_REASON)) is not None:
+                    return away
                 if not player.blind and not player.confused:
                     if scroll is not None:
                         if guardian_reposition:
@@ -2590,7 +2614,8 @@ class CombatMixin:
                     # starts the countdown home; subsequent turns flee to
                     # survive it. (Teleport relocates on-floor; recall leaves
                     # the floor entirely, so it is the escape of last resort.)
-                    recall_read = once_quest_recall.read_key(
+                    # Beside a follower the answer left is the fight (owner 2026-11-09).
+                    recall_read = None if followers else once_quest_recall.read_key(
                         self, snapshot,
                         "emergency:recall-quest-fail"
                         if self._quest_exit_would_fail(snapshot)
@@ -2608,6 +2633,9 @@ class CombatMixin:
                     if potion is not None:
                         self.last_reason = "emergency:heal"
                         return reserved_item_command(self, snapshot, "quaff", potion)
+                if followers and (answer := combat_answer.adjacent_attack(
+                        self, snapshot, followers, "emergency:cornered-attack")) is not None:
+                    return answer.key
                 self._claim_target_capture = []
                 try:
                     route_step = self._nearest_goal_step(

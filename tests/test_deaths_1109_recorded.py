@@ -399,7 +399,15 @@ class SentAwayT1RecordedTest(DeathsRecordedHarness):
 
     def test_no_vanishing_no_return(self):
         # The recorded board after the beam: the drake was killed in melee, nothing vanished.
-        policy, answers = self.replay("life-346", 1623951, from_turn(1623935, free_action))
+        # Owner 2026-11-09 (n1-a life-500 Q1, 「倒しきれない敵と同じに離れる」): with Free Action
+        # the クトーニアン (a summoner, no paralyser then) is left on 1623935 too, by the absorbed
+        # Teleport Away; DECLARED CONSTRUCTED: its 「…消え去った！」 on 1623943 is taken off, so
+        # only the drake's beam is under test here.
+        def change(raw):
+            from_turn(1623935, free_action)(raw)
+            if raw["turn"] == 1623943:
+                raw["messages"] = [m for m in raw["messages"] if not m.endswith(sent_away_t1.VANISHED)]
+        policy, answers = self.replay("life-346", 1623951, change)
         self.assertEqual(answers[1623943][2], sent_away_t1.THREAT_REASON)
         self.assertNotEqual(policy._last_return_trigger, sent_away_t1.TRIGGER)
         self.assertFalse(answers[1623951][2].startswith("return:"), answers[1623951][1:])

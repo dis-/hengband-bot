@@ -16661,5 +16661,192 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "teleport_follower.py:away_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only in effect: followers() is empty in town or on the surface (dungeon_level <= 0); the emergency ladder asks it only on a lethal or exposed-summoner board beside an adjacent follower or a faster blinder; refused confused, in a store or the arena.",
+    "evidence": "n1-a life-500 (2026-11-09, Orc cave 23F): Teleport Other (absorbed rod/wand, else carried rod/wand: a/z + slot + direction) at the adjacent monster that follows the player's teleport, owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」; also at a faster blinder beside a blind player (status_cure.outpacing_blinders). Sets last_reason emergency:teleport-follower:teleport-away / emergency:blinder:teleport-away; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "teleport_follower.py:_absorbed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure selector: the absorbed Teleport Away rod/wand with a charge (me_capability), for away_key; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "teleport_follower.py:_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure selector: the follower with the largest next-turn predicted damage, for away_key; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "worsens_kill.py:key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: _applies requires threat_tiers.acts_here (dungeon_level >= 1, not town, store or arena, no approved quest plan) and HP at or above the low-HP line.",
+    "evidence": "Threat tiers plan step 11 (design 4.4, 10a): the attack (supply composers, melee, or _ranged_attack_key) on a summoner or shrieker that dies 被害無く (OQ-1 option A); the attack keeps its own reason; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "worsens_kill.py:_supply_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon only: asked by worsens_kill.key alone (threat_tiers.acts_here).",
+    "evidence": "The attack supply the 10a schedule spends first (threat_tiers._good_ammo_key / _charge_key / _scroll_key) without the supply fight's commitment; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "worsens_kill.py:_free": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate: the best free attack deliverable from the player's cell (melee only beside the target), for the 被害無く test; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:free_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate (design 3.3): the best free attack per player action against a target; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:_free_devices": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate (OQ-6): absorbed powers' normal use and rods as free attacks; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:_armour": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate helper: a race's armour class for hit chances; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate helper: a race's flags for slay multipliers; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure lookup: the race knowledge of a target; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:_torch_multiplier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate helper: the thrown torch's slay multiplier; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:torch_throw": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate: expected damage of a thrown torch; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_attacks.py:_element_multiplier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate helper: the element multiplier of a device attack against a race; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_attacks.py:expected_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate: expected damage of a device power against a race; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_attacks.py:missile_score": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate: expected damage of the absorbed Magic Missile; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_attacks.py:optimistic_score": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure estimate: an optimistic device damage score; no command, no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

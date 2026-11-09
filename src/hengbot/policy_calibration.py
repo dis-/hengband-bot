@@ -184,6 +184,16 @@ class CalibrationMixin:
             return None
         reason = calibration.stale_reason(snapshot.player, self._current_pinned_identities(snapshot),
                                           mutation_signature=self._mutation_signature)
+        # The displayed stats and max HP are the worn board's.  A projected
+        # loadout (``_transaction_retain_identities`` takes the displaced
+        # slots off a copy of the board) keeps them, so comparing them with
+        # its gear proves nothing about the character, and dropping the
+        # calibration there re-posted the dump every decision while the
+        # dump's board re-derived it (n1-a life-502 2026-11-09, 12x C-f).
+        observed = getattr(self, "_calibration_observed_equipment", None)
+        board = observed is None or tuple(snapshot.equipment) == observed
+        if not board:
+            return calibration if reason is None else None
         if reason is None and calibration.schema_version == 2:
             from hengbot.warrior_equipment_evaluator import modify_stat_value
             from hengbot.character_sheet import temporary_bonuses, CharacterSheetUnavailable

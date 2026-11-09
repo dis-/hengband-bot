@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, threat_tiers, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip
+from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip
 
 from collections import Counter, deque
 import random
@@ -2421,6 +2421,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._character_calibration: CharacterCalibration | None = None
         self._character_calibration_path: Path | None = None
         self._character_calibration_loaded = False
+        # The worn gear of the board being decided: the only gear whose
+        # effect the displayed stats show (_validated_character_calibration).
+        self._calibration_observed_equipment = None
         self._character_dump_path: Path | None = None
         self._calibration_dump_prepared = None
         self._calibration_dump_pending = None
@@ -2671,6 +2674,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         quest25_battle_record.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
+        self._calibration_observed_equipment = tuple(snapshot.equipment)
         self._complete_character_dump(snapshot)
         # A producer that never reached the previous decision's claim exit
         # cannot carry an unbound grant into this decision.
@@ -4440,6 +4444,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self._equipment_catalog.record_home_withdrawal(
                     withdrawn,
                     intent=(snapshot.turn, signature, before_count, quantity),
+                    quantity=quantity,
                 )
                 # Gear a take brought out goes back unless the loadout uses it.
                 spare_gear.note_taken(self, withdrawn)
@@ -7685,6 +7690,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if paralyzer_prevention is not None:
             return paralyzer_prevention
+
+        # Threat tiers plan step 11 (design 4.4, 10a): a summoner, breeder or shrieker that
+        # dies 被害無く is killed first, directly above the summoner shots (D2).
+        if not (return_yield.quiet_recall_due(self, snapshot)
+                or summon_response.action_due(self, snapshot)):
+            worsens = worsens_kill.key(self, snapshot, emergency_hostiles)
+            if worsens is not None:
+                return worsens
 
         # Owner 2026-11-06 「命に関わる時の後へ回す」: the emergency ladder above
         # answers first, then the last shots at a summoner.
@@ -15824,6 +15837,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         player = snapshot.player
         if player.blind or player.confused or not self._can_read_scrolls(snapshot):
             return None
+        # Owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」: an adjacent monster that follows
+        # the teleport (teleport_follower) makes no Teleportation or Phase Door an escape.
+        if teleport_follower.followed(self, snapshot):
+            return None
         teleport = self._find_teleport_scroll(snapshot)
         if teleport is not None or teleport_only:
             return teleport
@@ -17241,6 +17258,45 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         hostiles: list[MonsterState],
     ) -> Position | None:
         return self._summoner_retreat_route(snapshot, summoners, hostiles)[1]
+
+    def _summoner_shelter_applies(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """The summoner rungs of ``_decide_dungeon`` that shelter rather than leave would answer:
+        the cover step out of open ground (summoner:stairs / summoner:retreat, owner 2026-11-06
+        「above the low-HP line the wall beside the step stays the cover」) or the wait at a choke
+        (hold_key, owner 2026-10-27 / 11-02).  Owner 2026-11-09 「前からの2つを先に」:
+        「遮蔽に隠れる・通路で待つが使える場面ではそれを使い、使えない時だけ離れる。」  The same
+        tests as those rungs, without their side effects (threat_tiers.leave_due reads it)."""
+        player = snapshot.player
+        summoners = [
+            monster for monster in hostiles
+            if monster.can_summon and not monster.asleep
+            and not self._summoner_never_approaches(snapshot, monster)
+        ]
+        if not summoners:
+            return False
+        corridor_threats = summoners
+        if self._active_kill_quest_id(snapshot) is not None:
+            corridor_threats = hostiles
+        adjacent = any(player.position.distance_to(monster.position) <= 1
+                       for monster in corridor_threats)
+        if (not adjacent
+                and self._open_neighbor_count(snapshot, player.position)
+                >= SUMMONER_EXPOSED_NEIGHBORS
+                and not any(
+                    (shots := self._summoner_shots_to_kill(snapshot, monster))
+                    is not None and shots <= SUMMONER_RANGED_KILL_SHOTS
+                    and self._summoner_ranged_attack_available(snapshot, monster)
+                    for monster in summoners)):
+            current = snapshot.grid_at(player.position)
+            if (current is not None and self._is_upstairs_target(current)
+                    and not self._quest_floor_exit_locked(snapshot)):
+                return True
+            if self._summoner_retreat_step(snapshot, corridor_threats, hostiles) is not None:
+                return True
+        # The choke wait (hold_key) answers summoners that all keep their distance.
+        return all(monster.distance > 2 for monster in summoners)
 
 
     def _avoid_engagement_key(
