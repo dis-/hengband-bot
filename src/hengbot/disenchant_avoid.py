@@ -49,18 +49,16 @@ Who decides what:
 
 from __future__ import annotations
 
-from dataclasses import replace
-
-from hengbot import hunt_target, survival_preemption
+from hengbot import hunt_target, monster_memory, survival_preemption
 from hengbot.breeder_stalemate import shows_kill
 from hengbot.model import Position
 from hengbot.policy_constants import HUNT_RANGE
-from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
 
 BLOW_EFFECTS = frozenset({"UN_BONUS"})    # race-info-tokens-table.cpp
 ABILITIES = frozenset({"BR_DISE"})        # mspell-breath.cpp
 RESIST_ABILITY = "resist_disen"           # bot-json-output.cpp, TR_RES_DISEN
-MEMORY = "_disenchant_avoid_seen"         # (floor, {(index, race): (MonsterState, turn)})
+KIND = monster_memory.DISENCHANT
+MEMORY = KIND.attribute                   # (floor, {(index, race): (MonsterState, turn)})
 
 
 def _race_disenchants(policy, monster) -> bool:
@@ -100,42 +98,32 @@ def retreat_key(policy, snapshot, hostiles, ringed) -> str | None:
     return policy._avoid_engagement_key(snapshot, hostiles)
 
 
+def _gone(policy, snapshot, monster) -> bool:
+    """Shown with another race on its index; not shown: its kill line, or its cell seen empty
+    (the window, monster_memory.DISENCHANT, ends one not shown)."""
+    now = {shown.index: shown for shown in snapshot.visible_monsters}.get(monster.index)
+    if now is not None:
+        return now.race_id != monster.race_id
+    return (shows_kill(snapshot, monster.name)
+            or policy._player_can_see_empty_cell(
+                snapshot, monster.position, race_id=monster.race_id))
+
+
+def _kept_away_shown(policy, snapshot) -> list:
+    shown = {monster.index: monster for monster in snapshot.visible_monsters}
+    return [monster for monster in shown.values()
+            if monster.hostile and kept_away(policy, snapshot, monster)]
+
+
 def observe(policy, snapshot) -> None:
     """Every board: remember each kept-away monster shown, forget one that is gone."""
-    if snapshot.in_town or snapshot.dungeon_level <= 0:
-        setattr(policy, MEMORY, None)
-        return
-    memory = getattr(policy, MEMORY, None)  # restored checkpoints predate it
-    seen = memory[1] if memory is not None and memory[0] == snapshot.floor_key else {}
-    shown = {monster.index: monster for monster in snapshot.visible_monsters}
-    for key, (monster, turn) in list(seen.items()):
-        now = shown.get(key[0])
-        if now is not None:
-            if now.race_id != key[1]:
-                del seen[key]
-        elif (snapshot.turn - turn > UNSEEN_GAME_TURNS
-              or shows_kill(snapshot, monster.name)
-              or policy._player_can_see_empty_cell(
-                  snapshot, monster.position, race_id=monster.race_id)):
-            del seen[key]
-    for monster in shown.values():
-        if monster.hostile and kept_away(policy, snapshot, monster):
-            seen[(monster.index, monster.race_id)] = (monster, snapshot.turn)
-    setattr(policy, MEMORY, (snapshot.floor_key, seen))
+    monster_memory.observe(policy, snapshot, KIND, remember=_kept_away_shown, gone=_gone)
 
 
 def remembered(policy, snapshot) -> list:
     """The kept-away monsters out of sight, at their last shown cell, within the window."""
-    memory = getattr(policy, MEMORY, None)
-    if memory is None or memory[0] != snapshot.floor_key:
-        return []
-    shown = {monster.index for monster in snapshot.visible_monsters}
-    here = snapshot.player.position
-    return [
-        replace(monster, distance=here.distance_to(monster.position))
-        for (index, _race), (monster, _turn) in memory[1].items()
-        if index not in shown and kept_away(policy, snapshot, monster)
-    ]
+    return [monster for monster in monster_memory.remembered(policy, snapshot, KIND)
+            if kept_away(policy, snapshot, monster)]
 
 
 def remembered_cells(policy, snapshot, ringed) -> frozenset:
