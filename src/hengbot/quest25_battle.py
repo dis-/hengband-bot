@@ -134,7 +134,10 @@ RETREAT_REST_REASON = f"{REASON}:druj-rest-out-of-line"
 RETREAT_HEAL_REASON = f"{REASON}:druj-heal-out-of-line"
 ENLIGHTEN_REASON = f"{REASON}:ambush-enlightenment"
 BLOCKED_REASON = "quest:blocked:quest25-patrol-rounds"
-_PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON})
+OUT_OF_FIRE_REASON = f"{REASON}:step-out-of-fire"
+FIRE_REST_REASON = f"{REASON}:rest-out-of-fire"
+FIRE_HOLD_REASON = f"{REASON}:hold-out-of-fire"
+_PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, OUT_OF_FIRE_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -263,6 +266,7 @@ class Battle:
     detect_asked: frozenset = frozenset()  # trap cells a trap detection was keyed for
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
+    fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -492,7 +496,9 @@ def _path(ctx: _Ctx, goals) -> list[tuple[int, int]]:
     return []
 
 
-def _step(ctx: _Ctx, cell, reason: str = WALK_REASON) -> str:
+def _step(ctx: _Ctx, cell, reason: str = WALK_REASON, *, guard: bool = True) -> str:
+    if guard and (held := _fire_guard(ctx, cell)) is not None:
+        return held
     ctx.policy.last_reason = reason
     return ctx.policy._step_toward(ctx.snapshot, Position(*cell))
 
@@ -506,8 +512,90 @@ def _walk(ctx: _Ctx, goals, reason: str = WALK_REASON) -> str | None:
     trap = _trap_key(ctx, nxt)
     if trap is not None:
         return trap
+    if (held := _fire_guard(ctx, nxt)) is not None:
+        return held
     ctx.policy._declare_reach(Position(*path[-1]))
-    return _step(ctx, nxt, reason)
+    return _step(ctx, nxt, reason, guard=False)
+
+
+# -- the casters' fire (owner 2026-11-09) ------------------------------------------------
+#
+# Owner 2026-11-09 (n1-c life-178): 「第二に一歩で安全圏に移動して休息できるのに愚かにも戦闘を継続した
+# こと。」, the formation's 「傷ついて敵がいなければ射線の外まで歩いて休む」 and 「クイル・破壊集大成・
+# ドルジの射線のマスでは待たず、休まない」.  The fire is where a never-moving caster's spell reaches
+# (phase3_spell_ranges): the tome's and the druj's own lines and the cells beside them their balls
+# and breaths are aimed at, the quylthulgs' lines (their teleports need one).  Damaged is below the
+# plan's rest line (room_sweep ``rest_below_ratio``).  With no enemy in view, a damaged player
+# steps out of the fire when one step does it, and does not walk back into it: it rests first.
+
+
+def _fire(ctx: _Ctx) -> frozenset:
+    terrain = ctx.open_terrain()
+    quyls_left = ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]
+    cells = set()
+    for cell, race in ctx.navigator.battlefield.monster_placements:
+        if (race == geo.TOME and not _tome_done(ctx)) or (race == geo.DRUJ and not _druj_done(ctx)):
+            cells |= geo.fire_cells(terrain, (cell,))
+        elif race == geo.QUYL and quyls_left and cell not in ctx.battle.quyls_done:
+            cells |= geo.line_cells(terrain, cell)
+    return frozenset(cells)
+
+
+def _damaged(ctx: _Ctx) -> bool:
+    plan = ctx.profile.engagement_plan["room_sweep"]
+    return ctx.snapshot.player.hp_ratio < float(plan["rest_below_ratio"])
+
+
+def _rest_out_of_fire(ctx: _Ctx) -> str:
+    """Rest on a cell out of the fire; a rest keyed on the decision before that did not raise HP
+    is followed by one turn held (the game time passes either way)."""
+    battle, player = ctx.battle, ctx.snapshot.player
+    decision = int(getattr(ctx.policy, "_decision_sequence", 0))
+    last = battle.fire_rest
+    if ((last is not None and last[0] == decision - 1 and player.hp <= last[1]) or player.confused
+            or player.food_state not in {"normal", "full", "gorged", "hungry"}):
+        battle.fire_rest = None
+        ctx.policy.last_reason = FIRE_HOLD_REASON
+        return WAIT_KEY
+    battle.fire_rest = (decision, player.hp)
+    ctx.policy.last_reason = FIRE_REST_REASON
+    return REST_MACRO
+
+
+def _fire_guard(ctx: _Ctx, cell) -> str | None:
+    """A damaged player with no enemy in view does not step from out of the fire into it."""
+    if not _damaged(ctx) or ctx.in_view():
+        return None
+    fire = _fire(ctx)
+    if tuple(cell) not in fire or ctx.here in fire:
+        return None
+    return _rest_out_of_fire(ctx)
+
+
+def _safe_cells(ctx: _Ctx, fire) -> set:
+    cells = {cell for cell, kind in ctx.terrain.items() if kind in {"floor", "door"} and cell not in fire}
+    if _ipsissimus_alive(ctx):
+        cells -= geo.summon_cells(ctx.terrain)
+    return cells
+
+
+def _out_of_fire_key(policy, snapshot) -> str | None:
+    """「一歩で安全圏に移動して休息できる」: damaged in the fire with no enemy in view, one step out."""
+    ctx = _ctx(policy, snapshot)
+    if ctx is None or not _damaged(ctx) or ctx.in_view():
+        return None
+    fire = _fire(ctx)
+    if ctx.here not in fire:
+        return None
+    occupied = {(monster.position.y, monster.position.x) for monster in ctx.hostiles()}
+    traps = {cell for cell in (*ctx.navigator.battlefield.trap_cells,
+                               *ctx.navigator.battlefield.maybe_trap_cells)
+             if cell not in ctx.battle.cleared}
+    beside = sorted(cell for cell in _safe_cells(ctx, fire) - occupied - traps
+                    if quest_exposure.game_distance(cell, ctx.here) == 1)
+    if not beside:
+        return None
+    return _step(ctx, beside[0], OUT_OF_FIRE_REASON, guard=False)
 
 
 def _direction(origin, cell) -> str:
@@ -1617,6 +1705,7 @@ def key(policy, snapshot) -> str | None:
             or _summons(policy, snapshot)
             or resist_potion.drink_key(policy, snapshot)
             or quest_room_sweep._restore(policy, snapshot)
+            or _out_of_fire_key(policy, snapshot)
             or _phase_key(policy, snapshot)
             or resist_potion.leave_key(policy, snapshot)
         )
@@ -1635,6 +1724,7 @@ def key(policy, snapshot) -> str | None:
         or quest_find_exit._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
+        or _out_of_fire_key(policy, snapshot)
         or _phase_key(policy, snapshot)
         or resist_potion.leave_key(policy, snapshot)
     )

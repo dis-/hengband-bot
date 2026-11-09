@@ -27,7 +27,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import me_powers_refresh
+from hengbot import me_powers_refresh, quest25_battle as battle
+from hengbot.policy_constants import REST_MACRO
 from hengbot.model import _parse_items, parse_snapshot
 from tests import test_q25_haunted_house as q25
 
@@ -128,6 +129,24 @@ class ResumeReadsTheListsTest(unittest.TestCase):
         fired = {sequence: key for sequence, (key, _) in answers.items() if sequence > FIRST + 2}
         self.assertEqual([key for key in fired.values() if key.startswith("f")], [])
         self.assertEqual(answers[5186][0], BREATH)
+
+
+
+class OutOfTheFireTest(unittest.TestCase):
+    """Owner 2026-11-09 (the correction's second) 「一歩で安全圏に移動して休息できるのに愚かにも戦闘を
+    継続したこと」, the formation's 「傷ついて敵がいなければ射線の外まで歩いて休む」: the lists read, so the
+    tome phase's own plan (the breath from the near stands) is not the withdrawal of Q1."""
+
+    def test_damaged_out_of_the_fire_it_rests_before_walking_in(self):
+        answers = replay(answer_lists=lists())
+        for sequence in (5201, 5221):   # [6,2] at HP 161 and 90 of 503; recorded: '9' into [5,3]
+            self.assertEqual(recorded(sequence)[1]["key"], "9")
+            self.assertEqual(answers[sequence], (REST_MACRO, battle.FIRE_REST_REASON), sequence)
+
+    def test_damaged_in_the_fire_one_step_takes_it_out(self):
+        answers = replay(answer_lists=lists())
+        # [5,3] at HP 43: the tome's breath reaches it, [5,2] beside does not.
+        self.assertEqual(answers[5224], ("4", battle.OUT_OF_FIRE_REASON))
 
 
 if __name__ == "__main__":

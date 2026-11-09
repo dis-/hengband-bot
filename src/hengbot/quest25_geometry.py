@@ -147,6 +147,12 @@ def vision_cells(terrain: dict, source, vision: int, *, edge: bool = False) -> f
         game_distance(cell, source) == vision if edge else game_distance(cell, source) <= vision))
 
 
+def fire_cells(terrain: dict, casters) -> frozenset:
+    """The standable cells a spell of one of the never-moving ``casters`` reaches (``casts_on``:
+    its own line, or a line to a cell beside: a ball or a breath aimed there)."""
+    return summon_cells(terrain, tuple(casters)) if casters else frozenset()
+
+
 def exposure_of(cells) -> quest_exposure.Exposure:
     """An Exposure whose ``shout`` is ``cells``: the least-exposed walk crosses the fewest."""
     return quest_exposure.Exposure({}, {tuple(cell): frozenset({(0, 0)}) for cell in cells})
