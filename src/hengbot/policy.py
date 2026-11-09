@@ -4580,10 +4580,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 or "Your home is full" in message for message in snapshot.messages)
         if self._home_atomic_deposit_pending is not None and home_full_message:
             self._home_full_refused = True
-            # The game refused part of this posted deposit: its outside board
-            # is the answer, not a page that lagged behind the mutation.
-            self._home_deposit_refused_posted_turn = (
-                self._home_atomic_deposit_pending[2])
         session = self._equipment_transaction_session
         if (home_full_message and session is not None
                 and session.pending_action is not None
@@ -4634,14 +4630,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._home_entry_operation_posted = False
                     self._home_atomic_deposit_pending = None
                     self._invalidate_home_observation()
-                elif (unchanged_pages + 1 >= STORE_STUCK_LIMIT
-                      or getattr(self, "_home_deposit_refused_posted_turn",
-                                 None) == posted_turn):
-                    # A refusal of this deposit ("我が家にはもう置く場所がない")
-                    # ends the wait on its first outside board: the visit stayed
-                    # in flight meanwhile, no store could be approached and the
-                    # town end stopped (n1-a life-497 2026-11-09 11:31, the
-                    # 追加攻撃のモーニングスター beside the landed arrows and potion).
+                elif unchanged_pages + 1 >= STORE_STUCK_LIMIT:
                     # A11r2 discipline: never recompose against the page that
                     # failed to show the mutation.  Terminate this visit
                     # visibly and reject that identity for this visit.  It may
@@ -7259,7 +7248,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and not (snapshot.player.poisoned or snapshot.player.cut
                          or snapshot.player.confused or snapshot.player.blind)
                 and snapshot.player.food_state in {"normal", "full", "gorged"}
-                and not self._physical_hostiles(snapshot)):
+                # A sleeping hostile does not act on the waiting turn.  Kept
+                # silent by one (n1-a life-497 2026-11-09 11:31: a sleeping
+                # ブラックマーケットのエージェント 7 cells away, a deposit the full
+                # Home refused in part), no owner answered while the visit
+                # stayed in flight and the town end stopped the visit.
+                and not any(not monster.asleep
+                            for monster in self._physical_hostiles(snapshot))):
             # A released legacy deposit still owns its outside observation
             # budget. Do not enqueue an equipment Home visit before it ends.
             self.last_reason = "home:atomic-deposit-await-confirmation"

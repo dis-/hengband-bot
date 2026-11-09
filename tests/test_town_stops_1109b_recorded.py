@@ -15,12 +15,13 @@ the pins name the rows they assert.
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
 from hengbot import equipment_optimizer, me_powerful_activation
 from hengbot.model import STORE_HOME
-from hengbot.policy_types import in_flight_clause
+from hengbot.policy_constants import STORE_STUCK_LIMIT
 from tests.test_stops_1109_town_recorded import RecordedVisit
 
 FIXTURES = Path(__file__).with_name("fixtures") / "town-stops-1109b"
@@ -87,21 +88,23 @@ class JunkSweepTakeAtEntranceTest(Visit):
         self.assertNotIn(dagger, self.policy._deferred_home_items)
 
 
-class RefusedDepositEndsTheWaitTest(Visit):
+class RefusedDepositAwaitBesideSleeperTest(Visit):
     """n1-a life-497 2026-11-09 11:31 town:blocked:survival:identify_staff_ready.
 
-    Row 10 posted the Home deposit 'dr21\\rdpdd\\x1b' of the arrows, the
+    Row 10 posted the Home deposit 'dr21\rdpdd\x1b' of the arrows, the
     追加攻撃のモーニングスター and a potion; the game answered
     「我が家にはもう置く場所がない。」 for the morning star (the arrows and the
-    potion stacked).  The pending deposit waited STORE_STUCK_LIMIT outside
-    boards for the missing effect while the Home visit stayed in flight, so
-    every store approach was refused (acquire_store_visit), the town end
-    stepped off (row 11) and stopped with the Identify staff short (14 of 20
-    charges, the Magic shop never visited, row 14).
+    potion stacked).  The released deposit keeps the Home visit in flight
+    until its outside observation ends (STORE_STUCK_LIMIT boards, then the
+    full-Home relief of the refused entry), and its own owner waits for it
+    (home:atomic-deposit-await-confirmation).  That owner answered only with
+    no hostile in view: a sleeping ブラックマーケットのエージェント 7 cells away
+    kept it silent, every store approach was refused (acquire_store_visit),
+    the town end stepped off (row 11) and stopped with the Identify staff
+    short (14 of 20 charges, the Magic shop never visited, row 14).  The
+    same stop recurred at 11:32 after the restart.
 
-    Fix: the refusal of this deposit ends its wait on the first outside board
-    through the existing unobserved-deposit end (the full-Home relief of the
-    refused entry, the visit closed).
+    Fix: a sleeping hostile does not keep the waiting owner silent.
     """
 
     fixture = "j497"
@@ -111,22 +114,33 @@ class RefusedDepositEndsTheWaitTest(Visit):
         self.assertEqual(self.journal[10]["key"], "dr21\rdpdd\x1b")
         self.assertEqual(self.journal[11]["reason"], "town:entrance-step-off:town:end-step-off")
         self.assertEqual(self.journal[14]["reason"], "town:blocked:survival:identify_staff_ready")
+        hostiles = self.policy._physical_hostiles(self.board(11))
+        self.assertEqual([(monster.race_id, monster.asleep) for monster in hostiles], [(14, True)])
 
-    def test_the_refused_deposit_releases_the_visit(self):
+    def test_the_deposit_wait_is_answered_beside_the_sleeper(self):
         self.replay_to(11)
         _board, _key, reason = self.decide(11)
-        # Row 11's responses carry the refusal (「我が家にはもう置く場所がない。」).
         self.assertTrue(self.policy._home_full_refused)
-        self.assertFalse(reason.startswith("town:entrance-step-off:town:end"), reason)
-        self.assertIsNone(self.policy._home_atomic_deposit_pending)
-        self.assertIsNone(in_flight_clause(self.policy._town_turn_arbiter.store_visit))
-        self.assertIsNotNone(self.policy._home_full_relief)
+        self.assertTrue(reason.endswith("home:atomic-deposit-await-confirmation"), reason)
+        for row in (12, 13, 14):
+            _board, key, reason = self.decide(row)
+            self.assertEqual((key, reason), ("5", "home:atomic-deposit-await-confirmation"))
 
-    def test_the_visit_goes_on_past_the_recorded_stop(self):
+    def test_the_wait_ends_in_the_relief_not_the_stop(self):
         self.replay_to(14)
-        _board, _key, reason = self.decide(14)
-        self.assertNotEqual(reason, self.journal[14]["reason"])
-        self.assertFalse(reason.startswith("town:blocked"), reason)
+        board, _key, _reason = self.decide(14)
+        # DECLARED: the record ends at row 14; its outside board is decided
+        # again, ten game turns a decision, as the waited turns leave it.
+        for _ in range(STORE_STUCK_LIMIT):
+            if self.policy._home_atomic_deposit_pending is None:
+                break
+            board = replace(board, turn=board.turn + 10, messages=())
+            self.post(self.policy.choose_key(board))
+        self.assertIsNone(self.policy._home_atomic_deposit_pending)
+        self.assertIsNotNone(self.policy._home_full_relief)
+        # The visit moved on from the released deposit (a store approach).
+        self.assertNotEqual(self.policy.last_reason, "home:atomic-deposit-await-confirmation")
+        self.assertFalse(self.policy.last_reason.startswith("town:blocked"), self.policy.last_reason)
 
 
 class PowerfulIdentifyCostCoveredTest(Visit):
