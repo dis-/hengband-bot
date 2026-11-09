@@ -110,6 +110,33 @@ def blocker_leaves_no_target(blocker: str) -> bool:
             or blocker.startswith("calibration-stale:"))
 
 
+def free_action_wearable(
+    items,
+    required_flags: frozenset[int],
+    intrinsic_abilities: frozenset[str],
+    search_excluded_item_ids: frozenset[str],
+) -> bool:
+    """Whether the search must keep an owned Free Action item on at any depth.
+
+    Owner 2026-11-09 (n1-a life-501, a Lv17 warrior without Free Action chain-
+    paralysed on 13F), verbatim: 「浅い階で要求しても達成できないので要求階層は
+    今のまま。…耐麻痺装備をたまたま浅い階から拾っていたら装備することを確認
+    する。」  The depth requirement (DEPTH_ABILITY_REQUIREMENTS) asks for Free
+    Action from 20F; above it the evaluator values the flag only as the paralysis
+    exposure of its encounters (warrior_defense_evaluator), a tie-break the DPS
+    and margin bands come before, so Gloves or Boots of Free Action lost to a
+    pair with more AC.  An owned Free Action item the search may wear is
+    therefore required as the depth requirement requires it from 20F."""
+    if "free_action" in intrinsic_abilities or TR_FREE_ACT in required_flags:
+        return False
+    return any(
+        TR_FREE_ACT in item.flags
+        and item.exploration_legal
+        and item.id not in search_excluded_item_ids
+        for item in items
+    )
+
+
 def optimization_encounters(
     encounters: tuple,
     *,
@@ -877,35 +904,45 @@ def prepare_warrior_optimization(
         and slot_for(item.item) == SLOT_BODY
         for item in items
     )
-    candidate_loadouts = search_factory(
-        items,
-        current_item_ids=current.item_ids,
-        pinned=pinned,
-        excluded_item_ids=search_excluded_item_ids,
-        require_light=require_light,
-        required_flags=frozenset(required_candidate_flags),
-    )
-    result = optimize_loadout(
-        items,
-        lambda loadout: evaluator(loadout).metrics,
-        depth=depth,
-        intrinsic_abilities=intrinsic_abilities.intersection(ABILITY_FLAG),
-        has_destruction=has_destruction,
-        current_item_ids=current.item_ids,
-        timeout_seconds=timeout_seconds,
-        candidate_loadouts=candidate_loadouts,
-        require_light=require_light,
-        require_body=require_body,
-        require_armor_slots=owned_armor_fill_slots(
-            items, search_excluded_item_ids
-        ),
-        identification_exempt_item_ids=identification_exempt_item_ids,
-        obtainable_ammunition=(
-            tuple(snapshot.inventory)
-            if obtainable_ammunition is None
-            else obtainable_ammunition
-        ),
-    )
+    required_flags = frozenset(required_candidate_flags)
+    flag_sets = [required_flags]
+    if free_action_wearable(
+        items, required_flags, intrinsic_abilities, search_excluded_item_ids
+    ):
+        # Free Action first; when no complete loadout can wear it (a cursed
+        # piece pinned in its slot, say), the search without it stands.
+        flag_sets.insert(0, required_flags | {TR_FREE_ACT})
+    for flags in flag_sets:
+        result = optimize_loadout(
+            items,
+            lambda loadout: evaluator(loadout).metrics,
+            depth=depth,
+            intrinsic_abilities=intrinsic_abilities.intersection(ABILITY_FLAG),
+            has_destruction=has_destruction,
+            current_item_ids=current.item_ids,
+            timeout_seconds=timeout_seconds,
+            candidate_loadouts=search_factory(
+                items,
+                current_item_ids=current.item_ids,
+                pinned=pinned,
+                excluded_item_ids=search_excluded_item_ids,
+                require_light=require_light,
+                required_flags=flags,
+            ),
+            require_light=require_light,
+            require_body=require_body,
+            require_armor_slots=owned_armor_fill_slots(
+                items, search_excluded_item_ids
+            ),
+            identification_exempt_item_ids=identification_exempt_item_ids,
+            obtainable_ammunition=(
+                tuple(snapshot.inventory)
+                if obtainable_ammunition is None
+                else obtainable_ammunition
+            ),
+        )
+        if result.best is not None or result.timed_out:
+            break
     if loadout_report_path is not None:
         _append_loadout_report(
             loadout_report_path, encounter_depth, result, evaluator, defense

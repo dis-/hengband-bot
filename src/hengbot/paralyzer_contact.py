@@ -26,7 +26,7 @@ needs ``path - 1`` moves and one blow.
 
 from __future__ import annotations
 
-from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE
+from hengbot.policy_constants import DEPTH_ABILITY_REQUIREMENTS, MONSTER_SPELL_MAX_RANGE
 
 
 # Owner 2026-11-09 (question E of n1-b life-346, 鉄獄19階: クトーニアン, 1_IN_5 HOLD and
@@ -54,6 +54,40 @@ def spell_contact(policy, snapshot, monster) -> bool:
         return False
     return (monster.distance <= MONSTER_SPELL_MAX_RANGE
             and policy._has_line_of_fire(snapshot, monster.position, snapshot.player.position))
+
+
+# Owner 2026-11-09 (n1-a life-501, イークの洞穴13階: a ゲイザー and ボルドールの息子『オルファックス』
+# behind a door chain-paralysed the Lv17 warrior without Free Action to death), verbatim:
+# 「浅い階で要求しても達成できないので要求階層は今のまま。浅い階層で見かけたら逃げる。」
+# The depth requirement (DEPTH_ABILITY_REQUIREMENTS) is unchanged; above it, a paralyser in
+# view is left at sight.  The game asks for no command while paralysed
+# (core/player-processor.cpp:309-316), so the contact of the 09-18 rule comes too late there.
+SHALLOW_SIGHT_REASON_PREFIX = "shallow-paralyzer:"
+
+
+def free_action_depth() -> int:
+    """The first floor whose depth requirement asks for Free Action."""
+    return min(first for first, adds in DEPTH_ABILITY_REQUIREMENTS if "free_action" in adds)
+
+
+def shallow_sighted(policy, snapshot, threats) -> list:
+    """The paralysers of ``threats`` (``_paralyzing_monsters``: in view, no Free Action) that the
+    shallow-floor rule leaves at sight: on a dungeon floor above ``free_action_depth()``,
+    outside quests (``floor_key[2] == 0``; a quest floor keeps the 09-18 contact rule), asleep
+    or awake, at any distance.  A never-moving melee paralyser (Floating Eye) reaches only a
+    player who steps beside it, which the paralyser ring veto already refuses; one that casts
+    HOLD / BRAIN_SMASH still counts."""
+    if (snapshot.in_town or snapshot.inside_arena or snapshot.floor_key[2] != 0
+            or not 0 < snapshot.dungeon_level < free_action_depth()):
+        return []
+    sighted = []
+    for monster in threats:
+        knowledge = policy._monrace_knowledge.get(monster.race_id)
+        if (knowledge is not None and "NEVER_MOVE" in knowledge.flags
+                and not paralyses_by_spell(knowledge)):
+            continue
+        sighted.append(monster)
+    return sighted
 
 
 def in_contact(policy, snapshot, monster) -> bool:
