@@ -5,8 +5,8 @@ import json
 import time
 from pathlib import Path
 
-import tests.test_input_executor as input_executor_tests
-from tests.test_input_executor import FaithfulHookGame
+import tests.support.recorded as input_executor_tests
+from tests.support.recorded import FaithfulHookGame
 from hengbot.input_executor import Continuation, Operation, ScreenKind, classify_screen
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy

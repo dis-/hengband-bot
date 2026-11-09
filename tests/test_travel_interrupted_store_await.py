@@ -13,7 +13,7 @@ from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 
 ROOT = Path(__file__).resolve().parents[1]

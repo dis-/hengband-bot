@@ -17,7 +17,7 @@ from hengbot.spectator import SpectatorWriter, printable_key
 from tests.run_follow_hygiene import run_follow
 from tests.test_action_pacing import Clock, ExchangeDone, ScriptPolicy, board, RefuseOnce
 from tests import test_spectator as spectator_pins
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from hengbot.control_client import ControlClient
 from hengbot.policy import HengbotPolicy
 from hengbot.monrace_knowledge import load_monrace_knowledge

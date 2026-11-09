@@ -39,7 +39,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import DEPTH_ABILITY_REQUIREMENTS
 from policy_fixtures import seed_character_calibration
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "death-n1a-501-1109.json.xz"
 LAST_TURN = 419662

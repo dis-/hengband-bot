@@ -50,7 +50,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import LANTERN_REFILL_FUEL
 from hengbot.store_sale import ZERO_BASE_KINDS
 from recorded_junk_scope import pre_junk_scope_rule
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_town_overflow_disposal_candidates_recorded import (
     FIXTURE as OVERFLOW_FIXTURE)
 

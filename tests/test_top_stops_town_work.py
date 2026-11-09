@@ -12,8 +12,8 @@ from hengbot.policy_types import DecisionCandidate
 from hengbot.quest_knowledge import load_quest_knowledge
 from hengbot.town_maps import parse_town_map
 from policy_fixtures import player, item, grid
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-retirement-projection.json"
 EDIT = Path("C:/hengband/lib/edit")

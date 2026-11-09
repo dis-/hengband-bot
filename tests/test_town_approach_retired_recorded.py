@@ -109,7 +109,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SHOP_APPROACH_STUCK_LIMIT, TOWN_TRAVEL_STALL_LIMIT
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_loadout import recorded_loadout_replay
 from recorded_equipment_decisions import frozen_equipment_replay
 from recorded_floor_knowledge import pre_seen_floor_replay

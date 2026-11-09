@@ -51,7 +51,7 @@ from hengbot import me_staff_sequence as sequence
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import find_monrace_definitions
 from hengbot.policy_constants import STORE_ALCHEMIST
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests import test_me_mining_death_recorded as mining
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen

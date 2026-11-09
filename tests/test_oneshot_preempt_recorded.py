@@ -62,7 +62,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS, HOME_KNOWLEDGE_MACRO
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from xbow_pref_walls import shelf_wall_on_replay
 from extraction_calibration import install_extraction_calibration
 from recorded_loadout import pre_ratio_optimizer_replay

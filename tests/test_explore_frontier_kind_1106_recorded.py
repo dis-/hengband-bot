@@ -31,7 +31,7 @@ from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ExplorationGoalKind
 from tests import test_me_nokey_1031_recorded as nokey
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 from test_floor_dwell_seen_floor_recorded import _Replay
 
 

@@ -13,7 +13,7 @@ from hengbot.policy_state import normalize_policy_state
 from hengbot.town_hold import offer_buffer
 from policy_fixtures import item
 import test_policy_home as home_fixtures
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_departure import policy_on
 
 

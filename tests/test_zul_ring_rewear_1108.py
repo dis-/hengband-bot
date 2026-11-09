@@ -27,7 +27,7 @@ from hengbot import zul_trip
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import parse_snapshot
 from tests.test_classA_observed_input import recorded
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support.recorded import FaithfulHookGame, command_screen
 from tests import test_zul_ring_replace_1108 as replace_pins
 # The module, not the class: a TestCase bound here would run its tests again.
 from tests import test_n1b_345_zul_1108_recorded as zul_pins

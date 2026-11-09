@@ -23,7 +23,7 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_opening_route_r2_recorded as round2
 from tests import test_unid_deposit_recorded as unid
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "town-stops-1031.json.gz"

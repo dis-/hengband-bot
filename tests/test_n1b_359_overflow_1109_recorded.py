@@ -28,6 +28,10 @@ fake of tests/test_n1b_q2_home_ammo_1109_recorded.py with the recorded Home
 the absorbed Identify ('mAf' + item) lands -- the piece becomes known with
 plain values (+0,+0), its base values as carried -- and destroy ('k' + item)
 removes the stack.  The drive ends when the pack holds its four free slots.
+The identified rag and robe are plain armour the optimizer did not select and
+have no special property: owner 2026-11-09 「耐性の無い素の防具は不要」 makes them
+junk, destroyed rather than shelved (the recorded build shelved them: the worn
+ego body armour's (-1) to-hit outranked their 0 in the dominance comparison).
 """
 
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -54,7 +58,7 @@ from hengbot.runtime_paths import RUNTIME_DIR_ENV
 from hengbot.town_arrival_checkpoint import (
     JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST)
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_staff_sequence import power_list
 from tests.test_n1b_q2_home_ammo_1109_recorded import MergingHomeGame
@@ -300,16 +304,49 @@ class N1b359Overflow1109RecordedTest(executor_pins.ProductionHarness):
             reasons.append((key, policy.last_reason))
             self.assertFalse(policy.last_reason.startswith("town:blocked"), reasons)
         # The pieces are identified by the absorbed power where they lie (no
-        # scroll trip, no Alchemist), then the existing equipment transaction
-        # shelves them until the pack keeps its four free slots again.
+        # scroll trip, no Alchemist) and, plain armour the optimizer did not
+        # select and without a special property, destroyed (owner 2026-11-09
+        # 「耐性の無い素の防具は不要」; not shelved at Home) until the pack keeps
+        # its four free slots again.
         self.assertEqual(PACK_CAPACITY - len(current.inventory), MIN_TERMINAL_FREE_PACK_SLOTS)
         self.assertEqual(game.identified, PIECES[:2])
         self.assertEqual([k for k, reason in reasons if reason == "identify:normal"],
                          ["mAfo"] * 2)
         self.assertNotIn("shop:travel", [reason for _key, reason in reasons], reasons)
-        self.assertEqual(sorted(item["name"] for item in game._items() if item["name"] in PIECES),
-                         sorted(PIECES[:2]))
+        self.assertEqual(game.destroyed, PIECES[:2])
+        self.assertEqual([key[-2:] for key, reason in reasons
+                          if reason == "inventory:destroy-worthless-junk"], ["ko"] * 2)
+        self.assertFalse([item["name"] for item in game._items() if item["name"] in PIECES])
         self.assertEqual(self.unknown_pieces(current), PIECES[2:])
+
+    def test_plain_armour_with_a_resist_is_kept(self):
+        """Owner 2026-11-09: only plain armour without a special property is not needed.
+
+        DECLARED CONSTRUCTED: the row-9 board after the absorbed Identify of the
+        rag landed (known, +0); the control gives it one resist (the worn ego
+        body armour's 62).
+        """
+        policy, board, entries = self.to_row(CAST_ROW)
+        key = policy.choose_key(board)
+        self.assertEqual(key, "mAfo")
+        self.post(policy, key)
+        raw = self.raw(entries, CAST_ROW)
+        rag = next(item for item in raw["inventory"] if item["slot"] == "o")
+        for name, value in dict(charging=False, charges=0, to_h=0, to_d=0, to_a=0, pval=0,
+                                known_flags=[], is_cursed=False, is_broken=False).items():
+            if rag.get(name) is None:
+                rag[name] = value
+        rag["known"] = True
+        raw["turn"] += 10
+        raw["messages"] = []
+        plain = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        piece = next(item for item in plain.inventory if item.slot == "o")
+        self.assertEqual(policy._junk_class(plain, piece), "plain-gear")
+        rag["known_flags"] = [62]
+        resisting = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        piece = next(item for item in resisting.inventory if item.slot == "o")
+        self.assertIsNone(policy._junk_class(resisting, piece))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -51,7 +51,7 @@ def monraces():
 def static_game_data():
     # Reuse the established loader once. Retain only immutable game data,
     # never its policy state, mutable histories or character calibration.
-    from test_esp_threat_rest_recorded import _policy
+    from tests.support.recorded import _policy
     from tempfile import TemporaryDirectory
     with TemporaryDirectory(prefix="town-work-data-") as raw:
         template = _policy(Path(raw), monraces())

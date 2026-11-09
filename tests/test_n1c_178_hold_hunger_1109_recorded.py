@@ -33,7 +33,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot.model import _parse_items, parse_snapshot
-from tests import test_q25_haunted_house as q25
+from tests.support import q25_house as q25
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1c-178-hold-hunger-1109.json.gz",

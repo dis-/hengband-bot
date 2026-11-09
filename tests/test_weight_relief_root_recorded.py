@@ -24,7 +24,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
 from hengbot.policy_town import VISIT_CLOSABLE_REASONS
 from hengbot.protocol import snapshot_protocol_version
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_junk_scope import pre_town_junk_step_replay
 
 

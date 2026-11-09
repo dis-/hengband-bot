@@ -29,13 +29,14 @@ from hengbot import disenchant_avoid
 from hengbot.model import _decode_grid_map, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_n1c_death_1102_recorded as q31
 from tests import test_rq_teleport_reserve_recorded as rq
 from tests.test_destruction_use_1104_recorded import (
     HELD_TURN, TARGET, USE_PROMPT, move, own_tests_only, with_staff,
 )
-from tests.test_dungeon_1031_recorded import RecordedHarness, decide
+from tests.support import recorded as _recorded
+from tests.support.recorded import decide
 from tests.test_town_decision_speed_caches import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "disenchant-1105.json.gz"
@@ -68,7 +69,7 @@ def alone(raw, race, distance):
     return raw
 
 
-class Boards(RecordedHarness):
+class Boards(_recorded.RecordedHarness):
     @classmethod
     def setUpClass(cls):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:

@@ -42,7 +42,7 @@ from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.model import SV_STAFF_IDENTIFY, TVAL_STAFF, StoreItem, StoreState, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from tests.test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 import tests.test_magic_eater_o3 as o3
 import tests.test_me_device_attacks as device
 import tests.test_unid_deposit_recorded as recorded

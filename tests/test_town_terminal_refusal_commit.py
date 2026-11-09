@@ -24,7 +24,7 @@ from hengbot.model import TVAL_WAND
 from hengbot.policy import HengbotPolicy
 from hengbot.town_terminal import ENFORCE
 from policy_fixtures import item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_curse_remove import cursed_board, launcher_board
 from test_town_terminal_identify_equipped import worn_board
 

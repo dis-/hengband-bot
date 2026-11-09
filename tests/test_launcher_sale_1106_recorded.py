@@ -36,7 +36,7 @@ from hengbot.model import (
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import POLICY_FILE
 from replay_town_arrival import adopt_calibration, restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "launcher-sale-1106"

@@ -44,7 +44,7 @@ from hengbot import me_staff_sequence as sequence
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.model import parse_snapshot
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests import test_town_combat_survival_recorded as _test_town_combat_survival_recorded
 

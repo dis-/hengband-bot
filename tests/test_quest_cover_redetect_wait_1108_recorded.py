@@ -37,7 +37,7 @@ from hengbot.cli import (
 from hengbot.me_staff_sequence import MeStaffSequence
 from hengbot import search_coverage
 from hengbot.model import Position, game_distance, parse_snapshot
-from tests import test_input_executor as executor_harness
+from tests.support import recorded as executor_harness
 from tests import test_n1b_62f_quest_cover_1108_recorded as recorded
 from tests.test_n1c_loops_0336_1102_recorded import REST_PROMPT
 

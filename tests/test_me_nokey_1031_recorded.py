@@ -27,9 +27,9 @@ from hengbot.cli import (
 from hengbot.flight_recorder import policy_state
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests import test_lv7_town_stop_recorded as lv7
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-nokey-20261031.json.gz"

@@ -24,9 +24,9 @@ from hengbot.town_pack_headroom import eligible, preservable, find_sale, find_de
 from hengbot.town_terminal import rung_terminal, terminal_admission
 from hengbot.policy_types import TownErrandPlan
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests.support.headroom_home import HeadroomHomeGame
-from tests.test_esp_threat_rest_recorded import _policy
+from tests.support.recorded import _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "pack-headroom-20261029.json.gz"

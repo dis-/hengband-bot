@@ -9,7 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.cli import _consume_response_sequence
-from test_esp_threat_rest_recorded import _policy
+from tests.support.recorded import _policy
 from test_supply_shortfall_owner_recorded import _segments
 
 

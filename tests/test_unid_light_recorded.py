@@ -32,10 +32,10 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.warrior_optimization import load_character_calibration
 from tests import test_lv7_town_stop_recorded as lv7
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 from tests.test_q34_collect_recorded import captured, make_policy
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "unid-light-20261031.json.gz"

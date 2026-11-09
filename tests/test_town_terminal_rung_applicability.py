@@ -29,7 +29,7 @@ from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.town_terminal import NOT_APPLICABLE, TerminalRef
 from hengbot.town_travel import is_travel_macro
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_quest_travel_progress import QuestTravelFixtureMixin
 
 

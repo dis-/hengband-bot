@@ -40,7 +40,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import SV_LITE_FEANOR, SV_LITE_TORCH, SV_FLASK_OIL, TVAL_FLASK
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import OIL_TARGET
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "light-rootfix-q2-20261025.jsonl.gz"

@@ -19,7 +19,7 @@ from hengbot.equipment_transaction_planner import EquipmentTransaction, Equipmen
 from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot import me_staff_sequence as sequence
 from hengbot.town_terminal import gather_town_end, verdict_town_end
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
 import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 

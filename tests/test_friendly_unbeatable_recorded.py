@@ -38,9 +38,9 @@ from pathlib import Path
 from hengbot import me_staff_sequence
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import Position, parse_snapshot
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests import test_lv7_town_stop_recorded as lv7
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures" / "friendly-unbeatable-20261030.json.gz"
 MAGGOT, POPPO, BEATABLE = 8, 1083, 1320

@@ -33,8 +33,9 @@ from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.exploration_ledger import ExplorationLedger
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
-from tests.test_input_executor import FaithfulHookGame, ProductionHarness, command_screen
+from tests.support.recorded import EDIT, _policy
+from tests.support import recorded
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-50f-quest-lap-1108.json.xz"
 DOORS = {(34, 127), (34, 130)}
@@ -48,7 +49,7 @@ def _pin():
     return json.loads(lzma.decompress(FIXTURE.read_bytes()).decode("utf-8", "surrogateescape"))
 
 
-class N1b50fQuestLapRecordedTest(ProductionHarness):
+class N1b50fQuestLapRecordedTest(recorded.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         cls.pin = _pin()

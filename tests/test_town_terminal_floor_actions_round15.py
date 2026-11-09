@@ -12,7 +12,7 @@ from hengbot.model import (
 )
 from hengbot.policy_constants import PACK_CAPACITY, QUEST_STATUS_TAKEN, RECALL_MIN_DEPTH, STUCK_ESCAPE_LIMIT
 from policy_fixtures import grid, item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_departure import policy_on
 import test_policy_identification as identification_fixtures
 import test_policy_town as town_fixtures

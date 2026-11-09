@@ -41,7 +41,7 @@ from hengbot.model import (
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_me_town_stops_recorded as d9
 from tests import test_n1c_town_stops2_recorded as d25
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 DETECTION = "財宝感知の巻物"

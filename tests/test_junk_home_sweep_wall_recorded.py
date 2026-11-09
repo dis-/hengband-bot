@@ -27,7 +27,7 @@ from hengbot.town_hold import rung_of
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.warrior_optimization import load_character_calibration
 from recorded_junk_scope import pre_home_junk_sweep_rule
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 HOME_PAGE_ROW = 3
 

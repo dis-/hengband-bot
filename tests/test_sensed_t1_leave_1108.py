@@ -34,7 +34,7 @@ from hengbot import threat_tiers
 from hengbot.model import TVAL_SCROLL, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from policy_fixtures import item
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from tests import test_threat_tiers as tt
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-168-judge-death-1108.json.gz"

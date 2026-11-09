@@ -43,7 +43,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_
 from hengbot.model import STORE_WEAPON, parse_snapshot
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from tests import test_me_speed_staff_1101_recorded as speed
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_classA_observed_input as follow_harness
 from tests import test_lv7_town_stop_recorded as lv7
 

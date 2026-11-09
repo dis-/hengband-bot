@@ -21,7 +21,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_SUCCESS
 from hengbot.town_terminal import ADMIT, Server, TerminalRef
 from policy_fixtures import item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_departure import policy_on
 from test_town_terminal_refusal_commit import WATCHED
 

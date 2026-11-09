@@ -9,7 +9,7 @@ from hengbot import town_terminal as tt
 from hengbot.model import DUNGEON_YEEK_CAVE, TVAL_DIGGING, SV_DIGGING_SHOVEL
 from hengbot.policy_constants import STUCK_ESCAPE_LIMIT
 from policy_fixtures import item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_departure import policy_on
 
 

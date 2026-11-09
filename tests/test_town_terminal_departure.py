@@ -28,7 +28,7 @@ from hengbot.town_terminal import (
     ADMIT, REFUSAL_SERVERS, DepartureMaterial, Server, TerminalRef, refusal_servers,
     verdict_departure,
 )
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 
 
 def policy_on(snap):

@@ -20,7 +20,7 @@ import tests  # noqa: F401 -- isolate live runtime files
 import unittest
 
 from hengbot import me_powers
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests import test_hunt_detect_1102_recorded as detect
 from tests.test_hunt_detect_1102_recorded import DETECT_EVIL_KEY, TYPE_PROMPT, power_screen, prompt
 

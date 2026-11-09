@@ -35,7 +35,7 @@ from unittest import mock
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.warrior_optimization import load_character_calibration
-from test_esp_threat_rest_recorded import CALIBRATION, EDIT, _policy
+from tests.support.recorded import ESP_THREAT_REST_CALIBRATION as CALIBRATION, EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "lantern-rewield-20261019.jsonl.gz"

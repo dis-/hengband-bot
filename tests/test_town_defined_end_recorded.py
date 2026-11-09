@@ -52,7 +52,7 @@ from hengbot import cli, me_capability, me_staff_sequence, town_end_mining
 from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.runtime_paths import runtime_path
-from tests.test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from hengbot.town_terminal import gather_town_end, town_end_key, verdict_town_end
 from tests import test_n1c_town_wander_1101_recorded as _test_n1c_town_wander_1101_recorded
 

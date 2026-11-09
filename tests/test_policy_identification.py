@@ -35,6 +35,7 @@ except ModuleNotFoundError:
 
 import hengbot.policy as policy_module
 import hengbot.equipment_mutation as equipment_mutation_module
+from hengbot.monster_memory import UNSEEN_GAME_TURNS
 from hengbot.policy_constants import FOOD_TYPE_MANA
 
 
@@ -552,7 +553,12 @@ class PickupTest(unittest.TestCase):
 
         self.assertIsNone(policy._secret_wall_search_step(snapshot))
 
-    def test_multiplier_blocked_loot_resumes_after_threat_leaves_view(self):
+    def test_multiplier_blocked_loot_holds_out_of_sight_until_the_window(self):
+        """Owner 2026-11-09 「見えない間も期限まで止める」: a breeder's or summoner's loot block holds
+        out of sight at its last shown cell until the memory window ends, as an awake
+        threat's does (owner 2026-11-09 「起きた敵も最後の位置を覚える」).  It replaces the
+        2026-09-27 rule that the loot resumed as soon as the breeder left view (n1-c life-184,
+        Orc cave 18F: approach-descent and seek-loot alternated on the breeder's sight edge)."""
         floor_key = (DUNGEON_YEEK_CAVE, 3, 0)
         loot = Position(10, 12)
         policy = HengbotPolicy()
@@ -597,10 +603,14 @@ class PickupTest(unittest.TestCase):
             floor_key=floor_key,
         )
         key = policy.choose_key(hidden_again)
+        self.assertNotEqual(policy.last_reason, "seek-loot")
+        self.assertEqual(policy.loot_state(hidden_again)["blocker"], "multiplier-visible")
 
+        after_window = replace(hidden_again, turn=blocked.turn + UNSEEN_GAME_TURNS + 1)
+        key = policy.choose_key(after_window)
         self.assertEqual((policy.last_reason, key), ("seek-loot", "6"))
         self.assertEqual(policy._loot_target, loot)
-        self.assertEqual(policy.loot_state(hidden_again)["deferred"], [])
+        self.assertEqual(policy.loot_state(after_window)["deferred"], [])
 
     def test_routine_return_sweeps_nearby_safe_loot(self):
         grids = {

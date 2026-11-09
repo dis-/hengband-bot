@@ -48,8 +48,8 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import MINING_THREAT_FREE_LIMIT
 from hengbot.warrior_optimization import WarriorOptimizationPreparation
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-barehand-mining-20261031.json.gz"

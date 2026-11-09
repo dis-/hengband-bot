@@ -20,7 +20,7 @@ import copy
 
 from hengbot.model import Position, parse_snapshot
 from hengbot.town_terminal import rung_terminal, terminal_admission
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 import tests.test_q2_reward_lamp_recorded as lamp
 
 GENERAL_STORE_ENTRANCE = Position(32, 56)

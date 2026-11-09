@@ -17,7 +17,7 @@ from hengbot.model import StoreItem, StoreState, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.policy import HengbotPolicy
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from identify_staff_cap_walls import pre_four_staff_cap_rule
 
 FIXTURE = Path(__file__).parent / "fixtures/live36-weight.json"

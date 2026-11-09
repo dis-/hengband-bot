@@ -31,7 +31,7 @@ from hengbot.cli import _PolicyObserverScope
 from hengbot.model import parse_snapshot
 from tests import test_plan_floor_summons_1105_recorded as summons
 from tests import test_q18_water_cave as q18
-from tests import test_q25_haunted_house as q25
+from tests.support import q25_house as q25
 
 OFF = threat_tiers.InstantDeath()
 EMERGENCY_TELEPORT = "emergency:teleport"

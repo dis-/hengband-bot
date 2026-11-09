@@ -37,7 +37,7 @@ from hengbot.model import (SV_SCROLL_STAR_REMOVE_CURSE, TVAL_SCROLL,
                            parse_snapshot)
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from recorded_junk_scope import pre_junk_scope_replay
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_home_full_sale_keeps_recall_recorded import _without_home_junk
 import test_oneshot_inflight_recorded as oneshot
 

@@ -30,7 +30,7 @@ from hengbot.model import (
 from hengbot.policy import HengbotPolicy
 from hengbot.town_terminal import REFUSAL_SERVERS, Server
 from policy_fixtures import item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 
 STAFF = item("a", TVAL_STAFF, SV_STAFF_IDENTIFY, name="Identify", charges=10)
 

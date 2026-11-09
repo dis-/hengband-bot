@@ -21,7 +21,7 @@ from hengbot.policy_constants import FOOD_MIN_SVAL, TOWN_TELEPORT_COST
 from hengbot.policy_types import MorivantFullIdentifyExpedition
 from hengbot.policy_state import normalize_policy_state
 from policy_fixtures import item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_departure import policy_on
 
 

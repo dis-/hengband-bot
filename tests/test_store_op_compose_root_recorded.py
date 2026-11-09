@@ -43,8 +43,8 @@ from hengbot.item_reservation import store_item_key
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests import test_classA_observed_input as classa
-from tests import test_input_executor as executor_harness
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support import recorded as executor_harness
+from tests.support.recorded import EDIT, _policy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from item_sink_lint import analyze_repository, analyze_source  # noqa: E402

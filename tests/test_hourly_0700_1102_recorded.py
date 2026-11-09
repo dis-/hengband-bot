@@ -28,8 +28,8 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO, STORE_HOME
 from hengbot.policy_types import TownErrandPlan
-from tests import test_input_executor as executor_pins
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support import recorded as executor_pins
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "hourly-0700-1102.json.gz"
