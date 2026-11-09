@@ -31,7 +31,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import me_capability, me_powers_refresh, quest25_battle as battle, quest_room_sweep, threat_tiers
+from hengbot import me_capability, me_device_attacks, me_powers_refresh, quest25_battle as battle, quest_room_sweep, threat_tiers
 from hengbot.model import SV_ROD_HEALING
 from hengbot.policy_constants import REST_MACRO
 from hengbot.model import _parse_items, parse_snapshot
@@ -209,6 +209,58 @@ class LitHallSightTest(unittest.TestCase):
     def test_lit_hall_a_cell_beyond_the_light_sees_the_tome(self):
         answers = replay(edit=lit_hall(5186), through=5186)
         self.assertEqual(answers[5186], ("8", battle.SIGHT_REASON))
+
+
+def frost_only():
+    """DECLARED CONSTRUCTED: the life's lists with Disintegrate, Dragon's Flame and Dragon's Breath
+    spent (count 0): the strongest attack at the tome's grid is Dragon's Frost, about 16 a turn."""
+    return lists({("wand", me_device_attacks.POWERS[("wand", sval)].names[0]): {"current": 0}
+                  for sval in (25, 26, 28)})
+
+
+def tome_shown(sequence, health, bar=None):
+    """DECLARED CONSTRUCTED: board ``sequence`` shows the tome on [9,8] (the record of decision
+    5208 where it was seen) at ``health``; ``bar``: the health bar tracking it at that length."""
+    shown = copy.deepcopy(next(monster for monster in recorded(5208)[0]["visible_monsters"]
+                               if monster["race_id"] == 557))
+
+    def edit(at, raw):
+        if at == sequence:
+            raw["visible_monsters"].append(dict(shown, health=health))
+            if bar is not None:
+                raw["health_bar"] = {"known": True, "index": shown["index"], "length": bar,
+                                     "color": "orange"}
+    return edit
+
+
+class TomeSeenHealthTest(unittest.TestCase):
+    """Owner 2026-11-09 「見えた傷の具合で見込む」: the tome's HP for the kill estimate is read from its
+    displayed health when seen (the band, the health bar), the last seen while unseen, and the
+    maximum 500 (50d10) if never seen.  Decision 5183: [5,5], HP 415 of 503 (damaged), the tome
+    unseen; with Dragon's Frost alone (16 a turn) the quest's kill horizon (10 actions) holds
+    against 120 HP (badly wounded) but not 500."""
+
+    def test_never_seen_the_500_withdraws(self):
+        estimate = {}
+
+        def probe(policy, snapshot, sequence):
+            if sequence == 5183:
+                estimate["hp"] = battle._tome_hp(battle._ctx(policy, snapshot))
+
+        answers = replay(answer_lists=frost_only(), probe=probe, through=5183)
+        self.assertEqual(answers[5183], ("7", battle.WITHDRAW_REASON))
+        self.assertEqual(estimate["hp"], 500.0)     # not the average 275
+
+    def test_seen_badly_wounded_on_the_board_before_it_keeps_firing(self):
+        answers = replay(answer_lists=frost_only(), edit=tome_shown(5182, "badly_wounded"), through=5183)
+        self.assertEqual(answers[5183], ("mB1@9,8", "ranged:magic-eater-device"))
+
+    def test_the_health_bar_narrows_the_band(self):
+        # "wounded" reads 59% (295, past the horizon); the bar of length 2 reads 19% (95).
+        wounded = replay(answer_lists=frost_only(), edit=tome_shown(5182, "wounded"), through=5183)
+        self.assertEqual(wounded[5183], ("7", battle.WITHDRAW_REASON))
+        barred = replay(answer_lists=frost_only(), edit=tome_shown(5182, "wounded", bar=2), through=5183)
+        self.assertEqual(barred[5183], ("mB1@9,8", "ranged:magic-eater-device"))
 
 
 class StartStairOutOfHealingTest(unittest.TestCase):

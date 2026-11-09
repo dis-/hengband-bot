@@ -291,6 +291,7 @@ class Battle:
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
     blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
     glowing: frozenset = frozenset()   # floor cells seen drawn lit (CAVE_GLOW in view)
+    tome_hp: int | None = None     # the tome's HP read from its last seen health (an upper bound)
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -307,7 +308,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked", "glowing")}
+        "beam", "detection", "detect_asked", "glowing", "tome_hp")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -1357,7 +1358,7 @@ def _tome(ctx: _Ctx) -> str | None:
     # that sees it with the launcher too.  Damaged, a plan that needs more actions than the
     # quest's kill horizon (FIXED_QUEST_TOUGHEST_KILL_TURNS) withdraws out of the fire and rests.
     seen = any(monster.race_id == geo.TOME for monster in ctx.in_view())
-    hp = _race_hp(ctx.policy, geo.TOME)
+    hp = _tome_hp(ctx)
     stands = [stand for stand in geo.TOME_NEAR_STANDS if _path(ctx, {stand}) or ctx.here == stand]
     near = max((damage for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False)),
                default=0.0)
@@ -1468,6 +1469,38 @@ def _unseen_fire(ctx: _Ctx, grid, race: int, *, seen: bool, piercing: bool = Fal
     if key is not None:
         return key
     return _walk_to_sight(ctx, grid, _sights(ctx, grid, among) or _sights(ctx, grid))
+
+
+# The health bar's length (system/monster-entity.cpp get_hp_bar_data: clamp(percent / 10 + 1, 1, 10))
+# bounds the percent from above: 10 * length - 1 below the full bar.
+def _bar_percent(length: int) -> int:
+    return 100 if length >= 10 else max(1, 10 * int(length) - 1)
+
+
+def _note_tome_health(ctx: _Ctx) -> None:
+    """Owner 2026-11-09 「見えた傷の具合で見込む」: the tome's HP from its health when seen -- the
+    board's band (bot-json-output.cpp monster_health_band: unhurt ... almost dead, MonsterState
+    ``hp`` its upper bound on the race's maximum) and, when the health bar tracks it, the bar's
+    length -- the lower of the two; kept while it is not seen."""
+    for monster in ctx.in_view():
+        if monster.race_id != geo.TOME:
+            continue
+        hp = monster.hp
+        bar = ctx.snapshot.health_bar
+        if bar is not None and bar[0] and bar[1] == monster.index and bar[2] is not None:
+            hp = min(hp, max(1, (monster.max_hp * _bar_percent(bar[2]) + 99) // 100))
+        ctx.battle.tome_hp = int(hp)
+        return
+
+
+def _tome_hp(ctx: _Ctx) -> float:
+    """The tome's HP for the kill estimate: its last seen health (``_note_tome_health``), else
+    (never seen) the race's maximum (owner 2026-11-09 「見えていなければ最後に見えた状態、一度も見えて
+    いなければ最大の500」: 50d10)."""
+    if ctx.battle.tome_hp is not None:
+        return float(ctx.battle.tome_hp)
+    knowledge = attack_expectation.race_knowledge(ctx.policy, geo.TOME)
+    return float(knowledge.max_hp) if knowledge is not None else 0.0
 
 
 def _hopeless(ctx: _Ctx, hit_points: float, per_action: float) -> bool:
@@ -1833,6 +1866,7 @@ def _observe(ctx: _Ctx) -> None:
     _note_pen_shot(ctx)
     _note_arrivals(ctx)
     _note_glow(ctx)
+    _note_tome_health(ctx)
     phase = current_phase(ctx)
     if (phase is not None and phase.wait_limit is not None and ctx.battle.ready
             and phase.wait_at in (None, ctx.here)):
