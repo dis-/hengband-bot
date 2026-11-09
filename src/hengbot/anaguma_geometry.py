@@ -68,12 +68,12 @@ class Zigzag:
         return self.before(len(self.cells) - 1)
 
 
-def cell(start: Position, axis: tuple[int, int], side: int, k: int) -> Position:
-    """c_k of the module docstring (k >= 1)."""
+def cell(start: Position, axis: tuple[int, int], side: int, index: int) -> Position:
+    """c_index of the module docstring (index >= 1)."""
     perp = (axis[1], axis[0])
-    offset = (k + 1) % 2 * side
-    return Position(start.y + k * axis[0] + offset * perp[0],
-                    start.x + k * axis[1] + offset * perp[1])
+    offset = ((index + 1) & 1) * side  # every other cell steps sideways
+    return Position(start.y + index * axis[0] + offset * perp[0],
+                    start.x + index * axis[1] + offset * perp[1])
 
 
 def neighbours(position: Position):
@@ -108,7 +108,7 @@ def zigzag(snapshot: Snapshot, start: Position, axis, side, length: int,
     solid, and so must every neighbour of the last cell but the one before it."""
     if not open_cell(snapshot.grid_at(start)):
         return None
-    cells = tuple(cell(start, axis, side, k) for k in range(1, length + 1))
+    cells = tuple(cell(start, axis, side, index) for index in range(1, length + 1))
     for index, here in enumerate(cells):
         grid = snapshot.grid_at(here)
         if not (open_cell(grid) if index < dug else diggable(grid, presume)):
