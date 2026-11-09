@@ -4961,7 +4961,8 @@ class QuestMixin(OpeningRouteMixin):
         answers it when the shared light judgment releases the return exit
         lock (fixed ONCE or runtime kill quest), or when the runtime kill
         quest's own exit lock has released, or when a breeder stalemate
-        abandons a kill-all quest floor (breeder_quest).  A stair posted while
+        abandons a kill-all quest floor (breeder_quest), or when the Quest 25
+        plan steps on its start stair (quest25_battle).  A stair posted while
         the lock holds leaves the question unowned so the executor stops
         visibly.
         """
@@ -4971,6 +4972,7 @@ class QuestMixin(OpeningRouteMixin):
             and (
                 self._light_releases_quest_exit(snapshot)
                 or breeder_quest.abandons_floor(self, snapshot)
+                or quest25_battle.owns_leave_confirmation(self, snapshot)
                 or (
                     self._active_fixed_quest_id(snapshot) is None
                     and self._active_kill_quest_id(snapshot) is not None
