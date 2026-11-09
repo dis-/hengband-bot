@@ -156,6 +156,15 @@ _rows(EXCLUDED, "destruction_use",
 _rows(EXCLUDED, ("me_powers", "sent_away_t1"),
       "the absorbed Teleport Other moves the enemy, not the player (owner 2026-11-09 E handles it)",
       "me-power:*:teleport-away")
+_rows(EXCLUDED, "teleport_follower",
+      "Teleport Other at a monster that follows the player's teleport moves the enemy, not the "
+      "player (owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」; E handles a T1 sent away)",
+      "emergency:teleport-follower:teleport-away",
+      "emergency:teleport-follower:teleport-away:absorbed-power")
+_rows(EXCLUDED, ("teleport_follower", "policy_combat"),
+      "Teleport Other at a faster blinder beside a blind player moves the enemy, not the player "
+      "(design 4.2 「逃げる手段を取り戻すのが先」, status_cure.outpacing_blinders)",
+      "emergency:blinder:teleport-away", "emergency:blinder:teleport-away:absorbed-power")
 _rows(EXCLUDED, "policy_combat",
       "a town return already; over_extension's answer 6 keeps it uncounted",
       "esp-threat:leave-*")

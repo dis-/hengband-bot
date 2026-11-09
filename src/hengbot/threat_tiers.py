@@ -52,6 +52,7 @@ from hengbot import (
     return_yield,
     speed_dose,
     survival_preemption,
+    teleport_follower,
     unseen_strike,
 )
 from hengbot.item_reservation import decision_memo, reserved_item_command
@@ -784,15 +785,19 @@ def escape_means(policy, snapshot, hostiles) -> tuple:
     player = snapshot.player
     means = []
     readable = not (player.blind or player.confused) and policy._can_read_scrolls(snapshot)
-    teleport_blocked = policy._teleport_blocked_by_equipment(snapshot)
+    # An adjacent monster that follows the teleport (teleport_follower, owner 2026-11-09
+    # 「*破壊*>テレポートアウェイ>戦闘」) makes no teleport an escape; Teleport Level, Recall,
+    # *Destruction* and the walk are not followed.
+    teleport_blocked = (policy._teleport_blocked_by_equipment(snapshot)
+                        or teleport_follower.followed(policy, snapshot))
     forbidden = quest_no_teleport.forbids(policy, snapshot)
     scrolls = {item.sval for item in snapshot.inventory
                if item.tval == TVAL_SCROLL and item.aware and item.count > 0}
-    if readable and not teleport_blocked and not forbidden:
-        if scrolls & {8, 9}:
-            means.append("teleport-scroll")
-        if SV_SCROLL_TELEPORT_LEVEL in scrolls:
-            means.append("teleport-level")
+    if readable and not teleport_blocked and not forbidden and scrolls & {8, 9}:
+        means.append("teleport-scroll")
+    if (readable and not policy._teleport_blocked_by_equipment(snapshot) and not forbidden
+            and SV_SCROLL_TELEPORT_LEVEL in scrolls):
+        means.append("teleport-level")
     if readable and any(item.is_recall_scroll for item in snapshot.inventory):
         means.append("recall")
     if not teleport_blocked and not forbidden:
@@ -852,7 +857,8 @@ def blind_teleport_means(policy, snapshot):
     player = snapshot.player
     if (not player.blind or player.confused or snapshot.store is not None
             or policy._teleport_blocked_by_equipment(snapshot)
-            or quest_no_teleport.forbids(policy, snapshot)):
+            or quest_no_teleport.forbids(policy, snapshot)
+            or teleport_follower.followed(policy, snapshot)):
         return None
     power = me_absorbed_substitutes.TELEPORTATION
     # The menu walk of the blind cast is the one status_cure.absorbed_cure_key uses.
@@ -867,9 +873,12 @@ def blind_teleport_means(policy, snapshot):
 
 
 def escape_restorable(policy, snapshot) -> bool:
-    """4.2 restore: a cure for blindness / confusion, or a removable anti-teleport item."""
+    """4.2 restore: a cure for blindness / confusion, a removable anti-teleport item, or a
+    Teleport Other at an adjacent monster that follows the teleport (teleport_follower)."""
     player = snapshot.player
     if (player.blind or player.confused) and policy._find_status_cure_potion(snapshot) is not None:
+        return True
+    if teleport_follower.followed(policy, snapshot) and teleport_follower.away_usable(policy, snapshot):
         return True
     return any(policy._blocks_teleport(item) and not item.is_cursed
                for item in snapshot.equipment)
@@ -1191,6 +1200,13 @@ def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
     result = tiered(policy, snapshot, hostiles, melee_slots)
     if result.tier == T1:
         return True
+    # Owner 2026-11-09 「倒しきれない敵と同じに離れる」 (design 4.4): a summoner or shrieker left
+    # as a T1 is (``_worsens_leave``, held by the decided side).
+    # Owner 2026-11-09 「前からの2つを先に」: where the summoner cover step or the choke wait
+    # answers, they do; the leave only where neither does.
+    if (result.tier is not None and worsens_left(policy, snapshot, hostiles)
+            and not policy._summoner_shelter_applies(snapshot, hostiles)):
+        return True
     if result.tier == T2:
         return not result.selected
     return None
@@ -1332,6 +1348,7 @@ class Decided:
     speed: int                        # adjusted_speed when decided
     group: frozenset                  # the deciding engagement's (index, race) keys
     threat: retreat_veto_life.Threat  # name and the last board that showed it (``observe``)
+    worsens: bool = False             # left as a time-worsening monster (``_worsens_leave``)
 
 
 @dataclass
@@ -1435,20 +1452,74 @@ def decided(policy, snapshot, hostiles, raw: Assessment) -> Assessment:
                 entry is not None and adjusted_speed(monster) > entry.speed
                 for monster, entry in zip(hostiles, entries)),
             mates_in_view=all(key in here for key in mates if key in memory.decided))
-    leave = tier == T1 or (tier == T2 and not raw.selected)
+    engagement_leave = tier == T1 or (tier == T2 and not raw.selected)
+    worsening = _worsens_leave(policy, snapshot, hostiles, raw, entries)
     group, fought = frozenset(keys), []
     for monster, key, entry in zip(hostiles, keys, entries):
+        leave = engagement_leave or key in worsening
         if entry is not None and entry.leave and not leave:
             fought.append(key)
         if entry is not None and entry.tier == tier and not overridden:
             entry.leave = leave  # the tier holds; the selection is read as it is
+            entry.worsens = key in worsening
             continue
         memory.decided[key] = Decided(
             tier, leave, raw.free_margin, raw.supply_margin, raw.reserve,
-            adjusted_speed(monster), group, retreat_veto_life.Threat(monster.name, snapshot.turn))
+            adjusted_speed(monster), group, retreat_veto_life.Threat(monster.name, snapshot.turn),
+            key in worsening)
     if fought:
         retreat_veto_life.release(policy, snapshot, fought)
     return raw if tier == raw.tier else _as_held(raw, tier)
+
+
+# A selection that makes the kill required (4.4 step 4: 「倒す必要があれば物資を使って早く倒す」);
+# the reward selection does not (a T1 is left whatever it would drop).
+KILL_REQUIRED = frozenset({"quest-target", "hunted-guardian", "cannot-escape"})
+
+
+def _worsens_leave(policy, snapshot, hostiles, raw, entries) -> set:
+    """Owner 2026-11-09 (Q1 of the n1-a life-500 report, verbatim 「倒しきれない敵と同じに離れる」:
+    「脅威度の「離れる」と同じに扱い、一度離れると決めたら境に余裕を持って保つ。」), design 4.4
+    「逃げて良いなら逃げる」: outside quests, an awake summoner or shrieker that is not killed
+    被害無く (worsens_kill.harmless, OQ-1 option A) and whose kill is not required is left as a T1
+    is.  Once left it stays left for the floor visit while it is remembered (the decided side;
+    a reading that turns 被害無く does not bring it back).  Breeders keep their owner rules.
+    The (index, race) keys left so."""
+    player = snapshot.player
+    if (snapshot.floor_key[2] != 0 or not leave_decided_here(policy, snapshot)
+            # Below the low-HP line the 11-06 escape answers (OQ-10).
+            or player.hp < policy._low_hp_walk_threshold(player.max_hp)):
+        return set()
+    from hengbot import worsens_kill
+
+    # The more specific owner rules keep their monsters (4.4 step 1): a paralyser is left by
+    # the 09-18 / 11-09 E rules, a summoner that never approaches (NEVER_MOVE, or its choke wait
+    # expired) by the immobile-summoner rules (owner 2026-10-27 「動かない召喚の敵は近づかずに避ける」).
+    paralysers = {monster.index for monster in policy._paralyzing_monsters(snapshot, hostiles)}
+    left = set()
+    for monster, entry in zip(hostiles, entries):
+        key = (monster.index, monster.race_id)
+        if entry is not None and getattr(entry, "worsens", False):
+            left.add(key)  # held: 「一度離れると決めたら境に余裕を持って保つ」
+            continue
+        row = raw.per_monster.get(monster.index)
+        if (monster.asleep or row is None or monster.index in paralysers
+                or policy._summoner_never_approaches(snapshot, monster)
+                or not set(row.worsens_with_time) - {"multiply"}
+                or set(row.selected) & KILL_REQUIRED):
+            continue
+        if not worsens_kill.harmless(policy, snapshot, monster):
+            left.add(key)
+    return left
+
+
+def worsens_left(policy, snapshot, hostiles) -> bool:
+    """One of ``hostiles`` is remembered as left for worsening with time (``_worsens_leave``)."""
+    memory = getattr(policy, TIER_MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return False
+    return any(getattr(memory.decided.get((monster.index, monster.race_id)), "worsens", False)
+               for monster in hostiles)
 
 
 def decided_sides(policy, snapshot, hostiles) -> list:
