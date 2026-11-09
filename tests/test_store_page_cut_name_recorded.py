@@ -29,9 +29,9 @@ from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import STORE_HOME, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_resume_inside_store import home_page_screen
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "store-page-cut-name-1105.json.gz"

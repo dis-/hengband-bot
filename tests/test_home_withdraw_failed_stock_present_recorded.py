@@ -92,7 +92,7 @@ from hengbot.warrior_defense_evaluator import (
 )
 from hengbot.warrior_loadout_evaluator import loadout_max_hp
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

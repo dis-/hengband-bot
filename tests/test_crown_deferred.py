@@ -20,7 +20,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.warrior_optimization import load_character_calibration
-from test_esp_threat_rest_recorded import _policy, EDIT
+from tests.support.recorded import _policy, EDIT
 
 FIXTURE = Path(__file__).parent / "fixtures/crown-deferred-1027.json"
 
@@ -119,7 +119,7 @@ class CrownDeferredTest(unittest.TestCase):
         from hengbot.control_client import ControlClient
         from hengbot.input_executor import OperationExecutor
         from hengbot.observed_input import _GET, _PUT, _WIELD, _TAKEOFF, _HAND
-        from test_input_executor import FaithfulHookGame, store_screen, prompt_screen
+        from tests.support.recorded import FaithfulHookGame, store_screen, prompt_screen
         game = FaithfulHookGame()
         def screen_for(board):
             import unicodedata

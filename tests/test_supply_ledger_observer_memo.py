@@ -26,7 +26,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_supply import supply_ledger_observer_memo
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).parent / "fixtures" / "supply-ledger-memo-20261003.jsonl.gz"
 # LF-normalized payload; producer: tests/extract_supply_ledger_memo_fixture.py

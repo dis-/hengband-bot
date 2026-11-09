@@ -29,7 +29,7 @@ from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON, REST_MACRO
 from hengbot.quest_knowledge import load_quest_knowledge
 from tests import test_me_nokey_1031_recorded as nokey
 from tests import test_me_staff_loops_1031_recorded as loops
-from tests.test_input_executor import prompt_screen
+from tests.support.recorded import prompt_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "once-quest-recall-20261103.json.gz"

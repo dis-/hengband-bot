@@ -44,7 +44,7 @@ from hengbot.model import (
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import WAIT_KEY
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_supply_shortfall_owner_recorded import _segments
 
 FIXTURE = Path(__file__).parent / "fixtures/recall-churn-stockout-20261018.json.gz"

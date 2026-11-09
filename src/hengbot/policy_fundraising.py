@@ -943,6 +943,8 @@ class FundraisingMixin:
         cell beside the door (empty when the player stands there), or None when
         a staircase is reachable without a door or not even through one.
         """
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         goals = {
             position for position, grid in snapshot.grids.items()
             if grid.has_up_stairs and self._is_upstairs_target(grid)
@@ -996,7 +998,7 @@ class FundraisingMixin:
             }
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
-                if neighbor in parent or neighbor in self._engagement_avoid_cells:
+                if neighbor in parent or neighbor in walk_veto:
                     continue
                 key = (neighbor.y, neighbor.x)
                 if key in doors and (door is not None or dy == 0 or dx == 0):
@@ -1180,6 +1182,8 @@ class FundraisingMixin:
         does not depend on the digging skill.  Pure (no offer, no bump
         count), so a caller may ask whether a dig route still exists.
         """
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         origin = snapshot.player.position
         targets = set(targets)
         targets.discard(origin)
@@ -1214,7 +1218,7 @@ class FundraisingMixin:
                     # routing BFS; a dig-breakout route walking one would
                     # repeat _step_toward's refusal forever on this static
                     # floor.
-                    or neighbor in self._engagement_avoid_cells
+                    or neighbor in walk_veto
                 ):
                     continue
                 grid = snapshot.grids.get(neighbor)
@@ -1241,6 +1245,8 @@ class FundraisingMixin:
         detection radius cannot contain one of this mining pass's targets and
         must not provide an infinite route around known permanent rock.
         """
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         if not goals:
             return None
         start = snapshot.player.position
@@ -1259,7 +1265,7 @@ class FundraisingMixin:
                 neighbor = Position(position.y + dy, position.x + dx)
                 if (
                     neighbor in seen
-                    or neighbor in self._engagement_avoid_cells
+                    or neighbor in walk_veto
                     or neighbor in self._mining_unmarkable_grids
                     or not snapshot.in_bounds(neighbor)
                     or all(
@@ -2174,6 +2180,8 @@ class FundraisingMixin:
         return True
 
     def _secret_wall_search_step(self, snapshot: Snapshot) -> Position | None:
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         candidates = {
             Position(y, x)
             for y, x in self._remembered_floor_t
@@ -2202,7 +2210,7 @@ class FundraisingMixin:
                 if best is None or score < best[0]:
                     best = (score, first_step)
             for neighbor in self._walkable_neighbors(snapshot, pos):
-                if (neighbor in seen or neighbor in self._engagement_avoid_cells
+                if (neighbor in seen or neighbor in walk_veto
                         # Owner 2026-10-19: nothing in the direction retreated from.
                         or self._in_unseen_attack_area(snapshot, neighbor)):
                     continue

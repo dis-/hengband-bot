@@ -29,7 +29,7 @@ from hengbot.policy import staged_prompt_chain_matches
 from hengbot import town_terminal
 from hengbot.town_arrival_checkpoint import SIDECAR_DIRECTORY
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 FIXTURES = Path(__file__).with_name("fixtures") / "town-stops-1105"

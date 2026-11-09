@@ -38,7 +38,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME, _parse_items
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.protocol import snapshot_protocol_version
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_supply_shortfall_owner_recorded import _segments
 
 FIXTURE = Path(__file__).parent / "fixtures/fundraise-kit-retired-20261019.json.gz"

@@ -23,7 +23,7 @@ from hengbot.model import SV_SCROLL_IDENTIFY, TVAL_SCROLL, TVAL_SWORD
 from hengbot.policy import HengbotPolicy
 from hengbot.town_terminal import REFUSAL_SERVERS, Server
 from policy_fixtures import item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 
 RUNG = "_town_equipped_identification_key"
 

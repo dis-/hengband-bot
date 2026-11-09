@@ -48,7 +48,7 @@ from hengbot.model import Position
 from hengbot.policy_constants import DIRECTION_KEYS
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests import test_n1c_deaths_1101_recorded as d57
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
 from tests.test_me_stage2_powers import TYPE_PROMPT

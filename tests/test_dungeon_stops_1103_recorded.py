@@ -22,8 +22,8 @@ from hengbot.policy import HengbotPolicy
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import decisions, journal, restore
 from tests import test_lv7_town_stop_recorded as lv7
-import tests.test_input_executor as executor_harness
-from tests.test_esp_threat_rest_recorded import EDIT, _policy
+import tests.support.recorded as executor_harness
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).with_name("fixtures") / "dungeon-stops-1103"

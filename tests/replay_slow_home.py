@@ -19,7 +19,7 @@ import time
 from hengbot.cli import _consume_response_sequence, _request_due_dump
 from hengbot.latch_onset_capture import checkpoint
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 def replay(source, output=None, start_row=37, *, profile_final=True):

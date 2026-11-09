@@ -13,7 +13,7 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from tests import test_opening_route_recorded as round1
 from tests.test_opening_route_recorded import captured, make_policy
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 class OpeningRouteR2RecordedTest(executor_harness.ProductionHarness):

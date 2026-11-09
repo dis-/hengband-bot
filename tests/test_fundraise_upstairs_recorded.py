@@ -32,8 +32,8 @@ from hengbot.policy_constants import (
     DOOR_OPEN_LIMIT,
     FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT,
 )
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures" / "fundraise-upstairs-door-20261030.json.gz"
 DOOR = Position(11, 160)

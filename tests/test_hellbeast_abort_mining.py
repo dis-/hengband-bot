@@ -33,8 +33,8 @@ from hengbot.cli import _ExecutorInputPort, SendResult, _transport_key
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import ConservativePolicy
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-hellbeast-mining-20261030.json.gz"

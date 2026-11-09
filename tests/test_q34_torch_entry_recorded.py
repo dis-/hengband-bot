@@ -15,7 +15,7 @@ from hengbot.model import parse_snapshot, _GRID_TERRAIN_NAMES
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.quest_entry_requirements import carried_torch_entry_ready
 from tests import test_lv7_town_stop_recorded as lv7
-from tests import test_input_executor as executor_harness
+from tests.support import recorded as executor_harness
 
 
 class Q34TorchEntryRecordedTest(executor_harness.ProductionHarness):

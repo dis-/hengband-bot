@@ -37,7 +37,7 @@ from hengbot.quest_knowledge import QuestInfo
 from hengbot.random_quest_hold import GATING_QUEST_ID
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests import test_n1c_deaths_1101_recorded as d57
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "rq-after-q2-n1c-080-1102.json.gz"

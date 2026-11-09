@@ -40,7 +40,7 @@ from unittest.mock import patch
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot import quest25_battle as battle
 from hengbot.model import Position, _parse_items, parse_snapshot
-from tests import test_q25_haunted_house as q25
+from tests.support import q25_house as q25
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1c-174-q25-loops-1109.json.gz",

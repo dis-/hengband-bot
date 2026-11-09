@@ -20,7 +20,7 @@ from hengbot.model import parse_snapshot, _parse_items
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import SUPPLY_STORES
-from test_esp_threat_rest_recorded import _policy, EDIT
+from tests.support.recorded import _policy, EDIT
 from xbow_pref_walls import apply_shelf_wall
 from extraction_calibration import install_extraction_calibration
 from recorded_loadout import pre_ratio_optimizer_replay

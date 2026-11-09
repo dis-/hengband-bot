@@ -15,7 +15,7 @@ from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import ENTER_DUNGEON_MACRO
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 CAPTURE = Path(__file__).with_name("fixtures") / "first-dungeon-entrance-board.json.gz"

@@ -25,7 +25,8 @@ from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
 from tests import test_me_nokey_1031_recorded as nokey
 from tests.test_once_quest_recall_recorded import COMMAND_PROMPTS, prompt_screen
 from tests import test_q18_water_cave as q18
-from tests import test_q25_haunted_house as q25
+from tests import test_q25_haunted_house as q25_tests  # Q25LightTest.MOUTH / STAGE
+from tests.support import q25_house as q25
 from tests.test_summon_response_1104_recorded import aimed_monster
 
 
@@ -625,7 +626,7 @@ class Q25OpeningPotionTest(unittest.TestCase):
 
     def picked_up_later(self, *, monsters=()):
         """The walk at its third stop with none, then a board with one in the pack."""
-        raw = q25.board(q25.Q25LightTest.MOUTH, speed=0, light=0)
+        raw = q25.board(q25_tests.Q25LightTest.MOUTH, speed=0, light=0)
         policy = q25.new_policy(raw)
         q25._set_stage(policy, raw, 2)
         q25.choose(policy, raw)
@@ -661,8 +662,8 @@ class Q25OpeningPotionTest(unittest.TestCase):
         self.assertFalse(q25.navigator_of(policy).sweep_potion_due)
 
     def test_a_hall_drawn_lit_by_it_takes_no_read_at_the_mouth(self):
-        raw = Q25DarkRoomTest.lit(q25.board(q25.Q25LightTest.MOUTH, speed=0))
-        _key, reason, _ = q25.decide(raw, stage=q25.Q25LightTest.STAGE)
+        raw = Q25DarkRoomTest.lit(q25.board(q25_tests.Q25LightTest.MOUTH, speed=0))
+        _key, reason, _ = q25.decide(raw, stage=q25_tests.Q25LightTest.STAGE)
         self.assertEqual(reason, quest_room_sweep.WALK_REASON)
 
     def test_it_is_no_part_of_the_carry(self):

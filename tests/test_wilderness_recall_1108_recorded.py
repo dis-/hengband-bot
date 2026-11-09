@@ -45,7 +45,7 @@ import unittest
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import DUNGEON_YEEK_CAVE, parse_snapshot
 from hengbot.policy_constants import UP_STAIRS_KEY
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_town_decision_speed_caches import build_policy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "wilderness-recall-1108.json.gz"

@@ -8,7 +8,7 @@ import unittest
 
 from policy_fixtures import grid, hostile, item, player
 import test_policy_quest as quest_tests
-import test_input_executor as input_tests
+from tests.support import recorded as input_tests
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.control_client import ControlClient
 from hengbot.input_executor import OperationExecutor

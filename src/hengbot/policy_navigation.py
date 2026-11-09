@@ -415,6 +415,8 @@ class NavigationMixin:
         self, snapshot: Snapshot
     ) -> tuple[Position, list[Position]] | None:
         """Route across remembered floor and the bot's own dark walking trail."""
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         queue: deque[tuple[Position, list[Position]]] = deque([(start, [])])
         seen = {start}
@@ -453,7 +455,7 @@ class NavigationMixin:
             for neighbor in self._dark_walkable_neighbors(snapshot, position):
                 if (
                     neighbor in seen
-                    or neighbor in self._engagement_avoid_cells
+                    or neighbor in walk_veto
                 ):
                     continue
                 seen.add(neighbor)
@@ -793,6 +795,8 @@ class NavigationMixin:
         self, snapshot: Snapshot
     ) -> list[Position]:
         """BFS to one untried walkable boundary cell of the current emission."""
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         if not self._emitted_t:
             return []
         min_y = min(y for y, _ in self._emitted_t)
@@ -816,7 +820,7 @@ class NavigationMixin:
             ):
                 if (
                     neighbor in parent
-                    or neighbor in self._engagement_avoid_cells
+                    or neighbor in walk_veto
                 ):
                     continue
                 parent[neighbor] = position
@@ -1775,6 +1779,8 @@ class NavigationMixin:
         allow_damaging: bool | None,
     ) -> tuple[dict[Position, Position | None], bool]:
         """BFS toward ``goal``: (parents, whether an unseen attack area cut it)."""
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         digger = self._equipped_digging_tool(snapshot) is not None
         queue: deque[Position] = deque([start])
         parent: dict[Position, Position | None] = {start: None}
@@ -1791,7 +1797,7 @@ class NavigationMixin:
             )
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
-                if neighbor in parent or neighbor in self._engagement_avoid_cells:
+                if neighbor in parent or neighbor in walk_veto:
                     continue
                 grid = snapshot.grids.get(neighbor)
                 walkable = neighbor in walkable_here
@@ -1842,6 +1848,8 @@ class NavigationMixin:
         new_information_only: bool = False,
         through: frozenset[tuple[int, int]] = frozenset(),
     ) -> list[Position]:
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         previous = self._recent[-2] if len(self._recent) >= 2 else None
         sequence = count()
@@ -1892,7 +1900,7 @@ class NavigationMixin:
                 snapshot, pos, allow_damaging=allow_damaging, through=through
             ):
                 if (
-                    neighbor in self._engagement_avoid_cells
+                    neighbor in walk_veto
                     or neighbor in danger
                     or self._in_unseen_attack_area(snapshot, neighbor)
                 ):

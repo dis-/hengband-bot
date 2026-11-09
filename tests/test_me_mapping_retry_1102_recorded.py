@@ -31,7 +31,7 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from tests import test_me_mining_death_recorded as mining
 from tests import test_me_stage2_powers as stage2
-from tests.test_input_executor import command_screen
+from tests.support.recorded import command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures" / "me-mapping-retry-1102.json.gz"
 ARRIVAL_MAP = "me-power:new-floor:map-area"

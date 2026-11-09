@@ -25,7 +25,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.model import TVAL_STAFF, SV_STAFF_IDENTIFY
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_equipment_decisions import frozen_equipment_replay
 from extraction_calibration import install_extraction_calibration
 from xbow_pref_walls import shelf_wall_on_replay

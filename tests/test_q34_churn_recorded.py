@@ -19,8 +19,8 @@ from hengbot.town_arbiter import ClaimOwner
 from hengbot.town_hold import reach_goal as reach
 from hengbot.model import Position, parse_snapshot
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 from tests import test_q34_collect_recorded as collect_tests
 
 FIXTURE = Path(__file__).with_name("fixtures") / "q34-churn-20261026.json.gz"

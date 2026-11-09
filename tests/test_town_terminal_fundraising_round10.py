@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from hengbot import town_terminal as tt
 from hengbot.model import STORE_ALCHEMIST
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_departure import policy_on
 
 

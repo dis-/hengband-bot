@@ -12,7 +12,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import me_powers, sleeper_loot_block
+from hengbot import me_powers, sleeper_loot_block, sleeper_reach_memory
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -128,9 +128,20 @@ class IdentificationMixin:
         adjacent trapped chest at skill_srh% per press, disarm can fail, and a
         locked chest takes several picks. Budget exhaustion abandons the chest
         (whatever spilled is normal loot)."""
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         player = snapshot.player
         quest_profile = self.approved_quest_strategy(snapshot.floor_key[2])
         if hostiles or player.blind or player.confused:
+            return None
+        # A hostile it yields to stays one out of sight, at its last shown cell
+        # (sleeper_reach_memory, owner 2026-11-09 「起きた敵も最後の位置を覚える」), as the
+        # loot walk's block does: n1-c life-183 (Angband 49F, 2026-11-09 20:44-20:45) yielded
+        # at [5,39] to a ネクサス・クイルスルグ (race 480) in view at [4,58], and one step out of
+        # its sight at [4,38] walked '3' back toward the chest at [7,53], three loop stops.
+        # On a quest floor too (owner 2026-11-09 「クエストの階にも当てる」, as 2026-11-03's
+        # quest chest opened when it is safe).
+        if sleeper_reach_memory.remembered(self, snapshot):
             return None
         floor_chests = [
             candidate.position
@@ -301,7 +312,7 @@ class IdentificationMixin:
                     for neighbor in self._walkable_neighbors(
                         snapshot, player.position
                     )
-                    if neighbor not in self._engagement_avoid_cells
+                    if neighbor not in walk_veto
                 ]
                 if not neighbors:
                     self._chest_position = None
@@ -321,7 +332,7 @@ class IdentificationMixin:
                         final_door = profile.engagement_plan.get("final_door")
                         if final_door is not None:
                             blocked.discard(Position(*final_door))
-                        blocked.update(self._engagement_avoid_cells)
+                        blocked.update(walk_veto)
                         goals = {Position(y, x) for y, x in navigator.battlefield.terrain
                                  if Position(y, x).distance_to(chest_pos) == 1
                                  and navigator._static_walkable(Position(y, x))}
@@ -1748,9 +1759,15 @@ class IdentificationMixin:
             return "pack-full"
         if self._physical_adjacent_hostiles(snapshot):
             return "adjacent-hostile"
-        if any(monster.can_summon for monster in hostiles):
+        # A summoner or breeder that blocks the loot in view blocks it out of sight at its
+        # last shown cell (sleeper_reach_memory, owner 2026-11-09 「起きた敵も最後の位置を覚える」):
+        # n1-c life-184 (Orc cave 18F, 2026-11-09 22:30) saw a 巨大ドブネズミ (race 156) at
+        # [29,47] from [40,38] and walked approach-descent '1' to [41,37], out of its sight,
+        # where seek-loot stepped '9' straight back, until the loop detector.
+        out_of_sight = sleeper_reach_memory.remembered(self, snapshot)
+        if any(monster.can_summon for monster in (*hostiles, *out_of_sight)):
             return "summoner-visible"
-        if any(monster.can_multiply for monster in hostiles):
+        if any(monster.can_multiply for monster in (*hostiles, *out_of_sight)):
             return "multiplier-visible"
         if hostiles and self._predicted_damage(snapshot, hostiles, turns=3) >= (
             snapshot.player.hp * LOOT_THREAT_DAMAGE_RATIO

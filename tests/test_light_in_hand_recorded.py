@@ -37,7 +37,7 @@ from hengbot.cli import _consume_response_sequence, _parse_items
 from hengbot.model import SV_LITE_FEANOR, TVAL_LITE
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import FOOD_STOCK_TARGET, OIL_TARGET
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "light-in-hand-20261019.jsonl.gz"

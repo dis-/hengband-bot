@@ -30,7 +30,7 @@ from policy_fixtures import grid, item, player, store_item
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.home_entry_capture import HomeEntryCapture
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

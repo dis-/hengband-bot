@@ -19,7 +19,7 @@ from hengbot.quest_strategies import (
     acceptance_dps_floor, acceptance_hp_floor, class_throwing_items, load_quest_strategies,
 )
 from tests import test_lv7_town_stop_recorded as lv7
-from tests import test_input_executor as executor_harness
+from tests.support import recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "warrior-q1-lower-20261030.json.gz"

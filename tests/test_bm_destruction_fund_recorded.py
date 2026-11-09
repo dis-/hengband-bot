@@ -24,7 +24,7 @@ from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot.model import (
     STORE_BLACK, STORE_WEAPON, SV_STAFF_DESTRUCTION, TVAL_STAFF,
 )
-from tests import test_input_executor as _test_input_executor
+from tests.support import recorded as _executor_support
 from tests.test_spare_gear_recorded import Visit
 
 SWEEP_SPENT_ROW = 9
@@ -62,7 +62,7 @@ def carrying_staff(board):
     return replace(board, inventory=[*board.inventory, staff])
 
 
-class BlackMarketDestructionRecordedTest(_test_input_executor.ProductionHarness):
+class BlackMarketDestructionRecordedTest(_executor_support.ProductionHarness):
     def visit(self, rows):
         visit = Visit("home-room-n1b", True)
         self.addCleanup(visit.close)

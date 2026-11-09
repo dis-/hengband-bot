@@ -9,8 +9,8 @@ from pathlib import Path
 
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key, SendResult
 from hengbot.input_executor import ScreenKind, classify_screen
-from tests import test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support import recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURES = Path(__file__).parent / "fixtures" / "live-screens"
 

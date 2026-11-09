@@ -37,8 +37,8 @@ from hengbot.policy_fundraising import (
     FundraisingPurpose, FundraisingPurposeRecord, FundraisingTransportChild,
 )
 from hengbot.quest_strategies import load_quest_strategies
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures" / "q2-funds-floor-20261031.json.gz"
 STRATEGIES = Path(__file__).resolve().parents[1] / "strategy" / "quests"

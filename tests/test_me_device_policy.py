@@ -33,7 +33,7 @@ from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import SV_WAND_MAGIC_MISSILE, SV_WAND_WONDER
 from hengbot.me_absorbed_substitutes import POWERS as SUBSTITUTE_POWERS
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_STAFF, TVAL_WAND, parse_snapshot
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests import test_me_mining_death_recorded as mining
 from tests import test_me_stage2_staffs as stage2
 from tests import test_me_tower_recharge_recorded as d24

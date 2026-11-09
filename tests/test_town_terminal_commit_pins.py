@@ -24,6 +24,7 @@ from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_types import MorivantFullIdentifyExpedition
 from hengbot.town_maps import find_outpost_map, find_town_map, parse_town_map
 from hengbot.town_terminal import TerminalRef
+from tests.support.boards import n1a_townalt_board
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "n1a-townalt-20261023.jsonl.gz"
@@ -31,9 +32,7 @@ LEDGER_FIELDS = ("terminal_yields", "closed_terminals", "terminal_route_edges",
                  "terminal_server_vectors")
 
 
-def _board():
-    with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
-        return [parse_snapshot(json.loads(line), {}) for line in stream][1]
+_board = n1a_townalt_board
 
 
 def _preparation(blockers=(), *, ready=False, actions=()):

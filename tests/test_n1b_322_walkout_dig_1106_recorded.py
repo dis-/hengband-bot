@@ -39,8 +39,8 @@ from hengbot.policy_fundraising import (
     FundraisingPurpose, FundraisingPurposeRecord, FundraisingTransportChild,
 )
 from recorded_junk_scope import choose_past_junk_key
-from test_esp_threat_rest_recorded import EDIT, _policy
-from tests import test_input_executor as executor_pins
+from tests.support.recorded import EDIT, _policy
+from tests.support import recorded as executor_pins
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-322-walkout-dig-1106.json.gz"

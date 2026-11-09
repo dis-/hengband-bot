@@ -26,7 +26,7 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.model import parse_snapshot, _parse_items, STORE_HOME, STORE_ALCHEMIST
 from hengbot.policy_state import normalize_policy_state
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from test_equipment_homefull_step15a import post
 
@@ -284,7 +284,7 @@ class OverweightHomeFullStep15bTest(unittest.TestCase):
 from pathlib import Path
 sys.path[:0]=[sys.argv[2],sys.argv[2]+'/src',sys.argv[2]+'/tests']
 import tests
-from test_esp_threat_rest_recorded import _policy,EDIT
+from tests.support.recorded import _policy,EDIT
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.model import parse_snapshot,_parse_items
 m=load_monrace_knowledge(EDIT/'MonraceDefinitions.jsonc')

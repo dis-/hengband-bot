@@ -20,14 +20,15 @@ import unittest
 from hengbot import sleeper_reach_memory
 from hengbot.model import Position, parse_snapshot
 from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
-from tests.test_dungeon_1031_recorded import RecordedHarness, decide
+from tests.support import recorded as _recorded
+from tests.support.recorded import decide
 from tests import test_stops_1109_dungeon_recorded as stops
 from tests.test_stops_1109_dungeon_recorded import GAZER, MOVES, here, step
 
 GAZER_LAST = Position(25, 20)  # the last board that showed it (1301140)
 
 
-class LeftParalyserLastCellRecordedTest(RecordedHarness):
+class LeftParalyserLastCellRecordedTest(_recorded.RecordedHarness):
     drive_346 = stops.AwakeThreatOutOfSightRecordedTest.drive_346
 
     def out_of_sight(self):

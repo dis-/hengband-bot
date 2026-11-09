@@ -28,8 +28,8 @@ from hengbot.input_executor import ScreenKind, classify_screen
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 FIXTURE = Path(__file__).parent / "fixtures" / "death-dump-prompt-20261030.json.gz"
 JAPANESE_PROMPT = "画面を保存しますか？[y/n]"

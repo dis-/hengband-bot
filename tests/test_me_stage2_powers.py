@@ -33,7 +33,7 @@ from hengbot.me_device_attacks_input import DeviceStep, compile_device
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from tests import test_me_mining_death_recorded as mining
-from tests.test_input_executor import command_screen
+from tests.support.recorded import command_screen
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
 

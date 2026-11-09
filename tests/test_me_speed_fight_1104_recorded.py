@@ -24,7 +24,7 @@ from hengbot.me_device_attacks import observe_lists
 from hengbot.model import parse_snapshot
 from tests import test_d57_me_combat_1101_recorded as combat
 from tests import test_d57_nav_depth_1101_recorded as nav
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_me_mining_death_recorded as mining_death
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests.test_magic_eater_o3 import prompt

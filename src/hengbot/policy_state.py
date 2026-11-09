@@ -297,6 +297,10 @@ def normalize_policy_state(restored, *, restart=False):
     # The town end's mining cycle (town_end_mining) postdates version 5.
     restored.__dict__.setdefault("_town_end_mining_cycle", None)
     restored.__dict__.setdefault("_town_end_mining_path", None)
+    # equipment_pack_loss postdates version 5.
+    restored.__dict__.setdefault("_equipment_pack_view", None)
+    restored.__dict__.setdefault("_equipment_transaction_lost", [])
+    restored.__dict__.setdefault("_equipment_transaction_losses", [])
     if not restart and restored.__dict__.get("_policy_state_version") == 5:
         return restored
     retire_strip_calibration_state(restored)

@@ -31,8 +31,8 @@ from hengbot import lamp_fuel, me_staff_sequence
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures" / "oil-full-lamp-20261031.json.gz"
 REFILL_REASONS = {"refill-light", "fundraise:refill-light"}
