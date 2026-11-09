@@ -2563,13 +2563,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_capability.py:cast_rows": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_capability.py:force_count": {
     "classification": "data",
     "rows": [

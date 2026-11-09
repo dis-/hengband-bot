@@ -16651,10 +16651,6 @@
     "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
     "evidence": "Data/selector result; no independent command or effect credit. pure selector: the floor and door cells out of the casters' fire (and the summon cells while the Ipsissimus live)."
   },
-  "me_capability.py:cast_rows": {
-    "classification": "data",
-    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the REPLACES cast rows for a target whose condition holds; read by me_absorbed_substitutes.item_cast_key."
-  },
   "me_powers_refresh.py:resume_read_key": {
     "classification": "producer",
     "rows": [
