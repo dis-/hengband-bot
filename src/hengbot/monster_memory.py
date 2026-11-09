@@ -45,8 +45,18 @@ class Kind:
     legacy: Callable | None = None
 
 
+def _one_turn_group(memory):
+    """sleeper_loot_block's shape before this module: (floor_key, {key: MonsterState}, turn)."""
+    if len(memory) == 3:
+        floor, blockers, turn = memory
+        return floor, {key: (monster, turn) for key, monster in blockers.items()}
+    return memory
+
+
 # The owners' memories.  Their predicates stay in the owners' modules.
 SLEEPER_REACH = Kind("_sleeper_reach_memory")
+# A group remembered together: every entry has the board that stored the group.
+LOOT_BLOCK = Kind("_sleeper_loot_block", legacy=_one_turn_group)
 
 
 def _stored(policy, kind: Kind):
@@ -64,6 +74,18 @@ def entries(policy, snapshot, kind: Kind) -> dict:
 
 def forget_floor(policy, kind: Kind) -> None:
     setattr(policy, kind.attribute, None)
+
+
+def put(policy, snapshot, kind: Kind, seen: dict) -> None:
+    """Set this floor's entries to ``seen`` ({(index, race): (MonsterState, turn)})."""
+    setattr(policy, kind.attribute, (snapshot.floor_key, seen))
+
+
+def store(policy, snapshot, kind: Kind, monsters) -> None:
+    """Remember exactly ``monsters`` at their cells on this board (what was remembered before
+    is replaced)."""
+    put(policy, snapshot, kind, {
+        (monster.index, monster.race_id): (monster, snapshot.turn) for monster in monsters})
 
 
 def expired(snapshot, turn: int) -> bool:

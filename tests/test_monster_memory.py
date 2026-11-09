@@ -97,5 +97,36 @@ class ObserveRememberedTest(unittest.TestCase):
         self.assertEqual(monster_memory.SLEEPER_REACH.attribute, "_sleeper_reach_memory")
 
 
+class LootBlockShapeTest(unittest.TestCase):
+    """sleeper_loot_block remembers a group with one turn; a policy pickled before
+    monster_memory holds (floor_key, {key: MonsterState}, turn) under the same attribute."""
+
+    def test_legacy_group_reads_as_entries(self):
+        policy = Policy()
+        orc = monster(3, 5, 9, asleep=True)
+        setattr(policy, "_sleeper_loot_block", (FLOOR, {(3, 7): orc}, 100))
+        restored = pickle.loads(pickle.dumps(policy))
+        kind = monster_memory.LOOT_BLOCK
+        self.assertEqual(kind.attribute, "_sleeper_loot_block")
+        self.assertEqual(monster_memory.entries(restored, board(101), kind), {(3, 7): (orc, 100)})
+        self.assertEqual(monster_memory.entries(restored, board(101, floor=OTHER_FLOOR), kind), {})
+
+    def test_holds_reads_the_legacy_shape(self):
+        from hengbot import sleeper_loot_block
+        policy = Policy()
+        orc = monster(3, 5, 9, asleep=True)
+        setattr(policy, sleeper_loot_block.MEMORY, (FLOOR, {(3, 7): orc}, 100))
+        self.assertTrue(sleeper_loot_block.holds(policy, board(101)))
+        self.assertFalse(sleeper_loot_block.holds(policy, board(101, [orc])))
+        self.assertFalse(sleeper_loot_block.holds(policy, board(101, floor=OTHER_FLOOR)))
+
+    def test_store_replaces_the_group(self):
+        policy = Policy()
+        kind = monster_memory.LOOT_BLOCK
+        monster_memory.store(policy, board(100), kind, [monster(3, 5, 9), monster(4, 6, 9)])
+        monster_memory.store(policy, board(120), kind, [monster(5, 7, 9)])
+        self.assertEqual(list(monster_memory.entries(policy, board(121), kind)), [(5, 7)])
+
+
 if __name__ == "__main__":
     unittest.main()
