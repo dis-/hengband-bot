@@ -72,6 +72,9 @@ NEWLY_COUNTED_1109 = frozenset({
     "combat:avoid-unprofitable-unique-stairs",
     "combat:avoid-unprofitable-unique-recall",
     "no-wait:escape-scroll",
+    # Owner 2026-11-09 (n1-a life-501) 「浅い階層で見かけたら逃げる」: new reasons, counted (rule A).
+    "shallow-paralyzer:stairs",
+    "shallow-paralyzer:scroll",
 })
 
 

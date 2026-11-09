@@ -44,7 +44,10 @@ class JunkSweepTakeAtEntranceTest(Visit):
     went on until the owner retirements (rows 16-31 of the record).
 
     Fix: the relief's filed take keeps Home first in the plan, as every
-    queued Home take does (``_next_required_store_type``).
+    queued Home take does (``_next_required_store_type``), and (owner
+    2026-11-09 「直して預け戻さない」, question 2) it is not an identification
+    withdrawal to the town-item processing: the take stays pending for the
+    sale instead of being deferred as a failed withdrawal.
 
     DECLARED WALL: the record predates C (a611ad3296, owner 2026-11-09
     「Q34 の武器は未鑑定で握らない」); with it the unidentified Q34 weapons wait
@@ -78,6 +81,18 @@ class JunkSweepTakeAtEntranceTest(Visit):
         self.assertEqual(reason, "home-errand:atomic-withdraw:full-home-sale")
         self.assertTrue(key.startswith("5"), key)
         self.assertEqual(self.policy._shopping_approach_store_type, STORE_HOME)
+
+    def test_the_sweep_take_is_no_failed_identification_withdrawal(self):
+        self.replay_to(17)
+        dagger = self.policy._home_full_relief["sale"][0]
+        self.assertEqual(self.policy._home_pending_item, dagger)
+        _board, key, reason = self.decide(17)
+        # Before (e644cfe8b3): the town-item processing deferred the dagger
+        # (home:withdraw-failed-deferred) and dropped the pending take.
+        self.assertNotIn(dagger, self.policy._deferred_home_items)
+        self.assertEqual(self.policy._home_pending_item, dagger)
+        self.assertEqual(self.policy._home_full_relief["sale"][0], dagger)
+        self.assertEqual(reason, "home-errand:atomic-withdraw:full-home-sale")
 
 
 class RefusedDepositAwaitBesideSleeperTest(Visit):

@@ -118,6 +118,13 @@ def free_action(raw):
         "equipment": True, "permanent": False, "temporary": False}
 
 
+def at_depth(level):
+    """DECLARED CONSTRUCTED: the floor's depth."""
+    def change(raw):
+        raw["floor"]["level"] = level
+    return change
+
+
 def move_monster(race_id, y, x):
     """DECLARED CONSTRUCTED: the monster and its map mark at (y, x)."""
     def change(raw):
@@ -342,10 +349,24 @@ class SpellParalyserRecordedTest(DeathsRecordedHarness):
         self.assertEqual(key, "r" + letter(raw, *TELEPORT))
 
     def test_behind_the_wall_it_is_not(self):
-        # DECLARED CONSTRUCTED: the クトーニアン past the corridor's wall, no clear line.
+        # DECLARED CONSTRUCTED: the クトーニアン past the corridor's wall, no clear line; the
+        # floor at the Free Action depth (20F), where the shallow rule of 2026-11-09 (n1-a
+        # life-501 「浅い階層で見かけたら逃げる」) does not apply.
+        moved = at_turn(1623935, move_monster(CHTHONIAN, 24, 104))
+        deeper = at_depth(20)
+
+        def change(raw):
+            moved(raw)
+            deeper(raw)
+        policy, answers = self.replay("life-346", 1623935, change)
+        self.assertEqual(answers[1623935][2], "melee")
+
+    def test_behind_the_wall_on_the_recorded_19f_it_is_left_at_sight(self):
+        # DECLARED CONSTRUCTED: as above, on the recorded 19F: above the Free Action depth the
+        # クトーニアン in view is left at sight by the up stairs the player stands on.
         policy, answers = self.replay("life-346", 1623935,
                                       at_turn(1623935, move_monster(CHTHONIAN, 24, 104)))
-        self.assertEqual(answers[1623935][2], "melee")
+        self.assertEqual(answers[1623935][1:], ("<", "shallow-paralyzer:stairs"))
 
     def test_free_action_keeps_it_no_paralyser(self):
         policy, answers = self.replay("life-346", 1623935, from_turn(1623935, free_action))

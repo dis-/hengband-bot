@@ -143,6 +143,10 @@ _rows(RELOCATING, "policy", _RULE_DUNGEON,
 # 'Rejecting an idle turn'), a read like flee:scroll / threat:scroll above
 _rows(RELOCATING, "policy_combat", _RULE_DUNGEON, "no-wait:escape-scroll")
 _rows(RELOCATING, "policy_combat", _RULE_ALL, "breeder-breakthrough:ascend", "breeder-breakthrough:recall")
+# Owner 2026-11-09 (n1-a life-501) 「浅い階層で見かけたら逃げる」: the paralyser rung's leave at sight
+# above the Free Action depth requirement (policy_combat._paralyzer_prevention_key,
+# paralyzer_contact.SHALLOW_SIGHT_REASON_PREFIX); counted as the status-threat relocations are.
+_rows(RELOCATING, "policy_combat", _RULE_ALL, "shallow-paralyzer:stairs", "shallow-paralyzer:scroll")
 
 # ================================================================ relocations not counted
 _rows(EXCLUDED, "destruction_use",

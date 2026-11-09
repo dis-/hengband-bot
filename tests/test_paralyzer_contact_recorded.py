@@ -46,23 +46,27 @@ class ParalyzerContactRecordedTest(executor_pins.ProductionHarness):
             cls.case = json.load(stream)
         cls.monraces = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
-    def raw(self, turn, *, scrolls=True):
+    def raw(self, turn, *, scrolls=True, depth=None):
         raw = copy.deepcopy(next(b for b in self.case["boards"] if b["turn"] == turn))
+        if depth is not None:
+            # DECLARED CONSTRUCTED: the floor's depth (the guard below the shallow rule).
+            raw["floor"]["level"] = depth
         if not scrolls:
             raw["inventory"] = [item for item in raw["inventory"]
                                 if item.get("tval") != 70]
         return raw
 
-    def decide(self, *, locust_speed=None, scrolls=True):
+    def decide(self, *, locust_speed=None, scrolls=True, depth=None):
         """Prime on the recorded recall wait, then decide the death board."""
         knowledge = dict(self.monraces)
         if locust_speed is not None:
             knowledge[LANGOSTA] = dataclasses.replace(knowledge[LANGOSTA], speed=locust_speed)
         policy = HengbotPolicy(monrace_knowledge=knowledge)
-        policy.prime(parse_snapshot(self.raw(WAIT_TURN, scrolls=scrolls), knowledge))
+        policy.prime(parse_snapshot(self.raw(WAIT_TURN, scrolls=scrolls, depth=depth),
+                                    knowledge))
         keys = []
         for turn in (WAIT_TURN, DEATH_TURN):
-            raw = self.raw(turn, scrolls=scrolls)
+            raw = self.raw(turn, scrolls=scrolls, depth=depth)
             skill = self.case["skill"]
             policy.consume_skill_knowledge(dict(
                 copy.deepcopy(skill), turn=raw["turn"],
@@ -122,8 +126,19 @@ class ParalyzerContactRecordedTest(executor_pins.ProductionHarness):
     def test_equal_speed_paralyzer_two_cells_away_lets_the_fight_finish(self):
         # One action per player action: it can only step beside us, so the
         # adjacent kobold fight continues ("finish the fight already in contact").
-        policy, keys = self.decide(locust_speed=110)
+        # DECLARED CONSTRUCTED: at the Free Action depth (20F), where the shallow
+        # rule of 2026-11-09 does not apply.
+        policy, keys = self.decide(locust_speed=110, depth=20)
         self.assertEqual((keys[1], policy.last_reason), ("6", "melee"))
+
+    def test_on_the_recorded_16f_the_equal_speed_paralyzer_is_left_at_sight(self):
+        # Owner 2026-11-09 (n1-a life-501) 「浅い階層で見かけたら逃げる」: above 20F the
+        # locust in view is left by a Teleportation scroll though it is not in contact.
+        policy, keys = self.decide(locust_speed=110)
+        raw = self.raw(DEATH_TURN)
+        slot = next(item["slot"] for item in raw["inventory"]
+                    if (item.get("tval"), item.get("sval")) == (70, SV_TELEPORT))
+        self.assertEqual((keys[1], policy.last_reason), ("r" + slot, "shallow-paralyzer:scroll"))
 
 
 if __name__ == "__main__":

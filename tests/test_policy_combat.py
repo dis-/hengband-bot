@@ -5727,14 +5727,32 @@ class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
         # Owner 2026-11-03 「階段が隣などとても近くにある場合を除き徒歩での逃走は絶対に
         # 間に合わない。」: the recorded Homunculus (speed +0) keeps pace with a walk
         # (paralyzer_contact.follows_walk).
+        # DECLARED CONSTRUCTED: the floor at the Free Action depth (20F; recorded 19F), where
+        # the shallow rule of 2026-11-09 (n1-a life-501) does not answer first.
         policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
 
-        key = policy.choose_key(self.snapshots[3305937])
+        key = policy.choose_key(self._at_depth(self.snapshots[3305937], 20))
 
         self.assertEqual(key, "re")
         self.assertEqual(policy.last_reason, "status-threat:scroll")
 
     def test_distance_two_slower_paralyzer_keeps_non_scroll_decision(self):
+        policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
+        board = self._at_depth(self.snapshots[3305937], 20)
+        # DECLARED CONSTRUCTED: the Homunculus slower than the player; the floor at 20F as above.
+        board = replace(board, visible_monsters=[
+            replace(monster, speed=100) if monster.race_id == 280 else monster
+            for monster in board.visible_monsters
+        ])
+
+        key = policy.choose_key(board)
+
+        self.assertEqual(key, "qb")
+        self.assertEqual(policy.last_reason, "emergency:quaff-speed")
+
+    def test_on_the_recorded_19f_a_slower_paralyzer_in_view_is_left_at_sight(self):
+        # Owner 2026-11-09 (n1-a life-501) 「浅い階層で見かけたら逃げる」: above 20F, outside
+        # quests, the Homunculus in view is left by the Teleportation scroll however slow.
         policy = HengbotPolicy(monrace_knowledge=self.KNOWLEDGE)
         board = self.snapshots[3305937]
         # DECLARED CONSTRUCTED: the Homunculus slower than the player.
@@ -5745,8 +5763,11 @@ class RecordedAdjacentParalyzerEscapeTest(unittest.TestCase):
 
         key = policy.choose_key(board)
 
-        self.assertEqual(key, "qb")
-        self.assertEqual(policy.last_reason, "emergency:quaff-speed")
+        self.assertEqual((key, policy.last_reason), ("re", "shallow-paralyzer:scroll"))
+
+    @staticmethod
+    def _at_depth(board, depth):
+        return replace(board, floor_key=(board.floor_key[0], depth, board.floor_key[2]))
 
 
 class ConsumableTest(unittest.TestCase):
