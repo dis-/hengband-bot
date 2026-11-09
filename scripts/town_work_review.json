@@ -16280,7 +16280,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. tiered's computation: assess, then the decided side held where the reading is the engagement's own (owner 2026-11-08 「境に余裕を持たせる」); not an independently selected game action"
   },
-  "threat_tiers.py:decided": {
+  "threat_tier_memory.py:decided": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16291,7 +16291,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. the engagement's reading with its decided side held and the per-monster memory updated (owner 2026-11-08 「境に余裕を持たせる」); lifts the retreat veto of a side turned to fight; no command, no key"
   },
-  "threat_tiers.py:held_tier": {
+  "threat_tier_memory.py:held_tier": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16302,7 +16302,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the tier after a reading, each tier boundary crossed only by the reading's reserve (the hold's band); read by decided only, never a key"
   },
-  "threat_tiers.py:_as_held": {
+  "threat_tier_memory.py:_as_held": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16313,7 +16313,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the reading with the held tier (a T2 held over a T3 reading spends nothing); read by decided only, never a key"
   },
-  "threat_tiers.py:_tier_memory": {
+  "threat_tier_memory.py:_tier_memory": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

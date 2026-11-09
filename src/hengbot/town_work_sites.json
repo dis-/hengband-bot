@@ -11870,7 +11870,28 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_as_held": {
+  "threat_tier_memory.py:_as_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tier_memory.py:_tier_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tier_memory.py:decided": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tier_memory.py:held_tier": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11891,13 +11912,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_tier_memory": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "threat_tiers.py:assess": {
     "classification": "data",
     "rows": [
@@ -11906,20 +11920,6 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:cannot_win": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:decided": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:held_tier": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
