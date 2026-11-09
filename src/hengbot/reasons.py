@@ -121,6 +121,9 @@ _rows(RELOCATING, ("threat_tiers", "threat_escape"), _RULE_ALL,
 _rows(RELOCATING, ("policy", "policy_combat"), _RULE_ALL + "; owner 2026-11-09 「ダンジョンの分だけ数える」",
       "summoner:stairs")
 _rows(RELOCATING, "policy", _RULE_ALL, "summoner:stairs-quest-fail")
+# the Anaguma pocket's escape read (anaguma._escape_key): walking out of the pocket is never the
+# escape, the read is (owner 2026-11-10 「今の基準のまま」)
+_rows(RELOCATING, "anaguma", _RULE_ALL, "anaguma:escape-scroll")
 # the summoner hold's teleport (summoner_wait.HOLD_TELEPORT_REASON)
 _rows(RELOCATING, "summoner_wait", _RULE_ALL, "summoner:hold-teleport")
 # the answer to the summons (summon_response) and the no-chance Resistance leave (resist_potion)
@@ -287,6 +290,9 @@ _rows(None, ("policy_combat", "policy", "magic_eater", "me_device_attacks", "me_
       "quest-strategy:throw-never-move-blocker", "quest-strategy:throw-torch", "quest25:shot",
       "summoner:ranged-kill", "summoner:ranged-kill:can-summon", "summoner:ranged-kill:named-caster",
       "supply-fight:aim-wand", "supply-fight:fire-good-ammo", "supply-fight:read-attack-scroll",
+      attack=True)
+# The Anaguma pocket's blows and its area attack into the mouth (anaguma, owner 2026-11-10).
+_rows(None, "anaguma", _RULE_ATTACK, "melee:anaguma", "melee:anaguma-close", "ranged:anaguma-close-area",
       attack=True)
 # Escape-vocabulary attacks: their kind is no escape, their action strikes.
 _rows(WALK, ("combat_answer", "blind_strike", "policy_quest", "speed_dose"), _RULE_ATTACK + " (cornered)",

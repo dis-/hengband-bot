@@ -66,6 +66,7 @@ from hengbot.policy import (
 # After hengbot.policy: threat_tiers' dependencies import through it (a cycle otherwise).
 from hengbot import threat_tiers
 from hengbot import spectator_threat
+from hengbot.anaguma import STATIONARY as ANAGUMA_STATIONARY
 from hengbot.town_hold import SURVIVAL_REASON_PREFIXES
 from hengbot.policy_constants import (
     DIRECTION_DELTAS,
@@ -466,6 +467,10 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         # Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).
         "summoner:hold-choke",
         "detected:hold-choke",
+        # The Anaguma pocket (owner 2026-11-10): the uses of Stone to Mud from one cell, the hold
+        # on the pocket (bounded by anaguma.WAIT_GAME_TURNS without contact, then a detection
+        # and the plan's end), the detection and the absorbed Speed of the close-in.
+        *ANAGUMA_STATIONARY,
         "quest-strategy:hold",
         # Resting on a quest search's cast stop until the detection spacing comes
         # (quest_target_search._redetect_wait): bounded by HUNT_REDETECT_GAME_TURNS

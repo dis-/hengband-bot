@@ -596,3 +596,31 @@ What follows from the decisions:
   - no diggable terrain;
   - a fixed quest, town or the wilderness.
 - **One escape path.** The rungs above it still preempt it when they apply.
+
+---
+
+## 10. Implementation notes (2026-11-10)
+
+Code:
+- `src/hengbot/anaguma_geometry.py`: the zigzag of 2.3.
+- `src/hengbot/anaguma.py`: the rung (`dungeon_ladder` floor-avoidance layer, before `_detected_threat_preparation_key`).
+- `src/hengbot/wand_tower_recharge.py`: the stock answer.
+
+What the code does where the design left a detail open:
+- **Unknown rock.** From a corridor the board shows only the first layer of rock. A plan presumes unknown grids to be rock. Each cell is checked again when it opens or is about to be melted. When the presumption fails, the player holds on the cell where it stands if that cell is a pocket; otherwise the plan ends (`dig-refused`).
+- **The pack.** Two or more hostiles of one `FRIENDS` race (not `NEVER_MOVE`), in view or detected, with at least one awake. Breeders that are not `FRIENDS` are left to the breeder rules.
+- **No plan is started** in these cases:
+  - a pack member is already adjacent;
+  - the existing flee test (`_should_flee`) already leaves;
+  - any hostile on the board passes or kills walls;
+  - the usable charges are below the base length.
+  The start cell is within 8 walking steps and no closer to the pack than the player is now. The arrival time is the nearest awake member's path length to the start cell (unknown grids count as floor) divided by the fastest member's moves per player move.
+- **Waiting.** In the hold, the 50 game turns restart on every contact: a monster on the mouth, or a hit taken. After them, one detection is tried:
+  - a carried rod of Detection;
+  - a staff of Detect Evil, for an evil pack;
+  - the absorbed power of either.
+  Then:
+  - an animal pack with exactly one member known gets the close-in;
+  - members still known get one more wait of 50 game turns;
+  - otherwise the plan ends.
+- **Close-in.** The area attack is an absorbed or carried ball or breath aimed in the direction of the mouth, whose blast reaches the animal (`breeder_area_attack` geometry). The haste is the Magic-Eater's absorbed Speed only. The chase moves outward along the tunnel and ends on its start cell.
