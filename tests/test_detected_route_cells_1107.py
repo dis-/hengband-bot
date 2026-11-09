@@ -14,6 +14,10 @@ choose_key from the first recorded board).
 DECLARED CONSTRUCTED: a detected (out of view) 洞窟オーク added on the corridor 4 cells
 away, or beside the player.  The life-492 boards are not replayed: a fresh policy started
 inside the capture does not have the loot memory the live bot walked with.
+DECLARED WALL: ニーベルング族の王『アルベリヒ』 (race 419) was shown awake beside the player at
+turn 1835600 and is out of sight on the board; owner 2026-11-09 「起きた敵も最後の位置を覚える」
+keeps it at its last cell (sleeper_reach_memory, sleeper_loot_block), which refuses the loot.
+These pins are about the detected orc's cell, so that memory is walled off after the replay.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -23,6 +27,7 @@ import lzma
 from pathlib import Path
 import unittest
 
+from hengbot import sleeper_loot_block, sleeper_reach_memory
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -51,6 +56,9 @@ class DetectedRouteCellsTest(unittest.TestCase):
             key, _reason = cls.decide(policy, raw)
             if key:
                 policy.confirm_key_posted(key)
+        # DECLARED WALL (module docstring): the remembered awake Alberich.
+        setattr(policy, sleeper_reach_memory.MEMORY, None)
+        setattr(policy, sleeper_loot_block.MEMORY, None)
         cls.before = policy
 
     @classmethod

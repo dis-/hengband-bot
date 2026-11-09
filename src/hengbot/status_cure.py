@@ -49,9 +49,27 @@ restores HP (``cure_potion``).  Cure Critical Wounds is still no HP recovery:
 this only reorders the blindness cures.  Below the low-HP threshold a carried
 HP recovery potion goes before the Speed dose (owner 2026-11-04 「低い時は体力
 回復が先」).
+
+Confused again right after a cure, on the 即死 board (owner 2026-11-09, question D
+of n1-b life-350: 「加速できていなければ加速を先に使う。HPが減っている時は体力回復を
+優先。」).  迷宮15階: the アンバーハルク's gaze (GAZE:CONFUSE) confused the player
+again on the board after each Cure Critical Wounds -- the board showed the cure's
+「やっと混乱がおさまった。」 (status/bad-status-setter.cpp:147) and the player
+confused -- and HP 196 went 168, 77, 23, dead, with two Potions of Healing
+carried.  Confused, no scroll is read (cmd-read.cpp:37 cmd_limit_confused) and no
+absorbed power cast (cmd-magiceat.cpp:463); a potion is quaffed (cmd-quaff.cpp and
+ObjectQuaffEntity have no confusion refusal), so the Speed dose is the potion
+(speed_dose.key: the absorbed Speed is refused while confused,
+me_staff_sequence.cast_blocked).  Such a board latches the confusion
+(``confusion_relapsed``) until the player is clear or leaves the floor.  There the
+emergency ladder's cure (``instant_death``, threat tiers 3.1) takes the Speed dose
+first when not hasted, and cures with the HP recovery potion when HP is down -- the
+11-04 line of 「体力が減っている」 (a loss of at least 1/3 of max HP,
+``_heavy_loss``); below the low-HP threshold with such a potion carried it goes
+before the Speed dose, as for blindness (owner 2026-11-04 「低い時は体力回復が先」).
 """
 
-from hengbot import blind_strike, me_absorbed_substitutes, me_capability, unseen_strike
+from hengbot import blind_strike, me_absorbed_substitutes, me_capability, speed_dose, unseen_strike
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
@@ -64,6 +82,11 @@ from hengbot.policy_constants import REST_MACRO
 
 
 SIGHT_RESTORED = frozenset({"やっと目が見えるようになった。", "You can see again."})
+# status/bad-status-setter.cpp:147 (set_confusion, the confusion ending).
+CONFUSION_ENDED = frozenset({"やっと混乱がおさまった。", "You feel less confused now."})
+_CONFUSION_PENDING = "_confusion_cure_turn"     # (floor, turn) of the last confusion cure
+_CONFUSION_LATCH = "_confusion_relapse_floor"    # floor whose confusion came back after a cure
+RELAPSE_SPEED_REASON = "emergency:reconfused-speed"
 BLINDED = "目が見えなくなってしまった！"   # status/bad-status-setter.cpp set_blindness
 _PENDING = "_blind_cure_turn"         # (floor, turn) of the last blindness cure
 _LATCH = "_blind_cure_futile_floor"   # floor whose current blindness is not cured
@@ -109,8 +132,29 @@ def attacker_gone(policy, snapshot) -> bool:
     return getattr(policy, _ATTACKER, None) != snapshot.floor_key
 
 
+def _observe_confusion(policy, snapshot) -> None:
+    """Latch the confusion when the board after a cure shows it ended and back again."""
+    player = snapshot.player
+    if not player.confused or getattr(policy, _CONFUSION_LATCH, None) != snapshot.floor_key:
+        setattr(policy, _CONFUSION_LATCH, None)
+    pending = getattr(policy, _CONFUSION_PENDING, None)
+    if pending is None or snapshot.turn <= pending[1]:
+        return
+    setattr(policy, _CONFUSION_PENDING, None)
+    if (pending[0] == snapshot.floor_key and player.confused
+            and any(message in CONFUSION_ENDED for message in snapshot.messages)):
+        setattr(policy, _CONFUSION_LATCH, snapshot.floor_key)
+
+
+def confusion_relapsed(policy, snapshot) -> bool:
+    """Confused again on the board right after a confusion cure, on this floor."""
+    return snapshot.player.confused and getattr(policy, _CONFUSION_LATCH, None) == snapshot.floor_key
+
+
 def observe(policy, snapshot) -> None:
-    """Latch the blindness when the board after a cure shows it again."""
+    """Latch the blindness when the board after a cure shows it again; the same
+    for the confusion."""
+    _observe_confusion(policy, snapshot)
     _observe_attacker(policy, snapshot)
     player = snapshot.player
     if not player.blind or getattr(policy, _LATCH, None) != snapshot.floor_key:
@@ -184,9 +228,11 @@ def treats(policy, snapshot, *, blind_only: bool = False) -> bool:
 
 
 def note_cure(policy, snapshot) -> None:
-    """A status cure was chosen: remember a blindness cure for the next board."""
+    """A status cure was chosen: remember a blindness or confusion cure for the next board."""
     if snapshot.player.blind:
         setattr(policy, _PENDING, (snapshot.floor_key, snapshot.turn))
+    if snapshot.player.confused:
+        setattr(policy, _CONFUSION_PENDING, (snapshot.floor_key, snapshot.turn))
 
 
 def low_hp_heal(policy, snapshot, hostiles, *, observed_loss):
@@ -223,11 +269,24 @@ def _hp_recovery_cure(policy, snapshot):
     return None
 
 
-def speed_first_key(policy, snapshot) -> str | None:
+def _relapse_on_instant_death(policy, snapshot, instant_death: bool) -> bool:
+    """Owner 2026-11-09 D: confused again right after a cure, on the 即死 board."""
+    return instant_death and confusion_relapsed(policy, snapshot)
+
+
+def speed_first_key(policy, snapshot, *, instant_death: bool = False) -> str | None:
     """Blind from an unseen caster's heavy hit, not hasted: the Speed dose
-    before the cure (the next decision cures).  None otherwise, and below the
-    low-HP threshold with an HP recovery potion carried: that potion is first."""
+    before the cure (the next decision cures).  Confused again right after a
+    cure on the 即死 board (``instant_death``, owner 2026-11-09 D), not hasted:
+    the same.  None otherwise, and below the low-HP threshold with an HP
+    recovery potion carried: that potion is first."""
     player = snapshot.player
+    if _relapse_on_instant_death(policy, snapshot, instant_death):
+        if ((player.hp < policy._low_hp_walk_threshold(player.max_hp)
+             and _hp_recovery_cure(policy, snapshot) is not None)
+                or policy._player_hasted(snapshot)):
+            return None
+        return speed_dose.key(policy, snapshot, RELAPSE_SPEED_REASON)
     if (not player.blind
             or not _heavy_loss(policy._attributable_observed_loss(snapshot), player.max_hp)
             or (player.hp < policy._low_hp_walk_threshold(player.max_hp)
@@ -236,18 +295,21 @@ def speed_first_key(policy, snapshot) -> str | None:
     return unseen_strike.spell_speed_key(policy, snapshot)
 
 
-def _hp_recovery_first(policy, snapshot) -> bool:
+def _hp_recovery_first(policy, snapshot, *, instant_death: bool = False) -> bool:
     """Blind and heavily hurt with an HP recovery potion carried: that potion
-    is the cure (owner 2026-11-04)."""
+    is the cure (owner 2026-11-04); confused again right after a cure on the
+    即死 board and heavily hurt, the same (owner 2026-11-09 D)."""
     player = snapshot.player
-    return (player.blind and _heavy_loss(player.max_hp - player.hp, player.max_hp)
+    return ((player.blind or _relapse_on_instant_death(policy, snapshot, instant_death))
+            and _heavy_loss(player.max_hp - player.hp, player.max_hp)
             and _hp_recovery_cure(policy, snapshot) is not None)
 
 
-def cure_potion(policy, snapshot):
+def cure_potion(policy, snapshot, *, instant_death: bool = False):
     """The potion for the treated status: blind and heavily hurt, the cheapest
-    carried HP recovery potion; otherwise the cheap cure first."""
-    if _hp_recovery_first(policy, snapshot):
+    carried HP recovery potion (also confused again on the 即死 board,
+    ``instant_death``); otherwise the cheap cure first."""
+    if _hp_recovery_first(policy, snapshot, instant_death=instant_death):
         return _hp_recovery_cure(policy, snapshot)
     return policy._find_status_cure_potion(snapshot)
 

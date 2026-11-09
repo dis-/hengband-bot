@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sleeper_reach_memory, town_pack_headroom, walkout_dig
+from hengbot import combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, threat_tiers, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip
@@ -2655,6 +2655,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Class 16: the displayed absorbed-device lists and the last power use.
         haste_read.observe(self, snapshot)
         me_powers.observe(self, snapshot)
+        sent_away_t1.observe(self, snapshot)
         me_powerful_activation.observe(self, snapshot)
         spare_gear.observe(self, snapshot)
         armor_smith.observe(self, snapshot)
@@ -7658,6 +7659,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # only once the emergency ladder above has declined: survival first.
         threat_power = me_powers.threat_key(self, snapshot)
         if threat_power is not None:
+            # Owner 2026-11-09 E: a T1 sent away is remembered; its vanishing returns to town.
+            sent_away_t1.note(self, snapshot)
             return threat_power
 
         item_destroying_breeder_exit = self._town_producer_entry(
@@ -8176,8 +8179,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
                 self.last_reason = "flee"
                 return self._town_producer_entry("_step_toward:escape", lambda: self._step_toward(snapshot, step), family="escape")
-            # Cornered: try a relocation scroll before anything desperate.
-            if (used := destruction_use.key(self, snapshot)) is not None:
+            # Cornered: try a relocation scroll before anything desperate.  A leave the tiers
+            # decided (T1) is the owner's 2026-11-09 B case: *Destruction* need not see the
+            # threat awake (destruction_use.key leaving).
+            if (used := destruction_use.key(self, snapshot, leaving=threat_tiers.engagement(
+                    self, snapshot) if tiers_leave else None)) is not None:
                 return used
             scroll = self._escape_scroll(snapshot)
             if scroll is not None:
@@ -9762,6 +9768,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Not while the hostiles can kill within the three shots.
         if self._predicted_damage(snapshot, hostiles, turns=3) >= snapshot.player.hp:
             return None
+        # Owner 2026-11-09 C 「T1では撃たず離れる」 (n1-b life-350, 迷宮15階: three shots at a
+        # ミ=ゴウ in a T1 engagement, then the Umber hulk's gaze): outside quests, a T1 engagement
+        # (threat_tiers.cannot_win, the owner's 11-08 「勝てないと分かれば離脱」) is left by the
+        # tiers' leave below instead.  T2 and T3 shoot as before.
+        if snapshot.floor_key[2] == 0 and threat_tiers.leave_decided_here(self, snapshot):
+            engaged = threat_tiers.engagement(self, snapshot)
+            if engaged and threat_tiers.cannot_win(
+                    threat_tiers.tiered(self, snapshot, engaged), snapshot.player.hp):
+                return None
         # The quickest kill with a clear shot: a body on another's bolt path
         # takes the arrow instead (_ranged_attack_key refuses that shot).
         for _shots, target in sorted(
@@ -16443,7 +16458,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if route is not None and route[0] != snapshot.floor_key:
             self._release_claim_goal("choke-floor-changed", route[1], owners=("positioning",))
             self._detected_threat_route = route = None
-        if visible_hostiles:
+        # A hostile in view hands the episode to the visible-monster channel.  A
+        # sleeper does not: it does not converge, the visible channel owns no
+        # board of it the walkers do not (its reach is the routes' veto in and
+        # out of sight, sleeper_reach_memory), and its sight's edge flipped the
+        # owner every step.  n1-b life-355 (Angband 71F, 2026-11-09 04:01): a
+        # sleeping 石ドラゴン (race 1048) shown at (35,118) released the retreat
+        # from a detected pack of フローラのアイリッシュ犬 and seek-loot stepped
+        # '3' to (36,119), out of its sight, where the retreat stepped '7' back,
+        # until the loop detector -- the fourth stop of this owner-pair shape
+        # (09-23 committed, 10-02 quest plan, 10-23 no covered cell below).
+        if any(not monster.asleep for monster in visible_hostiles):
             self._detected_threat_hold = None
             self._detected_threat_hold_position = None
             if route is not None:
@@ -17342,17 +17367,23 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         「眠っている敵でも強い敵からは離れる」)."""
         player = snapshot.player.position
         cells: set[Position] = set()
-        # A sleeper out of sight is judged at its last shown cell (sleeper_reach_memory,
-        # n1-b life-348 Orc cave 23F: one step out of sight the explore walked back).
-        for monster in (*self._strategic_hostiles(snapshot),
-                        *sleeper_reach_memory.remembered(self, snapshot)):
+        # A hostile out of sight is judged at its last shown cell as a sleeper is
+        # (sleeper_reach_memory, n1-b life-348 Orc cave 23F: one step out of sight the
+        # explore walked back; owner 2026-11-09 「起きた敵も最後の位置を覚える」: an awake one
+        # too, also a latched status threat, n1-b life-346 Angband 18F's ゲイザー).
+        remembered = sleeper_reach_memory.remembered(self, snapshot)
+        unseen = {id(monster) for monster in remembered}
+        for monster in (*self._strategic_hostiles(snapshot), *remembered):
+            out_of_sight = id(monster) in unseen
             if (immobile_threat_memory.ringed(self, monster)
                     or immobile_threat_memory.fought_normally(self, snapshot, monster)
-                    or not self._material_melee_damage(snapshot, monster)):
+                    or not (self._material_melee_damage(snapshot, monster)
+                            or out_of_sight and sleeper_reach_memory.status_latched(
+                                self, snapshot, monster))):
                 continue
             distance = player.distance_to(monster.position)
             if distance <= HUNT_RANGE:
-                if not monster.asleep:
+                if not monster.asleep and not out_of_sight:
                     return frozenset()
                 reach = distance - 1
                 cells.update(

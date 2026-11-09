@@ -12,6 +12,9 @@ The rule is owner 11-01 survival2 question 2 「3発以内」: a shot that canno
 reach the summoner is not that kill, so the next rung answers the board.
 DECLARED CONSTRUCTED: AimedRecordedTest takes the body off the bolt path of the
 recorded board, so the named summoner has a clear shot past an adjacent hostile.
+Owner 2026-11-09 C 「T1では撃たず離れる」: at the recorded HP 843 that engagement reads T1
+and is left (flee:scroll), so the aim is checked with the HP raised to 1500 (DECLARED
+CONSTRUCTED), where it is no T1 and the shots stand as before.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -70,9 +73,20 @@ class SummonerShotRecordedTest(unittest.TestCase):
         self.assertEqual((key, reason), ("8", "melee"))  # the ghoul beside the player
 
 
+def sturdier(change):
+    def changed(raw):
+        change(raw)
+        raw["player"]["hp"] = raw["player"]["max_hp"] = 1500
+    return changed
+
+
 class AimedRecordedTest(unittest.TestCase):
-    def test_clear_summoner_is_aimed_past_the_nearer_hostile(self):
+    def test_a_t1_engagement_leaves_instead_of_aiming(self):
         raw, key, reason = replay(until=CROWDED, change=without_body_at(-1, 0))
+        self.assertEqual(reason, "flee:scroll")
+
+    def test_clear_summoner_is_aimed_past_the_nearer_hostile(self):
+        raw, key, reason = replay(until=CROWDED, change=sturdier(without_body_at(-1, 0)))
         self.assertEqual(reason, "summoner:ranged-kill")
         self.assertRegex(key, r"^f.\*p[1-9]+t5\x1b$")
         cursor = key[key.index("p") + 1:key.index("t")]

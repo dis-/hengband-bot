@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
+from hengbot import town_pack_headroom
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -292,6 +293,14 @@ class SupplyMixin:
         if (oil is None or not oil.obtainable or not oil.stores
                 or oil.count >= oil.required_departure):
             return None
+        if town_pack_headroom.organizing(self, snapshot):
+            # The shelf refused the light buy for a slot and started the
+            # inventory pass (make_room_for_refused_purchase): its shelving
+            # walk goes first, or the walk re-enters the shop that refuses
+            # (n1-c life-172 2026-11-08 20:12, town:blocked:owner-retired-burst).
+            relief = town_pack_headroom.key(self, snapshot)
+            if relief is not None:
+                return relief
         step = self._shopping_approach_step(snapshot, oil.stores[0], requester="survival")
         if step is None:
             return None
@@ -1638,9 +1647,7 @@ class SupplyMixin:
         # Only a NEARBY threat defers the gate: a monster merely visible across
         # the floor may never engage at all, and waiting on it indefinitely is
         # how eating gets starved out of the schedule.
-        near_hostiles = [
-            monster for monster in hostiles if monster.distance <= 4
-        ]
+        near_hostiles = self._starvation_near_hostiles(hostiles)
         food = None if light_exit else self._find_edible(snapshot)
         if snapshot.in_town:
             if food is not None:
@@ -1701,6 +1708,26 @@ class SupplyMixin:
             self._declare_reach(step_target)
             return self._step_toward(snapshot, step)
         return None
+
+    @staticmethod
+    def _starvation_near_hostiles(hostiles: list[MonsterState]) -> list[MonsterState]:
+        """The hostiles that defer the starvation gate's eat (a fight comes first)."""
+        return [monster for monster in hostiles if monster.distance <= 4]
+
+    def _hunger_meal_due(self, snapshot: Snapshot) -> bool:
+        """The dungeon starvation gate eats on this board (``_survival_gate_key``'s eat).
+
+        Hungry, something edible, and no hostile near unless already fainting.  A floor
+        plan that returns above the gate steps aside for it (quest_find_exit
+        .steps_aside_for_food).
+        """
+        player = snapshot.player
+        if snapshot.in_town or not player.hungry:
+            return False
+        if (self._starvation_near_hostiles(self._physical_hostiles(snapshot))
+                and not player.fainting):
+            return False
+        return self._find_edible(snapshot) is not None
 
     def _starvation_lets_quest_finish(self, snapshot: Snapshot) -> bool:
         """Nothing edible, yet a one-shot quest that locks the exit is finished first.

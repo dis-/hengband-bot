@@ -1771,7 +1771,7 @@ def _summons(policy, snapshot) -> str | None:
 def key(policy, snapshot) -> str | None:
     """The board on the Q25 floor while the revised plan runs; None leaves it shared."""
     ctx = _ctx(policy, snapshot)
-    if (ctx is None or snapshot.player.food_state in quest_find_exit.STARVING
+    if (ctx is None or quest_find_exit.steps_aside_for_food(policy, snapshot)
             or once_quest_recall._deliberate_leave(policy, snapshot)):
         return None
     _observe(ctx)

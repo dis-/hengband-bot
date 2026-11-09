@@ -944,6 +944,58 @@ STATUS_THREAT_RELOCATION_REASONS = frozenset(
     }
 )
 
+# Owner 2026-11-09 (question A of the n1-b deaths life-355/350/346, 「全部の逃げを数える」:
+# 「テレポート・フェイズ・階段など、敵から離れるために使った逃げは理由を問わず数え、2回で帰還
+# する（歩いての後退は数えない）。」): every relocating escape from enemies joins the per-dive
+# emergency count the way the status-threat relocations above do -- once its effect is observed
+# (a new position or floor), the second of a dive returns to town.  A walking retreat
+# (flee, sensed-t1:walk, summoner:retreat, ...) never counts.  Not here, deliberately:
+# EMERGENCY_ESCAPE_REASONS (counted at the read already); emergency:destruction (owner 2026-11-04
+# 「破壊の回数だけでは帰還しない」, it removes the enemies rather than leaving them);
+# me-power:*:teleport-away (it moves the enemy); esp-threat:leave-* (a town return already, and
+# over_extension's answer 6 keeps it uncounted); the quest plans' own teleports (quest-strategy:*,
+# fixedquest:*, quest25, breeder-breakthrough:teleport of Q2: answer 11 「作戦が先」); the floor
+# leaves of an exhausted floor (summoner:* of _immobile_summoner_exit_key, owner 2026-11-02 「通常の
+# 階の決まりで離れる」) and the stuck/livelock relocations, which no enemy prompted.
+RELOCATING_ESCAPE_REASONS = STATUS_THREAT_RELOCATION_REASONS | frozenset(
+    {
+        # the emergency ladder's variants not in EMERGENCY_ESCAPE_REASONS
+        "emergency:recall-quest-fail",
+        "emergency:stairs-quest-fail",
+        "emergency:stairs-down",
+        # the flee rung (policy._decide_dungeon) and the threat reposition's cornered read
+        "flee:scroll",
+        "flee:stairs",
+        "flee:stairs-quest-fail",
+        "threat:scroll",
+        # the sensed T1 leave (threat_tiers.sensed_t1_leave_key); sensed-t1:walk is a walk
+        "sensed-t1:teleport",
+        "sensed-t1:teleport:absorbed-power",
+        "sensed-t1:teleport-staff",
+        "sensed-t1:phase",
+        "sensed-t1:stairs",
+        "sensed-t1:recall",
+        # the exposed summoner's up stairs (policy) and the summoner hold's teleport (summoner_wait)
+        "summoner:stairs",
+        "summoner:stairs-quest-fail",
+        "summoner:hold-teleport",
+        # the answer to the summons (summon_response) and the no-chance Resistance leave (resist_potion)
+        "summons:leave-teleport",
+        "summons:recall",
+        "resist-potion:no-chance-teleport",
+        # the item-destroying breeders' leave (policy_combat._item_destroying_breeder_leave_key)
+        "breeder-item-damage:stairs",
+        "breeder-item-damage:teleport-level",
+        "breeder-item-damage:teleport",
+        "breeder-item-damage:recall",
+        # the fruitless fight's disengage (policy_navigation) and the breeder breakthrough's leave
+        "combat:disengage-stairs",
+        "combat:disengage-recall",
+        "breeder-breakthrough:ascend",
+        "breeder-breakthrough:recall",
+    }
+)
+
 EMPTY_DIVE_LIMIT = 3  # consecutive over-extended dives before switching dungeons
 
 HOME_PLAN_OWNED_PROCESSING_REASONS = {
