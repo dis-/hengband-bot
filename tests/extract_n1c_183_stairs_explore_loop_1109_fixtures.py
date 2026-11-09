@@ -11,6 +11,8 @@ C:/hengband-backups/pdca/captures/n1c-183-loop-1109/:
 - ``loot-2230``: n1-c life-184 captures/20261109-223004-loop-detected (build b4dec292b,
   dungeon 3 18F) state.jsonl and decisions, with the remembered terrain of its incident twin
   incident-captures/20261109-223002-loop-detected.
+- ``secret-2311``: n1-c life-185 captures/20261109-231142-loop-detected (build b91cbafef,
+  Yeek cave 13F) state.jsonl and decisions, with the remembered terrain of its incident twin.
 - ``chest-2045``: captures/20261109-204524-loop-detected (build 2ea922e5b) state.jsonl and
   decisions, with the remembered terrain of its incident twin
   incident-captures/20261109-204520-loop-detected.
@@ -95,6 +97,11 @@ def main() -> None:
             if row.get("type") in {"player_turn", "knowledge"}]
     write("chest-2045", rows, lines(capture / "bot-decisions.jsonl.gz"),
           ROOT / "incident-small-20261109-204520", races)
+    capture = ROOT / "n1c-185-20261109-231142"
+    rows = [row for row in lines(capture / "state.jsonl.gz")
+            if row.get("type") in {"player_turn", "knowledge"}]
+    write("secret-2311", rows, lines(capture / "bot-decisions.jsonl.gz"),
+          ROOT / "incident-small-185-2311", races)
     capture = ROOT / "n1c-184-20261109-223004"
     rows = [row for row in lines(capture / "state.jsonl.gz")
             if row.get("type") in {"player_turn", "knowledge"}]

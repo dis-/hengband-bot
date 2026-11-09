@@ -71,6 +71,7 @@ def case(name):
 STAIRS = case("stairs-2033")
 CHEST = case("chest-2045")
 LOOT = case("loot-2230")
+SECRET = case("secret-2311")
 RAT = (11, 156)
 
 
@@ -261,6 +262,45 @@ class BreederLootBlockOutOfSightTest(unittest.TestCase):
             decide(policy, raw)
             if raw["turn"] >= 1621066 and here(raw) == Position(41, 37):
                 self.assertNotEqual(policy.last_reason, "seek-loot", raw["turn"])
+
+
+
+class SecretWallWalkKeepsTheVetoTest(unittest.TestCase):
+    """n1-c life-185 (Lv16, Yeek cave 13F, 2026-11-09 23:11, build b91cbafef): at [17,11] a
+    sleeping 巨大茶コウモリ (race 114) was in view and seek-loot stepped '7' to [16,10]; there
+    seek-secret-wall walked '3' straight back to [17,11], a cell the loot and explore walks keep
+    off as the routes' veto, until the loop detector.  Owner 2026-11-09 「退却・逃げ・狩り以外を
+    揃える」: the secret-wall walk (and every walk but the retreats, flights and hunts) reads
+    _walk_veto.  DECLARED PHYSICS as above, from [16,10]."""
+
+    def test_recorded_rows(self):
+        rows = recorded(SECRET)
+        self.assertEqual(rows[518499], ("7", "seek-loot"))
+        self.assertEqual(rows[518505], ("3", "seek-secret-wall"))
+
+    def test_the_secret_wall_walk_does_not_walk_back(self):
+        policy = fresh(SECRET)
+        start = None
+        for raw in boards(SECRET):
+            if raw["turn"] >= 518491 and here(raw) == Position(16, 10):
+                start = copy.deepcopy(raw)
+                break
+            decide(policy, raw)
+        self.assertIsNotNone(start)
+        raw, visited, keys = start, [here(start)], []
+        for _ in range(5):
+            key = decide(policy, raw)
+            keys.append((key, policy.last_reason))
+            if key not in MOVES:
+                break
+            raw = copy.deepcopy(raw)
+            raw["player"]["y"] += MOVES[key][0]
+            raw["player"]["x"] += MOVES[key][1]
+            raw["turn"] += 5
+            visited.append(here(raw))
+        # bot-b91cbafef: ('3', 'seek-secret-wall') back to [17,11] on the first board.
+        self.assertNotEqual(keys[0], ("3", "seek-secret-wall"))
+        self.assertNotIn(Position(17, 11), visited, keys)
 
 
 if __name__ == "__main__":
