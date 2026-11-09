@@ -12,7 +12,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import me_powers, sleeper_loot_block
+from hengbot import me_powers, sleeper_loot_block, sleeper_reach_memory
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -131,6 +131,13 @@ class IdentificationMixin:
         player = snapshot.player
         quest_profile = self.approved_quest_strategy(snapshot.floor_key[2])
         if hostiles or player.blind or player.confused:
+            return None
+        # A hostile it yields to stays one out of sight, at its last shown cell
+        # (sleeper_reach_memory, owner 2026-11-09 「起きた敵も最後の位置を覚える」), as the
+        # loot walk's block does: n1-c life-183 (Angband 49F, 2026-11-09 20:44-20:45) yielded
+        # at [5,39] to a ネクサス・クイルスルグ (race 480) in view at [4,58], and one step out of
+        # its sight at [4,38] walked '3' back toward the chest at [7,53], three loop stops.
+        if quest_profile is None and sleeper_reach_memory.remembered(self, snapshot):
             return None
         floor_chests = [
             candidate.position
