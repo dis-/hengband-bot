@@ -178,6 +178,8 @@ LADDER = (
         *E("_survival_gate_key#2"),
         # Owner 2026-11-07 「敵がいなくなったら目が見えるまで休む。」 (n1-a life-504): it
         # declines with an attacker left, a hit taken or a hostile in sight.
+        # Owner 2026-11-07 「分からない隣のマスにも攻撃する」: the blind board's unseen blow.
+        *D("status_cure.dungeon_unseen_blow_key", exempt=FIGHTS),
         *D("status_cure.dungeon_wait_for_sight_key", exempt=NO_ATTACKER),
         *E("_mana_food_loot_key"),
         *D("me_powers.power_key:FLOOR", "area_mapping.after_destruction_key",

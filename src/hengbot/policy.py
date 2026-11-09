@@ -8408,6 +8408,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         survival = self._town_producer_entry("_survival_gate_key#2", lambda: self._survival_gate_key(snapshot, physical_hostiles))
         if survival is not None:
             return survival
+        # Owner 2026-11-07 「分からない隣のマスにも攻撃する」: a blind board's unseen
+        # melee blow is struck back before the floor work (status_cure).
+        blow = status_cure.dungeon_unseen_blow_key(self, snapshot, physical_hostiles)
+        if blow is not None:
+            return blow
         # Owner 2026-11-07 「敵がいなくなったら目が見えるまで休む。」: blind with no
         # attacker left, the floor work below waits for sight (status_cure).
         sight = status_cure.dungeon_wait_for_sight_key(self, snapshot)

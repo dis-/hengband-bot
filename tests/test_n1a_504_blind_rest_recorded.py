@@ -27,7 +27,7 @@ from unittest import mock
 from hengbot import random_quest_reserve
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import REST_MACRO
-from hengbot.status_cure import DUNGEON_WAIT_SIGHT_REASON
+from hengbot.status_cure import DUNGEON_UNSEEN_BLOW_REASON, DUNGEON_WAIT_SIGHT_REASON
 from tests import test_n1c_deaths_1101_recorded as d57
 
 
@@ -41,6 +41,9 @@ LANDING, GAS_TRAP, THIEF, LAST_QUIET, DEATH = 895901, 896684, 896723, 896987, 89
 # Blind, bitten by the unseen jaw worm and the summons, an up-stair far away; the recorded
 # answers were melee, the replay's ladder (another history) walks there (``emergency``).
 WALK_BOARDS = (897204, 897211, 897221, 897232)
+# Blind, punched by the unseen summons with no visible hostile beside the player, above the
+# emergency line (HP 367, 338, 289): the floor work answered with a search in place.
+BLOW_BOARDS = (897152, 897160, 897178)
 
 
 def new_policy(first):
@@ -152,6 +155,22 @@ class N1a504BlindRecordedTest(unittest.TestCase):
         for turn in WALK_BOARDS:
             raw = next(raw for raw in CASE["boards"] if raw["turn"] == turn)
             self.assertTrue(any(m.endswith(("殴られた。", "噛まれた。")) for m in raw["messages"]), turn)
+
+
+class N1a504BlindBlowRecordedTest(unittest.TestCase):
+    def test_an_unseen_blow_is_struck_back_above_the_emergency_line(self):
+        # Owner 2026-11-07 「盲目で周りが分からない時は分からない隣のマスにも攻撃する。」 and
+        # 2026-11-03 「見えない敵に噛まれ…また盲目なら攻撃」.
+        rows = {raw["turn"]: raw for raw in CASE["boards"]}
+        with held_lock():
+            _policy, answers = drive(LANDING, BLOW_BOARDS[-1])
+        for turn in BLOW_BOARDS:
+            raw = rows[turn]
+            self.assertTrue(raw["player"]["status"]["blind"], turn)
+            self.assertTrue(any(m.startswith("何かに") and m.endswith("殴られた。")
+                                for m in raw["messages"]), turn)
+            key, reason = answers[turn]
+            self.assertEqual((key[:1], reason), ("+", DUNGEON_UNSEEN_BLOW_REASON), turn)
 
 
 if __name__ == "__main__":

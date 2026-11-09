@@ -552,6 +552,35 @@ def wait_for_sight_key(policy, snapshot, reason: str, *, producer: str) -> str |
 
 
 DUNGEON_WAIT_SIGHT_REASON = "blind:wait-sight"
+DUNGEON_UNSEEN_BLOW_REASON = "blind:unseen-strike"
+
+
+def _floor_owned_elsewhere(policy) -> bool:
+    """The latched town return and the income run answer a blind board themselves."""
+    return (getattr(policy, "_returning_to_town", False)
+            or getattr(policy, "_fundraising_mode", None) in {"mine", "scavenge"})
+
+
+def dungeon_unseen_blow_key(policy, snapshot, hostiles) -> str | None:
+    """Blind and hit in melee by an unseen attacker on this board, with no visible
+    hostile beside the player: strike back, the remembered cell first, else a free
+    neighbour (an unknown one too while blind).
+
+    Owner 2026-11-07 「盲目で周りが分からない時は分からない隣のマスにも攻撃する。」 and
+    2026-11-03 「見えない敵に噛まれ…また盲目なら攻撃」.  The strike lived in the survival
+    ladders, the latched return and the wait rewrite; above the emergency line the
+    floor work answered the blow.  n1-a life-504 (2026-11-10, 鉄獄24階, random quest
+    41 with its exit lock held): blind, punched by unseen summons at HP 367 and 338,
+    it searched in place (``s``) instead of striking.  A visible adjacent hostile is
+    left to the melee rungs above; the return and the income run keep their own
+    strikes."""
+    player = snapshot.player
+    if (not player.blind or _floor_owned_elsewhere(policy)
+            or not unseen_strike.hit_in_melee(policy, snapshot)
+            or any(monster.distance <= 1 for monster in hostiles)):
+        return None
+    return (blind_strike.strike_key(policy, snapshot, DUNGEON_UNSEEN_BLOW_REASON)
+            or unseen_strike.key(policy, snapshot, hostiles, DUNGEON_UNSEEN_BLOW_REASON))
 
 
 def dungeon_wait_for_sight_key(policy, snapshot) -> str | None:
@@ -568,7 +597,6 @@ def dungeon_wait_for_sight_key(policy, snapshot) -> str | None:
     work blind, the cure, the strike at an unseen biter and the melee against an
     adjacent hostile are rungs above this one.  The latched town return and the
     income run keep their own rest (return:wait-sight, fundraise:wait-sight)."""
-    if (not attacker_gone(policy, snapshot) or getattr(policy, "_returning_to_town", False)
-            or getattr(policy, "_fundraising_mode", None) in {"mine", "scavenge"}):
+    if not attacker_gone(policy, snapshot) or _floor_owned_elsewhere(policy):
         return None
     return wait_for_sight_key(policy, snapshot, DUNGEON_WAIT_SIGHT_REASON, producer="survival")
