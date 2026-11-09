@@ -227,5 +227,65 @@ class RefusedLightBuyMakesRoomTest(RecordedVisit):
         self.assertNotEqual(key, self.journal[20]["key"])
 
 
+class PowerfulIdentifyCostTest(RecordedVisit):
+    """D. n1-b life-351 2026-11-08 21:09 town:blocked:owner-retired-burst.
+
+    The Powerful Activation *Identify* ('UAf' + slot) pays its cost in HP
+    (racial_power_reduce_mana).  The next board read the drop as a hit
+    (``_took_damage``): the town sought shelter (rows 71, 82, 129, 132, 135,
+    141) and ``me_powerful_activation._safe`` turned false, so the carried
+    Home take lost its hold (``awaits_identify``) and the deposits shelved
+    pieces before their *Identify*; the Home visits ran out
+    (town:blocked:equipment-home-unavailable).  The current main departs at
+    row 143 instead (forced visit departure), so the stop itself is not
+    replayed.  Fix: the board right after a use whose HP drop is within the
+    cost is no hit.
+    """
+
+    fixture = "d351"
+
+    def test_recorded_use_then_shelter(self):
+        self.assertEqual(self.replay_to(70), [])
+        self.assertEqual(self.journal[70]["reason"], "me-powerful:identify")
+        self.assertEqual(self.journal[71]["reason"], "town:seek-shelter")
+
+    def test_the_activation_cost_is_no_hit(self):
+        from hengbot import me_powerful_activation
+        self.replay_to(71)
+        board, _key, reason = self.decide(71)
+        self.assertLess(board.player.hp, board.player.max_hp)
+        self.assertFalse(self.policy._took_damage)
+        self.assertNotEqual(reason, "town:seek-shelter")
+        self.assertTrue(me_powerful_activation.spare_identify_ready(self.policy, board))
+
+
+class PowerfulIdentifyFloorTest(RecordedVisit):
+    """D. The Powerful Activation *Identify* answers to the staff's floor.
+
+    n1-c life-165 (2026-11-08 04:59) failed the Powerful Activation
+    *Identify* sixteen times in a row while its Home takes went back and
+    forth.  949ca43348 held the absorbed Identify to STAFF_IDENTIFY_MIN_SUCCESS
+    for the ordinary cast only; ``spare_identify_ready`` and ``town_key``
+    read no rate.  Recorded: n1-b life-353 (tests/fixtures/
+    n1b-353-retired-burst-1109), INT drained to 7, whose power list (row 4)
+    lists the absorbed Identify at 95% fail; rows 0-19 through choose_key.
+    """
+
+    fixtures = Path(__file__).with_name("fixtures")
+    fixture = "n1b-353-retired-burst-1109"
+
+    def test_unreliable_power_files_no_powerful_identify(self):
+        from hengbot import me_capability, me_powerful_activation
+        from hengbot.model import SV_STAFF_IDENTIFY
+        self.replay_to(20)
+        board = self.board(20)
+        row = me_capability.observed_row(self.policy, "staff", SV_STAFF_IDENTIFY)
+        self.assertEqual(row["success"], 5)
+        self.assertGreaterEqual(board.player.level, me_powerful_activation.MIN_LEVEL)
+        self.assertFalse(me_powerful_activation.spare_identify_ready(self.policy, board))
+        self.assertIsNone(me_powerful_activation.spare_identify_key(self.policy, board))
+        self.assertIsNone(me_powerful_activation.town_key(self.policy, board, ()))
+
+
 if __name__ == "__main__":
     unittest.main()
