@@ -51,6 +51,7 @@ from hengbot import (
     return_yield,
     speed_dose,
     survival_preemption,
+    teleport_follower,
     unseen_strike,
 )
 from hengbot.item_reservation import decision_memo, reserved_item_command
@@ -783,15 +784,19 @@ def escape_means(policy, snapshot, hostiles) -> tuple:
     player = snapshot.player
     means = []
     readable = not (player.blind or player.confused) and policy._can_read_scrolls(snapshot)
-    teleport_blocked = policy._teleport_blocked_by_equipment(snapshot)
+    # An adjacent monster that follows the teleport (teleport_follower, owner 2026-11-09
+    # 「*破壊*>テレポートアウェイ>戦闘」) makes no teleport an escape; Teleport Level, Recall,
+    # *Destruction* and the walk are not followed.
+    teleport_blocked = (policy._teleport_blocked_by_equipment(snapshot)
+                        or teleport_follower.followed(policy, snapshot))
     forbidden = quest_no_teleport.forbids(policy, snapshot)
     scrolls = {item.sval for item in snapshot.inventory
                if item.tval == TVAL_SCROLL and item.aware and item.count > 0}
-    if readable and not teleport_blocked and not forbidden:
-        if scrolls & {8, 9}:
-            means.append("teleport-scroll")
-        if SV_SCROLL_TELEPORT_LEVEL in scrolls:
-            means.append("teleport-level")
+    if readable and not teleport_blocked and not forbidden and scrolls & {8, 9}:
+        means.append("teleport-scroll")
+    if (readable and not policy._teleport_blocked_by_equipment(snapshot) and not forbidden
+            and SV_SCROLL_TELEPORT_LEVEL in scrolls):
+        means.append("teleport-level")
     if readable and any(item.is_recall_scroll for item in snapshot.inventory):
         means.append("recall")
     if not teleport_blocked and not forbidden:
@@ -851,7 +856,8 @@ def blind_teleport_means(policy, snapshot):
     player = snapshot.player
     if (not player.blind or player.confused or snapshot.store is not None
             or policy._teleport_blocked_by_equipment(snapshot)
-            or quest_no_teleport.forbids(policy, snapshot)):
+            or quest_no_teleport.forbids(policy, snapshot)
+            or teleport_follower.followed(policy, snapshot)):
         return None
     power = me_absorbed_substitutes.TELEPORTATION
     # The menu walk of the blind cast is the one status_cure.absorbed_cure_key uses.
@@ -866,9 +872,12 @@ def blind_teleport_means(policy, snapshot):
 
 
 def escape_restorable(policy, snapshot) -> bool:
-    """4.2 restore: a cure for blindness / confusion, or a removable anti-teleport item."""
+    """4.2 restore: a cure for blindness / confusion, a removable anti-teleport item, or a
+    Teleport Other at an adjacent monster that follows the teleport (teleport_follower)."""
     player = snapshot.player
     if (player.blind or player.confused) and policy._find_status_cure_potion(snapshot) is not None:
+        return True
+    if teleport_follower.followed(policy, snapshot) and teleport_follower.away_usable(policy, snapshot):
         return True
     return any(policy._blocks_teleport(item) and not item.is_cursed
                for item in snapshot.equipment)

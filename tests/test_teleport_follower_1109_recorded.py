@@ -1,0 +1,233 @@
+"""n1-a life-500's death (2026-11-09 19:00, オークの洞窟23階) and the owner's answer of 2026-11-09.
+
+Analysis: C:/hengband-backups/pdca/captures/n1a-500-death-1109/REPORT.txt.  Boards:
+tests/fixtures/teleport-follower-n1a-500-1109.json.xz (tests/extract_teleport_follower_1109_fixture.py),
+one board per live decision row (decisions 15674-15774, the whole 23F visit); every decision here
+is the public ``choose_key`` of one fresh policy replaying the recorded boards in order
+(``confirm_key_posted`` after each key, as the driver does).
+
+Warrior Lv45, max HP 1092.  A クトーニアン summoned 禁断の護り手 (id 746: TPORT, no RES_TELE,
+speed +20, a blinding blow) beside the player (15769).  Live: Cure Critical Wounds, Healing, the
+Teleportation scroll (15771), Healing, the scroll again (15773), Healing, dead; 禁断の護り手 stood
+beside the player on each landing (spells-teleport.cpp:392-411 teleport_player: an adjacent awake
+TPORT monster without RESIST_TELEPORT follows).  The Wand of Teleport Other (11 charges) was never
+used.
+
+Owner 2026-11-09, verbatim: 「*破壊*>テレポートアウェイ>戦闘　の順で対処」.
+
+DECLARED RECONSTRUCTION (pin_vacuity): the capture holds no ~f reply, so the skill knowledge is
+supplied before each decision (as tests/test_deaths_1109_recorded.py does).
+
+DECLARED CONSTRUCTED (each named at its test): a Staff of *Destruction* with the device skill
+raised (the warrior's 35 does not reach the 80% the staff needs); the wand taken out of the pack;
+禁断の護り手 moved two cells off; the Teleportation scrolls swapped for Phase Door.
+"""
+import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+
+import copy
+import json
+import lzma
+from pathlib import Path
+import unittest
+
+from hengbot import teleport_follower, threat_tiers
+from hengbot.dungeon_knowledge import load_dungeon_knowledge
+from hengbot.model import (
+    SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, SV_STAFF_DESTRUCTION, SV_WAND_TELEPORT_AWAY,
+    TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, parse_snapshot,
+)
+from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy import HengbotPolicy
+from test_esp_threat_rest_recorded import EDIT
+
+FIXTURE = Path(__file__).with_name("fixtures") / "teleport-follower-n1a-500-1109.json.xz"
+GUARDIAN = 746            # 禁断の護り手
+WOKE = 11910592           # decision 15756: the クトーニアン awake (ranged:fire-target)
+SUMMONED = 11910738       # decision 15769: blind, 禁断の護り手 beside the player
+FIRST_READ = 11910753     # decision 15771: sighted, the first Teleportation read
+LANDED = 11910759         # decision 15772: blind, followed to (57,111)
+SECOND_READ = 11910767    # decision 15773: the second read
+LAST = 11910775           # decision 15774: blind at HP 12, followed again
+FOLLOWED = (SUMMONED, 11910746, FIRST_READ, LANDED, SECOND_READ, LAST)
+AWAY = teleport_follower.AWAY_REASON
+
+
+def skill(policy, raw):
+    policy.consume_skill_knowledge({
+        "player": {"level": raw["player"]["level"]},
+        "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
+    })
+
+
+def relabel(raw):
+    for index, item in enumerate(raw["inventory"]):
+        item["slot"] = chr(ord("a") + index)
+
+
+def without_wand(raw):
+    """DECLARED CONSTRUCTED: no Wand of Teleport Other in the pack (letters re-given)."""
+    raw["inventory"] = [item for item in raw["inventory"]
+                        if not (item["tval"] == TVAL_WAND and item["sval"] == SV_WAND_TELEPORT_AWAY)]
+    relabel(raw)
+
+
+def destruction_staff(raw):
+    """DECLARED CONSTRUCTED: a Staff of *Destruction* after the wands, the device skill 130."""
+    inventory = raw["inventory"]
+    wand = next(item for item in inventory if item["tval"] == TVAL_WAND)
+    staff = dict(copy.deepcopy(wand), tval=TVAL_STAFF, sval=SV_STAFF_DESTRUCTION, count=1,
+                 charges=5, pval=5, name="*破壊*の杖 (5回分)", weight=50)
+    inventory.insert(inventory.index(wand), staff)
+    relabel(raw)
+    raw["player"]["skill_ratings"]["magic_device"]["value"] = 130
+
+
+def phase_only(raw):
+    """DECLARED CONSTRUCTED: the Teleportation scrolls swapped for Phase Door."""
+    for item in raw["inventory"]:
+        if item["tval"] == TVAL_SCROLL and item["sval"] == SV_SCROLL_TELEPORT:
+            item["sval"], item["name"] = SV_SCROLL_PHASE_DOOR, "ショート・テレポートの巻物"
+
+
+def move_guardian(y, x):
+    """DECLARED CONSTRUCTED: 禁断の護り手 and its map mark at (y, x)."""
+    def change(raw):
+        monster = next(m for m in raw["visible_monsters"] if m["race_id"] == GUARDIAN)
+        monster["y"], monster["x"] = y, x
+        cells = raw["grid_map"]["cells"]
+        for cell in cells:
+            if cell.get("m") == monster["index"]:
+                del cell["m"]
+        target = next((cell for cell in cells if (cell["y"], cell["x"]) == (y, x)), None)
+        if target is None:
+            cells.append({"m": monster["index"], "y": y, "x": x})
+        else:
+            target["m"] = monster["index"]
+    return change
+
+
+def letter(raw, tval, sval):
+    return next(item["slot"] for item in raw["inventory"]
+                if item["tval"] == tval and item["sval"] == sval)
+
+
+class TeleportFollowerHarness(unittest.TestCase):
+    answers = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls.payload = json.loads(lzma.decompress(FIXTURE.read_bytes()).decode("utf-8"))
+        cls.races = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+        cls.dungeons = load_dungeon_knowledge(EDIT / "DungeonDefinitions.jsonc")
+        cls.recorded = {row["turn"]: row for row in cls.payload["decisions"]}
+
+    def replay(self, until=LAST, change=None):
+        """Every recorded board up to game turn ``until`` (``change`` applied to each), one fresh
+        policy; {turn: (raw, key, reason, snapshot)}."""
+        boards = self.payload["boards"]
+        policy = HengbotPolicy(monrace_knowledge=dict(self.races),
+                               dungeon_knowledge=dict(self.dungeons))
+        policy.prime(parse_snapshot(copy.deepcopy(boards[0]), self.races))
+        answers = {}
+        for raw in boards:
+            if raw["turn"] > until:
+                break
+            raw = copy.deepcopy(raw)
+            if change is not None:
+                change(raw)
+            skill(policy, raw)
+            snapshot = parse_snapshot(copy.deepcopy(raw), self.races)
+            key = policy.choose_key(snapshot)
+            if key:
+                policy.confirm_key_posted(key)
+            answers[raw["turn"]] = (raw, str(key), policy.last_reason, snapshot)
+        return policy, answers
+
+    def recorded_answers(self):
+        if type(self).answers is None:
+            type(self).answers = self.replay()
+        return type(self).answers
+
+
+class FollowerRecordedTest(TeleportFollowerHarness):
+    """The recorded boards: Teleport Other at 禁断の護り手, never a teleport read beside it."""
+
+    def test_the_replay_matches_the_live_decisions_before_the_summons(self):
+        """From the クトーニアン's waking (15756) to the summons the replay decides as live did
+        (the first boards of the floor differ: a fresh policy has no exploration memory)."""
+        _policy, answers = self.recorded_answers()
+        for turn, (_raw, key, reason, _snapshot) in answers.items():
+            if WOKE <= turn < SUMMONED:
+                self.assertEqual((key, reason),
+                                 (self.recorded[turn]["key"], self.recorded[turn]["reason"]), turn)
+
+    def test_every_followed_board_aims_teleport_other_at_the_follower(self):
+        policy, answers = self.recorded_answers()
+        live = [self.recorded[turn]["reason"] for turn in FOLLOWED]
+        self.assertEqual(live, ["emergency:cure-critical", "emergency:heal", "emergency:teleport",
+                                "emergency:cure-status-healing", "emergency:teleport",
+                                "emergency:cure-status-healing"])
+        for turn in FOLLOWED:
+            raw, key, reason, snapshot = answers[turn]
+            followers = teleport_follower.followers(policy, snapshot)
+            self.assertEqual([monster.race_id for monster in followers], [GUARDIAN], turn)
+            wand = letter(raw, TVAL_WAND, SV_WAND_TELEPORT_AWAY)
+            direction = policy._direction_key(snapshot.player.position, followers[0].position)
+            self.assertEqual((key, reason), ("a" + wand + direction, AWAY), turn)
+        # The blind boards too: the wand is zapped blind (zapwand-execution.cpp:122-129).
+        self.assertTrue(answers[SUMMONED][3].player.blind)
+        self.assertTrue(answers[LAST][3].player.blind)
+
+    def test_no_teleport_counts_as_an_escape_beside_the_follower(self):
+        policy, answers = self.recorded_answers()
+        snapshot = answers[FIRST_READ][3]
+        self.assertFalse(snapshot.player.blind)
+        self.assertIsNone(policy._escape_scroll(snapshot))
+        means = threat_tiers.assess(policy, snapshot).escape_means
+        self.assertNotIn("teleport-scroll", means)
+        self.assertTrue(threat_tiers.escape_restorable(policy, snapshot))
+
+
+class FollowerConstructedTest(TeleportFollowerHarness):
+    """DECLARED CONSTRUCTED variants for the owner's order and its edges."""
+
+    def test_destruction_comes_before_teleport_other(self):
+        """CONSTRUCTED: a reliable Staff of *Destruction* (オークの洞窟23階 is no fixed quest)."""
+        _policy, answers = self.replay(until=SUMMONED, change=destruction_staff)
+        raw, key, reason, snapshot = answers[SUMMONED]
+        self.assertTrue(snapshot.player.blind)
+        self.assertEqual((key, reason), ("u" + letter(raw, TVAL_STAFF, SV_STAFF_DESTRUCTION),
+                                         "emergency:destruction"))
+
+    def test_without_teleport_other_the_follower_is_fought_not_teleported_from(self):
+        """CONSTRUCTED: no wand.  Sighted, the scroll is not read; the follower is struck."""
+        _policy, answers = self.replay(until=FIRST_READ, change=without_wand)
+        _raw, key, reason, snapshot = answers[FIRST_READ]
+        self.assertFalse(snapshot.player.blind)
+        self.assertNotEqual(reason, "emergency:teleport")
+        self.assertNotIn(reason, ("emergency:phase", "emergency:recall"))
+        self.assertIn(reason, ("emergency:heal", "emergency:cornered-attack"))
+
+    def test_phase_door_is_followed_too(self):
+        """CONSTRUCTED: no wand and Phase Door in place of Teleportation (teleport_player(10))."""
+        def change(raw):
+            without_wand(raw)
+            phase_only(raw)
+        _policy, answers = self.replay(until=FIRST_READ, change=change)
+        _raw, _key, reason, _snapshot = answers[FIRST_READ]
+        self.assertNotEqual(reason, "emergency:phase")
+
+    def test_a_follower_two_cells_off_lets_the_scroll_be_read(self):
+        """CONSTRUCTED: 禁断の護り手 two cells off on the first read's board (not adjacent)."""
+        def change(raw):
+            if raw["turn"] == FIRST_READ:
+                move_guardian(raw["player"]["y"] - 2, raw["player"]["x"])(raw)
+        policy, answers = self.replay(until=FIRST_READ, change=change)
+        raw, key, reason, snapshot = answers[FIRST_READ]
+        self.assertEqual(teleport_follower.followers(policy, snapshot), [])
+        self.assertEqual((key, reason), ("r" + letter(raw, TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                                         "emergency:teleport"))
+
+
+if __name__ == "__main__":
+    unittest.main()

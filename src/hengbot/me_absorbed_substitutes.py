@@ -23,7 +23,9 @@ from __future__ import annotations
 from hengbot import me_capability, me_powers
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.me_staff_sequence import cast_blocked
-from hengbot.model import SV_STAFF_CURE_LIGHT, SV_STAFF_TELEPORTATION
+from hengbot.model import (
+    SV_ROD_TELEPORT_AWAY, SV_STAFF_CURE_LIGHT, SV_STAFF_TELEPORTATION, SV_WAND_TELEPORT_AWAY,
+)
 
 
 # The reason suffix of a quest's absorbed-power cast (me_device_attacks_input).
@@ -47,6 +49,8 @@ def _cast_power(ident: tuple) -> me_powers.Power:
 CURE_LIGHT = ("staff", SV_STAFF_CURE_LIGHT)
 # Teleportation, the escape a blind player casts (threat_tiers.blind_teleport_key).
 TELEPORTATION = ("staff", SV_STAFF_TELEPORTATION)
+# Teleport Other, aimed at a monster that follows the player's teleport (teleport_follower).
+TELEPORT_AWAY = (("rod", SV_ROD_TELEPORT_AWAY), ("wand", SV_WAND_TELEPORT_AWAY))
 
 
 def _build_powers() -> dict:
@@ -54,6 +58,8 @@ def _build_powers() -> dict:
     powers = {ident: _cast_power(ident) for ident in me_capability.substitute_powers()}
     powers[CURE_LIGHT] = _cast_power(CURE_LIGHT)
     powers[TELEPORTATION] = _cast_power(TELEPORTATION)
+    for ident in TELEPORT_AWAY:
+        powers[ident] = _cast_power(ident)
     # Healing in the arena, where no potion works (arena.py); neither asks for a direction.
     # The staff's is also a ``cast`` row's (Q25, owner 2026-11-09), built above with its names.
     for kind, sval in (("rod", 9), ("staff", 18)):
