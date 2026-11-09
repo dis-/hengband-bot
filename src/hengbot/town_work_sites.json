@@ -2086,6 +2086,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "instant_death.py:InstantDeath.next_action": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "instant_death.py:_instant_death": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "instant_death.py:instant_death": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "item_fate.py:gear_tier": {
     "classification": "data",
     "rows": [
@@ -11793,13 +11814,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:InstantDeath.next_action": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "threat_tiers.py:_aim": {
     "classification": "data",
     "rows": [
@@ -11850,13 +11864,6 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "threat_tiers.py:_held_reading": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:_instant_death": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11920,13 +11927,6 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:inside_sensing": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:instant_death": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

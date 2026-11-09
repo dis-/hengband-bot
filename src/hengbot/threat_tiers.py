@@ -36,6 +36,8 @@ are unchanged.  Functions that call a name tests patch here (``tiered``, ``asses
 
 - ``threat_projection``: the results, the engagement, the attacks, ``Projection``, ``_plan``,
   ``_tier``.
+- ``instant_death``: 3.1 即死 (``instant_death``; the plans' rung ``instant_death_key`` stays
+  here: it calls ``instant_death``, which tests patch here).
 - ``threat_escape``: the flags (4.1-4.4) and the escape means, ``blind_teleport_key``.
 - here: ``assess``, the selection (3.4) and acting on the tiers (steps 6-8).
 """
@@ -50,9 +52,7 @@ from hengbot import (
     disenchant_avoid,
     hunt_target,
     me_device_attacks,
-    paralyzer_contact,
     retreat_veto_life,
-    return_yield,
     speed_dose,
     survival_preemption,  # noqa: F401 -- re-exported (tests patch threat_tiers.survival_preemption)
 )
@@ -69,6 +69,12 @@ from hengbot.model import (
 )
 # The façade (maintainability review 2026-11-09, step 4): every name of the split modules is
 # re-exported here, so ``threat_tiers.X`` keeps working for callers, tests and their patches.
+from hengbot.instant_death import (  # noqa: F401
+    InstantDeath,
+    NEXT_ACTION_P95,
+    _instant_death,
+    instant_death,
+)
 from hengbot.threat_escape import (  # noqa: F401
     SV_SCROLL_TELEPORT_LEVEL,
     STAFF_REASON_SUFFIX,
@@ -172,57 +178,6 @@ def reward_reasons(policy, snapshot, monster) -> tuple:
 
 
 # ---------------------------------------------------------------- assess
-
-@dataclass(frozen=True)
-class InstantDeath:
-    """3.1 即死 on one board: why it holds, and the next-action damage it read."""
-    reasons: tuple = ()
-    next_action_p95: int = 0
-    unseen_correction: int = 0
-
-    @property
-    def holds(self) -> bool:
-        return bool(self.reasons)
-
-    @property
-    def next_action(self) -> bool:
-        """The 1-turn p95 test (answer 2 「次の1手の95%で判定」), the one the ladders act on."""
-        return NEXT_ACTION_P95 in self.reasons
-
-
-NEXT_ACTION_P95 = "next-action-p95"
-
-
-def _instant_death(policy, snapshot, hostiles, melee_slots=None,
-                   contact=False) -> tuple[InstantDeath, dict]:
-    """3.1 on hostiles already at their adjusted speed; also the 1-turn prediction it read."""
-    player = snapshot.player
-    hp = player.hp
-    one_turn = policy.threat_prediction(snapshot, hostiles, 1, melee_slots=melee_slots,
-                                        contact=contact)
-    next_action_p95 = one_turn["operational_total"]
-    correction = unseen_correction(policy, snapshot, hostiles)
-    reasons = []
-    if next_action_p95 + correction >= hp:
-        reasons.append(NEXT_ACTION_P95)
-    if any(not monster.asleep and paralyzer_contact.in_contact(policy, snapshot, monster)
-           for monster in policy._paralyzing_monsters(snapshot, hostiles)):
-        reasons.append("paralyzer-contact")
-    if (player.hallucinated and hp < policy._low_hp_walk_threshold(player.max_hp)
-            and return_yield.awake_hostile_in_view(policy, snapshot)):
-        reasons.append("hallucination")
-    return InstantDeath(tuple(reasons), next_action_p95, correction), one_turn
-
-
-def instant_death(policy, snapshot, hostiles=None) -> InstantDeath:
-    """3.1 alone, the part of ``assess`` that is never past the cost cap (one action ahead)."""
-    if hostiles is None:
-        hostiles = engagement(policy, snapshot)
-    hostiles = [_with_adjusted_speed(monster) for monster in hostiles]
-    if not hostiles:
-        return InstantDeath()
-    return _instant_death(policy, snapshot, hostiles)[0]
-
 
 def instant_death_key(policy, snapshot, plan_escape=None) -> str | None:
     """A quest plan's 即死 rung (answer 11 「作戦が先・即死だけ例外」, OQ-2).
