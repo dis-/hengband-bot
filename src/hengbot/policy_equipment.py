@@ -616,10 +616,19 @@ class EquipmentMixin:
         before.  Swapping INTO a Light Crossbow needs such evidence; an
         equipped one is kept regardless
         (equipment_optimizer.yields_to_light_crossbow).
+
+        The Home part is the equipment catalogue's, the same content knowledge
+        its Home launchers come from: the page-address knowledge a Home
+        command discards would leave the launchers without their rounds.
+        n1-c life-184 2026-11-09: after each Home deposit the Home arrows
+        dropped out of this list while the Home Light Crossbow stayed in the
+        catalogue, so the optimizer took the crossbow out over the equipped
+        bow, and the next ``~9`` scan swapped the bow back, without end.
         """
+        home = self._equipment_catalog
         owned = tuple(
             item
-            for item in (*snapshot.inventory, *self._home_knowledge_items)
+            for item in (*snapshot.inventory, *home.home_ammunition)
             if item.is_ammo and item.count > 0
         )
         owned_tvals = {item.tval for item in owned}
@@ -628,7 +637,7 @@ class EquipmentMixin:
             for launcher in (
                 *snapshot.equipment,
                 *snapshot.inventory,
-                *self._home_knowledge_items,
+                *(kept.item for kept in home.items if kept.origin == "home"),
             )
             if launcher.ammo_tval is not None
             and launcher.ammo_tval not in owned_tvals

@@ -4642,6 +4642,7 @@ class HomeMixin:
                     item.charges,
                     len(snapshot.inventory),
                 ),
+                quantity=deposit_count,
             )
         if not operations:
             self._offer_home_atomic_no_step("deposit", "deposit-batch-empty")
@@ -4760,6 +4761,7 @@ class HomeMixin:
                 item,
                 intent=(snapshot.turn, item.slot, signature, deposit_count,
                         item.charges, len(snapshot.inventory)),
+                quantity=deposit_count,
             )
         if not operations:
             self._offer_home_atomic_no_step("deposit", "open-page-deposit-batch-empty")

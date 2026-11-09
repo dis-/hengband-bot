@@ -41,7 +41,8 @@ are unchanged.  Functions that call a name tests patch here (``tiered``, ``asses
 - ``threat_escape``: the flags (4.1-4.4) and the escape means, ``blind_teleport_key``.
 - ``supply_fight``: the selected supply fight's reasons and per-supply keys (the rung
   ``supply_fight_key`` and its gates stay here: they call ``tiered`` and ``acts_here``).
-- ``threat_tier_memory``: the decided side (``TierMemory``, ``decided``, owner 2026-11-08).
+- ``threat_tier_memory``: the decided side's memory (``TierMemory``, ``held_tier``, owner
+  2026-11-08); the hold ``decided`` and the worsening leave stay here (``leave_decided_here``).
 - here: ``assess``, the selection (3.4) and acting on the tiers (steps 6-8).
 """
 
@@ -51,6 +52,7 @@ from hengbot import (
     destruction_use,
     disenchant_avoid,
     hunt_target,
+    retreat_veto_life,
     speed_dose,
     survival_preemption,  # noqa: F401 -- re-exported (tests patch threat_tiers.survival_preemption)
 )
@@ -152,7 +154,7 @@ from hengbot.threat_tier_memory import (  # noqa: F401
     _past,
     held_tier,
     _as_held,
-    decided,
+    worsens_left,
     decided_sides,
 )
 
@@ -362,6 +364,13 @@ def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
     result = tiered(policy, snapshot, hostiles, melee_slots)
     if result.tier == T1:
         return True
+    # Owner 2026-11-09 「倒しきれない敵と同じに離れる」 (design 4.4): a summoner or shrieker left
+    # as a T1 is (``_worsens_leave``, held by the decided side).
+    # Owner 2026-11-09 「前からの2つを先に」: where the summoner cover step or the choke wait
+    # answers, they do; the leave only where neither does.
+    if (result.tier is not None and worsens_left(policy, snapshot, hostiles)
+            and not policy._summoner_shelter_applies(snapshot, hostiles)):
+        return True
     if result.tier == T2:
         return not result.selected
     return None
@@ -460,6 +469,92 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
             policy.last_reason = SENSED_LEAVE_PREFIX + "walk"
             return policy._step_toward(snapshot, step)
     return None
+
+
+# ---------------------------------------------------------------- the decided side (step 6)
+# The hold itself (owner 2026-11-08 「境に余裕を持たせる」; the memory and its design note are in
+# threat_tier_memory).  ``decided`` and ``_worsens_leave`` stay here: the worsening leave
+# reads ``leave_decided_here`` (``acts_here``, which tests patch here).
+
+def decided(policy, snapshot, hostiles, raw: Assessment) -> Assessment:
+    """The engagement's reading with its decided side held (「境に余裕を持たせる」); the memory
+    is updated for its monsters."""
+    if raw.tier is None:
+        return raw  # past the cost cap: no reading to decide, or to hold against
+    memory = _tier_memory(policy, snapshot)
+    keys = [(monster.index, monster.race_id) for monster in hostiles]
+    entries = [memory.decided.get(key) for key in keys]
+    known = [entry for entry in entries if entry is not None]
+    overridden = raw.instant_death or supply_fight_stopped(snapshot, hostiles)
+    tier = raw.tier
+    if known and not overridden:
+        here = set(keys)
+        mates = set().union(*(entry.group for entry in known))
+        tier = held_tier(
+            next(tier for tier in TIER_ORDER if any(entry.tier == tier for entry in known)), raw,
+            worse_as_read=len(known) < len(keys) or any(
+                entry is not None and adjusted_speed(monster) > entry.speed
+                for monster, entry in zip(hostiles, entries)),
+            mates_in_view=all(key in here for key in mates if key in memory.decided))
+    engagement_leave = tier == T1 or (tier == T2 and not raw.selected)
+    worsening = _worsens_leave(policy, snapshot, hostiles, raw, entries)
+    group, fought = frozenset(keys), []
+    for monster, key, entry in zip(hostiles, keys, entries):
+        leave = engagement_leave or key in worsening
+        if entry is not None and entry.leave and not leave:
+            fought.append(key)
+        if entry is not None and entry.tier == tier and not overridden:
+            entry.leave = leave  # the tier holds; the selection is read as it is
+            entry.worsens = key in worsening
+            continue
+        memory.decided[key] = Decided(
+            tier, leave, raw.free_margin, raw.supply_margin, raw.reserve,
+            adjusted_speed(monster), group, retreat_veto_life.Threat(monster.name, snapshot.turn),
+            key in worsening)
+    if fought:
+        retreat_veto_life.release(policy, snapshot, fought)
+    return raw if tier == raw.tier else _as_held(raw, tier)
+
+
+# A selection that makes the kill required (4.4 step 4: 「倒す必要があれば物資を使って早く倒す」);
+# the reward selection does not (a T1 is left whatever it would drop).
+KILL_REQUIRED = frozenset({"quest-target", "hunted-guardian", "cannot-escape"})
+
+
+def _worsens_leave(policy, snapshot, hostiles, raw, entries) -> set:
+    """Owner 2026-11-09 (Q1 of the n1-a life-500 report, verbatim 「倒しきれない敵と同じに離れる」:
+    「脅威度の「離れる」と同じに扱い、一度離れると決めたら境に余裕を持って保つ。」), design 4.4
+    「逃げて良いなら逃げる」: outside quests, an awake summoner or shrieker that is not killed
+    被害無く (worsens_kill.harmless, OQ-1 option A) and whose kill is not required is left as a T1
+    is.  Once left it stays left for the floor visit while it is remembered (the decided side;
+    a reading that turns 被害無く does not bring it back).  Breeders keep their owner rules.
+    The (index, race) keys left so."""
+    player = snapshot.player
+    if (snapshot.floor_key[2] != 0 or not leave_decided_here(policy, snapshot)
+            # Below the low-HP line the 11-06 escape answers (OQ-10).
+            or player.hp < policy._low_hp_walk_threshold(player.max_hp)):
+        return set()
+    from hengbot import worsens_kill
+
+    # The more specific owner rules keep their monsters (4.4 step 1): a paralyser is left by
+    # the 09-18 / 11-09 E rules, a summoner that never approaches (NEVER_MOVE, or its choke wait
+    # expired) by the immobile-summoner rules (owner 2026-10-27 「動かない召喚の敵は近づかずに避ける」).
+    paralysers = {monster.index for monster in policy._paralyzing_monsters(snapshot, hostiles)}
+    left = set()
+    for monster, entry in zip(hostiles, entries):
+        key = (monster.index, monster.race_id)
+        if entry is not None and getattr(entry, "worsens", False):
+            left.add(key)  # held: 「一度離れると決めたら境に余裕を持って保つ」
+            continue
+        row = raw.per_monster.get(monster.index)
+        if (monster.asleep or row is None or monster.index in paralysers
+                or policy._summoner_never_approaches(snapshot, monster)
+                or not set(row.worsens_with_time) - {"multiply"}
+                or set(row.selected) & KILL_REQUIRED):
+            continue
+        if not worsens_kill.harmless(policy, snapshot, monster):
+            left.add(key)
+    return left
 
 
 def tier_of(policy, snapshot, hostiles) -> str | None:

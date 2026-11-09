@@ -56,12 +56,22 @@ def note(policy, snapshot) -> None:
     memory = getattr(policy, me_powers.MEMORY, None)
     pending = None if memory is None else memory.pending
     target = None if pending is None else pending.target
-    if (policy.last_reason != THREAT_REASON or target is None or snapshot.floor_key[2] != 0
-            or not threat_tiers.acts_here(policy, snapshot)):
+    if policy.last_reason != THREAT_REASON or target is None:
         return
     monster = next((each for each in snapshot.visible_monsters
                     if each.hostile and each.position == target), None)
-    if monster is None or not _t1(policy, snapshot, monster):
+    if monster is not None:
+        remember(policy, snapshot, monster)
+
+
+def remember(policy, snapshot, monster) -> None:
+    """A Teleport Away was aimed at ``monster``: remember it when it is T1, outside any quest.
+
+    Also the emergency ladder's Teleport Other at a monster that follows the player's teleport
+    (teleport_follower, owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」)."""
+    setattr(policy, MEMORY, None)
+    if (snapshot.floor_key[2] != 0 or not threat_tiers.acts_here(policy, snapshot)
+            or not _t1(policy, snapshot, monster)):
         return
     setattr(policy, MEMORY, SentAway(snapshot.floor_key, snapshot.turn, monster.index, monster.name))
 

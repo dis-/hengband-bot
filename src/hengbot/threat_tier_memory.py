@@ -10,9 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from hengbot import retreat_veto_life
-from hengbot.supply_fight import supply_fight_stopped
-from hengbot.threat_projection import T1, T2, T3, Assessment, SupplyPlan, adjusted_speed
+from hengbot import monster_memory, retreat_veto_life
+from hengbot.threat_projection import T1, T2, T3, Assessment, SupplyPlan
 
 
 # ---------------------------------------------------------------- the decided side (owner 2026-11-08)
@@ -56,6 +55,7 @@ class Decided:
     speed: int                        # adjusted_speed when decided
     group: frozenset                  # the deciding engagement's (index, race) keys
     threat: retreat_veto_life.Threat  # name and the last board that showed it (``observe``)
+    worsens: bool = False             # left as a time-worsening monster (``_worsens_leave``)
 
 
 @dataclass
@@ -89,9 +89,9 @@ def observe(policy, snapshot) -> None:
     if memory.floor != snapshot.floor_key:
         setattr(policy, TIER_MEMORY, None)
         return
-    shown = retreat_veto_life.shown_by_index(snapshot)
+    shown = monster_memory.shown_by_index(snapshot)
     for key, entry in list(memory.decided.items()):
-        if retreat_veto_life.gone(snapshot, key, entry.threat, shown, memory.last_turn):
+        if monster_memory.gone(snapshot, key, entry.threat, shown, memory.last_turn):
             del memory.decided[key]
     memory.last_turn = snapshot.turn
 
@@ -146,40 +146,13 @@ def _as_held(raw: Assessment, tier: str) -> Assessment:
     return replace(raw, tier=tier, raw_tier=raw.tier, supply_plan=plan)
 
 
-def decided(policy, snapshot, hostiles, raw: Assessment) -> Assessment:
-    """The engagement's reading with its decided side held (「境に余裕を持たせる」); the memory
-    is updated for its monsters."""
-    if raw.tier is None:
-        return raw  # past the cost cap: no reading to decide, or to hold against
-    memory = _tier_memory(policy, snapshot)
-    keys = [(monster.index, monster.race_id) for monster in hostiles]
-    entries = [memory.decided.get(key) for key in keys]
-    known = [entry for entry in entries if entry is not None]
-    overridden = raw.instant_death or supply_fight_stopped(snapshot, hostiles)
-    tier = raw.tier
-    if known and not overridden:
-        here = set(keys)
-        mates = set().union(*(entry.group for entry in known))
-        tier = held_tier(
-            next(tier for tier in TIER_ORDER if any(entry.tier == tier for entry in known)), raw,
-            worse_as_read=len(known) < len(keys) or any(
-                entry is not None and adjusted_speed(monster) > entry.speed
-                for monster, entry in zip(hostiles, entries)),
-            mates_in_view=all(key in here for key in mates if key in memory.decided))
-    leave = tier == T1 or (tier == T2 and not raw.selected)
-    group, fought = frozenset(keys), []
-    for monster, key, entry in zip(hostiles, keys, entries):
-        if entry is not None and entry.leave and not leave:
-            fought.append(key)
-        if entry is not None and entry.tier == tier and not overridden:
-            entry.leave = leave  # the tier holds; the selection is read as it is
-            continue
-        memory.decided[key] = Decided(
-            tier, leave, raw.free_margin, raw.supply_margin, raw.reserve,
-            adjusted_speed(monster), group, retreat_veto_life.Threat(monster.name, snapshot.turn))
-    if fought:
-        retreat_veto_life.release(policy, snapshot, fought)
-    return raw if tier == raw.tier else _as_held(raw, tier)
+def worsens_left(policy, snapshot, hostiles) -> bool:
+    """One of ``hostiles`` is remembered as left for worsening with time (``_worsens_leave``)."""
+    memory = getattr(policy, TIER_MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return False
+    return any(getattr(memory.decided.get((monster.index, monster.race_id)), "worsens", False)
+               for monster in hostiles)
 
 
 def decided_sides(policy, snapshot, hostiles) -> list:

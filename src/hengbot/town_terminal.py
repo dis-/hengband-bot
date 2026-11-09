@@ -363,8 +363,15 @@ def device_identification_target(policy: Any, board: Any) -> Any:
 
 
 def gather_identify_device(policy: Any, board: Any) -> IdentifyMaterial:
-    """Whether the body's reliable normal source is carried (the same lookup)."""
-    return IdentifyMaterial(source_held=policy._find_identification_source(
+    """Whether the body's source is held: the absorbed Identify first (owner
+    2026-10-30), else the reliable normal source it carries (the same lookups)."""
+    from hengbot.me_staff_sequence import identify_power_command
+    target = device_identification_target(policy, board)
+    return IdentifyMaterial(source_held=(
+        target is not None
+        and policy._item_signature(target) not in policy._unidentifiable_sigs
+        and identify_power_command(policy, board, target, full=False) is not None
+    ) or policy._find_identification_source(
         board, full=False, reliable_only=True) is not None)
 
 
