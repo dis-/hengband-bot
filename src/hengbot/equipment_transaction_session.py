@@ -164,6 +164,18 @@ class EquipmentTransactionSession:
     def discard_prepared(self) -> None:
         self._prepared = None
 
+    def drop_current_action(self) -> None:
+        """Pass the unposted current action whose item no longer exists.
+
+        Only for an item the game took out of the pack (equipment_pack_loss):
+        its operation can never be observed, and the rest of the plan does
+        not depend on it.
+        """
+        if self._dispatched is not None or self.current_action is None:
+            raise ValueError("only an unposted current action can be dropped")
+        self._prepared = None
+        self.index += 1
+
     def reconcile_carried(self, snapshot: Snapshot) -> bool:
         """Reconcile an unposted target from the observed pack and worn slots.
 
