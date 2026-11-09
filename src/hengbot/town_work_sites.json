@@ -1299,6 +1299,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_pack_loss.py:loss_lines": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_route_handoff.py:equipment_route_key": {
     "classification": "producer",
     "rows": [
