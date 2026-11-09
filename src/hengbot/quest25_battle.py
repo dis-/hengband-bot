@@ -101,6 +101,7 @@ from hengbot import (
     quest25_druj_gear,
     quest25_battle_record,
     quest25_geometry as geo,
+    quest25_plan,
     quest_exposure,
     quest_find_exit,
     quest_firing_cells,
@@ -126,7 +127,7 @@ from hengbot.policy_constants import (
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
 from hengbot.unseen_strike import message_text
 
-PLAN_KEY = "revised_plan_draft"
+PLAN_KEY = quest25_plan.DRAFT_KEY
 REASON = "quest25"
 WALK_REASON = f"{REASON}:walk"
 OPEN_REASON = f"{REASON}:open-door"
@@ -164,16 +165,10 @@ _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_RE
 # The plan's own '<' on the start stair: Recall active (_recall_wait) or Healing used up (_leave_by_exit).
 _START_STAIR_LEAVES = frozenset({RECALL_EXIT_REASON, quest_room_sweep.EXIT_REASON})
 
-# Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
-QUIET_ACTIONS = 50
-# Owner 2026-11-09 「待つターンを倍にしてみる」: the wall-passers' wait on [7,1] (phase1_wall_passers) only;
-# n1-b life-359 ended it after 50 with 5 shadow demons and a spectre still to come.
-WALL_PASSER_QUIET_ACTIONS = 2 * QUIET_ACTIONS
-# Owner 2026-11-06 wait_limits 「事実上上限無しになる、大きな値を取る。仮に5000にする。」: the ambush
-# (phase1) and the dreadmaster's wait (phase5), player actions without an arrival.
-LONG_WAIT_ACTIONS = 5000
-# Owner 2026-11-06 phase2 「当たらない撃ちで補う」: pen shots in a row with no hit or kill line.
-PEN_MISSES_TO_ESCAPED = 10
+# The plan's numbers -- the waits (wait_limits), the pen misses, the trap searches and the
+# distances the hit chance is weighed at -- are items of QUEST_25.jsonc
+# ``engagement_plan.revised_plan_values``, each quoting its owner decision there; ``_Ctx.values``
+# reads them (quest25_plan).
 # The game's lines that a shot found its mark (combat/shoot.cpp exec_shoot).
 _HIT_LINES = ("に命中した。", "が敵を捕捉した。", "finds a mark.")
 _HIT_LINES_EN = (" hits ",)
@@ -224,11 +219,6 @@ def _pain_of(text: str, names) -> bool:
 # mspell-floor.cpp spell_RF6_TPORT, printed only while the caster is seen.
 _TELEPORT_LINE = "がテレポートした。"
 _TELEPORT_LINE_EN = " teleports away."
-# Owner 2026-11-06 「10回で打ち切る」: searches of a cell that may hold a trap.
-MAYBE_TRAP_SEARCHES = 10
-# Owner 2026-11-09 「罠探知があるなら使用することで確定。そうでなければ10回で打ち切る。」 (it replaces
-# phase5's 2026-11-06 「見つかるまで探す」): searches of a cell the map always traps.
-TRAP_SEARCHES = 10
 # The counted rest between phases (between_phases 「回数を指定して休み、回数を見て続けるかを
 # 決める」); the count is the Q34 recharge's (q34_recharge, LUNA-REPORT-me-rest-recharge).
 RECHARGE_REST_KEY = "R100\r"
@@ -236,10 +226,6 @@ RECHARGE_REST_KEY = "R100\r"
 REST_CUT_GAME_TURNS = 100
 # The rest that ends at full HP/MP (player-processor.cpp).
 FULL_HP_REST_KEY = REST_MACRO
-# Distances the draft weighs the ranged hit chance at: 「[4,1] で距離9」 for the spectral
-# tyrannosaur; the stairway 「[13,27] から階段までは距離2」.  The dreadmaster's fight has
-# no distance in the draft: it is weighed at the same 9.
-COMPARE_DISTANCE = {geo.SPECTRAL_T: 9, geo.DREADMASTER: 9, geo.STAIRWAY: 2}
 # Never-moving casters left to their own phases: no shot, no wait for them elsewhere.  The corpse
 # masses are not among them (owner 2026-11-08 「射線にいれば範囲で撃つ」): breeders are shot by
 # ``_breeders_in_line_key`` wherever a phase would wait or walk, not mixed into its own targets.
@@ -379,6 +365,11 @@ class _Ctx:
     def terrain(self) -> dict:
         return self.navigator.battlefield.terrain
 
+    @property
+    def values(self) -> quest25_plan.PlanValues:
+        """The plan's numbers (``engagement_plan.revised_plan_values``)."""
+        return quest25_plan.values_of(self.profile)
+
     def door_closed(self, cell) -> bool:
         return quest_room_sweep._door_is_closed(self.snapshot, tuple(cell))
 
@@ -469,7 +460,7 @@ def _note_pen_shot(ctx: _Ctx) -> None:
                    or any(line in text for line in _HIT_LINES_EN) or _pain_of(text, names)
                    for text in texts)
     battle.pen_misses = 0 if answered else battle.pen_misses + 1
-    if battle.pen_misses >= PEN_MISSES_TO_ESCAPED and not sees_ipsissimus_unseen(ctx.snapshot):
+    if battle.pen_misses >= ctx.values.pen_misses_to_escaped and not sees_ipsissimus_unseen(ctx.snapshot):
         battle.assumed_escaped = max(0, geo.ROSTER[geo.IPSISSIMUS] - ctx.kills(geo.IPSISSIMUS)
                                      - _escaped_count(ctx, assumed=False))
 
@@ -497,10 +488,12 @@ def _race_hp(policy, race: int) -> float:
 
 
 def melee_is_fewer(policy, snapshot, race: int, *, steps: int = 0) -> bool:
-    """「必要な行動回数」: melee (plus ``steps`` to reach) kills in fewer actions than ranged."""
+    """「必要な行動回数」: melee (plus ``steps`` to reach) kills in fewer actions than ranged, the
+    hit chance weighed at the plan's ``compare_distance`` for the race."""
     hp = _race_hp(policy, race)
+    distance = quest25_plan.values_of(policy.approved_quest_strategy(geo.QUEST_ID)).distance_for(race)
     ranged = attack_expectation.actions_to_kill(hp, attack_expectation.ranged_against(
-        policy, snapshot, race, COMPARE_DISTANCE.get(race, 9)))
+        policy, snapshot, race, distance))
     melee = attack_expectation.actions_to_kill(
         hp, attack_expectation.melee_against(policy, snapshot, race)) + steps
     return melee < ranged
@@ -729,7 +722,8 @@ def _trap_key(ctx: _Ctx, cell) -> str | None:
             battle.detection = (int(ctx.snapshot.turn), ctx.here)
             return detect
     searched = battle.searches.get(cell, 0)
-    if searched >= (MAYBE_TRAP_SEARCHES if maybe and not always else TRAP_SEARCHES):
+    limit = ctx.values.maybe_trap_searches if maybe and not always else ctx.values.trap_searches
+    if searched >= limit:
         battle.cleared = battle.cleared | {cell}   # 「罠は無いとみなして通る」
         return None
     battle.searches = {**battle.searches, cell: searched + 1}
@@ -1838,20 +1832,20 @@ class Phase:
     done: Callable
     act: Callable          # the phase's own step
     wait_at: tuple | None = None   # where its wait is counted (None: anywhere, once ready)
-    wait_limit: int | None = None  # player actions without an arrival that end it
+    wait_limit: str | None = None  # the wait_limits item: player actions without an arrival that end it
 
 
 PHASES = (
-    Phase("ambush", "phase1", False, _ambush_done, _ambush, None, LONG_WAIT_ACTIONS),
+    Phase("ambush", "phase1", False, _ambush_done, _ambush, None, "long_wait_actions"),
     Phase("wall-passers", "phase1_wall_passers", True, _wall_passers_done, _wall_passers,
-          geo.WALL_PASSER_STAND, WALL_PASSER_QUIET_ACTIONS),
+          geo.WALL_PASSER_STAND, "wall_passer_quiet_actions"),
     Phase("ipsissimus", "phase2", True, _ipsissimus_done, _ipsissimus),
     Phase("stragglers", "phase1_wall_passers", False, _stragglers_done, _stragglers,
-          geo.STRAGGLER_STAND, QUIET_ACTIONS),
+          geo.STRAGGLER_STAND, "quiet_actions"),
     Phase("quylthulgs", "phase3", False, _quyls_done, _quyls),
     Phase("tome", "phase3", True, _tome_done, _tome),
     Phase("corpse-masses", "phase4", False, _masses_done, _masses),
-    Phase("dreadmaster", "phase5", False, _dreadmaster_done, _dreadmaster, None, LONG_WAIT_ACTIONS),
+    Phase("dreadmaster", "phase5", False, _dreadmaster_done, _dreadmaster, None, "long_wait_actions"),
     Phase("sweep", "phase6_sweep", False, _sweep_done, _sweep),
     Phase("stairway", "phase6", True, _stairway_done, _stairway),
     Phase("druj", "phase7_druj", False, _druj_done, _druj),
@@ -1914,7 +1908,8 @@ def _act(ctx: _Ctx, phase: Phase) -> str | None:
 
 def _finished(ctx: _Ctx, phase: Phase) -> bool:
     """Its own end, or its wait limit (wait_limits, phase1_wall_passers, phase2)."""
-    return phase.done(ctx) or (phase.wait_limit is not None and ctx.battle.quiet >= phase.wait_limit)
+    return phase.done(ctx) or (phase.wait_limit is not None
+                               and ctx.battle.quiet >= ctx.values.wait_limit(phase.wait_limit))
 
 
 def current_phase(ctx: _Ctx) -> Phase | None:
