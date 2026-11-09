@@ -648,6 +648,9 @@ RETURN_STATIONARY_REASONS = frozenset({
     "return:search-upstairs", "return:wait-recall",
     RETURN_DIG_UPSTAIRS_REASON, RETURN_DIG_FRONTIER_REASON,
 })
+# The ESP-threat leave runs the return above and relabels its reason
+# return:X -> esp-threat:leave-X (policy_combat._esp_threat_leave_key).
+ESP_THREAT_LEAVE_PREFIX = "esp-threat:leave-"
 
 AIM_WAND_KEY = "a"
 
