@@ -67,6 +67,10 @@ FIXTURES = Path(__file__).with_name("fixtures") / "n1c-184-launcher-swap-1109"
 BOW = "高速度のショート・ボウ (x2) (1.00turn) (+7,+15)"
 CROSSBOW = "ライト・クロスボウ (x3) (1.20turn) (+6,+4)"
 PLAIN_ARROWS = "矢 (1d4) (+0,+0)"
+# DECLARED: row 9 ('rkm', the Rod of Identify) is decided 'mAfm' since
+# 5f9ee6fa (the town casts the absorbed Identify first); it is fed with the
+# recorded key posted.
+FORCED = {9}
 SLOTS = ("main_hand", "sub_hand", "bow", "main_ring", "sub_ring", "neck",
          "light", "body", "outer", "head", "arms", "feet")
 
@@ -149,15 +153,17 @@ class N1c184LauncherSwap1109RecordedTest(executor_pins.ProductionHarness):
             policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
 
     def replay(self, rows):
-        """Decide rows 0..rows-1 as recorded (each recorded key posted)."""
+        """Decide rows 0..rows-1 as recorded (each recorded key posted;
+        the FORCED rows are decided but not compared)."""
         policy = self.restore()
         plans = {}
         for row in range(rows):
             if row == 3:
                 self.write_row2_dump(policy)
             board, key = self.decide(policy, row)
-            self.assertEqual((key, policy.last_reason),
-                             (self.journal[row]["key"], self.journal[row]["reason"]), row)
+            if row not in FORCED:
+                self.assertEqual((key, policy.last_reason),
+                                 (self.journal[row]["key"], self.journal[row]["reason"]), row)
             session = policy._equipment_transaction_session
             plans[row] = (None if session is None else
                           [(action.kind, action.target_slot) for action in session.plan.actions])
