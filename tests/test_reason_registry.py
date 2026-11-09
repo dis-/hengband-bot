@@ -65,12 +65,31 @@ OLD_RELOCATING_ESCAPE_REASONS = frozenset({
 })
 
 
+# Owner 2026-11-09 「ダンジョンの分だけ数える」 (the registry report's Q1 and Q2): the only change
+# of membership since the literals.  Q4 (wilderness), Q3 (quest25:recall-exit) and Q6
+# (summoner:stairs, counted already) change nothing.
+NEWLY_COUNTED_1109 = frozenset({
+    "combat:avoid-unprofitable-unique-stairs",
+    "combat:avoid-unprofitable-unique-recall",
+    "no-wait:escape-scroll",
+})
+
+
 class DerivedSetsTest(unittest.TestCase):
     def test_emergency_escape_reasons_are_the_old_literals(self):
         self.assertEqual(policy_constants.EMERGENCY_ESCAPE_REASONS, OLD_EMERGENCY_ESCAPE_REASONS)
 
     def test_relocating_escape_reasons_are_the_old_literals(self):
-        self.assertEqual(policy_constants.RELOCATING_ESCAPE_REASONS, OLD_RELOCATING_ESCAPE_REASONS)
+        self.assertEqual(policy_constants.RELOCATING_ESCAPE_REASONS,
+                         OLD_RELOCATING_ESCAPE_REASONS | NEWLY_COUNTED_1109)
+        self.assertFalse(OLD_RELOCATING_ESCAPE_REASONS & NEWLY_COUNTED_1109)
+
+    def test_the_answered_questions_are_no_longer_open(self):
+        self.assertEqual(reasons.reasons_of(reasons.OWNER_QUESTION), frozenset())
+        for reason in ("wilderness:escape-scroll", "wilderness:recall", "quest25:recall-exit"):
+            self.assertEqual(reasons.lookup(reason).kind, reasons.EXCLUDED, reason)
+        for reason in ("wilderness:flee", "wilderness:wait-recall"):
+            self.assertEqual(reasons.lookup(reason).kind, reasons.WALK, reason)
 
     def test_the_counted_kinds_do_not_overlap(self):
         self.assertFalse(policy_constants.EMERGENCY_ESCAPE_REASONS
