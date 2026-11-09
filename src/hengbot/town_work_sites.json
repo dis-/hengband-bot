@@ -10585,6 +10585,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_firing_cells.py:reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_firing_cells.py:touching_cells": {
     "classification": "data",
     "rows": [
@@ -10593,6 +10600,13 @@
     "delegation": "selected child; no independent success"
   },
   "quest_firing_cells.py:usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_firing_cells.py:widest": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
