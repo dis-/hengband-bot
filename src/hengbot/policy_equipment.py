@@ -1278,7 +1278,14 @@ class EquipmentMixin:
                 for item in self._obtainable_launcher_ammunition(snapshot)
             )),
         ) + ((("curse-pinned", tuple(sorted(curse_pinned))),) if curse_pinned else ()) + (
-            (("magic-eater-powers", me_powers),) if me_powers else ())
+            (("magic-eater-powers", me_powers),) if me_powers else ()) + (
+            # The search catalogue treats an item awaiting *Identify* as
+            # suppressed, so its inscription never reached the key and a hit
+            # kept the pending-random-teleport-suppression blocker after the
+            # '.' was inscribed (n1-b life-356 2026-11-09 04:41,
+            # town:blocked:unmet:equipment_departure_ready).
+            ("random-teleport-suppressed", tuple(sorted(
+                item.id for item in catalog if item.random_teleport_suppressed))),)
         if (
             signature == self._equipment_optimization_signature
             and self._equipment_optimization_pack_items == len(snapshot.inventory)

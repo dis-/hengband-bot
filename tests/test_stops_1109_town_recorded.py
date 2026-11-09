@@ -325,5 +325,72 @@ class MeStaffPostedStepTest(RecordedVisit):
                          (self.journal[60]["key"], self.journal[60]["reason"]))
 
 
+class RandomTeleportInscribedTest(RecordedVisit):
+    """G. n1-b life-356 2026-11-09 04:41 town:blocked:unmet:equipment_departure_ready.
+
+    Row 72 inscribed '.' on the worn, unidentified 長持ちの真鍮のランタン (the
+    random-teleport suppression).  The optimizer's memo key reads its search
+    catalogue, which treats an item awaiting *Identify* as suppressed, so the
+    inscription did not change the key; rows 73-74 hit the memo
+    (signature-cache-hit) with the old pending-random-teleport-suppression
+    blocker and the town end stopped.  Fix: the catalogue's own suppression
+    marks enter the key.
+
+    DECLARED CONSTRUCTED: the character dump row 71 wrote is not in the
+    capture (its sidecar is the arrival's dump, with the pickaxes worn); the
+    arrival dump with its equipment block set to row 71's worn items stands
+    for it, written after the dump key is posted.  The calibration copied at
+    the capture is not read (it predates the arrival: level 1).
+    """
+
+    fixture = "g356"
+    adopt_calibration = False
+
+    def write_row71_dump(self, board):
+        import re
+        text = self.sidecars["_character_dump_path"].decode("euc_jp")
+        names = {item.slot: item.name for item in board.equipment}
+        slots = ("main_hand", "sub_hand", "bow", "main_ring", "sub_ring", "neck",
+                 "light", "body", "outer", "head", "arms", "feet")
+        start = text.index("[キャラクタの装備]")
+        end = text.index("[キャラクタの持ち物]")
+        block = re.sub(r"(?m)^([a-l])\) [^\r\n]+",
+                       lambda match: f"{match.group(1)}) "
+                       + names.get(slots[ord(match.group(1)) - ord("a")], "(なし)"),
+                       text[start:end])
+        path = Path(self.policy._character_dump_path)
+        path.write_bytes((text[:start] + block + text[end:]).encode("euc_jp"))
+        # The dump must be newer than the request (_prepare_character_sheet_dump).
+        stamp = path.stat().st_mtime + 2
+        os.utime(path, (stamp, stamp))
+
+    def replay_with_dump(self):
+        self.replay_to(72)
+        self.assertEqual(self.journal[71]["reason"], "town:character-dump")
+        board = self.board(72)
+        self.write_row71_dump(board)
+        return board
+
+    def test_recorded_inscription(self):
+        board = self.replay_with_dump()
+        key = self.policy.choose_key(board)
+        self.assertEqual((key, self.policy.last_reason),
+                         (self.journal[72]["key"], self.journal[72]["reason"]))
+        self.assertEqual(self.journal[74]["reason"], "town:blocked:unmet:equipment_departure_ready")
+
+    def test_inscribed_suppression_releases_the_blocker(self):
+        board = self.replay_with_dump()
+        self.post(self.policy.choose_key(board))
+        self.assertEqual(self.policy.last_reason, "equipment:suppress-equipped-random-teleport")
+        board, key, reason = self.decide(73)
+        light = next(item for item in board.equipment if item.slot == "light")
+        self.assertIn("{.}", light.name)
+        self.assertNotIn("pending-random-teleport-suppression",
+                         self.policy._equipment_optimization_preparation.blockers)
+        self.assertNotEqual((key, reason), (self.journal[73]["key"], self.journal[73]["reason"]))
+        _board, key, reason = self.decide(74)
+        self.assertNotEqual(reason, "town:blocked:unmet:equipment_departure_ready")
+
+
 if __name__ == "__main__":
     unittest.main()
