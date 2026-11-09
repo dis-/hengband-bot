@@ -29,10 +29,10 @@ from hengbot import zul_trip
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key
 from hengbot.input_executor import ScreenKind, classify_screen
 from hengbot.model import parse_snapshot
-from tests import test_input_executor as executor_harness
+from tests.support import recorded as executor_harness
 from tests import test_q2_tower_recharge_recorded as q2_town
 from tests.test_classA_observed_input import recorded
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 from tests.test_zul_trip import MUTATION, wilderness
 
 FIXTURE = Path(__file__).parent / "fixtures" / "zul-ring-replace-20261107.json.gz"

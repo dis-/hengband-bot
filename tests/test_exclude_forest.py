@@ -22,7 +22,7 @@ from hengbot.model import (
 from hengbot.policy import HengbotPolicy, NO_DEPTH_PROGRESS_DIVE_LIMIT
 from hengbot.spectator import spectator_recall_destination
 from policy_fixtures import player, grid, item
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 from tests import test_guardian_recall_pingpong_recorded as recorded
 
 FOREST = 7

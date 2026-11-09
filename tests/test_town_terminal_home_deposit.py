@@ -28,7 +28,7 @@ from hengbot.town_terminal import (
     gather_home_deposit,
     verdict_home_deposit,
 )
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 
 RUNG = "_town_space_deposit_key"
 DEPOSIT = TerminalRef("home-deposit", ("space-reserve",))

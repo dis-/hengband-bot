@@ -30,7 +30,7 @@ from hengbot.me_staff_sequence import MeStaffSequence
 from hengbot.model import Position, SV_ROD_MAPPING, SV_STAFF_MAPPING, TVAL_ROD, TVAL_STAFF, game_distance, parse_snapshot
 from hengbot.policy_constants import SEARCH_KEY, SEARCH_LIMIT, STUCK_ESCAPE_LIMIT, STUCK_FAMILY_REASONS
 from tests import test_hunt_detect_1102_recorded as detect
-from tests.test_q25_haunted_house import _palette_row
+from tests.support.q25_house import _palette_row
 
 TARGET_RACE = 1164
 WARRIOR = 0

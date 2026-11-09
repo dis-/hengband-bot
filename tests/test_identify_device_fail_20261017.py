@@ -10,7 +10,7 @@ from hengbot.input_executor import Continuation, Operation, ScreenKind
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
-import tests.test_input_executor as harness
+import tests.support.recorded as harness
 
 FIXTURE = Path(__file__).with_name("fixtures") / "identify-device-fail-20261017.jsonl.gz"
 

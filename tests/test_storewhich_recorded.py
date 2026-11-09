@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key, SendResult
 from hengbot.input_executor import ScreenKind, classify_screen
-from tests import test_input_executor as executor_harness
-from tests.test_input_executor import store_screen, command_screen
+from tests.support import recorded as executor_harness
+from tests.support.recorded import store_screen, command_screen
 
 FIXTURES = Path(__file__).parent / "fixtures" / "live-screens"
 
@@ -17,7 +17,7 @@ class StoreWhichRecordedPin(executor_harness.ProductionHarness):
         self.assertEqual(hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest(),
                          "81c7c3c8b56011d73b2e247f9a36e514676f67baef71e8d833c5c6f444e567ff")
         recorded = json.loads(data)
-        from tests.test_input_executor import FaithfulHookGame
+        from tests.support.recorded import FaithfulHookGame
         game = FaithfulHookGame()
         game.screen = store_screen()
         game.state = self.store_state(1)

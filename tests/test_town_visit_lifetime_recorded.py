@@ -24,7 +24,7 @@ from hengbot.model import DUNGEON_YEEK_CAVE, parse_snapshot
 import tests.test_hourly_0700_1102_recorded as town_harness
 import tests.test_hourly_2300_1102_recorded as hourly_2300
 import tests.test_idstaff_stockout_run_recorded as idstaff_run
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 import tests.test_recall_churn_stockout_recorded as recall_churn
 import tests.test_unid_deposit_recorded as unid_deposit
 from tests.test_supply_shortfall_owner_recorded import _segments

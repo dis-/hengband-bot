@@ -31,7 +31,7 @@ from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import REST_MACRO
 from hengbot.policy_fundraising import FUNDRAISING_WAIT_SIGHT_REASON
-from tests import test_input_executor as executor_harness
+from tests.support import recorded as executor_harness
 from tests.test_n1c_loops_0336_1102_recorded import REST_PROMPT
 
 

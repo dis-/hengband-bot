@@ -12,7 +12,7 @@ from hengbot.model import parse_snapshot
 from hengbot.item_reservation import store_item_key
 from hengbot.policy_constants import TOWN_TELEPORT_COST
 from tests import test_broke_prevent_recorded as recorded
-from tests import test_input_executor as executor_harness
+from tests.support import recorded as executor_harness
 
 
 class ReservedFareTest(executor_harness.ProductionHarness):

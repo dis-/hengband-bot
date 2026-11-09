@@ -18,7 +18,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import MINING_THREAT_FREE_LIMIT, STUCK_ESCAPE_LIMIT
 from hengbot.protocol import snapshot_protocol_version
 from policy_fixtures import item, store_item
-import test_input_executor as executor_fixture
+from tests.support import recorded as executor_fixture
 from hengbot.input_executor import OperationExecutor, Operation
 
 FIXTURE = Path(__file__).parent / 'fixtures/curse-priority-20261004.json.gz'

@@ -38,7 +38,7 @@ from pathlib import Path
 from hengbot.cli import SendResult, _ExecutorInputPort, _transport_key
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import STUCK_ESCAPE_LIMIT
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_me_staff_loops_1031_recorded as loops
 
 

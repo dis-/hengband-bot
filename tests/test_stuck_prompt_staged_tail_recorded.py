@@ -83,7 +83,7 @@ from hengbot.cli import (
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_home_light_alternation_cli import FakeControlClient
 
 

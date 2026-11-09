@@ -34,7 +34,7 @@ from pathlib import Path
 from hengbot import me_capability, me_staff_sequence
 from hengbot.model import TVAL_STAFF
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from tests.test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 import tests.test_unid_deposit_recorded as recorded
 
 

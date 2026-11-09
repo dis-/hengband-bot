@@ -10,7 +10,7 @@ import tests  # noqa: F401
 import unittest
 from dataclasses import replace
 from policy_fixtures import item, store_item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from hengbot.model import STORE_HOME, STORE_ALCHEMIST, STORE_BLACK, StoreState, TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, DUNGEON_YEEK_CAVE
 from hengbot.policy import HengbotPolicy
 

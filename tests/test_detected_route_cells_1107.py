@@ -31,7 +31,7 @@ from hengbot import sleeper_loot_block, sleeper_reach_memory
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "detected-hunt-335-1107.json.xz"
 BOARD_TURN = 1835622

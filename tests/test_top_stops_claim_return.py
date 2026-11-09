@@ -10,8 +10,8 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import load_quest_knowledge
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-claim-return.json.gz"
 

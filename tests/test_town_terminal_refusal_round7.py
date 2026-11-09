@@ -9,7 +9,7 @@ from unittest.mock import patch
 from hengbot import town_terminal as tt
 from hengbot.model import STORE_HOME
 from hengbot.policy_constants import TOWN_TELEPORT_COST
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_departure import policy_on
 
 

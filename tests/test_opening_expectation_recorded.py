@@ -25,7 +25,7 @@ from pathlib import Path
 
 from hengbot.model import parse_snapshot
 from tests import test_opening_route_r2_recorded as round2
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "opening-expectation-1102.json.gz"

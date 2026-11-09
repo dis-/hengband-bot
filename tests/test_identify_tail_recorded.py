@@ -20,7 +20,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 
 # Bare unittest and package imports must share this harness's class objects.
 sys.modules.setdefault("test_identify_tail_recorded", sys.modules[__name__])

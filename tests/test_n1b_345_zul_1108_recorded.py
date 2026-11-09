@@ -40,7 +40,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import UP_STAIRS_KEY
 from replay_town_arrival import decisions, journal, restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 FIXTURES = Path(__file__).with_name("fixtures") / "n1b-343-345-1108"
 MUTATION = 1          # DECLARED CONSTRUCTED: one curable mutation

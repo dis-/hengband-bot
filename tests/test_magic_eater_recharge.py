@@ -4,7 +4,7 @@ import tests  # noqa: F401
 from dataclasses import replace
 import unittest
 
-import test_input_executor as inputs
+from tests.support import recorded as inputs
 import test_magic_eater_o3 as o3
 from test_magic_eater_o3 import prompt
 import test_magic_eater_ranged_fire_recorded as recorded

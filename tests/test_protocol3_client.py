@@ -44,13 +44,8 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SKILL_KNOWLEDGE_MACRO
 from hengbot.protocol import ProtocolSchemaError
 from hengbot.warrior_optimization import CharacterCalibration
-from test_esp_threat_rest_recorded import (
-    CALIBRATION,
-    EDIT,
-    FIXTURE,
-    FIXTURE_SHA256,
-    _policy,
-)
+from test_esp_threat_rest_recorded import FIXTURE, FIXTURE_SHA256
+from tests.support.recorded import ESP_THREAT_REST_CALIBRATION as CALIBRATION, EDIT, _policy
 from recorded_floor_knowledge import pre_seen_floor_replay
 from recorded_junk_scope import pre_home_junk_sweep_replay
 from recorded_loadout import pre_light_radius_replay, recorded_loadout_replay

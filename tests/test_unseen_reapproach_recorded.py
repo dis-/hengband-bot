@@ -52,7 +52,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.runtime_paths import RUNTIME_DIR_ENV, isolate_restored_runtime_paths
 
 from recorded_floor_knowledge import pre_seen_floor_replay
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "unseen-reapproach-dl30-20261020.jsonl.gz"

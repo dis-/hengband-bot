@@ -16,11 +16,11 @@ from dataclasses import replace
 
 from hengbot import item_fate
 from hengbot.model import STORE_ARMOURY
-from tests import test_input_executor as _test_input_executor
+from tests.support import recorded as _executor_support
 from tests.test_spare_gear_recorded import Visit
 
 
-class ItemFateRecordedTest(_test_input_executor.ProductionHarness):
+class ItemFateRecordedTest(_executor_support.ProductionHarness):
     def visit(self, name, rows):
         visit = Visit(name, True)
         self.addCleanup(visit.close)

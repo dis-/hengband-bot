@@ -28,7 +28,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.input_executor import ScreenKind, classify_screen
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "town-recall-prompt-20261030.json.gz"

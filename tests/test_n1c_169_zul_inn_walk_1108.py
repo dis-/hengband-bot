@@ -28,7 +28,7 @@ from hengbot import zul_trip
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import Position
 from replay_town_arrival import decisions, journal, restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 FIXTURES = Path(__file__).with_name("fixtures") / "n1c-169-1108"
 START_TOWN = 3          # the inn's teleport: 'm' + chr(ord('a') + 3)

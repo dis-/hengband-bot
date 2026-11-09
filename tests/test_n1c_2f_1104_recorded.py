@@ -24,7 +24,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.policy import SEARCH_LIMIT
 from hengbot.policy_constants import STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.wilderness_exit import SHAFT_TERRAIN_IDS
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_dungeon_stops_1103_recorded as _test_dungeon_stops_1103_recorded
 
 

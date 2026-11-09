@@ -30,7 +30,7 @@ from tempfile import TemporaryDirectory
 from hengbot.cli import _consume_response_sequence
 from hengbot.junk_destroy_now import destroy_now_key
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).parent / "fixtures" / "junk-destroy-now-20261102.jsonl.gz"
 DESTROY = "inventory:destroy-worthless-junk"

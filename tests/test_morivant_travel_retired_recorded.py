@@ -54,7 +54,7 @@ from hengbot.policy_constants import TOWN_TRAVEL_STALL_LIMIT
 
 from recorded_emergency_loot_gate import pre_progressing_loot_gate_replay
 from recorded_floor_knowledge import pre_seen_floor_replay
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

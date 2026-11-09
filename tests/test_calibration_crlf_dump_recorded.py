@@ -37,7 +37,7 @@ from hengbot.policy import staged_prompt_chain_matches
 from hengbot.policy_constants import CHARACTER_DUMP_MACRO, SKILL_KNOWLEDGE_MACRO
 from hengbot.policy_constants import required_depth_gates
 
-from test_esp_threat_rest_recorded import _policy
+from tests.support.recorded import _policy
 import test_town_blackmarket_stall_recorded as stall_pin
 
 FIXTURES = Path(__file__).parent / "fixtures"

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import unittest
 
-import test_input_executor as inputs
+from tests.support import recorded as inputs
 import test_magic_eater_o3 as o3
 from test_magic_eater_o3 import powers, prompt
 from hengbot.cli import _ExecutorInputPort, SendResult

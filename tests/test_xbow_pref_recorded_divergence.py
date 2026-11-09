@@ -38,7 +38,7 @@ import recorded_equipment_decisions as frozen
 import test_classC2_departure_recorded as classC2
 import test_identify_staff_live27_recorded as live27
 import test_tpstockout_restart_recorded as tpstockout
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from extraction_calibration import (
     install_extraction_calibration,
     restore_recorded_checkpoint,

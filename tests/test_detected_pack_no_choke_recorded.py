@@ -42,7 +42,7 @@ from hengbot.cli import LOOP_WINDOW, _cell_loop_guard_applies, _is_looping
 from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SWARM_LOOKAHEAD
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 from test_floor_dwell_seen_floor_recorded import FIXTURES, _Replay
 
 

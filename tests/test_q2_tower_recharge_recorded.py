@@ -45,7 +45,7 @@ from unittest.mock import patch
 from hengbot.quest_knowledge import load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.town_maps import find_town_map, parse_town_map
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_me_tower_recharge_recorded import recharge_all_screens
 
 GAME = Path("C:/hengband")

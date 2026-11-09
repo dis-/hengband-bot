@@ -35,7 +35,7 @@ from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
 from hengbot.summoner_wait import SUMMONER_WAIT_GAME_TURNS
 from recorded_junk_scope import choose_past_destroyed_junk
 from tests import policy_fixtures as fixtures
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "immobile-summoner-20261027.json.gz"

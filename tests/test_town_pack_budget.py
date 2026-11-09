@@ -29,8 +29,8 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
 from hengbot.town_pack_budget import incoming_slots, permits, pressure_deposit
 from hengbot.town_terminal import TerminalRef, terminal_admission
-from tests import test_input_executor as executor_harness
-from tests.test_esp_threat_rest_recorded import _policy
+from tests.support import recorded as executor_harness
+from tests.support.recorded import _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures/overflow-root-20261028.json.gz"

@@ -29,7 +29,7 @@ from hengbot.policy_constants import WAIT_KEY
 from hengbot.policy_types import CrossTownShoppingExpedition
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL
 from hengbot.town_terminal import TerminalRef, fixed_quest_intended_terminal
-from test_goldburn_shopping_constructed import board, shopping_policy
+from tests.support.boards import goldburn_board as board, goldburn_shopping_policy as shopping_policy
 import test_policy_quest
 
 

@@ -37,7 +37,7 @@ from tests.test_magic_eater_o3 import prompt
 from tests.test_me_tower_recharge_recorded import (
     ABSORB_PROMPT, APPROACH_TOTAL, DIRECTIONS, RECHARGE_ALL_KEYS, recharge_all_screens,
 )
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 IDENTIFY, DETECT = 5, 10

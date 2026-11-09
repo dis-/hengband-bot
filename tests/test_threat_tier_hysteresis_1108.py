@@ -28,7 +28,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.threat_tiers import T1, T2, T3, Assessment, held_tier
 import test_choke_stall_recreate_1108_recorded as choke
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 OPEN_CELL, CHOKE = choke.OPEN_CELL, choke.CHOKE

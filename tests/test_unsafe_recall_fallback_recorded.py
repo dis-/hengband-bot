@@ -64,7 +64,7 @@ from hengbot.policy_constants import (
     required_depth_gates,
 )
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

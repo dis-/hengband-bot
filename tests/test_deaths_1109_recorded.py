@@ -58,7 +58,7 @@ from hengbot.model import (
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "deaths-1109.json.xz"
 RECALL = (70, 11)   # (tval, sval) of Word of Recall

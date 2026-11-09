@@ -168,7 +168,7 @@ class JudgeDeath168RecordedTest(unittest.TestCase):
         import json
         from pathlib import Path
         from hengbot.monrace_knowledge import load_monrace_knowledge
-        from test_esp_threat_rest_recorded import EDIT
+        from tests.support.recorded import EDIT
         path = Path(__file__).with_name("fixtures") / "n1c-168-judge-death-1108.json.gz"
         with gzip.open(path, "rt", encoding="utf-8") as stream:
             cls.case = json.load(stream)
@@ -178,7 +178,7 @@ class JudgeDeath168RecordedTest(unittest.TestCase):
         import tempfile
         from contextlib import ExitStack
         from pathlib import Path
-        from test_esp_threat_rest_recorded import _policy
+        from tests.support.recorded import _policy
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             policy = _policy(Path(directory), self.monrace)
             raw = self.case["board"]

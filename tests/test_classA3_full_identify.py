@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 import tests.test_classA_observed_input as class_a
-import tests.test_input_executor as harness
+import tests.support.recorded as harness
 
 FIXTURE = Path(__file__).with_name('fixtures') / 'classA3'
 

@@ -46,7 +46,7 @@ from hengbot.model import STORE_ALCHEMIST, STORE_MAGIC
 from hengbot.model import _parse_items
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.protocol import snapshot_protocol_version
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_junk_scope import pre_town_junk_step_replay
 
 FIXTURE = Path(__file__).parent / "fixtures/supply-shortfall-owner-20261018.json.gz"

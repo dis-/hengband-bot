@@ -44,7 +44,7 @@ from hengbot.cli import _consume_response_sequence, _parse_items
 from hengbot.equipment_optimizer import SLOT_HEAD, loadout_light_radius
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.warrior_optimization import load_character_calibration
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

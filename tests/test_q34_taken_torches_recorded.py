@@ -26,7 +26,7 @@ from pathlib import Path
 from hengbot.cli import _movement_destination as movement_destination
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import QUEST_STATUS_TAKEN, STORE_HOME
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 import tests.test_unid_deposit_recorded as recorded
 
 

@@ -35,7 +35,7 @@ from hengbot.model import Position, _parse_items
 from hengbot.warrior_equipment_evaluator import modify_stat_value
 from hengbot.warrior_optimization import WarriorOptimizationPreparation, current_loadout
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
-from test_esp_threat_rest_recorded import _policy, EDIT
+from tests.support.recorded import _policy, EDIT
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
 FIXTURE = Path(__file__).parent / 'fixtures/step1.5a-equipment-homefull.json.gz'

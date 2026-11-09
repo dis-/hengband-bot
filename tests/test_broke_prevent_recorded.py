@@ -29,8 +29,8 @@ from hengbot.policy_constants import TOWN_TELEPORT_COST, POLICY_FINAL_STOP_REASO
 from hengbot.item_reservation import store_item_key
 from hengbot.cli import _policy_final_stop_required
 from tests import test_classA_observed_input as follow_harness
-from tests import test_input_executor as executor_harness
-from tests.test_input_executor import command_screen, store_screen, prompt_screen
+from tests.support import recorded as executor_harness
+from tests.support.recorded import command_screen, store_screen, prompt_screen
 from tests.test_resume_inside_store import _fit
 from hengbot.policy_types import CrossTownShoppingExpedition
 from hengbot.monrace_knowledge import load_monrace_knowledge

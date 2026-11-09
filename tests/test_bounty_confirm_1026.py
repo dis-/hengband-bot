@@ -12,8 +12,8 @@ import unittest
 
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key, SendResult
 from hengbot.input_executor import ScreenKind, classify_screen
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 
 def evidence():

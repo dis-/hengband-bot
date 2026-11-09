@@ -42,7 +42,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import CHEST_SEARCH_BUDGET
 from tests import test_me_mapping_1101_recorded as mapping_recorded
 from tests import test_me_stage2_powers as stage2
-from tests.test_input_executor import command_screen
+from tests.support.recorded import command_screen
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
 

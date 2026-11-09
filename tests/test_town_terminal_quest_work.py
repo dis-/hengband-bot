@@ -13,7 +13,7 @@ import unittest
 
 from hengbot import town_terminal
 from hengbot.model import STORE_ALCHEMIST
-from test_goldburn_shopping_constructed import board, shopping_policy
+from tests.support.boards import goldburn_board as board, goldburn_shopping_policy as shopping_policy
 
 
 def _decision_board(policy, snap):

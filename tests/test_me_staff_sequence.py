@@ -23,7 +23,7 @@ import unittest
 
 from policy_fixtures import grid, item, player, store_item
 import test_policy_quest as quest_tests
-import test_input_executor as input_tests
+from tests.support import recorded as input_tests
 from test_magic_eater_o3 import prompt
 from test_me_tower_recharge_recorded import recharge_all_screens
 from hengbot.cli import (

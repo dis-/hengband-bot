@@ -37,7 +37,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_HOME
 from recorded_junk_scope import pre_home_junk_sweep_replay
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "home-ident-withdraw-20261018.jsonl.gz"

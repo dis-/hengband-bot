@@ -82,7 +82,7 @@ from recorded_monster_scope import pre_exported_position_replay
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_HOME
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 import test_policy_home  # WeightOverloadTownTest's overweight town board
 from extraction_calibration import install_extraction_calibration
 from recorded_loadout import pre_ratio_optimizer_replay

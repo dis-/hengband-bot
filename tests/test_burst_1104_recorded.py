@@ -21,7 +21,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.policy_equipment import prepare_warrior_optimization
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from town_work_corpus import replay_window
 
 

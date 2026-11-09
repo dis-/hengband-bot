@@ -32,9 +32,9 @@ from tempfile import TemporaryDirectory
 from hengbot.cli import _consume_response_sequence, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import parse_snapshot
 from hengbot.policy_types import TownErrandPlan
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests.support.headroom_home import HeadroomHomeGame
-from tests.test_esp_threat_rest_recorded import _policy
+from tests.support.recorded import _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "town-withdraw-pack-budget-20261030.json.gz"

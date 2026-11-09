@@ -27,9 +27,9 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE, RETURN_TRIGGER
-from tests import test_input_executor as executor_pins
-from tests.test_dungeon_1031_recorded import READ_PROMPT, decide
-from tests import test_dungeon_1031_recorded as _test_dungeon_1031_recorded
+from tests.support import recorded as executor_pins
+from tests.support.recorded import READ_PROMPT, decide
+from tests.support import recorded as _dungeon_support
 from tests.test_town_decision_speed_caches import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "rq-teleport-reserve-1101.json.gz"
@@ -37,7 +37,7 @@ QUEST_ID = 45
 QUEST_TARGET_RACE = 1347
 
 
-class RandomQuestTeleportReserveRecordedTest(_test_dungeon_1031_recorded.RecordedHarness):
+class RandomQuestTeleportReserveRecordedTest(_dungeon_support.RecordedHarness):
     @classmethod
     def setUpClass(cls):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:

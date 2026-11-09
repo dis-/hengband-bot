@@ -28,7 +28,7 @@ from tempfile import TemporaryDirectory
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "town-aquatic-chase-20261018.jsonl.gz"

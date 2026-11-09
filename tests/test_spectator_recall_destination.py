@@ -45,7 +45,7 @@ from hengbot.policy import EMPTY_DIVE_LIMIT, NO_DEPTH_PROGRESS_DIVE_LIMIT, Hengb
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.spectator import SpectatorWriter
 from tests import test_guardian_recall_pingpong_recorded as pingpong
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_policy_observation as observation_pins
 from tests import test_policy_quest as quest_pins
 from tests import test_spectator as spectator_pins

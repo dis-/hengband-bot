@@ -57,7 +57,7 @@ from hengbot.policy import ENTRANCE_TRAVEL_MACRO
 from hengbot.policy_constants import TOWN_TRAVEL_STALL_LIMIT
 from hengbot.town_arbiter import _new_town_turn_arbiter
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
