@@ -43,7 +43,7 @@ from hengbot.sleeper_loot_block import remembered_gone
 
 KIND = monster_memory.SLEEPER_REACH
 MEMORY = KIND.attribute  # (floor_key, {(index, race): (MonsterState, last shown turn)})
-PARALYSER_LEFT = "_paralyser_left"  # (floor_key, frozenset({(index, race)}))
+PARALYSER_LEFT = monster_memory.PARALYSER_LEFT  # (floor_key, frozenset({(index, race)}))
 
 
 def observe(policy, snapshot) -> None:
@@ -55,24 +55,17 @@ def observe(policy, snapshot) -> None:
 
 def status_latched(policy, snapshot, monster) -> bool:
     """Whether the survival rung latched ``monster`` as a status threat on this floor."""
-    latch = getattr(policy, "_status_threat_latch", None)
-    return (latch is not None and latch[0] == snapshot.floor_key
-            and (monster.index, monster.race_id) in latch[1])
+    return monster_memory.marked(policy, snapshot, monster_memory.STATUS_THREAT_LATCH, monster)
 
 
 def note_paralyser_left(policy, snapshot, monsters) -> None:
     """The 09-18 rung leaves ``monsters``: keep them as left on this floor."""
-    marked = getattr(policy, PARALYSER_LEFT, None)  # restored checkpoints predate it
-    left = marked[1] if marked is not None and marked[0] == snapshot.floor_key else frozenset()
-    setattr(policy, PARALYSER_LEFT, (snapshot.floor_key, left | {
-        (monster.index, monster.race_id) for monster in monsters}))
+    monster_memory.mark(policy, snapshot, PARALYSER_LEFT, monsters)
 
 
 def paralyser_left(policy, snapshot, monster) -> bool:
     """Whether the 09-18 rung left ``monster`` on this floor."""
-    marked = getattr(policy, PARALYSER_LEFT, None)
-    return (marked is not None and marked[0] == snapshot.floor_key
-            and (monster.index, monster.race_id) in marked[1])
+    return monster_memory.marked(policy, snapshot, PARALYSER_LEFT, monster)
 
 
 def avoided_out_of_sight(policy, snapshot, monster) -> bool:

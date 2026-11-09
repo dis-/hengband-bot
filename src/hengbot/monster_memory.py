@@ -172,3 +172,27 @@ def gone(snapshot, key, threat, shown: dict, last_turn) -> bool:
     if ended is not None:
         return ended
     return snapshot.turn - threat.last_seen >= UNSEEN_GAME_TURNS
+
+
+# Per-floor marks: (floor_key, frozenset({(index, race)})), the monsters an owner marked on this
+# floor.  The status threats the survival rung latched (policy ``_status_threat_latch``) and the
+# paralysers the 09-18 rung left (sleeper_reach_memory) are judged out of sight at their last
+# shown cell in the memory above while marked.
+STATUS_THREAT_LATCH = "_status_threat_latch"
+PARALYSER_LEFT = "_paralyser_left"
+
+
+def floor_marks(policy, snapshot, attribute: str):
+    """The keys marked under ``attribute`` on this floor (empty on another floor)."""
+    marks = getattr(policy, attribute, None)  # restored checkpoints may predate it
+    return marks[1] if marks is not None and marks[0] == snapshot.floor_key else frozenset()
+
+
+def marked(policy, snapshot, attribute: str, monster) -> bool:
+    return (monster.index, monster.race_id) in floor_marks(policy, snapshot, attribute)
+
+
+def mark(policy, snapshot, attribute: str, monsters) -> None:
+    """Add ``monsters`` to this floor's marks (another floor's are dropped)."""
+    setattr(policy, attribute, (snapshot.floor_key, floor_marks(policy, snapshot, attribute) | {
+        (monster.index, monster.race_id) for monster in monsters}))

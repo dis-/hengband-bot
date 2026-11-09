@@ -162,5 +162,27 @@ class IdentityTest(unittest.TestCase):
         self.assertFalse(monster_memory.gone(early, (3, 7), threat, {}, 150))
 
 
+class FloorMarksTest(unittest.TestCase):
+    def test_mark_is_per_floor(self):
+        policy = Policy()
+        attribute = monster_memory.PARALYSER_LEFT
+        gazer = monster(3, 5, 9, race=218)
+        self.assertFalse(monster_memory.marked(policy, board(100), attribute, gazer))
+        monster_memory.mark(policy, board(100), attribute, [gazer])
+        self.assertTrue(monster_memory.marked(policy, board(101), attribute, gazer))
+        self.assertFalse(monster_memory.marked(policy, board(101, floor=OTHER_FLOOR), attribute, gazer))
+        monster_memory.mark(policy, board(102, floor=OTHER_FLOOR), attribute, [monster(4, 1, 1)])
+        self.assertEqual(getattr(policy, attribute), (OTHER_FLOOR, frozenset({(4, 7)})))
+
+    def test_status_latch_is_read_as_a_mark(self):
+        policy = Policy()
+        gazer = monster(3, 5, 9, race=218)
+        setattr(policy, "_status_threat_latch", (FLOOR, frozenset({(3, 218)})))
+        self.assertTrue(monster_memory.marked(
+            policy, board(100), monster_memory.STATUS_THREAT_LATCH, gazer))
+        self.assertEqual(monster_memory.floor_marks(
+            policy, board(100, floor=OTHER_FLOOR), monster_memory.STATUS_THREAT_LATCH), frozenset())
+
+
 if __name__ == "__main__":
     unittest.main()

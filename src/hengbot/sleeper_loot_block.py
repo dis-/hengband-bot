@@ -74,8 +74,7 @@ def remembered_gone(policy, snapshot, monster) -> bool:
 def status_threats(policy, snapshot) -> list:
     """The awake status threats the survival rung retreats from on this board (policy
     ``_unresisted_melee_status_threats`` with the floor's latch), which preempt the loot."""
-    latch = getattr(policy, "_status_threat_latch", None)
-    latched = latch[1] if latch is not None and latch[0] == snapshot.floor_key else frozenset()
+    latched = monster_memory.floor_marks(policy, snapshot, monster_memory.STATUS_THREAT_LATCH)
     return policy._unresisted_melee_status_threats(
         snapshot, policy._physical_hostiles(snapshot), latched=latched)
 
