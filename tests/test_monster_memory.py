@@ -136,5 +136,31 @@ class DisenchantKindTest(unittest.TestCase):
         self.assertTrue(monster_memory.SLEEPER_REACH.window_while_shown)
 
 
+class IdentityTest(unittest.TestCase):
+    def test_retreat_veto_life_reexports_the_readers(self):
+        from hengbot import retreat_veto_life
+        for name in ("UNSEEN_GAME_TURNS", "shown_by_index", "seen_or_ended", "gone",
+                     "SHAPE_CHANGE_LINES"):
+            self.assertIs(getattr(retreat_veto_life, name), getattr(monster_memory, name), name)
+        # Pickled policies name the Threat class in retreat_veto_life.
+        self.assertEqual(retreat_veto_life.Threat.__module__, "hengbot.retreat_veto_life")
+
+    def test_seen_or_ended_and_gone(self):
+        from hengbot.retreat_veto_life import Threat
+        orc = monster(3, 5, 9)
+        threat = Threat("orc", 100)
+        shown = monster_memory.shown_by_index(board(150, [orc]))
+        self.assertFalse(monster_memory.seen_or_ended(board(150, [orc]), (3, 7), threat, shown, 100))
+        self.assertEqual(threat.last_seen, 150)
+        other = monster(3, 5, 9, race=8)
+        shown = monster_memory.shown_by_index(board(160, [other]))
+        self.assertTrue(monster_memory.seen_or_ended(board(160, [other]), (3, 7), threat, shown, 150))
+        late = board(150 + monster_memory.UNSEEN_GAME_TURNS)
+        self.assertIsNone(monster_memory.seen_or_ended(late, (3, 7), threat, {}, 150))
+        self.assertTrue(monster_memory.gone(late, (3, 7), threat, {}, 150))
+        early = board(149 + monster_memory.UNSEEN_GAME_TURNS)
+        self.assertFalse(monster_memory.gone(early, (3, 7), threat, {}, 150))
+
+
 if __name__ == "__main__":
     unittest.main()

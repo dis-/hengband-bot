@@ -29,9 +29,13 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Callable
 
+from hengbot.breeder_stalemate import shows_kill
 from hengbot.me_powers import HUNT_REDETECT_GAME_TURNS
+from hengbot.unseen_strike import message_text
 
 UNSEEN_GAME_TURNS = HUNT_REDETECT_GAME_TURNS
+# The game's shape-change lines, as (prefix, suffix) around the monster's name.
+SHAPE_CHANGE_LINES = (("", "が変身した！"), ("突然", "が変身した。"), ("", "は変化した！"))
 
 
 @dataclass(frozen=True)
@@ -122,3 +126,49 @@ def remembered(policy, snapshot, kind: Kind) -> list:
     return [replace(monster, distance=here.distance_to(monster.position))
             for (index, _race), (monster, _turn) in entries(policy, snapshot, kind).items()
             if index not in shown]
+
+
+# Who a monster is and when it ended, for the owners that keep their own store (the retreat
+# veto's life, retreat_veto_life; the never-moving monsters of the floor visit,
+# immobile_threat_memory; the threat tiers' decided sides; the one-shot breath).  ``threat`` is
+# retreat_veto_life.Threat (its name and the last board that showed it).
+
+def _shows_shape_change(snapshot, name: str) -> bool:
+    lines = {prefix + name + suffix for prefix, suffix in SHAPE_CHANGE_LINES}
+    return any(message_text(message) in lines for message in snapshot.messages)
+
+
+def shown_by_index(snapshot) -> dict:
+    """The board's monsters (in view, or shown by a detection) by their floor list index."""
+    return {monster.index: monster
+            for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)}
+
+
+def seen_or_ended(snapshot, key, threat, shown: dict, last_turn) -> bool | None:
+    """False: shown on this board (its last sighting moves to this board).  True: it
+    died or changed shape (its index shows another race, or its kill or shape-change
+    line follows a board it was shown on).  None: not shown, and no line ended it.
+
+    Shared with the never-moving monster memory (immobile_threat_memory), which keeps
+    a monster not shown -- it cannot have left its cell."""
+    index, race = key
+    monster = shown.get(index)
+    if monster is not None:
+        if monster.race_id == race:
+            threat.last_seen = snapshot.turn
+            return False
+        return True
+    if threat.last_seen == last_turn and (
+            shows_kill(snapshot, threat.name) or _shows_shape_change(snapshot, threat.name)):
+        return True
+    return None
+
+
+def gone(snapshot, key, threat, shown: dict, last_turn) -> bool:
+    """Died, changed shape, or not shown for UNSEEN_GAME_TURNS (the retreat veto's life and the
+    decided side of the threat tiers, threat_tiers.observe).  At the window's turn already, as
+    the veto always was (the store above ends an entry one turn later, ``expired``)."""
+    ended = seen_or_ended(snapshot, key, threat, shown, last_turn)
+    if ended is not None:
+        return ended
+    return snapshot.turn - threat.last_seen >= UNSEEN_GAME_TURNS
