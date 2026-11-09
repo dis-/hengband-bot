@@ -8,9 +8,6 @@ C:/hengband-backups/pdca/captures/n1c-183-loop-1109/:
   snapshot ring snapshots-current (boards and the ~f ``knowledge`` responses from 2948290,
   before the 古代レッド・ドラゴン was shown, to the stop), its policy-state.json, and the
   decision rows of captures/20261109-203348-loop-detected.
-- ``loot-2230``: n1-c life-184 captures/20261109-223004-loop-detected (build b4dec292b,
-  dungeon 3 18F) state.jsonl and decisions, with the remembered terrain of its incident twin
-  incident-captures/20261109-223002-loop-detected.
 - ``chest-2045``: captures/20261109-204524-loop-detected (build 2ea922e5b) state.jsonl and
   decisions, with the remembered terrain of its incident twin
   incident-captures/20261109-204520-loop-detected.
@@ -95,11 +92,6 @@ def main() -> None:
             if row.get("type") in {"player_turn", "knowledge"}]
     write("chest-2045", rows, lines(capture / "bot-decisions.jsonl.gz"),
           ROOT / "incident-small-20261109-204520", races)
-    capture = ROOT / "n1c-184-20261109-223004"
-    rows = [row for row in lines(capture / "state.jsonl.gz")
-            if row.get("type") in {"player_turn", "knowledge"}]
-    write("loot-2230", rows, lines(capture / "bot-decisions.jsonl.gz"),
-          ROOT / "incident-small-184-223002", races)
 
 
 if __name__ == "__main__":
