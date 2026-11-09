@@ -1856,8 +1856,8 @@ def key(policy, snapshot) -> str | None:
 
 def _absorbed_heal(policy, snapshot, profile) -> str | None:
     """Owner 2026-11-09 Q3 「成功率が80%以上なら体力回復は使っても良い。テレポートは許可しない」, and the
-    same day 「即死の危険がないときは薬より優先する」: at the plan's heal line (where a
-    Healing potion is drunk), the absorbed Healing whose displayed
+    same day 「即死の危険がないときは薬より優先する」 / 「ロッドも同じ」: at the plan's heal line (where a
+    Healing potion is drunk), the absorbed Healing -- the staff's, else the rod's -- whose displayed
     success rate is at least 80% (me_capability ``reliable``, the owner's one number for absorbed
     powers in place of an item) comes before the potion, unless the instant death holds
     (threat_tiers ``instant_death``: the next action's p95 reaches the HP); then a carried potion,

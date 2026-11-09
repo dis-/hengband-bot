@@ -49,7 +49,7 @@ from hengbot import me_device_policy
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
     SV_SCROLL_DETECT_TREASURE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
-    SV_POTION_HEALING, SV_POTION_SPEED, SV_STAFF_DESTRUCTION, SV_STAFF_DETECT_GOLD, SV_STAFF_HEALING,
+    SV_POTION_HEALING, SV_POTION_SPEED, SV_ROD_HEALING, SV_STAFF_DESTRUCTION, SV_STAFF_DETECT_GOLD, SV_STAFF_HEALING,
     SV_STAFF_IDENTIFY,
     SV_STAFF_LITE, SV_STAFF_REMOVE_CURSE, SV_STAFF_SPEED, SV_WAND_STONE_TO_MUD,
     TVAL_POTION, TVAL_SCROLL, TVAL_STAFF,
@@ -283,9 +283,12 @@ REPLACES = (
                 when="reliable", cast=True),
     # 2026-11-09 (n1-c life-178, Q25) 「成功率が80%以上なら体力回復は使っても良い。」, and the same
     # day 「即死の危険がないときは薬より優先する」: cast at the Q25 plan's heal line before a Healing
-    # potion unless the instant death holds (quest25_battle._absorbed_heal).  It waives nothing
-    # (``uses`` empty): the potions are still bought and counted.
+    # potion unless the instant death holds (quest25_battle._absorbed_heal).  「ロッドも同じ」: the
+    # rod's row is the same rule (the staff's first, in this order).  They waive nothing (``uses``
+    # empty): the potions are still bought and counted.
     Replacement(("staff", SV_STAFF_HEALING), Kind(TVAL_POTION, SV_POTION_HEALING),
+                when="reliable", uses=frozenset(), cast=True),
+    Replacement(("rod", SV_ROD_HEALING), Kind(TVAL_POTION, SV_POTION_HEALING),
                 when="reliable", uses=frozenset(), cast=True),
     # 2026-10-30 「以降、鑑定と財宝感知は取り込みで賄う」.
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_STAFF, SV_STAFF_IDENTIFY),

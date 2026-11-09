@@ -23,7 +23,7 @@ from __future__ import annotations
 from hengbot import me_capability, me_powers
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.me_staff_sequence import cast_blocked
-from hengbot.model import SV_STAFF_CURE_LIGHT, SV_STAFF_TELEPORTATION
+from hengbot.model import SV_ROD_HEALING, SV_STAFF_CURE_LIGHT, SV_STAFF_TELEPORTATION
 
 
 # The reason suffix of a quest's absorbed-power cast (me_device_attacks_input).
@@ -37,10 +37,15 @@ def _cast_power(ident: tuple) -> me_powers.Power:
     kind, sval = ident
     if ident in me_powers.BY_KEY:
         return me_powers.BY_KEY[ident]
-    if kind == "rod":
+    if kind == "rod" and sval not in _UNAIMED_RODS:
         raise ValueError(f"a rod substitute needs its me_powers row: {ident}")
     return me_powers.Power(kind, sval, me_capability.names(kind, sval), "absorbed-power", 0, 0,
                            (), darkness_scaled=False, aimed=kind == "wand")
+
+
+# The rods cast in place of an item that ask for no direction (baseitem-key.cpp
+# BaseitemKey::is_aiming_rod lists no Healing; cmd-magiceat.cpp asks get_aim_dir only for those).
+_UNAIMED_RODS = frozenset({SV_ROD_HEALING})
 
 
 # Cure Light Wounds, the blindness cure a blind player casts (status_cure.absorbed_cure_key).
@@ -113,7 +118,11 @@ def carry_cast_key(policy, snapshot, category: str, name: str,
 
 
 def item_cast_key(policy, snapshot, target, direction: str = "") -> str | None:
-    """The substitute power where a scene uses ``target``'s item: a ``cast``
-    row whose condition holds (me_capability.cast_rows), with a charge."""
-    row = next(me_capability.cast_rows(policy, snapshot, target), None)
-    return None if row is None else cast_key(policy, snapshot, _powers()[row.power], direction)
+    """The substitute power where a scene uses ``target``'s item: the first ``cast``
+    row whose condition holds (me_capability.cast_rows) with a charge (owner 2026-11-09
+    「ロッドも同じ」: the staff's Healing spent, the rod's serves)."""
+    for row in me_capability.cast_rows(policy, snapshot, target):
+        key = cast_key(policy, snapshot, _powers()[row.power], direction)
+        if key is not None:
+            return key
+    return None

@@ -31,7 +31,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import me_powers_refresh, quest25_battle as battle, quest_room_sweep, threat_tiers
+from hengbot import me_capability, me_powers_refresh, quest25_battle as battle, quest_room_sweep, threat_tiers
+from hengbot.model import SV_ROD_HEALING
 from hengbot.policy_constants import REST_MACRO
 from hengbot.model import _parse_items, parse_snapshot
 from tests import test_q25_haunted_house as q25
@@ -247,11 +248,11 @@ class AbsorbedHealingNoTeleportTest(unittest.TestCase):
 
 
 class AbsorbedHealingBeforePotionTest(unittest.TestCase):
-    """Owner 2026-11-09 「即死の危険がないときは薬より優先する」: at the plan's heal
+    """Owner 2026-11-09 「即死の危険がないときは薬より優先する」 and 「ロッドも同じ」: at the plan's heal
     line the absorbed Healing (success at least 80%) before the Healing potion, but at the instant
     death the potion first.  Decision 5184: [5,5], HP 291 of 503, a Healing potion carried; the
     recorded process drank it ('qc').  The 95% rows are DECLARED CONSTRUCTED (the life showed the
-    staff's at 32%)."""
+    staff's at 32% and had no rod of Healing)."""
 
     def test_the_staff_healing_comes_before_the_potion(self):
         self.assertEqual(recorded(5184)[1]["key"], "qc")
@@ -261,6 +262,20 @@ class AbsorbedHealingBeforePotionTest(unittest.TestCase):
     def test_at_32_percent_the_potion_is_drunk(self):
         answers = replay(answer_lists=lists(), through=5184)
         self.assertEqual(answers[5184], ("qc", "quest-strategy:heal"))
+
+    def test_the_rod_healing_the_same(self):
+        rod = lists()
+        rod["rod"][1].append({"name": me_capability.names("rod", SV_ROD_HEALING)[0], "fail": 5,
+                              "success": 95, "charging": 0, "max": 1})
+        answers = replay(answer_lists=rod, through=5184)
+        self.assertEqual(answers[5184], ("mCj", battle.ABSORBED_HEAL_REASON))
+
+    def test_the_staff_healing_spent_the_rod_serves(self):
+        rod = lists({HEALING: {"success": 95, "current": 0}})
+        rod["rod"][1].append({"name": me_capability.names("rod", SV_ROD_HEALING)[0], "fail": 5,
+                              "success": 95, "charging": 0, "max": 1})
+        answers = replay(answer_lists=rod, through=5184)
+        self.assertEqual(answers[5184], ("mCj", battle.ABSORBED_HEAL_REASON))
 
     def test_at_the_instant_death_the_potion_comes_first(self):
         # DECLARED CONSTRUCTED: decision 5184's HP set to 30 and 33.  The unseen loss the life
