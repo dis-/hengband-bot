@@ -1743,15 +1743,9 @@ class IdentificationMixin:
             return "pack-full"
         if self._physical_adjacent_hostiles(snapshot):
             return "adjacent-hostile"
-        # A summoner or breeder that blocks the loot in view blocks it out of sight at its
-        # last shown cell (sleeper_reach_memory, owner 2026-11-09 「起きた敵も最後の位置を覚える」):
-        # n1-c life-184 (Orc cave 18F, 2026-11-09 22:30) saw a 巨大ドブネズミ (race 156) at
-        # [29,47] from [40,38] and walked approach-descent '1' to [41,37], out of its sight,
-        # where seek-loot stepped '9' straight back, until the loop detector.
-        out_of_sight = sleeper_reach_memory.remembered(self, snapshot)
-        if any(monster.can_summon for monster in (*hostiles, *out_of_sight)):
+        if any(monster.can_summon for monster in hostiles):
             return "summoner-visible"
-        if any(monster.can_multiply for monster in (*hostiles, *out_of_sight)):
+        if any(monster.can_multiply for monster in hostiles):
             return "multiplier-visible"
         if hostiles and self._predicted_damage(snapshot, hostiles, turns=3) >= (
             snapshot.player.hp * LOOT_THREAT_DAMAGE_RATIO
