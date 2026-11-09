@@ -76,6 +76,11 @@ def harmless(policy, snapshot, target, hostiles=None) -> bool:
         hostiles = _visible(policy, snapshot)
     if not hostiles:
         return False
+    # The projection reads each race's blows and spells (lib/edit/MonraceDefinitions.jsonc);
+    # a race the knowledge does not hold projects 0 damage, which shows nothing about 被害無く.
+    if any(policy._monrace_knowledge.get(monster.race_id) is None
+           for monster in (target, *hostiles)):
+        return False
     free = {target.index: _free(policy, snapshot, target)}
     target = threat_tiers._with_adjusted_speed(target)
     schedule = threat_tiers._attack_schedule(policy, snapshot, [target], SUPPLIES, free)
