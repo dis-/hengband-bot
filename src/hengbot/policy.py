@@ -17254,6 +17254,45 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     ) -> Position | None:
         return self._summoner_retreat_route(snapshot, summoners, hostiles)[1]
 
+    def _summoner_shelter_applies(
+        self, snapshot: Snapshot, hostiles: list[MonsterState]
+    ) -> bool:
+        """The summoner rungs of ``_decide_dungeon`` that shelter rather than leave would answer:
+        the cover step out of open ground (summoner:stairs / summoner:retreat, owner 2026-11-06
+        「above the low-HP line the wall beside the step stays the cover」) or the wait at a choke
+        (hold_key, owner 2026-10-27 / 11-02).  Owner 2026-11-09 「前からの2つを先に」:
+        「遮蔽に隠れる・通路で待つが使える場面ではそれを使い、使えない時だけ離れる。」  The same
+        tests as those rungs, without their side effects (threat_tiers.leave_due reads it)."""
+        player = snapshot.player
+        summoners = [
+            monster for monster in hostiles
+            if monster.can_summon and not monster.asleep
+            and not self._summoner_never_approaches(snapshot, monster)
+        ]
+        if not summoners:
+            return False
+        corridor_threats = summoners
+        if self._active_kill_quest_id(snapshot) is not None:
+            corridor_threats = hostiles
+        adjacent = any(player.position.distance_to(monster.position) <= 1
+                       for monster in corridor_threats)
+        if (not adjacent
+                and self._open_neighbor_count(snapshot, player.position)
+                >= SUMMONER_EXPOSED_NEIGHBORS
+                and not any(
+                    (shots := self._summoner_shots_to_kill(snapshot, monster))
+                    is not None and shots <= SUMMONER_RANGED_KILL_SHOTS
+                    and self._summoner_ranged_attack_available(snapshot, monster)
+                    for monster in summoners)):
+            current = snapshot.grid_at(player.position)
+            if (current is not None and self._is_upstairs_target(current)
+                    and not self._quest_floor_exit_locked(snapshot)):
+                return True
+            if self._summoner_retreat_step(snapshot, corridor_threats, hostiles) is not None:
+                return True
+        # The choke wait (hold_key) answers summoners that all keep their distance.
+        return all(monster.distance > 2 for monster in summoners)
+
 
     def _avoid_engagement_key(
         self, snapshot: Snapshot, hostiles: list[MonsterState]

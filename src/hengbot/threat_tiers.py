@@ -1202,7 +1202,10 @@ def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
         return True
     # Owner 2026-11-09 「倒しきれない敵と同じに離れる」 (design 4.4): a summoner or shrieker left
     # as a T1 is (``_worsens_leave``, held by the decided side).
-    if result.tier is not None and worsens_left(policy, snapshot, hostiles):
+    # Owner 2026-11-09 「前からの2つを先に」: where the summoner cover step or the choke wait
+    # answers, they do; the leave only where neither does.
+    if (result.tier is not None and worsens_left(policy, snapshot, hostiles)
+            and not policy._summoner_shelter_applies(snapshot, hostiles)):
         return True
     if result.tier == T2:
         return not result.selected
