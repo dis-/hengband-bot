@@ -27,7 +27,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import me_powers_refresh, quest25_battle as battle
+from hengbot import me_powers_refresh, quest25_battle as battle, quest_room_sweep
 from hengbot.policy_constants import REST_MACRO
 from hengbot.model import _parse_items, parse_snapshot
 from tests import test_q25_haunted_house as q25
@@ -166,6 +166,19 @@ class UnseenTomeTest(unittest.TestCase):
         answers = replay(answer_lists=lists())
         self.assertEqual(recorded(5187)[1]["hp"], 387)
         self.assertEqual(answers[5187][0], BREATH)
+
+
+
+class StartStairOutOfHealingTest(unittest.TestCase):
+    """Owner 2026-11-04 (QUEST_25 ``exit_when_out_of_healing``) 「薬を使い切っていたら踏んで良い」:
+    Healing used up, HP at the panic line, the start stair [13,1] within a few steps."""
+
+    def test_decision_5216_walks_to_the_start_stair(self):
+        raw, row = recorded(5216)
+        self.assertEqual(((raw["player"]["y"], raw["player"]["x"]), row["hp"], row["key"]), ((11, 1), 81, "8"))
+        answers = replay()
+        for sequence in (5216, 5217, 5218, 5219):   # [11,1]..[8,1], 2 to 5 steps from [13,1]
+            self.assertEqual(answers[sequence], ("2", quest_room_sweep.EXIT_WALK_REASON), sequence)
 
 
 if __name__ == "__main__":

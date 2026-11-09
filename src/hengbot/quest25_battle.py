@@ -142,7 +142,7 @@ OUT_OF_FIRE_REASON = f"{REASON}:step-out-of-fire"
 FIRE_REST_REASON = f"{REASON}:rest-out-of-fire"
 FIRE_HOLD_REASON = f"{REASON}:hold-out-of-fire"
 _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
-                            OUT_OF_FIRE_REASON})
+                            OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -1775,6 +1775,7 @@ def key(policy, snapshot) -> str | None:
     if not board.enemy:
         return (
             _druj_retreat(policy, snapshot)
+            or _leave_by_exit(policy, snapshot, board)
             or _summons(policy, snapshot)
             or resist_potion.drink_key(policy, snapshot)
             or quest_room_sweep._restore(policy, snapshot)
@@ -1791,6 +1792,7 @@ def key(policy, snapshot) -> str | None:
             or quest_room_sweep._below_line(policy, snapshot, profile, navigator, line=False)))
         or quest_find_exit._cure(policy, snapshot)
         or _druj_retreat(policy, snapshot)
+        or _leave_by_exit(policy, snapshot, board)
         or quest_room_sweep._give_up(policy, snapshot, profile)
         or quest_room_sweep._below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
@@ -1801,6 +1803,19 @@ def key(policy, snapshot) -> str | None:
         or _phase_key(policy, snapshot)
         or resist_potion.leave_key(policy, snapshot)
     )
+
+
+def _leave_by_exit(policy, snapshot, board) -> str | None:
+    """Owner 2026-11-04 (QUEST_25 room_sweep ``exit_when_out_of_healing``, 「薬を使い切っていたら
+    踏んで良い」): the Healing used up, HP at the panic line (PANIC_HP_RATIO) and the start stair
+    within a few steps: walk there and take it (quest_room_sweep ``_leave_by_exit``).  The room
+    sweep's own order holds it; the phase battle that replaced the sweep on this floor dropped it
+    (n1-c life-178 decision 5216: HP 81 of 503 on [11,1], no Healing, the stair [13,1] two steps
+    off, and the phase walked back to the tome).  On the quiet board too: the tome that hits
+    from out of sight leaves no enemy on the board between its breaths."""
+    ctx = _ctx(policy, snapshot)
+    plan = {**ctx.profile.engagement_plan["room_sweep"], "left_alone_races": ()}
+    return quest_room_sweep._leave_by_exit(policy, snapshot, ctx.navigator, plan, board)
 
 
 def walk_key(policy, snapshot) -> str | None:
