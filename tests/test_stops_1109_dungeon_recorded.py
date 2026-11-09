@@ -113,51 +113,68 @@ class AwakeThreatOutOfSightRecordedTest(RecordedHarness):
         self.assertEqual(board(L356, 368898)["visible_monsters"], [])
 
     def drive_346(self):
-        """Decide the recorded boards from (24,23) as the gazer wakes to (23,24)."""
+        """Decide the recorded boards from (24,23) as the gazer wakes to (23,24).
+
+        Owner 2026-11-09 E (deaths-1109, 1eb1e326b7): without Free Action a HOLD caster is a
+        paralyser in contact once it has the player in sight, and the 09-18 rung leaves it
+        with the escape scroll.  The ゲイザー casts HOLD (MonraceDefinitions id 218, spells
+        HOLD/CONF): awake 3 cells away in the open from 1301131 on, it is now read away from
+        ('status-threat:scroll', 'rh'), where bot-15049b9 walked off ('9',
+        'status-threat:retreat').  DECLARED COUNTERFACTUAL for the L1 pins below: the
+        recorded walk is posted instead of the scroll (1301140 '9'; 1301131 decided nothing
+        in the record), so the recorded boards that follow it hold -- the case of an awake
+        threat out of sight after a walk away, which L1 is about.
+        """
         policy = fresh(L346, 1301122)
+        rows = recorded(L346)
         for raw in L346["boards"]:
             if raw["turn"] < 1301122:
                 continue
             if raw["turn"] == 1301148:
                 return policy, copy.deepcopy(raw)
             key = decide(policy, copy.deepcopy(raw))
+            if raw["turn"] > 1301122:
+                self.assertEqual((key, policy.last_reason), ("rh", "status-threat:scroll"))
+                key = rows[raw["turn"]][0] if raw["turn"] in rows else None
             if key:
                 policy.confirm_key_posted(key)
         self.fail("no board 1301148")
 
     def test_the_gazer_out_of_sight_keeps_the_loot_and_the_walks_off(self):
+        """L1 after the walk off: the gazer stays at its last cell and blocks the loot.
+
+        Before owner E the walk off was the status-threat rung's retreat, whose latch and
+        threat ring kept the later steps walking away (the distance from GAZER_SEEN never
+        fell, (24,23) in the route veto).  Owner E answers the gazer in sight on the 09-18
+        rung instead (``drive_346``), which neither latches nor rings it, so those two
+        retreat properties no longer arise on this record; the L1 properties do.
+        """
         policy, raw = self.drive_346()
-        self.assertEqual(policy.last_reason, "status-threat:retreat")
-        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
-        start, distance = raw["turn"], here(raw).distance_to(GAZER_SEEN)
+        start = raw["turn"]
         reasons = []
         while raw["turn"] - start <= UNSEEN_GAME_TURNS and len(reasons) < 12:
+            snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
             key = decide(policy, copy.deepcopy(raw))
             reasons.append(policy.last_reason)
             if key:
                 policy.confirm_key_posted(key)
+            # Out of sight the gazer is judged at its last cell, and the loot block it
+            # made holds (bot-15049b9: ('1', 'seek-loot') back to (24,23), as recorded).
+            self.assertEqual([(m.index, m.race_id) for m in
+                              sleeper_reach_memory.remembered(policy, snapshot)], [GAZER])
+            self.assertTrue(sleeper_loot_block.holds(policy, snapshot))
             if not reasons[1:]:
-                # bot-15049b9: ('1', 'seek-loot') back to (24,23), as recorded.
-                self.assertNotEqual(policy.last_reason, "seek-loot")
                 self.assertNotEqual(step(raw, key) if key in MOVES else None, Position(24, 23))
-                # The first board out of sight: the gazer is judged at its last cell.
-                self.assertEqual([(m.index, m.race_id) for m in
-                                  sleeper_reach_memory.remembered(policy, snapshot)], [GAZER])
-                self.assertTrue(sleeper_loot_block.holds(policy, snapshot))
-                veto = policy._engagement_route_veto(snapshot)
                 self.post(policy, raw, key, [], self.later(raw))
             if key not in MOVES:
                 break
             # DECLARED COUNTERFACTUAL: the player follows the decided moves with the gazer
             # out of sight, ten game turns a decision.
             moved = step(raw, key)
-            self.assertGreaterEqual(moved.distance_to(GAZER_SEEN), distance,
-                                    (raw["turn"], key, policy.last_reason))
             raw["player"]["y"], raw["player"]["x"] = moved.y, moved.x
             raw["turn"] += 10
             raw["messages"] = []
         self.assertNotIn("seek-loot", reasons)
-        self.assertIn(Position(24, 23), veto)
 
     def test_the_warg_out_of_sight_keeps_the_loot_walk_off_its_area(self):
         policy = fresh(L356, 368888)
