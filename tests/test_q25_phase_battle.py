@@ -505,7 +505,8 @@ class Q25TomeTest(unittest.TestCase):
 
 
 class Q25TrapTest(unittest.TestCase):
-    """phase4 「10回で打ち切る」 on a cell that may hold a trap; phase5 「見つかるまで探す」."""
+    """phase4 「10回で打ち切る」 on a cell that may hold a trap; owner 2026-11-09 for an always-trapped
+    cell: a trap detection when held, else ten searches."""
 
     def test_the_way_to_1_6_crosses_3_1_after_ten_searches_and_never_the_corridor(self):
         raw = board((4, 1))
@@ -520,12 +521,15 @@ class Q25TrapTest(unittest.TestCase):
         self.assertNotIn((1, 4), path)
         self.assertFalse(set(path) & set(geo.NORTH_CORRIDOR))
 
-    def test_an_always_trapped_cell_is_searched_past_ten(self):
+    def test_an_always_trapped_cell_is_passed_after_ten_searches(self):
+        # Owner 2026-11-09 「罠探知があるなら使用することで確定。そうでなければ10回で打ち切る。」
+        # (it replaced 2026-11-06 「見つかるまで探す」): no detection held, ten searches end it.
         raw = board((1, 7))
         open_door(raw, (1, 7))
         policy = new_policy(raw)
-        at_phase(policy, raw, "dreadmaster", style="ranged", searches={(1, 8): 25})
+        at_phase(policy, raw, "dreadmaster", style="ranged", searches={(1, 8): battle.TRAP_SEARCHES - 1})
         self.assertEqual((choose(policy, raw), policy.last_reason), (SEARCH_KEY, battle.SEARCH_REASON))
+        self.assertEqual((choose(policy, raw), policy.last_reason), ("6", battle.WALK_REASON))
 
     def test_a_found_trap_is_disarmed_then_crossed(self):
         raw = with_trap_shown(board((1, 7)), (1, 8))

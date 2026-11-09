@@ -26,6 +26,35 @@ needs ``path - 1`` moves and one blow.
 
 from __future__ import annotations
 
+from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE
+
+
+# Owner 2026-11-09 (question E of n1-b life-346, 鉄獄19階: クトーニアン, 1_IN_5 HOLD and
+# BRAIN_SMASH, killed the player paralysed): 「麻痺知らずが無い時、HOLD・脳攻撃を持つ敵も麻痺
+# させる敵に数え、視線が通れば 09-18 の決まりで離れる。」  Game: spell_RF5_HOLD paralyses
+# unless free action or the saving throw (mspell/mspell-status.cpp:423-445, mod_paralysis
+# 4-7); effect_player_brain_smash paralyses past the saving throw unless free action
+# (effect/effect-player-spirit.cpp:103-136).  A monster casts only within the maximum range
+# (mspell/mspell-attack.cpp:320, MAX_RANGE) and a projectable line (:326
+# decide_lite_projection, mspell/mspell-lite.cpp:209-212); arena_odds._NEEDS reads the same
+# two spells.
+SPELL_PARALYSIS = frozenset({"HOLD", "BRAIN_SMASH"})
+
+
+def paralyses_by_spell(knowledge) -> bool:
+    """A race that casts one of the paralysing spells."""
+    return (knowledge is not None and knowledge.spell_frequency > 0
+            and bool(knowledge.abilities & SPELL_PARALYSIS))
+
+
+def spell_contact(policy, snapshot, monster) -> bool:
+    """Whether an awake spell paralyser has the player in sight: in range and a clear line
+    (the 09-18 leave's contact for a paralyser that needs no blow)."""
+    if monster.asleep or not paralyses_by_spell(policy._monrace_knowledge.get(monster.race_id)):
+        return False
+    return (monster.distance <= MONSTER_SPELL_MAX_RANGE
+            and policy._has_line_of_fire(snapshot, monster.position, snapshot.player.position))
+
 
 def in_contact(policy, snapshot, monster) -> bool:
     """Whether ``monster``'s melee can reach the player before its next action."""

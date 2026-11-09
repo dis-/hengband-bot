@@ -3702,6 +3702,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "paralyzer_contact.py:paralyses_by_spell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._activate_safe_recall_fallback": {
     "classification": "data",
     "rows": [
@@ -10095,6 +10102,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_trap_detect_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_trap_key": {
     "classification": "producer",
     "rows": [
@@ -11646,6 +11660,13 @@
     ],
     "delegation": "No independent success; the emergency ladder selects the command."
   },
+  "threat_tiers.py:InstantDeath.next_action": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:_aim": {
     "classification": "data",
     "rows": [
@@ -11702,6 +11723,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:_instant_death": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:_resistance_key": {
     "classification": "producer",
     "rows": [
@@ -11730,6 +11758,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:_with_adjusted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:adjusted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:assess": {
     "classification": "data",
     "rows": [
@@ -11751,6 +11793,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:cannot_win": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:decided": {
     "classification": "data",
     "rows": [
@@ -11766,6 +11815,20 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:held_tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:inside_sensing": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:instant_death": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11808,6 +11871,13 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:tiered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:unseen_correction": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

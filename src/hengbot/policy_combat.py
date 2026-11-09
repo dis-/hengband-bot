@@ -835,6 +835,9 @@ class CombatMixin:
                 "emergency:destruction",
                 "emergency:stairs",
                 "emergency:cure",
+                # Owner 2026-11-09 D: the Speed dose on a confusion relapse is the board's own
+                # answer (status_cure.speed_first_key), not a dose this rule may turn into a heal.
+                status_cure.RELAPSE_SPEED_REASON,
                 "flee:scroll",
                 "flee:stairs",
             )
@@ -2480,7 +2483,10 @@ class CombatMixin:
                      or destruction_use.usable(self, snapshot))
             )
             if not blind_escape and status_cure.treats(self, snapshot):
-                if (speed := status_cure.speed_first_key(self, snapshot)) is not None:
+                # Owner 2026-11-09 D: confused again right after a cure on the 即死 board, the
+                # Speed dose first and the HP recovery potion when HP is down (status_cure).
+                if (speed := status_cure.speed_first_key(
+                        self, snapshot, instant_death=instant_death)) is not None:
                     return speed  # the cure, and the escape it owes, on the next board
                 potion = status_cure.low_hp_heal(self, snapshot, hostiles,
                                                  observed_loss=observed_loss)
@@ -2489,7 +2495,7 @@ class CombatMixin:
                 cast = None if potion is not None else status_cure.absorbed_cure_key(
                     self, snapshot, status_cure.EMERGENCY_ABSORBED_CURE_REASON)
                 if potion is None and cast is None:
-                    potion = status_cure.cure_potion(self, snapshot)
+                    potion = status_cure.cure_potion(self, snapshot, instant_death=instant_death)
                 if potion is not None or cast is not None:
                     if potion is not None:
                         self.last_reason = (
@@ -2547,8 +2553,13 @@ class CombatMixin:
                 scroll_first = bool(
                     instant_death and scroll is not None and scroll.is_teleport_scroll
                 )
+                # Owner 2026-11-09 B 「即死はテレポートで逃げる。射線が通っていないなど即死では
+                # ない場合は破壊による排除を優先する。」: off the 即死 board the threat need not
+                # be awake in view (destruction_use.key leaving: seen or detected, awake or asleep).
                 if not guardian_reposition and not scroll_first and (
-                        used := destruction_use.key(self, snapshot)) is not None:
+                        used := destruction_use.key(self, snapshot, leaving=None if instant_death
+                                                    else threat_tiers.engagement(self, snapshot))
+                ) is not None:
                     return used
                 if blind_escape and (
                         blind := self._blind_teleport_escape(snapshot)) is not None:
@@ -2713,13 +2724,16 @@ class CombatMixin:
     ) -> list[MonsterState]:
         if self._has_state_based_free_action(snapshot):
             return []
+        # Owner 2026-11-09 E: a HOLD / BRAIN_SMASH caster is a paralyser too
+        # (paralyzer_contact.paralyses_by_spell).
         return [
             monster
             for monster in hostiles
             if (
                 (knowledge := self._monrace_knowledge.get(monster.race_id))
                 is not None
-                and any(blow.effect == "PARALYZE" for blow in knowledge.blows)
+                and (any(blow.effect == "PARALYZE" for blow in knowledge.blows)
+                     or paralyzer_contact.paralyses_by_spell(knowledge))
             )
         ]
     def _refresh_paralyzer_avoidance(
@@ -2821,16 +2835,21 @@ class CombatMixin:
         threats: list[MonsterState],
         physical_adjacent: list[MonsterState],
     ) -> str | None:
-        """Refuse melee and walk away whenever a paralyzer is in contact (D55)."""
+        """Refuse melee and walk away whenever a paralyzer is in contact (D55).
+        A spell paralyser is in contact once it has the player in sight (owner
+        2026-11-09 E 「視線が通れば 09-18 の決まりで離れる」, paralyzer_contact.spell_contact)."""
         adjacent = [
             monster
             for monster in threats
-            if paralyzer_contact.in_contact(self, snapshot, monster)
-            and (
-                monster.asleep
-                or "NEVER_MOVE"
-                not in self._monrace_knowledge[monster.race_id].flags
+            if (
+                paralyzer_contact.in_contact(self, snapshot, monster)
+                and (
+                    monster.asleep
+                    or "NEVER_MOVE"
+                    not in self._monrace_knowledge[monster.race_id].flags
+                )
             )
+            or paralyzer_contact.spell_contact(self, snapshot, monster)
         ]
         if not adjacent:
             return None

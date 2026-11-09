@@ -631,7 +631,7 @@ def _unseen_light(policy, snapshot, navigator, plan, board) -> str | None:
 def key(policy, snapshot) -> str | None:
     """The board with an enemy about, or to recover on; None leaves it shared."""
     plan = _plan(policy, snapshot)
-    if (plan is None or snapshot.player.food_state in quest_find_exit.STARVING
+    if (plan is None or quest_find_exit.steps_aside_for_food(policy, snapshot)
             or once_quest_recall._deliberate_leave(policy, snapshot)):
         return None
     quest_id = snapshot.floor_key[2]

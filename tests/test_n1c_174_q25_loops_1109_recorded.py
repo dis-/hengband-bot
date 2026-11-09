@@ -150,9 +150,11 @@ class Q25CorridorTrapSearchTest(unittest.TestCase):
                     self.assertNotEqual(reason, battle.SEARCH_REASON, key)
 
     def test_items_on_a_map_trap_cell_mean_no_trap_there(self):
-        # Without the beam's line (the battle of a process that never saw the flash), the items
-        # the fight left on [1,10] still answer it: a trap terrain takes no item.
-        with patch.object(battle, "_settle_beam", lambda ctx: None):
+        # Without the beam's line (the battle of a process that never saw the flash) and without
+        # the board's unsafe flag, the items the fight left on [1,10] still answer it: a trap
+        # terrain takes no item.
+        with patch.object(battle, "_settle_beam", lambda ctx: None), \
+                patch.object(battle, "_settled_on_board", lambda ctx, grid: False):
             answers = replay()
         self.assertEqual(answers["second", SECOND_SEARCH], ("s", battle.SEARCH_REASON))
         self.assertEqual(answers["second", ITEMS_ON_CELL], ("4", battle.WALK_REASON))

@@ -15312,6 +15312,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A disarming power or carried device aimed at a Q25 trap cell. No independent progress."
   },
+  "quest25_battle.py:_trap_detect_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-09 trap detection of Q25's phase battle (the absorbed Detect Traps, else a carried staff or scroll) for a map trap cell; no independent progress."
+  },
   "bm_destruction_fund.py:_shelf": {
     "classification": "data",
     "rows": [
@@ -16536,5 +16547,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:_with_adjusted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the strategic hostiles in view plus the awake detected ones (threat tiers design 3), read by assess, facts and instant_death_key; not an independently selected game action"
+  },
+  "threat_tiers.py:instant_death": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the strategic hostiles in view plus the awake detected ones (threat tiers design 3), read by assess, facts and instant_death_key; not an independently selected game action"
   }
 }
