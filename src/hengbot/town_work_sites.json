@@ -11680,6 +11680,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "status_cure.py:dungeon_wait_for_sight_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "status_cure.py:fight_through_key": {
     "classification": "producer",
     "rows": [

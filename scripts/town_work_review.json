@@ -16848,5 +16848,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:dungeon_wait_for_sight_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-07 「敵がいなくなったら目が見えるまで休む。」 (n1-a life-504 2026-11-10, 鉄獄24階: a gas-trap blindness with no cure, hunted and explored blind into three traps). Blind, no unseen attacker left on the floor (attacker_gone: none hit since the blindness, or a kill or a thief's 「泥棒は笑って逃げた！」 followed the last blow), then wait_for_sight_key's own test (dungeon, not hit this board, no physical hostile, a restable food state): REST_MACRO under blind:wait-sight with producer survival, else None. Called only from _decide right after _survival_gate_key#2, below the emergency and combat rungs; dungeon only; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

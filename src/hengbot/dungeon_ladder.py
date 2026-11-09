@@ -175,7 +175,11 @@ LADDER = (
         *I("hunt:quest-target"),
     )),
     Layer("safe-now", "objectives, rest, descent and idle", (
-        *E("_survival_gate_key#2", "_mana_food_loot_key"),
+        *E("_survival_gate_key#2"),
+        # Owner 2026-11-07 「敵がいなくなったら目が見えるまで休む。」 (n1-a life-504): it
+        # declines with an attacker left, a hit taken or a hostile in sight.
+        *D("status_cure.dungeon_wait_for_sight_key", exempt=NO_ATTACKER),
+        *E("_mana_food_loot_key"),
         *D("me_powers.power_key:FLOOR", "area_mapping.after_destruction_key",
            "area_mapping.picked_up_scroll_key", "quest_target_search.detection_key",
            "magic_eater.absorb_key"),

@@ -94,6 +94,10 @@ _LATCH_BLOW = "_blind_cure_futile_blow"  # the blow text that re-blinded it, if 
 _ATTACKER = "_blind_attacker_floor"   # floor whose unseen attacker no kill has followed
 # monster-damage.cpp show_kill_message (also after 「せっかくだから」).
 _KILL_ENDINGS = ("を殺した。", "を倒した。", "を葬り去った。")
+# MonsterAttackPlayer::process_thief_teleport (monster-attack-player.cpp:526-527): the thief
+# that touched and stole is teleported away (teleport_away, MAX_PLAYER_SIGHT * 2 + 5).  The
+# 「...ようとしたがバリアに防がれた。」 variant keeps it beside the player, so it is not here.
+THIEF_FLED = frozenset({"泥棒は笑って逃げた！", "The thief flees laughing!"})
 FIGHT_THROUGH_REASON = "blind:fight-through"
 # The absorbed Cure Light Wounds cast (absorbed_cure_key adds the cast suffix).
 ABSORBED_CURE_REASON = "item:cure-light"
@@ -122,13 +126,17 @@ def _observe_attacker(policy, snapshot) -> None:
         if text.endswith(unseen_strike.JA_BLOW_ACTS) or (
                 getattr(policy, "_took_damage", False) and policy._is_unseen_attack_message(text)):
             setattr(policy, _ATTACKER, snapshot.floor_key)
-        elif text.endswith(_KILL_ENDINGS):
+        elif text.endswith(_KILL_ENDINGS) or text in THIEF_FLED:
+            # n1-a life-504 (2026-11-10, 鉄獄24階): 「何かに触られた。」 then 「泥棒は笑って
+            # 逃げた！」 left the floor's attacker latched for good, though the thief
+            # was teleported away; nothing hit the blind player after it.
             setattr(policy, _ATTACKER, None)
 
 
 def attacker_gone(policy, snapshot) -> bool:
     """No unseen attacker is left on this floor as far as the blind player
-    knows: none hit it since it went blind, or a kill followed the last blow."""
+    knows: none hit it since it went blind, or a kill (or a thief's escape,
+    ``THIEF_FLED``) followed the last blow."""
     return getattr(policy, _ATTACKER, None) != snapshot.floor_key
 
 
@@ -444,3 +452,26 @@ def wait_for_sight_key(policy, snapshot, reason: str, *, producer: str) -> str |
         next_step="player.rest", expected_effect="sight-restored",
     )
     return REST_MACRO
+
+
+DUNGEON_WAIT_SIGHT_REASON = "blind:wait-sight"
+
+
+def dungeon_wait_for_sight_key(policy, snapshot) -> str | None:
+    """The dungeon's own rest until sight returns, below the survival and combat rungs.
+
+    Owner 2026-11-07 「敵がいなくなったら目が見えるまで休む。」  The rest lived only in
+    the latched town return and the income run; n1-a life-504 (2026-11-10, 鉄獄24階,
+    random quest 41) was blinded by a gas trap (trap.cpp TrapType::BLIND, 25-74
+    turns) with no cure carried and hunted, searched and explored blind for 32
+    boards: a dart trap, a thief, the dart trap again, a poison trap and the
+    TY_CURSE trap whose summons killed it.  Blind, with no unseen attacker left on
+    the floor (``attacker_gone``) and nothing hitting or in sight
+    (``wait_for_sight_key``), the floor work waits for sight.  The escapes that
+    work blind, the cure, the strike at an unseen biter and the melee against an
+    adjacent hostile are rungs above this one.  The latched town return and the
+    income run keep their own rest (return:wait-sight, fundraise:wait-sight)."""
+    if (not attacker_gone(policy, snapshot) or getattr(policy, "_returning_to_town", False)
+            or getattr(policy, "_fundraising_mode", None) in {"mine", "scavenge"}):
+        return None
+    return wait_for_sight_key(policy, snapshot, DUNGEON_WAIT_SIGHT_REASON, producer="survival")
