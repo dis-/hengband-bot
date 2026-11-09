@@ -156,11 +156,12 @@ class FollowerRecordedTest(TeleportFollowerHarness):
 
     def test_the_replay_matches_the_live_decisions_before_the_summons(self):
         """From the クトーニアン's waking (15756) to the summons the replay decides as live did
-        (the first boards of the floor differ: a fresh policy has no exploration memory), but
-        15760, where plan step 11 shoots the summoner (WorsensWithTimeRecordedTest)."""
+        (the first boards of the floor differ: a fresh policy has no exploration memory), up to
+        15760, where plan step 11 shoots the summoner and then leaves it
+        (WorsensWithTimeRecordedTest)."""
         _policy, answers = self.recorded_answers()
         for turn, (_raw, key, reason, _snapshot) in answers.items():
-            if WOKE <= turn < SUMMONED and turn != RETREAT_OPEN:
+            if WOKE <= turn < RETREAT_OPEN:
                 self.assertEqual((key, reason),
                                  (self.recorded[turn]["key"], self.recorded[turn]["reason"]), turn)
 
@@ -287,6 +288,7 @@ class FasterBlinderConstructedTest(TeleportFollowerHarness):
 CHTHONIAN = 619
 RETREAT_OPEN = 11910642   # decision 15760: summoner:retreat, the クトーニアン 6 cells off
 RETREAT_NEAR = 11910654   # decision 15761: summoner:retreat, 3 cells off
+HELD = 11910665           # decision 15762: melee, the クトーニアン beside the player
 
 
 def low_hp(raw):
@@ -311,14 +313,49 @@ class WorsensWithTimeRecordedTest(TeleportFollowerHarness):
         # The fire command aimed at it (the attack keeps its own reason).
         self.assertTrue(key.startswith("f") and reason.startswith("ranged:fire"), (key, reason))
 
-    def test_a_summoner_that_would_cost_damage_is_left_to_the_rules_below(self):
-        """15761: 3 cells off the projection over the 5 kill turns (205) passes 10% of HP 1092;
-        the rung declines and the recorded summoner:retreat stands."""
-        policy, answers = self.recorded_answers()
-        _raw, key, reason, snapshot = answers[RETREAT_NEAR]
+    def test_a_summoner_that_would_cost_damage_is_left_as_a_t1_is(self):
+        """15761: 3 cells off the projection over the 5 kill turns (205) passes 10% of HP 1092,
+        so it is not killed 被害無く.  Owner 2026-11-09 (Q1, 「倒しきれない敵と同じに離れる」):
+        outside quests it is left as a T1 is: the tiers' leave (leave_due), here the flee rung's
+        Teleportation (the クトーニアン is faster: no walk).  Live: summoner:retreat (a step)."""
+        policy, answers = self.replay(until=RETREAT_NEAR)  # the memory as of that board
+        raw, key, reason, snapshot = answers[RETREAT_NEAR]
         chthonian = next(m for m in snapshot.visible_monsters if m.race_id == CHTHONIAN)
+        self.assertEqual(self.recorded[RETREAT_NEAR]["reason"], "summoner:retreat")
         self.assertFalse(worsens_kill.harmless(policy, snapshot, chthonian))
-        self.assertEqual((key, reason), (self.recorded[RETREAT_NEAR]["key"], "summoner:retreat"))
+        self.assertTrue(threat_tiers.worsens_left(policy, snapshot, [chthonian]))
+        self.assertIs(threat_tiers.leave_due(policy, snapshot, [chthonian]), True)
+        self.assertEqual((key, reason), ("r" + letter(raw, TVAL_SCROLL, SV_SCROLL_TELEPORT),
+                                         "flee:scroll"))
+
+    def test_once_left_it_stays_left_when_it_would_die_harmlessly(self):
+        """CONSTRUCTED: on 15762 the クトーニアン's health reads almost dead, so it would now die
+        被害無く.  Decided 「離れる」 on 15761, the side is held (「一度離れると決めたら境に余裕を
+        持って保つ」): the leave goes on, no kill.  Control: with it not shown on 15760-15761 (no
+        side decided), the same board kills it."""
+        def weak(raw):
+            if raw["turn"] == HELD:
+                for monster in raw["visible_monsters"]:
+                    if monster["race_id"] == CHTHONIAN:
+                        monster["health"] = "almost_dead"
+        policy, answers = self.replay(until=HELD, change=weak)
+        raw, key, reason, snapshot = answers[HELD]
+        chthonian = next(m for m in snapshot.visible_monsters if m.race_id == CHTHONIAN)
+        self.assertTrue(worsens_kill.harmless(policy, snapshot, chthonian))
+        self.assertTrue(threat_tiers.worsens_left(policy, snapshot, [chthonian]))
+        self.assertEqual(reason, "flee:scroll")
+
+        def unseen_then_weak(raw):
+            weak(raw)
+            if RETREAT_OPEN <= raw["turn"] < HELD:
+                raw["visible_monsters"] = [m for m in raw["visible_monsters"]
+                                           if m["race_id"] != CHTHONIAN]
+        policy, answers = self.replay(until=HELD, change=unseen_then_weak)
+        _raw, key, reason, snapshot = answers[HELD]
+        chthonian = next(m for m in snapshot.visible_monsters if m.race_id == CHTHONIAN)
+        self.assertFalse(threat_tiers.worsens_left(policy, snapshot, [chthonian]))
+        self.assertEqual((key, reason), (policy._direction_key(snapshot.player.position,
+                                                               chthonian.position), "melee"))
 
     def test_below_the_low_hp_line_the_rung_does_not_act(self):
         """CONSTRUCTED: HP 300 on 15760 (OQ-10: below the low-HP line the 11-06 escape wins)."""

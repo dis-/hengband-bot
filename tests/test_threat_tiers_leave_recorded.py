@@ -72,7 +72,10 @@ def decided_with_and_without(name, off, turns=None):
 
 OFF = [(threat_tiers, "leave_due", lambda *args, **kwargs: None)]
 MISSILE = "quest-strategy:ranged-fire:magic-eater"
-N1A_475 = (2038954, 2038961, 2038970, 2038974, 2038982, 2038988, 2038996, 2039000, 2039009)
+# 2038901-2038946: the engagement holds a summoner that is not killed 被害無く, left as a T1 is
+# (owner 2026-11-09 Q1 of n1-a life-500, 「倒しきれない敵と同じに離れる」, threat_tiers._worsens_leave).
+N1A_475 = (2038901, 2038909, 2038915, 2038923, 2038934, 2038943, 2038946,
+           2038954, 2038961, 2038970, 2038974, 2038982, 2038988, 2038996, 2039000, 2039009)
 
 
 class LeaveRecordedTest(unittest.TestCase):

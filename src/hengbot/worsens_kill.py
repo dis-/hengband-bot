@@ -21,8 +21,8 @@ escape of the emergency ladder (``summoner_open``) is subsumed the same way: abo
 line it does not fire for a summoner this rung kills (``kill_first``).
 
 Where: the tiers' floors (``threat_tiers.acts_here``; inside a quest plan the plan rules).  The
-leave of 4.4's last step (「逃げて良いなら逃げる」) is not this step's (plan step 11 names only the
-kill-first rung).
+leave of 4.4's last step (「逃げて良いなら逃げる」, owner 2026-11-09 「倒しきれない敵と同じに離れる」)
+is the tiers' leave (``threat_tiers._worsens_leave``); a monster left so is not shot here.
 """
 
 from __future__ import annotations
@@ -102,7 +102,10 @@ def _candidates(policy, snapshot, hostiles) -> list:
     shown = {monster.index for monster in snapshot.visible_monsters}
     return sorted((monster for monster in hostiles
                    if monster.index in shown and monster.hostile and not monster.asleep
-                   and set(threat_tiers.worsens_kinds(policy, monster)) - {"multiply"}),
+                   and set(threat_tiers.worsens_kinds(policy, monster)) - {"multiply"}
+                   # Once left (owner 2026-11-09 「一度離れると決めたら境に余裕を持って保つ」),
+                   # not turned back into a kill.
+                   and not threat_tiers.worsens_left(policy, snapshot, [monster])),
                   key=lambda monster: (monster.distance, monster.index))
 
 
