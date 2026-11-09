@@ -182,6 +182,35 @@ class UnseenTomeTest(unittest.TestCase):
 
 
 
+def lit_hall(sequence):
+    """DECLARED CONSTRUCTED: board ``sequence`` draws the hall's [5,11]-[5,15] lit (F_LIT_STANDARD, a
+    glowing floor in view: as the formation's Light scroll at [5,3] would light the hall,
+    spells-lite.cpp lite_room); the recorded hall was dark (the player's light only)."""
+    def edit(at, raw):
+        if at == sequence:
+            grid_map = raw["grid_map"]
+            grid_map["palette"].append([1, 0, 416, 1])       # floor, F_LIT_STANDARD, known
+            grid_map["runs"].append([5, 11, 5, len(grid_map["palette"]) - 1])
+    return edit
+
+
+class LitHallSightTest(unittest.TestCase):
+    """Owner 2026-11-09 「照らされた所も入れる」: a glowing grid in the player's line is seen out to
+    MAX_PLAYER_SIGHT, not only within his light (floor/geometry.cpp player_can_see_bold:
+    CAVE_LITE, else CAVE_VIEW and CAVE_GLOW without CAVE_MNDK).  Decision 5186: [5,5], full HP,
+    no list read (the bow only), light radius 5; the cells within 5 of the tome [9,8] that see it
+    are reached by '6' ([5,6]).  With the hall lit, [4,5] (distance 6, its line to [9,8] clear)
+    sees it too."""
+
+    def test_dark_hall_the_light_radius(self):
+        answers = replay(through=5186)
+        self.assertEqual(answers[5186], ("6", battle.SIGHT_REASON))
+
+    def test_lit_hall_a_cell_beyond_the_light_sees_the_tome(self):
+        answers = replay(edit=lit_hall(5186), through=5186)
+        self.assertEqual(answers[5186], ("8", battle.SIGHT_REASON))
+
+
 class StartStairOutOfHealingTest(unittest.TestCase):
     """Owner 2026-11-04 (QUEST_25 ``exit_when_out_of_healing``) 「薬を使い切っていたら踏んで良い」:
     Healing used up, HP at the panic line, the start stair [13,1] within a few steps."""

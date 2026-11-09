@@ -285,6 +285,7 @@ class Battle:
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
     blind_sights: frozenset = frozenset()  # sight cells reached where the target was not seen
+    glowing: frozenset = frozenset()   # floor cells seen drawn lit (CAVE_GLOW in view)
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -301,7 +302,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked")}
+        "beam", "detection", "detect_asked", "glowing")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -1330,7 +1331,7 @@ def _tome(ctx: _Ctx) -> str | None:
     stands = [stand for stand in geo.TOME_NEAR_STANDS if _path(ctx, {stand}) or ctx.here == stand]
     near = max((damage for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False)),
                default=0.0)
-    sights = set(geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx))) - set(ctx.battle.blind_sights)
+    sights = set(geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx, tome))) - set(ctx.battle.blind_sights)
     far = 0.0
     if sights:
         distance = min(quest_exposure.game_distance(cell, tome) for cell in sights)
@@ -1353,10 +1354,38 @@ def _tome(ctx: _Ctx) -> str | None:
     return _walk(ctx, sights, SIGHT_REASON)
 
 
-def _sight_radius(ctx: _Ctx) -> int:
-    """How far an unlit monster is shown: the player's light (a cold-blooded body gives no
-    infravision, monster-update.cpp); 1 when the board does not say."""
-    return max(int(ctx.snapshot.light_radius or 0), 1)
+def _note_glow(ctx: _Ctx) -> None:
+    """The plain floor cells beyond the player's light that the board draws lit (quest_room_light
+    ``drawn_lit``: F_LIT_STANDARD, a glowing cell in view; within his light a cell may be drawn so
+    by his own light, view/display-map.cpp decide_visible_terrain_lighting), remembered for the
+    visit: a floor cell out of view is not drawn."""
+    reach = max(1, int(ctx.snapshot.light_radius or 0))
+    lit = {cell for cell in ((position.y, position.x) for position in ctx.snapshot.grids)
+           if ctx.terrain.get(cell) == "floor" and quest_exposure.game_distance(ctx.here, cell) > reach
+           and quest_room_light.drawn_lit(ctx.snapshot, cell)}
+    if lit - ctx.battle.glowing:
+        ctx.battle.glowing = ctx.battle.glowing | frozenset(lit)
+
+
+def _glowing(ctx: _Ctx, target) -> bool:
+    """``target``'s grid glows: drawn lit on a board of this visit, or another cell of its room
+    was (a Light scroll's lite_room and Enlightenment's wiz_lite light the whole room,
+    spells-lite.cpp / spells-floor.cpp; every cell of the quest map is CAVE_ROOM; the room is
+    joined through the cells a line passes, so a closed door bounds it)."""
+    target = tuple(target)
+    if target in ctx.battle.glowing:
+        return True
+    if not ctx.battle.glowing:
+        return False
+    return bool(quest_room_light.room_of(ctx.open_terrain(), target) & ctx.battle.glowing)
+
+
+def _sight_radius(ctx: _Ctx, target=None) -> int:
+    """How far a monster on ``target`` is shown (geo.sight_radius, owner 2026-11-09 「照らされた所も
+    入れる」): the player's light (a cold-blooded body gives no infravision, monster-update.cpp;
+    1 when the board does not say), out to MAX_PLAYER_SIGHT on a glowing grid."""
+    return geo.sight_radius(ctx.snapshot.light_radius,
+                            target is not None and _glowing(ctx, target))
 
 
 def _hopeless(ctx: _Ctx, hit_points: float, per_action: float) -> bool:
@@ -1717,6 +1746,7 @@ def _observe(ctx: _Ctx) -> None:
     _note_kills(ctx)
     _note_pen_shot(ctx)
     _note_arrivals(ctx)
+    _note_glow(ctx)
     phase = current_phase(ctx)
     if (phase is not None and phase.wait_limit is not None and ctx.battle.ready
             and phase.wait_at in (None, ctx.here)):
