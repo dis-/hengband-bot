@@ -13,6 +13,13 @@ a visit that can identify takes the item out and identifies it.
 
 A category whose Home work is a filed Home errand is charged only by a pass
 for which that errand was filed; every other category is charged as before.
+
+The mining kit's Home work (the digger and treasure-detection takes) is the
+same kind: n1-c life-165/168/169/174 (2026-11-08/09) charged stored-digger and
+fundraising-kit to three Home passes that only deposited or scanned, the
+claims retired with nine diggers at Home and the town end stopped on
+survival:recall_departure_ready.  Those categories are charged only by a pass
+whose Home owner tried the kit take (``DIGGER`` / ``DETECTION``).
 """
 
 from __future__ import annotations
@@ -23,13 +30,17 @@ from hengbot.policy_constants import STORE_HOME
 from hengbot.town_visit import town_visit
 
 # Home-stop category -> the Home errand purposes that perform its work.
+DIGGER = "mining-digger-take"
+DETECTION = "mining-detection-take"
 ERRAND_WORK = {
     "identification-withdrawal": frozenset({"identification", "identification-catalog"}),
+    "stored-digger": frozenset({DIGGER}),
+    "fundraising-kit": frozenset({DIGGER, DETECTION}),
 }
 
 
 def note_filed(policy: Any, purpose: str) -> None:
-    """A Home errand of ``purpose`` was filed for the next Home pass."""
+    """A Home errand of ``purpose`` was filed (or its take tried) this pass."""
     town_visit(policy).home_pass_errand_purposes.add(purpose)
 
 
