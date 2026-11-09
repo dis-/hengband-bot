@@ -33,11 +33,14 @@ when it is shown again (judged in view), killed, on the floor's change or after 
 
 from __future__ import annotations
 
+from hengbot import monster_memory
 from hengbot.breeder_stalemate import shows_kill
 from hengbot.policy_constants import LOOT_THREAT_DAMAGE_RATIO
-from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
 
-MEMORY = "_sleeper_loot_block"  # (floor_key, {(index, race): MonsterState}, last shown turn)
+KIND = monster_memory.LOOT_BLOCK
+# (floor_key, {(index, race): (MonsterState, the turn the block was last shown)}); a policy
+# pickled before monster_memory holds (floor_key, {(index, race): MonsterState}, turn).
+MEMORY = KIND.attribute
 
 
 def _material(policy, snapshot, monsters) -> bool:
@@ -71,18 +74,16 @@ def remembered_gone(policy, snapshot, monster) -> bool:
 def status_threats(policy, snapshot) -> list:
     """The awake status threats the survival rung retreats from on this board (policy
     ``_unresisted_melee_status_threats`` with the floor's latch), which preempt the loot."""
-    latch = getattr(policy, "_status_threat_latch", None)
-    latched = latch[1] if latch is not None and latch[0] == snapshot.floor_key else frozenset()
+    latched = monster_memory.floor_marks(policy, snapshot, monster_memory.STATUS_THREAT_LATCH)
     return policy._unresisted_melee_status_threats(
         snapshot, policy._physical_hostiles(snapshot), latched=latched)
 
 
-def _gone(policy, snapshot, memory) -> bool:
-    """Whether a remembered blocker is no longer where it was shown, or the window passed."""
-    floor, blockers, turn = memory
-    if floor != snapshot.floor_key or snapshot.turn - turn > UNSEEN_GAME_TURNS:
-        return True
-    return any(remembered_gone(policy, snapshot, monster) for monster in blockers.values())
+def _gone(policy, snapshot, block: dict) -> bool:
+    """Whether the window passed since the block was shown (one turn for the whole group), or
+    a remembered blocker is no longer where it was shown."""
+    return any(monster_memory.expired(snapshot, turn) for _monster, turn in block.values()) or any(
+        remembered_gone(policy, snapshot, monster) for monster, _turn in block.values())
 
 
 def _blockers(policy, snapshot, hostiles) -> list:
@@ -99,28 +100,27 @@ def _blockers(policy, snapshot, hostiles) -> list:
 def observe(policy, snapshot) -> None:
     """Every board: remember the hostiles in view that block the loot."""
     if snapshot.in_town or snapshot.dungeon_level <= 0:
-        setattr(policy, MEMORY, None)
+        monster_memory.forget_floor(policy, KIND)
         return
-    memory = getattr(policy, MEMORY, None)  # restored checkpoints predate it
-    if memory is not None and _gone(policy, snapshot, memory):
-        memory = None
+    block = monster_memory.entries(policy, snapshot, KIND)  # another floor's: none
+    if block and _gone(policy, snapshot, block):
+        block = {}
     hostiles = policy._strategic_hostiles(snapshot)
     blockers = _blockers(policy, snapshot, hostiles)
     if blockers:
-        memory = (snapshot.floor_key,
-                  {(monster.index, monster.race_id): monster for monster in blockers},
-                  snapshot.turn)
-    elif memory is not None and any(
-            monster.index == index for monster in hostiles for index, _race in memory[1]):
-        # One of them is in view and the block does not hold here: judged in view.
-        memory = None
-    setattr(policy, MEMORY, memory)
+        monster_memory.store(policy, snapshot, KIND, blockers)
+    elif not block or any(
+            monster.index == index for monster in hostiles for index, _race in block):
+        # None, or one of them is in view and the block does not hold here: judged in view.
+        monster_memory.forget_floor(policy, KIND)
+    else:
+        monster_memory.put(policy, snapshot, KIND, block)
 
 
 def holds(policy, snapshot) -> bool:
     """The remembered block, while none of its blockers is in view."""
-    memory = getattr(policy, MEMORY, None)
-    if memory is None or memory[0] != snapshot.floor_key:
+    block = monster_memory.entries(policy, snapshot, KIND)
+    if not block:
         return False
     shown = {monster.index for monster in snapshot.visible_monsters}
-    return not any(index in shown for index, _race in memory[1])
+    return not any(index in shown for index, _race in block)
