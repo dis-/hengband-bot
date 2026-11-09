@@ -2837,7 +2837,11 @@ class CombatMixin:
     ) -> str | None:
         """Refuse melee and walk away whenever a paralyzer is in contact (D55).
         A spell paralyser is in contact once it has the player in sight (owner
-        2026-11-09 E 「視線が通れば 09-18 の決まりで離れる」, paralyzer_contact.spell_contact)."""
+        2026-11-09 E 「視線が通れば 09-18 の決まりで離れる」, paralyzer_contact.spell_contact).
+        Above the Free Action depth requirement, outside quests, any paralyser in view is left
+        by the up stairs underfoot or a Teleportation scroll (owner 2026-11-09 「浅い階層で
+        見かけたら逃げる」, paralyzer_contact.shallow_sighted); with neither, the contact rule
+        stands."""
         adjacent = [
             monster
             for monster in threats
@@ -2851,7 +2855,20 @@ class CombatMixin:
             )
             or paralyzer_contact.spell_contact(self, snapshot, monster)
         ]
-        if not adjacent:
+        # Owner 2026-11-09 (n1-a life-501) 「浅い階層で見かけたら逃げる」: above the Free Action
+        # depth requirement a paralyser in view is left at sight, by the up stairs underfoot or
+        # a Teleportation scroll (paralyzer_contact.shallow_sighted).  A paralyser already in
+        # contact keeps the 09-18 answer below unchanged.
+        sighted = (
+            [] if adjacent else paralyzer_contact.shallow_sighted(self, snapshot, threats)
+        )
+        if sighted:
+            stairs = self._escape_by_stairs(snapshot)
+            if stairs is not None:
+                self.last_reason = paralyzer_contact.SHALLOW_SIGHT_REASON_PREFIX + "stairs"
+                self._declare_triggers(sighted)
+                return stairs
+        if not adjacent and not sighted:
             return None
         if (
             any(not monster.asleep for monster in adjacent)
@@ -2864,6 +2881,16 @@ class CombatMixin:
             if scroll is not None:
                 self.last_reason = "status-threat:scroll"
                 return self._read_key(snapshot, scroll)
+        if sighted:
+            # A Phase Door is no substitute for a teleport (owner 2026-11-02).
+            scroll = self._escape_scroll(snapshot, teleport_only=True)
+            if scroll is not None:
+                self.last_reason = paralyzer_contact.SHALLOW_SIGHT_REASON_PREFIX + "scroll"
+                self._declare_triggers(sighted)
+                return self._read_key(snapshot, scroll)
+        if not adjacent:
+            # No way off the floor: the contact rule above and the rungs below answer.
+            return None
         shared_avoid = self._engagement_avoid_cells
         self._engagement_avoid_cells = shared_avoid - self._paralyzer_avoid_cells
         try:
