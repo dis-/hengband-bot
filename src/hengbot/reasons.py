@@ -26,8 +26,9 @@ Kinds (the escape count reads only the first two):
                    2026-11-09 「歩いての後退は数えない」).
 ``NOT_ESCAPE``     the vocabulary without an escape from enemies: town and shop travel, the
                    planned returns, a purchase, a gear change.
-``OWNER_QUESTION`` a relocation from enemies that no owner answer covers yet.  Not counted, as
-                   before the registry; listed for the owner (the 2026-11-09 registry report).
+``OWNER_QUESTION`` a relocation from enemies that no owner answer covers yet.  Not counted until
+                   the owner answers; listed for the owner.  None today: the 2026-11-09 registry
+                   report's questions were answered 「ダンジョンの分だけ数える」.
 ``None``           an entry that only carries ``attack``.
 
 ``attack`` is the breeder window's 「実際に攻撃した手」 (owner 2026-11-08): the decision chose an
@@ -110,10 +111,14 @@ _rows(RELOCATING, "policy", _RULE_ALL, "flee:scroll", "flee:stairs", "flee:stair
 _rows(RELOCATING, "threat_tiers", _RULE_ALL,
       "sensed-t1:teleport", "sensed-t1:teleport:absorbed-power", "sensed-t1:teleport-staff",
       "sensed-t1:phase", "sensed-t1:stairs", "sensed-t1:recall")
-# the exposed summoner's up stairs (policy).  summoner:stairs is also the reason of
-# _immobile_summoner_exit_key's up stairs (policy_combat), which the owner's list leaves out
-# (EXCLUDED below): one string, so both count (registry report, question).
-_rows(RELOCATING, ("policy", "policy_combat"), _RULE_ALL, "summoner:stairs")
+# the exposed summoner's up stairs (policy) and _immobile_summoner_exit_key's up stairs
+# (policy_combat): one string.  Owner 2026-11-09 (the registry report's Q6, 「ダンジョンの分だけ
+# 数える」): both are escapes in the dungeon and count.  One stair taken counts once: the counter
+# reads the reason of the decision whose next board shows the new floor (policy_observation), so a
+# '<' sent again by the other producer before the floor changes is not a second escape
+# (tests/test_dungeon_escapes_counted_1109.py).
+_rows(RELOCATING, ("policy", "policy_combat"), _RULE_ALL + "; owner 2026-11-09 「ダンジョンの分だけ数える」",
+      "summoner:stairs")
 _rows(RELOCATING, "policy", _RULE_ALL, "summoner:stairs-quest-fail")
 # the summoner hold's teleport (summoner_wait.HOLD_TELEPORT_REASON)
 _rows(RELOCATING, "summoner_wait", _RULE_ALL, "summoner:hold-teleport")
@@ -127,6 +132,16 @@ _rows(RELOCATING, "policy_combat", _RULE_ALL,
       "breeder-item-damage:teleport", "breeder-item-damage:recall")
 # the fruitless fight's disengage (policy_navigation) and the breeder breakthrough's leave
 _rows(RELOCATING, "policy_navigation", _RULE_ALL, "combat:disengage-stairs", "combat:disengage-recall")
+# Owner 2026-11-09 (the registry report's Q1 and Q2), verbatim choice 「ダンジョンの分だけ数える」:
+# 「ダンジョンの中の逃げだけを数え、荒野での逃げは数えない。」
+_RULE_DUNGEON = "owner 2026-11-09 「ダンジョンの分だけ数える」: ダンジョンの中の逃げだけを数え、荒野での逃げは数えない"
+# the unprofitable unique's disengage (policy._unprofitable_unique_disengage_key) renames the
+# fruitless fight's combat:disengage-stairs / -recall above to these: they count as those do.
+_rows(RELOCATING, "policy", _RULE_DUNGEON,
+      "combat:avoid-unprofitable-unique-stairs", "combat:avoid-unprofitable-unique-recall")
+# the no-wait rung's Teleportation / Phase Door under a material threat (policy_combat,
+# 'Rejecting an idle turn'), a read like flee:scroll / threat:scroll above
+_rows(RELOCATING, "policy_combat", _RULE_DUNGEON, "no-wait:escape-scroll")
 _rows(RELOCATING, "policy_combat", _RULE_ALL, "breeder-breakthrough:ascend", "breeder-breakthrough:recall")
 
 # ================================================================ relocations not counted
@@ -214,24 +229,15 @@ _rows(NOT_ESCAPE, ("policy", "policy_combat", "blind_strike"),
 _rows(NOT_ESCAPE, "me_powers", "the absorbed detection when the stairs are needed and unknown",
       "me-power:stairs-needed-and-unknown:*")
 
-# ================================================================ questions for the owner
-# Relocations from enemies that no owner answer names (the registry report, 2026-11-09).  They
-# are not counted, as before the registry.
-_rows(OWNER_QUESTION, "policy_combat",
-      "the no-wait rung reads Teleportation / Phase Door under a material threat "
-      "(policy_combat, 'Rejecting an idle turn'): a relocation from enemies, not counted",
-      "no-wait:escape-scroll")
-_rows(OWNER_QUESTION, "policy",
-      "the unprofitable unique's disengage (policy._unprofitable_unique_disengage_key) renames the "
-      "fruitless fight's combat:disengage-stairs / -recall, which count, to these, which do not",
-      "combat:avoid-unprofitable-unique-stairs", "combat:avoid-unprofitable-unique-recall")
+# ================================================================ answered by the owner 2026-11-09
+# The registry report's questions (「ダンジョンの分だけ数える」): Q1 and Q2 count (above); these do not.
 _rows(WALK, "policy", _RULE_WALK + " (the unprofitable unique's disengage, renamed)",
       "combat:avoid-unprofitable-unique-seek-upstairs", "combat:avoid-unprofitable-unique-search-upstairs",
       "combat:avoid-unprofitable-unique-wait-recall")
-_rows(OWNER_QUESTION, "quest25_battle",
+_rows(EXCLUDED, "quest25_battle",
       "Q25 after its Recall is read (owner 2026-11-09 「段をやめ射線外で待つ」): the start stair, "
-      "taken while the Recall is active; the Recall read itself is the escape counted. Answer 11 "
-      "「作戦が先」 may cover it; not counted",
+      "taken while the Recall is active; the Recall read is the escape counted (Q3, coordinator "
+      "2026-11-09). Its floor change leads to town, where the per-dive counter does not run",
       "quest25:recall-exit")
 _rows(WALK, ("quest25_battle", "quest_room_sweep"), _RULE_WALK + " (Q25 waiting for its Recall)",
       "quest25:recall-exit-walk", "quest25:recall-wait")
@@ -240,9 +246,10 @@ _rows(WALK, "quest25_battle", _RULE_WALK + " (Q25 out of the casters' fire; word
       "quest25:recall-out-of-fire", attack=True)
 _rows(None, "quest25_battle", "word rule: a step / rest out of the casters' fire read an attack (kept)",
       "quest25:step-out-of-fire", "quest25:rest-out-of-fire", attack=True)
-_rows(OWNER_QUESTION, ("town_arbiter", "town_hold"),
-      "the wilderness's escape scroll / flee / Recall (outside a dive): not counted",
-      "wilderness:escape-scroll", "wilderness:flee", "wilderness:recall", "wilderness:wait-recall")
+_rows(EXCLUDED, ("town_arbiter", "town_hold"), _RULE_DUNGEON + " (Q4: the wilderness's escapes)",
+      "wilderness:escape-scroll", "wilderness:recall")
+_rows(WALK, ("town_arbiter", "town_hold"), _RULE_DUNGEON + " (Q4: the wilderness's walk and wait)",
+      "wilderness:flee", "wilderness:wait-recall")
 
 # ================================================================ attacks (breeder window)
 _RULE_ATTACK = "owner 2026-11-08 「20回の判定は、実際に攻撃した手だけで数える」: an attack"
