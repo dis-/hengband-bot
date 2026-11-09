@@ -28,8 +28,8 @@ from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import REST_MACRO, SEARCH_KEY, WAIT_KEY
 from hengbot.quest_find_exit import HOLD_REASON
 from hengbot.quest_strategies import has_ability_or_alternative
-from tests import test_q25_haunted_house as q25
-from tests.test_q25_haunted_house import (
+from tests.support import q25_house as q25
+from tests.support.q25_house import (
     BASE, FILE_STRATEGIES, QUESTS, RACES, _CASE, _palette_row, board, monster, open_door,
 )
 
