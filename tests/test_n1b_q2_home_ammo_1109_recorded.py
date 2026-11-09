@@ -31,7 +31,10 @@ Recorded: the arrival checkpoint and journal
 DECLARED for the row-11 replay: rows 3, 5, 6, 7 (town:seek-shelter picks
 another equally near cell on the restored policy, on the recorded build too)
 and row 10 (the same travel key under the plain shop:travel reason once
-those steps differ) are fed with the recorded key posted.
+those steps differ) are fed with the recorded key posted.  Row 9 too: the
+recorded build read an Identify scroll on the unknown device ('rhk'); the
+town device identification now casts the absorbed Identify first (owner
+2026-10-30 「以降、鑑定と財宝感知は取り込みで賄う」; 'mAfk', asserted).
 """
 
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -57,7 +60,8 @@ from tests.support import recorded as executor_pins
 from tests.test_town_withdraw_pack_budget_recorded import HomeEntranceGame
 
 FIXTURES = Path(__file__).with_name("fixtures") / "n1b-q2-home-ammo-1109"
-FORCED = {3, 5, 6, 7, 10}
+FORCED = {3, 5, 6, 7, 9, 10}
+ABSORBED_IDENTIFY_ROW = (9, "mAfk", "identify:device")
 BOLT = 18
 PLAIN = "クロスボウの矢 (1d5) (+0,+0) (70/shot 58/turn)"
 POWER = "クロスボウの矢 (1d5) (+5,+4) (83/shot 69/turn)"
@@ -157,6 +161,8 @@ class N1bQ2HomeAmmo1109RecordedTest(executor_pins.ProductionHarness):
             if row not in FORCED:
                 self.assertEqual((key, policy.last_reason),
                                  (recorded["key"], recorded["reason"]), row)
+            if row == ABSORBED_IDENTIFY_ROW[0]:
+                self.assertEqual((row, key, policy.last_reason), ABSORBED_IDENTIFY_ROW)
             self.post(policy, recorded["key"])
         board, key = self.decide(policy, 11)
         return policy, board, key

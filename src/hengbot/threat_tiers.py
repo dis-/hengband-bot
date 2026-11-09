@@ -45,6 +45,7 @@ from hengbot import (
     me_capability,
     me_device_attacks,
     me_ranged_first,
+    monster_memory,
     paralyzer_contact,
     quest_no_teleport,
     retreat_veto_life,
@@ -1357,9 +1358,9 @@ def observe(policy, snapshot) -> None:
     if memory.floor != snapshot.floor_key:
         setattr(policy, TIER_MEMORY, None)
         return
-    shown = retreat_veto_life.shown_by_index(snapshot)
+    shown = monster_memory.shown_by_index(snapshot)
     for key, entry in list(memory.decided.items()):
-        if retreat_veto_life.gone(snapshot, key, entry.threat, shown, memory.last_turn):
+        if monster_memory.gone(snapshot, key, entry.threat, shown, memory.last_turn):
             del memory.decided[key]
     memory.last_turn = snapshot.turn
 
