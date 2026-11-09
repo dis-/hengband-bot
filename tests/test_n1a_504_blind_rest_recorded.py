@@ -116,6 +116,14 @@ class N1a504BlindRecordedTest(unittest.TestCase):
             policy, answers = drive(LANDING, turn)
             self.assertEqual(answers[turn], (REST_MACRO, DUNGEON_WAIT_SIGHT_REASON), turn)
 
+    def test_blind_fight_reads_no_scroll(self):
+        # D1c: the blind fight's quiet boards (no adjacent target) fell to the pack-pressure
+        # identify, which reads an Identify scroll: cmd_limit_blind refuses it, no turn spent.
+        _policy, answers = drive(LANDING, DEATH)
+        for turn, (key, reason) in answers.items():
+            if turn >= GAS_TRAP:
+                self.assertNotEqual(reason, "identify:pack-pressure", (turn, key))
+                self.assertFalse(key.startswith("r"), (turn, key, reason))
 
 
 if __name__ == "__main__":

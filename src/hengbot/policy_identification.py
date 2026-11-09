@@ -514,6 +514,18 @@ class IdentificationMixin:
             )
             return None
         command, src = source
+        if command == READ_KEY and not self._can_read_now(snapshot):
+            # cmd-read.cpp do_cmd_read_scroll: cmd_limit_blind (blind or no
+            # light) and cmd_limit_confused refuse the read with no turn spent
+            # (action-limited.cpp 「目が見えない。」).  n1-a life-504 (2026-11-10,
+            # 鉄獄24階): blind, the pack-pressure identify posted the refused
+            # read fifteen times.  The staff and the rod (preferred above) have
+            # no such refusal (cmd-usestaff.cpp, cmd-zaprod.cpp).
+            self._offer_execution_no_step(
+                producer="identification", work_id="identify:carried",
+                cause="scroll-unreadable-now",
+            )
+            return None
         target = self._first_item(
             snapshot,
             lambda item: item.slot != src.slot and target_predicate(item),
