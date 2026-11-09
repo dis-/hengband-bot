@@ -2421,6 +2421,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._character_calibration: CharacterCalibration | None = None
         self._character_calibration_path: Path | None = None
         self._character_calibration_loaded = False
+        # The worn gear of the board being decided: the only gear whose
+        # effect the displayed stats show (_validated_character_calibration).
+        self._calibration_observed_equipment = None
         self._character_dump_path: Path | None = None
         self._calibration_dump_prepared = None
         self._calibration_dump_pending = None
@@ -2671,6 +2674,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         quest25_battle_record.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
+        self._calibration_observed_equipment = tuple(snapshot.equipment)
         self._complete_character_dump(snapshot)
         # A producer that never reached the previous decision's claim exit
         # cannot carry an unbound grant into this decision.
