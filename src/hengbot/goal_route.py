@@ -56,11 +56,11 @@ def _commitments(policy) -> dict[str, GoalRouteCommitment]:
     return policy.__dict__.setdefault("_goal_route_commitments", {})
 
 
-def _admitted_steps(policy, snapshot, position, predicate, blocked, allow_damaging):
+def _admitted_steps(policy, snapshot, position, predicate, blocked, allow_damaging, veto):
     for neighbor in policy._walkable_neighbors(
         snapshot, position, allow_damaging=allow_damaging, goal=predicate
     ):
-        if neighbor in policy._engagement_avoid_cells or neighbor in blocked:
+        if neighbor in veto or neighbor in blocked:
             continue
         yield neighbor
 
@@ -93,6 +93,8 @@ def with_remembered_goals(predicate, cells):
 def nearest_goal_path(policy, snapshot, predicate, entrance_cells):
     """BFS over the search passes: (path to the nearest goal, pass index)."""
     start = snapshot.player.position
+    # Every walker's one veto (policy ``_walk_veto``), as the explore, descent and loot walks.
+    veto = policy._walk_veto(snapshot)
     for pass_index, (_, allow_damaging) in enumerate(SEARCH_PASSES):
         blocked = _blocked(pass_index, entrance_cells)
         parent: dict[Position, Position | None] = {start: None}
@@ -108,7 +110,7 @@ def nearest_goal_path(policy, snapshot, predicate, entrance_cells):
                 path.reverse()
                 return tuple(path), pass_index
             for neighbor in _admitted_steps(
-                policy, snapshot, position, predicate, blocked, allow_damaging
+                policy, snapshot, position, predicate, blocked, allow_damaging, veto
             ):
                 if neighbor not in parent:
                     parent[neighbor] = position
@@ -131,10 +133,11 @@ def _still_valid(policy, snapshot, predicate, path, pass_index, entrance_cells):
     """The remaining route up to its first goal cell, or None if it broke."""
     blocked = _blocked(pass_index, entrance_cells)
     allow_damaging = SEARCH_PASSES[pass_index][1]
+    veto = policy._walk_veto(snapshot)
     previous = snapshot.player.position
     for index, step in enumerate(path):
         if step not in set(_admitted_steps(
-            policy, snapshot, previous, predicate, blocked, allow_damaging
+            policy, snapshot, previous, predicate, blocked, allow_damaging, veto
         )):
             return None
         if _is_goal(snapshot, step, predicate):

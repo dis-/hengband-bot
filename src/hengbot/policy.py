@@ -17350,6 +17350,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
             self, snapshot, immobile_threat_memory.ringed)
 
+    def _walk_veto(self, snapshot: Snapshot) -> frozenset[Position]:
+        """The cells no walk steps on: the engagement retreats' own cells and the routes'
+        engagement veto (``_engagement_route_veto``).
+
+        One answer for every walker, so two walkers never disagree about a cell: the goal
+        walks (``goal_route``: stairs, chests, stores, shelters) kept off the retreats'
+        own cells only while the explore, descent and loot walks kept off the veto too.
+        n1-c life-183 (Angband 49F, 2026-11-09 20:33): with an 古代レッド・ドラゴン remembered at
+        [37,108], at [37,117] (9 cells, outside its area) the explore had no frontier off
+        its area and ``stuck:seek-stairs`` stepped '7' into it to [36,116], where the area
+        shrank to the cells nearer it and the explore stepped '3' straight back; at 20:44
+        to 20:45 ``chest:approach`` walked toward a chest the loot walk kept off, between
+        [4,38] and [5,39], until the loop detector stopped the bot three more times."""
+        return frozenset(self._engagement_avoid_cells) | self._engagement_route_veto(snapshot)
+
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.
 
