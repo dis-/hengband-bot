@@ -4029,6 +4029,9 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     policy._q25_battle_record_path = args.decision_log.with_name(
         "q25-battle.json"
     )
+    # A restarted process reads the absorbed-power lists it lacks first
+    # (me_powers_refresh.resume_read_key, n1-c life-178 2026-11-09).
+    policy._me_power_resume_reads = True
     # The town end's open mining cycle, for a restart during the cycle.
     policy._town_end_mining_path = args.decision_log.with_name(
         "town-end-mining.json"

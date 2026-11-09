@@ -1516,6 +1516,14 @@ def _observe(ctx: _Ctx) -> None:
         ctx.battle.quiet += 1
 
 
+def observe_board(policy, snapshot) -> None:
+    """Read a board the plan does not decide (a turn-free list read takes it): its kill lines
+    and arrivals count as on a decided board."""
+    ctx = _ctx(policy, snapshot)
+    if ctx is not None:
+        _observe(ctx)
+
+
 def _phase_key(policy, snapshot) -> str | None:
     """The running phase's own order: its preparation, then its step."""
     ctx = _ctx(policy, snapshot)
