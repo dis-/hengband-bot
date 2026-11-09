@@ -1638,9 +1638,7 @@ class SupplyMixin:
         # Only a NEARBY threat defers the gate: a monster merely visible across
         # the floor may never engage at all, and waiting on it indefinitely is
         # how eating gets starved out of the schedule.
-        near_hostiles = [
-            monster for monster in hostiles if monster.distance <= 4
-        ]
+        near_hostiles = self._starvation_near_hostiles(hostiles)
         food = None if light_exit else self._find_edible(snapshot)
         if snapshot.in_town:
             if food is not None:
@@ -1701,6 +1699,26 @@ class SupplyMixin:
             self._declare_reach(step_target)
             return self._step_toward(snapshot, step)
         return None
+
+    @staticmethod
+    def _starvation_near_hostiles(hostiles: list[MonsterState]) -> list[MonsterState]:
+        """The hostiles that defer the starvation gate's eat (a fight comes first)."""
+        return [monster for monster in hostiles if monster.distance <= 4]
+
+    def _hunger_meal_due(self, snapshot: Snapshot) -> bool:
+        """The dungeon starvation gate eats on this board (``_survival_gate_key``'s eat).
+
+        Hungry, something edible, and no hostile near unless already fainting.  A floor
+        plan that returns above the gate steps aside for it (quest_find_exit
+        .steps_aside_for_food).
+        """
+        player = snapshot.player
+        if snapshot.in_town or not player.hungry:
+            return False
+        if (self._starvation_near_hostiles(self._physical_hostiles(snapshot))
+                and not player.fainting):
+            return False
+        return self._find_edible(snapshot) is not None
 
     def _starvation_lets_quest_finish(self, snapshot: Snapshot) -> bool:
         """Nothing edible, yet a one-shot quest that locks the exit is finished first.
