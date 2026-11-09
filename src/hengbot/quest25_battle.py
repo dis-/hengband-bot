@@ -12,14 +12,14 @@ quoted there with its date); this module is their executor.  The phases, in orde
     open, melee waits on [10,1] with it closed and closes in the turn it is opened.
     「どちらにせよ加速を使用する」: hasted while a target is in view.  With no hostile in view, a carried
     Potion of Enlightenment is drunk first, once (owner 2026-11-07, ``_ambush_enlightenment``).
- 2. ``wall-passers`` (phase1_wall_passers): full HP, then [7,1]; what comes is fought; 50
-    player actions without a new arrival end it.
+ 2. ``wall-passers`` (phase1_wall_passers): full HP, then [7,1]; what comes is fought; 100
+    player actions without a new arrival end it (owner 2026-11-09 「待つターンを倍にしてみる」).
  3. ``ipsissimus`` (phase2): full HP, [7,1], haste, [6,1], [5,1], then the strongest attack
     at the pen's [7,17] (the monster's own cell when it is seen).  Summons in view: a piercing
     attack (a beam, or a ball or breath aimed at the grid) and a low threat keep the fire on
     the pen; otherwise Teleportation, then a choke before contact (``_rally``).  The wall-passers
-    the phase before left alive are no summons (``_summons_in_view``): they are fought on [5,1],
-    never teleported from (owner 2026-11-09, n1-b life-359).  It ends when each of the three is
+    the phase before left alive are no summons (``_summons_in_view``): they are ignored and the
+    fire stays on the pen, never teleported from (owner 2026-11-09, n1-b life-359).  It ends when each of the three is
     killed or seen out of the pen.
  4. ``stragglers`` (phase1_wall_passers / phase2): on [5,1], the spectres and shadow demons
     that did not come and the Ipsissimus that teleported away are fought as they come; 50
@@ -154,6 +154,9 @@ _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_RE
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
+# Owner 2026-11-09 「待つターンを倍にしてみる」: the wall-passers' wait on [7,1] (phase1_wall_passers) only;
+# n1-b life-359 ended it after 50 with 5 shadow demons and a spectre still to come.
+WALL_PASSER_QUIET_ACTIONS = 2 * QUIET_ACTIONS
 # Owner 2026-11-06 wait_limits 「事実上上限無しになる、大きな値を取る。仮に5000にする。」: the ambush
 # (phase1) and the dreadmaster's wait (phase5), player actions without an arrival.
 LONG_WAIT_ACTIONS = 5000
@@ -1186,14 +1189,13 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
             policy.last_reason = TELEPORT_REASON
             return policy._read_key(snapshot, scroll)
         return _engage(ctx, summons)
-    # The wall-passers' stragglers (the spectres and shadow demons the 50 quiet actions of the
+    # The wall-passers' stragglers (the spectres and shadow demons the quiet wait of the
     # wall-passers' phase left alive) are no reinforcements and no reason to teleport: owner
     # 2026-11-09 「ここでテレポートすると以降の段取りが全て崩れるので逃走回数は最小にしたい。」  They are
-    # fought where the player stands, [5,1] (the stragglers' own stand, 「[5,1]で倒す。遠近は問わない。」);
-    # the survival rungs above the plan (the 1-turn 即死, the HP line) still answer first.
-    stragglers = [monster for monster in others if monster not in summons]
-    if stragglers and (key := _engage(ctx, stragglers)) is not None:
-        return key
+    # ignored, beside the player or not (owner 2026-11-09 「無視して囲いを撃つ」, phase2 「イプシシマスとの
+    # 戦闘中に出会った残党は無視する。イプシシマスを全て倒すかテレポートさせたあとで対処。」): the fire stays on
+    # the pen, through them when it can; the stragglers' phase fights them on [5,1] afterwards.  The
+    # survival rungs above the plan (the 1-turn 即死, the HP line) still answer first.
     return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=piercing))
 
 
@@ -1623,7 +1625,7 @@ class Phase:
 PHASES = (
     Phase("ambush", "phase1", False, _ambush_done, _ambush, None, LONG_WAIT_ACTIONS),
     Phase("wall-passers", "phase1_wall_passers", True, _wall_passers_done, _wall_passers,
-          geo.WALL_PASSER_STAND, QUIET_ACTIONS),
+          geo.WALL_PASSER_STAND, WALL_PASSER_QUIET_ACTIONS),
     Phase("ipsissimus", "phase2", True, _ipsissimus_done, _ipsissimus),
     Phase("stragglers", "phase1_wall_passers", False, _stragglers_done, _stragglers,
           geo.STRAGGLER_STAND, QUIET_ACTIONS),

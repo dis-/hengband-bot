@@ -13,7 +13,8 @@ The owner's rules (strategy/quests/QUEST_25.jsonc phase2): the summons -- 「召
 断つ。」「それ以外の場合はテレポートで仕切り直す。接敵する前に移動できるならなるべく隘路に陣取る」, the threat
 read as the 11-05 summon rule (「見えている敵の3ターンの想定被害が今の HP の半分以上なら高い」); the
 stragglers -- 「イプシシマスとの戦闘中に出会った残党は無視する。イプシシマスを全て倒すかテレポートさせた
-あとで対処。」, fought later on [5,1] 「[5,1]で倒す。遠近は問わない。」.
+あとで対処。」 (owner 2026-11-09 again: 「無視して囲いを撃つ」), fought later on [5,1] 「[5,1]で倒す。遠近は問わない。」.
+The wall-passers' wait was doubled the same day (「待つターンを倍にしてみる」, ``WallPasserWaitTest``).
 
 The boards are the visit's 287 decided boards from the floor entry (decision 642) through 927;
 each test replays them from 642 by one policy through the public ``choose_key``, the battle begun
@@ -25,11 +26,13 @@ same process): DECLARED CONSTRUCTED, the charges of the recorded reads are not i
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+import dataclasses
 import gzip
 import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot import me_powers_refresh, quest25_battle as battle, quest25_geometry as geo
@@ -62,9 +65,26 @@ def new_policy(first, record):
     return policy
 
 
-def replay(*, edit=None, probe=None, through=None):
+# The wall-passers' wait the recorded process ran (owner 2026-11-06 「50回来なければ終える」, doubled
+# 2026-11-09 「待つターンを倍にしてみる」).
+RECORDED_WALL_PASSER_WAIT = 50
+
+
+def recorded_wait_phases():
+    """PHASES with the wall-passers' wait the recorded process ran: DECLARED WALL, the boards after
+    decision 805 were decided in the Ipsissimus phase the 50-action wait began there."""
+    return tuple(dataclasses.replace(phase, wait_limit=RECORDED_WALL_PASSER_WAIT)
+                 if phase.name == "wall-passers" else phase for phase in battle.PHASES)
+
+
+def replay(*, edit=None, probe=None, through=None, recorded_wait=False, observed=()):
     """{sequence: (key, reason)} of the visit replayed by one policy; ``edit(sequence, raw)``
-    changes a board (declared by its test), ``probe(policy, snapshot, sequence)`` reads one."""
+    changes a board (declared by its test), ``probe(policy, snapshot, sequence)`` reads one;
+    ``recorded_wait``: the wall-passers' phase ends as the recorded process's did; ``observed``: the
+    sequences only observed (``quest25_battle.observe_board``: kill lines, arrivals), not decided."""
+    if recorded_wait:
+        with patch.object(battle, "PHASES", recorded_wait_phases()):
+            return replay(edit=edit, probe=probe, through=through, observed=observed)
     answers = {}
     with TemporaryDirectory() as directory:
         record = Path(directory) / "q25-battle.json"
@@ -87,6 +107,11 @@ def replay(*, edit=None, probe=None, through=None):
             snapshot = policy.with_known_skill_exp(parse_snapshot(raw, policy._monrace_knowledge))
             if probe is not None:
                 probe(policy, snapshot, row["sequence"])
+            if row["sequence"] in observed:
+                battle.observe_board(policy, snapshot)
+                # The recorded process's own ~f there is answered as the CLI answered it.
+                skill_asked, browsed = row["key"].startswith("~f"), None
+                continue
             key = str(policy.choose_key(snapshot))
             answers[row["sequence"]] = (key, policy.last_reason)
             skill_asked = key == SKILL_KNOWLEDGE_MACRO
@@ -128,34 +153,65 @@ class PhaseTest(unittest.TestCase):
             ctx = battle._ctx(policy, snapshot)
             seen[sequence] = (battle.PHASES[ctx.battle.phase].name, ctx.kills(geo.SHADOW), ctx.kills(geo.SPECTRE))
 
-        replay(probe=probe)
+        replay(probe=probe, recorded_wait=True, observed=range(816, SECOND_TELEPORT))
         self.assertEqual(seen[805], ("wall-passers", 4, 1))
         self.assertEqual(seen[806], ("ipsissimus", 4, 1))
         self.assertEqual(seen[FIRST_TELEPORT], ("ipsissimus", 4, 1))
         self.assertEqual(seen[SECOND_TELEPORT], ("ipsissimus", 4, 1))
 
 
-class StragglersNoTeleportTest(unittest.TestCase):
-    """Owner 2026-11-09 「ここでテレポートすると以降の段取りが全て崩れるので逃走回数は最小にしたい。」: the
-    wall-passers left alive are no summons; they are fought on [5,1], no Teleportation."""
+class WallPasserWaitTest(unittest.TestCase):
+    """Owner 2026-11-09 「待つターンを倍にしてみる」: the wall-passers' wait on [7,1] is 100 player
+    actions without a new arrival.  The recorded process ended it at decision 805 after 50."""
 
-    def test_neither_board_reads_teleportation_and_the_wall_passers_are_fought(self):
-        answers = replay()
-        for sequence in (FIRST_TELEPORT, SECOND_TELEPORT):
-            key, reason = answers[sequence]
-            self.assertNotEqual(reason, battle.TELEPORT_REASON, sequence)
-            self.assertFalse(key.startswith("r"), sequence)
-            # The spectre beside [5,1] is struck.
-            self.assertEqual((key, reason), ("6", "quest-strategy:melee"), sequence)
+    def test_decision_805_no_longer_ends_the_stage_and_the_spectre_is_met_in_it(self):
+        seen = {}
+
+        def probe(policy, snapshot, sequence):
+            ctx = battle._ctx(policy, snapshot)
+            seen[sequence] = (battle.PHASES[ctx.battle.phase].name, ctx.battle.quiet)
+
+        answers = replay(probe=probe, through=813)
+        self.assertEqual(recorded(805)[1]["key"], "bC")   # the Ipsissimus phase's recharge reads
+        self.assertEqual(answers[805], ("5", battle.HOLD_REASON))
+        self.assertEqual(seen[806], ("wall-passers", 50))
+        # The spectre that came at decision 813 (14:24:00) arrives with the stage still running.
+        self.assertEqual(in_view(recorded(813)[0]), [geo.SPECTRE])
+        self.assertEqual(seen[813][0], "wall-passers")
+
+
+class StragglersNoTeleportTest(unittest.TestCase):
+    """Owner 2026-11-09 「ここでテレポートすると以降の段取りが全て崩れるので逃走回数は最小にしたい。」 and
+    「無視して囲いを撃つ」: the wall-passers left alive are no summons; with them in view, even beside
+    the player, the ball stays on the pen [7,17], no Teleportation.  The phase as recorded
+    (``recorded_wait``)."""
+
+    def assert_pen_shot(self, answer, sequence):
+        key, reason = answer
+        self.assertNotEqual(reason, battle.TELEPORT_REASON, sequence)
+        self.assertTrue(key.startswith("mB") and key.endswith("@7,17"), (sequence, key))
+        self.assertEqual(reason, "ranged:magic-eater-device", sequence)
+
+    def test_833_keeps_the_ball_on_the_pen(self):
+        answers = replay(recorded_wait=True, through=FIRST_TELEPORT)
+        self.assert_pen_shot(answers[FIRST_TELEPORT], FIRST_TELEPORT)
         self.assertEqual([sequence for sequence, (_, reason) in answers.items()
                           if reason == battle.TELEPORT_REASON], [])
+
+    def test_927_keeps_the_ball_on_the_pen(self):
+        # DECLARED WALL: from the first shot at the pen (816) to 926 the boards are the recorded
+        # process's (its fire, its teleport and walk back), which the fixed policy's keys did not
+        # make: they are observed (kill lines, arrivals), not decided, so no shot of the replay is
+        # answered by a board it did not make.
+        answers = replay(recorded_wait=True, observed=range(816, SECOND_TELEPORT))
+        self.assert_pen_shot(answers[SECOND_TELEPORT], SECOND_TELEPORT)
 
     def test_a_summons_with_a_low_threat_keeps_the_ball_on_the_pen(self):
         # Decision 815: 「何かが魔法でアンデッドの強敵を召喚した！」 brought the skeleton kobold (91);
         # on 816 at full HP the ball goes to [7,17] as recorded.
         raw, row = recorded(816)
         self.assertEqual(in_view(raw), [91, geo.SPECTRE])
-        self.assertEqual(replay(through=816)[816], (row["key"], row["reason"]))
+        self.assertEqual(replay(through=816, recorded_wait=True)[816], (row["key"], row["reason"]))
 
 
 class HighThreatSummonsTeleportsTest(unittest.TestCase):
@@ -169,7 +225,7 @@ class HighThreatSummonsTeleportsTest(unittest.TestCase):
             if sequence == FIRST_TELEPORT:
                 raw["messages"] = ["何かは魔法で混沌の宮廷から悪魔を召喚した！", *raw["messages"]]
 
-        answers = replay(edit=edit, through=FIRST_TELEPORT)
+        answers = replay(edit=edit, through=FIRST_TELEPORT, recorded_wait=True)
         self.assertEqual(answers[FIRST_TELEPORT], ("ri", battle.TELEPORT_REASON))
 
 

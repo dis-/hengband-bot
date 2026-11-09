@@ -29,6 +29,7 @@ lists (``_me_device_lists`` is not carried across a restart), as live.
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+import dataclasses
 import gzip
 import json
 import unittest
@@ -194,7 +195,16 @@ def listed(kind):
 
 def stop1(through=STOP1_CUT, *, quiet=False):
     """(policy, {sequence: (key, reason)}) of the first process through ``through``; ``quiet``
-    then decides the constructed quiet board after it."""
+    then decides the constructed quiet board after it.  DECLARED WALL: the wall-passers' wait the
+    recorded process ran, 50 actions (doubled since, owner 2026-11-09 「待つターンを倍にしてみる」): the
+    recorded boards after it were decided in the phases that wait began."""
+    phases = tuple(dataclasses.replace(phase, wait_limit=50) if phase.name == "wall-passers" else phase
+                   for phase in battle.PHASES)
+    with patch.object(battle, "PHASES", phases):
+        return _stop1(through, quiet=quiet)
+
+
+def _stop1(through, *, quiet):
     answers = {}
     with TemporaryDirectory() as directory:
         boards = CASE["first"]["boards"]
