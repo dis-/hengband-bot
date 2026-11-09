@@ -18,7 +18,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from hengbot import equipment_optimizer
+from hengbot import equipment_optimizer, me_powerful_activation
 from hengbot.model import STORE_HOME
 from hengbot.policy_types import in_flight_clause
 from tests.test_stops_1109_town_recorded import RecordedVisit
@@ -127,6 +127,27 @@ class RefusedDepositEndsTheWaitTest(Visit):
         _board, _key, reason = self.decide(14)
         self.assertNotEqual(reason, self.journal[14]["reason"])
         self.assertFalse(reason.startswith("town:blocked"), reason)
+
+
+class PowerfulIdentifyCostCoveredTest(Visit):
+    """n1-c life-179 2026-11-09 08:16 (and life-180 11:22, 12:14, 12:15)
+    town:blocked:owner-retired-burst: the Powerful Activation *Identify* cost
+    counted as a hit, town:seek-shelter after every use, the taken piece lost
+    its hold and was shelved again until the Home visits ran out -- cause D of
+    stops-1109-town (22e78a2ee6, ``me_powerful_activation.own_cost``).  Pinned
+    here from this record: row 0 is the bot's own use, row 1 its first board.
+    """
+
+    fixture = "d179"
+
+    def test_the_use_cost_is_no_hit(self):
+        _board, key, reason = self.decide(0)
+        self.assertEqual((key, reason), (self.journal[0]["key"], "me-powerful:identify"))
+        self.assertEqual(self.journal[1]["reason"], "town:seek-shelter")
+        board, _key, reason = self.decide(1)
+        self.assertNotEqual(reason, "town:seek-shelter")
+        self.assertFalse(self.policy._took_damage)
+        self.assertTrue(me_powerful_activation.spare_identify_ready(self.policy, board))
 
 
 if __name__ == "__main__":
