@@ -109,7 +109,9 @@ from hengbot.model import (
     SV_STAFF_DETECT_TRAP, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_SCROLL,
     TVAL_STAFF, TVAL_WAND,
 )
-from hengbot.policy_constants import DIRECTION_KEYS, REST_MACRO, SEARCH_KEY, WAIT_KEY
+from hengbot.policy_constants import (
+    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, REST_MACRO, SEARCH_KEY, WAIT_KEY,
+)
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
 from hengbot.unseen_strike import message_text
 
@@ -134,10 +136,13 @@ RETREAT_REST_REASON = f"{REASON}:druj-rest-out-of-line"
 RETREAT_HEAL_REASON = f"{REASON}:druj-heal-out-of-line"
 ENLIGHTEN_REASON = f"{REASON}:ambush-enlightenment"
 BLOCKED_REASON = "quest:blocked:quest25-patrol-rounds"
+SIGHT_REASON = f"{REASON}:walk-to-sight"
+WITHDRAW_REASON = f"{REASON}:withdraw"
 OUT_OF_FIRE_REASON = f"{REASON}:step-out-of-fire"
 FIRE_REST_REASON = f"{REASON}:rest-out-of-fire"
 FIRE_HOLD_REASON = f"{REASON}:hold-out-of-fire"
-_PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, OUT_OF_FIRE_REASON})
+_PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
+                            OUT_OF_FIRE_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -267,6 +272,7 @@ class Battle:
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
+    blind_sights: frozenset = frozenset()  # sight cells reached where the target was not seen
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -579,6 +585,25 @@ def _safe_cells(ctx: _Ctx, fire) -> set:
     return cells
 
 
+def _withdraw(ctx: _Ctx) -> str | None:
+    """Out of the fire by the least exposed walk, then the rest there."""
+    fire = _fire(ctx)
+    if ctx.here not in fire:
+        return _rest_out_of_fire(ctx)
+    safe = _safe_cells(ctx, fire)
+    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+    terrain = quest_room_sweep._terrain_of(ctx.navigator, ctx.snapshot, water=False)
+    terrain[ctx.here] = "floor"
+    path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
+                                             ctx.here, safe, occupied - safe)
+    if len(path) < 2:
+        return None
+    trap = _trap_key(ctx, path[1])
+    if trap is not None:
+        return trap
+    return _step(ctx, path[1], WITHDRAW_REASON, guard=False)
+
+
 def _out_of_fire_key(policy, snapshot) -> str | None:
     """「一歩で安全圏に移動して休息できる」: damaged in the fire with no enemy in view, one step out."""
     ctx = _ctx(policy, snapshot)
@@ -849,20 +874,29 @@ def _beam_key(ctx: _Ctx, race: int, grid) -> tuple[float, Callable] | None:
     return best
 
 
-def _fire_at(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False) -> str | None:
-    """The strongest attack aimed at ``grid`` (「一番ダメージの出る攻撃」); ``piercing``: only one
-    that passes the bodies on the way (a beam, a ball or a breath aimed at the grid)."""
+def _fire_options(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False,
+                  missiles: bool = True) -> list:
+    """(expected damage, key maker) of every attack aimed at ``grid``; ``piercing``: only one that
+    passes the bodies on the way (a beam, a ball or a breath aimed at the grid); ``missiles``:
+    the launcher too."""
     options = [(damage, lambda make=make: make(grid))
                for damage, radius, shape, make in _ball_powers(ctx, race)
                if not area_only or shape == "ball"]
     if not area_only:
         if (beam := _beam_key(ctx, race, grid)) is not None:
             options.append(beam)
-        if not piercing:
+        if not piercing and missiles:
             distance = quest_exposure.game_distance(ctx.here, tuple(grid))
             launcher = attack_expectation.launcher_against(ctx.policy, ctx.snapshot, race, distance)
             if launcher > 0:
                 options.append((launcher, lambda: _launcher_grid_key(ctx, grid)))
+    return options
+
+
+def _fire_at(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False,
+             missiles: bool = True) -> str | None:
+    """The strongest attack aimed at ``grid`` (「一番ダメージの出る攻撃」), of ``_fire_options``."""
+    options = _fire_options(ctx, grid, race, piercing=piercing, area_only=area_only, missiles=missiles)
     for _damage, make in sorted(options, key=lambda row: -row[0]):
         key = make()
         if key is not None:
@@ -1237,12 +1271,51 @@ def _tome(ctx: _Ctx) -> str | None:
             if ctx.here != stand:
                 return _walk(ctx, {stand})
             return _haste(ctx) or _fire_at(ctx, found[1], geo.TOME, area_only=True)
+    # Owner 2026-11-09 Q1 「見えない時は矢を撃たない。マスを狙う範囲の攻撃（取り込んだボール・ブレス
+    # など）で削り、無ければ相手が見えるマスへ移って撃つ。」 and 「1に加え、倒しきれなければ下がる。
+    # 生存を優先させたはず」 (「数行動で倒しきる見込みが無ければ、射線の外へ下がって休み、やり直す。」).
+    # From [5,5] the tome is not in view (n1-c life-178: arrows at half the hit chance, ``geo.los``);
+    # an attack aimed at its grid does not need the sight, the launcher does.  The plan with the
+    # larger expected damage is taken: the near stands with the grid-aimed attacks, or a cell
+    # that sees it with the launcher too.  Damaged, a plan that needs more actions than the
+    # quest's kill horizon (FIXED_QUEST_TOUGHEST_KILL_TURNS) withdraws out of the fire and rests.
+    seen = any(monster.race_id == geo.TOME for monster in ctx.in_view())
+    hp = _race_hp(ctx.policy, geo.TOME)
     stands = [stand for stand in geo.TOME_NEAR_STANDS if _path(ctx, {stand}) or ctx.here == stand]
-    if not stands:
+    near = max((damage for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False)),
+               default=0.0)
+    sights = set(geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx))) - set(ctx.battle.blind_sights)
+    far = 0.0
+    if sights:
+        distance = min(quest_exposure.game_distance(cell, tome) for cell in sights)
+        far = max(near, attack_expectation.launcher_against(ctx.policy, ctx.snapshot, geo.TOME, distance))
+    if stands and near > 0 and near >= far:
+        if _hopeless(ctx, hp, near):
+            return _withdraw(ctx)
+        if ctx.here not in stands:
+            return _walk(ctx, {stands[0]})
+        return _haste(ctx) or _fire_at(ctx, tome, geo.TOME, missiles=seen)
+    if far <= 0:
         return None
-    if ctx.here not in stands:
-        return _walk(ctx, {stands[0]})
-    return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
+    if _hopeless(ctx, hp, far):
+        return _withdraw(ctx)
+    if seen:
+        return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
+    if ctx.here in sights:   # the line of sight was there, the tome was not shown: not this cell
+        ctx.battle.blind_sights = ctx.battle.blind_sights | {ctx.here}
+        sights.discard(ctx.here)
+    return _walk(ctx, sights, SIGHT_REASON)
+
+
+def _sight_radius(ctx: _Ctx) -> int:
+    """How far an unlit monster is shown: the player's light (a cold-blooded body gives no
+    infravision, monster-update.cpp); 1 when the board does not say."""
+    return max(int(ctx.snapshot.light_radius or 0), 1)
+
+
+def _hopeless(ctx: _Ctx, hit_points: float, per_action: float) -> bool:
+    return _damaged(ctx) and attack_expectation.actions_to_kill(
+        hit_points, per_action) > FIXED_QUEST_TOUGHEST_KILL_TURNS
 
 
 def _masses_seen(ctx: _Ctx) -> list:

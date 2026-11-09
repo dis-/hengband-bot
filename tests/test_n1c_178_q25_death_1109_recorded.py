@@ -149,5 +149,24 @@ class OutOfTheFireTest(unittest.TestCase):
         self.assertEqual(answers[5224], ("4", battle.OUT_OF_FIRE_REASON))
 
 
+class UnseenTomeTest(unittest.TestCase):
+    """Owner 2026-11-09 Q1 「1に加え、倒しきれなければ下がる。生存を優先させたはず」: no arrow at the
+    unseen tome; the grid-aimed attack, else a cell that sees it; and, damaged, a plan that cannot
+    kill it within the quest's kill horizon withdraws out of the fire to rest."""
+
+    def test_without_an_area_attack_no_arrow_flies_at_the_unseen_tome(self):
+        answers = replay()
+        self.assertEqual([where for where, (key, _) in answers.items() if key.startswith("f")], [])
+        # Damaged (HP 415 of 503) with only the bow: out of the fire.
+        self.assertEqual(answers[5183], ("7", battle.WITHDRAW_REASON))
+        # At full HP: to [5,6], the nearest cell that sees the tome (los).
+        self.assertEqual(answers[5186], ("6", battle.SIGHT_REASON))
+
+    def test_with_the_breath_the_damaged_player_keeps_firing_within_the_horizon(self):
+        answers = replay(answer_lists=lists())
+        self.assertEqual(recorded(5187)[1]["hp"], 387)
+        self.assertEqual(answers[5187][0], BREATH)
+
+
 if __name__ == "__main__":
     unittest.main()
