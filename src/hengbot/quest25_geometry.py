@@ -235,9 +235,25 @@ def _sight_cells(terrain_key: tuple, target: tuple, radius: int) -> frozenset:
 
 
 def sight_cells(terrain: dict, target, radius: int) -> frozenset:
-    """The standable cells within ``radius`` (the light that shows an unlit monster) that have
-    a line of sight to ``target``: where a cold-blooded, visible-bodied monster is seen."""
+    """The standable cells within ``radius`` that have a line of sight to ``target``: where a
+    cold-blooded, visible-bodied monster is seen.  ``radius`` is the player's light on an unlit
+    target grid, ``MAX_PLAYER_SIGHT`` on a glowing one (``seen_from``)."""
     return _sight_cells(_key(terrain), tuple(target), int(radius))
+
+
+# system/gamevalue.h MAX_PLAYER_SIGHT: update_view's reach (player-view.cpp ``full``) and the
+# farthest a monster is shown (monster-update.cpp decide_sight_invisible_monster).
+MAX_PLAYER_SIGHT = 20
+
+
+def sight_radius(light_radius: int, glowing: bool) -> int:
+    """How far a cold-blooded, visible-bodied monster on its grid is seen (owner 2026-11-09
+    「照らされた所も入れる」).  The game (floor/geometry.cpp player_can_see_bold, read by
+    monster-update.cpp check_invisible): a grid lit by the player's light (CAVE_LITE, his light
+    radius) is seen; else it needs CAVE_VIEW (update_view: the player's line of sight within
+    MAX_PLAYER_SIGHT) and CAVE_GLOW without CAVE_MNDK -- a room lit by a Light scroll (lite_room)
+    or Enlightenment (wiz_lite) -- so a glowing grid in line is seen out to MAX_PLAYER_SIGHT."""
+    return MAX_PLAYER_SIGHT if glowing else max(int(light_radius or 0), 1)
 
 
 def fire_cells(terrain: dict, casters) -> frozenset:

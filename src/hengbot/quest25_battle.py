@@ -30,7 +30,9 @@ quoted there with its date); this module is their executor.  The phases, in orde
  6. ``tome`` (phase3 step 2): full HP, haste, then a ball from [5,1]/[5,2] where one reaches
     the tome, else the strongest ranged attack from [5,5], [4,5] or [5,6].
  7. ``corpse-masses`` (phase4): [1,6] by the walk that crosses no corridor trap, the door
-    [1,7] opened, the corridor lit when dark (the 11-05 rule), and every mass in view shot.
+    [1,7] opened, the corridor lit when dark (the 11-05 rule), and every mass in view shot --
+    from the cell that reaches the most of them (owner 2026-11-09 「一番多く届く位置へ」,
+    ``_walk_to_widest``), back to [1,6] when none is left to shoot.
  8. ``dreadmaster`` (phase5): ranged waits on the edge of its vision ([1,9]), melee on [1,17];
     hasted while it is in view.
  9. ``sweep`` (phase6_sweep): detection when the character has it, else the kill count
@@ -51,6 +53,11 @@ step would wait or walk (or has none), the masses in the line of fire are shot i
 (``_breeders_in_line_key``, breeder_area_attack ``line_of_fire_key``): the aim with the most kills
 when it catches two or more, else the phase's strongest shot at the nearest.  A more dangerous
 hostile that acts keeps the phase's step; the phase's own fights and every survival rung come first.
+
+Owner 2026-11-09 「見えない時は矢を撃たない。マスを狙う範囲の攻撃で削り、無ければ相手が見えるマスへ移って
+撃つ。」 (the tome first), widened 「Q25 の全部の段に広げる」: the pen, the quylthulgs, the tome, the
+stairway and the druj are shot with the launcher only when seen (``_unseen_fire``); a seen cell is
+the player's light, or out to MAX_PLAYER_SIGHT on a glowing grid (「照らされた所も入れる」, ``_sight_radius``).
 
 Between phases (between_phases): a Magic-Eater rests a counted rest until every absorbed
 attack power is full, reading the lists turn-free (``b``) to decide (R& does not wait for
@@ -96,6 +103,7 @@ from hengbot import (
     quest25_geometry as geo,
     quest_exposure,
     quest_find_exit,
+    quest_firing_cells,
     quest_room_light,
     quest_room_sweep,
     resist_potion,
@@ -112,7 +120,8 @@ from hengbot.model import (
     TVAL_POTION, TVAL_STAFF, TVAL_WAND,
 )
 from hengbot.policy_constants import (
-    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, REST_MACRO, SEARCH_KEY, UP_STAIRS_KEY, WAIT_KEY,
+    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, RANGED_MAX_DISTANCE, REST_MACRO, SEARCH_KEY,
+    UP_STAIRS_KEY, WAIT_KEY,
 )
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
 from hengbot.unseen_strike import message_text
@@ -148,9 +157,12 @@ RECALL_EXIT_REASON = f"{REASON}:recall-exit"
 RECALL_OUT_REASON = f"{REASON}:recall-out-of-fire"
 RECALL_WAIT_REASON = f"{REASON}:recall-wait"
 ABSORBED_HEAL_REASON = f"{REASON}:heal{CAST_SUFFIX}"
+MASS_CELL_REASON = f"{REASON}:mass-firing-cell"
 _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
                             OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON,
-                            RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON})
+                            RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON, MASS_CELL_REASON})
+# The plan's own '<' on the start stair: Recall active (_recall_wait) or Healing used up (_leave_by_exit).
+_START_STAIR_LEAVES = frozenset({RECALL_EXIT_REASON, quest_room_sweep.EXIT_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -284,7 +296,9 @@ class Battle:
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
-    blind_sights: frozenset = frozenset()  # sight cells reached where the target was not seen
+    blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
+    glowing: frozenset = frozenset()   # floor cells seen drawn lit (CAVE_GLOW in view)
+    tome_hp: int | None = None     # the tome's HP read from its last seen health (an upper bound)
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -301,7 +315,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked")}
+        "beam", "detection", "detect_asked", "glowing", "tome_hp")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -331,6 +345,17 @@ def holds(policy, snapshot) -> bool:
 
 def planned_step(policy, snapshot) -> bool:
     return policy.last_reason in _PLANNED_STEPS and applies(policy, snapshot)
+
+
+def owns_leave_confirmation(policy, snapshot) -> bool:
+    """The plan's start-stair step owns 「本当にこの階を去りますか？」 (the quest is left unfinished).
+
+    Owner 2026-11-04 「体力回復を使い切り HP 20% 以下で開始の階段まで5歩以内なら踏む」 and 2026-11-09
+    「段をやめ射線外で待つ」 (「開始の階段へ行ければ踏み」) decided the leave; the '<' they post must
+    answer the question cmd-move.cpp confirm_leave_level asks on the taken ONCE quest floor.  n1-c
+    life-181 (2026-11-09 19:18) posted quest25:recall-exit's '<' on [13,1] three times into the
+    unowned confirm and retired on the stuck prompts."""
+    return policy.last_reason in _START_STAIR_LEAVES and applies(policy, snapshot)
 
 
 def walks_over_traps(policy, snapshot) -> bool:
@@ -1162,16 +1187,23 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
     battle, policy, snapshot = ctx.battle, ctx.policy, ctx.snapshot
     if battle.rallying and (key := _rally(ctx)) is not None:
         return key
-    walk = geo.PHASE2_WALK
-    if ctx.here not in walk:
-        return _walk(ctx, {walk[0]})
-    if ctx.here == walk[0] and (haste := _haste(ctx)) is not None:
-        return haste    # 「事前に加速して(6,1)(5,1)と移動」
-    if ctx.here != walk[-1]:
-        return _step(ctx, walk[walk.index(ctx.here) + 1])
     seen = [monster for monster in ctx.hostiles() if monster.race_id == geo.IPSISSIMUS
             and (monster.position.y, monster.position.x) in geo.IPSISSIMUS_PEN]
     aim = (seen[0].position.y, seen[0].position.x) if seen else geo.IPSISSIMUS_AIM
+    # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): no arrow at the pen it does not
+    # see.  With no attack aimed at the grid, the walk goes to a cell that sees the pen instead of
+    # [5,1]; seen there, the fire is from there.  Every such cell reached with none seen: they are
+    # out of the pen (the pen's 「当たらない撃ちで補う」 reads the same: counted escaped).
+    in_sight = bool(_seen_at(ctx, geo.IPSISSIMUS, geo.IPSISSIMUS_PEN))
+    from_stand = in_sight or bool(_fire_options(ctx, aim, geo.IPSISSIMUS, missiles=False))
+    walk = geo.PHASE2_WALK
+    if from_stand:
+        if ctx.here not in walk and not in_sight:
+            return _walk(ctx, {walk[0]})
+        if ctx.here == walk[0] and (haste := _haste(ctx)) is not None:
+            return haste    # 「事前に加速して(6,1)(5,1)と移動」
+        if ctx.here in walk and ctx.here != walk[-1]:
+            return _step(ctx, walk[walk.index(ctx.here) + 1])
     others = [monster for monster in ctx.in_view() if monster.race_id != geo.IPSISSIMUS]
     piercing = bool(others) and _has_piercing(ctx, geo.IPSISSIMUS, aim)
     summons = _summons_in_view(ctx, others)
@@ -1196,7 +1228,20 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
     # 戦闘中に出会った残党は無視する。イプシシマスを全て倒すかテレポートさせたあとで対処。」): the fire stays on
     # the pen, through them when it can; the stragglers' phase fights them on [5,1] afterwards.  The
     # survival rungs above the plan (the 1-turn 即死, the HP line) still answer first.
-    return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=piercing))
+    if not from_stand:
+        return _pen_sight(ctx, aim)
+    return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=piercing, missiles=in_sight))
+
+
+def _pen_sight(ctx: _Ctx, aim) -> str | None:
+    """Unseen, no attack aimed at the grid: to a cell that sees the pen's ``aim``; none left (each
+    reached with no Ipsissimus seen), the ones not killed nor seen out are counted escaped."""
+    if (key := _walk_to_sight(ctx, aim, _sights(ctx, aim))) is not None:
+        return key
+    battle = ctx.battle
+    battle.assumed_escaped = max(0, geo.ROSTER[geo.IPSISSIMUS] - ctx.kills(geo.IPSISSIMUS)
+                                 - _escaped_count(ctx, assumed=False))
+    return None
 
 
 def _summons_in_view(ctx: _Ctx, others) -> list:
@@ -1295,9 +1340,14 @@ def _quyls(ctx: _Ctx) -> str | None:
     ctx.battle.aimed_quyl = cell
     if stand is None:
         lines = _quyl_line_cells(ctx, cell)
+        # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen, no arrow; the ball at
+        # its grid, else a cell of its line that sees it.
+        seen = bool(_seen_at(ctx, geo.QUYL, {cell}))
+        if not seen and not _fire_options(ctx, cell, geo.QUYL, missiles=False):
+            return _walk_to_sight(ctx, cell, _sights(ctx, cell, lines))
         if ctx.here not in lines:
             return _walk(ctx, lines)   # 「飛ばされたら戻って撃ち直す」
-        return _haste(ctx) or _fire_at(ctx, cell, geo.QUYL)
+        return _haste(ctx) or _unseen_fire(ctx, cell, geo.QUYL, seen=seen)
     if ctx.here != stand:
         return _walk(ctx, {stand})
     return _fire_at(ctx, centre, geo.QUYL, area_only=True)
@@ -1326,11 +1376,11 @@ def _tome(ctx: _Ctx) -> str | None:
     # that sees it with the launcher too.  Damaged, a plan that needs more actions than the
     # quest's kill horizon (FIXED_QUEST_TOUGHEST_KILL_TURNS) withdraws out of the fire and rests.
     seen = any(monster.race_id == geo.TOME for monster in ctx.in_view())
-    hp = _race_hp(ctx.policy, geo.TOME)
+    hp = _tome_hp(ctx)
     stands = [stand for stand in geo.TOME_NEAR_STANDS if _path(ctx, {stand}) or ctx.here == stand]
     near = max((damage for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False)),
                default=0.0)
-    sights = set(geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx))) - set(ctx.battle.blind_sights)
+    sights = _sights(ctx, tome)
     far = 0.0
     if sights:
         distance = min(quest_exposure.game_distance(cell, tome) for cell in sights)
@@ -1347,16 +1397,128 @@ def _tome(ctx: _Ctx) -> str | None:
         return _withdraw(ctx)
     if seen:
         return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
-    if ctx.here in sights:   # the line of sight was there, the tome was not shown: not this cell
-        ctx.battle.blind_sights = ctx.battle.blind_sights | {ctx.here}
-        sights.discard(ctx.here)
+    return _walk_to_sight(ctx, tome, sights)
+
+
+def _note_glow(ctx: _Ctx) -> None:
+    """The plain floor cells beyond the player's light that the board draws lit (quest_room_light
+    ``drawn_lit``: F_LIT_STANDARD, a glowing cell in view; within his light a cell may be drawn so
+    by his own light, view/display-map.cpp decide_visible_terrain_lighting), remembered for the
+    visit: a floor cell out of view is not drawn."""
+    reach = max(1, int(ctx.snapshot.light_radius or 0))
+    lit = {cell for cell in ((position.y, position.x) for position in ctx.snapshot.grids)
+           if ctx.terrain.get(cell) == "floor" and quest_exposure.game_distance(ctx.here, cell) > reach
+           and quest_room_light.drawn_lit(ctx.snapshot, cell)}
+    if lit - ctx.battle.glowing:
+        ctx.battle.glowing = ctx.battle.glowing | frozenset(lit)
+
+
+def _glowing(ctx: _Ctx, target) -> bool:
+    """``target``'s grid glows: drawn lit on a board of this visit, or another cell of its room
+    was (a Light scroll's lite_room and Enlightenment's wiz_lite light the whole room,
+    spells-lite.cpp / spells-floor.cpp; every cell of the quest map is CAVE_ROOM; the room is
+    joined through the cells a line passes, so a closed door bounds it)."""
+    target = tuple(target)
+    if target in ctx.battle.glowing:
+        return True
+    if not ctx.battle.glowing:
+        return False
+    return bool(quest_room_light.room_of(ctx.open_terrain(), target) & ctx.battle.glowing)
+
+
+def _sight_radius(ctx: _Ctx, target=None) -> int:
+    """How far a monster on ``target`` is shown (geo.sight_radius, owner 2026-11-09 「照らされた所も
+    入れる」): the player's light (a cold-blooded body gives no infravision, monster-update.cpp;
+    1 when the board does not say), out to MAX_PLAYER_SIGHT on a glowing grid."""
+    return geo.sight_radius(ctx.snapshot.light_radius,
+                            target is not None and _glowing(ctx, target))
+
+
+# -- unseen immobile targets (owner 2026-11-09) ------------------------------------------
+#
+# Owner 2026-11-09 Q1 「見えない時は矢を撃たない。マスを狙う範囲の攻撃（取り込んだボール・ブレスなど）で
+# 削り、無ければ相手が見えるマスへ移って撃つ。」 (the tome first), widened the same day 「Q25 の全部の段に
+# 広げる」: every phase that shoots a never-moving target it may not see -- the Ipsissimus pen [7,17],
+# the quylthulgs, the stairway to hell, the druj.  An unseen monster is hit at half the chance
+# (shoot.cpp test_hit_fire with ``monster.ml`` false); an attack aimed at the grid (a ball or a
+# breath, spells-launcher.cpp fire_ball drops PROJECT_STOP) or a beam along its ray needs no sight.
+
+
+def _seen_at(ctx: _Ctx, race: int, cells) -> list:
+    """The monsters of ``race`` in view (telepathy included: ``ml``) on ``cells``."""
+    cells = {tuple(cell) for cell in cells}
+    return [monster for monster in ctx.in_view()
+            if monster.race_id == race and (monster.position.y, monster.position.x) in cells]
+
+
+def _sights(ctx: _Ctx, target, among=None) -> set:
+    """The cells that see ``target`` (geo.sight_cells at ``_sight_radius``), less those reached
+    where it was not seen; within ``among`` when given (the phase's own stands)."""
+    target = tuple(target)
+    sights = set(geo.sight_cells(ctx.open_terrain(), target, _sight_radius(ctx, target)))
+    sights -= {cell for aimed, cell in _blind_pairs(ctx) if aimed == target}
+    return sights if among is None else sights & {tuple(cell) for cell in among}
+
+
+def _blind_pairs(ctx: _Ctx):
+    # A record written before the pairs held bare cells: those name no target.
+    return (pair for pair in ctx.battle.blind_sights
+            if isinstance(pair, tuple) and len(pair) == 2 and isinstance(pair[0], tuple))
+
+
+def _walk_to_sight(ctx: _Ctx, target, sights) -> str | None:
+    """To the nearest cell of ``sights``; this cell is one of them and the target was not seen
+    here: the line was there, the target was not (not this cell again)."""
+    target = tuple(target)
+    if ctx.here in sights:
+        ctx.battle.blind_sights = ctx.battle.blind_sights | {(target, ctx.here)}
+        sights = sights - {ctx.here}
     return _walk(ctx, sights, SIGHT_REASON)
 
 
-def _sight_radius(ctx: _Ctx) -> int:
-    """How far an unlit monster is shown: the player's light (a cold-blooded body gives no
-    infravision, monster-update.cpp); 1 when the board does not say."""
-    return max(int(ctx.snapshot.light_radius or 0), 1)
+def _unseen_fire(ctx: _Ctx, grid, race: int, *, seen: bool, piercing: bool = False,
+                 among=None) -> str | None:
+    """The strongest attack at ``grid``: the launcher too when the target is seen; unseen, an
+    attack aimed at the grid or along a ray, else the walk to a cell that sees it (of ``among``,
+    the phase's stands, when one does; else any)."""
+    if seen:
+        return _fire_at(ctx, grid, race, piercing=piercing)
+    key = _fire_at(ctx, grid, race, piercing=piercing, missiles=False)
+    if key is not None:
+        return key
+    return _walk_to_sight(ctx, grid, _sights(ctx, grid, among) or _sights(ctx, grid))
+
+
+# The health bar's length (system/monster-entity.cpp get_hp_bar_data: clamp(percent / 10 + 1, 1, 10))
+# bounds the percent from above: 10 * length - 1 below the full bar.
+def _bar_percent(length: int) -> int:
+    return 100 if length >= 10 else max(1, 10 * int(length) - 1)
+
+
+def _note_tome_health(ctx: _Ctx) -> None:
+    """Owner 2026-11-09 「見えた傷の具合で見込む」: the tome's HP from its health when seen -- the
+    board's band (bot-json-output.cpp monster_health_band: unhurt ... almost dead, MonsterState
+    ``hp`` its upper bound on the race's maximum) and, when the health bar tracks it, the bar's
+    length -- the lower of the two; kept while it is not seen."""
+    for monster in ctx.in_view():
+        if monster.race_id != geo.TOME:
+            continue
+        hp = monster.hp
+        bar = ctx.snapshot.health_bar
+        if bar is not None and bar[0] and bar[1] == monster.index and bar[2] is not None:
+            hp = min(hp, max(1, (monster.max_hp * _bar_percent(bar[2]) + 99) // 100))
+        ctx.battle.tome_hp = int(hp)
+        return
+
+
+def _tome_hp(ctx: _Ctx) -> float:
+    """The tome's HP for the kill estimate: its last seen health (``_note_tome_health``), else
+    (never seen) the race's maximum (owner 2026-11-09 「見えていなければ最後に見えた状態、一度も見えて
+    いなければ最大の500」: 50d10)."""
+    if ctx.battle.tome_hp is not None:
+        return float(ctx.battle.tome_hp)
+    knowledge = attack_expectation.race_knowledge(ctx.policy, geo.TOME)
+    return float(knowledge.max_hp) if knowledge is not None else 0.0
 
 
 def _hopeless(ctx: _Ctx, hit_points: float, per_action: float) -> bool:
@@ -1374,7 +1536,8 @@ def _masses_done(ctx: _Ctx) -> bool:
 
 
 def _masses(ctx: _Ctx) -> str | None:
-    if ctx.here != geo.MASS_STAND:
+    opening = ctx.door_closed(geo.MASS_DOOR) or not ctx.battle.lit
+    if opening and ctx.here != geo.MASS_STAND:
         return _walk(ctx, {geo.MASS_STAND})
     if ctx.door_closed(geo.MASS_DOOR):
         ctx.policy.last_reason = OPEN_REASON
@@ -1385,11 +1548,63 @@ def _masses(ctx: _Ctx) -> str | None:
             ctx.policy, ctx.snapshot, ctx.navigator, ctx.open_terrain(), quest_room_light.LIGHT_REASON)
         if light is not None:
             return light
+    if (key := _walk_to_widest(ctx)) is not None:
+        return key
     if (key := _breeders_in_line_key(ctx)) is not None:
         return key   # owner 2026-11-08: the aim with the most kills when it catches two or more
     for monster in sorted(_masses_seen(ctx), key=lambda each: each.distance):
         key = _fire_at(ctx, (monster.position.y, monster.position.x), geo.MASS)
         if key is not None:
+            return key
+    if ctx.here != geo.MASS_STAND:
+        return _walk(ctx, {geo.MASS_STAND})   # none to shoot from here: the plan's cell looks again
+    return None
+
+
+def _mass_firing_cells(ctx: _Ctx) -> dict:
+    """reach -> the cells a shot at the masses in view reaches that many from (owner 2026-11-09
+    「一番多く届く位置へ」, quest_firing_cells ``reach``, the Q2 fix's measure), of the cells the plan
+    may stand on: floor through the doors as the board shows them, no trap not answered, out of
+    the casters' fire (``_fire``: the tome, the quylthulgs, the druj), out of the summons while the
+    Ipsissimus live, out of the dreadmaster's vision while it lives (phase4 「[1,6] には罠が無く、
+    ドリードマスターの感知範囲の外で、召喚も受けない」), not beside a mass (they drain by touch) nor on a
+    monster.  The plan's [1,6] is one of them."""
+    masses = _masses_seen(ctx)
+    if not masses:
+        return {}
+    bf = ctx.navigator.battlefield
+    avoid = set(_fire(ctx)) | {cell for cell in (*bf.trap_cells, *bf.maybe_trap_cells)
+                               if cell not in ctx.battle.cleared}
+    if _ipsissimus_alive(ctx):
+        avoid |= geo.summon_cells(ctx.terrain)
+    if not _dreadmaster_done(ctx):
+        dreadmaster = next((cell for cell, race in bf.monster_placements if race == geo.DREADMASTER), None)
+        if dreadmaster is not None:
+            avoid |= geo.vision_cells(ctx.terrain, dreadmaster, geo.DREADMASTER_VISION)
+    occupied = {(monster.position.y, monster.position.x) for monster in ctx.hostiles()}
+    near = {cell for cell, kind in ctx.open_terrain().items() if kind == "floor"
+            and any(quest_exposure.game_distance(cell, (monster.position.y, monster.position.x))
+                    <= RANGED_MAX_DISTANCE for monster in masses)}
+    cells = {Position(*cell) for cell in near - avoid - occupied}
+    cells -= quest_firing_cells.touching_cells(ctx.policy, ctx.snapshot, cells)
+    by_reach: dict = {}
+    for cell in cells:
+        count = quest_firing_cells.reach(ctx.snapshot, cell, masses)
+        if count:
+            by_reach.setdefault(count, set()).add((cell.y, cell.x))
+    return by_reach
+
+
+def _walk_to_widest(ctx: _Ctx) -> str | None:
+    """To the cells that reach the most masses (``_mass_firing_cells``), the most first among the
+    reachable; None when no cell reaches more than this one (a cell the plan may not stand on
+    reaches none) or none that does can be walked to."""
+    by_reach = _mass_firing_cells(ctx)
+    here = next((count for count, cells in by_reach.items() if ctx.here in cells), 0)
+    for count in sorted(by_reach, reverse=True):
+        if count <= here:
+            return None
+        if (key := _walk(ctx, by_reach[count], MASS_CELL_REASON)) is not None:
             return key
     return None
 
@@ -1549,7 +1764,9 @@ def _stairway(ctx: _Ctx) -> str | None:
         if seen:
             return _engage(ctx, seen)
         return ctx.policy._step_toward(ctx.snapshot, Position(*stairway))
-    return _fire_at(ctx, stairway, geo.STAIRWAY)
+    # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen from [13,27], no arrow; the
+    # door [13,28] beside it when nothing is aimed at the grid.
+    return _unseen_fire(ctx, stairway, geo.STAIRWAY, seen=bool(seen), among={stand, door})
 
 
 def _druj_done(ctx: _Ctx) -> bool:
@@ -1605,7 +1822,9 @@ def _druj(ctx: _Ctx) -> str | None:
                       and cell not in ctx.navigator.battlefield.trap_cells)
     if ctx.here not in trapless:
         return _walk(ctx, set(trapless)) or _hold(ctx)
-    return _fire_at(ctx, druj, geo.DRUJ)
+    # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen, no arrow; a trapless cell
+    # of its line that sees it when nothing is aimed at the grid.
+    return _unseen_fire(ctx, druj, geo.DRUJ, seen=bool(_seen_at(ctx, geo.DRUJ, {druj})), among=trapless)
 
 
 # -- the table --------------------------------------------------------------------------
@@ -1717,6 +1936,8 @@ def _observe(ctx: _Ctx) -> None:
     _note_kills(ctx)
     _note_pen_shot(ctx)
     _note_arrivals(ctx)
+    _note_glow(ctx)
+    _note_tome_health(ctx)
     phase = current_phase(ctx)
     if (phase is not None and phase.wait_limit is not None and ctx.battle.ready
             and phase.wait_at in (None, ctx.here)):
@@ -1842,8 +2063,8 @@ def key(policy, snapshot) -> str | None:
         or _leave_by_exit(policy, snapshot, board)
         or quest_room_sweep._give_up(policy, snapshot, profile)
         or quest_room_sweep._below_line(policy, snapshot, profile, navigator)
-        or quest_find_exit._heal(policy, snapshot, profile)
         or _absorbed_heal(policy, snapshot, profile)
+        or quest_find_exit._heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
@@ -1855,13 +2076,19 @@ def key(policy, snapshot) -> str | None:
 
 
 def _absorbed_heal(policy, snapshot, profile) -> str | None:
-    """Owner 2026-11-09 Q3 「成功率が80%以上なら体力回復は使っても良い。テレポートは許可しない」: where the
-    plan would drink a Healing potion (its heal line) and none is carried, the absorbed Healing
-    whose displayed success rate is at least 80% (me_capability ``reliable``, the owner's one
-    number for absorbed powers in place of an item).  n1-c life-178 had 4 charges at 32%: none."""
+    """Owner 2026-11-09 Q3 「成功率が80%以上なら体力回復は使っても良い。テレポートは許可しない」, and the
+    same day 「即死の危険がないときは薬より優先する」 / 「ロッドも同じ」: at the plan's heal line (where a
+    Healing potion is drunk), the absorbed Healing -- the staff's, else the rod's -- whose displayed
+    success rate is at least 80% (me_capability ``reliable``, the owner's one number for absorbed
+    powers in place of an item) comes before the potion, unless the instant death holds
+    (threat_tiers ``instant_death``: the next action's p95 reaches the HP); then a carried potion,
+    which does not fail, goes first.  Without a potion it is cast either way.  n1-c life-178 had
+    4 charges at 32%: none."""
     threshold = profile.consumable_plan.get("heal_threshold_ratio")
-    if (threshold is None or snapshot.player.hp_ratio >= float(threshold)
-            or quest_find_exit._healing_potion(policy, snapshot) is not None):
+    if threshold is None or snapshot.player.hp_ratio >= float(threshold):
+        return None
+    if (quest_find_exit._healing_potion(policy, snapshot) is not None
+            and threat_tiers.instant_death(policy, snapshot).holds):
         return None
     key = item_cast_key(policy, snapshot, (TVAL_POTION, SV_POTION_HEALING))
     if key is not None:

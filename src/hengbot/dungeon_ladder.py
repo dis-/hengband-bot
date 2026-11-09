@@ -339,9 +339,10 @@ FLOOR_PLANS = (
             (INSTANT_DEATH, SURVIVAL),
             ("quest_find_exit._cure", SURVIVAL), ("_druj_retreat", SURVIVAL),
             ("_leave_by_exit", SURVIVAL), ("quest_room_sweep._give_up", SURVIVAL),
-            ("quest_room_sweep._below_line", SURVIVAL), ("quest_find_exit._heal", SURVIVAL),
-            # Owner 2026-11-09 「成功率が80%以上なら体力回復は使っても良い」.
-            ("_absorbed_heal", SURVIVAL),
+            ("quest_room_sweep._below_line", SURVIVAL),
+            # Owner 2026-11-09 「成功率が80%以上なら体力回復は使っても良い」, 「即死の危険がないときは
+            # 薬より優先する」: the absorbed Healing before the potion but at the instant death.
+            ("_absorbed_heal", SURVIVAL), ("quest_find_exit._heal", SURVIVAL),
             ("quest_find_exit._speed", SURVIVAL), ("_summons", SUMMONS),
             # Owner 2026-11-07 「Q25内部でのテレポートの優先度を下げる」: the Resistance potion's
             # no-chance leave goes below the phase's own step; its drink stays.
