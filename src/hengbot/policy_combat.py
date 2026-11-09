@@ -709,6 +709,11 @@ class CombatMixin:
         )
         if sanctioned and not self._took_damage:
             return key
+        # Owner 2026-11-10 (G1) 「いなければ治るまで待つ」: the short light/darkness
+        # blindness's wait stands under the breaths too (status_cure.short_blind_key).
+        if reason == status_cure.SHORT_BLIND_WAIT_REASON and status_cure.short_blind_holds(
+                self, snapshot):
+            return key
         if (quest_find_exit.holds_choke(self, snapshot) or quest_room_sweep.holds(self, snapshot)
                 or quest25_battle.holds(self, snapshot)):
             return key
@@ -2716,6 +2721,10 @@ class CombatMixin:
             return cure
         if (strike := status_cure.fight_through_key(self, snapshot)) is not None:
             return strike  # blinded again right after a cure (owner 2026-11-01)
+        # Owner 2026-11-10 (G1): a light/darkness blindness at high HP is not cured;
+        # the adjacent hostile is struck, else the player waits for sight.
+        if (short := status_cure.short_blind_key(self, snapshot, hostiles)) is not None:
+            return short
         # Quaff a healing potion when badly hurt IN A FIGHT. When no enemy is
         # around, resting heals for free, so we don't waste a limited potion.
         if (

@@ -69,7 +69,7 @@ first when not hasted, and cures with the HP recovery potion when HP is down -- 
 before the Speed dose, as for blindness (owner 2026-11-04 「低い時は体力回復が先」).
 """
 
-from hengbot import blind_strike, me_absorbed_substitutes, me_capability, speed_dose, unseen_strike
+from hengbot import blind_strike, combat_answer, me_absorbed_substitutes, me_capability, speed_dose, unseen_strike
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
@@ -78,7 +78,7 @@ from hengbot.model import (
     SV_POTION_LIFE,
     SV_POTION_STAR_HEALING,
 )
-from hengbot.policy_constants import REST_MACRO
+from hengbot.policy_constants import REST_MACRO, WAIT_KEY
 
 
 SIGHT_RESTORED = frozenset({"やっと目が見えるようになった。", "You can see again."})
@@ -99,6 +99,25 @@ _KILL_ENDINGS = ("を殺した。", "を倒した。", "を葬り去った。")
 # 「...ようとしたがバリアに防がれた。」 variant keeps it beside the player, so it is not here.
 THIEF_FLED = frozenset({"泥棒は笑って逃げた！", "The thief flees laughing!"})
 FIGHT_THROUGH_REASON = "blind:fight-through"
+# Owner 2026-11-10 (G1 of n1-a life-504) 「飲まずに戦うか待つ」: the short blindness of a light
+# or darkness attack.  effect_player_lite / effect_player_dark
+# (effect-player-resist-hurt.cpp:412 and 453) set randint1(5) + 2 = 3-7 ticks, and only on a
+# player who is not blind already; the timer drops one a tick (magic-effects-timeout-reducer.cpp,
+# TURNS_PER_TICK = 10 game turns, gamevalue.h), so it ends within 70 game turns.  The attacks
+# that carry it name their element (mspell-breath.cpp:111-112 「閃光」「暗黒」 in 「{}が{}のブレスを
+# 吐いた。」, mspell-ball.cpp:100-105 the darkness storm and the starburst).
+SHORT_BLIND_SOURCES = ("閃光のブレスを吐いた。", "暗黒のブレスを吐いた。", "暗黒の嵐の呪文を念じた。",
+                       "スターバーストの呪文を念じた。", "breathes light.", "breathes darkness.",
+                       "invokes a darkness storm.", "invokes a starburst.")
+SHORT_BLIND_MAX_GAME_TURNS = 7 * 10
+# A blindness of another source on the same board: the gas trap's
+# (trap.cpp TrapType::BLIND, 25-74 ticks) adds to the running timer without the 「目が見えなく
+# なってしまった！」 of a fresh one (mod_blindness).
+_LONG_BLIND_TEXTS = ("黒いガスに包み込まれた！", "A black gas surrounds you!")
+_SHORT_BLIND = "_short_blind_onset"   # (floor, turn) of a light/darkness blindness
+SHORT_BLIND_MELEE_REASON = "blind:short-melee"
+SHORT_BLIND_STRIKE_REASON = "blind:short-strike"
+SHORT_BLIND_WAIT_REASON = "blind:short-wait"
 # The absorbed Cure Light Wounds cast (absorbed_cure_key adds the cast suffix).
 ABSORBED_CURE_REASON = "item:cure-light"
 EMERGENCY_ABSORBED_CURE_REASON = "emergency:cure-light"
@@ -159,11 +178,81 @@ def confusion_relapsed(policy, snapshot) -> bool:
     return snapshot.player.confused and getattr(policy, _CONFUSION_LATCH, None) == snapshot.floor_key
 
 
+def _short_blind_source(messages) -> bool:
+    """The board's fresh blindness came from a light or darkness attack: the last
+    attack text before 「目が見えなくなってしまった！」 names that element, and no blow
+    or gas trap stands between them."""
+    texts = [unseen_strike.message_text(message) for message in messages]
+    if BLINDED not in texts:
+        return False
+    for text in reversed(texts[:texts.index(BLINDED)]):
+        if text.endswith(SHORT_BLIND_SOURCES):
+            return True
+        if (text.endswith(unseen_strike.JA_BLOW_ACTS) or text in _LONG_BLIND_TEXTS
+                or text.endswith(("のブレスを吐いた。", "の呪文を念じた。", "の呪文を唱えた。"))):
+            return False
+    return False
+
+
+def _observe_short_blind(policy, snapshot) -> None:
+    """Remember a light/darkness blindness until sight returns, the floor changes,
+    another blindness is added or it outlasts the longest such blindness."""
+    player = snapshot.player
+    onset = getattr(policy, _SHORT_BLIND, None)
+    if player.blind and _short_blind_source(snapshot.messages):
+        setattr(policy, _SHORT_BLIND, (snapshot.floor_key, snapshot.turn))
+        return
+    if onset is None:
+        return
+    if (not player.blind or onset[0] != snapshot.floor_key
+            or snapshot.turn - onset[1] > SHORT_BLIND_MAX_GAME_TURNS
+            or any(unseen_strike.message_text(message) in _LONG_BLIND_TEXTS
+                   for message in snapshot.messages)):
+        setattr(policy, _SHORT_BLIND, None)
+
+
+def short_blind_holds(policy, snapshot) -> bool:
+    """A light/darkness blindness at high HP, which no cure is drunk for.
+
+    Owner 2026-11-10 (G1 of n1-a life-504): 「HP が高く、光・閃光・暗黒のブレスによる短い
+    盲目なら治療薬を使わず、隣の敵は殴り、いなければ治るまで待つ。治療薬は罠などの長い盲目や
+    HP が減った時のために残す。」  On arrival at 鉄獄24階 (random quest 41) the light hounds'
+    flash breaths blinded it thirteen times and it drank nine Cure Critical Wounds and four
+    Healing at HP 487-516 of 508-516, each for 3-7 ticks; 17,000 game turns later a gas trap
+    blinded it with none left.  HP is high while the loss is short of the owner's 「体力が減って
+    いる」 line of 2026-11-04 (a loss of 1/3 of max HP, ``_heavy_loss``).  A confusion or a cut
+    on the same board is still treated: the potion is for them."""
+    player = snapshot.player
+    onset = getattr(policy, _SHORT_BLIND, None)
+    return bool(player.blind and onset is not None and onset[0] == snapshot.floor_key
+                and snapshot.turn - onset[1] <= SHORT_BLIND_MAX_GAME_TURNS
+                and not player.confused and not player.cut
+                and not _heavy_loss(player.max_hp - player.hp, player.max_hp))
+
+
+def short_blind_key(policy, snapshot, hostiles) -> str | None:
+    """While ``short_blind_holds``: strike the adjacent hostile, else the unseen
+    attacker whose blow landed, else wait for sight (owner 2026-11-10 G1)."""
+    if not short_blind_holds(policy, snapshot):
+        return None
+    adjacent = [monster for monster in hostiles if monster.distance <= 1]
+    answer = combat_answer.adjacent_attack(policy, snapshot, adjacent, SHORT_BLIND_MELEE_REASON)
+    if answer is not None:
+        return answer.key
+    strike = unseen_strike.key(policy, snapshot, hostiles, SHORT_BLIND_STRIKE_REASON,
+                               blow_landed=unseen_strike.blow_on_board(snapshot))
+    if strike is not None:
+        return strike
+    policy.last_reason = SHORT_BLIND_WAIT_REASON
+    return WAIT_KEY
+
+
 def observe(policy, snapshot) -> None:
     """Latch the blindness when the board after a cure shows it again; the same
     for the confusion."""
     _observe_confusion(policy, snapshot)
     _observe_attacker(policy, snapshot)
+    _observe_short_blind(policy, snapshot)
     player = snapshot.player
     if not player.blind or getattr(policy, _LATCH, None) != snapshot.floor_key:
         setattr(policy, _LATCH, None)
@@ -411,6 +500,8 @@ def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None
     if (cast := absorbed_cure_key(policy, snapshot, ABSORBED_CURE_REASON)) is not None:
         note_cure(policy, snapshot)
         return cast
+    if short_blind_holds(policy, snapshot):
+        return None  # owner 2026-11-10 G1: the potion is kept (short_blind_key)
     potion = cure_potion(policy, snapshot)
     if potion is None:
         return None
