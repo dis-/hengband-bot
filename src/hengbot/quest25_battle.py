@@ -151,6 +151,8 @@ ABSORBED_HEAL_REASON = f"{REASON}:heal{CAST_SUFFIX}"
 _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
                             OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON,
                             RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON})
+# The plan's own '<' on the start stair: Recall active (_recall_wait) or Healing used up (_leave_by_exit).
+_START_STAIR_LEAVES = frozenset({RECALL_EXIT_REASON, quest_room_sweep.EXIT_REASON})
 
 # Owner 2026-11-06 「50回来なければ終える」, 「50ターン待っても来なくなったら」(player actions).
 QUIET_ACTIONS = 50
@@ -331,6 +333,17 @@ def holds(policy, snapshot) -> bool:
 
 def planned_step(policy, snapshot) -> bool:
     return policy.last_reason in _PLANNED_STEPS and applies(policy, snapshot)
+
+
+def owns_leave_confirmation(policy, snapshot) -> bool:
+    """The plan's start-stair step owns 「本当にこの階を去りますか？」 (the quest is left unfinished).
+
+    Owner 2026-11-04 「体力回復を使い切り HP 20% 以下で開始の階段まで5歩以内なら踏む」 and 2026-11-09
+    「段をやめ射線外で待つ」 (「開始の階段へ行ければ踏み」) decided the leave; the '<' they post must
+    answer the question cmd-move.cpp confirm_leave_level asks on the taken ONCE quest floor.  n1-c
+    life-181 (2026-11-09 19:18) posted quest25:recall-exit's '<' on [13,1] three times into the
+    unowned confirm and retired on the stuck prompts."""
+    return policy.last_reason in _START_STAIR_LEAVES and applies(policy, snapshot)
 
 
 def walks_over_traps(policy, snapshot) -> bool:
