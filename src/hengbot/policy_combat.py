@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, threat_tiers, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, survival_preemption, threat_tiers, town_last_stand, unseen_strike
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -2876,9 +2876,11 @@ class CombatMixin:
         ):
             # *Destruction* is used blind too (owner 2026-11-08 「盲目でも使う」); the scroll needs sight.
             if (used := destruction_use.key(self, snapshot)) is not None:
+                sleeper_reach_memory.note_paralyser_left(self, snapshot, adjacent)
                 return used
             scroll = None if snapshot.player.blind else self._escape_scroll(snapshot)
             if scroll is not None:
+                sleeper_reach_memory.note_paralyser_left(self, snapshot, adjacent)
                 self.last_reason = "status-threat:scroll"
                 return self._read_key(snapshot, scroll)
         if sighted:
@@ -2899,6 +2901,9 @@ class CombatMixin:
             self._engagement_avoid_cells = shared_avoid
         if step is None:
             return None
+        # Owner 2026-11-09 「最後の位置の周りを避ける」: once left, its last cell stays
+        # avoided by the walks out of sight (sleeper_reach_memory.avoided_out_of_sight).
+        sleeper_reach_memory.note_paralyser_left(self, snapshot, adjacent)
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:paralyzer-avoid"
         self._declare_reach(step)
