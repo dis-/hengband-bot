@@ -1246,6 +1246,13 @@ class ShopMixin(InStoreMixin):
                 getattr(self, "_home_procurement_batch_active", False)
                 and self._home_pending_batch
             )
+            # The Home-full relief left Home for its filed take: the entrance's
+            # atomic take is its only way to it (_home_full_relief_take_filed).
+            # A rebuilt plan sent the walk to another store, where the relief
+            # left again: n1-a life-497 2026-11-09 08:46, the junk sweep's
+            # 切れ味のダガー take, Home -> Magic -> Home -> Alchemist ... until
+            # owner-retired-burst.
+            or self._home_full_relief_take_filed()
         ) and not self._home_latch_route_spent():
             # A latch whose take Home can no longer serve is released first,
             # and the stay's Home bounds hold for it as for any Home claim:

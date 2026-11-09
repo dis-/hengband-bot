@@ -7257,7 +7257,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and not (snapshot.player.poisoned or snapshot.player.cut
                          or snapshot.player.confused or snapshot.player.blind)
                 and snapshot.player.food_state in {"normal", "full", "gorged"}
-                and not self._physical_hostiles(snapshot)):
+                # A sleeping hostile does not act on the waiting turn.  Kept
+                # silent by one (n1-a life-497 2026-11-09 11:31: a sleeping
+                # ブラックマーケットのエージェント 7 cells away, a deposit the full
+                # Home refused in part), no owner answered while the visit
+                # stayed in flight and the town end stopped the visit.
+                and not any(not monster.asleep
+                            for monster in self._physical_hostiles(snapshot))):
             # A released legacy deposit still owns its outside observation
             # budget. Do not enqueue an equipment Home visit before it ends.
             self.last_reason = "home:atomic-deposit-await-confirmation"
