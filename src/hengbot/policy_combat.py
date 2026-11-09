@@ -2636,6 +2636,13 @@ class CombatMixin:
                 if followers and (answer := combat_answer.adjacent_attack(
                         self, snapshot, followers, "emergency:cornered-attack")) is not None:
                     return answer.key
+                # Owner 2026-11-03 「階段が隣などとても近くにある場合を除き徒歩での逃走は
+                # 絶対に間に合わない。」: blind and hit in melee by an unseen attacker on this
+                # board, the walks below (to an up-stair, the flee step) are taken only onto
+                # the up-stair itself; else the strikes below answer it.  The low-HP walk
+                # gate held this only below its line; n1-a life-504 (2026-11-10, 鉄獄24階)
+                # walked toward an up-stair 11 cells away at HP 488-429, bitten blind.
+                blind_biter = player.blind and unseen_strike.hit_in_melee(self, snapshot)
                 self._claim_target_capture = []
                 try:
                     route_step = self._nearest_goal_step(
@@ -2650,6 +2657,9 @@ class CombatMixin:
                     if blocker is not None:
                         self.last_reason = "emergency:clear-escape-path"
                         return blocker
+                if route_step is not None and blind_biter and not self._blind_biter_stair_step(
+                        snapshot, route_step):
+                    route_step = None
                 if route_step is not None:
                     self.last_reason = "emergency:seek-upstairs"
                     self._declare_reach(route_step_target)
@@ -2657,6 +2667,9 @@ class CombatMixin:
                 if (stand := town_last_stand.key(self, snapshot, hostiles, "emergency:cornered-attack")) is not None:
                     return stand
                 flee_step = self._flee_step(snapshot, hostiles)
+                if flee_step is not None and blind_biter and not self._blind_biter_stair_step(
+                        snapshot, flee_step):
+                    flee_step = None
                 if flee_step is not None and not (
                     self._is_oscillating() and flee_step in set(self._recent)
                 ):
@@ -2744,6 +2757,12 @@ class CombatMixin:
                 self.last_reason = "item:eat"
                 return reserved_item_command(self, snapshot, "eat", food)
         return None
+    def _blind_biter_stair_step(self, snapshot: Snapshot, step: Position) -> bool:
+        """The step lands on an up-stair the board shows or the player remembers: the
+        only walk a blind player bitten by an unseen attacker takes (owner 2026-11-03)."""
+        return (unseen_strike.up_stair_step(self, snapshot, step)
+                or step in self._remembered_upstairs)
+
     def _has_state_based_free_action(self, snapshot: Snapshot) -> bool:
         """Trust only an explicitly active per-source free-action grant."""
         return bool(snapshot.player.ability_sources.get("free_action", ()))

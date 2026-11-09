@@ -36,6 +36,9 @@ with gzip.open(FIXTURE, "rt", encoding="utf-8") as _stream:
 # The teleport landing (rested, sighted), the gas trap, the thief, the last board before
 # the TY_CURSE trap, and the death.
 LANDING, GAS_TRAP, THIEF, LAST_QUIET, DEATH = 895901, 896684, 896723, 896987, 897259
+# Blind, bitten by the unseen jaw worm and the summons, an up-stair far away; the recorded
+# answers were melee, the replay's ladder (another history) walks there (``emergency``).
+WALK_BOARDS = (897204, 897211, 897221, 897232)
 
 
 def new_policy(first):
@@ -124,6 +127,18 @@ class N1a504BlindRecordedTest(unittest.TestCase):
             if turn >= GAS_TRAP:
                 self.assertNotEqual(reason, "identify:pack-pressure", (turn, key))
                 self.assertFalse(key.startswith("r"), (turn, key, reason))
+
+    def test_bitten_blind_strikes_instead_of_walking_to_a_far_stair(self):
+        # D2: the emergency ladder walked toward the up-stair while the unseen attackers'
+        # blows landed on the blind player; no stair is beside it, so it strikes.
+        policy, answers = drive(LANDING, DEATH)
+        for turn in WALK_BOARDS:
+            key, reason = answers[turn]
+            self.assertNotEqual(reason, "emergency:seek-upstairs", turn)
+            self.assertIn(reason, {"emergency:cornered-attack", "emergency:unseen-strike"}, turn)
+        for turn in WALK_BOARDS:
+            raw = next(raw for raw in CASE["boards"] if raw["turn"] == turn)
+            self.assertTrue(any(m.endswith(("殴られた。", "噛まれた。")) for m in raw["messages"]), turn)
 
 
 if __name__ == "__main__":
