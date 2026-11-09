@@ -390,6 +390,12 @@ def _hp_recovery_cure(policy, snapshot):
     return None
 
 
+def blind_cure_carried(policy, snapshot) -> bool:
+    """A potion the bot drinks for blindness is carried (``cure_potion``'s set)."""
+    return (policy._find_status_cure_potion(snapshot) is not None
+            or _hp_recovery_cure(policy, snapshot) is not None)
+
+
 def _relapse_on_instant_death(policy, snapshot, instant_death: bool) -> bool:
     """Owner 2026-11-09 D: confused again right after a cure, on the 即死 board."""
     return instant_death and confusion_relapsed(policy, snapshot)

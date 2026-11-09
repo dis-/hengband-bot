@@ -271,6 +271,12 @@ def teleport_reserve():
     return item("t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=RANDOM_QUEST_TELEPORT_RESERVE)
 
 
+def blind_cure():
+    """A blindness cure: with none the random-quest exit lock releases (owner 2026-11-10
+    「0本になったら帰還」, random_quest_reserve.blind_cures_spent)."""
+    return item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL)
+
+
 
 def past_q2_early_sweep(test):
     """These pins are about phases after P4, or replay a life recorded before the plan's
@@ -1556,6 +1562,7 @@ class FixedQuestTest(unittest.TestCase):
             inventory=[
                 item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
                 teleport_reserve(),
+                blind_cure(),
             ],
         )
         policy = HengbotPolicy()
@@ -1684,7 +1691,7 @@ class FixedQuestTest(unittest.TestCase):
         )
         snap = Snapshot(
             player(10, 10), {}, [], floor_key=(1, 6, 49),
-            quests={49: quest}, inventory=[teleport_reserve()],
+            quests={49: quest}, inventory=[blind_cure(), teleport_reserve()],
         )
         policy = HengbotPolicy()
         policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT - 1
@@ -1708,7 +1715,7 @@ class FixedQuestTest(unittest.TestCase):
             [bystander, target],
             floor_key=(1, 6, 49),
             quests={49: quest},
-            inventory=[teleport_reserve()],
+            inventory=[blind_cure(), teleport_reserve()],
         )
         policy = HengbotPolicy()
 
@@ -1733,7 +1740,7 @@ class FixedQuestTest(unittest.TestCase):
             [target],
             floor_key=(1, 6, 49),
             quests={49: quest},
-            inventory=[teleport_reserve()],
+            inventory=[blind_cure(), teleport_reserve()],
         )
         policy = HengbotPolicy()
 

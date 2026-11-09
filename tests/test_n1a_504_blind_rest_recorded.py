@@ -22,7 +22,9 @@ import gzip
 import json
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from hengbot import random_quest_reserve
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import REST_MACRO
 from hengbot.status_cure import DUNGEON_WAIT_SIGHT_REASON
@@ -70,6 +72,15 @@ def decide(policy, raw):
     return key
 
 
+def held_lock():
+    """DECLARED WALL: the random-quest exit lock held as it did in the run.  Owner 2026-11-10
+    (G2) 「0本になったら帰還」 releases it on these boards (no blindness cure carried), and the
+    latched return then rests with its own reason (return:wait-sight); the lock still holds on
+    a fixed kill quest's floor, where only this rung rests.  Walled after the producer: the
+    boards and the policy are the recorded ones; only the release answers False."""
+    return mock.patch.object(random_quest_reserve, "blind_cures_spent", return_value=False)
+
+
 def drive(first, last, policy=None):
     policy = new_policy(first) if policy is None else policy
     answers = {}
@@ -104,7 +115,8 @@ class N1a504BlindRecordedTest(unittest.TestCase):
     def test_blind_with_no_attacker_rests_until_it_sees(self):
         # D1: every blind board from the gas trap to the TY_CURSE trap had no hit and no
         # hostile in sight; the 11-07 rest takes them all, the thief's board included.
-        _policy, answers = drive(LANDING, LAST_QUIET)
+        with held_lock():
+            _policy, answers = drive(LANDING, LAST_QUIET)
         blind = {turn: answer for turn, answer in answers.items() if GAS_TRAP <= turn}
         self.assertTrue(blind)
         for turn, answer in blind.items():
@@ -113,11 +125,12 @@ class N1a504BlindRecordedTest(unittest.TestCase):
     def test_a_fled_thief_leaves_no_attacker(self):
         # D1b: 「何かに触られた。」 latched the floor's attacker; 「泥棒は笑って逃げた！」 is the
         # thief's teleport away (monster-attack-player.cpp:526-527), so the board after it rests.
-        policy, answers = drive(LANDING, THIEF)
-        self.assertIsNone(policy._blind_attacker_floor)
-        for turn in (THIEF, 896733):
-            policy, answers = drive(LANDING, turn)
-            self.assertEqual(answers[turn], (REST_MACRO, DUNGEON_WAIT_SIGHT_REASON), turn)
+        with held_lock():
+            policy, answers = drive(LANDING, THIEF)
+            self.assertIsNone(policy._blind_attacker_floor)
+            for turn in (THIEF, 896733):
+                policy, answers = drive(LANDING, turn)
+                self.assertEqual(answers[turn], (REST_MACRO, DUNGEON_WAIT_SIGHT_REASON), turn)
 
     def test_blind_fight_reads_no_scroll(self):
         # D1c: the blind fight's quiet boards (no adjacent target) fell to the pack-pressure
