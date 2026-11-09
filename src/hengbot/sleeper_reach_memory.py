@@ -38,28 +38,19 @@ bounds it (no new number).
 
 from __future__ import annotations
 
-from dataclasses import replace
-
-from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
+from hengbot import monster_memory
 from hengbot.sleeper_loot_block import remembered_gone
 
-MEMORY = "_sleeper_reach_memory"  # (floor_key, {(index, race): (MonsterState, last shown turn)})
+KIND = monster_memory.SLEEPER_REACH
+MEMORY = KIND.attribute  # (floor_key, {(index, race): (MonsterState, last shown turn)})
 PARALYSER_LEFT = "_paralyser_left"  # (floor_key, frozenset({(index, race)}))
 
 
 def observe(policy, snapshot) -> None:
     """Every board: remember the hostiles in view, forget the ones that are gone."""
-    if snapshot.in_town or snapshot.dungeon_level <= 0:
-        setattr(policy, MEMORY, None)
-        return
-    memory = getattr(policy, MEMORY, None)  # restored checkpoints predate it
-    seen = memory[1] if memory is not None and memory[0] == snapshot.floor_key else {}
-    seen = {key: (monster, turn) for key, (monster, turn) in seen.items()
-            if snapshot.turn - turn <= UNSEEN_GAME_TURNS
-            and not remembered_gone(policy, snapshot, monster)}
-    for monster in policy._strategic_hostiles(snapshot):
-        seen[(monster.index, monster.race_id)] = (monster, snapshot.turn)
-    setattr(policy, MEMORY, (snapshot.floor_key, seen))
+    monster_memory.observe(policy, snapshot, KIND,
+                           remember=lambda policy, snapshot: policy._strategic_hostiles(snapshot),
+                           gone=remembered_gone)
 
 
 def status_latched(policy, snapshot, monster) -> bool:
@@ -92,10 +83,4 @@ def avoided_out_of_sight(policy, snapshot, monster) -> bool:
 
 def remembered(policy, snapshot) -> list:
     """The remembered hostiles out of sight, at their last shown cell."""
-    memory = getattr(policy, MEMORY, None)
-    if memory is None or memory[0] != snapshot.floor_key:
-        return []
-    shown = {monster.index for monster in snapshot.visible_monsters}
-    here = snapshot.player.position
-    return [replace(monster, distance=here.distance_to(monster.position))
-            for (index, _race), (monster, _turn) in memory[1].items() if index not in shown]
+    return monster_memory.remembered(policy, snapshot, KIND)
