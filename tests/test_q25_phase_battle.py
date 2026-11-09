@@ -490,18 +490,26 @@ class Q25QuylthulgTest(unittest.TestCase):
 
 
 class Q25TomeTest(unittest.TestCase):
-    def test_no_ball_reaches_it_out_of_its_lines_so_it_is_shot_from_5_5_after_the_haste(self):
+    """Owner 2026-11-09 Q1 (it replaces the bow from [5,5]): 「見えない時は矢を撃たない。マスを狙う範囲の
+    攻撃で削り、無ければ相手が見えるマスへ移って撃つ。」  From [5,5] the tome [9,8] is out of sight
+    (geo.los); [5,6] sees it."""
+
+    def test_no_area_attack_and_unseen_so_it_walks_to_a_cell_that_sees_it_then_shoots(self):
         raw = board((5, 1))
+        raw["player"]["light_radius"] = 5   # n1-c life-178's light: an unlit tome is shown within 5
         policy = new_policy(raw)
         at_phase(policy, raw, "tome")
-        self.assertEqual((choose(policy, raw), policy.last_reason), ("6", battle.WALK_REASON))
+        self.assertEqual((choose(policy, raw), policy.last_reason), ("6", battle.SIGHT_REASON))
         raw["player"].update(y=5, x=5)
+        self.assertEqual((choose(policy, raw), policy.last_reason), ("6", battle.SIGHT_REASON))
+        raw["player"].update(y=5, x=6)
+        raw["visible_monsters"] = [monster(geo.TOME, 9, 8, index=957)]
         key = choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.HASTE_REASON, key)
         policy._player_hasted = lambda snapshot: True
         key = choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.SHOT_REASON)
-        self.assertTrue(key.endswith("*p3332t5\x1b"), key)   # to the tome's own cell [9,8]
+        self.assertTrue(key.startswith("f") and key.endswith("t5"), key)   # to the tome's cell
 
 
 class Q25TrapTest(unittest.TestCase):

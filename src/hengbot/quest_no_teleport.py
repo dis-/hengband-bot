@@ -26,3 +26,14 @@ def forbids(policy, snapshot) -> bool:
     """This floor's approved strategy forbids reading a relocation scroll."""
     profile = policy.approved_quest_strategy(snapshot.floor_key[2])
     return profile is not None and profile.engagement_plan.get("no_teleport") is True
+
+
+# Owner 2026-11-09 (n1-c life-178, Q3): 「成功率が80%以上なら体力回復は使っても良い。テレポートは
+# 許可しない」 -- inside Quest 25 the absorbed Teleportation is not cast (the scrolls stay the plan's).
+NO_ABSORBED_TELEPORT_QUESTS = frozenset({25})
+
+
+def forbids_absorbed(policy, snapshot) -> bool:
+    """This floor forbids casting the absorbed Teleportation (its scrolls' rule, or the owner's)."""
+    return (forbids(policy, snapshot)
+            or policy._active_fixed_quest_id(snapshot) in NO_ABSORBED_TELEPORT_QUESTS)

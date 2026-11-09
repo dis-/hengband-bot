@@ -2089,6 +2089,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # CLI points the path beside the decision log.  Read with getattr
         # defaults, so restored checkpoints without them record nothing.
         self._q25_battle_record_path = None
+        # The turn-free first read of each absorbed-power list a process lacks
+        # (me_powers_refresh.resume_read_key); the CLI turns it on, a policy
+        # built by a test asks for it as the CLI does.
+        self._me_power_resume_reads = False
         self._breeder_breakthrough_frontier_floor: tuple[int, int, int] | None = None
         self._breeder_breakthrough_frontier_goal: Position | None = None
         self._breeder_breakthrough_frontier_origin: Position | None = None
@@ -4712,6 +4716,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._pending_mutation_report = released or discarded
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         self._observe_town_equipment_work(snapshot)
+        # A restarted process reads the absorbed-power lists it lacks first (turn-free).
+        from hengbot.me_powers_refresh import resume_read_key
+        resumed = resume_read_key(self, snapshot)
+        if resumed is not None:
+            return resumed
         if dungeon_shop.page_open(snapshot):
             return dungeon_shop.leave_key(self, snapshot)
         if snapshot.store is not None and snapshot.player.recalling:
