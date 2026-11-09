@@ -1,5 +1,9 @@
 """When a breeder fight on a floor turns into flight (owner rule 2026-11-02).
 
+The window is 100 attacking actions (owner 2026-11-09, verbatim: 「加えて判断の窓を長く取る。20回は
+短いようだ。」, the answer 「100回」).  It replaces the 20 of the rules quoted below; everything else
+about the window (attacks only, the start and end counts of each window compared) is unchanged.
+
 Owner, verbatim: 「攻撃用の物資は制限しない。ただし、20ターンで数が減らせないなら
 逃走を選択する。」  Attack supplies are not capped against breeders; once the
 bot engages the breeders of a floor, the fight runs in windows of 20 player
@@ -90,7 +94,8 @@ from hengbot import quest25_geometry
 from hengbot.unseen_strike import message_text
 
 
-FLEE_AFTER_PLAYER_ACTIONS = 20
+# Owner 2026-11-09 「加えて判断の窓を長く取る。20回は短いようだ。」→「100回」 (was 20, owner 11-02/11-03).
+FLEE_AFTER_PLAYER_ACTIONS = 100
 # Owner 2026-11-05 「少ない時は倒した数で判断」: 「見える数が5体未満なら…」.
 FEW_BREEDERS = 5
 # Owner 2026-11-08: the decisions that attack, by the words their reasons use (``ranged:fire``,
@@ -134,7 +139,7 @@ def is_attack_reason(reason: str | None) -> bool:
 
 
 def stalemate_standing(policy) -> bool:
-    """A window has run 20 actions without a reduction."""
+    """A window has run ``FLEE_AFTER_PLAYER_ACTIONS`` attacks without a reduction."""
     return (
         policy._breeder_engagement_start_count is not None
         and policy._breeder_engagement_actions >= FLEE_AFTER_PLAYER_ACTIONS

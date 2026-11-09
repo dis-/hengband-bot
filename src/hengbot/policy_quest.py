@@ -2445,8 +2445,14 @@ class QuestMixin(OpeningRouteMixin):
             }
             breeder_buffer.discard(snapshot.player.position)
             ranged_vantages.difference_update(breeder_buffer)
-            firing_cells = quest_firing_cells.usable(
-                self, snapshot, target.position, ranged_vantages
+            # Of those, the cells whose shot reaches the most of them (n1-c life-181: the
+            # nearest firing cell of each next corpse mass, three steps per two shots).
+            firing_cells = quest_firing_cells.widest(
+                snapshot,
+                quest_firing_cells.usable(
+                    self, snapshot, target.position, ranged_vantages
+                ),
+                residual_hostiles,
             )
             if snapshot.player.position in firing_cells:
                 self.last_reason = "quest-strategy:q2-hold-residual-multiplier-vantage"

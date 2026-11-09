@@ -69,7 +69,7 @@ cursor walk; a nearer burst grid), then a rod (it recharges), then the lower
 base level.  In town an area option that would catch a friendly the
 character could not defeat once angered is dropped (owner 2026-10-31
 「敵対させたあと勝てるかで判断。勝てるなら巻き込んで良い。」,
-``policy._town_friendly_unbeatable``).  The 20-action flight rule
+``policy._town_friendly_unbeatable``).  The 100-attack flight rule
 (breeder_stalemate) and the survival rungs above every combat rung are
 untouched.
 
