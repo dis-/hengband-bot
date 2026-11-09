@@ -89,6 +89,7 @@ STONE_TO_MUD_LEVEL = 10  # BaseitemDefinitions.jsonc id 273
 MIN_SUCCESS = 0.2
 PACK_MIN = 2
 WALL_FLAGS = ("PASS_WALL", "KILL_WALL")
+RETRY_GAME_TURNS = 50   # a refused site search is not repeated sooner on the same floor
 
 
 @dataclass
@@ -209,8 +210,9 @@ def _able(snapshot: Snapshot) -> bool:
 # ---------------------------------------------------------------- time
 
 def _approach_lengths(snapshot: Snapshot, members, limit: int) -> dict:
-    """Steps from the nearest awake member, over known floor and unknown grids (monsters,
-    closed doors and the rest of the board ignored: the shortest the pack can need)."""
+    """Steps from the nearest awake member over the known floor, closed doors and rubble
+    (monsters ignored).  Where this does not reach, ``_arrival`` takes the straight game
+    distance, the least any path can be: both err toward an earlier arrival."""
     seen = {monster.position: 0 for monster in members if not monster.asleep}
     queue = deque(seen)
     while queue:
@@ -221,7 +223,8 @@ def _approach_lengths(snapshot: Snapshot, members, limit: int) -> dict:
             if around in seen:
                 continue
             grid = snapshot.grid_at(around)
-            if grid is not None and grid.known and not grid.passable and not grid.is_closed_door:
+            if grid is None or not grid.known or not (
+                    grid.passable or grid.is_closed_door or grid.is_rubble):
                 continue
             seen[around] = seen[here] + 1
             queue.append(around)
@@ -235,9 +238,12 @@ def _rate(snapshot: Snapshot, members) -> float:
     return max(rates, default=1.0)
 
 
-def _arrival(lengths: dict, rate: float, start: Position) -> float:
+def _arrival(lengths: dict, rate: float, start: Position, members=()) -> float:
     """Player moves before the first awake member can reach ``start``."""
     steps = lengths.get(start)
+    if steps is None:
+        steps = min((game_distance(monster.position, start) for monster in members
+                     if not monster.asleep), default=None)
     return float("inf") if steps is None else steps / max(rate, 0.01)
 
 
@@ -280,7 +286,7 @@ def _candidate(policy, snapshot: Snapshot, races, animal: bool) -> Plan | None:
             continue
         if min((game_distance(start, monster.position) for monster in members), default=0) < here_gap:
             continue  # no closer to the pack than now (the choke route's rule)
-        arrival = _arrival(lengths, rate, start)
+        arrival = _arrival(lengths, rate, start, members)
         if arrival <= _dig_time(walk, minimum, success) + 1:
             continue
         for axis in geo.AXES:
@@ -337,7 +343,7 @@ def _extend(policy, snapshot: Snapshot, current: Plan, standing: int) -> None:
         members = _members(snapshot, current.races)
         # The pack walks to the start and on through the cells already open.
         arrival = _arrival(_approach_lengths(snapshot, members, ARRIVAL_SEARCH),
-                           _rate(snapshot, members), current.tunnel.start) + standing + 1
+                           _rate(snapshot, members), current.tunnel.start, members) + standing + 1
         if (usable_charges(policy, snapshot) < remaining
                 or arrival <= _dig_time(0, remaining, _success(snapshot)) + 1):
             return
@@ -569,8 +575,13 @@ def key(policy, snapshot: Snapshot, hostiles) -> str | None:
         if adjacent:
             policy._anaguma_veto = "contact"
             return None
+        refused = getattr(policy, "_anaguma_refused", None)
+        if (refused is not None and refused[0] == snapshot.floor_key and refused[1] == races
+                and snapshot.turn - refused[2] < RETRY_GAME_TURNS):
+            return None
         current = _candidate(policy, snapshot, races, animal)
         if current is None:
+            policy._anaguma_refused = (snapshot.floor_key, races, snapshot.turn)
             return None
         setattr(policy, MEMORY, current)
     if current.phase in ("walk", "dig"):
