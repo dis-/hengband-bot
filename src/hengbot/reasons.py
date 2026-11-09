@@ -228,6 +228,18 @@ _rows(OWNER_QUESTION, "policy",
 _rows(WALK, "policy", _RULE_WALK + " (the unprofitable unique's disengage, renamed)",
       "combat:avoid-unprofitable-unique-seek-upstairs", "combat:avoid-unprofitable-unique-search-upstairs",
       "combat:avoid-unprofitable-unique-wait-recall")
+_rows(OWNER_QUESTION, "quest25_battle",
+      "Q25 after its Recall is read (owner 2026-11-09 「段をやめ射線外で待つ」): the start stair, "
+      "taken while the Recall is active; the Recall read itself is the escape counted. Answer 11 "
+      "「作戦が先」 may cover it; not counted",
+      "quest25:recall-exit")
+_rows(WALK, ("quest25_battle", "quest_room_sweep"), _RULE_WALK + " (Q25 waiting for its Recall)",
+      "quest25:recall-exit-walk", "quest25:recall-wait")
+# "fire" of the casters' line of fire: the word rule read an attack.  Kept (registry report).
+_rows(WALK, "quest25_battle", _RULE_WALK + " (Q25 out of the casters' fire; word rule: attack, kept)",
+      "quest25:recall-out-of-fire", attack=True)
+_rows(None, "quest25_battle", "word rule: a step / rest out of the casters' fire read an attack (kept)",
+      "quest25:step-out-of-fire", "quest25:rest-out-of-fire", attack=True)
 _rows(OWNER_QUESTION, ("town_arbiter", "town_hold"),
       "the wilderness's escape scroll / flee / Recall (outside a dive): not counted",
       "wilderness:escape-scroll", "wilderness:flee", "wilderness:recall", "wilderness:wait-recall")
