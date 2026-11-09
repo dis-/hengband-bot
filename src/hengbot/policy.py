@@ -12834,6 +12834,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         reference = baseline["armour"].get(self._plain_gear_armour_slot(item))
         if reference is None:
             return False
+        # Owner 2026-11-09 「耐性の無い素の防具は不要」: plain armour the
+        # optimizer did not select (the selected and keeper signatures returned
+        # above) is not needed unless it has a special property the evaluator
+        # values (BENEFICIAL_GEAR_FLAGS: resists, sustains, ESP, Free Action,
+        # See Invisible, ...; the dominance parts' beneficial set).  The n1-b
+        # life-359 rag and robe were shelved because the worn ego body
+        # armour's (-1) to-hit outranked their 0 in the dominance comparison.
+        if not _item_dominance_parts(owned)[2]:
+            return True
         return self._plain_gear_armour_dominated(owned, reference)
 
 

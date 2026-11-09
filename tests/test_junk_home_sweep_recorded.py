@@ -78,7 +78,9 @@ class JunkHomeSweepRecordedTest(unittest.TestCase):
         self.assertEqual(names["汚れたボロ服 [1,+4]"], "plain-gear")
         self.assertEqual(names["革製ラージ・シールド [6,+4]"], "plain-gear")
         self.assertIsNone(names["金属製ラージ・シールド [8,+2]"])
-        self.assertIsNone(names["鋼鉄ヘルメット [6,+5]"])
+        # Owner 2026-11-09 「耐性の無い素の防具は不要」: not selected, no special
+        # property, so not needed although it beats the selected helmet.
+        self.assertEqual(names["鋼鉄ヘルメット [6,+5]"], "plain-gear")
 
     def test_sweep_takes_one_ware_at_the_entrance(self):
         policy = self._policy()

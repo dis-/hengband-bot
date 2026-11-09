@@ -41,6 +41,7 @@ class N1b359DeviceIdentify1109RecordedTest(overflow.N1b359Overflow1109RecordedTe
     # Only this module's test runs here; the harness comes from the overflow test.
     test_recorded_visit_walked_for_a_scroll_and_stopped = None
     test_absorbed_identify_identifies_and_the_pack_is_freed = None
+    test_plain_armour_with_a_resist_is_kept = None
 
     def test_unknown_devices_are_identified_with_the_absorbed_power(self):
         policy, _board, entries = self.to_row(CAST_ROW)
