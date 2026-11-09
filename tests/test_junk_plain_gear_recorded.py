@@ -167,9 +167,12 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
         names = {item.name: policy._junk_class(self.board, item)
                  for item in self._owned_items(policy, self.board)}
         self.assertEqual(names["汚れたボロ服 [1,+4]"], "plain-gear")
-        for kept in ("鋼鉄ヘルメット [6,+5]", "鋼鉄ヘルメット [6,+4]",
-                     "金属帽子 [3,+7]", "マン・ゴーシュ (1d5) (+3,+10)",
-                     "カオス・ブレード (6d5) (+3,+6)"):
+        # Owner 2026-11-09 「耐性の無い素の防具は不要」: plain armour the
+        # optimizer did not select is not needed without a special property,
+        # even when its numbers beat the selected piece.
+        for unneeded in ("鋼鉄ヘルメット [6,+5]", "鋼鉄ヘルメット [6,+4]", "金属帽子 [3,+7]"):
+            self.assertEqual(names[unneeded], "plain-gear", unneeded)
+        for kept in ("マン・ゴーシュ (1d5) (+3,+10)", "カオス・ブレード (6d5) (+3,+6)"):
             self.assertIsNone(names[kept], kept)
 
     def test_selected_dominance_implies_plain_gear(self):
