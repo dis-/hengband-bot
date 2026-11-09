@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from hengbot import quest25_plan
 from hengbot.monrace_knowledge import _strip_jsonc
 from hengbot.policy import HengbotPolicy
 from hengbot.policy import FIXED_QUEST_ALLOWLIST
@@ -310,6 +311,56 @@ class QuestStrategiesTest(unittest.TestCase):
                 no_healing = force.get("no_healing_tier")
                 if no_healing is not None:
                     self.assertGreaterEqual(no_healing["min_hp"], force["min_hp"])
+
+
+class Quest25PlanValuesTest(unittest.TestCase):
+    """engagement_plan.revised_plan_values: the numbers of the Q25 plan, read by quest25_battle."""
+
+    DIRECTORY = Path(__file__).parents[1] / "strategy" / "quests"
+
+    def _data(self):
+        return json.loads(_strip_jsonc((self.DIRECTORY / "QUEST_25.jsonc").read_text(encoding="utf-8")))
+
+    def _loads(self, data) -> bool:
+        with tempfile.TemporaryDirectory() as temp:
+            Path(temp, "QUEST_25.jsonc").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            with patch("sys.stderr"):
+                return 25 in load_quest_strategies(Path(temp))
+
+    def test_the_shipped_values(self):
+        values = quest25_plan.values_of(load_quest_strategies(self.DIRECTORY)[25])
+        self.assertEqual((values.quiet_actions, values.wall_passer_quiet_actions, values.long_wait_actions),
+                         (50, 100, 5000))
+        self.assertEqual(values.pen_misses_to_escaped, 10)
+        self.assertEqual((values.maybe_trap_searches, values.trap_searches), (10, 10))
+        self.assertEqual(dict(values.compare_distance), {705: 9, 690: 9, 439: 2})
+        self.assertEqual(values.distance_for(571), 9)
+        self.assertEqual(values.wait_limit("long_wait_actions"), 5000)
+        with self.assertRaises(KeyError):
+            values.wait_limit("pen_misses_to_escaped")
+
+    def test_a_malformed_block_rejects_the_profile(self):
+        self.assertTrue(self._loads(self._data()))
+        missing = self._data()
+        del missing["engagement_plan"]["revised_plan_values"]
+        self.assertFalse(self._loads(missing))
+        for path, value in ((("wait_limits", "quiet_actions"), 0), (("wait_limits", "quiet_actions"), "50"),
+                            (("pen_misses_to_escaped",), True), (("trap_searches", "trap"), -1),
+                            (("compare_distance", "by_race"), {"x": 9}), (("compare_distance", "default"), None)):
+            with self.subTest(path=path, value=value):
+                data = self._data()
+                block = data["engagement_plan"]["revised_plan_values"]
+                for name in path[:-1]:
+                    block = block[name]
+                block[path[-1]] = value
+                self.assertFalse(self._loads(data))
+        extra = self._data()
+        extra["engagement_plan"]["revised_plan_values"]["wait_limits"]["other"] = 1
+        self.assertFalse(self._loads(extra))
+        # Without the revised plan the block is not asked for.
+        old = self._data()
+        del old["engagement_plan"]["revised_plan_draft"], old["engagement_plan"]["revised_plan_values"]
+        self.assertTrue(self._loads(old))
 
 
 if __name__ == "__main__":
