@@ -384,8 +384,24 @@ def carried_identification_target(policy: Any, board: Any) -> Any:
 def identification_ready_in_pack(policy: Any, board: Any) -> bool:
     """Whether a carried source can identify the free carried target now."""
     target = carried_identification_target(policy, board)
-    return target is not None and policy._carried_identification_source(
-        board, full=target.known) is not None
+    return target is not None and carried_source_held(policy, board, target)
+
+
+def carried_source_held(policy: Any, board: Any, target: Any) -> bool:
+    """The source tier ``_carried_identify_command`` composes for ``target``.
+
+    The body reads a Magic-Eater's absorbed Identify first
+    (``_absorbed_identify_key``; owner 2026-10-30 「以降、鑑定と財宝感知は
+    取り込みで賄う」), then a carried source.  item_fate.can_identify_now is
+    that same rule; without a target only the carried source is asked.
+    n1-b life-359 2026-11-09 20:20: the admission asked the carried source
+    alone, refused the absorbed power the body would have cast, and sent the
+    pack (21/23) for a scroll the pack budget refused to carry.
+    """
+    from hengbot.item_fate import can_identify_now
+    if target is None:
+        return policy._carried_identification_source(board, full=False) is not None
+    return can_identify_now(policy, board, target)
 
 
 @dataclass(frozen=True)
@@ -401,7 +417,7 @@ def gather_identify_carried(policy: Any, board: Any) -> CarriedIdentifyMaterial:
     target = carried_identification_target(policy, board)
     full = bool(target is not None and target.known)
     return CarriedIdentifyMaterial(
-        source_held=policy._carried_identification_source(board, full=full) is not None,
+        source_held=carried_source_held(policy, board, target),
         full_exhausted=full and STORE_ALCHEMIST in policy._town_store_attempted,
     )
 
@@ -432,8 +448,8 @@ def home_full_identification_target(policy: Any, board: Any) -> Any:
 def gather_home_full_identify(policy: Any, board: Any) -> IdentifyMaterial:
     """Read the same source tier as _carried_identify_command, no watch writes."""
     target = home_full_identification_target(policy, board)
-    return IdentifyMaterial(source_held=target is not None and (
-        policy._carried_identification_source(board, full=target.known) is not None))
+    return IdentifyMaterial(source_held=target is not None
+                            and carried_source_held(policy, board, target))
 
 
 def home_withdraw_target(policy: Any, board: Any) -> Any:
