@@ -733,6 +733,49 @@ class WarriorOptimizationTest(unittest.TestCase):
         self.assertTrue(prepared.ready, prepared.blockers)
         self.assertEqual(prepared.result.best.loadout.item_at("head"), crown)
 
+    def _shallow_free_action_case(self, worn, extra):
+        light = gear("light", "equipped", slot="light", tval=39)
+        weapon = gear("weapon", "equipped", slot="main_hand", to_d=8)
+        items = (light, weapon, *worn, *extra)
+        player = SimpleNamespace(
+            class_id=PLAYER_CLASS_WARRIOR, stat_cur=(53, 10, 18, 38, 18, 10),
+            stat_use=(133, 3, 9, 68, 88, 6), level=17, shield_skill=0, speed=110,
+            saving_skill=50, abilities=frozenset(), ac=14, melee_skill=179,
+            shooting_skill=154, two_weapon_skill=0, max_hp=353, max_mp=0,
+        )
+        snapshot = SimpleNamespace(player=player, inventory=())
+        monster = MonraceKnowledge(
+            max_hp=80, average_hp=80, speed=110, can_summon=False,
+            friendly=False, level=12, armor_class=20, rarity=1,
+            # No paralysing blow: the encounters give Free Action no value of their own.
+            blows=(MonsterBlow("HIT", "HURT", 2, 6),),
+        )
+        prepared = prepare_warrior_optimization(
+            snapshot, items, {1: monster}, depth=13, home_scan_complete=True,
+            calibration=seed_calibration(snapshot, items),
+        )
+        self.assertTrue(prepared.ready, prepared.blockers)
+        return prepared.result.best.loadout
+
+    def test_shallow_free_action_gloves_beat_more_ac(self):
+        # Owner 2026-11-09 (n1-a life-501): a Free Action piece is worn above 20F too.
+        gauntlets = gear("gauntlets", "equipped", slot="arms", tval=31, ac=3, to_a=5)
+        fa_gloves = gear("fa-gloves", "pack", tval=31, ac=1, flags=(46,))
+        loadout = self._shallow_free_action_case((gauntlets,), (fa_gloves,))
+        self.assertEqual(loadout.item_at("arms"), fa_gloves)
+
+    def test_shallow_free_action_yields_to_cursed_pinned_rings(self):
+        # Both ring slots hold cursed rings: no loadout can wear the Free Action ring, so the
+        # search without the requirement stands (no "no-valid-loadout").
+        cursed = (
+            gear("cursed-a", "equipped", slot="main_ring", tval=45, cursed=True),
+            gear("cursed-b", "equipped", slot="sub_ring", tval=45, cursed=True),
+        )
+        fa_ring = gear("fa-ring", "pack", tval=45, flags=(46,))
+        loadout = self._shallow_free_action_case(cursed, (fa_ring,))
+        self.assertNotIn("fa-ring", loadout.item_ids)
+        self.assertTrue({"cursed-a", "cursed-b"} <= loadout.item_ids)
+
     def test_cursed_equipped_ring_is_pinned_through_production_entry(self):
         # Guards the pin comprehension in prepare_warrior_optimization itself
         # (warrior_optimization.py), which is a separate copy from the one in
