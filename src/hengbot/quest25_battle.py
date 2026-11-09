@@ -52,6 +52,11 @@ step would wait or walk (or has none), the masses in the line of fire are shot i
 when it catches two or more, else the phase's strongest shot at the nearest.  A more dangerous
 hostile that acts keeps the phase's step; the phase's own fights and every survival rung come first.
 
+Owner 2026-11-09 「見えない時は矢を撃たない。マスを狙う範囲の攻撃で削り、無ければ相手が見えるマスへ移って
+撃つ。」 (the tome first), widened 「Q25 の全部の段に広げる」: the pen, the quylthulgs, the tome, the
+stairway and the druj are shot with the launcher only when seen (``_unseen_fire``); a seen cell is
+the player's light, or out to MAX_PLAYER_SIGHT on a glowing grid (「照らされた所も入れる」, ``_sight_radius``).
+
 Between phases (between_phases): a Magic-Eater rests a counted rest until every absorbed
 attack power is full, reading the lists turn-free (``b``) to decide (R& does not wait for
 them, player-processor.cpp is_fully_healthy).  While a sensed moving hostile cuts that rest
@@ -284,7 +289,7 @@ class Battle:
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
-    blind_sights: frozenset = frozenset()  # sight cells reached where the target was not seen
+    blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
     glowing: frozenset = frozenset()   # floor cells seen drawn lit (CAVE_GLOW in view)
 
 
@@ -1163,16 +1168,23 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
     battle, policy, snapshot = ctx.battle, ctx.policy, ctx.snapshot
     if battle.rallying and (key := _rally(ctx)) is not None:
         return key
-    walk = geo.PHASE2_WALK
-    if ctx.here not in walk:
-        return _walk(ctx, {walk[0]})
-    if ctx.here == walk[0] and (haste := _haste(ctx)) is not None:
-        return haste    # 「事前に加速して(6,1)(5,1)と移動」
-    if ctx.here != walk[-1]:
-        return _step(ctx, walk[walk.index(ctx.here) + 1])
     seen = [monster for monster in ctx.hostiles() if monster.race_id == geo.IPSISSIMUS
             and (monster.position.y, monster.position.x) in geo.IPSISSIMUS_PEN]
     aim = (seen[0].position.y, seen[0].position.x) if seen else geo.IPSISSIMUS_AIM
+    # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): no arrow at the pen it does not
+    # see.  With no attack aimed at the grid, the walk goes to a cell that sees the pen instead of
+    # [5,1]; seen there, the fire is from there.  Every such cell reached with none seen: they are
+    # out of the pen (the pen's 「当たらない撃ちで補う」 reads the same: counted escaped).
+    in_sight = bool(_seen_at(ctx, geo.IPSISSIMUS, geo.IPSISSIMUS_PEN))
+    from_stand = in_sight or bool(_fire_options(ctx, aim, geo.IPSISSIMUS, missiles=False))
+    walk = geo.PHASE2_WALK
+    if from_stand:
+        if ctx.here not in walk and not in_sight:
+            return _walk(ctx, {walk[0]})
+        if ctx.here == walk[0] and (haste := _haste(ctx)) is not None:
+            return haste    # 「事前に加速して(6,1)(5,1)と移動」
+        if ctx.here in walk and ctx.here != walk[-1]:
+            return _step(ctx, walk[walk.index(ctx.here) + 1])
     others = [monster for monster in ctx.in_view() if monster.race_id != geo.IPSISSIMUS]
     piercing = bool(others) and _has_piercing(ctx, geo.IPSISSIMUS, aim)
     summons = _summons_in_view(ctx, others)
@@ -1197,7 +1209,20 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
     # 戦闘中に出会った残党は無視する。イプシシマスを全て倒すかテレポートさせたあとで対処。」): the fire stays on
     # the pen, through them when it can; the stragglers' phase fights them on [5,1] afterwards.  The
     # survival rungs above the plan (the 1-turn 即死, the HP line) still answer first.
-    return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=piercing))
+    if not from_stand:
+        return _pen_sight(ctx, aim)
+    return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=piercing, missiles=in_sight))
+
+
+def _pen_sight(ctx: _Ctx, aim) -> str | None:
+    """Unseen, no attack aimed at the grid: to a cell that sees the pen's ``aim``; none left (each
+    reached with no Ipsissimus seen), the ones not killed nor seen out are counted escaped."""
+    if (key := _walk_to_sight(ctx, aim, _sights(ctx, aim))) is not None:
+        return key
+    battle = ctx.battle
+    battle.assumed_escaped = max(0, geo.ROSTER[geo.IPSISSIMUS] - ctx.kills(geo.IPSISSIMUS)
+                                 - _escaped_count(ctx, assumed=False))
+    return None
 
 
 def _summons_in_view(ctx: _Ctx, others) -> list:
@@ -1296,9 +1321,14 @@ def _quyls(ctx: _Ctx) -> str | None:
     ctx.battle.aimed_quyl = cell
     if stand is None:
         lines = _quyl_line_cells(ctx, cell)
+        # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen, no arrow; the ball at
+        # its grid, else a cell of its line that sees it.
+        seen = bool(_seen_at(ctx, geo.QUYL, {cell}))
+        if not seen and not _fire_options(ctx, cell, geo.QUYL, missiles=False):
+            return _walk_to_sight(ctx, cell, _sights(ctx, cell, lines))
         if ctx.here not in lines:
             return _walk(ctx, lines)   # 「飛ばされたら戻って撃ち直す」
-        return _haste(ctx) or _fire_at(ctx, cell, geo.QUYL)
+        return _haste(ctx) or _unseen_fire(ctx, cell, geo.QUYL, seen=seen)
     if ctx.here != stand:
         return _walk(ctx, {stand})
     return _fire_at(ctx, centre, geo.QUYL, area_only=True)
@@ -1331,7 +1361,7 @@ def _tome(ctx: _Ctx) -> str | None:
     stands = [stand for stand in geo.TOME_NEAR_STANDS if _path(ctx, {stand}) or ctx.here == stand]
     near = max((damage for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False)),
                default=0.0)
-    sights = set(geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx, tome))) - set(ctx.battle.blind_sights)
+    sights = _sights(ctx, tome)
     far = 0.0
     if sights:
         distance = min(quest_exposure.game_distance(cell, tome) for cell in sights)
@@ -1348,10 +1378,7 @@ def _tome(ctx: _Ctx) -> str | None:
         return _withdraw(ctx)
     if seen:
         return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
-    if ctx.here in sights:   # the line of sight was there, the tome was not shown: not this cell
-        ctx.battle.blind_sights = ctx.battle.blind_sights | {ctx.here}
-        sights.discard(ctx.here)
-    return _walk(ctx, sights, SIGHT_REASON)
+    return _walk_to_sight(ctx, tome, sights)
 
 
 def _note_glow(ctx: _Ctx) -> None:
@@ -1386,6 +1413,61 @@ def _sight_radius(ctx: _Ctx, target=None) -> int:
     1 when the board does not say), out to MAX_PLAYER_SIGHT on a glowing grid."""
     return geo.sight_radius(ctx.snapshot.light_radius,
                             target is not None and _glowing(ctx, target))
+
+
+# -- unseen immobile targets (owner 2026-11-09) ------------------------------------------
+#
+# Owner 2026-11-09 Q1 「見えない時は矢を撃たない。マスを狙う範囲の攻撃（取り込んだボール・ブレスなど）で
+# 削り、無ければ相手が見えるマスへ移って撃つ。」 (the tome first), widened the same day 「Q25 の全部の段に
+# 広げる」: every phase that shoots a never-moving target it may not see -- the Ipsissimus pen [7,17],
+# the quylthulgs, the stairway to hell, the druj.  An unseen monster is hit at half the chance
+# (shoot.cpp test_hit_fire with ``monster.ml`` false); an attack aimed at the grid (a ball or a
+# breath, spells-launcher.cpp fire_ball drops PROJECT_STOP) or a beam along its ray needs no sight.
+
+
+def _seen_at(ctx: _Ctx, race: int, cells) -> list:
+    """The monsters of ``race`` in view (telepathy included: ``ml``) on ``cells``."""
+    cells = {tuple(cell) for cell in cells}
+    return [monster for monster in ctx.in_view()
+            if monster.race_id == race and (monster.position.y, monster.position.x) in cells]
+
+
+def _sights(ctx: _Ctx, target, among=None) -> set:
+    """The cells that see ``target`` (geo.sight_cells at ``_sight_radius``), less those reached
+    where it was not seen; within ``among`` when given (the phase's own stands)."""
+    target = tuple(target)
+    sights = set(geo.sight_cells(ctx.open_terrain(), target, _sight_radius(ctx, target)))
+    sights -= {cell for aimed, cell in _blind_pairs(ctx) if aimed == target}
+    return sights if among is None else sights & {tuple(cell) for cell in among}
+
+
+def _blind_pairs(ctx: _Ctx):
+    # A record written before the pairs held bare cells: those name no target.
+    return (pair for pair in ctx.battle.blind_sights
+            if isinstance(pair, tuple) and len(pair) == 2 and isinstance(pair[0], tuple))
+
+
+def _walk_to_sight(ctx: _Ctx, target, sights) -> str | None:
+    """To the nearest cell of ``sights``; this cell is one of them and the target was not seen
+    here: the line was there, the target was not (not this cell again)."""
+    target = tuple(target)
+    if ctx.here in sights:
+        ctx.battle.blind_sights = ctx.battle.blind_sights | {(target, ctx.here)}
+        sights = sights - {ctx.here}
+    return _walk(ctx, sights, SIGHT_REASON)
+
+
+def _unseen_fire(ctx: _Ctx, grid, race: int, *, seen: bool, piercing: bool = False,
+                 among=None) -> str | None:
+    """The strongest attack at ``grid``: the launcher too when the target is seen; unseen, an
+    attack aimed at the grid or along a ray, else the walk to a cell that sees it (of ``among``,
+    the phase's stands, when one does; else any)."""
+    if seen:
+        return _fire_at(ctx, grid, race, piercing=piercing)
+    key = _fire_at(ctx, grid, race, piercing=piercing, missiles=False)
+    if key is not None:
+        return key
+    return _walk_to_sight(ctx, grid, _sights(ctx, grid, among) or _sights(ctx, grid))
 
 
 def _hopeless(ctx: _Ctx, hit_points: float, per_action: float) -> bool:
@@ -1578,7 +1660,9 @@ def _stairway(ctx: _Ctx) -> str | None:
         if seen:
             return _engage(ctx, seen)
         return ctx.policy._step_toward(ctx.snapshot, Position(*stairway))
-    return _fire_at(ctx, stairway, geo.STAIRWAY)
+    # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen from [13,27], no arrow; the
+    # door [13,28] beside it when nothing is aimed at the grid.
+    return _unseen_fire(ctx, stairway, geo.STAIRWAY, seen=bool(seen), among={stand, door})
 
 
 def _druj_done(ctx: _Ctx) -> bool:
@@ -1634,7 +1718,9 @@ def _druj(ctx: _Ctx) -> str | None:
                       and cell not in ctx.navigator.battlefield.trap_cells)
     if ctx.here not in trapless:
         return _walk(ctx, set(trapless)) or _hold(ctx)
-    return _fire_at(ctx, druj, geo.DRUJ)
+    # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen, no arrow; a trapless cell
+    # of its line that sees it when nothing is aimed at the grid.
+    return _unseen_fire(ctx, druj, geo.DRUJ, seen=bool(_seen_at(ctx, geo.DRUJ, {druj})), among=trapless)
 
 
 # -- the table --------------------------------------------------------------------------
