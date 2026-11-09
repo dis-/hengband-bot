@@ -83,14 +83,15 @@ Only attacks count (owner 2026-11-08 「20回の判定は、実際に攻撃し�
 advances on a player action that attacked, not on a hold, a walk or a rest (n1-c life-164 latched
 Q25 on a window of which 38 of 40 actions were holds beside the corpse masses).  An action
 attacked when the board after it shows a breeder hurt or killed (the attack reading above), or
-when the decision that sent it chose an attack (``ATTACK_REASON_WORDS``, not a hold, an
-approach or a repositioning) with a breeder in view: a missed shot is an attack too.
+when the decision that sent it chose an attack (its reason's ``attack`` in the registry
+hengbot.reasons, not a hold, an approach or a repositioning) with a breeder in view: a missed
+shot is an attack too.
 """
 from __future__ import annotations
 
 from typing import NamedTuple
 
-from hengbot import quest25_geometry
+from hengbot import quest25_geometry, reasons
 from hengbot.unseen_strike import message_text
 
 
@@ -98,15 +99,6 @@ from hengbot.unseen_strike import message_text
 FLEE_AFTER_PLAYER_ACTIONS = 100
 # Owner 2026-11-05 「少ない時は倒した数で判断」: 「見える数が5体未満なら…」.
 FEW_BREEDERS = 5
-# Owner 2026-11-08: the decisions that attack, by the words their reasons use (``ranged:fire``,
-# ``melee``, ``quest-strategy:q2-fire``, ``quest25:shot``, ``ranged:magic-eater-device``,
-# ``ranged:breeder-area:wand``, ``unseen:strike``, ``summoner:ranged-kill`` ...).
-ATTACK_REASON_WORDS = ("ranged", "fire", "shot", "melee", "attack", "strike", "throw", "kill",
-                       "magic-eater-device", "breeder-area", "aim-wand")
-# The ones that name such a word without attacking (a walk toward a throw point, a hold at a
-# choke, the recovery of bolts, a disengage, a shop's one-shot purchase, an element immunity).
-_NOT_ATTACK_WORDS = ("hold", "approach", "reposition", "retreat", "recover", "survey", "unreachable",
-                     "blocked", "disengage", "-point", "shop:", "periodic:", "immune:")
 _KILL_LINES = ("は死んだ。", "を葬り去った。", "を倒した。")
 _KILL_LINE_PREFIX = "せっかくだから"     # show_kill_message, is_echizen
 
@@ -132,10 +124,10 @@ def forget(policy) -> None:
 
 
 def is_attack_reason(reason: str | None) -> bool:
-    """The decision's reason names an attack (``ATTACK_REASON_WORDS``)."""
-    reason = reason or ""
-    return (any(word in reason for word in ATTACK_REASON_WORDS)
-            and not any(word in reason for word in _NOT_ATTACK_WORDS))
+    """The decision's reason is an attack (owner 2026-11-08): its row's ``attack`` in the
+    registry hengbot.reasons (``ranged:fire``, ``melee``, ``quest-strategy:q2-fire``,
+    ``quest25:shot``, ``ranged:breeder-area:wand``, ``unseen:strike``, ...)."""
+    return reasons.is_attack(reason)
 
 
 def stalemate_standing(policy) -> bool:
