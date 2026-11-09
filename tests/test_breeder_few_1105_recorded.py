@@ -83,10 +83,11 @@ class RecordedWindowTest(swarm.PostedSwarmKey):
         policy = self.run_recorded()
         self.assertIsNone(policy._breeder_breakthrough_floor)
         # Owner 2026-11-08 「20回の判定は、実際に攻撃した手だけで数える。」: the patrol steps and the
-        # Cure Critical Wounds potions on these boards are not attacks, so the window that the
-        # first attacks opened is still running at its 19th attack, with its kills noted.
+        # Cure Critical Wounds potions on these boards are not attacks.  Owner 2026-11-09 「100回」:
+        # the window that the first attacks opened is still running at its 39th attack (the
+        # 20-attack window ended at its 20th and opened the next at 19), with its kills noted.
         self.assertEqual((policy._breeder_engagement_start_count, policy._breeder_engagement_actions,
-                          policy._breeder_engagement_killed), (1, 19, True))
+                          policy._breeder_engagement_killed), (1, 39, True))
         key = loops.decide(policy, copy.deepcopy(AFTER["board"]))
         self.assertEqual(AFTER["reason"], RECALL)
         self.assertNotEqual(policy.last_reason, RECALL, key)
@@ -108,7 +109,7 @@ class FewBreedersEdgesTest(swarm.PostedSwarmKey):
 
     def assert_abandoned(self, policy):
         self.assertEqual(policy._breeder_breakthrough_floor, QUEST_FLOOR)
-        following = blues(3, 40)
+        following = blues(3, 3 + 2 * FLEE_AFTER_PLAYER_ACTIONS)
         key = loops.decide(policy, following)
         self.assertEqual(policy.last_reason, RECALL)
         self.post(policy, following, key)
@@ -167,7 +168,7 @@ class FewBreedersEdgesTest(swarm.PostedSwarmKey):
 
     def test_the_kill_is_not_carried_into_the_next_window(self):
         policy = self.end_of_window(2, 3, (KILL,))
-        for action in range(30, 30 + FLEE_AFTER_PLAYER_ACTIONS):
+        for action in range(3 + FLEE_AFTER_PLAYER_ACTIONS, 3 + 2 * FLEE_AFTER_PLAYER_ACTIONS):
             loops.decide(policy, blues(3, action))
         self.assert_abandoned(policy)
 
