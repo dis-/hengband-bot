@@ -1,0 +1,177 @@
+"""Quest 25 phase 2 on n1-b life-359 (2026-11-09 14:23:55-14:24:03): Teleportation on stragglers, recorded.
+
+Owner 2026-11-09 「Q25の段階2でテレポートする様子が見られた。理由を確認」.  On [5,1], firing the
+absorbed balls at the Ipsissimus pen [7,17], the process read Teleportation at decision 833
+(HP 384 of 506) and again at decision 927 (HP 510 of 512), reason ``quest25:teleport``.  In view
+were three shadow demons (665) and a spectre (508): the wall-passers the phase-1 stand left alive
+(the roster's 9 and 2, the kills read 2 and 1), not reinforcements.  The phase read any
+non-Ipsissimus in view as a summons, and with the material threat (three turns of every visible
+hostile at half the HP or more: 267 of 384, 261 of 510) it teleported.
+
+The owner's rules (strategy/quests/QUEST_25.jsonc phase2): the summons -- 「召喚を受けた場合、脅威度と
+こちらの攻撃手段によって対応を変える。貫通可能な攻撃かつ脅威度が高くない場合は先にイプシシマスを倒し増援を
+断つ。」「それ以外の場合はテレポートで仕切り直す。接敵する前に移動できるならなるべく隘路に陣取る」, the threat
+read as the 11-05 summon rule (「見えている敵の3ターンの想定被害が今の HP の半分以上なら高い」); the
+stragglers -- 「イプシシマスとの戦闘中に出会った残党は無視する。イプシシマスを全て倒すかテレポートさせた
+あとで対処。」, fought later on [5,1] 「[5,1]で倒す。遠近は問わない。」.
+
+The boards are the visit's 287 decided boards from the floor entry (decision 642) through 927;
+each test replays them from 642 by one policy through the public ``choose_key``, the battle begun
+by the real producer on the entry board (no record: the visit's first decision).  A list the policy
+asks for (``b`` + kind) arrives on the next board as the executor's read of the screen
+(``_magic_eater_power_list``) with the lists the process held at its town arrival (14:22:33, the
+same process): DECLARED CONSTRUCTED, the charges of the recorded reads are not in the capture.
+"""
+import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+
+import copy
+import gzip
+import json
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
+from hengbot import me_powers_refresh, quest25_battle as battle, quest25_geometry as geo
+from hengbot.model import _parse_items, parse_snapshot
+from hengbot.policy_constants import SKILL_KNOWLEDGE_MACRO
+from tests import test_q25_haunted_house as q25
+
+
+with gzip.open(Path(__file__).with_name("fixtures") / "n1b-359-q25-phase2-teleport-1109.json.gz",
+               "rt", encoding="utf-8") as _stream:
+    CASE = json.load(_stream)
+
+LETTER_KIND = {letter: kind for kind, letter in me_powers_refresh.KIND_LETTER.items()}
+FIRST_TELEPORT, SECOND_TELEPORT = 833, 927
+
+
+def new_policy(first, record):
+    policy = ConservativePolicy(monrace_knowledge=q25.RACES, quest_knowledge=q25.QUESTS,
+                                quest_strategies=q25.STRATEGIES)
+    first = copy.deepcopy(first)
+    policy.prime(parse_snapshot(first, policy._monrace_knowledge))
+    policy.consume_skill_knowledge(dict(
+        copy.deepcopy(CASE["skill"]), turn=first["turn"],
+        player=dict(CASE["skill"]["player"], level=first["player"]["level"])))
+    policy.consume_home_knowledge(tuple(_parse_items(CASE["home"]["knowledge"]["items"], protocol=3)))
+    # DECLARED CONSTRUCTED: the lists this same process held at its town arrival (14:22:33), the
+    # checkpoint's own ``_me_device_lists``; the process carried them in memory into the visit.
+    policy._me_device_lists = {kind: (turn, tuple(rows)) for kind, (turn, rows) in CASE["lists"].items()}
+    policy._q25_battle_record_path = record
+    return policy
+
+
+def replay(*, edit=None, probe=None, through=None):
+    """{sequence: (key, reason)} of the visit replayed by one policy; ``edit(sequence, raw)``
+    changes a board (declared by its test), ``probe(policy, snapshot, sequence)`` reads one."""
+    answers = {}
+    with TemporaryDirectory() as directory:
+        record = Path(directory) / "q25-battle.json"
+        policy = new_policy(CASE["boards"][0], record)
+        browsed = None
+        skill_asked = False
+        for raw, row in zip(CASE["boards"], CASE["recorded"]):
+            if through is not None and row["sequence"] > through:
+                break
+            raw = copy.deepcopy(raw)
+            if browsed is not None:
+                raw["_magic_eater_power_list"] = {"kind": browsed, "rows": CASE["lists"][browsed][1]}
+            if edit is not None:
+                edit(row["sequence"], raw)
+            if skill_asked:
+                # The ~f list the policy asked for arrives as the CLI delivers it (cli.py).
+                policy.consume_skill_knowledge(dict(
+                    copy.deepcopy(CASE["skill"]), turn=raw["turn"],
+                    player=dict(CASE["skill"]["player"], level=raw["player"]["level"])))
+            snapshot = policy.with_known_skill_exp(parse_snapshot(raw, policy._monrace_knowledge))
+            if probe is not None:
+                probe(policy, snapshot, row["sequence"])
+            key = str(policy.choose_key(snapshot))
+            answers[row["sequence"]] = (key, policy.last_reason)
+            skill_asked = key == SKILL_KNOWLEDGE_MACRO
+            browsed = LETTER_KIND.get(key[1:]) if key[:1] == "b" and len(key) == 2 else None
+            policy.confirm_key_posted(key)
+    return answers
+
+
+def recorded(sequence):
+    for raw, row in zip(CASE["boards"], CASE["recorded"]):
+        if row["sequence"] == sequence:
+            return raw, row
+    raise KeyError(sequence)
+
+
+def in_view(raw):
+    return sorted(monster["race_id"] for monster in raw["visible_monsters"] if not monster.get("pet"))
+
+
+class RecordingTest(unittest.TestCase):
+
+    def test_the_process_teleported_twice_on_5_1_among_wall_passers(self):
+        for sequence, key, hp in ((FIRST_TELEPORT, "ri", 384), (SECOND_TELEPORT, "rh", 510)):
+            raw, row = recorded(sequence)
+            self.assertEqual((row["reason"], row["key"], row["hp"]), (battle.TELEPORT_REASON, key, hp))
+            self.assertEqual((raw["player"]["y"], raw["player"]["x"]), (5, 1))
+            self.assertEqual(in_view(raw), [geo.SPECTRE, geo.SHADOW, geo.SHADOW, geo.SHADOW])
+
+
+class PhaseTest(unittest.TestCase):
+    """Which phase ran at 14:24: the wall-passers' phase ended at decision 805 after 50 quiet
+    actions on [7,1] with 5 shadow demons and 1 spectre of the roster alive (kills 4 and 1), so the
+    Ipsissimus phase held both boards; those six came to [5,1] later."""
+
+    def test_the_ipsissimus_phase_held_both_boards_with_the_wall_passers_left(self):
+        seen = {}
+
+        def probe(policy, snapshot, sequence):
+            ctx = battle._ctx(policy, snapshot)
+            seen[sequence] = (battle.PHASES[ctx.battle.phase].name, ctx.kills(geo.SHADOW), ctx.kills(geo.SPECTRE))
+
+        replay(probe=probe)
+        self.assertEqual(seen[805], ("wall-passers", 4, 1))
+        self.assertEqual(seen[806], ("ipsissimus", 4, 1))
+        self.assertEqual(seen[FIRST_TELEPORT], ("ipsissimus", 4, 1))
+        self.assertEqual(seen[SECOND_TELEPORT], ("ipsissimus", 4, 1))
+
+
+class StragglersNoTeleportTest(unittest.TestCase):
+    """Owner 2026-11-09 「ここでテレポートすると以降の段取りが全て崩れるので逃走回数は最小にしたい。」: the
+    wall-passers left alive are no summons; they are fought on [5,1], no Teleportation."""
+
+    def test_neither_board_reads_teleportation_and_the_wall_passers_are_fought(self):
+        answers = replay()
+        for sequence in (FIRST_TELEPORT, SECOND_TELEPORT):
+            key, reason = answers[sequence]
+            self.assertNotEqual(reason, battle.TELEPORT_REASON, sequence)
+            self.assertFalse(key.startswith("r"), sequence)
+            # The spectre beside [5,1] is struck.
+            self.assertEqual((key, reason), ("6", "quest-strategy:melee"), sequence)
+        self.assertEqual([sequence for sequence, (_, reason) in answers.items()
+                          if reason == battle.TELEPORT_REASON], [])
+
+    def test_a_summons_with_a_low_threat_keeps_the_ball_on_the_pen(self):
+        # Decision 815: 「何かが魔法でアンデッドの強敵を召喚した！」 brought the skeleton kobold (91);
+        # on 816 at full HP the ball goes to [7,17] as recorded.
+        raw, row = recorded(816)
+        self.assertEqual(in_view(raw), [91, geo.SPECTRE])
+        self.assertEqual(replay(through=816)[816], (row["key"], row["reason"]))
+
+
+class HighThreatSummonsTeleportsTest(unittest.TestCase):
+    """「それ以外の場合はテレポートで仕切り直す」: a summons with the threat high (the 11-05 reading,
+    three turns of every visible hostile at half the HP or more: 267 of 384 here) still teleports.
+    DECLARED CONSTRUCTED: board 833 also carries a summon cast line, so the shadow demon first seen
+    on it (index 12) arrives as a summons."""
+
+    def test_the_summoned_shadow_demon_on_833_teleports(self):
+        def edit(sequence, raw):
+            if sequence == FIRST_TELEPORT:
+                raw["messages"] = ["何かは魔法で混沌の宮廷から悪魔を召喚した！", *raw["messages"]]
+
+        answers = replay(edit=edit, through=FIRST_TELEPORT)
+        self.assertEqual(answers[FIRST_TELEPORT], ("ri", battle.TELEPORT_REASON))
+
+
+if __name__ == "__main__":
+    unittest.main()

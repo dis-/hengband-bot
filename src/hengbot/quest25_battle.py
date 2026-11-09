@@ -15,10 +15,12 @@ quoted there with its date); this module is their executor.  The phases, in orde
  2. ``wall-passers`` (phase1_wall_passers): full HP, then [7,1]; what comes is fought; 50
     player actions without a new arrival end it.
  3. ``ipsissimus`` (phase2): full HP, [7,1], haste, [6,1], [5,1], then the strongest attack
-    at the pen's [7,17] (the monster's own cell when it is seen).  Others in view: a piercing
+    at the pen's [7,17] (the monster's own cell when it is seen).  Summons in view: a piercing
     attack (a beam, or a ball or breath aimed at the grid) and a low threat keep the fire on
-    the pen; otherwise Teleportation, then a choke before contact (``_rally``).  It ends when
-    each of the three is killed or seen out of the pen.
+    the pen; otherwise Teleportation, then a choke before contact (``_rally``).  The wall-passers
+    the phase before left alive are no summons (``_summons_in_view``): they are fought on [5,1],
+    never teleported from (owner 2026-11-09, n1-b life-359).  It ends when each of the three is
+    killed or seen out of the pen.
  4. ``stragglers`` (phase1_wall_passers / phase2): on [5,1], the spectres and shadow demons
     that did not come and the Ipsissimus that teleported away are fought as they come; 50
     actions without a new arrival end it.
@@ -247,6 +249,7 @@ class Battle:
     ready: bool = False            # this phase's preparation is done
     quiet: int = 0                 # actions without a new arrival (the 50-action waits)
     seen: frozenset = frozenset()  # monster indices seen in this phase
+    summoned: frozenset = frozenset()  # of those, the ones first seen on a board with a summon cast
     escaped: frozenset = frozenset()   # Ipsissimus indices seen out of the pen
     rallying: bool = False         # phase 2: read Teleportation, hold a choke first
     aimed_race: int | None = None  # the race the last unseen grid shot was aimed at
@@ -447,8 +450,11 @@ def _note_arrivals(ctx: _Ctx) -> None:
     """A new monster in view this phase restarts the 50-action wait; Ipsissimus out of the
     pen is escaped."""
     seen = {monster.index for monster in ctx.hostiles()}
-    if seen - ctx.battle.seen:
+    new = seen - ctx.battle.seen
+    if new:
         ctx.battle.quiet = 0
+    if new and any(summon_response.summons_of(message) for message in ctx.snapshot.messages):
+        ctx.battle.summoned = ctx.battle.summoned | new
     ctx.battle.seen = ctx.battle.seen | seen
     out = {monster.index for monster in ctx.hostiles() if monster.race_id == geo.IPSISSIMUS
            and (monster.position.y, monster.position.x) not in geo.IPSISSIMUS_PEN}
@@ -1164,18 +1170,50 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
             and (monster.position.y, monster.position.x) in geo.IPSISSIMUS_PEN]
     aim = (seen[0].position.y, seen[0].position.x) if seen else geo.IPSISSIMUS_AIM
     others = [monster for monster in ctx.in_view() if monster.race_id != geo.IPSISSIMUS]
-    if others:
-        # 「貫通可能な攻撃かつ脅威度が高くない場合は先にイプシシマスを倒し増援を断つ」
+    piercing = bool(others) and _has_piercing(ctx, geo.IPSISSIMUS, aim)
+    summons = _summons_in_view(ctx, others)
+    if summons:
+        # 「貫通可能な攻撃かつ脅威度が高くない場合は先にイプシシマスを倒し増援を断つ」, the threat read as the
+        # 11-05 summon rule reads it (summon_response ``counter_shot_key``): 「見えている敵の3ターンの
+        # 想定被害が今の HP の半分以上なら高い」.
         threat = policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot))
-        if not threat and _has_piercing(ctx, geo.IPSISSIMUS, aim):
+        if not threat and piercing:
             return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=True))
+        # 「それ以外の場合はテレポートで仕切り直す。接敵する前に移動できるならなるべく隘路に陣取る」
         scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
         if scroll is not None:
             battle.rallying = True
             policy.last_reason = TELEPORT_REASON
             return policy._read_key(snapshot, scroll)
-        return _engage(ctx, others)
-    return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS))
+        return _engage(ctx, summons)
+    # The wall-passers' stragglers (the spectres and shadow demons the 50 quiet actions of the
+    # wall-passers' phase left alive) are no reinforcements and no reason to teleport: owner
+    # 2026-11-09 「ここでテレポートすると以降の段取りが全て崩れるので逃走回数は最小にしたい。」  They are
+    # fought where the player stands, [5,1] (the stragglers' own stand, 「[5,1]で倒す。遠近は問わない。」);
+    # the survival rungs above the plan (the 1-turn 即死, the HP line) still answer first.
+    stragglers = [monster for monster in others if monster not in summons]
+    if stragglers and (key := _engage(ctx, stragglers)) is not None:
+        return key
+    return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=piercing))
+
+
+def _summons_in_view(ctx: _Ctx, others) -> list:
+    """Of the non-Ipsissimus in view on phase 2, the summoned ones; the rest are stragglers.
+
+    A straggler (owner 2026-11-06 phase1_wall_passers / phase2) is a spectre or shadow demon of
+    the roster that the wall-passers' phase left alive: it was on the floor before the phase, so
+    it is not first seen on a board carrying a summon cast (summon_response's reading of the
+    game's cast lines; ``Battle.summoned``), and there are no more of a race than the roster less
+    the kills read.  Anything else -- another race, one first seen with a cast, one over that
+    count -- is a summons.  The nearest are counted as stragglers first."""
+    left = {race: max(0, geo.ROSTER[race] - ctx.kills(race)) for race in (geo.SPECTRE, geo.SHADOW)}
+    summons = []
+    for monster in sorted(others, key=lambda monster: monster.distance):
+        if left.get(monster.race_id, 0) > 0 and monster.index not in ctx.battle.summoned:
+            left[monster.race_id] -= 1
+        else:
+            summons.append(monster)
+    return summons
 
 
 def _pen_shot(ctx: _Ctx, key: str | None) -> str | None:

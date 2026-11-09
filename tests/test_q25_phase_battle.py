@@ -377,7 +377,10 @@ class Q25IpsissimusTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("mB" + FIRE_BALL_LETTER + "@7,17", DEVICE_REASON))
 
     def summoned(self, raw, race=geo.SPECTRE, cell=(5, 2)):
+        # The game's cast line on the board it arrives (mspell-summon.cpp): a summons, not one of
+        # the wall-passers' stragglers (n1-b life-359, owner 2026-11-09).
         raw["visible_monsters"] = [monster(race, *cell, index=902)]
+        raw["messages"] = [*raw.get("messages", []), "何かが魔法でアンデッドを召喚した。"]
         return raw
 
     def test_summons_with_a_piercing_attack_and_a_low_threat_keep_the_fire_on_the_pen(self):
