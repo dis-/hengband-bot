@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
+from hengbot import town_pack_headroom
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -292,6 +293,14 @@ class SupplyMixin:
         if (oil is None or not oil.obtainable or not oil.stores
                 or oil.count >= oil.required_departure):
             return None
+        if town_pack_headroom.organizing(self, snapshot):
+            # The shelf refused the light buy for a slot and started the
+            # inventory pass (make_room_for_refused_purchase): its shelving
+            # walk goes first, or the walk re-enters the shop that refuses
+            # (n1-c life-172 2026-11-08 20:12, town:blocked:owner-retired-burst).
+            relief = town_pack_headroom.key(self, snapshot)
+            if relief is not None:
+                return relief
         step = self._shopping_approach_step(snapshot, oil.stores[0], requester="survival")
         if step is None:
             return None

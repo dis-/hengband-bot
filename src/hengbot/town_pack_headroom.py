@@ -289,6 +289,20 @@ def make_room_for_purchase(policy, snapshot):
     return key(policy, snapshot)
 
 
+def make_room_for_refused_purchase(policy, snapshot):
+    """Start the pass for a wanted buy the shop page refused only for a slot.
+
+    The same pass as make_room_for_purchase, started from the page's own
+    refusal (``_next_purchase`` full-pack-nonstacking) for a buy that is not
+    a departure claim (the dark street's light, a quest's carry).  Without
+    room to make nothing starts, and the refusal stands as before.
+    """
+    if (organizing(policy, snapshot) or not eligible(policy, snapshot)
+            or not room_can_be_made(policy, snapshot)):
+        return
+    begin(policy, snapshot)
+
+
 def room_can_be_made(policy, snapshot):
     """Whether this pass, or the identification it waits for, can free a slot."""
     return (any(preservable(policy, snapshot, item)

@@ -194,5 +194,38 @@ class HomeIdentificationBesideFullWaitTest(RecordedVisit):
         self.assertEqual(self.policy._home_errand.request.purpose, "identification-catalog")
 
 
+class RefusedLightBuyMakesRoomTest(RecordedVisit):
+    """E. n1-c life-172 2026-11-08 20:12 town:blocked:owner-retired-burst.
+
+    Light out in the dark street (light radius 0), 19 of 23 slots used: the
+    light restore walked to the General Store, whose page refused the wanted
+    torches only for a slot (``_next_purchase`` pack_refusal
+    full-pack-nonstacking, rows 19 and 22) and left; the walk re-entered the
+    same shop until the owner retirements.  The bought staff could have been
+    shelved at Home.  Fix: that refusal starts the town's inventory pass
+    (make_room_for_purchase, owner 2026-10-31 「自宅にいるなら先に不要物を仕舞う」),
+    and the light restore lets the pass's shelving walk go first.
+    """
+
+    fixture = "e172"
+
+    def test_recorded_refusal_and_reentry(self):
+        self.assertEqual(self.replay_to(19), [])
+        board, key, reason = self.decide(19)
+        self.assertEqual((key, reason), ("\x1b", "town-progress-invariant:continue-observed-shop"))
+        self.assertEqual(self.policy._shop_selector_diagnostics["wanted_purchase"]["category"], "torch")
+        self.assertEqual(board.light_radius, 0)
+        self.assertEqual(len(board.inventory), 19)
+        self.assertEqual(self.journal[20]["reason"], "shop:approach")
+
+    def test_refused_buy_walks_to_home_to_make_room(self):
+        self.replay_to(20)
+        board, key, _reason = self.decide(20)
+        from hengbot import town_pack_headroom
+        self.assertTrue(town_pack_headroom.organizing(self.policy, board))
+        self.assertEqual(self.policy._shopping_approach_store_type, STORE_HOME)
+        self.assertNotEqual(key, self.journal[20]["key"])
+
+
 if __name__ == "__main__":
     unittest.main()

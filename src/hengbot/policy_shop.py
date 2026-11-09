@@ -3,6 +3,7 @@ from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
+from hengbot import town_pack_headroom
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -2556,6 +2557,14 @@ class ShopMixin(InStoreMixin):
             item is not None and not self._store_purchase_fits_pack(snapshot, item)
         ):
             self._shop_selector_diagnostics["pack_refusal"] = "full-pack-nonstacking"
+            if commit_churn:
+                # The wanted buy waits only on a slot: the town's inventory
+                # pass shelves or sells first (make_room_for_purchase, owner
+                # 2026-10-31 「自宅にいるなら先に不要物を仕舞う」).  n1-c
+                # life-172 (2026-11-08 20:12): the dark street's light buy
+                # was refused here, the shop left with nothing to shelve the
+                # staff at Home, and the walk re-entered until the burst.
+                town_pack_headroom.make_room_for_refused_purchase(self, snapshot)
             return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
