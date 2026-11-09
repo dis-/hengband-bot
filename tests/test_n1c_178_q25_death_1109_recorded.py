@@ -16,6 +16,10 @@ the tome phase over the whole window and its record changed only in its ``observ
 list the policy asks for (``b`` + kind) arrives, when the test says so, on the next board as the
 executor's read of the screen (``_magic_eater_power_list``, the town-arrival lists of the life,
 the counts of the death dump): DECLARED CONSTRUCTED, the recorded boards were never browsed.
+The process was hungry from decision 5194 on; the meal rule merged since (quest_find_exit
+``steps_aside_for_food``, n1-c life-178's hold) eats on the first hungry board without a hostile
+near, and once the policy has posted that meal the later boards read 「normal」 (DECLARED
+CONSTRUCTED: the meal's effect; the recorded process never ate).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -39,7 +43,8 @@ with gzip.open(Path(__file__).with_name("fixtures") / "n1c-178-q25-death-1109.js
 
 FIRST = 5180
 LETTER_KIND = {letter: kind for kind, letter in me_powers_refresh.KIND_LETTER.items()}
-BREATH = "mB0@9,8"          # ドラゴンの火炎 (wand sval 26, letter '0') at the tome's grid
+BREATH = "mB0@9,8"
+MEAL_REASONS = {"survival:mana-absorb", "survival:eat"}          # ドラゴンの火炎 (wand sval 26, letter '0') at the tome's grid
 
 
 def lists(changes=None):
@@ -77,6 +82,7 @@ def replay(*, answer_lists=None, edit=None, probe=None, through=None):
                           encoding="utf-8")
         policy = new_policy(boards[0], record)
         browsed = None
+        fed = False
         for raw, row in zip(boards, CASE["recorded"]):
             if through is not None and row["sequence"] > through:
                 break
@@ -84,6 +90,8 @@ def replay(*, answer_lists=None, edit=None, probe=None, through=None):
             if browsed is not None and answer_lists is not None:
                 raw["_magic_eater_power_list"] = {"kind": browsed,
                                                   "rows": answer_lists[browsed][1]}
+            if fed and raw["player"].get("food_state") == "hungry":
+                raw["player"]["food_state"] = "normal"
             if edit is not None:
                 edit(row["sequence"], raw)
             snapshot = parse_snapshot(raw, policy._monrace_knowledge)
@@ -92,6 +100,7 @@ def replay(*, answer_lists=None, edit=None, probe=None, through=None):
             key = str(policy.choose_key(snapshot))
             answers[row["sequence"]] = (key, policy.last_reason)
             browsed = LETTER_KIND.get(key[1:]) if key[:1] == "b" and len(key) == 2 else None
+            fed = fed or policy.last_reason in MEAL_REASONS
             policy.confirm_key_posted(key)
     return answers
 
