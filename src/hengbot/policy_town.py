@@ -2707,18 +2707,6 @@ class TownMixin:
             )
             return None
         target = self._pending_inventory_item(snapshot)
-        if target is None and self._home_full_relief_take_filed():
-            # The pending Home item is the Home-full relief's filed take, not
-            # an identification withdrawal: it is not carried because the
-            # entrance's atomic take has not run yet.  Deferring it here as a
-            # failed withdrawal also dropped this owner's own identification
-            # wait (n1-a life-497 2026-11-09 08:46, the junk sweep's
-            # 切れ味のダガー).
-            self._offer_execution_no_step(
-                producer="identification", work_id="identify:town-item",
-                cause="home-full-relief-take",
-            )
-            return None
         if target is None:
             # The Home command can be rejected (for example by a prompt timing
             # mismatch). Do not alternate forever between leaving and re-entering
