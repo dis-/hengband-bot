@@ -628,3 +628,34 @@ What the code does where the design left a detail open:
   - It starts only where Morivant is already listed. It reads no rumours and starts no fundraising.
   - The Q2 trip keeps priority while it applies.
   - It starts at the recall read, after the armour smith.
+
+### 10.1 Live check through the control server (2026-11-10)
+
+Setup:
+- The local Windows build (`Hengband.exe` of 2026-11-06) ran headless with `--control-port`.
+- A level-1 human warrior played Angband levels 4 to 9, in debug mode.
+- The zigzag was cut with the debug terrain command (`^A F`, floor) from a straight corridor.
+- The pack was summoned with `^A n` (group placement), 3 to 5 cells along the corridor from the start cell, and woken.
+- The player was put on the pocket with `^A D`.
+- For 300 player turns the player struck the monster on the mouth, else waited, with `^A a` keeping HP full.
+- The counts come from `^A d` (detection) before and after.
+
+| Pack | Length | Within reach at the start | Came onto the mouth and were killed | Stayed out |
+|---|---|---|---|---|
+| jackals | 3 | 6 | 3 | 3: one in the tunnel (c1), two in the corridor at the start cell |
+| jackals | 6 | 11 | 8 | 3: one in the tunnel (c3), two in the corridor beyond their alert range |
+| jackals | 6 | 12 | 11 | 1 in the tunnel (c3), plus 1 far away |
+| light hounds | 3 | 4, and 2 (two levels) | 0 | all |
+| light hounds | 6 | 4 | 3 | 1 in the tunnel (c3) |
+
+These numbers agree with 1.7:
+- A zigzag of 3 cells holds animal packs out.
+- A zigzag of 6 cells brings the pack in one at a time.
+- The last animal stays hidden inside the tunnel.
+
+**A game fact the check showed** (`monster/monster-processor.cpp:701-720`, `decide_process_continue`). A monster acts only when one of these holds:
+- it is within its alert range (`aaf`; 10 for jackals) of the player;
+- it is within 20 cells on a grid the player sees;
+- it has a target.
+
+So pack members that wait out of view farther than their alert range from the pocket stop acting altogether: the two jackals of the first 6-cell run. The 50-game-turn wait and the detection after it (section 9) find them. The plan then ends unless exactly one animal remains, which gets the close-in.
