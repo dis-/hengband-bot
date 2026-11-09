@@ -11744,6 +11744,27 @@
     ],
     "delegation": "No independent success; the emergency ladder selects the command."
   },
+  "threat_escape.py:blind_teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_escape.py:blind_teleport_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_escape.py:need_not_fight": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_projection.py:_with_adjusted_speed": {
     "classification": "data",
     "rows": [
@@ -11877,20 +11898,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:blind_teleport_key": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:blind_teleport_means": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "threat_tiers.py:cannot_win": {
     "classification": "data",
     "rows": [
@@ -11932,13 +11939,6 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:need_not_fight": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:sensed_t1_leave_key": {
     "classification": "producer",

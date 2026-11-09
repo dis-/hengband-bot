@@ -15861,7 +15861,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the strategic hostiles in view plus the awake detected ones (threat tiers design 3), read by assess, facts and instant_death_key; not an independently selected game action"
   },
-  "threat_tiers.py:need_not_fight": {
+  "threat_escape.py:need_not_fight": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16434,7 +16434,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:blind_teleport_key": {
+  "threat_escape.py:blind_teleport_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -16445,7 +16445,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "threat_tiers.py:blind_teleport_means": {
+  "threat_escape.py:blind_teleport_means": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
