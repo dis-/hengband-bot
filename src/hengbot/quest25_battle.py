@@ -103,11 +103,11 @@ from hengbot import (
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key
+from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key, item_cast_key
 from hengbot.model import (
-    Position, SV_ROD_DETECTION, SV_ROD_DISARMING, SV_SCROLL_DETECT_TRAP, SV_STAFF_DETECT_EVIL,
+    Position, SV_POTION_HEALING, SV_ROD_DETECTION, SV_ROD_DISARMING, SV_SCROLL_DETECT_TRAP, SV_STAFF_DETECT_EVIL,
     SV_STAFF_DETECT_TRAP, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_SCROLL,
-    TVAL_STAFF, TVAL_WAND,
+    TVAL_POTION, TVAL_STAFF, TVAL_WAND,
 )
 from hengbot.policy_constants import (
     DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, REST_MACRO, SEARCH_KEY, UP_STAIRS_KEY, WAIT_KEY,
@@ -145,6 +145,7 @@ RECALL_EXIT_WALK_REASON = f"{REASON}:recall-exit-walk"
 RECALL_EXIT_REASON = f"{REASON}:recall-exit"
 RECALL_OUT_REASON = f"{REASON}:recall-out-of-fire"
 RECALL_WAIT_REASON = f"{REASON}:recall-wait"
+ABSORBED_HEAL_REASON = f"{REASON}:heal{CAST_SUFFIX}"
 _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
                             OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON,
                             RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON})
@@ -1802,6 +1803,7 @@ def key(policy, snapshot) -> str | None:
         or quest_room_sweep._give_up(policy, snapshot, profile)
         or quest_room_sweep._below_line(policy, snapshot, profile, navigator)
         or quest_find_exit._heal(policy, snapshot, profile)
+        or _absorbed_heal(policy, snapshot, profile)
         or quest_find_exit._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
@@ -1810,6 +1812,21 @@ def key(policy, snapshot) -> str | None:
         or _phase_key(policy, snapshot)
         or resist_potion.leave_key(policy, snapshot)
     )
+
+
+def _absorbed_heal(policy, snapshot, profile) -> str | None:
+    """Owner 2026-11-09 Q3 「成功率が80%以上なら体力回復は使っても良い。テレポートは許可しない」: where the
+    plan would drink a Healing potion (its heal line) and none is carried, the absorbed Healing
+    whose displayed success rate is at least 80% (me_capability ``reliable``, the owner's one
+    number for absorbed powers in place of an item).  n1-c life-178 had 4 charges at 32%: none."""
+    threshold = profile.consumable_plan.get("heal_threshold_ratio")
+    if (threshold is None or snapshot.player.hp_ratio >= float(threshold)
+            or quest_find_exit._healing_potion(policy, snapshot) is not None):
+        return None
+    key = item_cast_key(policy, snapshot, (TVAL_POTION, SV_POTION_HEALING))
+    if key is not None:
+        policy.last_reason = ABSORBED_HEAL_REASON
+    return key
 
 
 def _recall_wait(policy, snapshot) -> str | None:

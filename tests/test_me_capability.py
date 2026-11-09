@@ -113,7 +113,8 @@ class ReplacesTableTest(unittest.TestCase):
             with self.subTest(row=row):
                 self.assertIn(row.when, capability.WHEN)
                 self.assertTrue(row.amount is None or row.amount in capability.AMOUNT)
-                self.assertTrue(row.uses <= capability.EVERY_USE and row.uses)
+                # A cast-only row (its scene casts it in place of the item) waives nothing.
+                self.assertTrue(row.uses <= capability.EVERY_USE and (row.uses or row.cast))
                 if row.power is None:
                     self.assertIn(row.when, {"staff-sequence", "stage-staff"})
                 else:

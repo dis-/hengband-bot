@@ -27,7 +27,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import me_powers_refresh, quest25_battle as battle, quest_room_sweep
+from hengbot import me_powers_refresh, quest25_battle as battle, quest_room_sweep, threat_tiers
 from hengbot.policy_constants import REST_MACRO
 from hengbot.model import _parse_items, parse_snapshot
 from tests import test_q25_haunted_house as q25
@@ -65,7 +65,7 @@ def new_policy(first, record):
     return policy
 
 
-def replay(*, answer_lists=None, edit=None, through=None):
+def replay(*, answer_lists=None, edit=None, probe=None, through=None):
     """{sequence: (key, reason)} of the window replayed by one policy.  ``answer_lists``: the
     lists a browse the policy posts is answered with on the next board; ``edit(sequence, raw)``
     changes a board (declared by its test)."""
@@ -87,6 +87,8 @@ def replay(*, answer_lists=None, edit=None, through=None):
             if edit is not None:
                 edit(row["sequence"], raw)
             snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+            if probe is not None:
+                probe(policy, snapshot, row["sequence"])
             key = str(policy.choose_key(snapshot))
             answers[row["sequence"]] = (key, policy.last_reason)
             browsed = LETTER_KIND.get(key[1:]) if key[:1] == "b" and len(key) == 2 else None
@@ -197,6 +199,42 @@ class RecallReadStopsThePhaseTest(unittest.TestCase):
         # In the fire with no cell out one step off: out by the least exposed walk.
         self.assertEqual(answers[5226], ("7", battle.RECALL_OUT_REASON))
 
+
+
+HEALING = ("staff", "体力回復")
+
+
+class AbsorbedHealingNoTeleportTest(unittest.TestCase):
+    """Owner 2026-11-09 Q3 「成功率が80%以上なら体力回復は使っても良い。テレポートは許可しない」.
+    The life's absorbed Healing showed 32% (4 charges); the 95% list is DECLARED CONSTRUCTED."""
+
+    def test_at_32_percent_the_absorbed_healing_is_not_cast(self):
+        answers = replay(answer_lists=lists())
+        self.assertEqual(answers[5223], ("1", battle.RECALL_EXIT_WALK_REASON))
+
+    def test_at_95_percent_it_is_cast_where_the_healing_potion_would_be_drunk(self):
+        answers = replay(answer_lists=lists({HEALING: {"success": 95}}))
+        # [6,2] at HP 43 of 503, no Healing potion, no Teleportation scroll: the heal line.
+        self.assertEqual(answers[5223], ("mAs", battle.ABSORBED_HEAL_REASON))
+
+    def test_the_absorbed_teleportation_is_not_cast_in_q25(self):
+        # DECLARED CONSTRUCTED: the board of decision 5223 made blind, where a blind player casts
+        # the absorbed Teleportation in place of the scroll (threat_tiers.blind_teleport_key).
+        found = {}
+
+        def blind(sequence, raw):
+            if sequence == 5223:
+                raw["player"]["status"]["blind"] = True
+
+        def probe(policy, snapshot, sequence):
+            if sequence == 5223:
+                found["means"] = threat_tiers.blind_teleport_means(policy, snapshot)
+                found["escapes"] = threat_tiers.escape_means(policy, snapshot, [])
+
+        answers = replay(answer_lists=lists(), edit=blind, probe=probe, through=5223)
+        self.assertIsNone(found["means"])
+        self.assertNotIn("absorbed-teleport", found["escapes"])
+        self.assertFalse(answers[5223][0].startswith("mA"), answers[5223])
 
 if __name__ == "__main__":
     unittest.main()
