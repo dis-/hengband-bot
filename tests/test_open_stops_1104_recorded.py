@@ -21,7 +21,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
 from tests.support.recorded import EDIT, _policy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from town_work_corpus import replay_window
 
 

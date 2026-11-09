@@ -28,7 +28,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SEARCH_LIMIT
 from tests.support.recorded import EDIT, _policy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_me_device_attacks import power_list, row
 
 FIXTURE = Path(__file__).with_name("fixtures") / "sealed-pocket-quest-1105.json.xz"

@@ -41,9 +41,9 @@ from hengbot.me_staff_sequence import MeStaffSequence
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests import test_me_mining_death_recorded as mining
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support.recorded import FaithfulHookGame, command_screen
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
 from tests.test_me_kind_menu_context import USE_MENU, kind_menu

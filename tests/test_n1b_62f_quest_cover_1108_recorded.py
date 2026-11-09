@@ -37,7 +37,8 @@ from hengbot.me_staff_sequence import MeStaffSequence
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
-from tests.test_input_executor import FaithfulHookGame, ProductionHarness, command_screen
+from tests.support import recorded
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-62f-quest-cover-1108.json.xz"
 SEALED = Position(28, 65)
@@ -51,7 +52,7 @@ def _pin():
     return json.loads(lzma.decompress(FIXTURE.read_bytes()).decode("utf-8", "surrogateescape"))
 
 
-class N1b62fQuestCoverRecordedTest(ProductionHarness):
+class N1b62fQuestCoverRecordedTest(recorded.ProductionHarness):
     @classmethod
     def setUpClass(cls):
         cls.pin = _pin()

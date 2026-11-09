@@ -40,7 +40,7 @@ from hengbot.warrior_equipment_evaluator import WarriorCombatInputs, evaluate_wa
 from hengbot.warrior_loadout_evaluator import constitution_hp_bonus
 from hengbot.warrior_optimization import CharacterCalibration
 from tests import test_lv7_town_stop_recorded as lv7
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 from tests.support.recorded import EDIT, _policy
 
 

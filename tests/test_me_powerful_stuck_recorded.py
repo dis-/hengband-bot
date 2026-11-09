@@ -39,8 +39,8 @@ from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
 from hengbot.quest_strategies import load_quest_strategies
 from tests import test_me_powerful_activation as constructed
-from tests.test_input_executor import source_derived_identify_viewer
-import tests.test_input_executor as executor_harness
+from tests.support.recorded import source_derived_identify_viewer
+import tests.support.recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-powerful-stuck-20261101.json.gz"

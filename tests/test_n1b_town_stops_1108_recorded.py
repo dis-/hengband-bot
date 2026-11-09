@@ -59,7 +59,7 @@ from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.runtime_paths import RUNTIME_DIR_ENV
 from hengbot.town_arrival_checkpoint import POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST
 from replay_town_arrival import restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 FIXTURES = Path(__file__).with_name("fixtures") / "n1b-town-stops-1108"
 SPEAR = "(トランプ)ブロード・スピア (1d9) (+7,+10) (+1探索) {+探r轟因;麻遅活瞬/邪デ}"

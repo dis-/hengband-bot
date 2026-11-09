@@ -22,7 +22,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS, Q34_FINAL_DOOR_ATTEMPT_LIMIT, WAIT_KEY
 from hengbot.quest_final_room import avoided_doors, door_gates, final_search_area
 from tests import test_q34_bee_sweep_recorded as bee
-from tests import test_input_executor as _test_input_executor
+from tests.support import recorded as _executor_support
 from tests.test_q34_collect_recorded import captured, make_policy
 
 FIXTURE = Path(__file__).parent / "fixtures" / "q34-final-room-1029.json.gz"
@@ -53,7 +53,7 @@ def guard_stop_turn(rows):
     return None
 
 
-class Q34FinalRoomRecordedTest(_test_input_executor.ProductionHarness):
+class Q34FinalRoomRecordedTest(_executor_support.ProductionHarness):
     post = bee.Q34BeeSweepRecordedTest.post
 
     @classmethod

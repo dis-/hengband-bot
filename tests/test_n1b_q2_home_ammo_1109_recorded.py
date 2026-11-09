@@ -53,7 +53,7 @@ from hengbot.policy import staged_prompt_chain_matches
 from hengbot.runtime_paths import RUNTIME_DIR_ENV
 from hengbot.town_arrival_checkpoint import POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST
 from replay_town_arrival import adopt_calibration, restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_town_withdraw_pack_budget_recorded import HomeEntranceGame
 
 FIXTURES = Path(__file__).with_name("fixtures") / "n1b-q2-home-ammo-1109"

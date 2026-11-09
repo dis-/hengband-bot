@@ -15,7 +15,7 @@ from hengbot.policy_constants import QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED
 from hengbot.quest_entry_requirements import allows_overweight_travel
 from tests import test_opening_route_r2_recorded as round2
 from tests import test_opening_route_r3_recorded as round3
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 class OpeningBlockRecordedTest(executor_harness.ProductionHarness):

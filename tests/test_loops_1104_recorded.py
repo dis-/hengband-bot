@@ -16,7 +16,7 @@ from hengbot import retreat_enclosure
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_state import normalize_policy_state
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_dungeon_stops_1103_recorded as _test_dungeon_stops_1103_recorded
 
 

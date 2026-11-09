@@ -25,7 +25,7 @@ import unittest
 from hengbot import cli, me_staff_sequence
 from hengbot.me_powers_refresh import REFRESH_REASON
 import test_n1c_stops_1104_recorded as _n1c_stops
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 

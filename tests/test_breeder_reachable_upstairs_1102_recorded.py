@@ -36,7 +36,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests import test_lv7_town_stop_recorded as lv7
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 from tests.support.recorded import EDIT, _policy
 
 

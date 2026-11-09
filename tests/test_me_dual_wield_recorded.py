@@ -50,8 +50,8 @@ from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO, MINING_THREAT_FREE_LIMIT, SKILL_KNOWLEDGE_MACRO,
 )
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 from tests.support.recorded import EDIT, _policy
 

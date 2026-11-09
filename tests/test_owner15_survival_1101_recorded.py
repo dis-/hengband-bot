@@ -45,7 +45,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE, RETURN_TRIGGER
 from tests import test_d57_nav_depth_1101_recorded as nav
 from tests import test_depart2_1101_recorded as depart2
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_dungeon_1031_recorded import READ_PROMPT, decide
 from tests import test_dungeon_1031_recorded as _test_dungeon_1031_recorded
 from tests import test_hit_no_action_1101_recorded as hit

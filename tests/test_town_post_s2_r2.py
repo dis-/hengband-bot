@@ -32,8 +32,8 @@ from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.policy_constants import DIRECTION_KEYS
 from tests.support.recorded import _policy, EDIT
 from hengbot.monrace_knowledge import load_monrace_knowledge
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

@@ -27,7 +27,7 @@ from hengbot import town_pack_headroom
 from hengbot.cli import _policy_final_stop_banner, _policy_final_stop_required
 from hengbot.model import parse_snapshot
 from tests import test_town_stops_1031_recorded as town_stops
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 RESTORE = "town:restore-combat-weapon"

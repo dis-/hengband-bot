@@ -33,7 +33,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.summoner_wait import HOLD_REPOSITION_REASON
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.support.recorded import EDIT, _policy
 
 

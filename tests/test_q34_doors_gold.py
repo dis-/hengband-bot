@@ -25,8 +25,8 @@ from hengbot.policy_constants import (
 )
 from hengbot.quest_final_room import avoided_doors, door_gates, next_sequence_door
 from hengbot.quest_navigator import SWEEP_BUDGET
-from tests.test_input_executor import FaithfulHookGame, command_screen
-from tests import test_input_executor as _test_input_executor
+from tests.support.recorded import FaithfulHookGame, command_screen
+from tests.support import recorded as _executor_support
 from tests.test_q34_collect_recorded import captured, make_policy, observe_until
 from tests import test_q34_collect_recorded as _test_q34_collect_recorded
 
@@ -52,7 +52,7 @@ def with_open_doors(raw, opened):
     return raw
 
 
-class Q34DoorsGoldTest(_test_input_executor.ProductionHarness):
+class Q34DoorsGoldTest(_executor_support.ProductionHarness):
     collect_post = _test_q34_collect_recorded.Q34CollectRecordedTest.post
 
     @classmethod

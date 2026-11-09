@@ -19,8 +19,8 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import (EMPTY_DIVE_LIMIT, QUEST_STATUS_FINISHED, RUMOR_COST,
     RUMOR_GOLD_RESERVE, WAIT_KEY, required_depth_gates)
 from policy_fixtures import player, grid, item, set_completed_equipment_optimization
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures/top-stops-guardian-projection.json"
 EDIT = Path("C:/hengband/lib/edit")

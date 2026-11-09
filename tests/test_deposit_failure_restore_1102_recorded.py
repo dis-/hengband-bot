@@ -33,7 +33,7 @@ from hengbot.equipment_transaction_session import (
 )
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.support.recorded import EDIT, _policy
 
 

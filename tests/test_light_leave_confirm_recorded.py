@@ -29,7 +29,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import OIL_TARGET
 from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
 from tests.support.recorded import EDIT, _policy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 FIXTURE = Path(__file__).parent / "fixtures" / "light-rootfix-q2-20261025.jsonl.gz"
 SHA256 = "decf4c8e3a4cc74e6d421ba8aecf5bf89cbabc21182d3bdb22d8d3464a05f27d"

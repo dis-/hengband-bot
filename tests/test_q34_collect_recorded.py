@@ -22,8 +22,8 @@ from hengbot.policy import HengbotPolicy
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.quest_knowledge import QuestBattlefield, QuestInfo
 from hengbot.quest_strategies import load_quest_strategies
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 FIXTURE = Path(__file__).with_name("fixtures") / "q34-collect-20261025.json.gz"
 

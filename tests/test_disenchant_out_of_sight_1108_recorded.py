@@ -38,7 +38,7 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HUNT_RANGE
 from hengbot.retreat_veto_life import UNSEEN_GAME_TURNS
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_dungeon_1031_recorded import RecordedHarness, decide
 
 FIXTURE = Path(__file__).with_name("fixtures") / "disenchant-out-of-sight-20261108.json.gz"

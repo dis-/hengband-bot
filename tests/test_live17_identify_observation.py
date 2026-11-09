@@ -14,9 +14,9 @@ from pathlib import Path
 from hengbot.cli import _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
-import tests.test_input_executor as input_executor_tests
+import tests.support.recorded as input_executor_tests
 from tests.test_live15_identify_source import StopAfterTargetGame
-from tests.test_input_executor import FaithfulHookGame, source_derived_identify_viewer
+from tests.support.recorded import FaithfulHookGame, source_derived_identify_viewer
 
 FIXTURES = Path(__file__).with_name("fixtures") / "live-screens"
 

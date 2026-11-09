@@ -119,7 +119,7 @@ class CrownDeferredTest(unittest.TestCase):
         from hengbot.control_client import ControlClient
         from hengbot.input_executor import OperationExecutor
         from hengbot.observed_input import _GET, _PUT, _WIELD, _TAKEOFF, _HAND
-        from test_input_executor import FaithfulHookGame, store_screen, prompt_screen
+        from tests.support.recorded import FaithfulHookGame, store_screen, prompt_screen
         game = FaithfulHookGame()
         def screen_for(board):
             import unicodedata

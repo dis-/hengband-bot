@@ -23,7 +23,7 @@ from hengbot.spectator import (
     SPECTATE_WRITE_INTERVAL_SECONDS, SpectatorWriter, merge_seen_messages, printable_key,
     spectator_screen,
 )
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.run_follow_hygiene import run_follow as _run_follow
 from tests.test_home_light_alternation import _fresh_policy
 

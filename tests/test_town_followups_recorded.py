@@ -33,7 +33,7 @@ from hengbot.cli import (
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy_constants import TOWN_CYCLE_BREAK_LIMIT
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests.support.recorded import _policy
 from tests.test_town_withdraw_pack_budget_recorded import HomeEntranceGame
 

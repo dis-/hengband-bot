@@ -44,7 +44,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import UP_STAIRS_KEY, WAIT_KEY
 from hengbot.terrain_knowledge import _strip_jsonc
 from hengbot.wilderness_exit import SHAFT_TERRAIN_IDS
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_town_decision_speed_caches import EDIT, build_policy
 # Moved to tests/support/recorded.py; re-exported for importers.
 from tests.support import recorded as _recorded

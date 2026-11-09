@@ -29,7 +29,7 @@ from hengbot import disenchant_avoid
 from hengbot.model import _decode_grid_map, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_n1c_death_1102_recorded as q31
 from tests import test_rq_teleport_reserve_recorded as rq
 from tests.test_destruction_use_1104_recorded import (

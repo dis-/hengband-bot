@@ -24,7 +24,7 @@ from hengbot.town_pack_headroom import eligible, preservable, find_sale, find_de
 from hengbot.town_terminal import rung_terminal, terminal_admission
 from hengbot.policy_types import TownErrandPlan
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests.support.headroom_home import HeadroomHomeGame
 from tests.support.recorded import _policy
 

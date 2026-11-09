@@ -30,7 +30,7 @@ from hengbot.me_device_attacks import DEVICE_REASON
 from hengbot.model import ARENA_FLOOR_KEY, SV_STAFF_SPEED, TVAL_WAND, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 FIXTURE = Path(__file__).with_name("fixtures") / "arena-live-1105.json.gz"
 KNOWLEDGE = load_monrace_knowledge(Path("C:/hengband/lib/edit/MonraceDefinitions.jsonc"))

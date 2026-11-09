@@ -155,7 +155,7 @@ class ShopOneShotTest(unittest.TestCase):
 
     def test_production_executor_enters_before_posting_one_shot_buy_once(self):
         from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
-        from tests.test_input_executor import (
+        from tests.support.recorded import (
             FaithfulHookGame, ProductionHarness, command_screen, prompt_screen,
             store_screen,
         )
@@ -202,7 +202,7 @@ class ShopOneShotTest(unittest.TestCase):
     def test_recorded_speed_shelf_posts_one_bounded_quantity_through_executor(self):
         from hengbot.cli import _store_buy_continuations
         from hengbot.input_executor import Operation
-        from tests.test_input_executor import (
+        from tests.support.recorded import (
             FaithfulHookGame, ProductionHarness, command_screen, prompt_screen,
             store_screen,
         )

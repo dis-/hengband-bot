@@ -31,7 +31,7 @@ from hengbot.cli import _ExecutorInputPort, _send_new_decision_key
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from recorded_session_replay import replay_session
 from tests.support.recorded import EDIT
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 FIXTURE = Path(__file__).parent / "fixtures/morivant-library-identify-20261030.json.gz"
 SHA256 = "c38b88034bb8977a22b87605a8e391f3dd31944208c8c225e38cde7b030ad59b"

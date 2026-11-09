@@ -18,7 +18,7 @@ from hengbot.control_client import ControlClient
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.spectator import SPECTATE_WRITE_INTERVAL_SECONDS, SpectatorWriter, spectator_details
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.support.recorded import EDIT
 from tests import test_spectator as spectator_pins
 

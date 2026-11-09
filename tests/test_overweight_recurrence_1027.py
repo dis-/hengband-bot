@@ -31,7 +31,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.protocol import snapshot_protocol_version
 from tests.support.recorded import EDIT, _policy
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 FIXTURE = Path(__file__).parent / "fixtures/overweight-recurrence-1027.json.gz"

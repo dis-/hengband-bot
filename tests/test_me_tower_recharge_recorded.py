@@ -37,7 +37,7 @@ from hengbot.magic_eater import ABSORB_REASON
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import ConservativePolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_magic_eater_o3 import prompt
 
 

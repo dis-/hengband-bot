@@ -53,7 +53,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 
 from tests.support.recorded import EDIT, _policy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "quest-leave-confirm-20261002.jsonl.gz"

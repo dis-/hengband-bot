@@ -28,7 +28,7 @@ from hengbot.cli import (_consume_response_sequence, _ExecutorInputPort,
                          _send_new_decision_key)
 from hengbot.model import parse_snapshot, STORE_HOME, STORE_MAGIC, TVAL_ARROW
 from hengbot.policy_types import TownErrandPlan
-from tests import test_input_executor as executor_harness
+from tests.support import recorded as executor_harness
 from tests.support.recorded import _policy
 
 FIXTURE = Path(__file__).parent / "fixtures/rod-overflow-20261027.json.gz"

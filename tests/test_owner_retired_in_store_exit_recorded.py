@@ -29,7 +29,7 @@ from hengbot import cli
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import IN_STORE_OPERATION_REASONS, LEAVE_STORE_KEY
 from tests import test_lv7_town_stop_recorded as lv7
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "owner-retired-in-store-exit-20261030.json.gz"

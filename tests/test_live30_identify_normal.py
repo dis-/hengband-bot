@@ -16,7 +16,7 @@ from hengbot.cli import _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
-import tests.test_input_executor as harness
+import tests.support.recorded as harness
 
 FIXTURES = Path(__file__).with_name('fixtures') / 'live30-identify-normal'
 

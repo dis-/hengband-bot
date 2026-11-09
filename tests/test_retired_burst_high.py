@@ -24,7 +24,7 @@ from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import _parse_items, InventoryItem, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_equipment import plan_equipment_transactions
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 from tests.test_resume_inside_store import _fit
 
 FIXTURE = Path(__file__).parent / 'fixtures/retired-burst-high-20261029.json.gz'

@@ -36,7 +36,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.town_maps import find_outpost_map, find_town_map, parse_town_map
 from tests import test_lv7_town_stop_recorded as lv7
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 ROOT = Path(__file__).resolve().parents[1]

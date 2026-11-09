@@ -25,8 +25,8 @@ from hengbot.model import StoreItem, StoreState, _GRID_TERRAIN_NAMES, _parse_ite
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from tests import test_opening_route_r2_recorded as round2
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "lv7-town-stop-20261029.json.gz"

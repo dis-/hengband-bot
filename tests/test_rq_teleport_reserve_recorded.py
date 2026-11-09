@@ -27,7 +27,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE, RETURN_TRIGGER
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_dungeon_1031_recorded import READ_PROMPT, decide
 from tests import test_dungeon_1031_recorded as _test_dungeon_1031_recorded
 from tests.test_town_decision_speed_caches import EDIT

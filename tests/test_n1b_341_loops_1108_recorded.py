@@ -38,7 +38,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import HUNT_RANGE
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_dungeon_1031_recorded import READ_PROMPT, RecordedHarness, decide
 from tests.test_town_decision_speed_caches import EDIT
 

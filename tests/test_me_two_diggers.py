@@ -24,7 +24,7 @@ from pathlib import Path
 from hengbot.model import parse_snapshot
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_me_town_stops_recorded as me
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-two-diggers-20261030.json.gz"

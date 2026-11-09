@@ -14,7 +14,7 @@ from pathlib import Path
 
 from hengbot.cli import _ExecutorInputPort
 from hengbot.policy_identification import SOURCE_PROMPT
-from tests import test_input_executor as harness
+from tests.support import recorded as harness
 from tests.test_live30_identify_normal import StopAfterNewTarget
 
 

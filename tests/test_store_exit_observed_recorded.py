@@ -35,7 +35,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from recorded_session_replay import replay_session
 from tests.support.recorded import EDIT
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 FIXTURE = Path(__file__).parent / "fixtures/store-exit-observed-20261030.json.gz"
 SHA256 = "c9637127a7098f24cbf217e78c19be72c372a47641341ebc1f0eceb696865f0d"
