@@ -77,13 +77,13 @@ class ObserveRememberedTest(unittest.TestCase):
                                    lambda *_: [], never_gone)
             self.assertEqual(bool(monster_memory.entries(policy, board(0), kind)), kept, kind)
 
-    def test_remembered_keep_filter(self):
+    def test_remembered_keeps_the_order_shown(self):
         policy = Policy()
-        monster_memory.observe(policy, board(100, [monster(3, 5, 9), monster(4, 6, 9)]), KIND,
+        monster_memory.observe(policy, board(100, [monster(4, 6, 9), monster(3, 5, 9)]), KIND,
                                shown, never_gone)
-        kept = monster_memory.remembered(policy, board(101), KIND,
-                                         keep=lambda policy, snapshot, m: m.index == 4)
-        self.assertEqual([m.index for m in kept], [4])
+        monster_memory.observe(policy, board(101, [monster(4, 6, 8)]), KIND, shown, never_gone)
+        self.assertEqual([m.index for m in monster_memory.remembered(policy, board(102), KIND)],
+                         [4, 3])
 
     def test_pickle_round_trip_keeps_the_attribute(self):
         policy = Policy()
@@ -126,6 +126,14 @@ class LootBlockShapeTest(unittest.TestCase):
         monster_memory.store(policy, board(100), kind, [monster(3, 5, 9), monster(4, 6, 9)])
         monster_memory.store(policy, board(120), kind, [monster(5, 7, 9)])
         self.assertEqual(list(monster_memory.entries(policy, board(121), kind)), [(5, 7)])
+
+
+class DisenchantKindTest(unittest.TestCase):
+    def test_attribute_and_window_while_shown(self):
+        kind = monster_memory.DISENCHANT
+        self.assertEqual(kind.attribute, "_disenchant_avoid_seen")
+        self.assertFalse(kind.window_while_shown)
+        self.assertTrue(monster_memory.SLEEPER_REACH.window_while_shown)
 
 
 if __name__ == "__main__":

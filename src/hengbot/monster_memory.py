@@ -18,8 +18,10 @@ no longer where it was shown.  No new number.
 
 What differs between the owners is a parameter here, not a copy: which hostiles are remembered
 and which are gone (the callers' predicates), whether the window also ends an entry whose index
-is shown on the board (``Kind.window_while_shown``), and how an older pickled shape reads
-(``Kind.legacy``).
+is shown on the board (``Kind.window_while_shown``), and whether an older pickled shape is read
+(``Kind.group_turn``).  The readers call no predicate of theirs (the owner filters what
+``remembered`` returns), so a town producer reaching them stays provably data
+(scripts/town_work_data_proof.py: a call of a parameter is unproved).
 """
 
 from __future__ import annotations
@@ -39,10 +41,11 @@ class Kind:
     ``attribute``: the policy attribute holding it (the owner's old name, kept for pickles).
     ``window_while_shown``: the window ends an entry even while its index is on the board
     (else only an entry not shown expires; a shown one is judged by the owner's ``gone``).
-    ``legacy``: reads an older pickled value into (floor_key, entries), or None."""
+    ``group_turn``: a policy pickled before this module may hold the group shape
+    (floor_key, {(index, race): MonsterState}, turn), read as entries all with that turn."""
     attribute: str
     window_while_shown: bool = True
-    legacy: Callable | None = None
+    group_turn: bool = False
 
 
 def _one_turn_group(memory):
@@ -50,26 +53,25 @@ def _one_turn_group(memory):
     if len(memory) == 3:
         floor, blockers, turn = memory
         return floor, {key: (monster, turn) for key, monster in blockers.items()}
-    return memory
+    return memory[0], memory[1]
 
 
 # The owners' memories.  Their predicates stay in the owners' modules.
 SLEEPER_REACH = Kind("_sleeper_reach_memory")
 # A group remembered together: every entry has the board that stored the group.
-LOOT_BLOCK = Kind("_sleeper_loot_block", legacy=_one_turn_group)
-
-
-def _stored(policy, kind: Kind):
-    memory = getattr(policy, kind.attribute, None)  # restored checkpoints may predate it
-    if memory is not None and kind.legacy is not None:
-        memory = kind.legacy(memory)
-    return memory
+LOOT_BLOCK = Kind("_sleeper_loot_block", group_turn=True)
+# An entry whose index is on the board with its race stays, however old its last sighting.
+DISENCHANT = Kind("_disenchant_avoid_seen", window_while_shown=False)
 
 
 def entries(policy, snapshot, kind: Kind) -> dict:
-    """{(index, race): (MonsterState, last shown turn)} remembered on this floor."""
-    memory = _stored(policy, kind)
-    return memory[1] if memory is not None and memory[0] == snapshot.floor_key else {}
+    """{(index, race): (MonsterState, last shown turn)} remembered on this floor (a copy)."""
+    memory = getattr(policy, kind.attribute, None)  # restored checkpoints may predate it
+    if memory is not None and kind.group_turn:
+        memory = _one_turn_group(memory)
+    if memory is None or memory[0] != snapshot.floor_key:
+        return {}
+    return {**memory[1]}
 
 
 def forget_floor(policy, kind: Kind) -> None:
@@ -112,11 +114,11 @@ def observe(policy, snapshot, kind: Kind, remember: Callable, gone: Callable) ->
     setattr(policy, kind.attribute, (snapshot.floor_key, seen))
 
 
-def remembered(policy, snapshot, kind: Kind, keep: Callable | None = None) -> list:
+def remembered(policy, snapshot, kind: Kind) -> list:
     """The remembered hostiles out of sight (their index not on the board), at their last
-    shown cell with the distance from the player's cell; ``keep`` filters them."""
+    shown cell with the distance from the player's cell."""
     shown = {monster.index for monster in snapshot.visible_monsters}
     here = snapshot.player.position
     return [replace(monster, distance=here.distance_to(monster.position))
             for (index, _race), (monster, _turn) in entries(policy, snapshot, kind).items()
-            if index not in shown and (keep is None or keep(policy, snapshot, monster))]
+            if index not in shown]

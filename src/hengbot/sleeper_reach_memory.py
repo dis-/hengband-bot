@@ -83,4 +83,6 @@ def avoided_out_of_sight(policy, snapshot, monster) -> bool:
 
 def remembered(policy, snapshot) -> list:
     """The remembered hostiles out of sight, at their last shown cell."""
-    return monster_memory.remembered(policy, snapshot, KIND)
+    # list(): a site the town census reaches stays provably data (scripts/town_work_data_proof.py
+    # proves a builtin's result, not another module's).
+    return list(monster_memory.remembered(policy, snapshot, KIND))
