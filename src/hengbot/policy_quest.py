@@ -4917,6 +4917,9 @@ class QuestMixin(OpeningRouteMixin):
         # teleport reserve is drawn down (random_quest_reserve).
         if random_quest_reserve.teleport_reserve_spent(self, snapshot):
             return False
+        # Owner 2026-11-10 (G2) 「0本になったら帰還」: no blindness cure left.
+        if random_quest_reserve.blind_cures_spent(self, snapshot):
+            return False
         # Depth quests that Hengband does not fail on leave may regenerate a bad
         # floor after the ordinary stuck budget is exhausted. Runtime RANDOM
         # quests deliberately accept the loss at that same genuine-stall

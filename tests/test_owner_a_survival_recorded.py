@@ -153,7 +153,9 @@ class BlindWithoutCureTest(SurvivalHarness):
         # remembered floor, seeded by the turn.  Hasted, recalling, no potion.
         self.assertEqual(board.player.speed, 115)
         self.assertEqual(decide(policy, raw), "+3")
-        self.assertEqual(policy.last_reason, "no-wait:attack")
+        # The emergency ladder strikes the unseen attacker itself rather than walking to
+        # the up-stair first (n1-a life-504, 2026-11-10): the same strike, its own reason.
+        self.assertEqual(policy.last_reason, "emergency:unseen-strike")
 
     def test_control_cure_carried_is_quaffed_first(self):
         policy, raw = self.replay(("blind",), 1713414)
