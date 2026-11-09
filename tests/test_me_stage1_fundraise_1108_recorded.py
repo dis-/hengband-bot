@@ -164,6 +164,9 @@ class FundraisingContinuesTest(Arrival):
             keys.append(sequence.town_key(policy, board, []))
             if not keys[-1]:
                 break
+            # Each step is posted, as the CLI posts it: the standstill counts
+            # only posted steps (stops-1109 F, n1-c life-165).
+            policy.confirm_key_posted(keys[-1])
             policy._fundraising_mode = None
         self.assertEqual(keys, [sequence.WAIT_KEY] * (STORE_STUCK_LIMIT - 1) + [""])
         self.assertEqual(sequence.state(policy).failure, "no-progress:rumor")

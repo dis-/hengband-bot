@@ -837,6 +837,8 @@ def _stage(policy, key: str, attempts, pending=None) -> str:
 def confirm_posted(policy, key: str) -> None:
     """The CLI posted ``key`` (policy.confirm_key_posted): commit its stage."""
     record = getattr(policy, "_me_staff_sequence", None)
+    if record is not None:
+        _confirm_position(policy, record, key)
     staged = getattr(record, "staged", None)
     if staged is None:
         return
@@ -984,7 +986,15 @@ def _kind_record_key(item) -> str | None:
     return me_capability.record_key(row.kind, row.sval) if row is not None else None
 
 
-def _no_progress(policy, snapshot, phase) -> bool:
+def _no_progress(policy, snapshot, phase, key: str) -> bool:
+    """Whether this phase step stood ``STORE_STUCK_LIMIT`` times on one cell.
+
+    A step counts only once its key is posted (``confirm_posted``): a
+    decision whose key another owner replaced (the periodic character dump,
+    a Home organisation pass) did not stand there for the sequence.  n1-c
+    life-165 (2026-11-08 05:51 and 06:27): eight character dumps took the
+    travel's boards and quest:blocked:me-staff no-progress:travel stopped it.
+    """
     record = state(policy)
     progress = (phase, snapshot.player.gold,
                 tuple((it.slot, it.name, it.count, it.charges) for it in snapshot.inventory))
@@ -992,8 +1002,20 @@ def _no_progress(policy, snapshot, phase) -> bool:
         record.progress = progress
         record.positions = {}
     position = snapshot.player.position
-    record.positions[position] = record.positions.get(position, 0) + 1
-    return record.positions[position] >= STORE_STUCK_LIMIT
+    if record.positions.get(position, 0) + 1 >= STORE_STUCK_LIMIT:
+        return True
+    record.__dict__["position_offer"] = (policy._decision_sequence, key, position)
+    return False
+
+
+def _confirm_position(policy, record, key: str) -> None:
+    """Count the posted step's cell (``_no_progress``)."""
+    offer = record.__dict__.pop("position_offer", None)
+    if offer is None:
+        return
+    sequence, offered_key, position = offer
+    if sequence == policy._decision_sequence and offered_key == key:
+        record.positions[position] = record.positions.get(position, 0) + 1
 
 
 def town_key(policy, snapshot, hostiles) -> str | None:
@@ -1073,7 +1095,7 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         # yielded to the recall to Angband and the eight waits on its cell
         # stopped the bot as no-progress:travel.
         return None
-    if key and _no_progress(policy, snapshot, phase):
+    if key and _no_progress(policy, snapshot, phase, key):
         return _stop(policy, f"no-progress:{phase}")
     return key
 

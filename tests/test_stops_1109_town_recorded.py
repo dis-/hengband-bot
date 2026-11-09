@@ -287,5 +287,43 @@ class PowerfulIdentifyFloorTest(RecordedVisit):
         self.assertIsNone(me_powerful_activation.town_key(self.policy, board, ()))
 
 
+class MeStaffPostedStepTest(RecordedVisit):
+    """F. The Magic-Eater staff sequence counts a cell only for its posted step.
+
+    n1-c life-165 (2026-11-08 05:51 and 06:27) stopped under
+    quest:blocked:me-staff no-progress:travel: the sequence's position count
+    (``_no_progress``) counted every decision whose step it chose, also those
+    whose key another owner replaced, and eight periodic character dumps
+    ('Cf' + 'y', the CLI timer's request_character_dump) took the travel's
+    boards.  No record of those visits was copied; this drives the same
+    composition on n1-b life-356 (2026-11-09), whose rows 60-61 are the
+    sequence's travel to Morivant.
+
+    DECLARED CONSTRUCTED: row 60's recorded board is decided again after each
+    dump with the CLI timer's request latched before every decision (the
+    game state does not change under a dump).
+    """
+
+    fixture = "g356"
+    adopt_calibration = False
+
+    def test_replaced_steps_do_not_stop_the_sequence(self):
+        from hengbot.policy_constants import STORE_STUCK_LIMIT
+        self.replay_to(60)
+        self.assertEqual(self.journal[60]["reason"], "me-staff:travel-morivant")
+        board = self.board(60)
+        reasons = []
+        for _ in range(STORE_STUCK_LIMIT + 1):
+            self.policy.request_character_dump()
+            key = self.policy.choose_key(board)
+            reasons.append(self.policy.last_reason)
+            self.post(key)
+        self.assertEqual(reasons[0], "periodic:character-dump")
+        self.assertFalse(any(reason.startswith("me-staff:") for reason in reasons), reasons)
+        key = self.policy.choose_key(board)
+        self.assertEqual((key, self.policy.last_reason),
+                         (self.journal[60]["key"], self.journal[60]["reason"]))
+
+
 if __name__ == "__main__":
     unittest.main()
