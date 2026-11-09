@@ -39,7 +39,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import PACK_CAPACITY
 from hengbot.warrior_loadout_search import _catalog_dominates
 from policy_fixtures import seed_character_calibration
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "teleport-items-safe-c4a-20261021.jsonl.gz"

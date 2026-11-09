@@ -36,7 +36,7 @@ from hengbot.exploration_ledger import ExplorationLedger
 from hengbot.me_staff_sequence import MeStaffSequence
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from tests.test_input_executor import FaithfulHookGame, ProductionHarness, command_screen
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-62f-quest-cover-1108.json.xz"

@@ -38,7 +38,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 
 import test_star_identify_departure_recorded as star
 import test_town_unseen_travel_recorded as unseen
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 RECALL = ("ric", "town:recall-to-alt-dungeon")

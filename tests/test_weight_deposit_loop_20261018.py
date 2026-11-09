@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STORE_ALCHEMIST, STORE_HOME
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_junk_scope import pre_junk_scope_replay
 
 

@@ -64,7 +64,7 @@ from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_LIMIT
 
 from policy_fixtures import grid, player
 from recorded_floor_knowledge import pre_seen_floor_replay
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "two-cell-oscillation-20261002.jsonl.gz"

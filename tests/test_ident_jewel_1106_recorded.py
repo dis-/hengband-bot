@@ -49,7 +49,7 @@ from hengbot.policy import staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST
 from hengbot import me_powerful_activation  # after hengbot.cli: me_powers import cycle
 from replay_town_arrival import adopt_calibration, restore
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).with_name("fixtures") / "ident-jewel-1106"

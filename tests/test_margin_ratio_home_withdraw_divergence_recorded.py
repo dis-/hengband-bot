@@ -25,7 +25,7 @@ from hengbot.warrior_optimization import (
 )
 
 import test_home_withdraw_failed_stock_present_recorded as withdraw
-from test_esp_threat_rest_recorded import _policy
+from tests.support.recorded import _policy
 
 
 def _names(loadout):

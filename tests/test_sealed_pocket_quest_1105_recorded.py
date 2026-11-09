@@ -27,7 +27,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _consume_response_s
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SEARCH_LIMIT
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from tests import test_input_executor as executor_pins
 from tests.test_me_device_attacks import power_list, row
 

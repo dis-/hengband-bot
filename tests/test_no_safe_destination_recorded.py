@@ -76,7 +76,7 @@ from hengbot.policy_constants import (
     WAIT_KEY,
 )
 
-from test_esp_threat_rest_recorded import _policy
+from tests.support.recorded import _policy
 import test_town_blackmarket_stall_recorded as stall
 from test_town_blackmarket_stall_recorded import CALIBRATION, FIRST_NO_OWNER
 from identify_staff_cap_walls import pre_four_staff_cap_rule

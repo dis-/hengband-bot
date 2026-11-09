@@ -37,7 +37,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests import test_lv7_town_stop_recorded as lv7
 import tests.test_input_executor as executor_harness
-from tests.test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "breeder-reachable-upstairs-1102.json.gz"

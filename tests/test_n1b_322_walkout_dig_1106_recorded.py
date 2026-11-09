@@ -39,7 +39,7 @@ from hengbot.policy_fundraising import (
     FundraisingPurpose, FundraisingPurposeRecord, FundraisingTransportChild,
 )
 from recorded_junk_scope import choose_past_junk_key
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from tests import test_input_executor as executor_pins
 
 

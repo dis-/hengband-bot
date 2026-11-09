@@ -18,7 +18,7 @@ from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.warrior_optimization import load_character_calibration
-from tests.test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

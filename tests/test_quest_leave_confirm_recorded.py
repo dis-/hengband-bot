@@ -52,7 +52,7 @@ from hengbot.input_executor import ScreenKind
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from tests import test_input_executor as executor_pins
 
 FIXTURES = Path(__file__).parent / "fixtures"

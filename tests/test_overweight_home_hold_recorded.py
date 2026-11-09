@@ -71,7 +71,7 @@ from hengbot.policy_constants import (
     POLICY_FINAL_STOP_REASONS, STORE_HOME, STORE_MAGIC, TOWN_TRAVEL_STORE_SYMBOLS,
 )
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from xbow_pref_walls import shelf_wall_on_replay
 from extraction_calibration import install_extraction_calibration
 from recorded_loadout import pre_ratio_optimizer_replay

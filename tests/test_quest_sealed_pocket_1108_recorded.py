@@ -33,7 +33,7 @@ from hengbot import quest_target_search as search
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SEARCH_KEY, SEARCH_LIMIT
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "quest-sealed-pocket-1108.json.xz"
 FLOOR_ROW = [1, 2, 416, 1]

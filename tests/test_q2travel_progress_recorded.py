@@ -45,7 +45,7 @@ from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import FIXED_QUEST_TOWNS
 from hengbot.town_arbiter import _new_town_turn_arbiter
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "q2travel-progress-20261002.jsonl.gz"

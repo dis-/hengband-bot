@@ -50,7 +50,7 @@ from tests.test_dungeon_1031_recorded import READ_PROMPT, decide
 from tests import test_dungeon_1031_recorded as _test_dungeon_1031_recorded
 from tests import test_hit_no_action_1101_recorded as hit
 from tests import test_n1c_deaths_1101_recorded as d57
-from tests.test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 
 
 JELLY_NAME = "『スーパー・グレート・シルバー・ゼリー』"

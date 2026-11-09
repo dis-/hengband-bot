@@ -40,7 +40,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import STORE_HOME
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO, LEAVE_STORE_KEY
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).parent / "fixtures/home-leave-suppressed-20261019.json.gz"
 SHA256 = "2e5d7cbe1ad1917e68e3b8920e46f3ada4587cd30821e8d410c03108bfd11302"

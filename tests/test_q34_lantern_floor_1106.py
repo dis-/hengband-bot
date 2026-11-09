@@ -22,7 +22,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_fundraising import (
     FundraisingPurpose, FundraisingPurposeRecord, FundraisingTransportChild,
 )
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 
 
 CAPTURE = Path(__file__).parent / "fixtures" / "crossarea-holder-silent.states.jsonl.gz"

@@ -20,7 +20,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.warrior_optimization import load_character_calibration
-from test_esp_threat_rest_recorded import _policy, EDIT
+from tests.support.recorded import _policy, EDIT
 
 FIXTURE = Path(__file__).parent / "fixtures/crown-deferred-1027.json"
 

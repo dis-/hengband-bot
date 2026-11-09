@@ -31,7 +31,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import SV_SCROLL_PHASE_DOOR, TVAL_SCROLL
 from hengbot.monrace_knowledge import MonsterBlow, load_monrace_knowledge
 from hengbot.monster_melee_evaluator import add_earthquake_damage
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "self-destruct-melee-20261018.jsonl.gz"

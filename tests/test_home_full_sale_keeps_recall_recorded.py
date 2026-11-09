@@ -37,7 +37,7 @@ from tempfile import TemporaryDirectory
 from hengbot.cli import _parse_items
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_junk_scope import pre_junk_scope_replay
 
 

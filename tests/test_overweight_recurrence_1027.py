@@ -30,7 +30,7 @@ from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.protocol import snapshot_protocol_version
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 import tests.test_input_executor as executor_harness
 
 

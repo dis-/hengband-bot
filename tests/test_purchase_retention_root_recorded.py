@@ -58,7 +58,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.purchase_rungs import PurchaseContext, purchase_rung_retention
 from hengbot.runtime_paths import (RUNTIME_DIR_ENV,
                                    isolate_restored_runtime_paths)
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_home_full_sale_keeps_recall_recorded import _without_home_junk
 
 

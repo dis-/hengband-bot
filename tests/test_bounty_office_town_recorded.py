@@ -30,7 +30,7 @@ from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import MORIVANT_TOWN_ID
 from recorded_session_replay import replay_session
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 import tests.test_input_executor as executor_harness
 
 FIXTURE = Path(__file__).parent / "fixtures/bounty-office-town-20261030.json.gz"

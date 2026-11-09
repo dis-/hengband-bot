@@ -85,7 +85,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 
 import absorbing_state_catalog
-import test_esp_threat_rest_recorded as esp_recorded
+from tests.support import recorded as esp_recorded
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour
 from recorded_digger_carry import pre_digger_home_replay

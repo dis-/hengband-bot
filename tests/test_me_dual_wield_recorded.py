@@ -53,7 +53,7 @@ from hengbot.policy_constants import (
 from tests import test_input_executor as harness
 from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CASE = FIXTURES / "me-dual-wield-20261101.json.gz"

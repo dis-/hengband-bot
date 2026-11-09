@@ -81,7 +81,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.warrior_optimization import load_character_calibration
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from combat_decision_walls import pre_combat_decisions_rule
 from recorded_junk_scope import pre_home_junk_sweep_rule
 from suitefix4_checkpoints import restore as restore_independent

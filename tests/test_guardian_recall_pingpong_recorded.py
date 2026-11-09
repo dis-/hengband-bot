@@ -85,7 +85,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import EMPTY_DIVE_LIMIT, POLICY_FINAL_STOP_REASONS
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_equipment_decisions import recorded_equipment_decisions
 
 # overweight-home review P2 (USER DECISION 2026-09-20 「帰還の巻物は目標＋出発で

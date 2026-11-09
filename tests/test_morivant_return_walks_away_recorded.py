@@ -84,7 +84,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import TOWN_TRAVEL_STALL_LIMIT
 from hengbot.policy_types import MorivantFullIdentifyExpedition
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

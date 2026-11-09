@@ -49,7 +49,7 @@ from tempfile import TemporaryDirectory
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import STORE_HOME
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_junk_scope import pre_town_junk_step_rule
 import test_lantern_lost_recorded as lantern_recorded
 import test_home_route_release_recorded as home_route_recorded

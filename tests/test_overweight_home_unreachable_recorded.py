@@ -112,7 +112,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import STORE_HOME, TOWN_STOP_PASS_LIMIT
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_loot_observation import pre_fix_loot_observation
 import test_policy_home  # WeightOverloadTownTest's overweight town board
 from recorded_loadout import recorded_loadout_replay

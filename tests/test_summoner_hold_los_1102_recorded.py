@@ -34,7 +34,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.summoner_wait import HOLD_REPOSITION_REASON
 from tests import test_input_executor as executor_pins
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "summoner-hold-los-1102.json.gz"

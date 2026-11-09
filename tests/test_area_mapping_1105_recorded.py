@@ -27,7 +27,7 @@ from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import Position, game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from tests import test_input_executor as executor_pins
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_list, power_screen, row

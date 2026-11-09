@@ -31,7 +31,7 @@ from tempfile import TemporaryDirectory
 from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import LANTERN_REFILL_FUEL, TORCH_REFILL_FUEL
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_junk_scope import pre_town_junk_step_replay
 
 

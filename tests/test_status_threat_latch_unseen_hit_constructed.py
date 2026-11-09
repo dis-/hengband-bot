@@ -47,7 +47,7 @@ from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
 import test_two_cell_oscillation_recorded as recorded
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 SUBSTRATE = 5613  # recorded board: player (49,77), open room
 HORROR_BOARD = 5638  # recorded board with a visible ピンク・ホラー

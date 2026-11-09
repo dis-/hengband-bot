@@ -19,7 +19,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.spectator import SPECTATE_WRITE_INTERVAL_SECONDS, SpectatorWriter, spectator_details
 from tests import test_input_executor as executor_pins
-from tests.test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 from tests import test_spectator as spectator_pins
 
 FIXTURE = Path(__file__).with_name("fixtures") / "spectator-board.json"

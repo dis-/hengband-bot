@@ -130,7 +130,7 @@ from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 
 from recorded_floor_knowledge import pre_remains_pile_replay, pre_seen_floor_replay
 from recorded_junk_scope import pre_home_junk_sweep_replay
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 STEM = "town-cure-supplier-20261003"

@@ -34,7 +34,7 @@ from hengbot.model import TVAL_SCROLL, _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.town_terminal import gather_home_withdraw, verdict_home_withdraw
 from tests import test_input_executor as executor_pins
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "confirmed-home-take-1102.json.gz"

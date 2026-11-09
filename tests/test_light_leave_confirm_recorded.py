@@ -28,7 +28,7 @@ from hengbot.model import SV_FLASK_OIL, TVAL_FLASK
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import OIL_TARGET
 from hengbot.quest_knowledge import QUEST_TYPE_RANDOM
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from tests import test_input_executor as executor_pins
 
 FIXTURE = Path(__file__).parent / "fixtures" / "light-rootfix-q2-20261025.jsonl.gz"
