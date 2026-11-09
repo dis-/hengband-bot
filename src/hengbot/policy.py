@@ -2750,6 +2750,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             identity=self._decision_sequence + 1,
         )
         snapshot = self._with_cached_skill_exp(snapshot)
+        snapshot = self._with_skill_request_board_messages(snapshot)
         # Protocol 3: before any evaluator needs the two-weapon / shield
         # skill_exp, read them off the ~f skill list.  Like the look probe
         # below, this observation-only key costs no game time and is not a
@@ -2774,6 +2775,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self.decision_attribution = arbiter.decision_owner_for_reason(
                     self.last_reason
                 )
+                # The board the request answers is never observed: its messages go
+                # to the board that follows it (_with_skill_request_board_messages).
+                self._skill_request_board_messages = (
+                    snapshot.floor_key, snapshot.turn, snapshot.messages)
                 key = skill_request
                 break
             self._refresh_carried_equipment_catalog(snapshot)
@@ -6601,6 +6606,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot.player, two_weapon_skill=two_weapon, shield_skill=shield
             ),
         )
+
+    def _with_skill_request_board_messages(self, snapshot: Snapshot) -> Snapshot:
+        """The board after a ~f request carries the messages of the board the request
+        answered, when the game shows none of its own on the same floor and turn.
+
+        The request returns before any observation (``choose_key``), and the game's
+        message line is spent by then, so a kill shown on that board was never read:
+        n1-c life-183 (Angband 49F, 2026-11-09 20:33) killed an 古代レッド・ドラゴン with
+        the blow that made it Lv38; the level-up asked ~f on that board, the next board
+        showed no message, and the dragon stayed remembered awake at [37,108] for the
+        routes' veto (sleeper_reach_memory) until the loop detector stopped the bot."""
+        held = self.__dict__.pop("_skill_request_board_messages", None)
+        if (held is None or snapshot.messages
+                or held[:2] != (snapshot.floor_key, snapshot.turn)):
+            return snapshot
+        return replace(snapshot, messages=held[2])
 
     @claims(ClaimOwner.BOOKKEEPING)
     def _skill_exp_request_key(self, snapshot: Snapshot) -> str | None:
@@ -14415,6 +14436,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Dropped veins are excluded here even though _observe keeps re-adding
         # them to _known_treasure while their gold is visible — otherwise
         # "skip this vein" would immediately re-select it.
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         candidates = self._known_treasure - self._mining_dropped_veins
         target = self._treasure_target
         if target is not None and target in candidates:
@@ -14450,7 +14473,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # mining route through one would repeat _step_toward's
                 # refusal forever on this static floor.  Veins reachable only
                 # through them are simply not selected.
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if neighbor in seen or neighbor in walk_veto:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -14465,6 +14488,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self, snapshot: Snapshot, target: Position
     ) -> Position | None:
         """Route beside a vein using remembered floor outside the current view."""
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
@@ -14478,7 +14503,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # Same lethal-danger weight as every other routing BFS (see
                 # _treasure_step): never route the mining walk through an
                 # avoided cell.
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if neighbor in seen or neighbor in walk_veto:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -14493,6 +14518,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         *, through: frozenset[tuple[int, int]] = frozenset(),
         avoid: frozenset[Position] = frozenset(),
     ) -> Position | None:
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
@@ -14501,7 +14528,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if pos == target:
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, pos, through=through):
-                if neighbor in seen or neighbor in self._engagement_avoid_cells or neighbor in avoid:
+                if neighbor in seen or neighbor in walk_veto or neighbor in avoid:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -14516,6 +14543,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         pickup_reason: str,
         trigger_reason: str,
     ) -> str | None:
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         if len(snapshot.inventory) >= PACK_CAPACITY:
             return None
         here = snapshot.grid_at(snapshot.player.position)
@@ -14538,7 +14567,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 for neighbor in self._walkable_neighbors(
                     snapshot, snapshot.player.position
                 )
-                if neighbor not in self._engagement_avoid_cells
+                if neighbor not in walk_veto
             ]
             if neighbors:
                 step = min(neighbors, key=lambda pos: self._visit_counts[pos])
@@ -17415,6 +17444,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return self._engagement_danger_cells(snapshot) | disenchant_avoid.remembered_cells(
             self, snapshot, immobile_threat_memory.ringed)
 
+    def _walk_veto(self, snapshot: Snapshot) -> frozenset[Position]:
+        """The cells no walk steps on: the engagement retreats' own cells and the routes'
+        engagement veto (``_engagement_route_veto``).
+
+        One answer for every walker, so two walkers never disagree about a cell: the goal
+        walks (``goal_route``: stairs, chests, stores, shelters) kept off the retreats'
+        own cells only while the explore, descent and loot walks kept off the veto too.
+        n1-c life-183 (Angband 49F, 2026-11-09 20:33): with an 古代レッド・ドラゴン remembered at
+        [37,108], at [37,117] (9 cells, outside its area) the explore had no frontier off
+        its area and ``stuck:seek-stairs`` stepped '7' into it to [36,116], where the area
+        shrank to the cells nearer it and the explore stepped '3' straight back; at 20:44
+        to 20:45 ``chest:approach`` walked toward a chest the loot walk kept off, between
+        [4,38] and [5,39], until the loop detector stopped the bot three more times."""
+        return frozenset(self._engagement_avoid_cells) | self._engagement_route_veto(snapshot)
+
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.
 
@@ -17655,6 +17699,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         allow_damaging: bool,
         avoid: set[Position] | None,
     ) -> list[Position]:
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         avoided = (avoid or set()) - {start, goal}
         queue: deque[Position] = deque([start])
@@ -17679,7 +17725,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 if (
                     neighbor in parent
                     or neighbor in avoided
-                    or neighbor in self._engagement_avoid_cells
+                    or neighbor in walk_veto
                 ):
                     continue
                 parent[neighbor] = position
