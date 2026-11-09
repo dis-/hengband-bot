@@ -25,29 +25,11 @@ from hengbot.policy_types import CrossTownShoppingExpedition
 from hengbot.town_hold import reach_place_goal as reach_place
 from hengbot.town_terminal import gather_quest_work, verdict_quest_work
 
-FIXTURE = Path(__file__).parent / "fixtures/goldburn-20261003.decisions.json"
-SHA256 = "6f3f9fe6b9d9e6c5e9323795e03a96cd545af59c6516582925f4a5faba439c37"
-
-
-def decision(index):
-    assert hashlib.sha256(FIXTURE.read_bytes().replace(b"\r\n", b"\n")).hexdigest() == SHA256
-    return json.loads(FIXTURE.read_text(encoding="utf-8"))["rows"][index]["decision"]
-
-
-def board(index=0):
-    row = decision(index)
-    y, x = row["position"]["y"], row["position"]["x"]
-    return Snapshot(
-        player(y, x, gold=row["player"]["gold"], level=row["player"]["level"],
-               hp=row["player"]["hp"], max_hp=row["player"]["max_hp"],
-               mp=row["player"]["mp"], max_mp=row["player"]["max_mp"],
-               food=9000, class_id=0),
-        {Position(yy, xx): grid(yy, xx, building_type=4 if (yy, xx) == (28, 56) else -1)
-         for yy in range(y - 2, y + 3) for xx in range(x - 2, x + 3)},
-        [], floor_key=(0, 0, 0), town_flag=True, town_id=1 if index == 0 else 0,
-        inventory=[] if index == 0 else [item("a", TVAL_DIGGING, SV_DIGGING_SHOVEL, is_equipment=True)],
-        visited_town_ids=(0, 1), turn=row["turn"],
-    )
+# Moved to tests/support/boards.py; re-exported for importers.
+from tests.support.boards import (  # noqa: F401
+    GOLDBURN_FIXTURE as FIXTURE, GOLDBURN_SHA256 as SHA256, goldburn_board as board,
+    goldburn_decision as decision, goldburn_shopping_policy as shopping_policy,
+)
 
 
 def _quest_entry(policy, snap):
@@ -64,18 +46,6 @@ def _quest_entry(policy, snap):
 
 def _shopping_holds(policy, snap):
     return not verdict_quest_work(gather_quest_work(policy, snap)).admitted
-
-
-def shopping_policy():
-    policy = HengbotPolicy()
-    row = decision(0)
-    policy._cross_town_shopping = CrossTownShoppingExpedition(**{
-        **row["cross_town_shopping"],
-        "blocking_categories": tuple(row["cross_town_shopping"]["blocking_categories"]),
-        "candidate_order": tuple(row["cross_town_shopping"]["candidate_order"]),
-    })
-    policy._identification_need = "full"
-    return policy
 
 
 class GoldburnShoppingConstructedTest(unittest.TestCase):
