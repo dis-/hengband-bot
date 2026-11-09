@@ -25,7 +25,7 @@ from hengbot.model import (SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_REMOVE_CUR
 from hengbot.policy import HengbotPolicy
 from hengbot.town_terminal import REFUSAL_SERVERS, Server, TerminalRef
 from policy_fixtures import item
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 
 RUNG = "_town_remove_curse_key"
 TERMINAL = TerminalRef("curse-remove", ("remove-curse",))
