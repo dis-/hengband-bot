@@ -72,6 +72,7 @@ from hengbot.policy_constants import (
     CHARACTER_DUMP_MACRO,
     COMBAT_REASON_PREFIXES,
     ENTER_DUNGEON_MACRO,
+    ESP_THREAT_LEAVE_PREFIX,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
     IN_STORE_BREAKER_REASON_PREFIX,
@@ -395,6 +396,16 @@ STATIONARY_REASONS = frozenset(
         # work with _wall_search_counts; feeding these deliberate holds to the
         # 40-cell watchdog produces a false loop at five walls (5 * 8).
         *RETURN_STATIONARY_REASONS,
+        # The ESP-threat leave relabels the same return machinery
+        # (_esp_threat_leave_key: return:X -> esp-threat:leave-X), so the
+        # same bounded holds arrive under these names.  The recall wait is
+        # emitted only while player.recalling and ends when the recall fires
+        # (n1-b life-357 2026-11-09 14:06 stopped as loop-detected after 32
+        # esp-threat:leave-wait-recall waits on 48F).
+        *(
+            ESP_THREAT_LEAVE_PREFIX + reason[len("return:"):]
+            for reason in RETURN_STATIONARY_REASONS
+        ),
         "fundraise:wait-recall",
         # Clearing a physically occupied escape route attacks without changing
         # cells. Accuracy-aware combat projection bounds whether this is chosen.
