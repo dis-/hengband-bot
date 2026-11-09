@@ -78,10 +78,10 @@ def _rows(kind, producers, rule, *patterns, attack=False) -> None:
 
 # ================================================================ counted at the read
 # The emergency ladder (policy_combat._emergency_item, policy._decide's emergency rungs) and the
-# blind teleport of threat_tiers.blind_teleport_key, which builds ``reason + ":absorbed-power"``
+# blind teleport of threat_escape.blind_teleport_key, which builds ``reason + ":absorbed-power"``
 # and ``reason + "-staff"``.
 _RULE_EMERGENCY = "the emergency ladder's escapes: counted at the read (EMERGENCY_ESCAPE_REASONS)"
-_rows(EMERGENCY, ("policy", "policy_combat", "threat_tiers"), _RULE_EMERGENCY,
+_rows(EMERGENCY, ("policy", "policy_combat", "threat_tiers", "threat_escape"), _RULE_EMERGENCY,
       "emergency:teleport", "emergency:teleport:absorbed-power", "emergency:teleport-staff",
       "emergency:phase", "emergency:stairs")
 _rows(EMERGENCY, ("policy", "once_quest_recall"), _RULE_EMERGENCY, "emergency:recall")
@@ -107,8 +107,9 @@ _rows(RELOCATING, "policy", _RULE_ALL, "emergency:stairs-down")
 # the flee rung (policy._decide_dungeon) and the threat reposition's cornered read
 _rows(RELOCATING, "policy", _RULE_ALL, "flee:scroll", "flee:stairs", "flee:stairs-quest-fail",
       "threat:scroll")
-# the sensed T1 leave (threat_tiers.sensed_t1_leave_key, SENSED_LEAVE_PREFIX + ...)
-_rows(RELOCATING, "threat_tiers", _RULE_ALL,
+# the sensed T1 leave (threat_tiers.sensed_t1_leave_key, SENSED_LEAVE_PREFIX + ...; blind, through
+# threat_escape.blind_teleport_key)
+_rows(RELOCATING, ("threat_tiers", "threat_escape"), _RULE_ALL,
       "sensed-t1:teleport", "sensed-t1:teleport:absorbed-power", "sensed-t1:teleport-staff",
       "sensed-t1:phase", "sensed-t1:stairs", "sensed-t1:recall")
 # the exposed summoner's up stairs (policy) and _immobile_summoner_exit_key's up stairs

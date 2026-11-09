@@ -2149,6 +2149,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "instant_death.py:InstantDeath.next_action": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "instant_death.py:_instant_death": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "instant_death.py:instant_death": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "item_fate.py:gear_tier": {
     "classification": "data",
     "rows": [
@@ -11870,6 +11891,62 @@
     ],
     "delegation": "No independent success; existing wait or avoidance owner."
   },
+  "supply_fight.py:_aim": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "supply_fight.py:_charge_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "supply_fight.py:_fight_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "supply_fight.py:_good_ammo_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "supply_fight.py:_heal_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "supply_fight.py:_resistance_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "supply_fight.py:_scroll_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "supply_fight.py:_spend": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "survival_preemption.py:emergency_hostiles": {
     "classification": "data",
     "rows": [
@@ -11919,21 +11996,91 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:InstantDeath.next_action": {
+  "threat_escape.py:blind_teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_escape.py:blind_teleport_means": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_aim": {
+  "threat_escape.py:need_not_fight": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_as_held": {
+  "threat_projection.py:_free_devices": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:_launcher_stacks": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:_with_adjusted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:adjusted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:engagement": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:free_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:unseen_correction": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tier_memory.py:_as_held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tier_memory.py:_tier_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tier_memory.py:held_tier": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11947,41 +12094,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_charge_key": {
-    "classification": "producer",
-    "rows": [
-      "combat"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:_fight_target": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:_free_devices": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:_good_ammo_key": {
-    "classification": "producer",
-    "rows": [
-      "combat"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:_heal_key": {
-    "classification": "producer",
-    "rows": [
-      "combat"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "threat_tiers.py:_held_reading": {
     "classification": "data",
     "rows": [
@@ -11989,77 +12101,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_instant_death": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:_launcher_stacks": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:_resistance_key": {
-    "classification": "producer",
-    "rows": [
-      "combat"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:_scroll_key": {
-    "classification": "producer",
-    "rows": [
-      "combat"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:_spend": {
-    "classification": "producer",
-    "rows": [
-      "combat"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:_tier_memory": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:_with_adjusted_speed": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:adjusted_speed": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "threat_tiers.py:assess": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:blind_teleport_key": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:blind_teleport_means": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -12080,35 +12122,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:engagement": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:free_damage": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:held_tier": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "threat_tiers.py:inside_sensing": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:instant_death": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -12121,13 +12135,6 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "threat_tiers.py:need_not_fight": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:sensed_t1_leave_key": {
     "classification": "producer",
@@ -12151,13 +12158,6 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:tiered": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:unseen_correction": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

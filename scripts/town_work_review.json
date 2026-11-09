@@ -15850,7 +15850,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "threat_tiers.py:engagement": {
+  "threat_projection.py:engagement": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -15861,7 +15861,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the strategic hostiles in view plus the awake detected ones (threat tiers design 3), read by assess, facts and instant_death_key; not an independently selected game action"
   },
-  "threat_tiers.py:need_not_fight": {
+  "threat_escape.py:need_not_fight": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16148,7 +16148,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. assess memoised for the decision (decision_memo); read by leave_due, tier_of, the supply fight and resist_potion.ladder_key; not an independently selected game action"
   },
-  "threat_tiers.py:_fight_target": {
+  "supply_fight.py:_fight_target": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16159,7 +16159,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. the selected monster the supply fight is for (the committed race, else the nearest selected); not an independently selected game action"
   },
-  "threat_tiers.py:_aim": {
+  "supply_fight.py:_aim": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16170,7 +16170,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. a direction key reaching the target (beside it or on a clear ray); not an independently selected game action"
   },
-  "threat_tiers.py:_spend": {
+  "supply_fight.py:_spend": {
     "classification": "producer",
     "rows": [
       "combat"
@@ -16181,7 +16181,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Threat tiers plan step 7 (owner answer 4, D7): the item command of one planned supply (quaff, fire, wand, staff) through reserved_item_command, noting the committed race; read only by the supply fight's own keys."
   },
-  "threat_tiers.py:_heal_key": {
+  "supply_fight.py:_heal_key": {
     "classification": "producer",
     "rows": [
       "combat"
@@ -16192,7 +16192,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Threat tiers plan step 7: the planned Healing / *Healing* / Life dose when today's supplied-fight rule says it is due; None otherwise."
   },
-  "threat_tiers.py:_resistance_key": {
+  "supply_fight.py:_resistance_key": {
     "classification": "producer",
     "rows": [
       "combat"
@@ -16203,7 +16203,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Threat tiers plan step 7 (OQ-9): the planned Resistance (or Resist Heat / Cold) drink while its opposition is not on; None otherwise."
   },
-  "threat_tiers.py:_good_ammo_key": {
+  "supply_fight.py:_good_ammo_key": {
     "classification": "producer",
     "rows": [
       "combat"
@@ -16214,7 +16214,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Threat tiers plan step 7 (OQ-6, D7): fire the planned ego / artifact ammo at the selected target when it out-damages the free attack; None otherwise."
   },
-  "threat_tiers.py:_charge_key": {
+  "supply_fight.py:_charge_key": {
     "classification": "producer",
     "rows": [
       "combat"
@@ -16225,7 +16225,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Threat tiers plan step 7 (OQ-6, D7): aim the planned attack wand or use the planned attack staff at the selected target when it out-damages the free attack; None otherwise."
   },
-  "threat_tiers.py:_scroll_key": {
+  "supply_fight.py:_scroll_key": {
     "classification": "producer",
     "rows": [
       "combat"
@@ -16291,7 +16291,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. the engagement's reading with its decided side held and the per-monster memory updated (owner 2026-11-08 「境に余裕を持たせる」); lifts the retreat veto of a side turned to fight; no command, no key"
   },
-  "threat_tiers.py:held_tier": {
+  "threat_tier_memory.py:held_tier": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16302,7 +16302,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the tier after a reading, each tier boundary crossed only by the reading's reserve (the hold's band); read by decided only, never a key"
   },
-  "threat_tiers.py:_as_held": {
+  "threat_tier_memory.py:_as_held": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16313,7 +16313,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the reading with the held tier (a T2 held over a T3 reading spends nothing); read by decided only, never a key"
   },
-  "threat_tiers.py:_tier_memory": {
+  "threat_tier_memory.py:_tier_memory": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16434,7 +16434,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:blind_teleport_key": {
+  "threat_escape.py:blind_teleport_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -16445,7 +16445,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "threat_tiers.py:blind_teleport_means": {
+  "threat_escape.py:blind_teleport_means": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16544,7 +16544,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_with_adjusted_speed": {
+  "threat_projection.py:_with_adjusted_speed": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16555,7 +16555,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the strategic hostiles in view plus the awake detected ones (threat tiers design 3), read by assess, facts and instant_death_key; not an independently selected game action"
   },
-  "threat_tiers.py:instant_death": {
+  "instant_death.py:instant_death": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16728,7 +16728,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:free_damage": {
+  "threat_projection.py:free_damage": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16739,7 +16739,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_free_devices": {
+  "threat_projection.py:_free_devices": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
