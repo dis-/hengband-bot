@@ -30,7 +30,7 @@ import lzma
 from pathlib import Path
 import unittest
 
-from hengbot import status_cure, teleport_follower, threat_tiers
+from hengbot import status_cure, teleport_follower, threat_tiers, worsens_kill
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.model import (
     SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, SV_STAFF_DESTRUCTION, SV_WAND_TELEPORT_AWAY,
@@ -156,10 +156,11 @@ class FollowerRecordedTest(TeleportFollowerHarness):
 
     def test_the_replay_matches_the_live_decisions_before_the_summons(self):
         """From the クトーニアン's waking (15756) to the summons the replay decides as live did
-        (the first boards of the floor differ: a fresh policy has no exploration memory)."""
+        (the first boards of the floor differ: a fresh policy has no exploration memory), but
+        15760, where plan step 11 shoots the summoner (WorsensWithTimeRecordedTest)."""
         _policy, answers = self.recorded_answers()
         for turn, (_raw, key, reason, _snapshot) in answers.items():
-            if WOKE <= turn < SUMMONED:
+            if WOKE <= turn < SUMMONED and turn != RETREAT_OPEN:
                 self.assertEqual((key, reason),
                                  (self.recorded[turn]["key"], self.recorded[turn]["reason"]), turn)
 
@@ -280,6 +281,53 @@ class FasterBlinderConstructedTest(TeleportFollowerHarness):
         raw, key, reason, _snapshot = answers[FIRST_READ]
         self.assertEqual((key, reason), ("r" + letter(raw, TVAL_SCROLL, SV_SCROLL_TELEPORT),
                                          "emergency:teleport"))
+
+
+
+CHTHONIAN = 619
+RETREAT_OPEN = 11910642   # decision 15760: summoner:retreat, the クトーニアン 6 cells off
+RETREAT_NEAR = 11910654   # decision 15761: summoner:retreat, 3 cells off
+
+
+def low_hp(raw):
+    """DECLARED CONSTRUCTED: HP 300 of 1092 on the 15760 board (below the low-HP line)."""
+    if raw["turn"] == RETREAT_OPEN:
+        raw["player"]["hp"] = 300
+
+
+class WorsensWithTimeRecordedTest(TeleportFollowerHarness):
+    """Item 3, threat tiers plan step 11 (design 4.4, 10a, OQ-1 option A, OQ-10, D2)."""
+
+    def test_the_summoner_that_dies_harmlessly_is_shot_not_retreated_from(self):
+        """15760: the クトーニアン (S_DEMON) 6 cells off; the free shots kill it in 5 turns and the
+        projection of every visible hostile over them is 0 (no path: it digs, no line of fire),
+        within 10% of HP 1092.  Live: summoner:retreat."""
+        policy, answers = self.recorded_answers()
+        raw, key, reason, snapshot = answers[RETREAT_OPEN]
+        self.assertEqual(self.recorded[RETREAT_OPEN]["reason"], "summoner:retreat")
+        chthonian = next(m for m in snapshot.visible_monsters if m.race_id == CHTHONIAN)
+        self.assertEqual(threat_tiers.worsens_kinds(policy, chthonian), ("summon",))
+        self.assertTrue(worsens_kill.harmless(policy, snapshot, chthonian))
+        # The fire command aimed at it (the attack keeps its own reason).
+        self.assertTrue(key.startswith("f") and reason.startswith("ranged:fire"), (key, reason))
+
+    def test_a_summoner_that_would_cost_damage_is_left_to_the_rules_below(self):
+        """15761: 3 cells off the projection over the 5 kill turns (205) passes 10% of HP 1092;
+        the rung declines and the recorded summoner:retreat stands."""
+        policy, answers = self.recorded_answers()
+        _raw, key, reason, snapshot = answers[RETREAT_NEAR]
+        chthonian = next(m for m in snapshot.visible_monsters if m.race_id == CHTHONIAN)
+        self.assertFalse(worsens_kill.harmless(policy, snapshot, chthonian))
+        self.assertEqual((key, reason), (self.recorded[RETREAT_NEAR]["key"], "summoner:retreat"))
+
+    def test_below_the_low_hp_line_the_rung_does_not_act(self):
+        """CONSTRUCTED: HP 300 on 15760 (OQ-10: below the low-HP line the 11-06 escape wins)."""
+        policy, answers = self.replay(until=RETREAT_OPEN, change=low_hp)
+        _raw, _key, reason, snapshot = answers[RETREAT_OPEN]
+        self.assertLess(snapshot.player.hp, policy._low_hp_walk_threshold(snapshot.player.max_hp))
+        self.assertFalse(worsens_kill.kill_first(policy, snapshot, snapshot.visible_monsters))
+        # The 11-06 low-HP summoner escape (teleport or recall, not a step) answers instead.
+        self.assertEqual(reason, "emergency:teleport")
 
 
 if __name__ == "__main__":

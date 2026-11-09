@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, speed_dose, status_cure, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -2341,6 +2341,9 @@ class CombatMixin:
                 and self._summoner_ranged_attack_available(snapshot, monster)
                 for monster in summoners
             )
+            # Design 4.4 / 2.3 (plan step 11): above the low-HP line a summoner that dies
+            # 被害無く is killed (worsens_kill), not escaped from (OQ-10).
+            and not worsens_kill.kill_first(self, snapshot, summoners)
         )
         guardian_reposition = (
             summoner_open

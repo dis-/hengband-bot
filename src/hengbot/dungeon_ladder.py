@@ -90,6 +90,8 @@ LADDER = (
     )),
     # Owner 2026-11-06 「命に関わる時の後へ回す」: below the emergency ladder.
     Layer("summoner-shots", "the summons rules, floor avoidance, combat and all below", (
+        # Threat tiers plan step 11 (design 4.4, 10a): directly above the summoner shots (D2).
+        *D("worsens_kill.key", exempt=FIGHTS),
         *E("_summoner_ranged_kill_key", exempt=FIGHTS),
     )),
     Layer("floor-avoidance", "light, the approved quest floor, combat and all below", (
@@ -405,6 +407,9 @@ OWNER_RULES = (
             "_item_destroying_breeder_leave_key": "leaves a breeder that destroys the kit: survival",
             "_mana_food_survival_override_key": "starvation: survival",
             "_paralyzer_prevention_key": "the blow that ends the game: survival",
+            "worsens_kill.key": "kills a summoner / breeder / shrieker that dies 被害無く, after "
+                                "survival (threat tiers design 4.4, 10a); a summons rule due "
+                                "on the board skips it",
             "_summoner_ranged_kill_key": "shoots the summoner itself, after survival "
                                          "(owner 2026-11-06 「命に関わる時の後へ回す」); "
                                          "a summons rule due on the board skips it",
