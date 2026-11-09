@@ -16434,7 +16434,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if route is not None and route[0] != snapshot.floor_key:
             self._release_claim_goal("choke-floor-changed", route[1], owners=("positioning",))
             self._detected_threat_route = route = None
-        if visible_hostiles:
+        # A hostile in view hands the episode to the visible-monster channel.  A
+        # sleeper does not: it does not converge, the visible channel owns no
+        # board of it the walkers do not (its reach is the routes' veto in and
+        # out of sight, sleeper_reach_memory), and its sight's edge flipped the
+        # owner every step.  n1-b life-355 (Angband 71F, 2026-11-09 04:01): a
+        # sleeping 石ドラゴン (race 1048) shown at (35,118) released the retreat
+        # from a detected pack of フローラのアイリッシュ犬 and seek-loot stepped
+        # '3' to (36,119), out of its sight, where the retreat stepped '7' back,
+        # until the loop detector -- the fourth stop of this owner-pair shape
+        # (09-23 committed, 10-02 quest plan, 10-23 no covered cell below).
+        if any(not monster.asleep for monster in visible_hostiles):
             self._detected_threat_hold = None
             self._detected_threat_hold_position = None
             if route is not None:
@@ -17333,17 +17343,23 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         「眠っている敵でも強い敵からは離れる」)."""
         player = snapshot.player.position
         cells: set[Position] = set()
-        # A sleeper out of sight is judged at its last shown cell (sleeper_reach_memory,
-        # n1-b life-348 Orc cave 23F: one step out of sight the explore walked back).
-        for monster in (*self._strategic_hostiles(snapshot),
-                        *sleeper_reach_memory.remembered(self, snapshot)):
+        # A hostile out of sight is judged at its last shown cell as a sleeper is
+        # (sleeper_reach_memory, n1-b life-348 Orc cave 23F: one step out of sight the
+        # explore walked back; owner 2026-11-09 「起きた敵も最後の位置を覚える」: an awake one
+        # too, also a latched status threat, n1-b life-346 Angband 18F's ゲイザー).
+        remembered = sleeper_reach_memory.remembered(self, snapshot)
+        unseen = {id(monster) for monster in remembered}
+        for monster in (*self._strategic_hostiles(snapshot), *remembered):
+            out_of_sight = id(monster) in unseen
             if (immobile_threat_memory.ringed(self, monster)
                     or immobile_threat_memory.fought_normally(self, snapshot, monster)
-                    or not self._material_melee_damage(snapshot, monster)):
+                    or not (self._material_melee_damage(snapshot, monster)
+                            or out_of_sight and sleeper_reach_memory.status_latched(
+                                self, snapshot, monster))):
                 continue
             distance = player.distance_to(monster.position)
             if distance <= HUNT_RANGE:
-                if not monster.asleep:
+                if not monster.asleep and not out_of_sight:
                     return frozenset()
                 reach = distance - 1
                 cells.update(
