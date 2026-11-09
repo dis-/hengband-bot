@@ -15850,7 +15850,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "threat_tiers.py:engagement": {
+  "threat_projection.py:engagement": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16544,7 +16544,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_with_adjusted_speed": {
+  "threat_projection.py:_with_adjusted_speed": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

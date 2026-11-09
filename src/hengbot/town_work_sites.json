@@ -11744,6 +11744,34 @@
     ],
     "delegation": "No independent success; the emergency ladder selects the command."
   },
+  "threat_projection.py:_with_adjusted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:adjusted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:engagement": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:unseen_correction": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:InstantDeath.next_action": {
     "classification": "data",
     "rows": [
@@ -11842,20 +11870,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:_with_adjusted_speed": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:adjusted_speed": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "threat_tiers.py:assess": {
     "classification": "data",
     "rows": [
@@ -11885,13 +11899,6 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:decided": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:engagement": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11955,13 +11962,6 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:tiered": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:unseen_correction": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
