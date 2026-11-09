@@ -17348,5 +17348,62 @@
       "data/no-independent-credit"
     ],
     "evidence": "Pure arithmetic (the model's game_distance re-exported)."
+  },
+  "wand_tower_recharge.py:_errand_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. Selects the next leg or the recharge.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:_leg_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. Delegates _town_teleport_key (cross-town) to Morivant or back; a failed leg ends the errand.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:_recharge_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. Walks to the Tower of Sorcery (building 8) and posts 'a' + 'y' + ESC (observed_input answers 'y' at the observed question, morivant_tower.RECHARGE_ALL_REASONS).",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. At the recall read (policy_town _town_special_key, after the armour smith).",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:trip_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. Sole non-emergency town owner while the trip is under way (policy_quest, after the armour smith's trip).",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Returns the stay record (policy._wand_recharge_stay); no command."
   }
 }

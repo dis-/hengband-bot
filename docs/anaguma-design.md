@@ -624,3 +624,7 @@ What the code does where the design left a detail open:
   - members still known get one more wait of 50 game turns;
   - otherwise the plan ends.
 - **Close-in.** The area attack is an absorbed or carried ball or breath aimed in the direction of the mouth, whose blast reaches the animal (`breeder_area_attack` geometry). The haste is the Magic-Eater's absorbed Speed only. The chase moves outward along the tunnel and ends on its start cell.
+- **The Tower trip.**
+  - It starts only where Morivant is already listed. It reads no rumours and starts no fundraising.
+  - The Q2 trip keeps priority while it applies.
+  - It starts at the recall read, after the armour smith.

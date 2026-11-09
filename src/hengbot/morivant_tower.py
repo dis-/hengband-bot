@@ -39,7 +39,8 @@ TOWER_OF_SORCERY = 8  # 03_Morivant.jsonc building 8: 'a' Recharge all items
 RECHARGE_ALL_ACTION_KEY = "a"
 RECHARGE_ALL_TAIL = RECHARGE_ALL_ACTION_KEY + "y" + LEAVE_STORE_KEY
 # The owners' reasons of a posted 'a' + 'y' + ESC (observed_input composes it).
-RECHARGE_ALL_REASONS = frozenset({"me-staff:recharge-all", "fixedquest:q2-recharge:recharge-all"})
+RECHARGE_ALL_REASONS = frozenset({"me-staff:recharge-all", "fixedquest:q2-recharge:recharge-all",
+                                  "town:wand-recharge:recharge-all"})
 
 
 @lru_cache(maxsize=1)
