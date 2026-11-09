@@ -830,6 +830,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "hunt_target.py:_frontier_step": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon-only: reached only from hunt_target.route_key while the floor visit keeps a shown cell of the hunted target; hunt_target.observe clears the memory in town and target_race is None at dungeon level 0.",
+    "evidence": "n1-c life-186 Orc cave 23F 2026-11-10: the step toward the exploration frontier the hunt walk keeps (FloorVisit.frontier) until the player stands on it (then spent) or it stops being a frontier, else toward a new one closer to the shown cell than the player, kept from then on; returns a Position or None, no key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning observations.",
+    "delegation": "No independent success; route_key turns the step into its key."
+  },
   "immobile_ranged_kill.py:key": {
     "classification": "producer",
     "rows": [
