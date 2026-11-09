@@ -21,7 +21,8 @@ The open-floor pack (DECLARED CONSTRUCTED from the breeder-swarm board, tests/
 test_breeder_area_attack_1103_recorded): the two software bugs nearest the player kept, their race given 150 HP,
 and the Wand of Stinking Cloud (12 poison, radius 2) the 1103 test makes of the pack's Wands of
 Wonder.  The cloud's group damage (28.2) is below one crossbow shot (36), so the 11-01 comparison
-alone shot one bug; two or more caught now come first.
+alone shot one bug, and still does: owner 2026-11-09 「群れに対して与える合計ダメージが単体攻撃より
+大きければ使う。」 (two or more caught do not put the area attack before a stronger single shot).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -132,7 +133,7 @@ class OpenFloorPackTest(area.BreederAreaAttackRecordedTest):
         monraces[str(swarm.SOFTWARE_BUG)].update(max_hp=150, average_hp=150)
         return raw, monraces
 
-    def test_two_or_more_caught_beat_the_single_shot(self):
+    def test_two_caught_below_the_single_shot_shoot_one(self):
         raw, monraces = self.pack()
         policy, key = self.decide(raw, monraces)
         snapshot = swarm.board(policy, raw)
@@ -140,9 +141,8 @@ class OpenFloorPackTest(area.BreederAreaAttackRecordedTest):
         hostiles = [m for m in snapshot.visible_monsters if m.hostile]
         baseline = breeder_area_attack._one_target_best(policy, snapshot, means, hostiles)
         best_group = max(option[0] for option in breeder_area_attack._options(policy, snapshot, means))
-        self.assertLess(best_group, baseline)   # the 11-01 comparison alone would shoot one bug
-        self.assertEqual((key, policy.last_reason),
-                         ("a" + area.WONDER_SLOT + key[-1], breeder_area_attack.REASON + ":wand"))
+        self.assertLess(best_group, baseline)   # the 11-01 comparison: one bug is shot
+        self.assertEqual((key, policy.last_reason), ("fn4", "ranged:fire"))
         self.post(policy, raw, key)
 
 
