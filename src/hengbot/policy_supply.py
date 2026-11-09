@@ -2407,6 +2407,8 @@ class SupplyMixin:
         self, snapshot: Snapshot, predicate
     ) -> tuple[Position, Position] | None:
         """Return both the selected BFS goal and its first approach step."""
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         for allow_damaging in (False, True):
             seen = {start}
@@ -2420,7 +2422,7 @@ class SupplyMixin:
                 for neighbor in self._walkable_neighbors(
                     snapshot, pos, allow_damaging=allow_damaging, goal=predicate
                 ):
-                    if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                    if neighbor in seen or neighbor in walk_veto:
                         continue
                     seen.add(neighbor)
                     queue.append(

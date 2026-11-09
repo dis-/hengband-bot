@@ -128,6 +128,8 @@ class IdentificationMixin:
         adjacent trapped chest at skill_srh% per press, disarm can fail, and a
         locked chest takes several picks. Budget exhaustion abandons the chest
         (whatever spilled is normal loot)."""
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         player = snapshot.player
         quest_profile = self.approved_quest_strategy(snapshot.floor_key[2])
         if hostiles or player.blind or player.confused:
@@ -310,7 +312,7 @@ class IdentificationMixin:
                     for neighbor in self._walkable_neighbors(
                         snapshot, player.position
                     )
-                    if neighbor not in self._engagement_avoid_cells
+                    if neighbor not in walk_veto
                 ]
                 if not neighbors:
                     self._chest_position = None
@@ -330,7 +332,7 @@ class IdentificationMixin:
                         final_door = profile.engagement_plan.get("final_door")
                         if final_door is not None:
                             blocked.discard(Position(*final_door))
-                        blocked.update(self._engagement_avoid_cells)
+                        blocked.update(walk_veto)
                         goals = {Position(y, x) for y, x in navigator.battlefield.terrain
                                  if Position(y, x).distance_to(chest_pos) == 1
                                  and navigator._static_walkable(Position(y, x))}

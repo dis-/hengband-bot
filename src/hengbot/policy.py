@@ -14414,6 +14414,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Dropped veins are excluded here even though _observe keeps re-adding
         # them to _known_treasure while their gold is visible — otherwise
         # "skip this vein" would immediately re-select it.
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         candidates = self._known_treasure - self._mining_dropped_veins
         target = self._treasure_target
         if target is not None and target in candidates:
@@ -14449,7 +14451,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # mining route through one would repeat _step_toward's
                 # refusal forever on this static floor.  Veins reachable only
                 # through them are simply not selected.
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if neighbor in seen or neighbor in walk_veto:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -14464,6 +14466,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self, snapshot: Snapshot, target: Position
     ) -> Position | None:
         """Route beside a vein using remembered floor outside the current view."""
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
@@ -14477,7 +14481,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # Same lethal-danger weight as every other routing BFS (see
                 # _treasure_step): never route the mining walk through an
                 # avoided cell.
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if neighbor in seen or neighbor in walk_veto:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -14492,6 +14496,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         *, through: frozenset[tuple[int, int]] = frozenset(),
         avoid: frozenset[Position] = frozenset(),
     ) -> Position | None:
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         seen = {start}
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
@@ -14500,7 +14506,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if pos == target:
                 return first_step
             for neighbor in self._walkable_neighbors(snapshot, pos, through=through):
-                if neighbor in seen or neighbor in self._engagement_avoid_cells or neighbor in avoid:
+                if neighbor in seen or neighbor in walk_veto or neighbor in avoid:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -14515,6 +14521,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         pickup_reason: str,
         trigger_reason: str,
     ) -> str | None:
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         if len(snapshot.inventory) >= PACK_CAPACITY:
             return None
         here = snapshot.grid_at(snapshot.player.position)
@@ -14537,7 +14545,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 for neighbor in self._walkable_neighbors(
                     snapshot, snapshot.player.position
                 )
-                if neighbor not in self._engagement_avoid_cells
+                if neighbor not in walk_veto
             ]
             if neighbors:
                 step = min(neighbors, key=lambda pos: self._visit_counts[pos])
@@ -17626,6 +17634,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         allow_damaging: bool,
         avoid: set[Position] | None,
     ) -> list[Position]:
+        # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
+        walk_veto = self._walk_veto(snapshot)
         start = snapshot.player.position
         avoided = (avoid or set()) - {start, goal}
         queue: deque[Position] = deque([start])
@@ -17650,7 +17660,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 if (
                     neighbor in parent
                     or neighbor in avoided
-                    or neighbor in self._engagement_avoid_cells
+                    or neighbor in walk_veto
                 ):
                     continue
                 parent[neighbor] = position
