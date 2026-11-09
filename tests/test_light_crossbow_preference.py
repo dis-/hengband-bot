@@ -206,6 +206,9 @@ class LivePolicyLauncherEvidenceTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._home_knowledge_items = self.home_items
         policy._home_knowledge_current = True
+        # The equipment catalogue adopts the same complete list
+        # (_adopt_home_catalogue); the launcher evidence reads it there.
+        policy._equipment_catalog.complete_home_scan(self.home_items)
         return policy
 
     def remember(self, policy, row, town_id=None):

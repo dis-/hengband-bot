@@ -4444,6 +4444,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self._equipment_catalog.record_home_withdrawal(
                     withdrawn,
                     intent=(snapshot.turn, signature, before_count, quantity),
+                    quantity=quantity,
                 )
                 # Gear a take brought out goes back unless the loadout uses it.
                 spare_gear.note_taken(self, withdrawn)

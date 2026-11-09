@@ -590,6 +590,12 @@ def _catalog_signature(item: EquipmentItem) -> tuple:
     )
 
 
+def _ammunition_key(item: EquipmentItem) -> tuple:
+    """A Home ammunition stack's identity: the catalog signature without count."""
+    signature = _catalog_signature(item)
+    return signature[:3] + signature[4:]
+
+
 def _catalog_digest(signature: tuple) -> str:
     return sha1(repr(signature).encode("utf-8")).hexdigest()[:16]
 
@@ -671,6 +677,9 @@ class OwnedEquipmentCatalog:
 
     # Class default: a restored checkpoint without the attribute is untrusted.
     average_feeling_trusted = False
+    # Class default: a restored checkpoint without the attribute knows no Home
+    # ammunition until its next complete scan.
+    _home_ammunition: tuple[StoreItem | InventoryItem, ...] = ()
 
     def __init__(self) -> None:
         self._carried: dict[str, OwnedEquipment] = {}
@@ -799,8 +808,13 @@ class OwnedEquipmentCatalog:
         """Replace the Home catalog with the exact contents of staged pages."""
         self._home.clear()
         self._home_occurrences.clear()
+        ammunition: list[StoreItem | InventoryItem] = []
         for item in (item for page_items in pages for item in page_items):
-            if not item.is_equipment or item.tval in AMMUNITION_TVALS:
+            if item.tval in AMMUNITION_TVALS:
+                if item.count > 0:
+                    ammunition.append(item)
+                continue
+            if not item.is_equipment:
                 continue
             signature = _catalog_signature(item)
             occurrence = self._home_occurrences.get(signature, 0)
@@ -813,6 +827,35 @@ class OwnedEquipmentCatalog:
                 random_teleport_suppressed=random_teleport_is_suppressed(item),
                 average_feeling_trusted=self.average_feeling_trusted,
             )
+        self._home_ammunition = tuple(ammunition)
+
+    def _move_home_ammunition(
+        self, item: StoreItem | InventoryItem, count: int
+    ) -> None:
+        """Add (or, negative, remove) ``count`` rounds of ``item``'s stack."""
+        key = _ammunition_key(item)
+        stacks: list[StoreItem | InventoryItem] = []
+        moved = False
+        for stack in self._home_ammunition:
+            if not moved and _ammunition_key(stack) == key:
+                moved = True
+                stack = replace(stack, count=stack.count + count)
+            if stack.count > 0:
+                stacks.append(stack)
+        if not moved and count > 0:
+            stacks.append(replace(item, count=count))
+        self._home_ammunition = tuple(stacks)
+
+    @property
+    def home_ammunition(self) -> tuple[StoreItem | InventoryItem, ...]:
+        """The Home's ammunition stacks, kept like its equipment.
+
+        The same content knowledge as the Home launchers in ``items``: a
+        complete scan replaces it and a commanded deposit or withdrawal moves
+        it, while the page-address invalidation after a Home command does not
+        discard it.
+        """
+        return self._home_ammunition
 
     def _update_staged_home_item(
         self,
@@ -847,12 +890,24 @@ class OwnedEquipmentCatalog:
         item: InventoryItem,
         *,
         intent: tuple,
+        quantity: int | None = None,
     ) -> None:
-        """Add one commanded deposit without discarding a completed Home scan."""
+        """Add one commanded deposit without discarding a completed Home scan.
+
+        ``quantity`` is the deposited part of an ammunition stack (default:
+        the whole stack).
+        """
         if intent in self._home_deposit_intents:
             return
         self._home_deposit_intents.add(intent)
-        if not item.is_equipment or item.tval in AMMUNITION_TVALS:
+        if item.tval in AMMUNITION_TVALS:
+            if not self.home_scan_complete:
+                self._update_staged_home_item(item, add=True)
+            else:
+                self._move_home_ammunition(
+                    item, item.count if quantity is None else quantity)
+            return
+        if not item.is_equipment:
             return
         if not self.home_scan_complete:
             self._update_staged_home_item(item, add=True)
@@ -874,12 +929,22 @@ class OwnedEquipmentCatalog:
         item: StoreItem,
         *,
         intent: tuple,
+        quantity: int | None = None,
     ) -> None:
-        """Remove one commanded withdrawal without discarding a completed scan."""
+        """Remove one commanded withdrawal without discarding a completed scan.
+
+        ``quantity`` is the taken part of an ammunition stack (default: the
+        whole stack).
+        """
         if intent in self._home_withdrawal_intents:
             return
         self._home_withdrawal_intents.add(intent)
-        if not item.is_equipment or item.tval in AMMUNITION_TVALS:
+        if item.tval in AMMUNITION_TVALS:
+            if self.home_scan_complete:
+                self._move_home_ammunition(
+                    item, -(item.count if quantity is None else quantity))
+            return
+        if not item.is_equipment:
             return
         if not self.home_scan_complete:
             self._update_staged_home_item(item, add=False)
@@ -912,6 +977,7 @@ class OwnedEquipmentCatalog:
         This is distinct from page-address invalidation after a bound command.
         """
         self._home.clear()
+        self._home_ammunition = ()
         self._home_seen_pages.clear()
         self._home_scan_staging.clear()
         self._home_scan_current_page = None

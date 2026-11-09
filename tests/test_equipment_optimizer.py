@@ -1716,6 +1716,35 @@ class OwnedEquipmentCatalogTest(unittest.TestCase):
 
         self.assertEqual(len(catalog.items), 1)
 
+    def test_home_ammunition_follows_scans_and_commanded_moves(self):
+        # n1-c life-184 2026-11-09: the launcher ranking's Home rounds live
+        # with the Home launchers, so a Home command moves them, never drops
+        # them (tests/test_n1c_184_launcher_swap_1109_recorded.py).
+        def arrows(count):
+            return InventoryItem(slot="p", name="矢 (1d4) (+0,+0)", count=count,
+                                 tval=17, sval=1, aware=True, known=True,
+                                 fully_known=True, is_equipment=True)
+
+        catalog = OwnedEquipmentCatalog()
+        crossbow = self._home_item("a", "crossbow")
+        catalog.complete_home_scan([crossbow])
+        self.assertEqual(catalog.home_ammunition, ())
+
+        catalog.record_home_deposit(arrows(55), intent=(1, "p", 55), quantity=55)
+        catalog.record_home_deposit(arrows(55), intent=(1, "p", 55), quantity=55)
+        self.assertEqual([item.count for item in catalog.home_ammunition], [55])
+        self.assertEqual([owned.item.name for owned in catalog.items], ["crossbow"])
+
+        catalog.record_home_withdrawal(arrows(30), intent=(2, "p", 0, 18), quantity=18)
+        self.assertEqual([item.count for item in catalog.home_ammunition], [37])
+        catalog.record_home_withdrawal(arrows(37), intent=(3, "p", 18, 37), quantity=37)
+        self.assertEqual(catalog.home_ammunition, ())
+
+        catalog.complete_home_scan([crossbow, arrows(17)])
+        self.assertEqual([item.count for item in catalog.home_ammunition], [17])
+        catalog.invalidate_home()
+        self.assertEqual(catalog.home_ammunition, ())
+
     def test_refresh_carried_preserves_equipped_slot(self):
         catalog = OwnedEquipmentCatalog()
         worn = InventoryItem(
