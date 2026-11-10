@@ -69,6 +69,174 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "anaguma.py:_area_into_mouth": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_close_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_detect_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_dig_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_dig_time": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_escape_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_haste_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_hold_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_index": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_melt": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_members": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_shorten": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_success": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:_wand_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma.py:usable_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma_geometry.py:Zigzag.before": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma_geometry.py:cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma_geometry.py:longest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma_geometry.py:zigzag": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "approach_walk.py:walk_key": {
     "classification": "adapter",
     "rows": [
@@ -112,6 +280,13 @@
     "delegation": "selected child; no independent success"
   },
   "area_mapping.py:blank_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "area_mapping.py:device_ready": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -450,6 +625,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "attack_expectation.py:device_use_success": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:melee": {
     "classification": "data",
     "rows": [
@@ -541,6 +723,48 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "breeder_area_attack.py:_ball_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "breeder_area_attack.py:_blocker": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "breeder_area_attack.py:_breath_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "breeder_area_attack.py:_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "breeder_area_attack.py:_grid_ray": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "breeder_area_attack.py:_hits": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "breeder_area_attack.py:_mass_key": {
     "classification": "producer",
     "rows": [
@@ -561,6 +785,20 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "breeder_area_attack.py:_projectable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "breeder_area_attack.py:_ray": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "breeder_area_attack.py:_use": {
     "classification": "producer",
@@ -2633,6 +2871,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_absorbed_substitutes.py:cast": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_absorbed_substitutes.py:cast_key": {
     "classification": "data",
     "rows": [
@@ -3618,6 +3863,13 @@
     "delegation": "selected child; no independent success"
   },
   "model.py:_shared_grid_template": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "model.py:game_distance": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -10536,6 +10788,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_exposure.py:game_distance": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_exposure.py:least_exposed_path": {
     "classification": "data",
     "rows": [
@@ -13159,6 +13418,58 @@
     "classification": "producer",
     "rows": [
       "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:_errand_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:_leg_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:_recharge_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "wand_tower_recharge.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:trip_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },

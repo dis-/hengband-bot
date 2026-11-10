@@ -18,6 +18,13 @@ choke beyond the creep's reach.  (Teleportation when no such choke exists is
 pinned by tests/test_flee_into_rubble_recorded.py.)
 Fixture: tests/extract_summoner_hold_los_1102_fixture.py.  Constructed parts
 are marked DECLARED CONSTRUCTED.
+
+Owner 2026-11-10 (穴熊, docs/anaguma-design.md section 9): against the existing choke wait
+「掘れるなら掘る」, and for packs with summoners 「使う」 with the existing summon rules first.
+The recorded board carries a Stone to Mud wand of 10 charges and the hill orc pack (FRIENDS)
+twenty cells west: the pocket is dug first (``test_recorded_board_digs_a_pocket_first``).  The
+hold-point pins above are the board without the wand (DECLARED CONSTRUCTED: the wand removed),
+where no pocket can be dug and the summoner choke hold answers as before.
 """
 
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -30,7 +37,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
-from hengbot.model import Position, parse_snapshot
+from hengbot import anaguma
+from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.summoner_wait import HOLD_REPOSITION_REASON
 from tests.support import recorded as executor_pins
@@ -39,6 +47,7 @@ from tests.support.recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "summoner-hold-los-1102.json.gz"
 CRYPT_CREEP = 124
+HILL_ORC = 149
 
 
 class SummonerHoldUnderFireTest(executor_pins.ProductionHarness):
@@ -64,11 +73,36 @@ class SummonerHoldUnderFireTest(executor_pins.ProductionHarness):
             keys.append((board.player.position, policy.choose_key(board), policy.last_reason))
         return policy, board, keys
 
+    @staticmethod
+    def without_stone_to_mud(board):
+        """DECLARED CONSTRUCTED: the board without its Stone to Mud wand (no pocket to dig)."""
+        return replace(board, inventory=[item for item in board.inventory
+                                         if not (item.tval == TVAL_WAND
+                                                 and item.sval == SV_WAND_STONE_TO_MUD)])
+
+    def test_recorded_board_digs_a_pocket_first(self):
+        """「掘れるなら掘る」: the recorded board's wand digs the pocket before the choke wait;
+        the survival rungs still come first (a fifth of the HP: the heal, no dig)."""
+        policy, board, keys = self._policy_on(self.case["boards"][:2])
+        self.assertEqual(keys[0][2], anaguma.REASON_DIG)
+        plan = anaguma.plan(policy)
+        self.assertIsNotNone(plan)
+        self.assertIn(HILL_ORC, plan.races)
+        self.assertTrue(all(reason.startswith("anaguma:") for _p, _k, reason in keys))
+
+        def low_hp(board):
+            # DECLARED CONSTRUCTED: the HP at a fifth.
+            return replace(board, player=replace(board.player, hp=board.player.max_hp // 5))
+
+        policy, board, keys = self._policy_on(self.case["boards"][:2], low_hp)
+        self.assertIsNone(anaguma.plan(policy))
+        self.assertFalse(any(reason.startswith("anaguma:") for _p, _k, reason in keys), keys)
+
     def test_recorded_hold_beyond_the_creeps_reach_is_kept(self):
         recorded = [(d["decision_sequence"], d["reason"], d["key"]) for d in self.case["decisions"]]
         self.assertEqual(recorded, [(6095, "explore", "4"), (6096, "no-wait:flee", "6"),
                                     (6097, "explore", "4")])
-        policy, board, keys = self._policy_on(self.case["boards"][:2])
+        policy, board, keys = self._policy_on(self.case["boards"][:2], self.without_stone_to_mud)
         self.assertEqual(keys[0][1:], ("3", "explore"))  # floor in the own light is not owed (37414d7d41, #101)
         self.assertEqual(keys[1], (Position(2, 30), "5", "summoner:hold-choke"))
         creep = next(m for m in board.visible_monsters if m.race_id == CRYPT_CREEP)
@@ -107,7 +141,8 @@ class SummonerHoldUnderFireTest(executor_pins.ProductionHarness):
                 if m.race_id == CRYPT_CREEP else m
                 for m in board.visible_monsters])
 
-        policy, shot, keys = self._policy_on(boards, inside_reach)
+        policy, shot, keys = self._policy_on(
+            boards, lambda board: inside_reach(self.without_stone_to_mud(board)))
         hold_point, key, reason = keys[1]
         self.assertEqual(hold_point, Position(2, 30))
         self.assertEqual((key, reason), ("6", HOLD_REPOSITION_REASON))
