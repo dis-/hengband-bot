@@ -2,8 +2,12 @@
 
 Owner 2026-11-10 (穴熊, docs/anaguma-design.md section 9): against the existing choke wait
 「掘れるなら掘る」.  The recorded board carries a Stone to Mud wand, so the pocket is dug before
-the hold (``test_recorded_board_digs_a_pocket_first``); the hold-and-expiry pin is the board
-without the wand (DECLARED CONSTRUCTED: the wand removed), where no pocket can be dug.
+the hold -- until the owner's answer of the same day: 「弱いoの群れなど、レベル差などの影響で
+自分から逃げる群れに対しては効果が薄い。モンスターが逃走する条件を調べて使う相手を絞って」.  The
+recorded pack is snagas (level 8) and cave orcs (level 7) against a Lv 44 player: every member
+beyond 5 cells runs (m_lev 41 + 4 <= 44, monster-sweep-grid.cpp:56-63), so no pocket is dug
+(``test_recorded_board_digs_no_pocket_for_orcs_that_run``).  The hold-and-expiry pin is the
+board without the wand (DECLARED CONSTRUCTED: the wand removed), where no pocket can be dug.
 """
 
 import tests  # noqa: F401
@@ -44,14 +48,18 @@ class SummonerLootChokeLoopRecordedTest(unittest.TestCase):
                                          if not (item.tval == TVAL_WAND
                                                  and item.sval == SV_WAND_STONE_TO_MUD)])
 
-    def test_recorded_board_digs_a_pocket_first(self):
+    def test_recorded_board_digs_no_pocket_for_orcs_that_run(self):
         loot_board = parse_snapshot(self.by_reason["seek-loot"]["board"], self.knowledge)
+        self.assertEqual(loot_board.player.level, 44)
         policy = HengbotPolicy(monrace_knowledge=self.knowledge)
         policy.prime(loot_board)
+        races, _animal = anaguma._pack(policy, loot_board)
+        self.assertTrue(anaguma.runners(loot_board, races))
         with patch.object(policy, "_skill_exp_request_key", return_value=None):
             choose_past_junk_key(policy, loot_board)
-        self.assertEqual(policy.last_reason, anaguma.REASON_DIG)
-        self.assertIsNotNone(anaguma.plan(policy))
+        self.assertIsNone(anaguma.plan(policy))
+        self.assertEqual(getattr(policy, "_anaguma_veto", None), "runners")
+        self.assertFalse(policy.last_reason.startswith("anaguma:"), policy.last_reason)
 
     def test_recorded_choke_hold_blocks_loot_and_expires_once(self):
         recorded_loot = self.by_reason["seek-loot"]

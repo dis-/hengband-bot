@@ -367,6 +367,7 @@ What Anaguma adds:
 | Town, wilderness, surface | permanent buildings; the existing town rules | — |
 | Fixed-quest floors with an owner-approved plan (Q14, Q18, Q25, …) | "作戦が先" (the plan comes first), owner 11-07 | `quest_find_exit`, `quest25_battle` |
 | Arena (闘技場) | no digging in the arena; separate rules | memory telmora-arena-facts |
+| Half or more of the pack is expected to run from the player (a plan not yet dug is dropped too) | a running monster keeps away beyond 5 cells and never reaches the mouth (owner 2026-11-10 「弱いoの群れなど、レベル差などの影響で自分から逃げる群れに対しては効果が薄い」) | 3.5 |
 
 ### 3.3 Distance and time budget
 
@@ -383,6 +384,22 @@ What Anaguma adds:
 ### 3.4 Quest, floor and level scope
 
 Default proposal: every ordinary dungeon floor, including random-quest floors, where the map is a normal cave. Fixed quests are excluded (decision 「ランダムクエストの階も使う」, section 9).
+
+### 3.5 Packs that run from the player (owner 2026-11-10)
+
+Owner, verbatim: 「穴熊に関して　弱いoの群れなど、レベル差などの影響で自分から逃げる群れに対しては効果が薄い。モンスターが逃走する条件を調べて使う相手を絞って」
+
+The game's rule is `mon_will_run` (`src/monster-floor/monster-sweep-grid.cpp:35-72`), evaluated every monster move:
+
+1. `cdis > MAX_PLAYER_SIGHT + 5` (25): does not run (it walks in).
+2. Fearful: runs.
+3. `cdis <= 5`: does not run (it comes on).
+4. `m_lev = race level + (m_idx & 0x08) + 25`; `m_lev > p_lev + 4`: does not run; `m_lev + 4 <= p_lev`: runs.
+5. Otherwise it runs iff `(p_lev * p_mhp + 4 * p_chp) * m_mhp > (m_lev * m_mhp + 4 * m_chp) * p_mhp` (uint32), i.e. iff `p_lev + 4 * p_chp / p_mhp > m_lev + 4 * m_chp / m_mhp`.
+
+A running monster moves by `run_away` (`:527-529`) and gets none of the pack deciders (the hiding and surrounding moves are `!will_run` only, `:479-487`), so between 6 and 25 cells it keeps away and never reaches the mouth. With the +25 a cave orc (level 7) runs from any player of level 36 or more when the hidden bit is 0, and from level 44 when it is 8.
+
+`anaguma.run_chance` counts a fearful member 1, a member within 5 cells 0, and any other member by steps 4-5 with the board's player level and HP and the member's race level and estimated HP (the health display's upper bound, `model._estimated_monster_hp`). The `m_idx & 0x08` bit is internal (fair play), so a member whose answer differs with and without it counts 1/2. When the expected count is at least half of the pack's members, `anaguma.key` plans nothing (`_anaguma_veto = "runners"`) and drops a plan none of whose cells is open yet (release `runners`); a pocket already begun is held as before.
 
 ---
 

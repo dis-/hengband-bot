@@ -20,6 +20,13 @@ policy):
   view and a wand of 2 charges, turn 878346 (captures/n1a-504-death-1110).
 - ``anaguma-orcs-306-1104``: n1-b life-306, Angband 19F, arrived beside four cave orcs, turn
   4830521 (captures/stops-1104-morning/n1-b/life-306).
+- ``anaguma-runners-halforcs-171-1108``: n1-c life-171 (Magic-Eater Lv 49, HP 973/973), Angband
+  50F, six half-orcs (level 15, FRIENDS ORC) 14-17 cells away, five awake, turn 4061434
+  (captures/n1c-171-hastur-death-1108, snapshots-20261108-192417-ddafda).  The life carried no
+  Stone to Mud then; DECLARED CONSTRUCTED: a wand of 13 charges added to every row.
+- ``anaguma-runners-ogrillons-171-1108``: the same life and floor, turn 4099379: eight
+  ogrillons (level 16) 15-19 cells away and fifteen cave ogres (level 26), all awake, the
+  Magic-Eater's absorbed Stone to Mud charged.
 
 DECLARED RECONSTRUCTED: the captures keep no skill reply; the skill cache is filled as the
 Q2 Tower test does.  DECLARED CONSTRUCTED (the successor boards of the dig and the hold): the
@@ -52,8 +59,13 @@ SHA = {
     "anaguma-hounds-480-1104.jsonl.gz": "811c8c9cf2a24e3c8ca51e3ad27d7795fe8f4279f4e0a3fcae505499fad23e60",
     "anaguma-hounds-504-1110.jsonl.gz": "52dbe0fb1e9f72567e398a4187cde85045613021633e042e88415e70a3452967",
     "anaguma-orcs-306-1104.jsonl.gz": "1fd4f485074686e76ea8318e93656a68461da3834847b582840ac59a792d0403",
+    "anaguma-runners-halforcs-171-1108.jsonl.gz": "61573a32e41f705aa3de6599dd6e6300ae0ddd4d126b7a86bc9ed27c1f9ea51e",
+    "anaguma-runners-ogrillons-171-1108.jsonl.gz": "e5be1d3113e707acbec7707a2e2aa88bf5538c8b153ffea22601578bad15840f",
 }
 CAVE_ORC = 126
+HALF_ORC = 264
+OGRILLON = 1057
+CAVE_OGRE = 415
 SHADOW_HOUND = 272
 STEP = {key: offset for offset, key in DIRECTION_KEYS.items()}
 
@@ -231,6 +243,115 @@ class AnagumaRecordedTest(unittest.TestCase):
                 self.assertEqual(anaguma.plan(self.policy) is not None, digs)
                 if not digs:
                     self.assertEqual(getattr(self.policy, "_anaguma_veto", None), "charges")
+
+    # -------------------------------------------------- packs that run (owner 2026-11-10)
+
+    @staticmethod
+    def at_level(level):
+        """DECLARED CONSTRUCTED: the recorded player's level set on every row."""
+        def adjust(raw):
+            raw["player"]["level"] = level
+            return raw
+        return adjust
+
+    @staticmethod
+    def frightened(board, race):
+        """DECLARED CONSTRUCTED: every member of ``race`` shown afraid."""
+        def scare(monsters):
+            return [replace(m, fearful=True) if m.race_id == race else m for m in monsters]
+        return replace(board, visible_monsters=scare(board.visible_monsters),
+                       detected_monsters=scare(board.detected_monsters))
+
+    def test_cave_orcs_that_run_from_the_player_get_no_pocket(self):
+        """「弱いoの群れなど、レベル差などの影響で自分から逃げる群れに対しては効果が薄い」: cave orcs
+        (level 7, so m_lev 32 or 40, monster-sweep-grid.cpp:56) at full HP against the recorded
+        warrior at full HP.  Lv 32: 32 + 4 > 32 + 4 is false for both bits -> digs.  Lv 33:
+        33 + 4 > 32 + 4 for the 0 bit only -> 1/2 each, half the pack -> no pocket.  Lv 44:
+        40 + 4 <= 44 -> every orc runs."""
+        for level, digs in ((32, True), (33, False), (44, False)):
+            with self.subTest(level=level):
+                self.policy, board = self.policy_on("anaguma-orcs-480-1104.jsonl.gz", self.at_level(level))
+                orcs = [m for m in board.detected_monsters if m.race_id == CAVE_ORC]
+                expected = {32: 0.0, 33: 0.5, 44: 1.0}[level]
+                self.assertTrue(all(anaguma.run_chance(board, m) == expected for m in orcs), level)
+                self.decide(self.policy, board)
+                self.assertEqual(anaguma.plan(self.policy) is not None, digs)
+                if not digs:
+                    self.assertEqual(getattr(self.policy, "_anaguma_veto", None), "runners")
+                    self.assertFalse(self.policy.last_reason.startswith("anaguma:"))
+                    # Refused at the start on every row: no plan was made and dropped.
+                    self.assertIsNone(getattr(self.policy, "_anaguma_last_release", None))
+
+    @staticmethod
+    def with_wand(raw):
+        """DECLARED CONSTRUCTED: an identified wand of Stone to Mud (13 charges) carried."""
+        raw["inventory"].append({
+            "ac": 0, "aware": True, "charges": 13, "charging": False, "count": 1,
+            "damage_dice": {"num": 1, "sides": 1}, "fully_known": True, "inscription": "",
+            "is_artifact": False, "is_bounty": False, "is_broken": False, "is_cursed": False,
+            "is_ego": False, "is_equipment": False, "known": True, "known_flags": [],
+            "name": "Stone to Mud", "pval": 13, "slot": "n", "sval": 6, "to_a": 0, "to_d": 0,
+            "to_h": 0, "tval": 65, "weight": 10})
+        return raw
+
+    def test_half_orcs_running_from_a_level_49_player_get_no_pocket(self):
+        """Half-orcs (level 15: m_lev 40 or 48) against Lv 49 at full HP: 40 + 4 <= 49 runs, and
+        49 + 4 > 48 + 4 runs too, so every member counts 1.  Without the rule the same board
+        plans a pocket (anaguma:walk); with it none is made."""
+        self.policy, board = self.policy_on("anaguma-runners-halforcs-171-1108.jsonl.gz", self.with_wand)
+        self.assertEqual(board.player.level, 49)
+        halforcs = [m for m in (*board.visible_monsters, *board.detected_monsters) if m.race_id == HALF_ORC]
+        self.assertEqual(len(halforcs), 6)
+        self.assertEqual([anaguma.run_chance(board, m) for m in halforcs], [1.0] * 6)
+        self.assertGreaterEqual(anaguma.usable_charges(self.policy, board), anaguma.OTHER_LENGTH)
+        self.decide(self.policy, board)
+        self.assertIsNone(anaguma.plan(self.policy))
+        self.assertEqual(getattr(self.policy, "_anaguma_veto", None), "runners")
+        self.assertIsNone(getattr(self.policy, "_anaguma_last_release", None))
+        self.assertFalse(self.policy.last_reason.startswith("anaguma:"), self.policy.last_reason)
+
+    def test_ogrillons_count_half_beside_cave_ogres_that_come(self):
+        """Ogrillons (level 16: m_lev 41 or 49) against Lv 49 at full HP: 41 + 4 <= 49 runs,
+        49 + 4 > 49 + 4 does not -- the hidden m_idx bit decides, so each counts 1/2.  The cave
+        ogres of the same pack (level 26: m_lev 51 or 59; 49 + 4 > 51 + 4 is false) come, so
+        8 x 1/2 of 23 members is under half: the pocket is kept and walked to."""
+        self.policy, board = self.policy_on("anaguma-runners-ogrillons-171-1108.jsonl.gz")
+        races, _animal = anaguma._pack(self.policy, board)
+        self.assertEqual(races, {OGRILLON, CAVE_OGRE})
+        members = anaguma._members(board, races)
+        chances = {race: {anaguma.run_chance(board, m) for m in members if m.race_id == race}
+                   for race in races}
+        self.assertEqual(chances, {OGRILLON: {0.5}, CAVE_OGRE: {0.0}})
+        self.assertFalse(anaguma.runners(board, races))
+        self.decide(self.policy, board)
+        self.assertIsNotNone(anaguma.plan(self.policy))
+        self.assertEqual(self.policy.last_reason, anaguma.REASON_WALK)
+
+    def test_a_plan_not_yet_dug_is_dropped_when_the_pack_turns_to_run(self):
+        """A fearful member runs at any distance (monster-sweep-grid.cpp:47-49): the plan whose
+        cells are all still rock is dropped; one already begun is kept."""
+        self.policy, board = self.policy_on("anaguma-orcs-480-1104.jsonl.gz")
+        self.decide(self.policy, board)
+        plan = anaguma.plan(self.policy)
+        self.assertIsNotNone(plan)
+        self.assertFalse(any(geo.open_cell(board.grid_at(cell)) for cell in plan.cells))
+        self.decide(self.policy, self.frightened(board, CAVE_ORC))
+        self.assertIsNone(anaguma.plan(self.policy))
+        self.assertEqual(self.policy._anaguma_last_release, "runners")
+        self.assertFalse(self.policy.last_reason.startswith("anaguma:"))
+        # The same pack frightened after the first cell is melted: the pocket goes on.
+        self.policy, board = self.policy_on("anaguma-orcs-480-1104.jsonl.gz")
+        for _ in range(40):
+            key = self.decide(self.policy, board)
+            if self.policy.last_reason.startswith(anaguma.REASON_DIG):
+                board = self.apply(board, key, self.policy.last_reason)
+                break
+            board = self.apply(board, key, self.policy.last_reason)
+        else:
+            self.fail("no dig")
+        self.decide(self.policy, self.frightened(board, CAVE_ORC))
+        self.assertIsNotNone(anaguma.plan(self.policy))
+        self.assertTrue(self.policy.last_reason.startswith("anaguma:"), self.policy.last_reason)
 
     def test_arrival_beside_the_pack_digs_nothing(self):
         self.policy, board = self.policy_on("anaguma-orcs-306-1104.jsonl.gz")
