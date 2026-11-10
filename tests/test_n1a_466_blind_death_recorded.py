@@ -114,9 +114,11 @@ class BlindWalkBiterRecordedTest(d57.PostedDeathKey):
         speed = next(item["slot"] for item in CASE["boards"][-1]["inventory"]
                      if item["name"].startswith("スピードの薬"))
         self.assertEqual(answers[SPEED_BITE], ("q" + speed, unseen_strike.SPEED_REASON))
+        # Owner 2026-11-03: the emergency ladder strikes the unseen biter itself instead of
+        # walking to the far up-stair (n1-a life-504, 2026-11-10); the strike is the same '+'.
         for turn in EMERGENCY_BITES:
             key, reason = answers[turn]
-            self.assertEqual((key[:1], reason), ("+", "no-wait:attack"), turn)
+            self.assertEqual((key[:1], reason), ("+", "emergency:unseen-strike"), turn)
 
     def test_step_onto_an_up_stair_still_escapes(self):
         policy, raw = new_policy(), None

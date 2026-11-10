@@ -17146,6 +17146,39 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "status_cure.py:dungeon_wait_for_sight_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-07 「敵がいなくなったら目が見えるまで休む。」 (n1-a life-504 2026-11-10, 鉄獄24階: a gas-trap blindness with no cure, hunted and explored blind into three traps). Blind, no unseen attacker left on the floor (attacker_gone: none hit since the blindness, or a kill or a thief's 「泥棒は笑って逃げた！」 followed the last blow), then wait_for_sight_key's own test (dungeon, not hit this board, no physical hostile, a restable food state): REST_MACRO under blind:wait-sight with producer survival, else None. Called only from _decide right after _survival_gate_key#2, below the emergency and combat rungs; dungeon only; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "status_cure.py:short_blind_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-10 (G1 of n1-a life-504) 「飲まずに戦うか待つ」: blind from a light or darkness breath/ball (the board's 「目が見えなくなってしまった！」 after 「閃光/暗黒のブレスを吐いた。」 or the darkness storm / starburst, effect-player-resist-hurt.cpp 3-7 ticks), within 70 game turns of the onset, not confused or cut, and the HP loss short of 1/3 of max HP: combat_answer.adjacent_attack on the adjacent hostile (blind:short-melee), else unseen_strike.key after a blow on the board (blind:short-strike), else WAIT_KEY under blind:short-wait, which _forbid_wait_while_damaged keeps; else None. Called only from _emergency_item right after fight_through_key; the blindness cure potion is withheld by status_cure_key under the same test; dungeon only (no light/darkness breath in town is assumed: the test reads the board's messages, wherever); no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "status_cure.py:dungeon_unseen_blow_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-07 「盲目で周りが分からない時は分からない隣のマスにも攻撃する。」 and 2026-11-03 (n1-a life-504 2026-11-10, 鉄獄24階: blind, punched by unseen summons above the emergency line, it searched in place). Blind, not returning to town or on an income run, an unseen attacker's melee blow on this board (unseen_strike.hit_in_melee) and no visible hostile adjacent: blind_strike.strike_key at the remembered cell, else unseen_strike.key at a free (or, blind, unknown) neighbour, under blind:unseen-strike; else None. Called only from _decide right after _survival_gate_key#2, before dungeon_wait_for_sight_key; dungeon only; no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "anaguma.py:_area_into_mouth": {
     "classification": "data",
     "rows": [

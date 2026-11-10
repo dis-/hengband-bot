@@ -280,6 +280,14 @@ _rows(None, ("policy", "policy_combat", "combat_answer", "blind_strike", "arena"
       "unseen:strike-dark:absorbed-power", "unseen:strike-return", "unseen:strike-return:absorbed-power",
       "stuck:walled-off-strike", "town:kill-mob", "town:kill-mob-friendly",
       attack=True)
+# Owner 2026-11-10 (G1 of n1-a life-504): the short light/darkness blindness is not cured; the
+# adjacent hostile or the unseen attacker is struck (status_cure.short_blind_key).
+_rows(None, "status_cure", _RULE_ATTACK + " (a short light/darkness blindness, not cured)",
+      "blind:short-melee", "blind:short-strike", "blind:short-strike:absorbed-power", attack=True)
+# Owner 2026-11-07 「分からない隣のマスにも攻撃する」: the dungeon's blind board hit by an unseen
+# blow (status_cure.dungeon_unseen_blow_key).
+_rows(None, "status_cure", _RULE_ATTACK + " (blind, an unseen blow on the board)",
+      "blind:unseen-strike", "blind:unseen-strike:absorbed-power", attack=True)
 _rows(None, ("policy_combat", "policy", "magic_eater", "me_device_attacks", "me_q1_torch", "breeder_area_attack",
              "policy_quest", "quest25_battle", "summon_response", "policy_supply"), _RULE_ATTACK,
       "ranged:fire", "ranged:fire-offset", "ranged:fire-target", "ranged:aim-wand", "ranged:throw-oil",

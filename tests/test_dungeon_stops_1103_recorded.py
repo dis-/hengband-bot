@@ -178,6 +178,8 @@ class UnseenAreaDoesNotWriteOffTheFrontier(RecordedBoards):
     91357d2d0 from a fresh policy.
     """
 
+    DARK_BREATH_SEQUENCE = 25251
+
     def test_open_corridor_end_survives_and_is_walked_to(self):
         case = fixture("maze-frontier.json.xz")
         self.assertIn([6, 11], case["probed"])
@@ -188,7 +190,12 @@ class UnseenAreaDoesNotWriteOffTheFrontier(RecordedBoards):
         for raw in case["boards"]:
             key = self.decide(policy, raw)
             row = recorded[raw["turn"]]
-            if row["decision_sequence"] < 25258:
+            if row["decision_sequence"] == self.DARK_BREATH_SEQUENCE:
+                # Owner 2026-11-10 (G1) 「飲まずに戦うか待つ」: a シャドウ・ハウンド's darkness
+                # breath at HP 408/412 is a short blindness; the recorded Cure Critical
+                # Wounds is kept and the player waits for sight (status_cure.short_blind_key).
+                self.assertEqual((key, policy.last_reason), ("5", "blind:short-wait"))
+            elif row["decision_sequence"] < 25258:
                 self.assertEqual((key, policy.last_reason), (row["key"], row["reason"]))
         self.assertNotIn(Position(6, 11), policy._probed_frontiers)
         # The stop board: exploration still owns the floor.
