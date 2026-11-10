@@ -123,6 +123,25 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
                     policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
         return posted
 
+    def test_n1a_home_scan_runs_inside_the_router_s_home_visit(self):
+        """Row 55 (decision 17440): the Home page after the shovel withdrawal.
+
+        Live: ``ESC`` home:scan-incomplete-open-page, the scan held out by the
+        router's Home visit (holder store-router), then the step-off and the
+        re-entry that the arbiter retired twice.
+        """
+        policy, recorded, steps = self.load("n1a-508")
+        self.replay("before-the-page", policy, steps[:55])
+        self.assertEqual((recorded[55]["key"], recorded[55]["reason"]),
+                         ("\x1b", "home:scan-incomplete-open-page"))
+        board = steps[55][1]()
+        self.assertEqual(board.store.store_type, STORE_HOME)
+        self.assertEqual((board.store.stock_num, len(board.store.items)), (59, 52))
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
+        self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners)
+
     def test_n1a_bound_home_take_composes_after_the_outside_scan(self):
         """Row 73 (decision 17458): the Home entrance after the outside ``~9``.
 

@@ -2544,13 +2544,23 @@ def home_route_opened_for(policy: Any, family: str) -> bool:
     out of its own walk and the plan's next stop took the board; the next
     board, with no Home holder, gave the walk back (n1-b life-317 23:19, one
     step each way between the Alchemist and Home until the burst).
+
+    The Home scan is the prerequisite of every Home operation the router's
+    visit carries while the Home list is not current (the composers refuse an
+    unobserved address).  n1-a life-508 2026-11-10 21:05: after a withdrawal
+    invalidated the list, the router's Home visit held the scan out inside
+    Home (the page left as home:scan-incomplete-open-page) and again outside
+    (the router stepped off and walked back in), so the scan never ran and
+    the router's re-entries made the visit's owner-retired-burst.
     """
     holder = errand_hold(policy, "__none__", enforced=True)
     visit = getattr(policy, "_store_visit", None)
     return bool(holder is not None and holder.owner.value == "store-router"
                 and home_catalogue_work_holder(policy) is None
                 and visit is not None and visit.store_type == STORE_HOME
-                and visit.opened_for_family == family)
+                and (visit.opened_for_family == family
+                     or (family == "home-scan"
+                         and not policy._home_knowledge_current)))
 
 
 def descent_walk_held_by_own_route(policy: Any, family: str) -> bool:
