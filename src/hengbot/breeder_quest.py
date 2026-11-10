@@ -27,12 +27,22 @@ floor's quest type decides the response (``RESPONSE_BY_QUEST_TYPE``):
   breeder beside the player is still fought (survival_preemption).
   Without a readable scroll the floor keeps the breakthrough's behaviour.
 
+The bite ring of a breeder out of sight stays at its last shown cell (owner 2026-11-09
+「起きた敵も最後の位置を覚える」, the memory of monster_memory and its window): n1-a life-505
+(Angband 6F, random quest 49, 2026-11-10 02:34 and 02:35) saw 巨大白シラミ (race 69) up the
+corridor from [46,74], whose rings closed it, and explore stepped '1' to [47,73]; there
+they were out of sight, the rings were released and explore stepped '9' straight back,
+until the loop detector, twice.  The weak breeders of the latched floor are not strategic
+hostiles (policy ``_strategic_subset``), so sleeper_reach_memory does not keep them: this
+module keeps its own.  A remembered breeder is forgotten when shown again (then kept where
+shown), killed, on the floor's change or after the window.
+
 Quest types absent from the table (KILL_NUMBER: every kill counts, so
 breeders advance it; FIND_*) keep the breakthrough's behaviour.
 """
 from __future__ import annotations
 
-from hengbot import breeder_floor_record, breeder_stalemate, quest_no_teleport
+from hengbot import breeder_floor_record, breeder_stalemate, monster_memory, quest_no_teleport
 from hengbot.model import Position
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, QUEST_STATUS_TAKEN
 from hengbot.quest_knowledge import (
@@ -42,6 +52,7 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QUEST_TYPE_TOWER,
 )
+from hengbot.sleeper_loot_block import remembered_gone
 
 
 ABANDON = "abandon"
@@ -56,6 +67,8 @@ RESPONSE_BY_QUEST_TYPE = {
 TELEPORT_REASON = "breeder-breakthrough:teleport"
 # A bite reaches the eight neighbours; the breeder's own cell is occupied.
 _BITE_RING = NEIGHBOR_OFFSETS + ((0, 0),)
+# The perceived breeders of the pursued floor, kept at their last shown cell out of sight.
+BREEDER_SEEN = monster_memory.Kind("_breeder_quest_seen")
 
 
 def response(policy, snapshot) -> str | None:
@@ -99,10 +112,13 @@ def refresh_avoidance(policy, snapshot) -> None:
         policy._refresh_warning_avoidance(snapshot, released_cells=previous)
     cells = set()
     if _pursuing(policy, snapshot):
+        monster_memory.observe(policy, snapshot, BREEDER_SEEN, remember=_perceived_breeders,
+                               gone=remembered_gone)
+        breeders = (*_perceived_breeders(policy, snapshot),
+                    *monster_memory.remembered(policy, snapshot, BREEDER_SEEN))
         cells = {
             cell
-            for monster in policy._sighted_or_detected_hostiles(snapshot)
-            if monster.can_multiply
+            for monster in breeders
             for dy, dx in _BITE_RING
             if (cell := Position(monster.position.y + dy, monster.position.x + dx))
             in snapshot.grids
@@ -110,6 +126,11 @@ def refresh_avoidance(policy, snapshot) -> None:
     policy._breeder_quest_avoid_cells = cells
     if cells:
         policy._refresh_warning_avoidance(snapshot, added_cells=cells)
+
+
+def _perceived_breeders(policy, snapshot) -> list:
+    return [monster for monster in policy._sighted_or_detected_hostiles(snapshot)
+            if monster.can_multiply]
 
 
 def teleport_key(policy, snapshot) -> str | None:

@@ -48,6 +48,19 @@ Black ogres 8-9 away, or a Yeek 14 away, sent the walk back to seek-loot, which
 stepped out of their sight, and the walk stepped in again.  A hostile the combat
 rungs passed over that sleeps, or stands beyond ``HUNT_RANGE``, no longer stops the
 walk -- unless its melee is one the engagement retreat keeps away from.
+
+Recorded n1-c life-186 (Orc cave 23F, its final floor, 2026-11-10 02:29, build 7404002a7):
+Detect Evil showed the guardian (race 373, lib/edit/DungeonDefinitions.jsonc:309) at [52,153]
+past the explored ground, and the walk went to the nearest frontier "closer to it than the
+player" (game distance, Grid::calc_distance, system/grid-type-definition.cpp:19-38): a bound
+that moves with every step.  From [32,131] (30) the frontier was one through [33,132]; from
+[33,132] (29) it was no longer closer, the walk turned to another back through [32,131], and
+stepped '3' and '7' between the two cells, 38 times, until the loop detector.  (Replayed from
+the capture with a fresh policy: [31,134] (29), chosen from [32,131], gave way to [33,135]
+(27) from [33,132].)  The frontier the walk chose is now kept until the player stands on it
+(then it is spent) or it stops being a frontier; once the player is as near the target as the
+kept frontier, the walk spends the frontiers and gives the cell up, as when none is closer
+(n1-a life-485 above), instead of turning to one closer than the new cell.
 """
 
 from __future__ import annotations
@@ -84,6 +97,9 @@ class FloorVisit:
     spent_frontiers: frozenset = frozenset()
     # The shown cell the walk already waited beside: the next board there gives it up.
     waited_beside: Position | None = None
+    # The frontier the walk chose closer to ``frontier_goal`` than the player then was.
+    frontier: Position | None = None
+    frontier_goal: Position | None = None
     # The guardian's contact tier when last shown was not T2 or T3 (``_guardian_beatable``).
     guardian_declined: bool = False
 
@@ -211,6 +227,39 @@ def _holds_the_walk(policy, snapshot, monster, race) -> bool:
     return policy._material_melee_fight(snapshot, monster)
 
 
+def _frontier_step(policy, snapshot, visit: FloorVisit, goal: Position) -> Position | None:
+    """The step toward the frontier the walk keeps (``FloorVisit.frontier``), else toward a new
+    one closer to ``goal`` than the player, kept from this board on; None with neither.
+
+    A kept frontier the player has come as near the target as is spent with the others (None):
+    the walk does not turn to another frontier closer than the new cell, which is the bound
+    that moved (n1-c life-186), and gives the cell up as when none is closer (n1-a life-485)."""
+    here = snapshot.player.position
+    distance = game_distance(here, goal)
+    if visit.frontier == here:
+        visit.spent_frontiers |= {here}
+        visit.frontier = None
+    kept = visit.frontier
+    if kept is not None and visit.frontier_goal == goal and kept not in visit.spent_frontiers:
+        grid = snapshot.grids.get(kept)
+        if grid is not None and policy._is_frontier(snapshot, grid):
+            if game_distance(kept, goal) >= distance:
+                visit.frontier = visit.frontier_goal = None
+                return None
+            step = policy._nearest_goal_step(snapshot, lambda grid: grid.position == kept)
+            if step is not None:
+                return step
+    visit.frontier = visit.frontier_goal = None
+    route = policy._nearest_goal_route(
+        snapshot, lambda grid: game_distance(grid.position, goal) < distance
+        and grid.position not in visit.spent_frontiers
+        and policy._is_frontier(snapshot, grid))
+    if route is None:
+        return None
+    visit.frontier, visit.frontier_goal = route.target, goal
+    return route.first_step
+
+
 def route_key(policy, snapshot, hostiles) -> str | None:
     """The step toward the cell the target was last shown on, else None.
 
@@ -246,11 +295,9 @@ def route_key(policy, snapshot, hostiles) -> str | None:
     step = policy._nearest_goal_step(
         snapshot, lambda grid: grid.position.distance_to(goal) <= 1)
     if step is None:
-        here = game_distance(snapshot.player.position, goal)
-        step = policy._nearest_goal_step(
-            snapshot, lambda grid: game_distance(grid.position, goal) < here
-            and grid.position not in visit.spent_frontiers
-            and policy._is_frontier(snapshot, grid))
+        step = _frontier_step(policy, snapshot, visit, goal)
+    else:
+        visit.frontier = visit.frontier_goal = None
     if step is None:
         visit.spent_frontiers |= {position for position, grid in snapshot.grids.items()
                                   if policy._is_frontier(snapshot, grid)}

@@ -1804,6 +1804,13 @@
     ],
     "delegation": "supports selected child; no independent success"
   },
+  "hunt_target.py:_frontier_step": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; route_key turns the step into its key."
+  },
   "hunt_target.py:_visit": {
     "classification": "data",
     "rows": [
