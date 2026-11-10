@@ -7413,8 +7413,10 @@ class TownMixin:
                 # No safe landing anywhere: fundraise at the Yeek cave instead
                 # of stopping (user decision 2026-10-02, no-safe-destination-2
                 # item 4); the gate itself is not relaxed.
+                # 「条件を満たす一番深い所へ ... どこも満たさなければ資金集め」
+                # (owner 2026-11-10): whatever the missing ability.
                 if self._start_no_safe_destination_fundraising(
-                    snapshot, destination_depth
+                    snapshot, destination_depth, any_missing=True
                 ):
                     self.last_reason = (
                         f"fundraising:no-safe-destination:{gate_reason}"

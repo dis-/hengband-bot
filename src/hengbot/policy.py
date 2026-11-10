@@ -12038,11 +12038,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
         else:
             # Owner 2026-11-10 「収まる中で一番深い所へ」: the refused landing was
-            # too deep for the kit, so the deepest entered landing below it.
+            # too deep for the kit, so the deepest entered landing below it;
+            # 「条件を満たす一番深い所へ」 (n1-b life-365): Angband among them.
+            # Both answers together: with an over-extension recorded, the landing
+            # is also strictly shallower than the over-extended depth (n1-b
+            # life-365: Angband 49 against the over-extended 49 is not).
+            ceiling = unsafe_depth - 1
+            if self._last_overextended_depth > 0:
+                ceiling = min(ceiling, self._last_overextended_depth - 1)
             alternate = self._pick_alternate_dungeon(
                 snapshot,
-                max_entry_depth=max(1, unsafe_depth - 1),
+                max_entry_depth=max(1, ceiling),
                 prefer_deepest=True,
+                refused_dungeon=self._target_dungeon_id,
             )
         if alternate is None:
             return None
@@ -13589,7 +13597,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return True
 
     def _start_no_safe_destination_fundraising(
-        self, snapshot: Snapshot, destination_depth: int
+        self, snapshot: Snapshot, destination_depth: int, *,
+        any_missing: bool = False,
     ) -> bool:
         """Enter the ordinary fundraising set when no recall landing is safe.
 
@@ -13605,11 +13614,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ends by the ordinary run count (``_no_safe_destination_set``).  Only
         equipment abilities qualify: the *Destruction* and speed gates are not
         answered by gold.
+
+        ``any_missing``: the recall-target depth gate, after the unsafe-recall
+        fallback found no entered landing that meets the depth requirements.
+        Owner 2026-11-10 (n1-b life-365, Castle 51 lacking *Destruction* and
+        telepathy, three town:blocked stops in a row and retired):
+        「どこも満たさなければ資金集め」 -- whatever ability is missing.
         """
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False
         missing = self._missing_required_abilities(snapshot, destination_depth)
-        if not missing or missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}:
+        if not missing or (
+            not any_missing
+            and missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}
+        ):
             return False
         if self._opening_q34_active(snapshot):
             return False
