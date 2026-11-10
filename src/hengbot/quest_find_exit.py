@@ -76,15 +76,33 @@ the navigator.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, once_quest_recall, quest_exposure, resist_potion, speed_dose, status_cure, summon_response
+from hengbot import combat_answer, once_quest_recall, quest_exposure, resist_potion, summon_response
 from hengbot import threat_tiers
-from hengbot.item_reservation import reserved_item_command
-from hengbot.model import Position, SV_POTION_HEALING
-from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO, TUNNEL_KEY, WAIT_KEY
+from hengbot.model import Position
+from hengbot.policy_constants import TUNNEL_KEY, WAIT_KEY
 from hengbot.quest_navigator import QuestFloorNavigator
+# The scaffolding shared with quest_room_sweep and quest25_battle; the names stay importable here.
+from hengbot.quest_plan_base import (  # noqa: F401 -- re-exported
+    CURE_REASON,
+    DEFAULT_SPEED_RATIO,
+    HEAL_REASON,
+    HOLD_REASON,
+    MELEE_REASON,
+    PERMANENT_HASTE_SPEED,
+    RECALL_REASON,
+    SPEED_REASON,
+    STARVING,
+    _cell,
+    _cure,
+    _heal,
+    _healing_potion,
+    _never_moves,
+    _rank,
+    _rest,
+    _speed,
+    steps_aside_for_food,
+)
 
-MELEE_REASON = "quest-strategy:melee"
-HOLD_REASON = "quest-strategy:hold"
 TO_CHOKE_REASON = "quest-strategy:exit-to-choke"
 WALK_REASON = "quest-strategy:exit-walk"
 STEP_ON_EXIT_REASON = "quest-strategy:exit-step"
@@ -93,33 +111,13 @@ PULLED_BACK_REASON = "quest-strategy:exit-pulled-back"
 PULL_REFUSED_REASON = "quest-strategy:pull-cell-refused"
 CLEAR_REASON = "quest-strategy:exit-clear-first"
 PULL_WALK_REASON = "quest-strategy:exit-pull-walk"
-RECALL_REASON = "emergency:recall-quest-fail"
-HEAL_REASON = "quest-strategy:heal"
-CURE_REASON = "quest-strategy:cure"
-SPEED_REASON = "quest-strategy:quaff-speed"
 _PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON,
                            PULLED_BACK_REASON, CLEAR_REASON, PULL_WALK_REASON})
-STARVING = frozenset({"weak", "fainting"})
-
-
-def steps_aside_for_food(policy, snapshot) -> bool:
-    """A floor plan leaves the board to the survival rungs: starving, or a meal is due.
-
-    Weak-or-worse leaves by the exit stairs when nothing is edible (_survival_gate_key).
-    Merely hungry, the plan keeps the floor only when nothing is edible
-    (_starvation_lets_quest_finish); with something edible and no hostile near, the gate's
-    rule 「Hungry with something edible: eat now」 holds on a plan floor too.  n1-c life-178
-    (2026-11-09, Q25 ambush hold): hungry with a charged wand, the hold answered '5' until
-    weak, twice.
-    """
-    return snapshot.player.food_state in STARVING or policy._hunger_meal_due(snapshot)
 
 
 # Going round a monster on the way costs at most this many steps, else it is fought.
 SIDESTEP_LIMIT = 2
 VEIN_DIG_POWER = 10  # TerrainDefinitions MAGMA_VEIN_ON_DEEP_WATER tunnel power
-PERMANENT_HASTE_SPEED = 120
-DEFAULT_SPEED_RATIO = 0.5
 # A far (detected only) monster comes when, within this many game turns (20 player turns
 # at normal speed), it has closed APPROACH_CELLS on the player; a step back and forth
 # never does.
@@ -221,15 +219,6 @@ def _observe_digs(snapshot, navigator, plan) -> None:
         grid = snapshot.grid_at(Position(*raw))
         if grid is not None and grid.known and grid.passable:
             navigator.exit_dug = navigator.exit_dug | {tuple(raw)}
-
-
-def _cell(position: Position) -> tuple[int, int]:
-    return position.y, position.x
-
-
-def _never_moves(policy, monster) -> bool:
-    knowledge = policy._monrace_knowledge.get(monster.race_id)
-    return knowledge is not None and "NEVER_MOVE" in knowledge.flags
 
 
 def _pulls(policy, monster) -> bool:
@@ -343,12 +332,6 @@ def _in_view_waits(navigator, snapshot, coming, known) -> tuple[list, list]:
     return waiting, remembered
 
 
-def _rank(profile, monster) -> tuple[int, int]:
-    targets = profile.priority_targets
-    index = targets.index(monster.race_id) if monster.race_id in targets else len(targets)
-    return index, monster.hp
-
-
 class _Board:
     """The enemies of one board, as this plan weighs them."""
 
@@ -412,13 +395,6 @@ def _step_on_exit(policy, snapshot, navigator, board) -> str | None:
     return policy._step_toward(snapshot, exit_cell)
 
 
-def _healing_potion(policy, snapshot):
-    """HP recovery on this floor: Healing, or stronger; never Cure Critical."""
-    return policy._find_exact_potion(snapshot, SV_POTION_HEALING) or policy._first_item(
-        snapshot, lambda item: item.is_potion and item.aware and item.sval in HEAL_POTION_SVALS
-        and item.sval > SV_POTION_HEALING)
-
-
 def _below_line_recall(policy, snapshot, profile, *, line=True) -> str | None:
     """Recall below the strategy's line.  ``line=False``: the plan's escape asked by its 即死
     rung, whatever the HP (threat_tiers.instant_death_key)."""
@@ -428,42 +404,6 @@ def _below_line_recall(policy, snapshot, profile, *, line=True) -> str | None:
     if snapshot.player.blind or snapshot.player.confused:
         return _cure(policy, snapshot)  # the scroll cannot be read until it is cured
     return once_quest_recall.read_key(policy, snapshot, RECALL_REASON)
-
-
-def _cure(policy, snapshot) -> str | None:
-    if not (snapshot.player.blind or snapshot.player.confused):
-        return None
-    potion = status_cure.cure_potion(policy, snapshot)
-    if potion is None:
-        return None
-    policy.last_reason = CURE_REASON
-    return reserved_item_command(policy, snapshot, "quaff", potion)
-
-
-def _heal(policy, snapshot, profile) -> str | None:
-    threshold = profile.consumable_plan.get("heal_threshold_ratio")
-    if threshold is None or snapshot.player.hp_ratio >= float(threshold):
-        return None
-    potion = _healing_potion(policy, snapshot)
-    if potion is None:
-        return None
-    policy.last_reason = HEAL_REASON
-    return reserved_item_command(policy, snapshot, "quaff", potion)
-
-
-def _speed(policy, snapshot, profile, board) -> str | None:
-    """Haste while it is off, for a row that lives by it, else when the fight is heavy."""
-    if (not board.coming_in_view or policy._player_hasted(snapshot)
-            or snapshot.player.speed >= PERMANENT_HASTE_SPEED):
-        return None
-    force = policy._strategy_force_for_snapshot(snapshot, profile)
-    if not force.get("always_hasted"):
-        ratio = float(profile.consumable_plan.get("speed_potion_use_when", {}).get(
-            "expected_damage_hp_ratio_min", DEFAULT_SPEED_RATIO))
-        projected = policy.threat_prediction(snapshot, board.coming_in_view, turns=3)
-        if projected["operational_total"] < ratio * snapshot.player.hp:
-            return None
-    return speed_dose.key(policy, snapshot, SPEED_REASON)
 
 
 def _chokes(navigator, plan) -> set[Position]:
@@ -820,16 +760,6 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
     policy.last_reason = WALK_REASON
     policy._declare_reach(exit_cell)
     return policy._step_toward(snapshot, step)
-
-
-def _rest(policy, snapshot, plan, board) -> str | None:
-    """Below the plan's ratio on a board with nothing to answer: rest, however low."""
-    player = snapshot.player
-    if (player.hp_ratio >= float(plan["rest_below_ratio"]) or player.confused or board.pulling
-            or player.food_state not in {"normal", "full", "gorged"}):
-        return None
-    policy.last_reason = "rest"
-    return REST_MACRO
 
 
 def key(policy, snapshot) -> str | None:

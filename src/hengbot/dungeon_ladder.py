@@ -364,14 +364,15 @@ FLOOR_PLANS = (
         Branch("no enemy", (
             # The plan's potion when due; the light may show the summons their caster.
             ("quest_room_light.floor_potion_key", FIRST), ("_unseen_light", FIRST),
-            ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_restore", OWN),
-            ("_out_of_line", OWN),
-            ("quest_find_exit._rest", OWN), ("_ambush_key", OWN), ("_advance", OWN)), enemy=False),
+            ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
+            ("quest_plan_base._restore", OWN), ("_out_of_line", OWN),
+            ("quest_plan_base._rest", OWN), ("_ambush_key", OWN), ("_advance", OWN)), enemy=False),
         Branch("an enemy", (
             (INSTANT_DEATH, SURVIVAL),
-            ("quest_find_exit._cure", SURVIVAL), ("_leave_by_exit", SURVIVAL),
-            ("_give_up", SURVIVAL), ("_below_line", SURVIVAL), ("quest_find_exit._heal", SURVIVAL),
-            ("quest_find_exit._speed", SURVIVAL), ("quest_room_light.floor_potion_key", FIRST),
+            ("quest_plan_base._cure", SURVIVAL), ("_leave_by_exit", SURVIVAL),
+            ("quest_plan_base._give_up", SURVIVAL), ("quest_plan_base._below_line", SURVIVAL),
+            ("quest_plan_base._heal", SURVIVAL),
+            ("quest_plan_base._speed", SURVIVAL), ("quest_room_light.floor_potion_key", FIRST),
             ("_unseen_light", FIRST), ("summon_response.key", SUMMONS),
             ("resist_potion.key", OWN), ("_light_key", OWN), ("_fight", OWN))),
     )),

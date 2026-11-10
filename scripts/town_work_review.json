@@ -13307,7 +13307,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The next step of a walk to a choke already under way while an enemy still comes (owner 2026-11-06); no independent progress."
   },
-  "quest_find_exit.py:_cure": {
+  "quest_plan_base.py:_cure": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13340,7 +13340,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The blow at an adjacent enemy, or the choke to stand on; no independent progress."
   },
-  "quest_find_exit.py:_heal": {
+  "quest_plan_base.py:_heal": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13351,7 +13351,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The Healing potion below the strategy's heal ratio in a choke fight; no independent progress."
   },
-  "quest_find_exit.py:_healing_potion": {
+  "quest_plan_base.py:_healing_potion": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13395,7 +13395,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The find_exit plan of the TAKEN quest on this floor; no independent progress."
   },
-  "quest_find_exit.py:_rest": {
+  "quest_plan_base.py:_rest": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13406,7 +13406,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The rest on a board with nothing to answer (owner 2026-11-03); no independent progress."
   },
-  "quest_find_exit.py:_speed": {
+  "quest_plan_base.py:_speed": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13659,7 +13659,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_sweep.py:_below_line": {
+  "quest_plan_base.py:_below_line": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13681,7 +13681,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_sweep.py:_give_up": {
+  "quest_plan_base.py:_give_up": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13714,7 +13714,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_sweep.py:_navigator": {
+  "quest_plan_base.py:_navigator": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13758,7 +13758,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_sweep.py:_quaff_recovery": {
+  "quest_plan_base.py:_quaff_recovery": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13769,7 +13769,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_sweep.py:_restore": {
+  "quest_plan_base.py:_restore": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13780,7 +13780,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_sweep.py:_shot": {
+  "quest_plan_base.py:_shot": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13791,7 +13791,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
-  "quest_room_sweep.py:_step": {
+  "quest_plan_base.py:_path_step": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13801,6 +13801,14 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
+  },
+  "quest_plan_base.py:_least_exposed_walk": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "pure helper: the least exposed walk's cells over the quest map, dry first (quest_room_sweep._path, quest25_battle._path); emits no key."
   },
   "quest_room_sweep.py:key": {
     "classification": "producer",

@@ -86,17 +86,15 @@ from __future__ import annotations
 
 from hengbot import (
     combat_answer,
-    me_ranged_first,
     once_quest_recall,
     quest_exposure,
-    quest_find_exit,
+    quest_plan_base,
     quest_room_light,
     resist_potion,
     summon_response,
     threat_tiers,
     unseen_strike,
 )
-from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position
 from hengbot.policy_constants import (
     ITEM_DESTROYING_BREEDER_STAIR_DISTANCE,
@@ -104,14 +102,34 @@ from hengbot.policy_constants import (
     UP_STAIRS_KEY,
     WAIT_KEY,
 )
-from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON, RECALL_REASON
-from hengbot.quest_navigator import QuestFloorNavigator
+# The scaffolding shared with quest_find_exit and quest25_battle; the names stay importable here.
+from hengbot.quest_plan_base import (  # noqa: F401 -- re-exported
+    HOLD_REASON,
+    MELEE_REASON,
+    RECALL_REASON,
+    RESTORE_REASON,
+    TELEPORT_REASON,
+    _aligned,
+    _below_line,
+    _cell,
+    _door_is_closed,
+    _give_up,
+    _healing_potion,
+    _navigator,
+    _never_moves,
+    _open_doors,
+    _open_terrain,
+    _quaff_recovery,
+    _restore,
+    _RESTORES,
+    _shot,
+    _path_step as _step,
+    _terrain_of,
+)
 
 WALK_REASON = "quest-strategy:sweep-walk"
 OPEN_REASON = "quest-strategy:sweep-open-door"
 APPROACH_REASON = "quest-strategy:sweep-approach"
-TELEPORT_REASON = "quest-strategy:sweep-teleport"
-RESTORE_REASON = "quest-strategy:sweep-restore"
 NOTHING_LEFT_REASON = "quest:blocked:sweep-nothing-left"
 LIGHT_REASON = quest_room_light.LIGHT_REASON
 EXIT_WALK_REASON = "quest-strategy:sweep-exit-walk"
@@ -152,80 +170,23 @@ def planned_step(policy, snapshot) -> bool:
             and _plan(policy, snapshot) is not None)
 
 
-def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
-    navigator = policy._quest_navigators.setdefault(
-        quest_id, QuestFloorNavigator(quest_id, policy._quest_knowledge[quest_id].battlefield))
-    navigator.allow_diagonal = True
-    navigator.reset_for_floor(snapshot.floor_key)
-    return navigator
-
-
-def _cell(position: Position) -> tuple[int, int]:
-    return position.y, position.x
-
-
-def _door_is_closed(snapshot, cell: tuple[int, int]) -> bool:
-    grid = snapshot.grid_at(Position(*cell))
-    return grid is None or not grid.known or grid.is_closed_door
-
-
 def _left_alone_races(navigator, plan) -> frozenset:
     """The ``left_alone_races`` whose first stop the walk has not reached yet."""
     reached = {stop.get("race") for stop in _stops(plan)[:navigator.sweep_stage + 1]}
     return frozenset(plan.get("left_alone_races", ())) - reached
 
 
-class _Board:
-    """The enemies of one board, as this plan weighs them."""
+class _Board(quest_plan_base.Board):
+    """The enemies of one board, as this plan weighs them: what it leaves alone yet is no target."""
 
     def __init__(self, policy, snapshot, profile, navigator, plan):
-        position = snapshot.player.position
-        known = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
-                 if monster.hostile]
-        seen = [monster for monster in known if monster.perception != "detected"]
-        left_alone = _left_alone_races(navigator, plan)
-        self.left_alone = [monster for monster in seen if monster.race_id in left_alone]
-        self.occupied = {monster.position for monster in seen}
-        self.in_view = sorted(
-            (monster for monster in seen if monster.race_id not in left_alone),
-            key=lambda monster: quest_find_exit._rank(profile, monster))
-        self.beside = [monster for monster in self.in_view
-                       if monster.position.distance_to(position) <= 1]
-        # What acts on the player now.  The name is quest_find_exit._speed's.
-        self.coming_in_view = [monster for monster in self.in_view if not monster.asleep]
-        self.mobile = [monster for monster in self.coming_in_view
-                       if not quest_find_exit._never_moves(policy, monster)]
-        self.pulling = ()
-        self.hit_by_unseen = once_quest_recall._hit_by_unseen(policy, snapshot)
-
-    @property
-    def enemy(self) -> bool:
-        return bool(self.in_view or self.hit_by_unseen)
+        super().__init__(policy, snapshot, profile, _left_alone_races(navigator, plan))
 
 
 # -- the way: terrain, lines, walks --------------------------------------------------
 
 
-def _terrain_of(navigator, snapshot, *, water: bool) -> dict:
-    """The map to walk: every door passes (_step_toward opens it); deep water only when
-    asked, since hp-mp-processor.cpp drowns the overweight and nothing else needs it."""
-    kinds = {"door": "passage"}
-    if not water:
-        kinds["deep_water"] = "wall"
-    return {cell: kinds.get(kind, kind) for cell, kind in navigator.battlefield.terrain.items()}
-
-
 _EXPOSURES: dict[tuple, quest_exposure.Exposure] = {}
-
-
-def _open_doors(navigator, snapshot) -> frozenset:
-    return frozenset(cell for cell, kind in navigator.battlefield.terrain.items()
-                     if kind == "door" and not _door_is_closed(snapshot, cell))
-
-
-def _open_terrain(navigator, snapshot) -> dict:
-    """The map as lines cross it: through the doors as the board shows them."""
-    return {**navigator.battlefield.terrain, **{cell: "floor" for cell in _open_doors(navigator, snapshot)}}
 
 
 def _door_is_closed_on_map(navigator, snapshot, cell: tuple[int, int]) -> bool:
@@ -312,13 +273,8 @@ def _path(policy, navigator, plan, snapshot, goals, blocked=()) -> list[Position
     goals = {_cell(goal) for goal in goals}
     taken = frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot, navigator)))
     lines = _lines(navigator, plan, snapshot)
-    for water in (False, True):
-        terrain = _terrain_of(navigator, snapshot, water=water)
-        terrain[start] = "floor"
-        path = quest_exposure.least_exposed_path(terrain, lines, start, goals, taken)
-        if path:
-            return [Position(*cell) for cell in path]
-    return []
+    path = quest_plan_base._least_exposed_walk(navigator, snapshot, lines, start, goals, taken)
+    return [Position(*cell) for cell in path]
 
 
 def _in_line(navigator, plan, snapshot) -> bool:
@@ -335,14 +291,6 @@ def _out_of_line(policy, snapshot, navigator, plan) -> str | None:
     free = {Position(*cell) for cell, kind in walkable.items()
             if kind in {"floor", "passage"} and cell not in lines}
     return _step(policy, snapshot, _path(policy, navigator, plan, snapshot, free), WALK_REASON)
-
-
-def _step(policy, snapshot, path: list[Position], reason: str) -> str | None:
-    if len(path) < 2:
-        return None
-    policy.last_reason = reason
-    policy._declare_reach(path[-1])
-    return policy._step_toward(snapshot, path[1])
 
 
 # -- the walk ------------------------------------------------------------------------
@@ -512,18 +460,6 @@ def _unseen_key(policy, snapshot, navigator, plan, board) -> str | None:
 # -- the fight -----------------------------------------------------------------------
 
 
-def _aligned(snapshot, target) -> bool:
-    here = snapshot.player.position
-    dy, dx = abs(target.position.y - here.y), abs(target.position.x - here.x)
-    return dy == 0 or dx == 0 or dy == dx
-
-
-def _shot(policy, snapshot, target) -> str | None:
-    """An absorbed power along a clear ray, else the launcher; both as everywhere else."""
-    device = me_ranged_first.attack_key(policy, snapshot, target) if _aligned(snapshot, target) else None
-    return device or policy._ranged_attack_key(snapshot, [target], [])
-
-
 def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
     """Beside the player, the blow; else a shot in the plan's order; else wait for what
     comes; else on, by way of what stands immobile in view and has no shot."""
@@ -547,7 +483,7 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         return None  # hit by the unseen: unseen_strike and the shared ladders answer it
     occupied = board.occupied
     still = next((monster for monster in board.in_view
-                  if quest_find_exit._never_moves(policy, monster)), None)
+                  if _never_moves(policy, monster)), None)
     if still is not None:
         around = {Position(still.position.y + dy, still.position.x + dx)
                   for dy in (-1, 0, 1) for dx in (-1, 0, 1)} - occupied
@@ -560,37 +496,11 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
 # -- survival ------------------------------------------------------------------------
 
 
-def _quaff_recovery(policy, snapshot) -> str | None:
-    potion = quest_find_exit._healing_potion(policy, snapshot)
-    if potion is None:
-        return None
-    policy.last_reason = quest_find_exit.HEAL_REASON
-    return reserved_item_command(policy, snapshot, "quaff", potion)
-
-
-def _below_line(policy, snapshot, profile, navigator, *, line=True) -> str | None:
-    """Teleportation; after one that left an enemy on the player, a potion.  ``line=False``:
-    the plan's escape asked by its 即死 rung, whatever the HP (threat_tiers.instant_death_key)."""
-    if line and snapshot.player.hp_ratio > float(profile.abort_conditions["hp_ratio"]):
-        navigator.sweep_heal_next = False
-        return None
-    scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
-    if navigator.sweep_heal_next or scroll is None:
-        navigator.sweep_heal_next = False
-        if (key := _quaff_recovery(policy, snapshot)) is not None:
-            return key
-    if scroll is None:
-        return None
-    navigator.sweep_heal_next = True
-    policy.last_reason = TELEPORT_REASON
-    return policy._read_key(snapshot, scroll)
-
-
 def _leave_by_exit(policy, snapshot, navigator, plan, board) -> str | None:
     """Life-threatened with the Healing used up and the stair a few steps off."""
     if (not plan.get("exit_when_out_of_healing")
             or snapshot.player.hp_ratio > PANIC_HP_RATIO
-            or quest_find_exit._healing_potion(policy, snapshot) is not None):
+            or _healing_potion(policy, snapshot) is not None):
         return None
     goal = Position(*navigator.battlefield.exit)
     if snapshot.player.position == goal:
@@ -602,27 +512,6 @@ def _leave_by_exit(policy, snapshot, navigator, plan, board) -> str | None:
     return _step(policy, snapshot, path, EXIT_WALK_REASON)
 
 
-def _give_up(policy, snapshot, profile) -> str | None:
-    if not once_quest_recall.below_scroll_floor(policy, snapshot, profile):
-        return None
-    return once_quest_recall.read_key(policy, snapshot, RECALL_REASON)
-
-
-_RESTORES = (("restore_exp", lambda player: player.exp_drained),
-             ("restore_str", lambda player: "str" in player.drained_stats))
-
-
-def _restore(policy, snapshot) -> str | None:
-    """A quiet board: what the drains took, by the potions the plan carries for them."""
-    for name, drained in _RESTORES:
-        if drained(snapshot.player):
-            potion = quest_room_light.carried_potion(policy, snapshot, name)
-            if potion is not None:
-                policy.last_reason = RESTORE_REASON
-                return reserved_item_command(policy, snapshot, "quaff", potion)
-    return None
-
-
 def _unseen_light(policy, snapshot, navigator, plan, board) -> str | None:
     return quest_room_light.unseen_light_key(
         policy, snapshot, navigator, plan, _open_terrain(navigator, snapshot), board.hit_by_unseen)
@@ -631,7 +520,7 @@ def _unseen_light(policy, snapshot, navigator, plan, board) -> str | None:
 def key(policy, snapshot) -> str | None:
     """The board with an enemy about, or to recover on; None leaves it shared."""
     plan = _plan(policy, snapshot)
-    if (plan is None or quest_find_exit.steps_aside_for_food(policy, snapshot)
+    if (plan is None or quest_plan_base.steps_aside_for_food(policy, snapshot)
             or once_quest_recall._deliberate_leave(policy, snapshot)):
         return None
     quest_id = snapshot.floor_key[2]
@@ -649,23 +538,23 @@ def key(policy, snapshot) -> str | None:
             or _unseen_light(policy, snapshot, navigator, plan, board)
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
-            or _restore(policy, snapshot)
+            or quest_plan_base._restore(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
-            or quest_find_exit._rest(policy, snapshot, plan, board)
+            or quest_plan_base._rest(policy, snapshot, plan, board)
             or _ambush_key(policy, snapshot, navigator)
             # The shared ladders below would fight what is seen: the walk answers it here.
             or (_advance(policy, snapshot, navigator, plan, board.occupied) if board.left_alone else None)
         )
     return (
         # Owner 2026-11-07 「作戦が先・即死だけ例外」: only the 1-turn 即死 pre-empts the plan.
-        threat_tiers.instant_death_key(policy, snapshot, lambda: _below_line(
+        threat_tiers.instant_death_key(policy, snapshot, lambda: quest_plan_base._below_line(
             policy, snapshot, profile, navigator, line=False))
-        or quest_find_exit._cure(policy, snapshot)
+        or quest_plan_base._cure(policy, snapshot)
         or _leave_by_exit(policy, snapshot, navigator, plan, board)
-        or _give_up(policy, snapshot, profile)
-        or _below_line(policy, snapshot, profile, navigator)
-        or quest_find_exit._heal(policy, snapshot, profile)
-        or quest_find_exit._speed(policy, snapshot, profile, board)
+        or quest_plan_base._give_up(policy, snapshot, profile)
+        or quest_plan_base._below_line(policy, snapshot, profile, navigator)
+        or quest_plan_base._heal(policy, snapshot, profile)
+        or quest_plan_base._speed(policy, snapshot, profile, board)
         or quest_room_light.floor_potion_key(policy, snapshot, navigator, plan, quiet=False)
         # Before the unseen rule and the summons: the light may show them their caster.
         or _unseen_light(policy, snapshot, navigator, plan, board)

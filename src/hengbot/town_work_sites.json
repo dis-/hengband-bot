@@ -10907,13 +10907,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_find_exit.py:_cell": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "quest_find_exit.py:_choke_walk_under_way": {
     "classification": "producer",
     "rows": [
@@ -10936,13 +10929,6 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_find_exit.py:_clear_the_way_key": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest_find_exit.py:_cure": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -10984,20 +10970,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_find_exit.py:_heal": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest_find_exit.py:_healing_potion": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "quest_find_exit.py:_hold": {
     "classification": "producer",
     "rows": [
@@ -11018,13 +10990,6 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest_find_exit.py:_never_moves": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "quest_find_exit.py:_off_the_pull_lines": {
     "classification": "producer",
@@ -11068,33 +11033,12 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_find_exit.py:_rank": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "quest_find_exit.py:_rest": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "quest_find_exit.py:_safe_region": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
-  },
-  "quest_find_exit.py:_speed": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_find_exit.py:_step_on_exit": {
     "classification": "producer",
@@ -11346,6 +11290,139 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_plan_base.py:_below_line": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_plan_base.py:_cure": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_give_up": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_heal": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_healing_potion": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_least_exposed_walk": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_plan_base.py:_navigator": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_never_moves": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_plan_base.py:_open_doors": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_plan_base.py:_open_terrain": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_plan_base.py:_path_step": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_quaff_recovery": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_rank": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_plan_base.py:_rest": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_restore": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_shot": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_speed": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:_terrain_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_ranged_force.py:score": {
     "classification": "producer",
     "rows": [
@@ -11409,20 +11486,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_room_sweep.py:_below_line": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest_room_sweep.py:_cell": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "quest_room_sweep.py:_cover_step": {
     "classification": "data",
     "rows": [
@@ -11431,13 +11494,6 @@
     "delegation": "selected child; no independent success"
   },
   "quest_room_sweep.py:_fight": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest_room_sweep.py:_give_up": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -11479,27 +11535,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_room_sweep.py:_navigator": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest_room_sweep.py:_open_doors": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "quest_room_sweep.py:_open_terrain": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "quest_room_sweep.py:_out_of_line": {
     "classification": "producer",
     "rows": [
@@ -11521,33 +11556,12 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_room_sweep.py:_quaff_recovery": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "quest_room_sweep.py:_refused_cells": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
-  },
-  "quest_room_sweep.py:_restore": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest_room_sweep.py:_shot": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_room_sweep.py:_sought_cells": {
     "classification": "data",
@@ -11556,21 +11570,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "quest_room_sweep.py:_step": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "quest_room_sweep.py:_stops": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "quest_room_sweep.py:_terrain_of": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

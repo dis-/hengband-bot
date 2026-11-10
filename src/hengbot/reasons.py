@@ -176,7 +176,7 @@ _RULE_PLAN = "the quest plan's own teleport: answer 11 「作戦が先」"
 _rows(EXCLUDED, "policy_quest", _RULE_PLAN,
       "quest-strategy:opening-teleport", "quest-strategy:q22-opening-teleport",
       "quest-strategy:q2-teleport-reset")
-_rows(EXCLUDED, "quest_room_sweep", _RULE_PLAN, "quest-strategy:sweep-teleport")
+_rows(EXCLUDED, "quest_plan_base", _RULE_PLAN, "quest-strategy:sweep-teleport")
 _rows(EXCLUDED, "quest25_battle", _RULE_PLAN, "quest25:teleport")
 _rows(EXCLUDED, "breeder_quest", _RULE_PLAN + " (Q2's breeder breakthrough)", "breeder-breakthrough:teleport")
 _rows(NOT_ESCAPE, "policy_quest",
