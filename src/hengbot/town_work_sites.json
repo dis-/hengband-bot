@@ -1363,6 +1363,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "esp_tier_hold.py:held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "flight_recorder.py:_position": {
     "classification": "data",
     "rows": [

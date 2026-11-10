@@ -17244,5 +17244,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-07 「盲目で周りが分からない時は分からない隣のマスにも攻撃する。」 and 2026-11-03 (n1-a life-504 2026-11-10, 鉄獄24階: blind, punched by unseen summons above the emergency line, it searched in place). Blind, not returning to town or on an income run, an unseen attacker's melee blow on this board (unseen_strike.hit_in_melee) and no visible hostile adjacent: blind_strike.strike_key at the remembered cell, else unseen_strike.key at a free (or, blind, unknown) neighbour, under blind:unseen-strike; else None. Called only from _decide right after _survival_gate_key#2, before dungeon_wait_for_sight_key; dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "esp_tier_hold.py:held": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the rest slot's ESP tier (WEAK/MEDIUM kept as decided first on the floor, owner 2026-11-08); read by policy_combat._esp_threat_rest_key only, never a key"
   }
 }

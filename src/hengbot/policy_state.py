@@ -275,6 +275,8 @@ def normalize_policy_state(restored, *, restart=False):
     # The threat tiers' decided side (owner 2026-11-08 「境に余裕を持たせる」, threat_tiers.decided):
     # a checkpoint from before it has decided nothing yet.
     restored.__dict__.setdefault("_threat_tier_memory", None)
+    # The rest slot's ESP tier decided first on the floor (esp_tier_hold).
+    restored.__dict__.setdefault("_esp_tier_hold", None)
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         current_ledger.__dict__.setdefault(

@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import attack_expectation, blind_strike, damaging_ground, esp_tier_hold, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -1393,7 +1393,10 @@ class CombatMixin:
         self._esp_threat_assessment = assessment
         if assessment is None:
             return False, None
-        tier = assessment["tier"]
+        # WEAK / MEDIUM keep the side decided first on this floor (esp_tier_hold).
+        tier = esp_tier_hold.held(self, snapshot, assessment["tier"], tiered)
+        if tier != assessment["tier"]:
+            assessment["raw_tier"], assessment["tier"] = assessment["tier"], tier
         breeders = [monster for monster in tiered if monster.can_multiply]
         if tier == "strong":
             action = (
@@ -1427,12 +1430,14 @@ class CombatMixin:
         if action == "hunt":
             self._claim_target_capture = []
             try:
+                # The fight stands where the walk ends: never on ground that hurts
+                # (owner 2026-11-04 「先に出る」, esp_tier_hold).
                 step = self._nearest_goal_step(
                     snapshot,
                     lambda grid: any(
                         grid.position.distance_to(target.position) <= 1
                         for target in targets
-                    ),
+                    ) and not damaging_ground.hurts_at(self, snapshot, grid.position),
                 )
             finally:
                 step_target = self._take_claim_target()
