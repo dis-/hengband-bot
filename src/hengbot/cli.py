@@ -93,6 +93,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT
 from hengbot.policy_supply import supply_ledger_observer_memo
+from hengbot.policy_equipment import observer_defers_optimizer_search
 from hengbot.exploration_ledger import EXPLORATION_LEDGER_PATH
 from hengbot.runtime_paths import runtime_dir, runtime_path
 from hengbot.flight_recorder import (
@@ -2023,6 +2024,10 @@ class _PolicyObserverScope:
         self._bindings = None
 
     def __enter__(self):
+        # A fresh optimizer search would be discarded on exit (see
+        # policy_equipment._OBSERVER_DEFERS_OPTIMIZER_SEARCH).
+        self._search_deferral = observer_defers_optimizer_search()
+        self._search_deferral.__enter__()
         state = self._policy.__dict__
         self._bindings = dict(state)
         # The hold's copy shares the offer slot: an evaluator that opens it must
@@ -2056,6 +2061,7 @@ class _PolicyObserverScope:
         state.clear()
         state.update(self._bindings)
         self._bindings = None
+        self._search_deferral.__exit__(None, None, None)
         return False
 
 

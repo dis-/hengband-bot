@@ -66,6 +66,7 @@ from hengbot.cli import (
     _consume_response_sequence,
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy_equipment import observer_defers_optimizer_search
 
 import test_entrance_travel_retired_recorded as entrance
 from tests.support import recorded as esp_recorded
@@ -369,10 +370,13 @@ class _Lockstep:
             decided.append((str(key), policy.last_reason))
             if index == 0:
                 if self.t3_every and len(self.decisions) % self.t3_every == 0:
-                    reference = _capture_decision_facts_unchecked(
-                        policy.with_known_skill_exp(board),
-                        _independent_copy(policy),
-                    )
+                    # An observer defers the loadout search (the capture's
+                    # scope sets observer_defers_optimizer_search, 2026-11-11).
+                    with observer_defers_optimizer_search():
+                        reference = _capture_decision_facts_unchecked(
+                            policy.with_known_skill_exp(board),
+                            _independent_copy(policy),
+                        )
                     self.facts.append((
                         len(self.decisions), reference,
                         _capture_decision_facts(board, policy),
@@ -688,7 +692,7 @@ class PureDecisionTelemetryTest(unittest.TestCase):
             TOUR_WINDOW, t3_every=4,
         )
         self.assertGreaterEqual(len(lockstep.facts), TOUR_WINDOW // 4)
-        searched = skill_unknown = 0
+        searched = deferred = 0
         for step, reference, captured in lockstep.facts:
             with self.subTest(step=step):
                 self.assertEqual(sorted(captured), sorted(reference))
@@ -701,11 +705,14 @@ class PureDecisionTelemetryTest(unittest.TestCase):
                     equipment.get("catalog_items", 0) > 0
                     and "band_descent" in equipment
                 )
-                skill_unknown += "skill-exp-unknown" in equipment.get("blockers", ())
-        # Not vacuous: the sampled captures include the protocol-3 board whose
-        # ~f values are unknown and boards carrying a real optimizer search.
+                deferred += equipment.get("result_source") == "observer-search-deferred"
+        # Not vacuous: the sampled captures include boards carrying a real
+        # optimizer search (the decision's memo) and a board whose own decision
+        # left the memo unset, where the capture defers the search instead of
+        # running it (the ~f-unknown board's skill-exp-unknown search, before
+        # 2026-11-11; n1-b life-368 paid such searches in every decision row).
         self.assertGreater(searched, 0)
-        self.assertGreater(skill_unknown, 0)
+        self.assertGreater(deferred, 0)
 
 
 if __name__ == "__main__":

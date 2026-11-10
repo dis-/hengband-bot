@@ -14,6 +14,8 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_loadout_offense import held_magic_eater_powers
 
 from collections import Counter, deque
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from heapq import heappop, heappush
 from itertools import count
@@ -432,6 +434,43 @@ CURSED_TAKEOFF_REFUSALS = frozenset({
 # The feelings item-entity.cpp is_cursed_feeling() counts as a curse, which
 # sense_curse() gives a worn item the game found cursed.
 CURSED_PSEUDO_FEELINGS = frozenset({"cursed", "terrible", "worthless"})
+
+
+# Set while a pure observer (cli._PolicyObserverScope: the decision-row facts)
+# evaluates the policy.  Every write the observer makes is discarded on exit,
+# a fresh optimizer search included, so a search there was redone by the next
+# decision's facts again: n1-b life-368 (2026-11-11 01:48-02:12) paid one
+# full search (13-35 s on the viewing server) in the facts of every town
+# decision whose own choose_key did not consult the optimizer.  The observer
+# reports the decision's memo instead (``_prepare_equipment_optimization``).
+_OBSERVER_DEFERS_OPTIMIZER_SEARCH: ContextVar[bool] = ContextVar(
+    "_OBSERVER_DEFERS_OPTIMIZER_SEARCH", default=False)
+
+
+@contextmanager
+def observer_defers_optimizer_search():
+    """Within the block a memo miss republishes the memo instead of searching."""
+    token = _OBSERVER_DEFERS_OPTIMIZER_SEARCH.set(True)
+    try:
+        yield
+    finally:
+        _OBSERVER_DEFERS_OPTIMIZER_SEARCH.reset(token)
+
+
+def obtainable_ammunition_signature(ammunition) -> tuple:
+    """What the optimizer reads of the obtainable ammunition, for its memo.
+
+    ``optimize_loadout`` reads only each stack's tval with a positive count
+    (a usable launcher) and the dice and to-dam (launcher_damage), never
+    the name.  The names carry the game's ``(N/shot N/turn)`` figures,
+    which follow the worn launcher, the stats and the level: in the key they
+    re-ran the whole search when a fight in town moved them (n1-b life-368
+    2026-11-11 02:08, decision 18196, 30 s).
+    """
+    return tuple(sorted({
+        (item.tval, item.damage_dice_num, item.damage_dice_sides, item.to_d)
+        for item in ammunition if item.count > 0
+    }))
 
 
 class EquipmentMixin:
@@ -1282,10 +1321,8 @@ class EquipmentMixin:
                 for item in snapshot.equipment
                 if item.is_equipment and item.tval not in AMMUNITION_TVALS
             )),
-            tuple(sorted(
-                self._item_signature(item)
-                for item in self._obtainable_launcher_ammunition(snapshot)
-            )),
+            obtainable_ammunition_signature(
+                self._obtainable_launcher_ammunition(snapshot)),
         ) + ((("curse-pinned", tuple(sorted(curse_pinned))),) if curse_pinned else ()) + (
             (("magic-eater-powers", me_powers),) if me_powers else ()) + (
             # The search catalogue treats an item awaiting *Identify* as
@@ -1423,6 +1460,20 @@ class EquipmentMixin:
             self._offer_optimizer_result(
                 self._equipment_optimization_preparation,
                 source="signature-cache-replanned",
+            )
+            return self._equipment_optimization_preparation
+        if _OBSERVER_DEFERS_OPTIMIZER_SEARCH.get():
+            # A pure observer: its search would be discarded on exit and redone
+            # by the next observer (see _OBSERVER_DEFERS_OPTIMIZER_SEARCH).
+            self._equipment_optimization_telemetry["result_source"] = (
+                "observer-search-deferred"
+            )
+            self._equipment_optimization_telemetry[
+                "search_telemetry_freshness"
+            ] = "stale-republished"
+            self._offer_optimizer_result(
+                self._equipment_optimization_preparation,
+                source="observer-search-deferred",
             )
             return self._equipment_optimization_preparation
         if self._equipment_optimizer_knowledge_key is None:

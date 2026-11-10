@@ -22,6 +22,23 @@ def process_calibration_session_id() -> str:
     return _PROCESS_SESSION_ID
 
 
+# What a re-derived calibration may change without changing what it describes:
+# the observation's own record (its turn, the dump's hash, the response
+# sequence and the session that observed it).
+CALIBRATION_OBSERVATION_FIELDS = ("observed_turn", "evidence_hash", "response_sequence", "session_id")
+
+
+def same_calibration_constants(previous: CharacterCalibration | None,
+                               current: CharacterCalibration | None) -> bool:
+    """Whether two calibrations hold the same character constants."""
+    if previous is None or current is None:
+        return False
+    blank = {name: CharacterCalibration.__dataclass_fields__[name].default
+             for name in CALIBRATION_OBSERVATION_FIELDS}
+    from dataclasses import replace
+    return replace(previous, **blank) == replace(current, **blank)
+
+
 class LegacyCalibrationDebtError(RuntimeError):
     """Manual recovery is required before attaching an old stripped session."""
 
@@ -155,11 +172,18 @@ class CalibrationMixin:
             self._calibration_rejection = (pending, reason)
             self._equipment_optimization_signature = None
             return
+        previous = self._character_calibration
         self._character_calibration = calibration
         self._character_calibration_loaded = True
         self._calibration_unavailable_reason = None
         self._calibration_rejection = None
-        self._equipment_optimization_signature = None
+        if not same_calibration_constants(previous, calibration):
+            # The optimizer memo's signature leaves the calibration out: only
+            # new constants drop it.  The periodic dump re-derives the same
+            # ones every few dozen decisions, and dropping the memo there
+            # re-ran the whole search (n1-b life-368 2026-11-11, decisions
+            # 18166 and 18206, 30 s each on the viewing server).
+            self._equipment_optimization_signature = None
         self._confirmed_loadout = None
         self._confirmed_loadout_loaded = True
         if self._character_calibration_path is not None:
