@@ -17321,5 +17321,38 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
     "evidence": "Pure evaluator: the expected HP damage of one monster ability after the player's resistances (player-status-resist.cpp)."
+  },
+  "fundraising_survival.py:affordable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Owner 2026-11-03 「道具の後に足りない分を買う」: a mining set buys its departure-survival shortfall from the gold its kit leaves (n1-a life-507, n1-b life-364, 2026-11-10).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing shop purchase effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "evidence": "Pure budget predicate over the purse, the kit reserve, the supply ledger and observed/base prices; no command or independent effect credit."
+  },
+  "policy_shop.py:ShopMixin._fundraising_survival_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Owner 2026-11-03 「道具の後に足りない分を買う」: a mining set buys its departure-survival shortfall from the gold its kit leaves (n1-a life-507, n1-b life-364, 2026-11-10).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing shop purchase effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "evidence": "Pure selector over the observed store page for the fundraising branch of _legacy_next_purchase_unreserved (teleport, Cure Critical Wounds, then the food top-up within fundraising_survival.budget); no command or independent effect credit."
+  },
+  "policy_shop.py:ShopMixin._fundraising_survival_purchase.within": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Owner 2026-11-03 「道具の後に足りない分を買う」: a mining set buys its departure-survival shortfall from the gold its kit leaves (n1-a life-507, n1-b life-364, 2026-11-10).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing shop purchase effect observers.",
+    "delegation": "Selected child owns admission and observed effects; no independent success.",
+    "evidence": "Pure closure delegating to fundraising_survival.affordable; no command or independent effect credit."
   }
 }

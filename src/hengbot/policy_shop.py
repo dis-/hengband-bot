@@ -42,7 +42,7 @@ from hengbot import launcher_upgrade
 from hengbot import quest_optional_carry
 from hengbot import home_pass_charge
 from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
-from hengbot import mining_loadout, mining_oil_sale
+from hengbot import fundraising_survival, mining_loadout, mining_oil_sale
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.town_hold import hold_claims, offered_steps
 from hengbot.purchase_rungs import (
@@ -3479,6 +3479,37 @@ class ShopMixin(InStoreMixin):
                         me_capability.CANDIDATE)
         )
 
+    def _fundraising_survival_purchase(
+        self, snapshot: Snapshot, items, excluded_classes
+    ) -> StoreItem | None:
+        """A mining set's survival shortfall after its kit (fundraising_survival)."""
+        def within(kind, item):
+            return fundraising_survival.affordable(self, snapshot, kind, item)
+
+        if not self._teleport_ready(snapshot):
+            teleport = next((item for item in items if item.is_teleport_scroll
+                             and within("teleport", item)), None)
+            if teleport is not None:
+                return teleport
+        if not self._cure_critical_ready(snapshot):
+            cure = next((item for item in items
+                         if item.tval == TVAL_POTION
+                         and item.sval == SV_POTION_CURE_CRITICAL
+                         and within("cure", item)), None)
+            if cure is not None:
+                return cure
+        if self._food_ready(snapshot):
+            return None
+        if snapshot.player.food_type == FOOD_TYPE_MANA:
+            return self._mana_food_purchase(
+                snapshot, excluded_classes=excluded_classes,
+                budget_admits=lambda item: within("food", item))
+        if snapshot.player.food_type == FOOD_TYPE_RATION:
+            return next((item for item in items
+                         if item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
+                         and within("food", item)), None)
+        return None
+
     def _legacy_next_purchase_unreserved(
         self, snapshot: Snapshot, *, excluded_classes=frozenset(),
         commit_state: bool = True,
@@ -3591,7 +3622,10 @@ class ShopMixin(InStoreMixin):
                 )
                 if detection is not None:
                     return detection
-            if not self._food_ready(snapshot):
+            # The food the set leaves on (any edible one for a Yeek Cave run)
+            # is part of the kit; the rest of the ledger's food is survival
+            # shortfall, bought after the recall, teleport and Cure below.
+            if not self._departure_food_ready(snapshot):
                 food = None
                 if snapshot.player.food_type == FOOD_TYPE_MANA:
                     food = self._mana_food_purchase(snapshot, excluded_classes=excluded_classes)
@@ -3731,6 +3765,9 @@ class ShopMixin(InStoreMixin):
                 )
                 if recall is not None:
                     return recall
+            survival = self._fundraising_survival_purchase(snapshot, items, excluded_classes)
+            if survival is not None:
+                return survival
             # Below the whole kit and the recall, so it never starves them:
             # a drained stat is restored here too (#47 n1-c life-096: STR
             # 18/31 drained to 6 left on the Alchemist's shelf in every
