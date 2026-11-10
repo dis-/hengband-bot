@@ -38,7 +38,10 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import unittest
 from pathlib import Path
 
+from hengbot.cli import _consume_response_sequence
+
 from hengbot.model import DUNGEON_ANGBAND
+from tests.support.recorded import _policy
 from tests.test_stops_1109_town_recorded import RecordedVisit
 
 FIXTURES = Path(__file__).with_name("fixtures") / "alternate-deepest-1110"
@@ -116,6 +119,64 @@ class OverExtensionDeepestTest(AlternateDeepestVisit):
         policy._alternate_dungeon = ORC_CAVE
         policy._last_overextended_depth = LANDINGS[ORC_CAVE]
         self.assertIsNone(policy._pick_alternate_dungeon(board, prefer_deepest=True))
+
+class RestartKeepsTheSwitchTest(AlternateDeepestVisit):
+    """The switch survives a process restart (alternate_dungeon_record).
+
+    Live: every deploy restarted the bot and the fresh process forgot the
+    switch; the Mountain 50F conquest and Angband 61-70F came back and
+    three more dives with emergency escapes were redone before the valve
+    switched again (restarts 2026-11-10 00:59-07:51, keep-running-events).
+
+    The previous process is the restored arrival policy; its row 0 makes the
+    switch through the real observation, which writes the record.  DECLARED:
+    the checkpoint predates the record, so its path is set the way
+    ``cli._configure_policy_output_paths`` sets it.  The restarted process is
+    a fresh policy (tests.support.recorded._policy) whose first board is the
+    recorded row 1 board.  DECLARED WALL: its ~f skill values are the
+    previous process's (the first decision of a fresh process asks them).
+    """
+
+    def restart(self, *, carry=True):
+        record = self.scratch / "alternate-dungeon.json"
+        self.policy._alternate_dungeon_record_path = record
+        self.replay(0)
+        self.assertEqual(self.policy._alternate_dungeon, CASTLE)
+        if not carry:
+            record.unlink(missing_ok=True)
+        fresh_dir = self.scratch / "fresh"
+        fresh_dir.mkdir()
+        fresh = _policy(fresh_dir, self.policy._monrace_knowledge)
+        fresh._alternate_dungeon_record_path = record
+        entry = self.journal[1]
+        line = entry["line"] if entry["line"] is not None else entry["inputs"][-1]
+        _decoded, snapshots = _consume_response_sequence(
+            [line + chr(10)], fresh, lambda _key: True, fresh._monrace_knowledge,
+            knowledge_ledger_path=fresh_dir / "knowledge.jsonl")
+        board = snapshots[-1]
+        two_weapon, shield = self.policy._skill_exp_cache[:2]
+        fresh._skill_exp_cache = (two_weapon, shield, board.player.level,
+                                  fresh._town_visit_epoch)
+        key = fresh.choose_key(board)
+        return fresh, board, key
+
+    def test_restarted_process_keeps_the_castle(self):
+        fresh, board, _key = self.restart()
+        self.assertTrue(board.in_town)
+        # Unfixed: the fresh process went back to Angband 70F (the control).
+        self.assertEqual(fresh._alternate_dungeon, CASTLE)
+        self.assertEqual(fresh._target_dungeon_id, CASTLE)
+        self.assertEqual(fresh._alternate_dungeon_reason, "over_extended_dives")
+        self.assertEqual(fresh._last_overextended_depth, 70)
+        self.assertIsNone(fresh._conquest_committed)
+
+    def test_control_without_the_record_the_too_deep_target_comes_back(self):
+        fresh, _board, _key = self.restart(carry=False)
+        self.assertIsNone(fresh._alternate_dungeon)
+        # On this board the fresh process goes back to Angband 70F, the
+        # depth the three over-extended dives just came from.
+        self.assertEqual(fresh._target_dungeon_id, DUNGEON_ANGBAND)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1421,6 +1421,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Display-only (spectator, #47): why _alternate_dungeon was switched to.
         # Set at every assignment of the alternate; no decision reads it.
         self._alternate_dungeon_reason: str | None = None
+        # The switch's restart record (alternate_dungeon_record); the CLI
+        # points the path beside the decision log.
+        self._alternate_dungeon_record_path = None
+        self._alternate_dungeon_record = None
         self._pending_recall_dungeon_id: int | None = None
         # Owner 2026-11-08: a refused global map walks off the wilderness
         # tile's edge (_wilderness_survival_key / _wilderness_edge_key).
