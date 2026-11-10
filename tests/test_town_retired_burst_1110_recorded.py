@@ -123,6 +123,31 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
                     policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
         return posted
 
+    def test_n1a_bound_home_take_composes_after_the_outside_scan(self):
+        """Row 73 (decision 17458): the Home entrance after the outside ``~9``.
+
+        Live: ``5`` shop:travel:await-entry (the step-off latch of row 72 refused
+        the composer), the Home page left again for the take, and the third
+        retirement made the burst.  The pickaxe take is bound since row 65.
+        """
+        with mock.patch("hengbot.policy.town_home_route_opened_for",
+                        pre_fix_home_route_opened_for):
+            policy, recorded, steps = self.load("n1a-508")
+            self.replay("before-the-home-loop", policy, steps[:55])
+            posted = self.replay_live(policy, recorded, steps[55:73])
+            # The live CLI's rewrites at the two forgiven retirements.
+            self.assertEqual((recorded[58]["key"], posted[58 - 55]), ("~9\x1b", "\x1b"))
+            self.assertEqual(policy._owner_retired_no_progress_count, 2)
+            self.assertEqual((recorded[72]["key"], recorded[72]["reason"]),
+                             ("~9\x1b", "home:request-knowledge-scan"))
+            self.assertEqual(policy._home_pending_item, PICKAXE)
+            board = steps[73][1]()
+            self.assertEqual(board.grid_at(board.player.position).store_number, STORE_HOME)
+            self.assertEqual(recorded[73]["reason"], "shop:travel:await-entry")
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("5 pd1\r\x1b", "home:atomic-withdraw"))
+        self.assertEqual(policy._home_atomic_withdraw_pending[0], PICKAXE)
+
     def test_n1b_walk_through_the_gate_holding_its_own_torch(self):
         """Row 3 (decision 1611): the board after the thrown torch killed the dog.
 
