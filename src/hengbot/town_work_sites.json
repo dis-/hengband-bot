@@ -1384,6 +1384,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "fundraising_survival.py:affordable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
   "goal_route.py:_commitments": {
     "classification": "data",
     "rows": [
@@ -8457,6 +8464,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_shop.py:ShopMixin._fundraising_survival_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "policy_shop.py:ShopMixin._fundraising_survival_purchase.within": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
   "policy_shop.py:ShopMixin._identify_staff_purchase_room_count": {
     "classification": "data",
     "rows": [
@@ -12074,6 +12095,13 @@
     "delegation": "selected child; no independent success"
   },
   "threat_escape.py:need_not_fight": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:Projection.affordable": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -1225,8 +1225,12 @@ class SupplyMixin:
         return (chance - 2) / chance
 
     def _mana_food_purchase(
-        self, snapshot: Snapshot, *, excluded_classes=frozenset()
+        self, snapshot: Snapshot, *, excluded_classes=frozenset(), budget_admits=None,
     ) -> StoreItem | None:
+        """The charged device bought for a MANA eater's food.
+
+        ``budget_admits`` narrows the shelf further (a mining set's food budget,
+        fundraising_survival)."""
         store = snapshot.store
         if store is None or store.store_type != STORE_MAGIC:
             return None
@@ -1244,6 +1248,7 @@ class SupplyMixin:
             and it.price <= snapshot.player.gold
             and ((it.tval, it.sval) not in excluded_classes
                  or self._identify_staff_swap_purchase(it))
+            and (budget_admits is None or budget_admits(it))
         ]
         if not candidates:
             return None
