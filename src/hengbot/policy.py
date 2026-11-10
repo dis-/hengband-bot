@@ -3209,6 +3209,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                         (self._fundraising_runs_started or 0) + 1
                     )
                     self._post_fundraising_transport(snapshot, "depart")
+        step_off = getattr(self, "_store_entrance_step_off", None)
+        if (step_off is not None and step_off[0] == self._decision_sequence
+                and key not in DIRECTION_KEYS.values()):
+            # The entrance step-off the approach decided on this decision was
+            # not the emitted key.  Left armed, it refuses the Home composers
+            # on the next board, which still shows this turn and cell when the
+            # emitted key spends no game time: n1-a life-508 2026-11-10 21:05,
+            # the outside ~9 replaced the step-off, the composer then refused
+            # the bound Home take, the router re-entered Home, the page left
+            # for that take, and the loop made the owner-retired-burst.
+            self._store_entrance_step_off = None
         self._release_observed_store_exit(snapshot)
         town_advance_hold(self, snapshot, key)
         self._town_progress_note_command(key)
