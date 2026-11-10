@@ -102,8 +102,6 @@ LADDER = (
         *D("immobile_threat_memory.step_out_key", exempt=NOT_DECIDED),
         *E("_unseen_retreat_intercept_key", exempt=FIGHTS),
         *E("_unseen_retreat_key", exempt=ANSWERS_DANGER),
-        # Owner 2026-11-10 穴熊 「掘れるなら掘る」: the dug pocket before the existing chokes.
-        *D("anaguma.key", exempt=FIGHTS),
         *E("_detected_threat_preparation_key", exempt=NO_ATTACKER),
         *P("_return_to_town_key#1"),
     )),

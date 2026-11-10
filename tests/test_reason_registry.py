@@ -78,18 +78,13 @@ NEWLY_COUNTED_1109 = frozenset({
 })
 
 
-# Owner 2026-11-10 穴熊 「今の基準のまま」: the pocket's escape read, a new reason counted by rule A
-# of 2026-11-09 (「全部の逃げを数える」), as no-wait:escape-scroll is.
-NEWLY_COUNTED_1110 = frozenset({"anaguma:escape-scroll"})
-
-
 class DerivedSetsTest(unittest.TestCase):
     def test_emergency_escape_reasons_are_the_old_literals(self):
         self.assertEqual(policy_constants.EMERGENCY_ESCAPE_REASONS, OLD_EMERGENCY_ESCAPE_REASONS)
 
     def test_relocating_escape_reasons_are_the_old_literals(self):
         self.assertEqual(policy_constants.RELOCATING_ESCAPE_REASONS,
-                         OLD_RELOCATING_ESCAPE_REASONS | NEWLY_COUNTED_1109 | NEWLY_COUNTED_1110)
+                         OLD_RELOCATING_ESCAPE_REASONS | NEWLY_COUNTED_1109)
         self.assertFalse(OLD_RELOCATING_ESCAPE_REASONS & NEWLY_COUNTED_1109)
 
     def test_the_answered_questions_are_no_longer_open(self):

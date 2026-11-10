@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import anaguma, attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import attack_expectation, blind_strike, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -743,11 +743,6 @@ class CombatMixin:
             for monster in strategic_hostiles
             if snapshot.player.position.distance_to(monster.position) <= 1
         ]
-        # Owner 2026-11-10 穴熊: on the dug pocket a loss below the material line is the pack's
-        # fight the pocket is for; the only step out leads into the pack (anaguma.holds).
-        in_pocket = anaguma.holds(self, snapshot)
-        if in_pocket and not material_threat:
-            return key
         # A low-damage town contact should reach the existing melee action,
         # rather than making the town's persistent pursuer chase the player
         # around indefinitely. Keep observed-damage and material-threat
@@ -773,7 +768,7 @@ class CombatMixin:
                 self.last_reason = "no-wait:escape-scroll"
                 return self._read_key(snapshot, scroll)
 
-            step = None if in_pocket else self._flee_step(snapshot, hostiles)
+            step = self._flee_step(snapshot, hostiles)
             if step is not None and not (
                 self._escape_state.owner in {"disengage", "emergency"}
                 and self._is_oscillating()

@@ -1003,13 +1003,6 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("town:arena:travel-step-off", T, EFFECT),
         ("town:arena:return", R, ENTRANCE),
         ("town:arena:return-step-off", T, EFFECT),
-        # The Stone to Mud wands' Tower recharge (wand_tower_recharge, owner 2026-11-10).
-        ("town:wand-recharge:recharge-all", T, EFFECT),
-        ("town:wand-recharge:approach", R, ENTRANCE),
-        ("town:wand-recharge:travel", R, ENTRANCE),
-        ("town:wand-recharge:travel-step-off", T, EFFECT),
-        ("town:wand-recharge:return", R, ENTRANCE),
-        ("town:wand-recharge:return-step-off", T, EFFECT),
         # The Zul trip (zul_trip, owner 2026-11-07).
         ("town:zul:fundraise", T, EFFECT),
         ("town:zul:skipped:", T, EFFECT),
