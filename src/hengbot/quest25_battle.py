@@ -103,8 +103,8 @@ from hengbot import (
     quest25_geometry as geo,
     quest25_plan,
     quest_exposure,
-    quest_find_exit,
     quest_firing_cells,
+    quest_plan_base,
     quest_room_light,
     quest_room_sweep,
     resist_potion,
@@ -124,7 +124,7 @@ from hengbot.policy_constants import (
     DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, RANGED_MAX_DISTANCE, REST_MACRO, SEARCH_KEY,
     UP_STAIRS_KEY, WAIT_KEY,
 )
-from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
+from hengbot.quest_plan_base import HOLD_REASON, MELEE_REASON
 from hengbot.unseen_strike import message_text
 
 PLAN_KEY = quest25_plan.DRAFT_KEY
@@ -371,10 +371,10 @@ class _Ctx:
         return quest25_plan.values_of(self.profile)
 
     def door_closed(self, cell) -> bool:
-        return quest_room_sweep._door_is_closed(self.snapshot, tuple(cell))
+        return quest_plan_base._door_is_closed(self.snapshot, tuple(cell))
 
     def open_terrain(self) -> dict:
-        return quest_room_sweep._open_terrain(self.navigator, self.snapshot)
+        return quest_plan_base._open_terrain(self.navigator, self.snapshot)
 
     def hostiles(self) -> list:
         return [monster for monster in (*self.snapshot.visible_monsters,
@@ -392,7 +392,7 @@ def _ctx(policy, snapshot):
     profile = _profile(policy, snapshot)
     if profile is None:
         return None
-    navigator = quest_room_sweep._navigator(policy, snapshot, geo.QUEST_ID)
+    navigator = quest_plan_base._navigator(policy, snapshot, geo.QUEST_ID)
     return _Ctx(policy, snapshot, profile, navigator, _memory(navigator, policy, snapshot))
 
 
@@ -526,13 +526,8 @@ def _path(ctx: _Ctx, goals) -> list[tuple[int, int]]:
     start = ctx.here
     occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
     exposure = geo.exposure_of(_avoided(ctx))
-    for water in (False, True):
-        terrain = quest_room_sweep._terrain_of(ctx.navigator, ctx.snapshot, water=water)
-        terrain[start] = "floor"
-        path = quest_exposure.least_exposed_path(terrain, exposure, start, goals, occupied - goals)
-        if path:
-            return path
-    return []
+    return quest_plan_base._least_exposed_walk(
+        ctx.navigator, ctx.snapshot, exposure, start, goals, occupied - goals)
 
 
 def _step(ctx: _Ctx, cell, reason: str = WALK_REASON, *, guard: bool = True) -> str:
@@ -625,7 +620,7 @@ def _withdraw(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
         return _rest_out_of_fire(ctx)
     safe = _safe_cells(ctx, fire)
     occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
-    terrain = quest_room_sweep._terrain_of(ctx.navigator, ctx.snapshot, water=False)
+    terrain = quest_plan_base._terrain_of(ctx.navigator, ctx.snapshot, water=False)
     terrain[ctx.here] = "floor"
     path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
                                              ctx.here, safe, occupied - safe)
@@ -957,7 +952,7 @@ def _engage(ctx: _Ctx, targets) -> str | None:
         if answer is not None and answer.key is not None:
             return answer.key
     for target in targets:
-        if target.distance > 1 and (shot := quest_room_sweep._shot(policy, snapshot, target)) is not None:
+        if target.distance > 1 and (shot := quest_plan_base._shot(policy, snapshot, target)) is not None:
             ctx.battle.aimed_race = None
             return shot
     return None
@@ -2004,7 +1999,7 @@ def _druj_retreat(policy, snapshot, *, line=True) -> str | None:
                if kind in {"floor", "door"} and cell not in lines}
         return _walk(ctx, out, RETREAT_REASON)
     if battle.retreat_rest_hp is not None and player.hp <= battle.retreat_rest_hp:
-        potion = quest_find_exit._healing_potion(policy, snapshot)
+        potion = quest_plan_base._healing_potion(policy, snapshot)
         if potion is not None:
             battle.retreat_rest_hp = None
             policy.last_reason = RETREAT_HEAL_REASON
@@ -2035,7 +2030,7 @@ def _summons(policy, snapshot) -> str | None:
 def key(policy, snapshot) -> str | None:
     """The board on the Q25 floor while the revised plan runs; None leaves it shared."""
     ctx = _ctx(policy, snapshot)
-    if (ctx is None or quest_find_exit.steps_aside_for_food(policy, snapshot)
+    if (ctx is None or quest_plan_base.steps_aside_for_food(policy, snapshot)
             or once_quest_recall._deliberate_leave(policy, snapshot)):
         return None
     _observe(ctx)
@@ -2048,7 +2043,7 @@ def key(policy, snapshot) -> str | None:
             or _leave_by_exit(policy, snapshot, board)
             or _summons(policy, snapshot)
             or resist_potion.drink_key(policy, snapshot)
-            or quest_room_sweep._restore(policy, snapshot)
+            or quest_plan_base._restore(policy, snapshot)
             or _out_of_fire_key(policy, snapshot)
             or _recall_wait(policy, snapshot)
             or _phase_key(policy, snapshot)
@@ -2060,15 +2055,15 @@ def key(policy, snapshot) -> str | None:
         # (owner 2026-11-07 phase7_druj), else the below-line Teleportation.
         threat_tiers.instant_death_key(policy, snapshot, lambda: (
             _druj_retreat(policy, snapshot, line=False)
-            or quest_room_sweep._below_line(policy, snapshot, profile, navigator, line=False)))
-        or quest_find_exit._cure(policy, snapshot)
+            or quest_plan_base._below_line(policy, snapshot, profile, navigator, line=False)))
+        or quest_plan_base._cure(policy, snapshot)
         or _druj_retreat(policy, snapshot)
         or _leave_by_exit(policy, snapshot, board)
-        or quest_room_sweep._give_up(policy, snapshot, profile)
-        or quest_room_sweep._below_line(policy, snapshot, profile, navigator)
+        or quest_plan_base._give_up(policy, snapshot, profile)
+        or quest_plan_base._below_line(policy, snapshot, profile, navigator)
         or _absorbed_heal(policy, snapshot, profile)
-        or quest_find_exit._heal(policy, snapshot, profile)
-        or quest_find_exit._speed(policy, snapshot, profile, board)
+        or quest_plan_base._heal(policy, snapshot, profile)
+        or quest_plan_base._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
         or _out_of_fire_key(policy, snapshot)
@@ -2090,7 +2085,7 @@ def _absorbed_heal(policy, snapshot, profile) -> str | None:
     threshold = profile.consumable_plan.get("heal_threshold_ratio")
     if threshold is None or snapshot.player.hp_ratio >= float(threshold):
         return None
-    if (quest_find_exit._healing_potion(policy, snapshot) is not None
+    if (quest_plan_base._healing_potion(policy, snapshot) is not None
             and threat_tiers.instant_death(policy, snapshot).holds):
         return None
     key = item_cast_key(policy, snapshot, (TVAL_POTION, SV_POTION_HEALING))
@@ -2116,7 +2111,7 @@ def _recall_wait(policy, snapshot) -> str | None:
         policy.last_reason = RECALL_EXIT_REASON
         return UP_STAIRS_KEY
     occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
-    terrain = quest_room_sweep._terrain_of(ctx.navigator, snapshot, water=False)
+    terrain = quest_plan_base._terrain_of(ctx.navigator, snapshot, water=False)
     terrain[ctx.here] = "floor"
     path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
                                              ctx.here, {goal}, occupied - {goal})
