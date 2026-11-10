@@ -124,6 +124,25 @@ def destroyed_cells(policy, snapshot: Snapshot) -> set:
     return cells
 
 
+def wrecked(policy, cell: tuple) -> bool:
+    """``cell`` (y, x) lies in the sure radius of a *Destruction* of the policy's current floor
+    visit.  destroy_area (spell-kind/spells-floor.cpp) gives every grid there that is not
+    PERMANENT a new random granite, quartz, magma or floor terrain: no secret door is left in
+    it, so its walls are not searched (n1-b life-367, 2026-11-10: 17 of 41 dives from 46F on
+    searched the walls of their own circle until the stuck count read Recall at full HP)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or not memory.circles or memory.floor != getattr(policy, "_floor_key", None):
+        return False
+    position = Position(*cell)
+    return any(game_distance(centre, position) <= sure for centre, _, sure in memory.circles)
+
+
+def circle_count(policy, snapshot: Snapshot) -> int:
+    """How many *Destruction*s of this floor visit were seen."""
+    memory = _floor_memory(policy, snapshot)
+    return 0 if memory is None else len(memory.circles)
+
+
 def destroyed_since_arrival(policy, snapshot: Snapshot) -> bool:
     """The player's *Destruction* was seen on this floor visit."""
     memory = _floor_memory(policy, snapshot)

@@ -710,7 +710,7 @@ class PolicyHelpersMixin:
         floor, picked as the unsafe-recall fallback, 7 round trips).
         """
         return (not self._missing_required_abilities(snapshot, landing_depth)
-                and not self._guardian_floor_blocked(snapshot, dungeon_id, landing_depth))
+                and not self._recall_landing_guardian_blocked(snapshot, dungeon_id, landing_depth))
 
     def _can_fight_in_dungeon(self, dungeon_id: int) -> bool:
         """Whether this character can fight in ``dungeon_id`` (static data).

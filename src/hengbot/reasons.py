@@ -190,7 +190,8 @@ _rows(EXCLUDED, "policy_combat", _RULE_SUMMONER_EXIT,
 _rows(WALK, "policy_combat", _RULE_SUMMONER_EXIT,
       "summoner:seek-downstairs", "summoner:seek-upstairs", "summoner:wait-recall")
 _RULE_STUCK = "stuck / livelock relocations: no enemy prompted them"
-_rows(EXCLUDED, ("policy", "retreat_enclosure", "policy_navigation"), _RULE_STUCK,
+_rows(EXCLUDED, ("policy", "retreat_enclosure", "policy_navigation", "sealed_pocket"), _RULE_STUCK,
+      "stuck:destroyed-circle-teleport", "stuck:destroyed-circle-recall",
       "stuck:ascend", "stuck:enclosed-teleport", "stuck:recall-escape", "stuck:teleport-escape",
       "stuck:walled-off-recall", "livelock:ascend", "livelock:recall-escape", "livelock:teleport-explore")
 _rows(WALK, ("policy", "policy_navigation"), _RULE_STUCK,
@@ -207,6 +208,8 @@ _RULE_WALK = "owner 2026-11-09 「歩いての後退は数えない」: a walk, 
 _rows(WALK, "policy", _RULE_WALK, "flee", "flee:wait", "status-threat:retreat", "threat:reposition",
       "no-wait:flee")
 _rows(WALK, "threat_tiers", _RULE_WALK, "sensed-t1:walk")
+_rows(WALK, "threat_tiers", "owner 2026-11-10 P2 「積極的に*破壊*で消しにいく」: a step toward a T1 known only "
+      "by detection, to bring it into the *Destruction* radius; no escape", "sensed-t1:approach-destruction")
 _rows(WALK, ("policy_combat", "summoner_wait"), _RULE_WALK, "summoner:retreat")
 _rows(WALK, ("policy", "policy_combat", "policy_navigation", "attack_answer", "blind_strike"), _RULE_WALK,
       "combat:disengage", "combat:disengage-", "combat:disengage-armed", "combat:disengage-clear-path",

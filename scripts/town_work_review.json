@@ -14339,7 +14339,7 @@
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "sealed_pocket.key at once for a sealed region inside the player's *Destruction* of this floor visit (owner 2026-11-05 「*破壊* の後はすぐ溶かす」); dungeon only.",
+    "evidence": "For a sealed region inside the player's *Destruction* of this floor visit, at once: sealed_pocket.key (the map, the melt line or the melt route; owner 2026-11-05 「*破壊* の後はすぐ溶かす」), else one Teleportation (destroyed_leave_key), else Recall as the last means; dungeon only.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -17691,5 +17691,104 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:sealed_region": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cells the player can walk to (known floor and a magic mapping's blank floor), when none leads on; read off the board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:destroyed_leave_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: after the player's own *Destruction* on this floor visit; never reached in town.",
+    "evidence": "dungeon-only: one Teleportation per *Destruction* circle while the scrolls are above the leave reserve, asked by the destroyed pocket and before the stuck and livelock Recall (owner 2026-11-04 「治して階の探索を続ける。破壊の回数だけでは帰還しない」, n1-b life-367 Mountain 50F 2026-11-10); returns the read key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing teleport or recall owner."
+  },
+  "sealed_pocket.py:_last_recall_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: a sealed pocket of the player's own *Destruction*; never reached in town.",
+    "evidence": "dungeon-only: Recall out of a sealed *Destruction* pocket nothing else leaves (no melt route, no Teleportation above the reserve), the last means; not on a quest floor; returns the read key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing recall owner."
+  },
+  "retreat_enclosure.py:melt_toward_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: a sealed pocket whose straight lines end at permanent rock; never reached in town.",
+    "evidence": "dungeon-only: the Stone to Mud route (_melt_key) from a sealed pocket toward the floor that leads on, under the asker's reason (sealed_pocket.key, n1-b life-367 Mountain 50F 2026-11-10: every line from its *Destruction* pocket ended at the Mountain's permanent peaks); returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "guardian_landing.py:guardian_tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the threat tier (threat_tiers.tiered, contact) of a dungeon's guardian alone on the duel board _guardian_fight_viable builds, from the static race data; read by the recall landing checks (owner 2026-11-10 「守護者が T1 の最下層は、*破壊* の有無に関係なく帰還先にしない。」).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "guardian_landing.py:guardian_tier.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the memoized body of guardian_tier.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:_approach_targets": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: threat_tiers.leave_decided_here holds.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the T1s the sensed leave's approach goes to (every T1 known only by detection, the *Destruction* means held, a floor destroy_area touches, a clear head; not the floor's guardian nor the quest target).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:approach_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: threat_tiers.leave_decided_here holds (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-10 (P2) 「積極的に*破壊*で消しにいく」: in place of the sensed T1 leave while every T1 is known only by detection and the *Destruction* means are held: the use (destruction_use.key, leaving the T1s) once one is in the sure radius 13, else a step toward the nearest (sensed-t1:approach-destruction, a walk); None with no known way (the rungs below map and explore)."
+  },
+  "summoner_loot.py:pocket_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: the emergency ladder (policy_combat _emergency_item) with an open summoner on a T3 board; never reached in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-10 (P6) 「ドロップに価値がないなら*破壊*、価値があるT3なら穴熊を試みて地形が悪ければやはり*破壊*する。」: with summoner_open alone (not lethal, not 即死), HP at 90%+, tier T3 and the ladder's *Destruction* usable, when a hostile within the worst radius has a valuable drop (DROP_GOOD/GREAT, UNIQUE, 3+ expected drops), anaguma.key in place of the use; None otherwise (the ladder as before)."
   }
 }

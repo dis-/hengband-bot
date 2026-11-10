@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, locked_doors, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import area_mapping, dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, locked_doors, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -743,6 +743,11 @@ class NavigationMixin:
             self._quest_floor_exit_locked(snapshot)
             or snapshot.floor_key[2] != 0
         )
+        # After the player's own *Destruction* on this floor, Teleportation before
+        # Recall (sealed_pocket.destroyed_leave_key, owner 2026-11-04).
+        destroyed = sealed_pocket.destroyed_leave_key(self, snapshot)
+        if destroyed is not None:
+            return destroyed
         if not quest_locked and self._nav_escape_steps < NAV_ESCAPE_STEP_LIMIT:
             self._nav_escape_steps += 1
             if (
@@ -1949,6 +1954,8 @@ class NavigationMixin:
             if (key := (position.y + dy, position.x + dx))
             in self._remembered_wall_t
             and self._wall_search_counts[key] < SEARCH_LIMIT
+            # No secret door is left in the player's own *Destruction* (area_mapping.wrecked).
+            and not area_mapping.wrecked(self, key)
         ]
 
     def _warning_step_refused(self, snapshot: Snapshot, cell: Position) -> bool:

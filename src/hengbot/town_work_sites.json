@@ -1664,6 +1664,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "guardian_landing.py:guardian_tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "guardian_landing.py:guardian_tier.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
     "rows": [
@@ -11885,6 +11899,13 @@
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
+  "retreat_enclosure.py:melt_toward_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
   "retreat_enclosure.py:open_toward_key": {
     "classification": "action",
     "rows": [
@@ -11948,6 +11969,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "sealed_pocket.py:_last_recall_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing recall owner."
+  },
   "sealed_pocket.py:_line": {
     "classification": "data",
     "rows": [
@@ -11976,6 +12004,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "sealed_pocket.py:destroyed_leave_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing teleport or recall owner."
+  },
   "sealed_pocket.py:key": {
     "classification": "data",
     "rows": [
@@ -11984,6 +12019,13 @@
     "delegation": "selected child; no independent success"
   },
   "sealed_pocket.py:melt_at_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:sealed_region": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -12318,6 +12360,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "summoner_loot.py:pocket_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "summoner_wait.py:_leave_shot_hold_point_key": {
     "classification": "action",
     "rows": [
@@ -12542,6 +12591,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:_approach_targets": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:_assess": {
     "classification": "data",
     "rows": [
@@ -12555,6 +12611,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:approach_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "threat_tiers.py:assess": {
     "classification": "data",

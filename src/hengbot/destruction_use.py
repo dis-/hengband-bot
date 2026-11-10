@@ -291,14 +291,16 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None)
     return used
 
 
-def usable(policy, snapshot) -> bool:
-    """Whether ``key`` would use the means on this board (no state is changed)."""
+def usable(policy, snapshot, *, leaving=None) -> bool:
+    """Whether ``key`` (with the same ``leaving``) would use the means on this board (no state
+    is changed)."""
     memory = getattr(policy, MEMORY, None)
     if memory is not None and (
             (memory.pending is not None and memory.pending[:2] == (snapshot.floor_key, snapshot.turn))
             or memory.fallback == snapshot.floor_key):
         return False
-    if not _scene_holds(policy, snapshot):
+    in_range = _threat_in_range if leaving is None else partial(_threat_in_reach, hostiles=list(leaving))
+    if not _scene_holds(policy, snapshot, in_range):
         return False
     return _absorbed_key(policy, snapshot) is not None or _carried_key(policy, snapshot) is not None
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import anaguma, attack_expectation, blind_strike, damaging_ground, esp_tier_hold, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import anaguma, attack_expectation, blind_strike, damaging_ground, esp_tier_hold, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -2463,6 +2463,13 @@ class CombatMixin:
                 and not self._committed_unique_fight_viable(snapshot, hostiles)
             )
         )
+        # Owner 2026-11-10 (P6) 「ドロップに価値がないなら*破壊*、価値があるT3なら穴熊を試みて
+        # 地形が悪ければやはり*破壊*する。」: an open summoner alone on a T3 board at full HP
+        # whose *Destruction* would delete a valuable drop is fought from the pocket instead,
+        # before this board latches an escape (summoner_loot).
+        if (summoner_open and not lethal and not instant_death and not guardian_reposition
+                and (pocket := summoner_loot.pocket_key(self, snapshot, hostiles)) is not None):
+            return pocket
         if lethal or summoner_open:
             self._emergency_escape_pending = True
             self._emergency_return_active = True

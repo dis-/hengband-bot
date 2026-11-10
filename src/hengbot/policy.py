@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import anaguma, combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
+from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 
 from collections import Counter, deque
 import random
@@ -11012,8 +11012,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _recall_landing_guardian_blocked(
         self, snapshot: Snapshot, dungeon_id: int, depth: int
     ) -> bool:
-        """Whether a recall to ``dungeon_id`` lands on a blocked guardian floor."""
-        return self._guardian_floor_blocked(snapshot, dungeon_id, depth)
+        """Whether a recall to ``dungeon_id`` lands on a blocked guardian floor: one the kit
+        cannot pass, or the last floor whose guardian is T1 (guardian_landing, owner
+        2026-11-10 「守護者が T1 の最下層は、*破壊* の有無に関係なく帰還先にしない。」)."""
+        return (self._guardian_floor_blocked(snapshot, dungeon_id, depth)
+                or guardian_landing.t1_landing(self, snapshot, dungeon_id, depth))
 
     def _recall_departure_minimum(self, snapshot: Snapshot) -> int:
         """Hard minimum that must remain available when leaving town."""
@@ -17493,6 +17496,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             restore = self._town_producer_entry("_breakout_restore_weapon_key#2", lambda: self._breakout_restore_weapon_key(snapshot))
             if restore is not None:
                 return restore
+        # After the player's own *Destruction* on this floor, Teleportation comes
+        # before Recall (owner 2026-11-04 「治して階の探索を続ける」; n1-b life-367
+        # recalled at full HP from 17 of 41 dives from 46F on, 2026-11-10).
+        destroyed = sealed_pocket.destroyed_leave_key(self, snapshot)
+        if destroyed is not None:
+            return destroyed
         # n1-b life-345 (2026-11-08 08:13:43): the Zul trip's ambush board read
         # Recall here; the trip leaves an ambush by the map edge instead.
         recall = None if zul_trip.holds_surface_recall(self, snapshot) else self._find_recall_scroll(snapshot)
