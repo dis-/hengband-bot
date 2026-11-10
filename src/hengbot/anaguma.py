@@ -21,7 +21,10 @@ awake and able to move.  An animal pack (ANIMAL, no PASS_WALL/KILL_WALL) needs 4
 other pack 2.  A monster that passes or kills walls anywhere in view or detection vetoes the
 pocket (monster-floor/monster-move.cpp:76-96).  A player walled in on every side
 (``sealed_pocket.sealed_region``) plans none: no pack walks to it, and its Stone to Mud is the way
-out (owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出すれば良い」).
+out (owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出すれば良い」).  A pack of which half
+or more is expected to run from the player (``run_chance``, the game's ``mon_will_run``) gets
+no pocket, and a plan not yet dug is dropped (owner 2026-11-10 「弱いoの群れなど…自分から逃げる
+群れに対しては効果が薄い…使う相手を絞って」).
 
 Phases of the plan (``Plan``):
 
@@ -92,6 +95,15 @@ MIN_SUCCESS = 0.2
 PACK_MIN = 2
 WALL_FLAGS = ("PASS_WALL", "KILL_WALL")
 RETRY_GAME_TURNS = 50   # a refused site search is not repeated sooner on the same floor
+# monster-floor/monster-sweep-grid.cpp mon_will_run (:35-72), the game's own constants.
+RUN_LEVEL_BONUS = 25    # m_lev = race level + (m_idx & 0x08) + 25
+RUN_INDEX_BIT = 0x08    # the m_idx bit added to m_lev (internal: the player never sees it)
+RUN_LEVEL_MARGIN = 4    # m_lev > p_lev + 4: never runs; m_lev + 4 <= p_lev: always runs
+RUN_HP_SHIFT = 2        # p_chp << 2, m_chp << 2 (the current HP counted four times)
+RUN_NEAR = 5            # cdis <= 5: a monster this near does not run (it comes on)
+UINT32 = 0xFFFFFFFF     # p_val, m_val and their products are uint32_t
+# 「効果が薄い」: no pocket when at least half of the pack is expected to run (the request's line).
+RUNNING_SHARE = 1 / 2
 
 
 @dataclass
@@ -172,6 +184,67 @@ def _pack(policy, snapshot: Snapshot) -> tuple[frozenset, bool] | None:
 
 def _members(snapshot: Snapshot, races) -> list:
     return [monster for monster in _hostiles(snapshot) if monster.race_id in races]
+
+
+def _runs_at(m_lev: int, snapshot: Snapshot, monster) -> bool:
+    """The level and HP half of ``mon_will_run`` for one ``m_lev`` (monster-sweep-grid.cpp:55-71)."""
+    player = snapshot.player
+    p_lev = player.level
+    if m_lev > p_lev + RUN_LEVEL_MARGIN:
+        return False
+    if m_lev + RUN_LEVEL_MARGIN <= p_lev:
+        return True
+    p_val = (p_lev * player.max_hp + (player.hp << RUN_HP_SHIFT)) & UINT32
+    m_val = (m_lev * monster.max_hp + (monster.hp << RUN_HP_SHIFT)) & UINT32
+    return (p_val * monster.max_hp) & UINT32 > (m_val * player.max_hp) & UINT32
+
+
+def run_chance(snapshot: Snapshot, monster) -> float:
+    """1, 1/2 or 0: whether ``monster`` runs from the player instead of walking to the pocket.
+
+    Owner 2026-11-10 (verbatim): 「穴熊に関して　弱いoの群れなど、レベル差などの影響で自分から
+    逃げる群れに対しては効果が薄い。モンスターが逃走する条件を調べて使う相手を絞って」
+
+    The game (monster-floor/monster-sweep-grid.cpp:35-72, ``mon_will_run``)::
+
+        if (monster.cdis > MAX_PLAYER_SIGHT + 5) return false;
+        if (monster.is_fearful()) return true;
+        if (monster.cdis <= 5) return false;
+        m_lev = monrace.level + (m_idx & 0x08) + 25;
+        if (m_lev > p_lev + 4) return false;
+        if (m_lev + 4 <= p_lev) return true;
+        p_val = (p_lev * p_mhp) + (p_chp << 2);  m_val = (m_lev * m_mhp) + (m_chp << 2);
+        return p_val * m_mhp > m_val * p_mhp;
+
+    A running monster takes ``run_away`` (:527-529) and none of the pack deciders (the hiding
+    and surrounding moves are ``!will_run`` only, :479-487), so beyond 5 cells it keeps away
+    and never reaches the pocket's mouth.  Here: a fearful member runs; a member within
+    ``RUN_NEAR`` already comes on; any other is judged by the level and HP rule (one beyond
+    MAX_PLAYER_SIGHT + 5 walks in until that rule applies).  The player's level and HP are
+    the board's; the monster's level is its race's and its HP the bot's estimate from the
+    health display (model._estimated_monster_hp).  Fair play: the ``m_idx & 0x08`` bit is
+    internal, so a member whose answer differs with and without it counts 1/2.
+    """
+    if monster.fearful:
+        return 1.0
+    if game_distance(snapshot.player.position, monster.position) <= RUN_NEAR:
+        return 0.0
+    base = monster.level + RUN_LEVEL_BONUS
+    runs = (_runs_at(base, snapshot, monster), _runs_at(base + RUN_INDEX_BIT, snapshot, monster))
+    return sum(runs) / len(runs)
+
+
+def runners(snapshot: Snapshot, races) -> bool:
+    """At least ``RUNNING_SHARE`` of the pack is expected to run (``run_chance``): no pocket."""
+    members = _members(snapshot, races)
+    if not members:
+        return False
+    return sum(run_chance(snapshot, monster) for monster in members) >= RUNNING_SHARE * len(members)
+
+
+def _dug(snapshot: Snapshot, current: Plan) -> bool:
+    """A cell of the plan is open already (the dig has begun)."""
+    return any(geo.open_cell(snapshot.grid_at(cell)) for cell in current.cells)
 
 
 def magic_eater(snapshot: Snapshot) -> bool:
@@ -568,6 +641,11 @@ def key(policy, snapshot: Snapshot, hostiles) -> str | None:
             current.phase == "dig" and _index(current, snapshot.player.position) not in (None, -1))
         _release(policy, "flee")
         return _escape_key(policy, snapshot) if on_pocket else None
+    if (current is not None and current.phase in ("walk", "dig") and not _dug(snapshot, current)
+            and runners(snapshot, current.races)):
+        _release(policy, "runners")   # not dug yet: a pack that runs never comes to the mouth
+        policy._anaguma_veto = "runners"
+        return None
     if current is None:
         found = _pack(policy, snapshot)
         if found is None:
@@ -583,6 +661,9 @@ def key(policy, snapshot: Snapshot, hostiles) -> str | None:
             return None
         if adjacent:
             policy._anaguma_veto = "contact"
+            return None
+        if runners(snapshot, races):
+            policy._anaguma_veto = "runners"
             return None
         refused = getattr(policy, "_anaguma_refused", None)
         if (refused is not None and refused[0] == snapshot.floor_key and refused[1] == races
