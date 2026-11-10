@@ -158,6 +158,13 @@ def speed_energy(speed: int) -> int:
 # 16-bit uniforms, so it is truncated at mean +/- 6 sigma (100 + 150).
 PLAYER_ACTION_ENERGY_MAX = 100 + 6 * 25
 
+# USER DECISION 2026-11-10 (n1-a life-506, 「確率が一定以上の時だけ」, verbatim):
+# 「次の手番までに盲目・混乱を受ける確率（魔法防御・耐性を入れて計算）が10%以上の
+# 時だけ、1ターン失う分を被害に足して逃げを考える。今回なら戦い続ける。」
+# The scroll-lock escape (_ranged_scroll_lock_escape_needed) charges the lost
+# cure turn only when that probability reaches this value.
+SCROLL_LOCK_ESCAPE_PROBABILITY = 0.10
+
 # A monster's spell range and projection length: AngbandSystem::
 # get_max_range() is 18 outside the monster arena (angband-system.cpp:45-48);
 # make_attack_spell gives up beyond it without a counter-attack target

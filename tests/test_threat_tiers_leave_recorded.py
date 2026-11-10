@@ -19,6 +19,13 @@ changed is pinned below; on each the change is toward leaving:
   (HP 71/171) the flee rung's walk now answers before the return rung's Word of Recall read (both
   leave; noted in the report).
 
+Owner 2026-11-10 (「確率が一定以上の時だけ」, 10%, blows included): on n1-c life-084's 1287893 and
+1287920 (HP 136 and 143 of 151) the adjacent 充血アイ (id 129, a GAZE:BLIND blow against AC 5,
+about 92% before the next turn) makes the scroll-lock charge lethal (96 + 53), so with the step
+off those boards read Teleportation by the scroll-lock rung as well and leave the diff; with the
+step on they still read the flee rung's Teleportation, the live answer unchanged.  1287854 (HP
+151 > 149) keeps firing with the step off.
+
 The 11-05 Resistance-potion boards (Quest 25, moved to a plain floor as test_resist_potion_1105_
 recorded does, DECLARED CONSTRUCTED) are in that module.
 """
@@ -88,7 +95,7 @@ class LeaveRecordedTest(unittest.TestCase):
 
     def test_n1c_084_t1_missiles_become_the_flee_teleport(self):
         changed = decided_with_and_without("d57-me-combat-084-1101.json.gz", OFF)
-        self.assertEqual(set(changed), {1287854, 1287893, 1287920})
+        self.assertEqual(set(changed), {1287854})
         for turn, (before, after) in changed.items():
             self.assertEqual(before[1], MISSILE, turn)
             self.assertEqual(after[1], "flee:scroll", turn)

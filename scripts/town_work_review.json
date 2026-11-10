@@ -17255,5 +17255,71 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the rest slot's ESP tier (WEAK/MEDIUM kept as decided first on the floor, owner 2026-11-08); read by policy_combat._esp_threat_rest_key only, never a key"
+  },
+  "monster_ranged_evaluator.py:_effect_throughput": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure arithmetic: reflection share and the saving-throw failure of one monster ability for a set of player flags (mspell-status.cpp, effect-player-spirit.cpp)."
+  },
+  "monster_ranged_evaluator.py:_expected_rate_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure arithmetic: the game's integer percentage operation averaged over random rates."
+  },
+  "monster_ranged_evaluator.py:_expected_roll": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure arithmetic: the expected value of a dice roll plus a base."
+  },
+  "monster_ranged_evaluator.py:evaluate_ability_effect": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure evaluator: expected HP damage and status/resource exposure of one monster ability; builds and returns its own result, no state written."
+  },
+  "monster_ranged_evaluator.py:expected_ability_base_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure evaluator: the expected base damage of one monster ability (mspell-damage-calculator.cpp)."
+  },
+  "monster_ranged_evaluator.py:expected_ability_hp_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure evaluator: the expected HP damage of one monster ability after the player's resistances (player-status-resist.cpp)."
   }
 }

@@ -184,6 +184,54 @@ def monster_melee_hit_chance(effect: str, level: int, armor_class: int) -> float
     return 0.05 + 0.90 * normal_hit
 
 
+# CHAOS blow (monster-attack-switcher.cpp:539-603): randint1(5) < 3 takes the
+# drain-life branch and breaks; otherwise, past a one_in_(250) earthquake that
+# breaks only underground with damage > 23, !one_in_(10) confuses.  The
+# earthquake break is left out (at most 1/250 of the share).
+CHAOS_BLOW_CONFUSE_SHARE = 3 / 5 * 9 / 10
+
+
+def blow_scroll_lock_probability(
+    blow: MonsterBlow,
+    *,
+    monster_level: int,
+    armor_class: int,
+    flags: frozenset[int],
+    stunned: bool = False,
+) -> float:
+    """Probability that one blow blinds or confuses the player.
+
+    Hit: check_hit_from_monster_to_player (combat/attack-accuracy.cpp:71-91,
+    monster_melee_hit_chance), a stunned attacker missing on one_in_(2) first
+    (:74-76); power from mbe_info (monster-attack/monster-attack-table.cpp,
+    BLOW_POWER).  On a hit:
+      BLIND: blinded unless resist_blind (calc_blow_blind,
+        monster-attack-switcher.cpp:125-137 -> process_blind_attack,
+        monster-attack-status.cpp:22-36); no saving throw;
+      CONFUSE: confused unless resist_conf, and never by EXPLODE
+        (calc_blow_confusion, monster-attack-switcher.cpp:150-169);
+      CHAOS: confused with CHAOS_BLOW_CONFUSE_SHARE unless resist_chaos or
+        resist_conf (:539-583)."""
+    if blow.effect == "BLIND":
+        landing = 0.0 if TR_RES_BLIND in flags else 1.0
+    elif blow.effect == "CONFUSE":
+        landing = 0.0 if (
+            blow.method == "EXPLODE" or TR_RES_CONF in flags
+        ) else 1.0
+    elif blow.effect == "CHAOS":
+        landing = 0.0 if (
+            TR_RES_CHAOS in flags or TR_RES_CONF in flags
+        ) else CHAOS_BLOW_CONFUSE_SHARE
+    else:
+        return 0.0
+    if landing <= 0:
+        return 0.0
+    hit = monster_melee_hit_chance(blow.effect, monster_level, armor_class)
+    if stunned:
+        hit *= 0.5
+    return hit * landing
+
+
 @lru_cache(maxsize=None)
 def _dice_distribution(number: int, sides: int) -> tuple[tuple[int, int], ...]:
     if number <= 0 or sides <= 0:
