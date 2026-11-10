@@ -31,9 +31,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import quest25_battle as battle
+from hengbot import quest25_battle as battle, quest25_plan
 from hengbot.model import _parse_items, parse_snapshot
 from tests.support import q25_house as q25
+
+VALUES = quest25_plan.values_of(q25.STRATEGIES[25])   # the plan's numbers (revised_plan_values)
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1c-176-q25-trap-search-1109.json.gz",
@@ -142,9 +144,9 @@ class Q25TrapSearchSettledTest(unittest.TestCase):
 
     def test_without_one_ten_searches_then_on(self):
         answers = replay(("first",), unsafe=False)
-        for sequence in range(FIRST_SEARCH, FIRST_SEARCH + battle.TRAP_SEARCHES):
+        for sequence in range(FIRST_SEARCH, FIRST_SEARCH + VALUES.trap_searches):
             self.assertEqual(answers["first", sequence], ("s", battle.SEARCH_REASON), sequence)
-        self.assertEqual(answers["first", FIRST_SEARCH + battle.TRAP_SEARCHES], ("4", battle.WALK_REASON))
+        self.assertEqual(answers["first", FIRST_SEARCH + VALUES.trap_searches], ("4", battle.WALK_REASON))
 
     def test_the_count_survives_a_restart(self):
         answers = replay(("first", "second"), unsafe=False, through={"first": RESTART_AFTER})
@@ -152,7 +154,7 @@ class Q25TrapSearchSettledTest(unittest.TestCase):
         self.assertEqual([answers["first", s][0] for s in range(FIRST_SEARCH, RESTART_AFTER + 1)], ["s"] * done)
         # The restarted process searches from its first board (the live one read the skill
         # list first, '~f', which this policy holds already): the four left, then on.
-        left = battle.TRAP_SEARCHES - done
+        left = VALUES.trap_searches - done
         self.assertEqual([answers["second", s] for s in range(0, left)],
                          [("s", battle.SEARCH_REASON)] * left)
         self.assertEqual(answers["second", left], ("4", battle.WALK_REASON))

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from hengbot import quest25_plan
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, TVAL_POTION
 from hengbot.monrace_knowledge import _strip_jsonc
 
@@ -208,6 +209,7 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
             for value in values.values()
         ):
             raise ValueError(f"{group} quantities must be non-negative integers")
+    quest25_plan.check_profile(data)
     return StrategyProfile(
         quest_id=int(data["quest_id"]), name={"ja": str(name["ja"]), "en": str(name["en"])},
         approved=bool(data.get("approved", False)), approved_note=str(data.get("approved_note", "")),

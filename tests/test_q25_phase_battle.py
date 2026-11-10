@@ -19,7 +19,7 @@ import unittest
 from unittest.mock import patch
 from dataclasses import replace
 
-from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo, threat_tiers
+from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo, quest25_plan, threat_tiers
 from hengbot import quest25_druj_gear as druj_gear, quest_exposure, quest_optional_carry, quest_room_sweep, spare_gear
 from hengbot.me_device_attacks import DEVICE_REASON
 from hengbot.me_powers_refresh import REFRESH_REASON
@@ -38,6 +38,7 @@ BATTLEFIELD = QUESTS[25].battlefield
 TERRAIN = BATTLEFIELD.terrain
 DIRECTION = q25.DIRECTION
 DRAFT = FILE_STRATEGIES[25].engagement_plan["revised_plan_draft"]
+VALUES = quest25_plan.values_of(FILE_STRATEGIES[25])   # the plan's numbers (revised_plan_values)
 
 
 def new_policy(raw, strategies=APPROVED):
@@ -328,11 +329,11 @@ class Q25BetweenPhasesTest(unittest.TestCase):
 class Q25WallPassersTest(unittest.TestCase):
     def test_a_hundred_actions_without_an_arrival_end_the_wait(self):
         # Owner 2026-11-06 「50回来なければ終える」, doubled 2026-11-09 「待つターンを倍にしてみる」.
-        self.assertEqual(battle.WALL_PASSER_QUIET_ACTIONS, 100)
+        self.assertEqual(VALUES.wall_passer_quiet_actions, 100)
         raw = board((7, 1))
         policy = new_policy(raw)
         at_phase(policy, raw, "wall-passers")
-        for _ in range(battle.WALL_PASSER_QUIET_ACTIONS - 1):
+        for _ in range(VALUES.wall_passer_quiet_actions - 1):
             self.assertEqual((choose(policy, raw), policy.last_reason), (WAIT_KEY, HOLD_REASON))
         self.assertEqual(phase_of(policy, raw), "wall-passers")
         choose(policy, raw)
@@ -494,7 +495,7 @@ class Q25StragglersTest(unittest.TestCase):
         raw = board((5, 1))
         policy = new_policy(raw)
         at_phase(policy, raw, "stragglers")
-        for _ in range(battle.QUIET_ACTIONS):
+        for _ in range(VALUES.quiet_actions):
             choose(policy, raw)
         self.assertNotEqual(phase_of(policy, raw), "stragglers")
 
@@ -563,7 +564,7 @@ class Q25TrapTest(unittest.TestCase):
         open_door(raw, (4, 1))
         policy = new_policy(raw)
         at_phase(policy, raw, "corpse-masses")
-        for _ in range(battle.MAYBE_TRAP_SEARCHES):
+        for _ in range(VALUES.maybe_trap_searches):
             self.assertEqual((choose(policy, raw), policy.last_reason), (SEARCH_KEY, battle.SEARCH_REASON))
         self.assertEqual((choose(policy, raw), policy.last_reason), ("8", battle.WALK_REASON))
         ctx = battle._ctx(policy, parse_snapshot(copy.deepcopy(raw), RACES))
@@ -577,7 +578,7 @@ class Q25TrapTest(unittest.TestCase):
         raw = board((1, 7))
         open_door(raw, (1, 7))
         policy = new_policy(raw)
-        at_phase(policy, raw, "dreadmaster", style="ranged", searches={(1, 8): battle.TRAP_SEARCHES - 1})
+        at_phase(policy, raw, "dreadmaster", style="ranged", searches={(1, 8): VALUES.trap_searches - 1})
         self.assertEqual((choose(policy, raw), policy.last_reason), (SEARCH_KEY, battle.SEARCH_REASON))
         self.assertEqual((choose(policy, raw), policy.last_reason), ("6", battle.WALK_REASON))
 
@@ -855,7 +856,7 @@ class Q25EscapeTest(unittest.TestCase):
 
     def test_ten_unanswered_pen_shots_count_the_rest_escaped(self):
         policy, raw = self.pen()
-        for _ in range(battle.PEN_MISSES_TO_ESCAPED):
+        for _ in range(VALUES.pen_misses_to_escaped):
             choose(policy, raw)
             self.assertEqual(policy.last_reason, DEVICE_REASON)
             self.assertEqual(phase_of(policy, raw), "ipsissimus")
@@ -864,7 +865,7 @@ class Q25EscapeTest(unittest.TestCase):
 
     def test_a_hit_line_restarts_the_count(self):
         policy, raw = self.pen()
-        for turn in range(battle.PEN_MISSES_TO_ESCAPED + 3):
+        for turn in range(VALUES.pen_misses_to_escaped + 3):
             raw["messages"] = ["クロスボウの矢が何かに命中した。"] if turn == 5 else []
             choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "ipsissimus")
@@ -875,7 +876,7 @@ class Q25EscapeTest(unittest.TestCase):
         for lines in (["何かは痛みで絶叫した。"], ["It shrugs off the attack."]):
             with self.subTest(lines=lines):
                 policy, raw = self.pen(with_wand_list(board((5, 1)), FIRE_BALL))
-                for _ in range(battle.PEN_MISSES_TO_ESCAPED + 3):
+                for _ in range(VALUES.pen_misses_to_escaped + 3):
                     key = choose(policy, raw)
                     self.assertEqual((key, policy.last_reason), ("mBw@7,17", DEVICE_REASON))
                     raw["messages"] = list(lines)
@@ -893,7 +894,7 @@ class Q25EscapeTest(unittest.TestCase):
         raw = with_wand_list(board((5, 1)), FIRE_BALL)
         raw["equipment"][0]["known_flags"] = [*raw["equipment"][0]["known_flags"], 112]
         policy, raw = self.pen(raw)
-        for _ in range(battle.PEN_MISSES_TO_ESCAPED + 2):
+        for _ in range(VALUES.pen_misses_to_escaped + 2):
             choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "ipsissimus")
 
@@ -971,7 +972,7 @@ class Q25WaitLimitTest(unittest.TestCase):
         raw = without_melee(board((13, 1)))
         open_door(raw, geo.WEST_DOOR)
         policy = new_policy(raw)
-        at_phase(policy, raw, "ambush", quiet=battle.LONG_WAIT_ACTIONS - 2)
+        at_phase(policy, raw, "ambush", quiet=VALUES.long_wait_actions - 2)
         choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "ambush")
         choose(policy, raw)
@@ -981,7 +982,7 @@ class Q25WaitLimitTest(unittest.TestCase):
         raw = without_melee(board((1, 9)))
         open_door(raw, (1, 7))
         policy = new_policy(raw)
-        at_phase(policy, raw, "dreadmaster", quiet=battle.LONG_WAIT_ACTIONS - 1,
+        at_phase(policy, raw, "dreadmaster", quiet=VALUES.long_wait_actions - 1,
                  cleared=frozenset({(1, 8), (1, 9)}))
         choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "sweep")

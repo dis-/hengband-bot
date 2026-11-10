@@ -10067,6 +10067,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_battle.py:_Ctx.values": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest25_battle.py:_absorbed_heal": {
     "classification": "producer",
     "rows": [
@@ -10397,6 +10404,34 @@
     "delegation": "selected child; no independent success"
   },
   "quest25_geometry.py:exposure_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_plan.py:_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_plan.py:_object": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_plan.py:parse": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_plan.py:values_of": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
