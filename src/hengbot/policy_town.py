@@ -7170,6 +7170,10 @@ class TownMixin:
                 smith = armor_smith.town_key(self, snapshot)
                 if smith is not None:
                     return smith
+                from hengbot import wand_tower_recharge
+                wand_trip = wand_tower_recharge.town_key(self, snapshot)
+                if wand_trip is not None:
+                    return wand_trip
                 from hengbot import arena
                 arena_errand = arena.town_key(self, snapshot)
                 if arena_errand is not None:
