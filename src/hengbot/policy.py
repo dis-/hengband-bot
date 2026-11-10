@@ -141,6 +141,9 @@ from hengbot.policy_types import (
 from hengbot.policy_constants import (
     ADJ_STR_WEIGHT_LIMIT,
     AMMO_CARRY_TARGET,
+    DESCEND_MIN_HP_RATIO,
+    EMERGENCY_RETURN_HP_RATIO,
+    REST_TARGET_HP_RATIO,
     HOME_VISIT_LIMIT,
     CALIBRATION_HOME_VISIT_LIMIT,
     DEPTH_ABILITY_REQUIREMENTS,
@@ -976,10 +979,7 @@ AGGREGATE_RANGED_CACHE_LIMIT = 4096
 # Bailing out under fire: teleport/phase away, recall out, or run for the stairs.
 # Being forced into these repeatedly is the signature of a too-deep floor.
 
-# Descending / healing. Dive only when healthy, and recover between fights so we
-# are never caught deep and weak (the classic too-fast-dive death).
-DESCEND_MIN_HP_RATIO = 0.85  # only take downstairs at/above this HP
-REST_TARGET_HP_RATIO = 0.90  # rest to recover up to here when no enemy is in sight
+# Descending / healing: DESCEND_MIN_HP_RATIO and REST_TARGET_HP_RATIO (policy_constants).
 REST_CAP = 25  # bound consecutive rest commands as a safety valve
 
 # Hunting (opportunistic XP while no downstairs is known)
@@ -1098,13 +1098,6 @@ SELL_CONFIRM_SUFFIX = "\r"
 # in one Home round-trip (withdraw the real weapon, wield it); this backstop only fires if
 # the character genuinely owns no combat weapon, so it must never hang the bot in town.
 
-# Fixed quests have no ordinary retreat/recovery loop.  Preserve the scarce
-# healing stock until HP is below 30%; lethal prediction and status cures still
-# run first and are unaffected by this lower routine-healing threshold.
-# A successful emergency relocation is not itself expedition-ending. Reassess
-# the landing and return only when recovery is genuinely unsafe or this is the
-# second forced escape of the dive.
-EMERGENCY_RETURN_HP_RATIO = 0.50
 # PlayerRaceFoodType::MANA — undead/construct races (Zombie, ...) restore hunger
 # by eating wand/staff CHARGES rather than food. bot-test (a Zombie) starved to
 # death next to a 20-charge staff it could have eaten.

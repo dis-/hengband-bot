@@ -558,12 +558,23 @@ RANGED_TARGET_FAILURE_LIMIT = 3
 RANGED_SLEEPER_MAX_DISTANCE = 4
 TORCH_THROW_MAX_DEPTH = 10
 HEAL_HP_RATIO = 0.40  # quaff a healing potion below this
+# Descending / healing. Dive only when healthy, and recover between fights so we
+# are never caught deep and weak (the classic too-fast-dive death).
+DESCEND_MIN_HP_RATIO = 0.85  # only take downstairs at/above this HP
+REST_TARGET_HP_RATIO = 0.90  # rest to recover up to here when no enemy is in sight
 # USER DECISION 2026-10-03 04:0x (low-hp-no-unchecked-walk): below
 # max(max_hp * 0.5, max_hp - 300) no walking move that has not been checked
 # for danger; heal -> teleport/recall -> fight instead.  The one definition.
 LOW_HP_WALK_RATIO = 0.5
 LOW_HP_WALK_MARGIN = 300
+# Fixed quests have no ordinary retreat/recovery loop.  Preserve the scarce
+# healing stock until HP is below 30%; lethal prediction and status cures still
+# run first and are unaffected by this lower routine-healing threshold.
 FIXED_QUEST_HEAL_HP_RATIO = 0.30
+# A successful emergency relocation is not itself expedition-ending. Reassess
+# the landing and return only when recovery is genuinely unsafe or this is the
+# second forced escape of the dive.
+EMERGENCY_RETURN_HP_RATIO = 0.50
 EMERGENCY_RETURN_COUNT = 2
 ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
 # User decision 2026-09-21: threats below 10% of current HP do not justify
