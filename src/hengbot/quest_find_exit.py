@@ -76,7 +76,7 @@ the navigator.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, once_quest_recall, quest_exposure, resist_potion, summon_response
+from hengbot import combat_answer, once_quest_recall, quest_exposure, quest_plan_base, resist_potion, summon_response
 from hengbot import threat_tiers
 from hengbot.model import Position
 from hengbot.policy_constants import TUNNEL_KEY, WAIT_KEY
@@ -97,6 +97,7 @@ from hengbot.quest_plan_base import (  # noqa: F401 -- re-exported
     _heal,
     _healing_potion,
     _never_moves,
+    _path_step,
     _rank,
     _rest,
     _speed,
@@ -150,11 +151,9 @@ def sealed_races(profile) -> frozenset[int]:
 
 
 def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
-    navigator = policy._quest_navigators.setdefault(
-        quest_id, QuestFloorNavigator(quest_id, policy._quest_knowledge[quest_id].battlefield))
+    """The plans' navigator (quest_plan_base), over deep water too, with the planned veins dug."""
+    navigator = quest_plan_base._navigator(policy, snapshot, quest_id)
     navigator.allow_deep_water = True  # hp-mp-processor.cpp:210 drowns only the overweight
-    navigator.allow_diagonal = True
-    navigator.reset_for_floor(snapshot.floor_key)
     plan = _plan(policy, snapshot)
     if plan is not None:
         _observe_digs(snapshot, navigator, plan)
@@ -505,9 +504,7 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     if len(path) < 2:
         return None
     navigator.exit_choke_goal = path[-1]
-    policy.last_reason = TO_CHOKE_REASON
-    policy._declare_reach(path[-1])
-    return policy._step_toward(snapshot, path[1])
+    return _path_step(policy, snapshot, path, TO_CHOKE_REASON)
 
 
 def _choke_walk_under_way(policy, snapshot, navigator, plan, board) -> str | None:
@@ -679,9 +676,7 @@ def _clear_key(policy, snapshot, navigator, plan, board) -> str | None:
     if len(path) < 2:
         navigator.exit_clearing_done = True
         return None
-    policy.last_reason = CLEAR_REASON
-    policy._declare_reach(path[-1])
-    return policy._step_toward(snapshot, path[1])
+    return _path_step(policy, snapshot, path, CLEAR_REASON)
 
 
 def _pull_walk(policy, snapshot, navigator, plan, board) -> str | None:
