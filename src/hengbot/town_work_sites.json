@@ -3659,6 +3659,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "monster_ranged_evaluator.py:_dice_distribution": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:_effect_throughput": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:_expected_rate_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:_expected_roll": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "monster_ranged_evaluator.py:_layered_rate": {
     "classification": "data",
     "rows": [
@@ -3687,6 +3715,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "monster_ranged_evaluator.py:evaluate_ability_effect": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:expected_ability_base_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:expected_ability_hp_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "monster_ranged_evaluator.py:maximum_ability_base_damage": {
     "classification": "data",
     "rows": [
@@ -3702,6 +3751,13 @@
     "delegation": "selected child; no independent success"
   },
   "monster_ranged_evaluator.py:source_selection_probabilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "monster_ranged_evaluator.py:status_landing_probabilities": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

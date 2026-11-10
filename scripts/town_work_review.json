@@ -17244,5 +17244,71 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-07 「盲目で周りが分からない時は分からない隣のマスにも攻撃する。」 and 2026-11-03 (n1-a life-504 2026-11-10, 鉄獄24階: blind, punched by unseen summons above the emergency line, it searched in place). Blind, not returning to town or on an income run, an unseen attacker's melee blow on this board (unseen_strike.hit_in_melee) and no visible hostile adjacent: blind_strike.strike_key at the remembered cell, else unseen_strike.key at a free (or, blind, unknown) neighbour, under blind:unseen-strike; else None. Called only from _decide right after _survival_gate_key#2, before dungeon_wait_for_sight_key; dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "monster_ranged_evaluator.py:_effect_throughput": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure arithmetic: reflection share and the saving-throw failure of one monster ability for a set of player flags (mspell-status.cpp, effect-player-spirit.cpp)."
+  },
+  "monster_ranged_evaluator.py:_expected_rate_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure arithmetic: the game's integer percentage operation averaged over random rates."
+  },
+  "monster_ranged_evaluator.py:_expected_roll": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure arithmetic: the expected value of a dice roll plus a base."
+  },
+  "monster_ranged_evaluator.py:evaluate_ability_effect": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure evaluator: expected HP damage and status/resource exposure of one monster ability; builds and returns its own result, no state written."
+  },
+  "monster_ranged_evaluator.py:expected_ability_base_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure evaluator: the expected base damage of one monster ability (mspell-damage-calculator.cpp)."
+  },
+  "monster_ranged_evaluator.py:expected_ability_hp_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
+    "evidence": "Pure evaluator: the expected HP damage of one monster ability after the player's resistances (player-status-resist.cpp)."
   }
 }
