@@ -91,7 +91,7 @@ from hengbot.model import (
 from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
     FIXED_QUEST_TOWNS, MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
-    QUEST_STATUS_REWARDED, REST_MACRO, STAFF_IDENTIFY_MIN_SUCCESS, STORE_STUCK_LIMIT,
+    QUEST_STATUS_REWARDED, RELIABLE_MIN_SUCCESS_PERCENT, REST_MACRO, STORE_STUCK_LIMIT,
     TOWN_TELEPORT_COST, WAIT_KEY,
 )
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
@@ -367,7 +367,7 @@ def power_key(policy, snapshot, sval: int) -> str | None:
 
 def identify_power_reliable(policy, snapshot) -> bool:
     """The absorbed Identify clears the carried staff's floor
-    (``STAFF_IDENTIFY_MIN_SUCCESS``).
+    (``STAFF_IDENTIFY_MIN_SUCCESS``, the displayed ``RELIABLE_MIN_SUCCESS_PERCENT``).
 
     The absorbed power serves what the staff would (owner 2026-10-30
     「以降、鑑定と財宝感知は取り込みで賄う」), so it answers to the staff's own
@@ -383,7 +383,7 @@ def identify_power_reliable(policy, snapshot) -> bool:
     town:blocked:owner-retired-burst, five Identify scrolls carried.
     """
     row = me_capability.observed_row(policy, "staff", SV_STAFF_IDENTIFY)
-    return row is None or int(row.get("success") or 0) >= STAFF_IDENTIFY_MIN_SUCCESS * 100
+    return row is None or int(row.get("success") or 0) >= RELIABLE_MIN_SUCCESS_PERCENT
 
 
 def identify_power_available(policy, snapshot) -> bool:

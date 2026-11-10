@@ -70,15 +70,13 @@ before the Speed dose, as for blindness (owner 2026-11-04 「低い時は体力�
 """
 
 from hengbot import blind_strike, combat_answer, me_absorbed_substitutes, me_capability, speed_dose, unseen_strike
+from hengbot.game_messages import KILL_LINE_DESTROYED, KILL_LINE_KILLED, KILL_LINE_SLAIN
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
     SV_POTION_CURE_CRITICAL,
-    SV_POTION_HEALING,
-    SV_POTION_LIFE,
-    SV_POTION_STAR_HEALING,
 )
-from hengbot.policy_constants import REST_MACRO, WAIT_KEY
+from hengbot.policy_constants import HEAL_ORDER, REST_MACRO, WAIT_KEY
 
 
 SIGHT_RESTORED = frozenset({"やっと目が見えるようになった。", "You can see again."})
@@ -92,8 +90,9 @@ _PENDING = "_blind_cure_turn"         # (floor, turn) of the last blindness cure
 _LATCH = "_blind_cure_futile_floor"   # floor whose current blindness is not cured
 _LATCH_BLOW = "_blind_cure_futile_blow"  # the blow text that re-blinded it, if named
 _ATTACKER = "_blind_attacker_floor"   # floor whose unseen attacker no kill has followed
-# monster-damage.cpp show_kill_message (also after 「せっかくだから」).
-_KILL_ENDINGS = ("を殺した。", "を倒した。", "を葬り去った。")
+# monster-damage.cpp show_kill_message (also after 「せっかくだから」); get_died_message's
+# 「…は死んだ。」 is not among them.
+_KILL_ENDINGS = (KILL_LINE_KILLED, KILL_LINE_DESTROYED, KILL_LINE_SLAIN)
 # MonsterAttackPlayer::process_thief_teleport (monster-attack-player.cpp:526-527): the thief
 # that touched and stole is teleported away (teleport_away, MAX_PLAYER_SIGHT * 2 + 5).  The
 # 「...ようとしたがバリアに防がれた。」 variant keeps it beside the player, so it is not here.
@@ -128,8 +127,8 @@ _REST_FOOD_STATES = frozenset({"normal", "full", "gorged"})
 _HEAVY_LOSS_DIVISOR = 3
 # Cheapest first.  Every one clears blindness: Healing and *Healing* are
 # cure_critical_wounds(300 / 1200), Life is life_stream (quaff-effects.cpp:128-133,
-# spells-status.cpp:289 and 397).
-_HP_RECOVERY_CURES = (SV_POTION_HEALING, SV_POTION_STAR_HEALING, SV_POTION_LIFE)
+# spells-status.cpp:289 and 397).  policy_constants.HEAL_ORDER.
+_HP_RECOVERY_CURES = HEAL_ORDER
 
 
 def _observe_attacker(policy, snapshot) -> None:

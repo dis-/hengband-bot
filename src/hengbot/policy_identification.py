@@ -41,6 +41,7 @@ from hengbot.policy_constants import (
     CHEST_DROP_KEY,
     CHEST_OPEN_BUDGET,
     CHEST_OPEN_KEY,
+    CHEST_OPEN_MIN_HP_RATIO,
     CHEST_SEARCH_BUDGET,
     CHEST_SEARCH_KEY,
     FULL_IDENTIFY_DISMISS_SUFFIX,
@@ -392,7 +393,7 @@ class IdentificationMixin:
             self._processed_chest_positions.add(chest_pos)
             return None
         if floor_chests:
-            if player.hp < player.max_hp * 0.8:
+            if player.hp < player.max_hp * CHEST_OPEN_MIN_HP_RATIO:
                 self.last_reason = "chest:wait-health"
                 return WAIT_KEY
             self._chest_position = min(
@@ -415,7 +416,7 @@ class IdentificationMixin:
         )
         if chest is None:
             return None
-        if player.hp < player.max_hp * 0.8:
+        if player.hp < player.max_hp * CHEST_OPEN_MIN_HP_RATIO:
             # A chest trap can hurt; open on a healthy bar.
             return None
         if allowed_positions is not None and player.position not in allowed_positions:

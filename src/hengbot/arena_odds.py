@@ -62,7 +62,7 @@ from hengbot.monster_ranged_evaluator import (
     ranged_action_distribution,
     source_selection_probabilities,
 )
-from hengbot.policy_constants import RESIST_FLAG_BY_ABILITY, speed_energy
+from hengbot.policy_constants import RELIABLE_MIN_SUCCESS_PERCENT, RESIST_FLAG_BY_ABILITY, speed_energy
 
 WIN_CHANCE_LINE = 0.90  # owner 2026-11-05
 DAMAGE_MARGIN = 0.85  # the drains and the fleeing the race does not model
@@ -74,8 +74,9 @@ LONGEST_FIGHT_ACTIONS = 400  # beyond it regeneration and charges decide: not mo
 LAUNCHER_HIT_MARGIN = 0.75  # the shot's hit chance is not on the board
 # regen_monster: maxhp / 100 every 10 player turns at normal speed, doubled with REGENERATE.
 REGEN_PER_ACTION = 0.001
-# Owner 2026-11-05: 「成功率80%を超えている」, the displayed row (me_capability).
-HEALING_MIN_SUCCESS = 80
+# Owner 2026-11-05: 「成功率80%を超えている」, the displayed row (me_capability): the owner's
+# one rate (policy_constants.RELIABLE_MIN_SUCCESS_PERCENT), passed only above it (「超えている」).
+HEALING_MIN_SUCCESS = RELIABLE_MIN_SUCCESS_PERCENT
 # (kind, sval, HP): cmd-zaprod.cpp, cmd-usestaff.cpp cure_critical_wounds, not powerful.
 HEALING_POWERS = (("rod", 9, 500), ("staff", 18, 300))
 HASTE_SPEED = 10

@@ -15,10 +15,13 @@ from hengbot.model import (
     STORE_WEAPON,
     SPELLBOOK_TVALS,
     SV_POTION_ENLIGHTENMENT,
+    SV_POTION_HEALING,
+    SV_POTION_LIFE,
     SV_POTION_RESIST_COLD,
     SV_POTION_RESTORE_EXP,
     SV_POTION_RESTORE_STR,
     SV_POTION_SLEEP,
+    SV_POTION_STAR_HEALING,
     SV_SCROLL_BLESSING,
     SV_SCROLL_DETECT_DOOR,
     SV_SCROLL_DETECT_INVISIBLE,
@@ -216,6 +219,9 @@ CHEST_SEARCH_BUDGET = 6
 CHEST_DISARM_BUDGET = 2
 CHEST_OPEN_BUDGET = 8
 CHEST_COLLECT_BUDGET = 32
+# A chest trap can hurt: a floor chest is waited for, and a carried chest left
+# shut, below this share of max HP (policy_identification's chest processing).
+CHEST_OPEN_MIN_HP_RATIO = 0.8
 USE_STAFF_KEY = "u"
 ZAP_ROD_KEY = "z"
 FULL_IDENTIFY_DISMISS_SUFFIX = LEAVE_STORE_KEY * 8
@@ -232,7 +238,16 @@ IDENTIFY_PRESSURE_FREE_SLOTS = 3
 IDENTIFY_FAIL_LIMIT = 3
 IDENTIFY_PURCHASE_MAX = 5
 DETECTION_SCROLL_BUFFER = 5
-STAFF_IDENTIFY_MIN_SUCCESS = 0.80
+# The owner's one displayed success rate for a device or an absorbed power, in
+# percent as the game lists it (cmd-magiceat.cpp prints the fail percent):
+# 2026-10-31 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える」,
+# 2026-11-01 「スピードの杖の取り込み後、成功率が80%以上なら…」, 2026-11-05
+# 「体力回復の杖/ロッドが成功率80%を超えている場合は使用を選択肢に入れる」 and the
+# carried Staff of Identify's floor.  me_capability.RELIABLE_MIN_SUCCESS and
+# arena_odds.HEALING_MIN_SUCCESS are this number.
+RELIABLE_MIN_SUCCESS_PERCENT = 80
+# The same floor as a fraction, for the modelled rates (``_identify_staff_success_rate``).
+STAFF_IDENTIFY_MIN_SUCCESS = RELIABLE_MIN_SUCCESS_PERCENT / 100
 FUNDRAISING_GOLD_TARGET = 15000
 FUNDRAISING_KIT_RESERVE = 100
 CROSS_TOWN_SHOPPING_RESERVE = 1000
@@ -546,12 +561,23 @@ RANGED_TARGET_FAILURE_LIMIT = 3
 RANGED_SLEEPER_MAX_DISTANCE = 4
 TORCH_THROW_MAX_DEPTH = 10
 HEAL_HP_RATIO = 0.40  # quaff a healing potion below this
+# Descending / healing. Dive only when healthy, and recover between fights so we
+# are never caught deep and weak (the classic too-fast-dive death).
+DESCEND_MIN_HP_RATIO = 0.85  # only take downstairs at/above this HP
+REST_TARGET_HP_RATIO = 0.90  # rest to recover up to here when no enemy is in sight
 # USER DECISION 2026-10-03 04:0x (low-hp-no-unchecked-walk): below
 # max(max_hp * 0.5, max_hp - 300) no walking move that has not been checked
 # for danger; heal -> teleport/recall -> fight instead.  The one definition.
 LOW_HP_WALK_RATIO = 0.5
 LOW_HP_WALK_MARGIN = 300
+# Fixed quests have no ordinary retreat/recovery loop.  Preserve the scarce
+# healing stock until HP is below 30%; lethal prediction and status cures still
+# run first and are unaffected by this lower routine-healing threshold.
 FIXED_QUEST_HEAL_HP_RATIO = 0.30
+# A successful emergency relocation is not itself expedition-ending. Reassess
+# the landing and return only when recovery is genuinely unsafe or this is the
+# second forced escape of the dive.
+EMERGENCY_RETURN_HP_RATIO = 0.50
 EMERGENCY_RETURN_COUNT = 2
 ENGAGEMENT_AVOID_DAMAGE_RATIO = 0.50
 # User decision 2026-09-21: threats below 10% of current HP do not justify
@@ -578,8 +604,10 @@ UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
 # (threat tiers OQ-7): Cure Light and Cure Serious Wounds are not HP recovery
 # either.  The one exception is a quest strategy whose heal potion is Cure
 # Critical Wounds (QUEST_14, owner 2026-10-31 「致命傷の治癒でよい」), added on
-# that floor by policy._quest_floor_heal_svals.
-HEAL_POTION_SVALS = frozenset({37, 38, 39})
+# that floor by policy._quest_floor_heal_svals.  Cheapest first: the order the
+# supply fight drinks them (supply_fight) and a blind cure tries them (status_cure).
+HEAL_ORDER = (SV_POTION_HEALING, SV_POTION_STAR_HEALING, SV_POTION_LIFE)
+HEAL_POTION_SVALS = frozenset(HEAL_ORDER)
 
 QUEST_STATUS_TAKEN = 1
 
