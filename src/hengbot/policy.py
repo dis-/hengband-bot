@@ -2266,6 +2266,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The income floor a mining run was ended on by a ruled-out unique
         # (_mining_unbeatable_unique_abort_key); that run is not counted.
         self._mining_abort_floor: tuple[int, int, int] | None = None
+        # The return's chosen exit on a fundraising floor: (floor, staircase,
+        # door or None), kept while reachable (_fundraising_exit_latch_key).
+        self._fundraising_exit_latch: tuple[tuple[int, int, int], Position, Position | None] | None = None
+        self._upstairs_door_route_goal: Position | None = None
         # The two stockout mining plans live in the town visit (slice 3-2).
         # Marks a set opened because no recall landing is safe: the gold
         # set-end leaves it running and the run count ends it.
