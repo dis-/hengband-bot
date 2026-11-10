@@ -1277,9 +1277,30 @@ class CombatTest(unittest.TestCase):
                 self.assertTrue(hasattr(policy, explicit_name))
 
     def test_decide_routes_physical_consumers_only_physical_views(self):
-        tree = ast.parse(textwrap.dedent(inspect.getsource(HengbotPolicy._decide)))
+        import importlib
+        from hengbot import dungeon_ladder
+
+        decide = ast.parse(textwrap.dedent(inspect.getsource(HengbotPolicy._decide)))
+        # A ladder layer asked in a module of its own (dungeon_ladder.LAYER_MODULES)
+        # gets _decide's views by name, each under its own name.
+        layers = [
+            ast.parse(inspect.getsource(importlib.import_module(f"hengbot.{module}").key))
+            for module in dungeon_ladder.LAYER_MODULES.values()
+        ]
+        layer_calls = [
+            node for node in ast.walk(decide)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "key" and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in dungeon_ladder.LAYER_MODULES.values()
+        ]
+        self.assertEqual(len(layer_calls), len(layers))
+        for call in layer_calls:
+            for keyword in call.keywords:
+                with self.subTest(layer=call.func.value.id, view=keyword.arg):
+                    self.assertIsInstance(keyword.value, ast.Name)
+                    self.assertEqual(keyword.value.id, keyword.arg)
         calls = {}
-        for node in ast.walk(tree):
+        for node in (node for tree in (decide, *layers) for node in ast.walk(tree)):
             if not isinstance(node, ast.Call):
                 continue
             function = node.func
@@ -1317,7 +1338,8 @@ class CombatTest(unittest.TestCase):
                     )
 
         decide_names = {
-            node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
+            node.id for tree in (decide, *layers) for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
         }
         self.assertFalse(
             {"hostiles", "adjacent", "raw_hostiles", "raw_adjacent"}

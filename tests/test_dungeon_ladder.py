@@ -70,10 +70,11 @@ class TableAgainstSourceTest(unittest.TestCase):
         self.assertTrue(any('_new_key' in finding for finding in findings), findings)
 
     def test_a_direct_rung_moved_behind_the_entry_fails(self):
-        findings = analyze_with(policy=lambda source: source.replace(
-            'summons = summon_response.key(self, snapshot)',
-            'summons = self._town_producer_entry("summon_response.key", '
-            'lambda: summon_response.key(self, snapshot))'))
+        # The floor-avoidance layer is asked in ladder_floor_avoidance (LAYER_MODULES).
+        findings = analyze_with(plan=lambda source: source.replace(
+            'summons = summon_response.key(policy, snapshot)',
+            'summons = policy._town_producer_entry("summon_response.key", '
+            'lambda: summon_response.key(policy, snapshot))'))
         self.assertTrue(any('summon_response.key (direct)' in finding for finding in findings), findings)
 
     def test_a_filter_added_after_decide_fails(self):

@@ -17147,5 +17147,19 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "ladder_floor_avoidance.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "combat",
+      "survival",
+      "loot-exploration",
+      "departure"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The floor-avoidance layer of _decide moved verbatim (maintainability review step 8): off the town floor summon_response.key, destruction_use.sight_trigger_key, resist_potion.ladder_key, oneshot_breath.key, immobile_ranged_kill.key, _immobile_summoner_key and immobile_threat_memory.step_out_key; then _unseen_retreat_intercept_key, _unseen_retreat_key, anaguma.key and _detected_threat_preparation_key, over whose key _return_to_town_key#1 takes the decision. Entries through _town_producer_entry as in _decide; it returns the first child key, or the contested child's; the rows are its children's. Selected child inherits work; no independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

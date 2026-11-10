@@ -272,6 +272,7 @@ LADDER = (
 # ``_decide`` calls it where the layer's rows stand.  The lint reads the rows inside the module
 # in place of that call, and a module asks the rungs of its own layer only.
 LAYER_MODULES = {
+    "floor-avoidance": "ladder_floor_avoidance",
     "light": "ladder_light",
 }
 

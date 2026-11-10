@@ -2679,6 +2679,16 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "ladder_floor_avoidance.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "combat",
+      "survival",
+      "loot-exploration",
+      "departure"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_light.py:key": {
     "classification": "adapter",
     "rows": [
