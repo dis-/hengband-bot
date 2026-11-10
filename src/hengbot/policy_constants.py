@@ -219,6 +219,9 @@ CHEST_SEARCH_BUDGET = 6
 CHEST_DISARM_BUDGET = 2
 CHEST_OPEN_BUDGET = 8
 CHEST_COLLECT_BUDGET = 32
+# A chest trap can hurt: a floor chest is waited for, and a carried chest left
+# shut, below this share of max HP (policy_identification's chest processing).
+CHEST_OPEN_MIN_HP_RATIO = 0.8
 USE_STAFF_KEY = "u"
 ZAP_ROD_KEY = "z"
 FULL_IDENTIFY_DISMISS_SUFFIX = LEAVE_STORE_KEY * 8
