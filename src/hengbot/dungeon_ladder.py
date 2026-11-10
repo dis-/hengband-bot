@@ -160,6 +160,8 @@ LADDER = (
         *D("destruction_use.key"),
         *I("flee:scroll"),
         *D("combat_answer.adjacent_attack"),
+        # n1-c life-193: an aborted mining run takes its exit instead of the wait.
+        *E("_mining_abort_exit_key"),
         *I("flee:wait"),
         # Owner 2026-11-08: inside an awake T1 hostile's sensing radius, leave (never rest).
         *D("threat_tiers.sensed_t1_leave_key"),

@@ -78,6 +78,13 @@ FUNDRAISING_WAIT_SIGHT_REASON = "fundraise:wait-sight"
 SCAVENGE_RETURN_GRACE_TURNS = 2_000
 
 
+def _exit_stairs_predicate(policy, stairs: Position):
+    """The latched return's staircase only (one goal kind for goal_route)."""
+    def predicate(grid: GridState) -> bool:
+        return grid.position == stairs and policy._is_upstairs_target(grid)
+    return predicate
+
+
 @dataclass(frozen=True)
 class FundraisingPurpose:
     identity: int
@@ -674,6 +681,90 @@ class FundraisingMixin:
         self.last_reason = f"fundraise:abort-unbeatable-unique:{exit_reason}"
         return key
 
+    def _mining_abort_latched(self, snapshot: Snapshot) -> bool:
+        """The ruled-out unique ended the mining run on this floor (the abort above)."""
+        return (
+            getattr(self, "_mining_abort_floor", None) == snapshot.floor_key
+            and snapshot.dungeon_level > 0
+        )
+
+    @claims(ClaimOwner.FUNDRAISING)
+    def _mining_abort_exit_key(
+        self, snapshot: Snapshot, threats: list[MonsterState]
+    ) -> str | None:
+        """The aborted run's exit where the flight could only wait in place.
+
+        n1-c life-193 (Lv8, Yeek cave 1F, 2026-11-10 19:3x): the abort latched
+        the return on sighting a sleeping Greater Hell-Beast 17-18 cells away,
+        then the flight owned every board (owner 2026-11-07 「眠っている敵でも
+        強い敵からは離れる」), found no cell farther from it and no escape scroll
+        (Recall is not one), and waited 194 times at a dead end 5 cells from the
+        known up stairs with 9 Recall scrolls, until the loop detector.  The
+        exit is already decided (owner 2026-10-31 「採掘を切り上げて地上に戻る」),
+        so the wait takes it instead: the stairs underfoot, else a step toward
+        them that comes no nearer any threat (a nearer step is the one the
+        flight walks back), else a Recall read (owner 2026-11-04 「視界内に起きた
+        敵がいなければ撃つより先に帰還を読む」), else the wait.  An active
+        recall is waited for under the abort's name.
+        """
+        if not self._mining_abort_latched(snapshot):
+            return None
+        player = snapshot.player
+        here = snapshot.grid_at(player.position)
+        prefix = "fundraise:abort-unbeatable-unique"
+        if here is not None and self._is_upstairs_target(here):
+            self.last_reason = f"{prefix}:ascend"
+            self._offer_execution(
+                UP_STAIRS_KEY, producer="fundraising",
+                work_id=f"fundraise:abort:ascend:{snapshot.floor_key}",
+                next_step="fundraising.ascend.send",
+                expected_effect="floor-change",
+                continuation="fundraising.observe-town-arrival",
+            )
+            return UP_STAIRS_KEY
+        if player.recalling:
+            self.last_reason = f"{prefix}:wait-recall"
+            self._offer_execution(
+                WAIT_KEY, producer="fundraising",
+                work_id="fundraise:abort:recall-wait",
+                next_step="fundraising.observe-recall-arrival",
+                expected_effect="floor-change",
+            )
+            return WAIT_KEY
+        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        if step is not None and all(
+            self._monster_cast_distance(step, monster.position)
+            >= self._monster_cast_distance(player.position, monster.position)
+            for monster in threats
+        ):
+            self.last_reason = f"{prefix}:seek-upstairs"
+            self._declare_reach(step)
+            return self._fundraising_return_route_key(
+                self._step_toward(snapshot, step),
+                step="fundraising.seek-upstairs",
+                work_id="fundraise:abort:upstairs-step",
+            )
+        recall = self._find_recall_scroll(snapshot)
+        if (
+            recall is not None
+            and not player.blind
+            and not player.confused
+            and self._can_read_scrolls(snapshot)
+        ):
+            self.last_reason = f"{prefix}:recall"
+            key = self._town_producer_entry(
+                "_read_dungeon_recall_scroll_key",
+                lambda: self._read_key(snapshot, recall), family="departure", board=snapshot)
+            self._offer_execution(
+                key, producer="fundraising",
+                work_id="fundraise:abort:recall",
+                next_step="fundraising.recall.send",
+                arguments=(recall.slot,), expected_effect="recall-activated",
+                continuation="fundraising.observe-recall-arrival",
+            )
+            return key
+        return None
+
     def _update_mining_combat_streaks(
         self,
         snapshot: Snapshot,
@@ -766,6 +857,11 @@ class FundraisingMixin:
                 continuation="fundraising.observe-town-arrival",
             )
             return UP_STAIRS_KEY
+        # The exit this return already chose keeps the floor's return (n1-b
+        # life-365, _fundraising_exit_latch_key).
+        latched = self._fundraising_exit_latch_key(snapshot)
+        if latched is not None:
+            return latched
         # Before the confined-cycle break below: picking a lock holds the
         # player on one cell, which that break would read as an oscillation.
         door_key = self._upstairs_door_key(snapshot)
@@ -797,6 +893,8 @@ class FundraisingMixin:
         finally:
             step_target = self._take_claim_target()
         if step is not None:
+            if step_target is not None:
+                self._fundraising_exit_latch = (snapshot.floor_key, step_target, None)
             self.last_reason = "fundraise:seek-upstairs"
             self._declare_reach(step_target)
             return self._fundraising_return_route_key(
@@ -927,8 +1025,63 @@ class FundraisingMixin:
         )
         return WAIT_KEY
 
+    @claims(ClaimOwner.FUNDRAISING)
+    def _fundraising_exit_latch_key(self, snapshot: Snapshot) -> str | None:
+        """Keep walking to the up staircase (and through the door) this return chose.
+
+        n1-b life-365 (Lv32, Yeek cave 1F, 2026-11-10 15:09): the return's two
+        exits disagreed cell by cell.  At [24,47] no door route was needed and
+        the stairs walk stepped '8' to [23,47]; there the door route (the walk
+        veto of that cell cut the remembered way) led through the closed door
+        at [27,47] and stepped '2' back, 40 decisions until the loop detector.
+        The first exit chosen on the floor -- a staircase and, when the route
+        crosses one, its door -- is now kept while it is still reachable the
+        same way: the door route through that door only, toward that
+        staircase only (a staircase reached without the door does not replace
+        it), and once the door is open (an open door is floor) the walk to
+        that staircase only.  Released when the floor changes, the staircase
+        stops being a target, or the chosen way no longer reaches it; then the
+        ordinary order chooses again.
+        """
+        latch = getattr(self, "_fundraising_exit_latch", None)
+        if latch is None:
+            return None
+        floor_key, stairs, door = latch
+        grid = snapshot.grid_at(stairs)
+        if floor_key != snapshot.floor_key or (
+            grid is not None and not self._is_upstairs_target(grid)
+        ):
+            self._fundraising_exit_latch = None
+            return None
+        if door is not None and (door.y, door.x) in self._remembered_door_t:
+            route = self._upstairs_door_route(
+                snapshot, only_door=door, only_goal=stairs)
+            if route is None:
+                self._fundraising_exit_latch = None
+                return None
+            return self._upstairs_door_route_key(snapshot, *route, goal=stairs)
+        self._fundraising_exit_latch = (floor_key, stairs, None)
+        self._claim_target_capture = []
+        try:
+            step = self._nearest_goal_step(
+                snapshot, _exit_stairs_predicate(self, stairs))
+        finally:
+            self._take_claim_target()
+        if step is None:
+            self._fundraising_exit_latch = None
+            return None
+        self.last_reason = "fundraise:seek-upstairs"
+        self._declare_reach(stairs)
+        return self._fundraising_return_route_key(
+            self._step_toward(snapshot, step),
+            step="fundraising.seek-upstairs",
+            work_id="fundraise:return:upstairs-route",
+        )
+
     def _upstairs_door_route(
-        self, snapshot: Snapshot
+        self, snapshot: Snapshot, *,
+        only_door: Position | None = None,
+        only_goal: Position | None = None,
     ) -> tuple[Position, list[Position]] | None:
         """The closed door through which the known map leads to a known up staircase.
 
@@ -942,12 +1095,18 @@ class FundraisingMixin:
         ``(door, approach)``, ``approach`` being the remembered steps to the
         cell beside the door (empty when the player stands there), or None when
         a staircase is reachable without a door or not even through one.
+
+        ``only_door`` / ``only_goal``: the exit the return already chose
+        (``_fundraising_exit_latch_key``): only that door is crossed, only that
+        staircase is a goal, and a staircase reached without the door does not
+        end the search (the choice is kept, not traded for another exit).
         """
         # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
         walk_veto = self._walk_veto(snapshot)
         goals = {
             position for position, grid in snapshot.grids.items()
             if grid.has_up_stairs and self._is_upstairs_target(grid)
+            and (only_goal is None or position == only_goal)
         }
         start = snapshot.player.position
         if not goals or start in goals:
@@ -958,6 +1117,7 @@ class FundraisingMixin:
             yx for yx in self._remembered_door_t
             if yx not in stuck
             and attempts[yx] < FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT
+            and (only_door is None or yx == (only_door.y, only_door.x))
         }
         known = self._remembered_known_t
 
@@ -979,7 +1139,7 @@ class FundraisingMixin:
         while remembered_side or door_side:
             position = (remembered_side or door_side).popleft()
             door = beyond[position]
-            if position in goals:
+            if position in goals and (door is not None or only_door is None):
                 if door is None:
                     return None
                 path: list[Position] = []
@@ -988,6 +1148,8 @@ class FundraisingMixin:
                     path.append(node)
                     node = parent[node]
                 path.reverse()
+                # The staircase behind the door, for the exit latch.
+                self._upstairs_door_route_goal = position
                 return door, path[: path.index(door)]
             walkable = set() if door is not None else {
                 neighbor
@@ -1025,7 +1187,17 @@ class FundraisingMixin:
         route = self._upstairs_door_route(snapshot)
         if route is None:
             return None
-        door, approach = route
+        return self._upstairs_door_route_key(snapshot, *route)
+
+    def _upstairs_door_route_key(
+        self, snapshot: Snapshot, door: Position, approach: list[Position],
+        goal: Position | None = None,
+    ) -> str | None:
+        """Walk to, then pick, ``door``; the exit is latched (_fundraising_exit_latch_key)."""
+        if goal is None:
+            goal = getattr(self, "_upstairs_door_route_goal", None)
+        if goal is not None:
+            self._fundraising_exit_latch = (snapshot.floor_key, goal, door)
         if approach:
             self.last_reason = "fundraise:seek-upstairs-door"
             self._declare_reach(approach[-1])

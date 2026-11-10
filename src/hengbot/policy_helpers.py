@@ -542,8 +542,18 @@ class PolicyHelpersMixin:
         allow_yeek_cave: bool = False,
         require_shallower: bool = True,
         guardian_bounced_dungeon: int | None = None,
+        refused_dungeon: int | None = None,
     ) -> int | None:
         """Choose a safe dungeon already available to Recall.
+
+        ``refused_dungeon``: the unsafe-recall fallback's refused target.
+        Owner 2026-11-10 (n1-b life-365, Castle 51 lacking *Destruction* and
+        telepathy, every other fallback refused): 「入ったダンジョンのうち、深さ
+        の条件を満たす帰還の階で一番深い所へ行く（11-10 の「収まる中で一番深い所
+        へ」と同じ考え）。どこも満たさなければ資金集め。」  Angband is then a
+        candidate like any entered dungeon (its recall landing as the save
+        holds it, never lowered), unless it is the refused one; the refused
+        dungeon itself never is.
 
         ``prefer_deepest`` takes the deepest landing that passes every check,
         else the shallowest one is taken.  Owner decision 2026-11-10 (n1-b
@@ -589,7 +599,15 @@ class PolicyHelpersMixin:
         best: DungeonInfo | None = None
         for did in snapshot.entered_dungeon_ids:
             info = self._dungeon_knowledge.get(did)
-            if info is None or not self._fallback_destination_allowed(did):
+            if info is None or did == refused_dungeon:
+                continue
+            if not self._fallback_destination_allowed(did) and not (
+                refused_dungeon is not None
+                and did == DUNGEON_ANGBAND
+                and snapshot.angband_recall_unlocked
+                and exploration_destination_allowed(did)
+                and self._can_fight_in_dungeon(did)
+            ):
                 continue
             if did == DUNGEON_YEEK_CAVE and not allow_yeek_cave:
                 continue

@@ -363,6 +363,8 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_scavenge_without_digger", False)
     restored.__dict__.setdefault("_supply_stockout_cycles", 0)
     restored.__dict__.setdefault("_mining_abort_floor", None)
+    restored.__dict__.setdefault("_fundraising_exit_latch", None)
+    restored.__dict__.setdefault("_upstairs_door_route_goal", None)
     restored.__dict__.setdefault("_supply_stockout_gold_target", None)
     # Older captures predate the detected-threat rest tiering record; None is
     # the "no assessment yet" value it is rewritten from on every rest check.

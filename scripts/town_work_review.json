@@ -17625,5 +17625,71 @@
     "observer": "Existing shop purchase effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success.",
     "evidence": "Pure closure delegating to fundraising_survival.affordable; no command or independent effect credit."
+  },
+  "policy_fundraising.py:FundraisingMixin._mining_abort_exit_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Dungeon-only: the flight's wait in place on a Yeek cave 1F mining run the ruled-out unique ended (n1-c life-193); never in town.",
+    "evidence": "Ascends ('<') on the up stairs, waits for an active recall, steps toward the known up stairs when no nearer any threat, else reads Word of Recall; each through _offer_execution / _fundraising_return_route_key. None leaves the flight's wait.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_fundraising.py:FundraisingMixin._fundraising_exit_latch_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Dungeon-only fundraising return (n1-b life-365); reached from _leave_fundraising_floor, never in town or a store.",
+    "evidence": "Keeps the return's chosen up staircase (and door): delegates to _upstairs_door_route_key through the latched door, else walks to the latched staircase via _fundraising_return_route_key; releases the latch when that way no longer reaches it.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_fundraising.py:FundraisingMixin._upstairs_door_route_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Dungeon-only fundraising return (D19, n1-b life-365); reached from _upstairs_door_key and _fundraising_exit_latch_key, never in town or a store.",
+    "evidence": "Walks remembered terrain toward, then opens with 'o', the given closed door; each open is bounded per door by FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT and offered through _fundraising_return_route_key; records the exit latch.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_fundraising.py:FundraisingMixin._upstairs_door_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure route search: the closed door and approach toward a known up staircase; it notes the staircase it found (_upstairs_door_route_goal) for the exit latch, bookkeeping only",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_fundraising.py:_exit_stairs_predicate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the goal predicate of the latched staircase",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_fundraising.py:_exit_stairs_predicate.predicate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: the grid is the latched staircase and still an up-stairs target",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

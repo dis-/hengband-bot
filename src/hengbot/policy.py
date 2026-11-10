@@ -2266,6 +2266,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The income floor a mining run was ended on by a ruled-out unique
         # (_mining_unbeatable_unique_abort_key); that run is not counted.
         self._mining_abort_floor: tuple[int, int, int] | None = None
+        # The return's chosen exit on a fundraising floor: (floor, staircase,
+        # door or None), kept while reachable (_fundraising_exit_latch_key).
+        self._fundraising_exit_latch: tuple[tuple[int, int, int], Position, Position | None] | None = None
+        self._upstairs_door_route_goal: Position | None = None
         # The two stockout mining plans live in the town visit (slice 3-2).
         # Marks a set opened because no recall landing is safe: the gold
         # set-end leaves it running and the run count ends it.
@@ -8258,6 +8262,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     "_direction_key#1", partial(combat_answer.direct_blow, self, snapshot, target)))
             if cornered is not None:
                 return cornered.key
+            # A mining run the ruled-out unique ended takes its decided exit
+            # rather than waiting in place (n1-c life-193, _mining_abort_exit_key).
+            if (abort_exit := self._town_producer_entry(
+                    "_mining_abort_exit_key",
+                    lambda: self._mining_abort_exit_key(snapshot, strategic_hostiles),
+                    family="fundraising")) is not None:
+                return abort_exit
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
@@ -12033,11 +12044,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
         else:
             # Owner 2026-11-10 「収まる中で一番深い所へ」: the refused landing was
-            # too deep for the kit, so the deepest entered landing below it.
+            # too deep for the kit, so the deepest entered landing below it;
+            # 「条件を満たす一番深い所へ」 (n1-b life-365): Angband among them.
+            # Both answers together: with an over-extension recorded, the landing
+            # is also strictly shallower than the over-extended depth (n1-b
+            # life-365: Angband 49 against the over-extended 49 is not).
+            ceiling = unsafe_depth - 1
+            if self._last_overextended_depth > 0:
+                ceiling = min(ceiling, self._last_overextended_depth - 1)
             alternate = self._pick_alternate_dungeon(
                 snapshot,
-                max_entry_depth=max(1, unsafe_depth - 1),
+                max_entry_depth=max(1, ceiling),
                 prefer_deepest=True,
+                refused_dungeon=self._target_dungeon_id,
             )
         if alternate is None:
             return None
@@ -13584,7 +13603,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return True
 
     def _start_no_safe_destination_fundraising(
-        self, snapshot: Snapshot, destination_depth: int
+        self, snapshot: Snapshot, destination_depth: int, *,
+        any_missing: bool = False,
     ) -> bool:
         """Enter the ordinary fundraising set when no recall landing is safe.
 
@@ -13600,11 +13620,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ends by the ordinary run count (``_no_safe_destination_set``).  Only
         equipment abilities qualify: the *Destruction* and speed gates are not
         answered by gold.
+
+        ``any_missing``: the recall-target depth gate, after the unsafe-recall
+        fallback found no entered landing that meets the depth requirements.
+        Owner 2026-11-10 (n1-b life-365, Castle 51 lacking *Destruction* and
+        telepathy, three town:blocked stops in a row and retired):
+        「どこも満たさなければ資金集め」 -- whatever ability is missing.
         """
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False
         missing = self._missing_required_abilities(snapshot, destination_depth)
-        if not missing or missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}:
+        if not missing or (
+            not any_missing
+            and missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}
+        ):
             return False
         if self._opening_q34_active(snapshot):
             return False
@@ -15670,7 +15699,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             self._fruitless_disengage_floor = None
             self._fruitless_disengage_decisions = 0
-            if self._last_return_trigger is None:
+            if (self._last_return_trigger is None
+                    and not self._mining_abort_latched(snapshot)):
                 self._returning_to_town = False
                 self._note_return_end()
             if self._escape_state.owner == "disengage":
@@ -15712,9 +15742,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # so a swarm whose count never trends down still falls back to the
             # unchanged disengage episode and its visible terminal. Once genuine
             # absence decays the score below the declaration threshold, the stale
-            # latch no longer blocks mining.
-            self._returning_to_town = False
-            self._note_return_end()
+            # latch no longer blocks mining.  A run the ruled-out unique ended
+            # (_mining_unbeatable_unique_abort_key) is not this latch's to
+            # release: n1-c life-193 (Yeek cave 1F, 2026-11-10 19:3x) took the
+            # abort's one step toward the up stairs, this branch cleared the
+            # return on the next board, and the run went back to seek-loot
+            # beside the sleeping Greater Hell-Beast until the loop detector.
+            if not self._mining_abort_latched(snapshot):
+                self._returning_to_town = False
+                self._note_return_end()
             self._escape_state.release()
             return None
         if not breeders and self._fruitless_fight_is_winnable(snapshot, hostiles):
