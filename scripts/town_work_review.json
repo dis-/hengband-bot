@@ -17245,6 +17245,266 @@
     "evidence": "Owner 2026-11-07 「盲目で周りが分からない時は分からない隣のマスにも攻撃する。」 and 2026-11-03 (n1-a life-504 2026-11-10, 鉄獄24階: blind, punched by unseen summons above the emergency line, it searched in place). Blind, not returning to town or on an income run, an unseen attacker's melee blow on this board (unseen_strike.hit_in_melee) and no visible hostile adjacent: blind_strike.strike_key at the remembered cell, else unseen_strike.key at a free (or, blind, unknown) neighbour, under blind:unseen-strike; else None. Called only from _decide right after _survival_gate_key#2, before dungeon_wait_for_sight_key; dungeon only; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "anaguma.py:_area_into_mouth": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Chooses the absorbed/carried ball or breath aimed into the pocket's mouth whose blast reaches the last animal (owner 2026-11-10 「範囲」). Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Plans the zigzag pocket (start cell, tunnel cells, base length) from the board; no command. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_close_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "The last-animal close-in (area, absorbed Speed, step out and strike, chase to the tunnel exit; owner 2026-11-10). Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_detect_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "The detection after the 50-game-turn wait (owner 2026-11-10 「可能なら感知を使って」). Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_dig_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "One Stone to Mud use or one step into the dug cell of the pocket. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_dig_time": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure arithmetic: the dig's player moves. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_escape_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "The pocket's escape when the existing flee test leaves (owner 2026-11-10 「今の基準のまま」): *Destruction*, then the escape scroll. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_haste_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "The Magic-Eater's absorbed Speed for the close-in (owner 2026-11-10: no consumable). Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_hold_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "The pocket's hold: strike the monster on the mouth, else wait, then detect or end. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_index": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure lookup of the player's tunnel cell. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_melt": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "One Stone to Mud use through sealed_pocket.melt_at_key. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_shorten": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Ends the dig where the player stands when that is a pocket. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "One step toward a tunnel cell (policy._step_toward). Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:_success": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure arithmetic: the wand's use chance. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "The Anaguma rung (dungeon_ladder floor-avoidance layer). Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Returns the plan record (policy._anaguma_plan); no command. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma.py:usable_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure count of the Stone to Mud charges a dig may spend (owner 2026-11-10 reserve). Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma_geometry.py:Zigzag.before": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure geometry. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma_geometry.py:cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure geometry. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma_geometry.py:longest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure geometry over the board's grids. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "anaguma_geometry.py:zigzag": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure geometry over the board's grids. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
+  "breeder_area_attack.py:_blocker": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure predicate over the board's grids; newly reached from anaguma._area_into_mouth."
+  },
+  "breeder_area_attack.py:_breath_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure geometry (range-calc.cpp breath_shape port); newly reached from anaguma._area_into_mouth."
+  },
+  "breeder_area_attack.py:_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure arithmetic; newly reached from anaguma._area_into_mouth."
+  },
+  "breeder_area_attack.py:_grid_ray": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure geometry; newly reached from anaguma._area_into_mouth."
+  },
+  "breeder_area_attack.py:_hits": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure geometry of an attack's reach; newly reached from anaguma._area_into_mouth."
+  },
+  "breeder_area_attack.py:_ray": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure geometry; newly reached from anaguma._area_into_mouth."
+  },
+  "model.py:game_distance": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure arithmetic (Grid::calc_distance)."
+  },
+  "quest_exposure.py:game_distance": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Pure arithmetic (the model's game_distance re-exported)."
+  },
+  "wand_tower_recharge.py:_errand_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. Selects the next leg or the recharge.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:_leg_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. Delegates _town_teleport_key (cross-town) to Morivant or back; a failed leg ends the errand.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:_recharge_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. Walks to the Tower of Sorcery (building 8) and posts 'a' + 'y' + ESC (observed_input answers 'y' at the observed question, morivant_tower.RECHARGE_ALL_REASONS).",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. At the recall read (policy_town _town_special_key, after the armour smith).",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:trip_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town",
+      "store-approach",
+      "device"
+    ],
+    "evidence": "Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」 (the Anaguma stock answer): a non-Magic-Eater carrying an identified Stone to Mud wand that Morivant's Tower would fill, with Morivant listed and the gold after the fares and the Tower's price still above the optional-spending reserve (armor_smith.gold_line's), takes the inn's teleport to Morivant, posts the Tower's 'a' recharge-all and returns to the town it started from; once per stay, started at the recall read, never a fundraising run or a stop. Sole non-emergency town owner while the trip is under way (policy_quest, after the armour smith's trip).",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "wand_tower_recharge.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Returns the stay record (policy._wand_recharge_stay); no command."
+  },
   "esp_tier_hold.py:held": {
     "classification": "data",
     "rows": [

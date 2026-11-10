@@ -605,6 +605,11 @@ class QuestMixin(OpeningRouteMixin):
             smith_trip = armor_smith.trip_key(self, snapshot)
             if smith_trip is not None:
                 return smith_trip
+            # Owner 2026-11-10 「資金に余裕があるとき魔法棒を塔でチャージする」.
+            from hengbot import wand_tower_recharge
+            wand_trip = wand_tower_recharge.trip_key(self, snapshot)
+            if wand_trip is not None:
+                return wand_trip
             from hengbot import arena
             arena_trip = arena.trip_key(self, snapshot)
             if arena_trip is not None:
