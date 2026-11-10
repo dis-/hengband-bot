@@ -45,7 +45,7 @@ def tree_state(commit):
         design.write_bytes(git('show', f'{commit}:SOL-DESIGN-town-progress.md'))
         generator.ROOT = Path(raw)
         functions, selected, origins, names = generator.inventory(sources)
-    proved = generator.proved_data(functions, names, origins, selected)
+    proved = generator.proved_data(functions, names, origins, selected, sources)
     kept = generator.kept_reviews(reviewed, proved)
     complete = {site: generator.complete_review(reviewed[site]) if site in reviewed
                 else generator.mechanical_review() for site in selected if site in reviewed or site in proved}

@@ -42,17 +42,49 @@ UNPROVED = {
                            ' def f(self):\n  self.g()\n  return True\n'),
     'callback': 'def f(callback):\n callback()\n return True\n',
     'decorated': '@claims("x")\ndef f(snapshot):\n return True\n',
+    # Step 10 (2026-11-11): what the module-level rules must still refuse.
+    'or_key': 'def f(snapshot):\n return snapshot.ready or "5"\n',
+    'and_key_last': 'def f(snapshot):\n return snapshot.ready and "5"\n',
+    'max_of_keys': 'def f(snapshot):\n return max("5", snapshot.key)\n',
+    'next_item': 'def f(snapshot):\n return next((i.slot for i in snapshot.items), None)\n',
+    'str_constant': 'WAIT = "5"\ndef f(snapshot):\n return WAIT\n',
+    'rebound_constant': 'WAIT = 1\ndef g():\n global WAIT\n WAIT = "5"\ndef f(snapshot):\n return WAIT\n',
+    'str_class': 'class K(str):\n pass\ndef f(snapshot):\n return K("5")\n',
+    'new_class': 'class K:\n def __new__(cls):\n  return "5"\ndef f(snapshot):\n return K()\n',
+    'unknown_base': 'from enum import StrEnum\nclass K(StrEnum):\n A = "5"\ndef f(snapshot):\n return K("5")\n',
+    'sending_init': ('class K:\n def __init__(self, port):\n  port.post_keys("5")\n'
+                     'def f(port):\n K(port)\n return True\n'),
+    'mutating_init': ('class K:\n def __init__(self, policy):\n  policy.cache = 1\n'
+                      'def f(policy):\n return K(policy)\n'),
+    'closure_free_name': 'WAIT = 1\ndef outer():\n WAIT = "5"\n def f():\n  return WAIT\n return f\n',
 }
+# Proved only with the module-level resolution (the sources) or the step 10 expression rules.
+PROVED_WITH_SOURCES = {
+    'empty_str': 'def f(snapshot):\n return ""\n',
+    'and_chain': 'def f(snapshot):\n return snapshot.item and snapshot.level > 3\n',
+    'max_constant': 'def f(snapshot):\n return max(1, snapshot.hp * snapshot.level)\n',
+    'max_comprehension': 'def f(snapshot):\n return max((m.hp // 2 for m in snapshot.monsters), default=0)\n',
+    'module_constant': 'LIMIT = 3\ndef f(snapshot):\n return LIMIT\n',
+    'dataclass': ('from dataclasses import dataclass\n@dataclass\nclass Plan:\n step: int\n'
+                  'def f(snapshot):\n return Plan(snapshot.level)\n'),
+    'named_tuple': ('from typing import NamedTuple\nclass Plan(NamedTuple):\n step: int\n'
+                    'class Wider(Plan):\n pass\ndef f(snapshot):\n return Wider(1)\n'),
+}
+# Conservative reviews: proved data (step 10, 2026-11-11) but hand-reviewed as action/producer. The hand
+# review keeps their index rows; reclassifying them is an open question of the step 10 report.
+CONSERVATIVE_REVIEWS = {'dungeon_shop.py:entrance', 'quest_find_exit.py:_exit_cell'}
 
 
-def proved(source, origin='census'):
-    functions = lint.collect({'m.py': textwrap.dedent(source)})
+def proved(source, origin='census', modules=True, extra=None):
+    sources = {'m.py': textwrap.dedent(source), **(extra or {})}
+    functions = lint.collect(sources)
     names = {}
     for site, function in functions.items():
         names.setdefault(function.name, []).append(site)
-    selected = {site for site in functions if site.endswith(('.f', ':f'))}
+    selected = {site for site in functions if site.startswith('m.py:') and site.endswith(('.f', ':f'))}
     origins = {site: [origin] for site in functions}
-    return data_proof.proved_data(functions, names, origins, selected, generator.SEAM_NAMES)
+    return data_proof.proved_data(functions, names, origins, selected, generator.SEAM_NAMES,
+                                  sources if modules else None)
 
 
 class DataProofRulesTest(unittest.TestCase):
@@ -68,6 +100,31 @@ class DataProofRulesTest(unittest.TestCase):
 
     def test_only_census_origin_is_proved(self):
         self.assertFalse(proved(PROVED['compare'], origin='emit/driver'))
+
+    def test_module_level_rules_prove_pure_helpers(self):
+        for label, source in PROVED_WITH_SOURCES.items():
+            with self.subTest(label):
+                self.assertTrue(proved(source), source)
+
+    def test_without_sources_only_the_body_rules_apply(self):
+        for label in ('module_constant', 'dataclass', 'named_tuple'):
+            with self.subTest(label):
+                self.assertFalse(proved(PROVED_WITH_SOURCES[label], modules=False))
+
+    def test_imported_module_function_and_constant_are_resolved(self):
+        helper = {'ranged.py': 'SCALE = 2\ndef damage(hp):\n return hp // SCALE\n'
+                               'def key(hp):\n return "5"\n'}
+        for import_line in ('from hengbot import ranged', 'from . import ranged',
+                            'import hengbot.ranged as ranged'):
+            with self.subTest(import_line):
+                self.assertTrue(proved(import_line + '\ndef f(s):\n return ranged.damage(s.hp)\n',
+                                       extra=helper))
+                self.assertTrue(proved(import_line + '\ndef f(s):\n return ranged.SCALE\n', extra=helper))
+                self.assertFalse(proved(import_line + '\ndef f(s):\n return ranged.key(s.hp)\n',
+                                        extra=helper))
+        self.assertTrue(proved('from hengbot.ranged import SCALE\ndef f(s):\n return SCALE\n', extra=helper))
+        self.assertFalse(proved('def f(s):\n import json as ranged\n return ranged.dumps(s)\n',
+                                extra=helper))
 
 
 def _policy_sources(body, helpers='', extra=None):
@@ -195,10 +252,13 @@ class RepositoryManifestTest(unittest.TestCase):
 
     def test_proof_never_overrides_a_hand_review(self):
         functions, selected, origins, names = generator.inventory(self.sources)
-        found = generator.proved_data(functions, names, origins, selected)
+        found = generator.proved_data(functions, names, origins, selected, self.sources)
         self.assertTrue(found)
+        # Any proved site with a non-data hand review other than the known conservative ones is a proof bug.
         self.assertEqual({site for site in found if site in self.reviewed
-                          and self.reviewed[site]['classification'] != 'data'}, set())
+                          and self.reviewed[site]['classification'] != 'data'}, CONSERVATIVE_REVIEWS)
+        self.assertTrue(all(self.index[site]['classification'] == self.reviewed[site]['classification']
+                            for site in CONSERVATIVE_REVIEWS))
         # The index rows of proved sites without a hand review are the mechanical data row.
         self.assertTrue(all(self.index[site] == data_proof.DATA_REVIEW
                             for site in found - self.reviewed.keys()))
