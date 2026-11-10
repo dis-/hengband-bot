@@ -112,22 +112,57 @@ def below_floor(snapshot) -> bool:
             and PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
-def pile_slots(grid) -> int:
-    """Pack slots a walk over ``grid`` can fill: gold goes to the purse."""
-    return max(0, grid.object_count - sum(tval == TVAL_GOLD for tval in grid.object_tvals))
+def pile_slots(grid, snapshot=None) -> int:
+    """Pack slots a walk over ``grid`` can fill: gold goes to the purse.
+
+    With ``snapshot``, an object that joins a carried stack fills none
+    (``stacking_pile_objects``).
+    """
+    slots = max(0, grid.object_count - sum(tval == TVAL_GOLD for tval in grid.object_tvals))
+    if snapshot is None or slots == 0:
+        return slots
+    return max(0, slots - stacking_pile_objects(snapshot, grid))
+
+
+def stacking_pile_objects(snapshot, grid) -> int:
+    """Objects of ``grid``'s pile that a pickup puts on a carried stack.
+
+    An object whose look name is a known carried stack's own inventory name
+    is that stack's kind with the same visible state (a light's fuel, an
+    inscription, known bonuses), so the game stacks it there and the pickup
+    fills no slot.  An unknown or unaware carried item proves nothing
+    (``incoming_slots``).  n1-b life-364 2026-11-10 10:18: the torch the
+    character threw at a scruffy dog in the Outpost's one-cell east gate lay there
+    as 松明(1700ターンの寿命) {明, @v0=g}, the name of the two carried, and
+    19 carried items made the one-slot estimate refuse the gate: the walk to
+    the Magic shop went round the outside of the town wall until
+    owner-retired-burst.
+    """
+    names = (getattr(snapshot, "found_item_names", None) or {}).get(grid.position)
+    if not names:
+        return 0
+    room = {item.name: 99 - item.count for item in snapshot.inventory
+            if item.known and item.aware}
+    stacking = 0
+    for name in names:
+        if name is not None and room.get(name, 0) > 0:
+            room[name] -= 1
+            stacking += 1
+    return stacking
 
 
 def floor_step_fits(snapshot, position) -> bool:
     if not getattr(snapshot, "in_town", False) or position in _EXPLICIT_PICKUP_CELLS.get():
         return True
     grid = snapshot.grids.get(position)
-    return grid is None or permits(snapshot, pile_slots(grid))
+    return grid is None or permits(snapshot, pile_slots(grid, snapshot))
 
 
 def native_travel_fits(snapshot) -> bool:
     # Native travel can traverse several pickup tiles before the next board.
     return (not getattr(snapshot, "in_town", False)
-            or permits(snapshot, sum(pile_slots(grid) for grid in snapshot.grids.values())))
+            or permits(snapshot, sum(pile_slots(grid, snapshot)
+                                     for grid in snapshot.grids.values())))
 
 
 def incoming_slots(snapshot, item, quantity: int) -> int:

@@ -1011,6 +1011,9 @@ class Snapshot:
     feeling: int | None = None
     light_radius: int | None = None
     found_items: tuple[tuple[int, ...], ...] | None = None
+    # The look-command names of each cell's found non-gold objects, in the
+    # order of found_items' classes (None while hallucinating).
+    found_item_names: dict[Position, tuple[str | None, ...]] | None = None
     store: "StoreState | None" = None  # present only while standing in a store
     recall_dungeon_id: int = 0
     entered_dungeon_ids: tuple[int, ...] = ()
@@ -1690,6 +1693,19 @@ def parse_snapshot(
             parsed_found_items.append(values)
         else:
             found_items = tuple(parsed_found_items)
+    found_item_names = None
+    raw_found_item_names = grid_map.get("found_item_names") if grid_map_valid else None
+    if isinstance(raw_found_item_names, list):
+        parsed_found_item_names: dict[Position, tuple[str | None, ...]] | None = {}
+        for row in raw_found_item_names:
+            if (not isinstance(row, list) or len(row) < 2
+                    or not all(isinstance(value, int) and not isinstance(value, bool)
+                               for value in row[:2])):
+                parsed_found_item_names = None
+                break
+            parsed_found_item_names[Position(row[0], row[1])] = tuple(
+                name if isinstance(name, str) else None for name in row[2:])
+        found_item_names = parsed_found_item_names
 
     return Snapshot(
         player=player,
@@ -1743,6 +1759,7 @@ def parse_snapshot(
         feeling=feeling,
         light_radius=light_radius,
         found_items=found_items,
+        found_item_names=found_item_names,
         store=_parse_store(data.get("store"), protocol=protocol),
         recall_dungeon_id=int(progress.get("recall_dungeon_id", 0)),
         entered_dungeon_ids=tuple(
