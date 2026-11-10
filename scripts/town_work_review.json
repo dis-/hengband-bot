@@ -17735,5 +17735,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "guardian_landing.py:guardian_tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the threat tier (threat_tiers.tiered, contact) of a dungeon's guardian alone on the duel board _guardian_fight_viable builds, from the static race data; read by the recall landing checks (owner 2026-11-10 「守護者が T1 の最下層は、*破壊* の有無に関係なく帰還先にしない。」).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "guardian_landing.py:guardian_tier.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the memoized body of guardian_tier.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
