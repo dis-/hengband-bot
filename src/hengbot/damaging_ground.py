@@ -23,6 +23,14 @@ in again until the loop guard stopped it.  The ground left is the safe region of
 last safe cell the player stood on this floor (``_hazard_entry``); the far side is the
 nearest safe cell outside it, reached over the hazard only.
 
+A cell a monster stands on is no safe cell and no way through, whether the monster is in view
+or only sensed (``detected_monsters``: telepathy shows it, the grid's own monster mark is for
+monsters in view only).  n1-b life-362 (Orc cave 23F, 2026-11-10 09:32) stood in a cold-zone
+corridor (COLD_ZONE, hp-mp-processor.cpp COLD_PUDDLE) whose only near safe cells were two open
+doors, each held by a black ogre.  From (39,43) the ogre on the door (42,41) was in view and the
+step off went east; from (38,44) the wall hid it, telepathy still showed it, the door looked free
+and the step off went back: '1' and '9' until the loop guard stopped the bot.
+
 An immune or invulnerable player takes no such damage.  A levitating one takes none
 from shallow ground but a fifth of deep ground's (hp-mp-processor.cpp
 deal_damege_by_feat: DEEP terrain hurts whoever is over it, other damaging terrain only
@@ -68,8 +76,17 @@ def hurts_at(policy, snapshot, position) -> bool:
     return elements[grid.terrain_id] not in player.immunities
 
 
-def _safe(policy, grid) -> bool:
-    return (grid.passable and not grid.has_monster
+def _occupied(snapshot) -> frozenset:
+    """The cells a monster is known to stand on: in view or sensed."""
+    return frozenset(monster.position for monster in snapshot.detected_monsters)
+
+
+def _held(grid, occupied) -> bool:
+    return grid.has_monster or grid.position in occupied
+
+
+def _safe(policy, grid, occupied=frozenset()) -> bool:
+    return (grid.passable and not _held(grid, occupied)
             and not policy._is_avoidable_hazard_grid(grid))
 
 
@@ -81,20 +98,20 @@ def _entry(policy, snapshot):
     return entry[1]
 
 
-def _left_ground(policy, snapshot, entry) -> set:
+def _left_ground(policy, snapshot, entry, occupied) -> set:
     """The safe cells connected to ``entry`` without crossing a hazard."""
     region = {entry}
     queue = deque([entry])
     while queue:
         for cell in policy._walkable_neighbors(snapshot, queue.popleft(), allow_damaging=False):
             grid = snapshot.grids.get(cell)
-            if cell not in region and grid is not None and _safe(policy, grid):
+            if cell not in region and grid is not None and _safe(policy, grid, occupied):
                 region.add(cell)
                 queue.append(cell)
     return region
 
 
-def _far_side_step(policy, snapshot, left, *, adjacent_only: bool):
+def _far_side_step(policy, snapshot, left, occupied, *, adjacent_only: bool):
     """The first step to the nearest safe cell outside ``left``, walking only hazard
     cells on the way (never back through the ground the crossing left)."""
     start = snapshot.player.position
@@ -106,10 +123,10 @@ def _far_side_step(policy, snapshot, left, *, adjacent_only: bool):
             if cell in parent or cell in left:
                 continue
             grid = snapshot.grids.get(cell)
-            if grid is None or grid.has_monster:
+            if grid is None or _held(grid, occupied):
                 continue
             parent[cell] = position
-            if _safe(policy, grid):
+            if _safe(policy, grid, occupied):
                 while parent[cell] != start:
                     cell = parent[cell]
                 return cell
@@ -121,20 +138,21 @@ def _far_side_step(policy, snapshot, left, *, adjacent_only: bool):
 def _step_off(policy, snapshot, *, adjacent_only: bool):
     """The safe ground across a crossing (owner 2026-11-09 「渡った先へ出る」), else the
     least visited safe cell beside the player, else the nearest safe cell's step."""
+    occupied = _occupied(snapshot)
     entry = _entry(policy, snapshot)
     if entry is not None:
-        across = _far_side_step(policy, snapshot, _left_ground(policy, snapshot, entry),
-                                adjacent_only=adjacent_only)
+        across = _far_side_step(policy, snapshot, _left_ground(policy, snapshot, entry, occupied),
+                                occupied, adjacent_only=adjacent_only)
         if across is not None:
             return across
     beside = [cell for cell in policy._walkable_neighbors(
                   snapshot, snapshot.player.position, allow_damaging=False)
-              if (grid := snapshot.grids.get(cell)) is not None and _safe(policy, grid)]
+              if (grid := snapshot.grids.get(cell)) is not None and _safe(policy, grid, occupied)]
     if beside:
         return min(beside, key=lambda cell: policy._visit_counts[cell])
     if adjacent_only:
         return None
-    return policy._nearest_goal_step(snapshot, lambda grid: _safe(policy, grid))
+    return policy._nearest_goal_step(snapshot, lambda grid: _safe(policy, grid, occupied))
 
 
 def _replaces(key: str | None) -> tuple[bool, bool]:
