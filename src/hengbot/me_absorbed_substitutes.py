@@ -24,8 +24,8 @@ from hengbot import me_capability, me_powers
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.me_staff_sequence import cast_blocked
 from hengbot.model import (
-    SV_ROD_HEALING, SV_ROD_TELEPORT_AWAY, SV_STAFF_CURE_LIGHT, SV_STAFF_TELEPORTATION,
-    SV_WAND_TELEPORT_AWAY,
+    SV_ROD_DETECTION, SV_ROD_HEALING, SV_ROD_TELEPORT_AWAY, SV_STAFF_CURE_LIGHT,
+    SV_STAFF_DETECT_EVIL, SV_STAFF_TELEPORTATION, SV_WAND_TELEPORT_AWAY,
 )
 
 
@@ -57,6 +57,9 @@ CURE_LIGHT = ("staff", SV_STAFF_CURE_LIGHT)
 TELEPORTATION = ("staff", SV_STAFF_TELEPORTATION)
 # Teleport Other, aimed at a monster that follows the player's teleport (teleport_follower).
 TELEPORT_AWAY = (("rod", SV_ROD_TELEPORT_AWAY), ("wand", SV_WAND_TELEPORT_AWAY))
+# The detections the Anaguma pocket casts after its wait (anaguma._detect_key, owner 2026-11-10
+# 「待った後、可能なら感知を使って状況を把握する」): Detection and Detect Evil, neither aimed.
+DETECTION = (("rod", SV_ROD_DETECTION), ("staff", SV_STAFF_DETECT_EVIL))
 
 
 def _build_powers() -> dict:
@@ -64,7 +67,7 @@ def _build_powers() -> dict:
     powers = {ident: _cast_power(ident) for ident in me_capability.substitute_powers()}
     powers[CURE_LIGHT] = _cast_power(CURE_LIGHT)
     powers[TELEPORTATION] = _cast_power(TELEPORTATION)
-    for ident in TELEPORT_AWAY:
+    for ident in (*TELEPORT_AWAY, *DETECTION):
         powers[ident] = _cast_power(ident)
     # Healing in the arena, where no potion works (arena.py); neither asks for a direction.
     # The staff's is also a ``cast`` row's (Q25, owner 2026-11-09), built above with its names.
@@ -115,6 +118,22 @@ def cast_key(policy, snapshot, power, direction: str = "", *, blind_ok: bool = F
             or me_capability.charges(policy, snapshot, power.kind, power.sval) <= 0):
         return None
     return power.key + (direction if power.aimed else "")
+
+
+def cast(policy, snapshot, ident: tuple, reason: str, direction: str = "") -> str | None:
+    """The cast of the ``POWERS`` row ``ident`` with its owner, else None.
+
+    The key and the owner are set together: ``reason`` + ``CAST_SUFFIX`` is the owner
+    me_device_attacks_input answers the kind question, the power prompt and the aim
+    for, and an ESC closes the prompt when the game's list shows the power empty or
+    still charging (a remembered row is stale after a cast; n1-c life-187/191, an
+    Anaguma detection sent ``mCg`` under its bare reason while the rod charged and
+    stopped on the unowned power prompt).  A row outside ``POWERS`` is a KeyError:
+    no table would answer its prompts."""
+    key = cast_key(policy, snapshot, _powers()[ident], direction)
+    if key is not None:
+        policy.last_reason = reason + CAST_SUFFIX
+    return key
 
 
 def carry_cast_key(policy, snapshot, category: str, name: str,

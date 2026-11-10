@@ -11668,6 +11668,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "me_absorbed_substitutes.py:cast": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "The absorbed power's key m + A/B/C + I2A(sval) (+ direction) from cast_key, with its owner set in the same call: last_reason = the caller's reason + the absorbed-power suffix (me_absorbed_substitutes.owns), whose kind, power and aim prompts me_device_attacks_input answers and whose empty or charging power it closes with ESC (n1-c life-187/191 stuck-prompt anaguma:detect, 2026-11-10). None in a store or when blind/confused/hallucinating/paralyzed (cast_key). Called only by anaguma._detect_key and anaguma._haste_key, after anaguma.key's _floor_allowed (dungeon floors and random quests; never town, the wilderness or a fixed quest); no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_absorbed_substitutes.py:carry_cast_key": {
     "classification": "data",
     "rows": [

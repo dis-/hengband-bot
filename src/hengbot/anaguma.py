@@ -51,13 +51,13 @@ from dataclasses import dataclass, field
 
 from hengbot import (
     anaguma_geometry as geo, area_mapping, attack_expectation, breeder_area_attack, combat_answer,
-    destruction_use, me_absorbed_substitutes, me_capability, me_powers, sealed_pocket,
+    destruction_use, me_absorbed_substitutes, me_capability, me_device_attacks, sealed_pocket,
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
-    SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, SV_STAFF_SPEED, SV_WAND_STONE_TO_MUD, TVAL_ROD,
-    TVAL_STAFF, TVAL_WAND, Position, Snapshot, game_distance,
+    SV_STAFF_SPEED, SV_WAND_STONE_TO_MUD, TVAL_ROD, TVAL_STAFF, TVAL_WAND, Position, Snapshot,
+    game_distance,
 )
 from hengbot.policy_constants import DIRECTION_KEYS, WAIT_KEY, speed_energy
 from hengbot.threat_projection import adjusted_speed
@@ -408,18 +408,21 @@ def _detect_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
         return None
     evil = any("EVIL" in getattr(policy._monrace_knowledge.get(race), "flags", ())
                for race in current.races)
-    for tval, sval, kind, wanted in ((TVAL_ROD, SV_ROD_DETECTION, "rod", True),
-                                     (TVAL_STAFF, SV_STAFF_DETECT_EVIL, "staff", evil)):
+    # The carried device under the bare reason (an item command), else the absorbed power
+    # under its owner (me_absorbed_substitutes.cast sets ``REASON_DETECT`` + CAST_SUFFIX).
+    for tval, ident, wanted in ((TVAL_ROD, me_absorbed_substitutes.DETECTION[0], True),
+                                (TVAL_STAFF, me_absorbed_substitutes.DETECTION[1], evil)):
         if not wanted:
             continue
+        kind, sval = ident
         item = next((each for each in snapshot.inventory if each.tval == tval and each.sval == sval
                      and area_mapping.device_ready(each, kind)), None)
         used = None if item is None else reserved_item_command(policy, snapshot, kind, item)
-        if used is None:
-            power = me_powers.BY_KEY.get((kind, sval))
-            used = None if power is None else me_absorbed_substitutes.cast_key(policy, snapshot, power)
         if used is not None:
             policy.last_reason = REASON_DETECT
+            return used
+        used = me_absorbed_substitutes.cast(policy, snapshot, ident, REASON_DETECT)
+        if used is not None:
             return used
     return None
 
@@ -446,7 +449,10 @@ def _area_into_mouth(policy, snapshot: Snapshot, current: Plan, target) -> str |
     if best is None:
         return None
     sent = best[1].send(direction)
-    if sent is not None:
+    if sent is not None and policy.last_reason != me_device_attacks.DEVICE_REASON:
+        # A carried device (an item command).  An absorbed power keeps the owner its
+        # ``send`` set (me_device_attacks.device_key): me_device_attacks_input answers
+        # that owner's kind, power and aim prompts and closes a charging power's.
         policy.last_reason = REASON_CLOSE_AREA
     return sent
 
@@ -455,11 +461,7 @@ def _haste_key(policy, snapshot: Snapshot) -> str | None:
     """「加速は魔道具術師など消耗品を使用しない場合に限定」: the absorbed Speed only."""
     if not magic_eater(snapshot) or policy._player_hasted(snapshot):
         return None
-    power = me_powers.BY_KEY.get(("staff", SV_STAFF_SPEED))
-    cast = None if power is None else me_absorbed_substitutes.cast_key(policy, snapshot, power)
-    if cast is not None:
-        policy.last_reason = REASON_CLOSE_HASTE
-    return cast
+    return me_absorbed_substitutes.cast(policy, snapshot, ("staff", SV_STAFF_SPEED), REASON_CLOSE_HASTE)
 
 
 def _close_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
