@@ -559,6 +559,19 @@ class TownMixin:
             return durable + (
                 ("locomotion", owner, snapshot.floor_key, snapshot.player.position),
             )
+        if owner in {"store-router", "equipment-txn"}:
+            # The store walk is measured like the other walkers: by the
+            # remaining edges of its route.  The straight-line distance read a
+            # legitimate detour as no progress: n1-b life-364 (2026-11-10
+            # 10:18) walked round the town wall to the Magic shop, the eight-way
+            # distance stayed flat or came back to a value it had (rows 33 and
+            # 58 of the walk) and the router retired twice in the walk.
+            route = self._town_map_goal_route(snapshot, goal)
+            if route is not None:
+                return durable + ((
+                    "locomotion", owner, snapshot.floor_key, route.target,
+                    route.remaining_edges,
+                ),)
         return durable + (
             self._locomotion_part(snapshot, owner, goal),
         )

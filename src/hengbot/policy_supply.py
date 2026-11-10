@@ -376,6 +376,34 @@ class SupplyMixin:
             frozenset(self._town_store_attempted),
         )
 
+    def _supply_store_obtainable(
+        self, snapshot: Snapshot, kind: str, stores, supplier_pages=None,
+    ) -> bool:
+        """Whether a store (not Home) of ``stores`` may still supply ``kind``.
+
+        A store neither attempted this visit nor seen is optimistically a
+        supplier; a seen page is one when it evidences the ware
+        (``_supply_page_offers``).  ``supplier_pages`` defaults to the visit's
+        pages and the open store page, as the ledger reads them.
+        """
+        if supplier_pages is None:
+            supplier_pages = dict(getattr(self, "_town_supplier_stock", {}))
+            if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
+                supplier_pages[snapshot.store.store_type] = snapshot.store
+        return any(
+            (
+                supplier not in self._town_store_attempted
+                and supplier not in supplier_pages
+            )
+            or (
+                supplier in supplier_pages
+                and self._supply_page_offers(
+                    snapshot, kind, supplier, supplier_pages[supplier]
+                )
+            )
+            for supplier in stores
+        )
+
     def _supply_page_offers(
         self, snapshot: Snapshot, kind: str, store_type: int, page
     ) -> bool:
@@ -522,20 +550,8 @@ class SupplyMixin:
                 if kind == "food" and mana_food
                 else SUPPLY_STORES[kind]
             )
-            candidates = [
-                supplier
-                for supplier in stores
-                if supplier not in self._town_store_attempted
-                and supplier not in supplier_pages
-            ]
-            evidenced_stores = [
-                supplier
-                for supplier in stores
-                if supplier in supplier_pages
-                and self._supply_page_offers(
-                    snapshot, kind, supplier, supplier_pages[supplier]
-                )
-            ]
+            store_obtainable = self._supply_store_obtainable(
+                snapshot, kind, stores, supplier_pages)
             home_has_supply = bool(
                 self._home_knowledge_current
                 and any(
@@ -550,7 +566,7 @@ class SupplyMixin:
             status_stores = tuple(dict.fromkeys(
                 ((STORE_HOME,) if home_has_supply else ()) + tuple(stores)
             ))
-            obtainable = bool(home_has_supply or evidenced_stores or candidates)
+            obtainable = bool(home_has_supply or store_obtainable)
             threshold_depth = max(depth, self._planned_depth()) if kind == "teleport" else depth
             if kind == "recall":
                 required_return = (

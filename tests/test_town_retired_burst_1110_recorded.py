@@ -15,11 +15,23 @@ had decided, the step-off latch stayed armed on the unchanged board and refused
 the bound Home take, so the router re-entered Home and the page left for the
 take again.  Three retirements without progress: owner-retired-burst.
 
+n1-a life-508 (2026-11-11 00:40): Recall short by one (10 carried, 11 for the
+departure) with both suppliers sold out started the one-run stock-out
+time-pass.  Its mining mode zeroes the Recall target, so the Home deposit
+stowed the 10 scrolls; back on the next board the Home list showed them, the
+stock-out check took them for a supplier and the gold-target end closed the
+set before the run.  The mining kit went back into Home, the now-stale Home
+list read as no supplier and the stock-out restarted, the scrolls came out
+again: the deposit/withdraw ping-pong that ran the owner budget out.
+
 n1-b life-364 (10:18): the torch thrown at a dog in the Outpost's one-cell east
 gate lay in the gate under the name of the carried torches; with 19 carried
 items the floor-step budget counted it one slot and refused the gate, and the
 walk to the Magic shop went round the outside of the town wall until
 owner-retired-burst.
+
+n1-b life-365 (16:28): the third retirement of the burst came on the typed
+depth-gate wait; the stop was named only owner-retired-burst.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -34,8 +46,8 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
-from hengbot.cli import _handle_owner_retirement
-from hengbot.model import STORE_HOME, Position
+from hengbot.cli import _handle_owner_retirement, _policy_final_stop_required
+from hengbot.model import STORE_HOME, STORE_MAGIC, Position
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot import town_hold
@@ -205,6 +217,97 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
             key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), ("5 pp1\r\x1b", "home:atomic-withdraw"))
         self.assertEqual(policy._home_atomic_withdraw_pending[0], pending)
+
+    def test_n1a_0040_stowed_recall_does_not_end_the_stockout_run(self):
+        """00:40, row 44 (decision 27291): the Home list after the deposit of row 39.
+
+        Live: ``ESC `n(.`` shop:travel, the stock-out set ended at the gold
+        target (Home's 10 scrolls taken for a supplier), then the kit deposit
+        and the restart of the stock-out (rows 45-47).  The Home scan
+        exemption is walled off (declared) to replay rows 24-43 as decided.
+        """
+        with mock.patch("hengbot.policy.town_home_route_opened_for",
+                        pre_fix_home_route_opened_for):
+            policy, recorded, steps = self.load("n1a-508-0040")
+            self.replay_live(policy, recorded, steps[:44])
+        self.assertEqual((recorded[13]["reason"], recorded[39]["key"], recorded[39]["reason"]),
+                         ("town:recall-stockout-mining", "df10\r\x1b", "home:atomic-deposit"))
+        self.assertEqual(policy._fundraising_mode, "mine")
+        board = steps[44][1]()
+        self.assertEqual(sum(item.count for item in policy._home_knowledge_items
+                             if item.is_recall_scroll), 10)
+        self.assertEqual(recorded[44]["reason"], "shop:travel")
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), (">\ry", "descend"))
+        self.assertEqual((policy._fundraising_mode, policy._recall_stockout_mining_plan),
+                         ("mine", True))
+
+    def test_n1a_0320_identify_staff_shortage_keeps_its_supplier(self):
+        """03:20, row 19 (decision 3608): the board after the Home list scan.
+
+        The Identify staves hold 19 of the 20 charges the departure needs and
+        an identification need is open.  Live (build bot-cfc720d28): the three
+        *Identify* scrolls bought at row 16 are an identification source, so
+        the Magic shop's identify-staff need was no longer filed; ``7``
+        town:entrance-step-off:town:end-step-off, then
+        town:blocked:survival:identify_staff_ready.
+        """
+        policy, recorded, steps = self.load("n1a-508-0320")
+        self.replay_live(policy, recorded, steps[:19])
+        self.assertEqual((recorded[16]["reason"], recorded[19]["key"], recorded[19]["reason"]),
+                         ("shop:one-shot-buy", "7", "town:entrance-step-off:town:end-step-off"))
+        board = steps[19][1]()
+        self.assertFalse(policy._identify_staff_ready(board))
+        self.assertIsNotNone(policy._identification_need)
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n&.", "shop:travel"))
+        self.assertEqual(policy._shopping_approach_store_type, STORE_MAGIC)
+        self.assertIsNone(policy._town_blocked_reason)
+
+    def test_n1b_detour_round_the_wall_is_store_router_progress(self):
+        """Rows 8-59: the walk round the town wall to the Magic shop.
+
+        Live: the router's straight-line distance stayed flat at row 31
+        ((13,130) after (14,131)) and came back to a value it had at row 56
+        ((1,105)): two retirements in the walk.  The pile fix of row 3 is
+        walled off (declared: stacking_pile_objects counts nothing, as the
+        live build did) so that the live detour is the route the walk takes.
+        """
+        with mock.patch("hengbot.town_pack_budget.stacking_pile_objects",
+                        lambda snapshot, grid: 0):
+            policy, recorded, steps = self.load("n1b-364")
+            self.replay_live(policy, recorded, steps[:31])
+            progress = []
+            for row, supply in steps[31:60]:
+                board = supply()
+                key = policy.choose_key(board)
+                self.assertEqual((key, policy.last_reason),
+                                 (recorded[row["row"]]["key"], "shop:approach"), row["row"])
+                arbiter = policy._town_turn_arbiter.telemetry
+                progress.append((row["row"], arbiter["producer_owner"], arbiter["progress"]))
+                policy.confirm_key_posted(key)
+        self.assertEqual(progress, [(row, "store-router", True) for row in range(31, 60)])
+        self.assertEqual(policy._owner_retired_no_progress_count, 0)
+
+    def test_n1b_365_burst_on_a_typed_wait_is_named_after_it(self):
+        """16:28, row 16 (the stop): the burst's retirement on the depth-gate wait.
+
+        Live: the final reason town:blocked:owner-retired-burst.  The depth
+        gate's Yeek cave fundraising for any missing ability (owner
+        2026-11-10, after this build) is walled off (declared:
+        _start_no_safe_destination_fundraising answers False as the live build
+        did for Destruction and telepathy) so the typed wait recurs as live.
+        """
+        wait = "town:blocked:depth-gate:destination-51:missing-destruction,telepathy"
+        with mock.patch("hengbot.policy.HengbotPolicy._start_no_safe_destination_fundraising",
+                        lambda self, *args, **kwargs: False):
+            policy, recorded, steps = self.load("n1b-365")
+            posted = self.replay_live(policy, recorded, steps)
+        self.assertEqual((recorded[16]["key"], recorded[16]["reason"]), ("5", wait))
+        self.assertEqual(posted[16], "5")
+        self.assertEqual(policy.last_reason,
+                         "town:blocked:owner-retired-burst:after:" + wait)
+        self.assertTrue(_policy_final_stop_required(policy))
 
     def test_n1b_walk_through_the_gate_holding_its_own_torch(self):
         """Row 3 (decision 1611): the board after the thrown torch killed the dog.

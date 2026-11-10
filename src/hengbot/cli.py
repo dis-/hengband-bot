@@ -81,6 +81,7 @@ from hengbot.policy_constants import (
     IN_STORE_DONE_REASON,
     IN_STORE_OPERATION_REASONS,
     LEAVE_STORE_KEY,
+    OWNER_RETIRED_BURST_AFTER_PREFIX,
     POLICY_FINAL_STOP_REASONS,
     POLICY_FINAL_STOP_PREFIXES,
     RETURN_STATIONARY_REASONS,
@@ -743,11 +744,25 @@ def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
             from hengbot.town_work import bind_driver_override
             bind_driver_override(policy, departure, site='cli.py:_handle_owner_retirement')
             return departure
-        policy.last_reason = "town:blocked:owner-retired-burst"
+        policy.last_reason = _owner_retired_burst_reason(policy.last_reason)
     else:
         policy.last_reason = "town:blocked:owner-retired"
     # Route empty/poll retirements through the existing final-stop machinery.
     return WAIT_KEY
+
+
+def _owner_retired_burst_reason(raw_reason) -> str:
+    """The final reason of an owner-retired burst after the decision ``raw_reason``.
+
+    A typed ``town:blocked:*`` wait whose retirement ended the burst names the
+    stop (``town:blocked:owner-retired-burst:after:<the wait>``), so the stop
+    says which wait ran the budget out instead of the generic burst.  The stop
+    itself is the same.
+    """
+    raw = raw_reason or ""
+    if raw.startswith("town:blocked:") and not raw.startswith("town:blocked:owner-retired"):
+        return OWNER_RETIRED_BURST_AFTER_PREFIX + raw
+    return "town:blocked:owner-retired-burst"
 
 
 def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True) -> None:
@@ -795,7 +810,7 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
         "raw_reason": policy.last_reason,
         "final_key": (WAIT_KEY if not forgive else
                       LEAVE_STORE_KEY if snapshot.store is not None else key),
-        "final_reason": ("town:blocked:owner-retired-burst" if not forgive
+        "final_reason": (_owner_retired_burst_reason(policy.last_reason) if not forgive
                          else policy.last_reason),
     }
     record = {
@@ -834,6 +849,11 @@ def _policy_final_stop_banner(reason: str) -> str:
     if reason.startswith(TOWN_END_SURVIVAL_STOP_PREFIX):
         return (f"<{reason}> no town owner answered and this departure-minimum "
                 "(survival) leaf is unmet; stopping the bot for investigation")
+    if reason.startswith(OWNER_RETIRED_BURST_AFTER_PREFIX):
+        return (f"<{reason}> three retirements in this town visit had no observed work "
+                "or distance progress, the last on the typed wait "
+                f"{reason[len(OWNER_RETIRED_BURST_AFTER_PREFIX):]}; "
+                "stopping the bot for investigation")
     if reason.startswith(TOWN_END_UNMET_STOP_PREFIX):
         return (f"<{reason}> no town owner answered, this departure condition "
                 "is unmet and the mining cycle cannot leave; stopping the bot "
