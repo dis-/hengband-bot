@@ -17919,6 +17919,29 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _is_damaging_grid(self, grid: GridState | None) -> bool:
+        """The grid's terrain can damage some player: the map's view of hazard ground.
+
+        This is deliberately not ``damaging_ground.hurts_at``, which asks whether the
+        ground damages this player now.  The two differ on purpose:
+
+        - Player state.  ``hurts_at`` clears ground for an invulnerable player, for a
+          levitating one over shallow (non-DEEP) ground, and for one immune to the
+          ground's element (hp-mp-processor.cpp process_player_hp_mp, deal_damege_by_feat).
+          Those protections can be temporary (a potion, a spell, swapped gear), and a
+          route planned over the ground they clear may still be walked after they end.  Navigation
+          keeps off every damaging terrain whatever the player's state, so this takes no
+          snapshot, and ``_is_avoidable_hazard_grid`` caches its answer by position only.
+        - Deep water.  ``_damaging_terrain_ids`` also holds WATER + DEEP terrain, which
+          TerrainType::can_damage_player() lists (and the game's run stops at) because an
+          overloaded non-swimmer drowns there; ``hurts_at`` reads the standing-damage
+          table, where deep water has no element and never hurts.
+
+        ``damaging_ground`` relies on this split: its safe cells are the ones this
+        predicate (through ``_is_avoidable_hazard_grid``) clears, so a step off ground
+        that hurts the player lands on ground that would not hurt it even without a
+        protection.  Delegating to ``hurts_at`` would change those routes and step-off
+        targets (the maintainability review of 2026-11-09, problem 10, kept them).
+        """
         return (
             grid is not None
             and grid.terrain_id >= 0
