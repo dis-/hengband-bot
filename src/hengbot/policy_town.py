@@ -3573,16 +3573,14 @@ class TownMixin:
         add_ledger_shortages()
         if self._identification_need is not None:
             # Identification remains primary, while the supply ledger retains
-            # its independent departure claims.  With no source left, the Identify
-            # staff that is the departure's own claim is also the need's source
-            # (n1-b life-308 2026-11-04 13:14: 0 of 20 charges, a 20-charge staff
-            # on the shelf, and the pack pass never told the buy needed a slot).
-            if self._find_identification_source(
-                snapshot,
-                full=self._identification_need == "full",
-                reliable_only=self._identification_requires_reliable_source(snapshot),
-            ) is None:
-                add_identify_staff_suppliers()
+            # its independent departure claims.  The Identify staff is one of
+            # them whether or not another identification source is held (with
+            # none, it is also the need's source: n1-b life-308 2026-11-04
+            # 13:14).  Filed only without a source, the staff short of its
+            # charges lost its supplier once *Identify* scrolls were bought:
+            # n1-a life-508 2026-11-11 03:20, 19 of 20 charges,
+            # town:blocked:survival:identify_staff_ready.
+            add_identify_staff_suppliers()
             return needs
         quest_strategy = self._carry_procurement_strategy(snapshot)
         if quest_strategy is not None:

@@ -44,7 +44,7 @@ import unittest
 from unittest import mock
 
 from hengbot.cli import _handle_owner_retirement
-from hengbot.model import STORE_HOME, Position
+from hengbot.model import STORE_HOME, STORE_MAGIC, Position
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot import town_hold
@@ -238,6 +238,28 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), (">\ry", "descend"))
         self.assertEqual((policy._fundraising_mode, policy._recall_stockout_mining_plan),
                          ("mine", True))
+
+    def test_n1a_0320_identify_staff_shortage_keeps_its_supplier(self):
+        """03:20, row 19 (decision 3608): the board after the Home list scan.
+
+        The Identify staves hold 19 of the 20 charges the departure needs and
+        an identification need is open.  Live (build bot-cfc720d28): the three
+        *Identify* scrolls bought at row 16 are an identification source, so
+        the Magic shop's identify-staff need was no longer filed; ``7``
+        town:entrance-step-off:town:end-step-off, then
+        town:blocked:survival:identify_staff_ready.
+        """
+        policy, recorded, steps = self.load("n1a-508-0320")
+        self.replay_live(policy, recorded, steps[:19])
+        self.assertEqual((recorded[16]["reason"], recorded[19]["key"], recorded[19]["reason"]),
+                         ("shop:one-shot-buy", "7", "town:entrance-step-off:town:end-step-off"))
+        board = steps[19][1]()
+        self.assertFalse(policy._identify_staff_ready(board))
+        self.assertIsNotNone(policy._identification_need)
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("\x1b`n&.", "shop:travel"))
+        self.assertEqual(policy._shopping_approach_store_type, STORE_MAGIC)
+        self.assertIsNone(policy._town_blocked_reason)
 
     def test_n1b_detour_round_the_wall_is_store_router_progress(self):
         """Rows 8-59: the walk round the town wall to the Magic shop.

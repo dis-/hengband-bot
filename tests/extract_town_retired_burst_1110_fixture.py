@@ -11,6 +11,9 @@ C:/hengband-backups/pdca/captures/town-retired-burst-1110/):
   n1a-508-0040  n1-a life-508 again, build bot-d91e4a4ec, 2026-11-11 00:40
            (incident-004001): the recall stock-out visit, journal rows 0-44
            (the end of the stock-out run the Home deposit caused).
+  n1a-508-0320  n1-a life-508 again, build bot-cfc720d28, 2026-11-11 03:20
+           (incident-032007): the *Identify* purchase visit, journal rows
+           0-19 (town:blocked:survival:identify_staff_ready on the next).
   n1b-364  n1-b life-364, build bot-c6e2443b2, 10:18 (incident-101818):
            the walk to the Magic shop, journal rows 0-59 (the torch throw,
            the bookkeeping after it and the walk round the town wall).
@@ -34,6 +37,7 @@ STOPS = {
     "n1a-508": (ROOT / "n1-a-life-508/incident-210513/town-arrival", 75),
     "n1a-508-2243": (ROOT / "n1-a-life-508/incident-224338/town-arrival", 76),
     "n1a-508-0040": (ROOT / "n1-a-life-508/incident-004001/town-arrival", 45),
+    "n1a-508-0320": (ROOT / "n1-a-life-508/incident-032007/town-arrival", 20),
     "n1b-364": (ROOT / "n1-b-life-364/incident-101818/town-arrival", 60),
 }
 LEFT_OUT = {"_loadout_report_path"}
