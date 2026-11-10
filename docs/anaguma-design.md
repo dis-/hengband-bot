@@ -676,3 +676,14 @@ These numbers agree with 1.7:
 - it has a target.
 
 So pack members that wait out of view farther than their alert range from the pocket stop acting altogether: the two jackals of the first 6-cell run. The 50-game-turn wait and the detection after it (section 9) find them. The plan then ends unless exactly one animal remains, which gets the close-in.
+
+### 10.2 Decisions held on their side (2026-11-11)
+
+n1-b life-367 (Magic-Eater Lv 42, オークの洞窟23階) stopped twice with `loop-detected` and was retired: `anaguma:walk` from (34,124) toward the plan's start (33,123) alternated with `seek-loot` / `explore` back. A sleeping ghost yeek (PASS_WALL) was detected only from (33,123): there the wall-passer veto released the plan, one step back it was gone and a new plan was made.
+
+Following the owner's rule for threat tiers (2026-11-08 「脅威度の段は境に余裕を持たせる（一度決めた側に固定）」):
+
+- The wall-passer and runners readings are latched (`anaguma._latched`): a true reading holds the veto at once and lifts only after `RETRY_GAME_TURNS` (50 game turns) of false readings, per floor (and per pack for runners).
+- A plan released on a floor is not made again for a pack sharing a race with it within `RETRY_GAME_TURNS` of the release (`_anaguma_veto = "retry-window"`), whatever the release reason.
+
+Pins: `tests/test_anaguma_walk_loop_1111_recorded.py` (the 44 recorded boards before the stop).

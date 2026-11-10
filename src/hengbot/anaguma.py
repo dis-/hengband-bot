@@ -25,6 +25,8 @@ out (owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出す�
 or more is expected to run from the player (``run_chance``, the game's ``mon_will_run``) gets
 no pocket, and a plan not yet dug is dropped (owner 2026-11-10 「弱いoの群れなど…自分から逃げる
 群れに対しては効果が薄い…使う相手を絞って」).
+A wall-passer or runners veto, once read, holds for ``RETRY_GAME_TURNS``, and a released plan is
+not made again for the same pack on the floor within that window (``_latched``, ``key``).
 
 Phases of the plan (``Plan``):
 
@@ -142,7 +144,35 @@ def _release(policy, why: str) -> None:
     current = plan(policy)
     if current is not None:
         policy._anaguma_last_release = why
+        policy._anaguma_released = current
     setattr(policy, MEMORY, None)
+
+
+def _latched(policy, name: str, scope, reading: bool, turn: int) -> bool:
+    """A veto reading held on its decided side (owner 2026-11-08 「脅威度の段は境に余裕を
+    持たせる（一度決めた側に固定）」).
+
+    A reading that flips with the player's cell -- a wall-passer at the edge of detection, a
+    pack member crossing the 5-cell line of ``run_chance`` -- turned the plan on and off on
+    alternate steps (n1-b life-367, オークの洞窟23階, 2026-11-11: ``anaguma:walk`` from (34,124)
+    to the start (33,123), released there by a sleeping poltergeist detected only from that
+    cell, re-made on the way back; loop-detected twice).  A true reading holds the veto at once;
+    it lifts only after ``RETRY_GAME_TURNS`` of false readings in the same ``scope``.
+    """
+    latches = getattr(policy, "_anaguma_latches", None)
+    if latches is None:
+        latches = policy._anaguma_latches = {}
+    key_ = (name, scope)
+    if reading:
+        latches[key_] = turn
+        return True
+    seen = latches.get(key_)
+    if seen is None:
+        return False
+    if turn - seen < RETRY_GAME_TURNS:
+        return True
+    del latches[key_]
+    return False
 
 
 # ---------------------------------------------------------------- facts
@@ -616,7 +646,20 @@ def holds(policy, snapshot: Snapshot) -> bool:
 
 
 def key(policy, snapshot: Snapshot, hostiles) -> str | None:
-    """The Anaguma rung (dungeon_ladder floor-avoidance layer); None leaves the board below."""
+    """The Anaguma rung (dungeon_ladder floor-avoidance layer); None leaves the board below.
+
+    A plan released on this floor is not made again for the same pack (any race in common)
+    within ``RETRY_GAME_TURNS``: once made, a plan stays until it ends or is released, and its
+    release holds (n1-b life-367, ``_latched``)."""
+    policy._anaguma_released = None
+    answer = _decide(policy, snapshot, hostiles)
+    released = policy._anaguma_released
+    if released is not None and released.floor == snapshot.floor_key:
+        policy._anaguma_retry = (snapshot.floor_key, released.races, snapshot.turn)
+    return answer
+
+
+def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
     current = plan(policy)
     if current is not None and current.floor != snapshot.floor_key:
         _release(policy, "floor-changed")
@@ -629,7 +672,7 @@ def key(policy, snapshot: Snapshot, hostiles) -> str | None:
         if current is not None:
             _release(policy, "escape-owner")
         return None
-    if wall_passer(policy, snapshot):
+    if _latched(policy, "wall-passer", snapshot.floor_key, wall_passer(policy, snapshot), snapshot.turn):
         if current is not None:
             _release(policy, "wall-passer")
         policy._anaguma_veto = "wall-passer"
@@ -642,7 +685,8 @@ def key(policy, snapshot: Snapshot, hostiles) -> str | None:
         _release(policy, "flee")
         return _escape_key(policy, snapshot) if on_pocket else None
     if (current is not None and current.phase in ("walk", "dig") and not _dug(snapshot, current)
-            and runners(snapshot, current.races)):
+            and _latched(policy, "runners", (snapshot.floor_key, current.races),
+                         runners(snapshot, current.races), snapshot.turn)):
         _release(policy, "runners")   # not dug yet: a pack that runs never comes to the mouth
         policy._anaguma_veto = "runners"
         return None
@@ -662,8 +706,13 @@ def key(policy, snapshot: Snapshot, hostiles) -> str | None:
         if adjacent:
             policy._anaguma_veto = "contact"
             return None
-        if runners(snapshot, races):
+        if _latched(policy, "runners", (snapshot.floor_key, races), runners(snapshot, races), snapshot.turn):
             policy._anaguma_veto = "runners"
+            return None
+        retry = getattr(policy, "_anaguma_retry", None)
+        if (retry is not None and retry[0] == snapshot.floor_key and retry[1] & races
+                and snapshot.turn - retry[2] < RETRY_GAME_TURNS):
+            policy._anaguma_veto = "retry-window"
             return None
         refused = getattr(policy, "_anaguma_refused", None)
         if (refused is not None and refused[0] == snapshot.floor_key and refused[1] == races

@@ -90,6 +90,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "anaguma.py:_decide": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "anaguma.py:_detect_key": {
     "classification": "data",
     "rows": [

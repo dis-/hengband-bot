@@ -17354,6 +17354,13 @@
     ],
     "evidence": "Pure arithmetic: the wand's use chance. Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
   },
+  "anaguma.py:_decide": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "The Anaguma rung's body, called only by anaguma.key (which records a release for the re-make window). Dungeon only: anaguma.key refuses in town, on the wilderness and on fixed-quest floors (_floor_allowed) before any of these run (owner 2026-11-10 穴熊, docs/anaguma-design.md)."
+  },
   "anaguma.py:key": {
     "classification": "data",
     "rows": [
