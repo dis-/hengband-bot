@@ -21,6 +21,7 @@ from hengbot.monster_ranged_evaluator import (
     expected_ability_hp_damage,
     maximum_ability_hp_damage,
 )
+from hengbot.warrior_defense_evaluator import blow_scroll_lock_probability
 from hengbot.monster_melee_evaluator import (
     add_earthquake_damage,
     melee_damage_percentile,
@@ -2976,9 +2977,11 @@ class CombatMixin:
         snapshot: Snapshot,
         hostiles: list[MonsterState],
     ) -> list[tuple[MonsterState, float]]:
-        """Visible casters that can disable escape-scroll reading, each with
+        """Visible monsters that can disable escape-scroll reading, each with
         the probability that it blinds or confuses the player before the
-        player's next turn.
+        player's next turn -- by a spell over a line of fire, or, adjacent,
+        by a blow (owner 2026-11-10: the probability of being blinded or
+        confused before the next turn, blows included).
 
         Blindness and confusion are qualitatively different from ordinary HP
         damage: after either lands, a warrior carrying scrolls must first spend
@@ -3010,9 +3013,17 @@ class CombatMixin:
           CHAOS: resist_conf or resist_chaos (:249-251);
           CONFUSION: resist_conf (:319-321);
           ABYSS: not already blind, resist_conf (:672-683).
-        p_move = freq_spell/100 * sum(selection * cast success * landing);
-        the monster gets _monster_actions(speed, player speed, 1) moves before
-        the player's next turn, so p = 1 - (1 - p_move) ** moves."""
+        spell = freq_spell/100 * sum(selection * cast success * landing).
+        A move spent on a spell attempt (cast, fumbled or not) is not a melee
+        move (monster-processor.cpp:224-226 returns before moving); the
+        attempt share is freq_spell/100 * sum(selection).  An awake adjacent
+        monster without NEVER_BLOW (monster-attack-player.cpp:125) otherwise
+        swings every blow (process_monster_blows, :140-170):
+        melee = 1 - prod(1 - blow_scroll_lock_probability) over its blows.
+        p_move = spell + (1 - attempt) * melee; the monster gets
+        _monster_actions(speed, player speed, 1) moves before the player's
+        next turn, so p = 1 - (1 - p_move) ** moves.  Fear and confusion of
+        the monster (which can keep it from swinging) are not modelled."""
         if snapshot.player.blind or snapshot.player.confused:
             return []
 
@@ -3023,46 +3034,70 @@ class CombatMixin:
         )
         threats: list[tuple[MonsterState, float]] = []
         for monster in hostiles:
-            if monster.asleep or not self._has_line_of_fire(
-                snapshot, monster.position, snapshot.player.position
-            ):
+            if monster.asleep:
                 continue
             knowledge = self._monrace_knowledge.get(monster.race_id)
+            if knowledge is None:
+                continue
+            spell_lock = 0.0
+            spell_attempt = 0.0
             if (
-                knowledge is None
-                or knowledge.spell_frequency <= 0
-                or not knowledge.abilities
+                knowledge.spell_frequency > 0
+                and knowledge.abilities
+                and self._has_line_of_fire(
+                    snapshot, monster.position, snapshot.player.position
+                )
             ):
-                continue
-            selection = source_selection_probabilities(
-                knowledge,
-                SpellSelectionContext(distance=max(1, monster.distance)),
-            )
-            per_cast = 0.0
-            for ability, probability in selection.items():
-                if probability <= 0:
-                    continue
-                landing = status_landing_probabilities(
-                    ability,
+                selection = source_selection_probabilities(
                     knowledge,
-                    flags=flags,
-                    saving_skill=snapshot.player.saving_skill,
+                    SpellSelectionContext(distance=max(1, monster.distance)),
                 )
-                lock = max(
-                    landing.get("blind", 0.0), landing.get("confused", 0.0)
-                )
-                if lock <= 0:
-                    continue
-                per_cast += (
-                    probability
-                    * ability_cast_success(
-                        ability, knowledge, stunned=monster.stunned
+                attempt = knowledge.spell_frequency / 100.0
+                spell_attempt = min(1.0, attempt * sum(selection.values()))
+                per_cast = 0.0
+                for ability, probability in selection.items():
+                    if probability <= 0:
+                        continue
+                    landing = status_landing_probabilities(
+                        ability,
+                        knowledge,
+                        flags=flags,
+                        saving_skill=snapshot.player.saving_skill,
                     )
-                    * lock
-                )
-            if per_cast <= 0:
+                    lock = max(
+                        landing.get("blind", 0.0), landing.get("confused", 0.0)
+                    )
+                    if lock <= 0:
+                        continue
+                    per_cast += (
+                        probability
+                        * ability_cast_success(
+                            ability, knowledge, stunned=monster.stunned
+                        )
+                        * lock
+                    )
+                spell_lock = attempt * per_cast
+            melee_lock = 0.0
+            if (
+                monster.distance <= 1
+                and knowledge.blows
+                and "NEVER_BLOW" not in knowledge.flags
+            ):
+                untouched = 1.0
+                for blow in knowledge.blows:
+                    untouched *= 1.0 - blow_scroll_lock_probability(
+                        blow,
+                        monster_level=knowledge.level,
+                        armor_class=snapshot.player.ac,
+                        flags=flags,
+                        stunned=monster.stunned,
+                    )
+                melee_lock = 1.0 - untouched
+            per_move = min(
+                1.0, spell_lock + (1.0 - spell_attempt) * melee_lock
+            )
+            if per_move <= 0:
                 continue
-            per_move = min(1.0, knowledge.spell_frequency / 100.0 * per_cast)
             moves = self._monster_actions(
                 monster.speed, snapshot.player.speed, 1
             )

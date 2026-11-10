@@ -20,7 +20,7 @@ DECLARED RECONSTRUCTION (pin_vacuity): the capture holds no ~f reply, so the ski
 supplied before each decision (as tests/test_teleport_follower_1109_recorded.py does).
 
 DECLARED CONSTRUCTED (named at its test): 反逆パラディン replaced by 地蔵尊の蛸 (id 1065) on the
-last board.
+last board; the adjacent 白衣の修行僧 (id 492) replaced by カトブレパス (id 447) with HP set to 600.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -41,6 +41,8 @@ from tests.support.recorded import EDIT
 FIXTURE = Path(__file__).with_name("fixtures") / "scroll-lock-n1a-506-1110.json.xz"
 PALADIN = 497             # 反逆パラディン
 OCTOPUS = 1065            # 地蔵尊の蛸: BR_DARK only, 1_IN_4, speed +0
+MONK = 492                # 白衣の修行僧, adjacent on the last board
+CATOBLEPAS = 447          # カトブレパス: no spells, a GAZE:BLIND blow, Lv29, speed +0
 ARRIVED = 2623782         # decision 4045: the first board decided on 38F
 LAST = 2624228            # decision 4105: the scroll-lock teleport
 SCROLL_LOCK = "emergency-ranged-status-lock"
@@ -58,6 +60,17 @@ def octopus_for_paladin(raw):
     for monster in raw["visible_monsters"]:
         if monster["race_id"] == PALADIN:
             monster["race_id"] = OCTOPUS
+
+
+def catoblepas_for_monk_at_hp(hp):
+    """DECLARED CONSTRUCTED: HP set to ``hp``; the adjacent 白衣の修行僧 becomes ``race``
+    (カトブレパス unless given)."""
+    def change(raw, race=CATOBLEPAS):
+        for monster in raw["visible_monsters"]:
+            if monster["race_id"] == MONK:
+                monster["race_id"] = race
+        raw["player"]["hp"] = hp
+    return change
 
 
 class ScrollLockHarness(unittest.TestCase):
@@ -183,6 +196,42 @@ class ScrollLockConstructedTest(ScrollLockHarness):
             ):
                 self.assertIs(policy._ranged_scroll_lock_escape_needed(
                     snapshot, hostiles, predicted=predicted), expected)
+
+
+
+class MeleeScrollLockConstructedTest(ScrollLockHarness):
+    """DECLARED CONSTRUCTED: an adjacent blinding blow counts in the same probability (owner
+    2026-11-10: 「次の手番までに盲目・混乱を受ける確率」 includes blows)."""
+
+    def test_an_adjacent_blinding_gaze_escapes(self):
+        """CONSTRUCTED: カトブレパス beside the player, HP 600.  GAZE:BLIND hits on
+        0.05 + 0.90 * (2 + 29 * 3 - 118 * 3 / 4) / (2 + 29 * 3) (combat/attack-accuracy.cpp:71-91,
+        BLIND power 2 in monster-attack-table.cpp) and blinds without resist_blind, no saving throw
+        (monster-attack-status.cpp:22-36); two moves at speed +0 against 109.  With the paladin's
+        ~0.18% that is 11.8% >= 10%, and 409 + 205 >= 600 > 409: the scroll-lock charge reads."""
+        policy, answers = self.replay(last_change=catoblepas_for_monk_at_hp(600))
+        _raw, key, reason, snapshot = answers[LAST]
+        hostiles = self.hostiles(snapshot)
+        self.assertEqual(snapshot.player.ac, 118)
+        threats = dict((monster.race_id, p) for monster, p in
+                       policy._ranged_scroll_lock_threats(snapshot, hostiles))
+        self.assertEqual(set(threats), {PALADIN, CATOBLEPAS})
+        hit = 0.05 + 0.90 * (89 - 88) / 89
+        self.assertAlmostEqual(threats[CATOBLEPAS], 1 - (1 - hit) ** 2, places=9)
+        probability = policy._ranged_scroll_lock_probability(snapshot, hostiles)
+        self.assertGreaterEqual(probability, SCROLL_LOCK_ESCAPE_PROBABILITY)
+        self.assertLess(policy._predicted_damage(snapshot, hostiles, turns=3), snapshot.player.hp)
+        self.assertEqual((key, reason), ("rg", "emergency:teleport"))
+        self.assertEqual(policy._last_return_trigger, SCROLL_LOCK)
+
+    def test_the_monks_at_the_same_hp_keep_fighting(self):
+        """CONSTRUCTED control: the recorded monks at HP 600 (529 + 249 >= 600, but ~0.18%)."""
+        policy, answers = self.replay(
+            last_change=lambda raw: catoblepas_for_monk_at_hp(600)(raw, race=MONK))
+        _raw, key, reason, snapshot = answers[LAST]
+        self.assertLess(policy._ranged_scroll_lock_probability(
+            snapshot, self.hostiles(snapshot)), 0.01)
+        self.assertEqual((key, reason), ("qa", "item:strong-fight-speed"))
 
 
 if __name__ == "__main__":

@@ -17,11 +17,14 @@ changed is pinned below; on each the change is toward leaving:
   reads Teleportation instead of firing; three boards beside three ogres and a king cobra (T1)
   leave by the flee rung (walk where none is faster, Teleportation) instead of firing; on 1186736
   (HP 71/171) the flee rung's walk now answers before the return rung's Word of Recall read (both
-  leave; noted in the report).  Since the owner's 2026-11-10 scroll-lock line (「確率が一定以上の
-  時だけ」, 10%), 1187034 (HP 168/171 beside the same ogres and cobra) joins them: with the step
-  off it no longer reads Teleportation for the 1% blind chance of 月の怪物 (id 223, the old
-  scroll-lock charge 115 + 69 >= 168) and fires; with the step on it still leaves by the flee
-  rung's Teleportation, so the live answer on that board is unchanged.
+  leave; noted in the report).
+
+Owner 2026-11-10 (「確率が一定以上の時だけ」, 10%, blows included): on n1-c life-084's 1287893 and
+1287920 (HP 136 and 143 of 151) the adjacent 充血アイ (id 129, a GAZE:BLIND blow against AC 5,
+about 92% before the next turn) makes the scroll-lock charge lethal (96 + 53), so with the step
+off those boards read Teleportation by the scroll-lock rung as well and leave the diff; with the
+step on they still read the flee rung's Teleportation, the live answer unchanged.  1287854 (HP
+151 > 149) keeps firing with the step off.
 
 The 11-05 Resistance-potion boards (Quest 25, moved to a plain floor as test_resist_potion_1105_
 recorded does, DECLARED CONSTRUCTED) are in that module.
@@ -92,7 +95,7 @@ class LeaveRecordedTest(unittest.TestCase):
 
     def test_n1c_084_t1_missiles_become_the_flee_teleport(self):
         changed = decided_with_and_without("d57-me-combat-084-1101.json.gz", OFF)
-        self.assertEqual(set(changed), {1287854, 1287893, 1287920})
+        self.assertEqual(set(changed), {1287854})
         for turn, (before, after) in changed.items():
             self.assertEqual(before[1], MISSILE, turn)
             self.assertEqual(after[1], "flee:scroll", turn)
@@ -104,7 +107,6 @@ class LeaveRecordedTest(unittest.TestCase):
             1186984: (MISSILE, "flee"),
             1187014: (MISSILE, "flee:scroll"),
             1187020: (MISSILE, "flee:scroll"),
-            1187034: (MISSILE, "flee:scroll"),
         })
         changed = decided_with_and_without("d57-me-combat-083-1101.json.gz", OFF)
         self.assertEqual({turn: (before[1], after[1]) for turn, (before, after) in changed.items()},
