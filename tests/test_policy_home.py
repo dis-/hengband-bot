@@ -2904,7 +2904,7 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
 
     def test_production_executor_home_atomic_deposit_enters_then_posts_once(self):
         from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
-        from tests.test_input_executor import (
+        from tests.support.recorded import (
             FaithfulHookGame, ProductionHarness, command_screen, store_screen,
         )
 

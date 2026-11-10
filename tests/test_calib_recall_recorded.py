@@ -42,7 +42,7 @@ from hengbot.policy_constants import CHARACTER_DUMP_MACRO, SKILL_KNOWLEDGE_MACRO
 from hengbot.warrior_optimization import load_character_calibration
 
 from extraction_calibration import install_extraction_calibration
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CASE = FIXTURES / "calib-recall-20261031.json.gz"

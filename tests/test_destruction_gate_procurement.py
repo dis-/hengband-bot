@@ -105,7 +105,7 @@ from hengbot.policy_constants import (
     required_destruction_uses,
 )
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_unsafe_recall_fallback_recorded import (
     ANGBAND_ARRIVAL_DEPTH,
     BOUNDARIES_SHA256,

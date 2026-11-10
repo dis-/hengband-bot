@@ -9,7 +9,7 @@ from hengbot.policy import HengbotPolicy
 from hengbot.policy_state import normalize_policy_state
 from hengbot.model import DUNGEON_ANGBAND
 from tests import test_policy_town as town_fixtures
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_town_terminal_departure import policy_on
 
 

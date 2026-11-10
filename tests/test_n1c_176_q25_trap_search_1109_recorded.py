@@ -33,7 +33,7 @@ from tempfile import TemporaryDirectory
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot import quest25_battle as battle, quest25_plan
 from hengbot.model import _parse_items, parse_snapshot
-from tests import test_q25_haunted_house as q25
+from tests.support import q25_house as q25
 
 VALUES = quest25_plan.values_of(q25.STRATEGIES[25])   # the plan's numbers (revised_plan_values)
 

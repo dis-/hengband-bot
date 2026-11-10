@@ -53,7 +53,7 @@ from hengbot.model import Position
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
 from recorded_floor_knowledge import pre_seen_floor_replay
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "warning-refused-step-dl30-20261020.jsonl.gz"

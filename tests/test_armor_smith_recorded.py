@@ -42,7 +42,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import _strip_jsonc
 from hengbot.policy_constants import TOWN_TELEPORT_BUILDING_TYPES, TOWN_TELEPORT_COST
 from hengbot.town_maps import find_town_map, parse_town_map
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_q2_tower_recharge_recorded as q2_town
 from tests import test_town_stops_1104_recorded as stops
 

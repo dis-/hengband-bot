@@ -43,7 +43,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import UP_STAIRS_KEY
 
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FIXTURE = FIXTURES / "castle-top-floor-exit-20261002.jsonl.gz"

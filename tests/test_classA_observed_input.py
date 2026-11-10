@@ -16,8 +16,8 @@ from hengbot.input_executor import Continuation, ScreenKind, classify_screen
 from hengbot.model import InventoryItem, TVAL_RING, STORE_ALCHEMIST, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, REST_MACRO, CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO
-from tests import test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support import recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 from tests.test_live30_identify_normal import derived_chooser
 
 
@@ -39,7 +39,7 @@ def board():
 class ClassAObservedInputPins(executor_harness.ProductionHarness):
     def test_existing_english_store_plans_preserve_all_composed_transactions(self):
         from hengbot.observed_input import compile_observed_input
-        from tests.test_input_executor import store_screen
+        from tests.support.recorded import store_screen
 
         # Reuse the existing production regression's English protocol control;
         # this is preservation of its plan, not a new captured UI classifier.

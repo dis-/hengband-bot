@@ -25,7 +25,7 @@ from hengbot import me_staff_sequence
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import STORE_HOME, TOWN_TRAVEL_STORE_SYMBOLS
 from tests import test_lv7_town_stop_recorded as lv7
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-town-stops-20261030.json.gz"

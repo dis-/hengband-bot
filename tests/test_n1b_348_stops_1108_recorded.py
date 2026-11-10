@@ -88,8 +88,9 @@ from hengbot.town_work import OFFER_SEAMS
 from hengbot.town_arrival_checkpoint import (
     JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST)
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
-from tests import test_input_executor as executor_pins
-from tests.test_dungeon_1031_recorded import RecordedHarness, decide
+from tests.support import recorded as executor_pins
+from tests.support import recorded as _recorded
+from tests.support.recorded import decide
 from town_work_corpus import replay_window
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -207,7 +208,7 @@ class StaleCatalogueTakeRecordedTest(executor_pins.ProductionHarness):
 
 
 
-class SleeperOutOfSightRecordedTest(RecordedHarness):
+class SleeperOutOfSightRecordedTest(_recorded.RecordedHarness):
     def test_recorded_retreat_then_walk_back(self):
         seen, hidden = LOOP["boards"][0], LOOP["boards"][1]
         self.assertEqual(here(seen), Position(23, 79))
@@ -332,7 +333,7 @@ class KeyedOfferReviewTest(unittest.TestCase):
 
 
 
-class RememberedDisenchanterLootRecordedTest(RecordedHarness):
+class RememberedDisenchanterLootRecordedTest(_recorded.RecordedHarness):
     def test_recorded_retreat_then_loot_walk_back(self):
         rows = {row["turn"]: (row["key"], row["reason"]) for row in WARP["decisions"]}
         boards = {board["turn"]: board for board in WARP["boards"]}

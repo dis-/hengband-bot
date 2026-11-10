@@ -24,7 +24,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 from policy_fixtures import grid, hostile, player
-import test_input_executor as input_tests
+from tests.support import recorded as input_tests
 import test_policy_quest as quest_tests
 from test_magic_eater_o3 import prompt
 from test_spectator_me_powers import device, raw_board, rod, two_columns

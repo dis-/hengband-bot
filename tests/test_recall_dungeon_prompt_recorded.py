@@ -27,7 +27,7 @@ from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.observed_input import compile_observed_input
 from hengbot.policy import ConservativePolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "recall-dungeon-prompt-20261030.json.gz"

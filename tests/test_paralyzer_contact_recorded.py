@@ -29,7 +29,7 @@ from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_town_decision_speed_caches import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "death-n1a-450-1101.json.gz"

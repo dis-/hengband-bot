@@ -8049,6 +8049,9 @@ class TownMixin:
             if random_quest_reserve.teleport_reserve_spent(self, snapshot):
                 self._last_return_trigger = random_quest_reserve.RETURN_TRIGGER
                 return True
+            if random_quest_reserve.blind_cures_spent(self, snapshot):
+                self._last_return_trigger = random_quest_reserve.BLIND_CURES_RETURN_TRIGGER
+                return True
             # A resistance gap at the CURRENT floor -- not the next one, which
             # _is_descent_target already gates before a descent is taken -- means
             # the character is standing somewhere its present gear no longer

@@ -35,7 +35,7 @@ from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from tests import test_lv7_town_stop_recorded as lv7
 from tests.test_q14_heal_ccw_recorded import ROOT, town_maps
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "q14-lv8-1102.json.gz"

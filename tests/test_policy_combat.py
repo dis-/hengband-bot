@@ -1993,8 +1993,11 @@ class CombatTest(unittest.TestCase):
         reserve = item(
             "t", TVAL_SCROLL, SV_SCROLL_TELEPORT, count=RANDOM_QUEST_TELEPORT_RESERVE
         )
+        # And a blindness cure: with none the lock releases (owner 2026-11-10
+        # 「0本になったら帰還」, random_quest_reserve.blind_cures_spent).
+        cure = item("c", TVAL_POTION, SV_POTION_CURE_CRITICAL)
         snapshot = self._latched_breeder_stair_snapshot(
-            inventory=[recall, reserve], quests={49: quest}
+            inventory=[cure, recall, reserve], quests={49: quest}
         )
         policy = HengbotPolicy()
         policy._floor_key = snapshot.floor_key

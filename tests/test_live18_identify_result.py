@@ -7,7 +7,7 @@ from hengbot.cli import _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from hengbot.input_executor import ScreenKind, classify_screen, _cell_width
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
-import tests.test_input_executor as harness
+import tests.support.recorded as harness
 from tests.test_live17_identify_observation import FIXTURES
 
 

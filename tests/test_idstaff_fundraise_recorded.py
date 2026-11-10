@@ -52,7 +52,7 @@ from hengbot.model import (
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.protocol import snapshot_protocol_version
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).parent / "fixtures/idstaff-fundraise-20261020.json.gz"
 SHA256 = "c14b485585752ee54ca2789a82aecfc8eeec82b29a392ecb76718772ee9230a9"

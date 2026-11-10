@@ -60,7 +60,7 @@ from hengbot.policy_constants import (
     MINING_RUNS_PER_SET, STORE_ALCHEMIST, STORE_HOME, STORE_MAGIC,
 )
 from hengbot.protocol import snapshot_protocol_version
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_supply_shortfall_owner_recorded import _segments
 
 FIXTURE = Path(__file__).parent / "fixtures/fundraise-kit-route-20261018.json.gz"

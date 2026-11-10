@@ -46,7 +46,7 @@ from hengbot.policy_constants import RESTOCK_WAIT_MACRO
 from tests import test_d57_nav_depth_1101_recorded as nav
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_me_town_stops_recorded as stops
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 FIXTURES = Path(__file__).with_name("fixtures")

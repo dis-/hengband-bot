@@ -33,7 +33,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.warrior_optimization import CharacterCalibration
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "optimizer-lamp-20261019.jsonl.gz"

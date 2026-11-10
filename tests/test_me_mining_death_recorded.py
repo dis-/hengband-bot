@@ -38,8 +38,8 @@ from hengbot.me_ranged_first import TORCH_REASON, WAND_REASON
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy import HengbotPolicy
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 from tests.test_magic_eater_o3 import powers, prompt
 
 FIXTURE = Path(__file__).parent / "fixtures" / "me-mining-death-20261030.json.gz"

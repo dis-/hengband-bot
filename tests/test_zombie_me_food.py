@@ -24,8 +24,8 @@ from hengbot.policy_constants import MANA_FOOD_CHARGE_TARGET
 from tests import test_me_tower_recharge_recorded as d24
 from tests import test_n1c_town_stops2_recorded as d25
 from tests.test_me_tower_recharge_recorded import DETECT, RECHARGE_ALL_KEYS, recharge_all_screens
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 
 class ZombieMagicEaterFoodTest(executor_harness.ProductionHarness):

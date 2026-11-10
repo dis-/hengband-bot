@@ -33,8 +33,8 @@ from hengbot import quest25_battle as battle, quest_room_sweep
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
 from hengbot.input_executor import ScreenKind, classify_screen
 from hengbot.model import parse_snapshot
-from tests import test_input_executor as executor_pins
-from tests import test_q25_haunted_house as q25
+from tests.support import recorded as executor_pins
+from tests.support import q25_house as q25
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1c-181-q25-recall-exit-1109.json.gz",

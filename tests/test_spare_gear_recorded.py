@@ -41,8 +41,8 @@ from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from hengbot.town_terminal import gather_fundraising, gather_town_end, verdict_fundraising
 from replay_town_arrival import adopt_calibration, decisions, restore
 from tests.policy_fixtures import item, store_item
-from tests.test_input_executor import FaithfulHookGame, command_screen, store_screen
-from tests import test_input_executor as _test_input_executor
+from tests.support.recorded import FaithfulHookGame, command_screen, store_screen
+from tests.support import recorded as _executor_support
 
 FIXTURES = Path(__file__).with_name("fixtures") / "spare-gear-1104"
 LEAF = "spare_gear_stowed"
@@ -78,7 +78,7 @@ class Visit:
             self.policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
 
 
-class SpareGearRecordedTest(_test_input_executor.ProductionHarness):
+class SpareGearRecordedTest(_executor_support.ProductionHarness):
     def visit(self, name, *, calibrated=False):
         visit = Visit(name, calibrated)
         self.addCleanup(visit.close)

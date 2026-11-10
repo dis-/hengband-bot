@@ -49,7 +49,7 @@ from hengbot.me_device_attacks import observe_lists
 from hengbot.model import STORE_BLACK, STORE_TEMPLE, _parse_items, parse_snapshot
 from hengbot.policy_types import StoreVisit, StoreVisitPhase, TownErrandPlan
 from tests import test_d57_nav_depth_1101_recorded as nav
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_classA_observed_input as follow_harness
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests import test_q2_tower_recharge_recorded as q2_town

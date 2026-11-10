@@ -26,7 +26,7 @@ from hengbot import threat_tiers, town_hold
 from hengbot.cli import (
     PostingContract, STATIONARY_REASONS, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
 )
-from hengbot.model import SV_SCROLL_TELEPORT, Position, QuestState, Snapshot, parse_snapshot
+from hengbot.model import SV_POTION_CURE_CRITICAL, SV_SCROLL_TELEPORT, Position, QuestState, Snapshot, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
@@ -35,7 +35,7 @@ from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
 from hengbot.summoner_wait import SUMMONER_WAIT_GAME_TURNS
 from recorded_junk_scope import choose_past_destroyed_junk
 from tests import policy_fixtures as fixtures
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "immobile-summoner-20261027.json.gz"
@@ -181,9 +181,12 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         )
         if quest:
             # The kit holds the random-quest teleport reserve (owner
-            # 2026-11-01); below it the exit lock releases.
+            # 2026-11-01); below it the exit lock releases.  It holds a
+            # blindness cure too: with none the lock releases (owner 2026-11-10
+            # 「0本になったら帰還」, random_quest_reserve.blind_cures_spent).
             board = replace(board, inventory=[*board.inventory, fixtures.item(
-                "u", 70, SV_SCROLL_TELEPORT, count=RANDOM_QUEST_TELEPORT_RESERVE)])
+                "u", 70, SV_SCROLL_TELEPORT, count=RANDOM_QUEST_TELEPORT_RESERVE),
+                fixtures.item("v", 75, SV_POTION_CURE_CRITICAL)])
             board = replace(board, quests={41: QuestState(
                 id=41, name="constructed kill quest", status=QUEST_STATUS_TAKEN,
                 type=QUEST_TYPE_RANDOM, cur_num=0, max_num=1, level=23,

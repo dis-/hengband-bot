@@ -58,7 +58,7 @@ from hengbot import threat_tiers
 from unittest.mock import patch
 
 from policy_fixtures import grid, hostile, player
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from test_morivant_travel_retired_recorded import (
     BOUNDARIES_SHA256,
     FIXTURE,

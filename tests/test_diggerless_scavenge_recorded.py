@@ -37,7 +37,7 @@ from hengbot.policy_constants import TOWN_TRAVEL_STORE_SYMBOLS
 import tests.test_idstaff_stockout_run_recorded as stockout
 import tests.test_unid_deposit_recorded as recorded
 from hengbot.cli import _ExecutorInputPort, SendResult, _transport_key
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "diggerless-scavenge-20261101.json.gz"

@@ -44,8 +44,8 @@ from hengbot.policy_constants import MINING_STALL_LIMIT
 from hengbot.policy_fundraising import (
     FundraisingPurpose, FundraisingPurposeRecord, FundraisingTransportChild,
 )
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).parent / "fixtures" / "dungeon-loops-20261030.json.gz"
 DIRECTIONS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),

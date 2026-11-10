@@ -22,7 +22,7 @@ from dataclasses import replace
 
 from hengbot.cli import _consume_response_sequence, _capture_decision_facts
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from hengbot.warrior_optimization import load_character_calibration
 from hengbot.warrior_equipment_evaluator import modify_stat_value
 from hengbot.warrior_loadout_evaluator import constitution_hp_bonus

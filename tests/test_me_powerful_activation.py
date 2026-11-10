@@ -34,12 +34,12 @@ from hengbot.model import (
 )
 from hengbot.policy_constants import REST_MACRO
 from tests import test_n1c_town_stops2_recorded as d25
-from tests.test_input_executor import (
+from tests.support.recorded import (
     FaithfulHookGame, command_screen, source_derived_identify_viewer,
 )
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
-import tests.test_input_executor as executor_harness
+import tests.support.recorded as executor_harness
 
 
 LIFE = "life-033"

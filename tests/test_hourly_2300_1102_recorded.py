@@ -18,7 +18,7 @@ from hengbot.cli import (
     PostingContract, _ExecutorInputPort, _cell_loop_guard_applies, _send_new_decision_key,
 )
 from hengbot.random_quest_reserve import RANDOM_QUEST_TELEPORT_RESERVE
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded
 
 

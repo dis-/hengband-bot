@@ -33,39 +33,25 @@ import tests  # noqa: F401 -- isolate live runtime files
 
 import copy
 from dataclasses import replace
-import gzip
 import json
 from pathlib import Path
 import unittest
 
 from hengbot import quest_sweep_target
-from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import UP_STAIRS_KEY, WAIT_KEY
 from hengbot.terrain_knowledge import _strip_jsonc
 from hengbot.wilderness_exit import SHAFT_TERRAIN_IDS
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_town_decision_speed_caches import EDIT, build_policy
+# Moved to tests/support/recorded.py; re-exported for importers.
+from tests.support import recorded as _recorded
+from tests.support.recorded import QUAFF_PROMPT, READ_PROMPT, decide, skill  # noqa: F401
 
-FIXTURE = Path(__file__).with_name("fixtures") / "dungeon-1031.json.gz"
-READ_PROMPT = "どの巻物を読みますか? "
-QUAFF_PROMPT = "どの薬を飲みますか? "
 CHOOSER = "どのダンジョンに帰還しますか:"
 SHAFT = Position(5, 62)
-
-
-def skill(policy, raw):
-    policy.consume_skill_knowledge({
-        "player": {"level": raw["player"]["level"]},
-        "knowledge": {"skills": [{"id": 1, "exp": 0}, {"id": 3, "exp": 0}]},
-    })
-
-
-def decide(policy, raw):
-    skill(policy, raw)
-    return str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
 
 
 def chooser_screen(rows):
@@ -75,33 +61,8 @@ def chooser_screen(rows):
     return screen
 
 
-class RecordedHarness(executor_pins.ProductionHarness):
-    @classmethod
-    def setUpClass(cls):
-        with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
-            cls.cases = json.load(stream)
-
-    def boards(self, name):
-        return [copy.deepcopy(board) for board in self.cases[name]["boards"]]
-
-    def post(self, policy, raw, key, screens, following):
-        game = executor_pins.FaithfulHookGame()
-        game.state = copy.deepcopy(raw)
-        game.screen = executor_pins.command_screen(raw["turn"])
-        game.screens = [*screens, executor_pins.command_screen(following["turn"])]
-        game.states = [copy.deepcopy(following) for _ in game.screens]
-        _, _, executor = self.make(game)
-        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
-        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
-        self.assertEqual(port(key, decision={"reason": policy.last_reason,
-                                            "sequence": policy._decision_sequence}),
-                         SendResult.SENT, port.last_result.reason)
-        self.assertEqual(port.last_result.outcome, "completed")
-        return game.accepted
-
-    @staticmethod
-    def later(raw, turns=10):
-        return dict(copy.deepcopy(raw), turn=raw["turn"] + turns, messages=[])
+class RecordedHarness(_recorded.RecordedHarness):
+    """tests/support/recorded.RecordedHarness, bound here for this module's tests."""
 
 
 class DeathReturnRecordedTest(RecordedHarness):

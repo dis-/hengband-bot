@@ -28,7 +28,7 @@ from hengbot import oneshot_breath
 from hengbot.model import SV_POTION_RESIST_COLD, SV_POTION_RESISTANCE, TVAL_POTION, TVAL_SCROLL, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "oneshot-breath-n1c-161-1108.json.xz"
 LOKI = 683

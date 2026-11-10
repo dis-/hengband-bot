@@ -34,7 +34,7 @@ from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import decisions, journal, restore
 # Modules, not classes: a test class bound here would run again in this module.
 import tests.test_idstaff_stockout_run_recorded as idstaff_run
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from town_work_corpus import replay_window
 
 

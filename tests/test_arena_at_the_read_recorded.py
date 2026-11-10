@@ -22,7 +22,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SKILL_KNOWLEDGE_MACRO, TOWN_TELEPORT_COST
 
 from extraction_calibration import install_extraction_calibration
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 CASE = Path(__file__).parent / "fixtures" / "calib-recall-20261031.json.gz"
 READ = "town:recall-to-alt-dungeon"

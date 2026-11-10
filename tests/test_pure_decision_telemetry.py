@@ -68,7 +68,7 @@ from hengbot.cli import (
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
 import test_entrance_travel_retired_recorded as entrance
-import test_esp_threat_rest_recorded as esp_recorded
+from tests.support import recorded as esp_recorded
 import test_golden_trajectory as golden
 import test_morivant_travel_retired_recorded as morivant
 import test_unaffordable_claim_tour_recorded as tour

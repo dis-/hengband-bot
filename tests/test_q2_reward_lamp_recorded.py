@@ -37,8 +37,8 @@ from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.town_maps import find_town_map, parse_town_map
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 FIXTURE = Path(__file__).with_name("fixtures") / "q2-reward-lamp-20261101.json.gz"
 GAME = Path("C:/hengband")

@@ -15,7 +15,7 @@ import unittest
 from hengbot.model import Position, parse_snapshot
 from hengbot.magic_eater import MISSILE_REASON
 from tests import test_lv7_town_stop_recorded as lv7
-from tests import test_input_executor as executor_harness
+from tests.support import recorded as executor_harness
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-q1-torch-20261029.json.gz"

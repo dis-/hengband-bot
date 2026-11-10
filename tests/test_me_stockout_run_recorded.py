@@ -41,8 +41,8 @@ from hengbot.policy_constants import (
 from hengbot.policy_fundraising import (
     FundraisingPurpose, FundraisingPurposeRecord, FundraisingTransportChild,
 )
-from tests import test_input_executor as harness
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support import recorded as harness
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "me-stockout-run-20261031.json.gz"

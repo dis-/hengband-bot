@@ -38,7 +38,7 @@ from hengbot.model import (
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from test_esp_threat_rest_recorded import EDIT
+from tests.support.recorded import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "teleport-follower-n1a-500-1109.json.xz"
 GUARDIAN = 746            # 禁断の護り手

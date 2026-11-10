@@ -43,9 +43,9 @@ from hengbot.cli import (
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SEARCH_KEY, STUCK_ESCAPE_LIMIT, TUNNEL_KEY, WALK_OUT_MAX_DEPTH
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_barehand_mining_recorded import ITEM_PROMPTS, taken_off, wielded
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-claim-return-search-1102.json.gz"

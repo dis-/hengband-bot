@@ -33,8 +33,8 @@ from hengbot.equipment_transaction_session import (
 )
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from tests import test_input_executor as executor_pins
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support import recorded as executor_pins
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "deposit-failure-restore-1102.json.gz"

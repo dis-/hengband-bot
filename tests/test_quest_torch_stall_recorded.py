@@ -109,7 +109,7 @@ class QuestTorchStallRecordedTest(unittest.TestCase):
 
     def test_public_route_buys_torches_through_executor_then_requests_quest(self):
         from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
-        from tests.test_input_executor import (
+        from tests.support.recorded import (
             FaithfulHookGame, ProductionHarness, command_screen, prompt_screen,
             store_screen,
         )

@@ -29,8 +29,8 @@ from hengbot.input_executor import (
     Continuation, Operation, OperationExecutor, ScreenKind, classify_screen,
 )
 from hengbot.runtime_paths import runtime_path
-from tests import test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support import recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 
 FIXTURES = Path(__file__).with_name("fixtures")

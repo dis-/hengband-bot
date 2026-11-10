@@ -35,7 +35,7 @@ from hengbot import me_capability, me_device_attacks, me_powers_refresh, quest25
 from hengbot.model import SV_ROD_HEALING
 from hengbot.policy_constants import REST_MACRO
 from hengbot.model import _parse_items, parse_snapshot
-from tests import test_q25_haunted_house as q25
+from tests.support import q25_house as q25
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1c-178-q25-death-1109.json.gz",

@@ -32,7 +32,7 @@ from pathlib import Path
 
 from hengbot import identification_wait
 from hengbot.model import _parse_items
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_me_nokey_1031_recorded as _test_me_nokey_1031_recorded
 from tests.test_recall_dungeon_prompt_recorded import READ_PROMPT, chooser_screen
 import test_hourly_0700_1102_recorded as _test_hourly_0700_1102_recorded

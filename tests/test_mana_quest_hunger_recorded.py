@@ -28,7 +28,7 @@ from hengbot.cli import (
 )
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from town_work_corpus import monraces
 
 

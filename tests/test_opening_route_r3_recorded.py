@@ -20,8 +20,8 @@ from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from hengbot.warrior_optimization import load_character_calibration
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
-import tests.test_input_executor as executor_harness
-from tests.test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+import tests.support.recorded as executor_harness
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 from tests import test_opening_route_r2_recorded as round2
 
 

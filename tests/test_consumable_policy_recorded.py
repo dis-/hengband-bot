@@ -41,7 +41,7 @@ from hengbot import area_mapping, consumable_policy, mapped_area, me_powers
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import Position, SV_SCROLL_DETECT_TREASURE, TVAL_POTION, TVAL_SCROLL
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).parent / "fixtures" / "consumable-policy-20261102.jsonl.gz"
 DISCARD_SCROLL_SVAL = 27

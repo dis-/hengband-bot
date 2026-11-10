@@ -79,7 +79,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import PACK_CAPACITY
 
-from test_input_executor import FaithfulHookGame, command_screen, prompt_screen
+from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "pickup-pile-prompt-20260926.jsonl.gz"

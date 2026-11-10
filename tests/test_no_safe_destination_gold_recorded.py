@@ -63,7 +63,7 @@ from hengbot.policy_constants import (
 from hengbot.policy_state import normalize_policy_state
 from policy_fixtures import grid, item, player
 import policy_shop_fixture as shop_fixture
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 from recorded_consumable_policy import pre_consumable_table_replay
 
 FIXTURE = Path(__file__).parent / "fixtures/no-safe-dest-gold-20261019.json.gz"

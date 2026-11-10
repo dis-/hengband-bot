@@ -40,7 +40,7 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from recorded_pack_budget import pre_pack_budget_class
 from recorded_junk_scope import pre_junk_scope_rule
 from recorded_star_reserve import pre_star_reserve_retention_replay
-from test_esp_threat_rest_recorded import EDIT, _policy
+from tests.support.recorded import EDIT, _policy
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "oneshot-inflight-c4a-20261020.jsonl.gz"

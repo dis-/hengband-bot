@@ -58,7 +58,7 @@ from hengbot.runtime_paths import RUNTIME_DIR_ENV
 from hengbot.town_arrival_checkpoint import (
     JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, SIDECAR_MANIFEST)
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_staff_sequence import power_list
 from tests.test_n1b_q2_home_ammo_1109_recorded import MergingHomeGame

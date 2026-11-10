@@ -52,10 +52,10 @@ from hengbot.breeder_stalemate import FLEE_AFTER_PLAYER_ACTIONS
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_me_nokey_1031_recorded as nokey
 from tests import test_me_staff_loops_1031_recorded as loops
-from tests.test_dungeon_1031_recorded import READ_PROMPT
+from tests.support.recorded import READ_PROMPT
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "breeder-swarm-20261102.json.gz"

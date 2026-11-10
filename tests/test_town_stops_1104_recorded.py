@@ -42,7 +42,7 @@ from hengbot.town_arrival_checkpoint import (
 from hengbot.warrior_optimization import CharacterCalibration, load_character_calibration
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
 from tests import test_classA_observed_input as follow_harness
-from tests import test_input_executor as executor_pins
+from tests.support import recorded as executor_pins
 from tests import test_lv7_town_stop_recorded as lv7
 from tests import test_me_powerful_activation as me_powerful_pins
 from town_work_corpus import replay_window

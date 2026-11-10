@@ -24,7 +24,7 @@ from hengbot.policy import ConservativePolicy  # first: the plan modules import 
 from hengbot import quest25_battle as battle, quest25_geometry as geo, quest_room_sweep, resist_potion
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
-from tests import test_q25_haunted_house as q25
+from tests.support import q25_house as q25
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "q25-mass-n1c-159-1107.json.gz",

@@ -7,7 +7,7 @@ import unittest
 
 from hengbot.policy_types import TownErrandPlan
 from hengbot.town_terminal import rung_terminal, terminal_admission
-from test_goldburn_shopping_constructed import board
+from tests.support.boards import goldburn_board as board
 from test_live37_home_scan import attachment, FIXTURE
 from test_town_terminal_departure import policy_on
 

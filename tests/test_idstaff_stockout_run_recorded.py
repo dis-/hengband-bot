@@ -41,9 +41,9 @@ from hengbot.policy_fundraising import (
     FundraisingPurpose, FundraisingPurposeRecord, FundraisingTransportChild,
     fundraising_run_verdict,
 )
-from tests.test_esp_threat_rest_recorded import _policy
+from tests.support.recorded import _policy
 import tests.test_unid_deposit_recorded as recorded
-from tests.test_input_executor import FaithfulHookGame, command_screen
+from tests.support.recorded import FaithfulHookGame, command_screen
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "idstaff-stockout-run-20261101.json.gz"
