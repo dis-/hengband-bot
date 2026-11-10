@@ -57,6 +57,7 @@ from hengbot import (
     survival_preemption,  # noqa: F401 -- re-exported (tests patch threat_tiers.survival_preemption)
 )
 from hengbot.item_reservation import decision_memo
+from hengbot.model import game_distance
 # The façade (maintainability review 2026-11-09, step 4): every name of the split modules is
 # re-exported here, so ``threat_tiers.X`` keeps working for callers, tests and their patches.
 from hengbot.instant_death import (  # noqa: F401
@@ -441,6 +442,12 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
               if cannot_win(tiered(policy, snapshot, [monster], contact=True), snapshot.player.hp)]
     if not strong:
         return None
+    # Owner 2026-11-10 (the n1-b life-367 report's P2, verbatim 「積極的に*破壊*で消しにいく」):
+    # a T1 known only by detection is gone to and destroyed, not left (``approach_key``).
+    if approach_owns(policy, snapshot, strong):
+        # None: no known way toward them yet (the circle just destroyed, say); the rungs
+        # below map and explore, and the next board asks again.
+        return approach_key(policy, snapshot, strong)
     stairs = policy._escape_by_stairs(snapshot)
     if stairs is not None:
         policy.last_reason = SENSED_LEAVE_PREFIX + "stairs"
@@ -469,6 +476,82 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
             policy.last_reason = SENSED_LEAVE_PREFIX + "walk"
             return policy._step_toward(snapshot, step)
     return None
+
+
+APPROACH_REASON = SENSED_LEAVE_PREFIX + "approach-destruction"
+
+
+def _in_view(policy, snapshot, monster) -> bool:
+    """Seen, not only detected, and on a line it can project along to the player (the
+    board's test of an attacker, return_yield.awake_hostile_in_view): a monster the
+    telepathy shows behind rock is known only by detection."""
+    return (monster.perception != "detected"
+            and policy._may_project(snapshot, monster.position, snapshot.player.position))
+
+
+def _approach_targets(policy, snapshot, strong) -> list:
+    """The T1s ``approach_key`` goes to, else [] (its docstring's conditions)."""
+    if any(_in_view(policy, snapshot, monster) for monster in strong):
+        return []
+    if not destruction_use.holds_means(policy, snapshot):
+        return []
+    if (not destruction_use._clear_headed(snapshot.player)
+            or not destruction_use._floor_destroyed(policy, snapshot)):
+        return []
+    spared = {destruction_use._guardian_race(policy, snapshot),
+              destruction_use._target_race(policy, snapshot)}
+    return [monster for monster in strong if monster.race_id not in spared]
+
+
+def approach_owns(policy, snapshot, strong) -> bool:
+    """The sensed T1 leave gives way to ``approach_key``: every T1 is known only by detection,
+    the means are held, and none of them is already in reach of a use the gates refuse."""
+    targets = _approach_targets(policy, snapshot, strong)
+    if not targets:
+        return False
+    here = snapshot.player.position
+    in_reach = any(game_distance(here, monster.position) <= destruction_use.GUARANTEED_RADIUS
+                   for monster in targets)
+    return not in_reach or destruction_use.usable(policy, snapshot, leaving=targets)
+
+
+def approach_key(policy, snapshot, strong) -> str | None:
+    """While ``approach_owns``: the use of *Destruction* once a T1 is within its sure radius,
+    else a step toward the nearest; else None (no known way yet: the rungs below map and
+    explore, and the leave does not read).
+
+    Owner 2026-11-10 (the n1-b life-367 report's P2, verbatim 「積極的に*破壊*で消しにいく」;
+    the question named ハヤブサ (Ki-43, vision 100) and 大鷲王『ソロンドール』, whose sensing radius
+    covers the floor: 29 leaves on 46F+ boards whose engagement was T3, each a Teleportation
+    counted toward the two-escape return).
+
+    Game (C:/hengband/src): spell-kind/spells-floor.cpp destroy_area deletes every monster
+    in the circle but a QUESTOR (healed and teleported away), uniques too, and does nothing
+    on a fixed quest floor or the surface; the radius is 13 + randint0(5) (staff,
+    cmd-usestaff.cpp:282; scroll, scroll-read-executor.cpp:342), 18 + randint0(5) for the
+    Powerful Activation, never cast here.  The walk aims at the sure radius
+    (destruction_use.GUARANTEED_RADIUS, 13).
+
+    The means are destruction_use's (owner 2026-11-04 「杖と取り込んだ力だけ」, at 80%+ with a
+    charge, ``holds_means``); the use is destruction_use's ``key`` with the T1s as the
+    ``leaving`` hostiles, its gates unchanged.  Not here: a T1 in view (the in-view rules
+    answer, as before), a floor *Destruction* does not touch, a confused, hallucinating or
+    stunned player, the floor's own guardian (destruction_use spares it: the 11-04 words do
+    not cover it), the active quest's target.  The step is a walk, never an escape
+    (reasons.WALK)."""
+    targets = _approach_targets(policy, snapshot, strong)
+    if not targets:
+        return None
+    used = destruction_use.key(policy, snapshot, leaving=targets)
+    if used is not None:
+        return used
+    radius = destruction_use.GUARANTEED_RADIUS
+    step = policy._nearest_goal_step(snapshot, lambda grid: any(
+        game_distance(grid.position, monster.position) <= radius for monster in targets))
+    if step is None:
+        return None
+    policy.last_reason = APPROACH_REASON
+    return policy._step_toward(snapshot, step)
 
 
 # ---------------------------------------------------------------- the decided side (step 6)

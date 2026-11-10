@@ -208,6 +208,8 @@ _RULE_WALK = "owner 2026-11-09 「歩いての後退は数えない」: a walk, 
 _rows(WALK, "policy", _RULE_WALK, "flee", "flee:wait", "status-threat:retreat", "threat:reposition",
       "no-wait:flee")
 _rows(WALK, "threat_tiers", _RULE_WALK, "sensed-t1:walk")
+_rows(WALK, "threat_tiers", "owner 2026-11-10 P2 「積極的に*破壊*で消しにいく」: a step toward a T1 known only "
+      "by detection, to bring it into the *Destruction* radius; no escape", "sensed-t1:approach-destruction")
 _rows(WALK, ("policy_combat", "summoner_wait"), _RULE_WALK, "summoner:retreat")
 _rows(WALK, ("policy", "policy_combat", "policy_navigation", "attack_answer", "blind_strike"), _RULE_WALK,
       "combat:disengage", "combat:disengage-", "combat:disengage-armed", "combat:disengage-clear-path",
