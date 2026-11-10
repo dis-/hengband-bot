@@ -92,6 +92,7 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from hengbot import quest25_geometry, reasons
+from hengbot.game_messages import ECHIZEN_PREFIX, KILL_LINE_DESTROYED, KILL_LINE_DIED, KILL_LINE_SLAIN
 from hengbot.unseen_strike import message_text
 
 
@@ -99,8 +100,9 @@ from hengbot.unseen_strike import message_text
 FLEE_AFTER_PLAYER_ACTIONS = 100
 # Owner 2026-11-05 「少ない時は倒した数で判断」: 「見える数が5体未満なら…」.
 FEW_BREEDERS = 5
-_KILL_LINES = ("は死んだ。", "を葬り去った。", "を倒した。")
-_KILL_LINE_PREFIX = "せっかくだから"     # show_kill_message, is_echizen
+# The seen kill lines only: the unseen 「…を殺した。」 (game_messages.KILL_LINE_KILLED) is not read here.
+_KILL_LINES = (KILL_LINE_DIED, KILL_LINE_SLAIN, KILL_LINE_DESTROYED)
+_KILL_LINE_PREFIX = ECHIZEN_PREFIX     # show_kill_message, is_echizen
 
 
 class _LastBoard(NamedTuple):

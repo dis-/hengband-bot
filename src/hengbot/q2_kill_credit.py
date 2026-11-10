@@ -27,14 +27,15 @@ from __future__ import annotations
 import re
 from collections import Counter
 
+from hengbot.game_messages import ECHIZEN_PREFIX, ECHIZEN_PREFIX_EN, KILL_LINES, KILL_LINES_EN
 from hengbot.model import Position
 from hengbot.policy_constants import Q2_BREEDER_RACES
 
 QUEST_ID = 2
 _RECORD = "_q2_kill_credit"
-_KILL_LINES = ("は死んだ。", "を葬り去った。", "を倒した。", "を殺した。")
-_KILL_LINES_EN = ("You have slain ", "You have destroyed ", "You have killed ")
-_ECHIZEN = ("せっかくだから", "Because it's time, ")
+_KILL_LINES = KILL_LINES
+_KILL_LINES_EN = KILL_LINES_EN
+_ECHIZEN = (ECHIZEN_PREFIX, ECHIZEN_PREFIX_EN)
 _REPEAT = re.compile(r" <x([1-9]\d*)>$")
 
 

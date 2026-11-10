@@ -70,6 +70,7 @@ before the Speed dose, as for blindness (owner 2026-11-04 「低い時は体力�
 """
 
 from hengbot import blind_strike, combat_answer, me_absorbed_substitutes, me_capability, speed_dose, unseen_strike
+from hengbot.game_messages import KILL_LINE_DESTROYED, KILL_LINE_KILLED, KILL_LINE_SLAIN
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
@@ -89,8 +90,9 @@ _PENDING = "_blind_cure_turn"         # (floor, turn) of the last blindness cure
 _LATCH = "_blind_cure_futile_floor"   # floor whose current blindness is not cured
 _LATCH_BLOW = "_blind_cure_futile_blow"  # the blow text that re-blinded it, if named
 _ATTACKER = "_blind_attacker_floor"   # floor whose unseen attacker no kill has followed
-# monster-damage.cpp show_kill_message (also after 「せっかくだから」).
-_KILL_ENDINGS = ("を殺した。", "を倒した。", "を葬り去った。")
+# monster-damage.cpp show_kill_message (also after 「せっかくだから」); get_died_message's
+# 「…は死んだ。」 is not among them.
+_KILL_ENDINGS = (KILL_LINE_KILLED, KILL_LINE_DESTROYED, KILL_LINE_SLAIN)
 # MonsterAttackPlayer::process_thief_teleport (monster-attack-player.cpp:526-527): the thief
 # that touched and stole is teleported away (teleport_away, MAX_PLAYER_SIGHT * 2 + 5).  The
 # 「...ようとしたがバリアに防がれた。」 variant keeps it beside the player, so it is not here.

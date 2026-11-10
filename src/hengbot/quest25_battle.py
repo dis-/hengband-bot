@@ -112,6 +112,7 @@ from hengbot import (
     summon_response,
     threat_tiers,
 )
+from hengbot.game_messages import ECHIZEN_PREFIX, KILL_LINES, KILL_LINES_EN
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key, item_cast_key
@@ -233,10 +234,10 @@ _LATER_IMMOBILE = frozenset({geo.IPSISSIMUS, geo.TOME, geo.QUYL, geo.DRUJ, geo.S
 # A phase step that leaves the board to the breeders in the line of fire (a hold, a walk and the
 # trap search or disarm on its way).
 _IDLE_REASONS = frozenset({HOLD_REASON, WALK_REASON, SEARCH_REASON, DISARM_REASON})
-_KILL_LINES = ("は死んだ。", "を葬り去った。", "を倒した。", "を殺した。")
-_KILL_LINES_EN = ("You have slain ", "You have destroyed ", "You have killed ")
+_KILL_LINES = KILL_LINES
+_KILL_LINES_EN = KILL_LINES_EN
 _UNSEEN = ("何か", "it", "It")
-_ECHIZEN = "せっかくだから"
+_ECHIZEN = ECHIZEN_PREFIX
 
 
 # -- memory ----------------------------------------------------------------------------
