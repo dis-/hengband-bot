@@ -239,6 +239,31 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         self.assertEqual((policy._fundraising_mode, policy._recall_stockout_mining_plan),
                          ("mine", True))
 
+    def test_n1b_detour_round_the_wall_is_store_router_progress(self):
+        """Rows 8-59: the walk round the town wall to the Magic shop.
+
+        Live: the router's straight-line distance stayed flat at row 31
+        ((13,130) after (14,131)) and came back to a value it had at row 56
+        ((1,105)): two retirements in the walk.  The pile fix of row 3 is
+        walled off (declared: stacking_pile_objects counts nothing, as the
+        live build did) so that the live detour is the route the walk takes.
+        """
+        with mock.patch("hengbot.town_pack_budget.stacking_pile_objects",
+                        lambda snapshot, grid: 0):
+            policy, recorded, steps = self.load("n1b-364")
+            self.replay_live(policy, recorded, steps[:31])
+            progress = []
+            for row, supply in steps[31:60]:
+                board = supply()
+                key = policy.choose_key(board)
+                self.assertEqual((key, policy.last_reason),
+                                 (recorded[row["row"]]["key"], "shop:approach"), row["row"])
+                arbiter = policy._town_turn_arbiter.telemetry
+                progress.append((row["row"], arbiter["producer_owner"], arbiter["progress"]))
+                policy.confirm_key_posted(key)
+        self.assertEqual(progress, [(row, "store-router", True) for row in range(31, 60)])
+        self.assertEqual(policy._owner_retired_no_progress_count, 0)
+
     def test_n1b_walk_through_the_gate_holding_its_own_torch(self):
         """Row 3 (decision 1611): the board after the thrown torch killed the dog.
 
