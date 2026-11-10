@@ -12,9 +12,12 @@ from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.monster_ranged_evaluator import (
     SpellSelectionContext,
+    ability_cast_success,
     ability_selection_probabilities,
     cause_damage_percentile,
     evaluate_ability_effect,
+    source_selection_probabilities,
+    status_landing_probabilities,
     expected_ability_hp_damage,
     maximum_ability_hp_damage,
 )
@@ -26,6 +29,7 @@ from hengbot.monster_melee_evaluator import (
 from hengbot.projection_path import projection_path
 from hengbot.policy_types import ChokeEngagementPlan
 from hengbot.policy_constants import (
+    SCROLL_LOCK_ESCAPE_PROBABILITY,
     DOWN_STAIRS_LAST_RESORT_REASON,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
@@ -2971,15 +2975,44 @@ class CombatMixin:
         self,
         snapshot: Snapshot,
         hostiles: list[MonsterState],
-    ) -> list[MonsterState]:
-        """Find visible casters that can disable escape-scroll reading.
+    ) -> list[tuple[MonsterState, float]]:
+        """Visible casters that can disable escape-scroll reading, each with
+        the probability that it blinds or confuses the player before the
+        player's next turn.
 
         Blindness and confusion are qualitatively different from ordinary HP
         damage: after either lands, a warrior carrying scrolls must first spend
         a turn curing the status.  Use the shared ranged-effect evaluator so
         direct status spells and elemental side effects (notably BA_LITE) obey
         the same resistance and saving-throw model as equipment evaluation.
-        """
+
+        Per monster move (monster-processor.cpp:224-225 -> cast_spell 549-575):
+        it tries a spell on randint1(100) <= freq_spell (:553); the ability is
+        chosen as source_selection_probabilities models it: no_inate =
+        !evaluate_percent(freq_spell * 2) (mspell-attack-util.cpp:16) removes
+        only the innate abilities (mspell-attack.cpp:45-52,
+        race-ability-mask.cpp:108-111), then the selector picks one, so a
+        spell-only caster casts on every attempt (the older
+        ability_selection_probabilities, which the damage readings were
+        tuned on, drops that branch and halves such a caster); a non-innate spell then
+        fails on 25 - (rlev + 3) / 4 percent, or one_in_(2) while stunned
+        (mspell-attack.cpp:187-192, ability_cast_success); and the landing
+        probability of blind/confused is status_landing_probabilities:
+          BLIND / CONF: resist_blind / resist_conf, else saved on
+            randint0(100 + rlev / 2) < skill_sav (mspell-status.cpp:316-326,
+            and the same lines of spell_RF5_CONF below it);
+          MIND_BLAST / BRAIN_SMASH: saved on randint0(100 + rlev / 2) <
+            max(5, skill_sav), then resist_conf / resist_blind
+            (effect-player-spirit.cpp:71-133);
+          LITE: resist_lite or resist_blind (effect-player-resist-hurt.cpp:411);
+          DARK: resist_blind, resist_dark or immune_dark (:447-453);
+          WATER: resist_conf or resist_water (:224-226);
+          CHAOS: resist_conf or resist_chaos (:249-251);
+          CONFUSION: resist_conf (:319-321);
+          ABYSS: not already blind, resist_conf (:672-683).
+        p_move = freq_spell/100 * sum(selection * cast success * landing);
+        the monster gets _monster_actions(speed, player speed, 1) moves before
+        the player's next turn, so p = 1 - (1 - p_move) ** moves."""
         if snapshot.player.blind or snapshot.player.confused:
             return []
 
@@ -2988,7 +3021,7 @@ class CombatMixin:
             for ability, flag in RESIST_FLAG_BY_ABILITY.items()
             if ability in snapshot.player.abilities
         )
-        threats: list[MonsterState] = []
+        threats: list[tuple[MonsterState, float]] = []
         for monster in hostiles:
             if monster.asleep or not self._has_line_of_fire(
                 snapshot, monster.position, snapshot.player.position
@@ -3001,29 +3034,55 @@ class CombatMixin:
                 or not knowledge.abilities
             ):
                 continue
-            selection = ability_selection_probabilities(
+            selection = source_selection_probabilities(
                 knowledge,
                 SpellSelectionContext(distance=max(1, monster.distance)),
             )
+            per_cast = 0.0
             for ability, probability in selection.items():
                 if probability <= 0:
                     continue
-                exposure = dict(
-                    evaluate_ability_effect(
-                        ability,
-                        knowledge,
-                        flags=flags,
-                        player_hp=snapshot.player.hp,
-                        blind=False,
-                        saving_skill=snapshot.player.saving_skill,
-                    ).status_turn_exposure
+                landing = status_landing_probabilities(
+                    ability,
+                    knowledge,
+                    flags=flags,
+                    saving_skill=snapshot.player.saving_skill,
                 )
-                if exposure.get("blind", 0.0) > 0 or exposure.get(
-                    "confused", 0.0
-                ) > 0:
-                    threats.append(monster)
-                    break
+                lock = max(
+                    landing.get("blind", 0.0), landing.get("confused", 0.0)
+                )
+                if lock <= 0:
+                    continue
+                per_cast += (
+                    probability
+                    * ability_cast_success(
+                        ability, knowledge, stunned=monster.stunned
+                    )
+                    * lock
+                )
+            if per_cast <= 0:
+                continue
+            per_move = min(1.0, knowledge.spell_frequency / 100.0 * per_cast)
+            moves = self._monster_actions(
+                monster.speed, snapshot.player.speed, 1
+            )
+            threats.append((monster, 1.0 - (1.0 - per_move) ** moves))
         return threats
+
+    def _ranged_scroll_lock_probability(
+        self,
+        snapshot: Snapshot,
+        hostiles: list[MonsterState],
+    ) -> float:
+        """Chance that some caster blinds or confuses the player before the
+        player's next turn: 1 - prod(1 - p_i) over _ranged_scroll_lock_threats."""
+        survive = 1.0
+        for _monster, probability in self._ranged_scroll_lock_threats(
+            snapshot, hostiles
+        ):
+            survive *= 1.0 - probability
+        return 1.0 - survive
+
     def _ranged_scroll_lock_escape_needed(
         self,
         snapshot: Snapshot,
@@ -3037,10 +3096,18 @@ class CombatMixin:
         player can choose.  A scroll-locking hit instead forces the next action
         to be a status cure.  Charge one additional operational turn for that
         lost action, but only while a readable escape scroll exists now.
-        """
+
+        USER DECISION 2026-11-10 (n1-a life-506, 「確率が一定以上の時だけ」):
+        「次の手番までに盲目・混乱を受ける確率（魔法防御・耐性を入れて計算）が
+        10%以上の時だけ、1ターン失う分を被害に足して逃げを考える。今回なら
+        戦い続ける。」 The lost turn is charged only while
+        _ranged_scroll_lock_probability >= SCROLL_LOCK_ESCAPE_PROBABILITY."""
         if self._escape_scroll(snapshot) is None:
             return False
-        if not self._ranged_scroll_lock_threats(snapshot, hostiles):
+        if (
+            self._ranged_scroll_lock_probability(snapshot, hostiles)
+            < SCROLL_LOCK_ESCAPE_PROBABILITY
+        ):
             return False
         forced_cure_turn = self._predicted_damage(snapshot, hostiles, turns=1)
         return predicted + forced_cure_turn >= snapshot.player.hp

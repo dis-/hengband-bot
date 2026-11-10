@@ -1354,6 +1354,60 @@ def evaluate_ability_effect(
     )
 
 
+def ability_cast_success(
+    ability: str, monster: MonraceKnowledge, *, stunned: bool = False
+) -> float:
+    """Probability that a selected ability is not fumbled.
+
+    mspell-attack.cpp check_mspell_unexploded: fail_rate = 25 - (rlev + 3) / 4,
+    0 for STUPID; a non-innate spell fails on evaluate_percent(fail_rate) and,
+    while the caster is stunned, also on one_in_(2).  Innate abilities
+    (spell_is_inate) never fail."""
+    if ability in INNATE_ABILITIES:
+        return 1.0
+    fail_rate = 0 if "STUPID" in monster.flags else max(
+        0, 25 - (monster.level + 3) // 4
+    )
+    success = 1.0 - fail_rate / 100.0
+    return success * 0.5 if stunned else success
+
+
+def status_landing_probabilities(
+    ability: str,
+    monster: MonraceKnowledge,
+    *,
+    flags: frozenset[int] = frozenset(),
+    saving_skill: int = 0,
+    blind: bool = False,
+) -> dict[str, float]:
+    """Probability that one successful cast of ``ability`` sets each status.
+
+    evaluate_ability_effect adds every status as ``throughput * turns`` with
+    one throughput per ability (reflection, then the saving throw of the
+    save-checked spells), after the resistance tests of the game's effect
+    handlers.  So a status the ability can set lands with exactly that
+    throughput, and one it cannot set is absent."""
+    result = evaluate_ability_effect(
+        ability,
+        monster,
+        flags=flags,
+        blind=blind,
+        saving_skill=saving_skill,
+    )
+    probability = _effect_throughput(
+        ability,
+        monster,
+        flags=flags,
+        saving_skill=saving_skill,
+        blind=blind,
+    )
+    return {
+        name: probability
+        for name, turns in result.status_turn_exposure
+        if turns > 0
+    }
+
+
 def evaluate_warrior_ranged_defense(
     flags: frozenset[int],
     *,

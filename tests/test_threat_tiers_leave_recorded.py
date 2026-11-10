@@ -17,7 +17,11 @@ changed is pinned below; on each the change is toward leaving:
   reads Teleportation instead of firing; three boards beside three ogres and a king cobra (T1)
   leave by the flee rung (walk where none is faster, Teleportation) instead of firing; on 1186736
   (HP 71/171) the flee rung's walk now answers before the return rung's Word of Recall read (both
-  leave; noted in the report).
+  leave; noted in the report).  Since the owner's 2026-11-10 scroll-lock line (「確率が一定以上の
+  時だけ」, 10%), 1187034 (HP 168/171 beside the same ogres and cobra) joins them: with the step
+  off it no longer reads Teleportation for the 1% blind chance of 月の怪物 (id 223, the old
+  scroll-lock charge 115 + 69 >= 168) and fires; with the step on it still leaves by the flee
+  rung's Teleportation, so the live answer on that board is unchanged.
 
 The 11-05 Resistance-potion boards (Quest 25, moved to a plain floor as test_resist_potion_1105_
 recorded does, DECLARED CONSTRUCTED) are in that module.
@@ -100,6 +104,7 @@ class LeaveRecordedTest(unittest.TestCase):
             1186984: (MISSILE, "flee"),
             1187014: (MISSILE, "flee:scroll"),
             1187020: (MISSILE, "flee:scroll"),
+            1187034: (MISSILE, "flee:scroll"),
         })
         changed = decided_with_and_without("d57-me-combat-083-1101.json.gz", OFF)
         self.assertEqual({turn: (before[1], after[1]) for turn, (before, after) in changed.items()},
