@@ -54,6 +54,7 @@ from hengbot.model import (
     SV_STAFF_LITE, SV_STAFF_REMOVE_CURSE, SV_STAFF_SPEED, SV_WAND_STONE_TO_MUD,
     TVAL_POTION, TVAL_SCROLL, TVAL_STAFF,
 )
+from hengbot.policy_constants import RELIABLE_MIN_SUCCESS_PERCENT
 
 
 # -- the evidence ---------------------------------------------------------------
@@ -191,8 +192,9 @@ EVERY_USE = frozenset({PURCHASE, ORDER, CANDIDATE, NEED})
 
 # The ``reliable`` condition's displayed success rate, the owner's one number for
 # both rows that use it: 2026-10-31 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ
-# 魔力を要求に数える」 and 2026-11-01 「スピードの杖の取り込み後、成功率が80%以上なら…」.
-RELIABLE_MIN_SUCCESS = 80
+# 魔力を要求に数える」 and 2026-11-01 「スピードの杖の取り込み後、成功率が80%以上なら…」
+# (policy_constants.RELIABLE_MIN_SUCCESS_PERCENT).
+RELIABLE_MIN_SUCCESS = RELIABLE_MIN_SUCCESS_PERCENT
 
 
 @dataclass(frozen=True)

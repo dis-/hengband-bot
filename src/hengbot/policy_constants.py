@@ -232,7 +232,16 @@ IDENTIFY_PRESSURE_FREE_SLOTS = 3
 IDENTIFY_FAIL_LIMIT = 3
 IDENTIFY_PURCHASE_MAX = 5
 DETECTION_SCROLL_BUFFER = 5
-STAFF_IDENTIFY_MIN_SUCCESS = 0.80
+# The owner's one displayed success rate for a device or an absorbed power, in
+# percent as the game lists it (cmd-magiceat.cpp prints the fail percent):
+# 2026-10-31 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える」,
+# 2026-11-01 「スピードの杖の取り込み後、成功率が80%以上なら…」, 2026-11-05
+# 「体力回復の杖/ロッドが成功率80%を超えている場合は使用を選択肢に入れる」 and the
+# carried Staff of Identify's floor.  me_capability.RELIABLE_MIN_SUCCESS and
+# arena_odds.HEALING_MIN_SUCCESS are this number.
+RELIABLE_MIN_SUCCESS_PERCENT = 80
+# The same floor as a fraction, for the modelled rates (``_identify_staff_success_rate``).
+STAFF_IDENTIFY_MIN_SUCCESS = RELIABLE_MIN_SUCCESS_PERCENT / 100
 FUNDRAISING_GOLD_TARGET = 15000
 FUNDRAISING_KIT_RESERVE = 100
 CROSS_TOWN_SHOPPING_RESERVE = 1000
