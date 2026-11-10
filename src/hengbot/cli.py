@@ -63,6 +63,7 @@ from hengbot.policy import (
     required_depth_gates,
     staged_prompt_chain_matches,
 )
+from hengbot.quest25_battle import SEARCH_REASON as Q25_TRAP_SEARCH_REASON
 # After hengbot.policy: threat_tiers' dependencies import through it (a cycle otherwise).
 from hengbot import threat_tiers
 from hengbot import spectator_threat
@@ -481,6 +482,12 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         # Bounded per warned cell by SEARCH_LIMIT (trap_warning): a corridor of
         # traps walked one search at a time is no confined loop.
         "warning:trap-search",
+        # Q25's own trap rule (quest25_battle._trap_key, owner 2026-11-09 「罠探知があるなら使用する
+        # ことで確定。そうでなければ10回で打ち切る。」): bounded per cell by the plan's
+        # revised_plan_values.trap_searches, then the cell is passed.  A trapped corridor walked
+        # one cell at a time is no confined loop (n1-a life-508 2026-11-11: row 1 from [1,14] to
+        # [1,9], at most 10 searches a cell, stopped by the 40-decision window).
+        Q25_TRAP_SEARCH_REASON,
         ONCE_QUEST_TICK_REST_REASON,
         # Exact policy-registered escape WAIT terminals. Each owns the existing
         # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as
