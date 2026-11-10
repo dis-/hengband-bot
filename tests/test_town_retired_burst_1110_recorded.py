@@ -15,6 +15,15 @@ had decided, the step-off latch stayed armed on the unchanged board and refused
 the bound Home take, so the router re-entered Home and the page left for the
 take again.  Three retirements without progress: owner-retired-burst.
 
+n1-a life-508 (2026-11-11 00:40): Recall short by one (10 carried, 11 for the
+departure) with both suppliers sold out started the one-run stock-out
+time-pass.  Its mining mode zeroes the Recall target, so the Home deposit
+stowed the 10 scrolls; back on the next board the Home list showed them, the
+stock-out check took them for a supplier and the gold-target end closed the
+set before the run.  The mining kit went back into Home, the now-stale Home
+list read as no supplier and the stock-out restarted, the scrolls came out
+again: the deposit/withdraw ping-pong that ran the owner budget out.
+
 n1-b life-364 (10:18): the torch thrown at a dog in the Outpost's one-cell east
 gate lay in the gate under the name of the carried torches; with 19 carried
 items the floor-step budget counted it one slot and refused the gate, and the
@@ -205,6 +214,30 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
             key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), ("5 pp1\r\x1b", "home:atomic-withdraw"))
         self.assertEqual(policy._home_atomic_withdraw_pending[0], pending)
+
+    def test_n1a_0040_stowed_recall_does_not_end_the_stockout_run(self):
+        """00:40, row 44 (decision 27291): the Home list after the deposit of row 39.
+
+        Live: ``ESC `n(.`` shop:travel, the stock-out set ended at the gold
+        target (Home's 10 scrolls taken for a supplier), then the kit deposit
+        and the restart of the stock-out (rows 45-47).  The Home scan
+        exemption is walled off (declared) to replay rows 24-43 as decided.
+        """
+        with mock.patch("hengbot.policy.town_home_route_opened_for",
+                        pre_fix_home_route_opened_for):
+            policy, recorded, steps = self.load("n1a-508-0040")
+            self.replay_live(policy, recorded, steps[:44])
+        self.assertEqual((recorded[13]["reason"], recorded[39]["key"], recorded[39]["reason"]),
+                         ("town:recall-stockout-mining", "df10\r\x1b", "home:atomic-deposit"))
+        self.assertEqual(policy._fundraising_mode, "mine")
+        board = steps[44][1]()
+        self.assertEqual(sum(item.count for item in policy._home_knowledge_items
+                             if item.is_recall_scroll), 10)
+        self.assertEqual(recorded[44]["reason"], "shop:travel")
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), (">\ry", "descend"))
+        self.assertEqual((policy._fundraising_mode, policy._recall_stockout_mining_plan),
+                         ("mine", True))
 
     def test_n1b_walk_through_the_gate_holding_its_own_torch(self):
         """Row 3 (decision 1611): the board after the thrown torch killed the dog.

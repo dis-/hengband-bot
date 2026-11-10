@@ -8,6 +8,9 @@ C:/hengband-backups/pdca/captures/town-retired-burst-1110/):
            the Home withdrawal visit, journal rows 0-74 (the stop).
   n1a-508-2243  n1-a life-508 again, build bot-49436da51, 22:43
            (incident-224338): the next Home visit, journal rows 0-75 (the stop).
+  n1a-508-0040  n1-a life-508 again, build bot-d91e4a4ec, 2026-11-11 00:40
+           (incident-004001): the recall stock-out visit, journal rows 0-44
+           (the end of the stock-out run the Home deposit caused).
   n1b-364  n1-b life-364, build bot-c6e2443b2, 10:18 (incident-101818):
            the walk to the Magic shop, journal rows 0-8 (the torch throw,
            the bookkeeping after it and the first approach step).
@@ -30,6 +33,7 @@ FIXTURES = Path(__file__).with_name("fixtures") / "town-retired-burst-1110"
 STOPS = {
     "n1a-508": (ROOT / "n1-a-life-508/incident-210513/town-arrival", 75),
     "n1a-508-2243": (ROOT / "n1-a-life-508/incident-224338/town-arrival", 76),
+    "n1a-508-0040": (ROOT / "n1-a-life-508/incident-004001/town-arrival", 45),
     "n1b-364": (ROOT / "n1-b-life-364/incident-101818/town-arrival", 9),
 }
 LEFT_OUT = {"_loadout_report_path"}

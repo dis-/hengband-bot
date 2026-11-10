@@ -13205,7 +13205,23 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             recall = self._supply_ledger(snapshot, self._planned_depth())["recall"]
         finally:
             self._fundraising_mode = mode
-        return recall.count < recall.required_departure and not recall.obtainable
+        if recall.count >= recall.required_departure:
+            return False
+        if STORE_HOME not in recall.stores:
+            return not recall.obtainable
+        # Home holds scrolls: a supplier only when they cover the shortage.
+        # The time-pass's own trip stows the carried scrolls in Home (zero
+        # recall target while mining); counting them as a supplier ended the
+        # run at the gold target, and the withdrawal brought the same
+        # shortage back (n1-a life-508, 2026-11-11 00:40).
+        home_units = sum(
+            item.count for item in self._home_knowledge_items
+            if self._store_item_is_supply(item, "recall")
+        )
+        if recall.count + home_units >= recall.required_departure:
+            return False
+        return not self._supply_store_obtainable(
+            snapshot, "recall", SUPPLY_STORES["recall"])
 
 
     def _identify_staff_procurement_impossible(self, snapshot: Snapshot) -> bool:
