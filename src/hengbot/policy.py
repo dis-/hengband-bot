@@ -17493,6 +17493,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             restore = self._town_producer_entry("_breakout_restore_weapon_key#2", lambda: self._breakout_restore_weapon_key(snapshot))
             if restore is not None:
                 return restore
+        # After the player's own *Destruction* on this floor, Teleportation comes
+        # before Recall (owner 2026-11-04 「治して階の探索を続ける」; n1-b life-367
+        # recalled at full HP from 17 of 41 dives from 46F on, 2026-11-10).
+        destroyed = sealed_pocket.destroyed_leave_key(self, snapshot)
+        if destroyed is not None:
+            return destroyed
         # n1-b life-345 (2026-11-08 08:13:43): the Zul trip's ambush board read
         # Recall here; the trip leaves an ambush by the map edge instead.
         recall = None if zul_trip.holds_surface_recall(self, snapshot) else self._find_recall_scroll(snapshot)

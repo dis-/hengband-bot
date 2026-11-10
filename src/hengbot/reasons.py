@@ -190,7 +190,8 @@ _rows(EXCLUDED, "policy_combat", _RULE_SUMMONER_EXIT,
 _rows(WALK, "policy_combat", _RULE_SUMMONER_EXIT,
       "summoner:seek-downstairs", "summoner:seek-upstairs", "summoner:wait-recall")
 _RULE_STUCK = "stuck / livelock relocations: no enemy prompted them"
-_rows(EXCLUDED, ("policy", "retreat_enclosure", "policy_navigation"), _RULE_STUCK,
+_rows(EXCLUDED, ("policy", "retreat_enclosure", "policy_navigation", "sealed_pocket"), _RULE_STUCK,
+      "stuck:destroyed-circle-teleport", "stuck:destroyed-circle-recall",
       "stuck:ascend", "stuck:enclosed-teleport", "stuck:recall-escape", "stuck:teleport-escape",
       "stuck:walled-off-recall", "livelock:ascend", "livelock:recall-escape", "livelock:teleport-explore")
 _rows(WALK, ("policy", "policy_navigation"), _RULE_STUCK,

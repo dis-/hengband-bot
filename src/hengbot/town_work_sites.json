@@ -11885,6 +11885,13 @@
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
+  "retreat_enclosure.py:melt_toward_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
   "retreat_enclosure.py:open_toward_key": {
     "classification": "action",
     "rows": [
@@ -11948,6 +11955,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "sealed_pocket.py:_last_recall_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing recall owner."
+  },
   "sealed_pocket.py:_line": {
     "classification": "data",
     "rows": [
@@ -11976,6 +11990,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "sealed_pocket.py:destroyed_leave_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing teleport or recall owner."
+  },
   "sealed_pocket.py:key": {
     "classification": "data",
     "rows": [
@@ -11984,6 +12005,13 @@
     "delegation": "selected child; no independent success"
   },
   "sealed_pocket.py:melt_at_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:sealed_region": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -229,7 +229,16 @@ def _dig_key(policy, snapshot, walled) -> str | None:
     return _melt_key(policy, snapshot, walled)
 
 
-def _melt_key(policy, snapshot, walled) -> str | None:
+def melt_toward_key(policy, snapshot, reach, ground, reason: str) -> str | None:
+    """The Stone to Mud route (``_melt_key``) from ``reach`` toward known ``ground``, under
+    ``reason``: a sealed pocket whose straight lines all end at permanent rock
+    (sealed_pocket ``key``)."""
+    if snapshot.player.recalling:
+        return None
+    return _melt_key(policy, snapshot, WalledOff(frozenset(reach), frozenset(ground)), reason)
+
+
+def _melt_key(policy, snapshot, walled, reason: str = MELT_REASON) -> str | None:
     """Melt the route's next wall when beside it, else walk toward it."""
     player = snapshot.player
     if player.blind or player.confused or not sealed_pocket.can_melt(policy, snapshot):
@@ -243,8 +252,8 @@ def _melt_key(policy, snapshot, walled) -> str | None:
         return None
     grid = snapshot.grids.get(first)
     if grid is not None and meltable(grid):
-        return sealed_pocket.melt_at_key(policy, snapshot, first, MELT_REASON)
-    policy.last_reason = MELT_REASON
+        return sealed_pocket.melt_at_key(policy, snapshot, first, reason)
+    policy.last_reason = reason
     return policy._step_toward(snapshot, first)
 
 
@@ -308,14 +317,14 @@ def _strike_key(policy, snapshot, walled) -> str | None:
 OPENERS = (_dig_key, _disarm_key, _strike_key)
 
 
-def _teleport_reserve(policy, snapshot) -> int:
+def teleport_reserve(policy, snapshot) -> int:
     reserve = random_quest_reserve.floor_reserve(policy, snapshot)
     return TELEPORT_RETURN_THRESHOLD if reserve is None else reserve
 
 
 def _leave_key(policy, snapshot) -> str | None:
     """Teleportation again, or Recall at or below the reserve."""
-    if policy._count_teleport_scrolls(snapshot) <= _teleport_reserve(policy, snapshot):
+    if policy._count_teleport_scrolls(snapshot) <= teleport_reserve(policy, snapshot):
         recall = policy._find_recall_scroll(snapshot)
         player = snapshot.player
         if (recall is not None and not player.blind and not player.confused

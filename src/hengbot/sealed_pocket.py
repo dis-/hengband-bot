@@ -55,7 +55,10 @@ from hengbot.policy_constants import NEIGHBOR_OFFSETS
 
 
 REASON = "livelock:stone-to-mud"
+TELEPORT_REASON = "stuck:destroyed-circle-teleport"
+RECALL_REASON = "stuck:destroyed-circle-recall"
 MEMORY = "_sealed_pocket_memory"
+TELEPORTED = "_destroyed_circle_teleport"  # ((floor, circles), turn) of the last read
 
 
 @dataclass
@@ -93,19 +96,28 @@ def _leads_on(policy, position: Position, grid) -> bool:
 
 
 def sealed_region(policy, snapshot: Snapshot) -> set[Position] | None:
-    """The cells the player can walk to, when none of them leads anywhere."""
+    """The cells the player can walk to, when none of them leads anywhere.
+
+    A magic mapping's blank grid is walkable floor (area_mapping.blank_floor, mapped_area's
+    game facts), so it is part of the region, not unknown ground that leads on: n1-b life-367
+    (Mountain 50F, 2026-11-10 20:54) stood in a 28-cell pocket of its own *Destruction* whose
+    grass the map leaves blank, read it as open, searched its walls 60 times and recalled."""
+    mapped = area_mapping.blank_floor(policy, snapshot)
     start = snapshot.player.position
     region, stack = {start}, [start]
     while stack:
         here = stack.pop()
         grid = snapshot.grid_at(here)
-        if grid is None or _stairs(grid):
+        if grid is not None and _stairs(grid):
+            return None
+        if grid is None and (here.y, here.x) not in mapped:
             return None
         for neighbour in _neighbours(here):
             if neighbour in region or not _on_board(snapshot, neighbour):
                 continue
             seen = _known(snapshot, neighbour)
-            if seen is not None and seen.passable:
+            if (seen is not None and seen.passable) or (
+                    seen is None and (neighbour.y, neighbour.x) in mapped):
                 region.add(neighbour)
                 stack.append(neighbour)
             elif _leads_on(policy, neighbour, seen):
@@ -191,10 +203,9 @@ def _line(snapshot: Snapshot, region: set, leading: set, mapped: set, step: tupl
     return None if wall is None or to_unknown is None else _Line(wall, None, to_unknown)
 
 
-def _aim(policy, snapshot: Snapshot, region: set, memory: Memory) -> tuple[str, Position] | None:
+def _aim(policy, snapshot: Snapshot, region: set, memory: Memory, mapped: set,
+         leading: set) -> tuple[str, Position] | None:
     """(direction key, first wall) of the chosen line, else None."""
-    mapped = area_mapping.blank_floor(policy, snapshot)
-    leading = _floor_leading_on(policy, snapshot, region, mapped)
     origin = snapshot.player.position
     lines = []
     for step in NEIGHBOR_OFFSETS:
@@ -274,13 +285,68 @@ def melt_at_key(policy, snapshot: Snapshot, wall: Position, reason: str) -> str 
 
 
 def after_destruction_key(policy, snapshot: Snapshot) -> str | None:
-    """``key`` at once, for a sealed region inside the player's *Destruction*, else None."""
+    """For a sealed region inside the player's *Destruction*, at once: ``key``, else the
+    Teleportation of ``destroyed_leave_key``, else Recall as the last means; else None.
+
+    Owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出すれば良い」 (melt first, Teleportation
+    when it cannot), and 2026-11-04 on what follows a *Destruction*: 「治して階の探索を続ける。
+    破壊の回数だけでは帰還しない」.  The pocket's walls hide no secret door (area_mapping.wrecked),
+    so it is not searched first."""
     if not area_mapping.destroyed_since_arrival(policy, snapshot):
+        return None
+    player = snapshot.player
+    if snapshot.in_town or player.blind or player.confused or player.recalling:
         return None
     region = sealed_region(policy, snapshot)
     if region is None or not area_mapping.in_destroyed_circle(policy, snapshot, region):
         return None
-    return key(policy, snapshot)
+    return (key(policy, snapshot) or destroyed_leave_key(policy, snapshot)
+            or _last_recall_key(policy, snapshot))
+
+
+def destroyed_leave_key(policy, snapshot: Snapshot) -> str | None:
+    """After the player's own *Destruction* on this floor visit: one Teleportation per
+    circle while the scrolls are above the leave reserve (retreat_enclosure's), else None.
+
+    The stuck and livelock escapes ask it before their Recall: Recall only after it (owner
+    2026-11-04 「治して階の探索を続ける」).  A second stuck on the same circle after the read is the
+    floor's own, and keeps the old order."""
+    from hengbot import retreat_enclosure
+
+    if not area_mapping.destroyed_since_arrival(policy, snapshot):
+        return None
+    if snapshot.player.recalling or snapshot.floor_key[2] != 0 and not policy._on_random_quest_floor(snapshot):
+        return None
+    mark = (snapshot.floor_key, area_mapping.circle_count(policy, snapshot))
+    read = getattr(policy, TELEPORTED, None)
+    # A later decision on the read's own game turn is the same leave (the executor refused it).
+    if read is not None and read[0] == mark and snapshot.turn > read[1]:
+        return None
+    if policy._count_teleport_scrolls(snapshot) <= retreat_enclosure.teleport_reserve(policy, snapshot):
+        return None
+    scroll = policy._escape_scroll(snapshot, teleport_only=True)
+    if scroll is None:
+        return None
+    setattr(policy, TELEPORTED, (mark, snapshot.turn))
+    policy._stuck_escape_streak = 0
+    policy._nav_exhausted = False
+    policy._nav_stall_count = 0
+    policy.last_reason = TELEPORT_REASON
+    return policy._read_key(snapshot, scroll)
+
+
+def _last_recall_key(policy, snapshot: Snapshot) -> str | None:
+    """Recall out of a sealed circle nothing else leaves (a random quest floor is not left)."""
+    if snapshot.floor_key[2] != 0 or not policy._can_read_scrolls(snapshot):
+        return None
+    recall = policy._find_recall_scroll(snapshot)
+    if recall is None:
+        return None
+    policy._stuck_escape_streak = 0
+    policy._note_return_start(None)
+    policy._returning_to_town = True
+    policy.last_reason = RECALL_REASON
+    return policy._read_dungeon_recall_scroll_key(snapshot, recall)
 
 
 def key(policy, snapshot: Snapshot) -> str | None:
@@ -295,8 +361,18 @@ def key(policy, snapshot: Snapshot) -> str | None:
     if mapping is not None:
         return mapping
     memory = _memory(policy, snapshot)
-    aim = _aim(policy, snapshot, region, memory)
+    mapped = area_mapping.blank_floor(policy, snapshot)
+    leading = _floor_leading_on(policy, snapshot, region, mapped)
+    aim = _aim(policy, snapshot, region, memory, mapped, leading)
     if aim is None:
-        return None
+        # Every straight line ends at permanent rock first (the Mountain's peaks around
+        # a *Destruction*: n1-b life-367, 50F, 2026-11-10): melt along the route that
+        # melts fewest walls to the floor that leads on, walking its floor between
+        # (retreat_enclosure's Stone to Mud route).
+        if not leading:
+            return None
+        from hengbot import retreat_enclosure
+
+        return retreat_enclosure.melt_toward_key(policy, snapshot, region, leading, REASON)
     direction, wall = aim
     return _spend_melt(policy, snapshot, direction, wall, REASON)

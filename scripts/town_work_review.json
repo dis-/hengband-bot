@@ -14339,7 +14339,7 @@
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "sealed_pocket.key at once for a sealed region inside the player's *Destruction* of this floor visit (owner 2026-11-05 「*破壊* の後はすぐ溶かす」); dungeon only.",
+    "evidence": "For a sealed region inside the player's *Destruction* of this floor visit, at once: sealed_pocket.key (the map, the melt line or the melt route; owner 2026-11-05 「*破壊* の後はすぐ溶かす」), else one Teleportation (destroyed_leave_key), else Recall as the last means; dungeon only.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -17691,5 +17691,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:sealed_region": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cells the player can walk to (known floor and a magic mapping's blank floor), when none leads on; read off the board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:destroyed_leave_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: after the player's own *Destruction* on this floor visit; never reached in town.",
+    "evidence": "dungeon-only: one Teleportation per *Destruction* circle while the scrolls are above the leave reserve, asked by the destroyed pocket and before the stuck and livelock Recall (owner 2026-11-04 「治して階の探索を続ける。破壊の回数だけでは帰還しない」, n1-b life-367 Mountain 50F 2026-11-10); returns the read key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing teleport or recall owner."
+  },
+  "sealed_pocket.py:_last_recall_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: a sealed pocket of the player's own *Destruction*; never reached in town.",
+    "evidence": "dungeon-only: Recall out of a sealed *Destruction* pocket nothing else leaves (no melt route, no Teleportation above the reserve), the last means; not on a quest floor; returns the read key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing recall owner."
+  },
+  "retreat_enclosure.py:melt_toward_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: a sealed pocket whose straight lines end at permanent rock; never reached in town.",
+    "evidence": "dungeon-only: the Stone to Mud route (_melt_key) from a sealed pocket toward the floor that leads on, under the asker's reason (sealed_pocket.key, n1-b life-367 Mountain 50F 2026-11-10: every line from its *Destruction* pocket ended at the Mountain's permanent peaks); returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   }
 }
