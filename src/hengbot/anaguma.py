@@ -25,6 +25,13 @@ out (owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出す�
 or more is expected to run from the player (``run_chance``, the game's ``mon_will_run``) gets
 no pocket, and a plan not yet dug is dropped (owner 2026-11-10 「弱いoの群れなど…自分から逃げる
 群れに対しては効果が薄い…使う相手を絞って」).
+A pack that stayed out of a held pocket (the wait, the detection and the second wait over,
+``pack-stays-out``) gets no pocket again on the floor: digging another one for the same pack
+only repeats the wait.  n1-b life-370 (Orc cave 23F, 2026-11-11 05:42,
+stall:floor-dwell:anaguma:hold): stone trolls (race 297) that did not step onto the mouth were
+dug for and waited out twice, each new plan made once ``RETRY_GAME_TURNS`` had passed, until the
+floor-dwell guard stopped the bot.  A pocket of any phase is released once no member of its
+pack can walk to the player any more (``_reaches``).
 A wall-passer or runners veto, once read, holds for ``RETRY_GAME_TURNS``, and a released plan is
 not made again for the same pack on the floor within that window (``_latched``, ``key``).
 
@@ -150,12 +157,26 @@ def plan(policy) -> Plan | None:
     return getattr(policy, MEMORY, None)
 
 
+STAYED_OUT = "pack-stays-out"
+
+
 def _release(policy, why: str) -> None:
     current = plan(policy)
     if current is not None:
         policy._anaguma_last_release = why
         policy._anaguma_released = current
+        if why == STAYED_OUT:
+            spent = getattr(policy, "_anaguma_stayed_out", None)
+            races = current.races | (spent[1] if spent is not None and spent[0] == current.floor
+                                     else frozenset())
+            policy._anaguma_stayed_out = (current.floor, races)
     setattr(policy, MEMORY, None)
+
+
+def _stayed_out(policy, snapshot: Snapshot, races) -> bool:
+    """A pocket for a pack of ``races`` already waited this pack out on this floor."""
+    spent = getattr(policy, "_anaguma_stayed_out", None)
+    return spent is not None and spent[0] == snapshot.floor_key and bool(spent[1] & races)
 
 
 def _latched(policy, name: str, scope, reading: bool, turn: int) -> bool:
@@ -698,7 +719,7 @@ def _hold_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
     if members and snapshot.turn - current.detected_turn < WAIT_GAME_TURNS:
         policy.last_reason = REASON_HOLD
         return WAIT_KEY
-    _release(policy, "pack-gone" if not members else "pack-stays-out")
+    _release(policy, "pack-gone" if not members else STAYED_OUT)
     return None
 
 
@@ -754,9 +775,10 @@ def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
         _release(policy, "runners")   # not dug yet: a pack that runs never comes to the mouth
         policy._anaguma_veto = "runners"
         return None
-    if (current is not None and current.phase in ("walk", "dig") and not _dug(snapshot, current)
-            and not _reaches(policy, snapshot, _members(snapshot, current.races))):
-        _release(policy, "unreachable")   # not dug yet: a pack that cannot come never comes
+    if (current is not None and current.phase != "close"
+            and (known := [m for m in _members(snapshot, current.races) if not m.asleep])
+            and not _reaches(policy, snapshot, known)):
+        _release(policy, "unreachable")   # a pack that cannot come never comes to the mouth
         policy._anaguma_veto = "unreachable"
         return None
     if current is None:
@@ -764,6 +786,9 @@ def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
         if found is None:
             return None
         races, animal = found
+        if _stayed_out(policy, snapshot, races):
+            policy._anaguma_veto = "stayed-out"
+            return None
         if sealed_pocket.sealed_region(policy, snapshot) is not None:
             # Walled in: no pack walks to the player, and the charges are the way out
             # (sealed_pocket, owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出すれば良い」).
