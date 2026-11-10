@@ -363,5 +363,23 @@ class Quest25PlanValuesTest(unittest.TestCase):
         self.assertTrue(self._loads(old))
 
 
+    def test_a_checkpoint_profile_from_before_the_block_reads_the_legacy_values(self):
+        # Real checkpoints (town_arrival_checkpoint) pickle the policy with its profiles: one
+        # restored from before 2026-11-10 carries the revised plan without revised_plan_values
+        # and decides with the numbers quest25_battle had as constants then.
+        import lzma
+        from hengbot.latch_onset_capture import restore_checkpoint_bytes
+        from hengbot.policy import ConservativePolicy
+        payload = (Path(__file__).with_name("fixtures") / "stolen-deposit-1110" / "t505"
+                   / "policy.pkl.xz").read_bytes()
+        policy = restore_checkpoint_bytes(ConservativePolicy, lzma.decompress(payload))
+        profile = policy.approved_quest_strategy(25)
+        self.assertIn(quest25_plan.DRAFT_KEY, profile.engagement_plan)
+        self.assertNotIn(quest25_plan.VALUES_KEY, profile.engagement_plan)
+        self.assertIs(quest25_plan.values_of(profile), quest25_plan.LEGACY_VALUES)
+        # The legacy numbers are the shipped ones (no decision changes on a restore).
+        self.assertEqual(quest25_plan.values_of(load_quest_strategies(self.DIRECTORY)[25]),
+                         quest25_plan.LEGACY_VALUES)
+
 if __name__ == "__main__":
     unittest.main()

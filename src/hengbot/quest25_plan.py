@@ -100,9 +100,24 @@ def check_profile(data: dict) -> None:
 _PARSED: dict[int, tuple[dict, PlanValues]] = {}
 
 
+# The values of a profile loaded before 2026-11-10, when the numbers were quest25_battle's own
+# constants: a policy checkpoint pickled then (town_arrival_checkpoint, latch_onset_capture)
+# carries its StrategyProfile with ``revised_plan_draft`` and no ``revised_plan_values``.  A
+# restored policy decides as it did; tests/test_quest_strategies.py pins these equal to the
+# shipped QUEST_25.jsonc block.
+LEGACY_VALUES = PlanValues(
+    quiet_actions=50, wall_passer_quiet_actions=100, long_wait_actions=5000,
+    pen_misses_to_escaped=10, maybe_trap_searches=10, trap_searches=10,
+    compare_distance={705: 9, 690: 9, 439: 2}, compare_distance_default=9,
+)
+
+
 def values_of(profile) -> PlanValues:
-    """The values of a loaded quest 25 profile (one the plan runs on)."""
-    raw = profile.engagement_plan[VALUES_KEY]
+    """The values of a loaded quest 25 profile (one the plan runs on); ``LEGACY_VALUES`` for a
+    profile restored from a checkpoint pickled before the block existed."""
+    raw = profile.engagement_plan.get(VALUES_KEY)
+    if raw is None:
+        return LEGACY_VALUES
     cached = _PARSED.get(id(raw))
     if cached is not None and cached[0] is raw:
         return cached[1]

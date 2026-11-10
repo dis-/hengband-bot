@@ -1832,7 +1832,7 @@ class Phase:
     done: Callable
     act: Callable          # the phase's own step
     wait_at: tuple | None = None   # where its wait is counted (None: anywhere, once ready)
-    wait_limit: str | None = None  # the wait_limits item: player actions without an arrival that end it
+    wait_limit: str | int | None = None  # the wait_limits item (or a number): actions without an arrival that end it
 
 
 PHASES = (
@@ -1909,7 +1909,15 @@ def _act(ctx: _Ctx, phase: Phase) -> str | None:
 def _finished(ctx: _Ctx, phase: Phase) -> bool:
     """Its own end, or its wait limit (wait_limits, phase1_wall_passers, phase2)."""
     return phase.done(ctx) or (phase.wait_limit is not None
-                               and ctx.battle.quiet >= ctx.values.wait_limit(phase.wait_limit))
+                               and ctx.battle.quiet >= _wait_limit(ctx, phase))
+
+
+def _wait_limit(ctx: _Ctx, phase: Phase) -> int:
+    """The phase's wait in player actions: its ``wait_limits`` item, or a number a row carries
+    itself (a recorded process's own wait, as tests/test_n1c_174_q25_loops_1109_recorded
+    replays the 50 actions that process ran)."""
+    limit = phase.wait_limit
+    return limit if isinstance(limit, int) else ctx.values.wait_limit(limit)
 
 
 def current_phase(ctx: _Ctx) -> Phase | None:
