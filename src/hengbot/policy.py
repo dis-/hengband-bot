@@ -8252,6 +8252,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     "_direction_key#1", partial(combat_answer.direct_blow, self, snapshot, target)))
             if cornered is not None:
                 return cornered.key
+            # A mining run the ruled-out unique ended takes its decided exit
+            # rather than waiting in place (n1-c life-193, _mining_abort_exit_key).
+            if (abort_exit := self._town_producer_entry(
+                    "_mining_abort_exit_key",
+                    lambda: self._mining_abort_exit_key(snapshot, strategic_hostiles),
+                    family="fundraising")) is not None:
+                return abort_exit
             self.last_reason = "flee:wait"
             return WAIT_KEY
 
@@ -15664,7 +15671,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             self._fruitless_disengage_floor = None
             self._fruitless_disengage_decisions = 0
-            if self._last_return_trigger is None:
+            if (self._last_return_trigger is None
+                    and not self._mining_abort_latched(snapshot)):
                 self._returning_to_town = False
                 self._note_return_end()
             if self._escape_state.owner == "disengage":
@@ -15706,9 +15714,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # so a swarm whose count never trends down still falls back to the
             # unchanged disengage episode and its visible terminal. Once genuine
             # absence decays the score below the declaration threshold, the stale
-            # latch no longer blocks mining.
-            self._returning_to_town = False
-            self._note_return_end()
+            # latch no longer blocks mining.  A run the ruled-out unique ended
+            # (_mining_unbeatable_unique_abort_key) is not this latch's to
+            # release: n1-c life-193 (Yeek cave 1F, 2026-11-10 19:3x) took the
+            # abort's one step toward the up stairs, this branch cleared the
+            # return on the next board, and the run went back to seek-loot
+            # beside the sleeping Greater Hell-Beast until the loop detector.
+            if not self._mining_abort_latched(snapshot):
+                self._returning_to_town = False
+                self._note_return_end()
             self._escape_state.release()
             return None
         if not breeders and self._fruitless_fight_is_winnable(snapshot, hostiles):

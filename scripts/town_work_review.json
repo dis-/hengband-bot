@@ -17354,5 +17354,16 @@
     "observer": "Existing shop purchase effect observers.",
     "delegation": "Selected child owns admission and observed effects; no independent success.",
     "evidence": "Pure closure delegating to fundraising_survival.affordable; no command or independent effect credit."
+  },
+  "policy_fundraising.py:FundraisingMixin._mining_abort_exit_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Dungeon-only: the flight's wait in place on a Yeek cave 1F mining run the ruled-out unique ended (n1-c life-193); never in town.",
+    "evidence": "Ascends ('<') on the up stairs, waits for an active recall, steps toward the known up stairs when no nearer any threat, else reads Word of Recall; each through _offer_execution / _fundraising_return_route_key. None leaves the flight's wait.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

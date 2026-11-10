@@ -674,6 +674,90 @@ class FundraisingMixin:
         self.last_reason = f"fundraise:abort-unbeatable-unique:{exit_reason}"
         return key
 
+    def _mining_abort_latched(self, snapshot: Snapshot) -> bool:
+        """The ruled-out unique ended the mining run on this floor (the abort above)."""
+        return (
+            getattr(self, "_mining_abort_floor", None) == snapshot.floor_key
+            and snapshot.dungeon_level > 0
+        )
+
+    @claims(ClaimOwner.FUNDRAISING)
+    def _mining_abort_exit_key(
+        self, snapshot: Snapshot, threats: list[MonsterState]
+    ) -> str | None:
+        """The aborted run's exit where the flight could only wait in place.
+
+        n1-c life-193 (Lv8, Yeek cave 1F, 2026-11-10 19:3x): the abort latched
+        the return on sighting a sleeping Greater Hell-Beast 17-18 cells away,
+        then the flight owned every board (owner 2026-11-07 「眠っている敵でも
+        強い敵からは離れる」), found no cell farther from it and no escape scroll
+        (Recall is not one), and waited 194 times at a dead end 5 cells from the
+        known up stairs with 9 Recall scrolls, until the loop detector.  The
+        exit is already decided (owner 2026-10-31 「採掘を切り上げて地上に戻る」),
+        so the wait takes it instead: the stairs underfoot, else a step toward
+        them that comes no nearer any threat (a nearer step is the one the
+        flight walks back), else a Recall read (owner 2026-11-04 「視界内に起きた
+        敵がいなければ撃つより先に帰還を読む」), else the wait.  An active
+        recall is waited for under the abort's name.
+        """
+        if not self._mining_abort_latched(snapshot):
+            return None
+        player = snapshot.player
+        here = snapshot.grid_at(player.position)
+        prefix = "fundraise:abort-unbeatable-unique"
+        if here is not None and self._is_upstairs_target(here):
+            self.last_reason = f"{prefix}:ascend"
+            self._offer_execution(
+                UP_STAIRS_KEY, producer="fundraising",
+                work_id=f"fundraise:abort:ascend:{snapshot.floor_key}",
+                next_step="fundraising.ascend.send",
+                expected_effect="floor-change",
+                continuation="fundraising.observe-town-arrival",
+            )
+            return UP_STAIRS_KEY
+        if player.recalling:
+            self.last_reason = f"{prefix}:wait-recall"
+            self._offer_execution(
+                WAIT_KEY, producer="fundraising",
+                work_id="fundraise:abort:recall-wait",
+                next_step="fundraising.observe-recall-arrival",
+                expected_effect="floor-change",
+            )
+            return WAIT_KEY
+        step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
+        if step is not None and all(
+            self._monster_cast_distance(step, monster.position)
+            >= self._monster_cast_distance(player.position, monster.position)
+            for monster in threats
+        ):
+            self.last_reason = f"{prefix}:seek-upstairs"
+            self._declare_reach(step)
+            return self._fundraising_return_route_key(
+                self._step_toward(snapshot, step),
+                step="fundraising.seek-upstairs",
+                work_id="fundraise:abort:upstairs-step",
+            )
+        recall = self._find_recall_scroll(snapshot)
+        if (
+            recall is not None
+            and not player.blind
+            and not player.confused
+            and self._can_read_scrolls(snapshot)
+        ):
+            self.last_reason = f"{prefix}:recall"
+            key = self._town_producer_entry(
+                "_read_dungeon_recall_scroll_key",
+                lambda: self._read_key(snapshot, recall), family="departure", board=snapshot)
+            self._offer_execution(
+                key, producer="fundraising",
+                work_id="fundraise:abort:recall",
+                next_step="fundraising.recall.send",
+                arguments=(recall.slot,), expected_effect="recall-activated",
+                continuation="fundraising.observe-recall-arrival",
+            )
+            return key
+        return None
+
     def _update_mining_combat_streaks(
         self,
         snapshot: Snapshot,

@@ -6604,6 +6604,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_fundraising.py:FundraisingMixin._mining_abort_exit_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_fundraising.py:FundraisingMixin._mining_closure_key": {
     "classification": "producer",
     "rows": [
