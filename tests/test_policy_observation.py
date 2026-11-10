@@ -401,8 +401,11 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol = self._policy()
         for _ in range(EMPTY_DIVE_LIMIT):
             self._run_dive(pol, **self.OVEREXTENDED)
-        self.assertEqual(pol._alternate_dungeon, 3)
-        self.assertEqual(pol._target_dungeon_id, 3)
+        # Owner 2026-11-10 「収まる中で一番深い所へ」: the deepest entered landing
+        # below the over-extended depth (the Mountain 25), no longer the
+        # shallowest (the Orc cave).
+        self.assertEqual(pol._alternate_dungeon, 14)
+        self.assertEqual(pol._target_dungeon_id, 14)
 
     def test_unentered_alternate_is_not_a_walk_in_target(self):
         pol = self._castle_policy()
@@ -473,8 +476,11 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
                 angband_unlocked=False, **self.OVEREXTENDED,
             )
 
-        self.assertEqual(pol._alternate_dungeon, 3)
-        self.assertEqual(pol._target_dungeon_id, 3)
+        # Owner 2026-11-10 「収まる中で一番深い所へ」: the deepest entered landing
+        # below the over-extended depth (the Mountain 25), no longer the
+        # shallowest (the Orc cave).
+        self.assertEqual(pol._alternate_dungeon, 14)
+        self.assertEqual(pol._target_dungeon_id, 14)
         self.assertIsNone(pol._conquest_committed)
 
     def test_guardian_conquest_discards_alternate_and_selects_ordinary_target(self):
@@ -519,7 +525,10 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         pol = self._policy()
         for _ in range(EMPTY_DIVE_LIMIT):
             self._run_dive(pol, loot=4, emergencies=3)
-        self.assertEqual(pol._alternate_dungeon, 3)
+        # Owner 2026-11-10 「収まる中で一番深い所へ」: the deepest entered landing
+        # below the over-extended depth (the Mountain 25), no longer the
+        # shallowest (the Orc cave).
+        self.assertEqual(pol._alternate_dungeon, 14)
 
     def test_five_pickups_reset_the_over_extension_streak(self):
         pol = self._policy()
@@ -555,7 +564,10 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         self.assertEqual(pol._target_empty_dives, 2)
         self.assertIsNone(pol._alternate_dungeon)
         self._run_dive(pol, **self.OVEREXTENDED)      # streak 3 -> switch
-        self.assertEqual(pol._alternate_dungeon, 3)
+        # Owner 2026-11-10 「収まる中で一番深い所へ」: the deepest entered landing
+        # below the over-extended depth (the Mountain 25), no longer the
+        # shallowest (the Orc cave).
+        self.assertEqual(pol._alternate_dungeon, 14)
 
     def test_only_a_profitable_dive_clears_the_streak(self):
         pol = self._policy()

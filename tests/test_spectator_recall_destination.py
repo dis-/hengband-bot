@@ -188,8 +188,10 @@ class ObservedAlternateReasonTest(unittest.TestCase):
         town = self.source._town()
         self.assertEqual(
             _destination(policy, town),
-            {"dungeon_id": 3, "dungeon_name": "Orc Cave",
-             "depth": policy._dungeon_entry_depth(town, 3, via_recall=True),
+            # Owner 2026-11-10 「収まる中で一番深い所へ」 (was the Orc cave, 3):
+            # the deepest landing below the over-extended depth.
+            {"dungeon_id": 14, "dungeon_name": "Mountain",
+             "depth": policy._dungeon_entry_depth(town, 14, via_recall=True),
              "reason": "over_extended_dives"},
         )
         policy._observe(town)  # the next observation re-applies the alternate
@@ -230,7 +232,8 @@ class ObservedAlternateReasonTest(unittest.TestCase):
         town = self.source._town()
         restored._observe(town)
         destination = _destination(restored, town)
-        self.assertEqual(destination["dungeon_id"], 3)
+        # The deepest fit since 2026-11-10 「収まる中で一番深い所へ」 (was 3).
+        self.assertEqual(destination["dungeon_id"], 14)
         self.assertEqual(destination["reason"], "alternate_dungeon")
 
 

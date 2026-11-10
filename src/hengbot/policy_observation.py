@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import destruction_use, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, destruction_use, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -122,6 +122,10 @@ class ObservationMixin:
         bm_destruction_fund.observe(self, snapshot)
         self._retire_vanished_pending_withdrawals(snapshot)
         previous_floor = self._floor_key
+        if previous_floor is None:
+            # A restarted process keeps the recall-target switch its previous
+            # process decided (alternate_dungeon_record; n1-b life-362).
+            alternate_dungeon_record.restore(self, snapshot)
         if self._breeder_fled_floor is not None and (
             snapshot.in_town
             or snapshot.floor_key[0] != self._breeder_fled_floor[0]
@@ -583,8 +587,15 @@ class ObservationMixin:
                 judged_dungeon if judged_dungeon is not None else pursued_target
             )
             self._last_overextended_depth = snapshot.recall_depth
+            # Owner 2026-11-10 (n1-b life-362, over-extended in Angband 70F and
+            # the Mountain 50F, sent to the Orc cave 23F): 「収まる中で一番深い
+            # 所へ」 -- an over-extended streak takes the deepest entered landing
+            # shallower than the depth that was too hard (the Castle 32F there),
+            # not the shallowest.  The guardian valve was never over-extended by
+            # depth and keeps its own order (Angband first, then the shallowest).
             alt = self._pick_alternate_dungeon(
                 snapshot,
+                prefer_deepest=not guardian_bounces_only,
                 guardian_bounced_dungeon=(
                     bounced_dungeon if guardian_bounces_only else None
                 ),
@@ -1141,6 +1152,8 @@ class ObservationMixin:
         breeder_floor_record.carry(self, snapshot, previous_floor is None)
         # The same for the town end's mining cycle.
         town_end_mining.carry(self, snapshot, previous_floor is None)
+        # The same for the recall-target switch (restored at the start).
+        alternate_dungeon_record.record(self, snapshot, force=previous_floor is None)
         # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
         # an attack the player's own teleport already left behind is no reason
         # for a retreat after the landing; only a new unseen hit observed from

@@ -4043,6 +4043,10 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     # A restarted process reads the absorbed-power lists it lacks first
     # (me_powers_refresh.resume_read_key, n1-c life-178 2026-11-09).
     policy._me_power_resume_reads = True
+    # The decided recall-target switch, for every restart (n1-b life-362).
+    policy._alternate_dungeon_record_path = args.decision_log.with_name(
+        "alternate-dungeon.json"
+    )
     # The town end's open mining cycle, for a restart during the cycle.
     policy._town_end_mining_path = args.decision_log.with_name(
         "town-end-mining.json"
