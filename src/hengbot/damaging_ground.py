@@ -74,7 +74,14 @@ def hurts_here(policy, snapshot) -> bool:
 
 
 def hurts_at(policy, snapshot, position) -> bool:
-    """Standing on ``position`` would damage this player now."""
+    """Standing on ``position`` would damage this player now.
+
+    This is the player's question (invulnerability, levitation over shallow ground,
+    the ground element's immunity), unlike policy ``_is_damaging_grid``, the map's
+    question of which terrain can damage anyone, which the walkers and this module's
+    safe cells (``_safe``) use: a step off lands on ground that would not hurt even
+    without a protection.  Deep water, which only drowns an overloaded player, is in the
+    map's set but not here (see ``_is_damaging_grid``)."""
     player = snapshot.player
     grid = snapshot.grid_at(position)
     elements = getattr(policy, "_damaging_terrain_elements", {})
