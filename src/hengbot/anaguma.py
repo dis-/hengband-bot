@@ -19,7 +19,9 @@ Owner 2026-11-10 (verbatim, the request): 「群れに対抗するための戦�
 The pack: two or more hostile monsters of one FRIENDS race (MonraceDefinitions), at least one
 awake and able to move.  An animal pack (ANIMAL, no PASS_WALL/KILL_WALL) needs 4 cells; any
 other pack 2.  A monster that passes or kills walls anywhere in view or detection vetoes the
-pocket (monster-floor/monster-move.cpp:76-96).
+pocket (monster-floor/monster-move.cpp:76-96).  A player walled in on every side
+(``sealed_pocket.sealed_region``) plans none: no pack walks to it, and its Stone to Mud is the way
+out (owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出すれば良い」).
 
 Phases of the plan (``Plan``):
 
@@ -571,6 +573,11 @@ def key(policy, snapshot: Snapshot, hostiles) -> str | None:
         if found is None:
             return None
         races, animal = found
+        if sealed_pocket.sealed_region(policy, snapshot) is not None:
+            # Walled in: no pack walks to the player, and the charges are the way out
+            # (sealed_pocket, owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出すれば良い」).
+            policy._anaguma_veto = "sealed"
+            return None
         if hostiles and policy._should_flee(snapshot, hostiles, adjacent):
             policy._anaguma_veto = "flee"
             return None
