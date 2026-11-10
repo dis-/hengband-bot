@@ -33,6 +33,7 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_town_visit_purchase_path",
     "_breeder_floor_record_path",
     "_town_end_mining_path",
+    "_alternate_dungeon_record_path",
 )
 
 

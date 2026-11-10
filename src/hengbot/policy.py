@@ -1421,6 +1421,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Display-only (spectator, #47): why _alternate_dungeon was switched to.
         # Set at every assignment of the alternate; no decision reads it.
         self._alternate_dungeon_reason: str | None = None
+        # The switch's restart record (alternate_dungeon_record); the CLI
+        # points the path beside the decision log.
+        self._alternate_dungeon_record_path = None
+        self._alternate_dungeon_record = None
         self._pending_recall_dungeon_id: int | None = None
         # Owner 2026-11-08: a refused global map walks off the wilderness
         # tile's edge (_wilderness_survival_key / _wilderness_edge_key).
@@ -11998,7 +12002,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self, snapshot: Snapshot, unsafe_depth: int, *,
         guardian_bounced_dungeon: int | None = None,
     ) -> int | None:
-        """Select the shallowest entered dungeon below an unsafe destination.
+        """Select the deepest entered dungeon below an unsafe destination.
 
         ``unsafe_depth`` is the arrival depth the caller refused, not
         ``snapshot.recall_depth``.  The two differ whenever the objective's
@@ -12020,9 +12024,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot, guardian_bounced_dungeon=guardian_bounced_dungeon
             )
         else:
+            # Owner 2026-11-10 「収まる中で一番深い所へ」: the refused landing was
+            # too deep for the kit, so the deepest entered landing below it.
             alternate = self._pick_alternate_dungeon(
                 snapshot,
                 max_entry_depth=max(1, unsafe_depth - 1),
+                prefer_deepest=True,
             )
         if alternate is None:
             return None

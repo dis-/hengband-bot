@@ -294,6 +294,9 @@ def normalize_policy_state(restored, *, restart=False):
     # does not know why its target was chosen.
     restored.__dict__.setdefault("_target_dungeon_reason", None)
     restored.__dict__.setdefault("_alternate_dungeon_reason", None)
+    # The switch's restart record (alternate_dungeon_record) postdates them.
+    restored.__dict__.setdefault("_alternate_dungeon_record_path", None)
+    restored.__dict__.setdefault("_alternate_dungeon_record", None)
     # The town end's mining cycle (town_end_mining) postdates version 5.
     restored.__dict__.setdefault("_town_end_mining_cycle", None)
     restored.__dict__.setdefault("_town_end_mining_path", None)

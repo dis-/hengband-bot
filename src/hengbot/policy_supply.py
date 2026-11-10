@@ -2117,7 +2117,7 @@ class SupplyMixin:
         the player on that dungeon's recall floor.  The established
         destination answers when it is safe (D22).  When its landing fails
         the depth gates, the departure read point's rule applies: the safe
-        fallback landing (``_activate_safe_recall_fallback``, the shallowest
+        fallback landing (``_activate_safe_recall_fallback``, the deepest
         entered dungeon below the refused landing).  With no such landing the
         owner's no-safe-destination place answers (USER DECISION 2026-10-02
         「帰還先が全部条件不足の時は止めず ... イークの洞穴へ」): the Yeek cave,
