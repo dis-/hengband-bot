@@ -81,8 +81,9 @@ def mechanical_review():
                                          'it did not create, no callbacks; census origin only.'))
 
 
-def proved_data(functions, names, origins, selected):
-    return data_proof.proved_data(functions, names, origins, selected, SEAM_NAMES)
+def proved_data(functions, names, origins, selected, source):
+    """The selected sites proved observational data (source: the sources inventory read)."""
+    return data_proof.proved_data(functions, names, origins, selected, SEAM_NAMES, source)
 
 
 def kept_reviews(reviewed, proved):
@@ -176,7 +177,7 @@ def generate(source, reviewed, registry_review=None):
         raise ValueError(f'data reviews of sites making keyed offers={keyed_data}; '
                          'town_work.observe_offer credits their offers to them: review them '
                          'as adapter or producer')
-    proved = proved_data(functions, names, origins, selected)
+    proved = proved_data(functions, names, origins, selected, source)
     missing = sorted(selected - reviewed.keys() - proved)
     stale = sorted(reviewed.keys() - selected)
     if missing or stale:
