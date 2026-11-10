@@ -25,6 +25,13 @@ out (owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出す�
 or more is expected to run from the player (``run_chance``, the game's ``mon_will_run``) gets
 no pocket, and a plan not yet dug is dropped (owner 2026-11-10 「弱いoの群れなど…自分から逃げる
 群れに対しては効果が薄い…使う相手を絞って」).
+A pack that stayed out of a held pocket (the wait, the detection and the second wait over,
+``pack-stays-out``) gets no pocket again on the floor: digging another one for the same pack
+only repeats the wait.  n1-b life-370 (Orc cave 23F, 2026-11-11 05:42,
+stall:floor-dwell:anaguma:hold): stone trolls (race 297) that did not step onto the mouth were
+dug for and waited out twice, each new plan made once ``RETRY_GAME_TURNS`` had passed, until the
+floor-dwell guard stopped the bot.  A pocket of any phase is released once no member of its
+pack can walk to the player any more (``_reaches``).
 A wall-passer or runners veto, once read, holds for ``RETRY_GAME_TURNS``, and a released plan is
 not made again for the same pack on the floor within that window (``_latched``, ``key``).
 
@@ -40,6 +47,16 @@ Phases of the plan (``Plan``):
 - ``close`` (animal packs, the last one): an area attack aimed into the mouth while the animal
             is in its blast; else the Magic-Eater's absorbed Speed (never a potion); then step out
             and strike, following it along the tunnel up to its exit, where the plan ends.
+
+A pack none of whose awake members can walk to the player plans none: no member enters ground
+that would hurt it (monster-info.cpp ``monster_can_cross_terrain``: LAVA, COLD_PUDDLE,
+ELEC_PUDDLE, ACID_PUDDLE and POISON_PUDDLE keep off a monster without the matching IMMUNE_* or
+RESIST_ALL, unless it flies: every such terrain is CAN_FLY), so a pack behind such ground never
+comes to the mouth (``_reaches``; unknown grids count as open).  n1-b life-370 (Orc cave 23F,
+2026-11-11): ogres and black ogres held in rooms ringed by 低温帯, 帯電帯 and a shallow acid
+puddle, which they cannot enter; the plan walked the player onto those grounds, where the
+step off (damaging_ground) and the ESP hunt answered, and the boards alternated.  The arrival
+time below follows the same rule.
 
 The arrival time of a member is its path length to ``S`` over the known floor (unknown grids
 count as floor) divided by its moves per player move (core/speed-table.cpp extract_energy,
@@ -140,12 +157,26 @@ def plan(policy) -> Plan | None:
     return getattr(policy, MEMORY, None)
 
 
+STAYED_OUT = "pack-stays-out"
+
+
 def _release(policy, why: str) -> None:
     current = plan(policy)
     if current is not None:
         policy._anaguma_last_release = why
         policy._anaguma_released = current
+        if why == STAYED_OUT:
+            spent = getattr(policy, "_anaguma_stayed_out", None)
+            races = current.races | (spent[1] if spent is not None and spent[0] == current.floor
+                                     else frozenset())
+            policy._anaguma_stayed_out = (current.floor, races)
     setattr(policy, MEMORY, None)
+
+
+def _stayed_out(policy, snapshot: Snapshot, races) -> bool:
+    """A pocket for a pack of ``races`` already waited this pack out on this floor."""
+    spent = getattr(policy, "_anaguma_stayed_out", None)
+    return spent is not None and spent[0] == snapshot.floor_key and bool(spent[1] & races)
 
 
 def _latched(policy, name: str, scope, reading: bool, turn: int) -> bool:
@@ -314,25 +345,79 @@ def _able(snapshot: Snapshot) -> bool:
 
 # ---------------------------------------------------------------- time
 
-def _approach_lengths(snapshot: Snapshot, members, limit: int) -> dict:
-    """Steps from the nearest awake member over the known floor, closed doors and rubble
-    (monsters ignored).  Where this does not reach, ``_arrival`` takes the straight game
-    distance, the least any path can be: both err toward an earlier arrival."""
-    seen = {monster.position: 0 for monster in members if not monster.asleep}
-    queue = deque(seen)
-    while queue:
-        here = queue.popleft()
-        if seen[here] >= limit:
-            continue
-        for around in geo.neighbours(here):
-            if around in seen:
+# monster-info.cpp monster_can_cross_terrain: the immunity each damaging ground asks for
+# (RFR_EFF_IM_*_MASK, race-resistance-mask.cpp: IMMUNE_* or RESIST_ALL); "" is poison.
+GROUND_IMMUNITY = {"fire": "IM_FIRE", "cold": "IM_COLD", "elec": "IM_ELEC", "acid": "IM_ACID",
+                   "": "IM_POIS"}
+REACH_CELLS = 6000      # cells searched before a member is taken as able to come
+
+
+def _enters(policy, flags, grid) -> bool:
+    """A monster of ``flags`` may step onto ``grid`` as far as damaging ground goes."""
+    element = getattr(policy, "_damaging_terrain_elements", {}).get(grid.terrain_id)
+    if element is None or "CAN_FLY" in flags or "RES_ALL" in flags:
+        return True
+    return GROUND_IMMUNITY[element] in flags
+
+
+def _groups(policy, members) -> dict:
+    """The awake members by their race's flags (one search per kind of mover)."""
+    groups: dict[frozenset, list] = {}
+    for monster in members:
+        if not monster.asleep:
+            groups.setdefault(_flags(policy, monster), []).append(monster.position)
+    return groups
+
+
+def _reaches(policy, snapshot: Snapshot, members) -> bool:
+    """An awake member can walk to the player: over open, door and rubble grids it may enter,
+    unknown grids counted as open (a search past ``REACH_CELLS`` cells counts as reaching)."""
+    target = snapshot.player.position
+    for flags, starts in _groups(policy, members).items():
+        seen = set(starts)
+        queue = deque(starts)
+        while queue:
+            here = queue.popleft()
+            if game_distance(here, target) <= 1 or len(seen) > REACH_CELLS:
+                return True
+            for around in geo.neighbours(here):
+                if around in seen:
+                    continue
+                grid = snapshot.grid_at(around)
+                if grid is not None and (not grid.known or not (
+                        grid.passable or grid.is_closed_door or grid.is_rubble)
+                        or not _enters(policy, flags, grid)):
+                    continue
+                seen.add(around)
+                queue.append(around)
+    return False
+
+
+def _approach_lengths(policy, snapshot: Snapshot, members, limit: int) -> dict:
+    """Steps from the nearest awake member over the known floor, closed doors and rubble it
+    may enter (monsters ignored).  Where this does not reach, ``_arrival`` takes the straight
+    game distance, the least any path can be: both err toward an earlier arrival."""
+    seen: dict = {}
+    for flags, starts in _groups(policy, members).items():
+        lengths = {start: 0 for start in starts}
+        queue = deque(lengths)
+        while queue:
+            here = queue.popleft()
+            if lengths[here] >= limit:
                 continue
-            grid = snapshot.grid_at(around)
-            if grid is None or not grid.known or not (
-                    grid.passable or grid.is_closed_door or grid.is_rubble):
-                continue
-            seen[around] = seen[here] + 1
-            queue.append(around)
+            for around in geo.neighbours(here):
+                if around in lengths:
+                    continue
+                grid = snapshot.grid_at(around)
+                if grid is None or not grid.known or not (
+                        grid.passable or grid.is_closed_door or grid.is_rubble):
+                    continue
+                if not _enters(policy, flags, grid):
+                    continue
+                lengths[around] = lengths[here] + 1
+                queue.append(around)
+        for cell, steps in lengths.items():
+            seen[cell] = min(steps, seen.get(cell, steps))
     return seen
 
 
@@ -383,7 +468,7 @@ def _candidate(policy, snapshot: Snapshot, races, animal: bool) -> Plan | None:
     success = _success(snapshot)
     origin = snapshot.player.position
     here_gap = min((game_distance(origin, monster.position) for monster in members), default=0)
-    lengths = _approach_lengths(snapshot, members, ARRIVAL_SEARCH)
+    lengths = _approach_lengths(policy, snapshot, members, ARRIVAL_SEARCH)
     rate = _rate(snapshot, members)
     best = None
     for start, walk in _walk_lengths(policy, snapshot).items():
@@ -447,7 +532,7 @@ def _extend(policy, snapshot: Snapshot, current: Plan, standing: int) -> None:
         remaining = current.length + 1 - (standing + 1)
         members = _members(snapshot, current.races)
         # The pack walks to the start and on through the cells already open.
-        arrival = _arrival(_approach_lengths(snapshot, members, ARRIVAL_SEARCH),
+        arrival = _arrival(_approach_lengths(policy, snapshot, members, ARRIVAL_SEARCH),
                            _rate(snapshot, members), current.tunnel.start, members) + standing + 1
         if (usable_charges(policy, snapshot) < remaining
                 or arrival <= _dig_time(0, remaining, _success(snapshot)) + 1):
@@ -634,7 +719,7 @@ def _hold_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
     if members and snapshot.turn - current.detected_turn < WAIT_GAME_TURNS:
         policy.last_reason = REASON_HOLD
         return WAIT_KEY
-    _release(policy, "pack-gone" if not members else "pack-stays-out")
+    _release(policy, "pack-gone" if not members else STAYED_OUT)
     return None
 
 
@@ -690,11 +775,20 @@ def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
         _release(policy, "runners")   # not dug yet: a pack that runs never comes to the mouth
         policy._anaguma_veto = "runners"
         return None
+    if (current is not None and current.phase != "close"
+            and (known := [m for m in _members(snapshot, current.races) if not m.asleep])
+            and not _reaches(policy, snapshot, known)):
+        _release(policy, "unreachable")   # a pack that cannot come never comes to the mouth
+        policy._anaguma_veto = "unreachable"
+        return None
     if current is None:
         found = _pack(policy, snapshot)
         if found is None:
             return None
         races, animal = found
+        if _stayed_out(policy, snapshot, races):
+            policy._anaguma_veto = "stayed-out"
+            return None
         if sealed_pocket.sealed_region(policy, snapshot) is not None:
             # Walled in: no pack walks to the player, and the charges are the way out
             # (sealed_pocket, owner 2026-11-05 「*破壊*後全方位壁なら岩石溶解で脱出すれば良い」).
@@ -708,6 +802,9 @@ def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
             return None
         if _latched(policy, "runners", (snapshot.floor_key, races), runners(snapshot, races), snapshot.turn):
             policy._anaguma_veto = "runners"
+            return None
+        if not _reaches(policy, snapshot, _members(snapshot, races)):
+            policy._anaguma_veto = "unreachable"
             return None
         retry = getattr(policy, "_anaguma_retry", None)
         if (retry is not None and retry[0] == snapshot.floor_key and retry[1] & races
