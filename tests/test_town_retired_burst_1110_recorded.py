@@ -29,6 +29,9 @@ gate lay in the gate under the name of the carried torches; with 19 carried
 items the floor-step budget counted it one slot and refused the gate, and the
 walk to the Magic shop went round the outside of the town wall until
 owner-retired-burst.
+
+n1-b life-365 (16:28): the third retirement of the burst came on the typed
+depth-gate wait; the stop was named only owner-retired-burst.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -43,7 +46,7 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
-from hengbot.cli import _handle_owner_retirement
+from hengbot.cli import _handle_owner_retirement, _policy_final_stop_required
 from hengbot.model import STORE_HOME, STORE_MAGIC, Position
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
@@ -285,6 +288,26 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
                 policy.confirm_key_posted(key)
         self.assertEqual(progress, [(row, "store-router", True) for row in range(31, 60)])
         self.assertEqual(policy._owner_retired_no_progress_count, 0)
+
+    def test_n1b_365_burst_on_a_typed_wait_is_named_after_it(self):
+        """16:28, row 16 (the stop): the burst's retirement on the depth-gate wait.
+
+        Live: the final reason town:blocked:owner-retired-burst.  The depth
+        gate's Yeek cave fundraising for any missing ability (owner
+        2026-11-10, after this build) is walled off (declared:
+        _start_no_safe_destination_fundraising answers False as the live build
+        did for Destruction and telepathy) so the typed wait recurs as live.
+        """
+        wait = "town:blocked:depth-gate:destination-51:missing-destruction,telepathy"
+        with mock.patch("hengbot.policy.HengbotPolicy._start_no_safe_destination_fundraising",
+                        lambda self, *args, **kwargs: False):
+            policy, recorded, steps = self.load("n1b-365")
+            posted = self.replay_live(policy, recorded, steps)
+        self.assertEqual((recorded[16]["key"], recorded[16]["reason"]), ("5", wait))
+        self.assertEqual(posted[16], "5")
+        self.assertEqual(policy.last_reason,
+                         "town:blocked:owner-retired-burst:after:" + wait)
+        self.assertTrue(_policy_final_stop_required(policy))
 
     def test_n1b_walk_through_the_gate_holding_its_own_torch(self):
         """Row 3 (decision 1611): the board after the thrown torch killed the dog.

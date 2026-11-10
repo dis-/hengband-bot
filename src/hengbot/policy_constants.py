@@ -387,8 +387,14 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
 TOWN_END_SURVIVAL_STOP_PREFIX = 'town:blocked:survival:'
 TOWN_END_UNMET_STOP_PREFIX = 'town:blocked:unmet:'
 
+# The owner-retired burst whose last retirement came on a typed town:blocked:* wait
+# is named after that wait: ``town:blocked:owner-retired-burst:after:<the wait's reason>``
+# (cli._owner_retired_burst_reason).  A diagnostic name only; the stop is the burst's.
+OWNER_RETIRED_BURST_AFTER_PREFIX = 'town:blocked:owner-retired-burst:after:'
+
 # Reason families on which the driver stops, beside the exact set above.
-POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX)
+POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
+                              OWNER_RETIRED_BURST_AFTER_PREFIX)
 
 TUNNEL_KEY = "T"
 

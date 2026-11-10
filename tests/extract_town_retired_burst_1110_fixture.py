@@ -17,6 +17,9 @@ C:/hengband-backups/pdca/captures/town-retired-burst-1110/):
   n1b-364  n1-b life-364, build bot-c6e2443b2, 10:18 (incident-101818):
            the walk to the Magic shop, journal rows 0-59 (the torch throw,
            the bookkeeping after it and the walk round the town wall).
+  n1b-365  n1-b life-365, 2026-11-10 16:28 (incident 162843): the
+           depth-gate waits whose third retirement made the burst, journal
+           rows 0-16 (the stop).
 
 Each stop keeps its town-arrival checkpoint (``policy.pkl``), the journal rows
 named above and the sidecar files the restored policy reads (base64), all
@@ -39,6 +42,7 @@ STOPS = {
     "n1a-508-0040": (ROOT / "n1-a-life-508/incident-004001/town-arrival", 45),
     "n1a-508-0320": (ROOT / "n1-a-life-508/incident-032007/town-arrival", 20),
     "n1b-364": (ROOT / "n1-b-life-364/incident-101818/town-arrival", 60),
+    "n1b-365": (ROOT / "n1-b-life-365/incident-162843/town-arrival", 17),
 }
 LEFT_OUT = {"_loadout_report_path"}
 PRESET = 9 | lzma.PRESET_EXTREME
