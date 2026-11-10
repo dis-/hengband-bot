@@ -167,6 +167,45 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("5 pd1\r\x1b", "home:atomic-withdraw"))
         self.assertEqual(policy._home_atomic_withdraw_pending[0], PICKAXE)
 
+    def test_n1a_2243_home_scan_runs_after_the_deposit(self):
+        """22:43, row 47 (decision 11981): the Home page after an atomic deposit.
+
+        The same Home visit shape one visit later (build bot-49436da51): live
+        ``ESC`` home:scan-incomplete-open-page, the step-off and re-entry.
+        """
+        policy, recorded, steps = self.load("n1a-508-2243")
+        self.replay_live(policy, recorded, steps[:47])
+        self.assertEqual((recorded[45]["reason"], recorded[47]["key"], recorded[47]["reason"]),
+                         ("home:atomic-deposit", "\x1b", "home:scan-incomplete-open-page"))
+        board = steps[47][1]()
+        self.assertEqual(board.store.store_type, STORE_HOME)
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
+        self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners)
+
+    def test_n1a_2243_bound_home_take_composes_after_the_outside_scan(self):
+        """22:43, row 74 (decision 12008): the Home entrance after the outside ``~9``.
+
+        Live: ``5`` shop:travel:await-entry, the page left for the take again and
+        the third retirement made the burst (the 21:05 shape, one visit later).
+        """
+        with mock.patch("hengbot.policy.town_home_route_opened_for",
+                        pre_fix_home_route_opened_for):
+            policy, recorded, steps = self.load("n1a-508-2243")
+            self.replay_live(policy, recorded, steps[:74])
+            self.assertEqual(policy._owner_retired_no_progress_count, 2)
+            self.assertEqual((recorded[73]["key"], recorded[73]["reason"]),
+                             ("~9\x1b", "home:request-knowledge-scan"))
+            pending = policy._home_pending_item
+            self.assertIsNotNone(pending)
+            board = steps[74][1]()
+            self.assertEqual(board.grid_at(board.player.position).store_number, STORE_HOME)
+            self.assertEqual(recorded[74]["reason"], "shop:travel:await-entry")
+            key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("5 pp1\r\x1b", "home:atomic-withdraw"))
+        self.assertEqual(policy._home_atomic_withdraw_pending[0], pending)
+
     def test_n1b_walk_through_the_gate_holding_its_own_torch(self):
         """Row 3 (decision 1611): the board after the thrown torch killed the dog.
 
