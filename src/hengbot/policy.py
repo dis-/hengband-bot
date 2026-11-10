@@ -1636,6 +1636,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The threat tiers' decided side per monster for this floor visit (owner 2026-11-08
         # 「境に余裕を持たせる」, threat_tiers.decided); created on the first reading.
         self._threat_tier_memory = None
+        # The rest slot's ESP tier decided first on this floor (esp_tier_hold).
+        self._esp_tier_hold = None
         # Floor-visit memory for monsters whose blows can paralyze. Both
         # stationary and moving threats retain their last observed cell while
         # unseen, and observation of that cell without the monster retires it.
@@ -16653,6 +16655,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if (
             self._open_neighbor_count(snapshot, snapshot.player.position)
             <= SUMMONER_CHOKE_NEIGHBORS - 1
+            and not damaging_ground.hurts_here(self, snapshot)
         ):
             # The visible-monster channel keeps ownership after reaching its
             # choke and waits there instead of letting ordinary navigation
@@ -17293,6 +17296,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 if (
                     openness <= SUMMONER_CHOKE_NEIGHBORS - 1
                     and summoner_distance >= origin_distance
+                    # The wait there would be a step off it (damaging_ground).
+                    and not damaging_ground.hurts_at(self, snapshot, position)
                 ):
                     candidates.append(
                         (

@@ -22,6 +22,22 @@ last safe cell before the corridor, and decides every ring board from there.  DE
 CONSTRUCTED (the walk): from the loop board the player follows the decided moves; the ogres
 stay where they are (the cold zone) and are sensed only once the player has stepped away.
 
+B, 09:32:31 loop-detected (and again at 09:32:50 after the restart): 27 ogres and black ogres
+sensed south of the corridor (34,51)-(34,56).  The rest slot's ESP tier
+(policy_combat ``_esp_threat_assess``) caps the melee by the slots open around the player's own
+cell: at (34,53) two, strength 36 of HP 450 (0.08 < 0.10, WEAK), and the hunt stepped '4' to
+(34,52); there three, strength 47 (0.104, MEDIUM): no hunt, and the exploration stepped '6'
+back.  Now WEAK and MEDIUM keep the side decided first on the floor (esp_tier_hold, owner
+2026-11-08 「境に余裕を持たせる」), so the hunt walks on.
+DECLARED RECONSTRUCTION: the stop's process was restarted at turn 5136550 (decision sequence
+0), so a fresh policy decides every ring board from its first, as the live one did; the test
+policy has not read the Magic-Eater's power list (the live ``periodic:magic-eater-powers``
+screens), so its rows of absorbed powers differ.
+The hunt's walk then leads into the hazard field to the ogres' doors.  Its goal is now a cell
+that does not hurt (the fight stands there, damaging_ground 「先に出る」), and the detected
+pack's choke (policy ``_detected_threat_key``, ``_summoner_retreat_route``) is never a cell
+that hurts: the wait there was each time a step off it, back and forth with the hunt.
+DECLARED CONSTRUCTED (the walk), as in A.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -165,6 +181,40 @@ class StepOffSensedOccupantRecordedTest(Replay):
         first_safe = next(index for index, row in enumerate(rows) if not row[3])
         self.assertEqual(len(set(positions[:first_safe + 1])), first_safe + 1, rows)
         self.assertNotIn(SHOWN, positions[:first_safe + 1], rows)
+
+
+class EspTierHoldRecordedTest(Replay):
+    def test_recorded_alternation_and_the_two_readings(self):
+        weak, medium = self.board("b", B_FIRST_HUNT), self.board("b", B_BACK)
+        self.assertEqual((here(weak), here(medium)), (WEAK_CELL, MEDIUM_CELL))
+        self.assertEqual(self.recorded("b", B_FIRST_HUNT), ("4", HUNT))
+        self.assertEqual(self.recorded("b", B_BACK), ("6", "explore"))
+        policy = self.policy(weak)
+        tiers = []
+        for raw in (weak, medium):
+            assessment, _tiered = policy._esp_threat_assess(
+                parse_snapshot(copy.deepcopy(raw), self.monrace))
+            tiers.append((assessment["tier"], assessment["melee_slots"][0]))
+        self.assertEqual(tiers, [("weak", 2), ("medium", 3)])
+
+    def test_the_hunt_walks_on_where_the_group_reads_medium(self):
+        policy = self.replay_to("b", B_FIRST_HUNT)
+        _board, key = self.decide(policy, self.board("b", B_FIRST_HUNT))
+        self.assertEqual((key, policy.last_reason), ("4", HUNT))
+        _board, key = self.decide(policy, self.board("b", B_BACK))
+        self.assertEqual(policy.last_reason, HUNT)
+        offset = STEPS[key]
+        self.assertNotEqual(Position(MEDIUM_CELL.y + offset[0], MEDIUM_CELL.x + offset[1]), WEAK_CELL)
+
+    def test_the_hunt_into_the_hazard_field_never_waits_on_it(self):
+        policy = self.replay_to("b", B_WALK)
+        rows = self.walk(policy, self.board("b", B_WALK), 40)
+        reasons = [row[2] for row in rows]
+        self.assertIn(HUNT, reasons)
+        # No wait on hurting ground was asked for (each would have been a step off it).
+        self.assertNotIn(STEP_OFF, reasons, rows)
+        # It ends standing on ground that does not hurt.
+        self.assertFalse(rows[-1][3], rows)
 
 
 if __name__ == "__main__":
