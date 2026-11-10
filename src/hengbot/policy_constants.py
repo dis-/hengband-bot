@@ -15,10 +15,13 @@ from hengbot.model import (
     STORE_WEAPON,
     SPELLBOOK_TVALS,
     SV_POTION_ENLIGHTENMENT,
+    SV_POTION_HEALING,
+    SV_POTION_LIFE,
     SV_POTION_RESIST_COLD,
     SV_POTION_RESTORE_EXP,
     SV_POTION_RESTORE_STR,
     SV_POTION_SLEEP,
+    SV_POTION_STAR_HEALING,
     SV_SCROLL_BLESSING,
     SV_SCROLL_DETECT_DOOR,
     SV_SCROLL_DETECT_INVISIBLE,
@@ -587,8 +590,10 @@ UNIQUE_COMBAT_HP_RESERVE_RATIO = 0.10
 # (threat tiers OQ-7): Cure Light and Cure Serious Wounds are not HP recovery
 # either.  The one exception is a quest strategy whose heal potion is Cure
 # Critical Wounds (QUEST_14, owner 2026-10-31 「致命傷の治癒でよい」), added on
-# that floor by policy._quest_floor_heal_svals.
-HEAL_POTION_SVALS = frozenset({37, 38, 39})
+# that floor by policy._quest_floor_heal_svals.  Cheapest first: the order the
+# supply fight drinks them (supply_fight) and a blind cure tries them (status_cure).
+HEAL_ORDER = (SV_POTION_HEALING, SV_POTION_STAR_HEALING, SV_POTION_LIFE)
+HEAL_POTION_SVALS = frozenset(HEAL_ORDER)
 
 QUEST_STATUS_TAKEN = 1
 

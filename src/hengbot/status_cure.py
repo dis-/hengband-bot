@@ -74,11 +74,8 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
     SV_POTION_CURE_CRITICAL,
-    SV_POTION_HEALING,
-    SV_POTION_LIFE,
-    SV_POTION_STAR_HEALING,
 )
-from hengbot.policy_constants import REST_MACRO, WAIT_KEY
+from hengbot.policy_constants import HEAL_ORDER, REST_MACRO, WAIT_KEY
 
 
 SIGHT_RESTORED = frozenset({"やっと目が見えるようになった。", "You can see again."})
@@ -128,8 +125,8 @@ _REST_FOOD_STATES = frozenset({"normal", "full", "gorged"})
 _HEAVY_LOSS_DIVISOR = 3
 # Cheapest first.  Every one clears blindness: Healing and *Healing* are
 # cure_critical_wounds(300 / 1200), Life is life_stream (quaff-effects.cpp:128-133,
-# spells-status.cpp:289 and 397).
-_HP_RECOVERY_CURES = (SV_POTION_HEALING, SV_POTION_STAR_HEALING, SV_POTION_LIFE)
+# spells-status.cpp:289 and 397).  policy_constants.HEAL_ORDER.
+_HP_RECOVERY_CURES = HEAL_ORDER
 
 
 def _observe_attacker(policy, snapshot) -> None:

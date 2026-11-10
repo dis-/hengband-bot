@@ -12,15 +12,13 @@ from __future__ import annotations
 from hengbot import attack_expectation, me_device_attacks
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
-    SV_POTION_HEALING,
-    SV_POTION_LIFE,
     SV_POTION_RESIST_COLD,
     SV_POTION_RESISTANCE,
-    SV_POTION_STAR_HEALING,
     TVAL_SCROLL,
     TVAL_STAFF,
     TVAL_WAND,
 )
+from hengbot.policy_constants import HEAL_ORDER
 from hengbot.threat_projection import (
     ATTACK_SCROLLS,
     HEAL_AMOUNTS,
@@ -42,8 +40,8 @@ SUPPLY_AMMO_REASON = "supply-fight:fire-good-ammo"
 SUPPLY_WAND_REASON = "supply-fight:aim-wand"
 SUPPLY_STAFF_REASON = "supply-fight:use-staff"
 SUPPLY_SCROLL_REASON = "supply-fight:read-attack-scroll"
-# The cheapest healing potion first (each credited as in the projection).
-HEAL_ORDER = (SV_POTION_HEALING, SV_POTION_STAR_HEALING, SV_POTION_LIFE)
+# The cheapest healing potion first (each credited as in the projection):
+# policy_constants.HEAL_ORDER, imported above.
 
 
 def _fight_target(policy, hostiles, result):
