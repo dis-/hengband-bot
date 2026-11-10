@@ -27,7 +27,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
 sys.path.insert(0, SRC)
 
-from hengbot import town_hold  # noqa: E402
+from hengbot import dungeon_ladder, town_hold  # noqa: E402
 
 DEFAULT_LOGS = (
     "jsonlog/bot-decisions.jsonl",
@@ -126,25 +126,30 @@ def callsite_notes(producers):
 
     Half the rungs have no docstring of their own; what explains their
     position is the comment ``_decide`` carries above the branch that calls
-    them.  The first call site wins, matching the ladder's own order.
+    them.  The first call site wins, matching the ladder's own order.  A layer
+    asked in a module of its own (dungeon_ladder.LAYER_MODULES) carries the
+    comments in its ``key``.
     """
-    path = os.path.join(SRC, "hengbot", "policy.py")
-    text = open(path, encoding="utf-8").read()
-    lines = text.splitlines()
-    tree = ast.parse(text)
+    ladders = [("policy", "_decide")]
+    ladders += [(module, "key") for module in dungeon_ladder.LAYER_MODULES.values()]
     notes = {}
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef) or node.name != "_decide":
-            continue
-        for stmt in node.body:
-            segment = "\n".join(lines[stmt.lineno - 1:stmt.end_lineno])
-            note = leading_comment(lines, stmt.lineno)
-            if not note:
+    for module, function in ladders:
+        path = os.path.join(SRC, "hengbot", f"{module}.py")
+        text = open(path, encoding="utf-8").read()
+        lines = text.splitlines()
+        tree = ast.parse(text)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or node.name != function:
                 continue
-            for producer in producers:
-                if producer in notes or producer not in segment:
+            for stmt in node.body:
+                segment = "\n".join(lines[stmt.lineno - 1:stmt.end_lineno])
+                note = leading_comment(lines, stmt.lineno)
+                if not note:
                     continue
-                notes[producer] = note
+                for producer in producers:
+                    if producer in notes or producer not in segment:
+                        continue
+                    notes[producer] = note
     return notes
 
 

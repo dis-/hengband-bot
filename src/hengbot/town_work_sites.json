@@ -2679,6 +2679,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "ladder_light.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "quest-service"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "lamp_fuel.py:_lantern_identity": {
     "classification": "data",
     "rows": [

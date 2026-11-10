@@ -4,8 +4,10 @@
 The order of the rungs is the order of ``return`` in ``HengbotPolicy._decide``:
 nothing else states it.  This reads that order from the AST and fails when the
 table in ``hengbot/dungeon_ladder.py`` says anything else, so a reorder is a
-visible one-line diff of the table in the same commit.  ``--print`` lists the
-rows as the source has them, for writing the table's diff.
+visible one-line diff of the table in the same commit.  A layer asked in a module
+of its own (``dungeon_ladder.LAYER_MODULES``) is read inside that module's ``key``
+in place of its call in ``_decide``.  ``--print`` lists the rows as the source has
+them, for writing the table's diff.
 """
 from __future__ import annotations
 
@@ -29,6 +31,7 @@ class Row(NamedTuple):
     name: str
     kind: str
     line: int
+    where: str = '_decide'
 
 
 def dotted(node) -> str:
@@ -144,21 +147,49 @@ def _walk_blocks(block, rows):
             _walk_blocks(inner, rows)
 
 
-def ladder_rows(policy_source: str) -> list[Row]:
-    """Every rung of ``_decide`` from the shared ladder's start, in source order."""
-    decide = _function(ast.parse(policy_source), '_decide')
-    start = next(index for index, statement in enumerate(decide.body)
-                 if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
-                 and dotted(statement.value.func) == LADDER_START)
-    ladder = decide.body[start:]
+def _statement_rows(statements) -> list[Row]:
+    """The rungs of a statement list, in source order."""
     rows: list[Row] = []
-    for statement in ladder:
+    for statement in statements:
         for node in ast.walk(statement):
             name = _entry_name(node)
             if name is not None and not name.startswith(COMPOSERS):
                 rows.append(Row(name, 'entry', node.lineno))
-    _walk_blocks(ladder, rows)
+    _walk_blocks(statements, rows)
     return sorted(rows, key=lambda row: row.line)
+
+
+def layer_calls() -> dict[str, str]:
+    """``<module>.key`` -> module, for each layer asked in a module of its own."""
+    return {f'{module}.key': module for module in ladder.LAYER_MODULES.values()}
+
+
+def layer_module_rows(module_source: str, module: str) -> list[Row]:
+    """The rungs a layer module's ``key`` asks, in source order."""
+    function = _function(ast.parse(module_source), 'key')
+    return [row._replace(where=f'{module}.key') for row in _statement_rows(function.body)]
+
+
+def decide_rows(policy_source: str) -> list[Row]:
+    """The rows of ``_decide`` itself from the shared ladder's start; a layer module is one row."""
+    decide = _function(ast.parse(policy_source), '_decide')
+    start = next(index for index, statement in enumerate(decide.body)
+                 if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
+                 and dotted(statement.value.func) == LADDER_START)
+    return _statement_rows(decide.body[start:])
+
+
+def ladder_rows(policy_source: str, module_sources: dict[str, str]) -> list[Row]:
+    """Every rung of the shared ladder in order, a layer module's rows in place of its call."""
+    calls = layer_calls()
+    rows: list[Row] = []
+    for row in decide_rows(policy_source):
+        module = calls.get(row.name) if row.kind == 'direct' else None
+        if module is None:
+            rows.append(row)
+        else:
+            rows.extend(layer_module_rows(module_sources[module], module))
+    return rows
 
 
 def after_decide_rows(policy_source: str) -> list[str]:
@@ -205,7 +236,7 @@ def _first_difference(table, source) -> str:
     for index, (said, found) in enumerate(zip(table, source)):
         if (said.name, said.kind) != found[:2]:
             return (f'ladder row {index}: the table says {said.name} ({said.kind}), '
-                    f'_decide line {found.line} has {found.name} ({found.kind})')
+                    f'{found.where} line {found.line} has {found.name} ({found.kind})')
     return f'ladder length: the table has {len(table)} rows, _decide {len(source)}'
 
 
@@ -271,11 +302,30 @@ def _preemption_findings(layers) -> list[str]:
     return findings
 
 
-def analyze(policy_source: str, plan_sources: dict[str, str]) -> list[str]:
-    """Everything the table says against these sources; [] when they agree."""
-    table = ladder.rows()
-    source = ladder_rows(policy_source)
+def _layer_module_findings(policy_source: str, module_sources: dict[str, str]) -> list[str]:
+    """Each layer module asks exactly its own layer's rows and is called once from ``_decide``."""
     findings = []
+    layers = {layer.name: layer for layer in ladder.LADDER}
+    called = [row.name for row in decide_rows(policy_source) if row.kind == 'direct']
+    for name, module in ladder.LAYER_MODULES.items():
+        if called.count(f'{module}.key') != 1:
+            findings.append(f'layer {name}: _decide calls {module}.key '
+                            f'{called.count(f"{module}.key")} time(s), not once')
+        said = [(rung.name, rung.kind) for rung in layers[name].rungs]
+        found = [row[:2] for row in layer_module_rows(module_sources[module], module)]
+        if said != found:
+            findings.append(f'layer {name}: the table says {said}, {module}.key has {found}')
+    return findings
+
+
+def analyze(policy_source: str, plan_sources: dict[str, str]) -> list[str]:
+    """Everything the table says against these sources; [] when they agree.
+
+    ``plan_sources`` holds the floor plans' modules and the layer modules, by module name.
+    """
+    table = ladder.rows()
+    source = ladder_rows(policy_source, plan_sources)
+    findings = _layer_module_findings(policy_source, plan_sources)
     if [(rung.name, rung.kind) for rung in table] != [row[:2] for row in source]:
         findings.append(_first_difference(table, source))
     after = after_decide_rows(policy_source)
@@ -296,7 +346,8 @@ def analyze(policy_source: str, plan_sources: dict[str, str]) -> list[str]:
 def repository_sources() -> tuple[str, dict[str, str]]:
     def read(name):
         return (POLICY_ROOT / f'{name}.py').read_text(encoding='utf8')
-    return read('policy'), {plan.module: read(plan.module) for plan in ladder.FLOOR_PLANS}
+    modules = [plan.module for plan in ladder.FLOOR_PLANS] + list(ladder.LAYER_MODULES.values())
+    return read('policy'), {module: read(module) for module in modules}
 
 
 def analyze_repository() -> list[str]:
@@ -306,11 +357,12 @@ def analyze_repository() -> list[str]:
 
 def _print() -> None:
     policy_source, plan_sources = repository_sources()
-    for row in ladder_rows(policy_source):
-        print(f'{row.line:6} {row.kind:7} {row.name}')
+    for row in ladder_rows(policy_source, plan_sources):
+        where = '' if row.where == '_decide' else f'  ({row.where})'
+        print(f'{row.line:6} {row.kind:7} {row.name}{where}')
     print('after _decide:', after_decide_rows(policy_source))
-    for module, source in plan_sources.items():
-        print(module, plan_branches(source))
+    for plan in ladder.FLOOR_PLANS:
+        print(plan.module, plan_branches(plan_sources[plan.module]))
 
 
 def main() -> int:

@@ -17135,5 +17135,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-10 (P6) 「ドロップに価値がないなら*破壊*、価値があるT3なら穴熊を試みて地形が悪ければやはり*破壊*する。」: with summoner_open alone (not lethal, not 即死), HP at 90%+, tier T3 and the ladder's *Destruction* usable, when a hostile within the worst radius has a valuable drop (DROP_GOOD/GREAT, UNIQUE, 3+ expected drops), anaguma.key in place of the use; None otherwise (the ladder as before)."
+  },
+  "ladder_light.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "quest-service"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The light layer of _decide moved verbatim (maintainability review step 8): it returns the key of the first of its rungs that acts (_darkness_recovery_key, me_powers.power_key DARK, _dark_locomotion_key, _town_light_restore_key), each through _town_producer_entry as in _decide; the rows are its children's. Selected child inherits work; no independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

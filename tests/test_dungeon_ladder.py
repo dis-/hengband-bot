@@ -33,6 +33,35 @@ class TableAgainstSourceTest(unittest.TestCase):
             source, '"_emergency_item", lambda', '"_esp_threat_hunt_key", lambda'))
         self.assertTrue(any('ladder row' in finding for finding in findings), findings)
 
+    def test_two_rungs_swapped_in_a_layer_module_fail(self):
+        findings = analyze_with(plan=lambda source: swapped(
+            source, '"_darkness_recovery_key", lambda', '"_dark_locomotion_key", lambda'))
+        self.assertTrue(any('ladder row' in finding and 'ladder_light.key line' in finding
+                            for finding in findings), findings)
+        self.assertTrue(any(finding.startswith('layer light: the table says')
+                            for finding in findings), findings)
+
+    def test_a_rung_of_another_layer_in_a_layer_module_fails(self):
+        anchor = '    # Class 16 lights the dark'
+        rung = ('    opening = policy._town_producer_entry("_opening_q34_town_key", lambda: None)\n'
+                '    if opening is not None:\n        return opening\n')
+        findings = analyze_with(plan=lambda source: source.replace(anchor, rung + anchor))
+        self.assertTrue(any(finding.startswith('layer light: the table says')
+                            and '_opening_q34_town_key' in finding for finding in findings), findings)
+
+    def test_a_layer_module_not_called_from_decide_fails(self):
+        findings = analyze_with(policy=lambda source: source.replace(
+            'light = ladder_light.key(self, snapshot)', 'light = None'))
+        self.assertIn('layer light: _decide calls ladder_light.key 0 time(s), not once', findings)
+
+    def test_each_layer_module_is_a_layer_of_the_table(self):
+        self.assertLessEqual(ladder.LAYER_MODULES.keys(), {layer.name for layer in ladder.LADDER})
+        rows = lint.ladder_rows(*lint.repository_sources())
+        for name, module in ladder.LAYER_MODULES.items():
+            with self.subTest(layer=name):
+                self.assertIn(f'{module}.key', {row.where for row in rows})
+                self.assertNotIn(f'{module}.key', {row.name for row in rows})
+
     def test_a_new_rung_without_a_row_fails(self):
         anchor = 'emergency = self._town_producer_entry("_emergency_item"'
         rung = ('new = self._town_producer_entry("_new_key", lambda: None)\n'

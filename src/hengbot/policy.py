@@ -6,6 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
+from hengbot import ladder_light
 from hengbot import anaguma, combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
@@ -7822,25 +7823,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return town_return
             return contested_action
 
-        # Player light radius >= 1 always gives CAVE_LITE to the player's own
-        # square (cave-map.cpp update_lite); a non-blind player whose own square
-        # is not lit therefore has radius zero. In darkness note_spot records
-        # nothing (grid.cpp), so repair the light before combat/mining/navigation.
-        darkness_recovery = self._town_producer_entry("_darkness_recovery_key", lambda: self._darkness_recovery_key(snapshot), family="survival")
-        if darkness_recovery is not None:
-            return darkness_recovery
-        # Class 16 lights the dark with an absorbed power before walking it (me_powers).
-        dark_power = me_powers.power_key(self, snapshot, me_powers.DARK)
-        if dark_power is not None:
-            return dark_power
-        dark_locomotion = self._town_producer_entry("_dark_locomotion_key", lambda: self._dark_locomotion_key(snapshot))
-        if dark_locomotion is not None:
-            return dark_locomotion
-        # In town the light out comes before the class sequences' travels
-        # (n1-b life-343: the staff sequence's inn travel into the dark street).
-        town_light = self._town_producer_entry("_town_light_restore_key", lambda: self._town_light_restore_key(snapshot), family="survival")
-        if town_light is not None:
-            return town_light
+        # The light layer: repair the light before combat/mining/navigation (ladder_light).
+        light = ladder_light.key(self, snapshot)
+        if light is not None:
+            return light
 
         opening_q34 = self._town_producer_entry("_opening_q34_town_key", lambda: self._opening_q34_town_key(snapshot, strategic_hostiles), family="quest-request")
         if opening_q34 is not None:

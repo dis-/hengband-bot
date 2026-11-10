@@ -267,6 +267,14 @@ LADDER = (
     )),
 )
 
+# The layers asked in a module of their own (maintainability review 2026-11-09, step 8): the
+# module's ``key(policy, snapshot, ...)`` asks the layer's rungs in the table's order and
+# ``_decide`` calls it where the layer's rows stand.  The lint reads the rows inside the module
+# in place of that call, and a module asks the rungs of its own layer only.
+LAYER_MODULES = {
+    "light": "ladder_light",
+}
+
 # After the ladder has answered, _choose_key passes its key through these, in order; each may
 # put another in its place, so a rung's return is not always what is posted.
 # Ahead of the whole ladder, in ``_choose_key`` before ``_decide`` is asked, so above the
