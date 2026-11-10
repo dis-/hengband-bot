@@ -525,7 +525,9 @@ class ShopMixin(InStoreMixin):
                 or (kind == "remove-curse" and item.sval == SV_SCROLL_REMOVE_CURSE)
             )
         if kind == "recall":
-            return item.is_recall_scroll
+            # A Rod of Recall is the departure's read (_recall_supply_units);
+            # no store the ledger names sells one, so it is a Home supply.
+            return item.is_recall_scroll or item.is_recall_rod
         if kind == "teleport":
             return item.is_teleport_scroll
         if kind == "cure":

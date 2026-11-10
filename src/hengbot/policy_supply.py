@@ -524,7 +524,7 @@ class SupplyMixin:
         from hengbot import zul_trip
         trip_food = zul_trip.extra_food_items(self, snapshot)
         counts = {
-            "recall": self._count_recall_scrolls(snapshot),
+            "recall": self._count_recall_means(snapshot),
             "teleport": self._count_teleport_scrolls(snapshot),
             "cure": self._count_cure_critical_potions(snapshot),
             "oil": self._oil_departure_count(snapshot),
@@ -1424,7 +1424,11 @@ class SupplyMixin:
             kind = "food"
         if kind is not None:
             status = self._supply_ledger(snapshot, self._planned_depth())[kind]
-            return max(0, status.required_departure - status.count)
+            missing = max(0, status.required_departure - status.count)
+            if kind == "recall" and item.is_recall_rod:
+                # One rod is the departure's read; a second adds nothing.
+                return min(missing, int(self._carried_recall_rod(snapshot) is None))
+            return missing
         if item.is_treasure_detection_scroll:
             requirements = self._fundraising_mining_requirements(snapshot)
             if requirements is None:

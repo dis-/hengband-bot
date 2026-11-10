@@ -1429,6 +1429,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # exported; without an issue watch each stale redraw consumes another
         # Word of Recall scroll.
         self._town_recall_issue_watch: tuple[int, int, int] | None = None
+        # The Rod of Recall the armed town read zapped (None: a scroll was read).
+        self._town_recall_issue_rod: InventoryItem | None = None
         # Whether this town visit already cancelled a recall as unready.  The
         # read point never reads again in the same visit (read/cancel class
         # bound); restored checkpoints read False through getattr.
@@ -10787,6 +10789,43 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _count_recall_scrolls(self, snapshot: Snapshot) -> int:
         return sum(it.count for it in snapshot.inventory if it.is_recall_scroll)
 
+    @staticmethod
+    def _recall_supply_units(items) -> int:
+        """Recall units in ``items``: every scroll, and one for a Rod of Recall.
+
+        The rod reads Word of Recall (cmd-zaprod.cpp SV_ROD_RECALL:
+        recall_player, the scroll's call, with choose_dungeon on the surface)
+        and recharges (pval 60), so it is the town departure's read
+        (``_town_recall_device``), the one scroll the departure requirement
+        adds on top of the standing target (``_compute_supply_ledger``).  A
+        second rod reads nothing more at the departure, so the rods count once
+        (n1-a life-508, 2026-11-11 00:40: ten scrolls of the eleven and a rod
+        in Home, the bot mined for the stock-out).
+        """
+        items = list(items)
+        return (sum(item.count for item in items if item.is_recall_scroll)
+                + int(any(item.is_recall_rod and item.count > 0 for item in items)))
+
+    def _count_recall_means(self, snapshot: Snapshot) -> int:
+        """The supply ledger's recall count: the carried scrolls and rod."""
+        return self._recall_supply_units(snapshot.inventory)
+
+    @staticmethod
+    def _carried_recall_rod(snapshot: Snapshot, *, charged: bool = False) -> InventoryItem | None:
+        """A carried Rod of Recall (with ``charged``, one not recharging)."""
+        return next((item for item in snapshot.inventory
+                     if item.is_recall_rod and (not charged or not item.charging)), None)
+
+    def _recall_issue_stock(self, snapshot: Snapshot) -> int:
+        """What a recall read or zap spends: the scrolls and the charged rods.
+
+        The issue watches compare it across the read: a read scroll leaves the
+        stack, a zapped rod starts recharging.
+        """
+        return (self._count_recall_scrolls(snapshot)
+                + sum(item.count for item in snapshot.inventory
+                      if item.is_recall_rod and not item.charging))
+
     def _count_teleport_scrolls(self, snapshot: Snapshot) -> int:
         return sum(it.count for it in snapshot.inventory if it.is_teleport_scroll)
 
@@ -13210,11 +13249,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # recall target while mining); counting them as a supplier ended the
         # run at the gold target, and the withdrawal brought the same
         # shortage back (n1-a life-508, 2026-11-11 00:40).
-        home_units = sum(
-            item.count for item in self._home_knowledge_items
-            if self._store_item_is_supply(item, "recall")
-        )
-        if recall.count + home_units >= recall.required_departure:
+        # The rods count once across the pack and Home (_recall_supply_units).
+        units = self._recall_supply_units(
+            [*snapshot.inventory, *self._home_knowledge_items])
+        if units >= recall.required_departure:
             return False
         return not self._supply_store_obtainable(
             snapshot, "recall", SUPPLY_STORES["recall"])
@@ -15457,6 +15495,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def _find_recall_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         return self._first_item(snapshot, lambda it: it.is_recall_scroll)
+
+    def _town_recall_device(self, snapshot: Snapshot) -> InventoryItem | None:
+        """What the town departure reads Recall with: a charged Rod of Recall
+        before a scroll (the rod is the departure's read, _recall_supply_units)."""
+        return self._carried_recall_rod(snapshot, charged=True) or self._find_recall_scroll(snapshot)
+
+    def _town_recall_device_key(
+        self, snapshot: Snapshot, device: InventoryItem, selection: str
+    ) -> str | None:
+        """Read the scroll, or zap the rod, answering choose_dungeon with ``selection``."""
+        if device.is_recall_rod:
+            return reserved_item_command(self, snapshot, "rod", device, suffix=selection)
+        return self._read_key(snapshot, device, selection)
 
 
 

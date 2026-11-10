@@ -2508,6 +2508,18 @@ class TownMixin:
         if watch is None or not snapshot.in_town or not snapshot.player.recalling:
             return snapshot
         _destination, _turn, pre_read_count = watch
+        rod = getattr(self, "_town_recall_issue_rod", None)
+        if rod is not None:
+            # The zapped rod recharges; the scrolls are untouched.
+            zapped = next((item for item in snapshot.inventory
+                           if item.slot == rod.slot and item.is_recall_rod and item.charging), None)
+            if zapped is None:
+                return snapshot
+            return replace(
+                snapshot,
+                player=replace(snapshot.player, recalling=False),
+                inventory=[rod if item is zapped else item for item in snapshot.inventory],
+            )
         stacks = [item for item in snapshot.inventory if item.is_recall_scroll]
         if len(stacks) != 1 or stacks[0].count != pre_read_count - 1:
             return snapshot
@@ -7065,7 +7077,7 @@ class TownMixin:
         if (
             recall_dest is not None
             and not snapshot.player.recalling
-            and self._find_recall_scroll(snapshot) is None
+            and self._town_recall_device(snapshot) is None
         ):
             if not guardian_blocked and not self._town_claims_active(snapshot):
                 stockout = self._supply_stockout_mining_key(snapshot)
@@ -7090,9 +7102,8 @@ class TownMixin:
                 self._town_blocked_reason = "recall-readiness-contradiction"
                 return self._town_blocked_key(snapshot)
             self._cross_town_shopping = None
-            recall_count = sum(
-                item.count for item in snapshot.inventory if item.is_recall_scroll
-            )
+            # A read scroll leaves the stack; a zapped rod starts recharging.
+            recall_count = self._recall_issue_stock(snapshot)
             issue_watch = self._town_recall_issue_watch
             if not snapshot.player.recalling and issue_watch is not None:
                 watched_destination, issue_turn, pre_read_count = issue_watch
@@ -7190,7 +7201,7 @@ class TownMixin:
                 if arena_errand is not None:
                     return arena_errand
             if self._can_read_now(snapshot):
-                recall = self._find_recall_scroll(snapshot)
+                recall = self._town_recall_device(snapshot)
                 if recall is not None and guardian_blocked:
                     # The recall would be read now and would land on a
                     # guardian floor the current kit cannot pass: whatever
@@ -7263,9 +7274,8 @@ class TownMixin:
                     # departure terminal only at the branch that sends a read,
                     # before arming its watch or publishing an execution offer.
                     def read_recall():
-                        recall_count = sum(
-                            item.count for item in snapshot.inventory if item.is_recall_scroll
-                        )
+                        recall_count = self._recall_issue_stock(snapshot)
+                        self._town_recall_issue_rod = recall if recall.is_recall_rod else None
                         self._pending_recall_dungeon_id = recall_dungeon_id
                         self._town_recall_issue_watch = (
                             recall_dungeon_id,
@@ -7273,11 +7283,12 @@ class TownMixin:
                             recall_count,
                         )
                         self.last_reason = f"town:recall-to-{recall_dest}"
-                        key = self._read_key(snapshot, recall, selection)
+                        key = self._town_recall_device_key(snapshot, recall, selection)
                         self._offer_execution(
                             key, producer="departure",
                             work_id=f"town:recall:{recall_dungeon_id}",
-                            next_step="recall.scroll.send",
+                            next_step=("recall.rod.send" if recall.is_recall_rod
+                                       else "recall.scroll.send"),
                             arguments=(recall.slot, recall_dungeon_id),
                             expected_effect="recall-activated",
                             continuation="recall.observe-arrival",

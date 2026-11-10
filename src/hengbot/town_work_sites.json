@@ -5758,6 +5758,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._town_recall_device_key": {
+    "classification": "adapter",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._town_shop_entry_family": {
     "classification": "data",
     "rows": [

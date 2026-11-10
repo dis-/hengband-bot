@@ -110,7 +110,6 @@
   "_town_errand_plan": "Town route stop families/visit plan; identities are in the concrete operation sources.",
   "_town_progress_invariant_defect": "Terminal progress-invariant diagnostic record; no selected operation.",
   "_town_progress_marker": "Town visit/movement progress fingerprint; no selected item identity.",
-  "_town_recall_issue_watch": "Destination, turn and aggregate recall count observation; no stored selected scroll identity.",
   "_town_travel_rumor_pending": "Travel/rumor phase flag; no selected item identity.",
   "_town_unidentifiable_carried_sigs": "Negative identification eligibility history; no pending operation.",
   "_town_visit_ledger": "Visit progress counters; not item identities.",
