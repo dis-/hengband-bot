@@ -31,6 +31,18 @@ doors, each held by a black ogre.  From (39,43) the ogre on the door (42,41) was
 step off went east; from (38,44) the wall hid it, telepathy still showed it, the door looked free
 and the step off went back: '1' and '9' until the loop guard stopped the bot.
 
+A step off that cannot cross goes back to the ground the walk came from: no safe cell
+outside it is reached over the hazard.  The crossing is then given up for the floor visit:
+the hazard ground it stood on (every cell that hurts, connected to the player's) is claimed
+as the engagement retreats claim the cells they leave (policy ``_claim_engagement_avoid_cells``),
+and every walker keeps off it (``_walk_veto``).  n1-b life-367 (Orc cave 23F, 2026-11-10
+20:11): the exploration stepped '1' from (45,61) onto a shallow acid puddle (terrain 232,
+ACID_PUDDLE) toward a frontier past the door a black ogre held; on the puddle the ogre came
+into view, each shot at it was a step back to (45,61), whose dry ground reached every safe cell
+around the puddle, and the exploration walked in again, until the loop guard.  The way back is
+walked over the hazard alone (``_far_side_step`` with nothing left behind), so the claim does
+not stop it.
+
 An immune or invulnerable player takes no such damage.  A levitating one takes none
 from shallow ground but a fifth of deep ground's (hp-mp-processor.cpp
 deal_damege_by_feat: DEEP terrain hurts whoever is over it, other damaging terrain only
@@ -137,7 +149,7 @@ def _far_side_step(policy, snapshot, left, occupied, *, adjacent_only: bool):
 
 def _step_off(policy, snapshot, *, adjacent_only: bool):
     """The safe ground across a crossing (owner 2026-11-09 「渡った先へ出る」), else the
-    least visited safe cell beside the player, else the nearest safe cell's step."""
+    step back (``_back_step``), which gives the crossing up for the floor visit."""
     occupied = _occupied(snapshot)
     entry = _entry(policy, snapshot)
     if entry is not None:
@@ -145,6 +157,16 @@ def _step_off(policy, snapshot, *, adjacent_only: bool):
                                 occupied, adjacent_only=adjacent_only)
         if across is not None:
             return across
+    step = _back_step(policy, snapshot, occupied, adjacent_only=adjacent_only)
+    if step is not None and entry is not None:
+        # No crossing: the walk is given up here for the floor visit.
+        policy._claim_engagement_avoid_cells(_hazard_ground(policy, snapshot))
+    return step
+
+
+def _back_step(policy, snapshot, occupied, *, adjacent_only: bool):
+    """The least visited safe cell beside the player, else the first step to the nearest safe
+    cell over the hazard alone, else the nearest safe cell's step."""
     beside = [cell for cell in policy._walkable_neighbors(
                   snapshot, snapshot.player.position, allow_damaging=False)
               if (grid := snapshot.grids.get(cell)) is not None and _safe(policy, grid, occupied)]
@@ -152,7 +174,24 @@ def _step_off(policy, snapshot, *, adjacent_only: bool):
         return min(beside, key=lambda cell: policy._visit_counts[cell])
     if adjacent_only:
         return None
-    return policy._nearest_goal_step(snapshot, lambda grid: _safe(policy, grid, occupied))
+    return (_far_side_step(policy, snapshot, frozenset(), occupied, adjacent_only=False)
+            or policy._nearest_goal_step(snapshot, lambda grid: _safe(policy, grid, occupied)))
+
+
+def _hazard_ground(policy, snapshot) -> set:
+    """The cells that hurt, connected to the player's own cell."""
+    start = snapshot.player.position
+    region = {start}
+    queue = deque([start])
+    while queue:
+        position = queue.popleft()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                cell = type(position)(position.y + dy, position.x + dx)
+                if cell not in region and hurts_at(policy, snapshot, cell):
+                    region.add(cell)
+                    queue.append(cell)
+    return region
 
 
 def _replaces(key: str | None) -> tuple[bool, bool]:
