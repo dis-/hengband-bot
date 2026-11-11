@@ -43,6 +43,17 @@ around the puddle, and the exploration walked in again, until the loop guard.  T
 walked over the hazard alone (``_far_side_step`` with nothing left behind), so the claim does
 not stop it.
 
+A step off that crosses keeps crossing (``_crossing``): the safe cell across it first headed for
+stays its goal while that cell is free, and a walker's step onto another cell that hurts, away
+from it, is the step off too (``step_off_key``); the hazard ground that walker was turned off is
+given up for the floor visit as above once the player stands on safe ground (``_safe_ground``).
+n1-c life-195 (Orc cave 23F, 2026-11-11 19:10): the exploration stepped from the dirt (50,177)
+onto a shallow acid puddle whose west door an ウルク held; each shot at it was a step off east
+towards the other door (45,187), and from (48,180), where a wall hid the ウルク, the exploration
+(or the hunt, or breakout:seek-frontier) stepped back west over the puddle: both cells hurt every
+time, until the loop guard.  Unseen, the held door also looked the nearer safe cell to the step
+off itself, so the goal across is kept rather than chosen afresh.
+
 An immune or invulnerable player takes no such damage.  A levitating one takes none
 from shallow ground but a fifth of deep ground's (hp-mp-processor.cpp
 deal_damege_by_feat: DEEP terrain hurts whoever is over it, other damaging terrain only
@@ -56,7 +67,7 @@ from __future__ import annotations
 from collections import deque
 from functools import wraps
 
-from hengbot.policy_constants import SEARCH_KEY, WAIT_KEY
+from hengbot.policy_constants import DIRECTION_DELTAS, SEARCH_KEY, WAIT_KEY
 
 STEP_REASON = "hazard:step-off"
 # The status bar's BAR_INVULN key, set exactly when is_invuln() holds
@@ -130,9 +141,10 @@ def _left_ground(policy, snapshot, entry, occupied) -> set:
     return region
 
 
-def _far_side_step(policy, snapshot, left, occupied, *, adjacent_only: bool):
-    """The first step to the nearest safe cell outside ``left``, walking only hazard
-    cells on the way (never back through the ground the crossing left)."""
+def _far_side_route(policy, snapshot, left, occupied, *, adjacent_only: bool, target=None):
+    """(the first step, the safe cell it heads to) for the nearest safe cell outside ``left``
+    (only ``target`` when given), walking only hazard cells on the way (never back through
+    the ground the crossing left), else (None, None)."""
     start = snapshot.player.position
     parent = {start: None}
     queue = deque([start])
@@ -146,24 +158,49 @@ def _far_side_step(policy, snapshot, left, occupied, *, adjacent_only: bool):
                 continue
             parent[cell] = position
             if _safe(policy, grid, occupied):
-                while parent[cell] != start:
-                    cell = parent[cell]
-                return cell
+                if target is not None and cell != target:
+                    continue
+                step = cell
+                while parent[step] != start:
+                    step = parent[step]
+                return step, cell
             if not adjacent_only and hurts_at(policy, snapshot, cell):
                 queue.append(cell)
-    return None
+    return None, None
+
+
+def _far_side_step(policy, snapshot, left, occupied, *, adjacent_only: bool):
+    """The first step of ``_far_side_route``."""
+    return _far_side_route(policy, snapshot, left, occupied, adjacent_only=adjacent_only)[0]
+
+
+def _crossing(policy, snapshot):
+    """The safe cell across that this floor's step off already heads to, else None."""
+    crossing = policy.__dict__.get("_hazard_crossing")
+    if crossing is None or crossing[0] != snapshot.floor_key:
+        return None
+    return crossing[1]
 
 
 def _step_off(policy, snapshot, *, adjacent_only: bool):
     """The safe ground across a crossing (owner 2026-11-09 「渡った先へ出る」), else the
-    step back (``_back_step``), which gives the crossing up for the floor visit."""
+    step back (``_back_step``).  The safe cell across, once chosen, stays the step off's
+    goal while it is free and reached over the hazard (``_crossing``)."""
     occupied = _occupied(snapshot)
     entry = _entry(policy, snapshot)
     if entry is not None:
-        across = _far_side_step(policy, snapshot, _left_ground(policy, snapshot, entry, occupied),
-                                occupied, adjacent_only=adjacent_only)
-        if across is not None:
-            return across
+        left = _left_ground(policy, snapshot, entry, occupied)
+        committed = _crossing(policy, snapshot)
+        if committed is not None and committed not in left:
+            step, _target = _far_side_route(policy, snapshot, left, occupied,
+                                            adjacent_only=adjacent_only, target=committed)
+            if step is not None:
+                return step
+        step, target = _far_side_route(policy, snapshot, left, occupied,
+                                       adjacent_only=adjacent_only)
+        if step is not None:
+            policy._hazard_crossing = (snapshot.floor_key, target)
+            return step
     step = _back_step(policy, snapshot, occupied, adjacent_only=adjacent_only)
     if step is not None and entry is not None:
         # No crossing: the walk is given up here for the floor visit.
@@ -207,17 +244,62 @@ def _replaces(key: str | None) -> tuple[bool, bool]:
     return command in STANDSTILLS, command == QUAFF
 
 
+def _given_up(policy, snapshot):
+    """The hazard ground a walker was turned off on this floor (``step_off_key``), else None."""
+    given_up = policy.__dict__.get("_hazard_given_up")
+    if given_up is None or given_up[0] != snapshot.floor_key:
+        return None
+    return given_up[1]
+
+
+def _walked_on(policy, snapshot, key: str | None):
+    """The cell ``key`` steps onto when that is a plain step onto another cell that hurts (not a
+    blow at a monster there), else None."""
+    offset = DIRECTION_DELTAS.get((key or "").lstrip(LEADING_ESCAPE))
+    if offset is None:
+        return None
+    here = snapshot.player.position
+    cell = type(here)(here.y + offset[0], here.x + offset[1])
+    grid = snapshot.grids.get(cell)
+    if grid is None or _held(grid, _occupied(snapshot)) or not hurts_at(policy, snapshot, cell):
+        return None
+    return cell
+
+
 def step_off_key(policy, snapshot, key: str | None) -> str | None:
-    """The step that replaces ``key`` on damaging ground, else None."""
+    """The step that replaces ``key`` on damaging ground, else None.
+
+    Once a step off has crossed towards a safe cell (``_crossing``), a walker's step onto
+    another cell that hurts is the step off too, and the hazard ground that walk led over is
+    given up when the player stands on safe ground again (``_safe_ground``)."""
     standstill, quaff = _replaces(key)
-    if not (standstill or quaff) or snapshot.in_town or not hurts_here(policy, snapshot):
+    if snapshot.in_town or not hurts_here(policy, snapshot):
+        return None
+    walked_on = (None if standstill or quaff or _crossing(policy, snapshot) is None
+                 else _walked_on(policy, snapshot, key))
+    turned = walked_on is not None
+    if not (standstill or quaff or turned):
         return None
     step = _step_off(policy, snapshot, adjacent_only=quaff)
-    if step is None:
+    if step is None or step == walked_on:
         return None
+    if turned:
+        policy._hazard_given_up = (snapshot.floor_key,
+                                   (_given_up(policy, snapshot) or frozenset())
+                                   | frozenset(_hazard_ground(policy, snapshot)))
     policy.last_reason = STEP_REASON
     policy._declare_reach(step)
     return policy._step_toward(snapshot, step)
+
+
+def _safe_ground(policy, snapshot) -> None:
+    """The player stands on safe ground: it is the next crossing's entry, and the hazard
+    ground a walker was turned off is given up for the floor visit."""
+    policy._hazard_entry = (snapshot.floor_key, snapshot.player.position)
+    given_up = _given_up(policy, snapshot)
+    policy._hazard_given_up = policy._hazard_crossing = None
+    if given_up:
+        policy._claim_engagement_avoid_cells(given_up)
 
 
 def leave_first(decide):
@@ -225,7 +307,7 @@ def leave_first(decide):
     @wraps(decide)
     def wrapped(policy, snapshot):
         if not snapshot.in_town and not hurts_here(policy, snapshot):
-            policy._hazard_entry = (snapshot.floor_key, snapshot.player.position)
+            _safe_ground(policy, snapshot)
         key = decide(policy, snapshot)
         return step_off_key(policy, snapshot, key) or key
     return wrapped
