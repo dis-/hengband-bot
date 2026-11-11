@@ -3015,13 +3015,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_device_attacks.py:attack_choice": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_device_attacks.py:attack_key": {
     "classification": "producer",
     "rows": [
@@ -3428,6 +3421,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_ranged_first.py:_attack_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_ranged_first.py:_fire_missile": {
     "classification": "producer",
     "rows": [
@@ -3436,20 +3436,6 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_ranged_first.py:_first_key": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "me_ranged_first.py:_grid_options": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "me_ranged_first.py:_grid_options.send": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -3499,13 +3485,6 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_ranged_first.py:outpaced_afraid_key": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "me_ranged_first.py:stronger_than_launcher_key": {
     "classification": "producer",
     "rows": [
       "survival"
