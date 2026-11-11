@@ -1397,7 +1397,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
         self._dive_start_recall_depth: int | None = None
         self._dive_loot = 0  # items grabbed on the current dive
-        self._dive_emergencies = 0  # emergency escapes forced on the current dive
+        self._dive_emergencies = 0  # escapes counted on the current floor (escape_count)
+        self._dive_escapes_total = 0  # escapes counted on the current dive (over_extension)
+        self._floor_escape_causes: list[dict] = []  # each counted escape's causes (escape_count)
+        self._escape_cause_board: dict = {}  # the causes of the board being decided
         self._target_empty_dives = 0  # consecutive over-extended dives of the target
         # How many dives of that streak were guardian-kit-insufficient bounces.
         # Restored checkpoints predating it read 0 (getattr), i.e. the streak is
@@ -1411,6 +1414,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # saved landing depth; otherwise a few trivial pickups can keep the bot
         # farming the same blocked floor forever.
         self._no_depth_progress_dives = 0
+        self._alternate_lease = 0  # dives the over-extension switch lasts (alternate_lease)
+        self._alternate_dives = 0  # finished dives of the leased switch so far
         self._last_overextended_depth = 0  # recall depth we could not loot at
         self._alternate_dungeon: int | None = None  # switched-to level-fit dungeon
         # Display-only (spectator, #47): why _alternate_dungeon was switched to.
@@ -15496,6 +15501,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     ) -> bool:
         """Whether ``depth`` of ``dungeon_id`` is a guardian floor the kit cannot pass.
 
+        The guardian floor is the dungeon's last (``max_depth``; the game places the
+        final guardian there).  Owner 2026-11-11 (PLAN-50F C2, P5): 「50F以降の探索方法を
+        見直す。能力的には64Fから成果を得るのに十分である。」 -- the floor above it (the
+        Castle's 64F) is explored like any other; only the descent onto the guardian
+        floor is refused while the kit cannot pass it (descent callers ask with the
+        stair's destination).
+
         The standing floor's form is ``_guardian_descent_blocked`` (the
         ``guardian-kit-insufficient`` return); ``_pick_alternate_dungeon`` asks
         the same question of a candidate's recall landing before switching to it.
@@ -15505,7 +15517,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             info is not None
             and info.guardian_id > 0
             and dungeon_id not in snapshot.conquered_dungeon_ids
-            and depth >= info.max_depth - 1
+            and depth >= info.max_depth
             and not self._guardian_fight_viable(snapshot, info)
         )
 
@@ -16883,7 +16895,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         HP 171 to death; ``_escape_by_stairs`` takes only an up-stair.  '>'
         works blind (cmd-move.cpp do_cmd_go_down).  Only when the player is
         blind, hit or facing a hostile; never on a quest floor, onto a quest
-        entrance, past the guardian floor, into a held random-quest floor or a
+        entrance, onto a guardian floor the kit cannot pass, into a held random-quest floor or a
         depth whose required abilities the character lacks.
         """
         player = snapshot.player
@@ -16902,7 +16914,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 or not self._kill_quest_descent_allowed(snapshot, here)
                 or random_quest_hold.crossing_held(
                     self, snapshot, snapshot.floor_key[0], snapshot.dungeon_level, destination)
-                or self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination - 1)
+                or self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination)
                 or self._missing_required_abilities(snapshot, destination)):
             return None
         self.last_reason = reason
@@ -16994,8 +17006,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     or self._recall_cannot_reach(snapshot, self._active_dungeon_target()))
         if self._fundraising_mode in {"mine", "scavenge"}:
             return False
-        # The floor above the landing: a shaft reaches the guardian one floor early.
-        if self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination - 1):
+        # Never onto a guardian floor the kit cannot pass (a shaft lands two floors down).
+        if self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination):
             return False
         # Depth-requirement gate (AGENTS.md): never descend into a floor whose
         # mandatory resistances the character lacks — confusion / poison / chaos /

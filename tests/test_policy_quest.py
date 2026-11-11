@@ -10184,7 +10184,10 @@ class DungeonConquestTest(unittest.TestCase):
         self.assertEqual(policy._last_return_trigger, "guardian-reposition")
         self.assertFalse(policy._returning_to_town)
 
-    def test_returns_from_penultimate_floor_when_guardian_kit_is_insufficient(self):
+    def test_penultimate_floor_is_explored_but_its_stair_is_refused(self):
+        """Owner 2026-11-11 (C2): 「能力的には64Fから成果を得るのに十分である。」 -- the floor
+        above the guardian floor is explored; only '>' onto the guardian floor is refused
+        while the kit cannot pass the guardian, and the guardian floor itself returns."""
         policy = self._guardian_policy()
         # melee-threat-p95-adjacency: 1 Healing is now a viable kit (see
         # test_does_not_target_labyrinth_without_a_viable_guardian_kit).
@@ -10196,10 +10199,16 @@ class DungeonConquestTest(unittest.TestCase):
         )
         downstairs = snapshot.grid_at(snapshot.player.position)
 
-        self.assertTrue(policy._guardian_descent_blocked(snapshot))
-        self.assertTrue(policy._should_start_town_return(snapshot))
-        self.assertEqual(policy._last_return_trigger, "guardian-kit-insufficient")
+        self.assertFalse(policy._guardian_descent_blocked(snapshot))
+        # This bare board returns for its thin supplies, never for the guardian.
+        policy._should_start_town_return(snapshot)
+        self.assertNotEqual(policy._last_return_trigger, "guardian-kit-insufficient")
         self.assertFalse(policy._is_descent_target(snapshot, downstairs))
+
+        guardian_floor = replace(snapshot, floor_key=(4, 18, 0))
+        self.assertTrue(policy._guardian_descent_blocked(guardian_floor))
+        self.assertTrue(policy._should_start_town_return(guardian_floor))
+        self.assertEqual(policy._last_return_trigger, "guardian-kit-insufficient")
 
     def test_conquered_dungeon_does_not_recheck_dead_guardian_kit(self):
         policy = self._guardian_policy()

@@ -749,8 +749,10 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
 
     ORC_CAVE = 3  # landing 23 == max depth 23: its guardian floor
     DECOY = 5  # a landing that is its own blocked guardian floor
-    FOREST = 7  # productive unless its landing reaches 31 (max depth 32)
-    MOUNTAIN = 14  # productive unless its landing reaches 49 (max depth 50)
+    # Owner 2026-11-11 (C2): 「能力的には64Fから成果を得るのに十分である。」 -- the guardian
+    # floor is the last one (max depth); the floor above it is explored, not blocked.
+    FOREST = 7  # productive unless its landing reaches 32 (max depth 32)
+    MOUNTAIN = 14  # productive unless its landing reaches 50 (max depth 50)
     ENTERED = (
         DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, ORC_CAVE, DECOY, FOREST, MOUNTAIN
     )
@@ -764,7 +766,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
     }
     ALL_BLOCKED = {
         DUNGEON_ANGBAND: 50, DUNGEON_YEEK_CAVE: 13, ORC_CAVE: 23,
-        DECOY: 24, FOREST: 31, MOUNTAIN: 49,
+        DECOY: 24, FOREST: 32, MOUNTAIN: 50,
     }
     # Covers every band up to 49F, so each landing below is refused only for
     # its guardian, never for a missing ability.
@@ -976,12 +978,13 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
     def test_latched_alternate_whose_landing_became_a_guardian_floor(self):
         self._use_castle_destination()
         # Forest was a productive alternate; its saved recall depth has since
-        # reached 31, its guardian's floor (max depth 32), and that guardian is
+        # reached 32, its guardian's floor (max depth 32; owner 2026-11-11 C2:
+        # the floor above it is explored, not blocked), and that guardian is
         # beyond the kit.  The bounces of the latched alternate are counted
         # and the guardian valve leaves Forest for the shallowest landing that
         # is not a blocked guardian floor: Mountain 27, passing over the Orc
         # cave 23 and the decoy 24, both blocked guardian floors.
-        landings = {**self.DEEPER_ONLY, self.FOREST: 31}
+        landings = {**self.DEEPER_ONLY, self.FOREST: 32}
         for angband_unlocked in (True, False):
             with self.subTest(angband_unlocked=angband_unlocked):
                 policy = self._policy(landings)
@@ -1043,9 +1046,10 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
     def test_mixed_streak_keeps_the_shallower_landing_bound(self):
         self._use_castle_destination()
         # One over-extended Forest dive (two emergency escapes at landing 26),
-        # then Forest's landing reaches 31, its blocked guardian floor, and two
-        # bounces complete the streak.  The streak is not all guardian
-        # bounces, so the shallower bound applies: below 31 only the blocked
+        # then Forest's landing reaches 32, its blocked guardian floor (max depth
+        # 32; owner 2026-11-11 C2), and two bounces complete the streak.  The
+        # streak is not all guardian bounces, so the shallower bound applies:
+        # below 32 only the blocked
         # Orc cave (23) and decoy (24) remain, the valve finds nothing, keeps
         # Forest and does not stop the run.  A guardian-only streak would have
         # moved on to Mountain (33).
@@ -1060,13 +1064,13 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         self.assertEqual(
             self._streak(policy), (1, 0)
         )
-        landings = {**landings, self.FOREST: 31}
+        landings = {**landings, self.FOREST: 32}
         for _bounce in range(EMPTY_DIVE_LIMIT - 1):
             self.assertEqual(
                 self._trip(policy, landings, angband_unlocked=False),
                 (self.FOREST, True),
             )
-        self.assertEqual(policy._last_overextended_depth, 31)
+        self.assertEqual(policy._last_overextended_depth, 32)
         self.assertEqual(policy._alternate_dungeon, self.FOREST)
         self.assertIsNone(policy._town_blocked_reason)
         town = self._board((0, 0, 0), self.FOREST, landings, angband_unlocked=False)

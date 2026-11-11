@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, destruction_use, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -488,14 +488,14 @@ class ObservationMixin:
                     else snapshot.dungeon_level,
                 )
                 self._dive_loot = 0
-                self._dive_emergencies = 0
+                escape_count.start_dive(self)
                 # Set by _should_start_town_return when THIS dive's return
                 # starts on a guardian floor the kit cannot pass.
                 self._dive_guardian_return = False
             if self.last_reason in PICKUP_REASONS:
                 self._dive_loot += 1
             elif self.last_reason in EMERGENCY_ESCAPE_REASONS:
-                self._dive_emergencies += 1
+                escape_count.count(self)
             elif self.last_reason in RELOCATING_ESCAPE_REASONS and (
                 previous_floor != snapshot.floor_key
                 or (
@@ -509,11 +509,14 @@ class ObservationMixin:
                 # returns to town whether or not the threat was lethal.
                 # Owner 2026-11-09 「全部の逃げを数える」: every relocating
                 # escape from enemies does (RELOCATING_ESCAPE_REASONS).
-                self._dive_emergencies += 1
+                escape_count.count(self)
                 if self._dive_emergencies >= EMERGENCY_RETURN_COUNT:
                     self._note_return_start("emergency-repeat")
                     self._returning_to_town = True
                     self._last_return_trigger = "emergency-repeat"
+            # Owner 2026-11-11 「逃げは階が変わればリセット。」: the escape that left a floor
+            # was counted for it above; the new floor starts at 0 (escape_count).
+            escape_count.after_board(self, snapshot, previous_floor)
         elif prev_dungeon != 0 and self._dive_dungeon is not None:
             # A dive just ended. Judge only normal dives of the recall target —
             # fundraising mining of the Yeek Cave is a separate mode, not a dive.
@@ -538,10 +541,16 @@ class ObservationMixin:
                     else start_depth,
                 )
                 dungeon_info = self._dungeon_knowledge.get(self._dive_dungeon)
+                # A dive that started on the floor above a guardian floor the kit
+                # cannot pass is at its ceiling, as one at max_depth is: the descent
+                # is refused there (C2), so it is no lack of depth progress.
                 can_descend_further = (
                     dungeon_info is not None
                     and dungeon_info.max_depth > 0
                     and start_depth < dungeon_info.max_depth
+                    and not self._guardian_floor_blocked(
+                        snapshot, self._dive_dungeon, start_depth + 1
+                    )
                 )
                 if end_depth > start_depth:
                     self._no_depth_progress_dives = 0
@@ -558,6 +567,7 @@ class ObservationMixin:
                 # alternate's and the conquest target's emergencies too
                 # (owner 2026-11-01, D57 and answer 5).
                 over_extension.judge_dive(self, guardian_bounce=guardian_bounce)
+            alternate_lease.dive_ended(self, judged_dungeon, normal_dive)
             self._dive_dungeon = None
             self._dive_start_recall_depth = None
         conquered_now = set(snapshot.conquered_dungeon_ids)
@@ -573,6 +583,7 @@ class ObservationMixin:
             # ordinary target selection choose the next conquest/default dive.
             self._alternate_dungeon = None
             self._last_overextended_depth = 0
+            alternate_lease.forget(self)
         if snapshot.in_town and self._target_empty_dives >= EMPTY_DIVE_LIMIT:
             # User decision 2026-09-25 (guardian-recall-pingpong-r2,
             # 「倒せない階でなければ深くても可」): when every dive of the streak
@@ -601,11 +612,15 @@ class ObservationMixin:
                 ),
             )
             if alt is not None:
+                previous_alternate = self._alternate_dungeon
+                previous_reason = self._alternate_dungeon_reason
                 self._alternate_dungeon = alt
                 self._alternate_dungeon_reason = (
                     "guardian_bounce_valve" if guardian_bounces_only
                     else "over_extended_dives"
                 )
+                if not guardian_bounces_only:
+                    alternate_lease.switched(self, previous_alternate, previous_reason)
                 # The safety valve must demote even a latched conquest target.
                 # It may be selected again after the existing alternate period,
                 # but must not immediately override the alternate below.
@@ -641,13 +656,20 @@ class ObservationMixin:
                 prefer_deepest=True,
             )
             if alt is not None:
+                previous_alternate = self._alternate_dungeon
+                previous_reason = self._alternate_dungeon_reason
                 self._alternate_dungeon = alt
                 self._alternate_dungeon_reason = "no_depth_progress"
                 self._conquest_committed = None
+                alternate_lease.switched(self, previous_alternate, previous_reason)
             self._no_depth_progress_dives = 0
+        # Owner 2026-11-11 (C3, C5): the over-extension switch ends after its lease and the
+        # target is the deepest recall destination again.
+        alternate_lease.settle(self, snapshot)
         guardian_rumor.settle(self, snapshot)
         # A switched target overrides the ordinary selection until its lifecycle
-        # ends through conquest, loadout-fallback completion, or replacement.
+        # ends through conquest, loadout-fallback completion, replacement, or the
+        # end of an over-extension switch's lease (alternate_lease, owner 2026-11-11).
         if self._alternate_dungeon is not None:
             if (
                 self._alternate_dungeon in snapshot.entered_dungeon_ids

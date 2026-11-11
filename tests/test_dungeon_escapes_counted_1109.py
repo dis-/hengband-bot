@@ -81,7 +81,10 @@ class DungeonEscapesCountedTest(unittest.TestCase):
                 policy = HengbotPolicy(monrace_knowledge=self.knowledge)
                 self.decided_as(policy, self.board, reason)
                 policy.choose_key(self.moved(how, self.board, turn_offset=10))
-                self.assertEqual(policy._dive_emergencies, 1)
+                # Owner 2026-11-11 「逃げは階が変わればリセット。」: a stair escape is counted
+                # for the floor it left (the dive's total), and the new floor starts at 0.
+                self.assertEqual(policy._dive_escapes_total, 1)
+                self.assertEqual(policy._dive_emergencies, 0 if how == "floor" else 1)
                 self.assertFalse(policy._returning_to_town)
 
     def test_an_unrelocated_board_does_not_count_it(self):
@@ -105,7 +108,10 @@ class DungeonEscapesCountedTest(unittest.TestCase):
                 # CONSTRUCTED: the paralyzer finds us again on the same floor.
                 self.decided_as(policy, replace(self.board, turn=self.board.turn + 20), reason)
                 policy.choose_key(self.moved(how, self.board, turn_offset=30))
-                self.assertEqual(policy._dive_emergencies, 2)
+                # The second escape from the floor returns; a stair escape is the second of
+                # the floor it left (owner 2026-11-11: the new floor's count starts at 0).
+                self.assertEqual(policy._dive_escapes_total, 2)
+                self.assertEqual(policy._dive_emergencies, 0 if how == "floor" else 2)
                 self.assertTrue(policy._returning_to_town)
                 self.assertEqual(policy._last_return_trigger, "emergency-repeat")
 
@@ -122,7 +128,9 @@ class DungeonEscapesCountedTest(unittest.TestCase):
         """Q6: the exposed summoner's '<' (policy) and the immobile summoner exit's '<'
         (policy_combat) are both summoner:stairs.  CONSTRUCTED: the first '<' did not change the
         floor (a board in between), the other producer sends '<' again, then the floor changes;
-        on the new floor a third summoner:stairs whose board shows no change counts nothing."""
+        on the new floor a third summoner:stairs whose board shows no change counts nothing.
+        Owner 2026-11-11 「逃げは階が変わればリセット。」: the stair is counted for the floor it
+        left (the dive's total) and the new floor's count starts at 0."""
         policy = HengbotPolicy(monrace_knowledge=self.knowledge)
         self.decided_as(policy, self.board, "summoner:stairs")
         same = replace(self.board, turn=self.board.turn + 1)
@@ -131,10 +139,10 @@ class DungeonEscapesCountedTest(unittest.TestCase):
         policy.last_reason = "summoner:stairs"     # the other producer, same stair
         upper = self.upper(self.board, turn_offset=10)
         policy.choose_key(upper)
-        self.assertEqual(policy._dive_emergencies, 1)
+        self.assertEqual((policy._dive_escapes_total, policy._dive_emergencies), (1, 0))
         policy.last_reason = "summoner:stairs"
         policy.choose_key(replace(upper, turn=upper.turn + 1))
-        self.assertEqual(policy._dive_emergencies, 1)
+        self.assertEqual((policy._dive_escapes_total, policy._dive_emergencies), (1, 0))
         self.assertFalse(policy._returning_to_town)
 
 

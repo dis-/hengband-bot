@@ -56,7 +56,7 @@ from dataclasses import dataclass
 from functools import partial
 
 from hengbot import (
-    area_mapping, attack_expectation, disenchant_avoid, hunt_target, immobile_threat_memory, me_capability, summoner_wait,
+    area_mapping, attack_expectation, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, me_capability, summoner_wait,
 )
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
@@ -81,6 +81,8 @@ SIGHT_TRIGGERS = ((":disenchanter", disenchant_avoid.exposes_gear),)
 LADDER_RETURN_TRIGGERS = frozenset({
     "emergency-summoner", "emergency-ranged-status-lock", "emergency-lethal-swarm",
 })
+# The returns the escape count latches: the ladder's and the second escape's (emergency-repeat).
+COUNT_RETURN_TRIGGERS = LADDER_RETURN_TRIGGERS | {"emergency-repeat"}
 # Floor memory the destroyed circle invalidates.  Sets of Position:
 POSITION_SETS = (
     "_remembered_downstairs", "_remembered_upstairs", "_remembered_entrances",
@@ -340,7 +342,8 @@ def observe(policy, snapshot) -> None:
         memory.pending = None
     elif any(message in FLASH for message in snapshot.messages):
         memory.pending = None
-        _end_emergency(policy)
+        escape_count.destroyed(policy, snapshot, position, GUARANTEED_RADIUS)
+        _end_emergency(policy, snapshot)
         forget_circle(policy, position)
         area_mapping.note_destruction(policy, snapshot, position, WORST_RADIUS, GUARANTEED_RADIUS)
     elif snapshot.turn != turn:
@@ -348,12 +351,20 @@ def observe(policy, snapshot) -> None:
         memory.fallback = floor
 
 
-def _end_emergency(policy) -> None:
-    """「破壊の回数だけでは帰還しない」: drop the ladder's latch for this escape."""
+def _end_emergency(policy, snapshot) -> None:
+    """「破壊の回数だけでは帰還しない」: drop the ladder's latch for this escape.
+
+    Owner 2026-11-11 「逃げた原因を後から*破壊*で排除した場合もリセット。」: the flash first
+    drops the escapes whose causes it destroyed (escape_count.destroyed); a return the count
+    latched -- the ladder's for this escape, or emergency-repeat for the second escape --
+    ends when the count is below the return count again.  A Word of Recall already active
+    keeps its return.
+    """
     policy._emergency_escape_pending = False
     policy._emergency_return_active = False
-    if (policy._last_return_trigger in LADDER_RETURN_TRIGGERS
-            and policy._dive_emergencies < EMERGENCY_RETURN_COUNT):
+    if (policy._last_return_trigger in COUNT_RETURN_TRIGGERS
+            and policy._dive_emergencies < EMERGENCY_RETURN_COUNT
+            and not snapshot.player.recalling):
         policy._returning_to_town = False
         policy._note_return_end()
         policy._last_return_trigger = None

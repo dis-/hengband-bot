@@ -231,12 +231,17 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
         self.assertEqual(len(self.policy._equipment_catalog.items), 40)
 
     def test_public_stop_board_offers_deeper_guardian_remedy_after_restore(self):
+        # DECLARED CONSTRUCTED: the Yeek cave's landing 13, its guardian floor.  The recorded
+        # landing 12 was refused as one until owner 2026-11-11 (C2, 「能力的には64Fから成果を
+        # 得るのに十分である。」): the floor above the guardian floor is explored now.
         board = self._after_shots()
+        board = replace(board, dungeon_recall_depths={**board.dungeon_recall_depths, 2: 13})
         saved = checkpoint(self.policy)
         for policy in (self.policy, restore_checkpoint(HengbotPolicy, saved)):
             self.assertEqual(policy._town_recall_destination(board, guardian_gate=False),
                              ("yeek-cave", 2))
-            self.assertEqual(policy._guardian_floor_blocked(board, 2, 12), True)
+            self.assertEqual(policy._guardian_floor_blocked(board, 2, 12), False)
+            self.assertEqual(policy._guardian_floor_blocked(board, 2, 13), True)
             self.assertEqual(policy._guardian_floor_blocked(board, 3, 18), False)
             self.assertEqual(policy._missing_required_abilities(board, 18), frozenset())
             # Evaluate departure directly on the constructed effect board.
@@ -277,12 +282,14 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
                 board = replace(self._after_shots(),
                     entered_dungeon_ids=(1, 2) if unlocked else (2,),
                     angband_recall_unlocked=unlocked,
-                    dungeon_recall_depths={1: 1, 2: 12})
+                    # DECLARED CONSTRUCTED: the Yeek cave's guardian floor 13 (the
+                    # recorded 12 is explored since owner 2026-11-11 C2).
+                    dungeon_recall_depths={1: 1, 2: 13})
                 # The valve's Angband is open only after Q2 (owner 2026-11-05).
                 board = replace(board, quests={
                     **board.quests, 2: QuestState(2, status=QUEST_STATUS_FINISHED)})
                 self.assertFalse(policy._inventory_overweight(board))
-                self.assertTrue(policy._guardian_floor_blocked(board, 2, 12))
+                self.assertTrue(policy._guardian_floor_blocked(board, 2, 13))
                 key = policy._town_special_key(board)
                 self.assertEqual((str(key), policy.last_reason),
                                  ("5", "town:unsafe-recall-fallback"))
@@ -303,7 +310,7 @@ class ClassC2DepartureRecordedTest(unittest.TestCase):
 
         # A deep unsafe Angband landing still cannot replace the guardian stop.
         policy = restore_checkpoint(HengbotPolicy, saved)
-        unsafe = replace(board, dungeon_recall_depths={1: 81, 2: 12})
+        unsafe = replace(board, dungeon_recall_depths={1: 81, 2: 13})  # the guardian floor
         key = policy._town_special_key(unsafe)
         self.assertEqual((str(key), policy.last_reason),
                          ("1", "town:blocked:guardian-bounce-no-alternate"))

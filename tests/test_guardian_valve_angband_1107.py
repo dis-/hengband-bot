@@ -16,11 +16,13 @@ Substrate: DECLARED CONSTRUCTED.  The life-159 state log is not available to
 this checkout, so the board is built after test_top_stops_guardian's projected
 town scene (quiet town, inn two steps east, supplies complete for the
 departure, equipment optimization done):
-- a Lv38 warrior with every resistance the table asks at 64F, a reliable Staff
+- a Lv38 warrior with every resistance the table asks at 65F, a reliable Staff
   of *Destruction* (the 50F+ means) and speed 110 (so 81F+ is missing
   ``speed+25``);
 - entered Angband, the Orc cave (conquered, landing 23) and the Castle, whose
-  recall landing 64 is its guardian floor (Castle max depth 65, guardian 882)
+  recall landing 65 is its guardian floor (Castle max depth 65, guardian 882;
+  owner 2026-11-11 C2 「能力的には64Fから成果を得るのに十分である。」: 64F is explored,
+  only 65F is the guardian floor)
   and whose guardian the kit cannot beat, so the Castle recall is refused for
   the guardian only;
 - Angband's saved recall depth is 40 (passes every check) or 85 (missing
@@ -49,7 +51,7 @@ from policy_fixtures import grid, item, player, set_completed_equipment_optimiza
 EDIT = Path("C:/hengband/lib/edit")
 ORC_CAVE = 3
 CASTLE = 12
-CASTLE_LANDING = 64  # Castle max depth 65: 64 is its guardian floor
+CASTLE_LANDING = 65  # Castle max depth 65: its guardian floor (64F is explored since C2)
 ORC_CAVE_LANDING = 23
 ANGBAND_ACCEPTABLE = 40
 ANGBAND_NEEDS_SPEED = 85  # 81F+ asks speed+25 of a speed-110 character
