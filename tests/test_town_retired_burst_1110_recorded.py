@@ -325,7 +325,16 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         cross-town scored no progress (the Reach goal of the approach is the
         store router's, so the walk had no distance): retired at rows 39, 48
         and 57, the third made the burst.
+
+        The carried ★ガラドリエルの玻璃瓶 and ★火消しライター now go to Home
+        first (spare_gear.light_released, owner 2026-11-11); that rule is
+        walled off (declared: no carried light is spare, as the live build
+        did) so that the live walk is the one replayed.
         """
+        patcher = mock.patch("hengbot.spare_gear.light_released",
+                             lambda policy, snapshot, item: False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         policy, recorded, steps = self.load("n1b-370")
         self.replay_live(policy, recorded, steps[:31])
         progress = []
