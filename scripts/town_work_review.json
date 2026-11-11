@@ -16982,6 +16982,17 @@
     "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
     "evidence": "Pure arithmetic: reflection share and the saving-throw failure of one monster ability for a set of player flags (mspell-status.cpp, effect-player-spirit.cpp)."
   },
+  "monster_ranged_evaluator.py:_caster_hp": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Pure evaluator: reached from the combat prediction's breath and rocket damage; no town or store context of its own.",
+    "evidence": "Pure arithmetic: the caster HP a breath or rocket is rolled from, the race HP lowered to the health band's estimate (mspell-damage-calculator.cpp:427)."
+  },
   "monster_ranged_evaluator.py:_expected_rate_damage": {
     "classification": "data",
     "rows": [

@@ -49,11 +49,13 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use, sent_away_t1, status_cure
+from hengbot import destruction_use, fear_cover, sent_away_t1, status_cure, threat_tiers
+from hengbot.cli import _PolicyObserverScope
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import (
-    SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_POTION_SPEED, SV_SCROLL_TELEPORT, TVAL_POTION,
+    SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_POTION_RESISTANCE, SV_POTION_SPEED,
+    SV_SCROLL_TELEPORT, TVAL_POTION,
     TVAL_SCROLL, parse_snapshot,
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -89,6 +91,13 @@ def from_turn(turn, *changes):
     return change
 
 
+def both(*changes):
+    def change(raw):
+        for each in changes:
+            each(raw)
+    return change
+
+
 def at_turn(turn, *changes):
     def change(raw):
         if raw["turn"] == turn:
@@ -116,6 +125,22 @@ def free_action(raw):
     """DECLARED CONSTRUCTED: Free Action from the equipment."""
     raw["player"]["ability_sources"]["free_action"] = {
         "equipment": True, "permanent": False, "temporary": False}
+
+
+def fear_resistance(raw):
+    """DECLARED CONSTRUCTED: rFear from the equipment."""
+    raw["player"]["ability_sources"]["resist_fear"] = {
+        "equipment": True, "permanent": False, "temporary": False}
+
+
+def hidden_supplies(raw):
+    """DECLARED CONSTRUCTED: the Potions of Resistance and of Healing out of the pack, letters
+    re-given."""
+    inventory = raw["inventory"]
+    inventory[:] = [item for item in inventory if not (
+        item["tval"] == TVAL_POTION and item["sval"] in (SV_POTION_RESISTANCE, SV_POTION_HEALING))]
+    for index, item in enumerate(inventory):
+        item["slot"] = chr(ord("a") + index)
 
 
 def at_depth(level):
@@ -268,10 +293,36 @@ class TeleportOrDestructionRecordedTest(DeathsRecordedHarness):
         recorded = self.recorded("life-355")
         self.assertEqual((recorded[4230087]["reason"], recorded[4230087]["tier"],
                           recorded[4230087]["instant_death"]), ("emergency:teleport", "T1", False))
-        policy, answers = self.replay("life-355", 4230087)
+        # DECLARED CONSTRUCTED: the pack's Resistance and Healing hidden on the board before
+        # (4230081) only.  Since the supply plan's healing credit and the resisted reserve (owner
+        # 2026-11-11 「回復と悲観側のずれを全部」), the awake race 741 there reads T2 with the
+        # recorded pack (``test_the_board_before_reads_the_awake_one_t2_with_the_pack``), so the
+        # sensed T1 leave this pin's board follows is not taken; hiding the supplies on that board
+        # alone keeps it T1 as recorded.
+        policy, answers = self.replay("life-355", 4230087, at_turn(4230081, hidden_supplies))
+        self.assertEqual(answers[4230081][2], "sensed-t1:teleport")
         raw = answers[4230087][0]
         self.assertTrue(all(m["asleep"] for m in raw["visible_monsters"]))
         self.assertEqual(answers[4230087][2], DESTRUCTION_REASON)
+
+
+    def test_the_board_before_reads_the_awake_one_t2_with_the_pack(self):
+        """Owner 2026-11-11 (the supply plan's healing credit and resisted reserve): race 741
+        alone, judged from contact as the sensed T1 leave judges it, is T2 with the recorded
+        pack and T1 without its Resistance and Healing; the recorded pack's board is not left."""
+        policy, _answers = self.replay("life-355", 4230073)
+        for change, tier in ((None, threat_tiers.T2), (hidden_supplies, threat_tiers.T1)):
+            raw = self.board("life-355", 4230081)
+            if change is not None:
+                change(raw)
+            snapshot = self.snapshot(policy, raw)
+            monster = next(m for m in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+                           if m.race_id == 741)
+            with _PolicyObserverScope(policy):
+                result = threat_tiers.assess(policy, snapshot, [monster], contact=True)
+            self.assertEqual(result.tier, tier)
+        policy, answers = self.replay("life-355", 4230081)
+        self.assertNotEqual(answers[4230081][2], "sensed-t1:teleport")
 
 
 class T1LeavesTheSummonerRecordedTest(DeathsRecordedHarness):
@@ -331,19 +382,37 @@ class ConfusedAgainRecordedTest(DeathsRecordedHarness):
 class SpellParalyserRecordedTest(DeathsRecordedHarness):
     """E: a HOLD / BRAIN_SMASH caster is a paralyser; in sight it is left by the 09-18 rung."""
 
+    # Owner 2026-11-11 「恐怖・盲目の呪文を持つ相手で耐性が無い時は T2 にしない」: the クトーニアン
+    # casts SCARE and life-346 has no rFear, so alone it reads T1 (T2 before), and the absorbed
+    # Teleport Away (me_powers THREAT, above the status-threat rungs) sends it away as the
+    # recorded decision did; E's return then applies to the floor.  E's 09-18 scroll is pinned
+    # where the クトーニアン alone is T2: with rFear (DECLARED CONSTRUCTED, ``fear_resistance`` on
+    # every board).
+
     def test_the_chthonian_beside_the_player_is_left_by_scroll(self):
         recorded = self.recorded("life-346")
         self.assertEqual(recorded[1623935]["reason"], "me-power:unbeatable-in-range:teleport-away")
-        policy, answers = self.replay("life-346", 1623935)
+        policy, answers = self.replay("life-346", 1623935, fear_resistance)
         raw, key, reason = answers[1623935]
         self.assertEqual(reason, "status-threat:scroll")
         self.assertEqual(key, "r" + letter(raw, *TELEPORT))
 
+    def test_without_rfear_the_fear_casting_chthonian_is_sent_away(self):
+        policy, answers = self.replay("life-346", 1623935)
+        raw, key, reason = answers[1623935]
+        self.assertEqual(reason, "me-power:unbeatable-in-range:teleport-away")
+        snapshot = self.snapshot(policy, raw)
+        chthonian = next(m for m in snapshot.visible_monsters if m.race_id == CHTHONIAN)
+        with _PolicyObserverScope(policy):
+            alone = threat_tiers.assess(policy, snapshot, [chthonian])
+        self.assertEqual((alone.tier, alone.t2_withheld),
+                         (threat_tiers.T1, (fear_cover.FEAR_WITHHELD,)))
+
     def test_in_line_of_sight_two_cells_away_it_is_left_too(self):
         # DECLARED CONSTRUCTED: the クトーニアン two cells down the corridor, a clear line, not
-        # in melee reach (speed +20 against +16: one action, two cells).
-        policy, answers = self.replay("life-346", 1623935,
-                                      at_turn(1623935, move_monster(CHTHONIAN, 28, 101)))
+        # in melee reach (speed +20 against +16: one action, two cells); rFear as above.
+        policy, answers = self.replay("life-346", 1623935, both(
+            fear_resistance, at_turn(1623935, move_monster(CHTHONIAN, 28, 101))))
         raw, key, reason = answers[1623935]
         self.assertEqual(reason, "status-threat:scroll")
         self.assertEqual(key, "r" + letter(raw, *TELEPORT))
@@ -351,15 +420,17 @@ class SpellParalyserRecordedTest(DeathsRecordedHarness):
     def test_behind_the_wall_it_is_not(self):
         # DECLARED CONSTRUCTED: the クトーニアン past the corridor's wall, no clear line; the
         # floor at the Free Action depth (20F), where the shallow rule of 2026-11-09 (n1-a
-        # life-501 「浅い階層で見かけたら逃げる」) does not apply.
-        moved = at_turn(1623935, move_monster(CHTHONIAN, 24, 104))
-        deeper = at_depth(20)
-
-        def change(raw):
-            moved(raw)
-            deeper(raw)
-        policy, answers = self.replay("life-346", 1623935, change)
+        # life-501 「浅い階層で見かけたら逃げる」) does not apply; rFear as above.
+        policy, answers = self.replay("life-346", 1623935, both(
+            fear_resistance, at_turn(1623935, move_monster(CHTHONIAN, 24, 104)), at_depth(20)))
         self.assertEqual(answers[1623935][2], "melee")
+
+    def test_behind_the_wall_without_rfear_the_t1_is_left(self):
+        # DECLARED CONSTRUCTED: as above without rFear: the クトーニアン alone is T1 (owner
+        # 2026-11-11), awake inside its sensing radius, and is left.
+        policy, answers = self.replay("life-346", 1623935, both(
+            at_turn(1623935, move_monster(CHTHONIAN, 24, 104)), at_depth(20)))
+        self.assertEqual(answers[1623935][2], "sensed-t1:stairs")
 
     def test_behind_the_wall_on_the_recorded_19f_it_is_left_at_sight(self):
         # DECLARED CONSTRUCTED: as above, on the recorded 19F: above the Free Action depth the

@@ -3656,6 +3656,7 @@ class CombatMixin:
                                 flags=flags,
                                 player_hp=snapshot.player.hp,
                                 blind=snapshot.player.blind,
+                                monster_hp=monster.hp,
                             )
                         ) is not None
                     }
@@ -3693,6 +3694,7 @@ class CombatMixin:
                         player_hp=snapshot.player.hp,
                         blind=snapshot.player.blind,
                         saving_skill=snapshot.player.saving_skill,
+                        monster_hp=monster.hp,
                     )
                     operational_ranged = aggregate_ranged.total_damage
                     expected_per_spell = sum(
@@ -3705,6 +3707,7 @@ class CombatMixin:
                                 player_hp=snapshot.player.hp,
                                 blind=snapshot.player.blind,
                                 saving_skill=snapshot.player.saving_skill,
+                                monster_hp=monster.hp,
                             )
                             or 0.0
                         )

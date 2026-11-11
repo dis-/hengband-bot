@@ -43,6 +43,15 @@ FIRST_SEARCH = 4092        # the first search of row 1, from [1,14]
 STOPPED_AT = 4130          # the decision the loop guard stopped (its seventh search on [1,9])
 ROW = [(1, 14), (1, 13), (1, 12), (1, 11), (1, 10), (1, 9)]
 
+# Decided differently from the recording since owner 2026-11-11 (「ブレスが敵の今の HP で弱くなる」):
+# at 4083 the 幽体ティラノサウルス (race 705, BR_POIS) beside the player is wounded (health band
+# upper 59%: HP 1770 of 3000), so its breath is min(1770 / 3, 800) = 590, not 800, and the fight
+# after the Potion of Resistance is winnable: the drink (resist_potion.drink_key, owner 2026-11-05
+# 「危ない敵と戦う時に飲む」, 2026-11-07 Q25 「幽体ティラノサウルスとの単独戦闘から逃げない」) is
+# taken where the recording, reading the breath at the race's full HP, attacked.  Every other
+# recorded decision is decided again as recorded.
+CHANGED = {4083: ("qf", "resist-potion:quaff")}
+
 
 def replay():
     """[(sequence, position, key, reason)] for every recorded board, by one policy."""
@@ -103,8 +112,16 @@ class N1a508TrapWalkRecordedTest(unittest.TestCase):
 
     def test_the_policy_decides_as_recorded(self):
         decided = [(sequence, key, reason) for sequence, _, key, reason in self.answers]
-        recorded = [(row["sequence"], row["key"], row["reason"]) for row in CASE["recorded"]]
+        recorded = [(row["sequence"], *CHANGED.get(row["sequence"], (row["key"], row["reason"])))
+                    for row in CASE["recorded"]]
         self.assertEqual(decided, recorded)
+        self.assertEqual(next((row["key"], row["reason"]) for row in CASE["recorded"]
+                              if row["sequence"] == 4083), ("4", "quest-strategy:melee"))
+
+    def test_the_wounded_tyrannosaur_breathes_from_its_band(self):
+        snapshot = next(snapshot for sequence, snapshot, _, _ in self.answers if sequence == 4083)
+        tyrannosaur = next(m for m in snapshot.visible_monsters if m.race_id == 705)
+        self.assertEqual((tyrannosaur.hp, tyrannosaur.max_hp), (1770, 3000))
 
     def test_the_trapped_row_is_no_cell_loop(self):
         self.assertIn(battle.SEARCH_REASON, cli.STATIONARY_EXEMPT_REASONS)

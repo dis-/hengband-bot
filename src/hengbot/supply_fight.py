@@ -95,7 +95,9 @@ def _spend(policy, snapshot, target, verb, item, reason, suffix=""):
 def _heal_key(policy, snapshot, result, target):
     """Today's rule of the supplied fight (``_unique_combat_consumable``): drink when HP is
     missing and the next action could breach the reserve, or three quarters of the dose are
-    missing; only a dose that out-heals the next action (the projection's credit)."""
+    missing; only a dose that out-heals the next action.  The plan credits a dose drunk at the
+    next action's p95 (``threat_projection.heal_credit``, owner 2026-11-11); this drink point is
+    unchanged."""
     player, plan = snapshot.player, result.supply_plan
     missing = player.max_hp - player.hp
     if missing <= 0:
