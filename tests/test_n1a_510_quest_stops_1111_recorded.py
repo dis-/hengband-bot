@@ -168,11 +168,34 @@ class N1a510QuestStopsRecordedTest(unittest.TestCase):
     # Q18: the haste already on when the escape starts --------------------------
 
     def q18_at_the_escape(self):
-        policy, _, steps = self.load("death-509")
-        self.replay_town("death-509", policy, steps)
+        """The arrival policy driven by the Q18 floor's boards alone.
+
+        DECLARED WALL: the visit's town rows are not replayed.  Since the Rod of
+        Recall counts as a recall supply (7356a91afe) the Home rod makes row 4 a
+        catalogue withdrawal instead of the recorded deposit, and the frozen boards
+        after it cannot follow.  What the pin reads is made on the floor (the plan's
+        dose, the haste, the escape episode), and the recorded fight must come out
+        as it did before the board under test.
+        """
+        policy, _, _ = self.load("death-509")
         rows = self.floor("death-509")
-        raw = self.drive_floor(policy, rows, until_turn=1277422)
-        return policy, raw
+        recorded = {1277403: ("qc", "quest-strategy:heal"), 1277406: ("3", "quest-strategy:melee"),
+                    1277410: ("3", "quest-strategy:melee"), 1277415: ("3", "quest-strategy:melee")}
+        checked = set()
+        for raw in rows:
+            if raw["type"] == "knowledge":
+                policy.consume_skill_knowledge(raw)
+                continue
+            if raw["turn"] >= 1277422:
+                self.assertEqual(checked, set(recorded))
+                return policy, raw
+            key = policy.choose_key(self.board(policy, raw))
+            if raw["turn"] in recorded:
+                self.assertEqual((key, policy.last_reason), recorded[raw["turn"]])
+                checked.add(raw["turn"])
+            if key:
+                policy.confirm_key_posted(key)
+        self.fail("no recorded board at the escape")
 
     def test_q18_escape_reads_recall_instead_of_a_second_speed_dose(self):
         policy, raw = self.q18_at_the_escape()
