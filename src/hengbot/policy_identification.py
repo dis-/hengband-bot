@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
-from hengbot.town_pack_budget import floor_step_fits, incoming_slots, permits
+from hengbot.town_pack_budget import incoming_slots, permits, pile_fits
 
 from collections import deque
 import json
@@ -283,8 +283,11 @@ class IdentificationMixin:
                         if here.object_count > 1:
                             return PICKUP_KEY + ("a" * here.object_count)
                         return PICKUP_KEY
+                    # A pile the budget refuses is no collection goal, even
+                    # where it is a sealed pocket's way out (floor_step_fits).
                     step = self._nearest_goal_step(
                         snapshot, lambda candidate: candidate.position in contents
+                        and pile_fits(snapshot, candidate.position)
                     )
                     if step is not None:
                         self.last_reason = "chest:collect-contents"
@@ -451,6 +454,15 @@ class IdentificationMixin:
             self.last_reason = "chest:return-reserved-position"
             self._declare_reach(target)
             return self._step_toward(snapshot, step)
+        here = snapshot.grids.get(player.position)
+        if snapshot.in_town and here is not None and (
+                here.store_number >= 0 or here.building_special >= 0 or here.has_entrance):
+            # An entrance holds no object: the chest lands beside it and its
+            # contents scatter onto the entrance's approach cells.  n1-b
+            # life-370 (2026-11-12 02:19, the Outpost Home's three-cell
+            # pocket) walled itself in with three piles that way.  The chest
+            # waits for a board off the entrance.
+            return None
         self._chest_drop_origin = player.position
         self._chest_drop_chest_count = sum(
             self._is_processable_chest(item) for item in snapshot.inventory
@@ -1439,8 +1451,10 @@ class IdentificationMixin:
         # A pile the town's slot budget refuses to step on is no target: the
         # walk came back to it each time it left the light, away from the shop
         # route (n1-c life-123 2026-11-04 04:33, owner-retired-burst).
+        # The budget alone (pile_fits): a pile admitted only as the way out
+        # of a sealed pocket (floor_step_fits) is still no loot target.
         refused_piles = {position for position in candidates
-                         if not floor_step_fits(snapshot, position)}
+                         if not pile_fits(snapshot, position)}
         self._deferred_loot.update(refused_piles)
         candidates -= refused_piles
         candidates = {
