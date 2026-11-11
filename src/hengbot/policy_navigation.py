@@ -1310,6 +1310,20 @@ class NavigationMixin:
         # deliberately falls through to routing while standing on a stair,
         # choose another stair rather than path away and then back to this one.
         targets.discard(origin)
+        # A stair in the area of an unseen attack that continues is not approached again
+        # while it continues (user 2026-10-06 「後ずさりは今のまま・拾いを諦める」, as an item or a
+        # frontier there: _in_unseen_attack_area).  n1-a life-508 (Mountain 43F, 2026-11-11
+        # 08:45): both down stairs lay past the cell where a hidden caster's Magic Missiles
+        # landed, and seek-downstairs walked back onto it after every unseen:reverse-choke
+        # until the loop detector stopped the bot three times.  The area lifts (the attack
+        # ends, the quiet window passes) and the stair is a target again; nothing expires.
+        unseen_deferred = {
+            stair for stair in targets if self._in_unseen_attack_area(snapshot, stair)}
+        if unseen_deferred and unseen_deferred == targets:
+            self._nav_ledger.clear_descent_route()
+            self._descent_refusal_reason = "unseen-attack-area"
+            return None
+        targets -= unseen_deferred
         if self._nav_ledger.descent_target == origin:
             # Standing on the committed stair: the walk arrived.
             self._complete_claim_goal("descent-arrived", origin, owners=("departure",))
@@ -1370,6 +1384,7 @@ class NavigationMixin:
                 origin.distance_to(nxt) == 1
                 and nxt not in avoided_store_cells
                 and nxt not in vetoed
+                and not self._in_unseen_attack_area(snapshot, nxt)
                 and self._is_step_open(snapshot, origin, nxt)
                 and not self._warning_step_refused(snapshot, nxt)
             ):
@@ -1398,6 +1413,7 @@ class NavigationMixin:
         best_first: Position | None = None
         best_frontier: Position | None = None
         best_score: tuple[int, int, int] | None = None
+        unseen_cut = False
         while queue:
             pos, first, path_distance = queue.popleft()
             if pos != origin and pos == target:
@@ -1445,6 +1461,11 @@ class NavigationMixin:
                 if self._warning_step_refused(snapshot, neighbor):
                     # A grid the weapon warning refused is not a route cell.
                     continue
+                if self._in_unseen_attack_area(snapshot, neighbor):
+                    # The unseen attack's area (above) lifts: a route it cuts writes
+                    # the stair off neither by a frontier walk nor by expiry.
+                    unseen_cut = True
+                    continue
                 seen.add(neighbor)
                 parent[neighbor] = pos
                 queue.append(
@@ -1455,6 +1476,10 @@ class NavigationMixin:
                     )
                 )
     
+        if unseen_cut:
+            self._nav_ledger.replace_descent_path(())
+            self._descent_refusal_reason = "unseen-attack-area"
+            return None
         if best_first is not None and best_score is not None:
             # Unreachable target, frontier approach: no known path exists, so
             # progress is how close the best reachable FRONTIER has gotten to
