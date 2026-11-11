@@ -4679,7 +4679,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._home_entry_operation_posted = False
                     self._home_atomic_deposit_pending = None
                     self._invalidate_home_observation()
-                elif unchanged_pages + 1 >= STORE_STUCK_LIMIT:
+                elif self._home_full_refused or unchanged_pages + 1 >= STORE_STUCK_LIMIT:
+                    # The game refused a deposit of the batch ("Your home is
+                    # full"): what did not land never will, so the visit settles
+                    # now rather than after STORE_STUCK_LIMIT boards.  Waiting
+                    # held the Home executor in EXIT_PENDING, the mining kit's
+                    # take could not start and the town end stopped first (n1-b
+                    # life-370 2026-11-12 02:08, survival:recall_departure_ready).
                     # A11r2 discipline: never recompose against the page that
                     # failed to show the mutation.  Terminate this visit
                     # visibly and reject that identity for this visit.  It may
