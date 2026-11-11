@@ -20,6 +20,9 @@ by their Home executors:
 * ``observe``: gear a Home take brought out this visit (``note_taken``) and
   nothing now uses re-arms an attempted Home once per piece, so it is put
   back before the departure (n1-c life-158 2026-11-07).
+* ``light_released``: owner 2026-11-11 「使わない光源を自宅に仕舞う処理を追加」.
+  A carried light goes to Home only while a permanent light that lights is
+  worn; every deliberate spare light stays (see its docstring).
 
 Gear picked up during a dive is not touched: it comes home on the next visit.
 """
@@ -28,7 +31,7 @@ from __future__ import annotations
 from typing import Any
 
 from hengbot import launcher_upgrade, quest25_druj_gear
-from hengbot.model import STORE_HOME
+from hengbot.model import STORE_HOME, SV_LITE_FEANOR, lights_nothing
 from hengbot.policy_constants import FUNDRAISING_START_GOLD
 
 MINING_MODES = frozenset({"prepare", "mine", "scavenge"})
@@ -115,9 +118,41 @@ def _rearm_needed(snapshot: Any, item: Any) -> bool:
     return main_hand is None or main_hand.is_digging_tool
 
 
+def light_released(policy: Any, snapshot: Any, item: Any) -> bool:
+    """A carried light the worn permanent light leaves unused (owner 2026-11-11).
+
+    n1-b life-370 2026-11-11: ★知識の石 worn, ★ガラドリエルの玻璃瓶 and
+    ★火消しライター carried on every departure, because Home's spare-gear shape
+    left every light out.  The spare lights the bot keeps on purpose stay:
+
+    * torches: the torch carry (fuel spares, throwing torches) and the General
+      Store sale own them;
+    * a plain lantern a worn light replaces: the General Store sale owns it
+      (``_is_spare_lantern``); a lantern the departure needs is retained
+      (``light:departure-lantern``);
+    * any light while the worn one burns fuel, is dark or is missing: the light
+      wield, refill and darkness recovery take their spare from the pack, and
+      a carried permanent light waives the oil (``_owns_usable_permanent_light``);
+    * an unidentified light: the identification flow owns it;
+    * any light while a mining run is planned (the mining kit's light).
+    """
+    if snapshot is None or not item.is_light or item.is_torch or not item.known:
+        return False
+    worn = policy._worn_light(snapshot)
+    if (worn is None or worn.sval < SV_LITE_FEANOR or lights_nothing(worn)
+            or worn.is_cursed or worn.is_broken):
+        return False
+    if policy._is_spare_lantern(snapshot, item) or mining_planned(policy, snapshot):
+        return False
+    return policy._retention_surplus(snapshot, item) > 0
+
+
 def released(policy: Any, snapshot: Any, item: Any) -> bool:
     """Whether this pack item is spare gear Home may take."""
-    if (not policy._spare_equipment_deposit_shape(item)
+    if item.is_light:
+        if not light_released(policy, snapshot, item):
+            return False
+    elif (not policy._spare_equipment_deposit_shape(item)
             or item.is_digging_tool or item.is_ammo):
         return False
     if _rearm_needed(snapshot, item) or _chosen_by_optimizer(policy, item):
