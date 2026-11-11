@@ -6,6 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
+from hengbot import ladder_floor_avoidance, ladder_light
 from hengbot import anaguma, combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
@@ -7756,93 +7757,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if summoner_ranged is not None:
             return summoner_ranged
 
-        if not snapshot.in_town:
-            # Owner 2026-11-04: the answer to the summons of this floor visit.
-            summons = summon_response.key(self, snapshot)
-            if summons is not None:
-                return summons
-            # Owner 2026-11-05: a race that disenchants the gear, at first sight.
-            sight_use = destruction_use.sight_trigger_key(self, snapshot)
-            if sight_use is not None:
-                return sight_use
-            # Owner 2026-11-05: the Potion of Resistance, before any attack below.
-            resist = resist_potion.ladder_key(
-                self, snapshot, strategic_hostiles, strategic_adjacent, physical_hostiles)
-            if resist is not None:
-                return resist
-            # Owner 2026-11-08 「感知で見えたら備える」: a known breath or ball that kills from full HP.
-            one_shot = oneshot_breath.key(self, snapshot)
-            if one_shot is not None:
-                return one_shot
-            # Owner 2026-11-02 「遠距離で安全に倒せるなら倒す方を優先する」:
-            # before any never-moving monster is avoided.
-            immobile_kill = immobile_ranged_kill.key(self, snapshot)
-            if immobile_kill is not None:
-                return immobile_kill
-            immobile_summoner = self._town_producer_entry(
-                "_immobile_summoner_key",
-                lambda: self._immobile_summoner_key(snapshot, physical_hostiles),
-                board=snapshot,
-            )
-            if immobile_summoner is not None:
-                return immobile_summoner
-            # Beside an avoided never-moving monster (owner 2026-11-01 21h).
-            step_out = immobile_threat_memory.step_out_key(self, snapshot)
-            if step_out is not None:
-                return step_out
+        # The floor-avoidance layer: the owner's floor rules, the unseen retreat, the dug
+        # pocket and the detected-threat preparation (ladder_floor_avoidance).
+        avoidance = ladder_floor_avoidance.key(
+            self, snapshot, strategic_hostiles=strategic_hostiles,
+            strategic_adjacent=strategic_adjacent, physical_hostiles=physical_hostiles,
+            physical_adjacent=physical_adjacent)
+        if avoidance is not None:
+            return avoidance
 
-        unseen_intercept = self._town_producer_entry("_unseen_retreat_intercept_key", lambda: self._unseen_retreat_intercept_key(
-            snapshot, physical_hostiles, physical_adjacent
-        ))
-        unseen_action = unseen_intercept
-        if unseen_action is None:
-            unseen_action = self._town_producer_entry("_unseen_retreat_key", lambda: self._unseen_retreat_key(
-                snapshot, physical_hostiles
-            ))
-        detected_preparation = None
-        if unseen_action is None:
-            # Owner 2026-11-10 穴熊 「掘れるなら掘る」: the dug pocket comes before the
-            # existing chokes; it declines (None) where it cannot be dug (anaguma).
-            anaguma_key = anaguma.key(self, snapshot, physical_hostiles)
-            if anaguma_key is not None:
-                return anaguma_key
-            detected_preparation = self._town_producer_entry("_detected_threat_preparation_key", lambda: self._detected_threat_preparation_key(
-                snapshot, physical_hostiles
-            ))
-        contested_action = unseen_action or detected_preparation
-        if contested_action is not None:
-            # An ordinary or already-latched town return owns this contested
-            # decision. Keep unseen retreat above anticipatory detected-threat
-            # preparation when no return would act, without promoting return
-            # above unrelated gates.
-            town_return = (
-                None
-                if self._escape_state.owner not in {None, "return", "unseen"}
-                else self._town_producer_entry("_return_to_town_key#1", lambda: self._return_to_town_key(snapshot, strategic_hostiles))
-            )
-            if town_return is not None:
-                return town_return
-            return contested_action
-
-        # Player light radius >= 1 always gives CAVE_LITE to the player's own
-        # square (cave-map.cpp update_lite); a non-blind player whose own square
-        # is not lit therefore has radius zero. In darkness note_spot records
-        # nothing (grid.cpp), so repair the light before combat/mining/navigation.
-        darkness_recovery = self._town_producer_entry("_darkness_recovery_key", lambda: self._darkness_recovery_key(snapshot), family="survival")
-        if darkness_recovery is not None:
-            return darkness_recovery
-        # Class 16 lights the dark with an absorbed power before walking it (me_powers).
-        dark_power = me_powers.power_key(self, snapshot, me_powers.DARK)
-        if dark_power is not None:
-            return dark_power
-        dark_locomotion = self._town_producer_entry("_dark_locomotion_key", lambda: self._dark_locomotion_key(snapshot))
-        if dark_locomotion is not None:
-            return dark_locomotion
-        # In town the light out comes before the class sequences' travels
-        # (n1-b life-343: the staff sequence's inn travel into the dark street).
-        town_light = self._town_producer_entry("_town_light_restore_key", lambda: self._town_light_restore_key(snapshot), family="survival")
-        if town_light is not None:
-            return town_light
+        # The light layer: repair the light before combat/mining/navigation (ladder_light).
+        light = ladder_light.key(self, snapshot)
+        if light is not None:
+            return light
 
         opening_q34 = self._town_producer_entry("_opening_q34_town_key", lambda: self._opening_q34_town_key(snapshot, strategic_hostiles), family="quest-request")
         if opening_q34 is not None:

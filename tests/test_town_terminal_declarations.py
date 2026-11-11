@@ -4,8 +4,9 @@
    is a ``TERMINALS`` key, and no key is extra.
 2. Modes: only ENFORCE / reason-bearing NO_REFUSAL / EXEMPT_SURVIVAL;
    the SHADOW exception list and its census are exactly zero.
-3. A producer of the manifest called by ``_decide`` outside the entry is in
-   the fixed S1->S2 list ``DIRECT_PRODUCERS_S1``.
+3. A producer of the manifest called by ``_decide`` (or by a ladder layer's
+   module, dungeon_ladder.LAYER_MODULES) outside the entry is in the fixed
+   S1->S2 list ``DIRECT_PRODUCERS_S1``.
 4. ``REFUSAL_SERVERS`` keys equal the declared codes; every code literal the
    verdict and the refusal-code namer return is declared.
 5. A server's family is a town arbiter owner family; its category is a name
@@ -22,6 +23,7 @@ import json
 import unittest
 from pathlib import Path
 
+from hengbot import dungeon_ladder
 from hengbot import town_terminal
 from hengbot import town_hold
 from hengbot.model import parse_snapshot
@@ -116,19 +118,26 @@ class TerminalDeclarationTest(unittest.TestCase):
         manifest = json.loads((SRC / "town_work_sites.json").read_text(encoding="utf-8"))
         producers = {key.rsplit(".", 1)[-1] for key, row in manifest.items()
                      if row.get("classification") == "producer"}
-        decide = _function(SRC / "policy.py", "_decide")
-        wrapped = set()
-        for node in ast.walk(decide):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "_town_producer_entry"):
-                for argument in node.args[1:]:
-                    wrapped.update(id(inner) for inner in ast.walk(argument))
-        direct = {
-            node.func.attr for node in ast.walk(decide)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name) and node.func.value.id == "self"
-            and node.func.attr in producers and id(node) not in wrapped
-        }
+        # _decide's rungs, and those of each layer asked in a module of its own
+        # (there the policy is ``policy``, not ``self``).
+        ladders = [(_function(SRC / "policy.py", "_decide"), "self")]
+        ladders += [(_function(SRC / f"{module}.py", "key"), "policy")
+                    for module in dungeon_ladder.LAYER_MODULES.values()]
+        self.assertGreater(len(ladders), 1)
+        direct = set()
+        for ladder, owner in ladders:
+            wrapped = set()
+            for node in ast.walk(ladder):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "_town_producer_entry"):
+                    for argument in node.args[1:]:
+                        wrapped.update(id(inner) for inner in ast.walk(argument))
+            direct |= {
+                node.func.attr for node in ast.walk(ladder)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name) and node.func.value.id == owner
+                and node.func.attr in producers and id(node) not in wrapped
+            }
         self.assertEqual(direct, set())
         self.assertEqual(town_terminal.DIRECT_PRODUCERS_S1, frozenset())
         self.assertLessEqual(len(town_terminal.DIRECT_PRODUCERS_S1), S1_DIRECT_CENSUS)
