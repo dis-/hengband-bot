@@ -58,7 +58,7 @@ from unittest import mock
 
 from hengbot.cli import _handle_owner_retirement, _policy_final_stop_required
 from hengbot.model import InventoryItem, STORE_HOME, STORE_MAGIC, Position, StoreItem
-from hengbot.policy import staged_prompt_chain_matches
+from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot import town_hold
 from hengbot.town_arrival_checkpoint import (
@@ -389,10 +389,21 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         2026-11-10, after this build) is walled off (declared:
         _start_no_safe_destination_fundraising answers False as the live build
         did for Destruction and telepathy) so the typed wait recurs as live.
+        So is the guardian floor as the dungeon's last floor (owner 2026-11-11,
+        PLAN-50F C2, d0e9c0057e; declared: _guardian_floor_blocked reads the
+        floor above it as the live build did), with which row 7 leaves for the
+        unsafe-recall fallback instead of the typed wait.
         """
         wait = "town:blocked:depth-gate:destination-51:missing-destruction,telepathy"
+        guardian_floor_blocked = HengbotPolicy._guardian_floor_blocked
+
+        def pre_c2_guardian_floor_blocked(self, snapshot, dungeon_id, depth):
+            return guardian_floor_blocked(self, snapshot, dungeon_id, depth + 1)
+
         with mock.patch("hengbot.policy.HengbotPolicy._start_no_safe_destination_fundraising",
-                        lambda self, *args, **kwargs: False):
+                        lambda self, *args, **kwargs: False), \
+                mock.patch.object(HengbotPolicy, "_guardian_floor_blocked",
+                                  pre_c2_guardian_floor_blocked):
             policy, recorded, steps = self.load("n1b-365")
             posted = self.replay_live(policy, recorded, steps)
         self.assertEqual((recorded[16]["key"], recorded[16]["reason"]), ("5", wait))
