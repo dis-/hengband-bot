@@ -28,6 +28,17 @@ frontier once melted, the nearest to such floor first.  Melting opens the grid, 
 shows what is behind it and exploration takes over; still sealed, the next ask chooses
 again.  A wall that stayed after me_powers.FAILURES_PER_PLACE uses is left (the failures
 of a low skill, or a terrain the board does not show) and its line is not asked again.
+
+A wall melted out of the player's view leaves the board (``forget_melted_wall``):
+cave_alter_feat makes it floor, which has no REMEMBER, and only a grid in view is noted
+again, so the game forgets the grid while the bot's grid memory still holds the wall.  The
+melt message names the use that took it (effect-feature.cpp:237, shown for a marked grid
+only), so the first remembered wall of the aimed line that the board no longer shows is
+dropped from the memory before the merge, as tunnel_feasibility.forget_dug_walls drops a
+dug wall.  Without it the next ask aimed at the same remembered wall while each beam
+melted the next one along the line, five uses a line, and the player never walked: n1-b
+life-370 (Angband 80F, 2026-11-12 00:50, loop-detected) melted 33 walls along six lines of
+its *Destruction* pocket from two cells.
 With no line left the asker's next rung answers (Teleportation, Recall, the visible
 stop), as it does blind, confused, with no charge or with only permanent walls.
 
@@ -51,7 +62,7 @@ from dataclasses import dataclass, field
 from hengbot import area_mapping, me_absorbed_substitutes, me_powers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, Snapshot, game_distance
-from hengbot.policy_constants import NEIGHBOR_OFFSETS
+from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE, NEIGHBOR_OFFSETS
 
 
 REASON = "livelock:stone-to-mud"
@@ -59,12 +70,15 @@ TELEPORT_REASON = "stuck:destroyed-circle-teleport"
 RECALL_REASON = "stuck:destroyed-circle-recall"
 MEMORY = "_sealed_pocket_memory"
 TELEPORTED = "_destroyed_circle_teleport"  # ((floor, circles), turn) of the last read
+# effect-feature.cpp:238 「{}が溶けて泥になった！」 / "The {} turns into mud!"
+MELTED_MESSAGES = ("が溶けて泥になった", "turns into mud")
 
 
 @dataclass
 class Memory:
     floor: tuple
     uses: Counter = field(default_factory=Counter)  # wall (y, x) -> uses aimed at it
+    aimed: tuple | None = None  # (game turn, origin, (dy, dx)) of the last use
 
 
 def _neighbours(position: Position):
@@ -265,12 +279,54 @@ def _spend_melt(policy, snapshot: Snapshot, direction: str, wall: Position, reas
     melt = _melt_key(policy, snapshot, direction, reason)
     if melt is None:
         return None
-    _memory(policy, snapshot).uses[(wall.y, wall.x)] += 1
+    memory = _memory(policy, snapshot)
+    memory.uses[(wall.y, wall.x)] += 1
+    origin = snapshot.player.position
+    dy, dx = wall.y - origin.y, wall.x - origin.x
+    memory.aimed = (snapshot.turn, origin, ((dy > 0) - (dy < 0), (dx > 0) - (dx < 0)))
     # As the Teleportation rung: the next decisions rebuild their progress budget.
     policy._nav_exhausted = False
     policy._nav_stall_count = 0
     policy.last_reason = melt[1]
     return melt[0]
+
+
+def forget_melted_wall(policy, snapshot: Snapshot) -> None:
+    """Drop the remembered wall the last use melted out of view (the module docstring).
+
+    Called by the grid memory's owner (``_with_grid_memory``) before the merge.  Along the
+    aimed line from where the player stood, floor the board shows is crossed; the first
+    grid the board no longer shows whose remembered terrain is a wall the beam melts is the
+    melted one.  A wall the board still shows ends the line: the beam stopped there."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.aimed is None or not snapshot.grids:
+        return
+    turn, origin, step = memory.aimed
+    if memory.floor != snapshot.floor_key:
+        memory.aimed = None
+        return
+    if snapshot.turn <= turn:
+        return  # the use's own board, or one the executor refused it on
+    memory.aimed = None
+    if not any(text in message for message in snapshot.messages for text in MELTED_MESSAGES):
+        return
+    remembered = policy._remembered_grids
+    here = origin
+    for _ in range(MONSTER_SPELL_MAX_RANGE):
+        here = Position(here.y + step[0], here.x + step[1])
+        if not _on_board(snapshot, here):
+            return
+        live = snapshot.grids.get(here)
+        if live is not None and live.known:
+            if live.passable:
+                continue
+            return
+        grid = remembered.get(here)
+        if grid is not None and grid.known and not grid.passable and _melts(grid):
+            del remembered[here]
+            policy._remembered_grid_signatures.pop(here, None)
+            policy._remembered_grid_sources.pop(here, None)
+            return
 
 
 def melt_at_key(policy, snapshot: Snapshot, wall: Position, reason: str) -> str | None:
