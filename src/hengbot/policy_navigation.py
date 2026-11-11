@@ -537,7 +537,10 @@ class NavigationMixin:
                 self._town_blocked_reason = "equipment-departure-incomplete"
             return False
         recall = self._supply_ledger(snapshot, destination_depth)["recall"]
-        return recall.count >= max(1, recall.required_return)
+        # The ledger counts a carried Rod of Recall as the departure's read
+        # (_recall_supply_units); the dungeon reads scrolls, so one is carried.
+        return (recall.count >= max(1, recall.required_return)
+                and self._count_recall_scrolls(snapshot) >= 1)
 
     def _dungeon_entry_depth(
         self, snapshot: Snapshot, dungeon_id: int, *, via_recall: bool

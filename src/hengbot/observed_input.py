@@ -58,16 +58,20 @@ def _building_raise(label):
 
 
 def _surface_recall_read(command, slot, board):
-    """Whether ``r<slot>`` reads Word of Recall where it asks a destination.
+    """Whether ``r<slot>`` reads Word of Recall (or ``z<slot>`` zaps the Rod of
+    Recall) where it asks a destination.
 
     spell-kind/spells-world.cpp recall_player: off the dungeon floors (town
     and wilderness) and with no recall active, choose_dungeon asks which
     dungeon to recall to.  Underground, or cancelling an active recall, it
-    does not ask.
+    does not ask.  The rod calls the same recall_player (cmd-zaprod.cpp
+    SV_ROD_RECALL).
     """
-    from hengbot.model import SV_SCROLL_WORD_OF_RECALL, TVAL_SCROLL
+    from hengbot.model import SV_ROD_RECALL, SV_SCROLL_WORD_OF_RECALL, TVAL_ROD, TVAL_SCROLL
 
-    if command != "r" or not isinstance(board, Mapping):
+    device = {"r": (TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL),
+              "z": (TVAL_ROD, SV_ROD_RECALL)}.get(command)
+    if device is None or not isinstance(board, Mapping):
         return False
     floor = board.get("floor")
     player = board.get("player")
@@ -77,8 +81,7 @@ def _surface_recall_read(command, slot, board):
         return False
     return any(
         isinstance(item, Mapping) and item.get("slot") == slot
-        and item.get("tval") == TVAL_SCROLL
-        and item.get("sval") == SV_SCROLL_WORD_OF_RECALL
+        and (item.get("tval"), item.get("sval")) == device
         for item in board.get("inventory", ()) or ())
 
 

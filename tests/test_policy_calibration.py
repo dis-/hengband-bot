@@ -192,6 +192,36 @@ class EquippedObservationLifecycleTest(unittest.TestCase):
             self.assertIsNone(policy._validated_character_calibration(board))
             self.assertIsNone(policy._character_calibration)
 
+    def test_periodic_dump_of_the_same_constants_keeps_the_optimizer_memo(self):
+        """n1-b life-368 2026-11-11 (decisions 18166, 18206): every periodic dump
+        dropped the optimizer memo although it re-derived the same constants,
+        and the next decision re-ran the whole search (30 s on the server)."""
+        import os
+        with TemporaryDirectory() as directory:
+            policy = self.posted_policy(directory)
+            data = self.envelope()
+            self.deliver(policy, data)
+            first = policy._character_calibration
+            self.assertIsNotNone(first)
+            policy._equipment_optimization_signature = ("memo",)
+            # The next periodic dump: a new request, a rewritten file, a later response.
+            policy._prepare_character_sheet_dump()
+            self.assertTrue(policy.confirm_key_posted(CHARACTER_DUMP_MACRO))
+            policy._character_dump_path.write_bytes(policy._character_dump_path.read_bytes())
+            stamp = policy._calibration_dump_pending["started_ns"] + 1_000_000_000
+            os.utime(policy._character_dump_path, ns=(stamp, stamp))
+            later = dict(data, sequence=first.response_sequence + 1)
+            self.deliver(policy, later)
+            second = policy._character_calibration
+            self.assertIsNot(second, first)
+            self.assertNotEqual(second.response_sequence, first.response_sequence)
+            self.assertTrue(policy_calibration_module.same_calibration_constants(first, second))
+            self.assertEqual(policy._equipment_optimization_signature, ("memo",))
+            # New constants drop it.
+            self.assertFalse(policy_calibration_module.same_calibration_constants(
+                second, replace(second, base_hp=second.base_hp + 1)))
+            self.assertFalse(policy_calibration_module.same_calibration_constants(None, second))
+
     def test_unposted_or_unchanged_file_never_publishes(self):
         with TemporaryDirectory() as directory:
             policy = self.posted_policy(directory, preexisting=True)

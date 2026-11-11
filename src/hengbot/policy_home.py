@@ -524,6 +524,9 @@ class HomeMixin:
                    and self._sale_item_identity(carried) != identity)
         left += sum(stock.count for stock in self._home_knowledge_items
                     if stock.is_recall_scroll and stock is not item)
+        # A kept Rod of Recall is the departure's read (_recall_supply_units).
+        left += int(any(each.is_recall_rod and each.count > 0
+                        for each in (*snapshot.inventory, *self._home_knowledge_items)))
         depth = self._planned_depth()
         standing = max(self._supply_ledger(snapshot, depth)["recall"].required_departure,
                        self._recall_target(depth))
@@ -2436,6 +2439,10 @@ class HomeMixin:
                 )
             ):
                 return item.count, "experience-restore"
+        if item.is_recall_rod:
+            # The departure's recall read (_recall_supply_units): one rod is
+            # kept on the pack, never sold, shelved or destroyed.
+            return min(item.count, 1), "supply-ledger:recall-rod"
         optional_carry = quest_optional_carry.retained(self, snapshot, item)
         if optional_carry:
             return optional_carry, quest_optional_carry.RETENTION_BRANCH

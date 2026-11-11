@@ -1664,7 +1664,7 @@ class OperationExecutor:
             and self._is_recall_depth_confirm(match.feature)
         ):
             return self._post_and_barrier("n", deadline, role="answer")
-        if match.kind is ScreenKind.DUNGEON_CHOICE and self.active.keys[:1] == "r" \
+        if match.kind is ScreenKind.DUNGEON_CHOICE and self.active.keys[:1] in ("r", "z") \
                 and self.active.business_outcome != RECALL_DESTINATION_UNCHOSEN:
             # D22: a surface recall read with no owned, listed destination.
             # Cancel the chooser (recall_player returns false and keeps the

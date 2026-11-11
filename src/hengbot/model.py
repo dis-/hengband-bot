@@ -406,6 +406,10 @@ SV_WAND_TRAP_DOOR_DEST = 5
 SV_WAND_STONE_TO_MUD = 6
 SV_ROD_DETECT_DOOR = 1       # sv-definition/sv-rod-types.h
 SV_ROD_IDENTIFY = 2
+# cmd-item/cmd-zaprod.cpp SV_ROD_RECALL: recall_player(randint0(21) + 15), the
+# Word of Recall scroll's call (choose_dungeon on the surface); pval 60 is its
+# recharge (BaseitemDefinitions id 354).
+SV_ROD_RECALL = 3
 SV_ROD_MAPPING = 5           # sv-definition/sv-rod-types.h
 SV_ROD_DETECTION = 6         # sv-definition/sv-rod-types.h
 SV_ROD_HEALING = 9           # sv-definition/sv-rod-types.h
@@ -644,6 +648,10 @@ class InventoryItem:
         return self.aware and self.tval == TVAL_SCROLL and self.sval == SV_SCROLL_TELEPORT
 
     @property
+    def is_recall_rod(self) -> bool:
+        return self.aware and self.tval == TVAL_ROD and self.sval == SV_ROD_RECALL
+
+    @property
     def is_treasure_detection_scroll(self) -> bool:
         return (
             self.aware
@@ -779,6 +787,10 @@ class StoreItem:
     @property
     def is_teleport_scroll(self) -> bool:
         return self.tval == TVAL_SCROLL and self.sval == SV_SCROLL_TELEPORT
+
+    @property
+    def is_recall_rod(self) -> bool:
+        return self.tval == TVAL_ROD and self.sval == SV_ROD_RECALL
     @property
     def is_treasure_detection_scroll(self) -> bool:
         return self.tval == TVAL_SCROLL and self.sval == SV_SCROLL_DETECT_TREASURE
