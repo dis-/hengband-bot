@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import arena
+from hengbot import arena, zul_trip
 from hengbot import quest_optional_carry
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
@@ -422,6 +422,17 @@ class TownMixin:
             # Tower (zul_trip._levitation_walk_step): without its distance the
             # arbiter retired cross-town nine steps into the walk.
             return durable + (walk,)
+        elif owner == "cross-town" and (reason or self.last_reason) == zul_trip.SHOP_REASON:
+            # The Zul trip's walk to the Levitation shop goes through the store
+            # router's approach, whose Reach goal is the router's, so it is
+            # measured here by the same remaining route: n1-b life-370
+            # (2026-11-11 15:54) was retired three times on the way across Zul.
+            route = self._town_map_goal_route(snapshot, self._shopping_approach_goal)
+            if route is not None:
+                return durable + ((
+                    "locomotion", owner, snapshot.floor_key, route.target,
+                    route.remaining_edges,
+                ),)
         elif owner == "quest-request" and "approach" in (reason or self.last_reason or ""):
             quest_id = self._fixed_quest_target(snapshot)
             if quest_id is not None:

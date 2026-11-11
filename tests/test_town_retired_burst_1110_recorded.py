@@ -32,10 +32,20 @@ owner-retired-burst.
 
 n1-b life-365 (16:28): the third retirement of the burst came on the typed
 depth-gate wait; the stop was named only owner-retired-burst.
+
+n1-b life-370 (2026-11-11 15:54): the walk across Zul to the Levitation shop,
+a new cell on every board, had no distance for its owner (cross-town) and was
+retired three times.
+
+n1-c life-195 (2026-11-11 17:29): after each outside ``~9`` of the Home
+identification-catalog errand, the errand's Home hold held the router's Home
+approach (the errand's own take) out; the decision fell to the idle step-off
+and the walk back, item after item, until owner-retired-burst.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import base64
+import contextlib
 import copy
 import gzip
 import json
@@ -47,8 +57,8 @@ import unittest
 from unittest import mock
 
 from hengbot.cli import _handle_owner_retirement, _policy_final_stop_required
-from hengbot.model import STORE_HOME, STORE_MAGIC, Position
-from hengbot.policy import staged_prompt_chain_matches
+from hengbot.model import InventoryItem, STORE_HOME, STORE_MAGIC, Position, StoreItem
+from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot import town_hold
 from hengbot.town_arrival_checkpoint import (
@@ -80,6 +90,23 @@ def pre_fix_home_route_opened_for(policy, family):
                 and town_hold.home_catalogue_work_holder(policy) is None
                 and visit is not None and visit.store_type == STORE_HOME
                 and visit.opened_for_family == family)
+
+
+@contextlib.contextmanager
+def rod_of_recall_not_a_recall_means():
+    """DECLARED WALL: a Rod of Recall is an ordinary rod, as in the live builds.
+
+    n1-a life-508's Home held a Rod of Recall in the 22:43, 00:40 and 03:20
+    visits.  It counts as the departure's read since 2026-11-11, so a visit
+    short of Recall now goes to Home first and the recorded rows end at 7, 1
+    and 6.  These pins are about the Home scan, the Home take, the stock-out
+    run and the Identify staff supplier, which the live rows reach only without
+    the rod.  The rod's own behaviour on these boards is pinned by
+    tests/test_recall_rod_1111_recorded.py.
+    """
+    with mock.patch.object(InventoryItem, "is_recall_rod", False), \
+            mock.patch.object(StoreItem, "is_recall_rod", False):
+        yield
 
 
 class TownRetiredBurst1110RecordedTest(unittest.TestCase):
@@ -185,13 +212,14 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         The same Home visit shape one visit later (build bot-49436da51): live
         ``ESC`` home:scan-incomplete-open-page, the step-off and re-entry.
         """
-        policy, recorded, steps = self.load("n1a-508-2243")
-        self.replay_live(policy, recorded, steps[:47])
-        self.assertEqual((recorded[45]["reason"], recorded[47]["key"], recorded[47]["reason"]),
-                         ("home:atomic-deposit", "\x1b", "home:scan-incomplete-open-page"))
-        board = steps[47][1]()
-        self.assertEqual(board.store.store_type, STORE_HOME)
-        key = policy.choose_key(board)
+        with rod_of_recall_not_a_recall_means():
+            policy, recorded, steps = self.load("n1a-508-2243")
+            self.replay_live(policy, recorded, steps[:47])
+            self.assertEqual((recorded[45]["reason"], recorded[47]["key"], recorded[47]["reason"]),
+                             ("home:atomic-deposit", "\x1b", "home:scan-incomplete-open-page"))
+            board = steps[47][1]()
+            self.assertEqual(board.store.store_type, STORE_HOME)
+            key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason),
                          (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
         self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners)
@@ -203,7 +231,7 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         the third retirement made the burst (the 21:05 shape, one visit later).
         """
         with mock.patch("hengbot.policy.town_home_route_opened_for",
-                        pre_fix_home_route_opened_for):
+                        pre_fix_home_route_opened_for), rod_of_recall_not_a_recall_means():
             policy, recorded, steps = self.load("n1a-508-2243")
             self.replay_live(policy, recorded, steps[:74])
             self.assertEqual(policy._owner_retired_no_progress_count, 2)
@@ -227,17 +255,17 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         exemption is walled off (declared) to replay rows 24-43 as decided.
         """
         with mock.patch("hengbot.policy.town_home_route_opened_for",
-                        pre_fix_home_route_opened_for):
+                        pre_fix_home_route_opened_for), rod_of_recall_not_a_recall_means():
             policy, recorded, steps = self.load("n1a-508-0040")
             self.replay_live(policy, recorded, steps[:44])
-        self.assertEqual((recorded[13]["reason"], recorded[39]["key"], recorded[39]["reason"]),
-                         ("town:recall-stockout-mining", "df10\r\x1b", "home:atomic-deposit"))
-        self.assertEqual(policy._fundraising_mode, "mine")
-        board = steps[44][1]()
-        self.assertEqual(sum(item.count for item in policy._home_knowledge_items
-                             if item.is_recall_scroll), 10)
-        self.assertEqual(recorded[44]["reason"], "shop:travel")
-        key = policy.choose_key(board)
+            self.assertEqual((recorded[13]["reason"], recorded[39]["key"], recorded[39]["reason"]),
+                             ("town:recall-stockout-mining", "df10\r\x1b", "home:atomic-deposit"))
+            self.assertEqual(policy._fundraising_mode, "mine")
+            board = steps[44][1]()
+            self.assertEqual(sum(item.count for item in policy._home_knowledge_items
+                                 if item.is_recall_scroll), 10)
+            self.assertEqual(recorded[44]["reason"], "shop:travel")
+            key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), (">\ry", "descend"))
         self.assertEqual((policy._fundraising_mode, policy._recall_stockout_mining_plan),
                          ("mine", True))
@@ -252,14 +280,15 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         town:entrance-step-off:town:end-step-off, then
         town:blocked:survival:identify_staff_ready.
         """
-        policy, recorded, steps = self.load("n1a-508-0320")
-        self.replay_live(policy, recorded, steps[:19])
-        self.assertEqual((recorded[16]["reason"], recorded[19]["key"], recorded[19]["reason"]),
-                         ("shop:one-shot-buy", "7", "town:entrance-step-off:town:end-step-off"))
-        board = steps[19][1]()
-        self.assertFalse(policy._identify_staff_ready(board))
-        self.assertIsNotNone(policy._identification_need)
-        key = policy.choose_key(board)
+        with rod_of_recall_not_a_recall_means():
+            policy, recorded, steps = self.load("n1a-508-0320")
+            self.replay_live(policy, recorded, steps[:19])
+            self.assertEqual((recorded[16]["reason"], recorded[19]["key"], recorded[19]["reason"]),
+                             ("shop:one-shot-buy", "7", "town:entrance-step-off:town:end-step-off"))
+            board = steps[19][1]()
+            self.assertFalse(policy._identify_staff_ready(board))
+            self.assertIsNotNone(policy._identification_need)
+            key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), ("\x1b`n&.", "shop:travel"))
         self.assertEqual(policy._shopping_approach_store_type, STORE_MAGIC)
         self.assertIsNone(policy._town_blocked_reason)
@@ -289,6 +318,69 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         self.assertEqual(progress, [(row, "store-router", True) for row in range(31, 60)])
         self.assertEqual(policy._owner_retired_no_progress_count, 0)
 
+    def test_n1b_370_zul_levitation_shop_walk_is_progress(self):
+        """15:54, rows 31-57: the walk across Zul to the Levitation shop.
+
+        Live: town:zul:levitation-shop, a new cell on every board, yet
+        cross-town scored no progress (the Reach goal of the approach is the
+        store router's, so the walk had no distance): retired at rows 39, 48
+        and 57, the third made the burst.
+        """
+        policy, recorded, steps = self.load("n1b-370")
+        self.replay_live(policy, recorded, steps[:31])
+        progress = []
+        cells = []
+        for row, supply in steps[31:58]:
+            board = supply()
+            cells.append(board.player.position)
+            key = policy.choose_key(board)
+            self.assertEqual((key, policy.last_reason),
+                             (recorded[row["row"]]["key"], "town:zul:levitation-shop"), row["row"])
+            arbiter = policy._town_turn_arbiter.telemetry
+            progress.append((row["row"], arbiter["producer_owner"], arbiter["progress"]))
+            policy.confirm_key_posted(key)
+        self.assertEqual(len(set(cells)), 27)
+        self.assertEqual(progress, [(row, "cross-town", True) for row in range(31, 58)])
+        self.assertEqual(policy._owner_retired_no_progress_count, 0)
+        self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners)
+
+    def test_n1c_195_errand_take_composes_after_the_outside_scan(self):
+        """17:29, row 114 (decision 1068): the Home entrance after the errand's ``~9``.
+
+        Live: ``6`` town:entrance-step-off:policy:none-wait.  The
+        identification-catalog errand's Home hold (an Observe goal on the
+        knowledge) held the router's Home approach out, although that approach
+        composes the errand's own take; every item went step-off, walk back,
+        enter, leave, take, and the repeats made the burst at row 132.
+
+        The rows before replay the recorded keys (declared: the replay of this
+        visit leaves the live rows at row 27, where its periodic dump's
+        calibration cannot be re-read), so the board and the errand are the
+        live ones.
+        """
+        policy, recorded, steps = self.load("n1c-195")
+        for row, supply in steps[:114]:
+            board = supply()
+            policy.choose_key(board)
+            key = recorded[row["row"]]["key"]
+            policy.confirm_key_posted(key)
+            chain = policy.peek_staged_prompt_chain()
+            if chain is not None and staged_prompt_chain_matches(chain, key):
+                policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
+        self.assertEqual((recorded[113]["key"], recorded[113]["reason"]),
+                         ("~9\x1b", "home-errand:request-knowledge:identification-catalog"))
+        self.assertEqual((recorded[114]["key"], recorded[114]["reason"]),
+                         ("6", "town:entrance-step-off:policy:none-wait"))
+        board = steps[114][1]()
+        self.assertEqual(board.grid_at(board.player.position).store_number, STORE_HOME)
+        self.assertTrue(policy._home_knowledge_current)
+        request = policy._home_errand.request
+        self.assertEqual(request.purpose, "identification-catalog")
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("5  pn\x1b", "home-errand:atomic-withdraw:identification-catalog"))
+        self.assertEqual(policy._home_atomic_withdraw_pending[0], request.signature)
+
     def test_n1b_365_burst_on_a_typed_wait_is_named_after_it(self):
         """16:28, row 16 (the stop): the burst's retirement on the depth-gate wait.
 
@@ -297,10 +389,21 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         2026-11-10, after this build) is walled off (declared:
         _start_no_safe_destination_fundraising answers False as the live build
         did for Destruction and telepathy) so the typed wait recurs as live.
+        So is the guardian floor as the dungeon's last floor (owner 2026-11-11,
+        PLAN-50F C2, d0e9c0057e; declared: _guardian_floor_blocked reads the
+        floor above it as the live build did), with which row 7 leaves for the
+        unsafe-recall fallback instead of the typed wait.
         """
         wait = "town:blocked:depth-gate:destination-51:missing-destruction,telepathy"
+        guardian_floor_blocked = HengbotPolicy._guardian_floor_blocked
+
+        def pre_c2_guardian_floor_blocked(self, snapshot, dungeon_id, depth):
+            return guardian_floor_blocked(self, snapshot, dungeon_id, depth + 1)
+
         with mock.patch("hengbot.policy.HengbotPolicy._start_no_safe_destination_fundraising",
-                        lambda self, *args, **kwargs: False):
+                        lambda self, *args, **kwargs: False), \
+                mock.patch.object(HengbotPolicy, "_guardian_floor_blocked",
+                                  pre_c2_guardian_floor_blocked):
             policy, recorded, steps = self.load("n1b-365")
             posted = self.replay_live(policy, recorded, steps)
         self.assertEqual((recorded[16]["key"], recorded[16]["reason"]), ("5", wait))

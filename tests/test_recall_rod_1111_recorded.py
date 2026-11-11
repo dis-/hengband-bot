@@ -16,6 +16,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import base64
 import copy
+from dataclasses import replace
 import gzip
 import json
 import lzma
@@ -136,6 +137,55 @@ class RecallRod1111RecordedTest(unittest.TestCase):
         self.assertTrue(policy._departure_minimum(board, depth)["values"]["recall_departure_ready"])
         key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), ("rhc", "town:repetition-depart:recall"))
+
+    def rod_taken(self):
+        """The recorded Home page of row 8, the rod moved from the shelf to the pack.
+
+        DECLARED CONSTRUCTED: the game's take, on the recorded boards up to row 8.
+        """
+        policy, recorded, steps = self.load()
+        self.drive_recorded(policy, recorded, steps[:8])
+        board = steps[8][1]()
+        self.assertEqual(board.store.store_type, STORE_HOME)
+        shelf = next(item for item in policy._home_knowledge_items if item.is_recall_rod)
+        policy._home_knowledge_items = [item for item in policy._home_knowledge_items
+                                        if item is not shelf]
+        rod = replace(next(item for item in board.inventory if item.tval == shelf.tval),
+                      slot="x", sval=shelf.sval, name=shelf.name, count=1, charging=False)
+        self.assertTrue(rod.is_recall_rod)
+        return policy, replace(board, inventory=[*board.inventory, rod]), rod, shelf
+
+    def test_taken_rod_is_not_deposited_again(self):
+        """No deposit/withdraw ping-pong: the Home visit keeps the rod on the pack."""
+        policy, board, rod, _shelf = self.rod_taken()
+        for mode in (None, "mine"):
+            with self.subTest(mode=mode):
+                policy._fundraising_mode = mode
+                # Mining zeroes the Recall target and stows the scrolls (00:40); not the rod.
+                self.assertEqual(policy._retention_reservation_detail(board, rod),
+                                 (1, "supply-ledger:recall-rod"))
+                self.assertEqual(policy._retention_surplus(board, rod), 0)
+                self.assertFalse(policy._home_deposit_candidate(rod, board))
+                self.assertEqual(policy._home_deposit_quantity(board, rod), 0)
+
+    def test_second_rod_is_neither_taken_nor_kept(self):
+        """With a rod on the pack a shelf rod is no shortage; only one rod is reserved."""
+        policy, board, rod, shelf = self.rod_taken()
+        self.assertEqual(policy._procurement_missing_amount(board, shelf), 0)
+        stack = replace(rod, count=2)
+        self.assertEqual(policy._retention_reservation_detail(
+            replace(board, inventory=[*board.inventory[:-1], stack]), stack)[0], 1)
+
+    def test_deferred_home_rod_is_no_means(self):
+        """A Home rod no visit can take does not hold the stock-out back."""
+        policy, recorded, steps = self.load()
+        self.drive_recorded(policy, recorded, steps[:STOCKOUT_ROW])
+        board = steps[STOCKOUT_ROW][1]()
+        self.assertFalse(policy._recall_stockout_persists(board))
+        shelf = next(item for item in policy._home_knowledge_items if item.is_recall_rod)
+        policy._deferred_home_items.add(policy._item_signature(shelf))
+        self.assertEqual(policy._recall_stockout_persists(board),
+                         not policy._supply_store_obtainable(board, "recall", (3, 4)))
 
     def test_0040_home_recall_rod_is_no_stockout(self):
         """Row 13, on the recorded boards: ten scrolls of eleven, the rod in Home.
