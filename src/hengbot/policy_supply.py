@@ -2283,6 +2283,7 @@ class SupplyMixin:
         pending_hit = (
             getattr(self, "_unseen_hit_pending_floor", None) == snapshot.floor_key
         )
+        pending_blind = pending_hit and getattr(self, "_unseen_hit_pending_blind", False)
         self._unseen_hit_pending_floor = None
         eligible_hit = (
             (
@@ -2300,6 +2301,31 @@ class SupplyMixin:
         )
         active = self._unseen_retreat_floor == snapshot.floor_key
         if not eligible_hit and not active:
+            return None
+        # A hit taken blind is 「何か」 only because the player could not see:
+        # effect_player_lite / effect_player_dark print 「何かで攻撃された！」 to a
+        # blind player (effect-player-resist-hurt.cpp:407 and 441), and the next
+        # flash breath after sight returns blinds it again for 3-7 ticks
+        # (:411-412).  A retreat that only such hits armed is no longer one from
+        # attackers the player cannot see once sight shows the hostiles: they
+        # belong to the combat ladder, as a hit on a sighted board with a
+        # visible monster never arms this retreat (``eligible_hit``).  n1-c
+        # life-195 (2026-11-11 17:26, オークの洞窟23階): light hounds blinded it
+        # again after each return of sight, and every sighted board went to a
+        # reverse-choke step between (12, 176) and (16, 176) with the hounds in
+        # view, not to the ladder's answer for them, until the loop detector.
+        # The observation rewrites the pending hit (and its blindness) on every
+        # board with unseen-attack evidence, so it describes this board's hit too.
+        blind_hit = pending_blind
+        if (
+            active
+            and not eligible_hit
+            and getattr(self, "_unseen_retreat_blind_only", False)
+            and not player.blind
+            and any(not monster.pet and not monster.friendly
+                    for monster in snapshot.visible_monsters)
+        ):
+            self._clear_unseen_retreat()
             return None
         # The retreat is for attackers the player cannot see.  A visible
         # hostile that is adjacent, or that this turn's messages name, belongs
@@ -2344,6 +2370,9 @@ class SupplyMixin:
             self._unseen_choke_position = None
             self._unseen_choke_started_turn = None
             self._escape_state.enter("unseen", "unseen:reverse-choke")
+            self._unseen_retreat_blind_only = eligible_hit and blind_hit
+        elif eligible_hit and not blind_hit:
+            self._unseen_retreat_blind_only = False
         if eligible_hit:
             self._record_unseen_attack(snapshot)
 
