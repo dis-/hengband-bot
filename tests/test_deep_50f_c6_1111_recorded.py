@@ -6,13 +6,21 @@ the C6 bundle; the owner took items 2 (4.3 detection cadence), 3 (4.4 lighting r
  - 4.3 「Re-detect after walking 25 cells from the last detection ... only on 50F+ and only with an
    absorbed power or rod」: me_powers' Detect Evil row (its preferred Rod of Detection) has the
    trigger ``deep-explore-redetect``.
+ - 4.4 「me-power:dark-room:lite-area ... on 50F+: not while ESP shows strong sleepers in the
+   room」: lite_room wakes the sleepers on every grid it lights (spell-kind/spells-lite.cpp:45-77),
+   so the dark-room trigger waits while a sleeper the 11-07 strength judgment names is within
+   ``me_powers.LITE_ROOM_REACH``.
 
 Boards (tests/fixtures/deep-50f-c6-1111.json.gz, tests/extract_deep_50f_c6_1111.py): n1-b
 life-367 (Magic-Eater Lv41, 629 HP, telepathy), 2026-11-10 21:0x, from the bot's own snapshots.
  - castle: Castle 61F.  Turn 5329565 at (5,18): the recorded arrival detection
    me-power:new-floor:detect-all:powerful (UCg); turn 5329572 the board after it (recorded
    seek-loot 9); turn 5329849 at (27,10), game distance 24 (recorded seek-loot 3); turn 5329853
-   at (28,11), game distance 25 (recorded seek-loot 6).
+   at (28,11), game distance 25 (recorded seek-loot 6).  Turn 5329595: the recorded dark-room
+   light with no monster shown.
+ - lighting: Mountain 50F (the guardian floor).  Turn 5332441 the arrival detection; turn
+   5332467 at (58,30) the recorded lite-area with 15 sleepers shown by telepathy; the next board
+   (5332475) says 「白い光が辺りを覆った。」 and that four woke, and the bot took *Destruction*.
 Every decision is the public ``choose_key``; every posted power goes through the production
 executor port, whose board (the next recorded board with the executor's completed-operation
 provenance) is the next decision's board, as in the live driver.
@@ -33,6 +41,7 @@ import gzip
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from hengbot import me_powers
 from hengbot.cli import _ExecutorInputPort, SendResult
@@ -220,6 +229,75 @@ class DeepFloorRoutineRecordedTest(harness.ProductionHarness):
     def test_control_forty_nine_floor_keeps_the_recorded_walk(self):
         _, decided = self.drive(self.castle(*self.ARRIVAL, 5329853, level=49))
         self.assertEqual((decided[-1][0], decided[-1][2]), (5329853, "seek-loot"))
+
+    # -- 4.4: no room light while strong sleepers are in its reach -----------------
+
+    LIGHT_TURN = 5332467
+    # The sleepers the strength judgment names on the recorded board (race ids): two dragons and
+    # the Dracolisk by their melee, the Nightwing (722) by its disenchanting touch.
+    STRONG = {728, 722, 1066, 703}
+
+    def lighting(self, *, level=None, keep=lambda monster: True):
+        """The recorded Mountain 50F arrival to the lighting board.
+
+        WALL (pin_vacuity): the guardian-kit town return (``_should_start_town_return``) is off.
+        The harness has not the life's Home and kit knowledge, so on this guardian floor it
+        returned at once (guardian-kit-insufficient); the recorded life did not (the rows of
+        5332446-5332467 are explore, map-area, detect-traps, lite-area)."""
+        boards = self.boards("lighting")[:5]
+        if level is not None:
+            boards = at_level(boards, level)
+        last = boards[-1]
+        last["detected_monsters"] = [m for m in last["detected_monsters"] if keep(m)]
+        with patch.object(ConservativePolicy, "_should_start_town_return", return_value=False):
+            return self.drive(boards)
+
+    def test_recorded_lighting_rows(self):
+        self.assertEqual(
+            [(self.recorded(turn)["r"], self.recorded(turn)["k"]) for turn in
+             (5332441, 5332446, 5332460, self.LIGHT_TURN, 5332475)],
+            [("me-power:new-floor:detect-all:powerful", POWERFUL_DETECTION), ("explore", "7"),
+             ("me-power:new-floor:detect-traps", "mAm"), ("me-power:dark-room:lite-area", "mAi"),
+             ("emergency:destruction:absorbed-power", "mA3")])
+        # What the light did: the next board's messages name the four it woke.
+        woken = self.boards("lighting")[5]
+        self.assertEqual(woken["messages"][0], "白い光が辺りを覆った。")
+        self.assertEqual(len([m for m in woken["messages"] if m.endswith("が目を覚ました。")]), 4)
+
+    def test_strong_sleepers_in_reach_keep_the_dark_room_unlit(self):
+        _, decided = self.lighting()
+        self.assertEqual([row[1] for row in decided[:4]],
+                         [POWERFUL_DETECTION, "7", "mAj", "mAm"])
+        self.assertEqual(decided[-1][0], self.LIGHT_TURN)
+        self.assertNotEqual(decided[-1][1], "mAi")
+        self.assertNotEqual(decided[-1][2], "me-power:dark-room:lite-area")
+
+    def test_the_strong_sleepers_of_the_recorded_board(self):
+        policy, _ = self.lighting()
+        board = parse_snapshot(copy.deepcopy(self.boards("lighting")[4]), policy._monrace_knowledge)
+        self.assertEqual({m.race_id for m in me_powers.strong_sleepers_in_light_reach(policy, board)},
+                         self.STRONG)
+
+    def test_control_forty_nine_floor_lights_as_recorded(self):
+        _, decided = self.lighting(level=49)
+        self.assertEqual(decided[-1], (self.LIGHT_TURN, "mAi", "me-power:dark-room:lite-area"))
+
+    def test_control_only_weak_sleepers_light_as_recorded(self):
+        # DECLARED CONSTRUCTED: the four strong sleepers taken off the lighting board.
+        _, decided = self.lighting(keep=lambda monster: monster["race_id"] not in self.STRONG)
+        self.assertEqual(decided[-1], (self.LIGHT_TURN, "mAi", "me-power:dark-room:lite-area"))
+
+    def test_the_disenchanting_summoner_alone_keeps_the_room_unlit(self):
+        # DECLARED CONSTRUCTED: the Nightwing (722) is the only sleeper.  Its touch disenchants
+        # and the life has no disenchantment resistance (disenchant_avoid, owner 2026-11-05).
+        _, decided = self.lighting(keep=lambda monster: monster["race_id"] == 722)
+        self.assertNotEqual(decided[-1][1], "mAi")
+        self.assertNotEqual(decided[-1][2], "me-power:dark-room:lite-area")
+
+    def test_control_a_deep_room_with_no_sleeper_shown_is_lit_as_recorded(self):
+        # Castle 61F turn 5329595: the board shows no monster; the recorded light stands.
+        _, decided = self.drive(self.castle(*self.ARRIVAL))
+        self.assertEqual(decided[4], (5329595, "mAi", "me-power:dark-room:lite-area"))
 
 
 if __name__ == "__main__":
