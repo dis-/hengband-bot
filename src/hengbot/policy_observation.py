@@ -1131,6 +1131,7 @@ class ObservationMixin:
             and not self._took_trap_or_terrain_damage
         ):
             self._unseen_hit_pending_floor = snapshot.floor_key
+            self._unseen_hit_pending_blind = snapshot.player.blind
             self._unseen_last_hit_floor = snapshot.floor_key
             self._unseen_last_hit_turn = snapshot.turn
             self._unseen_last_hit_position = snapshot.player.position

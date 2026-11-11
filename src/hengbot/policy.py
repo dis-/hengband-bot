@@ -1970,6 +1970,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Floor of an unseen hit not yet seen by the unseen-attacker retreat
         # (read with getattr: restored checkpoints predate it).
         self._unseen_hit_pending_floor: tuple[int, int, int] | None = None
+        # Whether that pending hit landed while the player was blind, and whether
+        # every hit behind the armed unseen retreat did (read with getattr).
+        self._unseen_hit_pending_blind = False
+        self._unseen_retreat_blind_only = False
         # (floor, position, game turn, Teleportation scrolls carried) of a
         # posted Teleportation read whose landing has not been observed yet;
         # read with getattr (restored checkpoints predate it).
@@ -17121,6 +17125,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._unseen_retreat_target = None
         self._unseen_choke_position = None
         self._unseen_choke_started_turn = None
+        self._unseen_retreat_blind_only = False
 
     @staticmethod
     def _is_unseen_spell_message(message: str) -> bool:

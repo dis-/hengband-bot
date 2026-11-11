@@ -146,6 +146,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_unseen_choke_started_turn",
         "_unseen_attack_evidence",
         "_unseen_hit_pending_floor",
+        "_unseen_hit_pending_blind",
+        "_unseen_retreat_blind_only",
         "_teleport_read_watch",
         "_recent_since_teleport",
         # The breeder breakthrough latch ("state 2"), restored after a
