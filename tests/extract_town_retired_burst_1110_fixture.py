@@ -23,6 +23,9 @@ C:/hengband-backups/pdca/captures/town-retired-burst-1110/):
   n1b-370  n1-b life-370, build bot-5639115f7, 2026-11-11 15:54 (incident
            155453): the walk across Zul to the Levitation shop, journal rows
            0-57 (the stop).
+  n1c-195  n1-c life-195, build bot-609de4219, 2026-11-11 17:29 (incident
+           172943): the Home identification-catalog takes, journal rows
+           0-114 (the first idle step-off after the outside ``~9``).
 
 Each stop keeps its town-arrival checkpoint (``policy.pkl``), the journal rows
 named above and the sidecar files the restored policy reads (base64), all
@@ -47,6 +50,7 @@ STOPS = {
     "n1b-364": (ROOT / "n1-b-life-364/incident-101818/town-arrival", 60),
     "n1b-365": (ROOT / "n1-b-life-365/incident-162843/town-arrival", 17),
     "n1b-370": (ROOT / "n1-b-life-370/incident-155453/town-arrival", 58),
+    "n1c-195": (ROOT / "n1-c-life-195/incident-172943/town-arrival", 115),
 }
 LEFT_OUT = {"_loadout_report_path"}
 PRESET = 9 | lzma.PRESET_EXTREME

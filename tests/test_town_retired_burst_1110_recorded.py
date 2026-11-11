@@ -36,6 +36,11 @@ depth-gate wait; the stop was named only owner-retired-burst.
 n1-b life-370 (2026-11-11 15:54): the walk across Zul to the Levitation shop,
 a new cell on every board, had no distance for its owner (cross-town) and was
 retired three times.
+
+n1-c life-195 (2026-11-11 17:29): after each outside ``~9`` of the Home
+identification-catalog errand, the errand's Home hold held the router's Home
+approach (the errand's own take) out; the decision fell to the idle step-off
+and the walk back, item after item, until owner-retired-burst.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -338,6 +343,43 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         self.assertEqual(progress, [(row, "cross-town", True) for row in range(31, 58)])
         self.assertEqual(policy._owner_retired_no_progress_count, 0)
         self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners)
+
+    def test_n1c_195_errand_take_composes_after_the_outside_scan(self):
+        """17:29, row 114 (decision 1068): the Home entrance after the errand's ``~9``.
+
+        Live: ``6`` town:entrance-step-off:policy:none-wait.  The
+        identification-catalog errand's Home hold (an Observe goal on the
+        knowledge) held the router's Home approach out, although that approach
+        composes the errand's own take; every item went step-off, walk back,
+        enter, leave, take, and the repeats made the burst at row 132.
+
+        The rows before replay the recorded keys (declared: the replay of this
+        visit leaves the live rows at row 27, where its periodic dump's
+        calibration cannot be re-read), so the board and the errand are the
+        live ones.
+        """
+        policy, recorded, steps = self.load("n1c-195")
+        for row, supply in steps[:114]:
+            board = supply()
+            policy.choose_key(board)
+            key = recorded[row["row"]]["key"]
+            policy.confirm_key_posted(key)
+            chain = policy.peek_staged_prompt_chain()
+            if chain is not None and staged_prompt_chain_matches(chain, key):
+                policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
+        self.assertEqual((recorded[113]["key"], recorded[113]["reason"]),
+                         ("~9\x1b", "home-errand:request-knowledge:identification-catalog"))
+        self.assertEqual((recorded[114]["key"], recorded[114]["reason"]),
+                         ("6", "town:entrance-step-off:policy:none-wait"))
+        board = steps[114][1]()
+        self.assertEqual(board.grid_at(board.player.position).store_number, STORE_HOME)
+        self.assertTrue(policy._home_knowledge_current)
+        request = policy._home_errand.request
+        self.assertEqual(request.purpose, "identification-catalog")
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("5  pn\x1b", "home-errand:atomic-withdraw:identification-catalog"))
+        self.assertEqual(policy._home_atomic_withdraw_pending[0], request.signature)
 
     def test_n1b_365_burst_on_a_typed_wait_is_named_after_it(self):
         """16:28, row 16 (the stop): the burst's retirement on the depth-gate wait.

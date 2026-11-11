@@ -2557,6 +2557,17 @@ def home_route_opened_for(policy: Any, family: str) -> bool:
     """
     holder = errand_hold(policy, "__none__", enforced=True)
     visit = getattr(policy, "_store_visit", None)
+    if (holder is not None and holder.owner.value == "home-errand"
+            and family == "store-router"
+            and policy._home_knowledge_current
+            and getattr(policy, "_shopping_approach_store_type", None) == STORE_HOME
+            and getattr(getattr(policy, "_home_errand", None), "active", False)):
+        # The errand's outside ``~9`` came back: its take is composed by the
+        # router's Home approach (_atomic_home_withdraw_key, family
+        # home-errand).  Held out of it, the decision fell to the idle
+        # step-off and the walk back, every item (n1-c life-195 2026-11-11
+        # 17:29, identification-catalog: owner-retired-burst).
+        return True
     return bool(holder is not None and holder.owner.value == "store-router"
                 and home_catalogue_work_holder(policy) is None
                 and visit is not None and visit.store_type == STORE_HOME
