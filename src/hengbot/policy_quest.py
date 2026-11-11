@@ -436,6 +436,10 @@ from hengbot.model import (
 )
 
 
+# The throwing stand's own torches taken back when none is carried
+# (QuestMixin._quest_stand_torch_pickup_key).
+QUEST_STAND_TORCH_PICKUP_REASON = "quest-strategy:recover-stand-torches"
+
 # Quest carries that are launcher ammunition (bought by the ammo suppliers).
 QUEST_LAUNCHER_AMMO_CARRIES = frozenset({
     "throwing_items.shot",
@@ -3945,6 +3949,19 @@ class QuestMixin(OpeningRouteMixin):
                 ),
                 None,
             )
+            if planned_throw is not None and torch is None:
+                # n1-a life-510 (2026-11-11 11:04): the last volley at the
+                # second death sword left two torches rolled onto the stand
+                # itself (「何かが足下に転がってきた」) and none carried; the
+                # throw had nothing to throw and the stand stopped as
+                # fixed-target-not-visible beside them.  The plan's own rule
+                # (consumable_plan.other 「生き残った松明を回収して次の斉射に使う」)
+                # takes them back: the stand is the approved cell, so the
+                # pickup moves the player nowhere near the target.
+                stand_pickup = self._quest_stand_torch_pickup_key(
+                    snapshot, profile, planned_throw[0], recovery_substrate)
+                if stand_pickup is not None:
+                    return stand_pickup
             if planned_throw is not None:
                 planned = planned_throw_key(self, snapshot, profile, planned_throw, torch, suffix=self._direction_key(snapshot.player.position, planned_throw[1].position))
                 if planned is not None:
@@ -5477,6 +5494,32 @@ class QuestMixin(OpeningRouteMixin):
         telemetry["verdict"] = True
         telemetry["reason"] = "ready"
         return True
+
+    def _quest_stand_torch_pickup_key(
+        self, snapshot: Snapshot, profile, plan, recovery_substrate
+    ) -> str | None:
+        """Pick up the torches lying on the approved stand when none is carried.
+
+        Only on the stand itself (no step toward the target), only while the
+        pile there holds a recoverable kind, and once per unchanged pile: the
+        recovery claims (``_quest_strategy_recovery_claims``) record a posted
+        pickup that left the pile as it was, as the lane recovery does.
+        """
+        stand = Position(*plan["stand"])
+        if snapshot.player.position != stand:
+            return None
+        here = snapshot.grid_at(stand)
+        if here is None or not recovery_substrate(here):
+            return None
+        pile = (here.object_count, here.object_tvals)
+        if (stand.y, stand.x, pile) in self._quest_strategy_recovery_claims.setdefault(
+                profile.quest_id, set()):
+            return None
+        key = PICKUP_KEY + ("a" * here.object_count if here.object_count > 1 else "")
+        self.last_reason = QUEST_STAND_TORCH_PICKUP_REASON
+        self._quest_strategy_recovery_pickup_prepared = (profile.quest_id, stand, pile)
+        self._quest_strategy_recovery_pickup_prepared_key = key
+        return key
 
     def _fixed_quest_building_positions(
         self, snapshot: Snapshot, quest_id: int

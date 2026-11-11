@@ -104,9 +104,15 @@ def charges_after_recharge(item) -> int:
     return max(item.charges, kind[0] * (max(1, item.count) if item.tval == TVAL_WAND else 1))
 
 
-def morivant_unlocked(snapshot) -> bool:
+def town_listed(snapshot, town: int) -> bool:
+    """``town`` is in the exported ``visited_town_ids``: the inn teleport lists it
+    (spells-world.cpp tele_town skips a town not visited)."""
     visited = snapshot.visited_town_ids
-    return visited is not None and MORIVANT_TOWN_ID in visited
+    return visited is not None and town in visited
+
+
+def morivant_unlocked(snapshot) -> bool:
+    return town_listed(snapshot, MORIVANT_TOWN_ID)
 
 
 def expedition_cost(snapshot, supplies: int, fallback: dict | None = None) -> int:
@@ -120,9 +126,10 @@ def rumor_expedition_cost(snapshot, supplies: int, fallback: dict | None = None)
             + RUMOR_GOLD_RESERVE + RUMOR_COST * RUMOR_READS_PER_VISIT)
 
 
-def rumor_key(policy, snapshot):
-    """(key, whether a rumor batch was posted) of the inn rumor flow."""
-    policy._town_travel_rumor_pending = MORIVANT_TOWN_ID
+def rumor_key(policy, snapshot, town: int = MORIVANT_TOWN_ID):
+    """(key, whether a rumor batch was posted) of the inn rumor flow until
+    ``town`` is listed (Morivant unless the caller names another)."""
+    policy._town_travel_rumor_pending = town
     key = policy._town_special_key(snapshot)
     return key, policy.last_reason == "town:rumor-batch"
 
