@@ -265,6 +265,7 @@ from hengbot.policy_constants import (
     MINING_THREAT_FREE_LIMIT,
     MINING_RUNS_PER_SET,
     MIN_TERMINAL_FREE_PACK_SLOTS,
+    MONSTER_SPELL_MAX_RANGE,
     MOVE_REASONS,
     NEIGHBOR_OFFSETS,
     NO_DEPTH_PROGRESS_DIVE_LIMIT,
@@ -16575,6 +16576,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
         )
 
+    @staticmethod
+    def _visible_channel_answers(monster: MonsterState) -> bool:
+        """An awake hostile in view that the visible-monster channel can act on or be hit by:
+        within arrow range, or a caster or summoner within its own range of the player."""
+        if monster.asleep:
+            return False
+        if monster.distance <= RANGED_MAX_DISTANCE:
+            return True
+        return (monster.max_ranged_damage > 0 or monster.can_summon) and monster.distance <= MONSTER_SPELL_MAX_RANGE
+
     @claims(ClaimOwner.POSITIONING)
     def _detected_threat_preparation_key(
         self, snapshot: Snapshot, visible_hostiles: list[MonsterState]
@@ -16605,7 +16616,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # '3' to (36,119), out of its sight, where the retreat stepped '7' back,
         # until the loop detector -- the fourth stop of this owner-pair shape
         # (09-23 committed, 10-02 quest plan, 10-23 no covered cell below).
-        if any(not monster.asleep for monster in visible_hostiles):
+        # Nor does an awake hostile out of every reach: nothing in the visible
+        # channel answers it, so the turn went to loot.  n1-b life-370 (Orc cave
+        # 23F, 2026-11-11 15:32): hill orcs 20 cells down the corridor, in view
+        # from (20,124) only, released the retreat one step from its cell, cleared
+        # the hold's latch, and seek-loot walked back to the wall behind which two
+        # awake scaven warriors re-opened the window.
+        if any(self._visible_channel_answers(monster) for monster in visible_hostiles):
             self._detected_threat_hold = None
             self._detected_threat_hold_position = None
             if route is not None:
