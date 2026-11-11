@@ -33,7 +33,8 @@ from hengbot.town_arrival_checkpoint import (
 from replay_town_arrival import adopt_calibration, decisions, journal, restore
 
 
-FIXTURE = Path(__file__).with_name("fixtures") / "recall-rod-1111" / "n1a-508-0040"
+FIXTURES = Path(__file__).with_name("fixtures") / "recall-rod-1111"
+FIXTURE = FIXTURES / "n1a-508-0040"
 # The viewing bots' CLI flag (owner retirements logged and forgiven).
 LOG_ONLY = SimpleNamespace(owner_retired_log_only=True, decision_log=None)
 STOCKOUT_ROW = 13
@@ -45,19 +46,19 @@ class RecallRod1111RecordedTest(unittest.TestCase):
         self.addCleanup(scratch.cleanup)
         self.scratch = Path(scratch.name)
 
-    def load(self):
-        visit = self.scratch / "town-arrival"
+    def load(self, fixture=FIXTURE):
+        visit = self.scratch / fixture.name / "town-arrival"
         (visit / SIDECAR_DIRECTORY).mkdir(parents=True)
         (visit / POLICY_FILE).write_bytes(
-            lzma.decompress((FIXTURE / "policy.pkl.xz").read_bytes()))
+            lzma.decompress((fixture / "policy.pkl.xz").read_bytes()))
         (visit / JOURNAL_FILE).write_bytes(gzip.compress(
-            lzma.decompress((FIXTURE / "journal.jsonl.xz").read_bytes())))
-        sidecars = json.loads(lzma.decompress((FIXTURE / "sidecars.json.xz").read_bytes()))
+            lzma.decompress((fixture / "journal.jsonl.xz").read_bytes())))
+        sidecars = json.loads(lzma.decompress((fixture / "sidecars.json.xz").read_bytes()))
         (visit / SIDECAR_MANIFEST).write_text(
             json.dumps(sidecars["manifest"], ensure_ascii=False), encoding="utf-8")
         for role, data in sidecars["files"].items():
             (visit / SIDECAR_DIRECTORY / role).write_bytes(base64.b64decode(data))
-        runtime = self.scratch / "runtime"
+        runtime = self.scratch / fixture.name / "runtime"
         runtime.mkdir()
         policy = restore(visit, runtime)
         adopt_calibration(policy, visit / SIDECAR_DIRECTORY / "_character_calibration_path",
@@ -112,6 +113,29 @@ class RecallRod1111RecordedTest(unittest.TestCase):
         self.assertEqual(policy._procurement_missing_amount(board, rod), 1)
         policy.choose_key(board)
         self.assertEqual(policy._shopping_approach_store_type, STORE_HOME)
+
+    def test_512_1839_rod_counts_at_the_departure_minimum(self):
+        """n1-a life-512 18:39, row 33 (the stop): ten scrolls and the rod.
+
+        Live (build bot-d62aa6e00): the ledger counted the rod (11 of 11) and
+        nothing was bought, but the departure minimum's own Recall check counted
+        scrolls only (10 < 11): ``5`` town:blocked:survival:recall_departure_ready
+        (and again at 18:40 after the restart).
+        """
+        policy, recorded, steps = self.load(FIXTURES / "n1a-512-1839")
+        self.replay_live(policy, recorded, steps[:33])
+        self.assertEqual((recorded[33]["key"], recorded[33]["reason"]),
+                         ("5", "town:blocked:survival:recall_departure_ready"))
+        board = steps[33][1]()
+        self.assertEqual(policy._count_recall_scrolls(board), 10)
+        self.assertIsNotNone(policy._carried_recall_rod(board))
+        recall = policy._supply_ledger(board, policy._planned_depth())["recall"]
+        self.assertEqual((recall.count, recall.required_departure), (11, 11))
+        _destination, dungeon_id = policy._town_recall_destination(board)
+        depth = policy._dungeon_entry_depth(board, dungeon_id, via_recall=True)
+        self.assertTrue(policy._departure_minimum(board, depth)["values"]["recall_departure_ready"])
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("rhc", "town:repetition-depart:recall"))
 
     def test_0040_home_recall_rod_is_no_stockout(self):
         """Row 13, on the recorded boards: ten scrolls of eleven, the rod in Home.

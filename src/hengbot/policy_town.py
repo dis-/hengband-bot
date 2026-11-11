@@ -6018,7 +6018,10 @@ class TownMixin:
         def recall_stock():
             outgoing = (not snapshot.player.recalling and self._town_recall_destination(
                 snapshot, guardian_gate=False, safety_gate=False)[0] is not None)
-            return self._count_recall_scrolls(snapshot) >= self._recall_target(depth) + outgoing
+            # The ledger's units: a carried Rod of Recall is the departure's read
+            # (_recall_supply_units).  Scrolls alone stopped n1-a life-512 at the
+            # town end with ten scrolls and the rod (2026-11-11 18:39, 18:40).
+            return self._count_recall_means(snapshot) >= self._recall_target(depth) + outgoing
 
         checks = {
             "recall_departure_ready": lambda: self._recall_departure_ready(snapshot)
