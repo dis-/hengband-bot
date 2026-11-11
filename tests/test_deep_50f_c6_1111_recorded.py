@@ -10,6 +10,9 @@ the C6 bundle; the owner took items 2 (4.3 detection cadence), 3 (4.4 lighting r
    room」: lite_room wakes the sleepers on every grid it lights (spell-kind/spells-lite.cpp:45-77),
    so the dark-room trigger waits while a sleeper the 11-07 strength judgment names is within
    ``me_powers.LITE_ROOM_REACH``.
+ - 4.9 「on 50F+ also haste on arrival when absorbed Speed >= 10 charges」: the Speed row's
+   trigger ``deep-arrival-unhasted`` on the floor rung, once per floor visit, under the row's
+   11-04 requirements (10 charges, 80% success); no potion.
 
 Boards (tests/fixtures/deep-50f-c6-1111.json.gz, tests/extract_deep_50f_c6_1111.py): n1-b
 life-367 (Magic-Eater Lv41, 629 HP, telepathy), 2026-11-10 21:0x, from the bot's own snapshots.
@@ -30,7 +33,8 @@ counts and failure rates are chosen, the powers are the life's absorbed ones: th
 casts 全感知, 周辺感知, トラップ感知, 光, スピード and *破壊* on these floors); the replies to the posted
 keys from the game's prompts (cmd-action/cmd-racial.cpp, cmd-item/cmd-magiceat.cpp); the
 walks between the recorded boards are not driven (the next board of a drive is the later
-recorded board), and the 49F controls rewrite the boards' floor level.
+recorded board); the 49F controls rewrite the boards' floor level; the hasted speed field
+(``hasted``) and the Speed rows of the requirement controls are chosen.
 DECLARED RECONSTRUCTED: the absorption record is life-370's policy-state checkpoint of
 2026-11-11 (the same character, later; the record only names what was bought and absorbed).
 """
@@ -72,6 +76,8 @@ ROD_ROW = ("g", "全感知", 0, 1, 10)
 POWERFUL_DETECTION = "UCg"
 ORDINARY_DETECTION = "mCg"
 REDETECT = "me-power:deep-explore-redetect:detect-all"
+HASTE = "mAw"
+ARRIVAL_HASTE = "me-power:deep-arrival-unhasted:speed"
 
 
 def _races(data):
@@ -84,6 +90,13 @@ def _races(data):
         facts["names"] = tuple(facts.get("names", ()))  # a list in JSON; the knowledge is hashed
         races[int(key)] = MonraceKnowledge(**facts)
     return races
+
+
+def hasted(raw):
+    """The speed field of a hasted +5 character (+15, yellow: print_speed)."""
+    raw["player"]["speed"] = 125
+    raw["player"]["speed_display"] = {"value": 15, "text": "加速(+15)", "color": "yellow",
+                                      "riding": False}
 
 
 def at_level(boards, level):
@@ -200,10 +213,14 @@ class DeepFloorRoutineRecordedTest(harness.ProductionHarness):
              (5329849, "seek-loot", "3"), (5329853, "seek-loot", "6")])
 
     def test_the_arrival_drive_follows_the_recorded_casts(self):
+        # The recorded seek-loot of 5329572 is the arrival haste now (4.9, below).  The later
+        # boards' speed field shows no haste (the recorded life did not cast it): they stand for
+        # a haste run out, and the arrival haste is once per floor visit (5329602 keeps the
+        # recorded seek-loot).
         _, decided = self.drive(self.castle(*self.ARRIVAL))
-        self.assertEqual([row[:2] for row in decided][:4],
-                         [(5329565, POWERFUL_DETECTION), (5329572, "9"), (5329578, "mAm"),
-                          (5329586, "mAj")])
+        self.assertEqual([row[:2] for row in decided],
+                         [(5329565, POWERFUL_DETECTION), (5329572, HASTE), (5329578, "mAm"),
+                          (5329586, "mAj"), (5329595, "mAi"), (5329602, "9")])
 
     def test_twenty_five_cells_from_the_arrival_detection_detects_again(self):
         _, decided = self.drive(self.castle(*self.ARRIVAL, 5329853))
@@ -266,8 +283,9 @@ class DeepFloorRoutineRecordedTest(harness.ProductionHarness):
 
     def test_strong_sleepers_in_reach_keep_the_dark_room_unlit(self):
         _, decided = self.lighting()
+        # The recorded explore of 5332446 is the arrival haste now (4.9, below).
         self.assertEqual([row[1] for row in decided[:4]],
-                         [POWERFUL_DETECTION, "7", "mAj", "mAm"])
+                         [POWERFUL_DETECTION, HASTE, "mAj", "mAm"])
         self.assertEqual(decided[-1][0], self.LIGHT_TURN)
         self.assertNotEqual(decided[-1][1], "mAi")
         self.assertNotEqual(decided[-1][2], "me-power:dark-room:lite-area")
@@ -299,6 +317,60 @@ class DeepFloorRoutineRecordedTest(harness.ProductionHarness):
         _, decided = self.drive(self.castle(*self.ARRIVAL))
         self.assertEqual(decided[4], (5329595, "mAi", "me-power:dark-room:lite-area"))
 
+
+    # -- 4.9: the floor starts hasted ----------------------------------------------
+
+    HASTE_DRIVE = (5329565, 5329572)
+
+    def test_recorded_haste_rows(self):
+        self.assertEqual([(self.recorded(turn)["r"], self.recorded(turn)["k"], self.recorded(turn)["hp"])
+                          for turn in self.HASTE_DRIVE],
+                         [("me-power:new-floor:detect-all:powerful", POWERFUL_DETECTION, 629),
+                          ("seek-loot", "9", 610)])
+        self.assertEqual([raw["player"]["speed"] for raw in self.castle(*self.HASTE_DRIVE)],
+                         [115, 115])
+
+    def test_the_arrival_detection_is_followed_by_the_absorbed_haste(self):
+        _, decided = self.drive(self.castle(*self.HASTE_DRIVE))
+        self.assertEqual(decided, [
+            (5329565, POWERFUL_DETECTION, "me-power:new-floor:detect-all:powerful"),
+            (5329572, HASTE, ARRIVAL_HASTE)])
+
+    def test_the_landed_haste_is_not_cast_again_on_the_floor(self):
+        policy, decided = self.drive(self.castle(*self.HASTE_DRIVE))
+        raw = self.castle(5329572)[0]
+        # The speed field of the following board shows the haste (+15).
+        later = dict(copy.deepcopy(raw), turn=raw["turn"] + 10)
+        hasted(later)
+        board = self.post(policy, raw, decided[-1][1], later)
+        self.assertNotEqual(self.choose(policy, board), HASTE)
+        self.assertEqual(policy._me_power_floor.uses[-1].trigger, "deep-arrival-unhasted")
+
+    def test_control_forty_nine_floor_keeps_the_recorded_seek_loot(self):
+        _, decided = self.drive(self.castle(*self.HASTE_DRIVE, level=49))
+        self.assertEqual(decided[-1], (5329572, "9", "seek-loot"))
+
+    def test_control_the_eleven_four_requirements_hold(self):
+        # DECLARED CONSTRUCTED: nine charges; then 21% failure (owner 11-04 「残10回以上」,
+        # 「成功率8割以上」).
+        global STAFF_ROWS
+        original = STAFF_ROWS
+        for row in (("w", "スピード", 9, 30, 10), ("w", "スピード", 30, 30, 21)):
+            with self.subTest(row=row):
+                STAFF_ROWS = tuple(row if each[0] == "w" else each for each in original)
+                try:
+                    _, decided = self.drive(self.castle(*self.HASTE_DRIVE))
+                finally:
+                    STAFF_ROWS = original
+                self.assertEqual(decided[-1], (5329572, "9", "seek-loot"))
+
+    def test_control_already_hasted_keeps_the_recorded_seek_loot(self):
+        # DECLARED CONSTRUCTED: the speed field shows the haste (+15) on both boards.
+        boards = self.castle(*self.HASTE_DRIVE)
+        for raw in boards:
+            hasted(raw)
+        _, decided = self.drive(boards)
+        self.assertEqual(decided[-1], (5329572, "9", "seek-loot"))
 
 if __name__ == "__main__":
     unittest.main()

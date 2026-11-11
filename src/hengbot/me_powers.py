@@ -66,7 +66,9 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
  - 50F+ (PLAN-50F section 4, owner 2026-11-11 for C6 「2 3 5を入れる」): 4.3 the Detect Evil row
    (and its preferred rod) is cast again once the player stands DEEP_REDETECT_WALK from the
    floor's latest landed monster detection (``deep-explore-redetect``); 4.4 a dark room is not
-   lit while a strong sleeper is in the room light's reach (``strong_sleepers_in_light_reach``).
+   lit while a strong sleeper is in the room light's reach (``strong_sleepers_in_light_reach``);
+   4.9 the Speed row is also cast on the floor rung once per floor visit while not hasted
+   (``deep-arrival-unhasted``).
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -266,7 +268,7 @@ POWERS = (
           darkness_scaled=False,
           aimed=True, against_hostile=True),
     Power("staff", SV_STAFF_SPEED, me_capability.names("staff", SV_STAFF_SPEED),
-          "speed", 0, 80, ("fight-unhasted",),
+          "speed", 0, 80, ("fight-unhasted", "deep-arrival-unhasted"),
           requires=("fight-speed-charges", "speed-reliable"),
           darkness_scaled=False, against_hostile=True),
 )
@@ -617,6 +619,16 @@ def _deep_explore_redetect(ctx, power):
     return ctx.distance(latest.position) >= DEEP_REDETECT_WALK
 
 
+def _deep_arrival_unhasted(ctx, power):
+    """PLAN-50F 4.9 (owner 2026-11-11 C6 「5」): on 50F+ the floor visit starts hasted, 「the first
+    moves of a floor decide whether a pack reaches the character」.  Once per floor visit: not
+    hasted (the speed field) and no cast of this row landed on the floor.  The row's 11-04
+    requirements hold here too (at least FIGHT_SPEED_MIN_CHARGES charges, a reliable cast); no
+    potion is drunk for it (the plan asks the absorbed Speed only)."""
+    return (_deep_floor(ctx) and not ctx.policy._player_hasted(ctx.snapshot)
+            and not ctx.uses_of(power))
+
+
 def _fight_unhasted(ctx, power):
     """Not hasted (the speed field), and no landed cast's shortest haste still runs."""
     return not ctx.policy._player_hasted(ctx.snapshot) and all(
@@ -648,6 +660,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
     Trigger("deep-explore-redetect", frozenset({FLOOR}), _deep_explore_redetect),
     Trigger("fight-unhasted", frozenset({FIGHT}), _fight_unhasted),
+    Trigger("deep-arrival-unhasted", frozenset({FLOOR}), _deep_arrival_unhasted),
     # Owner 2026-11-05 named 周辺感知: its Door/Stairs fallback does not map.
     Trigger("after-destruction", frozenset({FLOOR}), _after_destruction, takes_fallback=False),
     Trigger("sealed-pocket", frozenset({SEALED}), _sealed_pocket, takes_fallback=False),

@@ -13,8 +13,6 @@ Boards (the first board of each turn; a turn's later boards are the prompts of i
   castle     Castle 61F, turns 5329565-5329853: the arrival detection (UCg) at (5,18), the
              recorded arrival casts after it (5329572-5329602), and the walk at (27,10) on turn
              5329849 (game distance 24) and at (28,11) on turn 5329853 (game distance 25).
-  mountain   Mountain 50F, turns 5334011-5334020: the arrival detection (UCg) and the next
-             board (recorded explore).
 
 Usage (repository root): PYTHONPATH=src python tests/extract_deep_50f_c6_1111.py [capture-dir]
 """
@@ -33,7 +31,6 @@ EDIT = Path("C:/hengband/lib/edit")
 CASES = {
     "lighting": (5332441, 5332446, 5332454, 5332460, 5332467, 5332475),
     "castle": (5329565, 5329572, 5329578, 5329586, 5329595, 5329602, 5329849, 5329853),
-    "mountain": (5334011, 5334020),
 }
 ROW_FIELDS = ("s", "turn", "dg", "lv", "hp", "r", "k", "vh")
 
