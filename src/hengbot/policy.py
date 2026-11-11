@@ -13187,8 +13187,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # run at the gold target, and the withdrawal brought the same
         # shortage back (n1-a life-508, 2026-11-11 00:40).
         # The rods count once across the pack and Home (_recall_supply_units).
-        units = self._recall_supply_units(
-            [*snapshot.inventory, *self._home_knowledge_items])
+        # A Home rod no visit can take (deferred) is no means.
+        units = self._recall_supply_units([*snapshot.inventory, *(
+            item for item in self._home_knowledge_items
+            if not (item.is_recall_rod
+                    and self._item_signature(item) in self._deferred_home_items))])
         if units >= recall.required_departure:
             return False
         return not self._supply_store_obtainable(

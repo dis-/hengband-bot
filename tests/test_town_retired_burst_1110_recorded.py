@@ -36,6 +36,7 @@ depth-gate wait; the stop was named only owner-retired-burst.
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import base64
+import contextlib
 import copy
 import gzip
 import json
@@ -47,7 +48,7 @@ import unittest
 from unittest import mock
 
 from hengbot.cli import _handle_owner_retirement, _policy_final_stop_required
-from hengbot.model import STORE_HOME, STORE_MAGIC, Position
+from hengbot.model import InventoryItem, STORE_HOME, STORE_MAGIC, Position, StoreItem
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot import town_hold
@@ -80,6 +81,23 @@ def pre_fix_home_route_opened_for(policy, family):
                 and town_hold.home_catalogue_work_holder(policy) is None
                 and visit is not None and visit.store_type == STORE_HOME
                 and visit.opened_for_family == family)
+
+
+@contextlib.contextmanager
+def rod_of_recall_not_a_recall_means():
+    """DECLARED WALL: a Rod of Recall is an ordinary rod, as in the live builds.
+
+    n1-a life-508's Home held a Rod of Recall in the 22:43, 00:40 and 03:20
+    visits.  It counts as the departure's read since 2026-11-11, so a visit
+    short of Recall now goes to Home first and the recorded rows end at 7, 1
+    and 6.  These pins are about the Home scan, the Home take, the stock-out
+    run and the Identify staff supplier, which the live rows reach only without
+    the rod.  The rod's own behaviour on these boards is pinned by
+    tests/test_recall_rod_1111_recorded.py.
+    """
+    with mock.patch.object(InventoryItem, "is_recall_rod", False), \
+            mock.patch.object(StoreItem, "is_recall_rod", False):
+        yield
 
 
 class TownRetiredBurst1110RecordedTest(unittest.TestCase):
@@ -185,13 +203,14 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         The same Home visit shape one visit later (build bot-49436da51): live
         ``ESC`` home:scan-incomplete-open-page, the step-off and re-entry.
         """
-        policy, recorded, steps = self.load("n1a-508-2243")
-        self.replay_live(policy, recorded, steps[:47])
-        self.assertEqual((recorded[45]["reason"], recorded[47]["key"], recorded[47]["reason"]),
-                         ("home:atomic-deposit", "\x1b", "home:scan-incomplete-open-page"))
-        board = steps[47][1]()
-        self.assertEqual(board.store.store_type, STORE_HOME)
-        key = policy.choose_key(board)
+        with rod_of_recall_not_a_recall_means():
+            policy, recorded, steps = self.load("n1a-508-2243")
+            self.replay_live(policy, recorded, steps[:47])
+            self.assertEqual((recorded[45]["reason"], recorded[47]["key"], recorded[47]["reason"]),
+                             ("home:atomic-deposit", "\x1b", "home:scan-incomplete-open-page"))
+            board = steps[47][1]()
+            self.assertEqual(board.store.store_type, STORE_HOME)
+            key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason),
                          (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
         self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners)
@@ -203,7 +222,7 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         the third retirement made the burst (the 21:05 shape, one visit later).
         """
         with mock.patch("hengbot.policy.town_home_route_opened_for",
-                        pre_fix_home_route_opened_for):
+                        pre_fix_home_route_opened_for), rod_of_recall_not_a_recall_means():
             policy, recorded, steps = self.load("n1a-508-2243")
             self.replay_live(policy, recorded, steps[:74])
             self.assertEqual(policy._owner_retired_no_progress_count, 2)
@@ -227,17 +246,17 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         exemption is walled off (declared) to replay rows 24-43 as decided.
         """
         with mock.patch("hengbot.policy.town_home_route_opened_for",
-                        pre_fix_home_route_opened_for):
+                        pre_fix_home_route_opened_for), rod_of_recall_not_a_recall_means():
             policy, recorded, steps = self.load("n1a-508-0040")
             self.replay_live(policy, recorded, steps[:44])
-        self.assertEqual((recorded[13]["reason"], recorded[39]["key"], recorded[39]["reason"]),
-                         ("town:recall-stockout-mining", "df10\r\x1b", "home:atomic-deposit"))
-        self.assertEqual(policy._fundraising_mode, "mine")
-        board = steps[44][1]()
-        self.assertEqual(sum(item.count for item in policy._home_knowledge_items
-                             if item.is_recall_scroll), 10)
-        self.assertEqual(recorded[44]["reason"], "shop:travel")
-        key = policy.choose_key(board)
+            self.assertEqual((recorded[13]["reason"], recorded[39]["key"], recorded[39]["reason"]),
+                             ("town:recall-stockout-mining", "df10\r\x1b", "home:atomic-deposit"))
+            self.assertEqual(policy._fundraising_mode, "mine")
+            board = steps[44][1]()
+            self.assertEqual(sum(item.count for item in policy._home_knowledge_items
+                                 if item.is_recall_scroll), 10)
+            self.assertEqual(recorded[44]["reason"], "shop:travel")
+            key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), (">\ry", "descend"))
         self.assertEqual((policy._fundraising_mode, policy._recall_stockout_mining_plan),
                          ("mine", True))
@@ -252,14 +271,15 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         town:entrance-step-off:town:end-step-off, then
         town:blocked:survival:identify_staff_ready.
         """
-        policy, recorded, steps = self.load("n1a-508-0320")
-        self.replay_live(policy, recorded, steps[:19])
-        self.assertEqual((recorded[16]["reason"], recorded[19]["key"], recorded[19]["reason"]),
-                         ("shop:one-shot-buy", "7", "town:entrance-step-off:town:end-step-off"))
-        board = steps[19][1]()
-        self.assertFalse(policy._identify_staff_ready(board))
-        self.assertIsNotNone(policy._identification_need)
-        key = policy.choose_key(board)
+        with rod_of_recall_not_a_recall_means():
+            policy, recorded, steps = self.load("n1a-508-0320")
+            self.replay_live(policy, recorded, steps[:19])
+            self.assertEqual((recorded[16]["reason"], recorded[19]["key"], recorded[19]["reason"]),
+                             ("shop:one-shot-buy", "7", "town:entrance-step-off:town:end-step-off"))
+            board = steps[19][1]()
+            self.assertFalse(policy._identify_staff_ready(board))
+            self.assertIsNotNone(policy._identification_need)
+            key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), ("\x1b`n&.", "shop:travel"))
         self.assertEqual(policy._shopping_approach_store_type, STORE_MAGIC)
         self.assertIsNone(policy._town_blocked_reason)
