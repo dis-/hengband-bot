@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -567,6 +567,7 @@ class ObservationMixin:
                 # alternate's and the conquest target's emergencies too
                 # (owner 2026-11-01, D57 and answer 5).
                 over_extension.judge_dive(self, guardian_bounce=guardian_bounce)
+            alternate_lease.dive_ended(self, judged_dungeon, normal_dive)
             self._dive_dungeon = None
             self._dive_start_recall_depth = None
         conquered_now = set(snapshot.conquered_dungeon_ids)
@@ -582,6 +583,7 @@ class ObservationMixin:
             # ordinary target selection choose the next conquest/default dive.
             self._alternate_dungeon = None
             self._last_overextended_depth = 0
+            alternate_lease.forget(self)
         if snapshot.in_town and self._target_empty_dives >= EMPTY_DIVE_LIMIT:
             # User decision 2026-09-25 (guardian-recall-pingpong-r2,
             # 「倒せない階でなければ深くても可」): when every dive of the streak
@@ -610,11 +612,15 @@ class ObservationMixin:
                 ),
             )
             if alt is not None:
+                previous_alternate = self._alternate_dungeon
+                previous_reason = self._alternate_dungeon_reason
                 self._alternate_dungeon = alt
                 self._alternate_dungeon_reason = (
                     "guardian_bounce_valve" if guardian_bounces_only
                     else "over_extended_dives"
                 )
+                if not guardian_bounces_only:
+                    alternate_lease.switched(self, previous_alternate, previous_reason)
                 # The safety valve must demote even a latched conquest target.
                 # It may be selected again after the existing alternate period,
                 # but must not immediately override the alternate below.
@@ -650,13 +656,20 @@ class ObservationMixin:
                 prefer_deepest=True,
             )
             if alt is not None:
+                previous_alternate = self._alternate_dungeon
+                previous_reason = self._alternate_dungeon_reason
                 self._alternate_dungeon = alt
                 self._alternate_dungeon_reason = "no_depth_progress"
                 self._conquest_committed = None
+                alternate_lease.switched(self, previous_alternate, previous_reason)
             self._no_depth_progress_dives = 0
+        # Owner 2026-11-11 (C3, C5): the over-extension switch ends after its lease and the
+        # target is the deepest recall destination again.
+        alternate_lease.settle(self, snapshot)
         guardian_rumor.settle(self, snapshot)
         # A switched target overrides the ordinary selection until its lifecycle
-        # ends through conquest, loadout-fallback completion, or replacement.
+        # ends through conquest, loadout-fallback completion, replacement, or the
+        # end of an over-extension switch's lease (alternate_lease, owner 2026-11-11).
         if self._alternate_dungeon is not None:
             if (
                 self._alternate_dungeon in snapshot.entered_dungeon_ids

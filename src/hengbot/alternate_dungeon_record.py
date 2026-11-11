@@ -31,7 +31,11 @@ FIELDS = (
     "_target_empty_dives",
     "_guardian_bounce_dives",
     "_no_depth_progress_dives",
+    # The lease of the switch (alternate_lease, owner 2026-11-11); absent from older records.
+    "_alternate_lease",
+    "_alternate_dives",
 )
+LEASE_FIELDS = ("_alternate_lease", "_alternate_dives")
 
 
 def _carried(policy) -> dict:
@@ -52,7 +56,8 @@ def restore(policy, snapshot) -> None:
         alternate = None if alternate is None else int(alternate)
         reason = state["_alternate_dungeon_reason"]
         reason = None if reason is None else str(reason)
-        counters = {name: int(state[name] or 0) for name in FIELDS[2:]}
+        counters = {name: int((state.get(name) if name in LEASE_FIELDS else state[name]) or 0)
+                    for name in FIELDS[2:]}
     except (OSError, ValueError, KeyError, TypeError):
         return
     if snapshot.turn < turn:

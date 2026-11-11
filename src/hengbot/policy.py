@@ -1414,6 +1414,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # saved landing depth; otherwise a few trivial pickups can keep the bot
         # farming the same blocked floor forever.
         self._no_depth_progress_dives = 0
+        self._alternate_lease = 0  # dives the over-extension switch lasts (alternate_lease)
+        self._alternate_dives = 0  # finished dives of the leased switch so far
         self._last_overextended_depth = 0  # recall depth we could not loot at
         self._alternate_dungeon: int | None = None  # switched-to level-fit dungeon
         # Display-only (spectator, #47): why _alternate_dungeon was switched to.
