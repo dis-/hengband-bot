@@ -47,7 +47,9 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
+from hengbot import heroism_potion
 from hengbot import cli, me_capability, me_staff_sequence, town_end_mining
 from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -128,6 +130,10 @@ class TownDefinedEndHomeLoopTest(_test_n1c_town_wander_1101_recorded.TownWanderR
         self.assertEqual(decisions[26099]["departure_block"]["failed"],
                          ["home_candidate_resolved"])
 
+    # DECLARED WALL (2026-11-11): the Heroism stock (heroism_potion, owner 2026-11-11) postdates this
+    # recording; with it the character also files the Temple errand and keeps its carried potion, so
+    # the recorded route is pinned with no stock wanted.
+    @mock.patch.object(heroism_potion, "carry_target", lambda snapshot: 0)
     def test_town_fallback_never_wanders(self):
         policy, raw = self.boundary()
         # DECLARED RECONSTRUCTED: the visit's Home pass had closed as

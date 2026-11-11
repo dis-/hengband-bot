@@ -74,6 +74,9 @@
   "purchase:tail:cure": [
     "supply-buy"
   ],
+  "purchase:tail:heroism": [
+    "optional-buy"
+  ],
   "purchase:tail:ammo": [
     "optional-buy"
   ],
@@ -335,6 +338,9 @@
     "home-withdraw"
   ],
   "need:ammo:normal:0": [
+    "optional-buy"
+  ],
+  "need:heroism:normal:0": [
     "optional-buy"
   ],
   "need:launcher-ammo:normal:0": [

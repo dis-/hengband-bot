@@ -17368,5 +17368,27 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-11 「強敵の前」: in place of an attack (reasons registry attack row) on a T2-or-worse engagement with an awake SCARE caster, while not hero; an after-decide filter beside _strong_fight_speed_filter."
+  },
+  "heroism_potion.py:is_heroism": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure predicate: a Potion of Heroism (tval 75, sval 32), identified.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._heroism_purchase_units": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the Heroism units a non-Black-Market shelf sells toward the 15 carried, from the gold above _full_departure_resupply_reserve (owner 2026-10-08).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

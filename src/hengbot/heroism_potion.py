@@ -15,7 +15,11 @@ Lasting fear resistance is the ``resist_fear`` ability from the equipment or the
 mutation, player_flags).  The temporary source (hero, berserk, tim_res_fear, the ultimate
 resistance) is not lasting.  With a lasting one nothing is bought and nothing carried is kept.
 
- * ``carry_target``: the carried stock the town procures and the retention keeps (15, else 0).
+ * ``carry_target``: the carried stock the town buys and the retention keeps (15, else 0): the
+   Temple errand and the purchase rung ``tail:heroism`` are optional (never a departure
+   condition) and spend only the gold above the full departure resupply (owner 2026-10-08).
+   A potion stored at Home is not taken out: an optional take bound into the Home batch made
+   n1-a life-508's Home visit step off an uncomposable take (a follow-up if wanted).
  * ``cures_fear`` / ``afraid_key``: afraid, a blow is the answer and the game refuses it, a potion
    is carried: drink it (combat_answer.adjacent_attack; policy._should_flee's fear clause and
    survival_preemption read ``cures_fear``, so the board reaches that answer instead of the flee).

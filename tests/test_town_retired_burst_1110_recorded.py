@@ -56,6 +56,7 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+from hengbot import heroism_potion
 from hengbot.cli import _handle_owner_retirement, _policy_final_stop_required
 from hengbot.model import InventoryItem, STORE_HOME, STORE_MAGIC, Position, StoreItem
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
@@ -353,6 +354,10 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
         self.assertEqual(policy._owner_retired_no_progress_count, 0)
         self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners)
 
+    # DECLARED WALL (2026-11-11): the Heroism stock (heroism_potion, owner 2026-11-11) postdates this
+    # recording; with it the character also files the Temple errand and keeps its carried potion, so
+    # the recorded route is pinned with no stock wanted.
+    @mock.patch.object(heroism_potion, "carry_target", lambda snapshot: 0)
     def test_n1c_195_errand_take_composes_after_the_outside_scan(self):
         """17:29, row 114 (decision 1068): the Home entrance after the errand's ``~9``.
 

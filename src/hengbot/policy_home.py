@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot import quest_optional_carry
+from hengbot import heroism_potion
 from hengbot import bm_destruction_fund, item_fate, mining_oil_sale, spare_gear
 from hengbot.item_reservation import (
     item_available,
@@ -5846,6 +5847,10 @@ class HomeMixin:
         strategy=None,
     ) -> bool:
         """Return the shared, intentionally narrow Home-procurement membership."""
+        if heroism_potion.is_heroism(item):
+            # Owner 2026-11-11's Heroism stock is optional: it never binds a Home take (n1-a
+            # life-508's Home visit stepped off an uncomposable take of two stored potions).
+            return False
         if strategy is None:
             strategy = self._carry_procurement_strategy(snapshot)
         return bool(

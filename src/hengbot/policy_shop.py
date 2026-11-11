@@ -3,7 +3,7 @@ from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
-from hengbot import town_pack_headroom
+from hengbot import heroism_potion, town_pack_headroom
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -2013,6 +2013,16 @@ class ShopMixin(InStoreMixin):
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
                 "me-staff-current-shelf",
             )
+        if heroism_potion.is_heroism(item):
+            # The optional Heroism stock (owner 2026-11-11) is bought off the shelf: it never
+            # routes a Home visit (heroism_potion; a Home take is no condition of it).
+            self._home_procurement_probe = None
+            self._home_procurement_fallthrough = "optional-current-shelf"
+            return self._record_home_gate(
+                snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
+                "heroism-optional-current-shelf",
+                wrapper_fallthrough="optional-current-shelf",
+            )
         if self._is_required_identify_staff_purchase(snapshot, item):
             self._home_procurement_probe = None
             self._home_procurement_fallthrough = "required-current-shelf"
@@ -3057,6 +3067,10 @@ class ShopMixin(InStoreMixin):
         add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET, lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: TORCH_THROW_TARGET))
         add(rung("tail:teleport", "teleport", lambda: not self._teleport_ready(snapshot), lambda i: i.is_teleport_scroll))
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
+        # Owner 2026-11-11 「恐怖耐性がないとき…持ち歩く数は仮に15服」: below every departure
+        # supply, from the gold above the full departure resupply (owner 2026-10-08), at the
+        # Temple's shelf (never the Black Market's).
+        add(rung("tail:heroism", "heroism", lambda: heroism_potion.carry_shortage(snapshot) > 0, lambda i: heroism_potion.is_heroism(i) and self._heroism_purchase_units(snapshot, i) > 0, current=lambda: heroism_potion.carried(snapshot), target=lambda: heroism_potion.carry_target(snapshot)))
         launcher = self._equipped_launcher(snapshot)
         add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot), lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: self._ammo_procurement_target(snapshot)))
         add(rung(
@@ -3977,6 +3991,14 @@ class ShopMixin(InStoreMixin):
                 and ((destruction.tval, destruction.sval) not in excluded_classes
                      or self._identify_staff_swap_purchase(destruction))):
             return destruction
+        # Owner 2026-11-11 「持ち歩く数は仮に15服」 (rung tail:heroism): below every departure
+        # supply, the ammo, the Identify staff and the *Destruction* gate, from the gold above
+        # the full departure resupply only (_heroism_purchase_units).
+        heroism = next((it for it in items if heroism_potion.is_heroism(it)
+                        and (it.tval, it.sval) not in excluded_classes
+                        and self._heroism_purchase_units(snapshot, it) > 0), None)
+        if heroism is not None:
+            return heroism
         black_market_optional = self._black_market_optional_purchase(snapshot)
         if (black_market_optional is not None
                 and ((black_market_optional.tval, black_market_optional.sval)
@@ -4141,6 +4163,8 @@ class ShopMixin(InStoreMixin):
             # stack now so spending cannot reset visit retirement and turn one
             # shelf into repeated cross-town one-bottle visits.
             needed = item.count
+        elif heroism_potion.is_heroism(item):
+            needed = heroism_potion.carry_shortage(snapshot)
         else:
             needed = 1
         needed = max(needed, quest_needed)
@@ -4156,6 +4180,8 @@ class ShopMixin(InStoreMixin):
             needed = min(needed, self._identify_staff_purchase_room_count(snapshot))
         affordable = snapshot.player.gold // item.price if item.price > 0 else item.count
         quantity = max(1, min(item.count, affordable, max(1, needed)))
+        if heroism_potion.is_heroism(item) and quest_needed <= 0:
+            quantity = min(quantity, self._heroism_purchase_units(snapshot, item))
         reserve_cap = self._black_market_optional_reserve_cap(snapshot, item)
         if reserve_cap is not None:
             # User 2026-10-08: preserve the complete departure resupply cost,
@@ -4169,6 +4195,41 @@ class ShopMixin(InStoreMixin):
         if fare and item.tval == TVAL_WAND and quantity < item.count:
             return 0  # split charges have no exact exported purchase price
         return quantity
+
+    def _heroism_errand_wanted(self, snapshot: Snapshot) -> bool:
+        """The Temple errand for the Heroism stock (owner 2026-11-11): short of the carry, and
+        the gold above the full departure resupply buys one at the remembered Temple price (the
+        base cost before the shelf was seen)."""
+        if heroism_potion.carry_shortage(snapshot) <= 0:
+            return False
+        reserve = self._full_departure_resupply_reserve(snapshot)
+        if reserve is None:
+            return False
+        page = getattr(self, "_town_supplier_stock", {}).get(STORE_TEMPLE)
+        prices = [item.price for item in page.items
+                  if heroism_potion.is_heroism(item) and item.price > 0] if page is not None else []
+        price = min(prices) if prices else (self._baseitem_costs.get(heroism_potion.POTION)
+                                               or heroism_potion.BASE_COST)
+        return price > 0 and snapshot.player.gold - reserve >= price
+
+    def _heroism_purchase_units(self, snapshot: Snapshot, item: StoreItem) -> int:
+        """Potions of Heroism this shelf sells toward the carry (owner 2026-11-11).
+
+        The shortage, bounded by the gold above the full departure resupply (owner
+        2026-10-08 「必需品1回分の補充代を残す」, the optional purchases' reserve), so the
+        recall, teleport, healing and food stock is never short for it.  The Black Market is
+        no supplier (its prices are a multiple of the Temple's).  0 when the reserve's price is
+        unknown."""
+        store = snapshot.store
+        if store is not None and store.store_type == STORE_BLACK:
+            return 0
+        shortage = heroism_potion.carry_shortage(snapshot)
+        if shortage <= 0 or item.price <= 0:
+            return 0
+        reserve = self._full_departure_resupply_reserve(snapshot)
+        if reserve is None:
+            return 0
+        return min(shortage, item.count, max(0, (snapshot.player.gold - reserve) // item.price))
 
     def _black_market_optional_reserve_cap(
         self, snapshot: Snapshot, item: StoreItem
@@ -5791,7 +5852,7 @@ class ShopMixin(InStoreMixin):
             "fundraising-oil", "identification-source", "recall", "teleport",
             "cure-critical", "oil", "food", "quest-throwing-items",
             "quest-ranged-kit", "quest-scrolls", "quest-carry", "quest-speed",
-            "quest-healing", "light", "identify-staff", "ammo",
+            "quest-healing", "light", "identify-staff", "ammo", heroism_potion.CATEGORY,
             "throwing-torches", "remove-curse", "home-star-remove-curse-stock",
             "star-remove-curse", "launcher-enchant", "black-market",
             "ability-gear", launcher_upgrade.CATEGORY,

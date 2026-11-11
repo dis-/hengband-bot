@@ -16,21 +16,27 @@ Heroism (pack letter b) and no fear resistance, among Black Knights (黒騎士, 
    1d38485a92 the tiers leave the first of them (Teleportation, ``rh``), which the drink keeps.
 
 Every edit of those boards (the potion taken away, the fear resistance worn, the hero bar, a low
-HP, a patched tier or leave) is DECLARED CONSTRUCTED.
+HP, a patched tier or leave) is DECLARED CONSTRUCTED; so are the town boards, on the
+OptionalBlackMarketPotionTest fixtures of tests/test_policy_shop.py.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import gzip
 import json
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
 from hengbot import threat_tiers
-from hengbot.model import TVAL_POTION, parse_snapshot
+from hengbot.model import (
+    STORE_BLACK, STORE_TEMPLE, TVAL_POTION, AbilitySources, StoreState, parse_snapshot,
+)
 from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.policy_constants import BUY_KEY
+from tests import test_policy_shop as shop
 from tests.support.recorded import EDIT, _policy
 
 
@@ -145,6 +151,83 @@ class FearCasterTest(RecordedBoards):
         self.assertTrue(heroism_potion.strong(Assessment(tier=None, skipped="cost")))
         self.assertFalse(heroism_potion.strong(Assessment(tier=threat_tiers.T3)))
         self.assertFalse(heroism_potion.strong(Assessment(tier=None)))
+
+
+TOWN = shop.OptionalBlackMarketPotionTest()  # the town fixtures
+
+
+def _resistant(snapshot):
+    return replace(snapshot, player=replace(
+        snapshot.player, abilities=snapshot.player.abilities | {"resist_fear"},
+        ability_sources=AbilitySources({"resist_fear": frozenset({"equipment"})})))
+
+
+class TownTest(unittest.TestCase):
+    """15 carried, bought at the Temple from the gold above the full departure resupply."""
+
+    def _shelf(self, *wares, gold=10000, inventory=None, store=STORE_TEMPLE):
+        policy = shop.HengbotPolicy()
+        TOWN._declare_constructed_departure_prices(policy)
+        town = TOWN._town(inventory=inventory, store=StoreState(store, list(wares)), gold=gold)
+        return policy, town
+
+    def test_fifteen_are_bought_at_the_temple(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_HEROISM, price=40, count=20)
+        policy, town = self._shelf(ware)
+        key = str(shop._public_shop_inner(self, policy, town))
+        self.assertTrue(key.startswith(BUY_KEY + "a"), key)
+        self.assertEqual(policy._purchase_quantity(town, ware), 15)
+
+    def test_the_carried_ones_count(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_HEROISM, price=40, count=20)
+        carried = shop.item("h", TVAL_POTION, SV_HEROISM, count=6)
+        policy, town = self._shelf(ware, inventory=[*TOWN._supplies(), carried])
+        self.assertEqual(policy._purchase_quantity(town, ware), 9)
+        full = replace(town, inventory=[*TOWN._supplies(), replace(carried, count=15)])
+        self.assertIsNone(policy._next_purchase(full))
+
+    def test_with_a_lasting_fear_resistance_none_is_bought(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_HEROISM, price=40, count=20)
+        policy, town = self._shelf(ware)
+        self.assertIsNone(policy._next_purchase(_resistant(town)))
+
+    def test_the_hero_bar_is_no_lasting_resistance(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_HEROISM, price=40, count=20)
+        policy, town = self._shelf(ware)
+        hero = replace(town, player=replace(
+            town.player, status_bar=("heroism",),
+            ability_sources=AbilitySources({"resist_fear": frozenset({"temporary"})})))
+        self.assertEqual(policy._next_purchase(hero), ware)
+
+    def test_the_departure_resupply_stays_in_hand(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_HEROISM, price=40, count=20)
+        policy, town = self._shelf(ware, gold=300)
+        reserve = policy._full_departure_resupply_reserve(town)
+        self.assertEqual(policy._purchase_quantity(town, ware), (300 - reserve) // 40)
+        poor = replace(town, player=replace(town.player, gold=reserve + 39))
+        self.assertIsNone(policy._next_purchase(poor))
+
+    def test_not_from_the_black_market(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_HEROISM, price=400, count=20)
+        policy, town = self._shelf(ware, store=STORE_BLACK)
+        self.assertIsNone(policy._next_purchase(town))
+
+    def test_the_carried_stock_is_kept_up_to_fifteen(self):
+        policy, town = self._shelf()
+        carried = shop.item("h", TVAL_POTION, SV_HEROISM, count=20)
+        self.assertEqual(policy._retention_surplus(town, carried), 5)
+        self.assertEqual(policy._retention_surplus(_resistant(town), carried), 20)
+
+    def test_the_temple_errand_is_optional(self):
+        policy, town = self._shelf()
+        outside = replace(town, store=None)
+        needs = [need for need in policy._enumerate_live_store_claims(outside)
+                 if need.category == "heroism"]
+        self.assertEqual([need.store_type for need in needs], [STORE_TEMPLE])
+        spec = next(spec for spec in policy._town_need_registry() if spec.category == "heroism")
+        self.assertFalse(spec.departure_blocking)
+        self.assertFalse([need for need in policy._enumerate_live_store_claims(_resistant(outside))
+                          if need.category == "heroism"])
 
 
 if __name__ == "__main__":
