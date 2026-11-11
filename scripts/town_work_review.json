@@ -6198,6 +6198,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy_quest.py:QuestMixin._quest_stand_torch_pickup_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "No town key: called only from the fixed-quest floor strategy's planned-throw branch (a throwing point's stand exists only on a quest floor); returns None off the approved stand.",
+    "evidence": "QuestMixin._quest_stand_torch_pickup_key returns the pickup key only when the player stands on the reviewed throwing stand of an untaken-target plan, carries no torch, and the stand's pile holds a recoverable kind not claimed unchanged (n1-a life-510 2026-11-11 Q34).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_quest.py:QuestMixin._quest_sweep_pack_space_key": {
     "classification": "dungeon-only",
     "rows": [
