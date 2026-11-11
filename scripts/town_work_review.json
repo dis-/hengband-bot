@@ -15796,6 +15796,50 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "no emission; observational data for the quest search's lap"
   },
+  "quest_target_search.py:sweep_grids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-11 no-means coverage ruling (n1-a life-507/508): reached only from quest_target_search under searching() (the sweep count of observe, _sweep_goal) on a runtime RANDOM quest floor; dungeon only; a mask of the given cells; posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "quest_target_search.py:_sweep_goal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-11 no-means coverage ruling: reached only from quest_target_search.loop_key on a runtime RANDOM quest floor held for its target; dungeon only; returns the next grid of the lap; posts nothing (the step goes through _walk_key, reviewed).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "search_coverage.py:walk_and_walls": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-11 no-means coverage ruling: reached only from quest_target_search.sweep_grids on a runtime RANDOM quest floor; a pure mask of the given cells and their neighbours; posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "search_coverage.py:beside": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from search_coverage.walk_and_walls and quest_target_search._sweep_goal on a runtime RANDOM quest floor; a pure mask dilation; posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; observational data for the quest search's lap"
+  },
   "policy.py:HengbotPolicy._engagement_route_veto": {
     "classification": "data",
     "rows": [
