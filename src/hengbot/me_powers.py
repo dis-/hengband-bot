@@ -63,6 +63,12 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    「魔道具術師　取り込んだスピードが残10回以上なら、特にピンチでなくても戦闘時加速する」
    「成功率8割以上のときに限定して」: ``fight_key`` asks the FIGHT occasion in place of a
    decided attack on an awake hostile (attack_answer), after every survival rung.
+ - 50F+ (PLAN-50F section 4, owner 2026-11-11 for C6 「2 3 5を入れる」): 4.3 the Detect Evil row
+   (and its preferred rod) is cast again once the player stands DEEP_REDETECT_WALK from the
+   floor's latest landed monster detection (``deep-explore-redetect``); 4.4 a dark room is not
+   lit while a strong sleeper is in the room light's reach (``strong_sleepers_in_light_reach``);
+   4.9 the Speed row is also cast on the floor rung once per floor visit while not hasted
+   (``deep-arrival-unhasted``).
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -147,6 +153,22 @@ FIGHT_SPEED_MIN_CHARGES = 10
 # the shortest haste, for the boards whose speed field cannot show it (at +0 it is
 # blank, _player_hasted).
 HASTE_MIN_GAME_TURNS = 160
+# PLAN-50F (deep-dive 2026-11-10/11, section 4), owner 2026-11-11 for its C6 「2 3 5を入れる」:
+# items 2 (4.3 detection cadence), 3 (4.4 lighting rooms) and 5 (4.9 speed), each "only on
+# 50F+" (the plan's floors where 「50F以降は敵が強い」).
+DEEP_FLOOR_MIN_DEPTH = 50
+# 4.3 「Re-detect after walking 25 cells from the last detection (half of DETECT_RAD 30 +
+# margin)」: game distance from the latest landed monster detection of the floor visit.
+DEEP_REDETECT_WALK = 25
+# 4.4: how far the room light reaches from the player's cell.  lite_area lights radius 2 and
+# calls lite_room (spell-kind/spells-lite.cpp:332-347), which floods from the player through LOS
+# terrain (:225-251): a CAVE_ROOM grid at any distance, any other grid only within
+# get_max_range() 18 (cave_temp_room_aux :189-216, system/angband-system.cpp:45-48).  Every
+# monster on a lit grid that is asleep wakes: SMART always, STUPID 1 in 10, others 1 in 4
+# (cave_temp_room_lite :45-77).  The board carries no CAVE_ROOM, so the reach is across the
+# widest ordinary room: type 1 is 2d11+1 by up to 8 floor cells (room/rooms-normal.cpp:29-31),
+# game distance 22 + 7/2 = 25.
+LITE_ROOM_REACH = 25
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
 
 # cmd-magiceat.cpp: the kind question ([A] staff, [B] wand, [C] rod) and the
@@ -204,7 +226,8 @@ POWERS = (
     # Owner 2026-11-02 「対象が邪悪であることに拘らない」: the rod's own trigger
     # searches for any hunted race; the Detect Evil row's only for an EVIL one.
     Power("staff", SV_STAFF_DETECT_EVIL, POWER_NAMES[SV_STAFF_DETECT_EVIL],
-          "detect-evil", DETECT_RAD, 10, ("new-floor", "before-rest", "hunt-target-unseen"),
+          "detect-evil", DETECT_RAD, 10,
+          ("new-floor", "before-rest", "hunt-target-unseen", "deep-explore-redetect"),
           preferred=(("rod", SV_ROD_DETECTION),)),
     Power("rod", SV_ROD_DETECTION, devices()[(TVAL_ROD, SV_ROD_DETECTION)].names,
           "detect-all", DETECT_RAD, 10, ("hunt-target-unseen",), powerful="when-safe"),
@@ -245,7 +268,7 @@ POWERS = (
           darkness_scaled=False,
           aimed=True, against_hostile=True),
     Power("staff", SV_STAFF_SPEED, me_capability.names("staff", SV_STAFF_SPEED),
-          "speed", 0, 80, ("fight-unhasted",),
+          "speed", 0, 80, ("fight-unhasted", "deep-arrival-unhasted"),
           requires=("fight-speed-charges", "speed-reliable"),
           darkness_scaled=False, against_hostile=True),
 )
@@ -428,7 +451,24 @@ def _dark_room(ctx, power):
     grids = [snapshot.grid_at(cell) for cell in ring]
     if any(_floor_cell(grid) and grid.map_lighting == F_LIT_STANDARD for grid in grids):
         return False
-    return any(grid is None or not grid.known for grid in grids)
+    if not any(grid is None or not grid.known for grid in grids):
+        return False
+    return not (_deep_floor(ctx) and strong_sleepers_in_light_reach(ctx.policy, snapshot))
+
+
+def strong_sleepers_in_light_reach(policy, snapshot) -> list:
+    """PLAN-50F 4.4 (owner 2026-11-11 C6 「3」): the room light wakes the sleepers it reaches
+    (LITE_ROOM_REACH), so on 50F+ a dark room is not lit while the board shows -- in view, by
+    telepathy or by a detection -- a strong one asleep within that reach.  Strong is the
+    judgment the owner's 11-07 rule keeps away from even asleep (「強い敵からは離れる」): the
+    engagement retreat's own, ``_material_melee_fight`` (its melee over the engagement horizon
+    is a material share of HP, or disenchant_avoid keeps away from it), as policy_quest reads it.
+    The light the walk needs stays: the light-radius-zero and light-sensitive-adjacent triggers."""
+    here = snapshot.player.position
+    return [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+            if monster.hostile and monster.asleep
+            and game_distance(here, monster.position) <= LITE_ROOM_REACH
+            and policy._material_melee_fight(snapshot, monster)]
 
 
 def _aimed_once(ctx, trigger) -> bool:
@@ -558,6 +598,37 @@ def _unbeatable_in_range(ctx, power):
         damage_against=lambda each: me_ranged_first.best_expected(policy, ctx.snapshot, each))
 
 
+def _deep_floor(ctx) -> bool:
+    return ctx.snapshot.dungeon_level >= DEEP_FLOOR_MIN_DEPTH
+
+
+# The effects whose cast shows the monsters around it (the Detect Evil row and its preferred rod).
+MONSTER_DETECTIONS = frozenset({"detect-evil", "detect-all"})
+
+
+def _deep_explore_redetect(ctx, power):
+    """PLAN-50F 4.3 (owner 2026-11-11 C6 「2」): on 50F+, the floor's monster detection again once
+    the player stands DEEP_REDETECT_WALK from the latest landed one.  The arrival cast is the
+    new-floor trigger's; a Recall already read ends the visit, so it does not re-detect."""
+    if not _deep_floor(ctx) or ctx.snapshot.player.recalling:
+        return False
+    casts = [use for use in ctx.memory.uses if BY_KEY[use.used].effect in MONSTER_DETECTIONS]
+    if not casts:
+        return False
+    latest = max(casts, key=lambda use: use.turn)
+    return ctx.distance(latest.position) >= DEEP_REDETECT_WALK
+
+
+def _deep_arrival_unhasted(ctx, power):
+    """PLAN-50F 4.9 (owner 2026-11-11 C6 「5」): on 50F+ the floor visit starts hasted, 「the first
+    moves of a floor decide whether a pack reaches the character」.  Once per floor visit: not
+    hasted (the speed field) and no cast of this row landed on the floor.  The row's 11-04
+    requirements hold here too (at least FIGHT_SPEED_MIN_CHARGES charges, a reliable cast); no
+    potion is drunk for it (the plan asks the absorbed Speed only)."""
+    return (_deep_floor(ctx) and not ctx.policy._player_hasted(ctx.snapshot)
+            and not ctx.uses_of(power))
+
+
 def _fight_unhasted(ctx, power):
     """Not hasted (the speed field), and no landed cast's shortest haste still runs."""
     return not ctx.policy._player_hasted(ctx.snapshot) and all(
@@ -587,7 +658,9 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
     Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
+    Trigger("deep-explore-redetect", frozenset({FLOOR}), _deep_explore_redetect),
     Trigger("fight-unhasted", frozenset({FIGHT}), _fight_unhasted),
+    Trigger("deep-arrival-unhasted", frozenset({FLOOR}), _deep_arrival_unhasted),
     # Owner 2026-11-05 named 周辺感知: its Door/Stairs fallback does not map.
     Trigger("after-destruction", frozenset({FLOOR}), _after_destruction, takes_fallback=False),
     Trigger("sealed-pocket", frozenset({SEALED}), _sealed_pocket, takes_fallback=False),
