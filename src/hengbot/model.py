@@ -489,6 +489,9 @@ class PlayerState:
     stat_top: tuple[int, ...] = ()
     melee_skill: int = 0
     shooting_skill: int = 0
+    # Protocol 3: the character sheet's shooting value, skill_thb + (to_h_b + bow to_h) *
+    # BTH_PLUS_ADJ (status-first-page.cpp:294); None before it.
+    shooting_rating: int | None = None
     saving_skill: int = 0
     device_skill: int = 0
     stealth_skill: int = 0
