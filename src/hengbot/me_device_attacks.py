@@ -359,8 +359,8 @@ def strongest(policy, snapshot, target, direction):
                  if score > 0 and (power.kind, power.sval) != MISSILE), None)
 
 
-def attack_key(policy, snapshot, target, direction) -> str | None:
-    """``m`` + kind + power (+ direction) of an absorbed power that beats Magic Missile.
+def attack_choice(policy, snapshot, target, direction):
+    """(score, power) of the absorbed power that beats Magic Missile, else None.
 
     None keeps the caller's order (absorbed Magic Missile, carried wand,
     torch, melee).  ``direction`` is the caller's aim at ``target``.
@@ -377,4 +377,10 @@ def attack_key(policy, snapshot, target, direction) -> str | None:
         # Missile, so a power must beat it at an optimistic 100% success.
         if score <= missile_score(policy, snapshot, target):
             return None
-    return device_key(policy, power, direction)
+    return score, power
+
+
+def attack_key(policy, snapshot, target, direction) -> str | None:
+    """``m`` + kind + power (+ direction) of an absorbed power that beats Magic Missile."""
+    choice = attack_choice(policy, snapshot, target, direction)
+    return None if choice is None else device_key(policy, choice[1], direction)

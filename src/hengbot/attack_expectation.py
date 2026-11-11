@@ -33,6 +33,12 @@ having no flags and the reference armour):
   (raised to USE_DEVICE once in USE_DEVICE - chance + 1) or randint1(chance)
   < USE_DEVICE.  A carried staff uses the same check (use-execution.cpp:59-74);
   a carried rod has its own (``rod_use_success``).
+- A shot from the worn launcher (owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較
+  して期待値の高い方を使用する。」, ``launcher_shot``): the ammunition name's per-turn figure
+  (critical-weighted, per 100 energy), times the shot's own slay or brand
+  (combat/shoot.cpp calc_shot_damage_with_slay), times test_hit_fire's chance at the
+  target's armour, chance = the sheet's shooting value + (proficiency term + ammo to_h) x 3
+  - distance (shoot.cpp:492-507, :737).
 """
 
 from __future__ import annotations
@@ -42,8 +48,8 @@ import re
 
 from hengbot import me_device_attacks
 from hengbot.equipment_encounters import melee_multiplier
-from hengbot.launcher_damage import launcher_average_damage
-from hengbot.model import TVAL_ROD, TVAL_WAND
+from hengbot.launcher_damage import LAUNCHER_PROPERTIES, launcher_average_damage
+from hengbot.model import TVAL_BOLT, TVAL_ROD, TVAL_WAND
 from hengbot.policy_constants import USE_DEVICE_MIN
 from hengbot.warrior_equipment_evaluator import AC_REFERENCE
 
@@ -284,8 +290,112 @@ def melee_against(policy, snapshot, race_id) -> float:
     return damage
 
 
+# combat/shoot.cpp calc_shot_damage_with_slay (:144-252): a shot's slay multiplies the
+# whole shot (dice, to_d and the launcher's multiplier), with the arrow's and the bow's
+# flags together, and its values are a shot's own (lower than a melee blow's,
+# equipment_encounters.SLAYS): (TR flag, monster kind, multiplier in tenths).
+SHOT_SLAYS = (
+    (16, "ANIMAL", 17), (96, "ANIMAL", 27), (17, "EVIL", 15), (97, "EVIL", 25),
+    (75, "GOOD", 15), (95, "GOOD", 25), (66, "HUMAN", 17), (103, "HUMAN", 27),
+    (18, "UNDEAD", 20), (98, "UNDEAD", 30), (19, "DEMON", 20), (99, "DEMON", 30),
+    (20, "ORC", 20), (100, "ORC", 30), (21, "TROLL", 20), (101, "TROLL", 30),
+    (22, "GIANT", 20), (102, "GIANT", 30), (23, "DRAGON", 20), (24, "DRAGON", 30),
+)
+# The brands: 17, or 25 on the HURT_ flag; none against the immunity or RES_ALL
+# (race-resistance-mask.cpp RFR_EFF_IM_*_MASK): (TR flag, immunity, vulnerability).
+SHOT_BRANDS = ((28, "IM_ACID", None), (29, "IM_ELEC", None), (30, "IM_FIRE", "HURT_FIRE"),
+               (31, "IM_COLD", "HURT_COLD"), (27, "IM_POIS", None))
+# shoot.cpp exec_shoot :492-507: the launcher's proficiency term of the shot's chance.
+MEDIAN_WEAPON_EXP = 4000      # PlayerSkill::weapon_exp_at(MASTER) / 2 (player-skill.h:20)
+BOW_EXP_DIVISOR = 200
+CROSSBOW_EXP_DIVISOR = 400
+# flavor-describer.cpp describe_ammo_detail: the ammunition's name carries the
+# critical-weighted average of one shot and the average per 100 energy,
+# "(74/shot 74/turn)" (show_ammo_detail) or "(74/74)".
+_TURN_DISPLAY = re.compile(r"\((\d+)/(?:shot )?(?:\d+/(?:crit )?)?(\d+)(?:/turn)?(?:/[\d.]+%(?: crit)?)?\)")
+
+
+def shot_multiplier(flags, race_flags) -> int:
+    """calc_shot_damage_with_slay's multiplier (tenths) of ``flags`` against ``race_flags``."""
+    multiplier = 10
+    for weapon_flag, kind, value in SHOT_SLAYS:
+        if weapon_flag in flags and kind in race_flags:
+            multiplier = max(multiplier, value)
+    for weapon_flag, immunity, vulnerability in SHOT_BRANDS:
+        if weapon_flag in flags and not race_flags & {immunity, "RES_ALL"}:
+            multiplier = max(multiplier, 25 if vulnerability in race_flags else 17)
+    return multiplier
+
+
+def _shot_per_turn(launcher, ammo) -> float:
+    """One shot's average damage per 100 energy (a player action), before the slay.
+
+    The name's figure (flavor-describer.cpp :224-285: avgdam with the expected critical
+    hit, times num_fire * 100 / bow energy); without it, the dice, to_d and the launcher's
+    multiplier at one shot of the bow's energy (launcher_damage.LAUNCHER_PROPERTIES; the
+    strength term of tmul and extra shots are not on the board)."""
+    shown = _TURN_DISPLAY.search(ammo.name)
+    if shown:
+        return float(shown.group(2))
+    energy = LAUNCHER_PROPERTIES.get(launcher.sval, (None, 10000, 0))[1]
+    return launcher_average_damage(launcher, ammo) * 10000 / energy
+
+
+def _proficiency_term(launcher) -> int:
+    """shoot.cpp:500-507's ``weapon_exp`` term (C division truncates toward zero)."""
+    if launcher.weapon_proficiency_rank is None:
+        return 0  # not printed: the term is unknown and taken as none
+    if launcher.ammo_tval == TVAL_BOLT:
+        return launcher.weapon_proficiency // CROSSBOW_EXP_DIVISOR
+    return int((launcher.weapon_proficiency - MEDIAN_WEAPON_EXP) / BOW_EXP_DIVISOR)
+
+
+def shot_chance(snapshot, launcher, ammo, distance: int) -> int:
+    """exec_shoot's ``chance`` (shoot.cpp:492-507) less the distance test_hit_fire takes
+    (shoot.cpp:737 ``chance - cur_dis``, one per grid of the path).
+
+    chance = skill_thb + (weapon_exp term + to_h_b + ammo to_h + bow to_h) * BTH_PLUS_ADJ.
+    The character sheet's shooting value is skill_thb + (to_h_b + bow to_h) * BTH_PLUS_ADJ
+    (status-first-page.cpp:294, ``PlayerState.shooting_rating``); without it, skill_thb and
+    the bow's to_h with to_h_b taken as TO_H_B_FLOOR."""
+    player = snapshot.player
+    rating = getattr(player, "shooting_rating", None)
+    if rating is None:
+        rating = player.shooting_skill + (TO_H_B_FLOOR + launcher.to_h) * BTH_PLUS_ADJ
+    return rating + (_proficiency_term(launcher) + ammo.to_h) * BTH_PLUS_ADJ - distance
+
+
+def launcher_usable(policy, snapshot):
+    """The worn launcher while the shot can be aimed (not blind or confused), else None."""
+    if snapshot.player.blind or snapshot.player.confused:
+        return None
+    return policy._equipped_launcher(snapshot)
+
+
+def launcher_shot(policy, snapshot, target, ammo) -> float:
+    """Firing ``ammo`` at ``target``: expected damage per player action, capped by its HP.
+
+    Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する。
+    敵の耐性、射撃の命中率、魔法の成功率まで考慮すること。」: the hit chance at the target's
+    armour and distance (test_hit_fire, shoot.cpp:959-1013), the shot's slay or brand
+    against its race (calc_shot_damage_with_slay) and the shots per player action (the
+    name's per-turn figure).  As me_device_attacks' score, the chance times the damage
+    capped by the target's estimated hp."""
+    launcher = launcher_usable(policy, snapshot)
+    if launcher is None or ammo is None or ammo.tval != launcher.ammo_tval or ammo.count <= 0:
+        return 0.0
+    distance = snapshot.player.position.distance_to(target.position)
+    hit = _throw_hit_chance(shot_chance(snapshot, launcher, ammo, distance), _armour(policy, target))
+    slay = shot_multiplier(ammo.known_flags | launcher.known_flags, _flags(policy, target))
+    return hit * min(_shot_per_turn(launcher, ammo) * slay / 10, max(target.hp, 0))
+
+
 def launcher_against(policy, snapshot, race_id, distance: int) -> float:
-    """The worn launcher's best stack: expected damage per player action against ``race_id``."""
+    """The worn launcher's best stack: expected damage per player action against ``race_id``.
+
+    The quest-25 plan's per-race figure, kept as reviewed for the plan (the melee slay table,
+    skill_thb with to_h_b at TO_H_B_FLOOR, no proficiency term); the board-level shot that
+    meets the absorbed powers is ``launcher_shot``."""
     launcher = policy._equipped_launcher(snapshot)
     if launcher is None or snapshot.player.blind or snapshot.player.confused:
         return 0.0
