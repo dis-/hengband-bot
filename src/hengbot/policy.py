@@ -7,7 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import ladder_floor_avoidance, ladder_light, warning_cell_record
-from hengbot import anaguma, combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
+from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
@@ -6347,6 +6347,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # USER DECISION 2026-10-03 06:2x: Speed at a strong fight's start, in
         # place of the fighting action only.
         key = self._strong_fight_speed_filter(snapshot, key)
+        # Owner 2026-11-11 「恐怖の呪文を持つ強い相手と戦い始める時に先に飲む」: the Potion of
+        # Heroism in place of an attack on a T2-or-worse fear caster (heroism_potion).
+        key = heroism_potion.fight_filter(self, snapshot, key)
         # Class 16's absorbed Speed in place of an attack (me_powers FIGHT).
         key = me_powers.fight_key(self, snapshot, key)
         # Bookkeeping is a separate, higher rung: save and dump may replace
@@ -9976,8 +9979,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         player = snapshot.player
         if not hostiles:
             return False
-        if player.afraid and adjacent:
-            # Fear forbids melee, so back away instead of failing to attack.
+        if player.afraid and adjacent and not heroism_potion.cures_fear(self, snapshot):
+            # Fear forbids melee, so back away instead of failing to attack -- unless a
+            # Potion of Heroism ends it (owner 2026-11-11 「恐怖になって殴れなくなった時に飲む」):
+            # the melee rung's refused blow drinks it (combat_answer.adjacent_attack).
             return True
         if self._committed_unique_fight_viable(snapshot, hostiles):
             # Once rare consumables have been committed, do not spend them and

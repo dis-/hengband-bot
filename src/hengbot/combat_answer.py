@@ -3,8 +3,10 @@
 Every rung that may hit an adjacent hostile asks ``adjacent_attack``; a rung
 holding a target of its own asks ``strike_key``.  ``_MELEE_OPEN`` is the order
 of answers while the game allows a blow: a new answer before melee is one row
-there.  While the game refuses the blow, ``me_ranged_first.melee_refused_key``
-owns the answer (fear and a NO_MELEE dungeon refuse melee only), as it does
+there.  While the game refuses the blow, a carried Potion of Heroism answers a
+refusing fear first (heroism_potion.afraid_key, owner 2026-11-11); else
+``me_ranged_first.melee_refused_key`` owns the answer (fear and a NO_MELEE
+dungeon refuse melee only), as it does
 beside hostiles no worn weapon can hurt (attack_expectation.blows_cannot_hurt).
 
 A rung declares only what differs: the reason of its blow, how the blow is sent
@@ -19,7 +21,7 @@ from __future__ import annotations
 
 from typing import Callable, NamedTuple
 
-from hengbot import attack_expectation, blind_strike, me_ranged_first
+from hengbot import attack_expectation, blind_strike, heroism_potion, me_ranged_first
 
 
 class Answer(NamedTuple):
@@ -75,6 +77,11 @@ def adjacent_attack(policy, snapshot, adjacent, reason: str, *,
     if not adjacent:
         return None
     if attack_expectation.melee_answers_none_of(policy, snapshot, adjacent):
+        # Owner 2026-11-11 「恐怖になって殴れなくなった時に飲む」: the Potion of Heroism ends the
+        # fear that refuses the blow, before any other answer.
+        key = heroism_potion.afraid_key(policy, snapshot, adjacent)
+        if key is not None:
+            return Answer(key)
         key = me_ranged_first.melee_refused_key(policy, snapshot, adjacent)
         return None if key is None else Answer(key)
     if on_engage is not None:

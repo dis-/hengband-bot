@@ -312,6 +312,11 @@ _rows(NOT_ESCAPE, ("blind_strike", "policy_combat", "policy_quest", "speed_dose"
       _RULE_ATTACK + " (blind, a Recall read)",
       "unseen-recall:blind-strike", "unseen-recall:strike", "unseen-recall:strike:absorbed-power",
       attack=True)
+# Owner 2026-11-11 「恐怖になった時と強敵の前」: the Potion of Heroism, drunk in place of the blow
+# fear refuses and before an attack on a T2-or-worse fear caster.  A drink: no escape, no attack.
+_rows(NOT_ESCAPE, ("heroism_potion", "combat_answer"),
+      "owner 2026-11-11 「恐怖になった時と強敵の前」 (a drink, neither an escape nor an attack)",
+      "heroism:afraid", "heroism:fear-caster")
 # The word rule's oddities, kept so that no decision changes (registry report): no attack is
 # sent, but a word of the old list is in the reason ("shot" in oneshot, "melee", "kill", "fire").
 _RULE_WORDS = "word rule: no attack is sent, the old word guess read one (kept; registry report)"

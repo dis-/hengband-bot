@@ -290,7 +290,8 @@ BEFORE_DECIDE = (
 )
 
 AFTER_DECIDE = (
-    "_flee_sustain_key", "_strong_fight_speed_filter", "me_powers.fight_key",
+    "_flee_sustain_key", "_strong_fight_speed_filter", "heroism_potion.fight_filter",
+    "me_powers.fight_key",
     "_periodic_game_save_key", "_periodic_character_dump_key", "periodic_magic_eater_powers_key",
     "_break_positional_oscillation", "_break_livelock", "_bound_escape_wait",
     "_forbid_wait_on_town_entrance", "_suppress_pending_stair_command",
