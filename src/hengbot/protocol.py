@@ -300,7 +300,6 @@ def v3_player_skills(player_data: Mapping[str, Any], equipment: Sequence[Mapping
     Derivation (exact inverse of calc_skill_rating_sources):
       melee_skill    = fighting.value - 3 * to_h_m
       shooting_skill = shooting.value - 3 * (to_h_b + bow.to_h)
-      shooting_rating = shooting.value
       saving_skill   = saving_throw.value          (skill_sav)
       device_skill   = magic_device.value          (skill_dev)
       stealth_skill  = stealth.value               (skill_stl; -1 when <= 0)
@@ -327,7 +326,6 @@ def v3_player_skills(player_data: Mapping[str, Any], equipment: Sequence[Mapping
     return {
         "melee_skill": skill_rating_value(ratings, "fighting") - BTH_PLUS_ADJ * to_h_m,
         "shooting_skill": skill_rating_value(ratings, "shooting") - BTH_PLUS_ADJ * bow_terms,
-        "shooting_rating": skill_rating_value(ratings, "shooting"),
         "saving_skill": skill_rating_value(ratings, "saving_throw"),
         "device_skill": skill_rating_value(ratings, "magic_device"),
         "stealth_skill": skill_rating_value(ratings, "stealth"),
