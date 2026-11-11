@@ -110,6 +110,18 @@ seen, ``coverage_given_up`` is one more named release of the quest floor's exit 
 (policy_quest ``_quest_floor_exit_locked``): the search mode ends and the floor is left as any
 released quest floor is (the quest fails).  Seeing the target resets nothing; while it is seen the
 search mode is not asked and nothing is counted.
+Without any means (``no_means``: no telepathy, no held cast that can show the target) the grids are
+the walkable ground and the grids bordering it, not the rock (owner 2026-11-11 「感知が無い時は、歩いて
+行ける床と、それに接する壁を2回見たら全域を覆ったとみなして諦める（岩の中は数えない）。」;
+search_coverage.walk_and_walls over the walk's routes, ``sweep_grids``): n1-a life-507 (Angband 12F,
+RANDOM quest 43) and life-508 (Angband 44F, quest 47) lapped for hours with the coverage at 0, the rock
+never in view.  Seen is in view, or the player's own grid and its neighbours (``_reach_now``).  So
+the sweep can end, once the plain laps and two door rounds found nothing (SWEEP_WALK_AFTER_LAPS, owner
+2026-11-05: a complete map is not walked cell by cell while a lap may still find the target; at once
+on a floor of one stop, which has no laps), a lap whose stops are all seen walks on to the nearest
+walkable grid with an unseen grid of the set beside it (``_sweep_goal``) before it draws the next
+lap; as that walk keeps one lap going, each complete coverage starts a door search round
+(``_door_search_key``), so the owner's secret door search still comes before the floor is given up.
 
 The detection (``detection_key``, on the dungeon's safe decision, under me_powers' own rows,
 which cast an absorbed power first): only a means that can show this race
@@ -145,6 +157,7 @@ DOOR_REASON = "quest-search:seek-door"
 DOOR_MEANS_REASON = "quest-search:detect-doors"
 SEARCH_REASON = "search"  # the corridor dead-end rung's own reason
 DOOR_SEARCH_LAPS = 3  # the owner's 「何周か」: the target's healing is why the loop hurries
+SWEEP_WALK_AFTER_LAPS = 2 * DOOR_SEARCH_LAPS  # no means: the plain laps and two door rounds first
 SWEEPS_TO_GIVE_UP = 2  # owner 2026-11-08 21:5x 「全域を2回覆ったら諦める」
 MEMORY = "_quest_target_search"
 MONSTERS, DOORS, BOTH = "monsters", "doors", "both"  # what a carried use detects
@@ -177,6 +190,8 @@ class Memory:
     laps: int = 0                              # laps finished on this floor visit
     door_lap: int = 0                          # the lap the last door search began at
     door_search: bool = False                  # the dead ends are being searched now
+    door_sweep: int = 0                        # the complete coverages the last door round followed
+    walked: frozenset | None = None            # the cells loop_key's walk reached (no-means coverage)
     stop_radius: dict = field(default_factory=dict)  # stop -> the reach it was drawn for
     sweeps: search_coverage.Sweeps = field(default_factory=search_coverage.Sweeps)
     door_casts: list = field(default_factory=list)  # (position, radius) a carried door detection covered
@@ -335,14 +350,44 @@ def _draw(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> tuple:
 def _reach_now(policy, snapshot: Snapshot) -> list:
     """(y, x, radius) of what the player's place shows this decision: telepathy's reach; without
     it, nothing (only the casts count, owner 「感知を使った範囲だけ数える」), unless no held means can
-    show the target, when the grids in view count (radius 0)."""
+    show the target, when the grids in view count (radius 0) and the player's own grid with its
+    neighbours (radius 1: the game keeps the adjacent grids in view)."""
     radius = search_coverage.walk_radius(policy, snapshot)
+    here = snapshot.player.position
     if radius:
-        here = snapshot.player.position
         return [(here.y, here.x, radius)]
     if held_cast_radius(policy, snapshot):
         return []
-    return [(grid.position.y, grid.position.x, 0) for grid in snapshot.grids.values() if grid.in_view]
+    return [(here.y, here.x, 1), *((grid.position.y, grid.position.x, 0)
+                                   for grid in snapshot.grids.values() if grid.in_view)]
+
+
+def no_means(policy, snapshot: Snapshot) -> bool:
+    """Neither telepathy nor a held cast that can show the unseen target (the module docstring)."""
+    return not search_coverage.walk_radius(policy, snapshot) and not held_cast_radius(policy, snapshot)
+
+
+def sweep_grids(policy, snapshot: Snapshot, cells):
+    """The grids a complete coverage covers: every grid but the outer ring (owner 2026-11-08),
+    or, with no means, the walkable ``cells`` and the grids bordering them (owner 2026-11-11)."""
+    if not no_means(policy, snapshot):
+        return search_coverage.floor_grids(snapshot)
+    return search_coverage.walk_and_walls((snapshot.height, snapshot.width), cells)
+
+
+def _sweep_goal(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> Position | None:
+    """With no means, the nearest walkable grid (by walking distance) with a grid of the sweep
+    beside it not yet seen, else None: what the lap's sight stops left unseen is walked to
+    before the next lap, so the coverage can be completed (the module docstring)."""
+    if (not memory.lap_turn or (memory.stops and memory.laps < SWEEP_WALK_AFTER_LAPS)
+            or not no_means(policy, snapshot)):
+        return None  # the sight stops and the plain laps come first (the module docstring)
+    shape = (snapshot.height, snapshot.width)
+    left = sweep_grids(policy, snapshot, routes) & ~memory.sweeps.cover.mask(shape)
+    near = search_coverage.beside(left)
+    here = snapshot.player.position
+    goals = [cell for cell in routes if cell != here and near[cell.y, cell.x]]
+    return None if not goals else min(goals, key=lambda cell: (routes[cell][0], cell.y, cell.x))
 
 
 def _seen_now(snapshot: Snapshot, stop: Position, left, radius: int) -> bool:
@@ -550,9 +595,13 @@ def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -
         spots = [cell for cell in routes if cell not in ends and _beside(cell, uncovered)]
     # Ground no walkable cell covers is searched toward at once, once for each reach.
     toward = (memory.unreached, len(routes)) if memory.unreached else None
-    if not memory.door_search and (memory.laps - memory.door_lap >= DOOR_SEARCH_LAPS
+    # With no means the sweep's walk keeps one lap going until the floor is given up, so a
+    # complete coverage is what brings the round (the module docstring).
+    swept = no_means(policy, snapshot) and memory.sweeps.count > memory.door_sweep
+    if not memory.door_search and (memory.laps - memory.door_lap >= DOOR_SEARCH_LAPS or swept
                                    or toward not in (None, memory.toward_done)):
         memory.door_lap, memory.door_search = memory.laps, True
+        memory.door_sweep = memory.sweeps.count
         for cell in (*ends, *spots):
             policy._forget_wall_search(cell)
     if not memory.door_search:
@@ -587,6 +636,7 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
     if walled_off is not None:
         return walled_off
     memory, routes = _memory(policy, snapshot), _routes(policy, snapshot)
+    memory.walked = frozenset(routes)
     lock = locked_doors.pick_key(
         policy, snapshot, routes,
         lambda goal, reason: _walk_key(policy, snapshot, routes, goal, reason))
@@ -609,6 +659,8 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
             return _redetect_wait_key(policy, wait)
     goal = _next_goal(policy, snapshot, memory, routes)
     if goal is None:
+        goal = _sweep_goal(policy, snapshot, memory, routes)
+    if goal is None:
         memory.laps += bool(memory.stops)
         stops = _draw(policy, snapshot, memory, routes)
         # One stop: all the ground is in sight of one place, so there is nothing to circle.
@@ -624,7 +676,9 @@ def _count_sweep(policy, snapshot: Snapshot, memory: Memory) -> None:
     """Count a complete coverage (search_coverage.Sweeps), kept in the floor's ledger."""
     sweeps = memory.sweeps
     casts = [cast for cast in _cast_centres(policy, snapshot, memory, since=sweeps.start_turn)]
-    sweeps.update(search_coverage.floor_grids(snapshot), casts, snapshot.turn)
+    if memory.walked is None and no_means(policy, snapshot):
+        return  # loop_key has not walked yet: nothing to measure the ground by
+    sweeps.update(sweep_grids(policy, snapshot, memory.walked or ()), casts, snapshot.turn)
     ledger = getattr(policy, "_exploration_ledger", None)
     if ledger is not None and ledger.floor_key == snapshot.floor_key:
         ledger.search_sweep_turn, ledger.search_sweeps = sweeps.start_turn, sweeps.count

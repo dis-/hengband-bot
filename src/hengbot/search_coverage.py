@@ -19,6 +19,15 @@ A detection cast covers its own radius around where it was cast (me_powers.revea
 the quest search's carried casts give (centre, radius) only for a cast that can show the race:
 DETECT_RAD_DEFAULT 30, the powerful rod's 45, a third in a DARKNESS dungeon).
 
+Without any means (no telepathy and no held cast that can show the target), the grids to cover are
+different (owner 2026-11-11, n1-a life-507 Angband 12F and life-508 Angband 44F: the 11-08 set holds
+the rock between rooms, which nothing but telepathy or a detection reaches, so no coverage was ever
+complete and the search lapped for 8 hours): 「感知が無い時は、歩いて行ける床と、それに接する壁を2回見たら
+全域を覆ったとみなして諦める（岩の中は数えない）。」  ``walk_and_walls``: every walkable cell the walk
+reaches and the grids around it (its 8 neighbours: the walls bordering the ground, and an unknown
+grid beside it until it is seen), inside the outer ring.  What is seen is what the game shows in view,
+and the player's own grid and its neighbours (radius 1: cave_view always holds the adjacent grids).
+
 ``plan`` draws the walk: the given stops (the lap's room middles and sight stops), then, while
 a grid no stop covers lies within ``walk_radius`` of a walkable cell, the walkable cell near it
 that covers the most such grids (a telepathy stop); then, with ``cast_radius`` (the largest plain
@@ -109,6 +118,32 @@ def floor_grids(snapshot: Snapshot) -> np.ndarray:
     mask = np.zeros((snapshot.height, snapshot.width), dtype=bool)
     mask[1:-1, 1:-1] = True
     return mask
+
+
+def walk_and_walls(shape, cells) -> np.ndarray:
+    """The walkable ``cells`` and the grids touching them, inside the outer ring (no means:
+    the module docstring)."""
+    height, width = shape
+    walk = np.zeros(shape, dtype=bool)
+    for cell in cells:
+        if 0 <= cell.y < height and 0 <= cell.x < width:
+            walk[cell.y, cell.x] = True
+    grids = beside(walk)
+    grids[0, :] = grids[-1, :] = False
+    grids[:, 0] = grids[:, -1] = False
+    return grids
+
+
+def beside(mask: np.ndarray) -> np.ndarray:
+    """``mask`` and every grid among the 8 neighbours of a marked grid."""
+    grown = mask.copy()
+    height, width = mask.shape
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if dy or dx:
+                grown[max(0, dy):height + min(0, dy), max(0, dx):width + min(0, dx)] |= (
+                    mask[max(0, -dy):height + min(0, -dy), max(0, -dx):width + min(0, -dx)])
+    return grown
 
 
 def covered(shape, centres) -> np.ndarray:

@@ -11770,6 +11770,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:_sweep_goal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no emission; observational data for the quest search's lap"
+  },
   "quest_target_search.py:_uncovered": {
     "classification": "data",
     "rows": [
@@ -11811,6 +11818,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:sweep_grids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no emission; observational data for the quest search's lap"
   },
   "resist_potion.py:_drink": {
     "classification": "producer",
@@ -12064,7 +12078,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "search_coverage.py:beside": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no emission; observational data for the quest search's lap"
+  },
   "search_coverage.py:floor_grids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "search_coverage.py:walk_and_walls": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -548,6 +548,10 @@ class PlayerState:
         return self.food_state == "fainting"
 
 
+# The game's {空} / {empty} feeling, first in the braces (flavor-describer.cpp describe_inscription).
+_EMPTY_FEELING = re.compile(r"\{(?:空|empty)[,}]")
+
+
 @dataclass(frozen=True)
 class InventoryItem:
     slot: str  # inventory letter, e.g. "a"
@@ -592,6 +596,15 @@ class InventoryItem:
     @property
     def is_potion(self) -> bool:
         return self.tval == TVAL_POTION
+
+    @property
+    def known_empty(self) -> bool:
+        """An unidentified wand or staff the game marked empty: eaten or aimed at 0 charges, it
+        sets IdentificationFlag::EMPTY and stays unidentified, and its name carries the feeling
+        {空} / {empty} (flavor-describer.cpp describe_item_feeling, the first of the inscription's
+        comma-separated parts; cmd-item/cmd-eat.cpp: 「この魔法棒にはもう魔力が残っていない」)."""
+        return (not self.known and self.tval in (TVAL_WAND, TVAL_STAFF)
+                and _EMPTY_FEELING.search(self.name) is not None)
 
     @property
     def is_empty_bottle(self) -> bool:
