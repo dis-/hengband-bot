@@ -1638,8 +1638,11 @@ class SupplyMixin:
                     identify,
                     key=lambda it: (self._stack_charges(it), it.charges, it.slot),
                 )
+            # One the game marked empty ({空}) is no attempt: eating it again only repeats
+            # 「この魔法棒にはもう魔力が残っていない」 (n1-a life-507 Angband 12F, 2026-11-10 18:57:
+            # 「ブリキの魔法棒 {空}」 eaten ~40 times until the loop detector).
             return self._first_item(
-                snapshot, lambda it: it.is_wand_staff and not it.known
+                snapshot, lambda it: it.is_wand_staff and not it.known and not it.known_empty
             )
         return self._first_item(
             snapshot, lambda it: it.is_food and it.aware and it.sval >= FOOD_MIN_SVAL
