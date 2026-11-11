@@ -32,6 +32,10 @@ owner-retired-burst.
 
 n1-b life-365 (16:28): the third retirement of the burst came on the typed
 depth-gate wait; the stop was named only owner-retired-burst.
+
+n1-b life-370 (2026-11-11 15:54): the walk across Zul to the Levitation shop,
+a new cell on every board, had no distance for its owner (cross-town) and was
+retired three times.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -308,6 +312,32 @@ class TownRetiredBurst1110RecordedTest(unittest.TestCase):
                 policy.confirm_key_posted(key)
         self.assertEqual(progress, [(row, "store-router", True) for row in range(31, 60)])
         self.assertEqual(policy._owner_retired_no_progress_count, 0)
+
+    def test_n1b_370_zul_levitation_shop_walk_is_progress(self):
+        """15:54, rows 31-57: the walk across Zul to the Levitation shop.
+
+        Live: town:zul:levitation-shop, a new cell on every board, yet
+        cross-town scored no progress (the Reach goal of the approach is the
+        store router's, so the walk had no distance): retired at rows 39, 48
+        and 57, the third made the burst.
+        """
+        policy, recorded, steps = self.load("n1b-370")
+        self.replay_live(policy, recorded, steps[:31])
+        progress = []
+        cells = []
+        for row, supply in steps[31:58]:
+            board = supply()
+            cells.append(board.player.position)
+            key = policy.choose_key(board)
+            self.assertEqual((key, policy.last_reason),
+                             (recorded[row["row"]]["key"], "town:zul:levitation-shop"), row["row"])
+            arbiter = policy._town_turn_arbiter.telemetry
+            progress.append((row["row"], arbiter["producer_owner"], arbiter["progress"]))
+            policy.confirm_key_posted(key)
+        self.assertEqual(len(set(cells)), 27)
+        self.assertEqual(progress, [(row, "cross-town", True) for row in range(31, 58)])
+        self.assertEqual(policy._owner_retired_no_progress_count, 0)
+        self.assertFalse(policy._town_turn_arbiter.pending_retirement_owners)
 
     def test_n1b_365_burst_on_a_typed_wait_is_named_after_it(self):
         """16:28, row 16 (the stop): the burst's retirement on the depth-gate wait.
