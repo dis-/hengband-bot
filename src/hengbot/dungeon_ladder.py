@@ -348,7 +348,9 @@ FLOOR_PLANS = (
         Branch("no enemy", (
             # Owner 2026-11-04 「薬を使い切っていたら踏んで良い」 (``_leave_by_exit``).
             ("_druj_retreat", SURVIVAL), ("_leave_by_exit", SURVIVAL), ("_summons", SUMMONS),
-            ("resist_potion.drink_key", OWN), ("quest_plan_base._restore", OWN),
+            # The plan's restore potions, not while a summons it teleported from is remembered
+            # (owner 2026-11-09 「起きた敵も最後の位置を覚える」, n1-c life-195 2026-11-11).
+            ("resist_potion.drink_key", OWN), ("_restore", OWN),
             # Owner 2026-11-09 「一歩で安全圏に移動して休息できる」: damaged in the fire, one step out.
             ("_out_of_fire_key", OWN),
             # Owner 2026-11-09 「段をやめ射線外で待つ」: Recall read, no phase step.

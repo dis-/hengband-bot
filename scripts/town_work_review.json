@@ -16126,6 +16126,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 floor with Recall active: the walk to the start stair out of the fire and the stair, else out of the fire and the wait (owner 2026-11-09). No independent progress."
   },
+  "quest25_battle.py:_restore": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q25 quiet board: the plan's restore potion (quest_plan_base._restore) unless a phase-2 summons it teleported from is remembered (owner 2026-11-09/11-11). No independent progress."
+  },
   "quest25_battle.py:_rest_out_of_fire": {
     "classification": "producer",
     "rows": [

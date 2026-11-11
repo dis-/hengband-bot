@@ -490,6 +490,106 @@ class Q25IpsissimusTest(unittest.TestCase):
         self.assertEqual(phase_of(policy, raw), "stragglers")
 
 
+class Q25StrongSummonsTest(unittest.TestCase):
+    """Owner 2026-11-11 「隘路で待って倒す」 (n1-c life-195, the recorded pin
+    tests/test_n1c_195_q25_summoned_strong_1111_recorded): what phase 2 teleported from is
+    remembered, weighed before the walk to the stand, and waited for on a summon-safe choke until it
+    is killed or unseen for the plan's ``quiet_actions``; then full HP and the walk again.  The
+    remembered summons below (DECLARED CONSTRUCTED, ``at_phase``) are what ``_ipsissimus`` records
+    when it reads Teleportation."""
+
+    DRACOLICH = 701
+
+    def test_a_high_threat_summons_on_the_walk_is_weighed_before_the_step(self):
+        # On [6,1], hasted, the next step of the walk is [5,1]; a spectral tyrannosaur summoned on
+        # [5,2] with a high threat: Teleportation, not the step toward it.
+        raw = with_wand_list(board((6, 1), hp=480, healing=0, speed=0), FIRE_BALL)
+        raw["visible_monsters"] = [monster(geo.SPECTRAL_T, 5, 2, index=902)]
+        raw["messages"] = ["何かが魔法でアンデッドを召喚した。"]
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True   # DECLARED: the haste shown
+        snapshot = parse_snapshot(copy.deepcopy(raw), RACES)
+        self.assertTrue(policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot)))
+        with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
+            key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, battle.TELEPORT_REASON, key)
+        self.assertEqual(memory(policy, raw).strong, ((geo.SPECTRAL_T, (5, 2)),))
+
+    def test_a_low_threat_summons_on_the_walk_lets_it_go_on(self):
+        raw = with_wand_list(board((6, 1)), FIRE_BALL)
+        raw["visible_monsters"] = [monster(geo.SPECTRE, 4, 3, index=902)]
+        raw["messages"] = ["何かが魔法でアンデッドを召喚した。"]
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True
+        snapshot = parse_snapshot(copy.deepcopy(raw), RACES)
+        self.assertFalse(policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot)))
+        self.assertEqual((choose(policy, raw), policy.last_reason), (step((6, 1), (5, 1)), battle.WALK_REASON))
+
+    def test_the_choke_holds_while_the_summons_is_remembered(self):
+        raw = board((1, 18))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus", rallying=True, strong=((self.DRACOLICH, (6, 2)),))
+        self.assertEqual((choose(policy, raw), policy.last_reason), (WAIT_KEY, HOLD_REASON))
+        self.assertTrue(memory(policy, raw).rallying)
+
+    def test_control_with_none_remembered_the_rally_ends_on_the_choke(self):
+        raw = board((1, 18))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus", rallying=True)
+        choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, HOLD_REASON)
+        self.assertFalse(memory(policy, raw).rallying)
+
+    def test_in_view_on_the_choke_it_is_fought_there(self):
+        raw = board((1, 18), monsters=[monster(self.DRACOLICH, 1, 12, index=53)])
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus", rallying=True, strong=((self.DRACOLICH, (6, 2)),))
+        policy._player_hasted = lambda snapshot: True   # DECLARED: the haste shown
+        with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
+            key = choose(policy, raw)
+        self.assertTrue(key.startswith("f"), (key, policy.last_reason))   # the crossbow at it
+        self.assertEqual(memory(policy, raw).strong, ((self.DRACOLICH, (1, 12)),))
+
+    def test_off_the_choke_the_walk_never_goes_toward_it(self):
+        # [1,9] with the dracolich on [1,3] (n1-c life-195 5:34): the choke [1,7] is nearer to it;
+        # the walk goes east to [1,18], not west, and reads no Teleportation at full HP.
+        raw = board((1, 9), monsters=[monster(self.DRACOLICH, 1, 3, index=53)])
+        policy = new_policy(raw)
+        # DECLARED CONSTRUCTED: the trapped corridor's next cell already searched out (_trap_key).
+        at_phase(policy, raw, "ipsissimus", rallying=True, strong=((self.DRACOLICH, (6, 2)),),
+                 cleared=frozenset({(1, 10)}))
+        policy._player_hasted = lambda snapshot: True
+        with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
+            key = choose(policy, raw)
+        self.assertEqual((key, policy.last_reason), (step((1, 9), (1, 10)), battle.WALK_REASON))
+
+    def test_a_kill_line_forgets_it_and_the_rally_ends(self):
+        raw = board((1, 18))
+        raw["messages"] = [f"{RACES[self.DRACOLICH].names[0]}を倒した。"]
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus", rallying=True, strong=((self.DRACOLICH, (1, 17)),))
+        choose(policy, raw)
+        self.assertEqual(memory(policy, raw).strong, ())
+        self.assertFalse(memory(policy, raw).rallying)
+
+    def test_unseen_for_the_wait_it_is_forgotten_then_full_hp_before_the_walk(self):
+        raw = board((1, 18), hp=600)
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus", rallying=True, strong=((self.DRACOLICH, (6, 2)),),
+                 strong_quiet=VALUES.quiet_actions - 2)
+        self.assertEqual((choose(policy, raw), policy.last_reason), (WAIT_KEY, HOLD_REASON))
+        choose(policy, raw)    # the wait's last board: forgotten, the rally ends
+        self.assertEqual(memory(policy, raw).strong, ())
+        self.assertFalse(memory(policy, raw).ready)
+        self.assertEqual((choose(policy, raw), policy.last_reason), (REST_MACRO, battle.FULL_HP_REASON))
+
+    def test_the_hold_is_exempt_from_the_cell_loop_guard(self):
+        from hengbot import cli
+        self.assertIn(HOLD_REASON, cli.STATIONARY_EXEMPT_REASONS)
+
+
 class Q25StragglersTest(unittest.TestCase):
     def test_waits_on_5_1_and_fifty_quiet_actions_end_it(self):
         raw = board((5, 1))

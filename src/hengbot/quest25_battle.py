@@ -17,7 +17,10 @@ quoted there with its date); this module is their executor.  The phases, in orde
  3. ``ipsissimus`` (phase2): full HP, [7,1], haste, [6,1], [5,1], then the strongest attack
     at the pen's [7,17] (the monster's own cell when it is seen).  Summons in view: a piercing
     attack (a beam, or a ball or breath aimed at the grid) and a low threat keep the fire on
-    the pen; otherwise Teleportation, then a choke before contact (``_rally``).  The wall-passers
+    the pen; otherwise Teleportation, then a choke before contact (``_rally``), weighed before the
+    walk to the stand.  What it teleported from is remembered and waited for on the choke until
+    killed or unseen for the stragglers' 50 actions, then full HP and the walk again (owner
+    2026-11-11 「隘路で待って倒す」); the walk never goes toward it.  The wall-passers
     the phase before left alive are no summons (``_summons_in_view``): they are ignored and the
     fire stays on the pen, never teleported from (owner 2026-11-09, n1-b life-359).  It ends when each of the three is
     killed or seen out of the pen.
@@ -286,6 +289,10 @@ class Battle:
     blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
     glowing: frozenset = frozenset()   # floor cells seen drawn lit (CAVE_GLOW in view)
     tome_hp: int | None = None     # the tome's HP read from its last seen health (an upper bound)
+    # Phase 2 (owner 2026-11-11 「隘路で待って倒す」): the summons Teleportation was read from,
+    # (race, last seen cell) each, and the decided boards since one of them was last seen.
+    strong: tuple = ()
+    strong_quiet: int = 0
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -522,10 +529,10 @@ def _avoided(ctx: _Ctx) -> set:
     return cells
 
 
-def _path(ctx: _Ctx, goals) -> list[tuple[int, int]]:
+def _path(ctx: _Ctx, goals, taken=frozenset()) -> list[tuple[int, int]]:
     goals = {tuple(goal) for goal in goals}
     start = ctx.here
-    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view()) | taken
     exposure = geo.exposure_of(_avoided(ctx))
     return quest_plan_base._least_exposed_walk(
         ctx.navigator, ctx.snapshot, exposure, start, goals, occupied - goals)
@@ -538,9 +545,10 @@ def _step(ctx: _Ctx, cell, reason: str = WALK_REASON, *, guard: bool = True) -> 
     return ctx.policy._step_toward(ctx.snapshot, Position(*cell))
 
 
-def _walk(ctx: _Ctx, goals, reason: str = WALK_REASON) -> str | None:
-    """The next step toward ``goals`` (the trap rule first); None there or with no way."""
-    path = _path(ctx, goals)
+def _walk(ctx: _Ctx, goals, reason: str = WALK_REASON, *, taken=frozenset()) -> str | None:
+    """The next step toward ``goals`` (the trap rule first); None there or with no way.
+    ``taken``: cells the walk does not cross besides the monsters in view."""
+    path = _path(ctx, goals, taken)
     if len(path) < 2:
         return None
     nxt = path[1]
@@ -1068,8 +1076,8 @@ def _prepare(ctx: _Ctx, phase) -> str | None:
     is sensed the preparation goes on."""
     if ctx.battle.ready:
         return None
-    if ctx.in_view():
-        return None
+    if ctx.in_view() or ctx.battle.rallying or ctx.battle.strong:
+        return None   # phase 2's rally owns the board (``_rally``); it rests again when it ends
     if ctx.battle.rest_cut:
         if _sensed_movers(ctx):
             return None
@@ -1158,8 +1166,79 @@ def _ipsissimus_done(ctx: _Ctx) -> bool:
     return not _ipsissimus_alive(ctx)
 
 
+def _match_strong(ctx: _Ctx, entries) -> list:
+    """Each remembered (race, cell) with the hostile of its race now in view or sensed nearest to
+    the cell (None when none is left): the game's monster index is no name, compact_monsters
+    reorders it (monster-compaction.cpp, every turn the floor holds 32 dead slots)."""
+    left = list(ctx.hostiles())
+    matched = []
+    for race, cell in entries:
+        same = [monster for monster in left if monster.race_id == race]
+        if not same:
+            matched.append(None)
+            continue
+        monster = min(same, key=lambda each: quest_exposure.game_distance(
+            (each.position.y, each.position.x), cell))
+        left.remove(monster)
+        matched.append(monster)
+    return matched
+
+
+def _note_strong(ctx: _Ctx) -> None:
+    """Owner 2026-11-11 「隘路で待って倒す」: the summons Teleportation was read from are remembered
+    (owner 2026-11-09 「起きた敵も最後の位置を覚える」) until killed or not seen for the plan's wait.
+
+    Each decided board: the cell of one in view or sensed is renewed and the wait starts over; a
+    kill line naming its race forgets one of that race; with none of them seen the board counts,
+    and ``wait_limits.quiet_actions`` such boards (the phase-2 wait owner 2026-11-06 「50ターン待っ
+    ても来なくなったら」 bounds) forget them all: it went elsewhere."""
+    battle = ctx.battle
+    if not battle.strong:
+        battle.strong_quiet = 0
+        return
+    strong = list(battle.strong)
+    for message in ctx.snapshot.messages:
+        victim = _killed_name(message_text(message))
+        if victim is None:
+            continue
+        killed = next((entry for entry in strong if victim in _names(ctx.policy, entry[0])), None)
+        if killed is not None:
+            strong.remove(killed)
+    matched = _match_strong(ctx, strong)
+    strong = [(race, cell if monster is None else (monster.position.y, monster.position.x))
+              for (race, cell), monster in zip(strong, matched)]
+    seen = any(monster is not None for monster in matched)
+    battle.strong_quiet = 0 if seen else battle.strong_quiet + 1
+    if battle.strong_quiet >= ctx.values.quiet_actions:
+        strong, battle.strong_quiet = [], 0
+    battle.strong = tuple(strong)
+
+
+def _remember_strong(ctx: _Ctx, summons) -> None:
+    """The summons in view join the remembered ones; one of a race already remembered is it."""
+    kept = list(ctx.battle.strong)
+    for monster in summons:
+        same = [entry for entry in kept if entry[0] == monster.race_id]
+        if same:
+            kept.remove(same[0])
+    ctx.battle.strong = tuple(kept) + tuple(
+        (monster.race_id, (monster.position.y, monster.position.x)) for monster in summons)
+    ctx.battle.strong_quiet = 0
+
+
 def _rally(ctx: _Ctx) -> str | None:
-    """After the teleport: 「接敵する前に移動できるなら、なるべく隘路に陣取る」."""
+    """After the teleport: 「接敵する前に移動できるなら、なるべく隘路に陣取る」.
+
+    Owner 2026-11-11 「隘路で待って倒す」 (n1-c life-195): 「仕切り直しの隘路（召喚を受けないマス）で、最後に
+    見えた強敵が来るのを待って迎え撃つ。倒してから立ち位置へ戻る。HP の線を切ったら今の決まりで立て直す。」
+    While a summons Teleportation was read from is remembered (``_note_strong``), the choke holds
+    and does not end when no enemy is in view; the walk to it never goes toward one: no choke
+    within two cells of where one is (or was last seen), no cell beside one crossed, and with one
+    in view no step onto a cell nearer to it than the player stands.  The rally ends on the choke
+    with none remembered and none in view; the phase then rests to full HP again before its walk
+    to [7,1] (phase2 「全快して(7,1)に移動」).  The HP line and the instant death answer above the
+    plan, as before."""
+    battle = ctx.battle
     targets = _fight_targets(ctx)
     if any(monster.distance <= 1 for monster in targets):
         return _engage(ctx, targets)
@@ -1168,14 +1247,30 @@ def _rally(ctx: _Ctx) -> str | None:
     if ctx.here in chokes:
         if targets:
             return _engage(ctx, targets) or _hold(ctx)
-        ctx.battle.rallying = False
+        if battle.strong:
+            return _hold(ctx)
+        battle.rallying = False
+        battle.ready = False
         return None
-    return _walk(ctx, chokes) or _engage(ctx, targets)
+    cells = [cell for _, cell in battle.strong]
+    seen = [cell for (_, cell), monster in zip(battle.strong, _match_strong(ctx, battle.strong))
+            if monster is not None]
+    near = {(y + dy, x + dx) for (y, x) in cells for dy in (-1, 0, 1) for dx in (-1, 0, 1)}
+    near |= {cell for cell in ctx.terrain
+             if any(quest_exposure.game_distance(cell, each) < quest_exposure.game_distance(ctx.here, each)
+                    for each in seen)}
+    # Never toward it (owner 2026-11-11, n1-c life-195 walked west into the dracolich's breaths).
+    goals = {cell for cell in chokes
+             if all(quest_exposure.game_distance(cell, each) > 2 for each in cells)
+             and all(quest_exposure.game_distance(cell, each) >= quest_exposure.game_distance(ctx.here, each)
+                     for each in seen)}
+    return (_walk(ctx, goals, taken=frozenset(near - {ctx.here})) or _engage(ctx, targets)
+            or (_hold(ctx) if battle.strong else None))
 
 
 def _ipsissimus(ctx: _Ctx) -> str | None:
     battle, policy, snapshot = ctx.battle, ctx.policy, ctx.snapshot
-    if battle.rallying and (key := _rally(ctx)) is not None:
+    if (battle.rallying or battle.strong) and (key := _rally(ctx)) is not None:
         return key
     seen = [monster for monster in ctx.hostiles() if monster.race_id == geo.IPSISSIMUS
             and (monster.position.y, monster.position.x) in geo.IPSISSIMUS_PEN]
@@ -1187,6 +1282,30 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
     in_sight = bool(_seen_at(ctx, geo.IPSISSIMUS, geo.IPSISSIMUS_PEN))
     from_stand = in_sight or bool(_fire_options(ctx, aim, geo.IPSISSIMUS, missiles=False))
     walk = geo.PHASE2_WALK
+    walking = from_stand and ((ctx.here not in walk and not in_sight)
+                              or (ctx.here in walk and ctx.here != walk[-1]))
+    others = [monster for monster in ctx.in_view() if monster.race_id != geo.IPSISSIMUS]
+    summons = _summons_in_view(ctx, others)
+    # Owner 2026-11-11 (n1-c life-195): the summons are weighed before the walk to the stand, not
+    # after it -- a walk never goes on toward a summons the threat would teleport from.  A low
+    # threat on the walk lets it go on (the summons are answered on [5,1] as before).
+    threat = bool(summons) and policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot))
+    if summons and (threat or not walking):
+        piercing = _has_piercing(ctx, geo.IPSISSIMUS, aim)
+        # 「貫通可能な攻撃かつ脅威度が高くない場合は先にイプシシマスを倒し増援を断つ」, the threat read as the
+        # 11-05 summon rule reads it (summon_response ``counter_shot_key``): 「見えている敵の3ターンの
+        # 想定被害が今の HP の半分以上なら高い」.
+        if not threat and piercing:
+            return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=True))
+        # 「それ以外の場合はテレポートで仕切り直す。接敵する前に移動できるならなるべく隘路に陣取る」; what it is
+        # read from is remembered and waited for on the choke (``_rally``, owner 2026-11-11).
+        _remember_strong(ctx, summons)
+        battle.rallying = True
+        scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
+        if scroll is not None:
+            policy.last_reason = TELEPORT_REASON
+            return policy._read_key(snapshot, scroll)
+        return _engage(ctx, summons) or _rally(ctx)
     if from_stand:
         if ctx.here not in walk and not in_sight:
             return _walk(ctx, {walk[0]})
@@ -1194,23 +1313,10 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
             return haste    # 「事前に加速して(6,1)(5,1)と移動」
         if ctx.here in walk and ctx.here != walk[-1]:
             return _step(ctx, walk[walk.index(ctx.here) + 1])
-    others = [monster for monster in ctx.in_view() if monster.race_id != geo.IPSISSIMUS]
-    piercing = bool(others) and _has_piercing(ctx, geo.IPSISSIMUS, aim)
-    summons = _summons_in_view(ctx, others)
     if summons:
-        # 「貫通可能な攻撃かつ脅威度が高くない場合は先にイプシシマスを倒し増援を断つ」, the threat read as the
-        # 11-05 summon rule reads it (summon_response ``counter_shot_key``): 「見えている敵の3ターンの
-        # 想定被害が今の HP の半分以上なら高い」.
-        threat = policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot))
-        if not threat and piercing:
-            return _pen_shot(ctx, _fire_at(ctx, aim, geo.IPSISSIMUS, piercing=True))
-        # 「それ以外の場合はテレポートで仕切り直す。接敵する前に移動できるならなるべく隘路に陣取る」
-        scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
-        if scroll is not None:
-            battle.rallying = True
-            policy.last_reason = TELEPORT_REASON
-            return policy._read_key(snapshot, scroll)
-        return _engage(ctx, summons)
+        # A low threat in the way of the walk: fought where the player stands, not teleported from.
+        return _engage(ctx, summons) or _hold(ctx)
+    piercing = bool(others) and _has_piercing(ctx, geo.IPSISSIMUS, aim)
     # The wall-passers' stragglers (the spectres and shadow demons the quiet wait of the
     # wall-passers' phase left alive) are no reinforcements and no reason to teleport: owner
     # 2026-11-09 「ここでテレポートすると以降の段取りが全て崩れるので逃走回数は最小にしたい。」  They are
@@ -1935,6 +2041,7 @@ def _observe(ctx: _Ctx) -> None:
     _note_kills(ctx)
     _note_pen_shot(ctx)
     _note_arrivals(ctx)
+    _note_strong(ctx)
     _note_glow(ctx)
     _note_tome_health(ctx)
     phase = current_phase(ctx)
@@ -2044,7 +2151,7 @@ def key(policy, snapshot) -> str | None:
             or _leave_by_exit(policy, snapshot, board)
             or _summons(policy, snapshot)
             or resist_potion.drink_key(policy, snapshot)
-            or quest_plan_base._restore(policy, snapshot)
+            or _restore(policy, snapshot)
             or _out_of_fire_key(policy, snapshot)
             or _recall_wait(policy, snapshot)
             or _phase_key(policy, snapshot)
@@ -2072,6 +2179,18 @@ def key(policy, snapshot) -> str | None:
         or _phase_key(policy, snapshot)
         or resist_potion.leave_key(policy, snapshot)
     )
+
+
+def _restore(policy, snapshot) -> str | None:
+    """The plan's 「敵がいない時に下がっていれば飲む」 (QUEST_25 consumable_plan): not while a summons
+    Teleportation was read from is remembered (``_note_strong``, owner 2026-11-09 「起きた敵も最後の
+    位置を覚える」).  n1-c life-195 (2026-11-11 game 05:37): on [2,2] the dracolich seen on the board
+    before stood out of the light, the board showed no enemy, and the Restore Life Levels was
+    drunk; it was beside the player on the next board."""
+    ctx = _ctx(policy, snapshot)
+    if ctx is not None and ctx.battle.strong:
+        return None
+    return quest_plan_base._restore(policy, snapshot)
 
 
 def _absorbed_heal(policy, snapshot, profile) -> str | None:
