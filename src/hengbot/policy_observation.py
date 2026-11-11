@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, destruction_use, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -488,14 +488,14 @@ class ObservationMixin:
                     else snapshot.dungeon_level,
                 )
                 self._dive_loot = 0
-                self._dive_emergencies = 0
+                escape_count.start_dive(self)
                 # Set by _should_start_town_return when THIS dive's return
                 # starts on a guardian floor the kit cannot pass.
                 self._dive_guardian_return = False
             if self.last_reason in PICKUP_REASONS:
                 self._dive_loot += 1
             elif self.last_reason in EMERGENCY_ESCAPE_REASONS:
-                self._dive_emergencies += 1
+                escape_count.count(self)
             elif self.last_reason in RELOCATING_ESCAPE_REASONS and (
                 previous_floor != snapshot.floor_key
                 or (
@@ -509,11 +509,14 @@ class ObservationMixin:
                 # returns to town whether or not the threat was lethal.
                 # Owner 2026-11-09 「全部の逃げを数える」: every relocating
                 # escape from enemies does (RELOCATING_ESCAPE_REASONS).
-                self._dive_emergencies += 1
+                escape_count.count(self)
                 if self._dive_emergencies >= EMERGENCY_RETURN_COUNT:
                     self._note_return_start("emergency-repeat")
                     self._returning_to_town = True
                     self._last_return_trigger = "emergency-repeat"
+            # Owner 2026-11-11 「逃げは階が変わればリセット。」: the escape that left a floor
+            # was counted for it above; the new floor starts at 0 (escape_count).
+            escape_count.after_board(self, snapshot, previous_floor)
         elif prev_dungeon != 0 and self._dive_dungeon is not None:
             # A dive just ended. Judge only normal dives of the recall target —
             # fundraising mining of the Yeek Cave is a separate mode, not a dive.

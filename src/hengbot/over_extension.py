@@ -5,7 +5,9 @@ by the valve in town (``EMPTY_DIVE_LIMIT`` dives in a row switch to a
 shallower already-entered dungeon, ``_pick_alternate_dungeon``):
 
 - a real haul (more than ``OVEREXTEND_LOOT_MAX`` pickups) clears the streak;
-- else at least ``OVEREXTEND_EMERGENCY_MIN`` emergency escapes advance it;
+- else at least ``OVEREXTEND_EMERGENCY_MIN`` emergency escapes of the dive advance it (the
+  dive's total, ``escape_count.dive_total``: the return's count is per floor since owner
+  2026-11-11, this judgement keeps counting the whole dive);
 - else a guardian bounce (the return this dive started on a guardian floor
   the kit cannot pass) advances it and the guardian-bounce count;
 - else the streak holds: a lone quiet dive neither advances nor resets it.
@@ -26,6 +28,7 @@ emergency escape (EMERGENCY_ESCAPE_REASONS) and stays uncounted (answer 6).
 
 from __future__ import annotations
 
+from hengbot import escape_count
 from hengbot.policy_constants import OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_MAX
 
 
@@ -34,7 +37,7 @@ def judge_dive(policy, *, guardian_bounce: bool) -> None:
     if policy._dive_loot > OVEREXTEND_LOOT_MAX:
         policy._target_empty_dives = 0
         policy._guardian_bounce_dives = 0
-    elif policy._dive_emergencies >= OVEREXTEND_EMERGENCY_MIN:
+    elif escape_count.dive_total(policy) >= OVEREXTEND_EMERGENCY_MIN:
         policy._target_empty_dives += 1
     elif guardian_bounce:
         # Uncounted, a guardian we cannot yet beat flip-flops town<->guardian

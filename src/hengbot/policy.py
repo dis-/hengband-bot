@@ -1397,7 +1397,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
         self._dive_start_recall_depth: int | None = None
         self._dive_loot = 0  # items grabbed on the current dive
-        self._dive_emergencies = 0  # emergency escapes forced on the current dive
+        self._dive_emergencies = 0  # escapes counted on the current floor (escape_count)
+        self._dive_escapes_total = 0  # escapes counted on the current dive (over_extension)
+        self._floor_escape_causes: list[dict] = []  # each counted escape's causes (escape_count)
+        self._escape_cause_board: dict = {}  # the causes of the board being decided
         self._target_empty_dives = 0  # consecutive over-extended dives of the target
         # How many dives of that streak were guardian-kit-insufficient bounces.
         # Restored checkpoints predating it read 0 (getattr), i.e. the streak is
