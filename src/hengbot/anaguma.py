@@ -158,6 +158,7 @@ def plan(policy) -> Plan | None:
 
 
 STAYED_OUT = "pack-stays-out"
+RUNNERS = "runners"
 
 
 def _release(policy, why: str) -> None:
@@ -165,7 +166,7 @@ def _release(policy, why: str) -> None:
     if current is not None:
         policy._anaguma_last_release = why
         policy._anaguma_released = current
-        if why == STAYED_OUT:
+        if why in (STAYED_OUT, RUNNERS):
             spent = getattr(policy, "_anaguma_stayed_out", None)
             races = current.races | (spent[1] if spent is not None and spent[0] == current.floor
                                      else frozenset())
@@ -174,7 +175,13 @@ def _release(policy, why: str) -> None:
 
 
 def _stayed_out(policy, snapshot: Snapshot, races) -> bool:
-    """A pocket for a pack of ``races`` already waited this pack out on this floor."""
+    """A pocket for a pack of ``races`` already ended on this floor because the pack does not
+    come: it waited the pack out, or the pack read as running from the player.
+
+    The running reading flips with the distance (``run_chance``: within ``RUN_NEAR`` a member
+    comes on), so a plan made within it is released at a start beyond it, and the release's
+    ``RETRY_GAME_TURNS`` ran out inside the walk back (n1-b life-370, オークの洞窟23階,
+    2026-11-11: ``anaguma:walk`` to (20,125) five times among the loot and the choke steps)."""
     spent = getattr(policy, "_anaguma_stayed_out", None)
     return spent is not None and spent[0] == snapshot.floor_key and bool(spent[1] & races)
 
@@ -772,7 +779,7 @@ def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
     if (current is not None and current.phase in ("walk", "dig") and not _dug(snapshot, current)
             and _latched(policy, "runners", (snapshot.floor_key, current.races),
                          runners(snapshot, current.races), snapshot.turn)):
-        _release(policy, "runners")   # not dug yet: a pack that runs never comes to the mouth
+        _release(policy, RUNNERS)   # not dug yet: a pack that runs never comes to the mouth
         policy._anaguma_veto = "runners"
         return None
     if (current is not None and current.phase != "close"

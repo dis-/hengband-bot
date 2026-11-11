@@ -161,6 +161,25 @@ class LootChokeLoopRecordedTest(unittest.TestCase):
                 key, reason = self.decide(policy, row)
                 self.assertNotIn(reason, (RETREAT, HOLD), (key, row.player.position))
 
+    def test_a_pocket_released_for_runners_is_not_planned_again_on_the_floor(self):
+        """The recorded plan of (19,125) is released at its start (20,125); the replay of the
+        rest of the record makes no other, past ``RETRY_GAME_TURNS`` of the record's own turns."""
+        policy = self.policy()
+        released = None
+        for raw in self.data["boards"]:
+            board = self.board(raw)
+            key, reason = self.decide(policy, board)
+            if getattr(policy, "_anaguma_last_release", None) == anaguma.RUNNERS and released is None:
+                released = raw["turn"]
+                planned_at = [row for row in self.data["decisions"]
+                              if row["reason"] == anaguma.REASON_WALK and row["turn"] < released]
+                self.assertTrue(planned_at)
+            elif released is not None:
+                self.assertIsNone(anaguma.plan(policy), raw["turn"])
+                self.assertNotEqual(reason, anaguma.REASON_WALK, raw["turn"])
+        self.assertIsNotNone(released)
+        self.assertGreater(self.data["boards"][-1]["turn"] - released, anaguma.RETRY_GAME_TURNS)
+
     def test_an_orc_within_arrow_range_still_hands_the_retreat_over(self):
         """Control.  DECLARED CONSTRUCTED: a hill orc moved within ``RANGED_MAX_DISTANCE``."""
         policy = self.policy()
