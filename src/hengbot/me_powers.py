@@ -63,6 +63,9 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    「魔道具術師　取り込んだスピードが残10回以上なら、特にピンチでなくても戦闘時加速する」
    「成功率8割以上のときに限定して」: ``fight_key`` asks the FIGHT occasion in place of a
    decided attack on an awake hostile (attack_answer), after every survival rung.
+ - 50F+ (PLAN-50F section 4, owner 2026-11-11 for C6 「2 3 5を入れる」): 4.3 the Detect Evil row
+   (and its preferred rod) is cast again once the player stands DEEP_REDETECT_WALK from the
+   floor's latest landed monster detection (``deep-explore-redetect``).
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -147,6 +150,13 @@ FIGHT_SPEED_MIN_CHARGES = 10
 # the shortest haste, for the boards whose speed field cannot show it (at +0 it is
 # blank, _player_hasted).
 HASTE_MIN_GAME_TURNS = 160
+# PLAN-50F (deep-dive 2026-11-10/11, section 4), owner 2026-11-11 for its C6 「2 3 5を入れる」:
+# items 2 (4.3 detection cadence), 3 (4.4 lighting rooms) and 5 (4.9 speed), each "only on
+# 50F+" (the plan's floors where 「50F以降は敵が強い」).
+DEEP_FLOOR_MIN_DEPTH = 50
+# 4.3 「Re-detect after walking 25 cells from the last detection (half of DETECT_RAD 30 +
+# margin)」: game distance from the latest landed monster detection of the floor visit.
+DEEP_REDETECT_WALK = 25
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
 
 # cmd-magiceat.cpp: the kind question ([A] staff, [B] wand, [C] rod) and the
@@ -204,7 +214,8 @@ POWERS = (
     # Owner 2026-11-02 「対象が邪悪であることに拘らない」: the rod's own trigger
     # searches for any hunted race; the Detect Evil row's only for an EVIL one.
     Power("staff", SV_STAFF_DETECT_EVIL, POWER_NAMES[SV_STAFF_DETECT_EVIL],
-          "detect-evil", DETECT_RAD, 10, ("new-floor", "before-rest", "hunt-target-unseen"),
+          "detect-evil", DETECT_RAD, 10,
+          ("new-floor", "before-rest", "hunt-target-unseen", "deep-explore-redetect"),
           preferred=(("rod", SV_ROD_DETECTION),)),
     Power("rod", SV_ROD_DETECTION, devices()[(TVAL_ROD, SV_ROD_DETECTION)].names,
           "detect-all", DETECT_RAD, 10, ("hunt-target-unseen",), powerful="when-safe"),
@@ -558,6 +569,27 @@ def _unbeatable_in_range(ctx, power):
         damage_against=lambda each: me_ranged_first.best_expected(policy, ctx.snapshot, each))
 
 
+def _deep_floor(ctx) -> bool:
+    return ctx.snapshot.dungeon_level >= DEEP_FLOOR_MIN_DEPTH
+
+
+# The effects whose cast shows the monsters around it (the Detect Evil row and its preferred rod).
+MONSTER_DETECTIONS = frozenset({"detect-evil", "detect-all"})
+
+
+def _deep_explore_redetect(ctx, power):
+    """PLAN-50F 4.3 (owner 2026-11-11 C6 「2」): on 50F+, the floor's monster detection again once
+    the player stands DEEP_REDETECT_WALK from the latest landed one.  The arrival cast is the
+    new-floor trigger's; a Recall already read ends the visit, so it does not re-detect."""
+    if not _deep_floor(ctx) or ctx.snapshot.player.recalling:
+        return False
+    casts = [use for use in ctx.memory.uses if BY_KEY[use.used].effect in MONSTER_DETECTIONS]
+    if not casts:
+        return False
+    latest = max(casts, key=lambda use: use.turn)
+    return ctx.distance(latest.position) >= DEEP_REDETECT_WALK
+
+
 def _fight_unhasted(ctx, power):
     """Not hasted (the speed field), and no landed cast's shortest haste still runs."""
     return not ctx.policy._player_hasted(ctx.snapshot) and all(
@@ -587,6 +619,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
     Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
+    Trigger("deep-explore-redetect", frozenset({FLOOR}), _deep_explore_redetect),
     Trigger("fight-unhasted", frozenset({FIGHT}), _fight_unhasted),
     # Owner 2026-11-05 named 周辺感知: its Door/Stairs fallback does not map.
     Trigger("after-destruction", frozenset({FLOOR}), _after_destruction, takes_fallback=False),
