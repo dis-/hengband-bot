@@ -165,5 +165,41 @@ class N1a510QuestStopsRecordedTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, QUEST_STAND_TORCH_PICKUP_REASON)
         self.assertEqual(policy.last_reason, RECORDED_STOP)
 
+    # Q18: the haste already on when the escape starts --------------------------
+
+    def q18_at_the_escape(self):
+        policy, _, steps = self.load("death-509")
+        self.replay_town("death-509", policy, steps)
+        rows = self.floor("death-509")
+        raw = self.drive_floor(policy, rows, until_turn=1277422)
+        return policy, raw
+
+    def test_q18_escape_reads_recall_instead_of_a_second_speed_dose(self):
+        policy, raw = self.q18_at_the_escape()
+        board = self.board(policy, raw)
+        self.assertEqual(board.player.speed, 120)  # 加速(+10), the plan's dose at 1277366
+        self.assertEqual(board.player.hp, 136)
+
+        key = policy.choose_key(board)
+
+        self.assertEqual(policy.last_reason, "emergency:recall-quest-fail")
+        self.assertTrue(key.startswith("r"), key)
+
+    def test_q18_unhasted_escape_still_takes_its_speed_dose(self):
+        policy, raw = self.q18_at_the_escape()
+        # DECLARED CONSTRUCTED: the same board with the haste gone (the field a
+        # plain +0, as on the recorded board before the dose at 1277366): the
+        # rule the haste check gates stays.
+        unhasted = copy.deepcopy(raw)
+        unhasted["player"]["speed"] = 110
+        unhasted["player"]["speed_display"] = {"color": "white", "riding": False, "text": "", "value": 0}
+        board = self.board(policy, unhasted)
+        policy._haste_read_memory = None  # the line memory: the board's own field decides
+
+        key = policy.choose_key(board)
+
+        self.assertEqual(policy.last_reason, "emergency:quaff-speed")
+        self.assertTrue(key.startswith("q"), key)
+
 if __name__ == "__main__":
     unittest.main()

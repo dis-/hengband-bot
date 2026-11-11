@@ -906,7 +906,13 @@ class CombatMixin:
             and monster.speed >= snapshot.player.speed
             for monster in hostiles
         )
-        haste_active = (
+        # The haste already on when the episode starts counts too: the baseline is
+        # read on this very board, so on the episode's first board it can never
+        # show a dose an earlier scene drank.  n1-a life-509 (2026-11-11 11:03,
+        # Q18): 加速(+10) from the plan's dose 56 game turns before, HP 136/510,
+        # and the escape's first board drank the last Speed potion (+5 turns,
+        # quaff-effects.cpp) instead of reading the Recall the ladder chose.
+        haste_active = self._player_hasted(snapshot) or (
             self._escape_speed_baseline is not None
             and snapshot.player.speed > self._escape_speed_baseline
         )
