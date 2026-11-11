@@ -207,7 +207,9 @@ class TopStopsGuardianTest(executor_harness.ProductionHarness):
         self.send(board, key, policy.last_reason)
 
     def test_public_angband_guardian_or_no_melee_landing_stays_stopped(self):
-        for change in (dict(max_depth=2, guardian_id=237), dict(flags=frozenset({"NO_MELEE"}))):
+        # The landing (1) is the guardian floor when it is the last floor (owner 2026-11-11
+        # C2: the floor above the guardian floor is explored, not refused).
+        for change in (dict(max_depth=1, guardian_id=237), dict(flags=frozenset({"NO_MELEE"}))):
             with self.subTest(change=change):
                 policy, board = self.scene()
                 # DECLARED CONSTRUCTED: isolate each landing veto using the

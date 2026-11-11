@@ -1285,6 +1285,11 @@ class NavigationMixin:
             and not self._missing_required_abilities(
                 snapshot, snapshot.dungeon_level + 1
             )
+            # The floor above a guardian floor the kit cannot pass is explored, and a
+            # remembered stair off the board leads onto that guardian floor (C2).
+            and not self._guardian_floor_blocked(
+                snapshot, snapshot.floor_key[0], snapshot.dungeon_level + 1
+            )
         ):
             targets.update(
                 self._remembered_downstairs - visible_descent_positions - expired

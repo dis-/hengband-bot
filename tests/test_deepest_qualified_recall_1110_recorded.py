@@ -121,7 +121,9 @@ class DeepestQualifiedRecallTest(unittest.TestCase):
         self.assertEqual(policy._missing_required_abilities(board, 51),
                          frozenset({"destruction", "telepathy"}))
         self.assertEqual(policy._missing_required_abilities(board, 49), frozenset())
-        self.assertFalse(policy._fallback_landing_allowed(board, MOUNTAIN, 49))
+        # Owner 2026-11-11 (C2) 「能力的には64Fから成果を得るのに十分である。」: the Mountain 49,
+        # the floor above its guardian floor 50, is a landing now (live: refused as one).
+        self.assertTrue(policy._fallback_landing_allowed(board, MOUNTAIN, 49))
 
     def test_the_deepest_qualified_landing_is_angband(self):
         self.write_record(OVEREXTENDED_ANGBAND_FITS)
@@ -152,21 +154,20 @@ class DeepestQualifiedRecallTest(unittest.TestCase):
         self.assertEqual(restarted._alternate_dungeon, DUNGEON_ANGBAND)
         self.assertEqual(restarted._target_dungeon_id, DUNGEON_ANGBAND)
 
-    def test_no_landing_shallower_than_the_over_extension_fundraises(self):
+    def test_below_the_over_extension_the_orc_cave_22_is_taken(self):
+        """Live and until owner 2026-11-11 (C2): nothing shallower than 49 qualified (the Orc
+        cave 22 read as its guardian floor) and the character fundraised.  The Orc cave's
+        guardian floor is 23; 22 is the deepest landing shallower than 49 now (「条件を満たす
+        一番深い所へ」)."""
         policy, board = self.process("none", CASE["rows"])
         # Angband 49 meets the depth gate but is not shallower than the over-extended 49.
         self.assertEqual(policy._last_overextended_depth, 49)
         self.assertEqual(board.dungeon_recall_depths[DUNGEON_ANGBAND], 49)
         self.assertEqual(policy._missing_required_abilities(board, 49), frozenset())
         key, reason = self.gate(policy, board)
-        # Unfixed: ('1', STOP), the recorded row 7 -- the missing *Destruction* refused
-        # the fundraising.
-        self.assertEqual((key, reason), (
-            "5", "fundraising:no-safe-destination:depth-gate:destination-51:"
-                 "missing-destruction,telepathy"))
-        self.assertEqual(policy._fundraising_mode, "prepare")
-        self.assertTrue(policy._no_safe_destination_set)
-        self.assertEqual(policy._target_dungeon_id, CASTLE)
+        self.assertEqual((key, reason), ("5", "town:unsafe-recall-fallback"))
+        self.assertEqual((policy._alternate_dungeon, policy._target_dungeon_id), (3, 3))
+        self.assertEqual(board.dungeon_recall_depths[3], 22)
         # A restarted process on the same board decides the same (the set is re-derived).
         again, board = self.process("none-restart", CASE["rows"])
         self.assertEqual(self.gate(again, board)[1], reason)

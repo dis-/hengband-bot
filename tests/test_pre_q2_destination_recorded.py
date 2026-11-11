@@ -119,7 +119,9 @@ class PreQ2DestinationRecordedTest(unittest.TestCase):
 
     def test_a_guardian_floor_the_kit_cannot_pass_is_not_chosen(self):
         self.policy._guardian_fight_viable = lambda snapshot, info: False
-        depths = {**self.read_board.dungeon_recall_depths, ORC_CAVE: 22}
+        # The Orc cave's guardian floor is 23, its last (owner 2026-11-11 C2: 「能力的には
+        # 64Fから成果を得るのに十分である。」 -- 22, the floor above it, is explored).
+        depths = {**self.read_board.dungeon_recall_depths, ORC_CAVE: 23}
         board = replace(
             self.with_abilities("free_action", "resist_conf"), dungeon_recall_depths=depths,
             entered_dungeon_ids=(DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, ORC_CAVE, LABYRINTH))

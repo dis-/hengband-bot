@@ -541,10 +541,16 @@ class ObservationMixin:
                     else start_depth,
                 )
                 dungeon_info = self._dungeon_knowledge.get(self._dive_dungeon)
+                # A dive that started on the floor above a guardian floor the kit
+                # cannot pass is at its ceiling, as one at max_depth is: the descent
+                # is refused there (C2), so it is no lack of depth progress.
                 can_descend_further = (
                     dungeon_info is not None
                     and dungeon_info.max_depth > 0
                     and start_depth < dungeon_info.max_depth
+                    and not self._guardian_floor_blocked(
+                        snapshot, self._dive_dungeon, start_depth + 1
+                    )
                 )
                 if end_depth > start_depth:
                     self._no_depth_progress_dives = 0

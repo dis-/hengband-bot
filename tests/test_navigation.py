@@ -22,7 +22,6 @@ from hengbot.cli import (
     PostingContract,
     STARVING_STOP_LIMIT,
     _advance_starving_streak,
-    _objective_for_reason,
 )
 from hengbot.dungeon_knowledge import DungeonInfo
 from hengbot.navigation import NAV_TARGET_STALL_LIMIT, NavigationLedger
@@ -205,7 +204,7 @@ class DescentIncidentReplayTest(unittest.TestCase):
         self.assertLess(max(Counter(visited).values()), 3)
         self.assertNotIn(("3", "7"), zip(keys, keys[1:]))
 
-    def test_0124_live_state_replays_existing_guardian_return_path(self):
+    def test_0124_live_state_explores_the_floor_above_the_guardian(self):
         incident = self._load_jsonl("descend-in-place-2026-07-18-0124.jsonl")
         self.assertEqual(incident[0]["turn"], 885977)
         self.assertEqual(incident[-1]["reason"], "loop-detected")
@@ -235,12 +234,15 @@ class DescentIncidentReplayTest(unittest.TestCase):
         here = snapshot.grid_at(snapshot.player.position)
         self.assertIsNotNone(here)
         self.assertTrue(here.has_down_stairs)
-        self.assertTrue(policy._guardian_descent_blocked(snapshot))
+        # Owner 2026-11-11 (C2): 「能力的には64Fから成果を得るのに十分である。」 -- 8F, the
+        # floor above the Yeek cave's guardian floor 9, is explored, not left; only '>'
+        # onto 9F is refused while the kit cannot pass the guardian.
+        self.assertFalse(policy._guardian_descent_blocked(snapshot))
         self.assertFalse(policy._descent_is_blocked(snapshot))
         self.assertFalse(policy._is_descent_target(snapshot, here))
 
-        # Regression coverage for the pre-existing guardian return owner: grid-
-        # visible vetoed stairs cannot re-enter the remembered-only fallback.
+        # The incident's loop stays closed: grid-visible vetoed stairs cannot re-enter
+        # the remembered-only fallback.
         policy._floor_key = snapshot.floor_key
         policy._build_grid_index(snapshot)
         policy._remembered_downstairs.update(
@@ -249,10 +251,9 @@ class DescentIncidentReplayTest(unittest.TestCase):
         self.assertIsNone(policy._descent_step(snapshot))
         self.assertIsNone(policy._nav_ledger.descent_target)
         key = policy.choose_key(snapshot)
-        self.assertEqual(key, "rg")
-        self.assertEqual(policy.last_reason, "return:recall")
-        self.assertEqual(policy._last_return_trigger, "guardian-kit-insufficient")
-        self.assertEqual(_objective_for_reason(policy.last_reason), "Return to town")
+        self.assertNotEqual(key, ">")
+        self.assertEqual(policy.last_reason, "explore")
+        self.assertNotEqual(policy._last_return_trigger, "guardian-kit-insufficient")
 
     def test_all_visible_next_depth_vetoes_keep_exploring_current_floor(self):
         snapshot = parse_snapshot(self._load_jsonl(
