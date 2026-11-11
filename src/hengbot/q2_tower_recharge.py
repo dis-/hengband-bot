@@ -7,12 +7,14 @@ staff sequence keeps its own Tower trips), when Q2 is the next fixed quest
 and its wall_breach carry is short only because the carried wand lacks
 charges that the Tower's recharge-all supplies:
 
- rumor    -- unlock Morivant through the inn rumors if it is not listed;
+ rumor    -- unlock Morivant, and at the Outpost Telmora too, through the
+             inn rumors while either is not listed (the onward leg goes to
+             Telmora; n1-a life-510 2026-11-11);
  travel   -- the inn teleport to Morivant;
  recharge -- the Tower's 'a' recharge-all (the whole pack, its game price);
  onward   -- the inn teleport from Morivant straight to Telmora (owner
              2026-10-31 「モリバントからテルモラへ直行」), where the ordinary Q2
-             request takes over.
+             request takes over; Telmora still unlisted, back to the Outpost.
 
 The gold target of each leg is the Tower total over the whole pack, the
 fares to Morivant and on to Telmora plus the return fare that
@@ -111,6 +113,11 @@ def applies(policy, snapshot) -> bool:
     head = policy._fixed_quest_head(snapshot)
     return (head is not None and head.id == Q2_QUEST_ID
             and head.status == QUEST_STATUS_UNTAKEN)
+
+
+def telmora_listed(snapshot) -> bool:
+    """Telmora is on the inn teleport's list (morivant_tower.town_listed)."""
+    return morivant_tower.town_listed(snapshot, TELMORA_TOWN_ID)
 
 
 def _stop(policy, detail: str) -> str:
@@ -231,7 +238,15 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         return None
     if not short:
         phase = "onward"
-    elif not morivant_tower.morivant_unlocked(snapshot):
+    elif not morivant_tower.morivant_unlocked(snapshot) or (
+            town == OUTPOST_TOWN_ID and not telmora_listed(snapshot)):
+        # The onward leg needs Telmora listed as much as the first leg needs
+        # Morivant: the inn's list (tele_town) skips an unvisited town, so a
+        # trip started without it reaches the Tower and cannot leave for
+        # Telmora (n1-a life-510, 2026-11-11 11:36 and 11:45: visited [0, 2],
+        # '1mb' on Morivant's inn twice, no-progress:onward, the recharge paid
+        # twice).  Both are read for at the Outpost inn, the rumor building
+        # (INN_BUILDING_TYPE), before the first fare is paid.
         phase = "rumor"
     elif town != MORIVANT_TOWN_ID:
         phase = "travel"
@@ -247,7 +262,9 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         if record.rumor_batches >= RUMOR_BATCH_LIMIT:
             return _stop(policy, "morivant-rumor-exhausted")
         record.active = True
-        key, batched = morivant_tower.rumor_key(policy, snapshot)
+        key, batched = morivant_tower.rumor_key(
+            policy, snapshot,
+            TELMORA_TOWN_ID if morivant_tower.morivant_unlocked(snapshot) else MORIVANT_TOWN_ID)
         if batched:
             record.rumor_batches += 1
         return key
@@ -262,6 +279,13 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if phase == "recharge":
         record.active = True
         return _recharge_key(policy, snapshot)
+    if not telmora_listed(snapshot):
+        # Telmora unlisted after the recharge (a trip begun before the rumor
+        # phase asked for it): the inn cannot go there, and Morivant's
+        # buildings have no rumor inn.  Back to the Outpost by the fare the
+        # Tower leg kept (onward_cost), where the ordinary Q2 travel reads
+        # Telmora's rumor before its own inn leg.
+        return _travel(policy, snapshot, OUTPOST_TOWN_ID, "return-telmora-unlisted")
     # Owner 2026-10-31 「モリバントからテルモラへ直行」: the same errand latch
     # as the ordinary Q2 inn travel, so the Telmora owners bring it home.
     key = _travel(policy, snapshot, TELMORA_TOWN_ID, "travel-telmora")

@@ -1188,6 +1188,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("fixedquest:q2-recharge:travel-telmora-step-off", T, EFFECT),
         ("fixedquest:q2-recharge:return-for-funds", R, ENTRANCE),
         ("fixedquest:q2-recharge:return-for-funds-step-off", T, EFFECT),
+        ("fixedquest:q2-recharge:return-telmora-unlisted", R, ENTRANCE),
+        ("fixedquest:q2-recharge:return-telmora-unlisted-step-off", T, EFFECT),
         ("fixedquest:q2-recharge:approach-tower", R, ENTRANCE),
         ("magic-eater:absorb", O, EFFECT),
         ("bounty:", T, EFFECT),

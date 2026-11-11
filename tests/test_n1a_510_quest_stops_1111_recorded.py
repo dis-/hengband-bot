@@ -201,5 +201,84 @@ class N1a510QuestStopsRecordedTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "emergency:quaff-speed")
         self.assertTrue(key.startswith("q"), key)
 
+    # The Q2 Tower trip's Telmora leg -------------------------------------------
+
+    def q2_loaded(self):
+        return self.load("q2-1136")
+
+    def q2_outpost_board(self):
+        """Journal row 1, the Outpost board that took the fare to Morivant."""
+        policy, _, steps = self.q2_loaded()
+        self.replay_town("q2", policy, steps[:1])
+        recorded, supply = steps[1]
+        self.assertEqual(recorded["reason"], q2_tower_recharge.REASON + "travel-morivant")
+        board = supply()
+        self.assertNotIn(TELMORA, board.visited_town_ids)
+        return policy, recorded, board
+
+    def test_q2_trip_does_not_pay_the_first_fare_with_telmora_unlisted(self):
+        """The recorded purse (8170) is short of the rumor phase's whole-trip
+        total, so the phase's existing answer: one fundraising run for it."""
+        policy, recorded, board = self.q2_outpost_board()
+
+        key = policy.choose_key(board)
+
+        self.assertNotEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+        record = q2_tower_recharge.state(policy)
+        self.assertEqual(record.progress[0], "rumor")
+        self.assertEqual(record.fundraise_runs, 1)
+        self.assertGreater(record.fundraise_target, board.player.gold)
+
+    def test_q2_trip_reads_telmora_rumor_once_the_purse_covers_the_trip(self):
+        """DECLARED CONSTRUCTED: the same board with the purse the fundraising
+        run was sent for (the record's target on the recorded board)."""
+        first, recorded, board = self.q2_outpost_board()
+        first.choose_key(board)
+        target = q2_tower_recharge.state(first).fundraise_target
+        # Row 0 already asks the trip (the rumor phase decides while the periodic
+        # character dump takes the board), so the purse is the constructed one
+        # from the visit's first board on.
+        policy, _, steps = self.q2_loaded()
+        for _recorded, supply in steps[:2]:
+            arrived = supply()
+            rich = replace(arrived, player=replace(arrived.player, gold=target))
+            key = policy.choose_key(rich)
+            if _recorded["row"] == 0:
+                self.assertEqual(key, _recorded["key"])
+                policy.confirm_key_posted(key)
+
+        self.assertEqual(policy._town_travel_rumor_pending, TELMORA)
+        self.assertNotEqual(policy.last_reason, recorded["reason"])
+        self.assertEqual(q2_tower_recharge.state(policy).fundraise_runs, 0)
+
+    def test_q2_onward_goes_back_to_the_outpost_when_telmora_is_unlisted(self):
+        """Rows 13-21, the walk to Morivant's inn and the step onto it.
+
+        DECLARED WALL: the Outpost-side rumor phase is walled off for rows 0-12
+        (as ``telmora_listed``), so the trip reaches the recorded Morivant boards;
+        its own pin is the test above.  From row 13 on the real listing decides.
+        """
+        policy, rows, steps = self.q2_loaded()
+        with mock.patch.object(q2_tower_recharge, "telmora_listed", return_value=True):
+            self.replay_town("q2", policy, steps[:13])
+        for recorded, supply in steps[13:21]:
+            board = supply()
+            key = policy.choose_key(board)
+            if recorded["reason"].startswith(q2_tower_recharge.REASON):
+                self.assertEqual(policy.last_reason, ONWARD_REASON, recorded["row"])
+            if key:
+                policy.confirm_key_posted(key)
+        recorded, supply = steps[21]
+        self.assertEqual(recorded["key"], "1mb")
+        board = supply()
+        gold = board.player.gold
+        self.assertGreaterEqual(gold, TOWN_TELEPORT_COST)
+
+        key = policy.choose_key(board)
+
+        self.assertEqual(policy.last_reason, ONWARD_REASON)
+        self.assertEqual(key, "1ma")  # the Outpost, listed; never Telmora's 'b'
+
+
 if __name__ == "__main__":
     unittest.main()
