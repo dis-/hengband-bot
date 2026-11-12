@@ -3006,6 +3006,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "loot_frontier.py:explore_path": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "magic_eater.py:absorb_key": {
     "classification": "producer",
     "rows": [

@@ -18014,5 +18014,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cheapest carried item the exchange may destroy (policy _cheapest_exchange_item over the pack without necessities, egos, artifacts and unknown items)."
+  },
+  "loot_frontier.py:explore_path": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon explore only: _explore_step's new-goal planning; the town's fully known map has no remembered frontier.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the explore's path to the reachable remembered frontier nearest loot the loot walk noted without a route on STEER_AFTER_BOARDS boards (owner 2026-11-13 「その品の方へ探索を寄せる」); _explore_step records and walks it as its own FRONTIER goal."
   }
 }

@@ -12,7 +12,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import full_pack_exchange, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot
+from hengbot import full_pack_exchange, loot_frontier, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -1778,6 +1778,10 @@ class IdentificationMixin:
             through=self._loot_route_hostile_cells(hostiles),
         )
         if step is None:
+            if max_path_distance is None:
+                # Owner 2026-11-13 「その品の方へ探索を寄せる」: the explore plans toward it
+                # (loot_frontier).
+                loot_frontier.note(self, snapshot, self._loot_candidates(snapshot))
             return None
         self.last_reason = seek_reason
         self._declare_reach(self._loot_target)
