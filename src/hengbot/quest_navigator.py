@@ -8,7 +8,7 @@ from enum import Enum
 import re
 from typing import Any
 
-from hengbot import breeder_quest, locked_doors
+from hengbot import breeder_quest, kill_all_patrol, locked_doors
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, Snapshot, TVAL_CHEST, TVAL_GOLD
@@ -359,6 +359,11 @@ class QuestFloorNavigator:
                 else:
                     self.hold_turns = 0
                 return action
+            # Owner 2026-11-13: a KILL_ALL plan that ended with the quest not won patrols,
+            # detecting, for what is left (kill_all_patrol).
+            patrolled = kill_all_patrol.key(owner, snapshot)
+            if patrolled is not None:
+                return patrolled
             owner.last_reason = "quest:blocked:execute"
             return "5"
 
