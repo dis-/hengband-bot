@@ -376,6 +376,13 @@ def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
         # rule's (it keeps away, and fights one striking from beside the player).
         return None
     result = tiered(policy, snapshot, hostiles, melee_slots)
+    if cannot_reach_all(result, hostiles):
+        # Design 4.3 「戦わなくてよい」: a monster that cannot reach the player does not hold
+        # the floor.  n1-a life-518 (Yeek cave 1F, 2026-11-12 156220-156613): a grey mold
+        # (NEVER_MOVE, no ranged attack) seven cells away read T1 against a bare hand, and
+        # the flee rung, with no step farther and no scroll left, waited (flee:wait) until
+        # the livelock stop.
+        return False
     if result.tier == T1:
         return True
     # Owner 2026-11-09 「倒しきれない敵と同じに離れる」 (design 4.4): a summoner or shrieker left
@@ -388,6 +395,14 @@ def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
     if result.tier == T2:
         return not result.selected
     return None
+
+
+def cannot_reach_all(assessment, hostiles) -> bool:
+    """Every hostile of the engagement reads 4.3 ``need_not_fight`` "cannot-reach"."""
+    return bool(hostiles) and all(
+        (entry := assessment.per_monster.get(monster.index)) is not None
+        and entry.need_not_fight == "cannot-reach"
+        for monster in hostiles)
 
 
 def walk_leaves(policy, snapshot, hostiles) -> bool:
