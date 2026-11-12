@@ -42,10 +42,12 @@ import copy
 import gzip
 import json
 import unittest
+from dataclasses import replace
+from unittest import mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import destruction_use, immobile_ranged_kill, me_powers
+from hengbot import destruction_use, disenchant_avoid, immobile_ranged_kill, me_powers
 from hengbot import me_staff_sequence as sequence
 from hengbot.cli import SendResult, _ExecutorInputPort
 from hengbot.model import Position, parse_snapshot
@@ -190,6 +192,34 @@ class SummonerZoneGlassRecordedTest(ProductionHarness):
             self.assertNotEqual(step, left, (after[0]["turn"], after[2], after[3]))
             self.assertNotIn(step, after[5], (after[0]["turn"], after[2], after[3]))
         self.assertGreaterEqual(checked, 8)
+
+    def test_a_never_mover_the_kill_leaves_alone_keeps_its_zone(self):
+        """killable and key read one rule (immobile_ranged_kill._key_plan).
+
+        DECLARED CONSTRUCTED on the recorded (28,39) board 2922371: the sensed mage's race
+        made a never-moving disenchant breather (NEVER_MOVE, BR_DISE: a kept-away one
+        ``key`` leaves alone, disenchant_avoid.left_alone), the player's equipment
+        resistance to disenchantment taken off, and a safe ranged kill given (``plan``
+        answering a shot from here).  ``key`` does not shoot it, so the immobile summoner
+        owner must not read it as killed."""
+        raw = copy.deepcopy(next(row[0] for row in self.rows
+                                 if row[0]["turn"] == FIRST_ZONE_STEP + 7))
+        raw["player"]["ability_sources"].pop("resist_disen")
+        races = self.policy._monrace_knowledge
+        breather = replace(races[281], flags=races[281].flags | {"NEVER_MOVE"},
+                           abilities=races[281].abilities | {"BR_DISE"})
+        with mock.patch.dict(races, {281: breather}):
+            board = parse_snapshot(raw, races)
+            mage = next(m for m in board.detected_monsters if m.position == MAGES[0])
+            shot = immobile_ranged_kill.KillPlan(mage, None)
+            with mock.patch.object(immobile_ranged_kill, "plan", return_value=shot):
+                self.assertTrue(immobile_ranged_kill.kept_away(self.policy, board, mage))
+                self.assertTrue(disenchant_avoid.left_alone(
+                    self.policy, board, mage, immobile_ranged_kill.closes_the_way))
+                self.assertFalse(immobile_ranged_kill.killable(self.policy, board, mage))
+                # Not left alone, the same never-mover is the kill's: its zone is withdrawn.
+                with mock.patch.object(disenchant_avoid, "left_alone", return_value=False):
+                    self.assertTrue(immobile_ranged_kill.killable(self.policy, board, mage))
 
     def test_the_decisive_keys_complete_through_the_executor(self):
         boards = {raw["turn"]: raw for raw in self.case["boards"]}
