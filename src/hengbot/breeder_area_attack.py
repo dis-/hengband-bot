@@ -65,8 +65,7 @@ one (attack_expectation.melee) or a shot at a distant one
 baseline is optimistic and a tie keeps today's choice).  Otherwise None keeps
 the caller's single-target order unchanged, as does every fight without a
 breeder.  Among equal scores, fewer prompts come first (a direction before a
-cursor walk; a nearer burst grid), then a rod (it is ready again sooner than a staff or wand power,
-me_device_attacks' regenmagic note), then the lower
+cursor walk; a nearer burst grid), then a rod (it recharges), then the lower
 base level.  In town an area option that would catch a friendly the
 character could not defeat once angered is dropped (owner 2026-10-31
 「敵対させたあと勝てるかで判断。勝てるなら巻き込んで良い。」,

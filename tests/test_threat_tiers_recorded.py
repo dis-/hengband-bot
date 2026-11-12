@@ -86,30 +86,13 @@ class RecordedTiersTest(unittest.TestCase):
         self.assertGreaterEqual(high, low)
         self.assertTrue(any(row.worsens_with_time for row in result.per_monster.values()))
 
-    def _q25_274(self):
+    def test_t2_q25_speed_first(self):
         policy = q25.new_policy(q25.CASE["boards"][0])
         for raw, row in zip(q25.CASE["boards"], q25.CASE["recorded"]):
             board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
             if row["sequence"] == 274:
                 break
             policy.confirm_key_posted(str(policy.choose_key(board)))
-        return policy, board
-
-    def test_q25_blind_casters_keep_it_t1(self):
-        """Owner 2026-11-11 「恐怖・盲目の呪文を持つ相手で耐性が無い時は T2 にしない」: race 748
-        (SCARE, BLIND) and race 508 (BLIND) are in the engagement and n1-c life-159 has rFear
-        but no rBlind: the Speed plan still wins on HP (margin kept), the tier is T1."""
-        policy, board = self._q25_274()
-        result = assess(policy, board)
-        self.assertEqual((result.tier, result.t2_withheld), (threat_tiers.T1, ("blind-spell",)))
-        self.assertIsNone(result.supply_plan)
-        self.assertGreater(result.supply_margin, 0)
-
-    def test_t2_q25_speed_first(self):
-        """DECLARED CONSTRUCTED: rBlind added to the board (see the test above)."""
-        policy, board = self._q25_274()
-        board = replace(board, player=replace(
-            board.player, abilities=board.player.abilities | {"resist_blind"}))
         result = assess(policy, board)
         self.assertEqual(result.tier, threat_tiers.T2)
         self.assertEqual(result.supply_plan.categories, ("speed",))

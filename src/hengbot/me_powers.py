@@ -247,8 +247,7 @@ POWERS = (
           ("light-radius-zero", "dark-room", "light-sensitive-adjacent"),
           requires=("not-darkness-dungeon",), darkness_scaled=False),
     # The Disarming powers keep the doors, so they come first; the rod
-    # is ready again sooner than the wand (both refill, me_device_attacks' regenmagic
-    # note), so it comes before the wand.  Owner 2026-11-01 「脅威でなければ
+    # recharges, so it comes before the wand.  Owner 2026-11-01 「脅威でなければ
     # 使う」: beside harmless visible hostiles, as the mapping.
     Power("rod", SV_ROD_DISARMING, devices()[(TVAL_ROD, SV_ROD_DISARMING)].names,
           "disarm-trap", 0, 60, ("trap-to-disarm",), darkness_scaled=False, aimed=True,
@@ -259,8 +258,7 @@ POWERS = (
     Power("wand", SV_WAND_TRAP_DOOR_DEST, devices()[(TVAL_WAND, SV_WAND_TRAP_DOOR_DEST)].names,
           "destroy-trap-door", 0, 62, ("trap-to-disarm",), darkness_scaled=False, aimed=True,
           beside_harmless=True),
-    # The rod is ready again sooner than the wand (both refill, me_device_attacks'
-    # regenmagic note), so it comes before the wand.
+    # The rod recharges, so it comes before the wand.
     Power("rod", SV_ROD_TELEPORT_AWAY, devices()[(TVAL_ROD, SV_ROD_TELEPORT_AWAY)].names,
           "teleport-away", 0, 70, ("unbeatable-in-range", "quest-opening-target"),
           darkness_scaled=False,
@@ -582,26 +580,6 @@ def _sealed_pocket(ctx, power):
     return True
 
 
-def _status_rung_first(policy, snapshot, monster) -> bool:
-    """Owner 2026-11-12 (「巻物の手当てを先にする」: 「09-18 の決まりの巻物の手当てを今までどおり
-    先にし、テレポート・アウェイはその後。life-346 の死に方を繰り返さない。」): a monster the 09-18
-    rungs leave by scroll -- an awake paralyser in contact, by blow or by spell in sight
-    (``policy._paralyzer_prevention_key``, paralyzer_contact), or a confusion / paralysis attacker
-    of the status-threat rung (``_unresisted_melee_status_threats`` with its floor latch) -- is
-    left to them when it reads T1 alone only by the fear / blindness exclusion (``t2_withheld``,
-    owner 2026-11-11), not sent away from here."""
-    from hengbot import paralyzer_contact, threat_tiers
-    if monster.asleep or not threat_tiers.tiered(policy, snapshot, [monster]).t2_withheld:
-        return False
-    if policy._paralyzing_monsters(snapshot, [monster]) and (
-            paralyzer_contact.in_contact(policy, snapshot, monster)
-            or paralyzer_contact.spell_contact(policy, snapshot, monster)):
-        return True
-    latch = getattr(policy, "_status_threat_latch", None)
-    latched = latch[1] if latch is not None and latch[0] == snapshot.floor_key else frozenset()
-    return bool(policy._unresisted_melee_status_threats(snapshot, [monster], latched=latched))
-
-
 def _unbeatable_in_range(ctx, power):
     """A visible hostile on a beam's line that this character cannot beat.
 
@@ -613,8 +591,6 @@ def _unbeatable_in_range(ctx, power):
         return False
     from hengbot import threat_tiers
     leave = threat_tiers.leave_due(policy, ctx.snapshot, [monster])
-    if leave and _status_rung_first(policy, ctx.snapshot, monster):
-        return False
     if leave is not None:
         return leave
     return not policy._engagement_is_winnable(

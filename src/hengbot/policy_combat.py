@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import anaguma, attack_expectation, blind_strike, damaging_ground, esp_tier_hold, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -1677,11 +1677,6 @@ class CombatMixin:
 
         target = self._ranged_target(snapshot, hostiles)
         if target is not None:
-            # Owner 2026-11-12: the Magic-Eater's absorbed power or carried wand when its
-            # expected damage per action beats the shot (me_ranged_first).
-            device = me_ranged_first.stronger_than_launcher_key(self, snapshot, target, ammo)
-            if device is not None:
-                return device
             self._ranged_target_macro_failures = 0
             self.last_reason = reason
             # No leading ESC: at 00:31:55 it produced a same-turn pre-action
@@ -1702,9 +1697,6 @@ class CombatMixin:
             eligible,
             key=lambda monster: self._target_cursor_sort_key(player.position, monster),
         )
-        device = me_ranged_first.stronger_than_launcher_key(self, snapshot, victim, ammo)
-        if device is not None:
-            return device
 
         if self._ranged_target_guard_position != player.position:
             self._ranged_target_guard_position = player.position
@@ -3664,7 +3656,6 @@ class CombatMixin:
                                 flags=flags,
                                 player_hp=snapshot.player.hp,
                                 blind=snapshot.player.blind,
-                                monster_hp=monster.hp,
                             )
                         ) is not None
                     }
@@ -3702,7 +3693,6 @@ class CombatMixin:
                         player_hp=snapshot.player.hp,
                         blind=snapshot.player.blind,
                         saving_skill=snapshot.player.saving_skill,
-                        monster_hp=monster.hp,
                     )
                     operational_ranged = aggregate_ranged.total_damage
                     expected_per_spell = sum(
@@ -3715,7 +3705,6 @@ class CombatMixin:
                                 player_hp=snapshot.player.hp,
                                 blind=snapshot.player.blind,
                                 saving_skill=snapshot.player.saving_skill,
-                                monster_hp=monster.hp,
                             )
                             or 0.0
                         )

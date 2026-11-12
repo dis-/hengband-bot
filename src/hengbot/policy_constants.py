@@ -530,9 +530,6 @@ MAGIC_MISSILE_REASON = "quest-strategy:ranged-fire:magic-eater"
 # Attacks the town arbiter treats as survival (owner 2026-10-31
 # 「生存の扱いにして数えない」): no errand budget, no owner retirement.
 TOWN_COMBAT_REASON_PREFIXES = ("melee", "ranged:", MAGIC_MISSILE_REASON)
-# The ranged rung's projectile reasons (launcher shots, thrown torches and oil): the ones a
-# caller may rename; a device answer keeps the reason its executor runs by.
-PROJECTILE_REASON_PREFIXES = ("ranged:fire", "ranged:throw-torch", "ranged:throw-oil")
 # No game flag: a board's abilities with one more layer of the five elements' opposition, as
 # resist_potion asks what the fight would be after the drink (one layer: (per + 2) / 3).
 OPPOSITION_ABILITY = "oppose_elements"

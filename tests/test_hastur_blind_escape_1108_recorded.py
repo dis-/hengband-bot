@@ -270,11 +270,8 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         self.assertFalse(emperor.asleep)
         self.assertTrue(threat_tiers.inside_sensing(policy, snapshot, emperor))
         alone = threat_tiers.tiered(policy, snapshot, [emperor], contact=True)
-        # Owner 2026-11-11 「恐怖・盲目の呪文を持つ相手で耐性が無い時は T2 にしない」: the emperor
-        # casts fear or blindness the player is not covered against, so its contact tier is T1
-        # without the projection past the cost cap (it read undecided, (None, "cost"), before).
-        self.assertEqual((alone.tier, alone.skipped), (threat_tiers.T1, None))
-        self.assertTrue(alone.t2_withheld)
+        self.assertEqual((alone.tier, alone.skipped), (None, "cost"))
+        self.assertGreaterEqual(alone.free_incoming_bounds[0], snapshot.player.hp)
         scroll = next(item for item in snapshot.inventory
                       if item.tval == TVAL_SCROLL and item.sval == 9)
         self.assertEqual((key, reason), ("r" + scroll.slot, threat_tiers.SENSED_LEAVE_PREFIX + "teleport"))
@@ -289,10 +286,7 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         snapshot = answers[HUNTED][2]
         self.assertEqual(policy._target_guardian_floor_id(snapshot), EMPEROR)
         emperor = next(m for m in snapshot.detected_monsters if m.race_id == EMPEROR)
-        # T1 since owner 2026-11-11 (the fear / blindness caster, above); undecided before.
-        alone = threat_tiers.tiered(policy, snapshot, [emperor], contact=True)
-        self.assertEqual(alone.tier, threat_tiers.T1)
-        self.assertTrue(alone.t2_withheld)
+        self.assertIsNone(threat_tiers.tiered(policy, snapshot, [emperor], contact=True).tier)
         self.assertIsNone(hunt_target.target_race(policy, snapshot))
         self.assertIsNone(hunt_target.unseen_race(policy, snapshot))
         self.assertNotEqual(answers[HUNTED][1], RECORDED[HUNTED][1])
