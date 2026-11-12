@@ -26,9 +26,11 @@ dict whose keys are strings not starting with ``$``; otherwise an object with on
   object that reached it again while being written (read for what they define, then dropped,
   as pickle drops them before its memo get).
 
-``loads`` reads only this format; ``latch_onset_capture.restore_checkpoint_bytes`` and
-``load_snapshot`` read a pickle as well (the recorded fixtures and the checkpoints written
-before), by its first bytes.
+``loads`` reads only this format.  The bot itself still writes pickles, fast, on its decision
+path; ``convert_pickle`` (``main``, run as a module with the paths to sweep) turns recorded
+pickles into these files in a process of its own, off that path, and removes the pickle.
+``latch_onset_capture.load_bytes`` (so ``restore_checkpoint_bytes``) and
+``town_arrival_checkpoint.policy_file`` read either form.
 """
 from __future__ import annotations
 
@@ -41,6 +43,7 @@ import math
 import os
 import pathlib
 import sys
+from pathlib import Path
 
 FORMAT = "hengbot-json-snapshot"
 VERSION = 1
@@ -409,14 +412,31 @@ def _deep(function, *args):
         sys.setrecursionlimit(limit)
 
 
-def dumps(obj) -> bytes:
-    """``obj`` as gzip-compressed JSON (the module docstring's format)."""
+def _document(obj) -> dict:
     encoder = _Encoder()
     encoder.count(obj)
-    state = _deep(encoder.encode, obj)
-    text = json.dumps({"format": FORMAT, "version": VERSION, "state": state},
-                      ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    return {"format": FORMAT, "version": VERSION, "state": _deep(encoder.encode, obj)}
+
+
+def dumps(obj) -> bytes:
+    """``obj`` as gzip-compressed JSON (the module docstring's format)."""
+    text = json.dumps(_document(obj), ensure_ascii=False, separators=(",", ":"),
+                      allow_nan=False)
     return gzip.compress(text.encode("utf-8"), compresslevel=6, mtime=0)
+
+
+def dump(obj, path: Path) -> None:
+    """``dumps(obj)`` written to ``path``, streamed (no whole JSON text in memory), atomically."""
+    temporary = path.with_name(f".{path.name}.tmp")
+    encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    try:
+        with open(temporary, "wb") as raw, \
+                gzip.GzipFile(fileobj=raw, mode="wb", compresslevel=6, mtime=0) as stream:
+            for chunk in encoder.iterencode(_document(obj)):
+                stream.write(chunk.encode("utf-8"))
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def loads(payload: bytes):
@@ -432,3 +452,76 @@ def loads(payload: bytes):
 def is_snapshot(payload: bytes) -> bool:
     """A ``dumps`` payload, by its first bytes (a pickle starts otherwise)."""
     return payload[:2] == GZIP_MAGIC
+
+
+# The conversion off the bot's path (owner 2026-11-13 「ログの圧縮を別で行うことでbotを止めないことと
+# 容量節約を両立できないか？」): the bot writes its checkpoints as pickles, fast, and this turns the
+# recorded ones into json_snapshot files later, in a process of its own.
+PICKLE_SUFFIX = ".pkl"
+SNAPSHOT_SUFFIX = ".json.gz"
+
+
+def converted_path(pickle_path: Path) -> Path:
+    """Where ``convert_pickle`` writes the snapshot of ``pickle_path`` (policy.pkl -> policy.json.gz)."""
+    return pickle_path.with_name(pickle_path.name.removesuffix(PICKLE_SUFFIX) + SNAPSHOT_SUFFIX)
+
+
+def convert_pickle(pickle_path: Path) -> Path:
+    """Write ``pickle_path``'s object as a json_snapshot beside it, then remove the pickle.
+
+    The pickle is read as a checkpoint restore reads it (latch_onset_capture's portable
+    unpickler).  The snapshot is written to a temporary name and renamed into place before the
+    pickle is removed, so a reader always finds one of the two whole.
+    """
+    from hengbot.latch_onset_capture import _PortablePathUnpickler
+
+    with open(pickle_path, "rb") as stream:
+        state = _PortablePathUnpickler(stream).load()
+    target = converted_path(pickle_path)
+    dump(state, target)
+    stat = pickle_path.stat()
+    os.utime(target, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    pickle_path.unlink()
+    return target
+
+
+def _pickles(roots, min_age_seconds: float):
+    import time
+
+    now = time.time()
+    for root in roots:
+        candidates = [root] if root.is_file() else sorted(root.rglob("*" + PICKLE_SUFFIX))
+        for path in candidates:
+            try:
+                if path.suffix == PICKLE_SUFFIX and now - path.stat().st_mtime >= min_age_seconds:
+                    yield path
+            except OSError:
+                continue  # removed meanwhile (a visit rotated out)
+
+
+def main(argv=None) -> int:
+    """Convert recorded pickles: ``json_snapshot [--min-age SECONDS] PATH...`` (run with -m)."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Convert recorded policy pickles to json_snapshot.")
+    parser.add_argument("paths", nargs="+", type=Path,
+                        help="pickle files, or directories searched for *.pkl")
+    parser.add_argument("--min-age", type=float, default=0.0,
+                        help="only pickles last written at least this many seconds ago")
+    args = parser.parse_args(argv)
+    if hasattr(os, "nice"):
+        os.nice(10)  # the bots come first on a shared machine
+    failed = 0
+    for path in _pickles(args.paths, args.min_age):
+        try:
+            before = path.stat().st_size
+            target = convert_pickle(path)
+            print(f"{path}: {before} -> {target.stat().st_size} bytes", flush=True)
+        except Exception as exc:  # one bad or vanished file does not stop the sweep
+            failed += 1
+            print(f"{path}: not converted: {exc}", file=sys.stderr, flush=True)
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

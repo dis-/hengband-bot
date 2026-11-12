@@ -18126,5 +18126,110 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Decoder._remember": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_Decoder.decode": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_Encoder._callable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_Encoder._close": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_Encoder._items": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_Encoder._number": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_Encoder._open": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_Encoder._with_id": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_Encoder.encode": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_deep": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_document": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_qualname": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:_resolve": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:dumps": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
+  },
+  "json_snapshot.py:loads": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "json_snapshot (maintainability review step 8): it reads a converted policy checkpoint for latch_onset_capture.load_bytes, or writes one in the conversion off the decision path; a string it returns is a JSON fragment or a qualified name, never a key the policy posts."
   }
 }

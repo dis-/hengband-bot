@@ -9,7 +9,9 @@ began in ``prime`` at start-up), this records, under
 ``<jsonlog>/town-arrival/<visit>/``:
 
 * ``policy.pkl`` - the exact pre-decision checkpoint
-  (``latch_onset_capture.checkpoint_bytes``; ``restore_checkpoint_bytes``);
+  (``latch_onset_capture.checkpoint_bytes``; ``restore_checkpoint_bytes``), written as a
+  pickle on the decision path; a later conversion off it (json_snapshot.convert_pickle) may
+  replace it with ``policy.json.gz``, which ``policy_file`` finds and restores as well;
 * ``board.json`` - the state line that board was decided on;
 * ``arrival.json`` - turn, floor, the decision sequence before the arrival;
 * ``sidecars/`` and ``sidecars.json`` - the files the policy reads and writes
@@ -60,6 +62,8 @@ from hengbot.town_visit import is_fresh_visit
 DIRECTORY = "town-arrival"
 KEEP_VISITS = 3
 POLICY_FILE = "policy.pkl"
+# What json_snapshot.convert_pickle makes of POLICY_FILE, off the decision path.
+CONVERTED_POLICY_FILE = "policy.json.gz"
 BOARD_FILE = "board.json"
 ARRIVAL_FILE = "arrival.json"
 JOURNAL_FILE = "journal.jsonl.gz"
@@ -316,3 +320,9 @@ def copy_latest_into(root: Path, capture: Path, decision_tail: bytes,
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"town arrival checkpoint failed to copy {source}: {exc}", file=sys.stderr)
     return source.name
+
+
+def policy_file(visit: Path) -> Path:
+    """A recorded visit's checkpoint: its ``POLICY_FILE``, or the json_snapshot converted from it."""
+    converted = visit / CONVERTED_POLICY_FILE
+    return converted if converted.exists() else visit / POLICY_FILE

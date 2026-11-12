@@ -1,19 +1,24 @@
 """hengbot.json_snapshot: the pickle protocol's object graph as gzip-compressed JSON."""
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
 import collections
+import contextlib
 import dataclasses
 import enum
 import gzip
 import io
 import json
 import lzma
+import os
 import pickle
+import tempfile
 import unittest
 from pathlib import Path
 
 from hengbot import json_snapshot
-from hengbot.latch_onset_capture import _PortablePathUnpickler
+from hengbot.latch_onset_capture import _PortablePathUnpickler, load_bytes, restore_checkpoint_bytes
 from hengbot.model import Position
+from hengbot.policy import HengbotPolicy
+from hengbot.town_arrival_checkpoint import CONVERTED_POLICY_FILE, POLICY_FILE, policy_file
 from tests.support.graph_equal import graph_equal
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -153,6 +158,60 @@ class RoundTripTest(unittest.TestCase):
         state = _PortablePathUnpickler(io.BytesIO(payload)).load()
         self.assertGreater(len(state), 100)
         self.assertIsNone(graph_equal(state, round_trip(state)))
+
+
+class ConversionTest(unittest.TestCase):
+    """The pickle the bot writes, converted off its decision path (owner 2026-11-13)."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.addCleanup(self.directory.cleanup)
+        self.pickle = lzma.decompress(
+            (FIXTURES / "curse-first-20261103" / "policy.pkl.xz").read_bytes())
+
+    def visit(self, name="visit"):
+        visit = self.root / name
+        visit.mkdir()
+        (visit / POLICY_FILE).write_bytes(self.pickle)
+        return visit
+
+    def test_a_converted_checkpoint_restores_the_same_state(self):
+        visit = self.visit()
+        target = json_snapshot.convert_pickle(visit / POLICY_FILE)
+        self.assertEqual(target, visit / CONVERTED_POLICY_FILE)
+        self.assertFalse((visit / POLICY_FILE).exists())
+        self.assertEqual(policy_file(visit), target)
+        converted = load_bytes(target.read_bytes())
+        original = load_bytes(self.pickle)
+        self.assertIsNone(graph_equal(original, converted))
+        self.assertLess(target.stat().st_size, len(self.pickle))
+        restored = restore_checkpoint_bytes(HengbotPolicy, target.read_bytes())
+        self.assertIsInstance(restored, HengbotPolicy)
+
+    def test_the_streamed_file_is_the_same_document(self):
+        value = {"a": [1, 2, {"b": (3, Position(1, 2))}]}
+        path = self.root / "value.json.gz"
+        json_snapshot.dump(value, path)
+        self.assertEqual(gzip.decompress(path.read_bytes()),
+                         gzip.decompress(json_snapshot.dumps(value)))
+        self.assertEqual(list(self.root.iterdir()), [path])  # no temporary file left
+
+    def test_the_sweep_converts_only_pickles_old_enough(self):
+        old, new = self.visit("old"), self.visit("new")
+        past = (old / POLICY_FILE).stat().st_mtime - 3600
+        os.utime(old / POLICY_FILE, (past, past))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(json_snapshot.main(["--min-age", "600", str(self.root)]), 0)
+        self.assertEqual(policy_file(old), old / CONVERTED_POLICY_FILE)
+        self.assertEqual(policy_file(new), new / POLICY_FILE)
+        self.assertAlmostEqual((old / CONVERTED_POLICY_FILE).stat().st_mtime, past, delta=1)
+
+    def test_an_unconverted_visit_reads_its_pickle(self):
+        visit = self.visit()
+        self.assertEqual(policy_file(visit), visit / POLICY_FILE)
+        self.assertIsInstance(
+            restore_checkpoint_bytes(HengbotPolicy, policy_file(visit).read_bytes()), HengbotPolicy)
 
 
 if __name__ == "__main__":
