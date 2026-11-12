@@ -292,6 +292,7 @@ class Battle:
     detect_asked: frozenset = frozenset()  # trap cells a trap detection was keyed for
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     recharge_rests: int = 0        # this phase's counted recharge rests (``RECHARGE_REST_LIMIT``)
+    tome_gone: bool = False        # every cell that sees the tome's grid reached, it not seen there
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
     blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
@@ -320,7 +321,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room")}
+        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "tome_gone")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -1579,7 +1580,35 @@ def _quyls(ctx: _Ctx, plan=None) -> str | None:
 
 
 def _tome_done(ctx: _Ctx) -> bool:
-    return ctx.kills(geo.TOME) >= geo.ROSTER[geo.TOME]
+    return ctx.kills(geo.TOME) >= geo.ROSTER[geo.TOME] or _tome_gone(ctx)
+
+
+def _tome_gone(ctx: _Ctx) -> bool:
+    """Every cell that sees the tome's grid was reached and the tome was not seen there: it is not
+    on the floor any more (``_walk_to_sight``'s 「見えなければ次から選ばない」 run out, as the pen's
+    ``_pen_sight`` counts the Ipsissimus escaped).  It never moves and resists teleportation
+    (lib/edit MonraceDefinitions 557 NEVER_MOVE, RES_TELE) and is not invisible: unseen on a cell
+    that sees its grid, it is not on that grid -- killed unseen (「何かを殺した。」 names no race,
+    monster-damage.cpp show_kill_message) or erased.
+
+    n1-b life-382 (2026-11-13 05:38:34-05:38:46): the walk to its sights reached every one of
+    them with no tome seen and walked over [9,8] itself (decision 5907); the plan then shot the
+    empty grid from [5,5] 85 times (5944-6028), and with every grid-aimed attack spent had no
+    step, which the KILL_ALL patrol took until the loop guard stopped the bot twice.  Kept over
+    the phases (``_next_phase``) and the record."""
+    battle = ctx.battle
+    if battle.tome_gone:
+        return True
+    tome = next((tuple(cell) for cell, race in ctx.navigator.battlefield.monster_placements
+                 if race == geo.TOME), None)
+    reached = {cell for aimed, cell in _blind_pairs(ctx) if aimed == tome}
+    if tome is None or not reached or _seen_at(ctx, geo.TOME, {tome}):
+        return False
+    player = ctx.snapshot.player
+    looked = set() if player.blind or player.hallucinated else {ctx.here}   # this board's look
+    sights = geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx, tome))
+    battle.tome_gone = bool(sights) and sights <= reached | looked
+    return battle.tome_gone
 
 
 def _tome(ctx: _Ctx) -> str | None:

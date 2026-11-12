@@ -14538,6 +14538,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "quest25_battle.py:_fire": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of Q25's phase battle: the cells the never-moving casters' spells reach (_tome_done notes in the battle memory that the tome is gone once every cell seeing its grid was reached unseen).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "quest25_battle.py:_full_hp_key": {
     "classification": "producer",
     "rows": [
