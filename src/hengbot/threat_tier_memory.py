@@ -63,7 +63,8 @@ class TierMemory:
     floor: tuple
     decided: dict = field(default_factory=dict)  # (index, race) -> Decided
     last_turn: int | None = None                 # the previous observed board
-    hp_history: list = field(default_factory=list)  # [(turn, HP, position)] of the last boards
+    # [(turn, HP, position)] of the last boards; not compared (a policy pickled before it has none)
+    hp_history: list = field(default_factory=list, compare=False)
 
 
 # The projection's check against what the boards show (owner 2026-11-12 「物資の使用は生存判定に
