@@ -7,6 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import ladder_floor_avoidance, ladder_light, warning_cell_record
+from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
@@ -7825,12 +7826,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self, snapshot, strategic_hostiles=strategic_hostiles,
             strategic_adjacent=strategic_adjacent, physical_hostiles=physical_hostiles,
             physical_adjacent=physical_adjacent)
-        if avoidance is not None:
+        if avoidance is not PASS:
             return avoidance
 
         # The light layer: repair the light before combat/mining/navigation (ladder_light).
         light = ladder_light.key(self, snapshot)
-        if light is not None:
+        if light is not PASS:
             return light
 
         opening_q34 = self._town_producer_entry("_opening_q34_town_key", lambda: self._opening_q34_town_key(snapshot, strategic_hostiles), family="quest-request")

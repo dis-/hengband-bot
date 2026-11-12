@@ -54,6 +54,19 @@ class TableAgainstSourceTest(unittest.TestCase):
             'light = ladder_light.key(self, snapshot)', 'light = None'))
         self.assertIn('layer light: _decide calls ladder_light.key 0 time(s), not once', findings)
 
+    def test_a_layer_module_falling_off_its_end_fails(self):
+        # Falling off would return None, which _decide returns as its answer: the next layer
+        # is asked only on PASS (dungeon_ladder.PASS).
+        findings = analyze_with(plan=lambda source: source.replace(
+            '    return PASS\n', '    pass\n'))
+        self.assertIn('layer light: ladder_light.key does not end with return PASS', findings)
+
+    def test_pass_is_no_row(self):
+        rows = lint.ladder_rows(*lint.repository_sources())
+        self.assertNotIn(lint.PASS_ROW, {row.name for row in rows})
+        self.assertIsNot(ladder.PASS, None)
+        self.assertFalse(isinstance(ladder.PASS, str))
+
     def test_each_layer_module_is_a_layer_of_the_table(self):
         self.assertLessEqual(ladder.LAYER_MODULES.keys(), {layer.name for layer in ladder.LADDER})
         rows = lint.ladder_rows(*lint.repository_sources())

@@ -34,10 +34,16 @@ class Row(NamedTuple):
     where: str = '_decide'
 
 
+# The policy is ``self`` in ``_decide`` and ``policy`` in a layer module (LAYER_MODULES).
+POLICY_NAMES = frozenset({'self', 'policy'})
+# A layer module's ``return PASS``: the next layer is asked, so no row (dungeon_ladder.PASS).
+PASS_ROW = 'return:PASS'
+
+
 def dotted(node) -> str:
-    """``a.b.c`` for names and attributes, with ``self.`` dropped."""
+    """``a.b.c`` for names and attributes, with ``self.`` (``policy.`` in a layer module) dropped."""
     if isinstance(node, ast.Name):
-        return '' if node.id == 'self' else node.id
+        return '' if node.id in POLICY_NAMES else node.id
     if isinstance(node, ast.Attribute):
         owner = dotted(node.value)
         return f'{owner}.{node.attr}' if owner else node.attr
@@ -167,7 +173,8 @@ def layer_calls() -> dict[str, str]:
 def layer_module_rows(module_source: str, module: str) -> list[Row]:
     """The rungs a layer module's ``key`` asks, in source order."""
     function = _function(ast.parse(module_source), 'key')
-    return [row._replace(where=f'{module}.key') for row in _statement_rows(function.body)]
+    return [row._replace(where=f'{module}.key') for row in _statement_rows(function.body)
+            if row.name != PASS_ROW]
 
 
 def decide_rows(policy_source: str) -> list[Row]:
@@ -311,6 +318,10 @@ def _layer_module_findings(policy_source: str, module_sources: dict[str, str]) -
         if called.count(f'{module}.key') != 1:
             findings.append(f'layer {name}: _decide calls {module}.key '
                             f'{called.count(f"{module}.key")} time(s), not once')
+        last = _function(ast.parse(module_sources[module]), 'key').body[-1]
+        if not (isinstance(last, ast.Return) and isinstance(last.value, ast.Name)
+                and last.value.id == 'PASS'):
+            findings.append(f'layer {name}: {module}.key does not end with return PASS')
         said = [(rung.name, rung.kind) for rung in layers[name].rungs]
         found = [row[:2] for row in layer_module_rows(module_sources[module], module)]
         if said != found:

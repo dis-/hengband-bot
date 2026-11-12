@@ -5,7 +5,7 @@ above the light layer (ladder_light).  Off the town floor the owner's summons, s
 Resistance-potion, one-shot breath and never-moving-monster rules answer first; then the
 unseen retreat, the dug pocket (anaguma) and the detected-threat preparation, over which an
 ordinary or already-latched town return takes the decision.  The rungs are asked top-down
-and the first key returned wins, as in ``_decide``; ``None`` hands the decision on to the
+and the first key returned wins, as in ``_decide``; ``PASS`` hands the decision on to the
 layers below.  scripts/dungeon_ladder_lint.py reads the rows here
 (dungeon_ladder.LAYER_MODULES), so the table still states this order.
 
@@ -25,11 +25,12 @@ from hengbot import (
     summon_response,
     threat_tiers,
 )
+from hengbot.dungeon_ladder import PASS
 
 
 def key(policy, snapshot, *, strategic_hostiles, strategic_adjacent, physical_hostiles,
-        physical_adjacent) -> str | None:
-    """The floor-avoidance layer's key, or None when none of its rungs acts."""
+        physical_adjacent):
+    """The floor-avoidance layer's key, or PASS when none of its rungs acts."""
     if not snapshot.in_town:
         # Owner 2026-11-04: the answer to the summons of this floor visit.
         summons = summon_response.key(policy, snapshot)
@@ -107,3 +108,4 @@ def key(policy, snapshot, *, strategic_hostiles, strategic_adjacent, physical_ho
         if town_return is not None:
             return town_return
         return contested_action
+    return PASS
