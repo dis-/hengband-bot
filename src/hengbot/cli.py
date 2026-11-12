@@ -4074,6 +4074,11 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     policy._breeder_floor_record_path = args.decision_log.with_name(
         "breeder-floor.json"
     )
+    # This floor's weapon-warning cells, for a restart on the same floor
+    # (warning_cell_record, n1-c life-200).
+    policy._warning_cell_record_path = args.decision_log.with_name(
+        "warning-cells.json"
+    )
     # This Q25 floor visit's phase battle, for a restart on the same visit.
     policy._q25_battle_record_path = args.decision_log.with_name(
         "q25-battle.json"

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hengbot import guardian_rumor
+from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
@@ -1173,6 +1173,8 @@ class ObservationMixin:
             snapshot, previous_floor is None)
         # The same for this floor's breeder breakthrough latch.
         breeder_floor_record.carry(self, snapshot, previous_floor is None)
+        # The same for this floor's weapon-warning cells (n1-c life-200).
+        warning_cell_record.restore(self, snapshot)
         # The same for the town end's mining cycle.
         town_end_mining.carry(self, snapshot, previous_floor is None)
         # The same for the recall-target switch (restored at the start).

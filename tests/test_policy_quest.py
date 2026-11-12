@@ -10472,7 +10472,10 @@ class WarningGridComposedWalkTest(unittest.TestCase):
         refusal = policy.choose_key(
             self._snapshot(35, 176, messages=(self.PROMPT,), inventory=supply)
         )
-        self.assertIsNone(refusal)
+        # The prompt-bearing board keeps the gate's wait: the executor already
+        # answered the live prompt, and no key stopped the bot (n1-c life-200).
+        self.assertEqual(refusal, "5")
+        self.assertEqual(policy.last_reason, "warning:blocked-step")
         self.assertIn(self.ENTRANCE, policy._warning_refused_cells)
 
         key = policy.choose_key(self._snapshot(35, 176, inventory=supply))
