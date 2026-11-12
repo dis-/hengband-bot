@@ -15297,7 +15297,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 "loot", committed_loot,
                 distance=snapshot.player.position.distance_to(committed_loot),
             )
-        if committed_loot is not None and not jumped:
+        if committed_loot is not None and snapshot.player.position == committed_loot:
+            # Standing on the committed loot is its arrival: the pickup on
+            # this board decides it, not the stall budget.  n1-b life-377
+            # (2026-11-12 11:13, Outpost Home): the walk reached the armour
+            # pile once (best distance 0) while the Home errands took the
+            # board, the town errands then walked the budget out, and every
+            # later arrival counted as one more stalled decision: the pile
+            # was deferred on the cell itself, the pickup refused, the Home
+            # approach stepped back, and seek-loot walked out again from the
+            # entrance until owner-retired-burst.
+            self._nav_ledger.release("loot", committed_loot)
+        elif committed_loot is not None and not jumped:
             self._nav_ledger.observe(
                 "loot",
                 committed_loot,
