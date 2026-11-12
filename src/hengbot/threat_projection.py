@@ -33,6 +33,7 @@ from hengbot.model import (
     TVAL_STAFF,
     TVAL_WAND,
 )
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.policy_constants import OPPOSITION_ABILITY, RANGED_MAX_DISTANCE
 
 
@@ -142,6 +143,8 @@ class Assessment:
     # the player is not covered against, owner 2026-11-11); the margin stays the plan's.
     t2_withheld: tuple = ()
     free_damage: dict = field(default_factory=dict)
+    # per monster: the HP each free attack costs the player (a touch aura answering melee)
+    free_self_damage: dict = field(default_factory=dict)
     cannot_escape: bool = False
     escape_means: tuple = ()
     escape_restorable: bool = False
@@ -329,16 +332,53 @@ def _charge_supplies(policy, snapshot, target) -> list:
     return rows
 
 
-def free_damage(policy, snapshot, target) -> float:
-    """The best free attack per player action against ``target`` (design 3.3)."""
-    best = attack_expectation.melee(policy, snapshot, target)
-    best = max([best, *(damage for good, damage, _ in _launcher_stacks(policy, snapshot, target)
-                        if not good)])
+def free_damage(policy, snapshot, target, contact: bool = False) -> float:
+    """The best free attack per player action against ``target`` (design 3.3); a touch-aura
+    monster's melee scores 0 here (``free_attack`` weighs it with its cost)."""
+    return free_attack(policy, snapshot, target, contact, through_aura=False)[0]
+
+
+def _reaches_from_afar(policy, snapshot, target, row=None) -> bool:
+    """``target`` hurts the player at range from where it stands (its predicted ranged damage)."""
+    if row is None:
+        row = policy.threat_prediction(snapshot, [target], 3)["monsters"][0]
+    return row.get("ranged_prediction", 0) > 0
+
+
+def free_attack(policy, snapshot, target, contact: bool = False, *,
+                through_aura: bool = True, row=None) -> tuple:
+    """(``free_damage``, the HP each such player action costs the player).
+
+    Melee counts for a monster beside the player or able to come beside it
+    (``policy._monster_can_approach``), when the engagement is judged from contact, and for one
+    that cannot come but does not reach the player from where it stands either; a monster that
+    cannot come and reaches the player at range is fought by ranged means only, the walk to it
+    being under its fire (n1-a life-514, 2026-11-12, Angband 49F: the free damage of the
+    never-moving あつくもえるてき, whose fire balls reached the player at distance 10, was the
+    warrior's melee, 518.7).  ``row``: its ``threat_prediction`` row when the caller has it.
+
+    ``through_aura``: a class that melees (every class but the Magic-Eater, whose owner rule
+    2026-11-01 「触ると害のある敵は近接から外す」 keeps it off such a monster) strikes a
+    touch-aura monster all the same (the melee rung does), so the tiers count that blow and
+    its cost, ``attack_expectation.aura_self_damage`` (n1-a life-514: the T3 against
+    風の女王『アリエル』 (AURA_ELEC) was judged by the bow, 198 a turn, while the warrior struck
+    her, 486 a turn, 「電撃をくらった！」 on every blow)."""
+    through_aura = through_aura and snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER
+    melee_counts = (contact or policy._monster_can_approach(snapshot, target)
+                    or not _reaches_from_afar(policy, snapshot, target, row))
+    melee = (attack_expectation.melee(policy, snapshot, target, through_aura=through_aura)
+             if melee_counts else 0.0)
+    best = max([0.0, *(damage for good, damage, _ in _launcher_stacks(policy, snapshot, target)
+                       if not good)])
     best = max(best, _free_devices(policy, snapshot, target))
     torch = me_ranged_first._throwable_torch(policy, snapshot)
     if torch is not None and _ranged_ready(snapshot):
         best = max(best, attack_expectation.torch_throw(policy, snapshot, target, torch))
-    return best
+    if melee > best:
+        cost = (attack_expectation.aura_self_damage(policy, snapshot, target)
+                if attack_expectation.harms_on_touch(policy, target) else 0.0)
+        return melee, cost
+    return best, 0.0
 
 
 def _scroll_reads(snapshot) -> list:
@@ -372,9 +412,10 @@ def _self_damage(snapshot, scroll: AttackScroll) -> int:
 PLAN_ORDER = ("speed", "good_ammo", "charges", "scrolls", "resistance", "healing")
 
 
-def _attack_schedule(policy, snapshot, hostiles, allowed, free):
-    """(turns to clear, good ammo used, charges used, scrolls read, scroll self damage), or None
-    when some target cannot be killed with ``allowed``."""
+def _attack_schedule(policy, snapshot, hostiles, allowed, free, free_self=None):
+    """(turns to clear, good ammo used, charges used, scrolls read, self damage), or None
+    when some target cannot be killed with ``allowed``.  The self damage is the scrolls' and
+    ``free_self``'s cost of each free attack (a touch aura answering melee)."""
     remaining = {monster.index: max(1, monster.hp) for monster in hostiles}
     turns = scrolls_read = self_damage = 0
     if "scrolls" in allowed:
@@ -422,8 +463,10 @@ def _attack_schedule(policy, snapshot, hostiles, allowed, free):
         if left > 0:
             if free[monster.index] <= 0:
                 return None
-            turns += max(1, ceil(left / free[monster.index]))
-    return turns, ammo_used, charges_used, scrolls_read, self_damage
+            free_turns = max(1, ceil(left / free[monster.index]))
+            turns += free_turns
+            self_damage += free_turns * (free_self or {}).get(monster.index, 0.0)
+    return turns, ammo_used, charges_used, scrolls_read, ceil(self_damage)
 
 
 def _hasted(policy, snapshot) -> bool:
@@ -593,7 +636,8 @@ def _heal_doses(policy, snapshot, next_p95: int, max_hp: int) -> list:
     return doses
 
 
-def _plan(policy, snapshot, projection, allowed, free, reserve, next_p95, hp, max_hp):
+def _plan(policy, snapshot, projection, allowed, free, reserve, next_p95, hp, max_hp,
+          free_self=None):
     """(the cheapest win with the ``allowed`` categories (each used only where it helps), or None;
     the smallest shortfall of the candidates against the reserve, None when no schedule clears
     every target).  Only the first is a judgement; the shortfall is the T1 reading's margin.
@@ -602,7 +646,7 @@ def _plan(policy, snapshot, projection, allowed, free, reserve, next_p95, hp, ma
     nor, for a candidate with healing, its scaled estimate (``Projection.extrapolated``) rules
     out."""
     hostiles = projection.hostiles
-    schedule = _attack_schedule(policy, snapshot, hostiles, allowed, free)
+    schedule = _attack_schedule(policy, snapshot, hostiles, allowed, free, free_self)
     if schedule is None:
         return None, None
     attack_turns, ammo, charges, scrolls, self_damage = schedule
@@ -704,12 +748,16 @@ def _path_memo(policy):
 def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
     """3.2-3.4: T3, else the shortest winning prefix of the owner's order (T2), else T1."""
     hostiles, speed = projection.hostiles, snapshot.player.speed
-    free = result.free_damage
+    free, free_self = result.free_damage, result.free_self_damage
     reserve = result.reserve = plan_reserve(max_hp, result.next_action_p95)
     if all(damage > 0 for damage in free.values()):
-        turns = sum(max(1, ceil(monster.hp / free[monster.index])) for monster in hostiles)
+        each = {monster.index: max(1, ceil(monster.hp / free[monster.index])) for monster in hostiles}
+        turns = sum(each.values())
         result.free_turns = turns
         low, high = projection.incoming(snapshot, turns, hasted_turns=0, speed=speed)
+        # The free attacks' own cost (a touch aura answering melee) is incoming damage too.
+        cost = ceil(sum(each[index] * free_self.get(index, 0.0) for index in each))
+        low, high = low + cost, high + cost
         result.free_incoming = high if low == high else None
         result.free_incoming_bounds = None if low == high else (low, high)
         if high < hp:
@@ -731,7 +779,7 @@ def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
     # T1 first: every supply.  Only when that wins is the cheapest prefix looked for (D7).
     try:
         every, shortfall = _plan(policy, snapshot, projection, frozenset(PLAN_ORDER), free,
-                                 reserve, result.next_action_p95, hp, max_hp)
+                                 reserve, result.next_action_p95, hp, max_hp, free_self)
     except CostExceeded:
         if not withheld:
             raise
@@ -752,7 +800,7 @@ def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
         try:
             plan = (every if length == len(PLAN_ORDER) else _plan(
                 policy, snapshot, projection, frozenset(PLAN_ORDER[:length]), free, reserve,
-                result.next_action_p95, hp, max_hp)[0])
+                result.next_action_p95, hp, max_hp, free_self)[0])
         except CostExceeded:
             result.skipped = "cost"  # T2 holds (every supply wins); which prefix is not known
             return

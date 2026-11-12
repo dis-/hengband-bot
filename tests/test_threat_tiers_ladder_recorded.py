@@ -26,7 +26,10 @@ from tests.test_threat_tiers_plans_recorded import EMERGENCY_TELEPORT, decided_w
 
 LIVES = {
     # The observed loss counts only with an unseen attacker evidenced (design 3.1).
-    "death-n1c-077-1101.json.gz": 3, "death-n1c-099-1102.json.gz": 5,
+    # n1-c 099: 8 since n1-a life-514 (2026-11-12): an awake caster reaches the player over grids
+    # the board has not shown (owner 2026-11-08 「未知のマスを壁と見ない」), so the 1-turn test
+    # also reads 691548, 691667 and 691679, each already the existing ``lethal``'s teleport.
+    "death-n1c-077-1101.json.gz": 3, "death-n1c-099-1102.json.gz": 8,
     "death-n1c-103-1102.json.gz": 1, "death-n1c-123-1104.json.gz": 1,
     "summon-response-n1a-475-1104.json.gz": 2,
 }
@@ -82,7 +85,9 @@ class CommittedFightTest(unittest.TestCase):
         self.assertEqual(after[1], EMERGENCY_TELEPORT)
         self.assertGreaterEqual(death.next_action_p95, 77)
         changed = {turn for turn, (before, after, _death) in answers.items() if before != after}
-        self.assertEqual(changed, {691696, 691704, 691716, 691725})
+        # 691548, 691667, 691679: the 1-turn test reads them since n1-a life-514's line of fire
+        # over unknown grids (see LIVES); the committed fight gives way there too.
+        self.assertEqual(changed, {691548, 691667, 691679, 691696, 691704, 691716, 691725})
         for turn in changed:
             self.assertEqual(answers[turn][1][1], EMERGENCY_TELEPORT, turn)
 
