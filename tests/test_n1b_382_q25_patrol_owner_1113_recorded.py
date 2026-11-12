@@ -16,8 +16,11 @@ build main 784d60f71; battle phase 5, the tome, record ``q25-battle.json``):
    cell [4,7] / [6,6] nothing, and the patrol walked back ('6', '2'); the loop guard stopped the
    bot at 05:39:04 and 05:39:14.
 
-The rule:
+Two roots, two rules:
 
+ * Ownership (kill_all_patrol ``_plan_running``): a plan with a phase still running owns every move
+   of its floor; the patrol starts only when the plan has ended (owner 2026-11-13 「全滅クエストで作戦を
+   完了しても終了しない場合、周回して敵を探す」), for Q25 from its own ``_after_the_phases``.
  * The plan's count (quest25_battle ``_tome_gone``): every cell that sees the never-moving tome's
    grid reached with it unseen, it is not there (as the pen's ``_pen_sight`` counts the
    Ipsissimus escaped); the tome phase ends, kept over the phases and the record.
@@ -44,6 +47,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot import kill_all_patrol, quest25_battle as battle, quest25_battle_record
@@ -213,6 +217,43 @@ class PlanOwnsItsFloorTest(_Replay):
         self.assert_one_owner(answers)
         self.assertEqual(answers[0][4], battle.phase_index("tome"))
         self.assertEqual(answers[0][3], battle.SIGHT_REASON)
+
+    def _board_policy(self, cell, record=None):
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        policy = new_policy(Path(directory.name), kill_all_patrol_test.lists(), record)
+        index = next(index for index, raw in enumerate(CASE["second"]["boards"])
+                     if index >= 4 and (raw["player"]["y"], raw["player"]["x"]) == cell)
+        return policy, CASE["second"]["boards"][index], CASE["second"]["boards"][index + 1]
+
+    def test_a_running_phase_with_no_step_keeps_the_patrol_out(self):
+        # DECLARED CONSTRUCTED: the running phase has no step on the recorded [6,6] (the
+        # recorded 6029 / restart 11 situation); the patrol does not take the move.
+        policy, raw, following = self._board_policy((6, 6))
+        with patch.object(battle, "_phase_key", lambda *_args: None):
+            key = policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        self.assertTrue(battle.phases_left(
+            policy, parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+        self.assertEqual((key, policy.last_reason), ("5", BLOCKED))
+        self.post(policy, raw, key, following)
+
+    def test_after_the_last_phase_the_patrol_takes_the_floor(self):
+        # DECLARED CONSTRUCTED: the record with every phase ended and both quylthulgs' cells
+        # cleared (``_after_the_phases`` has no quylthulg to shoot): the patrol's own job.
+        policy, raw, _following = self._board_policy((6, 6))
+        ctx = battle._ctx(policy, parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge))
+        quyls = [list(cell) for cell, race in ctx.navigator.battlefield.monster_placements
+                 if race == battle.geo.QUYL]
+        self.assertEqual(len(quyls), battle.geo.ROSTER[battle.geo.QUYL])
+        record = copy.deepcopy(CASE["battle_record"])
+        record["battle"]["phase"] = len(battle.PHASES)
+        record["battle"]["quyls_done"] = {"set": [{"tuple": cell} for cell in quyls]}
+        policy, raw, following = self._board_policy((6, 6), record)
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        key = policy.choose_key(snapshot)
+        self.assertFalse(battle.phases_left(policy, snapshot))
+        self.assertIn(policy.last_reason, PATROL, key)
+        self.post(policy, raw, key, following)
 
 
 if __name__ == "__main__":

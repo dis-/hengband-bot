@@ -2286,6 +2286,13 @@ def _after_the_phases(ctx: _Ctx) -> str | None:
     return kill_all_patrol.key(ctx.policy, ctx.snapshot)
 
 
+def phases_left(policy, snapshot) -> bool:
+    """This floor is the plan's and a phase of it is still running: the plan owns every move
+    (kill_all_patrol ``_plan_running``; the patrol is asked from ``_after_the_phases``)."""
+    ctx = _ctx(policy, snapshot)
+    return ctx is not None and current_phase(ctx) is not None
+
+
 def phase_index(name: str) -> int:
     """The index of the phase named ``name`` in ``PHASES``."""
     return next(index for index, phase in enumerate(PHASES) if phase.name == name)
