@@ -390,27 +390,26 @@ def launcher_shot(policy, snapshot, target, ammo) -> float:
     return hit * min(_shot_per_turn(launcher, ammo) * slay / 10, max(target.hp, 0))
 
 
+def _launcher_stack(snapshot, launcher, ammo, race_flags, armour, distance) -> float:
+    """``ammo`` from ``launcher``: expected damage per player action, uncapped."""
+    hit = _throw_hit_chance(shot_chance(snapshot, launcher, ammo, distance), armour)
+    slay = shot_multiplier(ammo.known_flags | launcher.known_flags, race_flags)
+    return _shot_per_turn(launcher, ammo) * slay / 10 * hit
+
+
 def launcher_against(policy, snapshot, race_id, distance: int) -> float:
     """The worn launcher's best stack: expected damage per player action against ``race_id``.
 
-    The quest-25 plan's per-race figure, kept as reviewed for the plan (the melee slay table,
-    skill_thb with to_h_b at TO_H_B_FLOOR, no proficiency term); the board-level shot that
-    meets the absorbed powers is ``launcher_shot``."""
-    launcher = policy._equipped_launcher(snapshot)
-    if launcher is None or snapshot.player.blind or snapshot.player.confused:
+    The shot's own formula (``launcher_shot``'s, owner 2026-11-12 「Q25 も正しい式に直す」:
+    「作戦の射撃の見積りを正しい式にする。」): the sheet's shooting value and the launcher's
+    proficiency term in the chance, the shot's slay table."""
+    launcher = launcher_usable(policy, snapshot)
+    if launcher is None:
         return 0.0
-    best = 0.0
-    for ammo in snapshot.inventory:
-        if ammo.tval != launcher.ammo_tval or ammo.count <= 0:
-            continue
-        shown = _SHOT_DISPLAY.search(ammo.name)
-        turn = float(shown.group(2)) if shown else launcher_average_damage(launcher, ammo)
-        multiplier = _slay(policy, race_id, ammo.known_flags | launcher.known_flags)
-        chance = (snapshot.player.shooting_skill
-                  + (TO_H_B_FLOOR + launcher.to_h + ammo.to_h) * BTH_PLUS_ADJ - distance)
-        best = max(best, turn * multiplier / 10
-                   * _throw_hit_chance(chance, _race_armour(policy, race_id)))
-    return best
+    flags, armour = _race_flags(policy, race_id), _race_armour(policy, race_id)
+    return max((_launcher_stack(snapshot, launcher, ammo, flags, armour, distance)
+                for ammo in snapshot.inventory
+                if ammo.tval == launcher.ammo_tval and ammo.count > 0), default=0.0)
 
 
 def devices_against(policy, snapshot, race_id, *, area_only: bool = False) -> float:

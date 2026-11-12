@@ -238,7 +238,16 @@ class TomeSeenHealthTest(unittest.TestCase):
     displayed health when seen (the band, the health bar), the last seen while unseen, and the
     maximum 500 (50d10) if never seen.  Decision 5183: [5,5], HP 415 of 503 (damaged), the tome
     unseen; with Dragon's Frost alone (16 a turn) the quest's kill horizon (10 actions) holds
-    against 120 HP (badly wounded) but not 500."""
+    against 120 HP (badly wounded) but not 500.
+
+    Owner 2026-11-12 「Q25 も正しい式に直す」 (「作戦の射撃の見積りを正しい式にする。作戦の選び方が
+    変わる記録のテストは、決まりに合わせて作り直す。召喚を受けないマスの決まりはそのまま守る。」):
+    the heavy crossbow's shot is weighed with the sheet's shooting value 176 and its
+    proficiency term (4000 / 400, shoot.cpp:504), chance 176 + 30 - 1 against the tome's
+    AC 150: 45 a turn x 46% = 20.6 from a sight cell, above Dragon's Frost's 15.6 from the
+    stand, so where the tome is in reach the plan walks to the sight to shoot
+    (``quest25:walk-to-sight``) instead of firing the frost from the stand (the old figure,
+    skill_thb and to_h_b 0, read 103 against 112: 5%)."""
 
     def test_never_seen_the_500_withdraws(self):
         estimate = {}
@@ -253,14 +262,14 @@ class TomeSeenHealthTest(unittest.TestCase):
 
     def test_seen_badly_wounded_on_the_board_before_it_keeps_firing(self):
         answers = replay(answer_lists=frost_only(), edit=tome_shown(5182, "badly_wounded"), through=5183)
-        self.assertEqual(answers[5183], ("mB1@9,8", "ranged:magic-eater-device"))
+        self.assertEqual(answers[5183], ("6", battle.SIGHT_REASON))
 
     def test_the_health_bar_narrows_the_band(self):
         # "wounded" reads 59% (295, past the horizon); the bar of length 2 reads 19% (95).
         wounded = replay(answer_lists=frost_only(), edit=tome_shown(5182, "wounded"), through=5183)
         self.assertEqual(wounded[5183], ("7", battle.WITHDRAW_REASON))
         barred = replay(answer_lists=frost_only(), edit=tome_shown(5182, "wounded", bar=2), through=5183)
-        self.assertEqual(barred[5183], ("mB1@9,8", "ranged:magic-eater-device"))
+        self.assertEqual(barred[5183], ("6", battle.SIGHT_REASON))
 
 
 class StartStairOutOfHealingTest(unittest.TestCase):
