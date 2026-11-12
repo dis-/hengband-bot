@@ -36,6 +36,7 @@ from hengbot.model import (
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import BUY_KEY
+from hengbot.policy_types import ProcurementHomeGate
 from tests import test_policy_shop as shop
 from tests.support.recorded import EDIT, _policy
 
@@ -217,6 +218,21 @@ class TownTest(unittest.TestCase):
         carried = shop.item("h", TVAL_POTION, SV_HEROISM, count=20)
         self.assertEqual(policy._retention_surplus(town, carried), 5)
         self.assertEqual(policy._retention_surplus(_resistant(town), carried), 20)
+
+    def test_a_stored_one_is_taken_out_before_the_temple_sells_one(self):
+        # Owner 2026-11-12 「自宅にあれば先に取り出す」: the current Home list holds three.
+        ware = shop.store_item("a", TVAL_POTION, SV_HEROISM, price=40, count=20)
+        policy, town = self._shelf(ware)
+        policy.consume_home_knowledge((shop.item("a", TVAL_POTION, SV_HEROISM, count=3),))
+        self.assertIs(policy._purchase_home_gate(town, ware), ProcurementHomeGate.HOME_FIRST)
+        self.assertEqual(policy._home_pending_item[1:], (TVAL_POTION, SV_HEROISM))
+        self.assertEqual(policy._home_pending_quantity, 3)
+
+    def test_an_unknown_home_list_routes_no_home_visit(self):
+        ware = shop.store_item("a", TVAL_POTION, SV_HEROISM, price=40, count=20)
+        policy, town = self._shelf(ware)
+        self.assertFalse(policy._home_knowledge_current)
+        self.assertIs(policy._purchase_home_gate(town, ware), ProcurementHomeGate.ALLOW_PURCHASE)
 
     def test_the_temple_errand_is_optional(self):
         policy, town = self._shelf()

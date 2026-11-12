@@ -60,8 +60,12 @@ class HomeBatchLastDeferredTest(unittest.TestCase):
             return policy, recorded, key, batches
 
     def test_the_recorded_batch_walks_on_to_home(self):
-        policy, recorded, key, _batches = self.replay_to(LAST_ROW, constructed=False)
+        policy, recorded, key, batches = self.replay_to(LAST_ROW, constructed=False)
         self.assertEqual((key, policy.last_reason), ("5", "shop:travel:await-entry"))
+        # Owner 2026-11-12 「自宅にあれば先に取り出す」: without a lasting fear resistance the
+        # Home's two Potions of Heroism join the recorded catalogue-shortage batch (row 50).
+        self.assertTrue(any("ヒーロー" in name for name in batches[50]), batches[50])
+        self.assertFalse(policy._home_candidate_waiting)
 
     def test_a_deferred_last_entry_leaves_no_latch_and_no_step_off(self):
         policy, recorded, key, batches = self.replay_to(LAST_ROW, constructed=True)

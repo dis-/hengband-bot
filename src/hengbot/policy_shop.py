@@ -2013,9 +2013,11 @@ class ShopMixin(InStoreMixin):
                 snapshot, item, ProcurementHomeGate.ALLOW_PURCHASE,
                 "me-staff-current-shelf",
             )
-        if heroism_potion.is_heroism(item):
-            # The optional Heroism stock (owner 2026-11-11) is bought off the shelf: it never
-            # routes a Home visit (heroism_potion; a Home take is no condition of it).
+        if (heroism_potion.is_heroism(item)
+                and self._home_procurement_candidate(self._procurement_class(item)) is None):
+            # The optional Heroism stock (owner 2026-11-12 「自宅にあれば先に取り出す」): Home
+            # first only when the current Home list holds one; an unknown or stale list routes no
+            # Home visit for it, the shelf sells it.
             self._home_procurement_probe = None
             self._home_procurement_fallthrough = "optional-current-shelf"
             return self._record_home_gate(

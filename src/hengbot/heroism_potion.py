@@ -18,8 +18,9 @@ resistance) is not lasting.  With a lasting one nothing is bought and nothing ca
  * ``carry_target``: the carried stock the town buys and the retention keeps (15, else 0): the
    Temple errand and the purchase rung ``tail:heroism`` are optional (never a departure
    condition) and spend only the gold above the full departure resupply (owner 2026-10-08).
-   A potion stored at Home is not taken out: an optional take bound into the Home batch made
-   n1-a life-508's Home visit step off an uncomposable take (a follow-up if wanted).
+   A potion on the current Home list is taken out first (owner 2026-11-12 「自宅にあれば先に
+   取り出す」): it joins the Home batch, and the Temple's purchase gate goes Home first; an
+   unknown or stale Home list routes no Home visit for it.
  * ``cures_fear`` / ``afraid_key``: afraid, a blow is the answer and the game refuses it, a potion
    is carried: drink it (combat_answer.adjacent_attack; policy._should_flee's fear clause and
    survival_preemption read ``cures_fear``, so the board reaches that answer instead of the flee).

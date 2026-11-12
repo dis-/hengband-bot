@@ -1475,8 +1475,8 @@ class SupplyMixin:
             return None
         if heroism_potion.is_heroism(item):
             # Owner 2026-11-11 「持ち歩く数は仮に15服」: without a lasting fear resistance the
-            # carried stock is bought and kept up to 15; with one, none is.  It binds no Home
-            # take (_home_procurement_batch_member).
+            # carried stock is procured (a stored one taken out first) and kept up to 15; with
+            # one, none is.
             target = heroism_potion.carry_target(snapshot)
             return (target, heroism_potion.RETENTION_BRANCH) if target > 0 else None
         if item.sval == SV_POTION_SPEED:
