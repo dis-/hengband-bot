@@ -35,11 +35,13 @@ import gzip
 import json
 import pickle
 import unittest
+from contextlib import ExitStack, contextmanager
+from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import quest25_battle as battle, warning_cell_record
+from hengbot import quest25_battle as battle, quest25_sealed_room, quest_no_teleport, warning_cell_record
 from hengbot.model import Position, parse_snapshot
 from tests.support import q25_house as q25
 
@@ -53,6 +55,19 @@ HERE, REFUSED = Position(6, 29), Position(5, 29)
 QUEST_FLOOR = (0, 48, 25)
 # Decided as recorded (declared above: 0-3 periodic reads, 8-20 magic-eater devices).
 AS_RECORDED = (*range(4, 8), *range(21, STOPPED))
+
+
+@contextmanager
+def capture_rules():
+    """DECLARED: the plan's rules the recording ran under.  The owner's 2026-11-12 decisions made
+    after it (no relocation while the hall is dangerous, the sealed rooms' plan, no walk toward a
+    T1 mover or a pack: tests/test_n1c_200_q25_no_teleport_plan_1112_recorded.py) change the
+    decisions of these boards; the warning's own pins are read under the rules of the capture."""
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False))
+        stack.enter_context(patch.object(quest25_sealed_room, "key", lambda _ctx: None))
+        stack.enter_context(patch.object(battle, "_shunned", lambda _ctx: []))
+        yield
 
 
 def new_policy(first, record):
@@ -78,7 +93,7 @@ def decide(policy, raw):
 
 def replay(*, carry=True):
     """The second process's answers by sequence, the third's first answer, and the record."""
-    with TemporaryDirectory() as directory:
+    with TemporaryDirectory() as directory, capture_rules():
         record = Path(directory) / "warning-cells.json"
         boards = CASE["second"]["boards"]
         policy = new_policy(boards[0], record)
@@ -182,7 +197,8 @@ class Q25WalksRoundTheRefusedCellTest(unittest.TestCase):
         policy._latch_warning_refusal(REFUSED)
         raw = copy.deepcopy(CASE["second"]["boards"][STOPPED])
         raw["messages"], raw["player"]["y"] = [], 7
-        snapshot, key, reason = decide(policy, raw)
+        with capture_rules():
+            snapshot, key, reason = decide(policy, raw)
         self.assertEqual(snapshot.player.position, Position(7, 29))
         self.assertEqual((key, reason), ("1", battle.WALK_REASON))   # on to (8,28), not back to (6,29)
 
@@ -194,7 +210,8 @@ class Q25WalksRoundTheRefusedCellTest(unittest.TestCase):
             for dx in (-1, 0, 1):
                 if dy or dx:
                     policy._latch_warning_refusal(Position(HERE.y + dy, HERE.x + dx))
-        _snapshot, key, reason = decide(policy, CASE["second"]["boards"][STOPPED])
+        with capture_rules():
+            _snapshot, key, reason = decide(policy, CASE["second"]["boards"][STOPPED])
         self.assertEqual((key, reason), ("5", "quest-strategy:hold"))
 
 

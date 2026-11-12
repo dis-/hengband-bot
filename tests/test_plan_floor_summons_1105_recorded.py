@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot import quest_find_exit, quest_force_rows, quest_room_light, quest_room_sweep, summon_response, threat_tiers
+from hengbot import quest_no_teleport
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, SV_POTION_RESISTANCE, TVAL_POTION, _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
@@ -88,7 +89,8 @@ ANSWERS = {}
 
 def answer(turn):
     if not ANSWERS:
-        ANSWERS.update(_replay())
+        with patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False):
+            ANSWERS.update(_replay())
     return ANSWERS[turn]
 
 
@@ -97,6 +99,13 @@ def first_on_the_row_west(raw):
     return max((m for m in raw["visible_monsters"] if m["y"] == here["y"] and m["x"] < here["x"]),
                key=lambda m: m["x"])
 
+
+
+# DECLARED: these boards were recorded, and these pins decided, under the rules before the owner's
+# 2026-11-12 「大広間が危険な段階3まではテレポートが危険なので禁止」 (quest_no_teleport.q25_hall_forbids,
+# tests/test_n1c_200_q25_no_teleport_plan_1112_recorded.py).  The pins that read a relocation on
+# the Q25 floor (the plan's Teleportation, the summons' leave) run with that rule lifted.
+relocation_allowed = patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False)
 
 class Q25RecordedTest(nokey.PostedKey):
     def post_recorded(self, turn):
@@ -130,6 +139,7 @@ class Q25RecordedTest(nokey.PostedKey):
         self.assertEqual(key, "q" + slot)
         self.post_recorded(POTION_PICKED_UP_IN_THE_DARK)
 
+    @relocation_allowed
     def test_two_unseen_casts_read_the_teleport_in_the_crowd(self):
         raw, key, reason, _ = answer(SECOND_UNSEEN_CAST)
         self.assertEqual(reason, summon_response.LEAVE_REASON)
@@ -138,6 +148,7 @@ class Q25RecordedTest(nokey.PostedKey):
         self.assertEqual(key, "r" + slot)
         self.post_recorded(SECOND_UNSEEN_CAST)
 
+    @relocation_allowed
     def test_the_plans_survival_rung_goes_first(self):
         with below_instant_death():
             policy, _raw, _key = replay_until(BELOW_THE_LINE)
@@ -243,6 +254,7 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
         self.assertEqual(aimed_monster(raw, key)["name"], QUASIT)
         self.post(policy, raw, key)
 
+    @relocation_allowed
     def test_the_line_is_half_the_current_hp(self):
         policy, raw, _key = replay_until(SECOND_UNSEEN_CAST, quasit_down_the_row)
         line = predicted(policy, raw) * 2
@@ -259,6 +271,7 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
         policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, at_hp(line))
         self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
 
+    @relocation_allowed
     def test_the_recorded_high_threat_leaves(self):
         # Its summoners two and three cells away also stand behind bodies: 魔王の使い, レッサー・バルログ.
         with below_instant_death():
@@ -267,6 +280,7 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
         self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON)
         self.assertTrue(key.startswith("r"), key)
 
+    @relocation_allowed
     def test_a_target_in_reach_with_no_summon_spell_leaves(self):
         # DECLARED CONSTRUCTED: the walker at [6,2] moved to [8,1], where the first test's quasit stands.
         def change(raw):
@@ -277,6 +291,7 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
         self.assertLess(predicted(policy, raw) * 2, raw["player"]["hp"])
         self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
 
+    @relocation_allowed
     def test_a_summoner_only_beside_the_player_leaves(self):
         # 「近接できない時だけ使う」 (owner 2026-11-01): the bow is not used beside it.
         policy, raw, key = replay_until(SUMMONER_ONLY_BESIDE)
@@ -284,6 +299,7 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
         self.assertLess(predicted(policy, raw) * 2, raw["player"]["hp"])
         self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
 
+    @relocation_allowed
     def test_a_blocked_bolt_path_leaves(self):
         # DECLARED CONSTRUCTED: as the first test, the walker at [6,2] left standing on the path.
         def change(raw):
@@ -293,6 +309,7 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
         policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, change)
         self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
 
+    @relocation_allowed
     def test_no_ammunition_leaves(self):
         # DECLARED CONSTRUCTED: as the first test, the arrows gone.
         def change(raw):
@@ -301,6 +318,7 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
         policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, change)
         self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
 
+    @relocation_allowed
     def test_a_sleeping_summoner_is_not_shot(self):
         # DECLARED CONSTRUCTED: as the first test, asleep: it is not what is casting.
         def change(raw):
@@ -309,6 +327,7 @@ class CounterShotOnThePlanFloorTest(nokey.PostedKey):
         policy, _raw, key = replay_until(SECOND_UNSEEN_CAST, change)
         self.assertEqual(policy.last_reason, summon_response.LEAVE_REASON, key)
 
+    @relocation_allowed
     def test_one_shot_a_decision_while_it_holds_then_the_leave(self):
         # DECLARED CONSTRUCTED: as the first test, the next boards with no new cast.
         policy, raw, key = replay_until(SECOND_UNSEEN_CAST, quasit_down_the_row)
@@ -552,6 +571,7 @@ class Q25DarkRoomTest(unittest.TestCase):
         q25.choose(policy, raw)
         self.assertEqual(policy.last_reason, quest_room_light.UNSEEN_LIGHT_REASON)
 
+    @relocation_allowed
     def test_survival_comes_first(self):
         raw = self.cast_board(hp=300, monsters=[q25.monster(q25.SPECTRE, 5, 9)])
         _key, reason, _ = q25.decide(raw, stage=4)
@@ -585,6 +605,7 @@ class Q25DarkRoomTest(unittest.TestCase):
 
 
 class Q25LeaveOnAQuietBoardTest(unittest.TestCase):
+    @relocation_allowed
     def test_two_unseen_casts_with_only_a_left_alone_quyl_in_view_read_the_teleport(self):
         # DECLARED CONSTRUCTED: q25's board; the quyl is nothing to this plan until its turn.
         policy, answer_reason = None, None

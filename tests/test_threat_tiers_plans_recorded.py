@@ -27,6 +27,7 @@ from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # noqa: F401 -- first: the plan modules import in a cycle
 from hengbot import quest25_battle, quest_find_exit, quest_room_sweep, threat_tiers
+from hengbot import quest_no_teleport
 from hengbot.cli import _PolicyObserverScope
 from hengbot.model import parse_snapshot
 from tests import test_plan_floor_summons_1105_recorded as summons
@@ -98,11 +99,20 @@ ANSWERS = {}
 
 def q25_answers():
     if not ANSWERS:
-        ANSWERS.update(decided_with_and_without(summons._new_policy, summons.CASE["boards"]))
+        with patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False):
+            ANSWERS.update(decided_with_and_without(summons._new_policy, summons.CASE["boards"]))
     return ANSWERS
 
 
+
+# DECLARED: these boards were recorded, and these pins decided, under the rules before the owner's
+# 2026-11-12 「大広間が危険な段階3まではテレポートが危険なので禁止」 (quest_no_teleport.q25_hall_forbids,
+# tests/test_n1c_200_q25_no_teleport_plan_1112_recorded.py).  The pins that read a relocation on
+# the Q25 floor (the plan's Teleportation, the summons' leave) run with that rule lifted.
+relocation_allowed = patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False)
+
 class Q25RecordedTest(unittest.TestCase):
+    @relocation_allowed
     def test_only_the_boards_the_one_turn_test_fires_on_change(self):
         answers = q25_answers()
         self.assertEqual(set(answers), set(FIRED))
@@ -119,6 +129,7 @@ class Q25RecordedTest(unittest.TestCase):
         self.assertEqual(unchanged, {turn for turn, (_hp, reason) in FIRED.items()
                                      if reason == PLAN_TELEPORT})
 
+    @relocation_allowed
     def test_the_plan_acts_where_the_test_does_not_fire(self):
         # 11653273: 撲殺の悪魔 in front of the nearest レッサー・バルログ, the plan's blow recorded.
         real, read = threat_tiers.instant_death, []
@@ -137,6 +148,7 @@ class Q25RecordedTest(unittest.TestCase):
             policy, raw, key = summons.replay_until(summons.CASTER_BEHIND_A_BODY)
         self.assertEqual(policy.last_reason, quest_find_exit.MELEE_REASON)
 
+    @relocation_allowed
     def test_the_q25_plan_answers_and_its_rung_heads_the_enemy_branch(self):
         calls = []
         real = threat_tiers.instant_death_key
@@ -159,6 +171,7 @@ class Q25RecordedTest(unittest.TestCase):
         self.assertEqual(plan_answers[-1], (summons.CASTER_BESIDE, key))
         self.assertEqual(calls[-1], (summons.CASTER_BESIDE, key, PLAN_TELEPORT))
 
+    @relocation_allowed
     def test_the_escape_is_sent(self):
         policy, raw, key = summons.replay_until(summons.CASTER_BESIDE)
         self.assertEqual(policy.last_reason, PLAN_TELEPORT)

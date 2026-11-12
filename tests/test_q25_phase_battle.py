@@ -21,6 +21,7 @@ from dataclasses import replace
 
 from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo, quest25_plan, threat_tiers
 from hengbot import quest25_druj_gear as druj_gear, quest_exposure, quest_optional_carry, quest_room_sweep, spare_gear
+from hengbot import quest_no_teleport
 from hengbot.me_device_attacks import DEVICE_REASON
 from hengbot.me_powers_refresh import REFRESH_REASON
 from hengbot.model import TVAL_ROD, TVAL_WAND, parse_snapshot
@@ -121,6 +122,12 @@ def carried(raw, tval, sval, name, **fields):
         row["charging_count"] = 0
     raw["inventory"].append(row)
     return raw
+
+
+# Owner 2026-11-12 「大広間が危険な段階3まではテレポートが危険なので禁止」 (quest_no_teleport.q25_hall_forbids)
+# forbids every relocation on phase 2: the teleport pins below hold where relocation is allowed
+# (the rule lifted), and the 11-12 pins next to them read the fight that replaces it.
+relocation_allowed = patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False)
 
 
 class Q25GeometryTest(unittest.TestCase):
@@ -433,6 +440,7 @@ class Q25IpsissimusTest(unittest.TestCase):
         key = choose(policy, raw)
         self.assertEqual((key, policy.last_reason), ("mB" + FIRE_BALL_LETTER + "@7,17", DEVICE_REASON))
 
+    @relocation_allowed
     def test_summons_with_no_piercing_attack_teleport(self):
         raw = self.summoned(board((5, 1)), cell=(4, 1))
         policy = new_policy(raw)
@@ -443,6 +451,18 @@ class Q25IpsissimusTest(unittest.TestCase):
         self.assertTrue(key.startswith("r"), key)
         self.assertTrue(memory(policy, raw).rallying)
 
+    def test_11_12_summons_with_no_piercing_attack_are_fought_not_teleported_from(self):
+        raw = self.summoned(board((5, 1)), cell=(4, 1))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertNotEqual(policy.last_reason, battle.TELEPORT_REASON)
+        self.assertFalse(key.startswith("r"), key)
+        self.assertEqual(policy.last_reason, "quest-strategy:melee")   # the summons beside: the blow
+        self.assertTrue(memory(policy, raw).rallying)
+
+    @relocation_allowed
     def test_summons_with_a_high_threat_teleport_even_with_a_ball(self):
         # No Healing or Speed carried: the survival rungs ahead of the summons stay quiet.
         raw = self.summoned(with_wand_list(board((5, 1), hp=480, healing=0, speed=0), FIRE_BALL),
@@ -500,6 +520,7 @@ class Q25StrongSummonsTest(unittest.TestCase):
 
     DRACOLICH = 701
 
+    @relocation_allowed
     def test_a_high_threat_summons_on_the_walk_is_weighed_before_the_step(self):
         # On [6,1], hasted, the next step of the walk is [5,1]; a spectral tyrannosaur summoned on
         # [5,2] with a high threat: Teleportation, not the step toward it.
@@ -514,6 +535,19 @@ class Q25StrongSummonsTest(unittest.TestCase):
         with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
             key = choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.TELEPORT_REASON, key)
+        self.assertEqual(memory(policy, raw).strong, ((geo.SPECTRAL_T, (5, 2)),))
+
+    def test_11_12_a_high_threat_summons_on_the_walk_is_shot_not_teleported_from(self):
+        raw = with_wand_list(board((6, 1), hp=480, healing=0, speed=0), FIRE_BALL)
+        raw["visible_monsters"] = [monster(geo.SPECTRAL_T, 5, 2, index=902)]
+        raw["messages"] = ["何かが魔法でアンデッドを召喚した。"]
+        policy = new_policy(raw)
+        at_phase(policy, raw, "ipsissimus")
+        policy._player_hasted = lambda snapshot: True   # DECLARED: the haste shown
+        with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
+            key = choose(policy, raw)
+        self.assertNotIn(policy.last_reason, {battle.TELEPORT_REASON, quest_room_sweep.TELEPORT_REASON}, key)
+        self.assertFalse(key.startswith("r"), key)
         self.assertEqual(memory(policy, raw).strong, ((geo.SPECTRAL_T, (5, 2)),))
 
     def test_a_low_threat_summons_on_the_walk_lets_it_go_on(self):

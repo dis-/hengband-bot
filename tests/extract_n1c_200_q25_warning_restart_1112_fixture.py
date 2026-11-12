@@ -1,7 +1,7 @@
 """Freeze n1-c life-200's last two Quest 25 processes (2026-11-12 12:03:00-12:03:13) for the warning test.
 
 Source: n1-c life-200 (Magic-Eater Lv36) on hengband.net, the stop captures
-captures/20261112-120308-no-key-exhausted (the second process of the floor, decisions 0-54, from
+captures/20261112-120256-no-key-exhausted (the first process, decisions 18062-18188), captures/20261112-120308-no-key-exhausted (the second process of the floor, decisions 0-54, from
 its restart at 12:03:00 to its no-key stop) and captures/20261112-120315-exit-no-marker (the third
 process, decisions 0-8, from its restart at 12:03:12 to the death), copied to
 C:/hengband-backups/pdca/captures/n1c-200-death-1112/.
@@ -29,8 +29,11 @@ from tests.extract_n1c_174_q25_loops_1109_fixture import ring_rows
 ROOT = Path("C:/hengband-backups/pdca/captures/n1c-200-death-1112/captures")
 OUTPUT = Path(__file__).with_name("fixtures") / "n1c-200-q25-warning-restart-1112.json.gz"
 QUEST = 25
-SECOND = ("20261112-120308-no-key-exhausted", 54, 3188057)
-THIRD = ("20261112-120315-exit-no-marker", 8, 3188301)
+# The first process from the board after the hound fell (decision 18062, the first its state ring
+# holds) through its no-key stop (18188); added 2026-11-12 for the Q25 no-teleport plan.
+FIRST = ("20261112-120256-no-key-exhausted", 18062, 18188, 3187217)
+SECOND = ("20261112-120308-no-key-exhausted", 0, 54, 3188057)
+THIRD = ("20261112-120315-exit-no-marker", 0, 8, 3188301)
 
 
 def _decisions(path: Path) -> list[dict]:
@@ -44,13 +47,13 @@ def _decisions(path: Path) -> list[dict]:
     return found
 
 
-def process(directory: str, last: int, start_turn: int):
+def process(directory: str, first: int, last: int, start_turn: int):
     capture = ROOT / directory
     rows = ring_rows(capture / "state.jsonl.gz")
     decisions = [row for row in _decisions(capture / "bot-decisions.jsonl.gz")
-                 if "decision_sequence" in row and row["decision_sequence"] <= last
+                 if "decision_sequence" in row and first <= row["decision_sequence"] <= last
                  and row["turn"] >= start_turn and row.get("floor", {}).get("quest_id") == QUEST]
-    assert [row["decision_sequence"] for row in decisions] == list(range(last + 1)), directory
+    assert [row["decision_sequence"] for row in decisions] == list(range(first, last + 1)), directory
     by_turn = collections.defaultdict(list)
     for row in rows:
         if row.get("type") == "player_turn":
@@ -75,19 +78,21 @@ def process(directory: str, last: int, start_turn: int):
 
 
 def main():
+    first_boards, first_recorded, _ = process(*FIRST)
     second_boards, second_recorded, knowledge = process(*SECOND)
     third_boards, third_recorded, _ = process(*THIRD)
     races = load_monrace_knowledge(find_monrace_definitions(Path(__file__), None))
-    ids = {monster["race_id"] for board in (*second_boards, *third_boards)
+    ids = {monster["race_id"] for board in (*first_boards, *second_boards, *third_boards)
            for field in ("visible_monsters", "detected_monsters") for monster in board.get(field, [])}
     case = dict(source="n1c-200-q25-warning-restart-1112",
+                first=dict(boards=first_boards, recorded=first_recorded),
                 second=dict(boards=second_boards, recorded=second_recorded),
                 third=dict(boards=third_boards, recorded=third_recorded),
                 skill=knowledge.get("skill_exp"), home=knowledge.get("home"),
                 monraces={key: asdict(races[key]) for key in sorted(ids) if key in races})
     with gzip.open(OUTPUT, "wt", encoding="utf-8", newline="\n") as stream:
         json.dump(case, stream, ensure_ascii=False, default=sorted, separators=(",", ":"))
-    sys.stdout.write(f"{OUTPUT} {OUTPUT.stat().st_size} {len(second_boards)} {len(third_boards)} "
+    sys.stdout.write(f"{OUTPUT} {OUTPUT.stat().st_size} {len(first_boards)} {len(second_boards)} {len(third_boards)} "
                      f"{sorted(knowledge)}\n")
 
 

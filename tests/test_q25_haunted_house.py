@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from hengbot import policy_quest as policy_quest_module
+from hengbot import quest_no_teleport
 from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_optional_carry, quest_room_light, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, threat_tiers, trap_warning
 from hengbot.cli import _cell_loop_guard_applies
 from hengbot.model import (
@@ -55,6 +56,13 @@ from tests.support.q25_house import (  # noqa: F401
     _terrain_key, board, choose, decide, monster, navigator_of, new_policy, open_door, step_key,
 )
 
+
+
+# DECLARED: these boards were recorded, and these pins decided, under the rules before the owner's
+# 2026-11-12 「大広間が危険な段階3まではテレポートが危険なので禁止」 (quest_no_teleport.q25_hall_forbids,
+# tests/test_n1c_200_q25_no_teleport_plan_1112_recorded.py).  The pins that read a relocation on
+# the Q25 floor (the plan's Teleportation, the summons' leave) run with that rule lifted.
+relocation_allowed = patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False)
 
 class Q25MapFactsTest(unittest.TestCase):
     TERRAIN = QUESTS[25].battlefield.terrain
@@ -507,6 +515,7 @@ BELOW_INSTANT_DEATH = patch.object(threat_tiers, "instant_death_key", lambda *ar
 
 
 class Q25EmergencyTest(unittest.TestCase):
+    @relocation_allowed
     def test_below_the_line_teleport_and_no_recall(self):
         raw = board((8, 19), hp=300, monsters=[monster(TYRANNOSAUR, 8, 20)])
         key, reason, _ = decide(raw)
@@ -514,6 +523,7 @@ class Q25EmergencyTest(unittest.TestCase):
         self.assertTrue(key.startswith("r"))
         self.assertNotEqual(reason, RECALL_REASON)
 
+    @relocation_allowed
     def test_an_enemy_still_on_the_player_after_the_teleport_gets_the_potion(self):
         raw = board((8, 19), hp=300, monsters=[monster(TYRANNOSAUR, 8, 20)])
         policy = new_policy(raw)
@@ -544,6 +554,7 @@ class Q25EmergencyTest(unittest.TestCase):
         snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         self.assertTrue(once_quest_recall.held(policy, snapshot))
 
+    @relocation_allowed
     def test_recall_read_the_fight_goes_on_with_scrolls_and_potions(self):
         raw = board((8, 19), hp=300, teleports=4, recalling=True, monsters=[monster(TYRANNOSAUR, 8, 20)])
         _, reason, _ = decide(raw)
@@ -556,6 +567,7 @@ class Q25EmergencyTest(unittest.TestCase):
         key, reason, _ = decide(raw)
         self.assertEqual((key, reason), (step_key((8, 19), (8, 20)), MELEE_REASON))
 
+    @relocation_allowed
     def test_instant_death_answers_with_the_plans_escape(self):
         # HP 500, over the line: the plan's escape reads Teleportation before the plan's heal.
         raw = board((8, 19), hp=500, speed=0, monsters=[monster(TYRANNOSAUR, 8, 20)])
@@ -583,6 +595,7 @@ class Q25EmergencyTest(unittest.TestCase):
         key, reason, _ = decide(board((10, 1), hp=100, healing=0, speed=0, monsters=[monster(SPECTRE, 9, 1)]))
         self.assertEqual((key, reason), (step_key((10, 1), (11, 1)), EXIT_WALK_REASON))
 
+    @relocation_allowed
     def test_controls_the_stair_is_not_taken(self):
         enemy = [monster(TYRANNOSAUR, 12, 2)]
         for raw, expected in (
@@ -647,6 +660,7 @@ class Q25LightTest(unittest.TestCase):
         _, reason, _ = decide(board(self.MOUTH, light=0), stage=self.STAGE)
         self.assertEqual(reason, WALK_REASON)
 
+    @relocation_allowed
     def test_survival_comes_first(self):
         raw = board(self.MOUTH, hp=300, monsters=[monster(SPECTRE, 5, 4)])
         _, reason, _ = decide(raw, stage=self.STAGE)
@@ -775,6 +789,7 @@ class Q25UnseenAttackerTest(unittest.TestCase):
         choose(policy, raw)
         self.assertEqual(policy.last_reason, WALK_REASON)
 
+    @relocation_allowed
     def test_control_below_the_line_survival_comes_first(self):
         raw, policy = self.in_the_west_passage(hp=200)
         choose(policy, raw)
@@ -844,6 +859,7 @@ class Q25AmbushTest(unittest.TestCase):
         self.assertEqual(choose(policy, raw), REST_MACRO)
         self.assertEqual(navigator_of(policy).sweep_ambush, self.COVER)
 
+    @relocation_allowed
     def test_survival_comes_first(self):
         raw, policy = self.on_the_cover()
         raw["player"]["hp"] = 200

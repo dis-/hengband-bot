@@ -265,3 +265,38 @@ def fire_cells(terrain: dict, casters) -> frozenset:
 def exposure_of(cells) -> quest_exposure.Exposure:
     """An Exposure whose ``shout`` is ``cells``: the least-exposed walk crosses the fewest."""
     return quest_exposure.Exposure({}, {tuple(cell): frozenset({(0, 0)}) for cell in cells})
+
+
+# Owner 2026-11-12 (QUEST_25.jsonc ``sealed_rooms``): the rooms whose only way out is a great-hall
+# door, 「左」「中央」「右」 by the door: the south-west room (spectres), the south-middle room
+# (shadow demons) and the south-east-ish room (the vampire lord).
+SEALED_ROOM_DOORS = {"left": (10, 6), "centre": (10, 11), "right": (10, 15)}
+
+
+@lru_cache(maxsize=16)
+def _room_cells(terrain_key: tuple, door: tuple) -> frozenset:
+    terrain = dict(terrain_key)
+    start = (door[0] + 1, door[1])
+    seen, stack = {start}, [start]
+    while stack:
+        y, x = stack.pop()
+        for dy, dx in _NEIGHBOURS:
+            cell = (y + dy, x + dx)
+            if cell not in seen and cell != door and terrain.get(cell) in STANDABLE \
+                    and terrain.get(cell) != "door":
+                seen.add(cell)
+                stack.append(cell)
+    return frozenset(seen)
+
+
+def room_cells(terrain: dict, door) -> frozenset:
+    """The standable cells behind ``door`` (a sealed room), the door itself not included."""
+    return _room_cells(_key(terrain), tuple(door))
+
+
+def sealed_room_of(terrain: dict, cell):
+    """(name, door) of the sealed room ``cell`` is in, else None."""
+    for name, door in SEALED_ROOM_DOORS.items():
+        if tuple(cell) in room_cells(terrain, door):
+            return name, door
+    return None

@@ -14,7 +14,7 @@ Nothing here is persisted: the floor's state is the QuestFloorNavigator's (quest
 
 from __future__ import annotations
 
-from hengbot import me_ranged_first, once_quest_recall, quest_exposure, quest_room_light, speed_dose, status_cure
+from hengbot import me_ranged_first, once_quest_recall, quest_exposure, quest_no_teleport, quest_room_light, speed_dose, status_cure
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
@@ -232,6 +232,14 @@ def _below_line(policy, snapshot, profile, navigator, *, line=True) -> str | Non
     if line and snapshot.player.hp_ratio > float(profile.abort_conditions["hp_ratio"]):
         navigator.sweep_heal_next = False
         return None
+    if quest_no_teleport.q25_hall_forbids(policy, snapshot):
+        # Owner 2026-11-12 「回復とテレポートアウェイで対処する」: Teleport Away in Teleportation's
+        # place, then the potion, as Teleportation was followed by it.
+        if not navigator.sweep_heal_next and (away := hall_away_key(policy, snapshot)) is not None:
+            navigator.sweep_heal_next = True
+            return away
+        navigator.sweep_heal_next = False
+        return _quaff_recovery(policy, snapshot)
     scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
     if navigator.sweep_heal_next or scroll is None:
         navigator.sweep_heal_next = False
@@ -242,6 +250,52 @@ def _below_line(policy, snapshot, profile, navigator, *, line=True) -> str | Non
     navigator.sweep_heal_next = True
     policy.last_reason = TELEPORT_REASON
     return policy._read_key(snapshot, scroll)
+
+
+AWAY_REASON = "quest-strategy:teleport-away"
+
+
+def hall_away_key(policy, snapshot) -> str | None:
+    """Teleport Away at the most dangerous moving hostile in view on a beam's line, else None.
+
+    The absorbed rod or wand first, then a carried rod or wand (teleport_follower's order).  Not
+    at a never-moving one (its place is the plan's), nor at one the game surely keeps
+    (effect_monster_away_resist: RES_TELE with UNIQUE or RES_ALL).  The wand's bolt is a beam
+    (spells-launcher.cpp fire_beam with TELE_AWAY): aimed by direction along an 8-way line."""
+    from hengbot import me_absorbed_substitutes, me_powers, teleport_follower
+
+    if not teleport_follower._aim_ready(snapshot):
+        return None
+    here = snapshot.player.position
+    aimed = []
+    for monster in policy._physical_hostiles(snapshot):
+        knowledge = policy._monrace_knowledge.get(monster.race_id)
+        flags = getattr(knowledge, "flags", frozenset())
+        if knowledge is None or "NEVER_MOVE" in flags or (
+                "RES_TELE" in flags and flags & {"UNIQUE", "RES_ALL"}):
+            continue
+        direction = me_powers.beam_direction(policy, snapshot, here, monster.position)
+        if direction is not None:
+            aimed.append((policy._predicted_damage(snapshot, [monster], turns=1),
+                          -here.distance_to(monster.position), -monster.index, monster, direction))
+    if not aimed:
+        return None
+    *_order, target, direction = max(aimed, key=lambda row: row[:3])
+    absorbed = teleport_follower._absorbed(policy, snapshot)
+    if absorbed is not None:
+        key = me_absorbed_substitutes.cast_key(
+            policy, snapshot, me_absorbed_substitutes.POWERS[absorbed], direction, blind_ok=True)
+        if key is not None:
+            policy.last_reason = AWAY_REASON + me_absorbed_substitutes.CAST_SUFFIX
+            return key
+    carried = teleport_follower._carried(snapshot)
+    if carried is None:
+        return None
+    kind, item = carried
+    key = reserved_item_command(policy, snapshot, kind, item, suffix=direction)
+    if key is not None:
+        policy.last_reason = AWAY_REASON
+    return key
 
 
 def _give_up(policy, snapshot, profile) -> str | None:

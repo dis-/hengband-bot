@@ -35,7 +35,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import me_powers_refresh, quest25_battle as battle, quest25_geometry as geo
+from hengbot import me_powers_refresh, quest25_battle as battle, quest25_geometry as geo, quest_no_teleport
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.policy_constants import SKILL_KNOWLEDGE_MACRO
 from tests.support import q25_house as q25
@@ -225,8 +225,14 @@ class HighThreatSummonsTeleportsTest(unittest.TestCase):
             if sequence == FIRST_TELEPORT:
                 raw["messages"] = ["何かは魔法で混沌の宮廷から悪魔を召喚した！", *raw["messages"]]
 
-        answers = replay(edit=edit, through=FIRST_TELEPORT, recorded_wait=True)
+        # DECLARED: under the 11-09 rules; the owner's 2026-11-12 rule forbids it (below).
+        with patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False):
+            answers = replay(edit=edit, through=FIRST_TELEPORT, recorded_wait=True)
         self.assertEqual(answers[FIRST_TELEPORT], ("ri", battle.TELEPORT_REASON))
+        answers = replay(edit=edit, through=FIRST_TELEPORT, recorded_wait=True)
+        key, reason = answers[FIRST_TELEPORT]
+        self.assertNotEqual(reason, battle.TELEPORT_REASON)   # 2026-11-12: no Teleportation on phase 2
+        self.assertFalse(key.startswith("r"), key)
 
 
 def spent(kind):

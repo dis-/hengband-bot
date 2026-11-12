@@ -160,6 +160,10 @@ _rows(EXCLUDED, "destruction_use",
 _rows(EXCLUDED, ("me_powers", "sent_away_t1"),
       "the absorbed Teleport Other moves the enemy, not the player (owner 2026-11-09 E handles it)",
       "me-power:*:teleport-away")
+_rows(EXCLUDED, "quest_plan_base",
+      "Teleport Away in Q25's Teleportation place moves the enemy, not the player (owner 2026-11-12 "
+      "「回復とテレポートアウェイで対処する」)",
+      "quest-strategy:teleport-away", "quest-strategy:teleport-away:absorbed-power")
 _rows(EXCLUDED, "teleport_follower",
       "Teleport Other at a monster that follows the player's teleport moves the enemy, not the "
       "player (owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」; E handles a T1 sent away)",

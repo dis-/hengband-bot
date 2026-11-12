@@ -293,6 +293,9 @@ class Battle:
     # (race, last seen cell) each, and the decided boards since one of them was last seen.
     strong: tuple = ()
     strong_quiet: int = 0
+    # Owner 2026-11-12 (quest25_sealed_room): the room landed in, (name, actions, step, last
+    # counted turn, shots at the clear's target); None off the sealed rooms.
+    room: tuple | None = None
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -309,7 +312,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked", "glowing", "tome_hp")}
+        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -561,10 +564,71 @@ def _step(ctx: _Ctx, cell, reason: str = WALK_REASON, *, guard: bool = True) -> 
     return ctx.policy._step_toward(ctx.snapshot, Position(*cell))
 
 
+# Owner 2026-11-12: a race this many strong among the awake movers is a pack the walk shuns.
+PACK_SIZE = 3
+
+
+def _shunned(ctx: _Ctx) -> list:
+    """The awake movers no walk goes toward (owner 2026-11-11 「召喚された強敵や T1 の敵の方へは歩かない」,
+    widened 2026-11-12 to every phase, 第0段・第1段 included): one that alone is T1, a summons the
+    phase-2 teleport was read from (``battle.strong``), a pack (``PACK_SIZE`` of a race)."""
+    movers = [monster for monster in ctx.hostiles()
+              if not monster.asleep and not monster.can_multiply
+              and not quest_plan_base._never_moves(ctx.policy, monster)]
+    if not movers:
+        return []
+    counts = {}
+    for monster in movers:
+        counts[monster.race_id] = counts.get(monster.race_id, 0) + 1
+    strong = {race for race, _cell in ctx.battle.strong}
+    shunned = []
+    for monster in movers:
+        if (counts[monster.race_id] >= PACK_SIZE or monster.race_id in strong
+                or threat_tiers.tiered(ctx.policy, ctx.snapshot, [monster]).tier == "T1"):
+            shunned.append(monster)
+    return shunned
+
+
+def _toward_cells(ctx: _Ctx, shunned) -> frozenset:
+    """The cells beside each shunned mover and, of those in view, every cell nearer to it than the
+    player stands (``_rally``'s rule)."""
+    cells = [(monster.position.y, monster.position.x) for monster in shunned]
+    seen = {monster.index for monster in ctx.in_view()}
+    near = {(y + dy, x + dx) for (y, x) in cells for dy in (-1, 0, 1) for dx in (-1, 0, 1)}
+    looked = [(monster.position.y, monster.position.x) for monster in shunned if monster.index in seen]
+    near |= {cell for cell in ctx.terrain
+             if any(quest_exposure.game_distance(cell, each) < quest_exposure.game_distance(ctx.here, each)
+                    for each in looked)}
+    return frozenset(near - {ctx.here})
+
+
+def _shunned_hold(ctx: _Ctx, toward) -> str:
+    """No way that does not go toward them: 「道が無ければ今いる召喚を受けないマスで迎え撃つ」 (owner
+    2026-11-12, the 11-11 choke hold).  Off a summon-safe cell, a walk to the nearest one first."""
+    targets = _fight_targets(ctx)
+    summons = geo.summon_cells(ctx.terrain)
+    if ctx.here in summons:
+        safe = {cell for cell, kind in ctx.terrain.items()
+                if kind in {"floor", "door"} and cell not in summons}
+        path = _path(ctx, safe, toward)
+        if len(path) >= 2:
+            ctx.policy._declare_reach(Position(*path[-1]))
+            return _step(ctx, path[1], WALK_REASON, guard=False)
+    return _engage(ctx, targets) or _hold(ctx)
+
+
 def _walk(ctx: _Ctx, goals, reason: str = WALK_REASON, *, taken=frozenset()) -> str | None:
     """The next step toward ``goals`` (the trap rule first); None there or with no way.
-    ``taken``: cells the walk does not cross besides the monsters in view."""
-    path = _path(ctx, goals, taken)
+    ``taken``: cells the walk does not cross besides the monsters in view.  Never toward a shunned
+    mover (``_shunned``): with no other way, the hold where the player stands."""
+    goals = {tuple(goal) for goal in goals}
+    if ctx.here in goals:
+        return None
+    shunned = _shunned(ctx)
+    toward = _toward_cells(ctx, shunned) if shunned else frozenset()
+    path = _path(ctx, goals, frozenset(taken) | toward)
+    if len(path) < 2 and toward and len(_path(ctx, goals, taken)) >= 2:
+        return _shunned_hold(ctx, toward)
     if len(path) < 2:
         return None
     nxt = path[1]
@@ -2046,6 +2110,12 @@ def current_phase(ctx: _Ctx) -> Phase | None:
     return PHASES[ctx.battle.phase] if ctx.battle.phase < len(PHASES) else None
 
 
+def _note_room_kill(ctx: _Ctx) -> None:
+    from hengbot import quest25_sealed_room
+
+    quest25_sealed_room.note_kill(ctx)
+
+
 def _observe(ctx: _Ctx) -> None:
     """Once per board (``key`` and ``walk_key`` may both read it)."""
     board = (ctx.snapshot.turn, id(ctx.snapshot))
@@ -2056,6 +2126,7 @@ def _observe(ctx: _Ctx) -> None:
     _settle_detection(ctx)
     _note_rest_cut(ctx)
     _note_kills(ctx)
+    _note_room_kill(ctx)
     _note_pen_shot(ctx)
     _note_arrivals(ctx)
     _note_strong(ctx)
@@ -2076,7 +2147,9 @@ def observe_board(policy, snapshot) -> None:
 
 
 def _phase_key(policy, snapshot) -> str | None:
-    """The running phase's own order: its preparation, then its step."""
+    """The running phase's own order: its preparation, then its step.  On a room whose only way
+    out is a great-hall door while the hall is dangerous, the room's plan first (owner 2026-11-12,
+    quest25_sealed_room)."""
     ctx = _ctx(policy, snapshot)
     if ctx is None:
         return None
@@ -2084,7 +2157,15 @@ def _phase_key(policy, snapshot) -> str | None:
     if phase is None:
         # The druj is dead: what the anti-teleport piece displaced goes back on.
         return quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
-    return _adjacent_mass_key(ctx) or _prepare(ctx, phase) or _act(ctx, phase)
+    from hengbot import quest25_sealed_room
+
+    return (_adjacent_mass_key(ctx) or quest25_sealed_room.key(ctx)
+            or _prepare(ctx, phase) or _act(ctx, phase))
+
+
+def phase_index(name: str) -> int:
+    """The index of the phase named ``name`` in ``PHASES``."""
+    return next(index for index, phase in enumerate(PHASES) if phase.name == name)
 
 
 # -- the summons ------------------------------------------------------------------------
