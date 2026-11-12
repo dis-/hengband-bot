@@ -13320,6 +13320,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._mining_runs_completed = 0
         self._town_store_attempted.clear()
         self._retire_town_errand_plan_for_rebuild()
+        # n1-a life-512 (2026-11-12 07:20): the visit had spent Home's pass
+        # bound before the set opened, with the run's diggers and detection on
+        # Home's shelf.  The blocked Home hid the kit claim, prepare refused
+        # (no digger, no detection), the open set made the town end a stop
+        # under town:blocked:survival:identify_staff_ready.  The set's kit is
+        # new work for Home, as for the other one-run sets (release_home_for_kit).
+        release_home_for_kit(self, snapshot)
         self.last_reason = "town:identify-staff-stockout-mining"
         self._offer_execution(
             WAIT_KEY, producer="fundraising",
