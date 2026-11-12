@@ -1498,7 +1498,39 @@ def _note_quyls(ctx: _Ctx) -> None:
 
 def _quyls_done(ctx: _Ctx) -> bool:
     _note_quyls(ctx)
-    return _quyl_plan(ctx) is None
+    return _quyl_plan(ctx) is None and not _recharging_area_attack(ctx)
+
+
+def _area_attack_held(ctx: _Ctx) -> bool:
+    """An area attack the character holds whatever its charges now: an absorbed ball or breath
+    (the Magic-Eater's wands regain charges and its rods recharge, hpmp/hp-mp-regenerator.cpp
+    regenmagic, twice as fast resting), or a carried rod of one (it recharges)."""
+    policy, snapshot = ctx.policy, ctx.snapshot
+    for (kind, sval), power in me_device_attacks.POWERS.items():
+        if power.shape not in me_device_attacks.TARGETABLE_SHAPES or power.group_only:
+            continue
+        if me_capability.has(policy, snapshot, kind, sval):
+            return True
+        if kind == "rod" and any(item.tval == TVAL_ROD and item.sval == sval and item.known
+                                 for item in snapshot.inventory):
+            return True
+    return False
+
+
+def _recharging_area_attack(ctx: _Ctx) -> bool:
+    """A quylthulg is left and the area attack is only spent, not missing.
+
+    n1-b life-378 (2026-11-13 01:45:05-01:45:14): from [5,2] the balls at [7,14] (for [9,13]) spent
+    every charge -- the absorbed rods of Acid and Thunder Ball, the wands of Ice Ball, Acid Ball
+    and Stinking Cloud -- and with no ball usable the phase counted as 「範囲攻撃が無ければ 1) を
+    とばして」 and ended; the recharge rest that followed (the tome's preparation) refilled them.
+    Owner 2026-11-13 「範囲攻撃がないというのは本当か？休憩すれば回復するとかでもなく？」: spent is
+    not missing, so the phase rests to refill them (the 11-06 「攻撃に使うものを全快させる」 rest,
+    ``_recharge_key``) and shoots again."""
+    left = [cell for cell, race in ctx.navigator.battlefield.monster_placements
+            if race == geo.QUYL and cell not in ctx.battle.quyls_done]
+    return (bool(left) and ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]
+            and not _balls(ctx, geo.QUYL) and _area_attack_held(ctx))
 
 
 _FACED = frozenset({geo.IPSISSIMUS, geo.DREADMASTER})
@@ -1507,7 +1539,13 @@ _FACED = frozenset({geo.IPSISSIMUS, geo.DREADMASTER})
 def _quyls(ctx: _Ctx, plan=None) -> str | None:
     plan = _quyl_plan(ctx) if plan is None else plan
     if plan is None:
-        return None
+        if not _recharging_area_attack(ctx):
+            return None
+        # Spent, not missing: refill them (the between-phases rest), fighting what comes first.
+        targets = _fight_targets(ctx)
+        if targets:
+            return _engage(ctx, targets) or _hold(ctx)
+        return _recharge_key(ctx)
     # 「テレポート・アウェイを受けるとイプシシマスの残党やドリードマスターと相対する可能性がある。
     # その場合は加速して討伐を試みる。」
     faced = [monster for monster in ctx.in_view() if monster.race_id in _FACED]
@@ -1862,6 +1900,17 @@ def _sweep_targets(ctx: _Ctx) -> list:
             if monster.race_id not in {geo.DRUJ, geo.STAIRWAY}]
 
 
+def _detection_failed(ctx: _Ctx) -> bool:
+    """The board after the sweep's detection says the cast or the use failed (and shows nothing)."""
+    from hengbot import kill_all_patrol
+
+    if ctx.snapshot.turn == ctx.battle.detect_turn:
+        return False
+    texts = [message_text(message) for message in ctx.snapshot.messages]
+    return (any(line in text for text in texts for line in kill_all_patrol.FAILED_LINES)
+            and not any(line in text for text in texts for line in kill_all_patrol.SENSED_LINES))
+
+
 def _sweep_done(ctx: _Ctx) -> bool:
     battle = ctx.battle
     if _sweep_targets(ctx):
@@ -1878,7 +1927,12 @@ def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
     battle = ctx.battle
     targets = _sweep_targets(ctx)
     if battle.detect_turn >= 0 and battle.detected is None:
-        battle.detected = tuple((monster.position.y, monster.position.x) for monster in targets)
+        if _detection_failed(ctx):
+            # n1-b life-378 (01:45:48): 「呪文をうまく唱えられなかった！」 was read as a detection that
+            # showed nothing, and the sweep ended with both quylthulgs alive.  Cast again.
+            battle.detect_turn = -1
+        else:
+            battle.detected = tuple((monster.position.y, monster.position.x) for monster in targets)
     if targets:
         visible = [monster for monster in targets if monster.perception != "detected"]
         if (key := _engage(ctx, visible)) is not None:
@@ -2186,7 +2240,11 @@ def _after_the_phases(ctx: _Ctx) -> str | None:
         key = _quyls(ctx, (left[0], None, None))
         if key is not None:
             return key
-    return _sweep(ctx, patrol=True)
+    # Owner 2026-11-13 「全滅クエストで作戦を完了しても終了しない場合、周回して敵を探す。感知を持って
+    # いれば感知して敵を探す。」: the KILL_ALL patrol every such quest walks (kill_all_patrol).
+    from hengbot import kill_all_patrol
+
+    return kill_all_patrol.key(ctx.policy, ctx.snapshot)
 
 
 def phase_index(name: str) -> int:

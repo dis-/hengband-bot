@@ -2791,6 +2791,34 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "kill_all_patrol.py:_detect_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "kill_all_patrol.py:_hunt": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "kill_all_patrol.py:_toward": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "kill_all_patrol.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "ladder_above_emergency.py:key": {
     "classification": "adapter",
     "rows": [
@@ -10771,20 +10799,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_detect_key": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest25_battle.py:_detector": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "quest25_battle.py:_direction": {
     "classification": "data",
     "rows": [
@@ -11106,13 +11120,6 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "quest25_battle.py:_sweep_targets": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "quest25_battle.py:_tome": {
     "classification": "producer",

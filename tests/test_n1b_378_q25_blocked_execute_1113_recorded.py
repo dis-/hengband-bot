@@ -34,7 +34,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import quest25_battle as battle
+from hengbot import kill_all_patrol, quest25_battle as battle
 from hengbot.model import parse_snapshot
 from tests.support import q25_house as q25
 
@@ -92,6 +92,8 @@ class _patched:
 
 
 NO_AFTER = ((battle, "_after_the_phases", lambda _ctx: None),)
+# The KILL_ALL patrol the navigator asks when a plan has no step (owner 2026-11-13, kill_all_patrol).
+NO_PATROL = ((kill_all_patrol, "key", lambda *_args: None),)
 
 
 class BlockedExecuteRecordedTest(unittest.TestCase):
@@ -114,8 +116,15 @@ class BlockedExecuteRecordedTest(unittest.TestCase):
         self.assertEqual(answers[0], ("9", battle.SIGHT_REASON))   # toward a cell that sees [9,13]
 
     def test_control_without_it_the_plan_has_no_step(self):
-        answers, _phase = replay(patches=NO_AFTER)
+        answers, _phase = replay(patches=NO_AFTER + NO_PATROL)
         self.assertEqual(set(answers), {("5", BLOCKED)})
+
+    def test_without_it_the_kill_all_patrol_still_answers(self):
+        # The navigator's safety net for every KILL_ALL plan (kill_all_patrol).
+        answers, _phase = replay(patches=NO_AFTER)
+        self.assertNotIn(BLOCKED, {reason for _key, reason in answers})
+        self.assertTrue({reason for _key, reason in answers} <= {
+            kill_all_patrol.WALK_REASON, kill_all_patrol.DETECT_REASON, kill_all_patrol.HUNT_REASON})
 
     def test_the_walk_goes_on_without_turning_back(self):
         with TemporaryDirectory() as directory:
