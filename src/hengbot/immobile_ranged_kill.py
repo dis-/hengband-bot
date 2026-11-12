@@ -235,8 +235,17 @@ def blocks_the_way(policy, snapshot, monster: MonsterState) -> bool:
 
 
 def killable(policy, snapshot, monster: MonsterState) -> bool:
-    """The immobile summoner owner keeps no zone for a monster killed this way."""
-    return plan(policy, snapshot, monster) is not None
+    """The immobile summoner owner keeps no zone for a monster killed this way: a
+    kept-away never-moving one (``key`` shoots no other) with a safe ranged kill.
+
+    A summoner avoided only because it did not come to the choke (summoner_wait's
+    expired wait) moves; ``key`` never walks to shoot it, so withdrawing its zone hands
+    the cells to every other owner with nothing carrying the kill out.  n1-c life-205
+    (2026-11-13, ガラスの城60F): from (28,39) the two ノーム・メイジ sensed by telepathy
+    read as killable (a third, asleep, out of range), their zone was withdrawn and the
+    exploration stepped '1' back into (29,38), where the third was in view, the kill
+    refused and the zone laid again ('9' out), eight times up to the oscillation break."""
+    return kept_away(policy, snapshot, monster) and plan(policy, snapshot, monster) is not None
 
 
 def key(policy, snapshot) -> str | None:
