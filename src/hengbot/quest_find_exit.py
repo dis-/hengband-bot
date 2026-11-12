@@ -82,6 +82,15 @@ the ``min_hp`` of the row the floor was entered under (``entry_force_min_hp``, r
 the floor's first board) is the strategy's line crossed (once_quest_recall.below_entry_force),
 as the HP ratio is: with an enemy, Recall is read.
 
+Owner 2026-11-12 (the same death and n1-a life 516):
+ * 「加速手段を十分数確保することを必須にする。」: every row of QUEST_18 is ``always_hasted``
+   (quest_plan_base._speed doses while an enemy comes and the haste is off) and its Speed
+   doses are asked at acceptance and at the entrance (quest_force_rows.departure_speed_short).
+ * Shrieker mushrooms 40: 「セイレーンと同じに扱う」: in ``exposure_races``; the pull (the
+   forbidden cells) is the TELE_TO casters' only, ``find_exit.pull_races``.
+ * A choke spent by its quiet wait is the retreat again while an enemy in view comes
+   (``_readmitted``): life 515 left (1,19) for (3,22) across the open with a seahorse coming.
+
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
 quiet board stays with them (food, light, the unseen) and reaches ``walk_key`` through
@@ -204,11 +213,18 @@ def _opened_terrain(navigator, opened: frozenset) -> dict:
 def _exposure_with(navigator, plan, opened: frozenset) -> quest_exposure.Exposure:
     """The cells the plan's casters reach with these cells open, derived once."""
     races = tuple(plan.get("exposure_races", ()))
-    key = (navigator.quest_id, races, opened)
+    pull_races = tuple(plan.get("pull_races", races))
+    reach = tuple(sorted((int(race), int(cells))
+                         for race, cells in plan.get("aimed_off_reach", {}).items()))
+    key = (navigator.quest_id, races, pull_races, reach, opened)
     if key not in _EXPOSURES:
+        placements = [(cell, race) for cell, race in navigator.battlefield.monster_placements
+                      if race in races]
+        by_race = dict(reach)
         _EXPOSURES[key] = quest_exposure.exposure_map(
-            _opened_terrain(navigator, opened),
-            [cell for cell, race in navigator.battlefield.monster_placements if race in races])
+            _opened_terrain(navigator, opened), [cell for cell, _ in placements],
+            pullers={cell for cell, race in placements if race in pull_races},
+            aimed_off_reach={cell: by_race[race] for cell, race in placements if race in by_race})
     return _EXPOSURES[key]
 
 
@@ -441,10 +457,34 @@ def _below_line_recall(policy, snapshot, profile, *, line=True) -> str | None:
     return once_quest_recall.read_key(policy, snapshot, RECALL_REASON)
 
 
-def _chokes(navigator, plan) -> set[Position]:
+def _chokes(navigator, plan, board=None) -> set[Position]:
+    """The unexposed chokes worth waiting on.  With ``board`` showing an enemy in view that
+    comes, the ones whose quiet wait ran out are worth it again (``_readmitted``)."""
     exposure = _exposure(navigator, plan)
+    spent = navigator.exit_spent_chokes - _readmitted(navigator, board)
     return {Position(*cell) for cell in plan["choke_cells"]
-            if not exposure.exposed(tuple(cell))} - navigator.exit_spent_chokes
+            if not exposure.exposed(tuple(cell))} - spent
+
+
+def _readmitted(navigator, board) -> frozenset:
+    """Owner 2026-11-12, n1-a life 515: the choke (1,19), spent by its quiet wait (decision
+    48623), was left for (3,22) across the open (2,20) and (3,20) while a seahorse came in
+    sight (48624); the retreat goes to it again.
+
+    Only a choke spent by ``choke_hold_turns`` (nothing came) comes back, and only for an
+    enemy in view that comes and whose in-view wait (``_in_view_waits``: first seen, or last
+    come nearer) began at or after that choke was spent: what the choke already waited for
+    does not send the walk back to it (n1-a life 495's swordfish, seen from (3,20) only and
+    never moving, would rock the walk between (3,20) and (1,19)).  One spent by
+    ``choke_enemy_wait_turns`` (an enemy in view that never made contact) stays spent, so
+    that bound still ends its wait."""
+    if board is None or not board.coming_in_view:
+        return frozenset()
+    began = [navigator.exit_in_view.get(monster.index, (None, navigator.exit_actions))[1]
+             for monster in board.coming_in_view]
+    newest = max(began)
+    return frozenset(choke for choke, spent_at in navigator.exit_quiet_spent.items()
+                     if choke in navigator.exit_spent_chokes and newest >= spent_at)
 
 
 def _next_leg(navigator, plan, position: Position) -> list[Position]:
@@ -472,7 +512,8 @@ def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
     if navigator.exit_hold_cell != position:
         navigator.exit_hold_cell, navigator.exit_hold_turns = position, 0
         navigator.exit_enemy_turns = 0
-    if _must_wait(navigator, plan, position, board):
+    quiet = not _must_wait(navigator, plan, position, board)
+    if not quiet:
         navigator.exit_fought_at = position
         navigator.exit_hold_turns = 0
         navigator.exit_enemy_turns += 1
@@ -482,6 +523,10 @@ def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
         spent = navigator.exit_hold_turns > int(plan["choke_hold_turns"])
     if spent:
         navigator.exit_spent_chokes = navigator.exit_spent_chokes | {position}
+        navigator.exit_quiet_spent = _without(navigator.exit_quiet_spent, position)
+        if quiet:
+            navigator.exit_quiet_spent = {**navigator.exit_quiet_spent,
+                                          position: navigator.exit_actions}
         navigator.exit_fought_at = None
         return None
     shot = (policy._ranged_attack_key(snapshot, board.coming_in_view, [])
@@ -530,12 +575,13 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     """Stand on the nearest choke still worth waiting on; None when there is none."""
     position = snapshot.player.position
     navigator.exit_choke_goal = None
-    chokes = _chokes(navigator, plan)
+    chokes = _chokes(navigator, plan, board)
     if position in chokes:
+        _start_over(navigator, position)
         held = _hold(policy, snapshot, navigator, plan, position, board)
         if held is not None:
             return held
-        chokes = _chokes(navigator, plan)
+        chokes = _chokes(navigator, plan, board)
     path = _least_exposed(navigator, plan, position, chokes, board.occupied, as_it_is=True)
     if len(path) < 2:
         return None
@@ -543,7 +589,22 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     if crowded is not None:
         return crowded
     navigator.exit_choke_goal = path[-1]
+    _start_over(navigator, path[-1])
     return _path_step(policy, snapshot, path, TO_CHOKE_REASON)
+
+
+def _without(spent: dict, choke: Position) -> dict:
+    return {cell: at for cell, at in spent.items() if cell != choke}
+
+
+def _start_over(navigator, choke: Position) -> None:
+    """A spent choke taken again (``_readmitted``): its waits start over there."""
+    if choke not in navigator.exit_spent_chokes:
+        return
+    navigator.exit_spent_chokes = navigator.exit_spent_chokes - {choke}
+    navigator.exit_quiet_spent = _without(navigator.exit_quiet_spent, choke)
+    if navigator.exit_hold_cell == choke:
+        navigator.exit_hold_cell = None
 
 
 def _melee_cap(policy, navigator) -> int:
@@ -574,6 +635,7 @@ def _back_to_a_choke(policy, snapshot, navigator, plan, board, cap: int) -> str 
         return None
     goal = paths[0][-1]
     navigator.exit_spent_chokes = navigator.exit_spent_chokes - {goal}
+    navigator.exit_quiet_spent = _without(navigator.exit_quiet_spent, goal)
     navigator.exit_choke_goal = goal
     return _path_step(policy, snapshot, paths[0], MELEE_CAP_REASON)
 
@@ -602,6 +664,23 @@ def _crowded_step(policy, snapshot, navigator, plan, board, step: Position) -> s
         return None  # no hold on a shouted cell: the walk goes on
     policy.last_reason = HOLD_REASON
     return WAIT_KEY
+
+
+def _back_to_a_spent_choke(policy, snapshot, navigator, plan, board) -> str | None:
+    """On a shouted cell with an enemy in view that comes and a choke behind spent by its quiet
+    wait: the walk to the nearest free choke, that one included (``_readmitted``), rather than
+    on along the shouted cells.
+
+    Owner 2026-11-12 「(開けた所を次の隘路へ進まない)」: between the choke (1,19) and the next
+    free one, (2,26), the way crosses the shriekers' (3,20) and (4,21); n1-a life 515 met the
+    seahorses on (3,20).  With no such choke the shouted cell walks on as before (owner
+    2026-11-04, 「次の届かないマスへ歩く」).  A pulled player and a floor still being cleared
+    keep their own answers."""
+    if (not _readmitted(navigator, board)
+            or _cell(snapshot.player.position) in pull_cells(navigator, plan)
+            or _floor_needs_clearing(navigator, plan)):
+        return None
+    return _to_choke(policy, snapshot, navigator, plan, board)
 
 
 def _choke_walk_under_way(policy, snapshot, navigator, plan, board) -> str | None:
@@ -884,6 +963,7 @@ def key(policy, snapshot) -> str | None:
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
             or _melee_cap_retreat(policy, snapshot, navigator, plan, board)
+            or _back_to_a_spent_choke(policy, snapshot, navigator, plan, board)
             or _choke_walk_under_way(policy, snapshot, navigator, plan, board)
             or _advance(policy, snapshot, navigator, plan, board)
         )
@@ -951,6 +1031,7 @@ def _note_contact(navigator, plan, position: Position) -> None:
         navigator.exit_hold_turns = navigator.exit_enemy_turns = 0
         navigator.exit_fought_at = position
         navigator.exit_spent_chokes = navigator.exit_spent_chokes - {position}
+        navigator.exit_quiet_spent = _without(navigator.exit_quiet_spent, position)
 
 
 def walk_key(policy, snapshot) -> str | None:

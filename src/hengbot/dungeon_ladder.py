@@ -338,6 +338,9 @@ FLOOR_PLANS = (
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
             # More than the strategy's max_simultaneous_melee beside the player: back to a choke.
             ("_melee_cap_retreat", OWN),
+            # An enemy coming and a choke behind spent by its quiet wait: back to it (owner
+            # 2026-11-12, n1-a life 515).
+            ("_back_to_a_spent_choke", OWN),
             # A walk to a choke under way goes on before the exit walk (owner 2026-11-06).
             ("_choke_walk_under_way", OWN), ("_advance", OWN))),
         Branch("no enemy for the line", (

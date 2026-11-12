@@ -66,22 +66,37 @@ class Exposure:
         return bool(self.shout.get(cell))
 
 
-def exposure_map(terrain, casters) -> Exposure:
-    """``casters``: the cells of the never-moving casters."""
+def exposure_map(terrain, casters, *, pullers=None, aimed_off_reach=None) -> Exposure:
+    """``casters``: the cells of the never-moving casters.
+
+    ``pullers``: the casters whose direct line pulls (TELE_TO); None, all of them.
+    ``aimed_off_reach``: per caster cell, the farthest player a spell aimed at a neighbour
+    reaches; None or absent, the whole spell range.  decide_process_continue
+    (monster-processor.cpp:708) processes a monster within its ``aaf`` (the race's
+    ``vision``), or within MAX_PLAYER_SIGHT 20 with its own cell in the player's view
+    (``has_los_at``).  A player the caster has no line to does not see the caster either,
+    so beyond ``vision`` such a caster does not act at all: a shrieker 40 (vision 4) shrieks
+    from farther only along its direct line; a siren 1272 (vision 20) everywhere in range.
+    """
     open_cells = _projects(terrain)
     pull: dict[tuple[int, int], set] = {}
     shout: dict[tuple[int, int], set] = {}
     for caster in casters:
+        pulls = pullers is None or caster in pullers
+        aimed_off = min(MAX_SPELL_RANGE, (aimed_off_reach or {}).get(caster, MAX_SPELL_RANGE))
         direct = {cell for cell in open_cells
                   if game_distance(caster, cell) <= MAX_SPELL_RANGE
                   and projectable(terrain, caster, cell)}
         for cell in open_cells:
-            if game_distance(caster, cell) > MAX_SPELL_RANGE:
+            distance = game_distance(caster, cell)
+            if distance > MAX_SPELL_RANGE:
                 continue
             if cell in direct:
-                pull.setdefault(cell, set()).add(caster)
+                if pulls:
+                    pull.setdefault(cell, set()).add(caster)
                 shout.setdefault(cell, set()).add(caster)
-            elif any((cell[0] + dy, cell[1] + dx) in direct for dy, dx in _NEIGHBOURS):
+            elif distance <= aimed_off and any(
+                    (cell[0] + dy, cell[1] + dx) in direct for dy, dx in _NEIGHBOURS):
                 shout.setdefault(cell, set()).add(caster)
     return Exposure({cell: frozenset(found) for cell, found in pull.items()},
                     {cell: frozenset(found) for cell, found in shout.items()})

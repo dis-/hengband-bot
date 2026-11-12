@@ -22,6 +22,7 @@ is asked for: a character that cannot take the quest yet spends nothing on it.
 from __future__ import annotations
 
 from hengbot import haste_read, me_capability, quest_ranged_force
+from hengbot.model import SV_POTION_SPEED
 
 ALTERNATIVES = "force_alternatives"
 ROW_FIELDS = ("min_hp", "min_expected_dps", "heal_potions", "speed_potions")
@@ -76,3 +77,27 @@ def resolve(policy, snapshot, force: dict) -> dict:
     else:
         resolved["speed_potions"] = cost
     return resolved
+
+
+DEPART_FLAG = "speed_required_to_depart"
+
+
+def speed_short(policy, snapshot, force: dict) -> bool:
+    """``force`` (resolved) asks for more Speed doses than the character carries: fewer Speed
+    potions than its row's count (0 for permanent speed or an absorbed power at the reliable
+    rate), or an absorbed power holding too few charges for its row."""
+    if force.get(ABSORBED_SHORT):
+        return True
+    required = me_capability.force_count(policy, snapshot, force, "speed_potions")
+    return policy._exact_potion_count(snapshot, SV_POTION_SPEED) < required
+
+
+def departure_speed_short(policy, snapshot, quest_id: int) -> bool:
+    """A strategy whose ``required_force`` names ``speed_required_to_depart`` (QUEST_18, owner
+    2026-11-12 「加速手段を十分数確保することを必須にする。」) is entered only with its row's
+    Speed doses, as it is accepted only with them: a quest taken earlier, or doses spent since,
+    sends the character back to the shops (the quest's carry rung buys them) instead of in."""
+    profile = policy.approved_quest_strategy(quest_id)
+    if profile is None or not profile.required_force.get(DEPART_FLAG):
+        return False
+    return speed_short(policy, snapshot, policy._strategy_force_for_snapshot(snapshot, profile))

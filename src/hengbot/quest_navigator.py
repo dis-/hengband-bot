@@ -75,6 +75,9 @@ class QuestFloorNavigator:
     exit_enemy_turns = 0
     exit_fought_at = None
     exit_spent_chokes = frozenset()
+    # Of those, the ones spent by the quiet wait, with the player action they were spent on
+    # (quest_find_exit._readmitted).  Replaced, never mutated.
+    exit_quiet_spent = {}
     exit_dug = frozenset()
     exit_abandoned_digs = frozenset()
     exit_dig_attempts = {}  # replaced, never mutated
@@ -135,6 +138,7 @@ class QuestFloorNavigator:
         self.exit_enemy_turns = 0
         self.exit_fought_at = None
         self.exit_spent_chokes = frozenset()
+        self.exit_quiet_spent = {}
         self.exit_dug = frozenset()
         self.exit_abandoned_digs = frozenset()
         self.exit_dig_attempts = {}
