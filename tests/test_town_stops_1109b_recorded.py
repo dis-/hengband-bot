@@ -125,13 +125,19 @@ class RefusedDepositAwaitBesideSleeperTest(Visit):
         self.assertEqual([(monster.race_id, monster.asleep) for monster in hostiles], [(14, True)])
 
     def test_the_deposit_wait_is_answered_beside_the_sleeper(self):
+        """Since 2026-11-12 the refused batch settles on its first outside board
+        (n1-b life-370 02:08, the same stop): the full-Home relief starts at
+        row 11 and the visit goes on beside the sleeper, with no wait to answer."""
         self.replay_to(11)
         _board, _key, reason = self.decide(11)
         self.assertTrue(self.policy._home_full_refused)
-        self.assertTrue(reason.endswith("home:atomic-deposit-await-confirmation"), reason)
-        for row in (12, 13, 14):
-            _board, key, reason = self.decide(row)
-            self.assertEqual((key, reason), ("5", "home:atomic-deposit-await-confirmation"))
+        self.assertIsNone(self.policy._home_atomic_deposit_pending)
+        self.assertIsNotNone(self.policy._home_full_relief)
+        for row in (11, 12, 13, 14):
+            if row > 11:
+                _board, _key, reason = self.decide(row)
+            self.assertNotEqual(reason, "home:atomic-deposit-await-confirmation")
+            self.assertFalse(reason.startswith("town:"), reason)
 
     def test_the_wait_ends_in_the_relief_not_the_stop(self):
         self.replay_to(14)

@@ -21,7 +21,6 @@ from hengbot import town_hold
 from hengbot.model import (InventoryItem, Position, StoreItem, StoreState,
     STORE_ALCHEMIST, STORE_HOME, TVAL_POTION, SV_POTION_RESIST_COLD)
 from hengbot.home_errand import HomeErrandState
-from hengbot.policy_constants import STORE_STUCK_LIMIT
 from hengbot.policy import HengbotPolicy
 from policy_fixtures import grid
 from test_home_route_release_recorded import reconstructed
@@ -84,11 +83,16 @@ class HomeFullReliefTest(unittest.TestCase):
         return board, key
 
     def refuse(self, policy, board):
-        for _ in range(STORE_STUCK_LIMIT - 1):
-            board, key = self.decide(policy, board)
-            self.assertEqual(key, "5")
-            self.assertEqual(policy.last_reason, "home:atomic-deposit-await-confirmation")
-        return self.decide(policy, board)
+        # The board carries the capture's refusal (「我が家にはもう置く場所がない」):
+        # the batch settles on this first outside board, without waiting the
+        # STORE_STUCK_LIMIT boards for an effect that cannot come (n1-b
+        # life-370 2026-11-12 02:08: the wait held the Home executor and the
+        # town end stopped first).
+        self.assertTrue(any("我が家にはもう置く場所がない" in message
+                            for message in board.messages))
+        board, key = self.decide(policy, board)
+        self.assertIsNone(policy._home_atomic_deposit_pending)
+        return board, key
 
     def home_page(self, catalogue):
         return StoreState(STORE_HOME, [StoreItem(chr(ord("a") + index),
