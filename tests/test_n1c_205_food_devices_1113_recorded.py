@@ -130,8 +130,12 @@ class N1c205FoodDevices1113RecordedTest(unittest.TestCase):
         policy, recorded, steps = self.load()
         self.assertEqual([recorded[row]["reason"] for row in (12, 13, 14, 15)],
                          ["shop:in-store-inscribe", "shop:in-store-sell"] * 2)
+        # Wall, declared: the Home *Enlightenment* take (owner 2026-11-13,
+        # tests/test_n1c_205_enlightenment_home_1113_recorded.py) routes row 11 to Home;
+        # this pin is the Magic shop's retention, so the take is held off.
         with patch.object(me_staff_sequence, "_expedition_run_unneeded",
-                          lambda *args: False):
+                          lambda *args: False),                 patch.object(type(policy), "_bind_home_drink_potion_withdrawal",
+                             lambda *args: None):
             self.replay_live(policy, recorded, steps[:12])
             board = steps[12][1]()
             wand, staff = self.food_devices(board)

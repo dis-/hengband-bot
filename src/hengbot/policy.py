@@ -8763,6 +8763,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if remove_curse is not None:
             return remove_curse
         self._bind_home_star_remove_curse_withdrawal(snapshot)
+        self._bind_home_drink_potion_withdrawal(snapshot)
 
         enchant_launcher = self._town_producer_entry("_town_enchant_launcher_key", lambda: self._town_enchant_launcher_key(snapshot))
         if enchant_launcher is not None:
@@ -8873,6 +8874,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._end_fundraising_set_at_gold_target(snapshot)
             self._town_order_select_required_supply(snapshot)
             self._bind_home_star_remove_curse_withdrawal(snapshot)
+            self._bind_home_drink_potion_withdrawal(snapshot)
             # The departure seam (_town_special_key) releases a stale Home
             # candidate latch before it evaluates departure; _observe re-derives
             # that latch on every in-town board (a Home identify scroll alone
