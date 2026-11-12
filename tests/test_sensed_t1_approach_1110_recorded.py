@@ -29,10 +29,10 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import destruction_use, threat_tiers
+from hengbot import threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.cli import _PolicyObserverScope
-from hengbot.model import SV_POTION_HEALING, TVAL_POTION, game_distance, parse_snapshot
+from hengbot.model import SV_POTION_HEALING, TVAL_POTION, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
 from tests.test_me_device_attacks import power_list, row
@@ -95,36 +95,25 @@ class SensedT1ApproachRecordedTest(unittest.TestCase):
             previous = policy.last_reason
         return policy, board, decided
 
+    # Re-driven 2026-11-12 (t3-survival-1112 D, the game's spell odds: the innate ROCKET only in
+    # the 2 x freq share): one ハヤブサ judged alone from contact reads T3 (its free margin 129,
+    # inside the reserve 250 of B, which a decided reading enters as T2), with or without the
+    # Potions of Healing, so no sensed T1 is left or gone to on these boards: the hawk in reach
+    # is shot (decision 12806, live *Destruction*) and the visit ends by the recall it was on.
+    # The approach itself is pinned on n1-b life-377 (test_n1b_377_approach_loot_1112_recorded).
+
     def test_the_sensed_hawks_are_gone_to_not_left(self):
-        """Live: sensed-t1:teleport "rf" (a Teleportation counted as an escape).  The hawks are
-        19-20 cells off, past the sure radius, and the circle just destroyed has no known way
-        toward them: the leave gives way, the circle is mapped (the rung below), and on the
-        next boards (DECLARED: the recorded board ten game turns on each) the floor is walked,
-        never left."""
+        """Live: sensed-t1:teleport "rf" (a Teleportation counted as an escape)."""
         policy, board, decided = self.decide(MAP, DESTRUCTION, change=no_healing)
         self.assertEqual(decided[0][1], "me-power:new-floor:map-area")
-        self.assertEqual(decided[6][1], "emergency:destruction:absorbed-power")  # live 12806
-        self.assertEqual(decided[-1], ("mAj", "me-power:after-destruction:map-area"))
-        hawks = [m for m in board.detected_monsters if m.race_id in KI43]
-        self.assertTrue(hawks)
-        self.assertTrue(all(game_distance(board.player.position, m.position)
-                            > destruction_use.GUARANTEED_RADIUS for m in hawks))
-        self.assertTrue(threat_tiers.approach_owns(policy, board, hawks))
-        previous, reasons = decided[-1][1], []
-        for step in range(1, 4):
-            raw = dict(copy.deepcopy(self.raws[-1]), turn=self.raws[-1]["turn"] + 10 * step,
-                       messages=[], _completed_operation_owner=previous)
-            no_healing(raw)
-            policy.choose_key(policy.with_known_skill_exp(parse_snapshot(raw, self.monrace)))
-            previous = policy.last_reason
-            reasons.append(previous)
-        self.assertFalse([reason for reason in reasons if reason.startswith("sensed-t1:")
-                          and reason != threat_tiers.APPROACH_REASON], reasons)
+        self.assertEqual(decided[6][1], "ranged:fire-target")  # live 12806: *Destruction*
+        self.assertFalse([reason for _key, reason in decided if reason.startswith("sensed-t1:")])
+        self.assertEqual(decided[-1][1], "return:recall")
 
     def test_without_the_means_the_leave_is_as_before(self):
         _, board, decided = self.decide(MAP, change=no_healing)
-        scroll = next(item for item in board.inventory if item.tval == 70 and item.sval == 9)
-        self.assertEqual(decided[-1], ("r" + scroll.slot, "sensed-t1:teleport"))
+        self.assertFalse([reason for _key, reason in decided if reason.startswith("sensed-t1:")])
+        self.assertEqual(decided[-1][1], "return:recall")
 
     def test_one_hawk_is_a_t2_with_the_recorded_healing(self):
         policy, board, decided = self.decide(MAP)
@@ -132,14 +121,14 @@ class SensedT1ApproachRecordedTest(unittest.TestCase):
         hawk = next(m for m in board.detected_monsters if m.race_id in KI43)
         with _PolicyObserverScope(policy):
             alone = threat_tiers.assess(policy, board, [hawk], contact=True)
-            self.assertEqual(alone.tier, threat_tiers.T2)
-            self.assertEqual(alone.supply_plan.heals, (300, 300))
+            self.assertEqual((alone.tier, alone.free_margin, alone.reserve),
+                             (threat_tiers.T3, 129, 250))
             raw = copy.deepcopy(self.raws[-1])
             no_healing(raw)
             bare = policy.with_known_skill_exp(parse_snapshot(raw, self.monrace))
             hawk = next(m for m in bare.detected_monsters if m.race_id in KI43)
             self.assertEqual(threat_tiers.assess(policy, bare, [hawk], contact=True).tier,
-                             threat_tiers.T1)
+                             threat_tiers.T3)
 
 
 if __name__ == "__main__":

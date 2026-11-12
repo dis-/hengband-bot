@@ -81,20 +81,36 @@ def _bar(*keys):
 TOWN = shop.OptionalBlackMarketPotionTest()  # the town fixtures
 
 
+def _below_half_the_hp(test, policy, raw):
+    """The rule does not apply: such an enemy is in view, but the 3-turn prediction is below
+    half the HP (``_is_material_threat``)."""
+    board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+    test.assertTrue(resist_potion._such_enemy_in_view(policy, board))
+    test.assertFalse(policy._is_material_threat(board, policy._physical_hostiles(board)))
+    test.assertIsNone(resist_potion._verdict(policy, board))
+
+
 class PlanFloorTest(unittest.TestCase):
-    """The Q25 board, where quest_find_exit answers before the shared ladder."""
+    """The Q25 board, where quest_find_exit answers before the shared ladder.
+
+    Re-driven 2026-11-12 (t3-survival-1112 D, the game's spell odds: the innate breath only in
+    the 2 x freq share): the tyrannosaur's poison breath comes on fewer moves and the 3-turn prediction falls below half the HP (272 against 872, 408
+    against 1137), so 「3ターンの予想が今の HP の半分以上の時に飲みます」 does not hold on these
+    boards and the plan's own step answers."""
 
     def test_such_an_enemy_at_half_the_hp_is_drunk_for(self):
         policy, raw, key = q25_boards.replay_until(TYRANNOSAUR)
-        self.assertEqual(policy.last_reason, resist_potion.QUAFF_REASON)
-        self.assertTrue(_is_drink(raw, key), key)
+        _below_half_the_hp(self, policy, raw)
+        self.assertEqual(policy.last_reason, "quest25:trap-disarm")
+        self.assertFalse(_is_drink(raw, key), key)
 
     def test_the_drink_that_makes_the_fight_winnable_is_taken(self):
         policy, raw, key = q25_boards.replay_until(WON_ONLY_WITH_THE_DRINK)
         snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         self.assertFalse(policy._engagement_is_winnable(snapshot, policy._physical_hostiles(snapshot)))
-        self.assertEqual(policy.last_reason, resist_potion.QUAFF_REASON)
-        self.assertTrue(_is_drink(raw, key), key)
+        _below_half_the_hp(self, policy, raw)
+        self.assertEqual(policy.last_reason, "quest-strategy:hold")
+        self.assertFalse(_is_drink(raw, key), key)
 
     def test_no_chance_even_with_the_drink_the_leave_stands_below_the_q25_phase(self):
         # Owner 2026-11-07 「Q25内部でのテレポートの優先度を下げる」: on the Q25 floor the phase's own
@@ -114,9 +130,10 @@ class PlanFloorTest(unittest.TestCase):
         self.assertFalse(_is_drink(raw, key))
 
     def test_another_element_on_the_bar_does_not_stop_it(self):
+        # Fire on the bar leaves poison uncovered (the prediction is below half the HP, above).
         policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _bar("resist_fire"))
-        self.assertEqual(policy.last_reason, resist_potion.QUAFF_REASON)
-        self.assertTrue(_is_drink(raw, key), key)
+        _below_half_the_hp(self, policy, raw)
+        self.assertFalse(_is_drink(raw, key), key)
 
     def test_no_such_enemy_awake(self):
         def asleep(raw):
@@ -151,11 +168,13 @@ class PlanFloorTest(unittest.TestCase):
                 raw["player"]["immunities"] = {name: {"equipment": True} for name in names}
             return change
 
+        # The drinks of the last two: none since 2026-11-12 (D: on this board the prediction is
+        # below half the HP, PlanFloorTest); ElementalBlowsTest keeps a drink.
         for abilities, change, drinks in ((frozenset({"BR_NETH"}), None, False),
                                           (frozenset({"BR_FIRE"}), immune_to("fire"), False),
-                                          (frozenset({"BR_FIRE"}), None, True),
+                                          (frozenset({"BR_FIRE"}), None, False),
                                           # A ball, at half of an HP its prediction 420 reaches.
-                                          (frozenset({"BA_ACID", "BR_NETH"}), _with_hp(800), True)):
+                                          (frozenset({"BA_ACID", "BR_NETH"}), _with_hp(800), False)):
             with self.subTest(abilities=abilities, immune=change is not None), patch.dict(
                     q25_boards.q25.RACES, {race: replace(knowledge, abilities=abilities)}):
                 policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, change)
@@ -204,8 +223,11 @@ class PlacementOnThePlansBranchesTest(unittest.TestCase):
         race = next(monster["race_id"] for board in q25_boards.CASE["boards"] if board["turn"] == TYRANNOSAUR
                     for monster in board["visible_monsters"])
         # A quiet rung of the plan with an answer: the drink stands before it.
+        # The judgement itself patched to hold (the class's construction; since 2026-11-12 the
+        # board's own prediction is below half the HP, PlanFloorTest).
         with patch.object(quest_room_sweep, "_left_alone_races", return_value={race}), \
-                patch.object(quest_room_sweep, "_out_of_line", return_value="X"):
+                patch.object(quest_room_sweep, "_out_of_line", return_value="X"), \
+                patch.object(HengbotPolicy, "_is_material_threat", return_value=True),                 patch.object(resist_potion, "_winnable_after_the_drink", return_value=True):
             policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, lambda board: board.update(messages=[]))
         self.assertEqual(policy.last_reason, resist_potion.QUAFF_REASON)
 
@@ -247,8 +269,11 @@ class SharedLadderTest(unittest.TestCase):
         self.assertFalse(_is_drink(raw, key))
 
     def test_the_heal_of_the_emergency_ladder_goes_first(self):
+        # Re-driven 2026-11-12 (t3-survival-1112 C, owner 「離れるのを先にする」): at HP 450,
+        # below the low-HP line, beside the faster tyrannosaur the escape goes before the heal.
         policy, raw, key = _alone(TYRANNOSAUR, _with_hp(450))
-        self.assertEqual(policy.last_reason, "item:heal")
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+        self.assertFalse(_is_drink(raw, key))
 
     def test_the_flee_rung_goes_first(self):
         # Below the flee ratio, the prediction 522 below the HP (no emergency), the fight
@@ -258,7 +283,10 @@ class SharedLadderTest(unittest.TestCase):
             raw["inventory"] = [item for item in raw["inventory"]
                                 if not (item["tval"] == TVAL_POTION and item["sval"] in HEAL_POTION_SVALS)]
         policy, raw, key = _alone(TYRANNOSAUR, no_heal)
-        self.assertTrue(policy.last_reason.startswith("flee"), policy.last_reason)
+        # Re-driven 2026-11-12 (t3-survival-1112 D, the game's spell odds): alone the
+        # tyrannosaur's innate breath comes on fewer moves; the free attacks win (T3), so it is shot, not fled, and the drink is not reached either.
+        self.assertEqual(policy.last_reason, "ranged:fire")
+        self.assertFalse(_is_drink(raw, key))
 
     def test_no_potion_no_rule(self):
         def drunk(raw):

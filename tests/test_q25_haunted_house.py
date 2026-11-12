@@ -557,18 +557,18 @@ class Q25EmergencyTest(unittest.TestCase):
         self.assertEqual((key, reason), (step_key((8, 19), (8, 20)), MELEE_REASON))
 
     def test_instant_death_answers_with_the_plans_escape(self):
-        # HP 500, over the line: the plan's escape reads Teleportation before the plan's heal.
+        # HP 500, over the line.  Since 2026-11-12 (t3-survival-1112 D, the game's spell odds: the innate breath only in the 2 x freq share) the tyrannosaur's next action no longer reaches it
+        # (no 即死): the plan's heal answers, not its escape.
         raw = board((8, 19), hp=500, speed=0, monsters=[monster(TYRANNOSAUR, 8, 20)])
         key, reason, _ = decide(raw)
-        self.assertEqual(reason, TELEPORT_REASON)
-        self.assertTrue(key.startswith("r"), key)
-        # Nothing to escape by (no Teleportation, Healing or Recall): the emergency ladder's
-        # cornered blow, the same step as the plan's.
+        self.assertEqual(reason, HEAL_REASON)
+        # Nothing to escape by (no Teleportation, Healing or Recall): the same step as the
+        # plan's; since 2026-11-12 (no 即死, above) it is the plan's own blow, not the emergency
+        # ladder's cornered one.
         raw = board((8, 19), hp=300, healing=0, speed=0, teleports=0, recall=0, ccw=9,
                     monsters=[monster(TYRANNOSAUR, 8, 20)])
         key, reason, _ = decide(raw)
-        self.assertEqual(key, step_key((8, 19), (8, 20)))
-        self.assertNotEqual(reason, MELEE_REASON)
+        self.assertEqual((key, reason), (step_key((8, 19), (8, 20)), MELEE_REASON))
 
     @BELOW_INSTANT_DEATH
     def test_healing_above_the_line_below_the_plans_threshold(self):
@@ -602,8 +602,10 @@ class Q25EmergencyTest(unittest.TestCase):
         self.assertEqual((key, reason), (REST_MACRO, "rest"))
 
     def test_a_heavy_fight_takes_the_speed_potion(self):
+        # Since 2026-11-12 (t3-survival-1112 D, the game's spell odds: the innate breath only in the 2 x freq share) the phase's own haste answers (the fight is no longer heavy enough for the
+        # strategy's Speed rung ahead of it).
         _, reason, _ = decide(board((8, 19), monsters=[monster(TYRANNOSAUR, 8, 20)]))
-        self.assertEqual(reason, "quest-strategy:quaff-speed")
+        self.assertEqual(reason, "quest25:haste")
 
     def test_quiet_rests_at_any_hp(self):
         key, reason, _ = decide(board((8, 19), hp=100))

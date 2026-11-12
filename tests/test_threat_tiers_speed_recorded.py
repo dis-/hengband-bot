@@ -10,8 +10,9 @@ and n1-b life-279's cockroaches, are not T3 fights).
 
 Boards (DECLARED CONSTRUCTED where a test edits them):
 - the recorded troll board of test_melee_threat_p95_adjacency (闘トロル beside the HP 341 warrior,
-  the 10-03 strong-fight Speed board: 3-turn p95 210 >= 170.5), the troll at 150 HP so that the
-  free attacks win (T3);
+  the 10-03 strong-fight Speed board: 3-turn p95 210 >= 170.5), the troll at 100 HP so that the
+  free attacks win (T3).  Re-driven 2026-11-12 (t3-survival-1112 B: T3 is entered only at a free
+  margin of the reserve; at 150 HP the margin is 37 against 79, read T2 and left);
 - n1-c life-083's beetle board (ブラウン・キラービートル), its health band "wounded" (T3 for the
   absorbed Magic Missile) and the absorbed Speed listed at 10 charges (as
   test_me_speed_fight_1104_recorded shows it).
@@ -52,7 +53,7 @@ class StrongFightSpeedInT3RecordedTest(troll_board.RecordedTrollBoardTest):
         return policy, snapshot
 
     def test_no_potion_of_speed_in_a_t3_strong_fight(self):
-        policy, snapshot = self.board(150)
+        policy, snapshot = self.board(100)
         hostiles = policy._strategic_hostiles(snapshot)
         self.assertEqual(assessed(policy, snapshot).tier, threat_tiers.T3)
         self.assertGreaterEqual(policy._corrected_predicted_damage(snapshot, hostiles, 3, observed_loss=0),
@@ -60,7 +61,7 @@ class StrongFightSpeedInT3RecordedTest(troll_board.RecordedTrollBoardTest):
         key = policy.choose_key(snapshot)
         self.assertEqual((key, policy.last_reason), ("6", "melee"))
         # Before step 8 the 10-03 rung drank the potion on this board.
-        policy, snapshot = self.board(150)
+        policy, snapshot = self.board(100)
         with patch.object(threat_tiers, "tier_of", return_value=None):
             key = policy.choose_key(snapshot)
         speed = policy._find_exact_potion(snapshot, SV_POTION_SPEED)
@@ -68,7 +69,7 @@ class StrongFightSpeedInT3RecordedTest(troll_board.RecordedTrollBoardTest):
 
     def test_a_strong_fight_that_is_not_t3_still_drinks(self):
         # DECLARED CONSTRUCTED tier: the same board taken as a selected T2; the 10-03 dose stays.
-        policy, snapshot = self.board(150)
+        policy, snapshot = self.board(100)
         with patch.object(threat_tiers, "tier_of", return_value=threat_tiers.T2):
             key = policy.choose_key(snapshot)
         speed = policy._find_exact_potion(snapshot, SV_POTION_SPEED)

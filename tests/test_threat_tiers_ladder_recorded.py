@@ -31,7 +31,9 @@ LIVES = {
     # also reads 691548, 691667 and 691679, each already the existing ``lethal``'s teleport.
     "death-n1c-077-1101.json.gz": 3, "death-n1c-099-1102.json.gz": 8,
     "death-n1c-103-1102.json.gz": 1, "death-n1c-123-1104.json.gz": 1,
-    "summon-response-n1a-475-1104.json.gz": 2,
+    # n1-a 475's summons: 1 since 2026-11-12 (t3-survival-1112 D: the game's spell odds put
+    # 2038858's next-action p95 below the HP).
+    "summon-response-n1a-475-1104.json.gz": 1,
 }
 for _name in LIVES:
     recorded.CASES.setdefault(_name, recorded.load(_name))
@@ -93,7 +95,7 @@ class CommittedFightTest(unittest.TestCase):
 
     def test_the_committed_fight_gives_way_on_the_n1a_475_summons(self):
         answers = self.answers("summon-response-n1a-475-1104.json.gz")
-        for turn in (2038858, 2038863):
+        for turn in (2038863,):  # 2038858: no longer 即死 (see LIVES)
             before, after, _death = answers[turn]
             self.assertEqual(before[1], "summons:recall")
             self.assertEqual(after[1], EMERGENCY_TELEPORT)

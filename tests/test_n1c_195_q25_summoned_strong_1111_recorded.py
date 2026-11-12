@@ -203,6 +203,10 @@ class SummonedStrongTest(unittest.TestCase):
         # 「HP の線を切ったら今の決まりで立て直す」: the survival rungs above the plan still read it.
         for index in ESCAPES:
             key, reason = self.answers[index]
+            if index == 254:
+                # Since 2026-11-12 (t3-survival-1112 D, the game's spell odds: the innate breath only in the 2 x freq share) the board's next action no longer reaches the HP: the plan's blow.
+                self.assertEqual((key, reason), ("4", "quest-strategy:melee"))
+                continue
             self.assertEqual(reason, ESCAPE_REASON, index)
             self.assertTrue(key.startswith("r"), (index, key))
 

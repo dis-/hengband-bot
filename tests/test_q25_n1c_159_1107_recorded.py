@@ -178,12 +178,13 @@ class Q25NoChanceLeaveTest(unittest.TestCase):
         policy = new_policy(raw)
         snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         self.assertIsNone(resist_potion.drink_key(policy, snapshot))
-        self.assertEqual(resist_potion.key(policy, snapshot)[:1], "r")
-        self.assertEqual(policy.last_reason, resist_potion.LEAVE_REASON)
+        # Since 2026-11-12 (t3-survival-1112 D, the game's spell odds: the innate breath only in the 2 x freq share) the 3-turn prediction is below half the HP: the rule does not apply here
+        # (no drink, no leave), and below the phase the board is not left by it.
+        self.assertIsNone(resist_potion.key(policy, snapshot))
         policy = new_policy(raw)
         with patch.object(battle, "_phase_key", lambda policy, snapshot: None):
             key = choose(policy, raw)
-        self.assertEqual((key[:1], policy.last_reason), ("r", resist_potion.LEAVE_REASON))
+        self.assertNotEqual(policy.last_reason, resist_potion.LEAVE_REASON)
 
 
 def enlightenment_letter(raw):

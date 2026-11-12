@@ -57,8 +57,10 @@ def tiers(monsters):
 class RecordedBoardsTest(unittest.TestCase):
     def test_summoners_first_n1a_475(self):
         _policy, _board, _raw, details = recorded("summon-response-n1a-475-1104.json.gz", 2038858)
+        # Not 即死 since 2026-11-12 (t3-survival-1112 D: the game's spell choice and failure
+        # lower these casters' next-action p95 below the HP); still T1.
         self.assertEqual(details["threat_engagement"],
-                         {"tier": T1, "instant_death": True, "skipped": None, "t2_withheld": [],
+                         {"tier": T1, "instant_death": False, "skipped": None, "t2_withheld": [],
                           "hostiles": 8})
         monsters = details["monsters"]
         self.assertEqual(tiers(monsters), [T1, T1, T1, T3, T3, T3, T3, T3, None])

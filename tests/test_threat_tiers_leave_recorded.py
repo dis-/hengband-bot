@@ -87,7 +87,9 @@ class LeaveRecordedTest(unittest.TestCase):
         changed = decided_with_and_without("death-n1a-475-1104.json.gz", OFF)
         self.assertEqual(set(changed), set(N1A_475))
         for turn, (before, after) in changed.items():
-            self.assertEqual(before[1], "melee", turn)
+            # 2039009: without the step the low-HP escape reads the scroll before the blow since
+            # 2026-11-12 (t3-survival-1112 C, 「殴り合いにも効かせる」).
+            self.assertEqual(before[1], "emergency:teleport" if turn == 2039009 else "melee", turn)
             self.assertEqual(after[1], "flee:scroll", turn)
             self.assertTrue(after[0].startswith("r"), turn)
         policy, board = recorded.replay_to("death-n1a-475-1104.json.gz", 2039000)
@@ -217,10 +219,13 @@ class JudgeDeath168RecordedTest(unittest.TestCase):
 
     def test_without_the_step_it_walks_away(self):
         # The 11-08 sensed-T1 leave (test_sensed_t1_leave_1108) would leave too; it is off here.
+        # Since 2026-11-12 (t3-survival-1112 D: the game's spell odds) the Potion of Resistance
+        # would not save the fight either, so its no-chance leave reads Teleportation before the
+        # summoner's retreat step (recorded: summoner:retreat).
         key, reason, _result, _board = self.decide(
             patch.object(threat_tiers, "leave_due", lambda *args, **kwargs: None),
             patch.object(threat_tiers, "sensed_t1_leave_key", lambda *args, **kwargs: None))
-        self.assertEqual(reason, "summoner:retreat")
+        self.assertEqual(reason, "resist-potion:no-chance-teleport")
 
     def test_without_the_faster_rule_the_leave_walks(self):
         key, reason, _result, _board = self.decide(

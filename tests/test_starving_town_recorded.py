@@ -165,10 +165,11 @@ class StarvingTownRecordedTest(unittest.TestCase):
 
     def test_material_prediction_at_full_hp_still_allows_escape(self):
         policy, board = self.boundary(self.pins[0])
-        # DECLARED CONSTRUCTED: eight copies of the recorded ranged attacker.
+        # DECLARED CONSTRUCTED: twelve copies of the recorded ranged attacker (eight until 2026-11-12 (t3-survival-1112 D, the game's spell odds),
+        # whose spell odds put eight at 72, below the tenth of the max HP).
         monster = board.visible_monsters[0]
         board = replace(board, visible_monsters=[
-            replace(monster, index=100 + i) for i in range(8)
+            replace(monster, index=100 + i) for i in range(12)
         ])
         self.assertGreaterEqual(
             policy._predicted_damage(board, policy._physical_hostiles(board), 3),

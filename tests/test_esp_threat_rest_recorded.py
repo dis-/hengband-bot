@@ -234,9 +234,10 @@ class EspThreatRestTest(unittest.TestCase):
         self.assertEqual(
             decided[FIRST_DETECTED_REST], ["rf", "esp-threat:leave-recall"]
         )
+        # 516 since 2026-11-12 (t3-survival-1112 D, the game's spell odds) (549 before).
         self.assertEqual(
             (assessment["tier"], assessment["strength"], assessment["hp"]),
-            ("strong", 549, 379),
+            ("strong", 516, 379),
         )
         self.assertFalse(assessment["feasibility"]["feasible"])
         self.assertEqual(assessment["action"], "leave")
@@ -530,9 +531,10 @@ class EspThreatRestTest(unittest.TestCase):
             ],
         )
         key, reason, _assessment = self._decide(policy, board)
-        self.assertEqual((key, reason), ("rg", "esp-threat:leave-recall"))
-        self.assertEqual(policy._esp_threat_hunt_end, "infeasible")
-        self.assertIsNone(policy._esp_threat_hunt)
+        # Since 2026-11-12 (t3-survival-1112 D, the game's spell odds) the monk's turn is lighter
+        # and the re-estimate holds: the hunt goes on with the shot (it ended "infeasible" by
+        # the recall before).  The cleared end below is unchanged.
+        self.assertEqual((key, reason), ("fk8", "ranged:fire"))
 
         # Cleared: the hound is no longer perceived -> hunt released and the
         # ordinary rest resumes (HP 330 < 90%).
@@ -599,8 +601,9 @@ class EspThreatRestTest(unittest.TestCase):
         policy, board = self._board(PARALYSER)
         key, reason, assessment = self._decide(policy, board)
         self.assertNotEqual(key, REST_MACRO)
+        # WEAK and hunted since 2026-11-12 (t3-survival-1112 D, the game's spell odds) (MEDIUM, explore before).
         self.assertEqual(
-            (assessment["tier"], assessment["action"]), ("medium", "explore")
+            (assessment["tier"], assessment["action"]), ("weak", "hunt")
         )
 
     def test_e7_breeders_are_hunted(self):

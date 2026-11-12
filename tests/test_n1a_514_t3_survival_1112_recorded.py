@@ -136,7 +136,10 @@ class SpellProbabilityTest(unittest.TestCase):
 
 
 class RecordedBoardsTest(unittest.TestCase):
-    """D on the recorded boards: Ariel reads T1 and no melee board strikes her."""
+    """The recorded boards: no melee board strikes her.  On the main of 2026-11-12 (the
+    n1a-514-death fixes: the aura's cost, the ranged-only free attack) the engagement reads T3
+    by its free margin; the low-HP escape (C: HP 722 / 681 / 623 below the line 868, Ariel at
+    speed +20) leaves before the blow."""
 
     @classmethod
     def setUpClass(cls):
@@ -149,10 +152,8 @@ class RecordedBoardsTest(unittest.TestCase):
 
     def test_the_melee_boards_leave(self):
         for turn in MELEE:
-            key, reason, reading = self.boards[turn]
-            self.assertIn(reason, LEAVES, turn)
-            self.assertTrue(key.startswith("r"), (turn, key))
-            self.assertNotEqual(reading.tier, threat_tiers.T3, turn)  # T1, or T2 not entered
+            key, reason, _reading = self.boards[turn]
+            self.assertEqual((key, reason), ("rd", "emergency:teleport"), turn)
 
     def test_the_heals_stay_first(self):
         for turn in (HEAL_521, HEAL_431):
@@ -173,14 +174,17 @@ class ProjectionMissedTest(unittest.TestCase):
         self.assertIsNone(reading.projection_missed)
         self.assertEqual(reason, "ranged:fire")
 
-    def test_the_missed_projection_reads_t1_and_the_melee_board_leaves(self):
-        key, reason, reading = self.boards[MELEE[0]]
+    def test_the_missed_projection_reads_t1(self):
+        # 705 -> 521 -> 431 over the three boards to 11284415, against a 3-turn p95 of 136.
+        key, reason, reading = self.boards[HEAL_431]
         self.assertEqual(reading.tier, threat_tiers.T1)
         self.assertEqual(reading.raw_tier, threat_tiers.T3)
-        observed, projected = reading.projection_missed
-        self.assertEqual(observed, 274)  # 705 -> 431 over the three boards before
-        self.assertGreater(observed, projected)
-        self.assertEqual((key, reason), ("rd", "flee:scroll"))
+        self.assertEqual(reading.projection_missed, (274, 136))
+        self.assertEqual(reason, "item:heal")  # the low-HP heal stays first at 431
+        # Healed to 722, the free attacks clear her before the observed damage runs the HP out:
+        # the reading is T3 again, and the low-HP escape leaves (C).
+        _key, _reason, reading = self.boards[MELEE[0]]
+        self.assertIsNone(reading.projection_missed)
         self.assertTrue(all(self.boards[turn][1] in LEAVES for turn in MELEE))
 
 

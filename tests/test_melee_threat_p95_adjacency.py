@@ -564,7 +564,9 @@ class RangedOnlyUnchangedTest(unittest.TestCase):
                 prediction["operational_total"],
                 prediction["expected_total"],
             ),
-            (1248, 188, 21),
+            # Re-driven 2026-11-12 (t3-survival-1112 D): the game's spell choice (no_inate
+            # removes the innate abilities) and the non-innate spell failure; was (1248, 188, 21).
+            (1248, 204, 33),
         )
 
 

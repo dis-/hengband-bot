@@ -107,6 +107,9 @@ def answer(part, sequence):
     return replay_answers()[part, sequence]
 
 
+DRINK = ("qf", "resist-potion:quaff")
+
+
 class Q25CorridorTrapSearchTest(unittest.TestCase):
 
     def test_the_recording(self):
@@ -138,12 +141,15 @@ class Q25CorridorTrapSearchTest(unittest.TestCase):
                 continue
             with self.subTest(sequence=sequence):
                 key, reason = answer("first", sequence)
-                self.assertEqual(reason, battle.WALK_REASON, (key, row))
-                self.assertEqual(key, "4")
+                # Since 2026-11-12 (t3-survival-1112 D, the game's spell odds) the casters in view
+                # make the board a material threat the Potion of Resistance answers first; either
+                # way no second aim and no search.
+                self.assertIn((key, reason), {("4", battle.WALK_REASON), DRINK}, row)
 
     def test_no_search_of_the_cleared_cell_in_any_process(self):
-        self.assertEqual(answer("first", SEARCHED), ("4", battle.WALK_REASON))
-        self.assertEqual(answer("second", SECOND_SEARCH), ("4", battle.WALK_REASON))
+        # The walk, or the Resistance drink before it (D, above).
+        self.assertIn(answer("first", SEARCHED), {("4", battle.WALK_REASON), DRINK})
+        self.assertIn(answer("second", SECOND_SEARCH), {("4", battle.WALK_REASON), DRINK})
         for (part, sequence), (key, reason) in sorted(replay_answers().items()):
             raw = board(part, sequence)[0]
             if (raw["player"]["y"], raw["player"]["x"]) == (1, 11):

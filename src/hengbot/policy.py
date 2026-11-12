@@ -7224,7 +7224,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # 敵・引き寄せる敵が起きて見えている時は、T3 でも離れる判断を出す。既存の退却の順
             # （*破壊*→巻物のテレポート→帰還）で離れる。」  n1-a life-514 (49F) meleed the
             # speed +20 風の女王『アリエル』 at HP 722 -> 681 -> 623 of 1168 on a T3 reading.
-            if (low and self._low_hp_step_cannot_outrun(snapshot, hostiles)
+            # Where the tiers act (threat_tiers.acts_here): an approved quest plan keeps its order
+            # (owner 2026-11-07 Q25 「テレポートの優先度を下げる」).
+            if (low and threat_tiers.acts_here(self, snapshot)
+                    and self._low_hp_step_cannot_outrun(snapshot, hostiles)
                     and (escape := self._low_hp_teleport_or_recall(snapshot)) is not None):
                 return escape
             return key  # an attack, not a walk

@@ -148,7 +148,8 @@ def _flame_shot(policy, snapshot):
 def _tier(policy, snapshot):
     result = threat_tiers.tiered(policy, snapshot, threat_tiers.engagement(policy, snapshot))
     return {"tier": result.tier, "free": dict(result.free_damage),
-            "self": dict(result.free_self_damage), "instant_death": result.instant_death}
+            "self": dict(result.free_self_damage), "instant_death": result.instant_death,
+            "cannot_win": threat_tiers.cannot_win(result, snapshot.player.hp)}
 
 
 def _ariel(policy, snapshot):
@@ -196,8 +197,11 @@ class N1a514DeathRecordedTest(unittest.TestCase):
         far = self.boards[FLAME_FAR][2]
         self.assertGreater(far["awake_total"], 0)
         self.assertEqual(far["asleep_total"], 0)  # a sleeper casts nothing until it wakes
-        # The board after the live shot (the flame awake): T1, not the live T3.
-        self.assertEqual(self.boards[FLAME_WOKEN][2]["tier"], threat_tiers.T1)
+        # The board after the live shot (the flame awake): T1, not the live T3.  Since the spell
+        # odds follow the game (t3-survival-1112, D: a spell-only caster casts on every attempt)
+        # the projection is past the cost cap, its low bound above the HP: read as T1
+        # (``cannot_win``, owner 2026-11-08 「勝てないと分かれば離脱」).
+        self.assertTrue(self.boards[FLAME_WOKEN][2]["cannot_win"])
 
     def test_a_caster_that_cannot_come_is_not_meleed_for_free(self):
         """Fix 2: the never-moving flame reaches the player at range; its free damage is the
@@ -221,7 +225,7 @@ class N1a514DeathRecordedTest(unittest.TestCase):
         Teleportation scroll instead of the live second shot."""
         for board in (FLAME_WOKEN, FIRE_1062):
             key, reason, facts = self.boards[board]
-            self.assertEqual(facts["tier"], threat_tiers.T1)
+            self.assertTrue(facts["cannot_win"])  # T1, or past the cost cap read as T1 (above)
             self.assertEqual(key, "re", (board, reason))
 
     def test_the_melee_struck_at_an_aura_counts_with_its_cost(self):
@@ -231,7 +235,10 @@ class N1a514DeathRecordedTest(unittest.TestCase):
         player-status-resist.cpp:95-125), one HP a blow on average, seven blows."""
         for board in MELEE:
             key, reason, facts = self.boards[board]
-            self.assertEqual((key, reason), ("1", "melee"))
+            # The blow is not struck: below the low-HP line with the speed +20 Ariel awake
+            # beside the player, the escape goes first (t3-survival-1112, C: owner 2026-11-12
+            # 「殴り合いにも効かせる」 and 「離れるのを先にする」).
+            self.assertEqual((key, reason), ("rd", "emergency:teleport"))
             index = facts["index"]
             self.assertEqual(facts["melee_scored"], 0.0)  # the Magic-Eater's score, unchanged
             self.assertGreater(facts["melee_struck"], 400)
