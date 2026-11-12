@@ -360,7 +360,8 @@ def beam_direction(policy, snapshot, origin: Position, target: Position) -> str 
     project_hook aims one grid away in the direction with PROJECT_THRU
     (spell-kind/spells-launcher.cpp:262-267, floor/geometry.h:203-210), so the
     beam runs the straight line up to get_max_range(); a known grid that stops
-    a projection ends it (policy._may_block_projection).
+    the player's projection ends it (policy._stops_player_projection: a glass wall
+    too).
     """
     dy, dx = target.y - origin.y, target.x - origin.x
     if (dy, dx) == (0, 0) or not (dy == 0 or dx == 0 or abs(dy) == abs(dx)):
@@ -368,7 +369,7 @@ def beam_direction(policy, snapshot, origin: Position, target: Position) -> str 
     step = ((dy > 0) - (dy < 0), (dx > 0) - (dx < 0))
     path = projection_path(
         origin, Position(origin.y + step[0], origin.x + step[1]), MONSTER_SPELL_MAX_RANGE,
-        lambda position: policy._may_block_projection(snapshot, position), through=True)
+        lambda position: policy._stops_player_projection(snapshot, position), through=True)
     return DIRECTION_KEYS[step] if target in path else None
 
 
