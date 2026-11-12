@@ -10701,6 +10701,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_after_the_phases": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_attack_kinds": {
     "classification": "data",
     "rows": [
@@ -10751,6 +10758,20 @@
     "delegation": "selected child; no independent success"
   },
   "quest25_battle.py:_cursor_suffix": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_detect_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_detector": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11078,6 +11099,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_sweep_targets": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest25_battle.py:_tome": {
     "classification": "producer",
