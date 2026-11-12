@@ -226,6 +226,13 @@ _TELEPORT_LINE_EN = " teleports away."
 # The counted rest between phases (between_phases 「回数を指定して休み、回数を見て続けるかを
 # 決める」); the count is the Q34 recharge's (q34_recharge, LUNA-REPORT-me-rest-recharge).
 RECHARGE_REST_KEY = "R100\r"
+# Counted recharge rests one phase takes at most.  A long rest is the plan's own (n1-b life-382
+# 2026-11-13 04:42: [5,1], INT 15, eleven 'R100' of about 77 game ticks each and still short when
+# the loop guard stopped it).  regenmagic (hpmp/hp-mp-regenerator.cpp) refills a wand or staff of
+# count c from empty in c * 0x10000 / (regen * (30 + adj_mag_mana[INT]) * (c + 13) / 240) ticks:
+# at the slowest the plan meets (count 99, no Regeneration, no INT bonus, resting) about 1,180
+# ticks, some 16 such rests.  Thirty is twice that; past it the phase goes on with what is charged.
+RECHARGE_REST_LIMIT = 30
 # Game turns under which a counted recharge rest was cut short (``_note_rest_cut``).
 REST_CUT_GAME_TURNS = 100
 # The rest that ends at full HP/MP (player-processor.cpp).
@@ -284,6 +291,7 @@ class Battle:
     detection: tuple | None = None  # (turn, origin) of the last trap detection keyed for a cell
     detect_asked: frozenset = frozenset()  # trap cells a trap detection was keyed for
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
+    recharge_rests: int = 0        # this phase's counted recharge rests (``RECHARGE_REST_LIMIT``)
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
     blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
@@ -1098,9 +1106,10 @@ def _recharge_key(ctx: _Ctx) -> str | None:
     short = any(not _full(power, row)
                 for kind in _attack_kinds(ctx) for row in lists[kind][1]
                 if (power := me_device_attacks._BY_NAME.get((kind, row.get("name")))) is not None)
-    if not short:
+    if not short or ctx.battle.recharge_rests >= RECHARGE_REST_LIMIT:
         return None
     ctx.battle.browsed = frozenset()
+    ctx.battle.recharge_rests += 1
     ctx.battle.recharge_rest_turn = int(ctx.snapshot.turn)
     ctx.policy.last_reason = RECHARGE_REASON
     return RECHARGE_REST_KEY
@@ -1530,7 +1539,8 @@ def _recharging_area_attack(ctx: _Ctx) -> bool:
     left = [cell for cell, race in ctx.navigator.battlefield.monster_placements
             if race == geo.QUYL and cell not in ctx.battle.quyls_done]
     return (bool(left) and ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]
-            and not _balls(ctx, geo.QUYL) and _area_attack_held(ctx))
+            and not _balls(ctx, geo.QUYL) and _area_attack_held(ctx)
+            and ctx.battle.recharge_rests < RECHARGE_REST_LIMIT)
 
 
 _FACED = frozenset({geo.IPSISSIMUS, geo.DREADMASTER})
