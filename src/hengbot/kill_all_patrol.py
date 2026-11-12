@@ -27,12 +27,12 @@ from hengbot.model import (
     Position, SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_STAFF)
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_ALL
 
-REASON = "kill-all-patrol"
+REASON = "quest-patrol"   # no word of the breeder window's attack guess (reasons)
 WALK_REASON = f"{REASON}:walk"
 HUNT_REASON = f"{REASON}:hunt"
-MELEE_REASON = f"{REASON}:melee"
+MELEE_REASON = "quest-strategy:melee"   # the quest plans' blow
 DETECT_REASON = f"{REASON}:detect"
-STOP_REASON = f"quest:blocked:{REASON}-rounds"
+STOP_REASON = "quest:blocked:quest-patrol-rounds"
 COVER = 4        # a cell within this many steps of a stand is looked at by the round
 ROUNDS = 5       # rounds before the named stop
 FAILED_LINES = ("うまく唱えられなかった", "うまく使えなかった", "failed to use", "You failed")
