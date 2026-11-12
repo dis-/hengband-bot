@@ -41,6 +41,20 @@ def load_damaging_terrain_elements(path: Path) -> dict[int, str]:
     }
 
 
+def load_los_only_terrain_ids(path: Path) -> frozenset[int]:
+    """Terrain seen through that stops a projection: LOS without PROJECTION (the glass
+    walls and closed glass doors).  The board carries LOS and MOVE only, and
+    projectable() stops a bolt on a grid without PROJECTION
+    (projection-path-calculator.cpp:94)."""
+    data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
+    return frozenset(
+        int(terrain["id"])
+        for terrain in data.get("terrains", [])
+        if "LOS" in terrain.get("flags", [])
+        and "PROJECTION" not in terrain.get("flags", [])
+    )
+
+
 def load_deep_damaging_terrain_ids(path: Path) -> frozenset[int]:
     """Damaging terrain that still hurts a levitating player: deal_damege_by_feat
     (hp-mp-processor.cpp) deals DEEP terrain's damage to everyone, a fifth of it while

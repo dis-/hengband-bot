@@ -98,7 +98,7 @@ def _shooting_cell(policy, snapshot, monster: MonsterState, grid) -> bool:
     distance = grid.position.distance_to(monster.position)
     return (grid.passable and not grid.has_monster
             and 2 <= distance <= RANGED_MAX_DISTANCE
-            and policy._may_project(snapshot, grid.position, monster.position))
+            and policy._player_may_project(snapshot, grid.position, monster.position))
 
 
 def _others_present(policy, snapshot, target: MonsterState) -> bool:

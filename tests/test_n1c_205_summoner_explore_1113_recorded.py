@@ -18,12 +18,21 @@ was withdrawn and the exploration stepped '1' back into (29,38), eight times up 
 oscillation break.  That ranged kill is carried out only for a never-moving monster
 (``immobile_ranged_kill.key``, owner 2026-11-02); a summoner that moves now keeps its zone.
 
+B (04:48:58-49:03): from (34,40) a Teleport Away was aimed '4' along row 34 at the mage on
+(34,22) through fifteen glass walls (``mCn4``, then the wand's ``mBd4``), 35 times up to the
+loop detector.  Each use completed (the game turn advanced every time; at the stop the game
+stood in command mode with no prompt): no input desync, a beam that cannot land.  The player's
+own beam now stops at a glass wall (policy._stops_player_projection).
+
 Every decision is the public ``choose_key`` of one policy built as the live one
 (tests.support.recorded._policy) and driven over the recorded boards from turn 2921424
 (the floor's second detection, before the mages were first seen).
 DECLARED RESTORED (policy-state.json of the stop): the staff record ``_me_staff_sequence``, the
 absorbed powers' uses on the floor before 2921424 (``_me_power_floor``) and the floor's
 *Destruction* entitlement (the arrival's absorbed *Destruction*, 2921097).
+DECLARED CONSTRUCTED: the rod and wand lists show Teleport Away with a charge (the recorded
+``mCn4`` and ``mBd4`` are the rod and wand rows, rod 13 and wand 3 in the stop's power uses;
+the 5% fail rate is constructed).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -64,6 +73,12 @@ def _restore(policy, case):
                       Position(*use["position"]), use["turn"], use["reason"], use["key"],
                       None if use["target"] is None else Position(*use["target"]))
         for use in floor["uses"] if use["turn"] < START])
+    teleport_away = "テレポート・アウェイ"
+    policy._me_device_lists = {
+        "rod": (START, ({"name": teleport_away, "fail": 5, "success": 95, "max": 1,
+                         "charging": 0},)),
+        "wand": (START, ({"name": teleport_away, "fail": 5, "success": 95, "max": 10,
+                          "current": 10},))}
 
 
 def _skill(case, raw):
@@ -122,6 +137,14 @@ class SummonerZoneGlassRecordedTest(unittest.TestCase):
             self.assertEqual({(m["y"], m["x"]) for m in raw["visible_monsters"]
                               if m["race_id"] == 281} >= {(p.y, p.x) for p in MAGES}, True)
 
+    def test_mages_are_walled_with_glass(self):
+        raw, board = next((raw, board) for raw, board, *_ in self.rows
+                          if raw["turn"] == TELEPORT_TURN)
+        between = [board.grid_at(Position(34, x)) for x in range(23, 40)]
+        self.assertTrue(all(grid is not None and grid.terrain_id == 218 for grid in between
+                            if grid is not None and not grid.passable))
+        self.assertIn(218, self.policy._los_only_terrain_ids)
+
     def test_the_zone_outside_keeps_the_mages_and_the_cell_left(self):
         checked = 0
         for raw, board, key, reason, remembered, zone, vetoed in self.rows:
@@ -138,6 +161,14 @@ class SummonerZoneGlassRecordedTest(unittest.TestCase):
                 target = Position(here.y + offset[0], here.x + offset[1])
                 self.assertNotIn(target, zone, (raw["turn"], key, reason))
         self.assertGreaterEqual(checked, 15)
+
+    def test_no_teleport_away_through_the_glass(self):
+        raw, board, key, reason, *_ = next(row for row in self.rows if row[0]["turn"] == TELEPORT_TURN)
+        self.assertEqual(board.player.position, Position(34, 40))
+        self.assertIsNone(me_powers.beam_direction(self.policy, board, Position(34, 40),
+                                                   Position(34, 22)))
+        self.assertNotEqual(reason, TELEPORT_AWAY, key)
+        self.assertFalse(key.startswith("mCn") or key.startswith("mBd"), key)
 
 
 if __name__ == "__main__":
