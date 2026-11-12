@@ -96,7 +96,7 @@ def staple_needs_recharge(snapshot: Snapshot) -> bool:
             and staple_charges(snapshot) < MANA_FOOD_CHARGE_TARGET)
 
 
-def _awaiting_absorption(policy, item: InventoryItem | StoreItem) -> bool:
+def awaiting_absorption(policy, item: InventoryItem | StoreItem) -> bool:
     from hengbot import me_capability, me_staff_sequence
 
     if item.tval == TVAL_WAND and item.sval == SV_WAND_MAGIC_MISSILE:
@@ -122,7 +122,7 @@ def is_mana_food_ware(policy, snapshot: Snapshot, item: InventoryItem | StoreIte
         return False
     if staple_food(snapshot) is not None:
         return is_staple_food(item)
-    return not _awaiting_absorption(policy, item)
+    return not awaiting_absorption(policy, item)
 
 
 def mana_food_devices(policy, snapshot: Snapshot) -> list[InventoryItem]:

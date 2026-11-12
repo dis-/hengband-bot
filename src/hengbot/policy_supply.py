@@ -3,7 +3,7 @@ from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_ca
 from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
-    PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
+    PLAYER_CLASS_MAGIC_EATER, awaiting_absorption, is_mana_food_ware, is_staple_food, mana_food_devices,
     staple_charges, staple_food,
 )
 
@@ -1622,16 +1622,17 @@ class SupplyMixin:
         if snapshot.player.food_type == FOOD_TYPE_MANA:
             staple = staple_food(snapshot)
             if staple is not None:
-                # Owner 2026-10-30: the staple is what is eaten.  Drained, it
-                # leaves the rest of the pack to starvation alone (survival
-                # outranks the rule, 2026-10-30).
+                # Owner 2026-10-30: the staple is what is eaten.
                 if staple.charges > 0:
                     return staple
-                if snapshot.player.food_state not in {"weak", "fainting"}:
-                    return None
+                # Drained, the carried charged devices are the food (owner
+                # 2026-11-12 「食べられる代替の食料も持っている」, n1-c life-203:
+                # a Staff of Light beside two empty Wands of Wonder); an
+                # unknown one is tried only when weak (below).
             charged = [it for it in snapshot.inventory
                        if it.known and it.is_wand_staff and it.charges > 0
-                       and not is_staple_food(it)] if staple is not None else (
+                       and not is_staple_food(it)
+                       and not awaiting_absorption(self, it)] if staple is not None else (
                 mana_food_devices(self, snapshot))
             non_utility = [it for it in charged if not self._is_useful_device(it)]
             if non_utility:
@@ -1662,6 +1663,8 @@ class SupplyMixin:
                     identify,
                     key=lambda it: (self._stack_charges(it), it.charges, it.slot),
                 )
+            if staple is not None and snapshot.player.food_state not in {"weak", "fainting"}:
+                return None
             # One the game marked empty ({空}) is no attempt: eating it again only repeats
             # 「この魔法棒にはもう魔力が残っていない」 (n1-a life-507 Angband 12F, 2026-11-10 18:57:
             # 「ブリキの魔法棒 {空}」 eaten ~40 times until the loop detector).
