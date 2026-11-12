@@ -247,7 +247,8 @@ POWERS = (
           ("light-radius-zero", "dark-room", "light-sensitive-adjacent"),
           requires=("not-darkness-dungeon",), darkness_scaled=False),
     # The Disarming powers keep the doors, so they come first; the rod
-    # recharges, so it comes before the wand.  Owner 2026-11-01 「脅威でなければ
+    # is ready again sooner than the wand (both refill, me_device_attacks' regenmagic
+    # note), so it comes before the wand.  Owner 2026-11-01 「脅威でなければ
     # 使う」: beside harmless visible hostiles, as the mapping.
     Power("rod", SV_ROD_DISARMING, devices()[(TVAL_ROD, SV_ROD_DISARMING)].names,
           "disarm-trap", 0, 60, ("trap-to-disarm",), darkness_scaled=False, aimed=True,
@@ -258,7 +259,8 @@ POWERS = (
     Power("wand", SV_WAND_TRAP_DOOR_DEST, devices()[(TVAL_WAND, SV_WAND_TRAP_DOOR_DEST)].names,
           "destroy-trap-door", 0, 62, ("trap-to-disarm",), darkness_scaled=False, aimed=True,
           beside_harmless=True),
-    # The rod recharges, so it comes before the wand.
+    # The rod is ready again sooner than the wand (both refill, me_device_attacks'
+    # regenmagic note), so it comes before the wand.
     Power("rod", SV_ROD_TELEPORT_AWAY, devices()[(TVAL_ROD, SV_ROD_TELEPORT_AWAY)].names,
           "teleport-away", 0, 70, ("unbeatable-in-range", "quest-opening-target"),
           darkness_scaled=False,

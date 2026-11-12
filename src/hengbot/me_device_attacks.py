@@ -7,7 +7,9 @@ module scores every absorbed attack power the bot has *seen* in the game's own
 power list (cmd-magiceat.cpp; ``Snapshot.magic_eater_power_list`` after a
 cast or the turn-free browse refresh) and returns the ``m`` key of the best
 one, or None so the caller keeps its Magic Missile / carried wand / torch /
-melee order.  Nothing is estimated between observations: a power is used
+melee order.  Nothing is estimated between observations (a refill by regenmagic, below, is
+seen when the list is displayed again: under every cast of that kind and by the
+turn-free browse, me_powers_refresh): a power is used
 only when its last displayed row had a charge (staff/wand ``current`` > 0,
 rod ``charging`` < count); a stale row is corrected by the executor, which
 reads the list again under the power prompt and closes it turn-free when the
@@ -24,8 +26,18 @@ monster flags are the race knowledge the bot already models
 so powers that need a property (light-sensitive, evil, living) score zero.
 
 Score = success (100 - displayed fail%) x min(average damage after the known
-resistance, the target's estimated hp).  Ties prefer a rod (it recharges)
-and then the lower base level.  The player's own bolts, balls and breaths
+resistance, the target's estimated hp).  Ties prefer a rod and then the
+lower base level.  Every absorbed power refills on its own (owner 2026-11-12
+「杖も魔法棒も自動回復する。」; hpmp/hp-mp-regenerator.cpp:119-159 regenmagic, every
+world tick, regen_amount = PY_REGEN_NORMAL 197, x2 resting, x2 with regeneration,
+mult = 30 + adj_mag_mana[INT]): a staff or wand power gains
+regen_amount * mult * (count + 13) / (30 * 8) of the EATER_CHARGE 0x10000 a use
+takes, a rod sheds regen_amount * mult * (count + 10) * EATER_ROD_CHARGE /
+(30 * 16 * PY_REGEN_NORMAL) of the pval * EATER_ROD_CHARGE a use adds
+(cmd-magiceat.cpp:572), so a rod is ready again several times sooner (one copy at
+mult 40: about 140 ticks a wand charge, pval * 16 / 14.7 ticks a rod).  No charge is
+held back for that (owner 2026-11-12 「使う」: 「回数に関係なく期待値の高い方を使う。
+魔道具術師の取り込んだ力は自然に回復するので、温存の決まりは作らない。」).  The player's own bolts, balls and breaths
 never damage the player (effect-player.cpp check_continue_player_effect
 returns before any damage when the source is the player), so an adjacent
 ball is allowed.  Mana Storm (50 unavoidable self-damage), Starlight
@@ -359,8 +371,8 @@ def strongest(policy, snapshot, target, direction):
                  if score > 0 and (power.kind, power.sval) != MISSILE), None)
 
 
-def attack_key(policy, snapshot, target, direction) -> str | None:
-    """``m`` + kind + power (+ direction) of an absorbed power that beats Magic Missile.
+def attack_choice(policy, snapshot, target, direction):
+    """(score, power) of the absorbed power that beats Magic Missile, else None.
 
     None keeps the caller's order (absorbed Magic Missile, carried wand,
     torch, melee).  ``direction`` is the caller's aim at ``target``.
@@ -377,4 +389,10 @@ def attack_key(policy, snapshot, target, direction) -> str | None:
         # Missile, so a power must beat it at an optimistic 100% success.
         if score <= missile_score(policy, snapshot, target):
             return None
-    return device_key(policy, power, direction)
+    return score, power
+
+
+def attack_key(policy, snapshot, target, direction) -> str | None:
+    """``m`` + kind + power (+ direction) of an absorbed power that beats Magic Missile."""
+    choice = attack_choice(policy, snapshot, target, direction)
+    return None if choice is None else device_key(policy, choice[1], direction)

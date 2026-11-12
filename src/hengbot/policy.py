@@ -140,6 +140,7 @@ from hengbot.policy_types import (
     ProcurementHomeGate,
 )
 from hengbot.policy_constants import (
+    PROJECTILE_REASON_PREFIXES,
     ADJ_STR_WEIGHT_LIMIT,
     AMMO_CARRY_TARGET,
     DESCEND_MIN_HP_RATIO,
@@ -9846,7 +9847,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             ranged = self._ranged_attack_key(snapshot, [target], [])
             if ranged is not None:
-                self.last_reason = "summoner:ranged-kill"
+                # Only a projectile's reason is renamed: the executor runs an absorbed power,
+                # the absorbed Magic Missile and a carried wand by their own reasons (the
+                # Magic-Eater's answer the rung may choose over the shot, owner 2026-11-12).
+                # n1-c life-196 2026-11-12 04:05: 'mCz@1,39' renamed here went out as raw keys
+                # and the power prompt stayed open (stuck-prompt:summoner:ranged-kill).
+                if (self.last_reason or "").startswith(PROJECTILE_REASON_PREFIXES):
+                    self.last_reason = "summoner:ranged-kill"
                 return ranged
         return None
 
