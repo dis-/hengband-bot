@@ -188,7 +188,8 @@ class TownStops1103RecordedTest(executor_pins.ProductionHarness):
         tests.test_town_stops_1104_recorded pins it); it answers row 33, and
         this pin is about the town end's route.
         """
-        patcher = mock.patch("hengbot.policy.identification_ready_in_pack",
+        # The mining preparation's read is asked in the objectives layer (ladder_objectives).
+        patcher = mock.patch("hengbot.ladder_objectives.identification_ready_in_pack",
                              lambda _policy, _board: False)
         patcher.start()
         self.addCleanup(patcher.stop)
