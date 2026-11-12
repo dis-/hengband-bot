@@ -108,6 +108,16 @@ class AfraidTest(RecordedBoards):
         self.assertEqual(self.decide(AFRAID), ("rh", "flee:scroll"))
         self.assertEqual(self.decide(AFRAID, _no_potion), ("rh", "flee:scroll"))
 
+    def test_the_carried_potion_is_what_fear_cover_counts(self):
+        from hengbot import fear_cover
+        for change, covered in ((lambda raw: None, True), (_no_potion, False)):
+            raw = copy.deepcopy(self.boards[AFRAID])
+            change(raw)
+            directory = TemporaryDirectory()
+            self.addCleanup(directory.cleanup)
+            policy = _policy(Path(directory.name), self.monrace)
+            self.assertIs(fear_cover.fear_covered(policy, parse_snapshot(raw, self.monrace)), covered)
+
     def test_without_the_potion_fear_still_walks_away(self):
         self.assertEqual(self.decide(AFRAID_AGAIN, _no_potion), ("7", "flee"))
 

@@ -29,8 +29,8 @@ resistance) is not lasting.  With a lasting one nothing is bought and nothing ca
    projection's cost cap) with an awake fear caster (SCARE spell) in it, while not hero: drink
    first; the next attack once the hero state has ended drinks again.
 
-``fear_covered`` is this module's minimal stand-in for the threat implementer's helper of the
-same meaning (2026-11-11, worktree threat-heal-credit-1111): unify the two once both land.
+Whether fear is covered (a resistance now, or a carried potion to drink) is
+``fear_cover.fear_covered``, the threat tiers' one answer; this module drinks the potion it counts.
 """
 
 from __future__ import annotations
@@ -85,11 +85,6 @@ def carry_target(snapshot) -> int:
 
 def carry_shortage(snapshot) -> int:
     return max(0, carry_target(snapshot) - carried(snapshot))
-
-
-def fear_covered(snapshot) -> bool:
-    """Fear is handled: a lasting resistance, the hero state, or a potion to drink."""
-    return lasting_fear_resistance(snapshot) or hero_active(snapshot) or carried(snapshot) > 0
 
 
 def _potion(policy, snapshot):
