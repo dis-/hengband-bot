@@ -252,10 +252,13 @@ def _grid_options(policy, snapshot, target) -> list:
         choice = me_device_attacks.attack_choice(policy, snapshot, target, direction)
         if choice is not None:
             options.append((choice[0], lambda power=choice[1]: send(power)))
-    if applies(snapshot) and _missile_ready(policy, snapshot):
-        options.append(_missile_option(
-            policy, snapshot, target, direction,
-            lambda: send(me_device_attacks.POWERS[me_device_attacks.MISSILE])))
+    # The absorbed Magic Missile only from its displayed charged row: under DEVICE_REASON the
+    # executor closes an empty power turn-free and only the list records it, so the
+    # optimistic unseen missile was asked again every decision (n1-b life-373 and 375,
+    # 2026-11-12 07:30 and 07:54: 'mBp@14,104' until loop-detected).
+    seen = me_device_attacks.seen_missile_score(policy, snapshot, target, direction)
+    if applies(snapshot) and seen is not None:
+        options.append((seen, lambda: send(me_device_attacks.POWERS[me_device_attacks.MISSILE])))
     return options
 
 
