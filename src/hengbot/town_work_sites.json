@@ -2784,6 +2784,19 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_opening.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach",
+      "fundraising",
+      "departure",
+      "equipment-transaction"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_plan_above_survival.py:key": {
     "classification": "adapter",
     "rows": [

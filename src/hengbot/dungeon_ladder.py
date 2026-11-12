@@ -302,6 +302,7 @@ LAYER_MODULES = {
     "summoner-shots": "ladder_summoner_shots",
     "floor-avoidance": "ladder_floor_avoidance",
     "light": "ladder_light",
+    "opening": "ladder_opening",
     "plan-approved-quest": "ladder_plan_approved_quest",
 }
 

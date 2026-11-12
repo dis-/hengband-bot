@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_summoner_shots, warning_cell_record
+from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -7771,24 +7771,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if light is not PASS:
             return light
 
-        opening_q34 = self._town_producer_entry("_opening_q34_town_key", lambda: self._opening_q34_town_key(snapshot, strategic_hostiles), family="quest-request")
-        if opening_q34 is not None:
-            return opening_q34
-
-        if (
-            self._breakout_dig_floor is not None
-            and (
-                snapshot.floor_key != self._breakout_dig_floor
-                or (
-                    self._town_producer_entry("_dig_to_known_downstairs_key", lambda: self._dig_to_known_downstairs_key(snapshot), family="departure") is None
-                    and not walkout_dig.has_route(self, snapshot)
-                    and not retreat_enclosure.dig_has_route(self, snapshot)
-                )
-            )
-        ):
-            restore = self._town_producer_entry("_breakout_restore_weapon_key#1", lambda: self._breakout_restore_weapon_key(snapshot))
-            if restore is not None:
-                return restore
+        # The opening layer: the opening route's Q34 town rung and the breakout dig's weapon
+        # (ladder_opening).
+        opening = ladder_opening.key(self, snapshot, strategic_hostiles=strategic_hostiles)
+        if opening is not PASS:
+            return opening
 
         # The plan-approved-quest layer: an approved quest floor's navigator owns the whole floor
         # (ladder_plan_approved_quest).
