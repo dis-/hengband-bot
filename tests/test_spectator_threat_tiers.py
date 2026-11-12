@@ -58,7 +58,8 @@ class RecordedBoardsTest(unittest.TestCase):
     def test_summoners_first_n1a_475(self):
         _policy, _board, _raw, details = recorded("summon-response-n1a-475-1104.json.gz", 2038858)
         self.assertEqual(details["threat_engagement"],
-                         {"tier": T1, "instant_death": True, "skipped": None, "hostiles": 8})
+                         {"tier": T1, "instant_death": True, "skipped": None, "t2_withheld": [],
+                          "hostiles": 8})
         monsters = details["monsters"]
         self.assertEqual(tiers(monsters), [T1, T1, T1, T3, T3, T3, T3, T3, None])
         self.assertEqual([m["distance"] for m in monsters], [1, 1, 2, 2, 2, 3, 12, 15, 15])
@@ -121,7 +122,8 @@ class NoJudgementTest(unittest.TestCase):
                           if m.hostile])
         judgement = _spectator_threat(policy, board)
         self.assertEqual(judgement, {"engagement": {"tier": None, "instant_death": False,
-                                                    "skipped": None, "hostiles": 0},
+                                                    "skipped": None, "t2_withheld": [],
+                                                    "hostiles": 0},
                                      "monsters": {}})
         details = spectator_details(raw, board, judgement)
         self.assertEqual(details["threat_engagement"]["tier"], None)

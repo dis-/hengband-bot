@@ -46,7 +46,11 @@ class DeathBoardHealFirstRecordedTest(lethal._Replay):
     def _warm(self):
         self._warm_up_c()
         _board, key, reason = self._decide(C_BOARD, self._without_unseen_cast(C_BOARD))
-        self.assertEqual((key, reason), self._live(C_BOARD))
+        # Recorded melee; since owner 2026-11-11 the healing credit makes the 28 hostiles an
+        # unselected T2 that is left (test_lethal_unseen_caster_recorded's
+        # test_observed_loss_alone_is_lethal_and_heals_first).
+        self.assertEqual(self._live(C_BOARD), ("4", "melee"))
+        self.assertEqual((key, reason), ("rf", "flee:scroll"))
 
     def test_recorded_death_board_heals_first(self):
         self._warm()

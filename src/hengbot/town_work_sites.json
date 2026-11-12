@@ -3992,6 +3992,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "monster_ranged_evaluator.py:_caster_hp": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "monster_ranged_evaluator.py:_dice_distribution": {
     "classification": "data",
     "rows": [

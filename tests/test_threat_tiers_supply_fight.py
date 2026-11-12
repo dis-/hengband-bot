@@ -135,9 +135,21 @@ class OrderTest(Base):
         self.assertEqual(self.policy.last_reason, threat_tiers.SUPPLY_SPEED_REASON)
 
     def test_healing_when_the_dose_is_due(self):
+        """Owner 2026-11-12 「計画に揃える」: drunk once the HP is down to the next action's p95
+        (100 against 120), the point the plan credits the dose at."""
         snapshot = duel(GOOD, hp=100, inventory=self.pack(speed=False), equipment=(tt.SWORD, BOW))
-        self.assertEqual(self.key(snapshot, assessment(plan=plan(**self.EVERYTHING))), "qb")
+        self.assertEqual(self.key(snapshot, assessment(plan=plan(**self.EVERYTHING), p95=120)),
+                         "qb")
         self.assertEqual(self.policy.last_reason, threat_tiers.SUPPLY_HEAL_REASON)
+
+    def test_healing_waits_above_the_next_action(self):
+        """HP 100 of 340 against a next action of 10: no dose yet (the former rule drank once
+        three quarters of the dose were missing); the plan's next supply goes instead."""
+        snapshot = duel(GOOD, hp=100, inventory=self.pack(speed=False), equipment=(tt.SWORD, BOW))
+        self.assertEqual(self.key(snapshot, assessment(plan=plan(**self.EVERYTHING), p95=10)), "qc")
+        self.assertEqual(self.policy.last_reason, threat_tiers.SUPPLY_RESIST_REASON)
+        snapshot = duel(GOOD, hp=10, inventory=self.pack(speed=False), equipment=(tt.SWORD, BOW))
+        self.assertEqual(self.key(snapshot, assessment(plan=plan(**self.EVERYTHING), p95=10)), "qb")
 
     def test_resistance_then_the_attack_supplies_in_the_owners_order(self):
         board = dict(at=(10, 13), equipment=(tt.SWORD, BOW))
