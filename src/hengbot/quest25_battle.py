@@ -529,16 +529,32 @@ def _avoided(ctx: _Ctx) -> set:
     return cells
 
 
+def _refused(ctx: _Ctx) -> frozenset:
+    """The cells a weapon warning was refused on (``_warning_refused_cells``): never walked onto.
+
+    n1-c life-200 (2026-11-12 12:03): after the refusal of (6,29)->(5,29) the walk aimed at
+    (5,29) again on every decision; the gate turned the step into a wait and the wait into a
+    flee, so the plan went back and forth.  The plan's walks go round them like an occupied cell,
+    and a walk with no way round holds (``_step``)."""
+    return frozenset((cell.y, cell.x) for cell in getattr(ctx.policy, "_warning_refused_cells", ()))
+
+
 def _path(ctx: _Ctx, goals, taken=frozenset()) -> list[tuple[int, int]]:
-    goals = {tuple(goal) for goal in goals}
+    refused = _refused(ctx)
+    goals = {tuple(goal) for goal in goals} - refused
+    if not goals:
+        return []
     start = ctx.here
-    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view()) | taken
+    occupied = (frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+                | taken | refused)
     exposure = geo.exposure_of(_avoided(ctx))
     return quest_plan_base._least_exposed_walk(
         ctx.navigator, ctx.snapshot, exposure, start, goals, occupied - goals)
 
 
 def _step(ctx: _Ctx, cell, reason: str = WALK_REASON, *, guard: bool = True) -> str:
+    if tuple(cell) in _refused(ctx):
+        return _hold(ctx)   # the refused cell is not stepped onto: the plan holds where it is
     if guard and (held := _fire_guard(ctx, cell)) is not None:
         return held
     ctx.policy.last_reason = reason
@@ -627,12 +643,13 @@ def _withdraw(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
     fire = _fire(ctx)
     if ctx.here not in fire:
         return _rest_out_of_fire(ctx)
-    safe = _safe_cells(ctx, fire)
+    refused = _refused(ctx)
+    safe = _safe_cells(ctx, fire) - refused
     occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
     terrain = quest_plan_base._terrain_of(ctx.navigator, ctx.snapshot, water=False)
     terrain[ctx.here] = "floor"
     path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
-                                             ctx.here, safe, occupied - safe)
+                                             ctx.here, safe, (occupied - safe) | refused)
     if len(path) < 2:
         return None
     trap = _trap_key(ctx, path[1])
@@ -653,7 +670,7 @@ def _out_of_fire_key(policy, snapshot) -> str | None:
     traps = {cell for cell in (*ctx.navigator.battlefield.trap_cells,
                                *ctx.navigator.battlefield.maybe_trap_cells)
              if cell not in ctx.battle.cleared}
-    beside = sorted(cell for cell in _safe_cells(ctx, fire) - occupied - traps
+    beside = sorted(cell for cell in _safe_cells(ctx, fire) - occupied - traps - _refused(ctx)
                     if quest_exposure.game_distance(cell, ctx.here) == 1)
     if not beside:
         return None
@@ -2234,7 +2251,7 @@ def _recall_wait(policy, snapshot) -> str | None:
     terrain = quest_plan_base._terrain_of(ctx.navigator, snapshot, water=False)
     terrain[ctx.here] = "floor"
     path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
-                                             ctx.here, {goal}, occupied - {goal})
+                                             ctx.here, {goal}, (occupied - {goal}) | _refused(ctx))
     if len(path) >= 2 and not set(path[1:]) & fire:
         return _trap_key(ctx, path[1]) or _step(ctx, path[1], RECALL_EXIT_WALK_REASON, guard=False)
     if ctx.here in fire:

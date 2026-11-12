@@ -11,8 +11,10 @@ latch, and the game asks again only for a forecast above 3/2 of the one it warne
 died there (12:03:13).  The same happened a minute earlier for (1,9)->(1,8): a Chaos breath took
 HP 570 to 385.
 
-Now the prompt-bearing board keeps its wait (rewritten by the policy's own no-wait rung), and the
-refused cells are carried across the restart (warning_cell_record, the path cli.py gives it).
+Now the prompt-bearing board keeps a key, the refused cells are carried across the restart
+(warning_cell_record, the path cli.py gives it), and the Q25 plan's walks go round a refused cell
+(quest25_battle._refused): the gate's wait on (5,29), turned into a flee by the no-wait rung, had
+the plan aim at (5,29) again from every cell it fled to.  With no way round, the plan holds.
 
 Recorded: tests/fixtures/n1c-200-q25-warning-restart-1112.json.gz
 (tests/extract_n1c_200_q25_warning_restart_1112_fixture.py), one board per recorded decision of
@@ -31,12 +33,13 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import copy
 import gzip
 import json
+import pickle
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import warning_cell_record
+from hengbot import quest25_battle as battle, warning_cell_record
 from hengbot.model import Position, parse_snapshot
 from tests.support import q25_house as q25
 
@@ -81,6 +84,8 @@ def replay(*, carry=True):
         policy = new_policy(boards[0], record)
         second = {}
         for raw, row in zip(boards, CASE["second"]["recorded"]):
+            if row["sequence"] == STOPPED:
+                second["before"] = pickle.dumps(policy)   # the process just before the prompt board
             snapshot, key, reason = decide(policy, raw)
             second[row["sequence"]] = (snapshot, key, reason, set(policy._warning_refused_cells))
         written = json.loads(record.read_text(encoding="utf-8"))
@@ -152,6 +157,45 @@ class N1c200WarningRestartRecordedTest(unittest.TestCase):
         _second, (_snapshot, key, reason, refused), _written = replay(carry=False)
         self.assertNotIn(REFUSED, refused)
         self.assertEqual((key, reason), ("8", "quest25:walk"))
+
+
+class Q25WalksRoundTheRefusedCellTest(unittest.TestCase):
+    """The plan's walk to its goal (10,1) goes round (5,29), and holds when nothing does."""
+
+    def _before(self):
+        second, _third, _written = answers()
+        return pickle.loads(second["before"])
+
+    def test_the_prompt_board_walks_the_way_round(self):
+        second, _third, _written = answers()
+        _snapshot, key, reason, _refused = second[STOPPED]
+        self.assertEqual((key, reason), ("2", battle.WALK_REASON))   # to (7,29); live: None
+
+    def test_the_restart_walks_the_way_round(self):
+        _second, (_snapshot, key, reason, _refused), _written = answers()
+        self.assertEqual((key, reason), ("2", battle.WALK_REASON))   # live: '8' onto (5,29)
+
+    def test_the_next_cell_keeps_going_round_not_back(self):
+        # DECLARED CONSTRUCTED: the prompt board with the player one step south on (7,29), the
+        # cell the walk took, and its prompt message gone (the board after the step).
+        policy = self._before()
+        policy._latch_warning_refusal(REFUSED)
+        raw = copy.deepcopy(CASE["second"]["boards"][STOPPED])
+        raw["messages"], raw["player"]["y"] = [], 7
+        snapshot, key, reason = decide(policy, raw)
+        self.assertEqual(snapshot.player.position, Position(7, 29))
+        self.assertEqual((key, reason), ("1", battle.WALK_REASON))   # on to (8,28), not back to (6,29)
+
+    def test_no_way_round_holds(self):
+        # DECLARED CONSTRUCTED: every cell beside (6,29) refused, so each way to the goal crosses
+        # a refused cell.  The plan holds (no-wait leaves the plan's hold alone); it does not step.
+        policy = self._before()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy or dx:
+                    policy._latch_warning_refusal(Position(HERE.y + dy, HERE.x + dx))
+        _snapshot, key, reason = decide(policy, CASE["second"]["boards"][STOPPED])
+        self.assertEqual((key, reason), ("5", "quest-strategy:hold"))
 
 
 class _Snap:
