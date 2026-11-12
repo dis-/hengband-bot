@@ -1043,6 +1043,10 @@ class Snapshot:
     # The look-command names of each cell's found non-gold objects, in the
     # order of found_items' classes (None while hallucinating).
     found_item_names: dict[Position, tuple[str | None, ...]] | None = None
+    # The identity of each cell's found non-gold objects, in the same order
+    # (bot-json-output make_bot_item_identity_json: ``sval`` only once the kind
+    # is aware; None while hallucinating).
+    found_item_ids: dict[Position, tuple[dict | None, ...]] | None = None
     store: "StoreState | None" = None  # present only while standing in a store
     recall_dungeon_id: int = 0
     entered_dungeon_ids: tuple[int, ...] = ()
@@ -1735,6 +1739,19 @@ def parse_snapshot(
             parsed_found_item_names[Position(row[0], row[1])] = tuple(
                 name if isinstance(name, str) else None for name in row[2:])
         found_item_names = parsed_found_item_names
+    found_item_ids = None
+    raw_found_item_ids = grid_map.get("found_item_ids") if grid_map_valid else None
+    if isinstance(raw_found_item_ids, list):
+        parsed_found_item_ids: dict[Position, tuple[dict | None, ...]] | None = {}
+        for row in raw_found_item_ids:
+            if (not isinstance(row, list) or len(row) < 2
+                    or not all(isinstance(value, int) and not isinstance(value, bool)
+                               for value in row[:2])):
+                parsed_found_item_ids = None
+                break
+            parsed_found_item_ids[Position(row[0], row[1])] = tuple(
+                dict(entry) if isinstance(entry, dict) else None for entry in row[2:])
+        found_item_ids = parsed_found_item_ids
 
     return Snapshot(
         player=player,
@@ -1789,6 +1806,7 @@ def parse_snapshot(
         light_radius=light_radius,
         found_items=found_items,
         found_item_names=found_item_names,
+        found_item_ids=found_item_ids,
         store=_parse_store(data.get("store"), protocol=protocol),
         recall_dungeon_id=int(progress.get("recall_dungeon_id", 0)),
         entered_dungeon_ids=tuple(
