@@ -1567,6 +1567,31 @@ class IdentificationMixin:
             if self._in_unseen_attack_area(snapshot, position)
         }
 
+    def _unseen_attack_area_veto(self, snapshot: Snapshot) -> frozenset[Position]:
+        """The unseen attack's area as a walk veto (``_walk_veto``), from outside it.
+
+        Explore, loot targets and the descent kept out of the area; the goal walks
+        (``goal_route``) and the loot's route to a target outside it did not.  n1-b
+        life-378 (Angband 30F, 2026-11-12 21:14): a 宙に浮かぶ宝珠 (race 912, NEVER_MOVE,
+        Magic Missile 1_IN_1) out of the light hit the player at the corridor mouth
+        (54,43); ``unseen:reverse-choke`` '9' stepped back to (53,44) and
+        ``stuck:seek-stairs`` '1' walked straight back onto (54,43), toward a stair past
+        the area, until the loop detector.  Only while the player stands outside the
+        area: inside it the retreat owns the way out, and a veto of every neighbour
+        would leave no walk at all.  One answer per board (``_walk_veto`` is asked by
+        every walker)."""
+        cache_key = (id(snapshot), snapshot.turn)
+        cached = self.__dict__.get("_unseen_attack_area_veto_cache")
+        if cached is not None and cached[0] == cache_key:
+            return cached[1]
+        veto: frozenset[Position] = frozenset()
+        if (getattr(snapshot, "floor_key", None) is not None
+                and getattr(self, "_unseen_last_hit_position", None) is not None
+                and not self._in_unseen_attack_area(snapshot, snapshot.player.position)):
+            veto = frozenset(self._unseen_attack_area_cells(snapshot))
+        self._unseen_attack_area_veto_cache = (cache_key, veto)
+        return veto
+
     def _record_unseen_attack(self, snapshot: Snapshot) -> None:
         """Keep the attack's area beside the decision log for a restart."""
         path = getattr(self, "_unseen_attack_path", None)
