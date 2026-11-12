@@ -307,6 +307,7 @@ LAYER_MODULES = {
     "pre-combat": "ladder_pre_combat",
     "combat": "ladder_combat",
     "safe-now": "ladder_safe_now",
+    "idle": "ladder_idle",
 }
 
 # After the ladder has answered, _choose_key passes its key through these, in order; each may

@@ -318,10 +318,11 @@ def _layer_module_findings(policy_source: str, module_sources: dict[str, str]) -
         if called.count(f'{module}.key') != 1:
             findings.append(f'layer {name}: _decide calls {module}.key '
                             f'{called.count(f"{module}.key")} time(s), not once')
+        # Falling off the end would return None, which _decide returns as its answer: a layer
+        # module ends with ``return PASS``, or (the last layer, idle) with its last rung's return.
         last = _function(ast.parse(module_sources[module]), 'key').body[-1]
-        if not (isinstance(last, ast.Return) and isinstance(last.value, ast.Name)
-                and last.value.id == 'PASS'):
-            findings.append(f'layer {name}: {module}.key does not end with return PASS')
+        if not isinstance(last, ast.Return):
+            findings.append(f'layer {name}: {module}.key falls off its end (return PASS)')
         said = [(rung.name, rung.kind) for rung in layers[name].rungs]
         found = [row[:2] for row in layer_module_rows(module_sources[module], module)]
         if said != found:
