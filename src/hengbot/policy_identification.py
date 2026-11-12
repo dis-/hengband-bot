@@ -12,7 +12,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import me_powers, sleeper_loot_block, sleeper_reach_memory
+from hengbot import me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -1448,6 +1448,11 @@ class IdentificationMixin:
         candidates -= self._deferred_loot
         candidates -= getattr(self, "_unseen_deferred_loot", set())
         candidates -= self._engagement_avoid_cells
+        # Owner 2026-11-13 「遠い品は拾ってよい」: with only a remembered summoner, the items near
+        # its last cell stay blocked (summoner_far_loot).
+        if summoner_far_loot.waived(self, snapshot, self._strategic_hostiles(snapshot)):
+            candidates = {position for position in candidates
+                          if not summoner_far_loot.near(self, snapshot, position)}
         # A pile the town's slot budget refuses to step on is no target: the
         # walk came back to it each time it left the light, away from the shop
         # route (n1-c life-123 2026-11-04 04:33, owner-retired-burst).
@@ -1805,7 +1810,8 @@ class IdentificationMixin:
         # [29,47] from [40,38] and walked approach-descent '1' to [41,37], out of its sight,
         # where seek-loot stepped '9' straight back, until the loop detector.
         out_of_sight = sleeper_reach_memory.remembered(self, snapshot)
-        if any(monster.can_summon for monster in (*hostiles, *out_of_sight)):
+        if any(monster.can_summon for monster in (*hostiles, *out_of_sight)) and not (
+                summoner_far_loot.waived(self, snapshot, hostiles)):
             return "summoner-visible"
         if any(monster.can_multiply for monster in (*hostiles, *out_of_sight)):
             return "multiplier-visible"
