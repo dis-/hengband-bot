@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_summoner_shots, warning_cell_record
+from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -7790,175 +7790,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if approved_quest is not PASS:
             return approved_quest
 
-        # D45: a combat hand the digger swap left empty goes back before any
-        # fight rung below takes the turn (mining_loadout.py).  An approved
-        # quest floor's navigator above owns its own combat.
-        rearm = self._town_producer_entry("_mining_loadout_rollback_key", lambda: self._mining_loadout_rollback_key(snapshot), family="equipment-txn")
-        if rearm is not None:
-            return rearm
-
-        # A reviewed one-shot quest is entered on the assumption that its carried
-        # Speed dose is part of the action-economy budget.  Spend it on first
-        # contact, once for this floor entry (a rejected command is not looped).
-        active_quest = self._active_fixed_quest_id(snapshot) or self._active_kill_quest_id(snapshot)
-        if (
-            active_quest is not None
-            and self.approved_quest_strategy(active_quest) is None
-            and strategic_hostiles
-            and self._unviable_quest_floor != snapshot.floor_key
-            and not self._fixed_quest_speed_attempted
-        ):
-            self._fixed_quest_speed_attempted = True
-            speed = speed_dose.key(self, snapshot, "quest:quaff-speed",
-                                   rearm=("_fixed_quest_speed_attempted", False))
-            if speed is not None:
-                return speed
-
-        # 0a. Open wilderness = a non-town surface tile the town routine strayed
-        #     onto by crossing a map border. It spawns out-of-depth monsters (a
-        #     Cyclops killed a clvl-4 bot here). Survival is the ONLY goal: flee,
-        #     recall to safety, never shop/explore/fight for XP.
-        if snapshot.on_open_wilderness and zul_trip.trip_active(self):
-            # The Zul trip's ambush (owner 2026-11-07 「ふつうに戦い全体地図へ戻る」):
-            # an awake monster in view is fought by the ordinary rules below.
-            ambush = zul_trip.ambush_key(self, snapshot, physical_hostiles)
-            if ambush is not None:
-                return ambush
-        elif snapshot.on_open_wilderness:
-            # Owner 2026-11-08 「敵を倒すか離れてから出る」: None with an awake
-            # monster in view leaves the board to the ordinary combat rules.
-            wilderness = self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
-            if wilderness is not None:
-                return wilderness
-
-        # Town is cleared before errands resume.  Unlike dungeon hunting every
-        # visible non-pet monster is a target regardless of range or the
-        # hostile-count cap; a friendly race the character cannot defeat is
-        # the one exception (USER DECISION 2026-10-31, _town_kill_mob_key).
-        town_kill = self._town_producer_entry("_town_kill_mob_key", lambda: self._town_kill_mob_key(snapshot))
-        if town_kill is not None:
-            return town_kill
-
-        # 0b. Ride out confusion in a safe spot rather than stumbling randomly.
-        if player.confused and not physical_hostiles:
-            self.last_reason = "confused:wait"
-            return WAIT_KEY
-
-        if (
-            self._choke_plan_active(snapshot)
-            and self._breeder_breakthrough_floor == snapshot.floor_key
-        ):
-            self._release_choke_plan("breeder-breakthrough")
-        breakthrough = self._town_producer_entry("_breeder_breakthrough_key", lambda: self._breeder_breakthrough_key(
-            snapshot, strategic_hostiles
-        ))
-        if breakthrough is not None:
-            if self._choke_plan_active(snapshot):
-                self._release_choke_plan("breeder-breakthrough")
-            self._declare_triggers(strategic_hostiles)
-            return breakthrough
-
-        choke_plan = self._town_producer_entry("_choke_engagement_key", lambda: self._choke_engagement_key(
-            snapshot, physical_hostiles, physical_adjacent
-        ))
-        if choke_plan is not None:
-            return choke_plan
-
-        breeders = disenchant_avoid.not_avoided(self, snapshot, [
-            monster for monster in strategic_hostiles if monster.can_multiply
-        ])
-        if (
-            breeders
-            and self._breeder_breakthrough_floor != snapshot.floor_key
-        ):
-            breeder_adjacent = [
-                monster for monster in strategic_adjacent if monster.can_multiply
-            ]
-            ranged = self._town_producer_entry("_ranged_attack_key#1", lambda: self._ranged_attack_key(
-                snapshot, breeders, breeder_adjacent
-            ))
-            if ranged is not None:
-                return ranged
-
-        # A fruitless breeder engagement latches this floor visit. Keep this
-        # ahead of ordinary combat so the same cluster cannot pull us back in.
-        disengage = None
-        if not self._productive_choke_hold(snapshot):
-            disengage = self._town_producer_entry("_fruitless_disengage_key", lambda: self._fruitless_disengage_key(
-                snapshot, strategic_hostiles
-            ))
-        if disengage is not None:
-            self._declare_triggers(strategic_hostiles)
-            return disengage
-        if self._escape_state.owner == "disengage":
-            self._escape_state.stable_decisions += 1
-            if self._escape_state.stable_decisions >= 2:
-                self._escape_state.release()
-
-        # Owner 2026-10-31: a mining run that meets the unique the owner
-        # rules out ends here, before any mining or ordinary combat rung can
-        # attack it.
-        mining_abort = self._town_producer_entry("_mining_unbeatable_unique_abort_key", lambda: self._mining_unbeatable_unique_abort_key(
-            snapshot, strategic_hostiles, strategic_adjacent
-        ), family="fundraising")
-        if mining_abort is not None:
-            return mining_abort
-
-        # A harmless but extremely durable unique can otherwise fall through
-        # the consumable projection and into ordinary melee forever.  Arm a
-        # floor-level disengage while it is visible; the latch survives BLINK
-        # and TELEPORT interruptions that reset the contiguous combat tracker.
-        unprofitable_unique = self._town_producer_entry("_unprofitable_unique_disengage_key", lambda: self._unprofitable_unique_disengage_key(
-            snapshot, strategic_hostiles
-        ), family="escape")
-        if unprofitable_unique is not None:
-            return unprofitable_unique
-
-        if (
-            self._fundraising_mode in {"mine", "scavenge"}
-            and self._breeder_breakthrough_floor == snapshot.floor_key
-        ):
-            combat_equip = self._town_producer_entry("_fundraising_combat_equipment_key", lambda: self._fundraising_combat_equipment_key(
-                snapshot, physical_hostiles
-            ), family="equipment-txn")
-            if combat_equip is not None:
-                return combat_equip
-            key = self._town_producer_entry("_finish_mining_floor", lambda: self._finish_mining_floor(snapshot), family="fundraising")
-            if key is not None and (
-                key != WAIT_KEY
-                or self.last_reason != "fundraise:upstairs-not-found"
-            ):
-                return key
-            # The fundraising exit ran out of actions: its terminal WAIT is
-            # absorbing (no recall to wait on, no reachable stairs, nothing
-            # to explore, wander, or dig — nothing external changes it).  The
-            # extermination-impossible latch owns leaving, so fall back to
-            # the breakthrough's own exits: through-the-swarm routing to a
-            # remembered up-stairs, else to the nearest live frontier.  With
-            # neither, fall through to the ordinary navigation ladder like
-            # the non-mining exhausted floor.
-            escape = self._town_producer_entry("_breeder_breakthrough_escape_key", lambda: self._breeder_breakthrough_escape_key(snapshot))
-            if escape is not None:
-                return escape
-
-        # Mining/swarm contact has a deliberately ordered combat transition.
-        # Keep the diggers on while a missile can repel the approach; once
-        # contact persists, re-arm before any ordinary melee decision.
-        mining_hostiles = (
-            physical_hostiles
-            if self._fundraising_mode in {"mine", "scavenge"}
-            else strategic_hostiles
+        # The pre-combat layer: from the mining loadout's rollback to the swarm's melee
+        # (ladder_pre_combat).  It leaves the mining view it chose in ``mining`` for the combat layer.
+        mining = ladder_pre_combat.MiningViews()
+        pre_combat = ladder_pre_combat.key(
+            self,
+            snapshot,
+            strategic_hostiles=strategic_hostiles,
+            strategic_adjacent=strategic_adjacent,
+            physical_hostiles=physical_hostiles,
+            physical_adjacent=physical_adjacent,
+            mining=mining,
         )
-        mining_adjacent = (
-            physical_adjacent
-            if self._fundraising_mode in {"mine", "scavenge"}
-            else strategic_adjacent
-        )
-        swarm_combat = self._town_producer_entry("_melee_swarm_combat_key", lambda: self._melee_swarm_combat_key(
-            snapshot, mining_hostiles, mining_adjacent
-        ))
-        if swarm_combat is not None:
-            return swarm_combat
+        if pre_combat is not PASS:
+            return pre_combat
+        mining_hostiles = mining.hostiles
 
         # 1. Survival: flee when hurt, swarmed, or too afraid to fight back.
         # Once a confusion/paralysis attacker has triggered this rung on the

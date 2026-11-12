@@ -17964,5 +17964,20 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "ladder_pre_combat.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "equipment-transaction",
+      "cross-town",
+      "combat",
+      "survival",
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The pre-combat layer of _decide moved verbatim (maintainability review step 8): _mining_loadout_rollback_key, speed_dose.key, zul_trip.ambush_key, _wilderness_survival_key, _town_kill_mob_key, confused:wait, _breeder_breakthrough_key, _choke_engagement_key, _ranged_attack_key#1, _fruitless_disengage_key, _mining_unbeatable_unique_abort_key, _unprofitable_unique_disengage_key, _fundraising_combat_equipment_key, _finish_mining_floor, _breeder_breakthrough_escape_key and _melee_swarm_combat_key, entries through _town_producer_entry as in _decide; the first key returned (confused:wait's WAIT included), else dungeon_ladder.PASS. It records the chosen mining hostiles in MiningViews for _decide. The rows are its children's. Selected child inherits work; no independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

@@ -304,6 +304,7 @@ LAYER_MODULES = {
     "light": "ladder_light",
     "opening": "ladder_opening",
     "plan-approved-quest": "ladder_plan_approved_quest",
+    "pre-combat": "ladder_pre_combat",
 }
 
 # After the ladder has answered, _choose_key passes its key through these, in order; each may

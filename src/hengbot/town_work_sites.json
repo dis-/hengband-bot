@@ -2814,6 +2814,17 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_pre_combat.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "equipment-transaction",
+      "cross-town",
+      "combat",
+      "survival",
+      "fundraising"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_summoner_shots.py:key": {
     "classification": "adapter",
     "rows": [
