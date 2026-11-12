@@ -235,7 +235,8 @@ POWERS = (
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
           MAP_AREA, DETECT_RAD, 30,
-          ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket"),
+          ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket",
+           "loot-unreachable"),
           fallback=("staff", SV_STAFF_DETECT_DOOR), beside_harmless=True),
     # The same effect (cmd-zaprod.cpp:102), asked only where the owner named 周辺感知.
     Power("rod", SV_ROD_MAPPING, me_capability.names("rod", SV_ROD_MAPPING),
@@ -403,6 +404,21 @@ def _stairs_needed_and_unknown(ctx, power):
         return False
     needed = _needed_stairs(ctx)
     return needed is not None and not _stairs_known(ctx, needed)
+
+
+def _loot_unreachable(ctx, power):
+    """Owner 2026-11-13 「経路が見つからない時に周辺感知を使う」: the loot walk found loot it saw with
+    no known way to it on the last boards (loot_frontier), and no earlier use mapped here."""
+    from hengbot import loot_frontier
+
+    radius = ctx.radius(power)
+    if any(ctx.distance(use.position) < radius for use in ctx.uses_of(power)):
+        return False
+    return loot_frontier.unreachable_recently(ctx.policy, ctx.snapshot, LOOT_UNREACHABLE_GAME_TURNS)
+
+
+# The loot walk's note stays fresh for one player turn at normal speed and a few boards beyond.
+LOOT_UNREACHABLE_GAME_TURNS = 30
 
 
 def _before_rest(ctx, power):
@@ -712,6 +728,8 @@ class Trigger:
 TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("new-floor", frozenset({FLOOR}), _new_floor),
     Trigger("stairs-needed-and-unknown", frozenset({FLOOR}), _stairs_needed_and_unknown),
+    # Owner 2026-11-13 named 周辺感知: its Door/Stairs fallback does not map.
+    Trigger("loot-unreachable", frozenset({FLOOR}), _loot_unreachable, takes_fallback=False),
     Trigger("before-rest", frozenset({REST}), _before_rest),
     Trigger("before-secret-search", frozenset({SECRET_SEARCH}), _before_secret_search),
     Trigger("left-detected-trap-area", frozenset({FLOOR}), _left_detected_trap_area),

@@ -1692,6 +1692,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "full_pack_exchange.py:key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "full_pack_exchange.py:spare": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "fundraising_survival.py:affordable": {
     "classification": "data",
     "rows": [
@@ -2992,6 +3007,13 @@
     "delegation": "selected child; no independent success"
   },
   "locked_doors.py:pick_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "loot_frontier.py:explore_path": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

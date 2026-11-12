@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import area_mapping, dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, locked_doors, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import area_mapping, dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1619,8 +1619,11 @@ class NavigationMixin:
                     return route[0]
                 self._retire_explore_goal(identity)
     
-        path = self._plan_explore_path(snapshot) or self._plan_explore_path_pass(
-            snapshot, allow_damaging=True, through=self._explore_past_monster_cells(snapshot))
+        # Owner 2026-11-13 「その品の方へ探索を寄せる」: seen loot with no known way to it
+        # steers the new goal (loot_frontier).
+        path = (loot_frontier.explore_path(self, snapshot, avoided)
+                or self._plan_explore_path(snapshot) or self._plan_explore_path_pass(
+                    snapshot, allow_damaging=True, through=self._explore_past_monster_cells(snapshot)))
         if not path:
             return None
         self._explore_path = path[1:]
