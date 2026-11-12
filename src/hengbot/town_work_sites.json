@@ -12763,6 +12763,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "threat_tiers.py:remembered_approach_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "threat_tiers.py:sensed_t1_leave_key": {
     "classification": "producer",
     "rows": [

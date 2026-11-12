@@ -17213,6 +17213,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-10 (P2) 「積極的に*破壊*で消しにいく」: in place of the sensed T1 leave while every T1 is known only by detection and the *Destruction* means are held: the use (destruction_use.key, leaving the T1s) once one is in the sure radius 13, else a step toward the nearest (sensed-t1:approach-destruction, a walk); None with no known way (the rungs below map and explore)."
   },
+  "threat_tiers.py:remembered_approach_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: asked from threat_tiers.sensed_t1_leave_key after leave_decided_here (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "n1-b life-377 (2026-11-12, loop-detected): the *Destruction* approach started by approach_key goes on toward the targets' last detected cells while they are not shown (the use once a target shown again is in reach; a walk otherwise), within the unseen window, on the same floor, with the means still held."
+  },
   "summoner_loot.py:pocket_key": {
     "classification": "producer",
     "rows": [
