@@ -491,18 +491,6 @@ SUPPLY_STORES: dict[str, tuple[int, ...]] = {
     "oil": (STORE_GENERAL,),
     "food": (STORE_GENERAL,),  # MANA races are replaced with Magic in ledger.
 }
-# The supply-ledger kind of each procurement requirement label
-# (procurement_requirements, the departure leaves' purchase gaps).
-SUPPLY_LABEL_KINDS: dict[str, str] = {
-    "Word of Recall scrolls": "recall",
-    "Food rations": "food",
-    "Device charges for food": "food",
-    "Flasks of oil": "oil",
-    "Teleport scrolls": "teleport",
-    "Cure Critical Wounds potions": "cure",
-    "Remove Curse scrolls": "remove-curse",
-    "*Remove Curse* scrolls": "star-remove-curse",
-}
 STAFF_IDENTIFY_MIN_CHARGES = 20
 # User 2026-10-03 「鑑定の杖の所持数を4本以内にしたい」: at most four carried
 # Identify staves (a stack of N counts N).  Staves above the cap are released

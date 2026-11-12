@@ -1094,6 +1094,55 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "departure_readiness.py:ReadinessTable.items": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "departure_readiness.py:ReadinessTable.leaf_kinds": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "departure_readiness.py:ReadinessTable.met": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "departure_readiness.py:SupplyLeaf.items": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "departure_readiness.py:SupplyLeaf.met": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "departure_readiness.py:_extra_items": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "departure_readiness.py:readiness_table": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_absorbed_key": {
     "classification": "data",
     "rows": [
@@ -4645,13 +4694,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy.py:HengbotPolicy._cure_critical_ready": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy.py:HengbotPolicy._current_floor_item_key": {
     "classification": "producer",
     "rows": [
@@ -5552,13 +5594,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy.py:HengbotPolicy._recall_departure_ready": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy.py:HengbotPolicy._recall_required_target": {
     "classification": "data",
     "rows": [
@@ -5783,13 +5818,6 @@
     "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._target_loadout_known": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy.py:HengbotPolicy._teleport_ready": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9550,13 +9578,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_supply.py:SupplyMixin._identify_staff_ready": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_supply.py:SupplyMixin._identify_staff_release_plan": {
     "classification": "data",
     "rows": [
@@ -9572,13 +9593,6 @@
     "delegation": "selected child; no independent success"
   },
   "policy_supply.py:SupplyMixin._light_judgment": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy_supply.py:SupplyMixin._light_ready": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9820,13 +9834,6 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_supply.py:SupplyMixin._worn_light": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy_supply.py:SupplyMixin.procurement_requirements": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
