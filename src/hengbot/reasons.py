@@ -114,7 +114,8 @@ _rows(RELOCATING, "policy", _RULE_ALL, "emergency:stairs-down")
 _rows(RELOCATING, "policy", _RULE_ALL, "flee:scroll", "flee:stairs", "flee:stairs-quest-fail",
       "threat:scroll")
 # the sensed T1 leave (threat_tiers.sensed_t1_leave_key, SENSED_LEAVE_PREFIX + ...; blind, through
-# threat_escape.blind_teleport_key)
+# threat_escape.blind_teleport_key).  Owner 2026-11-13 「射線にT1が入っていない=感知しただけは
+# カウントしない」: counted only when a T1 left was in the line of fire (threat_tiers.counts_as_escape).
 _rows(RELOCATING, ("threat_tiers", "threat_escape"), _RULE_ALL,
       "sensed-t1:teleport", "sensed-t1:teleport:absorbed-power", "sensed-t1:teleport-staff",
       "sensed-t1:phase", "sensed-t1:stairs", "sensed-t1:recall")
@@ -258,6 +259,8 @@ _rows(NOT_ESCAPE, ("policy", "policy_combat", "blind_strike"),
       "unseen-recall:blind-stay", "unseen-recall:heal", "unseen-recall:move")
 _rows(NOT_ESCAPE, "me_powers", "the absorbed detection when the stairs are needed and unknown",
       "me-power:stairs-needed-and-unknown:*")
+_rows(NOT_ESCAPE, "me_powers", "the absorbed area mapping when seen loot has no known way to it "
+      "(owner 2026-11-13 「経路が見つからない時に周辺感知を使う」)", "me-power:loot-unreachable:*")
 
 # ================================================================ answered by the owner 2026-11-09
 # The registry report's questions (「ダンジョンの分だけ数える」): Q1 and Q2 count (above); these do not.
