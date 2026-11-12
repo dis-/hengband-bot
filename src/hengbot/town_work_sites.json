@@ -2836,6 +2836,19 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_safe_now.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "loot-exploration",
+      "quest-service",
+      "quest-buy",
+      "home-withdraw",
+      "store-approach",
+      "destruction"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_summoner_shots.py:key": {
     "classification": "adapter",
     "rows": [

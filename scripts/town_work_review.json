@@ -17994,5 +17994,22 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "ladder_safe_now.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "loot-exploration",
+      "quest-service",
+      "quest-buy",
+      "home-withdraw",
+      "store-approach",
+      "destruction"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The safe-now layer of _decide moved verbatim (maintainability review step 8): _survival_gate_key#2, status_cure.dungeon_unseen_blow_key, status_cure.dungeon_wait_for_sight_key, _mana_food_loot_key, me_powers.power_key FLOOR, area_mapping.after_destruction_key, area_mapping.picked_up_scroll_key, quest_target_search.detection_key, magic_eater.absorb_key, junk_destroy_now.destroy_now_key and consumable_policy.use_now_key, entries through _town_producer_entry as in _decide; the first key returned, else dungeon_ladder.PASS. The rows are its children's. Selected child inherits work; no independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
