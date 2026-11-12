@@ -45,6 +45,12 @@ def _way_on(policy, snapshot, start: Position, closed: frozenset, *,
     return False
 
 
+def encloses(policy, snapshot) -> bool:
+    """Whether the vetoes leave the player, where it stands, no way on: no remembered frontier
+    and no stair the stuck walk would take is reached by a walk that avoids every veto."""
+    return not _way_on(policy, snapshot, snapshot.player.position, frozenset())
+
+
 def seals(policy, snapshot, cell: Position, step: Position) -> bool:
     """Whether vetoing ``cell`` leaves the player, stepping onto ``step``, no way on that
     the retreats' vetoes (this one with them) would otherwise leave open."""
