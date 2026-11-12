@@ -4859,6 +4859,35 @@ class CombatMixin:
             and not (grid.allows_los or grid.passable)
         )
 
+    def _stops_player_projection(self, snapshot: Snapshot, position: Position) -> bool:
+        """A known grid that stops the player's own bolt, beam or shot: no PROJECTION.
+
+        ``_may_block_projection`` reads LOS without PROJECTION (glass) as open, an
+        over-estimate of a monster's reach.  Read for the player's own reach the same
+        over-estimate is a shot that cannot land: a glass wall (or a closed glass door)
+        stops it (projection-path-calculator.cpp:94).  n1-c life-205 (2026-11-13, ガラスの城
+        60F): three ノーム・メイジ in a pocket walled with glass were judged killable from
+        a shooting cell across the glass (the immobile summoner zone withdrawn there and
+        laid again one step on) and a Teleport Away was aimed through the glass until the
+        loop detector."""
+        if self._may_block_projection(snapshot, position):
+            return True
+        grid = snapshot.grid_at(position)
+        return (grid is not None and grid.known
+                and grid.terrain_id in getattr(self, "_los_only_terrain_ids", frozenset()))
+
+    def _player_may_project(
+        self, snapshot: Snapshot, source: Position, target: Position
+    ) -> bool:
+        """``_may_project`` for the player's own projection (``_stops_player_projection``)."""
+        if source == target:
+            return True
+        path = projection_path(
+            source, target, MONSTER_SPELL_MAX_RANGE,
+            lambda position: self._stops_player_projection(snapshot, position),
+        )
+        return bool(path) and path[-1] == target
+
     def _may_project(
         self, snapshot: Snapshot, source: Position, target: Position
     ) -> bool:

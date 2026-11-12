@@ -98,7 +98,7 @@ def _shooting_cell(policy, snapshot, monster: MonsterState, grid) -> bool:
     distance = grid.position.distance_to(monster.position)
     return (grid.passable and not grid.has_monster
             and 2 <= distance <= RANGED_MAX_DISTANCE
-            and policy._may_project(snapshot, grid.position, monster.position))
+            and policy._player_may_project(snapshot, grid.position, monster.position))
 
 
 def _others_present(policy, snapshot, target: MonsterState) -> bool:
@@ -234,9 +234,27 @@ def blocks_the_way(policy, snapshot, monster: MonsterState) -> bool:
     return _in_maze(policy, snapshot) and _blocked_sides(policy, snapshot, monster) is not None
 
 
+def _key_plan(policy, snapshot, monster: MonsterState) -> KillPlan | None:
+    """The kill ``key`` carries out for ``monster``, else None: a kept-away never-moving
+    one (``key`` shoots no other), not left alone (disenchant_avoid.left_alone), with a
+    safe ranged kill (``plan``).  The one rule both ``key`` and ``killable`` read."""
+    if (not kept_away(policy, snapshot, monster)
+            or disenchant_avoid.left_alone(policy, snapshot, monster, closes_the_way)):
+        return None
+    return plan(policy, snapshot, monster)
+
+
 def killable(policy, snapshot, monster: MonsterState) -> bool:
-    """The immobile summoner owner keeps no zone for a monster killed this way."""
-    return plan(policy, snapshot, monster) is not None
+    """The immobile summoner owner keeps no zone for a monster ``key`` kills (``_key_plan``).
+
+    A zone withdrawn for a monster ``key`` does not shoot hands its cells to every other
+    owner with nothing carrying the kill out.  n1-c life-205 (2026-11-13, ガラスの城60F):
+    three ノーム・メイジ (summoners that move, avoided because they did not come to the
+    choke: summoner_wait's expired wait); from (28,39) the two sensed by telepathy read as
+    killable (``plan`` alone), their zone was withdrawn and the exploration stepped '1' back
+    into (29,38), where the third was in view, the kill refused and the zone laid again
+    ('9' out), eight times up to the oscillation break."""
+    return _key_plan(policy, snapshot, monster) is not None
 
 
 def key(policy, snapshot) -> str | None:
@@ -248,10 +266,7 @@ def key(policy, snapshot) -> str | None:
     for monster in sorted(immobile_threat_memory.remembered(policy),
                           key=lambda monster: snapshot.player.position.distance_to(
                               monster.position)):
-        if (not kept_away(policy, snapshot, monster)
-                or disenchant_avoid.left_alone(policy, snapshot, monster, closes_the_way)):
-            continue
-        found = plan(policy, snapshot, monster)
+        found = _key_plan(policy, snapshot, monster)
         if found is None:
             continue
         answer = _carry_out(policy, snapshot, found, visible)

@@ -4,8 +4,9 @@ Owner 2026-11-13 (n1-b life-378, Quest 25): 「全滅クエストで作戦を完
 敵を探す。感知を持っていれば感知して敵を探す。」  Every fixed KILL_ALL quest (QuestKindType
 KILL_ALL, type 6: lib/edit/quests 1, 2, 10-13, 16, 19-23, 25, 27, 29-34) is won only when every
 monster on the floor is dead (quest.cpp check_quest_completion).  When the approved plan of such a
-floor has no step left (``_quest_execute_key`` answered None, the navigator's
-``quest:blocked:execute``), this rung takes over:
+floor has ended -- no step left (``_quest_execute_key`` answered None, the navigator's
+``quest:blocked:execute``) and no phase of it still running (``_plan_running``) -- this rung takes
+over:
 
  1. a hostile known (seen, detected, or by telepathy, ESP shows it as detected): beside the player
     the blow, else the walk to it (the fight then goes by the floor's ordinary combat rungs);
@@ -65,9 +66,22 @@ def _memory(policy, snapshot) -> Patrol:
     return patrol
 
 
+def _plan_running(policy, snapshot) -> bool:
+    """A plan of this floor with a phase still running owns every move of it: its own step, else
+    none, never this patrol's (the patrol is the owner's 「作戦を完了しても終了しない場合」).
+
+    n1-b life-382 (2026-11-13 05:38-05:39, Quest 25): the tome phase answered one board ('8' from
+    [7,6], '4' from [4,8]) and nothing on the next, this rung walked that one back ('2' from [6,6],
+    '6' from [4,7]), and the two alternated until the loop guard stopped the bot twice.  Q25 asks
+    this rung itself once its last phase ended (quest25_battle._after_the_phases)."""
+    from hengbot import quest25_battle   # the plan imports this module
+
+    return quest25_battle.phases_left(policy, snapshot)
+
+
 def key(policy, snapshot) -> str | None:
-    """The rung's key on a KILL_ALL floor whose plan has no step; None elsewhere."""
-    if not applies(policy, snapshot):
+    """The rung's key on a KILL_ALL floor whose plan has ended; None elsewhere."""
+    if not applies(policy, snapshot) or _plan_running(policy, snapshot):
         return None
     patrol = _memory(policy, snapshot)
     _settle_detection(patrol, snapshot)

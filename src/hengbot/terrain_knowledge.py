@@ -41,6 +41,20 @@ def load_damaging_terrain_elements(path: Path) -> dict[int, str]:
     }
 
 
+def load_los_only_terrain_ids(path: Path) -> frozenset[int]:
+    """Terrain seen through that stops a projection: LOS without PROJECTION (the glass
+    walls and closed glass doors).  The board carries LOS and MOVE only, and
+    projectable() stops a bolt on a grid without PROJECTION
+    (projection-path-calculator.cpp:94)."""
+    data = json.loads(_strip_jsonc(path.read_text(encoding="utf-8")))
+    return frozenset(
+        int(terrain["id"])
+        for terrain in data.get("terrains", [])
+        if "LOS" in terrain.get("flags", [])
+        and "PROJECTION" not in terrain.get("flags", [])
+    )
+
+
 def load_deep_damaging_terrain_ids(path: Path) -> frozenset[int]:
     """Damaging terrain that still hurts a levitating player: deal_damege_by_feat
     (hp-mp-processor.cpp) deals DEEP terrain's damage to everyone, a fifth of it while
@@ -52,6 +66,17 @@ def load_deep_damaging_terrain_ids(path: Path) -> frozenset[int]:
         if "DEEP" in terrain.get("flags", [])
         and STANDING_DAMAGE_ELEMENTS.keys() & set(terrain.get("flags", []))
     )
+
+
+def load_terrain_facts(path: Path) -> dict[str, object]:
+    """Every HengbotPolicy keyword argument the terrain definitions give, by name: the
+    live cli and the recorded-board harness build the policy from this one call."""
+    return {
+        "damaging_terrain_ids": load_damaging_terrain_ids(path),
+        "damaging_terrain_elements": load_damaging_terrain_elements(path),
+        "deep_damaging_terrain_ids": load_deep_damaging_terrain_ids(path),
+        "los_only_terrain_ids": load_los_only_terrain_ids(path),
+    }
 
 
 def find_terrain_definitions(state_file: Path) -> Path | None:

@@ -12,7 +12,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import me_powers, sleeper_loot_block, sleeper_reach_memory
+from hengbot import full_pack_exchange, loot_frontier, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -1448,6 +1448,12 @@ class IdentificationMixin:
         candidates -= self._deferred_loot
         candidates -= getattr(self, "_unseen_deferred_loot", set())
         candidates -= self._engagement_avoid_cells
+        # Owner 2026-11-13 「遠い品は拾ってよい」: with only a remembered summoner, the items near
+        # its last cell stay blocked (summoner_far_loot).
+        if (summoner_far_loot.remembered_summoners(self, snapshot)
+                and summoner_far_loot.waived(self, snapshot, self._strategic_hostiles(snapshot))):
+            candidates = {position for position in candidates
+                          if not summoner_far_loot.near(self, snapshot, position)}
         # A pile the town's slot budget refuses to step on is no target: the
         # walk came back to it each time it left the light, away from the shop
         # route (n1-c life-123 2026-11-04 04:33, owner-retired-burst).
@@ -1734,6 +1740,11 @@ class IdentificationMixin:
                     self._declare_reach(step_target)
                     return self._step_toward(snapshot, step)
         blocker = self._loot_block_reason(snapshot, hostiles)
+        if blocker == "pack-full":
+            # Owner 2026-11-13 「価値の低い品を捨てて拾う」 (full_pack_exchange).
+            exchange = full_pack_exchange.key(self, snapshot, hostiles)
+            if exchange is not None:
+                return exchange
         if blocker is not None:
             if blocker == "paralyzer-ring":
                 guarded_loot = (
@@ -1767,6 +1778,10 @@ class IdentificationMixin:
             through=self._loot_route_hostile_cells(hostiles),
         )
         if step is None:
+            if max_path_distance is None:
+                # Owner 2026-11-13 「その品の方へ探索を寄せる」: the explore plans toward it
+                # (loot_frontier).
+                loot_frontier.note(self, snapshot, self._loot_candidates(snapshot))
             return None
         self.last_reason = seek_reason
         self._declare_reach(self._loot_target)
@@ -1793,9 +1808,9 @@ class IdentificationMixin:
         )
 
     def _loot_block_reason(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
+        self, snapshot: Snapshot, hostiles: list[MonsterState], *, ignore_pack: bool = False,
     ) -> str | None:
-        if len(snapshot.inventory) >= PACK_CAPACITY:
+        if not ignore_pack and len(snapshot.inventory) >= PACK_CAPACITY:
             return "pack-full"
         if self._physical_adjacent_hostiles(snapshot):
             return "adjacent-hostile"
@@ -1805,7 +1820,8 @@ class IdentificationMixin:
         # [29,47] from [40,38] and walked approach-descent '1' to [41,37], out of its sight,
         # where seek-loot stepped '9' straight back, until the loop detector.
         out_of_sight = sleeper_reach_memory.remembered(self, snapshot)
-        if any(monster.can_summon for monster in (*hostiles, *out_of_sight)):
+        if any(monster.can_summon for monster in (*hostiles, *out_of_sight)) and not (
+                summoner_far_loot.waived(self, snapshot, hostiles)):
             return "summoner-visible"
         if any(monster.can_multiply for monster in (*hostiles, *out_of_sight)):
             return "multiplier-visible"

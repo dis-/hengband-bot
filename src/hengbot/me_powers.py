@@ -235,7 +235,8 @@ POWERS = (
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
           MAP_AREA, DETECT_RAD, 30,
-          ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket"),
+          ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket",
+           "loot-unreachable"),
           fallback=("staff", SV_STAFF_DETECT_DOOR), beside_harmless=True),
     # The same effect (cmd-zaprod.cpp:102), asked only where the owner named 周辺感知.
     Power("rod", SV_ROD_MAPPING, me_capability.names("rod", SV_ROD_MAPPING),
@@ -359,7 +360,8 @@ def beam_direction(policy, snapshot, origin: Position, target: Position) -> str 
     project_hook aims one grid away in the direction with PROJECT_THRU
     (spell-kind/spells-launcher.cpp:262-267, floor/geometry.h:203-210), so the
     beam runs the straight line up to get_max_range(); a known grid that stops
-    a projection ends it (policy._may_block_projection).
+    the player's projection ends it (policy._stops_player_projection: a glass wall
+    too).
     """
     dy, dx = target.y - origin.y, target.x - origin.x
     if (dy, dx) == (0, 0) or not (dy == 0 or dx == 0 or abs(dy) == abs(dx)):
@@ -367,7 +369,7 @@ def beam_direction(policy, snapshot, origin: Position, target: Position) -> str 
     step = ((dy > 0) - (dy < 0), (dx > 0) - (dx < 0))
     path = projection_path(
         origin, Position(origin.y + step[0], origin.x + step[1]), MONSTER_SPELL_MAX_RANGE,
-        lambda position: policy._may_block_projection(snapshot, position), through=True)
+        lambda position: policy._stops_player_projection(snapshot, position), through=True)
     return DIRECTION_KEYS[step] if target in path else None
 
 
@@ -402,6 +404,21 @@ def _stairs_needed_and_unknown(ctx, power):
         return False
     needed = _needed_stairs(ctx)
     return needed is not None and not _stairs_known(ctx, needed)
+
+
+def _loot_unreachable(ctx, power):
+    """Owner 2026-11-13 「経路が見つからない時に周辺感知を使う」: the loot walk found loot it saw with
+    no known way to it on the last boards (loot_frontier), and no earlier use mapped here."""
+    from hengbot import loot_frontier
+
+    radius = ctx.radius(power)
+    if any(ctx.distance(use.position) < radius for use in ctx.uses_of(power)):
+        return False
+    return loot_frontier.unreachable_recently(ctx.policy, ctx.snapshot, LOOT_UNREACHABLE_GAME_TURNS)
+
+
+# The loot walk's note stays fresh for one player turn at normal speed and a few boards beyond.
+LOOT_UNREACHABLE_GAME_TURNS = 30
 
 
 def _before_rest(ctx, power):
@@ -711,6 +728,8 @@ class Trigger:
 TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("new-floor", frozenset({FLOOR}), _new_floor),
     Trigger("stairs-needed-and-unknown", frozenset({FLOOR}), _stairs_needed_and_unknown),
+    # Owner 2026-11-13 named 周辺感知: its Door/Stairs fallback does not map.
+    Trigger("loot-unreachable", frozenset({FLOOR}), _loot_unreachable, takes_fallback=False),
     Trigger("before-rest", frozenset({REST}), _before_rest),
     Trigger("before-secret-search", frozenset({SECRET_SEARCH}), _before_secret_search),
     Trigger("left-detected-trap-area", frozenset({FLOOR}), _left_detected_trap_area),
