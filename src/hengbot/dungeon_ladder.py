@@ -302,6 +302,7 @@ LAYER_MODULES = {
     "summoner-shots": "ladder_summoner_shots",
     "floor-avoidance": "ladder_floor_avoidance",
     "light": "ladder_light",
+    "plan-approved-quest": "ladder_plan_approved_quest",
 }
 
 # After the ladder has answered, _choose_key passes its key through these, in order; each may

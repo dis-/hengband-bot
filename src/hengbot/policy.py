@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_plan_above_survival, ladder_summoner_shots, warning_cell_record
+from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -7789,72 +7789,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if restore is not None:
                 return restore
 
-        if profile is not None:
-            # Approved-floor survival remains above the navigator. Keeping this
-            # scoped to the quest branch preserves byte-for-byte dispatch order
-            # on every non-quest floor.
-            survival = self._town_producer_entry("_survival_gate_key#1", lambda: self._survival_gate_key(snapshot, physical_hostiles))
-            if survival is not None:
-                return survival
-            # Approved quest navigation owns the whole floor and returns before
-            # the ordinary light-maintenance block below. Refill during a quiet
-            # turn so a long fixed-map sweep cannot consume every remaining turn
-            # of lantern fuel while oil is already in the pack.
-            if not physical_hostiles and not player.confused:
-                refill = self._light_refill_item(snapshot)
-                if refill is not None:
-                    self.last_reason = "refill-light"
-                    return reserved_item_command(self, snapshot, "refill", refill)
-            info = self._quest_knowledge.get(profile.quest_id)
-            if info is None or info.battlefield is None:
-                self.last_reason = "quest:blocked:enter"
-                return WAIT_KEY
-            navigator = self._quest_navigators.setdefault(
-                profile.quest_id,
-                QuestFloorNavigator(profile.quest_id, info.battlefield),
-            )
-            snapshot = navigator.with_loot_memory(snapshot)
-            quest = snapshot.quests.get(profile.quest_id)
-            completed = quest is not None and quest.status == QUEST_STATUS_COMPLETED
-            if not completed and self._chest_position is not None:
-                # A quiet observation is not a cleared quest. Chest approach
-                # can reveal an enemy and yield to EXECUTE, whose survey then
-                # retreats and hides that enemy, restarting the chest approach.
-                self._release_claim_goal(
-                    "chest-deferred-quest-incomplete", owners=CLAIM_LOOT_OWNERS
-                )
-                self._chest_position = None
-                self._chest_phase_counts = {}
-                self._chest_collecting = False
-                self._chest_preopen_objects = None
-            if completed and not physical_hostiles:
-                # Fixed-quest sweep would otherwise treat a chest as generic
-                # loot and carry it out unopened. Process it on this floor so
-                # only Chest::open() contents enter the pack.
-                chest = self._town_producer_entry("_chest_processing_key#1", lambda: self._chest_processing_key(
-                    snapshot,
-                    physical_hostiles,
-                    preferred_position=Position(*profile.engagement_plan["chest_position"])
-                    if profile.engagement_plan.get("chest_position") is not None
-                    else None,
-                ))
-                if chest is not None:
-                    # Chest work temporarily owns movement/search turns. The
-                    # previous sweep goal must not expire as stalled while we
-                    # deliberately process a different floor object.
-                    if self._loot_target is not None:
-                        self._release_claim_goal(
-                            "loot-chest-processing", self._loot_target, owners=CLAIM_LOOT_OWNERS
-                        )
-                        self._nav_ledger.release("loot", self._loot_target)
-                        self._loot_target = None
-                    return chest
-            tick_rest = once_quest_recall.tick_rest_before_navigator(self, snapshot)
-            if tick_rest is not None:
-                return tick_rest
-            return self._town_producer_entry("navigator.decide", lambda: navigator.decide(
-                self, snapshot, strategic_hostiles, strategic_adjacent
-            ))
+        # The plan-approved-quest layer: an approved quest floor's navigator owns the whole floor
+        # (ladder_plan_approved_quest).
+        approved_quest = ladder_plan_approved_quest.key(
+            self,
+            snapshot,
+            profile=profile,
+            strategic_hostiles=strategic_hostiles,
+            strategic_adjacent=strategic_adjacent,
+            physical_hostiles=physical_hostiles,
+        )
+        if approved_quest is not PASS:
+            return approved_quest
 
         # D45: a combat hand the digger swap left empty goes back before any
         # fight rung below takes the turn (mining_loadout.py).  An approved
