@@ -149,7 +149,7 @@ class TownWeightTorch1112RecordedTest(unittest.TestCase):
         """
         policy, recorded, steps = self.load()
         self.assertEqual(recorded[WITHDRAW_ROW]["reason"], "equipment-transaction:withdraw")
-        with patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset()):
+        with patch.object(torch_release, "CROSSBOW_SVALS", frozenset()):
             self.replay_live(policy, recorded, steps[:WITHDRAW_ROW])
             board = steps[WITHDRAW_ROW][1]()
             key = policy.choose_key(board)

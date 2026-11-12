@@ -13421,6 +13421,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "torch_release.py:is_crossbow": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:light_wearable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "torch_release.py:released": {
     "classification": "data",
     "rows": [
@@ -13436,6 +13450,20 @@
     "delegation": "selected child; no independent success"
   },
   "torch_release.py:throwing_torch_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:wearable_light": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:worn_launcher": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

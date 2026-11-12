@@ -31,6 +31,7 @@ import tests  # noqa: F401 -- live runtime-file isolation
 import gzip
 import hashlib
 import unittest
+from hengbot import torch_release
 from unittest import mock
 from dataclasses import replace
 from pathlib import Path
@@ -229,6 +230,10 @@ class LightRootFixQ2RecordedTest(unittest.TestCase):
         )
         self.assertEqual(self._entry_reason(board), "ready")
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_faint_torch_without_refill_or_swap_still_releases_quest(self):
         board = self._with_torch(self._board(2))
         self.assertTrue(self.policy._light_judgment(board).releases_one_shot_quest)

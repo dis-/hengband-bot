@@ -11,7 +11,7 @@ from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
-from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
+from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 
 from collections import Counter, deque
 import random
@@ -4772,6 +4772,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._pending_mutation_report = released or discarded
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         self._observe_town_equipment_work(snapshot)
+        if torch_release.torch_worn_with_crossbow(self, snapshot):
+            # Owner 2026-11-13 「装備していたら停止して報告」: a final stop, nothing is sent
+            # (no key: a town wait on an entrance would be rewritten into a step-off).
+            self.last_reason = torch_release.STOP_REASON
+            return None
         # A restarted process reads the absorbed-power lists it lacks first (turn-free).
         from hengbot.me_powers_refresh import resume_read_key
         resumed = resume_read_key(self, snapshot)
@@ -10309,6 +10314,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             (
                 item for item in snapshot.inventory
                 if self._is_usable_light(item)
+                and torch_release.light_wearable(snapshot, item)
                 and not self._equip_blocked_by_identification(item)
             ),
             key=self._light_rank,
@@ -10325,7 +10331,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if snapshot.in_town:
             return self._town_q34_lantern(snapshot)
         return max(
-            (item for item in snapshot.inventory if item.is_light and not item.known),
+            (item for item in snapshot.inventory if item.is_light and not item.known
+             and torch_release.light_wearable(snapshot, item)),
             key=self._light_rank,
             default=None,
         )
@@ -10568,6 +10575,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 for item in snapshot.inventory
                 if item.is_light
                 and item.sval == SV_LITE_TORCH
+                and torch_release.light_wearable(snapshot, item)
                 and not self._equip_blocked_by_identification(item)
                 and item.fuel > 0
             ),

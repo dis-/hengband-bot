@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from hengbot import __version__ as HENGBOT_VERSION
-from hengbot import spare_gear
+from hengbot import spare_gear, torch_release
 
 _CONTROL_OWNER_HANDLES: dict[int, object] = {}
 _TOWN_IDLE_D0_SESSION_ID = uuid.uuid4().hex
@@ -916,6 +916,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "quest:blocked:me-staff": "the Magic-Eater staff sequence cannot continue; inspect _me_staff_sequence.failure in the policy checkpoint",
         "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
         "wilderness:no-safe-route": "global-map route to town is unavailable",
+        torch_release.STOP_REASON: "a torch is worn beside a crossbow (owner 2026-11-13: never wear a torch with a crossbow; stop and report)",
     }
     return f"<{reason}> {messages[reason]}; stopping the bot for investigation"
 # Relocated from the travel-guard block: assert against the real constant so

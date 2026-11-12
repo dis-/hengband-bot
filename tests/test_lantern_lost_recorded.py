@@ -24,6 +24,8 @@ import gzip
 import hashlib
 import json
 import unittest
+from unittest import mock
+from hengbot import torch_release
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -131,6 +133,10 @@ class LanternLostRecordedTest(unittest.TestCase):
         choose_past_junk_key(policy, board)
         self.assertEqual(policy.last_reason, "return:explore")
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_control_torch_only_character_keeps_the_torch_rules(self):
         policy, board = self._return_walk()
         torch = next(item for item in board.inventory if item.is_torch)
@@ -165,6 +171,10 @@ class LanternLostRecordedTest(unittest.TestCase):
 
     # declared wall: pre-2026-10-21 town junk step
     @pre_town_junk_step_replay
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_recorded_town_board_keeps_the_empty_lantern(self):
         policy, board = self._board(1)
         board = _without_table_discards(policy, board)

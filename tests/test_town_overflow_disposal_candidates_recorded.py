@@ -33,7 +33,7 @@ class TownOverflowDisposalCandidatesRecordedTest(unittest.TestCase):
     # The board wears a light crossbow over a lantern: this pin is the torch carry
     # without the owner's 2026-11-12 release (torch_release; pinned on its own in
     # test_town_weight_torch_1112_recorded).
-    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
+    @patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_captured_stop_releases_only_surplus_candidates(self):
         record, = self.records
         self.assertEqual(record["capture"], "20261017-212641")
@@ -96,7 +96,7 @@ class TownOverflowDisposalCandidatesRecordedTest(unittest.TestCase):
     # The board wears a light crossbow over a lantern: this pin is the torch carry
     # without the owner's 2026-11-12 release (torch_release; pinned on its own in
     # test_town_weight_torch_1112_recorded).
-    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
+    @patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     @pre_junk_scope_replay
     def test_constructed_torch_surplus_uses_existing_carry_target(self):
         record, = self.records

@@ -106,7 +106,7 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
     # The board wears a light crossbow over a lantern: this pin is the torch carry
     # without the owner's 2026-11-12 release (torch_release; pinned on its own in
     # test_town_weight_torch_1112_recorded).
-    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
+    @patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_recorded_retained_stop_is_named_and_records_its_numbers(self):
         policy, snapshot = self.replay(0)
         self.assertEqual((snapshot.turn, policy._inventory_weight(snapshot),
