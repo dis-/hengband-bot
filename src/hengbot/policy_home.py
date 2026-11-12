@@ -2394,6 +2394,10 @@ class HomeMixin:
             # destroyed -- up to the two that are enough (a wand picked up
             # unseen stacks into it; the third is surplus).
             return min(item.count, WONDER_HOLD_LIMIT), "mana-food:staple"
+        from hengbot.magic_eater_devices import drained_staple_food
+        if drained_staple_food(self, snapshot, item):
+            # The drained staple's food in its place (magic_eater_devices).
+            return item.count, "mana-food:drained-staple"
         signature = self._item_signature(item)
         obsolete_oil = item.is_oil and self._owns_usable_permanent_light(snapshot)
         capped_emergency_potion = (
