@@ -17886,5 +17886,17 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "ladder_summoner_shots.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "combat",
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The summoner-shots layer of _decide moved verbatim (maintainability review step 8): unless return_yield.quiet_recall_due or summon_response.action_due, worsens_kill.key, then _summoner_ranged_kill_key through _town_producer_entry as in _decide; the first key returned, else dungeon_ladder.PASS. The rows are its children's. Selected child inherits work; no independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

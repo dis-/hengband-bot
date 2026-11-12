@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_floor_avoidance, ladder_global_map, ladder_light, warning_cell_record
+from hengbot import ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -7797,21 +7797,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if paralyzer_prevention is not None:
             return paralyzer_prevention
 
-        # Threat tiers plan step 11 (design 4.4, 10a): a summoner, breeder or shrieker that
-        # dies 被害無く is killed first, directly above the summoner shots (D2).
-        if not (return_yield.quiet_recall_due(self, snapshot)
-                or summon_response.action_due(self, snapshot)):
-            worsens = worsens_kill.key(self, snapshot, emergency_hostiles)
-            if worsens is not None:
-                return worsens
-
-        # Owner 2026-11-06 「命に関わる時の後へ回す」: the emergency ladder above
-        # answers first, then the last shots at a summoner.
-        summoner_ranged = None if return_yield.quiet_recall_due(self, snapshot) or summon_response.action_due(self, snapshot) else self._town_producer_entry("_summoner_ranged_kill_key", lambda: self._summoner_ranged_kill_key(
-            snapshot, emergency_hostiles
-        ))
-        if summoner_ranged is not None:
-            return summoner_ranged
+        # The summoner-shots layer: what dies 被害無く, then the last shots at a summoner
+        # (ladder_summoner_shots).
+        summoner_shots = ladder_summoner_shots.key(
+            self, snapshot, emergency_hostiles=emergency_hostiles)
+        if summoner_shots is not PASS:
+            return summoner_shots
 
         # The floor-avoidance layer: the owner's floor rules, the unseen retreat, the dug
         # pocket and the detected-threat preparation (ladder_floor_avoidance).

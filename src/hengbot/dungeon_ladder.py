@@ -296,6 +296,7 @@ PASS = _Pass()
 # of its own layer only.
 LAYER_MODULES = {
     "global-map": "ladder_global_map",
+    "summoner-shots": "ladder_summoner_shots",
     "floor-avoidance": "ladder_floor_avoidance",
     "light": "ladder_light",
 }
