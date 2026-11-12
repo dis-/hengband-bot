@@ -13000,6 +13000,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "More than max_simultaneous_melee beside the player: the step back toward a choke; no independent progress."
   },
+  "quest_find_exit.py:_back_to_a_spent_choke": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "On a shouted cell with an enemy coming in view, the step back toward a choke spent by its quiet wait (owner 2026-11-12); no independent progress."
+  },
   "quest_find_exit.py:key": {
     "classification": "producer",
     "rows": [

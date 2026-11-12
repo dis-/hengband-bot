@@ -18,11 +18,11 @@
 
 ## 別の受注条件と出口型クエスト
 
-`required_force.force_alternatives` は受注条件の別の行を並べる（`required_force` 自身が最初の行）。各行は `min_hp`、`min_expected_dps`、`heal_potions`、`speed_potions` を持ち、任意で `speed_alternatives`（`gear_speed_bonus`、`absorbed_charges`）と `always_hasted` を持つ。読み方は `quest_force_rows.py` の1か所だけ。`required_force.floors_replace_projection: true` は、行そのものを受注の判定とし、共通の3ターン予測と撃破時間の検査を使わないことを表す（階層の要求と帰還の巻物の所持は確かめる）。
+`required_force.force_alternatives` は受注条件の別の行を並べる（`required_force` 自身が最初の行）。各行は `min_hp`、`min_expected_dps`、`heal_potions`、`speed_potions` を持ち、任意で `speed_alternatives`（`gear_speed_bonus`、`absorbed_charges`）と `always_hasted` を持つ。読み方は `quest_force_rows.py` の1か所だけ。`required_force.speed_required_to_depart: true` は、行の加速の手段（スピードの薬の数、または取り込んだスピードの回数）を受注だけでなく入口へ入る時にも確かめ、足りなければ入らずに町で揃えることを表す。`required_force.floors_replace_projection: true` は、行そのものを受注の判定とし、共通の3ターン予測と撃破時間の検査を使わないことを表す（階層の要求と帰還の巻物の所持は確かめる）。
 
 `engagement_plan.no_teleport: true` は、その階でテレポートと短距離テレポートの巻物をどの場面でも読まないことを表す（`quest_no_teleport.py`）。
 
-出口を踏むと達成する FIND_EXIT 型は `engagement_plan.find_exit` に `choke_cells`、`choke_hold_turns`（来る敵のいない待ちの上限）、`choke_enemy_wait_turns`（見えたまま接触しない敵を待つ上限）、`rest_below_ratio`、`exposure_races`、`dig_cells`、`dig_attempt_limit`、`clear_turn_limit` を書き、`sealed_races` に経路の届かない敵を書く（`quest_find_exit.py`）。
+出口を踏むと達成する FIND_EXIT 型は `engagement_plan.find_exit` に `choke_cells`、`choke_hold_turns`（来る敵のいない待ちの上限）、`choke_enemy_wait_turns`（見えたまま接触しない敵を待つ上限）、`rest_below_ratio`、`exposure_races`、`dig_cells`、`dig_attempt_limit`、`clear_turn_limit` を書き、`sealed_races` に経路の届かない敵を書く（`quest_find_exit.py`）。`exposure_races` の叫びの届くマスは地図から導く。任意で `pull_races`（テレポート・バックで引くので通行禁止にする種族、省くと `exposure_races` 全部）と `aimed_off_reach`（種族ごとの、隣のマスを狙う叫びが届く最大の距離。視覚 `vision` より遠くでは見えるマスにいる時しか動かない種族に書く）を書く（`quest_exposure.py`）。
 
 全滅が達成条件の階を部屋ごとに歩く型は `engagement_plan.room_sweep` に `stands`（順に歩くマス、任意で `meet_turns`）、`last_targets`（`race`、`cell`、`door`、`stand`。ほかを歩き終えてから扉を開けて撃つ）、`line_races`（直接の射線を避ける動かない術者）、`enemy_wait_turns`、`rest_below_ratio`、`max_rounds` を書く（`quest_room_sweep.py`）。`abort_conditions.recall_below_teleports` は、HP の線の代わりにテレポートの巻物の残りで帰還を決めることを表す（敵がいる時だけ読む）。
 

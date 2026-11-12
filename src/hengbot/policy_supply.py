@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
-from hengbot import heroism_potion, torch_release, town_pack_headroom
+from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -32,7 +32,7 @@ from hengbot.policy_constants import (
     EMERGENCY_POTION_CARRY_TARGET, LANTERN_DIM_WARNING_FUEL,
     LANTERN_REFILL_FUEL, LEAVE_STORE_KEY, MANA_FOOD_CHARGE_TARGET,
     MANA_FOOD_DEVICE_TARGET, OIL_TARGET,
-    PACK_CAPACITY, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
+    PACK_CAPACITY, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
     STARVING_FOOD_STATES, SUMMONER_CHOKE_NEIGHBORS, SUPPLY_LABEL_KINDS, SUPPLY_STORES,
     TELEPORT_REQUIRED_DEPTH,
@@ -1492,12 +1492,22 @@ class SupplyMixin:
             return None
         target = EMERGENCY_POTION_CARRY_TARGET
         if strategy is not None:
-            target = min(
-                EMERGENCY_POTION_CARRY_TARGET,
-                max(target, int(strategy.required_force.get(force_key, 0))),
-            )
+            # A strategy asking more than the emergency carry keeps its own count (QUEST_18's
+            # twelve Speed potions, owner 2026-11-12 「加速手段を十分数確保することを必須に
+            # する。」): kept below it, the withdrawal and the departure would ask for different
+            # counts.  Below the emergency carry nothing changes.
+            target = max(target, int(strategy.required_force.get(force_key, 0)))
             return target, f"carry-strategy:{label}"
         return target, f"emergency-potion:{label.removesuffix('-potions')}"
+
+    def _taken_departs_with_speed(self, quest) -> bool:
+        """A taken quest whose entry asks its Speed doses (quest_force_rows.DEPART_FLAG): its
+        kit is still procured, or the refused entry would wait for doses nobody buys."""
+        if quest.status != QUEST_STATUS_TAKEN:
+            return False
+        profile = self.approved_quest_strategy(quest.id)
+        return profile is not None and bool(
+            profile.required_force.get(quest_force_rows.DEPART_FLAG))
 
     def _carry_procurement_strategy(
         self, snapshot: Snapshot, *, cache_fixed_quest_head: bool = True
@@ -1514,7 +1524,8 @@ class SupplyMixin:
             else self._uncached_fixed_quest_head(snapshot)
         )
         if snapshot.player.level >= 10:
-            if quest is None or quest.status != QUEST_STATUS_UNTAKEN:
+            if quest is None or (quest.status != QUEST_STATUS_UNTAKEN
+                                 and not self._taken_departs_with_speed(quest)):
                 return None
             profile = self.approved_quest_strategy(quest.id)
         else:

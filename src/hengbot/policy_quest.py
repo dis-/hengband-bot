@@ -9,7 +9,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 
@@ -463,6 +463,10 @@ QUEST_LAUNCHER_AMMO_CARRIES = frozenset({
 
 # The Q34 door bounds count only picks the game did not answer as a failed pick.
 _unanswered_pick = locked_doors.unanswered_pick
+
+# A taken quest whose strategy asks its Speed doses to depart (quest_force_rows) short of them.
+SPEED_DEPARTURE_REFUSED_REASON = "quest:readiness:speed"
+
 
 class QuestMixin(OpeningRouteMixin):
     def _derived_home_visit_request(
@@ -1226,6 +1230,9 @@ class QuestMixin(OpeningRouteMixin):
                 reason = self._fixed_quest_readiness.get("reason", "unready")
                 self.last_reason = f"quest:readiness:{reason}"
             return ready
+        if quest_force_rows.departure_speed_short(self, snapshot, quest_id):
+            self.last_reason = SPEED_DEPARTURE_REFUSED_REASON
+            return False
         info = self._quest_knowledge.get(quest_id)
         quest = snapshot.quests.get(quest_id)
         depth = max(1, info.level if info is not None else quest.level if quest is not None else 1)

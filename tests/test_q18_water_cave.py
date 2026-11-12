@@ -34,6 +34,7 @@ from hengbot.quest_find_exit import (
 )
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
+from hengbot.quest_navigator import QuestFloorNavigator
 from tests.test_q14_heal_ccw_recorded import town_maps
 
 ROOT = Path(__file__).parents[1]
@@ -53,6 +54,14 @@ with gzip.open(ROOT / "tests" / "fixtures" / "q18-live-20261104.json.gz", "rt", 
     LIVE = {row["turn"]: row for row in json.load(_stream)["boards"]}
 ENTRANCE, EXIT, LAST_CELL = (1, 2), (1, 22), (1, 23)
 SQUID, SEAHORSE, SIREN, KRAKEN, SHARK = 482, 443, 1272, 775, 386
+SHRIEKER = 40
+
+
+def sirens_only():
+    """DECLARED CONSTRUCTED: the plan of 2026-11-04 to 11-11, the sirens' reach only.  The owner's
+    2026-11-12 「セイレーンと同じに扱う」 put the shriekers 40 in; the pins of a mechanism on a cell
+    they reach now ((1,10), (2,11), (3,20), (4,21)) keep the plan it was pinned on."""
+    return patch.dict(STRATEGIES[18].engagement_plan["find_exit"], {"exposure_races": [SIREN]})
 SV_PHASE, SV_TELEPORT, SV_RECALL = 8, 9, 11
 FULL_HP = 800
 AMMO_TVALS = {16, 17, 18}
@@ -195,6 +204,11 @@ DUG_ROUTE = [
     (1, 14), (1, 15), (1, 16), (1, 17), (2, 18), (1, 19), (2, 20), (3, 20), (4, 21), (4, 22), (5, 23),
     (5, 24), (5, 25), (4, 26), (3, 25), (2, 26), (1, 25), (1, 24), (1, 23), (1, 22)]
 EXPOSED_ON_DUG_ROUTE = [(2, 6), (1, 16), (1, 17), (2, 18), (5, 24), (5, 25), (4, 26)]
+# The plan's walk since the shriekers 40 count (owner 2026-11-12): from (3,20) by (4,21) and (5,22),
+# no more shouted cells than by (3,21)/(4,22) and the same steps.
+DUG_ROUTE_WITH_SHRIEKERS = [*DUG_ROUTE[:20], (4, 21), (5, 22), (5, 23), (5, 24), (5, 25), (4, 26), (3, 25),
+                            (2, 26), (1, 25), (1, 24), (1, 23), (1, 22)]
+SHRIEKER_CELLS_ON_DUG_ROUTE = [(1, 10), (2, 11), (3, 20), (4, 21)]
 # Every cell a shriek was recorded on, 2026-11-04 18:40-18:45 (n1-a 47, n1-b 76).
 RECORDED_SHRIEK_CELLS = {(4, 13): 47, (9, 21): 31, (15, 9): 17, (10, 21): 12, (14, 7): 11,
                          (4, 18): 2, (15, 8): 2, (11, 22): 1}
@@ -308,6 +322,11 @@ class Q18RecordedBoardsTest(unittest.TestCase):
         raw["player"].update(y=1, x=12)
         raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in AMMO_TVALS]
         raw["equipment"] = [item for item in raw["equipment"] if item["slot"] != "bow"]
+        # Owner 2026-11-12 「加速手段を十分数確保することを必須にする。」: every row is always
+        # hasted, so the coming seahorse is met with the haste on first.
+        self.assertEqual(decide(raw)[1], SPEED_REASON)
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if not (item["tval"] == TVAL_POTION and item["sval"] == SV_POTION_SPEED)]
         self.assertEqual(decide(raw)[:2], (WAIT_KEY, HOLD_REASON))
 
     def test_below_the_line_recall_is_still_read(self):
@@ -599,6 +618,7 @@ class Q18FarEnemyThatDoesNotComeTest(unittest.TestCase):
         self.assertEqual(rows[0][1:], (step_key((1, 8), (1, 9)), WALK_REASON))
         self.assertGreater(cells[-1][1], 12, rows)
 
+    @sirens_only()
     def test_control_a_far_seahorse_that_closes_in_still_sends_it_to_the_choke(self):
         """The same board with the seahorse closing one cell a turn: after two cells it comes,
         and the walk goes to the choke and keeps going on the shouted (2,7)."""
@@ -702,6 +722,7 @@ class Q18InViewThatDoesNotComeTest(unittest.TestCase):
                 position = (position[0] + delta[0], position[1] + delta[1])
         return rows, tripped
 
+    @sirens_only()
     def test_life_495_the_swordfish_that_does_not_come_does_not_rock_the_walk(self):
         rows, tripped = self.walk(80)
         self.assertIsNone(tripped, rows)
@@ -728,12 +749,14 @@ class Q18InViewThatDoesNotComeTest(unittest.TestCase):
             rows.append(policy.last_reason)
         return rows
 
+    @sirens_only()
     def test_in_view_fifty_actions_without_coming_it_has_no_route(self):
         wait = quest_find_exit.IN_VIEW_WAIT_ACTIONS
         rows = self.stay([(10, 13)] * (wait + 1))
         self.assertEqual(rows[:wait], [TO_CHOKE_REASON] * wait, rows)
         self.assertEqual(rows[wait], WALK_REASON, rows)
 
+    @sirens_only()
     def test_control_one_that_comes_nearer_counts_again(self):
         wait = quest_find_exit.IN_VIEW_WAIT_ACTIONS
         cells = [(10, 13)] * (wait - 5) + [(9, 16)] * 10
@@ -803,7 +826,7 @@ class Q18PlaythroughTest(unittest.TestCase):
             if position == EXIT:
                 break
         self.assertEqual(digs, [((2, 6), (1, 7)), ((5, 24), (5, 25))])
-        self.assertEqual(route, DUG_ROUTE)
+        self.assertEqual(route, DUG_ROUTE_WITH_SHRIEKERS)
         self.assertEqual(len(route) - 1, 31)
 
     def test_sealed_kraken_is_nothing_to_this_floor(self):
@@ -814,9 +837,10 @@ class Q18PlaythroughTest(unittest.TestCase):
         key, reason, _ = decide(board((1, 3), monsters=[monster(SQUID, 1, 4, asleep=True)]))
         self.assertEqual((key, reason), (step_key((1, 3), (1, 4)), MELEE_REASON))
 
+    @sirens_only()
     def test_an_awake_enemy_is_met_at_the_nearest_choke(self):
         far = monster(SHARK, 6, 10)
-        key, reason, _ = decide(board((2, 11), monsters=[far], ammo=False))
+        key, reason, _ = decide(board((2, 11), monsters=[far], ammo=False, speed=0))
         self.assertEqual((key, reason), (step_key((2, 11), (1, 12)), TO_CHOKE_REASON))
 
     def test_the_choke_holds_for_what_comes_and_shoots_first(self):
@@ -990,7 +1014,7 @@ class Q18AcceptanceTest(unittest.TestCase):
     (a worn weapon of that output is not in the recorded pack) and the resists are the
     recorded row with the six the strategy names set."""
 
-    def town(self, *, max_hp, healing=2, speed=1, resists=True, unhasted_speed=110):
+    def town(self, *, max_hp, healing=2, speed=12, resists=True, unhasted_speed=110):
         raw = board(max_hp=max_hp, hp=max_hp, healing=healing, speed=speed, teleports=False)
         raw["floor"].update(quest_id=0, level=0, in_town=True)
         raw["progress"]["quests"][0]["status"] = 0
@@ -1017,13 +1041,14 @@ class Q18AcceptanceTest(unittest.TestCase):
     def test_condition_one(self):
         ready, telemetry, force = self.verdict(self.town(max_hp=700), 150)
         self.assertTrue(ready, telemetry)
-        self.assertEqual((force["min_hp"], force["speed_potions"], force["heal_potions"]), (700, 1, 2))
-        self.assertFalse(force.get("always_hasted"))
+        # Owner 2026-11-12 「加速手段を十分数確保することを必須にする。」: twelve doses, always hasted.
+        self.assertEqual((force["min_hp"], force["speed_potions"], force["heal_potions"]), (700, 12, 2))
+        self.assertTrue(force["always_hasted"])
 
-    def test_condition_two_with_six_potions(self):
-        ready, telemetry, force = self.verdict(self.town(max_hp=500, speed=6), 75)
+    def test_condition_two_with_twelve_potions(self):
+        ready, telemetry, force = self.verdict(self.town(max_hp=500, speed=12), 75)
         self.assertTrue(ready, telemetry)
-        self.assertEqual((force["min_hp"], force["speed_potions"]), (500, 6))
+        self.assertEqual((force["min_hp"], force["speed_potions"]), (500, 12))
         self.assertTrue(force["always_hasted"])
 
     def test_condition_two_with_speed_from_gear(self):
@@ -1031,8 +1056,8 @@ class Q18AcceptanceTest(unittest.TestCase):
         self.assertTrue(ready, telemetry)
         self.assertEqual(force["speed_potions"], 0)
 
-    def test_condition_two_with_absorbed_speed_needs_six_charges(self):
-        for charges, accepted in ((6, True), (5, False)):
+    def test_condition_two_with_absorbed_speed_needs_twelve_charges(self):
+        for charges, accepted in ((12, True), (11, False)):
             with patch("hengbot.me_capability.replaced_by_absorbed", return_value=True), \
                     patch("hengbot.me_capability.charges", return_value=charges), \
                     patch("hengbot.speed_dose.available", return_value=True):
@@ -1042,10 +1067,10 @@ class Q18AcceptanceTest(unittest.TestCase):
 
     def test_controls_refuse(self):
         for raw, damage, failed in (
-            (self.town(max_hp=699), 150, "dps"),  # row 2's HP holds, its six potions do not
-            (self.town(max_hp=700), 149, "speed_potions"),
-            (self.town(max_hp=499, speed=6), 200, "hp"),
-            (self.town(max_hp=800, speed=6), 74, "dps"),
+            (self.town(max_hp=700, speed=11), 150, "speed_potions"),  # both rows ask twelve
+            (self.town(max_hp=500, speed=11), 75, "speed_potions"),
+            (self.town(max_hp=499), 200, "hp"),
+            (self.town(max_hp=800), 74, "dps"),
             (self.town(max_hp=800, healing=1), 200, "heal_potions"),
             (self.town(max_hp=800, resists=False), 200, "resists"),
         ):
@@ -1131,7 +1156,7 @@ class Q18TownTest(unittest.TestCase):
         snapshot = self.snapshot(policy, raw)
         with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=200.0):
             force = policy._carry_procurement_strategy(snapshot).required_force
-        self.assertEqual((force["heal_potions"], force["speed_potions"]), (2, 1))
+        self.assertEqual((force["heal_potions"], force["speed_potions"]), (2, 12))
 
     def test_a_completed_quest_is_reported_and_its_reward_cell_is_the_towns(self):
         policy = self.policy()
@@ -1174,18 +1199,21 @@ class Q18Life515Test(unittest.TestCase):
         return copy.deepcopy(LIFE_515[turn])
 
     @staticmethod
-    def decide_off_the_line(raw, *, spent=()):
+    def decide_off_the_line(raw, *, spent=(), quiet=()):
         """The board with the force line out of it: DECLARED CONSTRUCTED, the floor entered on
         the second row (min_hp 500), so the drained max HP crosses nothing; ``spent``: the
-        chokes whose waits were spent, as at decision 48623."""
+        chokes whose waits were spent, as at decision 48623; ``quiet``: of those, the ones
+        spent by the quiet wait (``choke_hold_turns``)."""
         policy = new_policy(raw)
         snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         navigator = quest_find_exit._navigator(policy, snapshot, 18)
         navigator.entry_force_min_hp = 500
         navigator.exit_spent_chokes = frozenset(Position(*cell) for cell in spent)
+        navigator.exit_quiet_spent = {Position(*cell): 0 for cell in quiet}
         key = str(policy.choose_key(snapshot))
         return key, policy.last_reason
 
+    @sirens_only()
     def test_recorded_three_beside_it_walks_back_to_the_choke(self):
         for turn in (1806402, 1806410):  # recorded: melee '3' (the squid), melee '3'
             raw = self.raw(turn)
@@ -1198,6 +1226,7 @@ class Q18Life515Test(unittest.TestCase):
             self.assertEqual((key, reason), (step_key((3, 20), (2, 20)), quest_find_exit.MELEE_CAP_REASON),
                              turn)
 
+    @sirens_only()
     def test_control_two_beside_it_is_still_fought(self):
         raw = self.raw(1806375)  # recorded: melee '2', the seahorses on (4,20) and (4,19)
         key, reason = self.decide_off_the_line(raw)
@@ -1249,6 +1278,202 @@ class Q18Life515Test(unittest.TestCase):
         policy = self.walk_from_entry(1806342)
         policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
         self.assertNotEqual(policy.last_reason, RECALL_REASON)
+
+
+
+with gzip.open(ROOT / "tests" / "fixtures" / "q18-life516-20261112.json.gz", "rt", encoding="utf-8",
+               errors="surrogateescape") as _stream:
+    LIFE_516 = {row["turn"]: row for row in json.load(_stream)["boards"]}
+LIFE_516_TOWN, LIFE_516_ENTRY = 1369361, 1369362
+SPEED_DEPARTURE_REFUSED_REASON = "quest:readiness:speed"  # policy_quest
+FIFTEEN_SPENT = [(1, 3), (1, 5), (1, 19)]  # the chokes spent at decision 48623 (the replay probe)
+
+
+def _speed_potions(raw, count):
+    """DECLARED CONSTRUCTED where ``count`` is not the recorded one: the carried Potions of Speed."""
+    raw = copy.deepcopy(raw)
+    raw["inventory"] = [item for item in raw["inventory"]
+                        if not (item["tval"] == TVAL_POTION and item["sval"] == SV_POTION_SPEED)]
+    if count:
+        raw["inventory"].append(potion(SV_POTION_SPEED, count))
+    return raw
+
+
+class Q18SpeedRequiredTest(unittest.TestCase):
+    """Owner 2026-11-12 「加速手段を十分数確保することを必須にする。（戦士でのみ頻発する理由は加速が
+    不足していることと判断した）」.
+
+    Twelve doses: replaying the dose rule (a dose while an enemy is in view and the haste is off,
+    each lasting the floor of 1d25+15, threat_projection.SPEED_DOSE_TURNS 16 turns) on the
+    recorded floors asks 9 doses of n1-a life 515 up to (3,20), past six chokes, and 7 of life
+    516 up to its death on (1,12), past four; one more for each choke not reached gives 12 both
+    ways (QUEST_18 ``required_force.rationale``).
+
+    n1-a life 516 (2026-11-12 17:39, warrior Lv28, max HP 564) took the quest on the second
+    row with 7 potions against its 6 and died on (1,12) with 3 left.  The boards are the recorded
+    ones (tests/fixtures/q18-life516-20261112.json.gz, tests/extract_q18_life516_fixture.py: the
+    last town board before the entrance, 1369361, quest 18 taken, and the floor's first)."""
+
+    @staticmethod
+    def town(raw):
+        maps = town_maps()
+        policy = ConservativePolicy(town_map=maps[0], town_maps=maps, monrace_knowledge=RACES,
+                                    quest_knowledge=QUESTS, quest_strategies=STRATEGIES)
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        policy.prime(snapshot)
+        return policy, snapshot
+
+    def test_every_row_asks_twelve_doses_and_stays_hasted(self):
+        force = STRATEGIES[18].required_force
+        rows = [force, *force["force_alternatives"]]
+        self.assertEqual([row["speed_potions"] for row in rows], [12, 12])
+        self.assertEqual(rows[1]["speed_alternatives"], {"gear_speed_bonus": 10, "absorbed_charges": 12})
+        self.assertTrue(force["always_hasted"])
+        self.assertTrue(force[quest_force_rows.DEPART_FLAG])
+
+    def test_life_516_seven_potions_are_no_acceptance(self):
+        raw = copy.deepcopy(LIFE_516[LIFE_516_TOWN])
+        # DECLARED CONSTRUCTED: the quest row not yet taken, so the acceptance is asked.
+        raw["progress"]["quests"] = [dict(row, status=0) if row["id"] == 18 else row
+                                     for row in raw["progress"]["quests"]]
+        for count, ready in ((7, False), (11, False), (12, True)):  # recorded: 7
+            policy, snapshot = self.town(_speed_potions(raw, count))
+            self.assertEqual(policy._evaluate_fixed_quest_readiness(snapshot, 18, require_target_town=False),
+                             ready, count)
+            details = policy._fixed_quest_readiness["strategy_force"]
+            self.assertEqual(details["speed_potions"], {"measured": count, "required": 12})
+            self.assertEqual(details["failed"], [] if ready else ["speed_potions"])
+
+    def test_life_516_seven_potions_do_not_enter_the_taken_quest(self):
+        policy, snapshot = self.town(LIFE_516[LIFE_516_TOWN])  # recorded: walked in with 7
+        self.assertIsNone(QuestFloorNavigator.enter_from_town(policy, snapshot, 18))
+        self.assertEqual(policy.last_reason, SPEED_DEPARTURE_REFUSED_REASON)
+        policy, snapshot = self.town(_speed_potions(LIFE_516[LIFE_516_TOWN], 12))
+        self.assertEqual(str(QuestFloorNavigator.enter_from_town(policy, snapshot, 18)), ">")
+
+    def test_life_516_the_taken_quest_still_buys_its_doses(self):
+        policy, snapshot = self.town(LIFE_516[LIFE_516_TOWN])
+        strategy = policy._carry_procurement_strategy(snapshot)
+        self.assertEqual((strategy.quest_id, strategy.required_force["speed_potions"]), (18, 12))
+        speed = next(item for item in snapshot.inventory
+                     if item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED)
+        # Kept up to the strategy's twelve, not the emergency carry's ten.
+        self.assertEqual(policy._carry_strategy_potion_target(snapshot, speed, strategy)[0], 12)
+
+    def test_life_515_the_first_row_doses_the_coming_seahorse(self):
+        """DECLARED CONSTRUCTED: the recorded (2,20) board of decision 48624 with the max HP it
+        was accepted at (716), twelve potions and a measured output of the first row (150): the
+        first row, conditional before, is hasted now."""
+        raw = _speed_potions(Q18Life515Test.raw(1806351), 12)  # recorded: exit-to-choke '2'
+        raw["player"].update(max_hp=716, hp=716)
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=150.0):
+            policy = new_policy(raw)
+            snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+            force = policy._strategy_force_for_snapshot(snapshot, STRATEGIES[18])
+            self.assertEqual((force["min_hp"], force["always_hasted"]), (700, True))
+            policy.choose_key(snapshot)
+        self.assertEqual(policy.last_reason, SPEED_REASON)
+
+
+class Q18ShriekerTest(unittest.TestCase):
+    """Owner 2026-11-12, to 「絶叫おばけキノコの視界のマスをセイレーンと同じ『通らない・待たない』マス
+    にするか」: 「セイレーンと同じに扱う」.
+
+    Game (C:/hengband/src): SHRIEK (mspell-floor.cpp:71) is aggravate_monsters
+    (spells-sight.cpp:213): every monster within MAX_PLAYER_SIGHT * 2 wakes, every one on a cell
+    in the player's view is hasted (+100 turns of set_monster_fast).  A shrieker 40 never moves,
+    has no TELE_TO (so it pulls nobody: no forbidden cell) and vision 4: beyond that it acts only
+    from a cell in the player's view (monster-processor.cpp decide_process_continue), so its
+    shriek aimed at a neighbour reaches only within 4.  n1-a life 515 took two shrieks of 「絶叫
+    おばけキノコ」 on (3,20) (decisions 48625-48633)."""
+
+    def plan_exposure(self, opened=frozenset({(1, 7), (5, 25)})):
+        navigator = QuestFloorNavigator(18, QUESTS[18].battlefield)
+        plan = STRATEGIES[18].engagement_plan["find_exit"]
+        return quest_find_exit._exposure_with(navigator, plan, frozenset(opened)), navigator, plan
+
+    def test_the_plan_names_them_and_reads_the_rest_from_the_game_data(self):
+        plan = STRATEGIES[18].engagement_plan["find_exit"]
+        self.assertEqual(plan["exposure_races"], [SIREN, SHRIEKER])
+        self.assertEqual(plan["pull_races"], [race for race in plan["exposure_races"]
+                                              if "TELE_TO" in RACES[race].abilities])
+        self.assertIn("SHRIEK", RACES[SHRIEKER].abilities)
+        self.assertIn("NEVER_MOVE", RACES[SHRIEKER].flags)
+        self.assertEqual(plan["aimed_off_reach"], {str(SHRIEKER): RACES[SHRIEKER].vision})
+        self.assertGreaterEqual(RACES[SIREN].vision, quest_exposure.MAX_SPELL_RANGE)
+
+    def test_the_shrieked_cell_of_life_515_and_the_others_on_the_route(self):
+        exposure, _, _ = self.plan_exposure()
+        shriekers = {cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SHRIEKER}
+        self.assertTrue(exposure.shout[(3, 20)] & shriekers)
+        sirens_only = quest_exposure.exposure_map(
+            {**QUESTS[18].battlefield.terrain, (1, 7): "deep_water", (5, 25): "deep_water"},
+            [cell for cell, race in QUESTS[18].battlefield.monster_placements if race == SIREN])
+        self.assertEqual([cell for cell in DUG_ROUTE_WITH_SHRIEKERS
+                          if exposure.exposed(cell) and not sirens_only.exposed(cell)],
+                         SHRIEKER_CELLS_ON_DUG_ROUTE)
+        # No pull from them; of the chokes only (3,22) is in their reach.
+        self.assertEqual(set(exposure.pull), set(sirens_only.pull))
+        chokes = STRATEGIES[18].engagement_plan["find_exit"]["choke_cells"]
+        self.assertEqual([cell for cell in chokes if exposure.exposed(tuple(cell))], [[3, 22]])
+
+    def test_beyond_their_vision_only_the_direct_line_is_shouted(self):
+        exposure, _, _ = self.plan_exposure()
+        terrain = {**QUESTS[18].battlefield.terrain, (1, 7): "deep_water", (5, 25): "deep_water"}
+        for cell, casters in exposure.shout.items():
+            for caster in casters:
+                if caster in {c for c, race in QUESTS[18].battlefield.monster_placements
+                              if race == SHRIEKER} and quest_exposure.game_distance(caster, cell) > 4:
+                    self.assertTrue(quest_exposure.projectable(terrain, caster, cell), (caster, cell))
+        # The choke (1,12), beside a cell one of them sees, is not shouted from 8 cells off.
+        self.assertFalse(exposure.exposed((1, 12)))
+
+    def test_life_515_no_melee_on_3_20_with_the_spent_choke_behind(self):
+        raw = Q18Life515Test.raw(1806356)  # recorded: melee '2' on the seahorse (4,20)
+        key, reason = Q18Life515Test.decide_off_the_line(raw, spent=FIFTEEN_SPENT, quiet=FIFTEEN_SPENT)
+        self.assertEqual((key, reason), (step_key((3, 20), (2, 20)), TO_CHOKE_REASON))
+
+    @sirens_only()
+    def test_control_on_an_unshouted_3_20_the_seahorse_beside_it_is_fought(self):
+        raw = Q18Life515Test.raw(1806356)
+        key, reason = Q18Life515Test.decide_off_the_line(raw, spent=FIFTEEN_SPENT, quiet=FIFTEEN_SPENT)
+        self.assertEqual((key, reason), (step_key((3, 20), (4, 20)), MELEE_REASON))
+
+
+class Q18SpentChokeRetreatTest(unittest.TestCase):
+    """Owner 2026-11-12: with an enemy coming in sight, the choke whose 30-turn wait was spent is
+    the retreat again; the walk does not go on to the next choke across the open water.
+
+    n1-a life 515, decisions 48623-48625 (the recorded boards of Q18Life515Test, the force line
+    out of them as there): 48623 left (1,19), its wait spent with nothing come, for (3,22); on
+    (2,20) at 48624 a seahorse 443 came in sight on (5,19) and the walk went on to (3,20), where
+    it died.  The spent chokes are the replay probe's.  Sirens only (``sirens_only``) isolates
+    this from the shriekers' (3,22): with them that choke is no wait any more and (1,19) the
+    nearest anyway."""
+
+    def test_48623_nothing_coming_the_walk_goes_on(self):
+        raw = Q18Life515Test.raw(1806342)  # recorded: '3' to (2,20)
+        self.assertEqual(raw["visible_monsters"], [])
+        key, reason = Q18Life515Test.decide_off_the_line(raw, spent=FIFTEEN_SPENT, quiet=FIFTEEN_SPENT)
+        self.assertEqual((key, reason), (step_key((1, 19), (2, 20)), WALK_REASON))
+
+    @sirens_only()
+    def test_48624_the_seahorse_coming_sends_it_back_to_1_19(self):
+        raw = Q18Life515Test.raw(1806351)  # recorded: exit-to-choke '2' onto (3,20)
+        key, reason = Q18Life515Test.decide_off_the_line(raw, spent=FIFTEEN_SPENT, quiet=FIFTEEN_SPENT)
+        self.assertEqual((key, reason), (step_key((2, 20), (1, 19)), TO_CHOKE_REASON))
+
+    @sirens_only()
+    def test_control_a_choke_spent_by_the_enemy_bound_stays_spent(self):
+        """DECLARED CONSTRUCTED: (1,19) spent by ``choke_enemy_wait_turns`` instead."""
+        raw = Q18Life515Test.raw(1806351)
+        key, reason = Q18Life515Test.decide_off_the_line(raw, spent=FIFTEEN_SPENT, quiet=[(1, 3), (1, 5)])
+        self.assertEqual((key, reason), (step_key((2, 20), (3, 20)), TO_CHOKE_REASON))  # as recorded
+
+    def test_48624_with_the_plan_as_it_is(self):
+        raw = Q18Life515Test.raw(1806351)
+        key, reason = Q18Life515Test.decide_off_the_line(raw, spent=FIFTEEN_SPENT, quiet=FIFTEEN_SPENT)
+        self.assertEqual((key, reason), (step_key((2, 20), (1, 19)), TO_CHOKE_REASON))
 
 
 if __name__ == "__main__":
