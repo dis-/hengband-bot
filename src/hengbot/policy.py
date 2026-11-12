@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_summoner_shots, warning_cell_record
+from hengbot import ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -7748,54 +7748,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ))
         if esp_threat_hunt is not None:
             return esp_threat_hunt
-        emergency = self._town_producer_entry("_emergency_item", lambda: self._emergency_item(snapshot, emergency_hostiles))
-        if emergency is not None:
-            if self._choke_plan_active(snapshot):
-                self._release_choke_plan("hp-emergency")
-            if self.last_reason.startswith(
-                ("emergency:", "unseen-recall:", "guardian:")
-            ):
-                # Survival may always pre-empt a lower-priority owner.
-                self._escape_state.enter("emergency", self.last_reason)
-            # For the town hold: the hostiles the emergency ladder weighed.
-            self._declare_triggers(emergency_hostiles)
-            return emergency
-        if self._escape_state.owner == "emergency":
-            # The emergency ladder is exempt from sibling hysteresis: the
-            # established post-teleport handoff must happen immediately.
-            self._escape_state.release()
-        quiet_recall = return_yield.quiet_recall_key(self, snapshot)
-        if quiet_recall is not None:
-            return quiet_recall
-        # Owner 2026-11-09 B / 2026-11-10: the sensed T1 leave's *Destruction* before any
-        # rung below the emergency consumables (n1-b life-377, threat_tiers).
-        sensed_destruction = threat_tiers.sensed_t1_destruction_key(self, snapshot)
-        if sensed_destruction is not None:
-            return sensed_destruction
-        # Class 16 sends an unbeatable hostile in range away (me_powers THREAT)
-        # only once the emergency ladder above has declined: survival first.
-        threat_power = me_powers.threat_key(self, snapshot)
-        if threat_power is not None:
-            # Owner 2026-11-09 E: a T1 sent away is remembered; its vanishing returns to town.
-            sent_away_t1.note(self, snapshot)
-            return threat_power
-
-        item_destroying_breeder_exit = self._town_producer_entry(
-            "_item_destroying_breeder_leave_key",
-            lambda: self._item_destroying_breeder_leave_key(snapshot),
+        # The emergency layer: the emergency consumables and the survival rungs after them
+        # (ladder_emergency).
+        emergency = ladder_emergency.key(
+            self,
+            snapshot,
+            emergency_hostiles=emergency_hostiles,
+            paralyzers=paralyzers,
+            physical_adjacent=physical_adjacent,
         )
-        if item_destroying_breeder_exit is not None:
-            return item_destroying_breeder_exit
-
-        mana_survival = self._town_producer_entry("_mana_food_survival_override_key", lambda: self._mana_food_survival_override_key(snapshot))
-        if mana_survival is not None:
-            return mana_survival
-
-        paralyzer_prevention = self._town_producer_entry("_paralyzer_prevention_key", lambda: self._paralyzer_prevention_key(
-            snapshot, paralyzers, physical_adjacent
-        ))
-        if paralyzer_prevention is not None:
-            return paralyzer_prevention
+        if emergency is not PASS:
+            return emergency
 
         # The summoner-shots layer: what dies 被害無く, then the last shots at a summoner
         # (ladder_summoner_shots).

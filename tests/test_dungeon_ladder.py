@@ -28,9 +28,17 @@ class TableAgainstSourceTest(unittest.TestCase):
     def test_the_table_is_the_order_of_the_source(self):
         self.assertEqual(lint.analyze_repository(), [])
 
-    def test_two_rungs_swapped_in_decide_fail(self):
+    def test_two_rungs_swapped_fail(self):
+        # Wherever the two rungs stand: in _decide or in a layer module (LAYER_MODULES).
+        def swap(source):
+            return swapped(source, '"_emergency_item", lambda', '"_esp_threat_hunt_key", lambda')
+        findings = analyze_with(policy=swap, plan=swap)
+        self.assertTrue(any('ladder row' in finding for finding in findings), findings)
+
+    def test_two_layers_swapped_in_decide_fail(self):
         findings = analyze_with(policy=lambda source: swapped(
-            source, '"_emergency_item", lambda', '"_esp_threat_hunt_key", lambda'))
+            source, 'ladder_light.key(self, snapshot)',
+            'ladder_global_map.key(self, snapshot, physical_hostiles=physical_hostiles)'))
         self.assertTrue(any('ladder row' in finding for finding in findings), findings)
 
     def test_two_rungs_swapped_in_a_layer_module_fail(self):
@@ -76,7 +84,7 @@ class TableAgainstSourceTest(unittest.TestCase):
                 self.assertNotIn(f'{module}.key', {row.name for row in rows})
 
     def test_a_new_rung_without_a_row_fails(self):
-        anchor = 'emergency = self._town_producer_entry("_emergency_item"'
+        anchor = 'light = ladder_light.key(self, snapshot)'
         rung = ('new = self._town_producer_entry("_new_key", lambda: None)\n'
                 '        if new is not None:\n            return new\n        ')
         findings = analyze_with(policy=lambda source: source.replace(anchor, rung + anchor))
