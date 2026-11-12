@@ -2978,6 +2978,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "loot_frontier.py:key": {
+    "classification": "producer",
+    "rows": [
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "magic_eater.py:absorb_key": {
     "classification": "producer",
     "rows": [

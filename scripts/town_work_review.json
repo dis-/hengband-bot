@@ -17981,5 +17981,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cheapest carried item the exchange may destroy (policy _cheapest_exchange_item over the pack without necessities, egos, artifacts and unknown items)."
+  },
+  "loot_frontier.py:key": {
+    "classification": "producer",
+    "rows": [
+      "loot-exploration"
+    ],
+    "context": "Dungeon floor loot only: _normal_loot_key when its candidates have no route; the town has no remembered frontier on its fully known map.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-13 「その品の方へ探索を寄せる」: a step toward the reachable remembered frontier nearest a loot candidate with no route, over _walk_veto; a target spends its budget (twice its path plus FRONTIER_SLACK boards) and is then spent for the floor."
   }
 }
