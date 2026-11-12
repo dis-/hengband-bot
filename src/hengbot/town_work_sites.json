@@ -2742,6 +2742,22 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "ladder_above_emergency.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_emergency.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "quest-service",
+      "device"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_floor_avoidance.py:key": {
     "classification": "adapter",
     "rows": [
@@ -2752,11 +2768,44 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_global_map.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "cross-town",
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_light.py:key": {
     "classification": "adapter",
     "rows": [
       "survival",
       "quest-service"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_plan_above_survival.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_plan_approved_quest.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "loot-exploration",
+      "destruction",
+      "identification"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_summoner_shots.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "combat",
+      "survival"
     ],
     "delegation": "selected child; no independent success"
   },

@@ -273,13 +273,36 @@ LADDER = (
     )),
 )
 
+class _Pass:
+    """The type of ``PASS``: one instance, never a key."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "dungeon_ladder.PASS"
+
+
+# What a layer module's ``key`` returns when none of its rungs acts: ``_decide`` asks the next
+# layer.  Anything else, None included, is ``_decide``'s answer as it stands, so a block of
+# ``_decide`` moves into a module verbatim: a ``return`` in it still ends the decision with
+# that value (several rungs end it with None), and only falling off the block's end becomes
+# ``return PASS``.
+PASS = _Pass()
+
 # The layers asked in a module of their own (maintainability review 2026-11-09, step 8): the
 # module's ``key(policy, snapshot, ...)`` asks the layer's rungs in the table's order and
-# ``_decide`` calls it where the layer's rows stand.  The lint reads the rows inside the module
-# in place of that call, and a module asks the rungs of its own layer only.
+# ``_decide`` calls it where the layer's rows stand, returning what it returns unless PASS.
+# The lint reads the rows inside the module in place of that call, and a module asks the rungs
+# of its own layer only.
 LAYER_MODULES = {
+    "global-map": "ladder_global_map",
+    "plan-above-survival": "ladder_plan_above_survival",
+    "above-emergency": "ladder_above_emergency",
+    "emergency": "ladder_emergency",
+    "summoner-shots": "ladder_summoner_shots",
     "floor-avoidance": "ladder_floor_avoidance",
     "light": "ladder_light",
+    "plan-approved-quest": "ladder_plan_approved_quest",
 }
 
 # After the ladder has answered, _choose_key passes its key through these, in order; each may
