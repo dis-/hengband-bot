@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_summoner_shots, warning_cell_record
+from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_plan_above_survival, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -7711,20 +7711,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
         self._latch_unviable_quest_return(snapshot, strategic_hostiles)
 
-        # A FIND_EXIT plan fights at its chokes: the ladders below walk away from them.
-        find_exit = self._town_producer_entry(
-            "quest_find_exit.key", lambda: quest_find_exit.key(self, snapshot), family="quest-request")
-        if find_exit is not None:
-            return find_exit
-        # Q25's revised plan, phase by phase (it answers survival and the summons itself).
-        phase_battle = self._town_producer_entry(
-            "quest25_battle.key", lambda: quest25_battle.key(self, snapshot), family="quest-request")
-        if phase_battle is not None:
-            return phase_battle
-        room_sweep = self._town_producer_entry(
-            "quest_room_sweep.key", lambda: quest_room_sweep.key(self, snapshot), family="quest-request")
-        if room_sweep is not None:
-            return room_sweep
+        # The plan-above-survival layer: the floor plans, each answering survival and the summons
+        # itself (ladder_plan_above_survival).
+        plan = ladder_plan_above_survival.key(self, snapshot)
+        if plan is not PASS:
+            return plan
 
         # 0. Emergency consumables (teleport out / heal up / eat before fainting).
         # Emergency material-threat spending deliberately stays strategic. A

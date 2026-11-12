@@ -296,6 +296,7 @@ PASS = _Pass()
 # of its own layer only.
 LAYER_MODULES = {
     "global-map": "ladder_global_map",
+    "plan-above-survival": "ladder_plan_above_survival",
     "above-emergency": "ladder_above_emergency",
     "emergency": "ladder_emergency",
     "summoner-shots": "ladder_summoner_shots",
