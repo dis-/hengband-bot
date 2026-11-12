@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """The dungeon decision ladder as the source says it is, against hengbot.dungeon_ladder.
 
-The order of the rungs is the order of ``return`` in ``HengbotPolicy._decide``:
-nothing else states it.  This reads that order from the AST and fails when the
-table in ``hengbot/dungeon_ladder.py`` says anything else, so a reorder is a
-visible one-line diff of the table in the same commit.  A layer asked in a module
-of its own (``dungeon_ladder.LAYER_MODULES``) is read inside that module's ``key``
-in place of its call in ``_decide``.  ``--print`` lists the rows as the source has
+The order of the rungs is the order of ``return`` in ``HengbotPolicy._decide`` and in
+the layer modules it asks (``dungeon_ladder.LAYER_MODULES``, one per layer): nothing
+else states it.  This reads that order from the AST, each layer module's ``key`` in
+place of its call in ``_decide``, and fails when the table in
+``hengbot/dungeon_ladder.py`` says anything else, so a reorder is a visible one-line
+diff of the table in the same commit.  ``--print`` lists the rows as the source has
 them, for writing the table's diff.
 """
 from __future__ import annotations
