@@ -17,7 +17,12 @@ sensed leave's *Destruction* (absorbed, 97%) was due on every board until the st
 2. 7973: the THREAT power (me_powers ``unbeatable-in-range``, the emergency layer) sent the
    summoned ボダック away.  Owner 2026-11-09 B 「即死でない強敵は *破壊* 優先」: now the leave's
    *Destruction* is asked directly above it (threat_tiers ``sensed_t1_destruction_key``).
-3. 混沌の王族 (race 737) alone reads T2 from contact, not T1: four Healing potions win (supply margin
+3. 7975 a plasma bolt stunned the player (slight, stun_rank 1): no *Destruction* while not
+   clear-headed; 7976 the absorbed Teleport Away (97% shown, 87% stunned: cmd-magiceat.cpp:485,
+   player-stun.cpp:135-153) failed, though a Teleportation scroll (no penalty at this stun,
+   player-stun.cpp:162-178) was in the pack.  Now a stunned THREAT power gives way to the
+   surer scroll (me_powers ``_stunned_scroll_first``).
+4. 混沌の王族 (race 737) alone reads T2 from contact, not T1: four Healing potions win (supply margin
    101, the game's spell choice and failure rate of main cf3ae5189f) and it is a reward race (DROP_4D2); the sensed leave reads T1 alone, as
    the owner's rule of 2026-11-08 says.  Not changed (pinned as it reads).
 """
@@ -29,7 +34,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import threat_tiers
+from hengbot import me_powers, threat_tiers
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
 from hengbot.policy import HengbotPolicy
@@ -118,6 +123,14 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
         self.assertEqual([(monster.race_id, monster.distance) for monster in board.visible_monsters],
                          [(566, 1)])
         self.assertEqual((key, reason), DESTRUCTION)
+
+    def test_stunned_teleport_away_gives_way_to_the_scroll(self):
+        """7976: the absorbed Teleport Away at 87% stunned against the scroll's 100%."""
+        policy, board, key, reason = self.decided[7976]
+        self.assertEqual(live(7976), TELEPORT_AWAY)
+        self.assertEqual((board.player.stunned, board.player.stun_rank), (True, 1))
+        self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 87)
+        self.assertEqual((key, reason), SCROLL_LEAVE)
 
     def test_chaos_lord_alone_reads_t2(self):
         """5: the reading as it stands (not changed): T2 by four Healing potions,
