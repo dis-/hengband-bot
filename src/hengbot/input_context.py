@@ -114,7 +114,9 @@ _COMPATIBLE_KINDS: dict[str, frozenset[ScreenKind]] = {
                                ScreenKind.DUNGEON_CHOICE, ScreenKind.UNKNOWN}),
     "string": frozenset({ScreenKind.FILE_NAME, ScreenKind.QUANTITY, ScreenKind.UNKNOWN}),
     "any_key": frozenset({ScreenKind.IDENTIFY_VIEWER_PAGE,
-                          ScreenKind.IDENTIFY_VIEWER_FINAL, ScreenKind.UNKNOWN}),
+                          ScreenKind.IDENTIFY_VIEWER_FINAL,
+                          ScreenKind.SELF_KNOWLEDGE_PAGE,
+                          ScreenKind.SELF_KNOWLEDGE_FINAL, ScreenKind.UNKNOWN}),
     "point": frozenset({ScreenKind.UNKNOWN}),
     # Game develop 92e9029a (tools/bot/README.md "input_context"): the spell
     # list and the birth choices have no screen kind of their own; the file

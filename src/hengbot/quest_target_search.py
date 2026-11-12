@@ -96,8 +96,8 @@ grid straight beyond is not known and inside the outer wall (a tunnel never runs
    again only where a new area brings places no cast reached.  A Rod of Detection the target
    search zapped (``detection_key``) and the absorbed Detect Doors or Detection the rows cast
    cover too.  Magic Mapping and Enlightenment do not: map_area and wiz_lite memorize the MIMIC
-   terrain.  *Enlightenment* would, but its self-knowledge screen is not answered
-   (consumable_policy.USE_UNSUPPORTED).
+   terrain.  *Enlightenment* would, but it is drunk on sight when safe
+   (consumable_policy.quaffed_on_sight), not kept for the search.
  - Without one (``door_means_held`` false): each door search round also walks to the walkable
    grids beside the places no cast covered, nearest first, after the dead ends, and searches each
    SEARCH_LIMIT times as a dead end (player/player-move.cpp search: the 8 neighbours).

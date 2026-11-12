@@ -69,12 +69,13 @@ USE_OWNED_ELSEWHERE = {
     (TVAL_POTION, SV_POTION_RESISTANCE): "resist-potion",
 }
 # ``use`` kinds the bot cannot use yet (open questions for the owner): the
-# self-knowledge viewer (player-info/self-info.cpp self_knowledge, an any-key
-# file screen no input owner answers) and the enchant scrolls whose target
-# item no rule chooses (Enchant Armour, *Enchant Armour*, *Enchant Weapon*).
+# enchant scrolls whose target item no rule chooses (Enchant Armour, *Enchant
+# Armour*, *Enchant Weapon*).  The Potions of Self Knowledge and
+# *Enlightenment* (owner 2026-11-13 「自己分析の薬を飲む処理が効いてない」) are
+# drunk like the stat potions: the self-knowledge viewer they open
+# (view/display-self-info.cpp) is closed by the input executor
+# (ScreenKind.SELF_KNOWLEDGE_PAGE / SELF_KNOWLEDGE_FINAL).
 USE_UNSUPPORTED = {
-    (TVAL_POTION, 57): "self-knowledge-viewer",   # *Enlightenment*
-    (TVAL_POTION, 58): "self-knowledge-viewer",   # Self Knowledge
     (TVAL_SCROLL, 16): "enchant-target",          # Enchant Armour
     (TVAL_SCROLL, 20): "enchant-target",          # *Enchant Armour*
     (TVAL_SCROLL, 21): "enchant-target",          # *Enchant Weapon*
