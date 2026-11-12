@@ -19,6 +19,12 @@ per-floor case (the boards from 4229938 on one floor up, as a Teleport Level wou
 locust board again after the escapes with the HP at 2000 (so it is no 即死 board and the ladder
 takes *Destruction*, test_deaths_1109 C raises the HP the same way) and its flash board without
 the locusts; the active Word of Recall (``player.recalling``) of the last case.
+
+Owner 2026-11-13 「射線にT1が入っていない=感知しただけはカウントしない」: on 4229938 no awake
+hostile known (the five 1244, the two 746, the 812) has a line of fire to the player at (22,53),
+so that sensed-T1 Teleportation is no escape (threat_tiers.counts_as_escape;
+test_a_sensed_t1_out_of_the_line_of_fire_is_no_escape).  The C1 cases need it to count: they
+declare it in the line of fire (``in_line_of_fire``), the case the 11-13 rule still counts.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -26,7 +32,7 @@ import copy
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use
+from hengbot import destruction_use, threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -40,6 +46,13 @@ LOCUST = 1087
 
 def flash(raw):
     raw["messages"] = list(raw.get("messages") or []) + [destruction_use.FLASH[0]]
+
+
+def in_line_of_fire():
+    """DECLARED CONSTRUCTED: the sensed T1 left on 4229938 reads as in the line of fire."""
+    def note(policy, snapshot, strong):
+        setattr(policy, threat_tiers.IN_LINE_OF_FIRE, True)
+    return mock.patch.object(threat_tiers, "note_line_of_fire", note)
 
 
 def no_depth_gate():
@@ -58,7 +71,8 @@ class EscapeCountRecordedTest(deaths.DeathsRecordedHarness):
 
     def locusts_destroyed(self, *, recalling=False):
         """Two escapes latch the return; then the locusts of the first are destroyed."""
-        policy, answers = self.replay(LIFE, LATCH_BOARD, without=(DESTRUCTION_NAME,))
+        with in_line_of_fire():
+            policy, answers = self.replay(LIFE, LATCH_BOARD, without=(DESTRUCTION_NAME,))
         self.assertEqual([answers[turn][2] for turn in (LOCUST_BOARD, SECOND_BOARD)],
                          ["emergency:teleport", "sensed-t1:teleport"])
         self.assertEqual((policy._dive_emergencies, policy._last_return_trigger),
@@ -80,13 +94,25 @@ class EscapeCountRecordedTest(deaths.DeathsRecordedHarness):
     def test_a_new_floor_starts_the_count_again(self):
         """Live (A of 11-09): the second Teleportation of the floor returned on 4229948.  On
         another floor it is the first escape there: no return."""
-        with no_depth_gate():
+        with no_depth_gate(), in_line_of_fire():
             policy, answers = self.replay(LIFE, RECALL_BOARD, from_turn(SECOND_BOARD, at_depth(79)),
                                           without=(DESTRUCTION_NAME,))
         self.assertEqual(answers[SECOND_BOARD][2], "sensed-t1:teleport")
         self.assertEqual(policy._dive_emergencies, 1)
         self.assertFalse(policy._returning_to_town)
         self.assertNotEqual(answers[RECALL_BOARD][2], "return:recall")
+
+    def test_a_sensed_t1_out_of_the_line_of_fire_is_no_escape(self):
+        """As recorded: the 4229938 Teleportation leaves T1s with no line of fire (owner
+        2026-11-13): the count stays at the locusts' one and no return is latched."""
+        policy, answers = self.replay(LIFE, LATCH_BOARD, without=(DESTRUCTION_NAME,))
+        self.assertEqual(answers[SECOND_BOARD][2], "sensed-t1:teleport")
+        board = parse_snapshot(self.board(LIFE, SECOND_BOARD), self.races)
+        self.assertFalse(any(
+            policy._has_line_of_fire(board, monster.position, board.player.position)
+            for monster in (*board.visible_monsters, *board.detected_monsters)
+            if monster.hostile and not monster.asleep))
+        self.assertEqual((policy._dive_emergencies, policy._last_return_trigger), (1, None))
 
     def test_a_destruction_away_from_the_cause_keeps_the_escape(self):
         """4229938's *Destruction* is 70 cells from the locusts the escape fled."""
