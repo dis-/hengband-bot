@@ -390,6 +390,15 @@ for _element in ("ACID", "ELEC", "FIRE", "COLD"):
         ABILITY_ATTRIBUTE[f"{_form}_{_element}"] = _element
 
 
+def _caster_hp(race_hp: int, monster_hp: int | None) -> int:
+    """The HP a breath or rocket is computed from (owner 2026-11-11 「ブレスが敵の今の HP で
+    弱くなる」): mspell-damage-calculator.cpp:427 rolls DAM_ROLL from the caster's current
+    ``monster.hp`` (min(hp / div, cap) per breath, :95-162; the rocket hp / 4, :82).  The race
+    value stands for an unhurt caster; ``monster_hp``, the health band's upper end
+    (model ``_estimated_monster_hp``), lowers it, never raises it."""
+    return race_hp if monster_hp is None else max(1, min(race_hp, monster_hp))
+
+
 def _expected_rate_damage(damage: float, rates: tuple[int, ...]) -> float:
     """Apply the game's integer percentage operation for each random rate."""
     if rates == (100,):
@@ -463,11 +472,14 @@ def expected_ability_base_damage(
     monster: MonraceKnowledge,
     *,
     player_hp: int | None = None,
+    monster_hp: int | None = None,
 ) -> float | None:
-    """Return expected DAM_ROLL before projection resistance, or None if non-HP."""
+    """Return expected DAM_ROLL before projection resistance, or None if non-HP.
+
+    ``monster_hp``: the caster's current HP estimate (``_caster_hp``)."""
     level = monster.level
     powerful = monster.powerful
-    hp = monster.average_hp
+    hp = _caster_hp(monster.average_hp, monster_hp)
 
     if ability in NO_DAMAGE:
         return None
@@ -562,11 +574,14 @@ def maximum_ability_base_damage(
     monster: MonraceKnowledge,
     *,
     player_hp: int | None = None,
+    monster_hp: int | None = None,
 ) -> int | None:
-    """Return the maximum pre-resistance HP damage of one ability use."""
+    """Return the maximum pre-resistance HP damage of one ability use.
+
+    ``monster_hp``: the caster's current HP estimate (``_caster_hp``)."""
     level = monster.level
     powerful = monster.powerful
-    hp = monster.max_hp
+    hp = _caster_hp(monster.max_hp, monster_hp)
 
     if ability in NO_DAMAGE:
         return None
@@ -659,16 +674,18 @@ def _ability_base_damage_distribution(
     ability: str,
     monster: MonraceKnowledge,
     player_hp: int | None,
+    monster_hp: int | None = None,
 ) -> tuple[tuple[int, float], ...] | None:
     """Return the operational pre-resistance damage distribution for one use.
 
-    Breath and rocket damage use maximum race HP, matching the conservative
-    operational model. Dice retain their complete distribution instead of
-    collapsing to either their mean or maximum.
+    Breath and rocket damage use the caster's HP: the maximum race HP, or the
+    current HP estimate ``monster_hp`` where given (``_caster_hp``). Dice
+    retain their complete distribution instead of collapsing to either their
+    mean or maximum.
     """
     level = monster.level
     powerful = monster.powerful
-    hp = monster.max_hp
+    hp = _caster_hp(monster.max_hp, monster_hp)
 
     if ability in NO_DAMAGE:
         return None
@@ -811,8 +828,9 @@ def _resisted_ability_damage_distribution(
     flags: frozenset[int],
     player_hp: int | None,
     blind: bool,
+    monster_hp: int | None = None,
 ) -> tuple[tuple[int, float], ...] | None:
-    base = _ability_base_damage_distribution(ability, monster, player_hp)
+    base = _ability_base_damage_distribution(ability, monster, player_hp, monster_hp)
     if base is None:
         return None
     if ability == "SHOOT" and TR_INVULN_ARROW in flags and not blind:
@@ -860,6 +878,7 @@ def ranged_action_distribution(
     blind: bool = False,
     saving_skill: int = 0,
     percentile: int = 95,
+    monster_hp: int | None = None,
 ) -> tuple[dict[int, float], int]:
     """(damage of one action as a spell attempt mixture, the largest p-th single hit).
 
@@ -877,7 +896,7 @@ def ranged_action_distribution(
         if selected_probability <= 0.0:
             continue
         resisted = _resisted_ability_damage_distribution(
-            ability, monster, flags, player_hp, blind
+            ability, monster, flags, player_hp, blind, monster_hp
         )
         if resisted is None:
             continue
@@ -926,6 +945,7 @@ def aggregate_ranged_damage_percentile(
     blind: bool = False,
     saving_skill: int = 0,
     percentile: int = 95,
+    monster_hp: int | None = None,
 ) -> RangedDamagePercentile:
     """Return the p95 total from the complete per-action damage mixture."""
     if not 1 <= percentile <= 100:
@@ -939,6 +959,7 @@ def aggregate_ranged_damage_percentile(
         blind=blind,
         saving_skill=saving_skill,
         percentile=percentile,
+        monster_hp=monster_hp,
     )
     per_action_dense = _dense_damage_distribution(per_action)
     aggregate = np.ones(1, dtype=np.float64)
@@ -979,9 +1000,11 @@ def maximum_ability_hp_damage(
     flags: frozenset[int] = frozenset(),
     player_hp: int | None = None,
     blind: bool = False,
+    monster_hp: int | None = None,
 ) -> int | None:
     """Return a resistance-aware worst case for one successful ability use."""
-    damage = maximum_ability_base_damage(ability, monster, player_hp=player_hp)
+    damage = maximum_ability_base_damage(ability, monster, player_hp=player_hp,
+                                         monster_hp=monster_hp)
     if damage is None:
         return None
     if ability == "SHOOT" and TR_INVULN_ARROW in flags and not blind:
@@ -998,13 +1021,15 @@ def expected_ability_hp_damage(
     player_hp: int | None = None,
     blind: bool = False,
     saving_skill: int | None = None,
+    monster_hp: int | None = None,
 ) -> float | None:
     """Return expected HP damage after permanent equipment defenses.
 
     Temporary opposition, race-only traits, wraith form, multishadow and
     invulnerability are intentionally outside this static loadout evaluator.
     """
-    damage = expected_ability_base_damage(ability, monster, player_hp=player_hp)
+    damage = expected_ability_base_damage(ability, monster, player_hp=player_hp,
+                                          monster_hp=monster_hp)
     if damage is None:
         return None
     if ability == "SHOOT" and TR_INVULN_ARROW in flags and not blind:

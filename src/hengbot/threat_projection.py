@@ -13,6 +13,7 @@ from math import ceil
 
 from hengbot import (
     attack_expectation,
+    fear_cover,
     haste_read,
     me_device_attacks,
     me_ranged_first,
@@ -137,6 +138,9 @@ class Assessment:
     supply_margin: float | None = None  # 3.4: the every-supply plan's slack against the reserve
     #                                     (< 0: T1); None: no plan clears every target
     raw_tier: str | None = None      # the reading's own tier where the decided side held another
+    # Why a winning supply plan was read T1 (``fear_cover.withheld``: a fear or blindness caster
+    # the player is not covered against, owner 2026-11-11); the margin stays the plan's.
+    t2_withheld: tuple = ()
     free_damage: dict = field(default_factory=dict)
     cannot_escape: bool = False
     escape_means: tuple = ()
@@ -175,6 +179,7 @@ class Assessment:
             "free_margin": self.free_margin,
             "supply_margin": self.supply_margin,
             "raw_tier": self.raw_tier,
+            "t2_withheld": list(self.t2_withheld),
             "flags": self.flags(),
             "escape_means": list(self.escape_means),
             "escape_restorable": self.escape_restorable,
@@ -539,6 +544,13 @@ class Projection:
         return ceil(sum(self.policy._monster_actions(monster.speed, speed, turns) * most
                         for monster, most in zip(self.hostiles, self.per_action)))
 
+    def extrapolated(self, board, turns: int, *, hasted_turns: int, speed: int) -> int:
+        """The projection over the longest affordable horizon scaled to ``turns`` (at the fastest
+        speed of the window, as ``incoming``'s low): an estimate above the p95 it stands for."""
+        fastest = speed + SPEED_BONUS if min(hasted_turns, turns) else speed
+        capped = self.capped(turns, fastest)
+        return ceil(self.operational(board, capped, fastest) * turns / capped)
+
     def incoming(self, board, turns: int, *, hasted_turns: int, speed: int) -> tuple[int, int]:
         """(low, high) of the operational damage over ``turns`` with the first ``hasted_turns``
         at +10 speed; low == high when computed."""
@@ -555,13 +567,40 @@ class Projection:
         return low, max(low, high)
 
 
+def plan_reserve(max_hp: int, next_p95: int) -> int:
+    """D7 「余裕は最大HPの1割と、95%被害のうち大きい方」."""
+    return max(ceil(max_hp * RESERVE_HP_RATIO), next_p95)
+
+
+def heal_credit(amount: int, max_hp: int, next_p95: int) -> int:
+    """The HP one healing dose is credited with in a plan (owner 2026-11-11 「回復と悲観側のずれを
+    全部」: 「飲む時の HP を次の1手の最大を基準にし、二重の条件を外して1本300を数える」).
+
+    The dose is drunk once the HP is down to the next action's p95 (below it that action could
+    kill), so it restores up to the HP missing then: min(amount, max HP - next-action p95).  No
+    second condition on the dose out-healing that action: the drink's own turn is a turn of the
+    plan, whose incoming damage the projection already counts."""
+    return min(amount, max(0, max_hp - min(max_hp, next_p95)))
+
+
+def _heal_doses(policy, snapshot, next_p95: int, max_hp: int) -> list:
+    """The carried healing doses' credits, the largest first (quaff-effects.cpp:128-133)."""
+    doses = []
+    for sval, amount in HEAL_AMOUNTS.items():
+        if (credit := heal_credit(amount, max_hp, next_p95)) > 0:
+            doses.extend([credit] * policy._exact_potion_count(snapshot, sval))
+    doses.sort(reverse=True)
+    return doses
+
+
 def _plan(policy, snapshot, projection, allowed, free, reserve, next_p95, hp, max_hp):
     """(the cheapest win with the ``allowed`` categories (each used only where it helps), or None;
     the smallest shortfall of the candidates against the reserve, None when no schedule clears
     every target).  Only the first is a judgement; the shortfall is the T1 reading's margin.
 
-    Raises ``CostExceeded`` when a candidate needs an unaffordable horizon whose bound does not
-    already rule it out."""
+    Raises ``CostExceeded`` when a candidate needs an unaffordable horizon that neither its bound
+    nor, for a candidate with healing, its scaled estimate (``Projection.extrapolated``) rules
+    out."""
     hostiles = projection.hostiles
     schedule = _attack_schedule(policy, snapshot, hostiles, allowed, free)
     if schedule is None:
@@ -574,23 +613,17 @@ def _plan(policy, snapshot, projection, allowed, free, reserve, next_p95, hp, ma
         # One dose per 16 turns of the fight, never early (design 3.4).
         needed = max(1, ceil((attack_turns + 1) / SPEED_DOSE_TURNS))
         speed_options = [min(needed, available)]
-    boards = [(snapshot, 0)]
+    # Each board with its own next action and reserve: after the resistance drink the next
+    # action is the resisted one (owner 2026-11-11 「耐性の薬を飲んだ後の予備」).
+    boards = [(snapshot, 0, next_p95, reserve)]
     if "resistance" in allowed and (after := _resistance_after(snapshot)) is not None:
-        boards.append((after, 1))
-    heal_doses = []
-    if "healing" in allowed:
-        # Drunk where the next action could breach the reserve: credited up to the missing HP
-        # then, and only when it out-heals that action (``_unique_fight_projection``).
-        hp_at_use = min(max_hp, reserve + next_p95)
-        for sval, amount in HEAL_AMOUNTS.items():
-            credit = min(amount, max(0, max_hp - hp_at_use))
-            if credit > next_p95:
-                heal_doses.extend([credit] * policy._exact_potion_count(snapshot, sval))
-        heal_doses.sort(reverse=True)
-        heal_doses = heal_doses[:attack_turns]
+        after_p95 = projection.operational(after, 1, player_speed)
+        boards.append((after, 1, after_p95, plan_reserve(max_hp, after_p95)))
     best, shortfall = None, None
     for doses in sorted({0, *speed_options}):
-        for board, resisted in boards:
+        for board, resisted, board_p95, reserve in boards:
+            heal_doses = (_heal_doses(policy, snapshot, board_p95, max_hp)[:attack_turns]
+                          if "healing" in allowed else [])
             for heals in range(len(heal_doses) + 1):
                 turns = attack_turns + doses + resisted + heals
                 if best is not None and turns >= best.turns:
@@ -603,6 +636,19 @@ def _plan(policy, snapshot, projection, allowed, free, reserve, next_p95, hp, ma
                     shortfall = missed if shortfall is None else min(shortfall, missed)
                     continue
                 if high + self_damage > capacity - reserve:
+                    # Past the cost cap and not decided by the bracket.  A candidate the healing
+                    # lengthened is ruled out by the capped projection scaled to its horizon (an
+                    # over-estimate: the p95 of a longer sum grows less than linearly), never ruled
+                    # in: a heal-long plan the damage outruns is no win (ソロンドール, 10 Healing:
+                    # 3177 over 15 turns, about 5300 over 25 against 3338).  Without healing the
+                    # reading stays undecided, as before the healing credit.
+                    estimate = (projection.extrapolated(
+                        board, turns, hasted_turns=doses * SPEED_DOSE_TURNS, speed=player_speed)
+                        if heals else None)
+                    if estimate is not None and estimate + self_damage > capacity - reserve:
+                        missed = estimate + self_damage - (capacity - reserve)
+                        shortfall = missed if shortfall is None else min(shortfall, missed)
+                        continue
                     raise CostExceeded
                 incoming = high + self_damage  # the projection itself, or its upper bound
                 best = SupplyPlan(
@@ -659,7 +705,7 @@ def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
     """3.2-3.4: T3, else the shortest winning prefix of the owner's order (T2), else T1."""
     hostiles, speed = projection.hostiles, snapshot.player.speed
     free = result.free_damage
-    reserve = result.reserve = max(ceil(max_hp * RESERVE_HP_RATIO), result.next_action_p95)
+    reserve = result.reserve = plan_reserve(max_hp, result.next_action_p95)
     if all(damage > 0 for damage in free.values()):
         turns = sum(max(1, ceil(monster.hp / free[monster.index])) for monster in hostiles)
         result.free_turns = turns
@@ -677,15 +723,29 @@ def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
             raise CostExceeded  # the bracket cannot tell T3 from the rest
         result.free_margin = hp - low
     held = _supplies_held(policy, snapshot)
+    # Owner 2026-11-11 「恐怖・盲目の呪文を持つ相手で耐性が無い時は T2 にしない」: the plan may win
+    # on HP, but a fear or a blindness the player is not covered against takes its turns away.
+    # Such an engagement is T1 whether the plan wins or not, so a plan past the cost cap does not
+    # leave it undecided.
+    withheld = fear_cover.withheld(policy, snapshot, hostiles)
     # T1 first: every supply.  Only when that wins is the cheapest prefix looked for (D7).
-    every, shortfall = _plan(policy, snapshot, projection, frozenset(PLAN_ORDER), free, reserve,
-                             result.next_action_p95, hp, max_hp)
+    try:
+        every, shortfall = _plan(policy, snapshot, projection, frozenset(PLAN_ORDER), free,
+                                 reserve, result.next_action_p95, hp, max_hp)
+    except CostExceeded:
+        if not withheld:
+            raise
+        result.tier, result.t2_withheld = T1, withheld
+        return
     if every is None:
         result.tier = T1
         result.supply_margin = None if shortfall is None else -shortfall
         return
-    result.tier = T2
     result.supply_margin = every.capacity - every.reserve - every.incoming
+    if withheld:
+        result.tier, result.t2_withheld = T1, withheld
+        return
+    result.tier = T2
     for length in range(1, len(PLAN_ORDER) + 1):
         if PLAN_ORDER[length - 1] not in held and length < len(PLAN_ORDER):
             continue  # the same supplies as the shorter prefix: the same answer
