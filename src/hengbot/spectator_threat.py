@@ -11,8 +11,12 @@ What the page gets, per board (``board_judgement``):
   tiers judge one target (``threat_tiers.tiered(policy, snapshot, [monster], contact=True)``,
   the memo key ``sensed_t1_leave_key`` uses): a far monster would otherwise read T3 only because
   it has not come yet.  Its tier, its 即死 alone and its flags (``MonsterAssessment``).  Only
-  the ``SPECTATE_THREAT_MONSTERS`` nearest are judged; the rest are marked omitted.  A tier past
-  the projection's cost cap stays ``skipped: "cost"`` (shown as unknown), never computed further.
+  ``SPECTATE_THREAT_MONSTERS`` are judged, the highest race level first (a race the static data
+  lacks counts as level 0), the nearer first among equal levels; the rest are marked omitted
+  (owner 2026-11-13 「群れの脅威度判定だが、距離順でなくレベル順にならないか？」: a strong
+  monster deep in a pack of weak ones was left unjudged when the nearest were chosen).  A tier
+  past the projection's cost cap stays ``skipped: "cost"`` (shown as unknown), never computed
+  further.
 
 Nothing here is read by a decision: the caller runs it as an observer (cli
 ``_spectator_threat``) and the spectator writer only copies the result into its file.
@@ -22,8 +26,10 @@ from __future__ import annotations
 
 from hengbot import threat_tiers
 
-# The nearest 8 hostiles of a board are judged, the others are omitted.  Eight is the number of
-# cells beside the player: every monster that can be in melee contact is always judged.  The
+# At most 8 hostiles of a board are judged (highest race level first, ``judging_order``), the
+# others are omitted.  Eight was chosen as the number of cells beside the player; with the level
+# order a weak monster in melee contact can now be omitted when eight stronger ones are listed
+# (the page then shows it as omitted; the decision's own engagement is unaffected).  The
 # measured cost of one judgement is 0.5-2 ms on ordinary boards and at most about 16 ms on deep
 # ones (tests/test_spectator_threat_tiers.py, LUNA-REPORT-spectate-threat-tiers-1108.txt), so 8
 # keeps a board's added time near the engagement assessment the decision row already pays.
@@ -86,6 +92,17 @@ def engagement_judgement(facts: dict) -> dict:
     }
 
 
+def race_level(policy, monster) -> int:
+    """The monster's race level from the static race data; 0 for a race the data lacks."""
+    knowledge = policy._monrace_knowledge.get(monster.race_id)
+    return knowledge.level if knowledge is not None else 0
+
+
+def judging_order(policy, monster) -> tuple:
+    """Which hostiles are judged first: the highest race level, then the nearest."""
+    return (-race_level(policy, monster), monster.distance)
+
+
 def board_judgement(policy, snapshot, engagement_facts=None) -> dict:
     """``{"engagement": ..., "monsters": {index: judgement}}``; {} outside the design.
 
@@ -99,9 +116,9 @@ def board_judgement(policy, snapshot, engagement_facts=None) -> dict:
     for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters):
         if monster.hostile:
             listed.setdefault(monster.index, monster)
-    nearest = sorted(listed.values(), key=lambda monster: monster.distance)
+    chosen = sorted(listed.values(), key=lambda monster: judging_order(policy, monster))
     monsters = {}
-    for rank, monster in enumerate(nearest):
+    for rank, monster in enumerate(chosen):
         if rank >= SPECTATE_THREAT_MONSTERS:
             monsters[monster.index] = {"omitted": "bound"}
             continue
