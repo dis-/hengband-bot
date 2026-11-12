@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from hengbot import spare_gear
 from hengbot import random_quest_hold
+from hengbot import me_capped_pickup
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 
 from dataclasses import replace
@@ -427,6 +428,9 @@ class PolicyHelpersMixin:
         any stack of that tval, whatever its unseen quality.
         """
         if self._floor_pile_is_worthless(grid):
+            return True
+        # Owner 2026-11-13: the Magic-Eater leaves copies of a power at its cap.
+        if me_capped_pickup.capped_pile(self, snapshot, grid.position):
             return True
         return bool(grid.object_tvals) and all(
             tval in UNWANTED_TVALS or tval in {1, 3, 10} or

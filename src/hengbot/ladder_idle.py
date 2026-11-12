@@ -14,7 +14,7 @@ in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import damaging_ground, goal_route, immobile_ranged_kill, me_powers, quest_target_search, sealed_pocket
+from hengbot import damaging_ground, engagement_avoid_seal, goal_route, immobile_ranged_kill, me_powers, quest_target_search, sealed_pocket
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT, STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 from hengbot.town_terminal import town_end_key
@@ -122,9 +122,20 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
         # enclose what is left of the floor: leave it now instead of
         # wandering among them until the loop detector stops the bot
         # (owner 2026-11-02 「避ける判断になるのであればループではなく迂回する
-        # べき」; n1-c life-103).
-        if policy._engagement_owned_avoid_cells and policy._stuck_escape_permitted(
-                snapshot, forgetting_maze, completed_forgetting_maze):
+        # べき」; n1-c life-103).  Only when they do enclose it: a veto left
+        # anywhere on the floor by an earlier retreat is no enclosure while
+        # a walk avoiding every veto still reaches a frontier or a stair
+        # (engagement_avoid_seal.encloses).  n1-c life-205 (dungeon 12 49F,
+        # 2026-11-12 22:13): two vetoes 25+ cells away, 295 open frontiers
+        # and two known down stairs, the explore found nothing at a searched
+        # dead end and this read Recall at full HP with nothing in sight;
+        # 16 of the life's ~105 returns that evening left this way.  The
+        # ladder below (secret walls, known stairs, the wander and the
+        # stuck streak) owns such a floor.
+        if (policy._engagement_owned_avoid_cells
+                and engagement_avoid_seal.encloses(policy, snapshot)
+                and policy._stuck_escape_permitted(
+                    snapshot, forgetting_maze, completed_forgetting_maze)):
             escape = policy._stuck_escape_key(snapshot)
             if escape is not None:
                 return escape

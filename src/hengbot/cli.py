@@ -64,6 +64,7 @@ from hengbot.policy import (
     staged_prompt_chain_matches,
 )
 from hengbot.quest25_battle import SEARCH_REASON as Q25_TRAP_SEARCH_REASON
+from hengbot.quest25_battle import RECHARGE_REASON as Q25_RECHARGE_REASON
 # After hengbot.policy: threat_tiers' dependencies import through it (a cycle otherwise).
 from hengbot import threat_tiers
 from hengbot import spectator_threat
@@ -490,6 +491,12 @@ STATIONARY_EXEMPT_REASONS = frozenset(
         # one cell at a time is no confined loop (n1-a life-508 2026-11-11: row 1 from [1,14] to
         # [1,9], at most 10 searches a cell, stopped by the 40-decision window).
         Q25_TRAP_SEARCH_REASON,
+        # Q25's between-phases rest (quest25_battle._recharge_key, owner 2026-11-06 「各段階の間に、
+        # 魔道具術師の使用回数のうち、攻撃に使うものを全快させる」): each 'R100' advances the game, the
+        # list reads between them spend no turn, and a phase takes at most RECHARGE_REST_LIMIT of
+        # them.  n1-b life-382 2026-11-13 04:42:57: eleven rests on [5,1] tripped the 40-decision
+        # window before the wands were full.
+        Q25_RECHARGE_REASON,
         ONCE_QUEST_TICK_REST_REASON,
         # Exact policy-registered escape WAIT terminals. Each owns the existing
         # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as

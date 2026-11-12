@@ -8,6 +8,7 @@ from hengbot import guardian_rumor, home_identification, home_pass_charge, town_
 from hengbot import status_cure, unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 
+from hengbot.departure_readiness import readiness_table
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from functools import wraps
 from weakref import WeakKeyDictionary
@@ -2307,20 +2308,22 @@ class TownMixin:
         )
 
         home_required = self._home_available(snapshot)
+        # The supply leaves are the one readiness table's (departure_readiness).
+        supply = readiness_table(self, snapshot)
         return {
-            "recall_departure_ready": self._recall_departure_ready(snapshot),
-            "remove_curse_ready": self._required_remove_curse_kind(snapshot) is None,
+            "recall_departure_ready": supply.met("recall_departure_ready"),
+            "remove_curse_ready": supply.met("remove_curse_ready"),
             "food_ready": self._departure_food_ready(snapshot),
-            "light_ready": self._light_ready(snapshot),
+            "light_ready": supply.met("light_ready"),
             # Fixed-quest carry belongs to the quest-entry contract, not the
             # ordinary dungeon departure contract.  Procurement still owns an
             # available supplier through the town-need registry, and the
             # fixed-quest readiness evaluator still refuses entry while its
             # required force is short.
             "quest_carry_ready": True,
-            "teleport_ready": self._teleport_ready(snapshot),
-            "cure_critical_ready": self._cure_critical_ready(snapshot),
-            "identify_staff_ready": self._identify_staff_ready(snapshot),
+            "teleport_ready": supply.met("teleport_ready"),
+            "cure_critical_ready": supply.met("cure_critical_ready"),
+            "identify_staff_ready": supply.met("identify_staff_ready"),
             "teleport_items_safe": not self._teleport_blocked_by_equipment(
                 snapshot
             ),
@@ -6035,43 +6038,23 @@ class TownMixin:
         """Read the HARD leaves only; missing evidence is never permission.
 
         No optimizer, catalogue scan, observer or state normalization runs here.
-        Supply predicates keep their ordinary targets; the explicit landing
-        ledger additionally prevents a shallow planning band weakening them.
         """
-        def stock(kind):
-            status = self._supply_ledger(snapshot, depth)[kind]
-            return status.count >= status.required_departure
-
-        def recall_stock():
-            # The departure's own read is added when the ledger adds it
-            # (_compute_supply_ledger): never during a fundraising set, whose
-            # departure is the mining walk-in.  Adding it there asked one
-            # scroll more than the ledger the purchases follow.
-            outgoing = (self._fundraising_mode is None
-                        and not snapshot.player.recalling and self._town_recall_destination(
-                            snapshot, guardian_gate=False, safety_gate=False)[0] is not None)
-            # The ledger's units: a carried Rod of Recall is the departure's read
-            # (_recall_supply_units).  Scrolls alone stopped n1-a life-512 at the
-            # town end with ten scrolls and the rod (2026-11-11 18:39, 18:40).
-            return self._count_recall_means(snapshot) >= self._recall_target(depth) + outgoing
+        # The supply leaves are the one readiness table's, at its one depth
+        # (departure_readiness): the ordinary gate's verdicts.  ``depth`` (the
+        # landing) is the depth gates' only.  The minimum re-read every supply
+        # at the landing as well, and kept a recall count of its own: a target
+        # the purchases never followed stopped the town end with the ordinary
+        # gate satisfied (n1-a life-512, n1-c life-203 11-12).
+        supply = readiness_table(self, snapshot, pure=True)
 
         checks = {
-            "recall_departure_ready": lambda: self._recall_departure_ready(snapshot)
-                and stock("recall") and recall_stock(),
-            "food_ready": lambda: self._food_ready(snapshot) and stock("food"),
-            "light_ready": lambda: self._light_ready(snapshot)
-                and (depth < 2 or self._owns_lantern(snapshot)),
-            "cure_critical_ready": lambda: self._cure_critical_ready(snapshot)
-                and (stock("cure") or (
-                    self._supply_ledger(snapshot, depth)["cure"].count
-                    == self._supply_ledger(snapshot, depth)["cure"].required_departure - 1
-                    and not self._supply_ledger(snapshot, depth)["cure"].obtainable)),
-            "teleport_ready": lambda: self._teleport_ready(snapshot) and stock("teleport"),
-            "identify_staff_ready": lambda: self._identify_staff_ready(snapshot, cache_fixed_quest_head=False)
-                and (depth < STAFF_IDENTIFY_MIN_DEPTH
-                     or self._identify_staff_absorbed(snapshot)
-                     or self._total_identify_staff_charges(snapshot) >= STAFF_IDENTIFY_MIN_CHARGES),
-            "remove_curse_ready": lambda: self._required_remove_curse_kind(snapshot) is None,
+            "recall_departure_ready": lambda: supply.met("recall_departure_ready"),
+            "food_ready": lambda: supply.met("food_ready"),
+            "light_ready": lambda: supply.met("light_ready"),
+            "cure_critical_ready": lambda: supply.met("cure_critical_ready"),
+            "teleport_ready": lambda: supply.met("teleport_ready"),
+            "identify_staff_ready": lambda: supply.met("identify_staff_ready"),
+            "remove_curse_ready": lambda: supply.met("remove_curse_ready"),
             "teleport_items_safe": lambda: not self._teleport_blocked_by_equipment(
                 snapshot),
             "temporary_status_clear": lambda: self._temporary_status_clear(snapshot),

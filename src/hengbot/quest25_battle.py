@@ -226,6 +226,13 @@ _TELEPORT_LINE_EN = " teleports away."
 # The counted rest between phases (between_phases 「回数を指定して休み、回数を見て続けるかを
 # 決める」); the count is the Q34 recharge's (q34_recharge, LUNA-REPORT-me-rest-recharge).
 RECHARGE_REST_KEY = "R100\r"
+# Counted recharge rests one phase takes at most.  A long rest is the plan's own (n1-b life-382
+# 2026-11-13 04:42: [5,1], INT 15, eleven 'R100' of about 77 game ticks each and still short when
+# the loop guard stopped it).  regenmagic (hpmp/hp-mp-regenerator.cpp) refills a wand or staff of
+# count c from empty in c * 0x10000 / (regen * (30 + adj_mag_mana[INT]) * (c + 13) / 240) ticks:
+# at the slowest the plan meets (count 99, no Regeneration, no INT bonus, resting) about 1,180
+# ticks, some 16 such rests.  Thirty is twice that; past it the phase goes on with what is charged.
+RECHARGE_REST_LIMIT = 30
 # Game turns under which a counted recharge rest was cut short (``_note_rest_cut``).
 REST_CUT_GAME_TURNS = 100
 # The rest that ends at full HP/MP (player-processor.cpp).
@@ -284,6 +291,7 @@ class Battle:
     detection: tuple | None = None  # (turn, origin) of the last trap detection keyed for a cell
     detect_asked: frozenset = frozenset()  # trap cells a trap detection was keyed for
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
+    recharge_rests: int = 0        # this phase's counted recharge rests (``RECHARGE_REST_LIMIT``)
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
     blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
@@ -1098,9 +1106,10 @@ def _recharge_key(ctx: _Ctx) -> str | None:
     short = any(not _full(power, row)
                 for kind in _attack_kinds(ctx) for row in lists[kind][1]
                 if (power := me_device_attacks._BY_NAME.get((kind, row.get("name")))) is not None)
-    if not short:
+    if not short or ctx.battle.recharge_rests >= RECHARGE_REST_LIMIT:
         return None
     ctx.battle.browsed = frozenset()
+    ctx.battle.recharge_rests += 1
     ctx.battle.recharge_rest_turn = int(ctx.snapshot.turn)
     ctx.policy.last_reason = RECHARGE_REASON
     return RECHARGE_REST_KEY
@@ -1498,16 +1507,55 @@ def _note_quyls(ctx: _Ctx) -> None:
 
 def _quyls_done(ctx: _Ctx) -> bool:
     _note_quyls(ctx)
-    return _quyl_plan(ctx) is None
+    return _quyl_plan(ctx) is None and not _recharging_area_attack(ctx)
+
+
+def _area_attack_held(ctx: _Ctx) -> bool:
+    """An area attack the character holds whatever its charges now: an absorbed ball or breath
+    (the Magic-Eater's wands regain charges and its rods recharge, hpmp/hp-mp-regenerator.cpp
+    regenmagic, twice as fast resting), or a carried rod of one (it recharges)."""
+    policy, snapshot = ctx.policy, ctx.snapshot
+    for (kind, sval), power in me_device_attacks.POWERS.items():
+        if power.shape not in me_device_attacks.TARGETABLE_SHAPES or power.group_only:
+            continue
+        if me_capability.has(policy, snapshot, kind, sval):
+            return True
+        if kind == "rod" and any(item.tval == TVAL_ROD and item.sval == sval and item.known
+                                 for item in snapshot.inventory):
+            return True
+    return False
+
+
+def _recharging_area_attack(ctx: _Ctx) -> bool:
+    """A quylthulg is left and the area attack is only spent, not missing.
+
+    n1-b life-378 (2026-11-13 01:45:05-01:45:14): from [5,2] the balls at [7,14] (for [9,13]) spent
+    every charge -- the absorbed rods of Acid and Thunder Ball, the wands of Ice Ball, Acid Ball
+    and Stinking Cloud -- and with no ball usable the phase counted as 「範囲攻撃が無ければ 1) を
+    とばして」 and ended; the recharge rest that followed (the tome's preparation) refilled them.
+    Owner 2026-11-13 「範囲攻撃がないというのは本当か？休憩すれば回復するとかでもなく？」: spent is
+    not missing, so the phase rests to refill them (the 11-06 「攻撃に使うものを全快させる」 rest,
+    ``_recharge_key``) and shoots again."""
+    left = [cell for cell, race in ctx.navigator.battlefield.monster_placements
+            if race == geo.QUYL and cell not in ctx.battle.quyls_done]
+    return (bool(left) and ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]
+            and not _balls(ctx, geo.QUYL) and _area_attack_held(ctx)
+            and ctx.battle.recharge_rests < RECHARGE_REST_LIMIT)
 
 
 _FACED = frozenset({geo.IPSISSIMUS, geo.DREADMASTER})
 
 
-def _quyls(ctx: _Ctx) -> str | None:
-    plan = _quyl_plan(ctx)
+def _quyls(ctx: _Ctx, plan=None) -> str | None:
+    plan = _quyl_plan(ctx) if plan is None else plan
     if plan is None:
-        return None
+        if not _recharging_area_attack(ctx):
+            return None
+        # Spent, not missing: refill them (the between-phases rest), fighting what comes first.
+        targets = _fight_targets(ctx)
+        if targets:
+            return _engage(ctx, targets) or _hold(ctx)
+        return _recharge_key(ctx)
     # 「テレポート・アウェイを受けるとイプシシマスの残党やドリードマスターと相対する可能性がある。
     # その場合は加速して討伐を試みる。」
     faced = [monster for monster in ctx.in_view() if monster.race_id in _FACED]
@@ -1862,6 +1910,17 @@ def _sweep_targets(ctx: _Ctx) -> list:
             if monster.race_id not in {geo.DRUJ, geo.STAIRWAY}]
 
 
+def _detection_failed(ctx: _Ctx) -> bool:
+    """The board after the sweep's detection says the cast or the use failed (and shows nothing)."""
+    from hengbot import kill_all_patrol
+
+    if ctx.snapshot.turn == ctx.battle.detect_turn:
+        return False
+    texts = [message_text(message) for message in ctx.snapshot.messages]
+    return (any(line in text for text in texts for line in kill_all_patrol.FAILED_LINES)
+            and not any(line in text for text in texts for line in kill_all_patrol.SENSED_LINES))
+
+
 def _sweep_done(ctx: _Ctx) -> bool:
     battle = ctx.battle
     if _sweep_targets(ctx):
@@ -1873,11 +1932,17 @@ def _sweep_done(ctx: _Ctx) -> bool:
     return not _short(ctx)
 
 
-def _sweep(ctx: _Ctx) -> str | None:
+def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
+    """``patrol``: the round is walked whatever the kill count says (``_after_the_phases``)."""
     battle = ctx.battle
     targets = _sweep_targets(ctx)
     if battle.detect_turn >= 0 and battle.detected is None:
-        battle.detected = tuple((monster.position.y, monster.position.x) for monster in targets)
+        if _detection_failed(ctx):
+            # n1-b life-378 (01:45:48): 「呪文をうまく唱えられなかった！」 was read as a detection that
+            # showed nothing, and the sweep ended with both quylthulgs alive.  Cast again.
+            battle.detect_turn = -1
+        else:
+            battle.detected = tuple((monster.position.y, monster.position.x) for monster in targets)
     if targets:
         visible = [monster for monster in targets if monster.perception != "detected"]
         if (key := _engage(ctx, visible)) is not None:
@@ -1896,7 +1961,7 @@ def _sweep(ctx: _Ctx) -> str | None:
     if battle.detect_turn < 0 and (detect := _detect_key(ctx)) is not None:
         battle.detect_turn = ctx.snapshot.turn
         return detect
-    if not _short(ctx):
+    if not _short(ctx) and not patrol:
         return None
     # 「撃破カウントに不足があれば巡回して探す」: the room sweep's stands as the round.
     stands = ctx.profile.engagement_plan["room_sweep"]["stands"]
@@ -2156,11 +2221,40 @@ def _phase_key(policy, snapshot) -> str | None:
     phase = current_phase(ctx)
     if phase is None:
         # The druj is dead: what the anti-teleport piece displaced goes back on.
-        return quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
+        return (quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
+                or _after_the_phases(ctx))
     from hengbot import quest25_sealed_room
 
     return (_adjacent_mass_key(ctx) or quest25_sealed_room.key(ctx)
             or _prepare(ctx, phase) or _act(ctx, phase))
+
+
+def _after_the_phases(ctx: _Ctx) -> str | None:
+    """Every phase ended and the quest (KILL_ALL) is not complete: what is left is found and killed.
+
+    n1-b life-378 (2026-11-13 01:46, build bot-68c820fd6): the quylthulgs' phase found no ball then
+    (owner 2026-11-06 phase3 「範囲攻撃が無ければ 1) をとばして」), the sweep's Detect Evil showed
+    nothing (a quylthulg is not evil), the stairway and the druj fell, and with the quest still
+    taken the plan had no step: ``quest:blocked:execute`` waits on [12,24] until the loop guard
+    stopped the bot, three times.  The draft's order puts the quylthulgs before the druj (owner
+    2026-11-05 「最後ドルジの前に処理する」) and the quest is won only with every monster dead, so
+    the plan goes on: each quylthulg still on its cell is shot directly from a cell of its line
+    (phase3 「加速して直接撃つ」, ``_quyls``), then the sweep's round is walked for what is left
+    (phase6_sweep 「巡回して探す」), bounded by ``room_sweep.max_rounds`` as there."""
+    left = [cell for cell, race in ctx.navigator.battlefield.monster_placements
+            if race == geo.QUYL and cell not in ctx.battle.quyls_done]
+    if left and ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]:
+        _note_quyls(ctx)
+        left = [cell for cell in left if cell not in ctx.battle.quyls_done]
+    if left and ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]:
+        key = _quyls(ctx, (left[0], None, None))
+        if key is not None:
+            return key
+    # Owner 2026-11-13 「全滅クエストで作戦を完了しても終了しない場合、周回して敵を探す。感知を持って
+    # いれば感知して敵を探す。」: the KILL_ALL patrol every such quest walks (kill_all_patrol).
+    from hengbot import kill_all_patrol
+
+    return kill_all_patrol.key(ctx.policy, ctx.snapshot)
 
 
 def phase_index(name: str) -> int:

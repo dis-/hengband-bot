@@ -23,6 +23,7 @@ visit and the Home list is read again.
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import unittest
+from unittest.mock import patch
 
 from hengbot.model import SV_STAFF_IDENTIFY, TVAL_STAFF
 from tests import test_idstaff_stockout_home_kit_1112_recorded as stockout_kit
@@ -40,6 +41,14 @@ class HomeFullStaffDeposit1112RecordedTest(stockout_kit.IdstaffStockoutHomeKit11
                          ("5", "home:atomic-deposit-await-confirmation"))
         self.assertEqual((recorded[stop_row]["key"], recorded[stop_row]["reason"]),
                          ("5", "town:blocked:survival:home_atomic_withdraw_clear"))
+        # Wall, declared: life-512's Home also holds a 自己分析の薬 (75/58), which the
+        # Home drink take (owner 2026-11-13, test_n1c_205_enlightenment_home_1113_recorded)
+        # files on an outside board before the deposit batch; this pin is the refused
+        # deposit's settlement, so the take is held off.
+        hold_take = patch.object(type(policy), "_bind_home_drink_potion_withdrawal",
+                                 lambda *args: None)
+        hold_take.start()
+        self.addCleanup(hold_take.stop)
         self.replay_live(policy, recorded, steps[:settle_row])
         board = steps[settle_row][1]()
         self.assertIsNone(board.store)

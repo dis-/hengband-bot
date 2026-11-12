@@ -25,7 +25,7 @@ from hengbot.model import (
     InventoryItem, MonsterState, Position, Snapshot, StoreItem,
 )
 from hengbot.policy_constants import (
-    CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO, CURE_CRITICAL_REQUIRED_DEPTH,
+    CHOKE_ENGAGEMENT_MIN_DAMAGE_RATIO,
     DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
     DOWN_STAIRS_KEY, EAT_KEY, FOOD_MIN_SVAL, FOOD_STOCK_TARGET,
     FOOD_TYPE_MANA, IDENTIFY_CHARGE_FLOOR, IDENTIFY_STAFF_LEVEL,
@@ -34,8 +34,7 @@ from hengbot.policy_constants import (
     MANA_FOOD_DEVICE_TARGET, OIL_TARGET,
     PACK_CAPACITY, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
-    STARVING_FOOD_STATES, SUMMONER_CHOKE_NEIGHBORS, SUPPLY_LABEL_KINDS, SUPPLY_STORES,
-    TELEPORT_REQUIRED_DEPTH,
+    STARVING_FOOD_STATES, SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES,
     TORCH_REFILL_FUEL, TORCH_THROW_TARGET, UP_STAIRS_KEY, USE_DEVICE_MIN,
     WAIT_KEY, HOME_KNOWLEDGE_MACRO,
     permitted_dive_depth, required_destruction_uses,
@@ -820,151 +819,13 @@ class SupplyMixin:
         )
 
     def procurement_requirements(self, snapshot: Snapshot) -> list[dict[str, int | str]]:
-        """Return currently unmet item targets for logs and the policy viewer."""
-        requirements: list[dict[str, int | str]] = []
-        ledger = self._supply_ledger(snapshot, self._planned_depth())
+        """Return currently unmet item targets for logs and the policy viewer.
 
-        def require(item: str, current: int, target: int) -> None:
-            if current < target:
-                requirements.append(
-                    {
-                        "item": item,
-                        "current": current,
-                        "target": target,
-                        "missing": target - current,
-                    }
-                )
-
-        require(
-            "Word of Recall scrolls",
-            ledger["recall"].count,
-            ledger["recall"].required_departure,
-        )
-        if snapshot.player.food_type == FOOD_TYPE_MANA:
-            require(
-                "Device charges for food",
-                ledger["food"].count,
-                ledger["food"].required_departure,
-            )
-        else:
-            require(
-                "Food rations",
-                ledger["food"].count,
-                ledger["food"].required_departure,
-            )
-
-        if self._planned_depth() >= 2:
-            require("Brass lantern", int(self._owns_lantern(snapshot)), 1)
-            require(
-                "Flasks of oil",
-                ledger["oil"].count,
-                ledger["oil"].required_departure,
-            )
-        elif self._owns_lantern(snapshot):
-            require(
-                "Flasks of oil",
-                ledger["oil"].count,
-                ledger["oil"].required_departure,
-            )
-        else:
-            require(
-                "Usable light sources",
-                self._count_usable_torches(snapshot),
-                FOOD_STOCK_TARGET,
-            )
-
-        if self._planned_depth() >= TELEPORT_REQUIRED_DEPTH:
-            require(
-                "Teleport scrolls",
-                ledger["teleport"].count,
-                ledger["teleport"].required_departure,
-            )
-        if self._planned_depth() >= CURE_CRITICAL_REQUIRED_DEPTH:
-            require(
-                "Cure Critical Wounds potions",
-                ledger["cure"].count,
-                ledger["cure"].required_departure,
-            )
-
-        curse_kind = self._required_remove_curse_kind(snapshot)
-        if curse_kind is not None:
-            status = ledger[curse_kind]
-            require("*Remove Curse* scrolls" if curse_kind == "star-remove-curse"
-                    else "Remove Curse scrolls", status.count, status.required_departure)
-
-        mining_requirements = self._fundraising_mining_requirements(snapshot)
-        if mining_requirements is not None:
-            detection_target, digger_target = mining_requirements
-            require(
-                "Treasure Detection scrolls",
-                self._count_treasure_detection_scrolls(snapshot),
-                detection_target,
-            )
-            require(
-                "Digging tool",
-                self._digging_tool_count(snapshot),
-                digger_target,
-            )
-
-        if self._identification_need is not None:
-            full = self._identification_need == "full"
-            current = int(
-                self._find_identification_source(
-                    snapshot,
-                    full=full,
-                    reliable_only=self._identification_requires_reliable_source(
-                        snapshot
-                    ),
-                )
-                is not None
-            )
-            require("*Identify* source" if full else "Identify source", current, 1)
-
-        if self._planned_depth() >= STAFF_IDENTIFY_MIN_DEPTH:
-            require(
-                "Identify staff charges",
-                self._total_identify_staff_charges(snapshot),
-                STAFF_IDENTIFY_MIN_CHARGES,
-            )
-
-        destruction_target = self._required_destruction_uses(snapshot)
-        if destruction_target:
-            require(
-                "*Destruction* uses",
-                self._total_destruction_uses(snapshot),
-                destruction_target,
-            )
-
-        strategy = self._carry_procurement_strategy(snapshot)
-        if strategy is not None:
-            labels = {
-                "launcher": "Quest launcher",
-                "throwing_items.lit_torch": "Quest throwing torches",
-                "throwing_items.shot": "Quest shots",
-                "throwing_items.arrow": "Quest arrows",
-                "throwing_items.bolt": "Quest bolts",
-                "throwing_items.launcher_ammo": "Quest launcher ammunition",
-                "required_scrolls.light": "Quest Light scrolls",
-                "required_scrolls.teleport": "Quest Teleport scrolls",
-                "utility_tools.wall_breach": "Quest wall-breach tools",
-            }
-            for name, status in self._quest_carry_status(
-                snapshot, strategy.required_force
-            ).items():
-                if name in self._abandoned_quest_carry_requirements:
-                    continue
-                require(
-                    labels.get(name, f"Quest carry: {name}"),
-                    int(status["measured"]),
-                    int(status["required"]),
-                )
-
-        for requirement in requirements:
-            kind = SUPPLY_LABEL_KINDS.get(str(requirement["item"]))
-            if kind is not None and not ledger[kind].obtainable:
-                requirement["blocked_reason"] = "no-actionable-supplier"
-
-        return requirements
+        The rows of the one departure readiness table
+        (``departure_readiness``): a row a leaf reads has the leaf's target.
+        """
+        from hengbot.departure_readiness import readiness_table
+        return readiness_table(self, snapshot).procurement_rows()
 
     @staticmethod
     def _carried_identify_staves(snapshot: Snapshot) -> list[InventoryItem]:
