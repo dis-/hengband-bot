@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_floor_avoidance, ladder_light, warning_cell_record
+from hengbot import ladder_floor_avoidance, ladder_global_map, ladder_light, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -7700,17 +7700,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             snapshot, physical_hostiles
         )
         self._observe_navigation_commitments(snapshot)
-        # The global map is a distinct command space.  Town/store owners can
-        # retain durable work while crossing it, but their travel, shopping,
-        # repetition, and fundraising commands are not valid here.  Route or
-        # enter the town before allowing any of those owners to select again.
-        if self._on_global_wilderness_map(snapshot):
-            # Owner 2026-11-07: the Zul trip is the one exception to the
-            # never-the-wilderness rule, and only while it is under way.
-            zul = zul_trip.global_key(self, snapshot)
-            if zul is not None:
-                return zul
-            return self._town_producer_entry("_wilderness_survival_key", lambda: self._wilderness_survival_key(snapshot, physical_hostiles), family="survival")
+        # The global-map layer: on the global map nothing below is asked (ladder_global_map).
+        global_map = ladder_global_map.key(self, snapshot, physical_hostiles=physical_hostiles)
+        if global_map is not PASS:
+            return global_map
         self._update_mining_combat_streaks(
             snapshot, physical_hostiles, physical_adjacent
         )

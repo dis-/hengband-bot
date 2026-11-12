@@ -17874,5 +17874,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper (owner 2026-11-12): the throwing-torch target, 0 once the worn light crossbow released the torches; no command"
+  },
+  "ladder_global_map.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "cross-town",
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The global-map layer of _decide moved verbatim (maintainability review step 8): on the global wilderness map it returns zul_trip.global_key's key, else _wilderness_survival_key's answer through _town_producer_entry as in _decide (None included); off the global map it returns dungeon_ladder.PASS. The rows are its children's. Selected child inherits work; no independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

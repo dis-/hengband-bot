@@ -295,6 +295,7 @@ PASS = _Pass()
 # The lint reads the rows inside the module in place of that call, and a module asks the rungs
 # of its own layer only.
 LAYER_MODULES = {
+    "global-map": "ladder_global_map",
     "floor-avoidance": "ladder_floor_avoidance",
     "light": "ladder_light",
 }

@@ -2752,6 +2752,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_global_map.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "cross-town",
+      "survival"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_light.py:key": {
     "classification": "adapter",
     "rows": [
