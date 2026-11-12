@@ -6,6 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
+from hengbot import town_visit_plan
 from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
@@ -3232,6 +3233,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._store_entrance_step_off = None
         self._release_observed_store_exit(snapshot)
         town_advance_hold(self, snapshot, key)
+        town_visit_plan.note_decision(self, snapshot)
         self._town_progress_note_command(key)
         quest25_battle_record.record(self, snapshot)
         warning_cell_record.record(self, snapshot)

@@ -164,6 +164,10 @@ class TownVisit:
     # scan/withdrawal owns routing before an ordinary store may compose p; the
     # purchase gate binds it again on the page that wants the class.
     home_procurement_probe: tuple[int, int] | None = None
+    # The visit's stage trace (town rebuild stage 3-1, town_visit_plan):
+    # [stage, first sequence, last sequence, decisions, interrupts] per run
+    # of decisions in one stage.  Nothing decides from it yet.
+    plan_segments: list[list] = field(default_factory=list)
 
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:

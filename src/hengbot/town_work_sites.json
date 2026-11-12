@@ -14194,6 +14194,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_visit_plan.py:stage_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_work.py:bind_driver_override": {
     "classification": "driver",
     "rows": [
