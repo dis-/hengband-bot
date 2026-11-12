@@ -81,6 +81,10 @@ class SpellSelectionContext:
     timewalk_active: bool = False
     special_forced: bool = False
     special_selection_probability: float = 0.5
+    # Cast at a grid beside the player (no projectable line to the player itself): the
+    # attempts that pick a DIRECT_ONLY ability reach nothing (their share is dropped, not
+    # spread over the rest: the game wastes the attempt).
+    offset_target: bool = False
 
 
 @dataclass(frozen=True)
@@ -181,6 +185,18 @@ REFLECTABLE = frozenset({
     "BO_ACID", "BO_ELEC", "BO_FIRE", "BO_COLD", "BO_NETH",
     "BO_WATE", "BO_MANA", "BO_PLAS", "BO_ICEE", "BO_VOID",
     "BO_ABYSS", "BO_METEOR", "BO_LITE", "MISSILE",
+})
+
+# The spells that do not reach the player from a target beside it (mspell-attack.cpp:211-262
+# check_thrown_mspell: the attempt is dropped), and the bolts cast at such a grid (its path ends
+# there).  A monster with no projectable line to the player targets a projectable grid next to
+# the player (mspell-lite.cpp:208-230 decide_lite_projection, adjacent_grid_check) and its balls
+# and breaths still reach the player (``SpellSelectionContext.offset_target``).
+DIRECT_ONLY_ABILITIES = REFLECTABLE | frozenset({
+    "DISPEL", "SHOOT", "DRAIN_MANA", "MIND_BLAST", "BRAIN_SMASH",
+    "CAUSE_1", "CAUSE_2", "CAUSE_3", "CAUSE_4",
+    "SCARE", "BLIND", "CONF", "SLOW", "HOLD", "HAND_DOOM",
+    "TELE_TO", "TELE_AWAY", "TELE_LEVEL", "PSY_SPEAR", "DARKNESS", "FORGET",
 })
 
 INNATE_ABILITIES = frozenset({
@@ -360,7 +376,8 @@ def source_selection_probabilities(
     for share, abilities in ((with_innate, castable), (1.0 - with_innate, castable - INNATE_ABILITIES)):
         for ability, probability in _selection_for_available(monster, abilities, context).items():
             result[ability] = result.get(ability, 0.0) + share * probability
-    return result
+    return {ability: probability for ability, probability in result.items()
+            if not (context.offset_target and ability in DIRECT_ONLY_ABILITIES)}
 
 
 ABILITY_ATTRIBUTE = {

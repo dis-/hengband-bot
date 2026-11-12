@@ -737,6 +737,19 @@ def holds(policy, snapshot: Snapshot) -> bool:
             and snapshot.player.position == current.pocket)
 
 
+SENSED_T1 = "sensed-t1"
+
+
+def give_way(policy, snapshot: Snapshot, why: str) -> None:
+    """Release the plan ``key`` has just answered for, as ``key``'s own releases are: the retry
+    window then holds for the pack (``_latched``); ``why`` is the veto read in the telemetry."""
+    _release(policy, why)
+    policy._anaguma_veto = why
+    released = policy._anaguma_released
+    if released is not None and released.floor == snapshot.floor_key:
+        policy._anaguma_retry = (snapshot.floor_key, released.races, snapshot.turn)
+
+
 def key(policy, snapshot: Snapshot, hostiles) -> str | None:
     """The Anaguma rung (dungeon_ladder floor-avoidance layer); None leaves the board below.
 

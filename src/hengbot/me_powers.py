@@ -602,14 +602,55 @@ def _status_rung_first(policy, snapshot, monster) -> bool:
     return bool(policy._unresisted_melee_status_threats(snapshot, [monster], latched=latched))
 
 
+# A stunned player (timed-effect/player-stun.cpp, by ``stun_rank``, PlayerStunRank 0-5): the
+# Magic-Eater's failure chance adds get_magic_chance_penalty (:135-153) before its cap of 95
+# (cmd-magiceat.cpp:484-487); a scroll's read fails on get_item_chance_penalty (:162-178,
+# object-use/item-use-checker.cpp check_stun, read-execution.cpp:94).
+STUN_MAGIC_PENALTY = (0, 10, 20, 30, 50, 100)
+STUN_ITEM_PENALTY = (0, 0, 0, 5, 10, 100)
+MAX_FAILURE = 95
+
+
+def _stun_rank(player) -> int:
+    rank = player.stun_rank if player.stun_rank is not None else int(bool(player.stunned))
+    return max(0, min(rank, len(STUN_MAGIC_PENALTY) - 1))
+
+
+def stunned_success(policy, snapshot, ident) -> int | None:
+    """The power's success percent now: the displayed failure (the last list shown) with the
+    stun's penalty added, capped as the game caps it; None without a displayed row.  A list
+    shown while already stunned counts the penalty twice: the lower reading."""
+    row = me_capability.observed_row(policy, *ident)
+    if row is None or not isinstance(row.get("fail"), int):
+        return None
+    return 100 - min(MAX_FAILURE, row["fail"] + STUN_MAGIC_PENALTY[_stun_rank(snapshot.player)])
+
+
+def _stunned_scroll_first(ctx, power) -> bool:
+    """Stunned, a readable Teleportation scroll is surer than the power: the THREAT power gives
+    way and the leave reads the scroll (n1-b life-377, 80F 2026-11-12 13:46: stunned by a
+    plasma bolt, the absorbed Teleport Away cast at 97% displayed failed and 混沌の王族
+    killed the player; the scroll the sensed leave named was in the pack)."""
+    snapshot = ctx.snapshot
+    if not snapshot.player.stunned:
+        return False
+    if ctx.policy._escape_scroll(snapshot, teleport_only=True) is None:
+        return False
+    success = stunned_success(ctx.policy, snapshot, power.ident)
+    return success is None or 100 - STUN_ITEM_PENALTY[_stun_rank(snapshot.player)] > success
+
+
 def _unbeatable_in_range(ctx, power):
     """A visible hostile on a beam's line that this character cannot beat.
 
     Threat tiers plan step 6 (inventory 2.4): where the tiers act, it is a monster the tiers
     leave, T1 or a T2 that is not a selected target (``threat_tiers.leave_due`` on it alone);
-    elsewhere, and where the tiers do not decide (T3, past the cost cap), today's winnability."""
+    elsewhere, and where the tiers do not decide (T3, past the cost cap), today's winnability.
+    Not while stunned with a surer Teleportation scroll to read (``_stunned_scroll_first``)."""
     monster, policy = ctx.target_hostile, ctx.policy
     if monster is None or ctx.aim is None or _resists_teleport_surely(ctx, monster):
+        return False
+    if _stunned_scroll_first(ctx, power):
         return False
     from hengbot import threat_tiers
     leave = threat_tiers.leave_due(policy, ctx.snapshot, [monster])

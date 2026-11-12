@@ -23,6 +23,7 @@ from hengbot import (
     oneshot_breath,
     resist_potion,
     summon_response,
+    threat_tiers,
 )
 
 
@@ -78,6 +79,16 @@ def key(policy, snapshot, *, strategic_hostiles, strategic_adjacent, physical_ho
         # existing chokes; it declines (None) where it cannot be dug (anaguma).
         anaguma_key = anaguma.key(policy, snapshot, physical_hostiles)
         if anaguma_key is not None:
+            # Owner 2026-11-10 穴熊 「穴を捨てる線は今の基準のまま」「高威力攻撃を持つ個体は通常の
+            # 生存ルーチンで対応する」: inside an awake T1's sensing radius the sensed leave
+            # (its *Destruction*, approach, stairs or scroll) answers, never the dig or the
+            # hold.  n1-b life-377 (80F, 2026-11-12): the pocket dug and held beside
+            # 世紀末覇者『ラオウ』 while the leave's *Destruction* was due, until a plasma bolt
+            # stunned the player.
+            sensed = threat_tiers.sensed_t1_leave_key(policy, snapshot)
+            if sensed is not None:
+                anaguma.give_way(policy, snapshot, anaguma.SENSED_T1)
+                return sensed
             return anaguma_key
         detected_preparation = policy._town_producer_entry("_detected_threat_preparation_key", lambda: policy._detected_threat_preparation_key(
             snapshot, physical_hostiles

@@ -13239,13 +13239,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:cannot_win": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "threat_tiers.py:decided": {
     "classification": "data",
     "rows": [
@@ -13253,7 +13246,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "threat_tiers.py:inside_sensing": {
+  "threat_tiers.py:destruction_leaving": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -13267,7 +13260,21 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "threat_tiers.py:on_the_way": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:remembered_approach_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_tiers.py:sensed_t1_destruction_key": {
     "classification": "producer",
     "rows": [
       "survival"
