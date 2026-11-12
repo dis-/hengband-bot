@@ -30,16 +30,6 @@ a carried wand's, a thrown torch's and melee's attack_expectation figure
 order above, so melee wins only when it is strictly larger (n1-c life-085:
 the Lv18 Magic-Eater fired 3d6 missiles at an AC 1 jelly its two hands would
 have hit for about four times as much).
-
-The launcher is weighed too (owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して
-期待値の高い方を使用する。敵の耐性、射撃の命中率、魔法の成功率まで考慮すること。」; n1-b
-life-370 shot arrows at 64F past its absorbed bolts, balls and Disintegrate): at a distant
-target the fixed order's answer gives way to the launcher's shot when the shot's expected
-damage per action (attack_expectation.launcher_shot) is strictly larger, and the ranged
-rung's shot gives way to the answer when the answer's is strictly larger
-(``stronger_than_launcher_key``, which policy_combat ``_ranged_attack_key`` asks before
-it fires); beside the target the launcher joins the candidates while melee answers
-nothing there (owner 2026-11-01 21h 「近接できない時だけ使う」).
 """
 
 from hengbot import attack_expectation, breeder_area_attack, me_device_attacks
@@ -47,8 +37,7 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import TVAL_WAND
-from hengbot.policy_constants import DIRECTION_KEYS, RANGED_MAX_DISTANCE
-from hengbot.projection_path import projection_path
+from hengbot.policy_constants import DIRECTION_KEYS
 
 
 WAND_REASON = "ranged:aim-wand"
@@ -163,170 +152,52 @@ def _use(policy, snapshot, verb, item, direction, reason) -> str | None:
     return key
 
 
-def _missile_option(policy, snapshot, target, direction, send):
-    seen = me_device_attacks.seen_missile_score(policy, snapshot, target, direction)
-    return (me_device_attacks.missile_score(policy, snapshot, target) if seen is None else seen, send)
-
-
-def _fixed_options(policy, snapshot, target, direction, *, torch=True) -> list:
-    """(expected damage per action, key sender) of the fixed order's answers along ``direction``."""
-    options = []
+def _first_key(policy, snapshot, target, direction) -> str | None:
+    """The fixed order (a target that is not adjacent)."""
     # 2026-10-31: an absorbed attack power stronger than Magic Missile, on
     # quest floors too, except quest 1 where D17 throws torches first.
     if snapshot.floor_key[2] != 1:
-        choice = me_device_attacks.attack_choice(policy, snapshot, target, direction)
-        if choice is not None:
-            options.append((choice[0], lambda power=choice[1]: me_device_attacks.device_key(
-                policy, power, direction)))
+        device = me_device_attacks.attack_key(policy, snapshot, target, direction)
+        if device is not None:
+            return device
+    if not applies(snapshot):
+        return None
+    if _missile_ready(policy, snapshot):
+        return _fire_missile(policy, direction)
+    if not _sighted(snapshot):
+        return None
+    wand = _attack_wand(policy, snapshot, target, direction)
+    if wand is not None and (key := _use(policy, snapshot, "wand", wand, direction, WAND_REASON)):
+        return key
+    torch = _throwable_torch(policy, snapshot)
+    if torch is not None and (key := _use(policy, snapshot, "throw", torch, direction, TORCH_REASON)):
+        return key
+    return None
+
+
+def _adjacent_options(policy, snapshot, target, direction) -> list:
+    """(expected damage per action, key sender) of each ranged answer, in the fixed order."""
+    options = []
+    if snapshot.floor_key[2] != 1:
+        best = me_device_attacks.strongest(policy, snapshot, target, direction)
+        if best is not None:
+            options.append((best[0], lambda: me_device_attacks.device_key(policy, best[1], direction)))
     if not applies(snapshot):
         return options
     if _missile_ready(policy, snapshot):
-        options.append(_missile_option(policy, snapshot, target, direction,
-                                       lambda: _fire_missile(policy, direction)))
+        seen = me_device_attacks.seen_missile_score(policy, snapshot, target, direction)
+        options.append((me_device_attacks.missile_score(policy, snapshot, target) if seen is None else seen,
+                        lambda: _fire_missile(policy, direction)))
     if not _sighted(snapshot):
         return options
     wand = _attack_wand(policy, snapshot, target, direction)
     if wand is not None:
         options.append((attack_expectation.carried_wand(policy, snapshot, target, wand),
                         lambda: _use(policy, snapshot, "wand", wand, direction, WAND_REASON)))
-    thrown = _throwable_torch(policy, snapshot) if torch else None
-    if thrown is not None:
-        options.append((attack_expectation.torch_throw(policy, snapshot, target, thrown),
-                        lambda: _use(policy, snapshot, "throw", thrown, direction, TORCH_REASON)))
-    return options
-
-
-def _launcher_ammo(policy, snapshot):
-    """The ammunition the launcher rung fires (``_ranged_projectile``), else None."""
-    chosen = policy._ranged_projectile(snapshot)
-    return chosen[1] if chosen is not None and chosen[0] == "fire" else None
-
-
-def _first_key(policy, snapshot, target, direction) -> str | None:
-    """A target that is not adjacent: the fixed order, unless the launcher is stronger.
-
-    Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用
-    する。」: the answer the fixed order would use is weighed against firing the worn
-    launcher (attack_expectation.launcher_shot); the launcher is used when its expected
-    damage per action is strictly larger (a tie keeps the fixed order), through the
-    ranged rung (``_ranged_attack_key``, which weighs the same answers the other way)."""
-    options = _fixed_options(policy, snapshot, target, direction)
-    ammo = _launcher_ammo(policy, snapshot) if options else None
-    launcher = 0.0 if ammo is None else attack_expectation.launcher_shot(policy, snapshot, target, ammo)
-    for score, send in options:
-        if launcher > score:
-            if (key := policy._ranged_attack_key(snapshot, [target], [])) is not None:
-                return key
-            launcher = 0.0  # the rung refused the shot: the fixed order goes on
-        if (key := send()) is not None:
-            return key
-    return None
-
-
-def _clear_projection(snapshot, target) -> bool:
-    """The projection path to ``target``'s cell meets no other visible monster first
-    (``_offset_fire_aim``'s direct path: a known grid that blocks sight stops it)."""
-    origin = snapshot.player.position
-    occupied = {monster.position for monster in snapshot.visible_monsters}
-
-    def blocks(pos):
-        grid = snapshot.grids.get(pos)
-        return grid is not None and grid.known and not grid.allows_los
-
-    path = projection_path(origin, target.position, RANGED_MAX_DISTANCE, blocks)
-    return target.position in path and not any(
-        pos in occupied for pos in path[:path.index(target.position)])
-
-
-def _grid_options(policy, snapshot, target) -> list:
-    """Off the eight rays: the absorbed powers aimed at ``target``'s cell (``@y,x``)."""
-    direction = _aim(snapshot, target)
-    options = []
-
-    def send(power):
-        if not power.aimed:
-            return me_device_attacks.device_key(policy, power, direction)
-        return me_device_attacks.device_target_key(policy, power, target.position)
-
-    if snapshot.floor_key[2] != 1:
-        choice = me_device_attacks.attack_choice(policy, snapshot, target, direction)
-        if choice is not None:
-            options.append((choice[0], lambda power=choice[1]: send(power)))
-    # The absorbed Magic Missile only from its displayed charged row: under DEVICE_REASON the
-    # executor closes an empty power turn-free and only the list records it, so the
-    # optimistic unseen missile was asked again every decision (n1-b life-373 and 375,
-    # 2026-11-12 07:30 and 07:54: 'mBp@14,104' until loop-detected).
-    seen = me_device_attacks.seen_missile_score(policy, snapshot, target, direction)
-    if applies(snapshot) and seen is not None:
-        options.append((seen, lambda: send(me_device_attacks.POWERS[me_device_attacks.MISSILE])))
-    return options
-
-
-def stronger_than_launcher_key(policy, snapshot, target, ammo) -> str | None:
-    """The Magic-Eater's answer to a distant ``target`` the launcher is about to shoot,
-    when it is stronger; None fires the launcher.
-
-    Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用
-    する。敵の耐性、射撃の命中率、魔法の成功率まで考慮すること。」: the launcher's
-    expected damage per action (attack_expectation.launcher_shot: hit chance at the
-    target's armour and distance, slay and brand, shots per action) against the answer
-    the fixed order would use (me_device_attacks' displayed success x damage after the
-    known resistance; a carried wand at its use chance).  The answer is used only when
-    strictly larger (a tie keeps the launcher, the ranged rung's order).  It must reach
-    the target: along a clear ray by direction (``_ranged_target``), else off the rays
-    an absorbed power aimed at the cell over a clear projection path, never in town
-    (the town's area rule reads the blast along a ray, catches_unbeatable_friendly).
-    The thrown torch is no device and stays out."""
-    if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER or ammo is None:
-        return None
-    if policy._ranged_target(snapshot, [target]) is target:
-        options = _fixed_options(policy, snapshot, target, _aim(snapshot, target), torch=False)
-    elif not snapshot.in_town and _clear_projection(snapshot, target):
-        options = _grid_options(policy, snapshot, target)
-    else:
-        return None
-    launcher = attack_expectation.launcher_shot(policy, snapshot, target, ammo)
-    for score, send in options:
-        if score <= launcher:
-            return None
-        if (key := send()) is not None:
-            return key
-    return None
-
-
-def _adjacent_options(policy, snapshot, target, direction) -> list:
-    """(expected damage per action, key sender) of each ranged answer, in the fixed order.
-
-    While melee answers nothing beside ``target`` (attack_expectation.melee_answers_none_of),
-    the Magic-Eater's launcher comes last (owner 2026-11-01 21h 「近接できない時だけ使う」:
-    beside a hostile the bow is used only then; owner 2026-11-12: weighed with the rest).
-    exec_shoot refuses no adjacent target (shoot.cpp:557-566 refuses only the player's
-    own grid)."""
-    options = []
-    if snapshot.floor_key[2] != 1:
-        best = me_device_attacks.strongest(policy, snapshot, target, direction)
-        if best is not None:
-            options.append((best[0], lambda: me_device_attacks.device_key(policy, best[1], direction)))
-    if applies(snapshot):
-        if _missile_ready(policy, snapshot):
-            options.append(_missile_option(policy, snapshot, target, direction,
-                                           lambda: _fire_missile(policy, direction)))
-        if _sighted(snapshot):
-            wand = _attack_wand(policy, snapshot, target, direction)
-            if wand is not None:
-                options.append((attack_expectation.carried_wand(policy, snapshot, target, wand),
-                                lambda: _use(policy, snapshot, "wand", wand, direction, WAND_REASON)))
-            torch = _throwable_torch(policy, snapshot)
-            if torch is not None:
-                options.append((attack_expectation.torch_throw(policy, snapshot, target, torch),
-                                lambda: _use(policy, snapshot, "throw", torch, direction, TORCH_REASON)))
-    if (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
-            and attack_expectation.melee_answers_none_of(policy, snapshot, [target])):
-        chosen = policy._ranged_projectile(snapshot)
-        if chosen is not None and chosen[0] == "fire":
-            kind, ammo, reason = chosen
-            options.append((attack_expectation.launcher_shot(policy, snapshot, target, ammo),
-                            lambda: _use(policy, snapshot, kind, ammo, direction, reason)))
+    torch = _throwable_torch(policy, snapshot)
+    if torch is not None:
+        options.append((attack_expectation.torch_throw(policy, snapshot, target, torch),
+                        lambda: _use(policy, snapshot, "throw", torch, direction, TORCH_REASON)))
     return options
 
 

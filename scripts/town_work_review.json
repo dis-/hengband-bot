@@ -11619,7 +11619,7 @@
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "The fixed ranged order for a target that is not adjacent: the stronger absorbed attack power (me_device_attacks.attack_choice, also on quest floors except quest 1), the absorbed Magic Missile, a known attack wand (in town not a ball or breath that would catch an unbeatable friendly) and a spare lit torch; owner 2026-11-12: when the worn launcher's expected damage per action is strictly above the answer the order would use, the ranged rung's shot (policy._ranged_attack_key) instead, the order going on if the rung refuses; None otherwise. Called only by me_ranged_first.attack_key; no independent progress.",
+    "evidence": "The fixed ranged order for a target that is not adjacent: the stronger absorbed attack power (me_device_attacks.attack_key, also on quest floors except quest 1), the absorbed Magic Missile, a known attack wand (in town not a ball or breath that would catch an unbeatable friendly) and a spare lit torch; None otherwise. Called only by me_ranged_first.attack_key; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_ranged_first.py:_strongest_adjacent_key": {
@@ -11654,6 +11654,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "reserved_item_command for a carried wand (aim) or a spare lit torch (throw) with the aim direction under the caller's reason; None when the reservation refuses; called only by _first_key and _adjacent_options' senders.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_attack_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure selector of a known charged attack wand from the pack (not a town ball/breath that would catch an unbeatable friendly); no command.",
+    "delegation": "selected child; no independent success"
   },
   "me_ranged_first.py:_aim": {
     "classification": "data",
@@ -15298,7 +15309,7 @@
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "Pure list of the ranged answers beside a target with their expected damage and their senders (and, while melee answers nothing beside it, the Magic-Eater's launcher last, owner 2026-11-12); the senders are reviewed producers (me_device_attacks.device_key, _fire_missile, _use). No command of its own."
+    "evidence": "Pure list of the ranged answers beside a target with their expected damage and their senders; the senders are reviewed producers (me_device_attacks.device_key, _fire_missile, _use). No command of its own."
   },
   "me_ranged_first.py:best_expected": {
     "classification": "data",
@@ -16993,17 +17004,6 @@
     "context": "Pure evaluator: reached from the combat scroll-lock probability (policy_combat._ranged_scroll_lock_threats via status_landing_probabilities); no town or store context of its own.",
     "evidence": "Pure arithmetic: reflection share and the saving-throw failure of one monster ability for a set of player flags (mspell-status.cpp, effect-player-spirit.cpp)."
   },
-  "monster_ranged_evaluator.py:_caster_hp": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "context": "Pure evaluator: reached from the combat prediction's breath and rocket damage; no town or store context of its own.",
-    "evidence": "Pure arithmetic: the caster HP a breath or rocket is rolled from, the race HP lowered to the health band's estimate (mspell-damage-calculator.cpp:427)."
-  },
   "monster_ranged_evaluator.py:_expected_rate_damage": {
     "classification": "data",
     "rows": [
@@ -17258,49 +17258,5 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
-  },
-  "me_device_attacks.py:attack_choice": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "Pure selector: (score, power) of the best usable absorbed attack power when it beats Magic Missile (an optimistic 100% Magic Missile while the wand list was never displayed), else None; attack_key and me_ranged_first's fixed order read it. No command."
-  },
-  "me_ranged_first.py:_grid_options": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success",
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "Pure list, off the eight rays: the absorbed attack power the fixed order would use and the absorbed Magic Missile, scored, with senders aiming at the target's cell; the sender is a reviewed producer (_grid_options.send). No command of its own."
-  },
-  "me_ranged_first.py:_grid_options.send": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "me_device_attacks.device_target_key (m + kind + power + @y,x) for an aimed absorbed power, device_key for a sight power, under DEVICE_REASON; called only from stronger_than_launcher_key's loop; no independent progress."
-  },
-  "me_ranged_first.py:stronger_than_launcher_key": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "evidence": "Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する。」: called by policy_combat._ranged_attack_key before it fires the launcher at a distant target; the Magic-Eater's fixed-order answer (absorbed power, absorbed Magic Missile, carried attack wand; no torch) when its expected damage per action is strictly above the launcher's (attack_expectation.launcher_shot), along a clear ray or, off the rays and never in town, an absorbed power aimed at the cell over a clear projection path; else None (the rung fires). Its key comes from the reviewed senders (device_key, _fire_missile, _use, _grid_options.send); no independent progress."
   }
 }

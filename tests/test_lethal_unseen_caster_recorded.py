@@ -282,17 +282,8 @@ class ObservedLossAndCarryGatesConstructedTest(_Replay):
         _board, key, reason = self._decide(
             C_BOARD, self._without_unseen_cast(C_BOARD)
         )
-        # Without its unseen line the board decided as recorded (melee) until owner 2026-11-11
-        # (「回復と悲観側のずれを全部」): each carried Healing now counts 300 in the threat
-        # tiers' supply plan, and the 28 hostiles read T2 (four Speed doses and three Healing),
-        # which, with no selected target, the tiers leave by the Teleportation scroll.  The
-        # observed loss on 06036472 still comes from the recorded 06036459 HP.
-        self.assertEqual(self._live(C_BOARD), ("4", "melee"))
-        self.assertEqual((key, reason), ("rf", "flee:scroll"))
-        from hengbot import threat_tiers
-        result = threat_tiers.tiered(self.policy, _board, self.policy._strategic_hostiles(_board))
-        self.assertEqual((result.tier, result.selected), (threat_tiers.T2, []))
-        self.assertEqual(result.supply_plan.heals, (300, 300, 300))
+        # Without its unseen line the board decides as recorded.
+        self.assertEqual((key, reason), self._live(C_BOARD))
         board, key, reason = self._decide(B_ONLY, self._without_unseen_cast(B_ONLY))
         hostiles = [monster for monster in board.visible_monsters if monster.hostile]
         self.assertGreater(len(hostiles), 20)
