@@ -46,6 +46,7 @@ from pathlib import Path
 from hengbot import quest_optional_carry
 from hengbot.model import (
     RESTORE_POTION_SVAL_BY_STAT, SV_POTION_EXPERIENCE, SV_POTION_RESISTANCE, SV_POTION_RESTORE_EXP,
+    SV_POTION_SELF_KNOWLEDGE, SV_POTION_STAR_ENLIGHTENMENT,
     SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_MAPPING,
     SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
     TVAL_POTION, TVAL_SCROLL, item_requires_full_identification,
@@ -244,3 +245,36 @@ def use_now_key(policy, snapshot) -> str | None:
         return policy._read_key(snapshot, item)
     watch.signature = None
     return None
+
+
+# Owner 2026-11-13 「*啓蒙*の薬を飲んでいない件を調査。知能と賢さの基礎値が上がるのですぐに飲み
+# たいし、そのように設定したはずである」: the Potions of *Enlightenment* (do_inc_stat on
+# A_INT and A_WIS, quaff-effects.cpp star_enlightenment) and Self Knowledge are drunk, never
+# shelved, sold or destroyed as surplus, and a copy at Home is taken out and drunk.
+DRINK_NOT_STORE = frozenset({(TVAL_POTION, SV_POTION_STAR_ENLIGHTENMENT),
+                             (TVAL_POTION, SV_POTION_SELF_KNOWLEDGE)})
+
+
+def kept_to_drink(item) -> bool:
+    """A carried potion the retention keeps whole: it is drunk, not stored."""
+    return (item.tval, item.sval) in DRINK_NOT_STORE and quaffed_on_sight(item)
+
+
+def home_potion_to_drink(policy, snapshot):
+    """The known Home stack of a ``DRINK_NOT_STORE`` potion to take out now, or None.
+
+    In town, with the Home listing current and no hostile in view (the stat-gain quaff
+    drinks it on the next safe town decision); one at a time, so a stack is drunk one
+    take after another.
+    """
+    if not snapshot.in_town or not policy._home_knowledge_current:
+        return None
+    if policy._physical_hostiles(snapshot):
+        return None
+    if any(kept_to_drink(item) for item in snapshot.inventory):
+        return None   # the carried one is drunk first
+    deferred = getattr(policy, "_deferred_home_items", ())
+    return next((item for item in policy._home_knowledge_items[:policy._home_knowledge_valid_before]
+                 if item.count > 0 and getattr(item, "aware", True)
+                 and (item.tval, item.sval) in DRINK_NOT_STORE
+                 and policy._item_signature(item) not in deferred), None)
