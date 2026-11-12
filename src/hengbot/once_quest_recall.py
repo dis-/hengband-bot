@@ -73,6 +73,22 @@ def below_scroll_floor(policy, snapshot, profile) -> bool | None:
     return policy._quest_named_item_count(snapshot, "required_scrolls", "teleport") < int(floor)
 
 
+def below_entry_force(policy, snapshot) -> bool:
+    """Maximum HP drained below the ``min_hp`` of the force row this quest floor was entered
+    under (``QuestFloorNavigator.entry_force_min_hp``, recorded by the plan that keeps it):
+    the strategy's line is crossed, as the HP ratio line is.
+
+    n1-a life 515 (2026-11-12, Q18, warrior Lv33): accepted at max HP 716 on the row of 700;
+    the seahorses' LOSE_CON bites drained it to 641 before the last fight and 485 at death,
+    and nothing on the floor looked at it.
+    """
+    quest_id = policy._active_fixed_quest_id(snapshot)
+    navigator = None if quest_id is None else policy._quest_navigators.get(quest_id)
+    floor = getattr(navigator, "entry_force_min_hp", None)
+    return (floor is not None and navigator.floor_key == snapshot.floor_key
+            and snapshot.player.max_hp < int(floor))
+
+
 def held(policy, snapshot) -> bool:
     """The ONCE quest floor keeps us: at any HP with no enemy about (the walk gate then
     drinks or rests), or above the strategy's HP line with an escape left."""
@@ -87,6 +103,7 @@ def held(policy, snapshot) -> bool:
         return _quiet(policy, snapshot) or not below_scroll_floor(policy, snapshot, profile)
     return _quiet(policy, snapshot) or (
         snapshot.player.hp_ratio > float(hold_line)
+        and not below_entry_force(policy, snapshot)
         and (policy._escape_scroll(snapshot) is not None
              # No scroll is ever read here: the line alone decides (owner 2026-11-04
              # 「薬で戦い線より下で帰還」).

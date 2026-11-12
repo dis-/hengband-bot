@@ -68,6 +68,20 @@ chokes, and each mapped mover's cell is visited from a cell off the pull lines.
 ``clearing_finished``: no awake enemy comes and no such cell is left, or ``clear_turn_limit``
 is spent, so it cannot freeze.  Only then does ``_pull_walk`` cross, under PULL_WALK_REASON.
 
+Owner 2026-11-04, the approved strategy's ``engagement_plan.max_simultaneous_melee``: no more
+than that many fight the player at once.  n1-a life 515 (2026-11-12 15:14, decisions
+48625-48632) stood on (3,20), off the choke, and meleed two seahorses 443 and a giant squid
+482 beside it until it died.  More than the cap beside the player walks it back to the
+nearest unexposed choke (``_melee_cap_retreat``), and no walk steps onto a cell where more
+than the cap would stand beside it (``_crowded_step``).  The count is of the monsters that
+come (``_Board.crowders``), so one that never comes cannot freeze a walk.
+
+Its required force (n1-a life 515, the same death): accepted at max HP 716 on the row of
+700, the seahorses' LOSE_CON bites drained it to 641 before the last fight.  Max HP below
+the ``min_hp`` of the row the floor was entered under (``entry_force_min_hp``, recorded on
+the floor's first board) is the strategy's line crossed (once_quest_recall.below_entry_force),
+as the HP ratio is: with an enemy, Recall is read.
+
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
 quiet board stays with them (food, light, the unseen) and reaches ``walk_key`` through
@@ -112,8 +126,9 @@ PULLED_BACK_REASON = "quest-strategy:exit-pulled-back"
 PULL_REFUSED_REASON = "quest-strategy:pull-cell-refused"
 CLEAR_REASON = "quest-strategy:exit-clear-first"
 PULL_WALK_REASON = "quest-strategy:exit-pull-walk"
+MELEE_CAP_REASON = "quest-strategy:exit-crowd-back"
 _PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON,
-                           PULLED_BACK_REASON, CLEAR_REASON, PULL_WALK_REASON})
+                           PULLED_BACK_REASON, CLEAR_REASON, PULL_WALK_REASON, MELEE_CAP_REASON})
 
 
 # Going round a monster on the way costs at most this many steps, else it is fought.
@@ -157,7 +172,21 @@ def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
     plan = _plan(policy, snapshot)
     if plan is not None:
         _observe_digs(snapshot, navigator, plan)
+        _record_entry_force(policy, snapshot, navigator, quest_id)
     return navigator
+
+
+def _record_entry_force(policy, snapshot, navigator, quest_id: int) -> None:
+    """The ``min_hp`` of the force row this character stands on, on the floor's first board
+    (quest_force_rows.resolve, as acceptance read it).  The fight re-resolves its row each
+    board, so a drained character would otherwise find a lower row and never cross."""
+    if navigator.entry_force_min_hp is not None:
+        return
+    profile = policy.approved_quest_strategy(quest_id)
+    if profile is None or "min_hp" not in profile.required_force:
+        return
+    force = policy._strategy_force_for_snapshot(snapshot, profile)
+    navigator.entry_force_min_hp = int(force.get("min_hp", profile.required_force["min_hp"]))
 
 
 _EXPOSURES: dict[tuple, quest_exposure.Exposure] = {}
@@ -363,6 +392,12 @@ class _Board:
             or any(monster.position.distance_to(cell) <= 1 for cell in leg)), *remembered]
         self.adjacent_mobile = [monster for monster in self.coming_in_view
                                 if monster.position.distance_to(position) <= 1]
+        # What the melee cap counts: what comes (in view within its wait, far and closing in,
+        # or remembered), and what can come and is beside the player already.
+        crowders = {monster.index: monster for monster in self.mobile_awake}
+        crowders.update((monster.index, monster) for monster in self.reachable_awake
+                        if monster.position.distance_to(position) <= 1)
+        self.crowders = list(crowders.values())
         # A never-moving puller (a siren's TELE_TO) in view: no place to rest, and an
         # enemy for the line, but the answer to it is to walk out of its sight.
         self.pulling = [monster for monster in self.in_view
@@ -398,7 +433,8 @@ def _below_line_recall(policy, snapshot, profile, *, line=True) -> str | None:
     """Recall below the strategy's line.  ``line=False``: the plan's escape asked by its 即死
     rung, whatever the HP (threat_tiers.instant_death_key)."""
     ratio = profile.abort_conditions.get("hp_ratio")
-    if line and (ratio is None or snapshot.player.hp_ratio > float(ratio)):
+    if line and (ratio is None or (snapshot.player.hp_ratio > float(ratio)
+                                   and not once_quest_recall.below_entry_force(policy, snapshot))):
         return None
     if snapshot.player.blind or snapshot.player.confused:
         return _cure(policy, snapshot)  # the scroll cannot be read until it is cured
@@ -503,8 +539,69 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     path = _least_exposed(navigator, plan, position, chokes, board.occupied, as_it_is=True)
     if len(path) < 2:
         return None
+    crowded = _crowded_step(policy, snapshot, navigator, plan, board, path[1])
+    if crowded is not None:
+        return crowded
     navigator.exit_choke_goal = path[-1]
     return _path_step(policy, snapshot, path, TO_CHOKE_REASON)
+
+
+def _melee_cap(policy, navigator) -> int:
+    profile = policy.approved_quest_strategy(navigator.quest_id)
+    if profile is None:
+        return 0
+    return max(0, int(profile.engagement_plan.get("max_simultaneous_melee", 0)))
+
+
+def _crowd(board, cell: Position) -> int:
+    """The monsters that come and would stand beside ``cell``."""
+    return sum(1 for monster in board.crowders if monster.position.distance_to(cell) <= 1)
+
+
+def _back_to_a_choke(policy, snapshot, navigator, plan, board, cap: int) -> str | None:
+    """A step toward the nearest unexposed choke (a spent one too) onto a cell with no more
+    than ``cap`` beside it.  The choke's waits start over there."""
+    position = snapshot.player.position
+    exposure = _exposure(navigator, plan)
+    chokes = [Position(*cell) for cell in plan["choke_cells"] if not exposure.exposed(tuple(cell))]
+    if position in chokes:
+        return None
+    paths = [_least_exposed(navigator, plan, position, {choke}, board.occupied, as_it_is=True)
+             for choke in chokes]
+    paths = sorted((path for path in paths if len(path) >= 2 and _crowd(board, path[1]) <= cap),
+                   key=len)
+    if not paths:
+        return None
+    goal = paths[0][-1]
+    navigator.exit_spent_chokes = navigator.exit_spent_chokes - {goal}
+    navigator.exit_choke_goal = goal
+    return _path_step(policy, snapshot, paths[0], MELEE_CAP_REASON)
+
+
+def _melee_cap_retreat(policy, snapshot, navigator, plan, board) -> str | None:
+    """More than ``max_simultaneous_melee`` beside the player: back toward a choke."""
+    cap = _melee_cap(policy, navigator)
+    if not cap or _crowd(board, snapshot.player.position) <= cap:
+        return None
+    return _back_to_a_choke(policy, snapshot, navigator, plan, board, cap)
+
+
+def _crowded_step(policy, snapshot, navigator, plan, board, step: Position) -> str | None:
+    """A step onto a cell with more than the cap beside it, and more than here, is not taken:
+    back toward a choke, or held here off the casters' reach.  None: the step is taken."""
+    cap = _melee_cap(policy, navigator)
+    if not cap:
+        return None
+    crowd = _crowd(board, step)
+    if crowd <= cap or crowd <= _crowd(board, snapshot.player.position):
+        return None
+    back = _back_to_a_choke(policy, snapshot, navigator, plan, board, cap)
+    if back is not None:
+        return back
+    if _exposure(navigator, plan).exposed(_cell(snapshot.player.position)):
+        return None  # no hold on a shouted cell: the walk goes on
+    policy.last_reason = HOLD_REASON
+    return WAIT_KEY
 
 
 def _choke_walk_under_way(policy, snapshot, navigator, plan, board) -> str | None:
@@ -752,6 +849,9 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
     if _cell(step) in _planned_open(navigator, plan) - navigator.exit_dug:
         profile = policy.approved_quest_strategy(navigator.quest_id)
         return _dig(policy, snapshot, navigator, plan, board, profile, step)
+    crowded = _crowded_step(policy, snapshot, navigator, plan, board, step)
+    if crowded is not None:
+        return crowded
     policy.last_reason = WALK_REASON
     policy._declare_reach(exit_cell)
     return policy._step_toward(snapshot, step)
@@ -783,6 +883,7 @@ def key(policy, snapshot) -> str | None:
             or (_heal(policy, snapshot, profile) if board.engaged else None)
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
+            or _melee_cap_retreat(policy, snapshot, navigator, plan, board)
             or _choke_walk_under_way(policy, snapshot, navigator, plan, board)
             or _advance(policy, snapshot, navigator, plan, board)
         )
@@ -818,6 +919,9 @@ def _engaged_survival(policy, snapshot, profile, board) -> str | None:
 
 
 def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
+    retreat = _melee_cap_retreat(policy, snapshot, navigator, plan, board)
+    if retreat is not None:
+        return retreat
     if board.adjacent_mobile:
         _note_contact(navigator, plan, snapshot.player.position)
         ranked = sorted(board.adjacent_mobile, key=lambda monster: _rank(profile, monster))
