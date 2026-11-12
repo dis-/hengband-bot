@@ -26,7 +26,9 @@ own beam now stops at a glass wall (policy._stops_player_projection).
 
 Every decision is the public ``choose_key`` of one policy built as the live one
 (tests.support.recorded._policy) and driven over the recorded boards from turn 2921424
-(the floor's second detection, before the mages were first seen).
+(the floor's second detection, before the mages were first seen); the decisive keys (the
+step after the zone step, and the key at 2922547) are posted through the production
+executor port (cli._ExecutorInputPort).
 DECLARED RESTORED (policy-state.json of the stop): the staff record ``_me_staff_sequence``, the
 absorbed powers' uses on the floor before 2921424 (``_me_power_floor``) and the floor's
 *Destruction* entitlement (the arrival's absorbed *Destruction*, 2921097).
@@ -43,12 +45,15 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import destruction_use, me_powers
+from hengbot import destruction_use, immobile_ranged_kill, me_powers
 from hengbot import me_staff_sequence as sequence
+from hengbot.cli import SendResult, _ExecutorInputPort
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import DIRECTION_KEYS
-from tests.support.recorded import EDIT, _policy
+from hengbot.policy_combat import IMMOBILE_SUMMONER_AVOID_REASON
+from tests.support.recorded import (
+    EDIT, FaithfulHookGame, ProductionHarness, _policy, command_screen)
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "loop-n1c-205-1113.json.gz"
@@ -87,7 +92,12 @@ def _skill(case, raw):
                 player=dict(skill["player"], level=raw["player"]["level"]))
 
 
-class SummonerZoneGlassRecordedTest(unittest.TestCase):
+def _target(position, key):
+    offset = OFFSETS.get(key)
+    return None if offset is None else Position(position.y + offset[0], position.x + offset[1])
+
+
+class SummonerZoneGlassRecordedTest(ProductionHarness):
     @classmethod
     def setUpClass(cls):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
@@ -152,15 +162,58 @@ class SummonerZoneGlassRecordedTest(unittest.TestCase):
             if raw["turn"] <= FIRST_ZONE_STEP or here != OUTSIDE or raw["turn"] >= 2922501:
                 continue
             checked += 1
-            # The two sensed mages stay remembered; the cell the zone step left stays vetoed.
+            # The two sensed mages stay remembered (immobile_ranged_kill.key never shoots
+            # a summoner that moves, so killable does not read them as killed).
             self.assertTrue(set(MAGES) <= set(remembered), raw["turn"])
+            for mage in board.detected_monsters:
+                self.assertFalse(immobile_ranged_kill.killable(self.policy, board, mage))
+                # Nor would a shot land: the shooting cell (29,38) reads the glass as open
+                # only for a monster's reach (policy._player_may_project).
+                self.assertIsNone(immobile_ranged_kill.plan(self.policy, board, mage),
+                                  (raw["turn"], mage.position))
             self.assertIn(INSIDE, zone, raw["turn"])
             self.assertIn(INSIDE, vetoed, raw["turn"])
-            offset = OFFSETS.get(key)
-            if offset is not None:
-                target = Position(here.y + offset[0], here.x + offset[1])
-                self.assertNotIn(target, zone, (raw["turn"], key, reason))
+            self.assertNotIn(_target(here, key), zone, (raw["turn"], key, reason))
         self.assertGreaterEqual(checked, 15)
+
+    def test_no_owner_steps_back_into_the_cell_the_zone_step_left(self):
+        # One rule: the cells the avoid step leaves stay vetoed for the next owner.
+        checked = 0
+        for before, after in zip(self.rows, self.rows[1:]):
+            raw, board, key, reason, *_ = before
+            left = board.player.position
+            if reason != IMMOBILE_SUMMONER_AVOID_REASON or after[1].player.position != _target(
+                    left, key):
+                continue
+            checked += 1
+            step = _target(after[1].player.position, after[2])
+            self.assertNotEqual(step, left, (after[0]["turn"], after[2], after[3]))
+            self.assertNotIn(step, after[5], (after[0]["turn"], after[2], after[3]))
+        self.assertGreaterEqual(checked, 8)
+
+    def test_the_decisive_keys_complete_through_the_executor(self):
+        boards = {raw["turn"]: raw for raw in self.case["boards"]}
+        turns = sorted(boards)
+        for turn in (FIRST_ZONE_STEP + 7, TELEPORT_TURN):  # 2922371 at (28,39), then (34,40)
+            raw, board, key, reason, *_ = next(row for row in self.rows if row[0]["turn"] == turn)
+            self.assertIsNotNone(_target(board.player.position, key), (turn, key, reason))
+            following = boards[turns[turns.index(turn) + 1]]
+            self.assertEqual(self.post(raw, key, reason, following), [key], turn)
+
+    def post(self, raw, key, reason, following):
+        """``key`` through the production executor port; the game then shows ``following``."""
+        game = FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = command_screen(raw["turn"])
+        game.screens = [command_screen(following["turn"])]
+        game.states = [copy.deepcopy(following)]
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        self.assertEqual(port(key, decision={"reason": reason, "sequence": 1}),
+                         SendResult.SENT, port.last_result.reason)
+        self.assertEqual(port.last_result.outcome, "completed", port.last_result.reason)
+        return game.accepted
 
     def test_no_teleport_away_through_the_glass(self):
         raw, board, key, reason, *_ = next(row for row in self.rows if row[0]["turn"] == TELEPORT_TURN)

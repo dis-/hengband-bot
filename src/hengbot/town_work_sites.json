@@ -2238,6 +2238,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "immobile_ranged_kill.py:_key_plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "immobile_ranged_kill.py:blocking_key": {
     "classification": "producer",
     "rows": [

@@ -786,6 +786,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "immobile_ranged_kill.py:_key_plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: read by key and killable; plan is None in town.",
+    "evidence": "Pure reading, the one rule key and killable share (n1-c life-205 2026-11-13): the KillPlan of a kept-away never-moving monster not left alone (disenchant_avoid.left_alone), else None; never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "immobile_ranged_kill.py:blocking_key": {
     "classification": "producer",
     "rows": [
