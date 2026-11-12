@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
-from hengbot import heroism_potion, town_pack_headroom
+from hengbot import heroism_potion, torch_release, town_pack_headroom
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -1450,6 +1450,9 @@ class SupplyMixin:
         strategy: StrategyProfile | None,
     ) -> tuple[int, int]:
         """The Home withdrawal and pack retention target for usable torches."""
+        if torch_release.released(self, snapshot):
+            # Owner 2026-11-12: the worn light crossbow sends every torch Home.
+            return 0, self._count_usable_torches(snapshot)
         quest = self._quest_carry_target_for_item(
             snapshot, item, strategy.required_force if strategy is not None else {}
         )

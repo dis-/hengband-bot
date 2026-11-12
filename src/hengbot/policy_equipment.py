@@ -9,7 +9,7 @@ from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import consumable_policy, lamp_fuel, mining_loadout
+from hengbot import consumable_policy, equipment_swap_weight, lamp_fuel, mining_loadout
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_loadout_offense import held_magic_eater_powers
 
@@ -2709,6 +2709,16 @@ class EquipmentMixin:
                 if matches_withdrawal(item)
             ), None)
             if selected is not None and session.physical_context == "home":
+                if equipment_swap_weight.withdraw_overload(
+                        self, snapshot, session) is not None:
+                    # The kept pack cannot carry the swap (equipment_swap_weight):
+                    # the abandonment keeps the item at Home for this visit.
+                    self._block_equipment_transaction(equipment_swap_weight.REFUSAL)
+                    self.last_reason = (
+                        f"equipment-transaction:{equipment_swap_weight.REFUSAL}")
+                    return self._equipment_home_outcome(
+                        LEAVE_STORE_KEY, label=equipment_swap_weight.REFUSAL,
+                    )
                 index, target = selected
                 letter = self._home_page_letter(index)
                 quantity = "1\r" if target.count > 1 else ""
