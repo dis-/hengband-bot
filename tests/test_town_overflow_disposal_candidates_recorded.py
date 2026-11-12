@@ -8,6 +8,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+from hengbot import torch_release
 
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -28,6 +30,10 @@ class TownOverflowDisposalCandidatesRecordedTest(unittest.TestCase):
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
             cls.records = [json.loads(line) for line in stream if line.strip()]
 
+    # The board wears a light crossbow over a lantern: this pin is the torch carry
+    # without the owner's 2026-11-12 release (torch_release; pinned on its own in
+    # test_town_weight_torch_1112_recorded).
+    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
     def test_captured_stop_releases_only_surplus_candidates(self):
         record, = self.records
         self.assertEqual(record["capture"], "20261017-212641")
@@ -87,6 +93,10 @@ class TownOverflowDisposalCandidatesRecordedTest(unittest.TestCase):
             self.assertNotEqual(candidate.slot, slot)
 
     # declared wall: pre-2026-10-20 junk scope
+    # The board wears a light crossbow over a lantern: this pin is the torch carry
+    # without the owner's 2026-11-12 release (torch_release; pinned on its own in
+    # test_town_weight_torch_1112_recorded).
+    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
     @pre_junk_scope_replay
     def test_constructed_torch_surplus_uses_existing_carry_target(self):
         record, = self.records

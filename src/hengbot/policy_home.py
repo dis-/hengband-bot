@@ -2471,15 +2471,18 @@ class HomeMixin:
             return kept, ("identify-staff-cap" if kept > 0 else None)
         if item.is_recall_scroll:
             ledger = self._supply_ledger(snapshot, self._planned_depth())
-            # The standing stock of the planned depth stays carried while a
-            # mining run suspends its own recall read (_recall_required_target
-            # 0 in mine/scavenge): n1-c life-202 2026-11-12 17:13 sold all nine
-            # as overweight surplus at the full Home and bought nine again on
-            # the next visit.
+            # The standing stock of the planned depth, less what the Home list
+            # holds, stays carried while a mining run suspends its own recall
+            # read (_recall_required_target 0 in mine/scavenge): n1-c life-202
+            # 2026-11-12 17:13 sold all nine as overweight surplus at the full
+            # Home and bought nine again on the next visit.
+            standing = self._recall_target(self._planned_depth()) - sum(
+                stock.count for stock in self._home_knowledge_items
+                if stock.is_recall_scroll)
             target = max(
                 ledger["recall"].required_departure,
                 self._recall_required_target(snapshot),
-                self._recall_target(self._planned_depth()),
+                standing,
             )
             matches = lambda candidate: candidate.is_recall_scroll
             branch = "supply-ledger:recall"

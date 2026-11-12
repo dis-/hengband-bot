@@ -19,6 +19,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
 import unittest
+from unittest.mock import patch
+from hengbot import torch_release
 from dataclasses import replace
 
 from hengbot.cli import (
@@ -101,6 +103,10 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         self.assertEqual(game.accepted, ["\x0b"] if str(key) == "\x1b`n!." else [str(key)])
         self.assertFalse(game.term_fifo)
 
+    # The board wears a light crossbow over a lantern: this pin is the torch carry
+    # without the owner's 2026-11-12 release (torch_release; pinned on its own in
+    # test_town_weight_torch_1112_recorded).
+    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
     def test_recorded_retained_stop_is_named_and_records_its_numbers(self):
         policy, snapshot = self.replay(0)
         self.assertEqual((snapshot.turn, policy._inventory_weight(snapshot),
