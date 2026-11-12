@@ -389,6 +389,7 @@ from hengbot.policy_constants import (
     WIN_QUEST_IDS,
 )
 from hengbot.town_terminal import (
+    gather_identify_device,
     identification_ready_in_pack,
     NOT_APPLICABLE,
     commit_refusal,
@@ -8847,10 +8848,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             item_processing = self._town_item_processing_key(snapshot)
             if item_processing is not None:
                 return item_processing
-        if not mining_holds_identification:
+        # A carried device identified by a held source (the Magic-Eater's
+        # absorbed Identify, a carried staff or scroll) spends none of the
+        # mining budget either: n1-c life-203 2026-11-12 22:38 held its
+        # unknown wand and staff of Light through the mining set whose food
+        # gate they would have answered, and stopped three times (owner
+        # 「充填できない理由と食事ができない理由は鑑定を後回しにしているロジックの不備」).
+        if (not mining_holds_identification
+                or gather_identify_device(self, snapshot).source_held):
             device_processing = self._town_producer_entry("_town_device_processing_key", lambda: self._town_device_processing_key(snapshot))
             if device_processing is not None:
                 return device_processing
+        if not mining_holds_identification:
 
             # A Home-held identification source is upstream of the equipment
             # candidate that requested it. Bind that source from the completed
