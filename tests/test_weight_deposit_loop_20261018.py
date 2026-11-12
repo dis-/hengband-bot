@@ -4,6 +4,8 @@ import tests  # noqa: F401 -- isolate runtime state for standalone module runs
 import gzip
 import json
 import unittest
+from unittest.mock import patch
+from hengbot import torch_release
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -73,6 +75,10 @@ class WeightDepositLoopRecordedTest(unittest.TestCase):
             (156, 240),
         )
 
+    # The board wears a light crossbow over a lantern: this pin is the torch carry
+    # without the owner's 2026-11-12 release (torch_release; pinned on its own in
+    # test_town_weight_torch_1112_recorded).
+    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
     def test_deposit_remains_first_when_it_can_reduce_weight(self):
         policy, snapshot = self._policy_for(self.boards[0])
         deposit = policy._overweight_home_deposit(snapshot)
@@ -90,6 +96,10 @@ class WeightDepositLoopRecordedTest(unittest.TestCase):
     # declared wall: pre-2026-10-20 junk scope (the pack's four cursed
     # weapons/armours are junk since 2026-10-20 and are destroyed first; this
     # pin is about the surplus sale route of the recorded board).
+    # The board wears a light crossbow over a lantern: this pin is the torch carry
+    # without the owner's 2026-11-12 release (torch_release; pinned on its own in
+    # test_town_weight_torch_1112_recorded).
+    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
     @pre_junk_scope_replay
     def test_no_deposit_candidate_admits_existing_surplus_sale_route(self):
         policy, snapshot = self._policy_for(self.boards[2])
@@ -117,6 +127,10 @@ class WeightDepositLoopRecordedTest(unittest.TestCase):
         key = policy.choose_key(snapshot)
         self.assertEqual((str(key), policy.last_reason), ("\x1b`n%.", "shop:travel"))
 
+    # The board wears a light crossbow over a lantern: this pin is the torch carry
+    # without the owner's 2026-11-12 release (torch_release; pinned on its own in
+    # test_town_weight_torch_1112_recorded).
+    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
     def test_free_home_capacity_without_deposit_keeps_surplus_sale(self):
         policy, snapshot = self._policy_for(self.boards[2])
         policy._home_capacity_observation = (

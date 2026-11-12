@@ -21,6 +21,8 @@ import tests  # noqa: F401 -- live runtime-file isolation
 import gzip
 import hashlib
 import unittest
+from unittest.mock import patch
+from hengbot import torch_release
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -120,6 +122,10 @@ class OverflowTorchesRecordedTest(unittest.TestCase):
             self._reserved_slots(policy, board), set("abcdefghirst")
         )
 
+    # The board wears a light crossbow over a lantern: this pin is the torch carry
+    # without the owner's 2026-11-12 release (torch_release; pinned on its own in
+    # test_town_weight_torch_1112_recorded).
+    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
     def test_control_fuelled_light_keeps_the_torch_reserve(self):
         policy, board = self._board()
         # Constructed: a fuelled lantern worn instead of the Feanorian lamp.

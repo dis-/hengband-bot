@@ -3,7 +3,7 @@ from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
-from hengbot import heroism_potion, town_pack_headroom
+from hengbot import heroism_potion, torch_release, town_pack_headroom
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -489,7 +489,9 @@ class ShopMixin(InStoreMixin):
             snapshot,
             lambda it: (
                 self._is_spare_lantern(snapshot, it)
-                or (it.is_torch and it.count > TORCH_THROW_TARGET)
+                or (it.is_torch and it.count > TORCH_THROW_TARGET
+                    # Owner 2026-11-12: released torches go Home, not on sale.
+                    and not torch_release.released(self, snapshot))
             )
             and self._retention_surplus(snapshot, it) > 0
             and self._store_accepts_sale(STORE_GENERAL, it)
@@ -3066,7 +3068,7 @@ class ShopMixin(InStoreMixin):
             add(rung("quest:healing", "healing", lambda: self._strategy_heal_potion_count(snapshot, force) < int(force.get("heal_potions", 0)), lambda i: is_heal_potion_for(i, force), current=lambda: self._strategy_heal_potion_count(snapshot, force), target=lambda: int(force.get("heal_potions", 0))))
         add(rung("tail:recall", "recall", lambda: not self._recall_ready(snapshot), lambda i: i.is_recall_scroll))
         add(rung("tail:mana-food", "device", lambda: snapshot.player.food_type == FOOD_TYPE_MANA and (not self._food_ready(snapshot) or (getattr(self, "_crossarea_fundraising_enforced", False) and self._fundraising_mode in {"mine", "scavenge"} and self._find_edible(snapshot) is None)), lambda i: is_mana_food_ware(self, snapshot, i)))
-        add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET, lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: TORCH_THROW_TARGET))
+        add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET), lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET)))
         add(rung("tail:teleport", "teleport", lambda: not self._teleport_ready(snapshot), lambda i: i.is_teleport_scroll))
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
         # Owner 2026-11-11 「恐怖耐性がないとき…持ち歩く数は仮に15服」: below every departure
@@ -3699,7 +3701,7 @@ class ShopMixin(InStoreMixin):
             if (
                 self._planned_depth() <= TORCH_THROW_MAX_DEPTH
                 and self._matching_ammo(snapshot) is None
-                and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
+                and self._count_throwing_torches(snapshot) < torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET)
             ):
                 # Shallow mining trips carry throwing torches (user directive);
                 # this ranks BELOW the whole kit so it can never starve it.
@@ -3913,7 +3915,7 @@ class ShopMixin(InStoreMixin):
         if (
             self._planned_depth() <= TORCH_THROW_MAX_DEPTH
             and self._matching_ammo(snapshot) is None
-            and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
+            and self._count_throwing_torches(snapshot) < torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET)
         ):
             torch = next(
                 (
@@ -4124,7 +4126,7 @@ class ShopMixin(InStoreMixin):
         elif item.is_ammo:
             needed = self._ammo_procurement_target(snapshot, item) - self._count_matching_ammo(snapshot)
         elif item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH:
-            target = TORCH_THROW_TARGET
+            target = torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET)
             if strategy is not None:
                 target = max(target, int(
                     strategy.required_force.get("throwing_items", {}).get("lit_torch", 0)

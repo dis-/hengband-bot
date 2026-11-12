@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import quest_optional_carry
-from hengbot import bm_destruction_fund, item_fate, mining_oil_sale, spare_gear
+from hengbot import bm_destruction_fund, item_fate, mining_oil_sale, spare_gear, torch_release
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -2471,9 +2471,18 @@ class HomeMixin:
             return kept, ("identify-staff-cap" if kept > 0 else None)
         if item.is_recall_scroll:
             ledger = self._supply_ledger(snapshot, self._planned_depth())
+            # The standing stock of the planned depth, less what the Home list
+            # holds, stays carried while a mining run suspends its own recall
+            # read (_recall_required_target 0 in mine/scavenge): n1-c life-202
+            # 2026-11-12 17:13 sold all nine as overweight surplus at the full
+            # Home and bought nine again on the next visit.
+            standing = self._recall_target(self._planned_depth()) - sum(
+                stock.count for stock in self._home_knowledge_items
+                if stock.is_recall_scroll)
             target = max(
                 ledger["recall"].required_departure,
                 self._recall_required_target(snapshot),
+                standing,
             )
             matches = lambda candidate: candidate.is_recall_scroll
             branch = "supply-ledger:recall"
@@ -3077,6 +3086,8 @@ class HomeMixin:
                 and self._retention_reservation_detail(snapshot, item)[1]
                 in (None, "visit-purchase")
                 and item != surplus_identify_staff
+                # Owner 2026-11-12: a worn light crossbow releases every torch.
+                and not (item.is_torch and torch_release.released(self, snapshot))
             )
 
         mining_planned = self._fundraising_mode in {
@@ -3385,7 +3396,9 @@ class HomeMixin:
         throwing_torches_replaced = (
             snapshot is not None
             and item.is_torch
-            and self._matching_ammo(snapshot) is not None
+            and (self._matching_ammo(snapshot) is not None
+                 # Owner 2026-11-12: a worn light crossbow sends them all Home.
+                 or torch_release.released(self, snapshot))
         )
         obsolete_oil = (
             snapshot is not None

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import arena, zul_trip
-from hengbot import heroism_potion, quest_optional_carry
+from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
@@ -3500,7 +3500,7 @@ class TownMixin:
                     self._fundraising_mode in {"prepare", "mine", "scavenge"}
                     and self._planned_depth() <= TORCH_THROW_MAX_DEPTH
                     and self._matching_ammo(snapshot) is None
-                    and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
+                    and self._count_throwing_torches(snapshot) < torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET)
                     and STORE_GENERAL not in self._town_store_attempted
                 ):
                     add(STORE_GENERAL, "throwing-torches")
@@ -3756,7 +3756,7 @@ class TownMixin:
             self._fundraising_mode in {"prepare", "mine", "scavenge"}
             and self._planned_depth() <= TORCH_THROW_MAX_DEPTH
             and self._matching_ammo(snapshot) is None
-            and self._count_throwing_torches(snapshot) < TORCH_THROW_TARGET
+            and self._count_throwing_torches(snapshot) < torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET)
             and STORE_GENERAL not in self._town_store_attempted
         ):
             add(STORE_GENERAL, "throwing-torches")

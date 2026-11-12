@@ -13316,6 +13316,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "torch_release.py:released": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:releases": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:throwing_torch_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_arbiter.py:TownArbiterMixin._emission_item_state": {
     "classification": "data",
     "rows": [

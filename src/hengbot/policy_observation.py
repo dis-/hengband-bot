@@ -11,7 +11,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
-from hengbot import bm_destruction_fund, launcher_upgrade, me_powerful_activation, random_quest_hold
+from hengbot import bm_destruction_fund, launcher_upgrade, me_powerful_activation, random_quest_hold, torch_release
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
@@ -1461,6 +1461,9 @@ class ObservationMixin:
         carry = getattr(self, "_quest_carry_lowered", None) if lowered else None
         if carry is not None and carry[0] == profile.quest_id:
             force = lower_carries(force, carry[1])
+        if torch_release.released(self, snapshot):
+            # Owner 2026-11-12: the worn light crossbow sends the torches Home.
+            force = lower_carries(force, {"lit_torch": 0})
         return force
 
     @staticmethod
