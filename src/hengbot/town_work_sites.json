@@ -632,6 +632,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "attack_expectation.py:aura_self_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:device_use_success": {
     "classification": "data",
     "rows": [
@@ -12673,6 +12680,13 @@
     "delegation": "selected child; no independent success"
   },
   "threat_projection.py:engagement": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:free_attack": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

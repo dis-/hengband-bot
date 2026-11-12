@@ -4,7 +4,7 @@ from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BR
 from hengbot.summoner_wait import wait_expired
 from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from heapq import heappop, heappush
 from itertools import count
 from math import ceil
@@ -284,6 +284,36 @@ class SummonerExits:
 
 
 class CombatMixin:
+    def _sleeper_not_to_wake(self, snapshot: Snapshot, monster: MonsterState) -> bool:
+        """A sleeper the shot would wake into a fight the tiers cannot win: not shot.
+
+        Owner 2026-11-09 C 「T1では撃たず離れる」 and 2026-11-07 「眠っている敵でも強い敵からは
+        離れる」; owner 2026-11-01 「遠隔で倒せるなら離れて撃つのは可」 keeps a never-moving
+        sleeper a target only while ranged attacks can win.  The engagement is judged with the
+        monster awake (its reach over the unknown grids counts, ``threat_prediction``): the
+        reading the board after the shot would give.  Outside quests where the tiers decide
+        leaving (threat_tiers.leave_decided_here), T1 there (threat_tiers.cannot_win) leaves it
+        asleep: the shot would only start a fight the tiers leave at once.  n1-a life-514
+        (2026-11-12, Angband 49F): the sleeping あつくもえるてき (Lv59, NEVER_MOVE, BA_FIRE /
+        BR_FIRE) was shot awake at distance 10 and its fire balls took 1168 -> 714 HP."""
+        if (not monster.asleep or snapshot.floor_key[2] != 0
+                or not threat_tiers.leave_decided_here(self, snapshot)):
+            return False
+        memo = getattr(self, "_sleeper_wake_memo", None)
+        key = (id(snapshot), snapshot.turn, monster.index)
+        if memo is None or memo[0] is not snapshot:
+            memo = self._sleeper_wake_memo = (snapshot, {})
+        if key not in memo[1]:
+            woken = [replace(each, asleep=False) if each.index == monster.index else each
+                     for each in threat_tiers.engagement(self, snapshot)]
+            if not any(each.index == monster.index for each in woken):
+                woken.append(replace(monster, asleep=False))
+            # ``assess``, not ``tiered``: the decided side's hold remembers the sleeping
+            # reading, which this counterfactual is not.
+            memo[1][key] = threat_tiers.cannot_win(
+                threat_tiers.assess(self, snapshot, woken), snapshot.player.hp)
+        return memo[1][key]
+
     def _sleeper_beyond_ranged_reach(self, monster: MonsterState, distance: int) -> bool:
         """A sleeper too far to shoot: approach it quietly (the hunt path) instead.
 
@@ -1653,6 +1683,15 @@ class CombatMixin:
             return None
         kind, projectile, reason = chosen
         ammo = projectile if kind == "fire" else None
+        # A sleeper not to wake is no target, and while one is within the range the game's
+        # nearest-target cursor (`*t` below) is not used: it could pick that sleeper.
+        unwoken = [monster for monster in hostiles if monster.asleep
+                   and player.position.distance_to(monster.position) <= RANGED_MAX_DISTANCE
+                   and self._sleeper_not_to_wake(snapshot, monster)]
+        if unwoken:
+            hostiles = [monster for monster in hostiles if monster not in unwoken]
+            if not hostiles:
+                return None
 
         if self._ranged_target_macro_signature is not None:
             (
@@ -1768,7 +1807,7 @@ class CombatMixin:
             and not self._sleeper_beyond_ranged_reach(monster, distance)
             for monster in hostiles
         )
-        if not targetable_hostile:
+        if not targetable_hostile or unwoken:
             return None
         self._ranged_target_signatures[victim.index] = victim.hp
         if ammo is not None:
@@ -3545,10 +3584,22 @@ class CombatMixin:
                 if contact
                 else self._monster_path_distance(snapshot, monster.position)
             )
+            # An unknown grid is not a wall (owner 2026-11-08 「未知のマスを壁と見ない」) for an
+            # awake monster: the remembered line, else projectable() over the known map with
+            # the unknown grids open (``_may_project``).  n1-a life-514 (2026-11-12, Angband
+            # 49F): the never-moving あつくもえるてき at distance 10 behind grids the board had
+            # never shown predicted 0 while its fire balls reached the player.  A sleeping
+            # monster casts nothing until it wakes (monster-processor.cpp:198-200: a
+            # sleeping monster's turn ends at awake_monster), so its unknown grids stay
+            # closed: opened, every sleeper telepathy shows through unexplored rock reads as
+            # reaching (the same floor's fifteen sleeping 巨大首なし read as a lethal swarm on
+            # arrival at full HP).  Waking one is the ranged rung's question
+            # (``_sleeper_not_to_wake``).
             in_line_of_fire = contact or self._has_line_of_fire(
                 snapshot, monster.position, snapshot.player.position,
                 remembered=self._remembered_grids,
-            )
+            ) or (not monster.asleep and self._may_project(
+                snapshot, monster.position, snapshot.player.position))
             knowledge = self._monrace_knowledge.get(monster.race_id)
             never_moves = bool(
                 knowledge is not None and "NEVER_MOVE" in knowledge.flags

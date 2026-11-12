@@ -15278,6 +15278,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "key's leave alone: *Destruction* or Teleportation when the fight is not winnable even after the drink, else None; asked by quest25_battle.key after the phase's own step (owner 2026-11-07)."
   },
+  "attack_expectation.py:aura_self_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure estimate of the HP a melee action at a touch-aura race costs the attacker (player-damage.cpp touch_zap_player); no command."
+  },
   "attack_expectation.py:melee": {
     "classification": "data",
     "rows": [
@@ -16254,6 +16265,17 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:free_attack": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure estimate (design 3.3): the best free attack per player action against a target and the HP it costs the player; no command, no effect credit."
   },
   "threat_projection.py:free_damage": {
     "classification": "data",

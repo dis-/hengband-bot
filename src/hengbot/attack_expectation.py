@@ -50,7 +50,8 @@ from hengbot import me_device_attacks
 from hengbot.equipment_encounters import melee_multiplier
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, launcher_average_damage
 from hengbot.model import TVAL_BOLT, TVAL_ROD, TVAL_WAND
-from hengbot.policy_constants import USE_DEVICE_MIN
+from hengbot.monster_ranged_evaluator import _attribute_rates
+from hengbot.policy_constants import RESIST_FLAG_BY_ABILITY, USE_DEVICE_MIN
 from hengbot.warrior_equipment_evaluator import AC_REFERENCE
 
 
@@ -141,10 +142,57 @@ def only_unhurtable_beside(policy, snapshot, adjacent) -> bool:
         blows_cannot_hurt(policy, snapshot, monster) for monster in adjacent)
 
 
-def melee(policy, snapshot, target) -> float:
-    """Melee's expected damage per player action against ``target``, else 0."""
+# player-damage.cpp:633-641 touch_zap_player: each aura and the element its damage goes through.
+AURA_ELEMENTS = {"AURA_FIRE": "FIRE", "AURA_COLD": "COLD", "AURA_ELEC": "ELEC"}
+_IMMUNITY_NAMES = {"FIRE": "fire", "COLD": "cold", "ELEC": "elec"}
+
+
+def aura_self_damage(policy, snapshot, target) -> float:
+    """The HP a player action of melee at ``target`` costs the attacker through its auras.
+
+    player-attack.cpp:568 calls touch_zap_player after each blow that connects; each aura the
+    race holds deals Dice(1 + level / 26, 1 + level / 17) (player-damage.cpp:618) through
+    fire_dam / cold_dam / elec_dam: damage x calc_*_damage_rate / 100, the rate (per + 2) / 3
+    for the resistance and again for the opposition, 0 when immune
+    (player-status-resist.cpp:95-185; monster_ranged_evaluator ``_attribute_rates``).  Every
+    worn hand's blow is counted as connecting (an upper bound: a miss is not answered)."""
+    knowledge = _race(policy, target)
+    if knowledge is None:
+        return 0.0
+    auras = [AURA_ELEMENTS[flag] for flag in sorted(knowledge.flags & TOUCH_AURAS)]
+    if not auras:
+        return 0.0
     player = snapshot.player
-    if (melee_refused(policy, snapshot) or harms_on_touch(policy, target)
+    flags = frozenset(flag for ability, flag in RESIST_FLAG_BY_ABILITY.items()
+                      if ability in player.abilities)
+    dice, sides = 1 + knowledge.level // 26, 1 + knowledge.level // 17
+    rolls = {0: 1}
+    for _ in range(dice):
+        step: dict = {}
+        for total, ways in rolls.items():
+            for face in range(1, sides + 1):
+                step[total + face] = step.get(total + face, 0) + ways
+        rolls = step
+    outcomes = sum(rolls.values())
+    per_blow = 0.0
+    for element in auras:
+        if _IMMUNITY_NAMES[element] in player.immunities:
+            continue
+        rate = _attribute_rates(element, flags)[0]
+        per_blow += sum(total * rate // 100 * ways for total, ways in rolls.items()) / outcomes
+    hands = (("main_hand", player.main_hand_blows), ("sub_hand", player.sub_hand_blows))
+    return per_blow * sum(count for slot, count in hands
+                          if count > 0 and _hand_weapon(snapshot, slot) is not None)
+
+
+def melee(policy, snapshot, target, *, through_aura: bool = False) -> float:
+    """Melee's expected damage per player action against ``target``, else 0.
+
+    A touch-aura monster scores 0 (the Magic-Eater's 「触ると害のある敵は近接から外す」) unless
+    ``through_aura``: the blow still lands, its cost is ``aura_self_damage``."""
+    player = snapshot.player
+    if (melee_refused(policy, snapshot)
+            or (harms_on_touch(policy, target) and not through_aura)
             or blows_cannot_hurt(policy, snapshot, target)):
         return 0.0  # fear or NO_MELEE refuses melee (cmd-attack.cpp:228, :202)
     ac = _armour(policy, target)

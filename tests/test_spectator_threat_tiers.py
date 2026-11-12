@@ -93,7 +93,10 @@ class RecordedBoardsTest(unittest.TestCase):
     def test_each_monster_alone_n1b_325(self):
         _policy, board, _raw, details = recorded("n1b-325-low-hp-escape-1106.json.gz", 2100397)
         names = {m.index: m.race_id for m in board.visible_monsters}
-        self.assertEqual(details["threat_engagement"]["tier"], T3)
+        # T1 since n1-a life-514 (2026-11-12): the awake 智天使 (distance 8) reaches the player
+        # over grids the board has not shown (owner 2026-11-08 「未知のマスを壁と見ない」), and its
+        # spells join the engagement's projection (T3 before, when those grids read as walls).
+        self.assertEqual(details["threat_engagement"]["tier"], T1)
         first = details["monsters"][0]
         self.assertEqual(first["threat"]["tier"], T1)
         self.assertEqual(first["threat"]["worsens_with_time"], ["summon"])
@@ -171,7 +174,8 @@ class WriterTest(unittest.TestCase):
             self.observe(writer, board, raw, threat)
             self.assertEqual(len(calls), 1)
             written = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(written["threat_engagement"]["tier"], T3)
+            # T1: the awake 智天使's reach over unknown grids (test_each_monster_alone_n1b_325).
+            self.assertEqual(written["threat_engagement"]["tier"], T1)
             self.assertEqual(written["monsters"][0]["threat"]["tier"], T1)
 
             def failing():

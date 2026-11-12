@@ -128,6 +128,7 @@ from hengbot.threat_projection import (  # noqa: F401
     _free_devices,
     _charge_supplies,
     free_damage,
+    free_attack,
     _scroll_reads,
     scroll_damage_at,
     _self_damage,
@@ -270,8 +271,15 @@ def _assess(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Asse
     # The budget read here, at call time: a patched threat_tiers.PROJECTION_COST_BUDGET applies.
     projection = Projection(policy, snapshot, hostiles, one_turn, melee_slots, contact,
                             budget=PROJECTION_COST_BUDGET)
-    result.free_damage = {monster.index: free_damage(policy, snapshot, monster)
-                          for monster in hostiles}
+
+    rows = {row_monster.index: row for row_monster, row in zip(
+        hostiles, policy.threat_prediction(snapshot, hostiles, 3, melee_slots=melee_slots,
+                                           contact=contact)["monsters"])}
+    attacks = {monster.index: free_attack(policy, snapshot, monster, contact,
+                                          row=rows.get(monster.index))
+               for monster in hostiles}
+    result.free_damage = {index: damage for index, (damage, _) in attacks.items()}
+    result.free_self_damage = {index: cost for index, (_, cost) in attacks.items() if cost > 0}
 
     try:
         _tier(policy, snapshot, projection, result, hp, max_hp)
@@ -286,9 +294,6 @@ def _assess(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Asse
     # per monster: flags and the selection
     quest_races = _quest_races(policy, snapshot)
     hunted = hunt_target.target_race(policy, snapshot)
-    rows = {row_monster.index: row for row_monster, row in zip(
-        hostiles, policy.threat_prediction(snapshot, hostiles, 3, melee_slots=melee_slots,
-                                           contact=contact)["monsters"])}
     for monster in hostiles:
         entry = MonsterAssessment(index=monster.index, race_id=monster.race_id,
                                   name=monster.name, speed=monster.speed,
