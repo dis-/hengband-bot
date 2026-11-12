@@ -11,6 +11,11 @@ The owner's answer: once a monster's tier is decided, small HP / estimate change
 fight or leave stays on the side decided first (threat_tiers.decided).  The band is the reading's
 own reserve, D7 max(10% of max HP, the next-action p95): 38-48 HP on these boards.
 
+Owner 2026-11-12 (「死なない側に置き直す」, t3-survival-1112 B): the T3 band now lies on the side
+the projection survives: T3 is entered at a free margin of the reserve, a first reading too, and
+left once the margin is below 0; the T2/T1 band is unchanged.  The tests below that crossed the
+T3 boundary inside the old band are re-driven to that rule (named at each).
+
 The boards are the recorded ones, fed in order through the public ``choose_key``, every key
 posted by the production executor (``_ExecutorInputPort``).  DECLARED CONSTRUCTED: the boards
 whose player HP / max HP or a monster's haste this module changes (named at each test), and the
@@ -146,12 +151,13 @@ class BearPackHoldRecordedTest(executor_pins.ProductionHarness):
         # The held T2 spends nothing: the free attacks win (no Speed, no resistance drunk).
         self.assertEqual((result.supply_plan.categories, result.supply_plan.speed_doses,
                           result.supply_plan.resistance), ((), 0, 0))
-        # Control: read first, the same board is T3 and is not left.
+        # Read first, the same board is not entered as T3 either (B: T3 by 17, below the reserve
+        # 40) and is left.
         fresh = self.policy()
         snapshot, key, reason = self.decide(fresh, rise)
         self.assertEqual((self.tier(fresh, snapshot).tier, self.tier(fresh, snapshot).raw_tier),
-                         (T3, None))
-        self.assertFalse(leaves(reason), (key, reason))
+                         (T2, T3))
+        self.assertTrue(leaves(reason), (key, reason))
 
     def test_a_decisive_rise_turns_the_pack_to_fight(self):
         """DECLARED CONSTRUCTED: decision 511's board at HP = max HP 440 (T3 by 57, past the band
@@ -170,16 +176,17 @@ class BearPackHoldRecordedTest(executor_pins.ProductionHarness):
 
     def test_the_fight_side_holds_through_a_small_drop_and_turns_on_a_decisive_one(self):
         """DECLARED CONSTRUCTED: max HP 430.  Decision 509's board at HP 430 reads T3 (the free
-        attacks' 380); decision 511's at HP 380 reads T2 by 3 (held T3: fought); decision 513's
-        at HP 330 reads T2 by 56, past the band max(43, 43): left."""
+        attacks' 380); decision 511's at HP 380 reads T2 by 3: B leaves a held T3 once the margin
+        is below 0 (it was held T3 and fought before 2026-11-12); decision 513's at HP 330 reads
+        T2 by 56: left."""
         policy = self.policy()
         snapshot, key, reason = self.decide(policy, with_player(self.rows[1], hp=430, max_hp=430))
         self.assertEqual(self.tier(policy, snapshot).tier, T3)
         self.assertFalse(leaves(reason), (key, reason))
         snapshot, key, reason = self.decide(policy, with_player(self.rows[3], hp=380, max_hp=430))
         result = self.tier(policy, snapshot)
-        self.assertEqual((result.tier, result.raw_tier, result.free_margin), (T3, T2, -3))
-        self.assertFalse(leaves(reason), (key, reason))
+        self.assertEqual((result.tier, result.raw_tier, result.free_margin), (T2, None, -3))
+        self.assertTrue(leaves(reason), (key, reason))
         snapshot, key, reason = self.decide(policy, with_player(self.rows[5], hp=330, max_hp=430))
         result = self.tier(policy, snapshot)
         self.assertEqual((result.tier, result.raw_tier, result.free_margin, result.reserve),
@@ -203,8 +210,10 @@ class BearPackHoldRecordedTest(executor_pins.ProductionHarness):
         self.assertTrue(leaves(reason), (key, reason))
 
     def test_instant_death_is_taken_as_read(self):
-        """The 1-turn 即死 overrides the hold: a T2 reading inside the band of a decided T3 is
-        taken when it is also 即死 (the reading constructed from decision 511's)."""
+        """The 1-turn 即死 overrides the hold: a T1 reading inside the band of a decided T2 is
+        taken when it is also 即死 (re-driven to the T2/T1 band, which B leaves as it was: the
+        reading constructed from decision 511's at HP 380, T2 by 3, read T1 by 3 of supply
+        margin)."""
         policy = self.policy()
         self.decide(policy, with_player(self.rows[1], hp=430, max_hp=430))
         snapshot = policy.with_known_skill_exp(
@@ -212,10 +221,12 @@ class BearPackHoldRecordedTest(executor_pins.ProductionHarness):
         hostiles = policy._strategic_hostiles(snapshot)
         raw = threat_tiers.assess(policy, snapshot, hostiles)
         self.assertEqual((raw.tier, raw.free_margin), (T2, -3))
-        self.assertEqual(threat_tiers.decided(policy, snapshot, hostiles, raw).tier, T3)
-        lethal = replace(raw, instant_death=True)
-        self.assertEqual(threat_tiers.decided(policy, snapshot, hostiles, lethal).tier, T2)
-        self.assertEqual({entry.tier for entry in self.memory(policy).values()}, {T2})
+        self.assertEqual(threat_tiers.decided(policy, snapshot, hostiles, raw).tier, T2)
+        weaker = replace(raw, tier=T1, supply_margin=-3, supply_plan=None)
+        self.assertEqual(threat_tiers.decided(policy, snapshot, hostiles, weaker).tier, T2)
+        lethal = replace(weaker, instant_death=True)
+        self.assertEqual(threat_tiers.decided(policy, snapshot, hostiles, lethal).tier, T1)
+        self.assertEqual({entry.tier for entry in self.memory(policy).values()}, {T1})
 
     # ------------------------------------------------------------ the pack out of sight
 
@@ -260,7 +271,9 @@ class BearPackHoldRecordedTest(executor_pins.ProductionHarness):
         policy.prime(parse_snapshot(elsewhere, self.monrace))
         policy.prime(parse_snapshot(copy.deepcopy(self.rows[2]["board"]), self.monrace))
         self.assertIsNone(getattr(policy, threat_tiers.TIER_MEMORY))
-        snapshot, key, reason = self.decide(policy, with_player(self.rows[3], hp=400, max_hp=400))
+        # HP 440 (T3 by 57, past the reserve 44): a fresh reading enters T3 (B; at HP 400 a
+        # fresh reading, T3 by 17, is no longer entered).
+        snapshot, key, reason = self.decide(policy, with_player(self.rows[3], hp=440, max_hp=440))
         self.assertEqual(self.tier(policy, snapshot).tier, T3)
         self.assertFalse(leaves(reason), (key, reason))
 
@@ -282,7 +295,8 @@ class BearPackHoldRecordedTest(executor_pins.ProductionHarness):
         del older.__dict__[threat_tiers.TIER_MEMORY]
         policy_state.normalize_policy_state(older, restart=True)
         self.assertIsNone(getattr(older, threat_tiers.TIER_MEMORY))
-        snapshot, key, reason = self.decide(older, rise)
+        # Afresh at HP 440 (B: a fresh T3 needs the reserve; at 400 it is not entered either).
+        snapshot, key, reason = self.decide(older, with_player(self.rows[3], hp=440, max_hp=440))
         self.assertFalse(leaves(reason), (key, reason))
 
 
@@ -304,9 +318,11 @@ class HeldTierTest(unittest.TestCase):
     def test_an_absent_pack_mate_keeps_the_worse_side(self):
         self.assertEqual(self.held(T2, self.reading(T3, 400, 360), mates_in_view=False), T2)
 
-    def test_t3_to_t2_needs_the_band(self):
-        self.assertEqual(self.held(T3, self.reading(T2, -39, 100)), T3)
-        self.assertEqual(self.held(T3, self.reading(T2, -40, 100)), T2)
+    def test_t3_is_left_below_zero(self):
+        """B: a held T3 is left once the free margin is below 0 (inside [0, reserve) it holds)."""
+        self.assertEqual(self.held(T3, self.reading(T2, -1, 100)), T2)
+        self.assertEqual(self.held(T3, self.reading(T3, 0, -40)), T3)
+        self.assertEqual(self.held(T3, self.reading(T3, 39, -1)), T3)
         self.assertEqual(self.held(T3, self.reading(T2, None, 100)), T2)  # no free attack left
 
     def test_a_stronger_engagement_is_read_as_it_is(self):
@@ -325,9 +341,9 @@ class HeldTierTest(unittest.TestCase):
         self.assertEqual(self.held(T1, self.reading(T2, -500, 40)), T2)
 
     def test_t3_to_t1_crosses_both_boundaries(self):
-        self.assertEqual(self.held(T3, self.reading(T1, -39, -500)), T3)
-        self.assertEqual(self.held(T3, self.reading(T1, -40, -39)), T2)
-        self.assertEqual(self.held(T3, self.reading(T1, -40, -40)), T1)
+        # B leaves T3 below 0; the T2/T1 band is the supply margin's, unchanged.
+        self.assertEqual(self.held(T3, self.reading(T1, -1, -39)), T2)
+        self.assertEqual(self.held(T3, self.reading(T1, -1, -40)), T1)
 
 
 if __name__ == "__main__":

@@ -63,6 +63,16 @@ class TierMemory:
     floor: tuple
     decided: dict = field(default_factory=dict)  # (index, race) -> Decided
     last_turn: int | None = None                 # the previous observed board
+    # [(turn, HP, position)] of the last boards; not compared (a policy pickled before it has none)
+    hp_history: list = field(default_factory=list, compare=False)
+
+
+# The projection's check against what the boards show (owner 2026-11-12 「物資の使用は生存判定に
+# 任せる。HPが減ったなら使うべきは回復テレポート破壊だったのではないのか？」): the HP lost over the
+# last MISSED_TURNS player turns against the projection over as many turns (the threat
+# prediction's own 3-turn window, THREAT_TURNS).
+MISSED_TURNS = 3
+HP_HISTORY = MISSED_TURNS + 1
 
 
 # Pickle compatibility: policy checkpoints hold a TierMemory of Decided entries
@@ -94,6 +104,26 @@ def observe(policy, snapshot) -> None:
         if monster_memory.gone(snapshot, key, entry.threat, shown, memory.last_turn):
             del memory.decided[key]
     memory.last_turn = snapshot.turn
+    history = getattr(memory, "hp_history", None)
+    if history is None:  # a policy pickled before the history
+        history = memory.hp_history = []
+    here = snapshot.player.position
+    if history and history[-1][2].distance_to(here) > 1:
+        history.clear()  # relocated (a teleport, a trap door's landing): another engagement
+    history.append((snapshot.turn, snapshot.player.hp, here))
+    del history[:-HP_HISTORY]
+
+
+def observed_loss(policy, snapshot) -> int | None:
+    """The HP lost over the last MISSED_TURNS boards of this floor visit (a heal counts as no
+    loss; a relocation starts the count over), or None while fewer boards are known."""
+    memory = getattr(policy, TIER_MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return None
+    history = getattr(memory, "hp_history", None) or []
+    if len(history) < HP_HISTORY or history[-1][0] != snapshot.turn:
+        return None
+    return sum(max(0, before[1] - after[1]) for before, after in zip(history, history[1:]))
 
 
 def forget_floor_visit(policy) -> None:
@@ -115,13 +145,18 @@ def _past(margin: float | None) -> float:
 
 def held_tier(held: str, raw: Assessment, *, worse_as_read: bool, mates_in_view: bool) -> str:
     """The tier after the reading ``raw`` of an engagement decided ``held``: each boundary
-    between them is crossed only when the reading is past it by the band (``raw.reserve``)."""
+    between them is crossed only when the reading is past it by the band (``raw.reserve``).
+
+    The T3 band lies on the side the projection survives (owner 2026-11-12 「死なない側に置き
+    直す」: 「T3 に入るのは見積りの余裕が予備（最大HPの1割か次の1手の最大）以上ある時だけ。出るのは
+    余裕が0を切った時。固定の幅は保ったまま、見積りで死ぬ側では T3 を続けない。」): T3 is entered
+    at a free margin of the reserve (``t3_entered``) and left once the margin is below 0."""
     band = raw.reserve
     if TIER_RANK[raw.tier] < TIER_RANK[held]:
         if worse_as_read:
             return raw.tier
         tier = held
-        if tier == T3 and -_past(raw.free_margin) >= band:
+        if tier == T3 and _past(raw.free_margin) < 0:
             tier = T2
         if tier == T2 and raw.tier == T1 and -_past(raw.supply_margin) >= band:
             tier = T1
@@ -134,6 +169,11 @@ def held_tier(held: str, raw: Assessment, *, worse_as_read: bool, mates_in_view:
     if tier == T2 and raw.tier == T3 and _past(raw.free_margin) >= band:
         tier = T3
     return tier
+
+
+def t3_entered(raw: Assessment) -> bool:
+    """A T3 reading enters T3: its free margin is at least the reserve (``held_tier``)."""
+    return raw.tier == T3 and _past(raw.free_margin) >= raw.reserve
 
 
 def _as_held(raw: Assessment, tier: str) -> Assessment:

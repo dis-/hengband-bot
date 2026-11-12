@@ -482,7 +482,9 @@ class Q25IpsissimusTest(unittest.TestCase):
         at_phase(policy, raw, "ipsissimus")
         policy._player_hasted = lambda snapshot: True
         key = choose(policy, raw)
-        self.assertEqual(policy.last_reason, quest_room_sweep.TELEPORT_REASON, key)  # the plan's escape
+        # Since 2026-11-12 (t3-survival-1112 D, the game's spell odds: the innate breath only in the 2 x freq share) the next action no longer reaches HP 480: no 即死 rung; the phase's own
+        # teleport answers (as with the rung patched off above).
+        self.assertEqual(policy.last_reason, battle.TELEPORT_REASON, key)
 
     def test_after_the_teleport_a_choke_is_taken_before_contact(self):
         # A landing in the east room, nothing in view: the nearest choke out of the summons is

@@ -166,10 +166,11 @@ class _Replay(unittest.TestCase):
         _board, key, reason = self._decide(
             C_WARMUP, self._constructed(C_WARMUP, inventory=inventory)
         )
-        self.assertEqual((key, reason), self._live(C_WARMUP))
-        self.assertEqual(
-            self.policy._strong_fight_speed_floor, _board.floor_key
-        )
+        # Recorded melee; since owner 2026-11-12 (t3-survival-1112 C, 「殴り合いにも効かせる」 /
+        # 「離れるのを先にする」) the blow at HP 307 of 731, below the low-HP line, with a faster
+        # monster awake in view gives way to the Teleportation scroll.
+        self.assertEqual(self._live(C_WARMUP), ("3", "melee"))
+        self.assertEqual((key, reason), ("rf", "emergency:teleport"))
 
     def _next_turn(self, board):
         hostiles = self.policy._strategic_hostiles(board)

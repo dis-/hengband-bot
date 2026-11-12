@@ -91,7 +91,9 @@ class MonsterRangedEvaluatorTest(unittest.TestCase):
             saving_skill=52,
         )
 
-        self.assertAlmostEqual(result.per_action_probability, 0.019537055047656085)
+        # Re-driven 2026-11-12 (t3-survival-1112, D): the game's choice, no_inate removing the
+        # innate abilities (mspell-attack.cpp:45-52), and the non-innate spell failure.
+        self.assertAlmostEqual(result.per_action_probability, 0.04884263761914021)
         self.assertEqual(result.successful_casts, 1)
         self.assertEqual(result.damage_per_cast, 47)
         self.assertEqual(result.total_damage, 47)
@@ -124,10 +126,12 @@ class MonsterRangedEvaluatorTest(unittest.TestCase):
             }),
         )
 
+        # Re-driven 2026-11-12 (t3-survival-1112, D): the game's choice, no_inate removing the
+        # innate abilities (mspell-attack.cpp:45-52), and the non-innate spell failure.
         fixtures = (
-            (ring_mimic, 7, 46, 0.347713355),
-            (planetar, 10, 319, 0.453931732),
-            (lain, 10, 1329, 0.984498170),
+            (ring_mimic, 7, 62, 0.515320134),
+            (planetar, 10, 434, 0.663990610),
+            (lain, 10, 1285, 0.979991988),
         )
         for caster, actions, damage_p95, probability_any in fixtures:
             with self.subTest(level=caster.level):
@@ -156,7 +160,9 @@ class MonsterRangedEvaluatorTest(unittest.TestCase):
             ),
         )
 
-        self.assertAlmostEqual(result.probability_any_damage, 0.01)
+        # Re-driven 2026-11-12 (t3-survival-1112, D): the game's choice: the innate SHOOT only in the 2% branch that keeps it, no_inate removing the
+        # innate abilities (mspell-attack.cpp:45-52), and the non-innate spell failure.
+        self.assertAlmostEqual(result.probability_any_damage, 0.0002)
         self.assertEqual(result.single_hit_floor, 11)
         self.assertEqual(result.total_damage, 11)
         self.assertTrue(result.floor_applied)
@@ -354,8 +360,11 @@ class MonsterRangedEvaluatorTest(unittest.TestCase):
         probabilities = ability_selection_probabilities(
             caster, SpellSelectionContext()
         )
-        self.assertAlmostEqual(probabilities["BR_FIRE"], 0.8)
-        self.assertAlmostEqual(probabilities["MISSILE"], 0.2)
+        # Re-driven 2026-11-12 (t3-survival-1112, D): the game's choice, no_inate removing the
+        # innate abilities (mspell-attack.cpp:45-52), and the non-innate spell failure.
+        # 40% from both (0.2 each), 60% with the innate breath removed (MISSILE alone).
+        self.assertAlmostEqual(probabilities["BR_FIRE"], 0.2)
+        self.assertAlmostEqual(probabilities["MISSILE"], 0.8)
 
     def test_smart_selector_applies_summon_before_attack_and_retries(self):
         caster = MonraceKnowledge(
