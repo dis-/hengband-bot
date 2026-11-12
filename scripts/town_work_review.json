@@ -12967,6 +12967,39 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The walk to the nearest choke while an enemy comes; no independent progress."
   },
+  "quest_find_exit.py:_back_to_a_choke": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The step back toward the nearest unexposed choke onto a cell within the strategy's max_simultaneous_melee; no independent progress."
+  },
+  "quest_find_exit.py:_crowded_step": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A walk's step onto a cell with more than max_simultaneous_melee beside it refused: the step back to a choke or the hold; no independent progress."
+  },
+  "quest_find_exit.py:_melee_cap_retreat": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "More than max_simultaneous_melee beside the player: the step back toward a choke; no independent progress."
+  },
   "quest_find_exit.py:key": {
     "classification": "producer",
     "rows": [

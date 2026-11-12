@@ -89,6 +89,9 @@ class QuestFloorNavigator:
     exit_actions = 0
     exit_action_turn = None
     exit_in_view = {}
+    # The ``min_hp`` of the force row the floor was entered under (quest_find_exit records it
+    # on the floor's first board; once_quest_recall.below_entry_force reads it).
+    entry_force_min_hp = None
     # The room sweep of a KILL_ALL plan (quest_room_sweep): same rule.
     sweep_stage = 0
     sweep_round = 0
@@ -143,6 +146,7 @@ class QuestFloorNavigator:
         self.exit_actions = 0
         self.exit_action_turn = None
         self.exit_in_view = {}
+        self.entry_force_min_hp = None
         self.sweep_stage = 0
         self.sweep_round = 0
         self.sweep_meet_turns = 0

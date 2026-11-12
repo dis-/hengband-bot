@@ -1149,5 +1149,107 @@ class _ReadyLight:
     worn = None
 
 
+with gzip.open(ROOT / "tests" / "fixtures" / "q18-life515-20261112.json.gz", "rt", encoding="utf-8",
+               errors="surrogateescape") as _stream:
+    LIFE_515 = {row["turn"]: row for row in json.load(_stream)["boards"]}
+LIFE_515_ENTRY = 1803953
+
+
+class Q18Life515Test(unittest.TestCase):
+    """n1-a life 515 (2026-11-12 15:14, warrior Lv33, floor (0,35,18)) died on (3,20).
+
+    Accepted on the first force row (max HP 716 of 700); the seahorses' LOSE_CON bites drained
+    the max HP to 641 before the last fight (485 at death).  Decision 48623 left the spent choke
+    (1,19) for (3,22) by (2,20) and (3,20); on (3,20) it meleed two seahorses 443 beside it, and
+    from 48631 a giant squid 482 too: three at once against the strategy's
+    ``max_simultaneous_melee`` 2, until the emergency rungs and death at 48634.
+
+    The boards are the recorded ones (tests/fixtures/q18-life515-20261112.json.gz,
+    tests/extract_q18_life515_fixture.py: the floor's first board 1803953 and the boards of
+    decisions 48623-48633).  The recorded keys are in the comments.
+    """
+
+    @staticmethod
+    def raw(turn):
+        return copy.deepcopy(LIFE_515[turn])
+
+    @staticmethod
+    def decide_off_the_line(raw, *, spent=()):
+        """The board with the force line out of it: DECLARED CONSTRUCTED, the floor entered on
+        the second row (min_hp 500), so the drained max HP crosses nothing; ``spent``: the
+        chokes whose waits were spent, as at decision 48623."""
+        policy = new_policy(raw)
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        navigator = quest_find_exit._navigator(policy, snapshot, 18)
+        navigator.entry_force_min_hp = 500
+        navigator.exit_spent_chokes = frozenset(Position(*cell) for cell in spent)
+        key = str(policy.choose_key(snapshot))
+        return key, policy.last_reason
+
+    def test_recorded_three_beside_it_walks_back_to_the_choke(self):
+        for turn in (1806402, 1806410):  # recorded: melee '3' (the squid), melee '3'
+            raw = self.raw(turn)
+            self.assertEqual((raw["player"]["y"], raw["player"]["x"]), (3, 20))
+            beside = sorted((row["race_id"], row["y"], row["x"]) for row in raw["visible_monsters"]
+                            if abs(row["y"] - 3) <= 1 and abs(row["x"] - 20) <= 1)
+            self.assertEqual(beside, [(SEAHORSE, 4, 19), (SEAHORSE, 4, 20), (SQUID, 4, 21)])
+            key, reason = self.decide_off_the_line(raw)
+            # (2,20), the way to the choke (1,19), has nobody beside it.
+            self.assertEqual((key, reason), (step_key((3, 20), (2, 20)), quest_find_exit.MELEE_CAP_REASON),
+                             turn)
+
+    def test_control_two_beside_it_is_still_fought(self):
+        raw = self.raw(1806375)  # recorded: melee '2', the seahorses on (4,20) and (4,19)
+        key, reason = self.decide_off_the_line(raw)
+        self.assertEqual((key, reason), (step_key((3, 20), (4, 20)), MELEE_REASON))
+
+    def test_no_step_onto_a_cell_with_three_beside_it(self):
+        """DECLARED CONSTRUCTED: the recorded (3,20) board of decision 48631, its three
+        seahorses and squid moved a row down to (5,20), (5,21) and (5,22), none beside the
+        player; the chokes behind spent up to (1,19), as they were at 48623, so the walk to
+        (3,22) goes by (4,21), where all three would stand beside it."""
+        raw = self.raw(1806402)
+        moved = {(4, 19): (5, 20), (4, 20): (5, 21), (4, 21): (5, 22)}
+        for row in raw["visible_monsters"]:
+            if (row["y"], row["x"]) in moved:
+                row["y"], row["x"] = moved[(row["y"], row["x"])]
+        key, reason = self.decide_off_the_line(
+            raw, spent=[(1, 3), (1, 5), (1, 9), (1, 12), (1, 15), (1, 19)])
+        self.assertNotEqual(key, step_key((3, 20), (4, 21)), reason)
+        self.assertEqual((key, reason), (step_key((3, 20), (2, 20)), quest_find_exit.MELEE_CAP_REASON))
+
+    def walk_from_entry(self, turn):
+        """The policy given the floor's first board, then the board of ``turn``."""
+        entry = self.raw(LIFE_515_ENTRY)
+        policy = new_policy(entry)
+        policy.choose_key(parse_snapshot(entry, policy._monrace_knowledge))
+        navigator = policy._quest_navigators[18]
+        self.assertEqual(navigator.entry_force_min_hp, 700)  # the first row, as accepted
+        return policy
+
+    def test_drained_below_the_entry_row_reads_recall_with_the_seahorse_in_view(self):
+        raw = self.raw(1806351)  # recorded: exit-to-choke '2' onto (3,20)
+        self.assertEqual((raw["player"]["hp"], raw["player"]["max_hp"]), (641, 641))
+        policy = self.walk_from_entry(1806351)
+        key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+        self.assertEqual(policy.last_reason, RECALL_REASON)
+        self.assertTrue(key.startswith("r"), key)
+
+    def test_control_undrained_reads_no_recall(self):
+        """DECLARED CONSTRUCTED: the same board with the max HP of the entry, 716."""
+        raw = self.raw(1806351)
+        raw["player"]["max_hp"] = raw["player"]["hp"] = 716
+        policy = self.walk_from_entry(1806351)
+        policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
+        self.assertNotEqual(policy.last_reason, RECALL_REASON)
+
+    def test_drained_with_no_enemy_reads_no_recall(self):
+        raw = self.raw(1806342)  # recorded: exit-to-choke '3', nothing in view on (1,19)
+        self.assertEqual(raw["visible_monsters"] + raw["detected_monsters"], [])
+        policy = self.walk_from_entry(1806342)
+        policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
+        self.assertNotEqual(policy.last_reason, RECALL_REASON)
+
+
 if __name__ == "__main__":
     unittest.main()

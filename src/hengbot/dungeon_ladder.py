@@ -330,6 +330,8 @@ FLOOR_PLANS = (
         Branch("on a cell the casters reach", (
             (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), ("_heal", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
+            # More than the strategy's max_simultaneous_melee beside the player: back to a choke.
+            ("_melee_cap_retreat", OWN),
             # A walk to a choke under way goes on before the exit walk (owner 2026-11-06).
             ("_choke_walk_under_way", OWN), ("_advance", OWN))),
         Branch("no enemy for the line", (
