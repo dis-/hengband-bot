@@ -2788,6 +2788,11 @@ class TownMixin:
             self._identification_need = None
             self._identification_candidate = None
             self._home_candidate_waiting = not self._home_pending_batch
+            # The latch outlives an exhausted batch only with an owner of its own (a filed
+            # identification take, an owed scan): left bare it read as an observed Home operation
+            # that cannot be composed, and the entrance stepped off (n1-a life-508 row 54, the
+            # batch's last entry an uncarried stack).
+            self._release_stale_home_candidate_waiting(snapshot)
             self._town_blocked_reason = None
             self.last_reason = "home:withdraw-failed-deferred"
             if self._home_pending_batch:
