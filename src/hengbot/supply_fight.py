@@ -28,6 +28,7 @@ from hengbot.threat_projection import (
     _ranged_ready,
     _resistance_after,
     _scroll_reads,
+    heal_credit,
     scroll_damage_at,
 )
 
@@ -93,23 +94,20 @@ def _spend(policy, snapshot, target, verb, item, reason, suffix=""):
 
 
 def _heal_key(policy, snapshot, result, target):
-    """Today's rule of the supplied fight (``_unique_combat_consumable``): drink when HP is
-    missing and the next action could breach the reserve, or three quarters of the dose are
-    missing; only a dose that out-heals the next action.  The plan credits a dose drunk at the
-    next action's p95 (``threat_projection.heal_credit``, owner 2026-11-11); this drink point is
-    unchanged."""
-    player, plan = snapshot.player, result.supply_plan
-    missing = player.max_hp - player.hp
-    if missing <= 0:
+    """Owner 2026-11-12 (「計画に揃える」: 「HP が次の1手の最大を下回ったら飲む。計画どおりの本数で
+    戦え、薬の無駄が減る。…即死の判定（次の1手で HP 以上）はこれまでどおり先に効く。」): drink
+    once the HP is down to the next action's p95, the point the plan credits a dose at
+    (``threat_projection.heal_credit``); a dose with nothing to restore there is not drunk.  The
+    即死 rungs stand above this one and answer that board first, as before."""
+    player = snapshot.player
+    if player.hp >= player.max_hp or player.hp > result.next_action_p95:
         return None
     for sval in HEAL_ORDER:
         potion = policy._find_exact_potion(snapshot, sval)
-        amount = min(HEAL_AMOUNTS[sval], player.max_hp)
-        if potion is None or amount <= result.next_action_p95:
+        if potion is None or heal_credit(HEAL_AMOUNTS[sval], player.max_hp,
+                                         result.next_action_p95) <= 0:
             continue
-        if result.next_action_p95 >= player.hp - plan.reserve or missing * 4 >= amount * 3:
-            return _spend(policy, snapshot, target, "quaff", potion, SUPPLY_HEAL_REASON)
-        return None
+        return _spend(policy, snapshot, target, "quaff", potion, SUPPLY_HEAL_REASON)
     return None
 
 

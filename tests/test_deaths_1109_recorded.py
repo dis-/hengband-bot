@@ -383,24 +383,29 @@ class SpellParalyserRecordedTest(DeathsRecordedHarness):
     """E: a HOLD / BRAIN_SMASH caster is a paralyser; in sight it is left by the 09-18 rung."""
 
     # Owner 2026-11-11 「恐怖・盲目の呪文を持つ相手で耐性が無い時は T2 にしない」: the クトーニアン
-    # casts SCARE and life-346 has no rFear, so alone it reads T1 (T2 before), and the absorbed
-    # Teleport Away (me_powers THREAT, above the status-threat rungs) sends it away as the
-    # recorded decision did; E's return then applies to the floor.  E's 09-18 scroll is pinned
-    # where the クトーニアン alone is T2: with rFear (DECLARED CONSTRUCTED, ``fear_resistance`` on
-    # every board).
+    # casts SCARE and life-346 has no rFear, so alone it reads T1 (T2 before).  Owner 2026-11-12
+    # 「巻物の手当てを先にする」: the 09-18 scroll still goes before the absorbed Teleport Away
+    # (me_powers ``_status_rung_first``), so the recorded board is left by scroll as before; with
+    # rFear (DECLARED CONSTRUCTED, ``fear_resistance`` on every board) it reads T2 and the same
+    # scroll answers.
 
     def test_the_chthonian_beside_the_player_is_left_by_scroll(self):
         recorded = self.recorded("life-346")
         self.assertEqual(recorded[1623935]["reason"], "me-power:unbeatable-in-range:teleport-away")
+        policy, answers = self.replay("life-346", 1623935)
+        raw, key, reason = answers[1623935]
+        self.assertEqual(reason, "status-threat:scroll")
+        self.assertEqual(key, "r" + letter(raw, *TELEPORT))
+
+    def test_with_rfear_the_chthonian_is_left_by_scroll_too(self):
         policy, answers = self.replay("life-346", 1623935, fear_resistance)
         raw, key, reason = answers[1623935]
         self.assertEqual(reason, "status-threat:scroll")
         self.assertEqual(key, "r" + letter(raw, *TELEPORT))
 
-    def test_without_rfear_the_fear_casting_chthonian_is_sent_away(self):
+    def test_without_rfear_the_fear_casting_chthonian_reads_t1_alone(self):
         policy, answers = self.replay("life-346", 1623935)
         raw, key, reason = answers[1623935]
-        self.assertEqual(reason, "me-power:unbeatable-in-range:teleport-away")
         snapshot = self.snapshot(policy, raw)
         chthonian = next(m for m in snapshot.visible_monsters if m.race_id == CHTHONIAN)
         with _PolicyObserverScope(policy):
@@ -410,9 +415,9 @@ class SpellParalyserRecordedTest(DeathsRecordedHarness):
 
     def test_in_line_of_sight_two_cells_away_it_is_left_too(self):
         # DECLARED CONSTRUCTED: the クトーニアン two cells down the corridor, a clear line, not
-        # in melee reach (speed +20 against +16: one action, two cells); rFear as above.
-        policy, answers = self.replay("life-346", 1623935, both(
-            fear_resistance, at_turn(1623935, move_monster(CHTHONIAN, 28, 101))))
+        # in melee reach (speed +20 against +16: one action, two cells).
+        policy, answers = self.replay("life-346", 1623935,
+                                      at_turn(1623935, move_monster(CHTHONIAN, 28, 101)))
         raw, key, reason = answers[1623935]
         self.assertEqual(reason, "status-threat:scroll")
         self.assertEqual(key, "r" + letter(raw, *TELEPORT))
