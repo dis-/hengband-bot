@@ -29,6 +29,10 @@ class Colour(enum.Enum):
     BLUE = "blue"
 
 
+class Shade(str, enum.Enum):
+    RED = "red"
+
+
 class Rank(enum.IntEnum):
     LOW = 1
     HIGH = 2
@@ -126,6 +130,31 @@ class RoundTripTest(unittest.TestCase):
         back["default"]["new"].append(1)
         self.assertEqual(back["default"]["new"], [1])
         self.assertIs(back["type"], Position)
+
+    def test_a_str_enum_key_stays_an_enum_after_an_equal_plain_key(self):
+        # A (str, Enum) member equals and hashes as its value: a dict with the plain string
+        # written first must not let the member's dict be written as a JSON object.
+        value = [{"red": 1}, {Shade.RED: 2}, {"$x": 3}, {Shade.RED: 4, "blue": 5}]
+        back = self.assert_same_graph(value)
+        self.assertIs(next(iter(back[1])), Shade.RED)
+        self.assertEqual([type(k) for k in back[3]], [Shade, str])
+
+    def test_a_numpy_array_round_trips_with_its_writability(self):
+        # Protocol 5 reduces an array to _frombuffer(PickleBuffer, ...): the buffer is written
+        # in band, as pickle writes it (a recorded checkpoint's grid masks are bool arrays).
+        import numpy
+
+        grid = numpy.zeros((3, 4), dtype=bool)
+        grid[1, 2] = True
+        frozen = numpy.arange(6, dtype=numpy.int16)
+        frozen.flags.writeable = False
+        back = self.assert_same_graph({"grid": grid, "frozen": frozen, "again": grid})
+        self.assertTrue(numpy.array_equal(back["grid"], grid))
+        self.assertTrue(back["grid"].flags.writeable)
+        self.assertFalse(back["frozen"].flags.writeable)
+        self.assertIs(back["again"], back["grid"])
+        self.assertEqual(pickle.loads(pickle.dumps(grid, protocol=5)).flags.writeable,
+                         back["grid"].flags.writeable)
 
     def test_set_state_runs_as_in_a_pickle_restore(self):
         old = Restoring()

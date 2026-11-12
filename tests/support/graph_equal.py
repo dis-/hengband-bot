@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copyreg
 import math
+import pickle
 
 ATOMS = (str, int, bool, type(None))
 _ATOM_TYPES = frozenset(ATOMS)
@@ -69,6 +70,11 @@ def graph_equal(first, second) -> str | None:
         elif kind is bytes:
             if a != b:
                 return f"{path}: bytes differ"
+        elif kind is pickle.PickleBuffer:
+            # A protocol 5 reduction's buffer (a numpy array's): its bytes and writability.
+            with a.raw() as view_a, b.raw() as view_b:
+                if (view_a.readonly, view_a.tobytes()) != (view_b.readonly, view_b.tobytes()):
+                    return f"{path}: buffers differ"
         else:
             parts_a, parts_b = _reduction(a), _reduction(b)
             keep.append((parts_a, parts_b))

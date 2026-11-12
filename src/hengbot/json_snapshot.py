@@ -42,6 +42,7 @@ import json
 import math
 import os
 import pathlib
+import pickle
 import sys
 from pathlib import Path
 
@@ -72,6 +73,15 @@ def _resolve(name: str):
     for part in qual.split("."):
         value = getattr(value, part)
     return value
+
+
+def _in_band(value):
+    """A reduction's out-of-band buffer as pickle writes it in band: bytes, or a bytearray when
+    writable (protocol 5: a numpy array reduces to ``_frombuffer(PickleBuffer, ...)``)."""
+    if type(value) is not pickle.PickleBuffer:
+        return value
+    with value.raw() as view:
+        return view.tobytes() if view.readonly else bytearray(view)
 
 
 def _atomic_value(obj) -> bool:
@@ -119,6 +129,8 @@ class _Encoder:
             if isinstance(reduction, str):
                 raise TypeError(f"{type(obj)!r} reduces to a global name ({reduction})")
             reduction = tuple(reduction) + (None,) * (5 - len(reduction))
+            if any(type(arg) is pickle.PickleBuffer for arg in reduction[1]):
+                reduction = (reduction[0], tuple(map(_in_band, reduction[1]))) + reduction[2:]
             if reduction[3] is not None:
                 reduction = reduction[:3] + (list(reduction[3]),) + reduction[4:]
             if reduction[4] is not None:
@@ -177,12 +189,17 @@ class _Encoder:
 
     def _plain_keys(self, mapping) -> bool:
         """Every key a string not starting with "$": the dict is written as a JSON object."""
+        # The type is asked of every key, also of one already known: a str subclass (a
+        # ``(str, Enum)`` member) equals and hashes as its value, so the set alone would take it
+        # for a plain key and the JSON object would bring it back as a str.
         known = self.plain_keys
-        if known.issuperset(mapping):
-            return True
-        if not all(type(k) is str and not k.startswith("$") for k in mapping):
-            return False
-        known.update(mapping)
+        for k in mapping:
+            if type(k) is not str:
+                return False
+            if k not in known:
+                if k.startswith("$"):
+                    return False
+                known.add(k)
         return True
 
     @staticmethod
@@ -245,7 +262,8 @@ class _Encoder:
             node_id = self._open(key, shared)
             node = {"$s": self._items(obj)}
             return self._with_id(node, self._close(key, node_id))
-        if kind is not tuple and kind is not frozenset and kind is not bytes and                 not isinstance(obj, type) and kind not in _ROUTINES and self._is_plain(kind):
+        if (kind is not tuple and kind is not frozenset and kind is not bytes
+                and not isinstance(obj, type) and kind not in _ROUTINES and self._is_plain(kind)):
             # copyreg.__newobj__ with no arguments, the instance dict as the state.
             node_id = self._open(key, shared)
             node = {"$o": _qualname(kind), "a": []}
