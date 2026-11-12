@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import arena, zul_trip
-from hengbot import quest_optional_carry
+from hengbot import heroism_potion, quest_optional_carry
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
@@ -2788,6 +2788,11 @@ class TownMixin:
             self._identification_need = None
             self._identification_candidate = None
             self._home_candidate_waiting = not self._home_pending_batch
+            # The latch outlives an exhausted batch only with an owner of its own (a filed
+            # identification take, an owed scan): left bare it read as an observed Home operation
+            # that cannot be composed, and the entrance stepped off (n1-a life-508 row 54, the
+            # batch's last entry an uncarried stack).
+            self._release_stale_home_candidate_waiting(snapshot)
             self._town_blocked_reason = None
             self.last_reason = "home:withdraw-failed-deferred"
             if self._home_pending_batch:
@@ -3735,6 +3740,14 @@ class TownMixin:
             )) is not None
         ):
             add(ammo_store, "ammo")
+        # Owner 2026-11-11 「恐怖耐性がないとき…持ち歩く数は仮に15服」: the Potion of Heroism
+        # stock, an optional supply like the ammo (never blocks departure), at the Temple once
+        # per visit while the gold above the full departure resupply buys one.
+        if (
+            STORE_TEMPLE not in self._town_store_attempted
+            and self._heroism_errand_wanted(snapshot)
+        ):
+            add(STORE_TEMPLE, heroism_potion.CATEGORY)
         # Throwing torches for the early floors (user directive). Routed only
         # for fundraising trips (the shallow 1-10F fighting happens there);
         # ordinary visits still buy torches opportunistically when the General
@@ -3878,6 +3891,7 @@ class TownMixin:
             ("identify-staff", "normal", 2, True),  # Primary and fallback suppliers each own a live route.
             ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
+            ("heroism", "normal", 1, False),  # The Heroism stock (owner 2026-11-11) is optional.
             ("launcher-ammo", "normal", 1, False),  # launcher_upgrade.CATEGORY: seen through when ready to leave; never blocks.
             ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
             ("remove-curse", "normal", 4, True),  # Required worn-curse suppliers.
@@ -3923,6 +3937,7 @@ class TownMixin:
         terminal_optional_categories = {
             "ammo-home-first",
             "ammo",
+            heroism_potion.CATEGORY,
             "throwing-torches",
             "launcher-enchant",
             "black-market",
@@ -4357,6 +4372,7 @@ class TownMixin:
             "black-market",
             "ammo-home-first",
             "ammo",
+            heroism_potion.CATEGORY,
             "throwing-torches",
             "launcher-enchant",
         }:

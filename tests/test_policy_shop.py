@@ -55,6 +55,7 @@ except ModuleNotFoundError:
 import hengbot.policy as policy_module
 
 import hengbot.equipment_mutation as equipment_mutation_module
+from hengbot import heroism_potion
 from hengbot.equipment_transaction_session import EquipmentTransactionObservation
 
 from hengbot.home_errand import HomeErrandRequest
@@ -7419,6 +7420,10 @@ class OptionalBlackMarketPotionTest(unittest.TestCase):
         policy._town_store_attempted[STORE_BLACK] = 0
         self.assertIsNone(policy._next_required_store_type(snapshot))
 
+    # DECLARED WALL (2026-11-11): the Heroism stock (heroism_potion, owner 2026-11-11) postdates this
+    # recording; with it the character also files the Temple errand and keeps its carried potion, so
+    # the recorded route is pinned with no stock wanted.
+    @patch.object(heroism_potion, "carry_target", lambda snapshot: 0)
     def test_existing_stockpile_does_not_cap_bounded_black_market_stack(self):
         inventory = [
             *self._supplies(),

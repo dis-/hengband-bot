@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
-from hengbot import town_pack_headroom
+from hengbot import heroism_potion, town_pack_headroom
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -1473,6 +1473,12 @@ class SupplyMixin:
         """Return the shared retention/procurement target for capped potions."""
         if item.tval != TVAL_POTION:
             return None
+        if heroism_potion.is_heroism(item):
+            # Owner 2026-11-11 「持ち歩く数は仮に15服」: without a lasting fear resistance the
+            # carried stock is procured (a stored one taken out first) and kept up to 15; with
+            # one, none is.
+            target = heroism_potion.carry_target(snapshot)
+            return (target, heroism_potion.RETENTION_BRANCH) if target > 0 else None
         if item.sval == SV_POTION_SPEED:
             force_key = "speed_potions"
             label = "speed-potions"

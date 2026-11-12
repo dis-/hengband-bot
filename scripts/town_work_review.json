@@ -17346,5 +17346,71 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The Q25 plan's hold (a WAIT): also the answer of a walk whose step is a weapon-warning refused cell (n1-c life-200). No independent progress."
+  },
+  "heroism_potion.py:_drink": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: heroism_potion's drinks refuse the town, a store and the arena (_drink_possible) before composing a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-11: the quaff of the carried Potion of Heroism through reserved_item_command, setting last_reason; read only by afraid_key and fight_filter."
+  },
+  "heroism_potion.py:_potion": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: heroism_potion's drinks refuse the town, a store and the arena (_drink_possible) before composing a key.",
+    "evidence": "Pure lookup: the carried identified Potion of Heroism (policy._find_exact_potion).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "heroism_potion.py:afraid_key": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: heroism_potion's drinks refuse the town, a store and the arena (_drink_possible) before composing a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-11 「恐怖になって殴れなくなった時に飲む」: the drink in place of the blow fear refuses; asked only by combat_answer.adjacent_attack."
+  },
+  "heroism_potion.py:fight_filter": {
+    "classification": "producer",
+    "rows": [
+      "combat"
+    ],
+    "context": "Dungeon-only: heroism_potion's drinks refuse the town, a store and the arena (_drink_possible) before composing a key. outside_design also refuses them.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-11 「強敵の前」: in place of an attack (reasons registry attack row) on a T2-or-worse engagement with an awake SCARE caster, while not hero; an after-decide filter beside _strong_fight_speed_filter."
+  },
+  "heroism_potion.py:is_heroism": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure predicate: a Potion of Heroism (tval 75, sval 32), identified.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._heroism_purchase_units": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the Heroism units a non-Black-Market shelf sells toward the 15 carried, from the gold above _full_departure_resupply_reserve (owner 2026-10-08).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

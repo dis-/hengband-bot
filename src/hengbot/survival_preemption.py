@@ -50,7 +50,7 @@ Healing).  A weak breeder that strikes from beside the player
 (``strikes_from_adjacent``) is an attacker and stays on the strategic list,
 so the melee rungs fight it; only breeders that do not attack are set aside.
 """
-from hengbot import dungeon_ladder
+from hengbot import dungeon_ladder, heroism_potion
 
 
 # The departure, fundraising, floor-loot, quest-request, explore and dark-walk rungs: the
@@ -83,7 +83,9 @@ def preempts(policy, rung_name: str, board) -> bool:
     if board.floor_key[2] != 0:
         return False
     player = board.player
-    if player.afraid or not policy._can_fight_in_dungeon(board.floor_key[0]):
+    # Afraid with a Potion of Heroism, the combat rungs still answer: the refused blow drinks it.
+    if ((player.afraid and not heroism_potion.cures_fear(policy, board))
+            or not policy._can_fight_in_dungeon(board.floor_key[0])):
         return False
     attackers = attacking_adjacent(policy, board)
     if not attackers:

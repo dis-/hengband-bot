@@ -51,6 +51,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+from hengbot import heroism_potion
 from hengbot.cli import _ExecutorInputPort, _consume_response_sequence, _send_new_decision_key
 from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
 from hengbot.input_executor import ScreenKind, classify_screen
@@ -222,6 +223,10 @@ class N1bTownStops1108RecordedTest(executor_pins.ProductionHarness):
         self.assertIs(match.kind, ScreenKind.ITEM_SOURCE, match)
         self.assertTrue(match.feature.endswith("どのアイテムを改良しますか？"))
 
+    # DECLARED WALL (2026-11-11): the Heroism stock (heroism_potion, owner 2026-11-11) postdates this
+    # recording; with it the character also files the Temple errand and keeps its carried potion, so
+    # the recorded route is pinned with no stock wanted.
+    @mock.patch.object(heroism_potion, "carry_target", lambda snapshot: 0)
     def test_a_recorded_raise_is_posted_through_the_one_item_chooser(self):
         policy = self.restore("a")
         self.replay(policy, range(29), forced={1})
@@ -276,6 +281,10 @@ class N1bTownStops1108RecordedTest(executor_pins.ProductionHarness):
 
     # D ------------------------------------------------------------------
 
+    # DECLARED WALL (2026-11-11): the Heroism stock (heroism_potion, owner 2026-11-11) postdates this
+    # recording; with it the character also files the Temple errand and keeps its carried potion, so
+    # the recorded route is pinned with no stock wanted.
+    @mock.patch.object(heroism_potion, "carry_target", lambda snapshot: 0)
     def test_d_alchemist_shelf_without_the_wanted_ware_is_not_re_entered(self):
         policy = self.restore("d")
         forced = set(range(75)) - {0, 2, 4, 6, 7} - set(range(23, 36)) - {41, 42, 43, 47}

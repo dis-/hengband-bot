@@ -62,6 +62,8 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "tail:torch": "torch-carry",
     "tail:teleport": "supply-ledger:teleport",
     "tail:cure": "supply-ledger:cure",
+    # _carry_strategy_potion_target's heroism-carry (heroism_potion.carry_target).
+    "tail:heroism": "heroism-carry",
     "tail:ammo": "ammo:carry-plan",
     "tail:identify-staff": "identify-staff-cap",
     # Worn or stored by the equipment comparison (ability_gear).
