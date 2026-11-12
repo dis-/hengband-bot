@@ -33,6 +33,7 @@ import lzma
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -73,11 +74,25 @@ def without_stone_to_mud(raw):
 class WalledOffBoards(loops.ItemCommandBoards):
     """The fixture's boards through choose_key (no tests of its own)."""
 
+    # The target's T1 verdict (hunt_target._judge_quest_target, owner 2026-11-13 「階を諦めて帰還
+    # する」) is left out: アンサロム reads T1 from contact against this Lv34 warrior (HP 486, its
+    # no-supply damage 1213 over 29 turns), so the floor is given up at its first detection
+    # (``test_the_t1_target_gives_the_floor_up_at_its_first_detection``).  These pins are the
+    # vetoes' walls, not the target (DECLARED CONSTRUCTED).
+    judge_target = False
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.boards = json.loads(lzma.decompress(FIXTURE.read_bytes()))
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def setUp(self):
+        super().setUp()
+        if not self.judge_target:
+            verdict = mock.patch.object(hunt_target, "_judge_quest_target", lambda *_: None)
+            verdict.start()
+            self.addCleanup(verdict.stop)
 
     def replay(self, until=None):
         """The recorded entry through choose_key, as far as ``until`` answers True."""
@@ -113,6 +128,19 @@ class WalledOffBoards(loops.ItemCommandBoards):
         policy._search_counts[(here.y, here.x)] = SEARCH_LIMIT
         getattr(policy, hunt_target.MEMORY).position = None
         return replay.decide(line)
+
+
+class TargetVerdict(WalledOffBoards):
+    judge_target = True
+
+    def test_the_t1_target_gives_the_floor_up_at_its_first_detection(self):
+        """Owner 2026-11-13: the T1 target is not hunted; the board that first shows it (turn
+        2344271, detected 40 cells off) gives the floor up and Word of Recall is read on the
+        next (2344275), long before the column (turns 2344826-2344864)."""
+        replay, line, key, reason = self.replay(lambda _board, reason: reason == "return:recall")
+        self.assertEqual(reason, "return:recall")
+        self.assertEqual(json.loads(line)["turn"], 2344275)
+        self.assertEqual(replay.policy._unviable_quest_floor[2], 40)
 
 
 class WalledOffHuntAndSearch(WalledOffBoards):

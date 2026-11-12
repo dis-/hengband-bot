@@ -13,7 +13,8 @@ floors without the target in sight until livelock:exhausted
 The hunted race (``target_race``):
  - the runtime RANDOM / KILL_LEVEL quest occupying this floor without an
    approved fixed-map strategy (the race ``_locked_kill_quest_targets``
-   fights: ``_quest_target_race_id``);
+   fights: ``_quest_target_race_id``), unless it read T1 judged from contact when last
+   shown (``_judge_quest_target``; a T1 gives the floor up, owner 2026-11-13);
  - else the final guardian of the target dungeon on its final floor, while the
    dungeon is not conquered and the kit can beat it (the floor the guardian
    rung ``_viable_target_guardian_visible`` fights on, its
@@ -102,6 +103,9 @@ class FloorVisit:
     frontier_goal: Position | None = None
     # The guardian's contact tier when last shown was not T2 or T3 (``_guardian_beatable``).
     guardian_declined: bool = False
+    # The random-quest target read T1 when last shown (``_judge_quest_target``): not hunted,
+    # and the floor is given up (``quest_target_unbeatable``).
+    quest_unbeatable: bool = False
 
 
 def _quest_race(policy, snapshot) -> int | None:
@@ -139,12 +143,48 @@ def _guardian_beatable(policy, snapshot, guardian) -> bool:
     return tier in (threat_tiers.T2, threat_tiers.T3)
 
 
+def _judge_quest_target(policy, snapshot, visit: FloorVisit, target) -> None:
+    """Owner 2026-11-13 (the n1-c life-205 question 「ランダムクエストの討伐の標的が T1 と分かった
+    時、どうしますか？」, answer 「階を諦めて帰還する」: 「T1 の標的と分かったら追わずに帰還を読み、
+    クエストは失敗にする。標的が近づく前に離れる。」).  The quest target is judged from contact as
+    the guardian is (``_guardian_beatable``); T1 (``threat_tiers.cannot_win``: a cost-capped
+    reading whose no-supply damage is known to reach the HP is T1 too) is not hunted and gives
+    the floor up (``quest_target_unbeatable``, the return owner's ``quest-unviable`` latch), at
+    whatever distance the target is shown.
+
+    Unlike the guardian, a reading past the cost cap with no such bound is still hunted: the
+    quest floor's exit lock keeps the player there either way, and n1-a life-485 (38F RANDOM
+    quest 45) shot the never-moving 『マニマニのあくま』 (race 1293, past the cap from contact)
+    dead from range.  As the duel latch (``_visible_unviable_quest_target``), a board without
+    the projection's inputs (no main-hand weapon or no blows) gives no verdict.
+
+    n1-c life-205 (Angband 76F, RANDOM quest 42, 2026-11-13 01:31): 深淵の帝王『カントラス』 (race
+    830, Lv84, unique, a QUESTOR: *Destruction* only heals and teleports it, spells-floor.cpp
+    destroy_area) was walked toward by detection at T1 (decisions 2464-2467) until one step took
+    the HP from 365 to 67."""
+    from hengbot import threat_tiers  # threat_tiers imports this module
+    weapon = next((item for item in snapshot.equipment if item.slot == "main_hand"), None)
+    if weapon is None or snapshot.player.main_hand_blows <= 0:
+        return
+    reading = threat_tiers.tiered(policy, snapshot, [target], contact=True)
+    visit.quest_unbeatable = threat_tiers.cannot_win(reading, snapshot.player.hp)
+
+
+def quest_target_unbeatable(policy, snapshot) -> bool:
+    """The random-quest target was shown on this floor visit as a T1 (``_judge_quest_target``)."""
+    visit = _visit(policy, snapshot)
+    return visit is not None and visit.quest_unbeatable and _quest_race(policy, snapshot) is not None
+
+
 def target_race(policy, snapshot) -> int | None:
     """The race hunted on this floor, else None."""
     if snapshot.in_town or snapshot.dungeon_level <= 0:
         return None
     quest_race = _quest_race(policy, snapshot)
-    return quest_race if quest_race is not None else _guardian_race(policy, snapshot)
+    if quest_race is not None:
+        visit = _visit(policy, snapshot)
+        return None if visit is not None and visit.quest_unbeatable else quest_race
+    return _guardian_race(policy, snapshot)
 
 
 def _perceived(policy, snapshot, race: int) -> list:
@@ -169,8 +209,11 @@ def observe(policy, snapshot) -> None:
     # Re-decided every board: a killed target ends the quest, a kit change the guardian hunt.
     # The guardian's tier is judged on each board that shows it; the verdict stands while
     # it is not shown.
-    if _quest_race(policy, snapshot) is None and (
-            guardian := _guardian_race(policy, snapshot, judged=False)) is not None:
+    if (quest := _quest_race(policy, snapshot)) is not None:
+        if shown_target := _perceived(policy, snapshot, quest):
+            _judge_quest_target(policy, snapshot, visit,
+                                min(shown_target, key=lambda monster: monster.distance))
+    elif (guardian := _guardian_race(policy, snapshot, judged=False)) is not None:
         if shown_guardian := _perceived(policy, snapshot, guardian):
             visit.guardian_declined = not _guardian_beatable(
                 policy, snapshot, min(shown_guardian, key=lambda monster: monster.distance))
@@ -227,6 +270,19 @@ def _holds_the_walk(policy, snapshot, monster, race) -> bool:
     return policy._material_melee_fight(snapshot, monster)
 
 
+def _instant_death_ahead(policy, snapshot) -> bool:
+    """3.1 即死 holds on this board (``threat_tiers.instant_death``: the engagement, sensed
+    monsters included, deals the HP or more in the next player action), outside a quest plan
+    (there the plan's own 即死 rung, ``threat_tiers.instant_death_key``, answers).  No step is
+    taken toward the target then.  n1-c life-205 decision 2467 (Angband 76F, 2026-11-13 01:31):
+    next_action_p95 408 against HP 365 with カントラス detected two cells off, and the walk
+    stepped toward it; the next board read 67 HP."""
+    if policy.approved_quest_strategy(snapshot.floor_key[2]) is not None:
+        return False
+    from hengbot import threat_tiers  # threat_tiers imports this module
+    return threat_tiers.instant_death(policy, snapshot).holds
+
+
 def _frontier_step(policy, snapshot, visit: FloorVisit, goal: Position) -> Position | None:
     """The step toward the frontier the walk keeps (``FloorVisit.frontier``), else toward a new
     one closer to ``goal`` than the player, kept from this board on; None with neither.
@@ -274,7 +330,8 @@ def route_key(policy, snapshot, hostiles) -> str | None:
     visit = _visit(policy, snapshot)
     if (visit is None or visit.position is None
             or any(_holds_the_walk(policy, snapshot, monster, visit.race) for monster in hostiles)
-            or getattr(policy, "_took_damage", False) or policy._returning_to_town):
+            or getattr(policy, "_took_damage", False) or policy._returning_to_town
+            or _instant_death_ahead(policy, snapshot)):
         return None
     targets = [monster for monster in hostiles if monster.race_id == visit.race]
     if targets and _walk_ends_in_refusal(

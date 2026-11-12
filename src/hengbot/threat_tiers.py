@@ -361,6 +361,21 @@ def leave_decided_here(policy, snapshot) -> bool:
     return acts_here(policy, snapshot) and not policy._floor_navigation_exit_locked(snapshot)
 
 
+def destruction_only_here(policy, snapshot) -> bool:
+    """A runtime RANDOM quest floor whose exit lock alone keeps the tiers from deciding leaving:
+    there the sensed T1 rungs use *Destruction* on the T1s but the quest's target and never leave
+    (no stairs, scroll, Recall or walk away; the random quest's own give-up rules decide that).
+
+    Owner 2026-11-05 (``destruction_use``): 「ランダムクエストの階であってもターゲットでなければ
+    *破壊*してよい」.  The target itself is no such T1: a QUESTOR is healed and teleported away by
+    destroy_area (spells-floor.cpp:285-289).  n1-c life-205 (Angband 76F, RANDOM quest 42,
+    2026-11-13): with Teleportation scrolls above the random-quest reserve the exit lock held, so
+    ``leave_decided_here`` was false and the sensed T1 *Destruction* never asked."""
+    return (acts_here(policy, snapshot) and not leave_decided_here(policy, snapshot)
+            and policy._active_fixed_quest_id(snapshot) is None
+            and policy._on_random_quest_floor(snapshot))
+
+
 def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
     """Plan step 6 (answer 6, 3.2, 3.4): whether the tiers say leave this engagement.
 
@@ -458,8 +473,11 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     range: stairs underfoot, *Destruction*, a relocation scroll, Word of Recall; a walk only while
     no awake hostile is faster and none reaches at range.  Outside the radius nothing changes.
     Where the tiers do not decide leaving (``leave_decided_here``: quest plans keep their order,
-    only 即死 pre-empts it; a floor that leaving fails the quest; town) it does not apply."""
-    if not leave_decided_here(policy, snapshot):
+    only 即死 pre-empts it; a floor that leaving fails the quest; town) it does not apply, but
+    for a random quest floor whose exit lock holds, where the approach and the use of
+    *Destruction* answer and nothing leaves (``destruction_only_here``)."""
+    destruction_only = destruction_only_here(policy, snapshot)
+    if not destruction_only and not leave_decided_here(policy, snapshot):
         return None
     hostiles, strong = _sensed_strong(policy, snapshot)
     if not strong:
@@ -472,6 +490,9 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
         # None: no known way toward them yet (the circle just destroyed, say); the rungs
         # below map and explore, and the next board asks again.
         return approach_key(policy, snapshot, strong)
+    if destruction_only:
+        # The random quest floor (``destruction_only_here``): the use alone, never a leave.
+        return destruction_use.key(policy, snapshot, leaving=strong)
     stairs = policy._escape_by_stairs(snapshot)
     if stairs is not None:
         policy.last_reason = SENSED_LEAVE_PREFIX + "stairs"
@@ -503,10 +524,17 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
 
 
 def _sensed_strong(policy, snapshot) -> tuple[list, list]:
-    """(the engagement, its awake hostiles inside their sensing radius that are T1 alone)."""
+    """(the engagement, its awake hostiles inside their sensing radius that are T1 alone).
+
+    On a random quest floor whose exit lock holds (``destruction_only_here``) the quest's target
+    is none of them: *Destruction* cannot remove it, and its own T1 verdict gives the floor up
+    (hunt_target ``quest_target_unbeatable``), which releases the lock."""
     hostiles = engagement(policy, snapshot)
+    spared = (destruction_use._target_race(policy, snapshot)
+              if destruction_only_here(policy, snapshot) else None)
     sensing = [monster for monster in hostiles
-               if not monster.asleep and inside_sensing(policy, snapshot, monster)]
+               if not monster.asleep and inside_sensing(policy, snapshot, monster)
+               and (spared is None or monster.race_id != spared)]
     # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
     # would otherwise read T3 only because it has not come yet).
     strong = [monster for monster in sensing
@@ -536,8 +564,9 @@ def sensed_t1_destruction_key(policy, snapshot) -> str | None:
     「積極的に*破壊*で消しにいく」: where the leave would use *Destruction* now, no rung below
     the emergency consumables answers first.  The same order as the leave: an approach that
     owns the T1s uses it on them (``approach_key``); otherwise an up staircase underfoot is the
-    leave's first answer, and this declines for it."""
-    if not leave_decided_here(policy, snapshot):
+    leave's first answer, and this declines for it.  On a random quest floor whose exit lock
+    holds (``destruction_only_here``) it asks as well, for the T1s but the target."""
+    if not leave_decided_here(policy, snapshot) and not destruction_only_here(policy, snapshot):
         return None
     _, strong = _sensed_strong(policy, snapshot)
     if not strong:

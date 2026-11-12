@@ -15108,10 +15108,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _latch_unviable_quest_return(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> None:
-        """Delegate a visible unwinnable runtime quest to the return owner."""
+        """Delegate an unwinnable runtime quest to the return owner: a visible target the
+        duel projection cannot beat, or a target shown in sight or by detection as a T1
+        (hunt_target.quest_target_unbeatable, owner 2026-11-13 「階を諦めて帰還する」)."""
         if (
             self._unviable_quest_floor != snapshot.floor_key
-            and self._visible_unviable_quest_target(snapshot, hostiles)
+            and (self._visible_unviable_quest_target(snapshot, hostiles)
+                 or hunt_target.quest_target_unbeatable(self, snapshot))
         ):
             self._unviable_quest_floor = snapshot.floor_key
         if self._unviable_quest_floor != snapshot.floor_key:
