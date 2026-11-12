@@ -169,8 +169,9 @@ class SummonerZoneGlassRecordedTest(ProductionHarness):
             self.assertTrue(set(MAGES) <= set(remembered), raw["turn"])
             for mage in board.detected_monsters:
                 self.assertFalse(immobile_ranged_kill.killable(self.policy, board, mage))
-                # Nor would a shot land: the shooting cell (29,38) reads the glass as open
-                # only for a monster's reach (policy._player_may_project).
+                # Nor would a shot land: read as a monster's reach the glass is open and
+                # (26,32) a shooting cell ('1' to (29,38) first); the player's own shot
+                # stops at the glass (policy._player_may_project).
                 self.assertIsNone(immobile_ranged_kill.plan(self.policy, board, mage),
                                   (raw["turn"], mage.position))
             self.assertIn(INSIDE, zone, raw["turn"])
