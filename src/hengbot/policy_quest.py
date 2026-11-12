@@ -436,6 +436,17 @@ from hengbot.model import (
 )
 
 
+# The up-stair escapes that name the quest loss they accept (``_quest_exit_would_fail``):
+# emergency (policy_combat), flee and summoner (policy), starving (policy_supply).  Each is
+# posted only once the quest exit lock released, so the stair owns the leave question.
+QUEST_FAIL_STAIR_REASONS = frozenset({
+    "emergency:stairs-quest-fail",
+    "flee:stairs-quest-fail",
+    "summoner:stairs-quest-fail",
+    "survival:stairs-quest-fail",
+})
+
+
 # The throwing stand's own torches taken back when none is carried
 # (QuestMixin._quest_stand_torch_pickup_key).
 QUEST_STAND_TORCH_PICKUP_REASON = "quest-strategy:recover-stand-torches"
@@ -4987,9 +4998,13 @@ class QuestMixin(OpeningRouteMixin):
         lock (fixed ONCE or runtime kill quest), or when the runtime kill
         quest's own exit lock has released, or when a breeder stalemate
         abandons a kill-all quest floor (breeder_quest), or when the Quest 25
-        plan steps on its start stair (quest25_battle).  A stair posted while
-        the lock holds leaves the question unowned so the executor stops
-        visibly.
+        plan steps on its start stair (quest25_battle), or when an escape
+        that names the quest loss (QUEST_FAIL_STAIR_REASONS) takes the stair
+        with the lock released.  n1-c life-201 (2026-11-12 13:21, Quest 31
+        『柳じじい』 22F): emergency:stairs-quest-fail's '<' after the last
+        Teleport scroll met the unowned question on the fixed ONCE quest floor
+        and stopped.  A stair posted while the lock holds leaves the question
+        unowned so the executor stops visibly.
         """
         return (
             key in {UP_STAIRS_KEY, DOWN_STAIRS_KEY}
@@ -4998,6 +5013,10 @@ class QuestMixin(OpeningRouteMixin):
                 self._light_releases_quest_exit(snapshot)
                 or breeder_quest.abandons_floor(self, snapshot)
                 or quest25_battle.owns_leave_confirmation(self, snapshot)
+                or (
+                    self.last_reason in QUEST_FAIL_STAIR_REASONS
+                    and not self._quest_floor_exit_locked(snapshot)
+                )
                 or (
                     self._active_fixed_quest_id(snapshot) is None
                     and self._active_kill_quest_id(snapshot) is not None
