@@ -84,6 +84,9 @@ LADDER = (
     Layer("emergency", "the summons rules, floor avoidance, combat and all below", (
         *E("_emergency_item", exempt=ANSWERS_DANGER),
         *D("return_yield.quiet_recall_key", exempt=NO_ATTACKER),
+        # Owner 2026-11-09 B 「即死でない強敵は *破壊* 優先」 (n1-b life-377): the sensed T1
+        # leave's *Destruction* before the THREAT powers and every layer below.
+        *D("threat_tiers.sensed_t1_destruction_key", exempt=ANSWERS_DANGER),
         *D("me_powers.threat_key", exempt=ANSWERS_DANGER),
         *E("_item_destroying_breeder_leave_key", "_mana_food_survival_override_key",
            "_paralyzer_prevention_key", exempt=ANSWERS_DANGER),
@@ -104,6 +107,9 @@ LADDER = (
         *E("_unseen_retreat_key", exempt=ANSWERS_DANGER),
         # Owner 2026-11-10 穴熊 「掘れるなら掘る」: the dug pocket before the existing chokes.
         *D("anaguma.key", exempt=FIGHTS),
+        # n1-b life-377: on a board the pocket answers, the sensed T1 leave answers instead
+        # (owner 2026-11-10 「高威力攻撃を持つ個体は通常の生存ルーチンで対応する」).
+        *D("threat_tiers.sensed_t1_leave_key", exempt=ANSWERS_DANGER),
         *E("_detected_threat_preparation_key", exempt=NO_ATTACKER),
         *P("_return_to_town_key#1"),
     )),
@@ -429,6 +435,10 @@ OWNER_RULES = (
             **_ABOVE_EMERGENCY,
             "_emergency_item": "survival first (summon_response's docstring)",
             "return_yield.quiet_recall_key": "the owner's emergency recall when nothing awake is in view",
+            "threat_tiers.sensed_t1_destruction_key": "*Destruction* on a T1 inside whose sensing "
+                                                      "radius the player stands, which also "
+                                                      "removes the summons (owner 2026-11-09 B "
+                                                      "「即死でない強敵は *破壊* 優先」)",
             "me_powers.threat_key": "sends away what cannot be beaten: survival",
             "_item_destroying_breeder_leave_key": "leaves a breeder that destroys the kit: survival",
             "_mana_food_survival_override_key": "starvation: survival",

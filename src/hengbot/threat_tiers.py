@@ -446,13 +446,7 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     only 即死 pre-empts it; a floor that leaving fails the quest; town) it does not apply."""
     if not leave_decided_here(policy, snapshot):
         return None
-    hostiles = engagement(policy, snapshot)
-    sensing = [monster for monster in hostiles
-               if not monster.asleep and inside_sensing(policy, snapshot, monster)]
-    # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
-    # would otherwise read T3 only because it has not come yet).
-    strong = [monster for monster in sensing
-              if cannot_win(tiered(policy, snapshot, [monster], contact=True), snapshot.player.hp)]
+    hostiles, strong = _sensed_strong(policy, snapshot)
     if not strong:
         # A T1 the approach walked toward and lost from detection is still gone to (n1-b
         # life-377, the remembered approach below).
@@ -491,6 +485,62 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
             policy.last_reason = SENSED_LEAVE_PREFIX + "walk"
             return policy._step_toward(snapshot, step)
     return None
+
+
+def _sensed_strong(policy, snapshot) -> tuple[list, list]:
+    """(the engagement, its awake hostiles inside their sensing radius that are T1 alone)."""
+    hostiles = engagement(policy, snapshot)
+    sensing = [monster for monster in hostiles
+               if not monster.asleep and inside_sensing(policy, snapshot, monster)]
+    # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
+    # would otherwise read T3 only because it has not come yet).
+    strong = [monster for monster in sensing
+              if cannot_win(tiered(policy, snapshot, [monster], contact=True), snapshot.player.hp)]
+    return hostiles, strong
+
+
+def _upstairs_underfoot(policy, snapshot) -> bool:
+    """``_escape_by_stairs`` would take the stair (without its descent deferral)."""
+    here = snapshot.grid_at(snapshot.player.position)
+    return (here is not None and policy._is_upstairs_target(here)
+            and not policy._quest_floor_exit_locked(snapshot))
+
+
+def sensed_t1_destruction_key(policy, snapshot) -> str | None:
+    """The sensed T1 leave's *Destruction* alone, asked in the emergency layer directly above
+    the Magic-Eater's THREAT powers (dungeon_ladder); else None and the leave stays where it
+    stands (``sensed_t1_leave_key``, the combat layer: its stairs, approach walk and scrolls).
+
+    n1-b life-377 (Magic-Eater Lv46, Angband 80F, 2026-11-12 13:46): beside 世紀末覇者『ラオウ』
+    (T1, known by telepathy) the sensed leave's *Destruction* (absorbed, usable) was due on
+    boards 7965-7974, but the dug pocket (anaguma, the floor-avoidance layer) dug, stepped and
+    held there, and on 7973 the THREAT occasion (me_powers ``unbeatable-in-range``) sent a
+    summoned ボダック away instead; a plasma bolt then stunned the player (no *Destruction*
+    while not clear-headed) and 混沌の王族 killed it.  Owner 2026-11-09 B
+    「射線が通っていないなど即死ではない場合は破壊による排除を優先する」 and 2026-11-10
+    「積極的に*破壊*で消しにいく」: where the leave would use *Destruction* now, no rung below
+    the emergency consumables answers first.  The same order as the leave: an approach that
+    owns the T1s uses it on them (``approach_key``); otherwise an up staircase underfoot is the
+    leave's first answer, and this declines for it."""
+    if not leave_decided_here(policy, snapshot):
+        return None
+    _, strong = _sensed_strong(policy, snapshot)
+    if not strong:
+        return None
+    if approach_owns(policy, snapshot, strong):
+        targets = _approach_targets(policy, snapshot, strong)
+    elif _upstairs_underfoot(policy, snapshot):
+        return None
+    else:
+        targets = strong
+    # ``usable`` first: a failed or untaken use's fallback is the leave's own ask to consume
+    # (destruction_use ``_falls_back``: its next answer, the scroll), not this one's.
+    if not destruction_use.usable(policy, snapshot, leaving=targets):
+        return None
+    used = destruction_use.key(policy, snapshot, leaving=targets)
+    if used is not None and targets is not strong:
+        forget_approach(policy)
+    return used
 
 
 APPROACH_REASON = SENSED_LEAVE_PREFIX + "approach-destruction"

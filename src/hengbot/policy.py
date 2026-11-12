@@ -7772,6 +7772,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         quiet_recall = return_yield.quiet_recall_key(self, snapshot)
         if quiet_recall is not None:
             return quiet_recall
+        # Owner 2026-11-09 B / 2026-11-10: the sensed T1 leave's *Destruction* before any
+        # rung below the emergency consumables (n1-b life-377, threat_tiers).
+        sensed_destruction = threat_tiers.sensed_t1_destruction_key(self, snapshot)
+        if sensed_destruction is not None:
+            return sensed_destruction
         # Class 16 sends an unbeatable hostile in range away (me_powers THREAT)
         # only once the emergency ladder above has declined: survival first.
         threat_power = me_powers.threat_key(self, snapshot)
