@@ -16032,7 +16032,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return self._find_edible(snapshot) is not None
 
     def _escape_scroll(
-        self, snapshot: Snapshot, *, teleport_only: bool = False
+        self, snapshot: Snapshot, *, teleport_only: bool = False,
+        beside_followers: bool = False,
     ) -> InventoryItem | None:
         # Reading needs sight and a clear head (cmd-read.cpp: cmd_limit_blind,
         # cmd_limit_confused refuse the read without using a turn; D31 n1-a
@@ -16045,7 +16046,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return None
         # Owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」: an adjacent monster that follows
         # the teleport (teleport_follower) makes no Teleportation or Phase Door an escape.
-        if teleport_follower.followed(self, snapshot):
+        # ``beside_followers``: the pack rung reads it anyway (teleport_follower.pack_teleport_key,
+        # owner 2026-11-12: 3 or more followers, lethal).
+        if not beside_followers and teleport_follower.followed(self, snapshot):
             return None
         teleport = self._find_teleport_scroll(snapshot)
         if teleport is not None or teleport_only:

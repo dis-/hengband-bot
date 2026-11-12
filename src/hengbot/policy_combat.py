@@ -2567,6 +2567,12 @@ class CombatMixin:
             # Teleport Other at it (a wand or rod zaps blind), then the fight.
             followers = (teleport_follower.followers(self, snapshot)
                          if (lethal or summoner_open) and not guardian_reposition else [])
+            # Owner 2026-11-12 「テレポート追尾が3体以上で致死的なときは破壊の次にテレポートを優先して
+            # 試す」: a pack of followers on a lethal board is teleported from after *Destruction*
+            # (each adjacent one follows with its level in percent; teleport_follower.pack).
+            pack_teleport = bool(
+                followers and lethal and teleport_follower.pack_due(self, snapshot)
+                and teleport_follower.pack_teleport_means(self, snapshot) is not None)
             # Blind beside a faster monster whose blows blind, the cure is undone before the
             # next action (status_cure.outpacing_blinders): an escape usable blind goes first,
             # and Teleport Other at that monster is one (a wand or rod zaps blind).
@@ -2578,7 +2584,8 @@ class CombatMixin:
                 and (threat_tiers.blind_teleport_means(self, snapshot) is not None
                      or destruction_use.usable(self, snapshot)
                      or ((followers or blinders)
-                         and teleport_follower.away_usable(self, snapshot)))
+                         and teleport_follower.away_usable(self, snapshot))
+                     or pack_teleport)
             )
             if not blind_escape and status_cure.treats(self, snapshot):
                 # Owner 2026-11-09 D: confused again right after a cure on the 即死 board, the
@@ -2659,6 +2666,12 @@ class CombatMixin:
                                                     else threat_tiers.engagement(self, snapshot))
                 ) is not None:
                     return used
+                if pack_teleport and (
+                        teleported := teleport_follower.pack_teleport_key(self, snapshot)) is not None:
+                    if self._fundraising_mode in {"mine", "scavenge"}:
+                        self._note_return_start(self._last_return_trigger)
+                        self._returning_to_town = True
+                    return teleported
                 if followers and (
                         away := teleport_follower.away_key(self, snapshot, followers)) is not None:
                     return away
