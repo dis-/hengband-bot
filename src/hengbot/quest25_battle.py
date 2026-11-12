@@ -1504,8 +1504,8 @@ def _quyls_done(ctx: _Ctx) -> bool:
 _FACED = frozenset({geo.IPSISSIMUS, geo.DREADMASTER})
 
 
-def _quyls(ctx: _Ctx) -> str | None:
-    plan = _quyl_plan(ctx)
+def _quyls(ctx: _Ctx, plan=None) -> str | None:
+    plan = _quyl_plan(ctx) if plan is None else plan
     if plan is None:
         return None
     # 「テレポート・アウェイを受けるとイプシシマスの残党やドリードマスターと相対する可能性がある。
@@ -1873,7 +1873,8 @@ def _sweep_done(ctx: _Ctx) -> bool:
     return not _short(ctx)
 
 
-def _sweep(ctx: _Ctx) -> str | None:
+def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
+    """``patrol``: the round is walked whatever the kill count says (``_after_the_phases``)."""
     battle = ctx.battle
     targets = _sweep_targets(ctx)
     if battle.detect_turn >= 0 and battle.detected is None:
@@ -1896,7 +1897,7 @@ def _sweep(ctx: _Ctx) -> str | None:
     if battle.detect_turn < 0 and (detect := _detect_key(ctx)) is not None:
         battle.detect_turn = ctx.snapshot.turn
         return detect
-    if not _short(ctx):
+    if not _short(ctx) and not patrol:
         return None
     # 「撃破カウントに不足があれば巡回して探す」: the room sweep's stands as the round.
     stands = ctx.profile.engagement_plan["room_sweep"]["stands"]
@@ -2156,11 +2157,36 @@ def _phase_key(policy, snapshot) -> str | None:
     phase = current_phase(ctx)
     if phase is None:
         # The druj is dead: what the anti-teleport piece displaced goes back on.
-        return quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
+        return (quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
+                or _after_the_phases(ctx))
     from hengbot import quest25_sealed_room
 
     return (_adjacent_mass_key(ctx) or quest25_sealed_room.key(ctx)
             or _prepare(ctx, phase) or _act(ctx, phase))
+
+
+def _after_the_phases(ctx: _Ctx) -> str | None:
+    """Every phase ended and the quest (KILL_ALL) is not complete: what is left is found and killed.
+
+    n1-b life-378 (2026-11-13 01:46, build bot-68c820fd6): the quylthulgs' phase found no ball then
+    (owner 2026-11-06 phase3 「範囲攻撃が無ければ 1) をとばして」), the sweep's Detect Evil showed
+    nothing (a quylthulg is not evil), the stairway and the druj fell, and with the quest still
+    taken the plan had no step: ``quest:blocked:execute`` waits on [12,24] until the loop guard
+    stopped the bot, three times.  The draft's order puts the quylthulgs before the druj (owner
+    2026-11-05 「最後ドルジの前に処理する」) and the quest is won only with every monster dead, so
+    the plan goes on: each quylthulg still on its cell is shot directly from a cell of its line
+    (phase3 「加速して直接撃つ」, ``_quyls``), then the sweep's round is walked for what is left
+    (phase6_sweep 「巡回して探す」), bounded by ``room_sweep.max_rounds`` as there."""
+    left = [cell for cell, race in ctx.navigator.battlefield.monster_placements
+            if race == geo.QUYL and cell not in ctx.battle.quyls_done]
+    if left and ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]:
+        _note_quyls(ctx)
+        left = [cell for cell in left if cell not in ctx.battle.quyls_done]
+    if left and ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]:
+        key = _quyls(ctx, (left[0], None, None))
+        if key is not None:
+            return key
+    return _sweep(ctx, patrol=True)
 
 
 def phase_index(name: str) -> int:
