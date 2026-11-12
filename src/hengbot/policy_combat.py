@@ -3635,6 +3635,7 @@ class CombatMixin:
                     knowledge.spell_frequency
                     / 100.0
                     * teleport_selection.get("TELE_TO", 0.0)
+                    * ability_cast_success("TELE_TO", knowledge)
                 )
             self_destructs_on_melee = bool(
                 knowledge is not None
@@ -3758,6 +3759,7 @@ class CombatMixin:
                     operational_ranged = aggregate_ranged.total_damage
                     expected_per_spell = sum(
                         probability
+                        * ability_cast_success(ability, knowledge)
                         * (
                             expected_ability_hp_damage(
                                 ability,

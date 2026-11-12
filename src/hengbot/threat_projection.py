@@ -142,6 +142,9 @@ class Assessment:
     # Why a winning supply plan was read T1 (``fear_cover.withheld``: a fear or blindness caster
     # the player is not covered against, owner 2026-11-11); the margin stays the plan's.
     t2_withheld: tuple = ()
+    # (HP lost over the last turns, the projection over them) where the projection missed and
+    # the reading was taken from the observed damage (threat_tiers ``_projection_missed``).
+    projection_missed: tuple | None = None
     free_damage: dict = field(default_factory=dict)
     # per monster: the HP each free attack costs the player (a touch aura answering melee)
     free_self_damage: dict = field(default_factory=dict)
@@ -183,6 +186,8 @@ class Assessment:
             "supply_margin": self.supply_margin,
             "raw_tier": self.raw_tier,
             "t2_withheld": list(self.t2_withheld),
+            "projection_missed": (None if self.projection_missed is None
+                                  else list(self.projection_missed)),
             "flags": self.flags(),
             "escape_means": list(self.escape_means),
             "escape_restorable": self.escape_restorable,

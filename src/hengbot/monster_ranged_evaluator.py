@@ -332,19 +332,15 @@ def ability_selection_probabilities(
     monster: MonraceKnowledge,
     context: SpellSelectionContext,
 ) -> dict[str, float]:
-    """Return source-order ability probabilities for one spell attempt."""
-    all_abilities = _castable_abilities(monster, context)
-    innate = all_abilities.intersection(INNATE_ABILITIES)
-    full_probability = min(1.0, monster.spell_frequency * 2 / 100.0)
-    distributions = (
-        (full_probability, _selection_for_available(monster, all_abilities, context)),
-        (1.0 - full_probability, _selection_for_available(monster, innate, context)),
-    )
-    result: dict[str, float] = {}
-    for scenario_probability, distribution in distributions:
-        for ability, probability in distribution.items():
-            result[ability] = result.get(ability, 0.0) + scenario_probability * probability
-    return result
+    """Return source-order ability probabilities for one spell attempt.
+
+    The game's choice (``source_selection_probabilities``): no_inate removes the innate
+    abilities (RF_ABILITY_NOMAGIC_MASK, mspell-attack.cpp:45-52), so a spell-only caster casts
+    on every attempt.  This used to keep only the innate ones in that branch, which halved a
+    spell caster: 風の女王『アリエル』 (1_IN_5, three attack spells) read about 8% a move
+    against the game's 20% (n1-a life-514, 2026-11-12; monster-processor.cpp:554 attempts a
+    spell on randint1(100) <= freq_spell)."""
+    return source_selection_probabilities(monster, context)
 
 
 def source_selection_probabilities(
@@ -886,11 +882,14 @@ def ranged_action_distribution(
     per_action: dict[int, float] = {0: 1.0}
     single_hit_floor = 0
     for ability, selection_probability in selection_probabilities.items():
+        # A non-innate spell fails on 25 - (rlev + 3) / 4 percent (``ability_cast_success``,
+        # mspell-attack.cpp:183-192).
         selected_probability = min(
             1.0,
             max(
                 0.0,
-                monster.spell_frequency / 100.0 * selection_probability,
+                monster.spell_frequency / 100.0 * selection_probability
+                * ability_cast_success(ability, monster),
             ),
         )
         if selected_probability <= 0.0:

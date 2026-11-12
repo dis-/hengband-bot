@@ -56,6 +56,8 @@ from hengbot import (
     speed_dose,
     survival_preemption,  # noqa: F401 -- re-exported (tests patch threat_tiers.survival_preemption)
 )
+from dataclasses import replace
+
 from hengbot.item_reservation import decision_memo
 from hengbot.model import game_distance
 # The façade (maintainability review 2026-11-09, step 4): every name of the split modules is
@@ -158,9 +160,12 @@ from hengbot.threat_tier_memory import (  # noqa: F401
     engagement_reading,
     _past,
     held_tier,
+    t3_entered,
     _as_held,
     worsens_left,
     decided_sides,
+    MISSED_TURNS,
+    observed_loss,
 )
 
 # monster-death.cpp:226-251 decide_drop_numbers; the owner's counts (OQ-8).
@@ -639,7 +644,13 @@ def decided(policy, snapshot, hostiles, raw: Assessment) -> Assessment:
     # plan's, which the band would read as T2 (owner 2026-11-11 「T2 にしない」).
     overridden = (raw.instant_death or bool(raw.t2_withheld)
                   or supply_fight_stopped(snapshot, hostiles))
+    # The projection missed (owner 2026-11-12): the reading of the observed damage is taken
+    # as read, as 即死 is (``_projection_missed``).
+    if (missed := _projection_missed(policy, snapshot, hostiles, raw)) is not None:
+        raw, overridden = missed, True
     tier = raw.tier
+    if not known and not overridden and raw.tier == T3 and not t3_entered(raw):
+        tier = T2  # 「T3 に入るのは見積りの余裕が予備以上ある時だけ」 (held_tier)
     if known and not overridden:
         here = set(keys)
         mates = set().union(*(entry.group for entry in known))
@@ -667,6 +678,32 @@ def decided(policy, snapshot, hostiles, raw: Assessment) -> Assessment:
     if fought:
         retreat_veto_life.release(policy, snapshot, fought)
     return raw if tier == raw.tier else _as_held(raw, tier)
+
+
+def _projection_missed(policy, snapshot, hostiles, raw):
+    """The reading re-read from the observed damage when the HP lost over the last
+    MISSED_TURNS boards is above the projection over as many turns, else None.
+
+    Owner 2026-11-12 (n1-a life-514, 49F: 風の女王『アリエル』 read T3 at a 3-turn p95 of 192
+    while the boards lost 274 in one turn and the warrior meleed on; 「物資の使用は生存判定に任せる。
+    HPが減ったなら使うべきは回復テレポート破壊だったのではないのか？」): the projection that missed is
+    not trusted.  At the observed damage per turn the free attacks clear the engagement before
+    the HP runs out (T3 as read, still checked against its own margin), or the reading is T1,
+    which the leave answers (``leave_due``).  ``projection_missed`` records (observed, projected)."""
+    if raw.tier not in (T2, T3):
+        return None
+    observed = observed_loss(policy, snapshot)
+    if not observed:
+        return None
+    projected = policy.threat_prediction(snapshot, hostiles, MISSED_TURNS)["operational_total"]
+    if observed <= projected:
+        return None
+    per_turn = observed / MISSED_TURNS
+    hp = snapshot.player.hp
+    if raw.tier == T3 and raw.free_turns is not None and raw.free_turns * per_turn < hp:
+        return None
+    return replace(raw, tier=T1, raw_tier=raw.tier, supply_plan=None,
+                   projection_missed=(observed, projected))
 
 
 # A selection that makes the kill required (4.4 step 4: 「倒す必要があれば物資を使って早く倒す」);
