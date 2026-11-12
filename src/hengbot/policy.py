@@ -17677,7 +17677,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         shrank to the cells nearer it and the explore stepped '3' straight back; at 20:44
         to 20:45 ``chest:approach`` walked toward a chest the loot walk kept off, between
         [4,38] and [5,39], until the loop detector stopped the bot three more times."""
-        return frozenset(self._engagement_avoid_cells) | self._engagement_route_veto(snapshot)
+        return (frozenset(self._engagement_avoid_cells) | self._engagement_route_veto(snapshot)
+                | self._unseen_attack_area_veto(snapshot))
 
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.
